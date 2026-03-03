@@ -54,6 +54,7 @@ public class ExceptionHandlingMiddleware
         {
             ValidationException => (int)HttpStatusCode.BadRequest,
             BusinessRuleException => (int)HttpStatusCode.BadRequest,
+            UnauthorizedException => (int)HttpStatusCode.Unauthorized,
             NotFoundException => (int)HttpStatusCode.NotFound,
             _ => (int)HttpStatusCode.InternalServerError
         };
@@ -63,6 +64,7 @@ public class ExceptionHandlingMiddleware
         {
             ValidationException => "Validation Error",
             BusinessRuleException => "Business Rule Violation",
+            UnauthorizedException => "Unauthorized",
             NotFoundException => "Resource Not Found",
             _ => "Server Error"
         };
