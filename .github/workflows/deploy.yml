@@ -32,10 +32,13 @@ jobs:
         run: dotnet publish src/Zadana.Api/Zadana.Api.csproj --configuration Release --output ./publish --runtime win-x86 --self-contained false
 
       - name: Deploy to MonsterASP
-        uses: rasmusbuchholdt/simply-web-deploy@2.1.0
-        with:
-          website-name: site57375
-          server-computer-name: https://site57375.siteasp.net:8172
-          server-username: site57375
-          server-password: ${{ secrets.SERVER_PASSWORD }}
-          source-path: '\\publish\\'
+        shell: pwsh
+        run: |
+          $msdeploy = "C:\Program Files (x86)\IIS\Microsoft Web Deploy V3\msdeploy.exe"
+
+          & $msdeploy `
+            -verb:sync `
+            -allowUntrusted `
+            "-source:contentPath=${{ github.workspace }}\publish" `
+            "-dest:contentPath=site57375,computerName=https://site57375.siteasp.net:8172/MsDeploy.axd?site=site57375,username=site57375,password=${{ secrets.SERVER_PASSWORD }},AuthType='Basic'" `
+            -enableRule:DoNotDeleteRule
