@@ -39,7 +39,7 @@ public class IdentityService : IIdentityService
             
         if (user == null || !_passwordHasher.VerifyPassword(password, user.PasswordHash))
         {
-            throw new UnauthorizedException("Invalid credentials.");
+            throw new UnauthorizedException("بيانات الدخول غير صحيحة | Invalid credentials.");
         }
 
         if (expectedRoles != null && expectedRoles.Length > 0 && !expectedRoles.Contains(user.Role))
