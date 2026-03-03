@@ -71,7 +71,12 @@ builder.Services.AddAuthorization(options =>
 });
 
 // ───── API ─────
-builder.Services.AddControllers();
+builder.Services.AddControllers()
+    .ConfigureApiBehaviorOptions(options =>
+    {
+        // Suppress default ASP.NET Core validation so FluentValidation can return our localized messages
+        options.SuppressModelStateInvalidFilter = true;
+    });
 builder.Services.AddEndpointsApiExplorer();
 builder.Services.AddSwaggerGen(c =>
 {
