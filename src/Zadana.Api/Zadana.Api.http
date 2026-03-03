@@ -1,0 +1,6 @@
+@Zadana.Api_HostAddress = http://localhost:5298
+
+GET {{Zadana.Api_HostAddress}}/weatherforecast/
+Accept: application/json
+
+###
