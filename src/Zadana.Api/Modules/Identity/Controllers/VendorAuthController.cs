@@ -8,7 +8,7 @@ using Zadana.Application.Modules.Identity.Commands.RefreshToken;
 using Zadana.Application.Modules.Identity.Queries.GetCurrentUser;
 using Zadana.Domain.Modules.Identity.Enums;
 
-namespace Zadana.Api.Modules.Vendors.Controllers;
+namespace Zadana.Api.Modules.Identity.Controllers;
 
 [Route("api/vendors/auth")]
 [Tags("🏪 Vendor App - Auth")]

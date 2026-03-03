@@ -8,7 +8,7 @@ using Zadana.Application.Modules.Identity.Commands.RefreshToken;
 using Zadana.Application.Modules.Identity.Queries.GetCurrentUser;
 using Zadana.Domain.Modules.Identity.Enums;
 
-namespace Zadana.Api.Modules.Delivery.Controllers;
+namespace Zadana.Api.Modules.Identity.Controllers;
 
 [Route("api/drivers/auth")]
 [Tags("🚚 Driver App - Auth")]
