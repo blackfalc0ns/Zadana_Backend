@@ -125,11 +125,14 @@ app.UseAuthentication();
 app.UseAuthorization();
 app.MapControllers();
 
-// ───── Seed SuperAdmin ─────
+// ───── Auto-Migrate & Seed SuperAdmin ─────
 using (var scope = app.Services.CreateScope())
 {
     var db = scope.ServiceProvider.GetRequiredService<ApplicationDbContext>();
     var hasher = scope.ServiceProvider.GetRequiredService<IPasswordHasher>();
+
+    // Apply pending migrations automatically
+    db.Database.Migrate();
 
     if (!db.Users.Any(u => u.Role == Zadana.Domain.Modules.Identity.Enums.UserRole.SuperAdmin))
     {
