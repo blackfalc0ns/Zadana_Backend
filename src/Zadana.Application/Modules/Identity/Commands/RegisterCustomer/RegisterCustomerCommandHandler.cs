@@ -15,19 +15,22 @@ public class RegisterCustomerCommandHandler : IRequestHandler<RegisterCustomerCo
     private readonly IPasswordHasher _passwordHasher;
     private readonly IJwtTokenService _jwtTokenService;
     private readonly IOtpService _otpService;
+    private readonly IApplicationDbContext _context;
 
     public RegisterCustomerCommandHandler(
         IUserRepository userRepository,
         IUnitOfWork unitOfWork,
         IPasswordHasher passwordHasher,
         IJwtTokenService jwtTokenService,
-        IOtpService otpService)
+        IOtpService otpService,
+        IApplicationDbContext context)
     {
         _userRepository = userRepository;
         _unitOfWork = unitOfWork;
         _passwordHasher = passwordHasher;
         _jwtTokenService = jwtTokenService;
         _otpService = otpService;
+        _context = context;
     }
 
     public async Task<AuthResponseDto> Handle(RegisterCustomerCommand request, CancellationToken cancellationToken)
@@ -48,16 +51,39 @@ public class RegisterCustomerCommandHandler : IRequestHandler<RegisterCustomerCo
             request.Phone,
             passwordHash,
             UserRole.Customer,
-            request.ProfilePhotoUrl,
-            request.Address,
-            request.Latitude,
-            request.Longitude);
+            request.ProfilePhotoUrl);
 
         // Generate and log OTP
         var otpCode = user.GenerateOtp();
         await _otpService.SendOtpSmsAsync(user.Phone, otpCode, cancellationToken);
         
         _userRepository.Add(user);
+        await _unitOfWork.SaveChangesAsync(cancellationToken);
+
+        // --- Address Integration ---
+        AddressLabel? parsedLabel = null;
+        if (!string.IsNullOrWhiteSpace(request.Label) && Enum.TryParse<AddressLabel>(request.Label, true, out var l))
+        {
+            parsedLabel = l;
+        }
+
+        var address = new CustomerAddress(
+            userId: user.Id,
+            contactName: user.FullName,
+            contactPhone: user.Phone,
+            addressLine: request.AddressLine,
+            label: parsedLabel,
+            buildingNo: request.BuildingNo,
+            floorNo: request.FloorNo,
+            apartmentNo: request.ApartmentNo,
+            city: request.City,
+            area: request.Area,
+            latitude: request.Latitude,
+            longitude: request.Longitude
+        );
+        address.SetAsDefault();
+
+        _context.CustomerAddresses.Add(address);
         await _unitOfWork.SaveChangesAsync(cancellationToken);
 
         var tokens = await _jwtTokenService.GenerateTokenPairAsync(user, cancellationToken);

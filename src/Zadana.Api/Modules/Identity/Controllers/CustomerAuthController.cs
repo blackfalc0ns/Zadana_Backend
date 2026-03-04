@@ -9,6 +9,8 @@ using Zadana.Application.Modules.Identity.Commands.Logout;
 using Zadana.Application.Modules.Identity.Commands.RefreshToken;
 using Zadana.Application.Modules.Identity.Commands.RegisterCustomer;
 using Zadana.Application.Modules.Identity.Commands.VerifyOtp;
+using Zadana.Application.Modules.Identity.Commands.ForgotPassword;
+using Zadana.Application.Modules.Identity.Commands.ResetPassword;
 using Zadana.Application.Modules.Identity.Queries.GetCurrentUser;
 using Zadana.Domain.Modules.Identity.Enums;
 
@@ -51,6 +53,20 @@ public class CustomerAuthController : ApiControllerBase
     {
         var result = await Sender.Send(command);
         return Ok(result);
+    }
+
+    [HttpPost("forgot-password")]
+    public async Task<IActionResult> ForgotPassword([FromBody] ForgotPasswordCommand command)
+    {
+        await Sender.Send(command);
+        return Ok(new { Message = _localizer["PasswordResetOtpSent"].Value });
+    }
+
+    [HttpPost("reset-password")]
+    public async Task<IActionResult> ResetPassword([FromBody] ResetPasswordCommand command)
+    {
+        await Sender.Send(command);
+        return Ok(new { Message = _localizer["PasswordResetSuccess"].Value });
     }
 
     [Authorize(Policy = "CustomerOnly")]

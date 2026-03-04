@@ -15,6 +15,8 @@ public class User : BaseEntity
     public bool IsPhoneVerified { get; private set; }
     public string? OtpCode { get; private set; }
     public DateTime? OtpExpiryTime { get; private set; }
+    public string? PasswordResetOtp { get; private set; }
+    public DateTime? PasswordResetOtpExpiry { get; private set; }
     public DateTime? LastLoginAtUtc { get; private set; }
 
     // Profile
@@ -34,10 +36,7 @@ public class User : BaseEntity
         string phone,
         string passwordHash,
         UserRole role,
-        string? profilePhotoUrl = null,
-        string? address = null,
-        decimal? latitude = null,
-        decimal? longitude = null)
+        string? profilePhotoUrl = null)
     {
         FullName = fullName.Trim();
         Email = email.ToLowerInvariant().Trim();
@@ -48,9 +47,6 @@ public class User : BaseEntity
         IsEmailVerified = false;
         IsPhoneVerified = false;
         ProfilePhotoUrl = profilePhotoUrl;
-        Address = address?.Trim();
-        Latitude = latitude;
-        Longitude = longitude;
     }
 
     public void UpdateProfile(string fullName, string phone)
@@ -99,6 +95,33 @@ public class User : BaseEntity
         OtpCode = null;
         OtpExpiryTime = null;
         IsPhoneVerified = true; // Assuming OTP is primarily for Phone in this scenario
+        
+        return true;
+    }
+
+    // --- Password Reset Domain Behavior ---
+    public string GeneratePasswordResetOtp()
+    {
+        var random = new Random();
+        PasswordResetOtp = random.Next(1000, 9999).ToString();
+        PasswordResetOtpExpiry = DateTime.UtcNow.AddMinutes(15); // Valid for 15 minutes
+        return PasswordResetOtp;
+    }
+
+    public bool VerifyPasswordResetOtp(string code)
+    {
+        if (string.IsNullOrWhiteSpace(PasswordResetOtp) || PasswordResetOtpExpiry == null)
+            return false;
+
+        if (DateTime.UtcNow > PasswordResetOtpExpiry.Value)
+            return false; // Expired
+
+        if (PasswordResetOtp != code.Trim())
+            return false; // Incorrect
+
+        // Success: Clear the Reset OTP
+        PasswordResetOtp = null;
+        PasswordResetOtpExpiry = null;
         
         return true;
     }

@@ -139,4 +139,81 @@ public class UserEntityTests
         // Assert
         result.Should().BeFalse("no OTP exists to match against");
     }
+
+    // ─── Password Reset OTP Tests ──────────────────────────────────────────
+
+    [Fact]
+    public void GeneratePasswordResetOtp_SetsOtpAnd15MinuteExpiry()
+    {
+        // Arrange
+        var user = CreateTestUser();
+        var beforeGeneration = DateTime.UtcNow;
+
+        // Act
+        var code = user.GeneratePasswordResetOtp();
+
+        // Assert
+        code.Should().NotBeNullOrWhiteSpace();
+        code.Length.Should().Be(4); // Since it's between 1000 and 9999
+        code.Should().Be(user.PasswordResetOtp);
+        
+        user.PasswordResetOtpExpiry.Should().NotBeNull();
+        user.PasswordResetOtpExpiry.Value.Should().BeOnOrAfter(beforeGeneration.AddMinutes(15));
+        user.PasswordResetOtpExpiry.Value.Should().BeBefore(DateTime.UtcNow.AddMinutes(16));
+    }
+
+    [Fact]
+    public void VerifyPasswordResetOtp_ValidCode_ReturnsTrueAndClearsResetOtp()
+    {
+        // Arrange
+        var user = CreateTestUser();
+        var code = user.GeneratePasswordResetOtp();
+
+        // Act
+        var result = user.VerifyPasswordResetOtp(code);
+
+        // Assert
+        result.Should().BeTrue();
+        user.PasswordResetOtp.Should().BeNull();
+        user.PasswordResetOtpExpiry.Should().BeNull();
+    }
+
+    [Fact]
+    public void VerifyPasswordResetOtp_InvalidCode_ReturnsFalseAndLeavesResetOtpIntact()
+    {
+        // Arrange
+        var user = CreateTestUser();
+        user.GeneratePasswordResetOtp();
+        var invalidCode = "0000";
+
+        // Act
+        var result = user.VerifyPasswordResetOtp(invalidCode);
+
+        // Assert
+        result.Should().BeFalse();
+        user.PasswordResetOtp.Should().NotBeNull();
+        user.PasswordResetOtpExpiry.Should().NotBeNull();
+    }
+
+    [Fact]
+    public void VerifyPasswordResetOtp_ExpiredOtp_ReturnsFalseAndLeavesResetOtpIntact()
+    {
+        // Arrange
+        var user = CreateTestUser();
+        user.GeneratePasswordResetOtp();
+        
+        // Use reflection to forcefully expire the OTP for testing
+        var propertyInfo = typeof(User).GetProperty("PasswordResetOtpExpiry");
+        propertyInfo?.SetValue(user, DateTime.UtcNow.AddMinutes(-1));
+
+        var actualOtp = user.PasswordResetOtp;
+
+        // Act
+        var result = user.VerifyPasswordResetOtp(actualOtp!);
+
+        // Assert
+        result.Should().BeFalse();
+        user.PasswordResetOtp.Should().NotBeNull();
+        user.PasswordResetOtpExpiry.Should().NotBeNull();
+    }
 }

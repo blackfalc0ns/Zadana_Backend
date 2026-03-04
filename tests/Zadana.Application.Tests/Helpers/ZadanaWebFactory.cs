@@ -43,7 +43,19 @@ public class ZadanaWebFactory : WebApplicationFactory<Program>
             // Register the InMemory database (Program.cs skips SqlServer in Testing env)
             services.AddDbContext<ApplicationDbContext>(options =>
                 options.UseInMemoryDatabase(_dbName));
+
+            // Register Mock Email Service
+            services.AddScoped<IEmailService, MockEmailService>();
         });
+    }
+
+    private class MockEmailService : IEmailService
+    {
+        public Task SendEmailAsync(string to, string subject, string body, CancellationToken cancellationToken = default)
+        {
+            // Placeholder: In a real test, we might track sent emails
+            return Task.CompletedTask;
+        }
     }
 
     /// <summary>

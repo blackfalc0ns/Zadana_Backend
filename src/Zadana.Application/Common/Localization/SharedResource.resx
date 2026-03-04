@@ -197,4 +197,31 @@
   <data name="AccountVerifiedSuccessfully" xml:space="preserve">
     <value>Account verified successfully.</value>
   </data>
+  <data name="OtpCodeMustBe4Digits" xml:space="preserve">
+    <value>Verification code must be 4 digits.</value>
+  </data>
+  <data name="NewPassword" xml:space="preserve">
+    <value>New Password</value>
+  </data>
+  <data name="PasswordMinLength" xml:space="preserve">
+    <value>Password must be at least 8 characters.</value>
+  </data>
+  <data name="InvalidResetAttempt" xml:space="preserve">
+    <value>Invalid reset attempt.</value>
+  </data>
+  <data name="InvalidOrExpiredOtp" xml:space="preserve">
+    <value>OTP is invalid or expired.</value>
+  </data>
+  <data name="PasswordResetOtpSent" xml:space="preserve">
+    <value>If the account is registered, an OTP has been sent.</value>
+  </data>
+  <data name="PasswordResetSuccess" xml:space="preserve">
+    <value>Password reset successfully.</value>
+  </data>
+  <data name="PasswordResetEmailSubject" xml:space="preserve">
+    <value>Zadana | Password Reset Code</value>
+  </data>
+  <data name="PasswordResetEmailBody" xml:space="preserve">
+    <value><![CDATA[<div dir='ltr'>Your password reset code is: <b>{0}</b><br/>This code is valid for 15 minutes only.</div>]]></value>
+  </data>
 </root>

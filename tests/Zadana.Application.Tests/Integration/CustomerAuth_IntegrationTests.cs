@@ -28,7 +28,13 @@ public class CustomerAuth_IntegrationTests : IClassFixture<ZadanaWebFactory>
             fullName = "Integration Test User",
             email = $"user_{Guid.NewGuid():N}@test.com",
             phone = "010" + new Random().Next(10000000, 99999999).ToString(),
-            password = "P@ssword1234"
+            password = "P@ssword1234",
+            addressLine = "Test Address Line",
+            label = "Home",
+            city = "Cairo",
+            area = "Maadi",
+            latitude = 30.0,
+            longitude = 31.0
         };
 
         var response = await _client.PostAsJsonAsync("/api/customers/auth/register", body);
@@ -61,8 +67,8 @@ public class CustomerAuth_IntegrationTests : IClassFixture<ZadanaWebFactory>
         var phone1 = "011" + new Random().Next(10000000, 99999999).ToString();
         var phone2 = "012" + new Random().Next(10000000, 99999999).ToString();
 
-        var body1 = new { fullName = "User One", email, phone = phone1, password = "P@ssword1" };
-        var body2 = new { fullName = "User Two", email, phone = phone2, password = "P@ssword1" };
+        var body1 = new { fullName = "User One", email, phone = phone1, password = "P@ssword1", addressLine = "A1" };
+        var body2 = new { fullName = "User Two", email, phone = phone2, password = "P@ssword1", addressLine = "A2" };
 
         await _client.PostAsJsonAsync("/api/customers/auth/register", body1);
         var response = await _client.PostAsJsonAsync("/api/customers/auth/register", body2);
@@ -82,7 +88,7 @@ public class CustomerAuth_IntegrationTests : IClassFixture<ZadanaWebFactory>
         var password = "P@ssword1234";
 
         await _client.PostAsJsonAsync("/api/customers/auth/register",
-            new { fullName = "Login Test", email, phone, password });
+            new { fullName = "Login Test", email, phone, password, addressLine = "Login Address" });
 
         // Then login
         var loginBody = new { identifier = email, password };
@@ -128,7 +134,7 @@ public class CustomerAuth_IntegrationTests : IClassFixture<ZadanaWebFactory>
         var password = "P@ssword1234";
 
         await _client.PostAsJsonAsync("/api/customers/auth/register",
-            new { fullName = "Profile User", email, phone, password });
+            new { fullName = "Profile User", email, phone, password, addressLine = "Profile Address" });
 
         var loginResp = await _client.PostAsJsonAsync("/api/customers/auth/login",
             new { identifier = email, password });
@@ -174,6 +180,49 @@ public class CustomerAuth_IntegrationTests : IClassFixture<ZadanaWebFactory>
         var body = new { otpCode = "12" }; // identifier missing, code too short
 
         var response = await _client.PostAsJsonAsync("/api/customers/auth/verify-otp", body);
+
+        response.StatusCode.Should().Be(HttpStatusCode.BadRequest);
+    }
+
+    // ─── Forgot & Reset Password ───────────────────────────────────────────
+
+    [Fact]
+    public async Task ForgotPassword_WithValidIdentifier_Returns200()
+    {
+        var email = $"forgot_{Guid.NewGuid():N}@test.com";
+        var phone = "018" + new Random().Next(10000000, 99999999).ToString();
+        var password = "P@ssword1234";
+
+        await _client.PostAsJsonAsync("/api/customers/auth/register",
+            new { fullName = "Forgot Test", email, phone, password, addressLine = "Forgot Address" });
+
+        var body = new { identifier = email };
+        var response = await _client.PostAsJsonAsync("/api/customers/auth/forgot-password", body);
+
+        response.StatusCode.Should().Be(HttpStatusCode.OK);
+    }
+
+    [Fact]
+    public async Task ResetPassword_WithInvalidOtp_Returns400()
+    {
+        var email = $"reset_{Guid.NewGuid():N}@test.com";
+        var phone = "019" + new Random().Next(10000000, 99999999).ToString();
+        
+        await _client.PostAsJsonAsync("/api/customers/auth/register",
+            new { fullName = "Reset Test", email, phone, password = "P@ssword1234", addressLine = "Reset Address" });
+
+        // Trigger OTP generation
+        await _client.PostAsJsonAsync("/api/customers/auth/forgot-password", new { identifier = email });
+
+        // Attempt Reset with wrong OTP
+        var resetBody = new 
+        { 
+            identifier = email, 
+            otpCode = "0000", 
+            newPassword = "NewP@ssword123!" 
+        };
+        
+        var response = await _client.PostAsJsonAsync("/api/customers/auth/reset-password", resetBody);
 
         response.StatusCode.Should().Be(HttpStatusCode.BadRequest);
     }

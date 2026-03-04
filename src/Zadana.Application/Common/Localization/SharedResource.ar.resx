@@ -197,4 +197,31 @@
   <data name="AccountVerifiedSuccessfully" xml:space="preserve">
     <value>تم تفعيل الحساب بنجاح.</value>
   </data>
+  <data name="OtpCodeMustBe4Digits" xml:space="preserve">
+    <value>يجب أن يتكون كود التفعيل من 4 أرقام.</value>
+  </data>
+  <data name="NewPassword" xml:space="preserve">
+    <value>كلمة المرور الجديدة</value>
+  </data>
+  <data name="PasswordMinLength" xml:space="preserve">
+    <value>يجب أن تتكون كلمة المرور من 8 أحرف على الأقل.</value>
+  </data>
+  <data name="InvalidResetAttempt" xml:space="preserve">
+    <value>محاولة إعادة تعيين غير صالحة.</value>
+  </data>
+  <data name="InvalidOrExpiredOtp" xml:space="preserve">
+    <value>كود التفعيل غير صالح أو منتهي الصلاحية.</value>
+  </data>
+  <data name="PasswordResetOtpSent" xml:space="preserve">
+    <value>إذا كان الحساب مسجلاً، فقد تم إرسال كود التفعيل.</value>
+  </data>
+  <data name="PasswordResetSuccess" xml:space="preserve">
+    <value>تم إعادة تعيين كلمة المرور بنجاح.</value>
+  </data>
+  <data name="PasswordResetEmailSubject" xml:space="preserve">
+    <value>زادانا | رمز إعادة تعيين كلمة المرور</value>
+  </data>
+  <data name="PasswordResetEmailBody" xml:space="preserve">
+    <value><![CDATA[<div dir='rtl'>رمز إعادة تعيين كلمة المرور الخاص بك هو: <b>{0}</b><br/>هذا الرمز صالح لمدة 15 دقيقة فقط.</div>]]></value>
+  </data>
 </root>

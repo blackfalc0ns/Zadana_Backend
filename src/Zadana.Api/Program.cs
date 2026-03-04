@@ -40,7 +40,7 @@ builder.Services.AddTransient<Zadana.Application.Common.Interfaces.IFileStorageS
 // ───── Security & Auth ─────
 builder.Services.AddHttpContextAccessor();
 // Add Identity Infrastructure
-builder.Services.AddIdentityInfrastructure();
+builder.Services.AddIdentityInfrastructure(builder.Configuration);
 
 
 builder.Services.AddAuthentication(JwtBearerDefaults.AuthenticationScheme)

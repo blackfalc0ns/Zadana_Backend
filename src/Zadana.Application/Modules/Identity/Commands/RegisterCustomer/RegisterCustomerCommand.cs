@@ -9,7 +9,13 @@ public record RegisterCustomerCommand(
     string Phone,
     string Password,
     string? ProfilePhotoUrl,
-    string? Address,
+    string AddressLine,
+    string? Label, // "Home", "Work", "Other"
+    string? BuildingNo,
+    string? FloorNo,
+    string? ApartmentNo,
+    string? City,
+    string? Area,
     decimal? Latitude,
     decimal? Longitude
 ) : IRequest<AuthResponseDto>;

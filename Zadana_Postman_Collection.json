@@ -134,7 +134,61 @@
               }
             },
             {
-              "name": "4. Get My Profile",
+              "name": "4. Forgot Password",
+              "request": {
+                "method": "POST",
+                "header": [
+                  {
+                    "key": "Content-Type",
+                    "value": "application/json"
+                  }
+                ],
+                "body": {
+                  "mode": "raw",
+                  "raw": "{\n  \"identifier\": \"01011122233\"\n}"
+                },
+                "url": {
+                  "raw": "{{baseUrl}}/customers/auth/forgot-password",
+                  "host": [
+                    "{{baseUrl}}"
+                  ],
+                  "path": [
+                    "customers",
+                    "auth",
+                    "forgot-password"
+                  ]
+                }
+              }
+            },
+            {
+              "name": "5. Reset Password",
+              "request": {
+                "method": "POST",
+                "header": [
+                  {
+                    "key": "Content-Type",
+                    "value": "application/json"
+                  }
+                ],
+                "body": {
+                  "mode": "raw",
+                  "raw": "{\n  \"identifier\": \"01011122233\",\n  \"otpCode\": \"1234\",\n  \"newPassword\": \"NewP@ssw0rd123\"\n}"
+                },
+                "url": {
+                  "raw": "{{baseUrl}}/customers/auth/reset-password",
+                  "host": [
+                    "{{baseUrl}}"
+                  ],
+                  "path": [
+                    "customers",
+                    "auth",
+                    "reset-password"
+                  ]
+                }
+              }
+            },
+            {
+              "name": "6. Get My Profile",
               "request": {
                 "method": "GET",
                 "header": [
@@ -327,7 +381,61 @@
               }
             },
             {
-              "name": "3. Get My Vendor Profile",
+              "name": "4. Forgot Password",
+              "request": {
+                "method": "POST",
+                "header": [
+                  {
+                    "key": "Content-Type",
+                    "value": "application/json"
+                  }
+                ],
+                "body": {
+                  "mode": "raw",
+                  "raw": "{\n  \"identifier\": \"contact@market.com\"\n}"
+                },
+                "url": {
+                  "raw": "{{baseUrl}}/vendors/auth/forgot-password",
+                  "host": [
+                    "{{baseUrl}}"
+                  ],
+                  "path": [
+                    "vendors",
+                    "auth",
+                    "forgot-password"
+                  ]
+                }
+              }
+            },
+            {
+              "name": "5. Reset Password",
+              "request": {
+                "method": "POST",
+                "header": [
+                  {
+                    "key": "Content-Type",
+                    "value": "application/json"
+                  }
+                ],
+                "body": {
+                  "mode": "raw",
+                  "raw": "{\n  \"identifier\": \"contact@market.com\",\n  \"otpCode\": \"1234\",\n  \"newPassword\": \"NewP@ssw0rd123\"\n}"
+                },
+                "url": {
+                  "raw": "{{baseUrl}}/vendors/auth/reset-password",
+                  "host": [
+                    "{{baseUrl}}"
+                  ],
+                  "path": [
+                    "vendors",
+                    "auth",
+                    "reset-password"
+                  ]
+                }
+              }
+            },
+            {
+              "name": "6. Get My Vendor Profile",
               "request": {
                 "method": "GET",
                 "header": [
@@ -427,7 +535,61 @@
               }
             },
             {
-              "name": "3. Get My Driver Profile",
+              "name": "4. Forgot Password",
+              "request": {
+                "method": "POST",
+                "header": [
+                  {
+                    "key": "Content-Type",
+                    "value": "application/json"
+                  }
+                ],
+                "body": {
+                  "mode": "raw",
+                  "raw": "{\n  \"identifier\": \"01111111111\"\n}"
+                },
+                "url": {
+                  "raw": "{{baseUrl}}/drivers/auth/forgot-password",
+                  "host": [
+                    "{{baseUrl}}"
+                  ],
+                  "path": [
+                    "drivers",
+                    "auth",
+                    "forgot-password"
+                  ]
+                }
+              }
+            },
+            {
+              "name": "5. Reset Password",
+              "request": {
+                "method": "POST",
+                "header": [
+                  {
+                    "key": "Content-Type",
+                    "value": "application/json"
+                  }
+                ],
+                "body": {
+                  "mode": "raw",
+                  "raw": "{\n  \"identifier\": \"01111111111\",\n  \"otpCode\": \"1234\",\n  \"newPassword\": \"NewP@ssw0rd123\"\n}"
+                },
+                "url": {
+                  "raw": "{{baseUrl}}/drivers/auth/reset-password",
+                  "host": [
+                    "{{baseUrl}}"
+                  ],
+                  "path": [
+                    "drivers",
+                    "auth",
+                    "reset-password"
+                  ]
+                }
+              }
+            },
+            {
+              "name": "6. Get My Driver Profile",
               "request": {
                 "method": "GET",
                 "header": [

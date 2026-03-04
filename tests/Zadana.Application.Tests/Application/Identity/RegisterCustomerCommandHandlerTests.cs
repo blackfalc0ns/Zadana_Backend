@@ -20,6 +20,7 @@ public class RegisterCustomerCommandHandlerTests
     private readonly Mock<IPasswordHasher> _passwordHasherMock = new();
     private readonly Mock<IJwtTokenService> _jwtTokenServiceMock = new();
     private readonly Mock<IOtpService> _otpServiceMock = new();
+    private readonly Mock<IApplicationDbContext> _dbContextMock = new();
 
     private RegisterCustomerCommandHandler CreateHandler() =>
         new(
@@ -27,7 +28,8 @@ public class RegisterCustomerCommandHandlerTests
             _unitOfWorkMock.Object,
             _passwordHasherMock.Object,
             _jwtTokenServiceMock.Object,
-            _otpServiceMock.Object
+            _otpServiceMock.Object,
+            _dbContextMock.Object
         );
 
     private void SetupTokenService()
@@ -50,7 +52,7 @@ public class RegisterCustomerCommandHandlerTests
             .ReturnsAsync(existingUser);
 
         var command = new RegisterCustomerCommand(
-            "New User", "taken@mail.com", "01011111111", "P@ssword1", null, null, null, null);
+            "New User", "taken@mail.com", "01011111111", "P@ssword1", null, "Address Line", "Home", "123", "1", "1A", "City", "Area", 30.0m, 31.0m);
 
         var handler = CreateHandler();
 
@@ -81,7 +83,10 @@ public class RegisterCustomerCommandHandlerTests
         SetupTokenService();
 
         var command = new RegisterCustomerCommand(
-            "Ahmed Ali", "ahmed@test.com", "01011122233", "P@ssword1", null, null, null, null);
+            "Ahmed Ali", "ahmed@test.com", "01011122233", "P@ssword1", null, "Address Line", "Home", "123", "1", "1A", "City", "Area", 30.0m, 31.0m);
+        
+        var addresses = new Mock<Microsoft.EntityFrameworkCore.DbSet<CustomerAddress>>();
+        _dbContextMock.Setup(x => x.CustomerAddresses).Returns(addresses.Object);
 
         var handler = CreateHandler();
 
@@ -108,7 +113,10 @@ public class RegisterCustomerCommandHandlerTests
         SetupTokenService();
 
         var command = new RegisterCustomerCommand(
-            "Sara Salem", "sara@test.com", "01099988877", "P@ssword1", null, null, null, null);
+            "Sara Salem", "sara@test.com", "01099988877", "P@ssword1", null, "Address Line", "Home", "123", "1", "1A", "City", "Area", 30.0m, 31.0m);
+
+        var addresses = new Mock<Microsoft.EntityFrameworkCore.DbSet<CustomerAddress>>();
+        _dbContextMock.Setup(x => x.CustomerAddresses).Returns(addresses.Object);
 
         var handler = CreateHandler();
 
@@ -137,7 +145,10 @@ public class RegisterCustomerCommandHandlerTests
         SetupTokenService();
 
         var command = new RegisterCustomerCommand(
-            "Omar Tarek", "omar@test.com", "01011112222", "P@ssword1", null, null, null, null);
+            "Omar Tarek", "omar@test.com", "01011112222", "P@ssword1", null, "Address Line", "Home", "123", "1", "1A", "City", "Area", 30.0m, 31.0m);
+
+        var addresses = new Mock<Microsoft.EntityFrameworkCore.DbSet<CustomerAddress>>();
+        _dbContextMock.Setup(x => x.CustomerAddresses).Returns(addresses.Object);
 
         var handler = CreateHandler();
 
