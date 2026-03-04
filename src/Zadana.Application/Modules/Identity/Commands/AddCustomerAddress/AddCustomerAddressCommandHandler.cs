@@ -1,9 +1,10 @@
 using MediatR;
 using Zadana.Application.Common.Interfaces;
-using Zadana.Domain.Modules.Delivery.Entities;
+using Zadana.Domain.Modules.Identity.Entities;
+using Zadana.Domain.Modules.Identity.Enums;
 using Zadana.SharedKernel.Exceptions;
 
-namespace Zadana.Application.Modules.Delivery.Commands.AddCustomerAddress;
+namespace Zadana.Application.Modules.Identity.Commands.AddCustomerAddress;
 
 public class AddCustomerAddressCommandHandler : IRequestHandler<AddCustomerAddressCommand, Guid>
 {
@@ -21,12 +22,18 @@ public class AddCustomerAddressCommandHandler : IRequestHandler<AddCustomerAddre
         if (!userExists)
             throw new NotFoundException("User", request.UserId);
 
+        AddressLabel? parsedLabel = null;
+        if (!string.IsNullOrWhiteSpace(request.Label) && Enum.TryParse<AddressLabel>(request.Label, true, out var l))
+        {
+            parsedLabel = l;
+        }
+
         var address = new CustomerAddress(
             userId: request.UserId,
             contactName: request.ContactName,
             contactPhone: request.ContactPhone,
             addressLine: request.AddressLine,
-            label: request.Label,
+            label: parsedLabel,
             buildingNo: request.BuildingNo,
             floorNo: request.FloorNo,
             apartmentNo: request.ApartmentNo,

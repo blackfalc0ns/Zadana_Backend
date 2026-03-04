@@ -8,7 +8,7 @@ namespace Zadana.Api.Modules.Vendors.Controllers;
 
 [Route("api/admin/vendors")]
 [Authorize(Policy = "AdminOnly")]
-[Tags("🛡️ Admin Panel - Vendors")]
+[Tags("👑 4. Admin Dashboard API")]
 public class AdminVendorsController : ApiControllerBase
 {
     /// <summary>

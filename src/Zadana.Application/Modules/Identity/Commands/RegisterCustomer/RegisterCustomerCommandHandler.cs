@@ -14,17 +14,20 @@ public class RegisterCustomerCommandHandler : IRequestHandler<RegisterCustomerCo
     private readonly IUnitOfWork _unitOfWork;
     private readonly IPasswordHasher _passwordHasher;
     private readonly IJwtTokenService _jwtTokenService;
+    private readonly IOtpService _otpService;
 
     public RegisterCustomerCommandHandler(
         IUserRepository userRepository,
         IUnitOfWork unitOfWork,
         IPasswordHasher passwordHasher,
-        IJwtTokenService jwtTokenService)
+        IJwtTokenService jwtTokenService,
+        IOtpService otpService)
     {
         _userRepository = userRepository;
         _unitOfWork = unitOfWork;
         _passwordHasher = passwordHasher;
         _jwtTokenService = jwtTokenService;
+        _otpService = otpService;
     }
 
     public async Task<AuthResponseDto> Handle(RegisterCustomerCommand request, CancellationToken cancellationToken)
@@ -50,6 +53,10 @@ public class RegisterCustomerCommandHandler : IRequestHandler<RegisterCustomerCo
             request.Latitude,
             request.Longitude);
 
+        // Generate and log OTP
+        var otpCode = user.GenerateOtp();
+        await _otpService.SendOtpSmsAsync(user.Phone, otpCode, cancellationToken);
+        
         _userRepository.Add(user);
         await _unitOfWork.SaveChangesAsync(cancellationToken);
 

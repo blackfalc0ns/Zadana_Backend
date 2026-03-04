@@ -9,9 +9,11 @@ public class LoginCommandValidator : AbstractValidator<LoginCommand>
     public LoginCommandValidator(IStringLocalizer<SharedResource> localizer)
     {
         RuleFor(x => x.Identifier)
-            .NotEmpty().WithMessage(x => localizer["RequiredField"]);
+            .NotEmpty().WithMessage(x => localizer["RequiredField"])
+            .WithName(x => localizer["PhoneOrEmail"]);
 
         RuleFor(x => x.Password)
-            .NotEmpty().WithMessage(x => localizer["RequiredField"]);
+            .NotEmpty().WithMessage(x => localizer["RequiredField"])
+            .WithName(x => localizer["Password"]);
     }
 }

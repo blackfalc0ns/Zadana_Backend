@@ -13,6 +13,8 @@ public class User : BaseEntity
     public AccountStatus AccountStatus { get; private set; }
     public bool IsEmailVerified { get; private set; }
     public bool IsPhoneVerified { get; private set; }
+    public string? OtpCode { get; private set; }
+    public DateTime? OtpExpiryTime { get; private set; }
     public DateTime? LastLoginAtUtc { get; private set; }
 
     // Profile
@@ -71,4 +73,33 @@ public class User : BaseEntity
     public void Activate() => AccountStatus = AccountStatus.Active;
     public void Ban() => AccountStatus = AccountStatus.Banned;
     public void Deactivate() => AccountStatus = AccountStatus.Inactive;
+
+    // --- OTP Domain Behavior ---
+    public string GenerateOtp()
+    {
+        // Generate a 4-digit code (simple string randomizer)
+        var random = new Random();
+        OtpCode = random.Next(1000, 9999).ToString();
+        OtpExpiryTime = DateTime.UtcNow.AddMinutes(5); // Valid for 5 minutes
+        return OtpCode;
+    }
+
+    public bool VerifyOtp(string code)
+    {
+        if (string.IsNullOrWhiteSpace(OtpCode) || OtpExpiryTime == null)
+            return false;
+
+        if (DateTime.UtcNow > OtpExpiryTime.Value)
+            return false; // Expired
+
+        if (OtpCode != code.Trim())
+            return false; // Incorrect
+
+        // Success: Clear the OTP and mark as verified
+        OtpCode = null;
+        OtpExpiryTime = null;
+        IsPhoneVerified = true; // Assuming OTP is primarily for Phone in this scenario
+        
+        return true;
+    }
 }

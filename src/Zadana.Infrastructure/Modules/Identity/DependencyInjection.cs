@@ -5,6 +5,7 @@ using Microsoft.AspNetCore.Http;
 using Zadana.Domain.Modules.Identity.Interfaces;
 using Zadana.Infrastructure.Modules.Identity.Repositories;
 using Zadana.Infrastructure.Modules.Identity.Services;
+using Zadana.Infrastructure.Services;
 
 namespace Zadana.Infrastructure.Modules.Identity;
 
@@ -20,6 +21,7 @@ public static class DependencyInjection
         services.AddTransient<IJwtTokenService, JwtTokenService>();
         services.AddTransient<IPasswordHasher, PasswordHasher>();
         services.AddScoped<ICurrentUserService, CurrentUserService>();
+        services.AddTransient<IOtpService, MockOtpService>();
 
         return services;
     }

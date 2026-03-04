@@ -1,9 +1,9 @@
 using System.Net;
 using System.Text.Json;
-using FluentValidation;
 using Microsoft.AspNetCore.Http;
 using Microsoft.Extensions.Logging;
 using Zadana.SharedKernel.Exceptions;
+using ValidationException = Zadana.Application.Common.Exceptions.ValidationException;
 
 namespace Zadana.Api.Middleware;
 
@@ -35,11 +35,24 @@ public class ExceptionHandlingMiddleware
     {
         context.Response.ContentType = "application/json";
 
+        var language = context.Request.Headers["Accept-Language"].ToString().ToLower();
+        var isArabic = language.Contains("ar");
+        
+        var message = exception.Message;
+        if (!string.IsNullOrWhiteSpace(message) && message.Contains('|'))
+        {
+            var parts = message.Split('|', StringSplitOptions.RemoveEmptyEntries | StringSplitOptions.TrimEntries);
+            if (parts.Length >= 2)
+            {
+                message = isArabic ? parts[0] : parts[1];
+            }
+        }
+
         var response = new 
         {
             Title = GetTitle(exception),
             Status = GetStatusCode(exception),
-            Detail = exception.Message,
+            Detail = message,
             Errors = GetErrors(exception)
         };
 
@@ -73,12 +86,7 @@ public class ExceptionHandlingMiddleware
     {
         if (exception is ValidationException validationException)
         {
-            return validationException.Errors
-                .GroupBy(e => e.PropertyName)
-                .ToDictionary(
-                    g => g.Key,
-                    g => g.Select(e => e.ErrorMessage).ToArray()
-                );
+            return validationException.Errors;
         }
 
         return null;

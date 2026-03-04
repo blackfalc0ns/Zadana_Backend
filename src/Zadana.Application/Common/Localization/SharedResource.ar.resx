@@ -59,4 +59,142 @@
   <data name="InvalidDateRange" xml:space="preserve">
     <value>يجب أن يكون تاريخ الانتهاء بعد تاريخ البدء.</value>
   </data>
+  <data name="PhoneOrEmail" xml:space="preserve">
+    <value>رقم الهاتف أو البريد الإلكتروني</value>
+  </data>
+  <data name="Password" xml:space="preserve">
+    <value>كلمة المرور</value>
+  </data>
+  <data name="FullName" xml:space="preserve">
+    <value>الاسم الكامل</value>
+  </data>
+  <data name="Email" xml:space="preserve">
+    <value>البريد الإلكتروني</value>
+  </data>
+  <data name="Phone" xml:space="preserve">
+    <value>رقم الهاتف</value>
+  </data>
+  <data name="VehicleType" xml:space="preserve">
+    <value>نوع المركبة</value>
+  </data>
+  <data name="NationalId" xml:space="preserve">
+    <value>الرقم القومي</value>
+  </data>
+  <data name="LicenseNumber" xml:space="preserve">
+    <value>رقم الرخصة</value>
+  </data>
+  <data name="Address" xml:space="preserve">
+    <value>العنوان</value>
+  </data>
+  <data name="NationalIdImageUrl" xml:space="preserve">
+    <value>صورة بطاقة الرقم القومي</value>
+  </data>
+  <data name="LicenseImageUrl" xml:space="preserve">
+    <value>صورة الرخصة</value>
+  </data>
+  <data name="VehicleImageUrl" xml:space="preserve">
+    <value>صورة المركبة</value>
+  </data>
+  <data name="PersonalPhotoUrl" xml:space="preserve">
+    <value>الصورة الشخصية</value>
+  </data>
+  <data name="BusinessNameAr" xml:space="preserve">
+    <value>اسم النشاط التجاري (بالعربية)</value>
+  </data>
+  <data name="BusinessNameEn" xml:space="preserve">
+    <value>اسم النشاط التجاري (بالإنجليزية)</value>
+  </data>
+  <data name="BusinessType" xml:space="preserve">
+    <value>نوع النشاط التجاري</value>
+  </data>
+  <data name="CommercialRegistrationNumber" xml:space="preserve">
+    <value>رقم السجل التجاري</value>
+  </data>
+  <data name="ContactEmail" xml:space="preserve">
+    <value>البريد الإلكتروني للتواصل</value>
+  </data>
+  <data name="ContactPhone" xml:space="preserve">
+    <value>رقم هاتف التواصل</value>
+  </data>
+  <data name="BranchName" xml:space="preserve">
+    <value>اسم الفرع</value>
+  </data>
+  <data name="BranchAddressLine" xml:space="preserve">
+    <value>عنوان الفرع</value>
+  </data>
+  <data name="BranchLatitude" xml:space="preserve">
+    <value>خط عرض الفرع</value>
+  </data>
+  <data name="BranchLongitude" xml:space="preserve">
+    <value>خط طول الفرع</value>
+  </data>
+  <data name="BranchContactPhone" xml:space="preserve">
+    <value>رقم هاتف الفرع</value>
+  </data>
+  <data name="BranchDeliveryRadiusKm" xml:space="preserve">
+    <value>نطاق التوصيل للفرع (كم)</value>
+  </data>
+  <data name="InvalidCredentials" xml:space="preserve">
+    <value>بيانات الدخول غير صحيحة.</value>
+  </data>
+  <data name="UnauthorizedAppAccess" xml:space="preserve">
+    <value>غير مصرح لك بالدخول إلى هذا التطبيق.</value>
+  </data>
+  <data name="AccountLoginDenied" xml:space="preserve">
+    <value>تم رفض تسجيل الدخول. حالة الحساب هي {0}.</value>
+  </data>
+  <data name="InvalidRefreshToken" xml:space="preserve">
+    <value>رمز التحديث غير صالح أو منتهي الصلاحية.</value>
+  </data>
+  <data name="UserAccountNotActive" xml:space="preserve">
+    <value>حساب المستخدم لم يعد نشطاً.</value>
+  </data>
+  <data name="UserNotAuthenticated" xml:space="preserve">
+    <value>المستخدم غير مسجل الدخول.</value>
+  </data>
+  <data name="UserNotFound" xml:space="preserve">
+    <value>المستخدم غير موجود.</value>
+  </data>
+  <data name="ContactName" xml:space="preserve">
+    <value>اسم المستلم</value>
+  </data>
+  <data name="AddressLine" xml:space="preserve">
+    <value>العنوان التفصيلي</value>
+  </data>
+  <data name="Label" xml:space="preserve">
+    <value>تسمية العنوان</value>
+  </data>
+  <data name="BuildingNo" xml:space="preserve">
+    <value>رقم المبنى</value>
+  </data>
+  <data name="FloorNo" xml:space="preserve">
+    <value>رقم الطابق</value>
+  </data>
+  <data name="ApartmentNo" xml:space="preserve">
+    <value>رقم الشقة</value>
+  </data>
+  <data name="City" xml:space="preserve">
+    <value>المدينة</value>
+  </data>
+  <data name="Area" xml:space="preserve">
+    <value>المنطقة</value>
+  </data>
+  <data name="Latitude" xml:space="preserve">
+    <value>خط العرض</value>
+  </data>
+  <data name="Longitude" xml:space="preserve">
+    <value>خط الطول</value>
+  </data>
+  <data name="Identifier" xml:space="preserve">
+    <value>رقم الهاتف أو البريد الإلكتروني</value>
+  </data>
+  <data name="OtpCode" xml:space="preserve">
+    <value>كود التفعيل</value>
+  </data>
+  <data name="InvalidOtpLength" xml:space="preserve">
+    <value>يجب أن يتكون كود التفعيل من 4 أرقام.</value>
+  </data>
+  <data name="AccountVerifiedSuccessfully" xml:space="preserve">
+    <value>تم تفعيل الحساب بنجاح.</value>
+  </data>
 </root>

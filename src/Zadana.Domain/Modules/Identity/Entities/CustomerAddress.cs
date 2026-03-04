@@ -1,12 +1,12 @@
-using Zadana.Domain.Modules.Identity.Entities;
 using Zadana.SharedKernel.Primitives;
+using Zadana.Domain.Modules.Identity.Enums;
 
-namespace Zadana.Domain.Modules.Delivery.Entities;
+namespace Zadana.Domain.Modules.Identity.Entities;
 
 public class CustomerAddress : BaseEntity
 {
     public Guid UserId { get; private set; }
-    public string? Label { get; private set; } // E.g. "Home", "Work"
+    public AddressLabel? Label { get; private set; }
     public string ContactName { get; private set; } = null!;
     public string ContactPhone { get; private set; } = null!;
     public string AddressLine { get; private set; } = null!;
@@ -29,7 +29,7 @@ public class CustomerAddress : BaseEntity
         string contactName,
         string contactPhone,
         string addressLine,
-        string? label = null,
+        AddressLabel? label = null,
         string? buildingNo = null,
         string? floorNo = null,
         string? apartmentNo = null,
@@ -42,7 +42,7 @@ public class CustomerAddress : BaseEntity
         ContactName = contactName.Trim();
         ContactPhone = contactPhone.Trim();
         AddressLine = addressLine.Trim();
-        Label = label?.Trim();
+        Label = label;
         BuildingNo = buildingNo?.Trim();
         FloorNo = floorNo?.Trim();
         ApartmentNo = apartmentNo?.Trim();
@@ -60,7 +60,7 @@ public class CustomerAddress : BaseEntity
         string contactName,
         string contactPhone,
         string addressLine,
-        string? label,
+        AddressLabel? label,
         string? buildingNo,
         string? floorNo,
         string? apartmentNo,
@@ -72,7 +72,7 @@ public class CustomerAddress : BaseEntity
         ContactName = contactName.Trim();
         ContactPhone = contactPhone.Trim();
         AddressLine = addressLine.Trim();
-        Label = label?.Trim();
+        Label = label;
         BuildingNo = buildingNo?.Trim();
         FloorNo = floorNo?.Trim();
         ApartmentNo = apartmentNo?.Trim();

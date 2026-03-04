@@ -11,7 +11,7 @@ using Zadana.Domain.Modules.Identity.Enums;
 namespace Zadana.Api.Modules.Identity.Controllers;
 
 [Route("api/drivers/auth")]
-[Tags("🚚 Driver App - Auth")]
+[Tags("🛵 3. Driver App API")]
 public class DriverAuthController : ApiControllerBase
 {
     [HttpPost("login")]

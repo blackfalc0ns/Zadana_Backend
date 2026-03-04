@@ -11,7 +11,7 @@ using Zadana.Domain.Modules.Identity.Enums;
 namespace Zadana.Api.Modules.Identity.Controllers;
 
 [Route("api/vendors/auth")]
-[Tags("🏪 Vendor App - Auth")]
+[Tags("🏪 2. Vendor App API")]
 public class VendorAuthController : ApiControllerBase
 {
     [HttpPost("login")]

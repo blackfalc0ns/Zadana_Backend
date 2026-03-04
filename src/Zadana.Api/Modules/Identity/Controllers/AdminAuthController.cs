@@ -11,7 +11,7 @@ using Zadana.Domain.Modules.Identity.Enums;
 namespace Zadana.Api.Modules.Identity.Controllers;
 
 [Route("api/admin/auth")]
-[Tags("🛡️ Admin Dashboard - Auth")]
+[Tags("👑 4. Admin Dashboard API")]
 public class AdminAuthController : ApiControllerBase
 {
     [HttpPost("login")]

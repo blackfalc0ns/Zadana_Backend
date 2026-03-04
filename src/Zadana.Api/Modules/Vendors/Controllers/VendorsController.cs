@@ -5,7 +5,7 @@ using Zadana.Application.Modules.Vendors.Commands.RegisterVendor;
 namespace Zadana.Api.Modules.Vendors.Controllers;
 
 [Route("api/vendors")]
-[Tags("🏪 Vendor App")]
+[Tags("🏪 2. Vendor App API")]
 public class VendorsController : ApiControllerBase
 {
     /// <summary>

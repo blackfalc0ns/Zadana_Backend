@@ -1,6 +1,6 @@
 using Microsoft.EntityFrameworkCore;
 using Microsoft.EntityFrameworkCore.Metadata.Builders;
-using Zadana.Domain.Modules.Delivery.Entities;
+using Zadana.Domain.Modules.Identity.Entities;
 
 namespace Zadana.Infrastructure.Persistence.Configurations;
 
@@ -12,7 +12,9 @@ public class CustomerAddressConfiguration : IEntityTypeConfiguration<CustomerAdd
 
         builder.HasKey(x => x.Id);
 
-        builder.Property(x => x.Label).HasMaxLength(100);
+        builder.Property(x => x.Label)
+            .HasConversion<string>()
+            .HasMaxLength(50);
         builder.Property(x => x.ContactName).HasMaxLength(200).IsRequired();
         builder.Property(x => x.ContactPhone).HasMaxLength(50).IsRequired();
         builder.Property(x => x.AddressLine).HasMaxLength(500).IsRequired();
