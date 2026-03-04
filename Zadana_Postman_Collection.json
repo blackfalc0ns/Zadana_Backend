@@ -50,7 +50,7 @@
                 ],
                 "body": {
                   "mode": "raw",
-                  "raw": "{\n  \"fullName\": \"Ahmed Ali\",\n  \"email\": \"ahmed@zadana.com\",\n  \"phone\": \"01011122233\",\n  \"password\": \"P@ssw0rd123\",\n  \"address\": \"Nasr City, Cairo\",\n  \"latitude\": 30.0444,\n  \"longitude\": 31.2357\n}"
+                  "raw": "{\n  \"fullName\": \"Ahmed Ali\",\n  \"email\": \"ahmed@zadana.com\",\n  \"phone\": \"01011122233\",\n  \"password\": \"P@ssw0rd123\",\n  \"addressLine\": \"Street 15, Makram Ebeid\",\n  \"label\": \"Home\",\n  \"buildingNo\": \"42\",\n  \"floorNo\": \"5\",\n  \"apartmentNo\": \"15\",\n  \"city\": \"Cairo\",\n  \"area\": \"Nasr City\",\n  \"latitude\": 30.0555,\n  \"longitude\": 31.3333\n}"
                 },
                 "url": {
                   "raw": "{{baseUrl}}/customers/auth/register",

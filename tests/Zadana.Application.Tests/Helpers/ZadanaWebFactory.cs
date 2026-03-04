@@ -31,7 +31,11 @@ public class ZadanaWebFactory : WebApplicationFactory<Program>
                 ["JwtSettings:Secret"] = "TestSecretKey_For_Integration_Tests_Only_32chars!",
                 ["JwtSettings:Issuer"] = "ZadanaTest",
                 ["JwtSettings:Audience"] = "ZadanaTestClient",
-                ["JwtSettings:ExpiryMinutes"] = "60"
+                ["JwtSettings:ExpiryMinutes"] = "60",
+                // Dummy Twilio settings for testing (won't be used)
+                ["TwilioSettings:AccountSid"] = "ACtest",
+                ["TwilioSettings:AuthToken"] = "test_token",
+                ["TwilioSettings:FromNumber"] = "+10000000000"
             });
         });
 
@@ -44,8 +48,10 @@ public class ZadanaWebFactory : WebApplicationFactory<Program>
             services.AddDbContext<ApplicationDbContext>(options =>
                 options.UseInMemoryDatabase(_dbName));
 
-            // Register Mock Email Service
+            // Replace real services with mocks for testing
             services.AddScoped<IEmailService, MockEmailService>();
+            services.RemoveAll<IOtpService>();
+            services.AddTransient<IOtpService, MockTestOtpService>();
         });
     }
 
@@ -53,7 +59,19 @@ public class ZadanaWebFactory : WebApplicationFactory<Program>
     {
         public Task SendEmailAsync(string to, string subject, string body, CancellationToken cancellationToken = default)
         {
-            // Placeholder: In a real test, we might track sent emails
+            return Task.CompletedTask;
+        }
+    }
+
+    private class MockTestOtpService : IOtpService
+    {
+        public Task SendOtpSmsAsync(string phoneNumber, string otpCode, CancellationToken cancellationToken = default)
+        {
+            return Task.CompletedTask;
+        }
+
+        public Task SendOtpEmailAsync(string emailAddress, string otpCode, CancellationToken cancellationToken = default)
+        {
             return Task.CompletedTask;
         }
     }

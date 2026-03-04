@@ -17,6 +17,9 @@ public static class DependencyInjection
     {
         // Resend Email Service
         services.Configure<ResendEmailSettings>(configuration.GetSection(ResendEmailSettings.SectionName));
+
+        // Twilio SMS Service
+        services.Configure<TwilioSettings>(configuration.GetSection(TwilioSettings.SectionName));
         
         // Manual registration of Resend client
         services.AddHttpClient<IResend, ResendClient>(client =>
@@ -34,7 +37,7 @@ public static class DependencyInjection
         services.AddTransient<IJwtTokenService, JwtTokenService>();
         services.AddTransient<IPasswordHasher, PasswordHasher>();
         services.AddScoped<ICurrentUserService, CurrentUserService>();
-        services.AddTransient<IOtpService, MockOtpService>();
+        services.AddTransient<IOtpService, TwilioOtpService>();
 
         return services;
     }

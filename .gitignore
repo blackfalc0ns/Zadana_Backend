@@ -6,6 +6,9 @@
 # dotenv files
 .env
 
+# Postman update script (contains API keys)
+update-postman.ps1
+
 # User-specific files
 *.rsuser
 *.suo
