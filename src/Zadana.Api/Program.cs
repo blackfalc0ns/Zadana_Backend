@@ -16,17 +16,21 @@ var builder = WebApplication.CreateBuilder(args);
 builder.Services.AddApplication();
 
 // ───── Infrastructure: EF Core ─────
-builder.Services.AddSingleton<AuditableEntityInterceptor>();
-builder.Services.AddDbContext<ApplicationDbContext>((sp, options) =>
+// Skip SQL Server registration in Testing environment (WebApplicationFactory provides InMemory instead)
+if (!builder.Environment.IsEnvironment("Testing"))
 {
-    options.UseSqlServer(
-        builder.Configuration.GetConnectionString("DefaultConnection"),
-        sqlOptions =>
-        {
-            sqlOptions.MigrationsAssembly(typeof(ApplicationDbContext).Assembly.FullName);
-            sqlOptions.EnableRetryOnFailure(maxRetryCount: 3);
-        });
-});
+    builder.Services.AddSingleton<AuditableEntityInterceptor>();
+    builder.Services.AddDbContext<ApplicationDbContext>((sp, options) =>
+    {
+        options.UseSqlServer(
+            builder.Configuration.GetConnectionString("DefaultConnection"),
+            sqlOptions =>
+            {
+                sqlOptions.MigrationsAssembly(typeof(ApplicationDbContext).Assembly.FullName);
+                sqlOptions.EnableRetryOnFailure(maxRetryCount: 3);
+            });
+    });
+}
 
 builder.Services.AddScoped<IApplicationDbContext>(provider => provider.GetRequiredService<ApplicationDbContext>());
 builder.Services.AddScoped<IUnitOfWork>(provider => provider.GetRequiredService<ApplicationDbContext>());
@@ -130,9 +134,10 @@ app.UseAuthentication();
 app.UseAuthorization();
 app.MapControllers();
 
-// ───── Auto-Migrate & Seed SuperAdmin ─────
-using (var scope = app.Services.CreateScope())
+// ───── Auto-Migrate & Seed SuperAdmin (skip in Testing environment) ─────
+if (!app.Environment.IsEnvironment("Testing"))
 {
+    using var scope = app.Services.CreateScope();
     var db = scope.ServiceProvider.GetRequiredService<ApplicationDbContext>();
     var hasher = scope.ServiceProvider.GetRequiredService<IPasswordHasher>();
 
@@ -166,3 +171,6 @@ app.MapGet("/health", (ApplicationDbContext db) =>
 });
 
 app.Run();
+
+// Required for WebApplicationFactory<Program> in integration tests
+public partial class Program { }
