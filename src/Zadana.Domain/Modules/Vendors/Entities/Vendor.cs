@@ -74,10 +74,10 @@ public class Vendor : BaseEntity
     public void Approve(decimal commissionRate, Guid approvedBy)
     {
         if (Status != VendorStatus.PendingReview)
-            throw new BusinessRuleException("VENDOR_INVALID_STATUS", $"Vendor can only be approved from PendingReview. Current: {Status}");
+            throw new BusinessRuleException("VendorInvalidStatusForApproval", $"Status: {Status}");
 
         if (commissionRate < 0 || commissionRate > 100)
-            throw new BusinessRuleException("INVALID_COMMISSION_RATE", "Commission rate must be between 0 and 100.");
+            throw new BusinessRuleException("InvalidCommissionRate", string.Empty);
 
         Status = VendorStatus.Active;
         CommissionRate = commissionRate;
@@ -89,7 +89,7 @@ public class Vendor : BaseEntity
     public void Reject(string reason)
     {
         if (Status != VendorStatus.PendingReview)
-            throw new BusinessRuleException("VENDOR_INVALID_STATUS", $"Vendor can only be rejected from PendingReview. Current: {Status}");
+            throw new BusinessRuleException("VendorInvalidStatusForRejection", $"Status: {Status}");
 
         Status = VendorStatus.Rejected;
         RejectionReason = reason;
@@ -98,7 +98,7 @@ public class Vendor : BaseEntity
     public void Suspend(string reason)
     {
         if (Status != VendorStatus.Active)
-            throw new BusinessRuleException("VENDOR_INVALID_STATUS", $"Vendor can only be suspended from Active. Current: {Status}");
+            throw new BusinessRuleException("VendorInvalidStatusForSuspension", $"Status: {Status}");
 
         Status = VendorStatus.Suspended;
         RejectionReason = reason;
@@ -107,7 +107,7 @@ public class Vendor : BaseEntity
     public void Reactivate(Guid approvedBy)
     {
         if (Status != VendorStatus.Suspended)
-            throw new BusinessRuleException("VENDOR_INVALID_STATUS", $"Vendor can only be reactivated from Suspended. Current: {Status}");
+            throw new BusinessRuleException("VendorInvalidStatusForReactivation", $"Status: {Status}");
 
         Status = VendorStatus.Active;
         RejectionReason = null;

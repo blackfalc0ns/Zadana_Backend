@@ -23,7 +23,7 @@ public class ApproveVendorCommandHandler : IRequestHandler<ApproveVendorCommand>
             ?? throw new NotFoundException("Vendor", request.VendorId);
 
         var adminId = _currentUserService.UserId
-            ?? throw new UnauthorizedException("لم يتم التعرف على المستخدم. | User could not be identified.");
+            ?? throw new UnauthorizedException("USER_NOT_AUTHENTICATED");
 
         vendor.Approve(request.CommissionRate, adminId);
 

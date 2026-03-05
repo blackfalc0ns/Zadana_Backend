@@ -456,6 +456,36 @@
                   ]
                 }
               }
+            },
+            {
+              "name": "7. Update Vendor Profile",
+              "request": {
+                "method": "PUT",
+                "header": [
+                  {
+                    "key": "Authorization",
+                    "value": "Bearer {{vendorToken}}"
+                  },
+                  {
+                    "key": "Content-Type",
+                    "value": "application/json"
+                  }
+                ],
+                "body": {
+                  "mode": "raw",
+                  "raw": "{\n  \"businessNameAr\": \"سوبر ماركت الهدى المحدث\",\n  \"businessNameEn\": \"Al Hoda Supermarket Updated\",\n  \"businessType\": \"Grocery\",\n  \"contactEmail\": \"newcontact@market.com\",\n  \"contactPhone\": \"01200000002\",\n  \"taxId\": \"TAX-987654\"\n}"
+                },
+                "url": {
+                  "raw": "{{baseUrl}}/vendors/profile",
+                  "host": [
+                    "{{baseUrl}}"
+                  ],
+                  "path": [
+                    "vendors",
+                    "profile"
+                  ]
+                }
+              }
             }
           ]
         }
@@ -691,7 +721,72 @@
           "name": "Vendor Approvals",
           "item": [
             {
-              "name": "1. Approve Vendor",
+              "name": "1. Get All Vendors (Paginated)",
+              "request": {
+                "method": "GET",
+                "header": [
+                  {
+                    "key": "Authorization",
+                    "value": "Bearer {{adminToken}}"
+                  }
+                ],
+                "url": {
+                  "raw": "{{baseUrl}}/admin/vendors?page=1&pageSize=10",
+                  "host": [
+                    "{{baseUrl}}"
+                  ],
+                  "path": [
+                    "admin",
+                    "vendors"
+                  ],
+                  "query": [
+                    {
+                      "key": "page",
+                      "value": "1"
+                    },
+                    {
+                      "key": "pageSize",
+                      "value": "10"
+                    },
+                    {
+                      "key": "status",
+                      "value": "PendingReview",
+                      "disabled": true
+                    },
+                    {
+                      "key": "search",
+                      "value": "Hoda",
+                      "disabled": true
+                    }
+                  ]
+                }
+              }
+            },
+            {
+              "name": "2. Get Vendor Details",
+              "request": {
+                "method": "GET",
+                "header": [
+                  {
+                    "key": "Authorization",
+                    "value": "Bearer {{adminToken}}"
+                  }
+                ],
+                "url": {
+                  "raw": "{{baseUrl}}/admin/vendors/{{vendorId}}",
+                  "host": [
+                    "{{baseUrl}}"
+                  ],
+                  "path": [
+                    "admin",
+                    "vendors",
+                    "{{vendorId}}"
+                  ]
+                }
+              }
+            },
+            {
+              "name": "3. Approve Vendor",
               "request": {
                 "method": "POST",
                 "header": [
@@ -750,6 +845,38 @@
                     "vendors",
                     "{{vendorId}}",
                     "reject"
+                  ]
+                }
+              }
+            },
+            {
+              "name": "5. Suspend Vendor",
+              "request": {
+                "method": "POST",
+                "header": [
+                  {
+                    "key": "Authorization",
+                    "value": "Bearer {{adminToken}}"
+                  },
+                  {
+                    "key": "Content-Type",
+                    "value": "application/json"
+                  }
+                ],
+                "body": {
+                  "mode": "raw",
+                  "raw": "{\n  \"reason\": \"Policy violation regarding product quality.\"\n}"
+                },
+                "url": {
+                  "raw": "{{baseUrl}}/admin/vendors/{{vendorId}}/suspend",
+                  "host": [
+                    "{{baseUrl}}"
+                  ],
+                  "path": [
+                    "admin",
+                    "vendors",
+                    "{{vendorId}}",
+                    "suspend"
                   ]
                 }
               }

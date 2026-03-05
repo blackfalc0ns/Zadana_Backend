@@ -224,4 +224,49 @@
   <data name="PasswordResetEmailBody" xml:space="preserve">
     <value><![CDATA[<div dir='rtl'>رمز إعادة تعيين كلمة المرور الخاص بك هو: <b>{0}</b><br/>هذا الرمز صالح لمدة 15 دقيقة فقط.</div>]]></value>
   </data>
+  <data name="VendorApprovedSuccessfully" xml:space="preserve">
+    <value>تمت الموافقة على التاجر بنجاح.</value>
+  </data>
+  <data name="VendorRejected" xml:space="preserve">
+    <value>تم رفض التاجر.</value>
+  </data>
+  <data name="VendorSuspended" xml:space="preserve">
+    <value>تم تعليق التاجر.</value>
+  </data>
+  <data name="VendorNotFound" xml:space="preserve">
+    <value>التاجر غير موجود.</value>
+  </data>
+  <data name="VendorProfileUpdated" xml:space="preserve">
+    <value>تم تحديث ملف التاجر بنجاح.</value>
+  </data>
+  <data name="VendorInvalidStatusForApproval" xml:space="preserve">
+    <value>لا يمكن الموافقة على التاجر إلا من حالة قيد المراجعة. الحالة الحالية: {0}.</value>
+  </data>
+  <data name="VendorInvalidStatusForRejection" xml:space="preserve">
+    <value>لا يمكن رفض التاجر إلا من حالة قيد المراجعة. الحالة الحالية: {0}.</value>
+  </data>
+  <data name="VendorInvalidStatusForSuspension" xml:space="preserve">
+    <value>لا يمكن تعليق التاجر إلا من حالة نشط. الحالة الحالية: {0}.</value>
+  </data>
+  <data name="VendorInvalidStatusForReactivation" xml:space="preserve">
+    <value>لا يمكن إعادة تفعيل التاجر إلا من حالة معلق. الحالة الحالية: {0}.</value>
+  </data>
+  <data name="InvalidCommissionRate" xml:space="preserve">
+    <value>نسبة العمولة يجب أن تكون بين 0 و 100.</value>
+  </data>
+  <data name="VENDOR_NOT_FOUND" xml:space="preserve">
+    <value>لم يتم العثور على التاجر بالمعرف '{0}'.</value>
+  </data>
+  <data name="USER_NOT_FOUND" xml:space="preserve">
+    <value>المستخدم غير موجود.</value>
+  </data>
+  <data name="USER_ALREADY_EXISTS" xml:space="preserve">
+    <value>البريد الإلكتروني أو رقم الهاتف مسجل بالفعل.</value>
+  </data>
+  <data name="USER_NOT_AUTHENTICATED" xml:space="preserve">
+    <value>لم يتم التعرف على المستخدم أو انتهت الجلسة.</value>
+  </data>
+  <data name="PasswordMinLength" xml:space="preserve">
+    <value>كلمة المرور يجب أن تكون 8 أحرف على الأقل.</value>
+  </data>
 </root>

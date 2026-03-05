@@ -224,4 +224,49 @@
   <data name="PasswordResetEmailBody" xml:space="preserve">
     <value><![CDATA[<div dir='ltr'>Your password reset code is: <b>{0}</b><br/>This code is valid for 15 minutes only.</div>]]></value>
   </data>
+  <data name="VendorApprovedSuccessfully" xml:space="preserve">
+    <value>Vendor approved successfully.</value>
+  </data>
+  <data name="VendorRejected" xml:space="preserve">
+    <value>Vendor rejected.</value>
+  </data>
+  <data name="VendorSuspended" xml:space="preserve">
+    <value>Vendor suspended.</value>
+  </data>
+  <data name="VendorNotFound" xml:space="preserve">
+    <value>Vendor not found.</value>
+  </data>
+  <data name="VendorProfileUpdated" xml:space="preserve">
+    <value>Vendor profile updated successfully.</value>
+  </data>
+  <data name="VendorInvalidStatusForApproval" xml:space="preserve">
+    <value>Vendor can only be approved from PendingReview status. Current status: {0}.</value>
+  </data>
+  <data name="VendorInvalidStatusForRejection" xml:space="preserve">
+    <value>Vendor can only be rejected from PendingReview status. Current status: {0}.</value>
+  </data>
+  <data name="VendorInvalidStatusForSuspension" xml:space="preserve">
+    <value>Vendor can only be suspended from Active status. Current status: {0}.</value>
+  </data>
+  <data name="VendorInvalidStatusForReactivation" xml:space="preserve">
+    <value>Vendor can only be reactivated from Suspended status. Current status: {0}.</value>
+  </data>
+  <data name="InvalidCommissionRate" xml:space="preserve">
+    <value>Commission rate must be between 0 and 100.</value>
+  </data>
+  <data name="VENDOR_NOT_FOUND" xml:space="preserve">
+    <value>Vendor with Id '{0}' not found.</value>
+  </data>
+  <data name="USER_NOT_FOUND" xml:space="preserve">
+    <value>User with Id '{0}' not found.</value>
+  </data>
+  <data name="USER_ALREADY_EXISTS" xml:space="preserve">
+    <value>Email or phone is already registered.</value>
+  </data>
+  <data name="USER_NOT_AUTHENTICATED" xml:space="preserve">
+    <value>User not authenticated or session expired.</value>
+  </data>
+  <data name="PasswordMinLength" xml:space="preserve">
+    <value>Password must be at least 8 characters.</value>
+  </data>
 </root>

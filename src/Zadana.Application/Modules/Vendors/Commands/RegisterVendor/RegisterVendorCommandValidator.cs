@@ -22,7 +22,7 @@ public class RegisterVendorCommandValidator : AbstractValidator<RegisterVendorCo
             .WithName(x => localizer["Phone"]);
         RuleFor(x => x.Password)
             .NotEmpty().WithMessage(x => localizer["RequiredField"])
-            .MinimumLength(8).WithMessage("كلمة المرور يجب أن تكون 8 أحرف على الأقل. | Password must be at least 8 characters.")
+            .MinimumLength(8).WithMessage(x => localizer["PasswordMinLength"])
             .WithName(x => localizer["Password"]);
 
         // Vendor

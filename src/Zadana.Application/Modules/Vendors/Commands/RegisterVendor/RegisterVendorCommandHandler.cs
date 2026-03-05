@@ -38,9 +38,7 @@ public class RegisterVendorCommandHandler : IRequestHandler<RegisterVendorComman
                         ?? await _userRepository.GetByIdentifierAsync(request.Phone, cancellationToken);
 
         if (existingUser != null)
-        {
-            throw new BusinessRuleException("USER_ALREADY_EXISTS", "البريد الإلكتروني أو رقم الهاتف مسجل بالفعل. | Email or phone is already registered.");
-        }
+            throw new BusinessRuleException("USER_ALREADY_EXISTS", string.Empty);
 
         // 2. Create User
         var passwordHash = _passwordHasher.HashPassword(request.Password);
