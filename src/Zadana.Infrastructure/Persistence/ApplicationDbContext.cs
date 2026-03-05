@@ -42,6 +42,7 @@ public class ApplicationDbContext : DbContext, IApplicationDbContext, IUnitOfWor
     public DbSet<MasterProduct> MasterProducts => Set<MasterProduct>();
     public DbSet<ImageBank> ImageBanks => Set<ImageBank>();
     public DbSet<VendorProduct> VendorProducts => Set<VendorProduct>();
+    public DbSet<ProductRequest> ProductRequests => Set<ProductRequest>();
 
     // Orders & Carts
     public DbSet<Cart> Carts => Set<Cart>();

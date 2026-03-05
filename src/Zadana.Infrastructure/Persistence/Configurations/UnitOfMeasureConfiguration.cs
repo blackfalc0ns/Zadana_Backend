@@ -20,6 +20,9 @@ public class UnitOfMeasureConfiguration : IEntityTypeConfiguration<UnitOfMeasure
             .IsRequired()
             .HasMaxLength(100);
 
+        builder.Property(u => u.Symbol)
+            .HasMaxLength(20);
+
         builder.Property(u => u.IsActive)
             .IsRequired()
             .HasDefaultValue(true);

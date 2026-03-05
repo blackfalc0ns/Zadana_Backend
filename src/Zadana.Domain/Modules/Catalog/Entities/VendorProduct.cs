@@ -11,6 +11,13 @@ public class VendorProduct : BaseEntity
     public Guid MasterProductId { get; private set; }
     public Guid? VendorBranchId { get; private set; }
     
+    // Vendor Custom Overrides
+    public string? CustomNameAr { get; private set; }
+    public string? CustomNameEn { get; private set; }
+    public string? CustomDescriptionAr { get; private set; }
+    public string? CustomDescriptionEn { get; private set; }
+
+    
     public decimal SellingPrice { get; private set; }
     public decimal? CompareAtPrice { get; private set; }
     public int StockQuantity { get; private set; }
@@ -30,7 +37,11 @@ public class VendorProduct : BaseEntity
         decimal sellingPrice,
         int stockQuantity = 0,
         decimal? compareAtPrice = null,
-        Guid? vendorBranchId = null)
+        Guid? vendorBranchId = null,
+        string? customNameAr = null,
+        string? customNameEn = null,
+        string? customDescriptionAr = null,
+        string? customDescriptionEn = null)
     {
         if (sellingPrice < 0)
             throw new BusinessRuleException("INVALID_PRICE", "Selling price cannot be negative.");
@@ -46,6 +57,11 @@ public class VendorProduct : BaseEntity
         StockQuantity = stockQuantity;
         IsAvailable = stockQuantity > 0;
         Status = VendorProductStatus.Active;
+        
+        CustomNameAr = customNameAr?.Trim();
+        CustomNameEn = customNameEn?.Trim();
+        CustomDescriptionAr = customDescriptionAr?.Trim();
+        CustomDescriptionEn = customDescriptionEn?.Trim();
     }
 
     public void UpdatePricing(decimal sellingPrice, decimal? compareAtPrice)
@@ -76,6 +92,14 @@ public class VendorProduct : BaseEntity
     }
 
     public void SetAvailability(bool isAvailable) => IsAvailable = isAvailable;
+
+    public void UpdateCustomDetails(string? customNameAr, string? customNameEn, string? customDescriptionAr, string? customDescriptionEn)
+    {
+        CustomNameAr = customNameAr?.Trim();
+        CustomNameEn = customNameEn?.Trim();
+        CustomDescriptionAr = customDescriptionAr?.Trim();
+        CustomDescriptionEn = customDescriptionEn?.Trim();
+    }
 
     public void Suspend() => Status = VendorProductStatus.Suspended;
     public void Activate() => Status = VendorProductStatus.Active;

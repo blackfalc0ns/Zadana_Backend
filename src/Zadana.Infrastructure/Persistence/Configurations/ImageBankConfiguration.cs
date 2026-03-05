@@ -21,5 +21,19 @@ public class ImageBankConfiguration : IEntityTypeConfiguration<ImageBank>
 
         builder.Property(i => i.Tags)
             .HasMaxLength(500);
+
+        builder.Property(i => i.Status)
+            .IsRequired()
+            .HasConversion<string>()
+            .HasMaxLength(20);
+
+        builder.Property(i => i.RejectionReason)
+            .HasMaxLength(500);
+
+        builder.HasIndex(i => i.UploadedByVendorId)
+            .HasDatabaseName("IX_ImageBank_UploadedByVendorId");
+
+        builder.HasIndex(i => i.Status)
+            .HasDatabaseName("IX_ImageBank_Status");
     }
 }

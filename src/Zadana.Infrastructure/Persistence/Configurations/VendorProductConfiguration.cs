@@ -33,6 +33,18 @@ public class VendorProductConfiguration : IEntityTypeConfiguration<VendorProduct
             .HasMaxLength(20)
             .HasConversion<string>();
 
+        builder.Property(vp => vp.CustomNameAr)
+            .HasMaxLength(200);
+
+        builder.Property(vp => vp.CustomNameEn)
+            .HasMaxLength(200);
+
+        builder.Property(vp => vp.CustomDescriptionAr)
+            .HasMaxLength(1000);
+
+        builder.Property(vp => vp.CustomDescriptionEn)
+            .HasMaxLength(1000);
+
         // Relationships
         builder.HasOne(vp => vp.Vendor)
             .WithMany()

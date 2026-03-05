@@ -4,7 +4,8 @@ namespace Zadana.Domain.Modules.Catalog.Entities;
 
 public class Brand : BaseEntity
 {
-    public string Name { get; private set; } = null!;
+    public string NameAr { get; private set; } = null!;
+    public string NameEn { get; private set; } = null!;
     public string? LogoUrl { get; private set; }
     public bool IsActive { get; private set; }
 
@@ -13,16 +14,18 @@ public class Brand : BaseEntity
 
     private Brand() { }
 
-    public Brand(string name, string? logoUrl = null)
+    public Brand(string nameAr, string nameEn, string? logoUrl = null)
     {
-        Name = name.Trim();
+        NameAr = nameAr.Trim();
+        NameEn = nameEn.Trim();
         LogoUrl = logoUrl?.Trim();
         IsActive = true;
     }
 
-    public void Update(string name, string? logoUrl)
+    public void Update(string nameAr, string nameEn, string? logoUrl)
     {
-        Name = name.Trim();
+        NameAr = nameAr.Trim();
+        NameEn = nameEn.Trim();
         LogoUrl = logoUrl?.Trim();
     }
 

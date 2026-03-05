@@ -35,7 +35,10 @@ if (!builder.Environment.IsEnvironment("Testing"))
 builder.Services.AddScoped<IApplicationDbContext>(provider => provider.GetRequiredService<ApplicationDbContext>());
 builder.Services.AddScoped<IUnitOfWork>(provider => provider.GetRequiredService<ApplicationDbContext>());
 builder.Services.AddTransient<IPasswordHasher, Zadana.Infrastructure.Modules.Identity.Services.PasswordHasher>();
-builder.Services.AddTransient<Zadana.Application.Common.Interfaces.IFileStorageService, Zadana.Infrastructure.Modules.Files.Services.LocalFileStorageService>();
+builder.Services.Configure<Zadana.Infrastructure.Settings.ImageKitSettings>(
+    builder.Configuration.GetSection(Zadana.Infrastructure.Settings.ImageKitSettings.SectionName));
+
+builder.Services.AddTransient<Zadana.Application.Common.Interfaces.IFileStorageService, Zadana.Infrastructure.Services.ImageKitFileStorageService>();
 
 // ───── Security & Auth ─────
 builder.Services.AddHttpContextAccessor();
