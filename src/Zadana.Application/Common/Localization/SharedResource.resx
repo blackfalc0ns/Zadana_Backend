@@ -266,9 +266,6 @@
   <data name="USER_NOT_AUTHENTICATED" xml:space="preserve">
     <value>User not authenticated or session expired.</value>
   </data>
-  <data name="PasswordMinLength" xml:space="preserve">
-    <value>Password must be at least 8 characters.</value>
-  </data>
   <data name="ImageUrlTooLong" xml:space="preserve">
     <value>Image URL is too long.</value>
   </data>

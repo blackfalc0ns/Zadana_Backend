@@ -266,9 +266,7 @@
   <data name="USER_NOT_AUTHENTICATED" xml:space="preserve">
     <value>لم يتم التعرف على المستخدم أو انتهت الجلسة.</value>
   </data>
-  <data name="PasswordMinLength" xml:space="preserve">
-    <value>كلمة المرور يجب أن تكون 8 أحرف على الأقل.</value>
-  </data>
+
   <data name="ImageUrlTooLong" xml:space="preserve">
     <value>رابط الصورة طويل جداً.</value>
   </data>

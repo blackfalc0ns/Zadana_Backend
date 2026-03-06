@@ -488,6 +488,241 @@
               }
             }
           ]
+        },
+        {
+          "name": "Product Requests",
+          "item": [
+            {
+              "name": "1. Submit Product Request",
+              "request": {
+                "method": "POST",
+                "header": [
+                  {
+                    "key": "Authorization",
+                    "value": "Bearer {{vendorToken}}"
+                  },
+                  {
+                    "key": "Content-Type",
+                    "value": "application/json"
+                  }
+                ],
+                "body": {
+                  "mode": "raw",
+                  "raw": "{\n  \"suggestedNameAr\": \"كوكا كولا 330 مل\",\n  \"suggestedNameEn\": \"Coca Cola 330ml\",\n  \"suggestedCategoryId\": \"00000000-0000-0000-0000-000000000000\",\n  \"suggestedDescriptionAr\": \"مشروب غازي\",\n  \"suggestedDescriptionEn\": \"Soft Drink\",\n  \"imageUrl\": \"https://example.com/coke.jpg\"\n}"
+                },
+                "url": {
+                  "raw": "{{baseUrl}}/vendor/product-requests",
+                  "host": [
+                    "{{baseUrl}}"
+                  ],
+                  "path": [
+                    "vendor",
+                    "product-requests"
+                  ]
+                }
+              }
+            },
+            {
+              "name": "2. Get My Product Requests",
+              "request": {
+                "method": "GET",
+                "header": [
+                  {
+                    "key": "Authorization",
+                    "value": "Bearer {{vendorToken}}"
+                  }
+                ],
+                "url": {
+                  "raw": "{{baseUrl}}/vendor/product-requests?pageNumber=1&pageSize=10",
+                  "host": [
+                    "{{baseUrl}}"
+                  ],
+                  "path": [
+                    "vendor",
+                    "product-requests"
+                  ],
+                  "query": [
+                    {
+                      "key": "pageNumber",
+                      "value": "1"
+                    },
+                    {
+                      "key": "pageSize",
+                      "value": "10"
+                    },
+                    {
+                      "key": "status",
+                      "value": "Pending",
+                      "disabled": true
+                    }
+                  ]
+                }
+              }
+            }
+          ]
+        },
+        {
+          "name": "Vendor Products",
+          "item": [
+            {
+              "name": "1. Create Vendor Product",
+              "request": {
+                "method": "POST",
+                "header": [
+                  {
+                    "key": "Authorization",
+                    "value": "Bearer {{vendorToken}}"
+                  },
+                  {
+                    "key": "Content-Type",
+                    "value": "application/json"
+                  }
+                ],
+                "body": {
+                  "mode": "raw",
+                  "raw": "{\n  \"masterProductId\": \"00000000-0000-0000-0000-000000000000\",\n  \"sellingPrice\": 15.5,\n  \"compareAtPrice\": 17,\n  \"costPrice\": 12,\n  \"stockQty\": 100,\n  \"minOrderQty\": 1,\n  \"maxOrderQty\": 10,\n  \"sku\": \"COKE-330-01\",\n  \"branchId\": null\n}"
+                },
+                "url": {
+                  "raw": "{{baseUrl}}/vendor/products",
+                  "host": [
+                    "{{baseUrl}}"
+                  ],
+                  "path": [
+                    "vendor",
+                    "products"
+                  ]
+                }
+              }
+            },
+            {
+              "name": "2. Update Vendor Product",
+              "request": {
+                "method": "PUT",
+                "header": [
+                  {
+                    "key": "Authorization",
+                    "value": "Bearer {{vendorToken}}"
+                  },
+                  {
+                    "key": "Content-Type",
+                    "value": "application/json"
+                  }
+                ],
+                "body": {
+                  "mode": "raw",
+                  "raw": "{\n  \"sellingPrice\": 16,\n  \"compareAtPrice\": 18,\n  \"stockQty\": 150,\n  \"customNameAr\": \"كوكا كولا عرض خاص\",\n  \"customNameEn\": \"Coca Cola Special Offer\",\n  \"customDescriptionAr\": \"عرض كوكا كولا\",\n  \"customDescriptionEn\": \"Coke offer\"\n}"
+                },
+                "url": {
+                  "raw": "{{baseUrl}}/vendor/products/{{productId}}",
+                  "host": [
+                    "{{baseUrl}}"
+                  ],
+                  "path": [
+                    "vendor",
+                    "products",
+                    "{{productId}}"
+                  ]
+                }
+              }
+            },
+            {
+              "name": "3. Change Product Status",
+              "request": {
+                "method": "PATCH",
+                "header": [
+                  {
+                    "key": "Authorization",
+                    "value": "Bearer {{vendorToken}}"
+                  },
+                  {
+                    "key": "Content-Type",
+                    "value": "application/json"
+                  }
+                ],
+                "body": {
+                  "mode": "raw",
+                  "raw": "{\n  \"isActive\": false\n}"
+                },
+                "url": {
+                  "raw": "{{baseUrl}}/vendor/products/{{productId}}/status",
+                  "host": [
+                    "{{baseUrl}}"
+                  ],
+                  "path": [
+                    "vendor",
+                    "products",
+                    "{{productId}}",
+                    "status"
+                  ]
+                }
+              }
+            },
+            {
+              "name": "4. Get My Products",
+              "request": {
+                "method": "GET",
+                "header": [
+                  {
+                    "key": "Authorization",
+                    "value": "Bearer {{vendorToken}}"
+                  }
+                ],
+                "url": {
+                  "raw": "{{baseUrl}}/vendor/products?pageNumber=1&pageSize=10",
+                  "host": [
+                    "{{baseUrl}}"
+                  ],
+                  "path": [
+                    "vendor",
+                    "products"
+                  ],
+                  "query": [
+                    {
+                      "key": "pageNumber",
+                      "value": "1"
+                    },
+                    {
+                      "key": "pageSize",
+                      "value": "10"
+                    },
+                    {
+                      "key": "categoryId",
+                      "value": "00000000-0000-0000-0000-000000000000",
+                      "disabled": true
+                    },
+                    {
+                      "key": "branchId",
+                      "value": "00000000-0000-0000-0000-000000000000",
+                      "disabled": true
+                    }
+                  ]
+                }
+              }
+            },
+            {
+              "name": "5. Get Product By Id",
+              "request": {
+                "method": "GET",
+                "header": [
+                  {
+                    "key": "Authorization",
+                    "value": "Bearer {{vendorToken}}"
+                  }
+                ],
+                "url": {
+                  "raw": "{{baseUrl}}/vendor/products/{{productId}}",
+                  "host": [
+                    "{{baseUrl}}"
+                  ],
+                  "path": [
+                    "vendor",
+                    "products",
+                    "{{productId}}"
+                  ]
+                }
+              }
+            }
+          ]
         }
       ]
     },

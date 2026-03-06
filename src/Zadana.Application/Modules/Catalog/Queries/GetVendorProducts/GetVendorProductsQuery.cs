@@ -1,13 +1,19 @@
 using MediatR;
 using Microsoft.EntityFrameworkCore;
 using Zadana.Application.Common.Interfaces;
+using Zadana.Application.Common.Models;
 using Zadana.Application.Modules.Catalog.DTOs;
 
 namespace Zadana.Application.Modules.Catalog.Queries.GetVendorProducts;
 
-public record GetVendorProductsQuery(Guid VendorId, Guid? CategoryId) : IRequest<List<VendorProductDto>>;
+public record GetVendorProductsQuery(
+    Guid VendorId, 
+    Guid? CategoryId, 
+    Guid? BranchId, 
+    int PageNumber = 1, 
+    int PageSize = 10) : IRequest<PaginatedList<VendorProductDto>>;
 
-public class GetVendorProductsQueryHandler : IRequestHandler<GetVendorProductsQuery, List<VendorProductDto>>
+public class GetVendorProductsQueryHandler : IRequestHandler<GetVendorProductsQuery, PaginatedList<VendorProductDto>>
 {
     private readonly IApplicationDbContext _context;
 
@@ -16,7 +22,7 @@ public class GetVendorProductsQueryHandler : IRequestHandler<GetVendorProductsQu
         _context = context;
     }
 
-    public async Task<List<VendorProductDto>> Handle(GetVendorProductsQuery request, CancellationToken cancellationToken)
+    public async Task<PaginatedList<VendorProductDto>> Handle(GetVendorProductsQuery request, CancellationToken cancellationToken)
     {
         var query = _context.VendorProducts
             .AsNoTracking()
@@ -28,9 +34,20 @@ public class GetVendorProductsQueryHandler : IRequestHandler<GetVendorProductsQu
             query = query.Where(vp => vp.MasterProduct.CategoryId == request.CategoryId.Value);
         }
 
-        var products = await query.ToListAsync(cancellationToken);
+        if (request.BranchId.HasValue)
+        {
+            query = query.Where(vp => vp.VendorBranchId == request.BranchId.Value);
+        }
 
-        return products.Select(vp => new VendorProductDto(
+        var totalCount = await query.CountAsync(cancellationToken);
+        
+        var products = await query
+            .OrderBy(vp => vp.Id)
+            .Skip((request.PageNumber - 1) * request.PageSize)
+            .Take(request.PageSize)
+            .ToListAsync(cancellationToken);
+
+        var items = products.Select(vp => new VendorProductDto(
             vp.Id,
             vp.VendorId,
             vp.MasterProductId,
@@ -52,5 +69,7 @@ public class GetVendorProductsQueryHandler : IRequestHandler<GetVendorProductsQu
                 vp.MasterProduct.Status.ToString()
             )
         )).ToList();
+        
+        return new PaginatedList<VendorProductDto>(items, totalCount, request.PageNumber, request.PageSize);
     }
 }
