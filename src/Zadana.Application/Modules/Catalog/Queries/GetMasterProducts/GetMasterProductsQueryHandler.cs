@@ -30,7 +30,7 @@ public class GetMasterProductsQueryHandler : IRequestHandler<GetMasterProductsQu
         }
 
         var projectedQuery = query
-            .OrderByDescending(p => p.CreatedAt)
+            .OrderByDescending(p => p.Id)
             .Select(p => new MasterProductDto(
                 p.Id,
                 p.NameAr,
