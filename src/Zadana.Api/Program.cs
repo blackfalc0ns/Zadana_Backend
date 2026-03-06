@@ -45,6 +45,15 @@ builder.Services.AddHttpContextAccessor();
 // Add Identity Infrastructure
 builder.Services.AddIdentityInfrastructure(builder.Configuration);
 
+// Add CORS Policy
+builder.Services.AddCors(options =>
+{
+    options.AddPolicy("AllowAll", builder =>
+        builder.AllowAnyOrigin()
+               .AllowAnyMethod()
+               .AllowAnyHeader());
+});
+
 
 builder.Services.AddAuthentication(JwtBearerDefaults.AuthenticationScheme)
     .AddJwtBearer(options =>
@@ -132,6 +141,8 @@ var localizationOptions = new RequestLocalizationOptions()
     .AddSupportedUICultures(supportedCultures);
 
 app.UseRequestLocalization(localizationOptions);
+
+app.UseCors("AllowAll");
 
 app.UseAuthentication();
 app.UseAuthorization();
