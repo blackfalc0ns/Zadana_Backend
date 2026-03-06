@@ -30,6 +30,7 @@ public interface IApplicationDbContext
     DbSet<MasterProduct> MasterProducts { get; }
     DbSet<ImageBank> ImageBanks { get; }
     DbSet<VendorProduct> VendorProducts { get; }
+    DbSet<ProductRequest> ProductRequests { get; }
 
     // Orders & Carts
     DbSet<Cart> Carts { get; }

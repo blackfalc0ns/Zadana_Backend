@@ -1,6 +1,8 @@
 using Microsoft.AspNetCore.Authorization;
 using Microsoft.AspNetCore.Mvc;
 using Zadana.Api.Controllers;
+using Zadana.Application.Modules.Catalog.Queries.ImageBank.GetGallery;
+using Zadana.Application.Modules.Files.Commands.DeleteFile;
 using Zadana.Application.Modules.Files.Commands.UploadFile;
 
 namespace Zadana.Api.Modules.Files.Controllers;
@@ -27,5 +29,27 @@ public class FilesController : ApiControllerBase
         var fileUrl = await Sender.Send(command);
         
         return Ok(new { Url = fileUrl });
+    }
+
+    /// <summary>
+    /// استرجاع معرض الصور الخاص بالمستخدم الحالي (للتجار)
+    /// </summary>
+    [HttpGet("gallery")]
+    [Authorize]
+    public async Task<IActionResult> GetGallery([FromQuery] GetImageGalleryQuery query)
+    {
+        var result = await Sender.Send(query);
+        return Ok(result);
+    }
+
+    /// <summary>
+    /// حذف ملف من السيرفر وقاعدة البيانات
+    /// </summary>
+    [HttpDelete("{id:guid}")]
+    [Authorize]
+    public async Task<IActionResult> DeleteFile(Guid id)
+    {
+        await Sender.Send(new DeleteFileCommand(id));
+        return NoContent();
     }
 }

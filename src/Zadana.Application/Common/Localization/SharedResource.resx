@@ -269,4 +269,16 @@
   <data name="PasswordMinLength" xml:space="preserve">
     <value>Password must be at least 8 characters.</value>
   </data>
+  <data name="ImageUrlTooLong" xml:space="preserve">
+    <value>Image URL is too long.</value>
+  </data>
+  <data name="RequestIdRequired" xml:space="preserve">
+    <value>Request ID is required.</value>
+  </data>
+  <data name="RejectionReasonRequired" xml:space="preserve">
+    <value>Rejection reason is required when rejecting.</value>
+  </data>
+  <data name="RejectionReasonTooLong" xml:space="preserve">
+    <value>Rejection reason must not exceed 500 characters.</value>
+  </data>
 </root>

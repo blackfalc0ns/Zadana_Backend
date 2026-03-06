@@ -269,4 +269,16 @@
   <data name="PasswordMinLength" xml:space="preserve">
     <value>كلمة المرور يجب أن تكون 8 أحرف على الأقل.</value>
   </data>
+  <data name="ImageUrlTooLong" xml:space="preserve">
+    <value>رابط الصورة طويل جداً.</value>
+  </data>
+  <data name="RequestIdRequired" xml:space="preserve">
+    <value>رقم الطلب مطلوب.</value>
+  </data>
+  <data name="RejectionReasonRequired" xml:space="preserve">
+    <value>سبب الرفض مطلوب في حالة الرفض.</value>
+  </data>
+  <data name="RejectionReasonTooLong" xml:space="preserve">
+    <value>سبب الرفض يجب ألا يتجاوز 500 حرف.</value>
+  </data>
 </root>
