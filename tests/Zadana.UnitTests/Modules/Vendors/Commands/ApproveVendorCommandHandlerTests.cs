@@ -25,7 +25,7 @@ public class ApproveVendorCommandHandlerTests
         var adminId = Guid.NewGuid();
         _currentUserServiceMock.Setup(c => c.UserId).Returns(adminId);
 
-        var user = new User("Owner", "owner@test.com", "123", "hash", UserRole.Vendor);
+        var user = new User("Owner", "owner@test.com", "123", UserRole.Vendor);
         typeof(User).GetProperty("Id")!.SetValue(user, userId);
         db.Users.Add(user);
 

@@ -1,4 +1,6 @@
+using Microsoft.AspNetCore.Identity;
 using MediatR;
+using Microsoft.EntityFrameworkCore;
 using Zadana.Application.Common.Interfaces;
 using Zadana.Application.Modules.Identity.DTOs;
 using Zadana.Domain.Modules.Identity.Entities;
@@ -11,22 +13,19 @@ namespace Zadana.Application.Modules.Vendors.Commands.RegisterVendor;
 
 public class RegisterVendorCommandHandler : IRequestHandler<RegisterVendorCommand, AuthResponseDto>
 {
-    private readonly IUserRepository _userRepository;
+    private readonly UserManager<User> _userManager;
     private readonly IUnitOfWork _unitOfWork;
-    private readonly IPasswordHasher _passwordHasher;
     private readonly IJwtTokenService _jwtTokenService;
     private readonly IApplicationDbContext _dbContext;
 
     public RegisterVendorCommandHandler(
-        IUserRepository userRepository,
+        UserManager<User> userManager,
         IUnitOfWork unitOfWork,
-        IPasswordHasher passwordHasher,
         IJwtTokenService jwtTokenService,
         IApplicationDbContext dbContext)
     {
-        _userRepository = userRepository;
+        _userManager = userManager;
         _unitOfWork = unitOfWork;
-        _passwordHasher = passwordHasher;
         _jwtTokenService = jwtTokenService;
         _dbContext = dbContext;
     }
@@ -34,23 +33,24 @@ public class RegisterVendorCommandHandler : IRequestHandler<RegisterVendorComman
     public async Task<AuthResponseDto> Handle(RegisterVendorCommand request, CancellationToken cancellationToken)
     {
         // 1. Check uniqueness
-        var existingUser = await _userRepository.GetByIdentifierAsync(request.Email, cancellationToken)
-                        ?? await _userRepository.GetByIdentifierAsync(request.Phone, cancellationToken);
+        var existingUser = await _userManager.Users.FirstOrDefaultAsync(u => u.Email == request.Email || u.PhoneNumber == request.Phone, cancellationToken);
 
         if (existingUser != null)
             throw new BusinessRuleException("USER_ALREADY_EXISTS", string.Empty);
 
         // 2. Create User
-        var passwordHash = _passwordHasher.HashPassword(request.Password);
         var user = new User(
             request.FullName,
             request.Email,
             request.Phone,
-            passwordHash,
             UserRole.Vendor);
 
-        _userRepository.Add(user);
-        await _unitOfWork.SaveChangesAsync(cancellationToken); // Save to get User.Id
+        var result = await _userManager.CreateAsync(user, request.Password);
+        if (!result.Succeeded)
+        {
+            var errors = string.Join(", ", result.Errors.Select(e => e.Description));
+            throw new BusinessRuleException("CREATION_FAILED", $"فشل إنشاء حساب التاجر. | Failed to create vendor account. ({errors})");
+        }
 
         // 3. Create Vendor (PendingReview)
         var vendor = new Vendor(
@@ -87,7 +87,7 @@ public class RegisterVendorCommandHandler : IRequestHandler<RegisterVendorComman
         _dbContext.RefreshTokens.Add(refreshTokenEntity);
         await _unitOfWork.SaveChangesAsync(cancellationToken);
 
-        var userDto = new CurrentUserDto(user.Id, user.FullName, user.Email, user.Phone, user.Role.ToString());
+        var userDto = new CurrentUserDto(user.Id, user.FullName, user.Email, user.PhoneNumber, user.Role.ToString());
         return new AuthResponseDto(tokens, userDto);
     }
 }

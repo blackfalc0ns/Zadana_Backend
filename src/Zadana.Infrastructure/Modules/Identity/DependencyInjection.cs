@@ -30,12 +30,10 @@ public static class DependencyInjection
         services.AddScoped<IEmailService, ResendEmailService>();
 
         // Repositories
-        services.AddScoped<IUserRepository, UserRepository>();
         services.AddScoped<IRefreshTokenRepository, RefreshTokenRepository>();
 
         // Services
         services.AddTransient<IJwtTokenService, JwtTokenService>();
-        services.AddTransient<IPasswordHasher, PasswordHasher>();
         services.AddScoped<ICurrentUserService, CurrentUserService>();
         services.AddTransient<IOtpService, TwilioOtpService>();
 

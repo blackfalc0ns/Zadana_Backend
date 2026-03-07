@@ -1,24 +1,24 @@
+using Microsoft.AspNetCore.Identity;
 using MediatR;
+using Microsoft.EntityFrameworkCore;
 using Zadana.Application.Common.Interfaces;
-using Zadana.Domain.Modules.Identity.Interfaces;
+using Zadana.Domain.Modules.Identity.Entities;
 using Zadana.SharedKernel.Exceptions;
 
 namespace Zadana.Application.Modules.Identity.Commands.VerifyOtp;
 
 public class VerifyOtpCommandHandler : IRequestHandler<VerifyOtpCommand, bool>
 {
-    private readonly IUserRepository _userRepository;
-    private readonly IUnitOfWork _unitOfWork;
+    private readonly UserManager<User> _userManager;
 
-    public VerifyOtpCommandHandler(IUserRepository userRepository, IUnitOfWork unitOfWork)
+    public VerifyOtpCommandHandler(UserManager<User> userManager)
     {
-        _userRepository = userRepository;
-        _unitOfWork = unitOfWork;
+        _userManager = userManager;
     }
 
     public async Task<bool> Handle(VerifyOtpCommand request, CancellationToken cancellationToken)
     {
-        var user = await _userRepository.GetByIdentifierAsync(request.Identifier, cancellationToken);
+        var user = await _userManager.Users.FirstOrDefaultAsync(u => u.Email == request.Identifier || u.PhoneNumber == request.Identifier, cancellationToken);
         
         if (user == null)
             throw new NotFoundException("User", request.Identifier);
@@ -28,8 +28,7 @@ public class VerifyOtpCommandHandler : IRequestHandler<VerifyOtpCommand, bool>
         if (!isValid)
             throw new BusinessRuleException("INVALID_OTP", "الكود غير صحيح أو منتهي الصلاحية. | The OTP code is invalid or expired.");
 
-        _userRepository.Update(user);
-        await _unitOfWork.SaveChangesAsync(cancellationToken);
+        await _userManager.UpdateAsync(user);
 
         return true;
     }

@@ -48,6 +48,7 @@ public class GetCategoriesQueryHandler : IRequestHandler<GetCategoriesQuery, Lis
             category.Id,
             category.NameAr,
             category.NameEn,
+            category.ImageUrl,
             category.ParentCategoryId,
             category.DisplayOrder,
             category.IsActive,

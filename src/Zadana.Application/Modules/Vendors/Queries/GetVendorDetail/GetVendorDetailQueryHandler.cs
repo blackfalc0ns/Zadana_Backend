@@ -45,7 +45,7 @@ public class GetVendorDetailQueryHandler : IRequestHandler<GetVendorDetailQuery,
             // Owner info
             vendor.User.FullName,
             vendor.User.Email,
-            vendor.User.Phone,
+            vendor.User.PhoneNumber,
             // Counts
             vendor.Branches.Count,
             vendor.BankAccounts.Count);

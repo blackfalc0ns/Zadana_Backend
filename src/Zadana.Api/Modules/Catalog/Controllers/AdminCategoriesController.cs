@@ -41,6 +41,7 @@ public class AdminCategoriesController : ControllerBase
             id,
             request.NameAr,
             request.NameEn,
+            request.ImageUrl,
             request.ParentCategoryId,
             request.DisplayOrder,
             request.IsActive);
@@ -53,6 +54,7 @@ public class AdminCategoriesController : ControllerBase
 public record UpdateCategoryRequest(
     string NameAr,
     string NameEn,
+    string? ImageUrl,
     Guid? ParentCategoryId,
     int DisplayOrder,
     bool IsActive);

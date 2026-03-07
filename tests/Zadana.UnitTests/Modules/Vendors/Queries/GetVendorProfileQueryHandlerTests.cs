@@ -23,7 +23,7 @@ public class GetVendorProfileQueryHandlerTests
         var userId = Guid.NewGuid();
         _currentUserMock.Setup(c => c.UserId).Returns(userId);
 
-        var user = new User("Owner", "owner@test.com", "123", "hash", UserRole.Vendor);
+        var user = new User("Owner", "owner@test.com", "123", UserRole.Vendor);
         typeof(User).GetProperty("Id")!.SetValue(user, userId);
         db.Users.Add(user);
 

@@ -24,15 +24,15 @@ public class UpdateVendorProductCommandValidator : AbstractValidator<UpdateVendo
             .GreaterThanOrEqualTo(0).WithMessage(localizer["MinValue", "StockQty"]);
 
         RuleFor(v => v.CustomNameAr)
-            .MaximumLength(200).WithMessage(localizer["MaxLength", 200]);
+            .MaximumLength(200).WithMessage(localizer["MaxLength", "CustomNameAr", 200]);
 
         RuleFor(v => v.CustomNameEn)
-            .MaximumLength(200).WithMessage(localizer["MaxLength", 200]);
+            .MaximumLength(200).WithMessage(localizer["MaxLength", "CustomNameEn", 200]);
 
         RuleFor(v => v.CustomDescriptionAr)
-            .MaximumLength(1000).WithMessage(localizer["MaxLength", 1000]);
+            .MaximumLength(1000).WithMessage(localizer["MaxLength", "CustomDescriptionAr", 1000]);
 
         RuleFor(v => v.CustomDescriptionEn)
-            .MaximumLength(1000).WithMessage(localizer["MaxLength", 1000]);
+            .MaximumLength(1000).WithMessage(localizer["MaxLength", "CustomDescriptionEn", 1000]);
     }
 }

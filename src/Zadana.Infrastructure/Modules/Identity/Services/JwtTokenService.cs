@@ -35,9 +35,9 @@ public class JwtTokenService : IJwtTokenService
             new Claim(JwtRegisteredClaimNames.Email, user.Email);
         }
         
-        if (!string.IsNullOrEmpty(user.Phone))
+        if (!string.IsNullOrEmpty(user.PhoneNumber))
         {
-            claims.Add(new Claim(ClaimTypes.MobilePhone, user.Phone));
+            claims.Add(new Claim(ClaimTypes.MobilePhone, user.PhoneNumber));
         }
 
         var secret = _configuration["JwtSettings:Secret"];

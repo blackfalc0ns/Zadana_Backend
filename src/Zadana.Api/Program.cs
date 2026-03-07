@@ -9,6 +9,8 @@ using Microsoft.AspNetCore.Authentication.JwtBearer;
 using Microsoft.IdentityModel.Tokens;
 using System.Text;
 using Microsoft.OpenApi.Models;
+using Microsoft.AspNetCore.Identity;
+using Zadana.Domain.Modules.Identity.Entities;
 
 var builder = WebApplication.CreateBuilder(args);
 
@@ -34,7 +36,6 @@ if (!builder.Environment.IsEnvironment("Testing"))
 
 builder.Services.AddScoped<IApplicationDbContext>(provider => provider.GetRequiredService<ApplicationDbContext>());
 builder.Services.AddScoped<IUnitOfWork>(provider => provider.GetRequiredService<ApplicationDbContext>());
-builder.Services.AddTransient<IPasswordHasher, Zadana.Infrastructure.Modules.Identity.Services.PasswordHasher>();
 builder.Services.Configure<Zadana.Infrastructure.Settings.ImageKitSettings>(
     builder.Configuration.GetSection(Zadana.Infrastructure.Settings.ImageKitSettings.SectionName));
 
@@ -43,6 +44,28 @@ builder.Services.AddTransient<Zadana.Application.Common.Interfaces.IFileStorageS
 // ───── Security & Auth ─────
 builder.Services.AddHttpContextAccessor();
 // Add Identity Infrastructure
+builder.Services.AddIdentity<User, IdentityRole<Guid>>(options =>
+{
+    options.Password.RequireNonAlphanumeric = false;
+    options.Password.RequiredLength = 8;
+})
+.AddEntityFrameworkStores<ApplicationDbContext>()
+.AddDefaultTokenProviders();
+
+builder.Services.ConfigureApplicationCookie(options =>
+{
+    options.Events.OnRedirectToLogin = context =>
+    {
+        context.Response.StatusCode = StatusCodes.Status401Unauthorized;
+        return Task.CompletedTask;
+    };
+    options.Events.OnRedirectToAccessDenied = context =>
+    {
+        context.Response.StatusCode = StatusCodes.Status403Forbidden;
+        return Task.CompletedTask;
+    };
+});
+
 builder.Services.AddIdentityInfrastructure(builder.Configuration);
 
 // Add CORS Policy
@@ -55,7 +78,12 @@ builder.Services.AddCors(options =>
 });
 
 
-builder.Services.AddAuthentication(JwtBearerDefaults.AuthenticationScheme)
+builder.Services.AddAuthentication(options =>
+{
+    options.DefaultAuthenticateScheme = JwtBearerDefaults.AuthenticationScheme;
+    options.DefaultChallengeScheme = JwtBearerDefaults.AuthenticationScheme;
+    options.DefaultScheme = JwtBearerDefaults.AuthenticationScheme;
+})
     .AddJwtBearer(options =>
     {
         options.TokenValidationParameters = new TokenValidationParameters
@@ -153,22 +181,36 @@ if (!app.Environment.IsEnvironment("Testing"))
 {
     using var scope = app.Services.CreateScope();
     var db = scope.ServiceProvider.GetRequiredService<ApplicationDbContext>();
-    var hasher = scope.ServiceProvider.GetRequiredService<IPasswordHasher>();
+    var userManager = scope.ServiceProvider.GetRequiredService<UserManager<User>>();
+    var roleManager = scope.ServiceProvider.GetRequiredService<RoleManager<IdentityRole<Guid>>>();
 
     // Apply pending migrations automatically
     db.Database.Migrate();
 
-    if (!db.Users.Any(u => u.Role == Zadana.Domain.Modules.Identity.Enums.UserRole.SuperAdmin))
+    var superAdminRoleExists = roleManager.RoleExistsAsync(Zadana.Domain.Modules.Identity.Enums.UserRole.SuperAdmin.ToString()).GetAwaiter().GetResult();
+    if (!superAdminRoleExists)
     {
-        var admin = new Zadana.Domain.Modules.Identity.Entities.User(
-            fullName: "Super Admin",
-            email: "admin@system.com",
-            phone: "01000000000",
-            passwordHash: hasher.HashPassword("Admin@123"),
-            role: Zadana.Domain.Modules.Identity.Enums.UserRole.SuperAdmin);
+        roleManager.CreateAsync(new IdentityRole<Guid>(Zadana.Domain.Modules.Identity.Enums.UserRole.SuperAdmin.ToString())).GetAwaiter().GetResult();
+        roleManager.CreateAsync(new IdentityRole<Guid>(Zadana.Domain.Modules.Identity.Enums.UserRole.Admin.ToString())).GetAwaiter().GetResult();
+        roleManager.CreateAsync(new IdentityRole<Guid>(Zadana.Domain.Modules.Identity.Enums.UserRole.Vendor.ToString())).GetAwaiter().GetResult();
+        roleManager.CreateAsync(new IdentityRole<Guid>(Zadana.Domain.Modules.Identity.Enums.UserRole.VendorStaff.ToString())).GetAwaiter().GetResult();
+        roleManager.CreateAsync(new IdentityRole<Guid>(Zadana.Domain.Modules.Identity.Enums.UserRole.Customer.ToString())).GetAwaiter().GetResult();
+        roleManager.CreateAsync(new IdentityRole<Guid>(Zadana.Domain.Modules.Identity.Enums.UserRole.Driver.ToString())).GetAwaiter().GetResult();
+    }
 
-        db.Users.Add(admin);
-        db.SaveChanges();
+    if (userManager.FindByEmailAsync("admin@system.com").GetAwaiter().GetResult() == null)
+    {
+        var admin = new User(
+            "Super Admin",
+            "admin@system.com",
+            "01000000000",
+            Zadana.Domain.Modules.Identity.Enums.UserRole.SuperAdmin);
+
+        var result = userManager.CreateAsync(admin, "Admin@123").GetAwaiter().GetResult();
+        if (result.Succeeded)
+        {
+            userManager.AddToRoleAsync(admin, Zadana.Domain.Modules.Identity.Enums.UserRole.SuperAdmin.ToString()).GetAwaiter().GetResult();
+        }
     }
 }
 

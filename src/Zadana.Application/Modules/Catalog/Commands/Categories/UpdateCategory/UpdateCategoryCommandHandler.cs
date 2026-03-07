@@ -27,7 +27,7 @@ public class UpdateCategoryCommandHandler : IRequestHandler<UpdateCategoryComman
                 throw new NotFoundException(nameof(Category), request.ParentCategoryId.Value);
         }
 
-        category.Update(request.NameAr, request.NameEn, request.ParentCategoryId, request.DisplayOrder);
+        category.Update(request.NameAr, request.NameEn, request.ImageUrl, request.ParentCategoryId, request.DisplayOrder);
 
         if (request.IsActive && !category.IsActive)
             category.Activate();

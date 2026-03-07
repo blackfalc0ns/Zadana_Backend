@@ -1,6 +1,7 @@
+using Microsoft.AspNetCore.Identity;
 using MediatR;
-using Zadana.Application.Common.Interfaces;
-using Zadana.Domain.Modules.Identity.Interfaces;
+using Microsoft.EntityFrameworkCore;
+using Zadana.Domain.Modules.Identity.Entities;
 using Zadana.SharedKernel.Exceptions;
 using Microsoft.Extensions.Localization;
 using Zadana.Application.Common.Localization;
@@ -9,26 +10,20 @@ namespace Zadana.Application.Modules.Identity.Commands.ResetPassword;
 
 public class ResetPasswordCommandHandler : IRequestHandler<ResetPasswordCommand>
 {
-    private readonly IUserRepository _userRepository;
-    private readonly IUnitOfWork _unitOfWork;
-    private readonly IPasswordHasher _passwordHasher;
+    private readonly UserManager<User> _userManager;
     private readonly IStringLocalizer<SharedResource> _localizer;
 
     public ResetPasswordCommandHandler(
-        IUserRepository userRepository,
-        IUnitOfWork unitOfWork,
-        IPasswordHasher passwordHasher,
+        UserManager<User> userManager,
         IStringLocalizer<SharedResource> localizer)
     {
-        _userRepository = userRepository;
-        _unitOfWork = unitOfWork;
-        _passwordHasher = passwordHasher;
+        _userManager = userManager;
         _localizer = localizer;
     }
 
     public async Task Handle(ResetPasswordCommand request, CancellationToken cancellationToken)
     {
-        var user = await _userRepository.GetByIdentifierAsync(request.Identifier, cancellationToken);
+        var user = await _userManager.Users.FirstOrDefaultAsync(u => u.Email == request.Identifier || u.PhoneNumber == request.Identifier, cancellationToken);
         
         if (user == null)
         {
@@ -41,10 +36,15 @@ public class ResetPasswordCommandHandler : IRequestHandler<ResetPasswordCommand>
             throw new BusinessRuleException("INVALID_OTP", _localizer["InvalidOrExpiredOtp"]);
         }
 
-        var newPasswordHash = _passwordHasher.HashPassword(request.NewPassword);
-        user.ChangePassword(newPasswordHash);
+        var resetToken = await _userManager.GeneratePasswordResetTokenAsync(user);
+        var result = await _userManager.ResetPasswordAsync(user, resetToken, request.NewPassword);
 
-        _userRepository.Update(user);
-        await _unitOfWork.SaveChangesAsync(cancellationToken);
+        if (!result.Succeeded)
+        {
+            var errors = string.Join(", ", result.Errors.Select(e => e.Description));
+            throw new BusinessRuleException("PASSWORD_RESET_FAILED", $"فشل إعادة تعيين كلمة المرور. | Failed to reset password: {errors}");
+        }
+
+        // UserManager automatically calls SaveChanges
     }
 }

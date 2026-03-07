@@ -1,5 +1,8 @@
+using Microsoft.AspNetCore.Identity;
 using MediatR;
+using Microsoft.EntityFrameworkCore;
 using Zadana.Application.Common.Interfaces;
+using Zadana.Domain.Modules.Identity.Entities;
 using Zadana.Domain.Modules.Identity.Interfaces;
 using Zadana.SharedKernel.Exceptions;
 using Microsoft.Extensions.Localization;
@@ -9,21 +12,18 @@ namespace Zadana.Application.Modules.Identity.Commands.ForgotPassword;
 
 public class ForgotPasswordCommandHandler : IRequestHandler<ForgotPasswordCommand>
 {
-    private readonly IUserRepository _userRepository;
-    private readonly IUnitOfWork _unitOfWork;
+    private readonly UserManager<User> _userManager;
     private readonly IOtpService _otpService;
     private readonly IEmailService _emailService;
     private readonly IStringLocalizer<SharedResource> _localizer;
 
     public ForgotPasswordCommandHandler(
-        IUserRepository userRepository,
-        IUnitOfWork unitOfWork,
+        UserManager<User> userManager,
         IOtpService otpService,
         IEmailService emailService,
         IStringLocalizer<SharedResource> localizer)
     {
-        _userRepository = userRepository;
-        _unitOfWork = unitOfWork;
+        _userManager = userManager;
         _otpService = otpService;
         _emailService = emailService;
         _localizer = localizer;
@@ -31,7 +31,7 @@ public class ForgotPasswordCommandHandler : IRequestHandler<ForgotPasswordComman
 
     public async Task Handle(ForgotPasswordCommand request, CancellationToken cancellationToken)
     {
-        var user = await _userRepository.GetByIdentifierAsync(request.Identifier, cancellationToken);
+        var user = await _userManager.Users.FirstOrDefaultAsync(u => u.Email == request.Identifier || u.PhoneNumber == request.Identifier, cancellationToken);
         
         // Enhance security: We don't throw an error if the user isn't found to prevent email enumeration.
         if (user == null)
@@ -43,7 +43,7 @@ public class ForgotPasswordCommandHandler : IRequestHandler<ForgotPasswordComman
         var resetOtp = user.GeneratePasswordResetOtp();
 
         // Send OTP via SMS
-        await _otpService.SendOtpSmsAsync(user.Phone, resetOtp, cancellationToken);
+        await _otpService.SendOtpSmsAsync(user.PhoneNumber, resetOtp, cancellationToken);
 
         // Send OTP via Email (if email is provided)
         if (!string.IsNullOrWhiteSpace(user.Email))
@@ -55,7 +55,6 @@ public class ForgotPasswordCommandHandler : IRequestHandler<ForgotPasswordComman
                 cancellationToken);
         }
 
-        _userRepository.Update(user);
-        await _unitOfWork.SaveChangesAsync(cancellationToken);
+        await _userManager.UpdateAsync(user);
     }
 }

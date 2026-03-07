@@ -10,10 +10,10 @@ public class CreateCategoryCommandValidator : AbstractValidator<CreateCategoryCo
     {
         RuleFor(v => v.NameAr)
             .NotEmpty().WithMessage(localizer["RequiredField", "NameAr"])
-            .MaximumLength(200).WithMessage(localizer["MaxLength", 200]);
+            .MaximumLength(200).WithMessage(localizer["MaxLength", "NameAr", 200]);
 
         RuleFor(v => v.NameEn)
             .NotEmpty().WithMessage(localizer["RequiredField", "NameEn"])
-            .MaximumLength(200).WithMessage(localizer["MaxLength", 200]);
+            .MaximumLength(200).WithMessage(localizer["MaxLength", "NameEn", 200]);
     }
 }

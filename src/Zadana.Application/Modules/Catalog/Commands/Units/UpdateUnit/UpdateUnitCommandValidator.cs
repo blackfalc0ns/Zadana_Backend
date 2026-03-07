@@ -12,13 +12,13 @@ public class UpdateUnitCommandValidator : AbstractValidator<UpdateUnitCommand>
 
         RuleFor(x => x.NameAr)
             .NotEmpty().WithMessage(localizer["RequiredField", "NameAr"])
-            .MaximumLength(100).WithMessage(localizer["MaxLength", 100]);
+            .MaximumLength(100).WithMessage(localizer["MaxLength", "NameAr", 100]);
 
         RuleFor(x => x.NameEn)
             .NotEmpty().WithMessage(localizer["RequiredField", "NameEn"])
-            .MaximumLength(100).WithMessage(localizer["MaxLength", 100]);
+            .MaximumLength(100).WithMessage(localizer["MaxLength", "NameEn", 100]);
 
         RuleFor(x => x.Symbol)
-            .MaximumLength(20).WithMessage(localizer["MaxLength", 20]);
+            .MaximumLength(20).WithMessage(localizer["MaxLength", "Symbol", 20]);
     }
 }

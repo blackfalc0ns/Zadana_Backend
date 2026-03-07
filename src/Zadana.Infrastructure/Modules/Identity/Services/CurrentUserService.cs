@@ -17,10 +17,18 @@ public class CurrentUserService : ICurrentUserService
     {
         get
         {
-            var idClaim = _httpContextAccessor.HttpContext?.User?.FindFirst(ClaimTypes.NameIdentifier)?.Value
-                       ?? _httpContextAccessor.HttpContext?.User?.FindFirst(System.IdentityModel.Tokens.Jwt.JwtRegisteredClaimNames.Sub)?.Value;
+            var user = _httpContextAccessor.HttpContext?.User;
+            if (user == null) return null;
+
+            var idClaim = user.FindFirst(ClaimTypes.NameIdentifier)?.Value
+                       ?? user.FindFirst(System.IdentityModel.Tokens.Jwt.JwtRegisteredClaimNames.Sub)?.Value;
                        
-            return idClaim != null ? Guid.Parse(idClaim) : null;
+            if (idClaim != null && Guid.TryParse(idClaim, out var guid))
+            {
+                return guid;
+            }
+            
+            return null;
         }
     }
 

@@ -1,23 +1,23 @@
+using Microsoft.AspNetCore.Identity;
 using Zadana.Domain.Modules.Identity.Enums;
 using Zadana.SharedKernel.Primitives;
 
 namespace Zadana.Domain.Modules.Identity.Entities;
 
-public class User : BaseEntity
+public class User : IdentityUser<Guid>
 {
     public string FullName { get; private set; } = null!;
-    public string Email { get; private set; } = null!;
-    public string Phone { get; private set; } = null!;
-    public string PasswordHash { get; private set; } = null!;
     public UserRole Role { get; private set; }
     public AccountStatus AccountStatus { get; private set; }
-    public bool IsEmailVerified { get; private set; }
-    public bool IsPhoneVerified { get; private set; }
+    
     public string? OtpCode { get; private set; }
     public DateTime? OtpExpiryTime { get; private set; }
     public string? PasswordResetOtp { get; private set; }
     public DateTime? PasswordResetOtpExpiry { get; private set; }
     public DateTime? LastLoginAtUtc { get; private set; }
+
+    public DateTime CreatedAtUtc { get; set; }
+    public DateTime UpdatedAtUtc { get; set; }
 
     // Profile
     public string? ProfilePhotoUrl { get; private set; }
@@ -34,34 +34,31 @@ public class User : BaseEntity
         string fullName,
         string email,
         string phone,
-        string passwordHash,
         UserRole role,
         string? profilePhotoUrl = null)
     {
+        Id = Guid.NewGuid();
         FullName = fullName.Trim();
         Email = email.ToLowerInvariant().Trim();
-        Phone = phone.Trim();
-        PasswordHash = passwordHash;
+        UserName = Email;
+        PhoneNumber = phone.Trim();
         Role = role;
         AccountStatus = AccountStatus.Active;
-        IsEmailVerified = false;
-        IsPhoneVerified = false;
+        EmailConfirmed = false;
+        PhoneNumberConfirmed = false;
         ProfilePhotoUrl = profilePhotoUrl;
+        CreatedAtUtc = DateTime.UtcNow;
+        UpdatedAtUtc = DateTime.UtcNow;
     }
 
     public void UpdateProfile(string fullName, string phone)
     {
         FullName = fullName.Trim();
-        Phone = phone.Trim();
+        PhoneNumber = phone.Trim();
     }
 
-    public void ChangePassword(string newPasswordHash)
-    {
-        PasswordHash = newPasswordHash;
-    }
-
-    public void VerifyEmail() => IsEmailVerified = true;
-    public void VerifyPhone() => IsPhoneVerified = true;
+    public void VerifyEmail() => EmailConfirmed = true;
+    public void VerifyPhone() => PhoneNumberConfirmed = true;
 
     public void RecordLogin() => LastLoginAtUtc = DateTime.UtcNow;
 
@@ -94,7 +91,7 @@ public class User : BaseEntity
         // Success: Clear the OTP and mark as verified
         OtpCode = null;
         OtpExpiryTime = null;
-        IsPhoneVerified = true; // Assuming OTP is primarily for Phone in this scenario
+        PhoneNumberConfirmed = true; // Assuming OTP is primarily for Phone in this scenario
         
         return true;
     }

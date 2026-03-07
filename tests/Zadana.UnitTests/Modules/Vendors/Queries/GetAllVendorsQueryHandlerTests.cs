@@ -20,7 +20,7 @@ public class GetAllVendorsQueryHandlerTests
         var db = TestDbContextFactory.Create();
 
         var userId1 = Guid.NewGuid();
-        var user1 = new User("Owner 1", "owner1@test.com", "111", "hash", UserRole.Vendor);
+        var user1 = new User("Owner 1", "owner1@test.com", "111", UserRole.Vendor);
         typeof(User).GetProperty("Id")!.SetValue(user1, userId1);
         db.Users.Add(user1);
 
@@ -29,7 +29,7 @@ public class GetAllVendorsQueryHandlerTests
         db.Vendors.Add(vendor1);
 
         var userId2 = Guid.NewGuid();
-        var user2 = new User("Owner 2", "owner2@test.com", "222", "hash", UserRole.Vendor);
+        var user2 = new User("Owner 2", "owner2@test.com", "222", UserRole.Vendor);
         typeof(User).GetProperty("Id")!.SetValue(user2, userId2);
         db.Users.Add(user2);
 
@@ -56,7 +56,7 @@ public class GetAllVendorsQueryHandlerTests
         var db = TestDbContextFactory.Create();
 
         var userId1 = Guid.NewGuid();
-        var user1 = new User("Owner 1", "owner1@test.com", "111", "hash", UserRole.Vendor);
+        var user1 = new User("Owner 1", "owner1@test.com", "111", UserRole.Vendor);
         typeof(User).GetProperty("Id")!.SetValue(user1, userId1);
         db.Users.Add(user1);
 
@@ -65,7 +65,7 @@ public class GetAllVendorsQueryHandlerTests
         db.Vendors.Add(vendor1);
 
         var userId2 = Guid.NewGuid();
-        var user2 = new User("Owner 2", "owner2@test.com", "222", "hash", UserRole.Vendor);
+        var user2 = new User("Owner 2", "owner2@test.com", "222", UserRole.Vendor);
         typeof(User).GetProperty("Id")!.SetValue(user2, userId2);
         db.Users.Add(user2);
 

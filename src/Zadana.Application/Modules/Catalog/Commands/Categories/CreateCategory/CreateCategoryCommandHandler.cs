@@ -27,6 +27,7 @@ public class CreateCategoryCommandHandler : IRequestHandler<CreateCategoryComman
         var category = new Category(
             request.NameAr,
             request.NameEn,
+            request.ImageUrl,
             request.ParentCategoryId,
             request.DisplayOrder);
 
@@ -37,6 +38,7 @@ public class CreateCategoryCommandHandler : IRequestHandler<CreateCategoryComman
             category.Id,
             category.NameAr,
             category.NameEn,
+            category.ImageUrl,
             category.ParentCategoryId,
             category.DisplayOrder,
             category.IsActive);

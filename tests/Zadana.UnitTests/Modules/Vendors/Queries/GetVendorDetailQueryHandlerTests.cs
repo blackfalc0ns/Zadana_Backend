@@ -20,7 +20,7 @@ public class GetVendorDetailQueryHandlerTests
         var db = TestDbContextFactory.Create();
         var userId = Guid.NewGuid();
 
-        var user = new User("Owner Name", "owner@test.com", "123", "hash", UserRole.Vendor);
+        var user = new User("Owner Name", "owner@test.com", "123", UserRole.Vendor);
         typeof(User).GetProperty("Id")!.SetValue(user, userId);
         db.Users.Add(user);
 

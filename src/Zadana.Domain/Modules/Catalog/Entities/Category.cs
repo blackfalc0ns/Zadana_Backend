@@ -6,6 +6,7 @@ public class Category : BaseEntity
 {
     public string NameAr { get; private set; } = null!;
     public string NameEn { get; private set; } = null!;
+    public string? ImageUrl { get; private set; }
     public Guid? ParentCategoryId { get; private set; }
     public int DisplayOrder { get; private set; }
     public bool IsActive { get; private set; }
@@ -17,19 +18,21 @@ public class Category : BaseEntity
 
     private Category() { }
 
-    public Category(string nameAr, string nameEn, Guid? parentCategoryId = null, int displayOrder = 0)
+    public Category(string nameAr, string nameEn, string? imageUrl = null, Guid? parentCategoryId = null, int displayOrder = 0)
     {
         NameAr = nameAr.Trim();
         NameEn = nameEn.Trim();
+        ImageUrl = imageUrl;
         ParentCategoryId = parentCategoryId;
         DisplayOrder = displayOrder;
         IsActive = true;
     }
 
-    public void Update(string nameAr, string nameEn, Guid? parentCategoryId, int displayOrder)
+    public void Update(string nameAr, string nameEn, string? imageUrl, Guid? parentCategoryId, int displayOrder)
     {
         NameAr = nameAr.Trim();
         NameEn = nameEn.Trim();
+        ImageUrl = imageUrl;
         
         // Prevent self-referencing parent
         if (parentCategoryId == Id)

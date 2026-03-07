@@ -1,3 +1,5 @@
+using Microsoft.AspNetCore.Identity;
+using Microsoft.EntityFrameworkCore;
 using Zadana.Application.Common.Interfaces;
 using Zadana.Application.Modules.Identity.DTOs;
 using Zadana.Application.Modules.Identity.Interfaces;
@@ -12,27 +14,24 @@ namespace Zadana.Application.Modules.Identity.Services;
 
 public class IdentityService : IIdentityService
 {
-    private readonly IUserRepository _userRepository;
+    private readonly UserManager<User> _userManager;
     private readonly IRefreshTokenRepository _refreshTokenRepository;
     private readonly IUnitOfWork _unitOfWork;
-    private readonly IPasswordHasher _passwordHasher;
     private readonly IJwtTokenService _jwtTokenService;
     private readonly ICurrentUserService _currentUserService;
     private readonly IStringLocalizer<SharedResource> _localizer;
 
     public IdentityService(
-        IUserRepository userRepository,
+        UserManager<User> userManager,
         IRefreshTokenRepository refreshTokenRepository,
         IUnitOfWork unitOfWork,
-        IPasswordHasher passwordHasher,
         IJwtTokenService jwtTokenService,
         ICurrentUserService currentUserService,
         IStringLocalizer<SharedResource> localizer)
     {
-        _userRepository = userRepository;
+        _userManager = userManager;
         _refreshTokenRepository = refreshTokenRepository;
         _unitOfWork = unitOfWork;
-        _passwordHasher = passwordHasher;
         _jwtTokenService = jwtTokenService;
         _currentUserService = currentUserService;
         _localizer = localizer;
@@ -40,9 +39,9 @@ public class IdentityService : IIdentityService
 
     public async Task<AuthResponseDto> LoginAsync(string identifier, string password, UserRole[]? expectedRoles = null, CancellationToken cancellationToken = default)
     {
-        var user = await _userRepository.GetByIdentifierAsync(identifier, cancellationToken);
+        var user = await _userManager.Users.FirstOrDefaultAsync(u => u.Email == identifier || u.PhoneNumber == identifier, cancellationToken);
             
-        if (user == null || !_passwordHasher.VerifyPassword(password, user.PasswordHash))
+        if (user == null || !await _userManager.CheckPasswordAsync(user, password))
         {
             throw new UnauthorizedException(_localizer["InvalidCredentials"]);
         }
@@ -70,7 +69,7 @@ public class IdentityService : IIdentityService
         
         await _unitOfWork.SaveChangesAsync(cancellationToken);
 
-        var userDto = new CurrentUserDto(user.Id, user.FullName, user.Email, user.Phone, user.Role.ToString());
+        var userDto = new CurrentUserDto(user.Id, user.FullName, user.Email, user.PhoneNumber, user.Role.ToString());
         return new AuthResponseDto(tokens, userDto);
     }
 
@@ -122,12 +121,12 @@ public class IdentityService : IIdentityService
             throw new UnauthorizedException(_localizer["UserNotAuthenticated"]);
         }
 
-        var user = await _userRepository.GetByIdAsync(userId.Value, cancellationToken);
+        var user = await _userManager.FindByIdAsync(userId.Value.ToString());
         if (user == null)
         {
             throw new UnauthorizedException(_localizer["UserNotFound"]);
         }
 
-        return new CurrentUserDto(user.Id, user.FullName, user.Email, user.Phone, user.Role.ToString());
+        return new CurrentUserDto(user.Id, user.FullName, user.Email, user.PhoneNumber, user.Role.ToString());
     }
 }

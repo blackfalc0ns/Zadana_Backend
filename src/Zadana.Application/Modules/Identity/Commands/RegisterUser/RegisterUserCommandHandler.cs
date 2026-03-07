@@ -1,3 +1,4 @@
+using Microsoft.AspNetCore.Identity;
 using MediatR;
 using Zadana.Application.Common.Interfaces;
 using Zadana.Domain.Modules.Identity.Entities;
@@ -8,21 +9,17 @@ namespace Zadana.Application.Modules.Identity.Commands.RegisterUser;
 
 public class RegisterUserCommandHandler : IRequestHandler<RegisterUserCommand, Guid>
 {
-    private readonly IApplicationDbContext _context;
-    private readonly IPasswordHasher _passwordHasher;
+    private readonly UserManager<User> _userManager;
 
-    public RegisterUserCommandHandler(
-        IApplicationDbContext context,
-        IPasswordHasher passwordHasher)
+    public RegisterUserCommandHandler(UserManager<User> userManager)
     {
-        _context = context;
-        _passwordHasher = passwordHasher;
+        _userManager = userManager;
     }
 
     public async Task<Guid> Handle(RegisterUserCommand request, CancellationToken cancellationToken)
     {
         // 1. Check if email exists
-        var emailExists = _context.Users.Any(u => u.Email == request.Email);
+        var emailExists = await _userManager.FindByEmailAsync(request.Email) != null;
         if (emailExists)
         {
             throw new BusinessRuleException(
@@ -38,22 +35,22 @@ public class RegisterUserCommandHandler : IRequestHandler<RegisterUserCommand, G
                 "دور المستخدم غير صالح. | Invalid user role specified.");
         }
 
-        // 3. Hash Password
-        var passwordHash = _passwordHasher.HashPassword(request.Password);
-
-        // 4. Create Entity
+        // 3. Create Entity
         var user = new User(
             request.FullName,
             request.Email,
             request.Phone,
-            passwordHash,
             role);
 
-        // 5. Add and Save
-        _context.Users.Add(user);
-        await _context.SaveChangesAsync(cancellationToken);
+        // 4. Save using UserManager
+        var result = await _userManager.CreateAsync(user, request.Password);
+        if (!result.Succeeded)
+        {
+            var errors = string.Join(", ", result.Errors.Select(e => e.Description));
+            throw new BusinessRuleException("CREATION_FAILED", $"فشل إنشاء حساب المستخدم. | Failed to create user account. ({errors})");
+        }
 
-        // 6. Return new Guid
+        // 5. Return new Guid
         return user.Id;
     }
 }
