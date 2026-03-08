@@ -22,7 +22,7 @@ public class CreateCategoryCommandHandlerTests
         _dbContextMock.Setup(c => c.Categories).Returns(mockCategorySet.Object);
         _dbContextMock.Setup(c => c.SaveChangesAsync(It.IsAny<CancellationToken>())).ReturnsAsync(1);
 
-        var command = new CreateCategoryCommand("فئة", "Category", null, 1);
+        var command = new CreateCategoryCommand("فئة", "Category", null, null, 1);
         var handler = CreateHandler();
 
         // Act
@@ -47,7 +47,7 @@ public class CreateCategoryCommandHandlerTests
         _dbContextMock.Setup(c => c.Categories).Returns(mockCategorySet.Object);
 
         var fakeParentId = Guid.NewGuid();
-        var command = new CreateCategoryCommand("فرعي", "Sub", fakeParentId, 2);
+        var command = new CreateCategoryCommand("فرعي", "Sub", null, fakeParentId, 2);
         var handler = CreateHandler();
 
         // Act

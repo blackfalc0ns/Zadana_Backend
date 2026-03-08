@@ -41,6 +41,8 @@ public class CreateCategoryCommandHandler : IRequestHandler<CreateCategoryComman
             category.ImageUrl,
             category.ParentCategoryId,
             category.DisplayOrder,
-            category.IsActive);
+            category.IsActive,
+            CreatedAtUtc: category.CreatedAtUtc,
+            UpdatedAtUtc: category.UpdatedAtUtc);
     }
 }

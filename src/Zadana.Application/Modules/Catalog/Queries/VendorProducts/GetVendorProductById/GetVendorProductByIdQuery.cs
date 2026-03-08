@@ -22,6 +22,7 @@ public class GetVendorProductByIdQueryHandler : IRequestHandler<GetVendorProduct
         var vp = await _context.VendorProducts
             .AsNoTracking()
             .Include(x => x.MasterProduct)
+                .ThenInclude(mp => mp.Images)
             .FirstOrDefaultAsync(x => x.Id == request.ProductId && x.VendorId == request.VendorId, cancellationToken);
 
         if (vp == null)
@@ -46,7 +47,8 @@ public class GetVendorProductByIdQueryHandler : IRequestHandler<GetVendorProduct
                 vp.MasterProduct.CategoryId,
                 vp.MasterProduct.BrandId,
                 vp.MasterProduct.UnitOfMeasureId,
-                vp.MasterProduct.Status.ToString()
+                vp.MasterProduct.Status.ToString(),
+                vp.MasterProduct.Images.Select(i => new MasterProductImageDto(i.Url, i.AltText, i.DisplayOrder, i.IsPrimary)).ToList()
             )
         );
     }

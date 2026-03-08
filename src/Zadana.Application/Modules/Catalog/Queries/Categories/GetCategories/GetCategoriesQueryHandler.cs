@@ -30,18 +30,18 @@ public class GetCategoriesQueryHandler : IRequestHandler<GetCategoriesQuery, Lis
         var rootCategories = allCategories
             .Where(c => c.ParentCategoryId == null)
             .OrderBy(c => c.DisplayOrder)
-            .Select(c => MapToDtoWithSubCategories(c, allCategories))
+            .Select(c => MapToDtoWithSubCategories(c, allCategories, 0))
             .ToList();
 
         return rootCategories;
     }
 
-    private CategoryDto MapToDtoWithSubCategories(Category category, List<Category> allCategories)
+    private CategoryDto MapToDtoWithSubCategories(Category category, List<Category> allCategories, int level)
     {
         var subCategories = allCategories
             .Where(c => c.ParentCategoryId == category.Id)
             .OrderBy(c => c.DisplayOrder)
-            .Select(c => MapToDtoWithSubCategories(c, allCategories))
+            .Select(c => MapToDtoWithSubCategories(c, allCategories, level + 1))
             .ToList();
 
         return new CategoryDto(
@@ -52,6 +52,12 @@ public class GetCategoriesQueryHandler : IRequestHandler<GetCategoriesQuery, Lis
             category.ParentCategoryId,
             category.DisplayOrder,
             category.IsActive,
-            subCategories.Any() ? subCategories : null);
+            ParentNameAr: null,
+            ParentNameEn: null,
+            CreatedAtUtc: category.CreatedAtUtc,
+            UpdatedAtUtc: category.UpdatedAtUtc,
+            MasterProductsCount: 0,
+            Level: level,
+            SubCategories: subCategories.Any() ? subCategories : null);
     }
 }

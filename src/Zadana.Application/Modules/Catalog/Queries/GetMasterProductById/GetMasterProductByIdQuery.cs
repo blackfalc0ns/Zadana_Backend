@@ -20,6 +20,7 @@ public class GetMasterProductByIdQueryHandler : IRequestHandler<GetMasterProduct
     public async Task<MasterProductDto> Handle(GetMasterProductByIdQuery request, CancellationToken cancellationToken)
     {
         var product = await _context.MasterProducts
+            .Include(p => p.Images)
             .AsNoTracking()
             .FirstOrDefaultAsync(p => p.Id == request.Id, cancellationToken);
 
@@ -36,7 +37,8 @@ public class GetMasterProductByIdQueryHandler : IRequestHandler<GetMasterProduct
             product.CategoryId,
             product.BrandId,
             product.UnitOfMeasureId,
-            product.Status.ToString()
+            product.Status.ToString(),
+            product.Images.Select(i => new MasterProductImageDto(i.Url, i.AltText, i.DisplayOrder, i.IsPrimary)).ToList()
         );
     }
 }

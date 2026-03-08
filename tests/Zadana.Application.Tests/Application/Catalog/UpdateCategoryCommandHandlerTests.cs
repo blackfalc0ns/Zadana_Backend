@@ -23,7 +23,7 @@ public class UpdateCategoryCommandHandlerTests
             .ReturnsAsync((Category?)null);
         _dbContextMock.Setup(c => c.Categories).Returns(mockCategorySet.Object);
 
-        var command = new UpdateCategoryCommand(Guid.NewGuid(), "تحديث", "Update", null, 1, true);
+        var command = new UpdateCategoryCommand(Guid.NewGuid(), "تحديث", "Update", null, null, 1, true);
         var handler = CreateHandler();
 
         // Act
@@ -37,7 +37,7 @@ public class UpdateCategoryCommandHandlerTests
     public async Task Handle_WhenParentCategoryNotFound_ShouldThrowNotFoundException()
     {
         // Arrange
-        var existingCategory = new Category("قديم", "Old", null, 1);
+        var existingCategory = new Category("قديم", "Old", null, null, 1);
 
         var mockCategorySet = new Mock<DbSet<Category>>();
         var callCount = 0;
@@ -50,7 +50,7 @@ public class UpdateCategoryCommandHandlerTests
         _dbContextMock.Setup(c => c.Categories).Returns(mockCategorySet.Object);
 
         var fakeParentId = Guid.NewGuid();
-        var command = new UpdateCategoryCommand(existingCategory.Id, "تحديث", "Update", fakeParentId, 1, true);
+        var command = new UpdateCategoryCommand(existingCategory.Id, "تحديث", "Update", null, fakeParentId, 1, true);
         var handler = CreateHandler();
 
         // Act
@@ -64,14 +64,14 @@ public class UpdateCategoryCommandHandlerTests
     public async Task Handle_WithValidData_ShouldUpdateAndSave()
     {
         // Arrange
-        var existingCategory = new Category("قديم", "Old", null, 1);
+        var existingCategory = new Category("قديم", "Old", null, null, 1);
         var mockCategorySet = new Mock<DbSet<Category>>();
         mockCategorySet.Setup(s => s.FindAsync(It.IsAny<object[]>(), It.IsAny<CancellationToken>()))
             .ReturnsAsync(existingCategory);
         _dbContextMock.Setup(c => c.Categories).Returns(mockCategorySet.Object);
         _dbContextMock.Setup(c => c.SaveChangesAsync(It.IsAny<CancellationToken>())).ReturnsAsync(1);
 
-        var command = new UpdateCategoryCommand(existingCategory.Id, "جديد", "New", null, 5, true);
+        var command = new UpdateCategoryCommand(existingCategory.Id, "جديد", "New", null, null, 5, true);
         var handler = CreateHandler();
 
         // Act

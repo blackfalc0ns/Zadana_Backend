@@ -41,7 +41,6 @@ public class ApplicationDbContext : IdentityDbContext<User, IdentityRole<Guid>, 
     public DbSet<Brand> Brands => Set<Brand>();
     public DbSet<UnitOfMeasure> UnitsOfMeasure => Set<UnitOfMeasure>();
     public DbSet<MasterProduct> MasterProducts => Set<MasterProduct>();
-    public DbSet<ImageBank> ImageBanks => Set<ImageBank>();
     public DbSet<VendorProduct> VendorProducts => Set<VendorProduct>();
     public DbSet<ProductRequest> ProductRequests => Set<ProductRequest>();
 

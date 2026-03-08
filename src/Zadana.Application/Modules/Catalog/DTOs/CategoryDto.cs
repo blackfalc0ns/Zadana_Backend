@@ -8,4 +8,10 @@ public record CategoryDto(
     Guid? ParentCategoryId,
     int DisplayOrder,
     bool IsActive,
+    string? ParentNameAr = null,
+    string? ParentNameEn = null,
+    DateTime? CreatedAtUtc = null,
+    DateTime? UpdatedAtUtc = null,
+    int? MasterProductsCount = 0,
+    int Level = 0,
     List<CategoryDto>? SubCategories = null);

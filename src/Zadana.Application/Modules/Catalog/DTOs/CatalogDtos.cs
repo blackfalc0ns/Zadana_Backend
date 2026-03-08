@@ -2,6 +2,12 @@ namespace Zadana.Application.Modules.Catalog.DTOs;
 
 
 
+public record MasterProductImageDto(
+    string Url,
+    string? AltText,
+    int DisplayOrder,
+    bool IsPrimary);
+
 public record MasterProductDto(
     Guid Id,
     string NameAr,
@@ -12,7 +18,8 @@ public record MasterProductDto(
     Guid CategoryId,
     Guid? BrandId,
     Guid? UnitOfMeasureId,
-    string Status);
+    string Status,
+    ICollection<MasterProductImageDto> Images);
 
 public record VendorProductDto(
     Guid Id,

@@ -44,7 +44,7 @@ public class CreateMasterProductCommandHandlerTests
     public async Task Handle_WhenBrandNotFound_ShouldThrowNotFoundException()
     {
         // Arrange — category exists, brand does not
-        var category = new Category("فئة", "Cat", null, 1);
+        var category = new Category("فئة", "Cat", null, null, 1);
         var categoryList = new List<Category> { category }.AsQueryable();
         var mockCategorySet = new Mock<DbSet<Category>>();
         mockCategorySet.As<IQueryable<Category>>().Setup(m => m.Provider).Returns(categoryList.Provider);
@@ -78,7 +78,7 @@ public class CreateMasterProductCommandHandlerTests
     public async Task Handle_WithValidData_ShouldAddProductAndReturnGuid()
     {
         // Arrange — category exists
-        var category = new Category("فئة", "Cat", null, 1);
+        var category = new Category("فئة", "Cat", null, null, 1);
         var categoryList = new List<Category> { category }.AsQueryable();
         var mockCategorySet = new Mock<DbSet<Category>>();
         mockCategorySet.As<IQueryable<Category>>().Setup(m => m.Provider).Returns(categoryList.Provider);
@@ -100,6 +100,41 @@ public class CreateMasterProductCommandHandlerTests
         // Assert
         result.Should().NotBeEmpty();
         mockMasterProductSet.Verify(d => d.Add(It.IsAny<MasterProduct>()), Times.Once);
+        _dbContextMock.Verify(c => c.SaveChangesAsync(It.IsAny<CancellationToken>()), Times.Once);
+    }
+
+    [Fact]
+    public async Task Handle_WithImages_ShouldAddProductAndImages()
+    {
+        // Arrange
+        var category = new Category("فئة", "Cat", null, null, 1);
+        var categoryList = new List<Category> { category }.AsQueryable();
+        var mockCategorySet = new Mock<DbSet<Category>>();
+        mockCategorySet.As<IQueryable<Category>>().Setup(m => m.Provider).Returns(categoryList.Provider);
+        mockCategorySet.As<IQueryable<Category>>().Setup(m => m.Expression).Returns(categoryList.Expression);
+        mockCategorySet.As<IQueryable<Category>>().Setup(m => m.ElementType).Returns(categoryList.ElementType);
+        mockCategorySet.As<IQueryable<Category>>().Setup(m => m.GetEnumerator()).Returns(categoryList.GetEnumerator());
+        _dbContextMock.Setup(c => c.Categories).Returns(mockCategorySet.Object);
+
+        var mockMasterProductSet = new Mock<DbSet<MasterProduct>>();
+        _dbContextMock.Setup(c => c.MasterProducts).Returns(mockMasterProductSet.Object);
+        _dbContextMock.Setup(c => c.SaveChangesAsync(It.IsAny<CancellationToken>())).ReturnsAsync(1);
+
+        var images = new List<CreateProductImageInfo>
+        {
+            new("https://example.com/img1.png", "Alt 1", 0, true),
+            new("https://example.com/img2.png", "Alt 2", 1, false)
+        };
+
+        var command = new CreateMasterProductCommand(category.Id, "Product with Images", "slug", null, "Desc", null, null, images);
+        var handler = CreateHandler();
+
+        // Act
+        var result = await handler.Handle(command, CancellationToken.None);
+
+        // Assert
+        result.Should().NotBeEmpty();
+        mockMasterProductSet.Verify(d => d.Add(It.Is<MasterProduct>(p => p.Images.Count == 2)), Times.Once);
         _dbContextMock.Verify(c => c.SaveChangesAsync(It.IsAny<CancellationToken>()), Times.Once);
     }
 }

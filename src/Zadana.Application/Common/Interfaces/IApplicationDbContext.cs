@@ -28,7 +28,6 @@ public interface IApplicationDbContext
     DbSet<Brand> Brands { get; }
     DbSet<UnitOfMeasure> UnitsOfMeasure { get; }
     DbSet<MasterProduct> MasterProducts { get; }
-    DbSet<ImageBank> ImageBanks { get; }
     DbSet<VendorProduct> VendorProducts { get; }
     DbSet<ProductRequest> ProductRequests { get; }
 

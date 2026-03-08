@@ -38,6 +38,14 @@ public class CreateMasterProductCommandHandler : IRequestHandler<CreateMasterPro
             barcode: request.Barcode
         );
 
+        if (request.Images != null)
+        {
+            foreach (var img in request.Images)
+            {
+                masterProduct.AddImage(img.Url, img.AltText, img.DisplayOrder, img.IsPrimary);
+            }
+        }
+
         _context.MasterProducts.Add(masterProduct);
         await _context.SaveChangesAsync(cancellationToken);
 

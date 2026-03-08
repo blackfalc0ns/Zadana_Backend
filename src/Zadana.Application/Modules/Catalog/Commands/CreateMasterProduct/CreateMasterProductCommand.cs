@@ -11,7 +11,10 @@ public record CreateMasterProductCommand(
     string? Barcode,
     string? Description,
     Guid? BrandId,
-    Guid? UnitId) : MediatR.IRequest<Guid>;
+    Guid? UnitId,
+    List<CreateProductImageInfo>? Images = null) : MediatR.IRequest<Guid>;
+
+public record CreateProductImageInfo(string Url, string? AltText, int DisplayOrder, bool IsPrimary);
 
 public class CreateMasterProductCommandValidator : AbstractValidator<CreateMasterProductCommand>
 {

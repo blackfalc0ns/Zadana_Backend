@@ -38,24 +38,8 @@ public class UploadFileCommandHandler : IRequestHandler<UploadFileCommand, strin
         // Upload and get public URL
         var fileUrl = await _fileStorageService.UploadAsync(request.File, request.Directory, cancellationToken);
 
-        // Record it in ImageBank if requested by an authenticated user
-        if (_currentUserService.UserId.HasValue)
-        {
-            // Only set UploadedByVendorId if the role is Vendor
-            Guid? vendorId = _currentUserService.Role == "Vendor" ? _currentUserService.UserId : null;
-            
-            var imageBankEntry = new ImageBank(
-                url: fileUrl,
-                altText: request.File.FileName,
-                tags: request.Directory, // Defaulting tags to directory for simple search filtering
-                uploadedByVendorId: vendorId
-            );
-
-            // Per User Requirement: If uploaded by a vendor, default Status is Pending.
-            // Admin will then approve it. (This behavior is handled automatically in the ImageBank constructor)
-            _context.ImageBanks.Add(imageBankEntry);
-            await _context.SaveChangesAsync(cancellationToken);
-        }
+        // Record in database is no longer needed here as ImageBank is removed.
+        // The calling component (e.g. MasterProduct creation) will link this URL to its own entities.
 
         return fileUrl;
     }

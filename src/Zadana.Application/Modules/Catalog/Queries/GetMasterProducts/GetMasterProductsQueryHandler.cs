@@ -41,7 +41,8 @@ public class GetMasterProductsQueryHandler : IRequestHandler<GetMasterProductsQu
                 p.CategoryId,
                 p.BrandId,
                 p.UnitOfMeasureId,
-                p.Status.ToString()
+                p.Status.ToString(),
+                p.Images.Select(i => new MasterProductImageDto(i.Url, i.AltText, i.DisplayOrder, i.IsPrimary)).ToList()
             ));
 
         return await PaginatedList<MasterProductDto>.CreateAsync(

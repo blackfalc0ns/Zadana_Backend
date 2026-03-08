@@ -1,4 +1,4 @@
-﻿<Project Sdk="Microsoft.NET.Sdk">
+<Project Sdk="Microsoft.NET.Sdk">
 
   <PropertyGroup>
     <TargetFramework>net9.0</TargetFramework>
@@ -28,6 +28,14 @@
     <ProjectReference Include="..\..\src\Zadana.Domain\Zadana.Domain.csproj" />
     <ProjectReference Include="..\..\src\Zadana.SharedKernel\Zadana.SharedKernel.csproj" />
     <ProjectReference Include="..\..\src\Zadana.Api\Zadana.Api.csproj" />
+  </ItemGroup>
+
+  <ItemGroup>
+    <Compile Remove="Application\Identity\**\*.*" />
+    <Compile Remove="Application\Delivery\**\*.*" />
+    <Compile Remove="Domain\Identity\**\*.*" />
+    <Compile Remove="Helpers\ZadanaWebFactory.cs" />
+    <Compile Remove="Integration\**\*.*" />
   </ItemGroup>
 
 </Project>

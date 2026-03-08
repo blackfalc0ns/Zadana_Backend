@@ -3,6 +3,7 @@ using System;
 using Microsoft.EntityFrameworkCore;
 using Microsoft.EntityFrameworkCore.Infrastructure;
 using Microsoft.EntityFrameworkCore.Metadata;
+using Microsoft.EntityFrameworkCore.Migrations;
 using Microsoft.EntityFrameworkCore.Storage.ValueConversion;
 using Zadana.Infrastructure.Persistence;
 
@@ -11,9 +12,11 @@ using Zadana.Infrastructure.Persistence;
 namespace Zadana.Infrastructure.Migrations
 {
     [DbContext(typeof(ApplicationDbContext))]
-    partial class ApplicationDbContextModelSnapshot : ModelSnapshot
+    [Migration("20260307145408_ConsolidatePendingSets")]
+    partial class ConsolidatePendingSets
     {
-        protected override void BuildModel(ModelBuilder modelBuilder)
+        /// <inheritdoc />
+        protected override void BuildTargetModel(ModelBuilder modelBuilder)
         {
 #pragma warning disable 612, 618
             modelBuilder
@@ -235,6 +238,54 @@ namespace Zadana.Infrastructure.Migrations
                     b.ToTable("Category", (string)null);
                 });
 
+            modelBuilder.Entity("Zadana.Domain.Modules.Catalog.Entities.ImageBank", b =>
+                {
+                    b.Property<Guid>("Id")
+                        .ValueGeneratedOnAdd()
+                        .HasColumnType("uniqueidentifier");
+
+                    b.Property<string>("AltText")
+                        .HasMaxLength(200)
+                        .HasColumnType("nvarchar(200)");
+
+                    b.Property<DateTime>("CreatedAtUtc")
+                        .HasColumnType("datetime2");
+
+                    b.Property<string>("RejectionReason")
+                        .HasMaxLength(500)
+                        .HasColumnType("nvarchar(500)");
+
+                    b.Property<string>("Status")
+                        .IsRequired()
+                        .HasMaxLength(20)
+                        .HasColumnType("nvarchar(20)");
+
+                    b.Property<string>("Tags")
+                        .HasMaxLength(500)
+                        .HasColumnType("nvarchar(500)");
+
+                    b.Property<DateTime>("UpdatedAtUtc")
+                        .HasColumnType("datetime2");
+
+                    b.Property<Guid?>("UploadedByVendorId")
+                        .HasColumnType("uniqueidentifier");
+
+                    b.Property<string>("Url")
+                        .IsRequired()
+                        .HasMaxLength(1000)
+                        .HasColumnType("nvarchar(1000)");
+
+                    b.HasKey("Id");
+
+                    b.HasIndex("Status")
+                        .HasDatabaseName("IX_ImageBank_Status");
+
+                    b.HasIndex("UploadedByVendorId")
+                        .HasDatabaseName("IX_ImageBank_UploadedByVendorId");
+
+                    b.ToTable("ImageBank", (string)null);
+                });
+
             modelBuilder.Entity("Zadana.Domain.Modules.Catalog.Entities.MasterProduct", b =>
                 {
                     b.Property<Guid>("Id")
@@ -306,13 +357,8 @@ namespace Zadana.Infrastructure.Migrations
                     b.Property<Guid>("MasterProductId")
                         .HasColumnType("uniqueidentifier");
 
-                    b.Property<string>("Url")
-                        .HasMaxLength(2048)
-                        .HasColumnType("nvarchar(2048)");
-
-                    b.Property<string>("AltText")
-                        .HasMaxLength(500)
-                        .HasColumnType("nvarchar(500)");
+                    b.Property<Guid>("ImageBankId")
+                        .HasColumnType("uniqueidentifier");
 
                     b.Property<int>("DisplayOrder")
                         .ValueGeneratedOnAdd()
@@ -324,7 +370,9 @@ namespace Zadana.Infrastructure.Migrations
                         .HasColumnType("bit")
                         .HasDefaultValue(false);
 
-                    b.HasKey("MasterProductId", "Url");
+                    b.HasKey("MasterProductId", "ImageBankId");
+
+                    b.HasIndex("ImageBankId");
 
                     b.ToTable("MasterProductImage", (string)null);
                 });
@@ -1990,11 +2038,19 @@ namespace Zadana.Infrastructure.Migrations
 
             modelBuilder.Entity("Zadana.Domain.Modules.Catalog.Entities.MasterProductImage", b =>
                 {
+                    b.HasOne("Zadana.Domain.Modules.Catalog.Entities.ImageBank", "ImageBank")
+                        .WithMany("ProductUsages")
+                        .HasForeignKey("ImageBankId")
+                        .OnDelete(DeleteBehavior.Restrict)
+                        .IsRequired();
+
                     b.HasOne("Zadana.Domain.Modules.Catalog.Entities.MasterProduct", "MasterProduct")
                         .WithMany("Images")
                         .HasForeignKey("MasterProductId")
                         .OnDelete(DeleteBehavior.Cascade)
                         .IsRequired();
+
+                    b.Navigation("ImageBank");
 
                     b.Navigation("MasterProduct");
                 });
@@ -2445,6 +2501,11 @@ namespace Zadana.Infrastructure.Migrations
                     b.Navigation("MasterProducts");
 
                     b.Navigation("SubCategories");
+                });
+
+            modelBuilder.Entity("Zadana.Domain.Modules.Catalog.Entities.ImageBank", b =>
+                {
+                    b.Navigation("ProductUsages");
                 });
 
             modelBuilder.Entity("Zadana.Domain.Modules.Catalog.Entities.MasterProduct", b =>

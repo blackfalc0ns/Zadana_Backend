@@ -62,6 +62,13 @@ public class MasterProduct : BaseEntity
     public void ChangeBrand(Guid? brandId) => BrandId = brandId;
     public void ChangeUnit(Guid? unitOfMeasureId) => UnitOfMeasureId = unitOfMeasureId;
 
+    public void AddImage(string url, string? altText = null, int displayOrder = 0, bool isPrimary = false)
+    {
+        Images.Add(new MasterProductImage(Id, url, altText, displayOrder, isPrimary));
+    }
+
+    public void ClearImages() => Images.Clear();
+
     public void Publish() => Status = ProductStatus.Active;
     public void Unpublish() => Status = ProductStatus.Inactive;
     public void Discontinue() => Status = ProductStatus.Discontinued;

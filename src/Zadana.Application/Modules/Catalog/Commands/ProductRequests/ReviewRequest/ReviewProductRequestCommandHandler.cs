@@ -49,22 +49,10 @@ public class ReviewProductRequestCommandHandler : IRequestHandler<ReviewProductR
 
             _context.MasterProducts.Add(masterProduct);
 
-            // Fetch image bank ID based on URL to link it properly
+            // Link image directly using the new unified structure
             if (!string.IsNullOrWhiteSpace(productRequest.ImageUrl))
             {
-                var imageBankEntry = await _context.ImageBanks
-                    .FirstOrDefaultAsync(ib => ib.Url == productRequest.ImageUrl, cancellationToken);
-                
-                if (imageBankEntry != null)
-                {
-                    // Approve the image in the ImageBank if it was pending
-                    if (imageBankEntry.Status == Domain.Modules.Catalog.Enums.ApprovalStatus.Pending)
-                    {
-                        imageBankEntry.Approve();
-                    }
-
-                    masterProduct.Images.Add(new MasterProductImage(masterProduct.Id, imageBankEntry.Id, 0, true));
-                }
+                masterProduct.AddImage(productRequest.ImageUrl, productRequest.SuggestedNameEn, 0, true);
             }
 
             await _context.SaveChangesAsync(cancellationToken);

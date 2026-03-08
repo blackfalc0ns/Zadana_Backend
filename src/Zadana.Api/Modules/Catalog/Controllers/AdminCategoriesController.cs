@@ -5,6 +5,8 @@ using Zadana.Application.Modules.Catalog.Commands.Categories.CreateCategory;
 using Zadana.Application.Modules.Catalog.Commands.Categories.UpdateCategory;
 using Zadana.Application.Modules.Catalog.DTOs;
 using Zadana.Application.Modules.Catalog.Queries.Categories.GetCategories;
+using Zadana.Application.Modules.Catalog.Queries.Categories.GetCategoryById;
+using Zadana.Application.Modules.Catalog.Commands.Categories.DeleteCategory;
 
 namespace Zadana.Api.Modules.Catalog.Controllers;
 
@@ -48,6 +50,21 @@ public class AdminCategoriesController : ControllerBase
 
         await _sender.Send(command);
         return Ok();
+    }
+
+    [HttpGet("{id}")]
+    public async Task<ActionResult<CategoryDto>> GetCategoryById(Guid id)
+    {
+        var result = await _sender.Send(new GetCategoryByIdQuery(id));
+        if (result == null) return NotFound();
+        return Ok(result);
+    }
+
+    [HttpDelete("{id}")]
+    public async Task<ActionResult> DeleteCategory(Guid id)
+    {
+        await _sender.Send(new DeleteCategoryCommand(id));
+        return NoContent();
     }
 }
 
