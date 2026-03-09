@@ -19,6 +19,7 @@ public class IdentityService : IIdentityService
     private readonly IUnitOfWork _unitOfWork;
     private readonly IJwtTokenService _jwtTokenService;
     private readonly ICurrentUserService _currentUserService;
+    private readonly IOtpService _otpService;
     private readonly IStringLocalizer<SharedResource> _localizer;
 
     public IdentityService(
@@ -27,6 +28,7 @@ public class IdentityService : IIdentityService
         IUnitOfWork unitOfWork,
         IJwtTokenService jwtTokenService,
         ICurrentUserService currentUserService,
+        IOtpService otpService,
         IStringLocalizer<SharedResource> localizer)
     {
         _userManager = userManager;
@@ -34,12 +36,22 @@ public class IdentityService : IIdentityService
         _unitOfWork = unitOfWork;
         _jwtTokenService = jwtTokenService;
         _currentUserService = currentUserService;
+        _otpService = otpService;
         _localizer = localizer;
     }
 
     public async Task<AuthResponseDto> LoginAsync(string identifier, string password, UserRole[]? expectedRoles = null, CancellationToken cancellationToken = default)
     {
-        var user = await _userManager.Users.FirstOrDefaultAsync(u => u.Email == identifier || u.PhoneNumber == identifier, cancellationToken);
+        if (string.IsNullOrWhiteSpace(identifier))
+        {
+            throw new UnauthorizedException(_localizer["InvalidCredentials"]);
+        }
+
+        var user = await _userManager.FindByEmailAsync(identifier);
+        if (user == null)
+        {
+            user = await _userManager.Users.FirstOrDefaultAsync(u => u.PhoneNumber == identifier, cancellationToken);
+        }
             
         if (user == null || !await _userManager.CheckPasswordAsync(user, password))
         {

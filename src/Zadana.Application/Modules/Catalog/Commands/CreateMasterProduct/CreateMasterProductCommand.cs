@@ -6,10 +6,12 @@ namespace Zadana.Application.Modules.Catalog.Commands.CreateMasterProduct;
 
 public record CreateMasterProductCommand(
     Guid CategoryId,
-    string Name,
+    string NameAr,
+    string NameEn,
     string Slug,
     string? Barcode,
-    string? Description,
+    string? DescriptionAr,
+    string? DescriptionEn,
     Guid? BrandId,
     Guid? UnitId,
     List<CreateProductImageInfo>? Images = null) : MediatR.IRequest<Guid>;
@@ -22,7 +24,11 @@ public class CreateMasterProductCommandValidator : AbstractValidator<CreateMaste
     {
         RuleFor(x => x.CategoryId).NotEmpty().WithMessage(x => localizer["RequiredField"]);
 
-        RuleFor(x => x.Name)
+        RuleFor(x => x.NameAr)
+            .NotEmpty().WithMessage(x => localizer["RequiredField"])
+            .MaximumLength(250).WithMessage(x => localizer["MaxLength"]);
+
+        RuleFor(x => x.NameEn)
             .NotEmpty().WithMessage(x => localizer["RequiredField"])
             .MaximumLength(250).WithMessage(x => localizer["MaxLength"]);
 

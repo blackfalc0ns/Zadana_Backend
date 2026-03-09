@@ -34,7 +34,16 @@ public class RegisterCustomerCommandHandler : IRequestHandler<RegisterCustomerCo
 
     public async Task<AuthResponseDto> Handle(RegisterCustomerCommand request, CancellationToken cancellationToken)
     {
-        var existingUser = await _userManager.Users.FirstOrDefaultAsync(u => u.Email == request.Email || u.PhoneNumber == request.Phone, cancellationToken);
+        if (string.IsNullOrWhiteSpace(request.Email))
+        {
+            throw new BusinessRuleException("EMAIL_REQUIRED", "البريد الإلكتروني مطلوب. | Email is required.");
+        }
+
+        var existingUser = await _userManager.FindByEmailAsync(request.Email);
+        if (existingUser == null)
+        {
+            existingUser = await _userManager.Users.FirstOrDefaultAsync(u => u.PhoneNumber == request.Phone, cancellationToken);
+        }
 
         if (existingUser != null)
         {
@@ -57,7 +66,7 @@ public class RegisterCustomerCommandHandler : IRequestHandler<RegisterCustomerCo
 
         // Generate and log OTP
         var otpCode = user.GenerateOtp();
-        await _otpService.SendOtpSmsAsync(user.PhoneNumber, otpCode, cancellationToken);
+        await _otpService.SendOtpEmailAsync(user.Email!, otpCode, cancellationToken);
         
         // No need to Add(user) or SaveChanges for the user as CreateAsync handles it.
 
@@ -87,12 +96,7 @@ public class RegisterCustomerCommandHandler : IRequestHandler<RegisterCustomerCo
         _context.CustomerAddresses.Add(address);
         await _unitOfWork.SaveChangesAsync(cancellationToken);
 
-        var tokens = await _jwtTokenService.GenerateTokenPairAsync(user, cancellationToken);
-
-        var refreshTokenEntity = new Domain.Modules.Identity.Entities.RefreshToken(user.Id, tokens.RefreshToken, DateTime.UtcNow.AddDays(7));
-        // Save refresh token if needed via repository
-
         var userDto = new CurrentUserDto(user.Id, user.FullName, user.Email, user.PhoneNumber, user.Role.ToString());
-        return new AuthResponseDto(tokens, userDto);
+        return new AuthResponseDto(null, userDto, false, "يرجى التحقق من بريدك الإلكتروني لإكمال عملية التسجيل. | Please verify your email to complete registration.");
     }
 }

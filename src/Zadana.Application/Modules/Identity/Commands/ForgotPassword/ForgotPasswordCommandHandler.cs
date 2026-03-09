@@ -14,24 +14,30 @@ public class ForgotPasswordCommandHandler : IRequestHandler<ForgotPasswordComman
 {
     private readonly UserManager<User> _userManager;
     private readonly IOtpService _otpService;
-    private readonly IEmailService _emailService;
     private readonly IStringLocalizer<SharedResource> _localizer;
 
     public ForgotPasswordCommandHandler(
         UserManager<User> userManager,
         IOtpService otpService,
-        IEmailService emailService,
         IStringLocalizer<SharedResource> localizer)
     {
         _userManager = userManager;
         _otpService = otpService;
-        _emailService = emailService;
         _localizer = localizer;
     }
 
     public async Task Handle(ForgotPasswordCommand request, CancellationToken cancellationToken)
     {
-        var user = await _userManager.Users.FirstOrDefaultAsync(u => u.Email == request.Identifier || u.PhoneNumber == request.Identifier, cancellationToken);
+        if (string.IsNullOrWhiteSpace(request.Identifier))
+        {
+            return;
+        }
+
+        var user = await _userManager.FindByEmailAsync(request.Identifier);
+        if (user == null)
+        {
+            user = await _userManager.Users.FirstOrDefaultAsync(u => u.PhoneNumber == request.Identifier, cancellationToken);
+        }
         
         // Enhance security: We don't throw an error if the user isn't found to prevent email enumeration.
         if (user == null)
@@ -39,20 +45,25 @@ public class ForgotPasswordCommandHandler : IRequestHandler<ForgotPasswordComman
             return; 
         }
 
+        // Cooldown check
+        if (!user.CanResendOtp())
+        {
+            return; // Or throw a specific exception if preferred, but usually silent for security in Forgot Password
+        }
+
         // Generate the reset OTP
         var resetOtp = user.GeneratePasswordResetOtp();
 
         // Send OTP via SMS
-        await _otpService.SendOtpSmsAsync(user.PhoneNumber, resetOtp, cancellationToken);
+        if (!string.IsNullOrWhiteSpace(user.PhoneNumber))
+        {
+            await _otpService.SendOtpSmsAsync(user.PhoneNumber, resetOtp, cancellationToken);
+        }
 
         // Send OTP via Email (if email is provided)
         if (!string.IsNullOrWhiteSpace(user.Email))
         {
-            await _emailService.SendEmailAsync(
-                user.Email,
-                _localizer["PasswordResetEmailSubject"],
-                string.Format(_localizer["PasswordResetEmailBody"].Value, resetOtp),
-                cancellationToken);
+            await _otpService.SendOtpEmailAsync(user.Email, resetOtp, cancellationToken);
         }
 
         await _userManager.UpdateAsync(user);

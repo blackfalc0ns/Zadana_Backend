@@ -28,13 +28,13 @@ public class CreateMasterProductCommandHandler : IRequestHandler<CreateMasterPro
         }
 
         var masterProduct = new MasterProduct(
-            nameAr: request.Name,
-            nameEn: request.Name,
+            nameAr: request.NameAr,
+            nameEn: request.NameEn,
             categoryId: request.CategoryId,
             brandId: request.BrandId,
             unitOfMeasureId: request.UnitId,
-            descriptionAr: request.Description,
-            descriptionEn: request.Description,
+            descriptionAr: request.DescriptionAr,
+            descriptionEn: request.DescriptionEn,
             barcode: request.Barcode
         );
 

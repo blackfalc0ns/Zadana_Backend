@@ -9,6 +9,7 @@ using Zadana.Application.Modules.Identity.Commands.Logout;
 using Zadana.Application.Modules.Identity.Commands.RefreshToken;
 using Zadana.Application.Modules.Identity.Commands.RegisterCustomer;
 using Zadana.Application.Modules.Identity.Commands.VerifyOtp;
+using Zadana.Application.Modules.Identity.Commands.ResendOtp;
 using Zadana.Application.Modules.Identity.Commands.ForgotPassword;
 using Zadana.Application.Modules.Identity.Commands.ResetPassword;
 using Zadana.Application.Modules.Identity.Queries.GetCurrentUser;
@@ -37,8 +38,15 @@ public class CustomerAuthController : ApiControllerBase
     [HttpPost("verify-otp")]
     public async Task<IActionResult> VerifyOtp([FromBody] VerifyOtpCommand command)
     {
-        await Sender.Send(command);
-        return Ok(new { Message = _localizer["AccountVerifiedSuccessfully"].Value });
+        var result = await Sender.Send(command);
+        return Ok(result);
+    }
+
+    [HttpPost("resend-otp")]
+    public async Task<IActionResult> ResendOtp([FromBody] ResendOtpCommand command)
+    {
+        var result = await Sender.Send(command);
+        return Ok(result);
     }
 
     [HttpPost("login")]

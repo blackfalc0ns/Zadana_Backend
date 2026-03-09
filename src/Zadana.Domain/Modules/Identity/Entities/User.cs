@@ -15,6 +15,7 @@ public class User : IdentityUser<Guid>
     public string? PasswordResetOtp { get; private set; }
     public DateTime? PasswordResetOtpExpiry { get; private set; }
     public DateTime? LastLoginAtUtc { get; private set; }
+    public DateTime? LastOtpSentAt { get; private set; }
 
     public DateTime CreatedAtUtc { get; set; }
     public DateTime UpdatedAtUtc { get; set; }
@@ -74,7 +75,14 @@ public class User : IdentityUser<Guid>
         var random = new Random();
         OtpCode = random.Next(1000, 9999).ToString();
         OtpExpiryTime = DateTime.UtcNow.AddMinutes(5); // Valid for 5 minutes
+        LastOtpSentAt = DateTime.UtcNow;
         return OtpCode;
+    }
+
+    public bool CanResendOtp()
+    {
+        if (LastOtpSentAt == null) return true;
+        return DateTime.UtcNow >= LastOtpSentAt.Value.AddMinutes(1);
     }
 
     public bool VerifyOtp(string code)
@@ -102,6 +110,7 @@ public class User : IdentityUser<Guid>
         var random = new Random();
         PasswordResetOtp = random.Next(1000, 9999).ToString();
         PasswordResetOtpExpiry = DateTime.UtcNow.AddMinutes(15); // Valid for 15 minutes
+        LastOtpSentAt = DateTime.UtcNow;
         return PasswordResetOtp;
     }
 

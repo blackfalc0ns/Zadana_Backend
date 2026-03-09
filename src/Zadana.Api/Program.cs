@@ -31,6 +31,12 @@ if (!builder.Environment.IsEnvironment("Testing"))
                 sqlOptions.MigrationsAssembly(typeof(ApplicationDbContext).Assembly.FullName);
                 sqlOptions.EnableRetryOnFailure(maxRetryCount: 3);
             });
+        
+        if (builder.Environment.IsDevelopment())
+        {
+            options.EnableSensitiveDataLogging();
+            options.EnableDetailedErrors();
+        }
     });
 }
 

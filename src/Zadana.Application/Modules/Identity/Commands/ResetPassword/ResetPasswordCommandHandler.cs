@@ -23,7 +23,16 @@ public class ResetPasswordCommandHandler : IRequestHandler<ResetPasswordCommand>
 
     public async Task Handle(ResetPasswordCommand request, CancellationToken cancellationToken)
     {
-        var user = await _userManager.Users.FirstOrDefaultAsync(u => u.Email == request.Identifier || u.PhoneNumber == request.Identifier, cancellationToken);
+        if (string.IsNullOrWhiteSpace(request.Identifier))
+        {
+            throw new UnauthorizedException(_localizer["InvalidResetAttempt"]);
+        }
+
+        var user = await _userManager.FindByEmailAsync(request.Identifier);
+        if (user == null)
+        {
+            user = await _userManager.Users.FirstOrDefaultAsync(u => u.PhoneNumber == request.Identifier, cancellationToken);
+        }
         
         if (user == null)
         {

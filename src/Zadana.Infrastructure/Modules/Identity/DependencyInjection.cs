@@ -7,6 +7,7 @@ using Zadana.Infrastructure.Modules.Identity.Services;
 using Zadana.Infrastructure.Services;
 using Zadana.Infrastructure.Email;
 using Microsoft.Extensions.Configuration;
+using Microsoft.Extensions.Options;
 using Resend;
 
 namespace Zadana.Infrastructure.Modules.Identity;
@@ -21,13 +22,7 @@ public static class DependencyInjection
         // Twilio SMS Service
         services.Configure<TwilioSettings>(configuration.GetSection(TwilioSettings.SectionName));
         
-        // Manual registration of Resend client
-        services.AddHttpClient<IResend, ResendClient>(client =>
-        {
-            client.DefaultRequestHeaders.Authorization = new System.Net.Http.Headers.AuthenticationHeaderValue("Bearer", configuration[$"{ResendEmailSettings.SectionName}:ApiKey"]);
-        });
-
-        services.AddScoped<IEmailService, ResendEmailService>();
+        services.AddHttpClient<IEmailService, ResendEmailService>();
 
         // Repositories
         services.AddScoped<IRefreshTokenRepository, RefreshTokenRepository>();
@@ -35,7 +30,7 @@ public static class DependencyInjection
         // Services
         services.AddTransient<IJwtTokenService, JwtTokenService>();
         services.AddScoped<ICurrentUserService, CurrentUserService>();
-        services.AddTransient<IOtpService, TwilioOtpService>();
+        services.AddTransient<IOtpService, ResendOtpService>();
 
         return services;
     }

@@ -1,5 +1,6 @@
+using Microsoft.Extensions.Logging;
 using Microsoft.Extensions.Options;
-using Resend;
+using System.Net.Http.Json;
 using Zadana.Application.Common.Interfaces;
 
 namespace Zadana.Infrastructure.Email;
@@ -14,25 +15,52 @@ public class ResendEmailSettings
 
 public class ResendEmailService : IEmailService
 {
-    private readonly IResend _resend;
+    private readonly HttpClient _httpClient;
     private readonly ResendEmailSettings _settings;
+    private readonly ILogger<ResendEmailService> _logger;
 
-    public ResendEmailService(IResend resend, IOptions<ResendEmailSettings> settings)
+    public ResendEmailService(HttpClient httpClient, IOptions<ResendEmailSettings> settings, ILogger<ResendEmailService> logger)
     {
-        _resend = resend;
+        _httpClient = httpClient;
         _settings = settings.Value;
+        _logger = logger;
     }
 
     public async Task SendEmailAsync(string to, string subject, string body, CancellationToken cancellationToken = default)
     {
-        var message = new EmailMessage();
-        message.From = string.IsNullOrWhiteSpace(_settings.FromName) 
-            ? _settings.FromEmail 
-            : $"{_settings.FromName} <{_settings.FromEmail}>";
-        message.To.Add(to);
-        message.Subject = subject;
-        message.HtmlBody = body;
+        try
+        {
+            var from = string.IsNullOrWhiteSpace(_settings.FromName) 
+                ? _settings.FromEmail 
+                : $"{_settings.FromName} <{_settings.FromEmail}>";
 
-        await _resend.EmailSendAsync(message, cancellationToken);
+            var requestBody = new
+            {
+                from = from,
+                to = new[] { to },
+                subject = subject,
+                html = body
+            };
+
+            var request = new HttpRequestMessage(HttpMethod.Post, "https://api.resend.com/emails");
+            request.Headers.Authorization = new System.Net.Http.Headers.AuthenticationHeaderValue("Bearer", _settings.ApiKey);
+            request.Content = JsonContent.Create(requestBody);
+
+            var response = await _httpClient.SendAsync(request, cancellationToken);
+
+            if (!response.IsSuccessStatusCode)
+            {
+                var errorContent = await response.Content.ReadAsStringAsync(cancellationToken);
+                _logger.LogError("Resend API failed with status {Status}. Error: {Error}", response.StatusCode, errorContent);
+                throw new Exception($"Resend API Error: {errorContent}");
+            }
+
+            _logger.LogInformation("Email sent successfully to {Email}", to);
+        }
+        catch (Exception ex)
+        {
+            _logger.LogError(ex, "Exception while sending email via Resend to {Email}", to);
+            throw;
+        }
     }
 }
