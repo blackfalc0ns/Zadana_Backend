@@ -3,6 +3,8 @@ using Microsoft.EntityFrameworkCore;
 using Zadana.Application.Common.Interfaces;
 using Zadana.Application.Common.Models;
 using Zadana.Domain.Modules.Catalog.Enums;
+using Microsoft.Extensions.Localization;
+using Zadana.Application.Common.Localization;
 
 namespace Zadana.Application.Modules.Catalog.Queries.ProductRequests.GetPendingRequests;
 
@@ -10,11 +12,16 @@ public class GetPendingProductRequestsQueryHandler : IRequestHandler<GetPendingP
 {
     private readonly IApplicationDbContext _context;
     private readonly ICurrentUserService _currentUserService;
+    private readonly IStringLocalizer<SharedResource> _localizer;
 
-    public GetPendingProductRequestsQueryHandler(IApplicationDbContext context, ICurrentUserService currentUserService)
+    public GetPendingProductRequestsQueryHandler(
+        IApplicationDbContext context, 
+        ICurrentUserService currentUserService,
+        IStringLocalizer<SharedResource> localizer)
     {
         _context = context;
         _currentUserService = currentUserService;
+        _localizer = localizer;
     }
 
     public async Task<PaginatedList<AdminProductRequestDto>> Handle(GetPendingProductRequestsQuery request, CancellationToken cancellationToken)
@@ -22,7 +29,7 @@ public class GetPendingProductRequestsQueryHandler : IRequestHandler<GetPendingP
         // Only Admin or SuperAdmin
         if (_currentUserService.Role != "Admin" && _currentUserService.Role != "SuperAdmin")
         {
-            throw new UnauthorizedAccessException("غير مصرح لك باستعراض هذه الطلبات | You are not authorized to view these requests.");
+            throw new UnauthorizedAccessException(_localizer["UNAUTHORIZED_VIEW_REQUESTS"]);
         }
 
         var query = _context.ProductRequests

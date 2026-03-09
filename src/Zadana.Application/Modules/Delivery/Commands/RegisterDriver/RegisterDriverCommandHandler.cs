@@ -8,6 +8,8 @@ using Zadana.Domain.Modules.Identity.Enums;
 using Zadana.Domain.Modules.Identity.Interfaces;
 using Zadana.Domain.Modules.Delivery.Entities;
 using Zadana.SharedKernel.Exceptions;
+using Microsoft.Extensions.Localization;
+using Zadana.Application.Common.Localization;
 
 namespace Zadana.Application.Modules.Delivery.Commands.RegisterDriver;
 
@@ -17,17 +19,20 @@ public class RegisterDriverCommandHandler : IRequestHandler<RegisterDriverComman
     private readonly IUnitOfWork _unitOfWork;
     private readonly IJwtTokenService _jwtTokenService;
     private readonly IApplicationDbContext _dbContext;
+    private readonly IStringLocalizer<SharedResource> _localizer;
 
     public RegisterDriverCommandHandler(
         UserManager<User> userManager,
         IUnitOfWork unitOfWork,
         IJwtTokenService jwtTokenService,
-        IApplicationDbContext dbContext)
+        IApplicationDbContext dbContext,
+        IStringLocalizer<SharedResource> localizer)
     {
         _userManager = userManager;
         _unitOfWork = unitOfWork;
         _jwtTokenService = jwtTokenService;
         _dbContext = dbContext;
+        _localizer = localizer;
     }
 
     public async Task<AuthResponseDto> Handle(RegisterDriverCommand request, CancellationToken cancellationToken)
@@ -37,7 +42,7 @@ public class RegisterDriverCommandHandler : IRequestHandler<RegisterDriverComman
 
         if (existingUser != null)
         {
-            throw new BusinessRuleException("USER_ALREADY_EXISTS", "البريد الإلكتروني أو رقم الهاتف مسجل بالفعل. | Email or phone is already registered.");
+            throw new BusinessRuleException("USER_ALREADY_EXISTS", _localizer["USER_ALREADY_EXISTS"]);
         }
 
         // 2. Create User
@@ -51,10 +56,10 @@ public class RegisterDriverCommandHandler : IRequestHandler<RegisterDriverComman
         if (!result.Succeeded)
         {
             var errors = string.Join(", ", result.Errors.Select(e => e.Description));
-            throw new BusinessRuleException("CREATION_FAILED", $"فشل إنشاء حساب السائق. | Failed to create driver account. ({errors})");
+            throw new BusinessRuleException("CREATION_FAILED", $"{_localizer["CREATION_FAILED"]}: {errors}");
         }
 
-        // 3. Create Driver (Status = Pending → جاري مراجعة بياناتك)
+        // 3. Create Driver (Status = Pending)
         var driver = new Driver(
             user.Id,
             request.VehicleType,

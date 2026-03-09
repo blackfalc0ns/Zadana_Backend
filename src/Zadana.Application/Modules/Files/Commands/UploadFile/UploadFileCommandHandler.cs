@@ -1,6 +1,8 @@
 using MediatR;
 using Zadana.Application.Common.Interfaces;
 using Zadana.Domain.Modules.Catalog.Entities;
+using Microsoft.Extensions.Localization;
+using Zadana.Application.Common.Localization;
 
 namespace Zadana.Application.Modules.Files.Commands.UploadFile;
 
@@ -9,22 +11,25 @@ public class UploadFileCommandHandler : IRequestHandler<UploadFileCommand, strin
     private readonly IFileStorageService _fileStorageService;
     private readonly IApplicationDbContext _context;
     private readonly ICurrentUserService _currentUserService;
+    private readonly IStringLocalizer<SharedResource> _localizer;
 
     public UploadFileCommandHandler(
         IFileStorageService fileStorageService,
         IApplicationDbContext context,
-        ICurrentUserService currentUserService)
+        ICurrentUserService currentUserService,
+        IStringLocalizer<SharedResource> localizer)
     {
         _fileStorageService = fileStorageService;
         _context = context;
         _currentUserService = currentUserService;
+        _localizer = localizer;
     }
 
     public async Task<string> Handle(UploadFileCommand request, CancellationToken cancellationToken)
     {
         if (request.File == null || request.File.ContentStream == null || request.File.ContentStream.Length == 0)
         {
-            throw new ArgumentException("لم يتم توفير ملف. | No file was provided.");
+            throw new ArgumentException(_localizer["NO_FILE_PROVIDED"]);
         }
 
         var extension = Path.GetExtension(request.File.FileName).ToLowerInvariant();
@@ -32,7 +37,7 @@ public class UploadFileCommandHandler : IRequestHandler<UploadFileCommand, strin
 
         if (!allowedExtensions.Contains(extension))
         {
-            throw new ArgumentException($"امتداد الملف غير صالح. الامتدادات المسموحة هي: | Invalid file extension. Allowed extensions are: {string.Join(", ", allowedExtensions)}");
+            throw new ArgumentException(_localizer["INVALID_FILE_EXTENSION", string.Join(", ", allowedExtensions)]);
         }
 
         // Upload and get public URL

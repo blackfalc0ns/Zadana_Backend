@@ -4,16 +4,20 @@ using Zadana.Application.Common.Interfaces;
 using Zadana.Domain.Modules.Orders.Entities;
 using Zadana.Domain.Modules.Payments.Enums;
 using Zadana.SharedKernel.Exceptions;
+using Microsoft.Extensions.Localization;
+using Zadana.Application.Common.Localization;
 
 namespace Zadana.Application.Modules.Orders.Commands.PlaceOrder;
 
 public class PlaceOrderCommandHandler : IRequestHandler<PlaceOrderCommand, Guid>
 {
     private readonly IApplicationDbContext _context;
+    private readonly IStringLocalizer<SharedResource> _localizer;
 
-    public PlaceOrderCommandHandler(IApplicationDbContext context)
+    public PlaceOrderCommandHandler(IApplicationDbContext context, IStringLocalizer<SharedResource> localizer)
     {
         _context = context;
+        _localizer = localizer;
     }
 
     public async Task<Guid> Handle(PlaceOrderCommand request, CancellationToken cancellationToken)
@@ -26,12 +30,12 @@ public class PlaceOrderCommandHandler : IRequestHandler<PlaceOrderCommand, Guid>
             .FirstOrDefaultAsync(c => c.UserId == request.UserId && c.VendorId == request.VendorId, cancellationToken);
 
         if (cart == null || !cart.Items.Any())
-            throw new BusinessRuleException("EMPTY_CART", "لا يمكنك إنشاء طلب بسلة فارغة. | Cannot place an order with an empty cart.");
+            throw new BusinessRuleException("EMPTY_CART", _localizer["EMPTY_CART"]);
 
         // 2. Map Payment Method
         if (!Enum.TryParse<PaymentMethodType>(request.PaymentMethod, true, out var paymentMethod))
         {
-            throw new BusinessRuleException("INVALID_PAYMENT", "طريقة الدفع غير صالحة. | Invalid payment method.");
+            throw new BusinessRuleException("INVALID_PAYMENT", _localizer["INVALID_PAYMENT"]);
         }
 
         // 3. Generate Order Number

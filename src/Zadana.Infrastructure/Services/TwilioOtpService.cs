@@ -4,6 +4,8 @@ using Twilio;
 using Twilio.Rest.Api.V2010.Account;
 using Twilio.Types;
 using Zadana.Application.Common.Interfaces;
+using Microsoft.Extensions.Localization;
+using Zadana.Application.Common.Localization;
 
 namespace Zadana.Infrastructure.Services;
 
@@ -11,13 +13,16 @@ public class TwilioOtpService : IOtpService
 {
     private readonly TwilioSettings _settings;
     private readonly ILogger<TwilioOtpService> _logger;
+    private readonly IStringLocalizer<SharedResource> _localizer;
 
     public TwilioOtpService(
         IOptions<TwilioSettings> settings,
-        ILogger<TwilioOtpService> logger)
+        ILogger<TwilioOtpService> logger,
+        IStringLocalizer<SharedResource> localizer)
     {
         _settings = settings.Value;
         _logger = logger;
+        _localizer = localizer;
 
         TwilioClient.Init(_settings.AccountSid, _settings.AuthToken);
     }
@@ -32,7 +37,7 @@ public class TwilioOtpService : IOtpService
             var message = await MessageResource.CreateAsync(
                 to: new PhoneNumber(formattedPhone),
                 from: new PhoneNumber(_settings.FromNumber),
-                body: $"رمز التحقق الخاص بك في زادنا هو: {otpCode}\nYour Zadana verification code is: {otpCode}"
+                body: _localizer["OtpSmsMessage", otpCode].Value
             );
 
             _logger.LogInformation("SMS OTP sent successfully to {Phone}. SID: {Sid}", formattedPhone, message.Sid);

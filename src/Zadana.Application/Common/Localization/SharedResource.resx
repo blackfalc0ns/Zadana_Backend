@@ -263,6 +263,82 @@
   <data name="USER_ALREADY_EXISTS" xml:space="preserve">
     <value>Email or phone is already registered.</value>
   </data>
+  <data name="CREATION_FAILED" xml:space="preserve">
+    <value>Failed to create user account.</value>
+  </data>
+  <data name="VERIFICATION_FAILED" xml:space="preserve">
+    <value>Failed to activate account.</value>
+  </data>
+  <data name="PASSWORD_RESET_FAILED" xml:space="preserve">
+    <value>Failed to reset password.</value>
+  </data>
+  <data name="OtpSmsMessage" xml:space="preserve">
+    <value>Your Zadana verification code is: {0}</value>
+  </data>
+  <data name="OtpEmailSubject" xml:space="preserve">
+    <value>Zadana | Your Verification Code</value>
+  </data>
+  <data name="OtpEmailBody" xml:space="preserve">
+    <value><![CDATA[
+      <div style='font-family: sans-serif; direction: ltr; text-align: center; padding: 20px; border: 1px solid #eee; border-radius: 10px;'>
+          <h2 style='color: #333;'>Zadana - Verification Code</h2>
+          <p style='font-size: 18px;'>Your verification code is:</p>
+          <div style='font-size: 32px; font-weight: bold; color: #4CAF50; margin: 20px 0; letter-spacing: 5px;'>{0}</div>
+          <p style='color: #666;'>This code is valid for 5 minutes only.</p>
+      </div>
+    ]]></value>
+  </data>
+  <data name="INSUFFICIENT_STOCK" xml:space="preserve">
+    <value>Requested quantity exceeds available stock.</value>
+  </data>
+  <data name="EMPTY_CART" xml:space="preserve">
+    <value>Cannot place an order with an empty cart.</value>
+  </data>
+  <data name="INVALID_PAYMENT" xml:space="preserve">
+    <value>Invalid payment method.</value>
+  </data>
+  <data name="NO_FILE_PROVIDED" xml:space="preserve">
+    <value>No file was provided.</value>
+  </data>
+  <data name="INVALID_FILE_EXTENSION" xml:space="preserve">
+    <value>Invalid file extension. Allowed extensions are: {0}</value>
+  </data>
+  <data name="FEATURE_UNDER_REFACTORING" xml:space="preserve">
+    <value>This feature is currently under refactoring.</value>
+  </data>
+  <data name="UNAUTHORIZED_VIEW_REQUESTS" xml:space="preserve">
+    <value>You are not authorized to view these requests.</value>
+  </data>
+  <data name="VENDOR_LOGIN_REQUIRED" xml:space="preserve">
+    <value>You must be logged in as a vendor.</value>
+  </data>
+  <data name="VENDORS_ONLY" xml:space="preserve">
+    <value>Only vendors can request new products.</value>
+  </data>
+  <data name="UNAUTHORIZED_REVIEW_REQUESTS" xml:space="preserve">
+    <value>You are not authorized to review product requests.</value>
+  </data>
+  <data name="REQUEST_ALREADY_REVIEWED" xml:space="preserve">
+    <value>This request has already been reviewed.</value>
+  </data>
+  <data name="REJECTION_REASON_REQUIRED" xml:space="preserve">
+    <value>Rejection reason is required.</value>
+  </data>
+  <data name="EMAIL_ALREADY_IN_USE" xml:space="preserve">
+    <value>Email is already in use.</value>
+  </data>
+  <data name="INVALID_USER_ROLE" xml:space="preserve">
+    <value>Invalid user role specified.</value>
+  </data>
+  <data name="VENDOR_NOT_VERIFIED" xml:space="preserve">
+    <value>You cannot add products until your account is verified by the administration.</value>
+  </data>
+  <data name="PRODUCT_REQUEST_APPROVED" xml:space="preserve">
+    <value>Approved. Base product created successfully.</value>
+  </data>
+  <data name="PRODUCT_REQUEST_REJECTED" xml:space="preserve">
+    <value>Request rejected.</value>
+  </data>
   <data name="USER_NOT_AUTHENTICATED" xml:space="preserve">
     <value>User not authenticated or session expired.</value>
   </data>
@@ -277,5 +353,17 @@
   </data>
   <data name="RejectionReasonTooLong" xml:space="preserve">
     <value>Rejection reason must not exceed 500 characters.</value>
+  </data>
+  <data name="OtpCooldown" xml:space="preserve">
+    <value>Please wait {0} seconds before retrying.</value>
+  </data>
+  <data name="OtpResentSuccessfully" xml:space="preserve">
+    <value>Verification code resent successfully.</value>
+  </data>
+  <data name="OtpSentToEmail" xml:space="preserve">
+    <value>Verification code has been sent to your email.</value>
+  </data>
+  <data name="OtpSentToPhone" xml:space="preserve">
+    <value>Verification code has been sent to your phone.</value>
   </data>
 </root>

@@ -3,6 +3,8 @@ using Microsoft.EntityFrameworkCore;
 using Zadana.Application.Common.Interfaces;
 using Zadana.Domain.Modules.Catalog.Entities;
 using Zadana.SharedKernel.Exceptions;
+using Microsoft.Extensions.Localization;
+using Zadana.Application.Common.Localization;
 
 namespace Zadana.Application.Modules.Catalog.Commands.ProductRequests.ReviewRequest;
 
@@ -10,11 +12,16 @@ public class ReviewProductRequestCommandHandler : IRequestHandler<ReviewProductR
 {
     private readonly IApplicationDbContext _context;
     private readonly ICurrentUserService _currentUserService;
+    private readonly IStringLocalizer<SharedResource> _localizer;
 
-    public ReviewProductRequestCommandHandler(IApplicationDbContext context, ICurrentUserService currentUserService)
+    public ReviewProductRequestCommandHandler(
+        IApplicationDbContext context, 
+        ICurrentUserService currentUserService,
+        IStringLocalizer<SharedResource> localizer)
     {
         _context = context;
         _currentUserService = currentUserService;
+        _localizer = localizer;
     }
 
     public async Task<Guid?> Handle(ReviewProductRequestCommand request, CancellationToken cancellationToken)
@@ -22,7 +29,7 @@ public class ReviewProductRequestCommandHandler : IRequestHandler<ReviewProductR
         // Only Admin or SuperAdmin can review
         if (_currentUserService.Role != "Admin" && _currentUserService.Role != "SuperAdmin")
         {
-            throw new UnauthorizedAccessException("غير مصرح لك بمراجعة طلبات المنتجات | You are not authorized to review product requests.");
+            throw new UnauthorizedAccessException(_localizer["UNAUTHORIZED_REVIEW_REQUESTS"]);
         }
 
         var productRequest = await _context.ProductRequests.FindAsync([request.ProductRequestId], cancellationToken);
@@ -31,7 +38,7 @@ public class ReviewProductRequestCommandHandler : IRequestHandler<ReviewProductR
 
         if (productRequest.Status != Domain.Modules.Catalog.Enums.ApprovalStatus.Pending)
         {
-            throw new InvalidOperationException("هذا الطلب تمت مراجعته مسبقاً | This request has already been reviewed.");
+            throw new InvalidOperationException(_localizer["REQUEST_ALREADY_REVIEWED"]);
         }
 
         if (request.IsApproved)
@@ -61,7 +68,7 @@ public class ReviewProductRequestCommandHandler : IRequestHandler<ReviewProductR
         else
         {
             if (string.IsNullOrWhiteSpace(request.RejectionReason))
-                throw new ArgumentException("سبب الرفض مطلوب | Rejection reason is required.");
+                throw new ArgumentException(_localizer["REJECTION_REASON_REQUIRED"]);
 
             productRequest.Reject(request.RejectionReason);
             await _context.SaveChangesAsync(cancellationToken);

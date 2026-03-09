@@ -7,6 +7,8 @@ using Zadana.Domain.Modules.Identity.Entities;
 using Zadana.Domain.Modules.Identity.Enums;
 using Zadana.Domain.Modules.Identity.Interfaces;
 using Zadana.SharedKernel.Exceptions;
+using Microsoft.Extensions.Localization;
+using Zadana.Application.Common.Localization;
 
 namespace Zadana.Application.Modules.Identity.Commands.RegisterCustomer;
 
@@ -17,26 +19,29 @@ public class RegisterCustomerCommandHandler : IRequestHandler<RegisterCustomerCo
     private readonly IJwtTokenService _jwtTokenService;
     private readonly IOtpService _otpService;
     private readonly IApplicationDbContext _context;
+    private readonly IStringLocalizer<SharedResource> _localizer;
 
     public RegisterCustomerCommandHandler(
         UserManager<User> userManager,
         IUnitOfWork unitOfWork,
         IJwtTokenService jwtTokenService,
         IOtpService otpService,
-        IApplicationDbContext context)
+        IApplicationDbContext context,
+        IStringLocalizer<SharedResource> localizer)
     {
         _userManager = userManager;
         _unitOfWork = unitOfWork;
         _jwtTokenService = jwtTokenService;
         _otpService = otpService;
         _context = context;
+        _localizer = localizer;
     }
 
     public async Task<AuthResponseDto> Handle(RegisterCustomerCommand request, CancellationToken cancellationToken)
     {
         if (string.IsNullOrWhiteSpace(request.Email))
         {
-            throw new BusinessRuleException("EMAIL_REQUIRED", "البريد الإلكتروني مطلوب. | Email is required.");
+            throw new BusinessRuleException("EMAIL_REQUIRED", _localizer["RequiredField", _localizer["Email"].Value]);
         }
 
         var existingUser = await _userManager.FindByEmailAsync(request.Email);
@@ -47,7 +52,7 @@ public class RegisterCustomerCommandHandler : IRequestHandler<RegisterCustomerCo
 
         if (existingUser != null)
         {
-            throw new BusinessRuleException("USER_ALREADY_EXISTS", "البريد الإلكتروني أو رقم الهاتف مسجل بالفعل. | Email or phone is already registered.");
+            throw new BusinessRuleException("USER_ALREADY_EXISTS", _localizer["USER_ALREADY_EXISTS"]);
         }
 
         var user = new User(
@@ -61,7 +66,7 @@ public class RegisterCustomerCommandHandler : IRequestHandler<RegisterCustomerCo
         if (!result.Succeeded)
         {
             var errors = string.Join(", ", result.Errors.Select(e => e.Description));
-            throw new BusinessRuleException("CREATION_FAILED", $"فشل إنشاء حساب المستخدم. | Failed to create user account. ({errors})");
+            throw new BusinessRuleException("CREATION_FAILED", $"{_localizer["CREATION_FAILED"]}: {errors}");
         }
 
         // Generate and log OTP
@@ -97,6 +102,6 @@ public class RegisterCustomerCommandHandler : IRequestHandler<RegisterCustomerCo
         await _unitOfWork.SaveChangesAsync(cancellationToken);
 
         var userDto = new CurrentUserDto(user.Id, user.FullName, user.Email, user.PhoneNumber, user.Role.ToString());
-        return new AuthResponseDto(null, userDto, false, "يرجى التحقق من بريدك الإلكتروني لإكمال عملية التسجيل. | Please verify your email to complete registration.");
+        return new AuthResponseDto(null, userDto, false, _localizer["OtpSentToEmail"]);
     }
 }

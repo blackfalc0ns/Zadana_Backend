@@ -263,6 +263,82 @@
   <data name="USER_ALREADY_EXISTS" xml:space="preserve">
     <value>البريد الإلكتروني أو رقم الهاتف مسجل بالفعل.</value>
   </data>
+  <data name="CREATION_FAILED" xml:space="preserve">
+    <value>فشل إنشاء حساب المستخدم.</value>
+  </data>
+  <data name="VERIFICATION_FAILED" xml:space="preserve">
+    <value>فشل تفعيل الحساب.</value>
+  </data>
+  <data name="PASSWORD_RESET_FAILED" xml:space="preserve">
+    <value>فشل إعادة تعيين كلمة المرور.</value>
+  </data>
+  <data name="OtpSmsMessage" xml:space="preserve">
+    <value>رمز التحقق الخاص بك في زادنا هو: {0}</value>
+  </data>
+  <data name="OtpEmailSubject" xml:space="preserve">
+    <value>زادنا | كود التحقق الخاص بك</value>
+  </data>
+  <data name="OtpEmailBody" xml:space="preserve">
+    <value><![CDATA[
+      <div style='font-family: sans-serif; direction: rtl; text-align: center; padding: 20px; border: 1px solid #eee; border-radius: 10px;'>
+          <h2 style='color: #333;'>زادنا - كود التحقق</h2>
+          <p style='font-size: 18px;'>كود التحقق الخاص بك هو:</p>
+          <div style='font-size: 32px; font-weight: bold; color: #4CAF50; margin: 20px 0; letter-spacing: 5px;'>{0}</div>
+          <p style='color: #666;'>هذا الكود صالح لمدة 5 دقائق فقط.</p>
+      </div>
+    ]]></value>
+  </data>
+  <data name="INSUFFICIENT_STOCK" xml:space="preserve">
+    <value>الكمية المطلوبة تتجاوز المخزون المتاح.</value>
+  </data>
+  <data name="EMPTY_CART" xml:space="preserve">
+    <value>لا يمكنك إنشاء طلب بسلة فارغة.</value>
+  </data>
+  <data name="INVALID_PAYMENT" xml:space="preserve">
+    <value>طريقة الدفع غير صالحة.</value>
+  </data>
+  <data name="NO_FILE_PROVIDED" xml:space="preserve">
+    <value>لم يتم توفير ملف.</value>
+  </data>
+  <data name="INVALID_FILE_EXTENSION" xml:space="preserve">
+    <value>امتداد الملف غير صالح. الامتدادات المسموحة هي: {0}</value>
+  </data>
+  <data name="FEATURE_UNDER_REFACTORING" xml:space="preserve">
+    <value>جاري إعادة بناء هذه الخاصية.</value>
+  </data>
+  <data name="UNAUTHORIZED_VIEW_REQUESTS" xml:space="preserve">
+    <value>غير مصرح لك باستعراض هذه الطلبات.</value>
+  </data>
+  <data name="VENDOR_LOGIN_REQUIRED" xml:space="preserve">
+    <value>يجب أن تكون مسجلاً كتاجر.</value>
+  </data>
+  <data name="VENDORS_ONLY" xml:space="preserve">
+    <value>فقط التجار يمكنهم طلب منتجات جديدة.</value>
+  </data>
+  <data name="UNAUTHORIZED_REVIEW_REQUESTS" xml:space="preserve">
+    <value>غير مصرح لك بمراجعة طلبات المنتجات.</value>
+  </data>
+  <data name="REQUEST_ALREADY_REVIEWED" xml:space="preserve">
+    <value>هذا الطلب تمت مراجعته مسبقاً.</value>
+  </data>
+  <data name="REJECTION_REASON_REQUIRED" xml:space="preserve">
+    <value>سبب الرفض مطلوب.</value>
+  </data>
+  <data name="EMAIL_ALREADY_IN_USE" xml:space="preserve">
+    <value>البريد الإلكتروني مسجل بالفعل.</value>
+  </data>
+  <data name="INVALID_USER_ROLE" xml:space="preserve">
+    <value>دور المستخدم غير صالح.</value>
+  </data>
+  <data name="VENDOR_NOT_VERIFIED" xml:space="preserve">
+    <value>لا يمكنك إضافة منتجات حتى يتم توثيق حسابك من الإدارة.</value>
+  </data>
+  <data name="PRODUCT_REQUEST_APPROVED" xml:space="preserve">
+    <value>تمت الموافقة وتم إنشاء المنتج الأساسي بنجاح.</value>
+  </data>
+  <data name="PRODUCT_REQUEST_REJECTED" xml:space="preserve">
+    <value>تم رفض الطلب.</value>
+  </data>
   <data name="USER_NOT_AUTHENTICATED" xml:space="preserve">
     <value>لم يتم التعرف على المستخدم أو انتهت الجلسة.</value>
   </data>
@@ -278,5 +354,17 @@
   </data>
   <data name="RejectionReasonTooLong" xml:space="preserve">
     <value>سبب الرفض يجب ألا يتجاوز 500 حرف.</value>
+  </data>
+  <data name="OtpCooldown" xml:space="preserve">
+    <value>يرجى الانتظار {0} ثانية قبل إعادة المحاولة.</value>
+  </data>
+  <data name="OtpResentSuccessfully" xml:space="preserve">
+    <value>تم إعادة إرسال كود التحقق بنجاح.</value>
+  </data>
+  <data name="OtpSentToEmail" xml:space="preserve">
+    <value>تم إرسال كود التحقق إلى بريدك الإلكتروني.</value>
+  </data>
+  <data name="OtpSentToPhone" xml:space="preserve">
+    <value>تم إرسال كود التحقق إلى هاتفك.</value>
   </data>
 </root>

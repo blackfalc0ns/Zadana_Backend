@@ -51,7 +51,7 @@ public class ResetPasswordCommandHandler : IRequestHandler<ResetPasswordCommand>
         if (!result.Succeeded)
         {
             var errors = string.Join(", ", result.Errors.Select(e => e.Description));
-            throw new BusinessRuleException("PASSWORD_RESET_FAILED", $"فشل إعادة تعيين كلمة المرور. | Failed to reset password: {errors}");
+            throw new BusinessRuleException("PASSWORD_RESET_FAILED", $"{_localizer["PASSWORD_RESET_FAILED"]}: {errors}");
         }
 
         // UserManager automatically calls SaveChanges

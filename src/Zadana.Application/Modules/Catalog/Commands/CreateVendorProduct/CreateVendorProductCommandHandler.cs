@@ -4,16 +4,20 @@ using Zadana.Application.Common.Interfaces;
 using Zadana.Domain.Modules.Catalog.Entities;
 using Zadana.Domain.Modules.Vendors.Enums;
 using Zadana.SharedKernel.Exceptions;
+using Microsoft.Extensions.Localization;
+using Zadana.Application.Common.Localization;
 
 namespace Zadana.Application.Modules.Catalog.Commands.CreateVendorProduct;
 
 public class CreateVendorProductCommandHandler : IRequestHandler<CreateVendorProductCommand, Guid>
 {
     private readonly IApplicationDbContext _context;
+    private readonly IStringLocalizer<SharedResource> _localizer;
 
-    public CreateVendorProductCommandHandler(IApplicationDbContext context)
+    public CreateVendorProductCommandHandler(IApplicationDbContext context, IStringLocalizer<SharedResource> localizer)
     {
         _context = context;
+        _localizer = localizer;
     }
 
     public async Task<Guid> Handle(CreateVendorProductCommand request, CancellationToken cancellationToken)
@@ -24,7 +28,7 @@ public class CreateVendorProductCommandHandler : IRequestHandler<CreateVendorPro
 
         if (vendor.Status != VendorStatus.Active)
         {
-            throw new BusinessRuleException("VENDOR_NOT_VERIFIED", "لا يمكنك إضافة منتجات حتى يتم توثيق حسابك من الإدارة. | You cannot add products until your account is verified by the administration.");
+            throw new BusinessRuleException("VENDOR_NOT_VERIFIED", _localizer["VENDOR_NOT_VERIFIED"]);
         }
 
         var masterProductExists = _context.MasterProducts.Any(mp => mp.Id == request.MasterProductId);

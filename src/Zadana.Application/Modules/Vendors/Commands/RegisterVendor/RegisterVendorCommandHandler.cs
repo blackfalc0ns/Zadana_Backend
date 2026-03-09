@@ -8,6 +8,8 @@ using Zadana.Domain.Modules.Identity.Enums;
 using Zadana.Domain.Modules.Identity.Interfaces;
 using Zadana.Domain.Modules.Vendors.Entities;
 using Zadana.SharedKernel.Exceptions;
+using Microsoft.Extensions.Localization;
+using Zadana.Application.Common.Localization;
 
 namespace Zadana.Application.Modules.Vendors.Commands.RegisterVendor;
 
@@ -17,17 +19,20 @@ public class RegisterVendorCommandHandler : IRequestHandler<RegisterVendorComman
     private readonly IUnitOfWork _unitOfWork;
     private readonly IJwtTokenService _jwtTokenService;
     private readonly IApplicationDbContext _dbContext;
+    private readonly IStringLocalizer<SharedResource> _localizer;
 
     public RegisterVendorCommandHandler(
         UserManager<User> userManager,
         IUnitOfWork unitOfWork,
         IJwtTokenService jwtTokenService,
-        IApplicationDbContext dbContext)
+        IApplicationDbContext dbContext,
+        IStringLocalizer<SharedResource> localizer)
     {
         _userManager = userManager;
         _unitOfWork = unitOfWork;
         _jwtTokenService = jwtTokenService;
         _dbContext = dbContext;
+        _localizer = localizer;
     }
 
     public async Task<AuthResponseDto> Handle(RegisterVendorCommand request, CancellationToken cancellationToken)
@@ -36,7 +41,7 @@ public class RegisterVendorCommandHandler : IRequestHandler<RegisterVendorComman
         var existingUser = await _userManager.Users.FirstOrDefaultAsync(u => u.Email == request.Email || u.PhoneNumber == request.Phone, cancellationToken);
 
         if (existingUser != null)
-            throw new BusinessRuleException("USER_ALREADY_EXISTS", string.Empty);
+            throw new BusinessRuleException("USER_ALREADY_EXISTS", _localizer["USER_ALREADY_EXISTS"]);
 
         // 2. Create User
         var user = new User(
@@ -49,7 +54,7 @@ public class RegisterVendorCommandHandler : IRequestHandler<RegisterVendorComman
         if (!result.Succeeded)
         {
             var errors = string.Join(", ", result.Errors.Select(e => e.Description));
-            throw new BusinessRuleException("CREATION_FAILED", $"فشل إنشاء حساب التاجر. | Failed to create vendor account. ({errors})");
+            throw new BusinessRuleException("CREATION_FAILED", $"{_localizer["CREATION_FAILED"]}: {errors}");
         }
 
         // 3. Create Vendor (PendingReview)

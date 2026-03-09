@@ -3,6 +3,8 @@ using Microsoft.AspNetCore.Mvc;
 using Zadana.Api.Controllers;
 using Zadana.Application.Modules.Catalog.Commands.ProductRequests.ReviewRequest;
 using Zadana.Application.Modules.Catalog.Queries.ProductRequests.GetPendingRequests;
+using Microsoft.Extensions.Localization;
+using Zadana.Application.Common.Localization;
 
 namespace Zadana.Api.Modules.Catalog.Controllers;
 
@@ -11,6 +13,13 @@ namespace Zadana.Api.Modules.Catalog.Controllers;
 [Authorize]
 public class AdminProductRequestsController : ApiControllerBase
 {
+    private readonly IStringLocalizer<SharedResource> _localizer;
+
+    public AdminProductRequestsController(IStringLocalizer<SharedResource> localizer)
+    {
+        _localizer = localizer;
+    }
+
     /// <summary>
     /// استرجاع كل طلبات المنتجات المعلقة (للأدمن)
     /// </summary>
@@ -31,7 +40,7 @@ public class AdminProductRequestsController : ApiControllerBase
         var masterProductId = await Sender.Send(command);
         
         return Ok(new { 
-            Message = dto.IsApproved ? "تمت الموافقة وتم إنشاء المنتج الأساسي بنجاح." : "تم رفض الطلب.",
+            Message = dto.IsApproved ? _localizer["PRODUCT_REQUEST_APPROVED"].Value : _localizer["PRODUCT_REQUEST_REJECTED"].Value,
             MasterProductId = masterProductId 
         });
     }

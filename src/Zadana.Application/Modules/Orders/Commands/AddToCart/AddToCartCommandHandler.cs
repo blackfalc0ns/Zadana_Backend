@@ -3,16 +3,20 @@ using Microsoft.EntityFrameworkCore;
 using Zadana.Application.Common.Interfaces;
 using Zadana.Domain.Modules.Orders.Entities;
 using Zadana.SharedKernel.Exceptions;
+using Microsoft.Extensions.Localization;
+using Zadana.Application.Common.Localization;
 
 namespace Zadana.Application.Modules.Orders.Commands.AddToCart;
 
 public class AddToCartCommandHandler : IRequestHandler<AddToCartCommand, Guid>
 {
     private readonly IApplicationDbContext _context;
+    private readonly IStringLocalizer<SharedResource> _localizer;
 
-    public AddToCartCommandHandler(IApplicationDbContext context)
+    public AddToCartCommandHandler(IApplicationDbContext context, IStringLocalizer<SharedResource> localizer)
     {
         _context = context;
+        _localizer = localizer;
     }
 
     public async Task<Guid> Handle(AddToCartCommand request, CancellationToken cancellationToken)
@@ -26,7 +30,7 @@ public class AddToCartCommandHandler : IRequestHandler<AddToCartCommand, Guid>
 
         if (vendorProduct.StockQuantity < request.Quantity)
         {
-            throw new BusinessRuleException("INSUFFICIENT_STOCK", "الكمية المطلوبة تتجاوز المخزون المتاح. | Requested quantity exceeds available stock.");
+            throw new BusinessRuleException("INSUFFICIENT_STOCK", _localizer["INSUFFICIENT_STOCK"]);
         }
         // 2. Get or Create Cart for User/Vendor
         var cart = await _context.Carts
