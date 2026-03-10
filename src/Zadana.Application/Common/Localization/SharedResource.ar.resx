@@ -137,6 +137,9 @@
   <data name="InvalidCredentials" xml:space="preserve">
     <value>بيانات الدخول غير صحيحة.</value>
   </data>
+  <data name="AccountNotFound" xml:space="preserve">
+    <value>لا يوجد حساب مسجل بهذا الرقم أو البريد الإلكتروني. يرجى إنشاء حساب أولاً.</value>
+  </data>
   <data name="UnauthorizedAppAccess" xml:space="preserve">
     <value>غير مصرح لك بالدخول إلى هذا التطبيق.</value>
   </data>

@@ -137,6 +137,9 @@
   <data name="InvalidCredentials" xml:space="preserve">
     <value>Invalid credentials.</value>
   </data>
+  <data name="AccountNotFound" xml:space="preserve">
+    <value>No account found with this phone number or email. Please register first.</value>
+  </data>
   <data name="UnauthorizedAppAccess" xml:space="preserve">
     <value>Unauthorized access to this application.</value>
   </data>

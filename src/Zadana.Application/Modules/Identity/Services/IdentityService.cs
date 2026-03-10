@@ -53,7 +53,12 @@ public class IdentityService : IIdentityService
             user = await _userManager.Users.FirstOrDefaultAsync(u => u.PhoneNumber == identifier, cancellationToken);
         }
             
-        if (user == null || !await _userManager.CheckPasswordAsync(user, password))
+        if (user == null)
+        {
+            throw new UnauthorizedException(_localizer["AccountNotFound"]);
+        }
+
+        if (!await _userManager.CheckPasswordAsync(user, password))
         {
             throw new UnauthorizedException(_localizer["InvalidCredentials"]);
         }
