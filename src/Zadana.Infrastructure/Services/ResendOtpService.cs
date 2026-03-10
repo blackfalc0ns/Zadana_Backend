@@ -10,15 +10,18 @@ public class ResendOtpService : IOtpService
     private readonly IEmailService _emailService;
     private readonly ILogger<ResendOtpService> _logger;
     private readonly IStringLocalizer<SharedResource> _localizer;
+    private readonly ITemplateService _templateService;
 
     public ResendOtpService(
         IEmailService emailService, 
         ILogger<ResendOtpService> logger,
-        IStringLocalizer<SharedResource> localizer)
+        IStringLocalizer<SharedResource> localizer,
+        ITemplateService templateService)
     {
         _emailService = emailService;
         _logger = logger;
         _localizer = localizer;
+        _templateService = templateService;
     }
 
     public async Task SendOtpEmailAsync(string emailAddress, string otpCode, CancellationToken cancellationToken = default)
@@ -26,7 +29,12 @@ public class ResendOtpService : IOtpService
         try
         {
             var subject = _localizer["OtpEmailSubject"].Value;
-            var body = _localizer["OtpEmailBody", otpCode].Value;
+            var placeholders = new Dictionary<string, string>
+            {
+                { "OtpCode", otpCode },
+                { "Year", DateTime.UtcNow.Year.ToString() }
+            };
+            var body = await _templateService.RenderTemplateAsync("OtpEmail", placeholders);
 
             await _emailService.SendEmailAsync(emailAddress, subject, body, cancellationToken);
             _logger.LogInformation("Email OTP sent successfully to {Email}", emailAddress);

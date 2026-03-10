@@ -31,6 +31,7 @@ public static class DependencyInjection
         services.AddTransient<IJwtTokenService, JwtTokenService>();
         services.AddScoped<ICurrentUserService, CurrentUserService>();
         services.AddTransient<IOtpService, ResendOtpService>();
+        services.AddTransient<ITemplateService, HtmlTemplateService>();
 
         return services;
     }
