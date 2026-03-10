@@ -8,17 +8,20 @@ public class UpdateBrandCommandValidator : AbstractValidator<UpdateBrandCommand>
 {
     public UpdateBrandCommandValidator(IStringLocalizer<SharedResource> localizer)
     {
-        RuleFor(x => x.Id).NotEmpty().WithMessage(localizer["RequiredField", "Id"]);
+        RuleFor(x => x.Id).NotEmpty().WithMessage(localizer["RequiredField"].Value).WithName("Id");
 
         RuleFor(x => x.NameAr)
-            .NotEmpty().WithMessage(localizer["RequiredField", "NameAr"])
-            .MaximumLength(150).WithMessage(localizer["MaxLength", "NameAr", 150]);
+            .NotEmpty().WithMessage(localizer["RequiredField"].Value)
+            .MaximumLength(150).WithMessage(localizer["MaxLength"].Value)
+            .WithName("NameAr");
 
         RuleFor(x => x.NameEn)
-            .NotEmpty().WithMessage(localizer["RequiredField", "NameEn"])
-            .MaximumLength(150).WithMessage(localizer["MaxLength", "NameEn", 150]);
+            .NotEmpty().WithMessage(localizer["RequiredField"].Value)
+            .MaximumLength(150).WithMessage(localizer["MaxLength"].Value)
+            .WithName("NameEn");
 
         RuleFor(x => x.LogoUrl)
-            .MaximumLength(1000).WithMessage(localizer["MaxLength", "LogoUrl", 1000]);
+            .MaximumLength(1000).WithMessage(localizer["MaxLength"].Value)
+            .WithName("LogoUrl");
     }
 }

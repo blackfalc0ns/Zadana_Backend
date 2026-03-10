@@ -9,11 +9,13 @@ public class CreateCategoryCommandValidator : AbstractValidator<CreateCategoryCo
     public CreateCategoryCommandValidator(IStringLocalizer<SharedResource> localizer)
     {
         RuleFor(v => v.NameAr)
-            .NotEmpty().WithMessage(localizer["RequiredField", "NameAr"])
-            .MaximumLength(200).WithMessage(localizer["MaxLength", "NameAr", 200]);
+            .NotEmpty().WithMessage(localizer["RequiredField"].Value)
+            .MaximumLength(200).WithMessage(localizer["MaxLength"].Value)
+            .WithName("NameAr");
 
         RuleFor(v => v.NameEn)
-            .NotEmpty().WithMessage(localizer["RequiredField", "NameEn"])
-            .MaximumLength(200).WithMessage(localizer["MaxLength", "NameEn", 200]);
+            .NotEmpty().WithMessage(localizer["RequiredField"].Value)
+            .MaximumLength(200).WithMessage(localizer["MaxLength"].Value)
+            .WithName("NameEn");
     }
 }

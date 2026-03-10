@@ -9,13 +9,13 @@ public class VerifyOtpCommandValidator : AbstractValidator<VerifyOtpCommand>
     public VerifyOtpCommandValidator(IStringLocalizer<SharedResource> localizer)
     {
         RuleFor(x => x.Identifier)
-            .NotEmpty().WithMessage(x => localizer["RequiredField"])
-            .EmailAddress().WithMessage(x => localizer["InvalidEmail"])
-            .WithName(x => localizer["Email"]);
+            .NotEmpty().WithMessage(localizer["RequiredField"].Value)
+            .EmailAddress().WithMessage(localizer["InvalidEmail"].Value)
+            .WithName(localizer["Email"].Value);
 
         RuleFor(x => x.OtpCode)
-            .NotEmpty().WithMessage(x => localizer["RequiredField"])
-            .Length(4).WithMessage(x => localizer["InvalidOTP"])
-            .WithName(x => "OTP Code");
+            .NotEmpty().WithMessage(localizer["RequiredField"].Value)
+            .Length(4).WithMessage(localizer["InvalidOtpLength"].Value)
+            .WithName(localizer["OtpCode"].Value);
     }
 }

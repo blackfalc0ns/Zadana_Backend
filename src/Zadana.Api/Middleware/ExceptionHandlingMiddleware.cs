@@ -13,16 +13,13 @@ public class ExceptionHandlingMiddleware
 {
     private readonly RequestDelegate _next;
     private readonly ILogger<ExceptionHandlingMiddleware> _logger;
-    private readonly IStringLocalizer<SharedResource> _localizer;
 
     public ExceptionHandlingMiddleware(
         RequestDelegate next, 
-        ILogger<ExceptionHandlingMiddleware> logger,
-        IStringLocalizer<SharedResource> localizer)
+        ILogger<ExceptionHandlingMiddleware> logger)
     {
         _next = next;
         _logger = logger;
-        _localizer = localizer;
     }
 
     public async Task InvokeAsync(HttpContext context)
@@ -34,7 +31,8 @@ public class ExceptionHandlingMiddleware
         catch (Exception ex)
         {
             _logger.LogError(ex, "An unhandled exception has occurred.");
-            await HandleExceptionAsync(context, ex, _localizer);
+            var localizer = context.RequestServices.GetRequiredService<IStringLocalizer<SharedResource>>();
+            await HandleExceptionAsync(context, ex, localizer);
         }
     }
 
@@ -42,32 +40,49 @@ public class ExceptionHandlingMiddleware
     {
         context.Response.ContentType = "application/json";
 
-        string message = exception.Message;
+        string message;
 
-        // Try to localize based on ErrorCode if it's a known exception type
-        if (exception is BusinessRuleException brEx)
+        // --- Resolve Detail Message based on exception type ---
+        // Handlers already inject their own IStringLocalizer and pass localized messages 
+        // in the exception. We trust the exception's message and only override for specific cases.
+
+        if (exception is ValidationException validationEx)
         {
-            var localized = localizer[brEx.ErrorCode];
-            if (!localized.ResourceNotFound)
-            {
-                message = localized.Value;
-            }
+            // Extract the first specific validation error for a clear message
+            var firstError = validationEx.Errors
+                .SelectMany(e => e.Value)
+                .FirstOrDefault();
+            
+            message = firstError ?? localizer["ValidationErrorTitle"];
         }
-        else if (exception is NotFoundException nfEx)
+        else if (exception is BusinessRuleException)
         {
-            var localized = localizer[nfEx.ErrorCode];
-            if (!localized.ResourceNotFound)
-            {
-                message = localized.Value;
-            }
+            // The handler already set the localized message via _localizer in the exception
+            message = exception.Message;
+        }
+        else if (exception is NotFoundException)
+        {
+            // The handler already set the localized message via ErrorCode in the exception
+            message = exception.Message;
         }
         else if (exception is UnauthorizedException)
         {
-             var localized = localizer["USER_NOT_AUTHENTICATED"];
-             if (!localized.ResourceNotFound)
-             {
-                 message = localized.Value;
-             }
+            // The handler already set the localized message (e.g. AccountNotFound, InvalidCredentials)
+            // Only fallback to generic message if no specific message was set
+            if (string.IsNullOrWhiteSpace(exception.Message) || 
+                exception.Message == "Exception of type 'Zadana.SharedKernel.Exceptions.UnauthorizedException' was thrown.")
+            {
+                message = localizer["USER_NOT_AUTHENTICATED"];
+            }
+            else
+            {
+                message = exception.Message;
+            }
+        }
+        else
+        {
+            // 500 Internal Server Error: mask with generic localized message
+            message = localizer["ServerErrorMessage"];
         }
 
         // Fallback or Legacy: Bilingual splitting if still present
@@ -84,7 +99,7 @@ public class ExceptionHandlingMiddleware
 
         var response = new 
         {
-            Title = GetTitle(exception),
+            Title = GetTitle(exception, localizer),
             Status = GetStatusCode(exception),
             Detail = message,
             Errors = GetErrors(exception)
@@ -106,14 +121,14 @@ public class ExceptionHandlingMiddleware
             _ => (int)HttpStatusCode.InternalServerError
         };
 
-    private static string GetTitle(Exception exception) =>
+    private static string GetTitle(Exception exception, IStringLocalizer<SharedResource> localizer) =>
         exception switch
         {
-            ValidationException => "Validation Error",
-            BusinessRuleException => "Business Rule Violation",
-            UnauthorizedException => "Unauthorized",
-            NotFoundException => "Resource Not Found",
-            _ => "Server Error"
+            ValidationException => localizer["ValidationErrorTitle"],
+            BusinessRuleException => localizer["BusinessRuleViolationTitle"],
+            UnauthorizedException => localizer["UnauthorizedTitle"],
+            NotFoundException => localizer["ResourceNotFoundTitle"],
+            _ => localizer["ServerErrorTitle"]
         };
 
     private static object? GetErrors(Exception exception)

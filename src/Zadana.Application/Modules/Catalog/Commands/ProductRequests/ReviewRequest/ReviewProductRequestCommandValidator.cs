@@ -9,15 +9,15 @@ public class ReviewProductRequestCommandValidator : AbstractValidator<ReviewProd
     public ReviewProductRequestCommandValidator(IStringLocalizer<SharedResource> localizer)
     {
         RuleFor(v => v.ProductRequestId)
-            .NotEmpty().WithMessage(localizer["RequestIdRequired"]);
+            .NotEmpty().WithMessage(localizer["RequestIdRequired"].Value);
 
         RuleFor(v => v.RejectionReason)
             .NotEmpty()
             .When(v => !v.IsApproved)
-            .WithMessage(localizer["RejectionReasonRequired"]);
+            .WithMessage(localizer["RejectionReasonRequired"].Value);
             
         RuleFor(v => v.RejectionReason)
             .MaximumLength(500)
-            .WithMessage(localizer["RejectionReasonTooLong"]);
+            .WithMessage(localizer["RejectionReasonTooLong"].Value);
     }
 }

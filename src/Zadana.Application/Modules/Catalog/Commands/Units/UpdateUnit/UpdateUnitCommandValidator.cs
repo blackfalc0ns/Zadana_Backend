@@ -8,17 +8,20 @@ public class UpdateUnitCommandValidator : AbstractValidator<UpdateUnitCommand>
 {
     public UpdateUnitCommandValidator(IStringLocalizer<SharedResource> localizer)
     {
-        RuleFor(x => x.Id).NotEmpty().WithMessage(localizer["RequiredField", "Id"]);
+        RuleFor(x => x.Id).NotEmpty().WithMessage(localizer["RequiredField"].Value).WithName("Id");
 
         RuleFor(x => x.NameAr)
-            .NotEmpty().WithMessage(localizer["RequiredField", "NameAr"])
-            .MaximumLength(100).WithMessage(localizer["MaxLength", "NameAr", 100]);
+            .NotEmpty().WithMessage(localizer["RequiredField"].Value)
+            .MaximumLength(100).WithMessage(localizer["MaxLength"].Value)
+            .WithName("NameAr");
 
         RuleFor(x => x.NameEn)
-            .NotEmpty().WithMessage(localizer["RequiredField", "NameEn"])
-            .MaximumLength(100).WithMessage(localizer["MaxLength", "NameEn", 100]);
+            .NotEmpty().WithMessage(localizer["RequiredField"].Value)
+            .MaximumLength(100).WithMessage(localizer["MaxLength"].Value)
+            .WithName("NameEn");
 
         RuleFor(x => x.Symbol)
-            .MaximumLength(20).WithMessage(localizer["MaxLength", "Symbol", 20]);
+            .MaximumLength(20).WithMessage(localizer["MaxLength"].Value)
+            .WithName("Symbol");
     }
 }

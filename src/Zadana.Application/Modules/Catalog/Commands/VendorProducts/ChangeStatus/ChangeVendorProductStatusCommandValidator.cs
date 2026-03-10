@@ -9,9 +9,11 @@ public class ChangeVendorProductStatusCommandValidator : AbstractValidator<Chang
     public ChangeVendorProductStatusCommandValidator(IStringLocalizer<SharedResource> localizer)
     {
         RuleFor(v => v.Id)
-            .NotEmpty().WithMessage(localizer["RequiredField", "Id"]);
+            .NotEmpty().WithMessage(localizer["RequiredField"].Value)
+            .WithName("Id");
 
         RuleFor(v => v.VendorId)
-            .NotEmpty().WithMessage(localizer["RequiredField", "VendorId"]);
+            .NotEmpty().WithMessage(localizer["RequiredField"].Value)
+            .WithName("VendorId");
     }
 }

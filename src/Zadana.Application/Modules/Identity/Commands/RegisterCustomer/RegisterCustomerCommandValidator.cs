@@ -9,48 +9,48 @@ public class RegisterCustomerCommandValidator : AbstractValidator<RegisterCustom
     public RegisterCustomerCommandValidator(IStringLocalizer<SharedResource> localizer)
     {
         RuleFor(x => x.FullName)
-            .NotEmpty().WithMessage(x => localizer["RequiredField"])
-            .MaximumLength(100).WithMessage(x => localizer["MaxLength"])
-            .WithName(x => localizer["FullName"]);
+            .NotEmpty().WithMessage(localizer["RequiredField"].Value)
+            .MaximumLength(100).WithMessage(localizer["MaxLength"].Value)
+            .WithName(localizer["FullName"].Value);
 
         RuleFor(x => x.Email)
-            .NotEmpty().WithMessage(x => localizer["RequiredField"])
-            .EmailAddress().WithMessage(x => localizer["InvalidEmail"])
-            .MaximumLength(255).WithMessage(x => localizer["MaxLength"])
-            .WithName(x => localizer["Email"]);
+            .NotEmpty().WithMessage(localizer["RequiredField"].Value)
+            .EmailAddress().WithMessage(localizer["InvalidEmail"].Value)
+            .MaximumLength(255).WithMessage(localizer["MaxLength"].Value)
+            .WithName(localizer["Email"].Value);
 
         RuleFor(x => x.Phone)
-            .NotEmpty().WithMessage(x => localizer["RequiredField"])
-            .MaximumLength(20).WithMessage(x => localizer["MaxLength"])
-            .WithName(x => localizer["Phone"]);
+            .NotEmpty().WithMessage(localizer["RequiredField"].Value)
+            .MaximumLength(20).WithMessage(localizer["MaxLength"].Value)
+            .WithName(localizer["Phone"].Value);
 
 
         RuleFor(x => x.Password)
-            .NotEmpty().WithMessage(x => localizer["RequiredField"])
-            .MinimumLength(8).WithMessage(x => localizer["MinLength"])
-            .WithName(x => localizer["Password"]);
+            .NotEmpty().WithMessage(localizer["RequiredField"].Value)
+            .MinimumLength(8).WithMessage(localizer["MinLength"].Value)
+            .WithName(localizer["Password"].Value);
 
 
         RuleFor(x => x.AddressLine)
-            .NotEmpty().WithMessage(x => localizer["RequiredField"])
-            .MaximumLength(500).WithMessage(x => localizer["MaxLength"])
-            .WithName(x => localizer["AddressLine"]);
+            .NotEmpty().WithMessage(localizer["RequiredField"].Value)
+            .MaximumLength(500).WithMessage(localizer["MaxLength"].Value)
+            .WithName(localizer["AddressLine"].Value);
 
         RuleFor(x => x.Label)
             .IsEnumName(typeof(Zadana.Domain.Modules.Identity.Enums.AddressLabel), caseSensitive: false)
             .When(x => !string.IsNullOrEmpty(x.Label))
-            .WithMessage(x => localizer["InvalidEnum"])
-            .WithName(x => localizer["Label"]);
+            .WithMessage(localizer["InvalidEnum"].Value)
+            .WithName(localizer["Label"].Value);
 
-        RuleFor(x => x.City).MaximumLength(100).WithMessage(x => localizer["MaxLength"]).WithName(x => localizer["City"]);
-        RuleFor(x => x.Area).MaximumLength(100).WithMessage(x => localizer["MaxLength"]).WithName(x => localizer["Area"]);
+        RuleFor(x => x.City).MaximumLength(100).WithMessage(localizer["MaxLength"].Value).WithName(localizer["City"].Value);
+        RuleFor(x => x.Area).MaximumLength(100).WithMessage(localizer["MaxLength"].Value).WithName(localizer["Area"].Value);
 
         RuleFor(x => x.Latitude)
-            .InclusiveBetween(-90, 90).When(x => x.Latitude.HasValue).WithMessage(x => localizer["InvalidRange"])
-            .WithName(x => localizer["Latitude"]);
+            .InclusiveBetween(-90, 90).When(x => x.Latitude.HasValue).WithMessage(localizer["InvalidRange"].Value)
+            .WithName(localizer["Latitude"].Value);
 
         RuleFor(x => x.Longitude)
-            .InclusiveBetween(-180, 180).When(x => x.Longitude.HasValue).WithMessage(x => localizer["InvalidRange"])
-            .WithName(x => localizer["Longitude"]);
+            .InclusiveBetween(-180, 180).When(x => x.Longitude.HasValue).WithMessage(localizer["InvalidRange"].Value)
+            .WithName(localizer["Longitude"].Value);
     }
 }

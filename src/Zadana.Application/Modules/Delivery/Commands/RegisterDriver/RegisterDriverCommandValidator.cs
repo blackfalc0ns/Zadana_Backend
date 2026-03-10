@@ -10,47 +10,47 @@ public class RegisterDriverCommandValidator : AbstractValidator<RegisterDriverCo
     {
         // User
         RuleFor(x => x.FullName)
-            .NotEmpty().WithMessage(x => localizer["RequiredField"])
-            .MaximumLength(100).WithMessage(x => localizer["MaxLength"])
-            .WithName(x => localizer["FullName"]);
+            .NotEmpty().WithMessage(localizer["RequiredField"].Value)
+            .MaximumLength(100).WithMessage(localizer["MaxLength"].Value)
+            .WithName(localizer["FullName"].Value);
         RuleFor(x => x.Email)
-            .NotEmpty().WithMessage(x => localizer["RequiredField"])
-            .EmailAddress().WithMessage(x => localizer["InvalidEmail"])
-            .MaximumLength(255).WithMessage(x => localizer["MaxLength"])
-            .WithName(x => localizer["Email"]);
+            .NotEmpty().WithMessage(localizer["RequiredField"].Value)
+            .EmailAddress().WithMessage(localizer["InvalidEmail"].Value)
+            .MaximumLength(255).WithMessage(localizer["MaxLength"].Value)
+            .WithName(localizer["Email"].Value);
         RuleFor(x => x.Phone)
-            .NotEmpty().WithMessage(x => localizer["RequiredField"])
-            .MaximumLength(20).WithMessage(x => localizer["MaxLength"])
-            .WithName(x => localizer["Phone"]);
+            .NotEmpty().WithMessage(localizer["RequiredField"].Value)
+            .MaximumLength(20).WithMessage(localizer["MaxLength"].Value)
+            .WithName(localizer["Phone"].Value);
         RuleFor(x => x.Password)
-            .NotEmpty().WithMessage(x => localizer["RequiredField"])
-            .MinimumLength(8).WithMessage(x => localizer["MinLength8"])
-            .WithName(x => localizer["Password"]);
+            .NotEmpty().WithMessage(localizer["RequiredField"].Value)
+            .MinimumLength(8).WithMessage(localizer["PasswordMinLength"].Value)
+            .WithName(localizer["Password"].Value);
 
         // Driver Details
-        RuleFor(x => x.VehicleType).MaximumLength(50).WithMessage(x => localizer["MaxLength"]).WithName(x => localizer["VehicleType"]);
+        RuleFor(x => x.VehicleType).MaximumLength(50).WithMessage(localizer["MaxLength"].Value).WithName(localizer["VehicleType"].Value);
         RuleFor(x => x.NationalId)
-            .NotEmpty().WithMessage(x => localizer["RequiredField"])
-            .MaximumLength(20).WithMessage(x => localizer["MaxLength"])
-            .WithName(x => localizer["NationalId"]);
+            .NotEmpty().WithMessage(localizer["RequiredField"].Value)
+            .MaximumLength(20).WithMessage(localizer["MaxLength"].Value)
+            .WithName(localizer["NationalId"].Value);
         RuleFor(x => x.LicenseNumber)
-            .NotEmpty().WithMessage(x => localizer["RequiredField"])
-            .MaximumLength(30).WithMessage(x => localizer["MaxLength"])
-            .WithName(x => localizer["LicenseNumber"]);
-        RuleFor(x => x.Address).MaximumLength(300).WithMessage(x => localizer["MaxLength"]).WithName(x => localizer["Address"]);
+            .NotEmpty().WithMessage(localizer["RequiredField"].Value)
+            .MaximumLength(30).WithMessage(localizer["MaxLength"].Value)
+            .WithName(localizer["LicenseNumber"].Value);
+        RuleFor(x => x.Address).MaximumLength(300).WithMessage(localizer["MaxLength"].Value).WithName(localizer["Address"].Value);
 
         // Document URLs
         RuleFor(x => x.NationalIdImageUrl)
-            .NotEmpty().WithMessage(x => localizer["RequiredField"])
-            .WithName(x => localizer["NationalIdImageUrl"]);
+            .NotEmpty().WithMessage(localizer["RequiredField"].Value)
+            .WithName(localizer["NationalIdImageUrl"].Value);
         RuleFor(x => x.LicenseImageUrl)
-            .NotEmpty().WithMessage(x => localizer["RequiredField"])
-            .WithName(x => localizer["LicenseImageUrl"]);
+            .NotEmpty().WithMessage(localizer["RequiredField"].Value)
+            .WithName(localizer["LicenseImageUrl"].Value);
         RuleFor(x => x.VehicleImageUrl)
-            .NotEmpty().WithMessage(x => localizer["RequiredField"])
-            .WithName(x => localizer["VehicleImageUrl"]);
+            .NotEmpty().WithMessage(localizer["RequiredField"].Value)
+            .WithName(localizer["VehicleImageUrl"].Value);
         RuleFor(x => x.PersonalPhotoUrl)
-            .NotEmpty().WithMessage(x => localizer["RequiredField"])
-            .WithName(x => localizer["PersonalPhotoUrl"]);
+            .NotEmpty().WithMessage(localizer["RequiredField"].Value)
+            .WithName(localizer["PersonalPhotoUrl"].Value);
     }
 }

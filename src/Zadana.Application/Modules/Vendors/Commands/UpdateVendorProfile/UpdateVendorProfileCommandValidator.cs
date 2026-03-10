@@ -9,34 +9,34 @@ public class UpdateVendorProfileCommandValidator : AbstractValidator<UpdateVendo
     public UpdateVendorProfileCommandValidator(IStringLocalizer<SharedResource> localizer)
     {
         RuleFor(x => x.BusinessNameAr)
-            .NotEmpty().WithMessage(x => localizer["RequiredField"])
-            .MaximumLength(200).WithMessage(x => localizer["MaxLength"])
-            .WithName(x => localizer["BusinessNameAr"]);
+            .NotEmpty().WithMessage(localizer["RequiredField"].Value)
+            .MaximumLength(200).WithMessage(localizer["MaxLength"].Value)
+            .WithName(localizer["BusinessNameAr"].Value);
 
         RuleFor(x => x.BusinessNameEn)
-            .NotEmpty().WithMessage(x => localizer["RequiredField"])
-            .MaximumLength(200).WithMessage(x => localizer["MaxLength"])
-            .WithName(x => localizer["BusinessNameEn"]);
+            .NotEmpty().WithMessage(localizer["RequiredField"].Value)
+            .MaximumLength(200).WithMessage(localizer["MaxLength"].Value)
+            .WithName(localizer["BusinessNameEn"].Value);
 
         RuleFor(x => x.BusinessType)
-            .NotEmpty().WithMessage(x => localizer["RequiredField"])
-            .MaximumLength(100).WithMessage(x => localizer["MaxLength"])
-            .WithName(x => localizer["BusinessType"]);
+            .NotEmpty().WithMessage(localizer["RequiredField"].Value)
+            .MaximumLength(100).WithMessage(localizer["MaxLength"].Value)
+            .WithName(localizer["BusinessType"].Value);
 
         RuleFor(x => x.ContactEmail)
-            .NotEmpty().WithMessage(x => localizer["RequiredField"])
-            .EmailAddress().WithMessage(x => localizer["InvalidEmail"])
-            .MaximumLength(256).WithMessage(x => localizer["MaxLength"])
-            .WithName(x => localizer["ContactEmail"]);
+            .NotEmpty().WithMessage(localizer["RequiredField"].Value)
+            .EmailAddress().WithMessage(localizer["InvalidEmail"].Value)
+            .MaximumLength(256).WithMessage(localizer["MaxLength"].Value)
+            .WithName(localizer["ContactEmail"].Value);
 
         RuleFor(x => x.ContactPhone)
-            .NotEmpty().WithMessage(x => localizer["RequiredField"])
-            .MaximumLength(20).WithMessage(x => localizer["MaxLength"])
-            .WithName(x => localizer["ContactPhone"]);
+            .NotEmpty().WithMessage(localizer["RequiredField"].Value)
+            .MaximumLength(20).WithMessage(localizer["MaxLength"].Value)
+            .WithName(localizer["ContactPhone"].Value);
 
         RuleFor(x => x.TaxId)
-            .MaximumLength(50).WithMessage(x => localizer["MaxLength"])
+            .MaximumLength(50).WithMessage(localizer["MaxLength"].Value)
             .When(x => x.TaxId != null)
-            .WithName(x => localizer["TaxId"]);
+            .WithName("TaxId");
     }
 }
