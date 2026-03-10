@@ -41,4 +41,5 @@ jobs:
             -allowUntrusted `
             "-source:contentPath=${{ github.workspace }}\publish" `
             "-dest:contentPath=site57375,computerName=https://site57375.siteasp.net:8172/MsDeploy.axd?site=site57375,username=site57375,password=${{ secrets.SERVER_PASSWORD }},AuthType='Basic'" `
-            -enableRule:DoNotDeleteRule
+            -enableRule:DoNotDeleteRule `
+            -enableRule:AppOffline
