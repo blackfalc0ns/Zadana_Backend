@@ -218,6 +218,28 @@ if (!app.Environment.IsEnvironment("Testing"))
             userManager.AddToRoleAsync(admin, Zadana.Domain.Modules.Identity.Enums.UserRole.SuperAdmin.ToString()).GetAwaiter().GetResult();
         }
     }
+
+    // Seed Units of Measure
+    if (!db.UnitsOfMeasure.Any())
+    {
+        var units = new List<Zadana.Domain.Modules.Catalog.Entities.UnitOfMeasure>
+        {
+            new Zadana.Domain.Modules.Catalog.Entities.UnitOfMeasure("كيلوجرام", "Kilogram", "kg"),
+            new Zadana.Domain.Modules.Catalog.Entities.UnitOfMeasure("جرام", "Gram", "g"),
+            new Zadana.Domain.Modules.Catalog.Entities.UnitOfMeasure("لتر", "Liter", "L"),
+            new Zadana.Domain.Modules.Catalog.Entities.UnitOfMeasure("ملليلتر", "Milliliter", "mL"),
+            new Zadana.Domain.Modules.Catalog.Entities.UnitOfMeasure("قطعة", "Piece", "pcs"),
+            new Zadana.Domain.Modules.Catalog.Entities.UnitOfMeasure("كرتونة", "Carton", "ctn"),
+            new Zadana.Domain.Modules.Catalog.Entities.UnitOfMeasure("رزمة", "Bundle", "bdl"),
+            new Zadana.Domain.Modules.Catalog.Entities.UnitOfMeasure("عبوة", "Pack", "pk"),
+            new Zadana.Domain.Modules.Catalog.Entities.UnitOfMeasure("صندوق", "Box", "box"),
+            new Zadana.Domain.Modules.Catalog.Entities.UnitOfMeasure("دستة", "Dozen", "dz"),
+            new Zadana.Domain.Modules.Catalog.Entities.UnitOfMeasure("متر", "Meter", "m"),
+            new Zadana.Domain.Modules.Catalog.Entities.UnitOfMeasure("سنتيمتر", "Centimeter", "cm")
+        };
+        db.UnitsOfMeasure.AddRange(units);
+        db.SaveChanges();
+    }
 }
 
 // Health check endpoint

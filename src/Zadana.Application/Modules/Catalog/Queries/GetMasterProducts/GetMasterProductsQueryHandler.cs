@@ -17,7 +17,9 @@ public class GetMasterProductsQueryHandler : IRequestHandler<GetMasterProductsQu
 
     public async Task<PaginatedList<MasterProductDto>> Handle(GetMasterProductsQuery request, CancellationToken cancellationToken)
     {
-        var query = _context.MasterProducts.AsNoTracking();
+        var query = _context.MasterProducts
+            .Include(p => p.Images)
+            .AsNoTracking();
 
         if (!string.IsNullOrWhiteSpace(request.SearchTerm))
         {
