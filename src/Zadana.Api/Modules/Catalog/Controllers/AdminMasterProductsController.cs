@@ -45,4 +45,14 @@ public class AdminMasterProductsController : ControllerBase
         var result = await _sender.Send(command);
         return Ok(result);
     }
+
+    [HttpPut("{id}")]
+    public async Task<ActionResult> UpdateProduct(Guid id, UpdateMasterProductCommand command)
+    {
+        if (id != command.Id)
+            return BadRequest();
+
+        await _sender.Send(command);
+        return NoContent();
+    }
 }
