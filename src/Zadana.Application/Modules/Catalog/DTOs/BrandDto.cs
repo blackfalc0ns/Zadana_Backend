@@ -5,4 +5,8 @@ public record BrandDto(
     string NameAr,
     string NameEn,
     string? LogoUrl,
-    bool IsActive);
+    bool IsActive,
+    int MasterProductsCount,
+    DateTime? CreatedAtUtc,
+    DateTime? UpdatedAtUtc);
+

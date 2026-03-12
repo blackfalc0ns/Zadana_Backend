@@ -30,16 +30,17 @@ public class UpdateMasterProductCommandHandler : IRequestHandler<UpdateMasterPro
         if (request.BrandId.HasValue && !await _context.Brands.AnyAsync(b => b.Id == request.BrandId.Value, cancellationToken))
             throw new NotFoundException("Brand", request.BrandId.Value);
 
-        product.Update(
+        product.UpdateDetails(
             nameAr: request.NameAr,
             nameEn: request.NameEn,
-            categoryId: request.CategoryId,
-            brandId: request.BrandId,
-            unitOfMeasureId: request.UnitId,
             descriptionAr: request.DescriptionAr,
             descriptionEn: request.DescriptionEn,
             barcode: request.Barcode
         );
+
+        product.ChangeCategory(request.CategoryId);
+        product.ChangeBrand(request.BrandId);
+        product.ChangeUnit(request.UnitId);
 
         // Update Images
         if (request.Images != null)

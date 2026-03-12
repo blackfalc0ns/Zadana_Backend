@@ -26,6 +26,9 @@ public class CreateBrandCommandHandler : IRequestHandler<CreateBrandCommand, Bra
             brand.NameAr,
             brand.NameEn,
             brand.LogoUrl,
-            brand.IsActive);
+            brand.IsActive,
+            0,
+            brand.CreatedAtUtc,
+            brand.UpdatedAtUtc);
     }
 }

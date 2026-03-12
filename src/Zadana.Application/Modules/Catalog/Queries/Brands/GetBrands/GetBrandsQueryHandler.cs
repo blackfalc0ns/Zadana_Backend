@@ -30,7 +30,10 @@ public class GetBrandsQueryHandler : IRequestHandler<GetBrandsQuery, List<BrandD
                 b.NameAr,
                 b.NameEn,
                 b.LogoUrl,
-                b.IsActive))
+                b.IsActive,
+                b.MasterProducts.Count(),
+                b.CreatedAtUtc,
+                b.UpdatedAtUtc))
             .ToListAsync(cancellationToken);
 
         return brands;

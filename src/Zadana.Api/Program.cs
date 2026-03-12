@@ -38,6 +38,7 @@ if (!builder.Environment.IsEnvironment("Testing"))
             options.EnableDetailedErrors();
         }
     });
+    builder.Services.AddScoped<ApplicationDbContextInitialiser>();
 }
 
 builder.Services.AddScoped<IApplicationDbContext>(provider => provider.GetRequiredService<ApplicationDbContext>());
@@ -182,64 +183,13 @@ app.UseAuthentication();
 app.UseAuthorization();
 app.MapControllers();
 
-// ───── Auto-Migrate & Seed SuperAdmin (skip in Testing environment) ─────
+// ───── Auto-Migrate & Seed (skip in Testing environment) ─────
 if (!app.Environment.IsEnvironment("Testing"))
 {
     using var scope = app.Services.CreateScope();
-    var db = scope.ServiceProvider.GetRequiredService<ApplicationDbContext>();
-    var userManager = scope.ServiceProvider.GetRequiredService<UserManager<User>>();
-    var roleManager = scope.ServiceProvider.GetRequiredService<RoleManager<IdentityRole<Guid>>>();
-
-    // Apply pending migrations automatically
-    db.Database.Migrate();
-
-    var superAdminRoleExists = roleManager.RoleExistsAsync(Zadana.Domain.Modules.Identity.Enums.UserRole.SuperAdmin.ToString()).GetAwaiter().GetResult();
-    if (!superAdminRoleExists)
-    {
-        roleManager.CreateAsync(new IdentityRole<Guid>(Zadana.Domain.Modules.Identity.Enums.UserRole.SuperAdmin.ToString())).GetAwaiter().GetResult();
-        roleManager.CreateAsync(new IdentityRole<Guid>(Zadana.Domain.Modules.Identity.Enums.UserRole.Admin.ToString())).GetAwaiter().GetResult();
-        roleManager.CreateAsync(new IdentityRole<Guid>(Zadana.Domain.Modules.Identity.Enums.UserRole.Vendor.ToString())).GetAwaiter().GetResult();
-        roleManager.CreateAsync(new IdentityRole<Guid>(Zadana.Domain.Modules.Identity.Enums.UserRole.VendorStaff.ToString())).GetAwaiter().GetResult();
-        roleManager.CreateAsync(new IdentityRole<Guid>(Zadana.Domain.Modules.Identity.Enums.UserRole.Customer.ToString())).GetAwaiter().GetResult();
-        roleManager.CreateAsync(new IdentityRole<Guid>(Zadana.Domain.Modules.Identity.Enums.UserRole.Driver.ToString())).GetAwaiter().GetResult();
-    }
-
-    if (userManager.FindByEmailAsync("admin@system.com").GetAwaiter().GetResult() == null)
-    {
-        var admin = new User(
-            "Super Admin",
-            "admin@system.com",
-            "01000000000",
-            Zadana.Domain.Modules.Identity.Enums.UserRole.SuperAdmin);
-
-        var result = userManager.CreateAsync(admin, "Admin@123").GetAwaiter().GetResult();
-        if (result.Succeeded)
-        {
-            userManager.AddToRoleAsync(admin, Zadana.Domain.Modules.Identity.Enums.UserRole.SuperAdmin.ToString()).GetAwaiter().GetResult();
-        }
-    }
-
-    // Seed Units of Measure
-    if (!db.UnitsOfMeasure.Any())
-    {
-        var units = new List<Zadana.Domain.Modules.Catalog.Entities.UnitOfMeasure>
-        {
-            new Zadana.Domain.Modules.Catalog.Entities.UnitOfMeasure("كيلوجرام", "Kilogram", "kg"),
-            new Zadana.Domain.Modules.Catalog.Entities.UnitOfMeasure("جرام", "Gram", "g"),
-            new Zadana.Domain.Modules.Catalog.Entities.UnitOfMeasure("لتر", "Liter", "L"),
-            new Zadana.Domain.Modules.Catalog.Entities.UnitOfMeasure("ملليلتر", "Milliliter", "mL"),
-            new Zadana.Domain.Modules.Catalog.Entities.UnitOfMeasure("قطعة", "Piece", "pcs"),
-            new Zadana.Domain.Modules.Catalog.Entities.UnitOfMeasure("كرتونة", "Carton", "ctn"),
-            new Zadana.Domain.Modules.Catalog.Entities.UnitOfMeasure("رزمة", "Bundle", "bdl"),
-            new Zadana.Domain.Modules.Catalog.Entities.UnitOfMeasure("عبوة", "Pack", "pk"),
-            new Zadana.Domain.Modules.Catalog.Entities.UnitOfMeasure("صندوق", "Box", "box"),
-            new Zadana.Domain.Modules.Catalog.Entities.UnitOfMeasure("دستة", "Dozen", "dz"),
-            new Zadana.Domain.Modules.Catalog.Entities.UnitOfMeasure("متر", "Meter", "m"),
-            new Zadana.Domain.Modules.Catalog.Entities.UnitOfMeasure("سنتيمتر", "Centimeter", "cm")
-        };
-        db.UnitsOfMeasure.AddRange(units);
-        db.SaveChanges();
-    }
+    var initialiser = scope.ServiceProvider.GetRequiredService<ApplicationDbContextInitialiser>();
+    await initialiser.InitialiseAsync();
+    await initialiser.SeedAsync();
 }
 
 // Health check endpoint

@@ -3,6 +3,7 @@ using Microsoft.AspNetCore.Authorization;
 using Microsoft.AspNetCore.Mvc;
 using Zadana.Application.Common.Models;
 using Zadana.Application.Modules.Catalog.Commands.CreateMasterProduct;
+using Zadana.Application.Modules.Catalog.Commands.UpdateMasterProduct;
 using Zadana.Application.Modules.Catalog.DTOs;
 using Zadana.Application.Modules.Catalog.Queries.GetMasterProductById;
 using Zadana.Application.Modules.Catalog.Queries.GetMasterProducts;
@@ -26,9 +27,10 @@ public class AdminMasterProductsController : ControllerBase
         [FromQuery] int pageNumber = 1,
         [FromQuery] int pageSize = 10,
         [FromQuery] string? searchTerm = null,
-        [FromQuery] Guid? categoryId = null)
+        [FromQuery] Guid? categoryId = null,
+        [FromQuery] Guid? brandId = null)
     {
-        var result = await _sender.Send(new GetMasterProductsQuery(searchTerm, categoryId, pageNumber, pageSize));
+        var result = await _sender.Send(new GetMasterProductsQuery(searchTerm, categoryId, brandId, pageNumber, pageSize));
         return Ok(result);
     }
 

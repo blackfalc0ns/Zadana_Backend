@@ -31,6 +31,11 @@ public class GetMasterProductsQueryHandler : IRequestHandler<GetMasterProductsQu
             query = query.Where(p => p.CategoryId == request.CategoryId.Value);
         }
 
+        if (request.BrandId.HasValue)
+        {
+            query = query.Where(p => p.BrandId == request.BrandId.Value);
+        }
+
         var projectedQuery = query
             .OrderByDescending(p => p.Id)
             .Select(p => new MasterProductDto(
