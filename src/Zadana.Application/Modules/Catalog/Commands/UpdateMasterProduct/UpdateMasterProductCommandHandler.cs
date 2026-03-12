@@ -33,6 +33,7 @@ public class UpdateMasterProductCommandHandler : IRequestHandler<UpdateMasterPro
         product.UpdateDetails(
             nameAr: request.NameAr,
             nameEn: request.NameEn,
+            slug: request.Slug,
             descriptionAr: request.DescriptionAr,
             descriptionEn: request.DescriptionEn,
             barcode: request.Barcode

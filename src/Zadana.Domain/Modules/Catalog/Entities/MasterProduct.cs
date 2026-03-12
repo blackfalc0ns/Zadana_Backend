@@ -7,6 +7,7 @@ public class MasterProduct : BaseEntity
 {
     public string NameAr { get; private set; } = null!;
     public string NameEn { get; private set; } = null!;
+    public string Slug { get; private set; } = null!;
     public string? DescriptionAr { get; private set; }
     public string? DescriptionEn { get; private set; }
     public string? Barcode { get; private set; }
@@ -26,6 +27,7 @@ public class MasterProduct : BaseEntity
     public MasterProduct(
         string nameAr,
         string nameEn,
+        string slug,
         Guid categoryId,
         Guid? brandId = null,
         Guid? unitOfMeasureId = null,
@@ -35,6 +37,7 @@ public class MasterProduct : BaseEntity
     {
         NameAr = nameAr.Trim();
         NameEn = nameEn.Trim();
+        Slug = slug.Trim();
         CategoryId = categoryId;
         BrandId = brandId;
         UnitOfMeasureId = unitOfMeasureId;
@@ -47,12 +50,14 @@ public class MasterProduct : BaseEntity
     public void UpdateDetails(
         string nameAr,
         string nameEn,
+        string slug,
         string? descriptionAr,
         string? descriptionEn,
         string? barcode)
     {
         NameAr = nameAr.Trim();
         NameEn = nameEn.Trim();
+        Slug = slug.Trim();
         DescriptionAr = descriptionAr?.Trim();
         DescriptionEn = descriptionEn?.Trim();
         Barcode = barcode?.Trim();

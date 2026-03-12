@@ -12,6 +12,7 @@ public record MasterProductDto(
     Guid Id,
     string NameAr,
     string NameEn,
+    string Slug,
     string? DescriptionAr,
     string? DescriptionEn,
     string? Barcode,

@@ -41,6 +41,7 @@ public class GetVendorProductByIdQueryHandler : IRequestHandler<GetVendorProduct
                 vp.MasterProduct.Id,
                 vp.MasterProduct.NameAr,
                 vp.MasterProduct.NameEn,
+                vp.MasterProduct.Slug,
                 vp.MasterProduct.DescriptionAr,
                 vp.MasterProduct.DescriptionEn,
                 vp.MasterProduct.Barcode,

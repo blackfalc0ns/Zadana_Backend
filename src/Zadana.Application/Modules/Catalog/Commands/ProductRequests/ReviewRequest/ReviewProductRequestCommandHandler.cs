@@ -45,10 +45,16 @@ public class ReviewProductRequestCommandHandler : IRequestHandler<ReviewProductR
         {
             productRequest.Approve();
 
+            // Generate slug from English name or Arabic name
+            var slug = !string.IsNullOrWhiteSpace(productRequest.SuggestedNameEn) 
+                ? productRequest.SuggestedNameEn.ToLowerInvariant().Replace(" ", "-")
+                : productRequest.SuggestedNameAr.Replace(" ", "-");
+
             // Create new MasterProduct
             var masterProduct = new MasterProduct(
                 nameAr: productRequest.SuggestedNameAr,
                 nameEn: productRequest.SuggestedNameEn,
+                slug: slug,
                 categoryId: productRequest.SuggestedCategoryId,
                 descriptionAr: productRequest.SuggestedDescriptionAr,
                 descriptionEn: productRequest.SuggestedDescriptionEn

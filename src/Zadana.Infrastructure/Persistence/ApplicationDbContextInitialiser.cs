@@ -141,8 +141,8 @@ public class ApplicationDbContextInitialiser
             {
                 var products = new List<MasterProduct>
                 {
-                    new MasterProduct("حليب كامل الدسم 1 لتر", "Full Cream Milk 1L", category.Id, brand.Id, unit.Id, "حليب طازج", "Fresh local milk"),
-                    new MasterProduct("زبادي طازج", "Fresh Yoghurt", category.Id, brand.Id, unit.Id, "زبادي طبيعي", "Natural yoghurt")
+                    new MasterProduct("حليب كامل الدسم 1 لتر", "Full Cream Milk 1L", "full-cream-milk-1l", category.Id, brand.Id, unit.Id, "حليب طازج", "Fresh local milk"),
+                    new MasterProduct("زبادي طازج", "Fresh Yoghurt", "fresh-yoghurt", category.Id, brand.Id, unit.Id, "زبادي طبيعي", "Natural yoghurt")
                 };
                 
                 foreach (var p in products)

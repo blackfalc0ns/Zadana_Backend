@@ -42,6 +42,7 @@ public class GetMasterProductsQueryHandler : IRequestHandler<GetMasterProductsQu
                 p.Id,
                 p.NameAr,
                 p.NameEn,
+                p.Slug,
                 p.DescriptionAr,
                 p.DescriptionEn,
                 p.Barcode,

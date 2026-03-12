@@ -30,6 +30,7 @@ public class CreateMasterProductCommandHandler : IRequestHandler<CreateMasterPro
         var masterProduct = new MasterProduct(
             nameAr: request.NameAr,
             nameEn: request.NameEn,
+            slug: request.Slug,
             categoryId: request.CategoryId,
             brandId: request.BrandId,
             unitOfMeasureId: request.UnitId,

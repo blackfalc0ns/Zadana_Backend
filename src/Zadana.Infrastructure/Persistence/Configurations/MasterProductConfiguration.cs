@@ -20,6 +20,10 @@ public class MasterProductConfiguration : IEntityTypeConfiguration<MasterProduct
             .IsRequired()
             .HasMaxLength(300);
 
+        builder.Property(p => p.Slug)
+            .IsRequired()
+            .HasMaxLength(300);
+
         builder.Property(p => p.DescriptionAr)
             .HasMaxLength(2000);
 
@@ -51,6 +55,10 @@ public class MasterProductConfiguration : IEntityTypeConfiguration<MasterProduct
             .OnDelete(DeleteBehavior.Restrict);
 
         // Indexes
+        builder.HasIndex(p => p.Slug)
+            .IsUnique()
+            .HasDatabaseName("IX_MasterProduct_Slug");
+
         builder.HasIndex(p => p.Barcode)
             .IsUnique()
             .HasDatabaseName("IX_MasterProduct_Barcode")

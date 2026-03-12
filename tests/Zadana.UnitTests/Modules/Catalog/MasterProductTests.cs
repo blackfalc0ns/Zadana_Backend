@@ -12,13 +12,15 @@ public class MasterProductTests
         var categoryId = Guid.NewGuid();
         var nameAr = "منتج تجريبي";
         var nameEn = "Test Product";
+        var slug = "test-product";
 
         // Act
-        var product = new MasterProduct(nameAr, nameEn, categoryId);
+        var product = new MasterProduct(nameAr, nameEn, slug, categoryId);
 
         // Assert
         product.NameAr.Should().Be(nameAr);
         product.NameEn.Should().Be(nameEn);
+        product.Slug.Should().Be(slug);
         product.CategoryId.Should().Be(categoryId);
         product.Images.Should().BeEmpty();
     }
@@ -27,7 +29,7 @@ public class MasterProductTests
     public void AddImage_ShouldAddImageToCollection()
     {
         // Arrange
-        var product = new MasterProduct("ار", "en", Guid.NewGuid());
+        var product = new MasterProduct("ار", "en", "slug", Guid.NewGuid());
         var url = "https://example.com/image.png";
         var altText = "Alt Text";
 
@@ -47,7 +49,7 @@ public class MasterProductTests
     public void ClearImages_ShouldEmptyCollection()
     {
         // Arrange
-        var product = new MasterProduct("ار", "en", Guid.NewGuid());
+        var product = new MasterProduct("ار", "en", "slug", Guid.NewGuid());
         product.AddImage("url1");
         product.AddImage("url2");
 
