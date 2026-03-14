@@ -186,10 +186,20 @@ app.MapControllers();
 // ───── Auto-Migrate & Seed (skip in Testing environment) ─────
 if (!app.Environment.IsEnvironment("Testing"))
 {
-    using var scope = app.Services.CreateScope();
-    var initialiser = scope.ServiceProvider.GetRequiredService<ApplicationDbContextInitialiser>();
-    await initialiser.InitialiseAsync();
-    await initialiser.SeedAsync();
+    try
+    {
+        using var scope = app.Services.CreateScope();
+        var initialiser = scope.ServiceProvider.GetRequiredService<ApplicationDbContextInitialiser>();
+        await initialiser.InitialiseAsync();
+        await initialiser.SeedAsync();
+    }
+    catch (Exception ex)
+    {
+        var logger = app.Services.GetRequiredService<ILogger<Program>>();
+        logger.LogError(ex, "An error occurred during database initialization.");
+        // We don't rethrow here to allow the app to start even if DB is problematic, 
+        // enabling health checks and Swagger to be accessible for debugging.
+    }
 }
 
 // Health check endpoint
