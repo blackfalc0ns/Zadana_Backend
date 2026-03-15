@@ -154,5 +154,67 @@ public class ApplicationDbContextInitialiser
                 await _context.SaveChangesAsync();
             }
         }
+
+        // 7. Seed Sample Vendors
+        if (!await _context.Vendors.AnyAsync())
+        {
+            // Create vendor users
+            var vendor1User = new User("محمد أحمد", "vendor1@test.com", "01111111111", UserRole.Vendor);
+            var vendor2User = new User("أحمد علي", "vendor2@test.com", "01222222222", UserRole.Vendor);
+            var vendor3User = new User("خالد محمود", "vendor3@test.com", "01333333333", UserRole.Vendor);
+
+            await _userManager.CreateAsync(vendor1User, "Vendor@123");
+            await _userManager.CreateAsync(vendor2User, "Vendor@123");
+            await _userManager.CreateAsync(vendor3User, "Vendor@123");
+            
+            await _userManager.AddToRoleAsync(vendor1User, UserRole.Vendor.ToString());
+            await _userManager.AddToRoleAsync(vendor2User, UserRole.Vendor.ToString());
+            await _userManager.AddToRoleAsync(vendor3User, UserRole.Vendor.ToString());
+
+            // Create vendors
+            var vendor1 = new Domain.Modules.Vendors.Entities.Vendor(
+                vendor1User.Id,
+                "متجر الطازج",
+                "Fresh Store",
+                "Grocery",
+                "1234567890",
+                "vendor1@test.com",
+                "01111111111",
+                "TAX123456"
+            );
+
+            var vendor2 = new Domain.Modules.Vendors.Entities.Vendor(
+                vendor2User.Id,
+                "سوبر ماركت النور",
+                "Al Noor Supermarket",
+                "Supermarket",
+                "0987654321",
+                "vendor2@test.com",
+                "01222222222",
+                "TAX789012"
+            );
+
+            var vendor3 = new Domain.Modules.Vendors.Entities.Vendor(
+                vendor3User.Id,
+                "بقالة الخير",
+                "Al Khair Grocery",
+                "Grocery",
+                "5555555555",
+                "vendor3@test.com",
+                "01333333333"
+            );
+
+            // Approve first two vendors
+            var adminUser = await _userManager.FindByEmailAsync("admin@system.com");
+            if (adminUser != null)
+            {
+                vendor1.Approve(5.0m, adminUser.Id);
+                vendor2.Approve(7.5m, adminUser.Id);
+                // vendor3 stays in PendingReview status
+            }
+
+            await _context.Vendors.AddRangeAsync(vendor1, vendor2, vendor3);
+            await _context.SaveChangesAsync();
+        }
     }
 }
