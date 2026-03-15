@@ -1,4 +1,4 @@
-using MediatR;
+﻿using MediatR;
 using Microsoft.AspNetCore.Authorization;
 using Microsoft.AspNetCore.Mvc;
 using Zadana.Application.Common.Models;
@@ -18,12 +18,12 @@ namespace Zadana.Api.Modules.Catalog.Controllers;
 public class VendorProductsController : ControllerBase
 {
     private readonly ISender _sender;
-    private readonly ICurrentUserService _currentUserService;
+    private readonly ICurrentVendorService _currentVendorService;
 
-    public VendorProductsController(ISender sender, ICurrentUserService currentUserService)
+    public VendorProductsController(ISender sender, ICurrentVendorService currentVendorService)
     {
         _sender = sender;
-        _currentUserService = currentUserService;
+        _currentVendorService = currentVendorService;
     }
 
     [HttpGet]
@@ -33,7 +33,7 @@ public class VendorProductsController : ControllerBase
         [FromQuery] int pageNumber = 1,
         [FromQuery] int pageSize = 10)
     {
-        var vendorId = _currentUserService.UserId ?? throw new UnauthorizedAccessException();
+        var vendorId = await _currentVendorService.GetRequiredVendorIdAsync(HttpContext.RequestAborted);
         var query = new GetVendorProductsQuery(vendorId, categoryId, branchId, pageNumber, pageSize);
         var result = await _sender.Send(query);
         return Ok(result);
@@ -42,7 +42,7 @@ public class VendorProductsController : ControllerBase
     [HttpGet("{id}")]
     public async Task<ActionResult<VendorProductDto>> GetProductById(Guid id)
     {
-        var vendorId = _currentUserService.UserId ?? throw new UnauthorizedAccessException();
+        var vendorId = await _currentVendorService.GetRequiredVendorIdAsync(HttpContext.RequestAborted);
         var result = await _sender.Send(new GetVendorProductByIdQuery(vendorId, id));
         return Ok(result);
     }
@@ -50,7 +50,7 @@ public class VendorProductsController : ControllerBase
     [HttpPost]
     public async Task<ActionResult<Guid>> CreateProduct([FromBody] CreateVendorProductRequest request)
     {
-        var vendorId = _currentUserService.UserId ?? throw new UnauthorizedAccessException();
+        var vendorId = await _currentVendorService.GetRequiredVendorIdAsync(HttpContext.RequestAborted);
         var command = new CreateVendorProductCommand(
             vendorId,
             request.MasterProductId,
@@ -70,7 +70,7 @@ public class VendorProductsController : ControllerBase
     [HttpPut("{id}")]
     public async Task<ActionResult> UpdateProduct(Guid id, [FromBody] UpdateVendorProductRequest request)
     {
-        var vendorId = _currentUserService.UserId ?? throw new UnauthorizedAccessException();
+        var vendorId = await _currentVendorService.GetRequiredVendorIdAsync(HttpContext.RequestAborted);
         var command = new UpdateVendorProductCommand(
             id,
             vendorId,
@@ -89,7 +89,7 @@ public class VendorProductsController : ControllerBase
     [HttpPatch("{id}/status")]
     public async Task<ActionResult> ChangeStatus(Guid id, [FromBody] ChangeProductStatusRequest request)
     {
-        var vendorId = _currentUserService.UserId ?? throw new UnauthorizedAccessException();
+        var vendorId = await _currentVendorService.GetRequiredVendorIdAsync(HttpContext.RequestAborted);
         var command = new ChangeVendorProductStatusCommand(id, vendorId, request.IsActive);
         await _sender.Send(command);
         return NoContent();
@@ -117,3 +117,4 @@ public record UpdateVendorProductRequest(
     string? CustomDescriptionEn);
 
 public record ChangeProductStatusRequest(bool IsActive);
+

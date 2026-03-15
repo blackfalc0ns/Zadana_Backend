@@ -1,4 +1,4 @@
-using Microsoft.AspNetCore.Authorization;
+﻿using Microsoft.AspNetCore.Authorization;
 using Microsoft.AspNetCore.Mvc;
 using Zadana.Api.Controllers;
 using Zadana.Application.Modules.Files.Commands.DeleteFile;
@@ -7,11 +7,11 @@ using Zadana.Application.Modules.Files.Commands.UploadFile;
 namespace Zadana.Api.Modules.Files.Controllers;
 
 [Route("api/files")]
-[Tags("📁 5. Common Systems (Files)")]
+[Tags("ðŸ“ 5. Common Systems (Files)")]
 public class FilesController : ApiControllerBase
 {
     /// <summary>
-    /// رفع ملف (صورة، مستند، سجل تجاري)
+    /// Ø±ÙØ¹ Ù…Ù„Ù (ØµÙˆØ±Ø©ØŒ Ù…Ø³ØªÙ†Ø¯ØŒ Ø³Ø¬Ù„ ØªØ¬Ø§Ø±ÙŠ)
     /// </summary>
     [HttpPost("upload")]
     [AllowAnonymous]
@@ -27,12 +27,12 @@ public class FilesController : ApiControllerBase
         
         var fileUrl = await Sender.Send(command);
         
-        return Ok(new { Url = fileUrl });
+        return Ok(new { url = fileUrl });
     }
 
 
     /// <summary>
-    /// حذف ملف من السيرفر وقاعدة البيانات
+    /// Ø­Ø°Ù Ù…Ù„Ù Ù…Ù† Ø§Ù„Ø³ÙŠØ±ÙØ± ÙˆÙ‚Ø§Ø¹Ø¯Ø© Ø§Ù„Ø¨ÙŠØ§Ù†Ø§Øª
     /// </summary>
     [HttpDelete("{id:guid}")]
     [Authorize]
@@ -42,3 +42,4 @@ public class FilesController : ApiControllerBase
         return NoContent();
     }
 }
+

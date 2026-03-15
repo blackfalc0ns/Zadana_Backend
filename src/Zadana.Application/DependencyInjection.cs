@@ -1,8 +1,10 @@
-using System.Reflection;
+﻿using System.Reflection;
 using FluentValidation;
 using Microsoft.Extensions.DependencyInjection;
 using Zadana.Application.Common.Behaviors;
+using Zadana.Application.Common.Interfaces;
 using Zadana.Application.Common.Localization;
+using Zadana.Application.Common.Services;
 
 namespace Zadana.Application;
 
@@ -22,7 +24,9 @@ public static class DependencyInjection
         });
 
         services.AddScoped<Zadana.Application.Modules.Identity.Interfaces.IIdentityService, Zadana.Application.Modules.Identity.Services.IdentityService>();
+        services.AddScoped<ICurrentVendorService, CurrentVendorService>();
 
         return services;
     }
 }
+

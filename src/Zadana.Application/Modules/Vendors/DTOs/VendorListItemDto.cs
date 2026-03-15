@@ -1,4 +1,4 @@
-namespace Zadana.Application.Modules.Vendors.DTOs;
+﻿namespace Zadana.Application.Modules.Vendors.DTOs;
 
 public record VendorListItemDto(
     Guid Id,
@@ -8,4 +8,6 @@ public record VendorListItemDto(
     string Status,
     string OwnerName,
     string ContactPhone,
-    DateTime CreatedAtUtc);
+    DateTime CreatedAtUtc,
+    string ContactEmail = "",
+    decimal? CommissionRate = null);

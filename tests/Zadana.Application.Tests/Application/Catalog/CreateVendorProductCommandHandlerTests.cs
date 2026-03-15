@@ -1,9 +1,11 @@
-using FluentAssertions;
+﻿using FluentAssertions;
 using Moq;
 using Microsoft.EntityFrameworkCore;
 using Microsoft.EntityFrameworkCore.Query;
 using Zadana.Application.Common.Interfaces;
+using Zadana.Application.Common.Localization;
 using Zadana.Application.Modules.Catalog.Commands.CreateVendorProduct;
+using Zadana.Application.Tests.Helpers;
 using Zadana.Domain.Modules.Catalog.Entities;
 using Zadana.Domain.Modules.Vendors.Entities;
 using Zadana.Domain.Modules.Vendors.Enums;
@@ -15,26 +17,23 @@ public class CreateVendorProductCommandHandlerTests
 {
     private readonly Mock<IApplicationDbContext> _dbContextMock = new();
 
-    private CreateVendorProductCommandHandler CreateHandler() => new(_dbContextMock.Object);
+    private CreateVendorProductCommandHandler CreateHandler() =>
+        new(_dbContextMock.Object, TestLocalizer.Create<SharedResource>());
 
     private static Vendor CreateVendor(VendorStatus status)
     {
-        var vendor = new Vendor(Guid.NewGuid(), "متجر", "Store", "desc", "123", "vendor@test.com", "01011111111");
-        // We need to set vendor status — by default it should be Pending
-        // For Active status tests, we need to approve the vendor
+        var vendor = new Vendor(Guid.NewGuid(), "متجر", "Store", "Retail", "123", "vendor@test.com", "01011111111");
         if (status == VendorStatus.Active)
         {
-            vendor.Approve(5m, Guid.NewGuid()); // 5% commission, mock admin ID
+            vendor.Approve(5m, Guid.NewGuid());
         }
+
         return vendor;
     }
-
-    // ─── Vendor Not Found ──────────────────────────────────────────────────
 
     [Fact]
     public async Task Handle_WhenVendorNotFound_ShouldThrowNotFoundException()
     {
-        // Arrange
         var vendors = Array.Empty<Vendor>().AsQueryable();
         var mockVendorSet = new Mock<DbSet<Vendor>>();
         var mockQueryable = new TestAsyncEnumerable<Vendor>(vendors);
@@ -49,20 +48,15 @@ public class CreateVendorProductCommandHandlerTests
         var command = new CreateVendorProductCommand(Guid.NewGuid(), Guid.NewGuid(), 100m, null, null, 10, 1, null, null, null);
         var handler = CreateHandler();
 
-        // Act
         var act = () => handler.Handle(command, CancellationToken.None);
 
-        // Assert
         await act.Should().ThrowAsync<NotFoundException>();
     }
-
-    // ─── Vendor Not Active ─────────────────────────────────────────────────
 
     [Fact]
     public async Task Handle_WhenVendorNotActive_ShouldThrowBusinessRuleException()
     {
-        // Arrange — vendor exists but status is Pending (not Active)
-        var vendor = new Vendor(Guid.NewGuid(), "متجر", "Store", "desc", "123", "vendor@test.com", "01011111111");
+        var vendor = CreateVendor(VendorStatus.PendingReview);
         var vendorList = new List<Vendor> { vendor }.AsQueryable();
         var mockVendorSet = new Mock<DbSet<Vendor>>();
         var mockQueryable = new TestAsyncEnumerable<Vendor>(vendorList);
@@ -77,21 +71,16 @@ public class CreateVendorProductCommandHandlerTests
         var command = new CreateVendorProductCommand(vendor.Id, Guid.NewGuid(), 100m, null, null, 10, 1, null, null, null);
         var handler = CreateHandler();
 
-        // Act
         var act = () => handler.Handle(command, CancellationToken.None);
 
-        // Assert
         await act.Should()
             .ThrowAsync<BusinessRuleException>()
             .Where(e => e.ErrorCode == "VENDOR_NOT_VERIFIED");
     }
 
-    // ─── Master Product Not Found ──────────────────────────────────────────
-
     [Fact]
     public async Task Handle_WhenMasterProductNotFound_ShouldThrowNotFoundException()
     {
-        // Arrange — vendor is active, but master product not found
         var vendor = CreateVendor(VendorStatus.Active);
         var vendorList = new List<Vendor> { vendor }.AsQueryable();
         var mockVendorSet = new Mock<DbSet<Vendor>>();
@@ -115,15 +104,11 @@ public class CreateVendorProductCommandHandlerTests
         var command = new CreateVendorProductCommand(vendor.Id, Guid.NewGuid(), 100m, null, null, 10, 1, null, null, null);
         var handler = CreateHandler();
 
-        // Act
         var act = () => handler.Handle(command, CancellationToken.None);
 
-        // Assert
         await act.Should().ThrowAsync<NotFoundException>();
     }
 }
-
-// ─── Helpers for async EF Core queries ─────────────────────────────────────
 
 internal class TestAsyncQueryProvider<TEntity> : IAsyncQueryProvider
 {
@@ -186,10 +171,7 @@ internal class TestAsyncEnumerable<T> : EnumerableQuery<T>, IAsyncEnumerable<T>,
         return new TestAsyncEnumerator<T>(this.AsEnumerable().GetEnumerator());
     }
 
-    IQueryProvider IQueryable.Provider
-    {
-        get { return new TestAsyncQueryProvider<T>(this); }
-    }
+    IQueryProvider IQueryable.Provider => new TestAsyncQueryProvider<T>(this);
 }
 
 internal class TestAsyncEnumerator<T> : IAsyncEnumerator<T>

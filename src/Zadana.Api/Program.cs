@@ -1,4 +1,4 @@
-using Microsoft.EntityFrameworkCore;
+﻿using Microsoft.EntityFrameworkCore;
 using Zadana.Application;
 using Zadana.Infrastructure.Persistence;
 using Zadana.Infrastructure.Persistence.Interceptors;
@@ -11,13 +11,15 @@ using System.Text;
 using Microsoft.OpenApi.Models;
 using Microsoft.AspNetCore.Identity;
 using Zadana.Domain.Modules.Identity.Entities;
+using Zadana.Api.Configuration;
 
 var builder = WebApplication.CreateBuilder(args);
+var jwtSecret = builder.Configuration.GetRequiredSetting("JwtSettings:Secret");
 
-// ───── Application Layer ─────
+// â”€â”€â”€â”€â”€ Application Layer â”€â”€â”€â”€â”€
 builder.Services.AddApplication();
 
-// ───── Infrastructure: EF Core ─────
+// â”€â”€â”€â”€â”€ Infrastructure: EF Core â”€â”€â”€â”€â”€
 // Skip SQL Server registration in Testing environment (WebApplicationFactory provides InMemory instead)
 if (!builder.Environment.IsEnvironment("Testing"))
 {
@@ -25,7 +27,7 @@ if (!builder.Environment.IsEnvironment("Testing"))
     builder.Services.AddDbContext<ApplicationDbContext>((sp, options) =>
     {
         options.UseSqlServer(
-            builder.Configuration.GetConnectionString("DefaultConnection"),
+            builder.Configuration.GetRequiredConnectionString("DefaultConnection"),
             sqlOptions =>
             {
                 sqlOptions.MigrationsAssembly(typeof(ApplicationDbContext).Assembly.FullName);
@@ -48,7 +50,7 @@ builder.Services.Configure<Zadana.Infrastructure.Settings.ImageKitSettings>(
 
 builder.Services.AddTransient<Zadana.Application.Common.Interfaces.IFileStorageService, Zadana.Infrastructure.Services.ImageKitFileStorageService>();
 
-// ───── Security & Auth ─────
+// â”€â”€â”€â”€â”€ Security & Auth â”€â”€â”€â”€â”€
 builder.Services.AddHttpContextAccessor();
 // Add Identity Infrastructure
 builder.Services.AddIdentity<User, IdentityRole<Guid>>(options =>
@@ -102,7 +104,7 @@ builder.Services.AddAuthentication(options =>
             ValidIssuer = builder.Configuration["JwtSettings:Issuer"],
             ValidAudience = builder.Configuration["JwtSettings:Audience"],
             IssuerSigningKey = new SymmetricSecurityKey(
-                Encoding.UTF8.GetBytes(builder.Configuration["JwtSettings:Secret"]!))
+                Encoding.UTF8.GetBytes(jwtSecret))
         };
     });
 
@@ -121,7 +123,7 @@ builder.Services.AddAuthorization(options =>
         policy.RequireRole("Admin", "SuperAdmin"));
 });
 
-// ───── API ─────
+// â”€â”€â”€â”€â”€ API â”€â”€â”€â”€â”€
 builder.Services.AddControllers()
     .ConfigureApiBehaviorOptions(options =>
     {
@@ -155,12 +157,12 @@ builder.Services.AddSwaggerGen(c =>
     });
 });
 
-// ───── Localization ─────
+// â”€â”€â”€â”€â”€ Localization â”€â”€â”€â”€â”€
 builder.Services.AddLocalization();
 
 var app = builder.Build();
 
-// ───── Pipeline ─────
+// â”€â”€â”€â”€â”€ Pipeline â”€â”€â”€â”€â”€
 app.UseMiddleware<ExceptionHandlingMiddleware>();
 
 app.UseSwagger();
@@ -183,7 +185,7 @@ app.UseAuthentication();
 app.UseAuthorization();
 app.MapControllers();
 
-// ───── Auto-Migrate & Seed (skip in Testing environment) ─────
+// â”€â”€â”€â”€â”€ Auto-Migrate & Seed (skip in Testing environment) â”€â”€â”€â”€â”€
 if (!app.Environment.IsEnvironment("Testing"))
 {
     try
@@ -218,3 +220,4 @@ app.Run();
 
 // Required for WebApplicationFactory<Program> in integration tests
 public partial class Program { }
+

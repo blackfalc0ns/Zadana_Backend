@@ -1,29 +1,26 @@
-using FluentAssertions;
+﻿using FluentAssertions;
 using Moq;
 using Microsoft.EntityFrameworkCore;
 using Microsoft.EntityFrameworkCore.Query;
 using Zadana.Application.Common.Interfaces;
+using Zadana.Application.Common.Localization;
 using Zadana.Application.Modules.Orders.Commands.AddToCart;
+using Zadana.Application.Tests.Helpers;
 using Zadana.Domain.Modules.Catalog.Entities;
 using Zadana.SharedKernel.Exceptions;
 
 namespace Zadana.Application.Tests.Application.Orders;
 
-/// <summary>
-/// Unit tests for AddToCartCommandHandler.
-/// </summary>
 public class AddToCartCommandHandlerTests
 {
     private readonly Mock<IApplicationDbContext> _dbContextMock = new();
 
-    private AddToCartCommandHandler CreateHandler() => new(_dbContextMock.Object);
-
-    // ─── Product Not Found ─────────────────────────────────────────────────
+    private AddToCartCommandHandler CreateHandler() =>
+        new(_dbContextMock.Object, TestLocalizer.Create<SharedResource>());
 
     [Fact]
     public async Task Handle_WhenProductNotFound_ShouldThrowNotFoundException()
     {
-        // Arrange
         var vendorProducts = Array.Empty<VendorProduct>().AsQueryable();
         var mockVpSet = new Mock<DbSet<VendorProduct>>();
         var mockQueryable = new TestAsyncEnumerable<VendorProduct>(vendorProducts);
@@ -38,19 +35,14 @@ public class AddToCartCommandHandlerTests
         var command = new AddToCartCommand(Guid.NewGuid(), Guid.NewGuid(), Guid.NewGuid(), 2);
         var handler = CreateHandler();
 
-        // Act
         var act = () => handler.Handle(command, CancellationToken.None);
 
-        // Assert
         await act.Should().ThrowAsync<NotFoundException>();
     }
-
-    // ─── Insufficient Stock ────────────────────────────────────────────────
 
     [Fact]
     public async Task Handle_WhenInsufficientStock_ShouldThrowBusinessRuleException()
     {
-        // Arrange
         var vendorProduct = new VendorProduct(Guid.NewGuid(), Guid.NewGuid(), 50m, 3, null, null);
         var vpList = new List<VendorProduct> { vendorProduct }.AsQueryable();
         var mockVpSet = new Mock<DbSet<VendorProduct>>();
@@ -63,21 +55,17 @@ public class AddToCartCommandHandlerTests
 
         _dbContextMock.Setup(c => c.VendorProducts).Returns(mockVpSet.Object);
 
-        // Request 100 items, but only 3 in stock
         var command = new AddToCartCommand(Guid.NewGuid(), Guid.NewGuid(), vendorProduct.Id, 100);
         var handler = CreateHandler();
 
-        // Act
         var act = () => handler.Handle(command, CancellationToken.None);
 
-        // Assert
         await act.Should()
             .ThrowAsync<BusinessRuleException>()
             .Where(e => e.ErrorCode == "INSUFFICIENT_STOCK");
     }
 }
 
-// Re-use the async enumerator helper
 internal class TestAsyncQueryProvider<TEntity> : IAsyncQueryProvider
 {
     private readonly IQueryProvider _inner;
@@ -139,10 +127,7 @@ internal class TestAsyncEnumerable<T> : EnumerableQuery<T>, IAsyncEnumerable<T>,
         return new TestAsyncEnumerator<T>(this.AsEnumerable().GetEnumerator());
     }
 
-    IQueryProvider IQueryable.Provider
-    {
-        get { return new TestAsyncQueryProvider<T>(this); }
-    }
+    IQueryProvider IQueryable.Provider => new TestAsyncQueryProvider<T>(this);
 }
 
 internal class TestAsyncEnumerator<T> : IAsyncEnumerator<T>

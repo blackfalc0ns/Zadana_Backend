@@ -1,4 +1,4 @@
-
+﻿
 Microsoft Visual Studio Solution File, Format Version 12.00
 # Visual Studio Version 17
 VisualStudioVersion = 17.0.31903.59
@@ -24,6 +24,8 @@ EndProject
 Project("{FAE04EC0-301F-11D3-BF4B-00C04F79EFBC}") = "Zadana.IntegrationTests", "tests\Zadana.IntegrationTests\Zadana.IntegrationTests.csproj", "{381677E3-C5F0-471F-889B-BA17D5CD907B}"
 EndProject
 Project("{FAE04EC0-301F-11D3-BF4B-00C04F79EFBC}") = "Zadana.ArchitectureTests", "tests\Zadana.ArchitectureTests\Zadana.ArchitectureTests.csproj", "{23BD5DA5-2E07-4FB5-B5B3-A236EFA7700B}"
+EndProject
+Project("{FAE04EC0-301F-11D3-BF4B-00C04F79EFBC}") = "Zadana.Application.Tests", "tests\Zadana.Application.Tests\Zadana.Application.Tests.csproj", "{87B8814F-95C6-46B5-B445-ADD4DE478E3B}"
 EndProject
 Global
 	GlobalSection(SolutionConfigurationPlatforms) = preSolution
@@ -143,6 +145,18 @@ Global
 		{23BD5DA5-2E07-4FB5-B5B3-A236EFA7700B}.Release|x64.Build.0 = Release|Any CPU
 		{23BD5DA5-2E07-4FB5-B5B3-A236EFA7700B}.Release|x86.ActiveCfg = Release|Any CPU
 		{23BD5DA5-2E07-4FB5-B5B3-A236EFA7700B}.Release|x86.Build.0 = Release|Any CPU
+		{87B8814F-95C6-46B5-B445-ADD4DE478E3B}.Debug|Any CPU.ActiveCfg = Debug|Any CPU
+		{87B8814F-95C6-46B5-B445-ADD4DE478E3B}.Debug|Any CPU.Build.0 = Debug|Any CPU
+		{87B8814F-95C6-46B5-B445-ADD4DE478E3B}.Debug|x64.ActiveCfg = Debug|Any CPU
+		{87B8814F-95C6-46B5-B445-ADD4DE478E3B}.Debug|x64.Build.0 = Debug|Any CPU
+		{87B8814F-95C6-46B5-B445-ADD4DE478E3B}.Debug|x86.ActiveCfg = Debug|Any CPU
+		{87B8814F-95C6-46B5-B445-ADD4DE478E3B}.Debug|x86.Build.0 = Debug|Any CPU
+		{87B8814F-95C6-46B5-B445-ADD4DE478E3B}.Release|Any CPU.ActiveCfg = Release|Any CPU
+		{87B8814F-95C6-46B5-B445-ADD4DE478E3B}.Release|Any CPU.Build.0 = Release|Any CPU
+		{87B8814F-95C6-46B5-B445-ADD4DE478E3B}.Release|x64.ActiveCfg = Release|Any CPU
+		{87B8814F-95C6-46B5-B445-ADD4DE478E3B}.Release|x64.Build.0 = Release|Any CPU
+		{87B8814F-95C6-46B5-B445-ADD4DE478E3B}.Release|x86.ActiveCfg = Release|Any CPU
+		{87B8814F-95C6-46B5-B445-ADD4DE478E3B}.Release|x86.Build.0 = Release|Any CPU
 	EndGlobalSection
 	GlobalSection(SolutionProperties) = preSolution
 		HideSolutionNode = FALSE
@@ -157,5 +171,6 @@ Global
 		{99870E98-BF63-47F5-B765-052730FF3C0E} = {0AB3BF05-4346-4AA6-1389-037BE0695223}
 		{381677E3-C5F0-471F-889B-BA17D5CD907B} = {0AB3BF05-4346-4AA6-1389-037BE0695223}
 		{23BD5DA5-2E07-4FB5-B5B3-A236EFA7700B} = {0AB3BF05-4346-4AA6-1389-037BE0695223}
+		{87B8814F-95C6-46B5-B445-ADD4DE478E3B} = {0AB3BF05-4346-4AA6-1389-037BE0695223}
 	EndGlobalSection
 EndGlobal

@@ -1,10 +1,10 @@
-using FluentAssertions;
+﻿using FluentAssertions;
 using Moq;
+using Microsoft.EntityFrameworkCore;
 using Zadana.Application.Common.Interfaces;
 using Zadana.Application.Modules.Catalog.Commands.CreateMasterProduct;
 using Zadana.Domain.Modules.Catalog.Entities;
 using Zadana.SharedKernel.Exceptions;
-using Microsoft.EntityFrameworkCore;
 
 namespace Zadana.Application.Tests.Application.Catalog;
 
@@ -14,12 +14,9 @@ public class CreateMasterProductCommandHandlerTests
 
     private CreateMasterProductCommandHandler CreateHandler() => new(_dbContextMock.Object);
 
-    // ─── Category Not Found ────────────────────────────────────────────────
-
     [Fact]
     public async Task Handle_WhenCategoryNotFound_ShouldThrowNotFoundException()
     {
-        // Arrange
         var categories = Array.Empty<Category>().AsQueryable();
         var mockCategorySet = new Mock<DbSet<Category>>();
         mockCategorySet.As<IQueryable<Category>>().Setup(m => m.Provider).Returns(categories.Provider);
@@ -28,23 +25,18 @@ public class CreateMasterProductCommandHandlerTests
         mockCategorySet.As<IQueryable<Category>>().Setup(m => m.GetEnumerator()).Returns(categories.GetEnumerator());
         _dbContextMock.Setup(c => c.Categories).Returns(mockCategorySet.Object);
 
-        var command = new CreateMasterProductCommand(Guid.NewGuid(), "Product", "product-slug", null, null, null, null);
+        var command = new CreateMasterProductCommand(Guid.NewGuid(), "منتج", "Product", "product-slug", null, null, null, null, null);
         var handler = CreateHandler();
 
-        // Act
         var act = () => handler.Handle(command, CancellationToken.None);
 
-        // Assert
         await act.Should().ThrowAsync<NotFoundException>();
     }
-
-    // ─── Brand Not Found ───────────────────────────────────────────────────
 
     [Fact]
     public async Task Handle_WhenBrandNotFound_ShouldThrowNotFoundException()
     {
-        // Arrange — category exists, brand does not
-        var category = new Category("فئة", "Cat", null, null, 1);
+        var category = new Category("فئة", "Category", null, null, 1);
         var categoryList = new List<Category> { category }.AsQueryable();
         var mockCategorySet = new Mock<DbSet<Category>>();
         mockCategorySet.As<IQueryable<Category>>().Setup(m => m.Provider).Returns(categoryList.Provider);
@@ -62,23 +54,18 @@ public class CreateMasterProductCommandHandlerTests
         _dbContextMock.Setup(c => c.Brands).Returns(mockBrandSet.Object);
 
         var fakeBrandId = Guid.NewGuid();
-        var command = new CreateMasterProductCommand(category.Id, "Product", "slug", null, null, fakeBrandId, null);
+        var command = new CreateMasterProductCommand(category.Id, "منتج", "Product", "slug", null, null, null, fakeBrandId, null);
         var handler = CreateHandler();
 
-        // Act
         var act = () => handler.Handle(command, CancellationToken.None);
 
-        // Assert
         await act.Should().ThrowAsync<NotFoundException>();
     }
-
-    // ─── Success ───────────────────────────────────────────────────────────
 
     [Fact]
     public async Task Handle_WithValidData_ShouldAddProductAndReturnGuid()
     {
-        // Arrange — category exists
-        var category = new Category("فئة", "Cat", null, null, 1);
+        var category = new Category("فئة", "Category", null, null, 1);
         var categoryList = new List<Category> { category }.AsQueryable();
         var mockCategorySet = new Mock<DbSet<Category>>();
         mockCategorySet.As<IQueryable<Category>>().Setup(m => m.Provider).Returns(categoryList.Provider);
@@ -91,13 +78,11 @@ public class CreateMasterProductCommandHandlerTests
         _dbContextMock.Setup(c => c.MasterProducts).Returns(mockMasterProductSet.Object);
         _dbContextMock.Setup(c => c.SaveChangesAsync(It.IsAny<CancellationToken>())).ReturnsAsync(1);
 
-        var command = new CreateMasterProductCommand(category.Id, "Test Product", "test-product", null, "Description", null, null);
+        var command = new CreateMasterProductCommand(category.Id, "منتج تجريبي", "Test Product", "test-product", null, "وصف", "Description", null, null);
         var handler = CreateHandler();
 
-        // Act
         var result = await handler.Handle(command, CancellationToken.None);
 
-        // Assert
         result.Should().NotBeEmpty();
         mockMasterProductSet.Verify(d => d.Add(It.IsAny<MasterProduct>()), Times.Once);
         _dbContextMock.Verify(c => c.SaveChangesAsync(It.IsAny<CancellationToken>()), Times.Once);
@@ -106,8 +91,7 @@ public class CreateMasterProductCommandHandlerTests
     [Fact]
     public async Task Handle_WithImages_ShouldAddProductAndImages()
     {
-        // Arrange
-        var category = new Category("فئة", "Cat", null, null, 1);
+        var category = new Category("فئة", "Category", null, null, 1);
         var categoryList = new List<Category> { category }.AsQueryable();
         var mockCategorySet = new Mock<DbSet<Category>>();
         mockCategorySet.As<IQueryable<Category>>().Setup(m => m.Provider).Returns(categoryList.Provider);
@@ -126,13 +110,11 @@ public class CreateMasterProductCommandHandlerTests
             new("https://example.com/img2.png", "Alt 2", 1, false)
         };
 
-        var command = new CreateMasterProductCommand(category.Id, "Product with Images", "slug", null, "Desc", null, null, images);
+        var command = new CreateMasterProductCommand(category.Id, "منتج بالصور", "Product with Images", "slug", null, "وصف", "Description", null, null, images);
         var handler = CreateHandler();
 
-        // Act
         var result = await handler.Handle(command, CancellationToken.None);
 
-        // Assert
         result.Should().NotBeEmpty();
         mockMasterProductSet.Verify(d => d.Add(It.Is<MasterProduct>(p => p.Images.Count == 2)), Times.Once);
         _dbContextMock.Verify(c => c.SaveChangesAsync(It.IsAny<CancellationToken>()), Times.Once);

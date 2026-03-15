@@ -1,4 +1,4 @@
-using MediatR;
+﻿using MediatR;
 using Microsoft.EntityFrameworkCore;
 using Zadana.Application.Common.Interfaces;
 using Zadana.Application.Common.Models;
@@ -22,11 +22,11 @@ public class GetAllVendorsQueryHandler : IRequestHandler<GetAllVendorsQuery, Pag
             .AsNoTracking()
             .AsQueryable();
 
-        // Filter by status
         if (request.Status.HasValue)
+        {
             query = query.Where(v => v.Status == request.Status.Value);
+        }
 
-        // Search by business name or contact info
         if (!string.IsNullOrWhiteSpace(request.Search))
         {
             var search = request.Search.Trim().ToLower();
@@ -34,13 +34,12 @@ public class GetAllVendorsQueryHandler : IRequestHandler<GetAllVendorsQuery, Pag
                 v.BusinessNameAr.ToLower().Contains(search) ||
                 v.BusinessNameEn.ToLower().Contains(search) ||
                 v.ContactPhone.Contains(search) ||
+                v.ContactEmail.ToLower().Contains(search) ||
                 v.User.FullName.ToLower().Contains(search));
         }
 
-        // Order by newest first
         query = query.OrderByDescending(v => v.CreatedAtUtc);
 
-        // Project to DTO
         var projected = query.Select(v => new VendorListItemDto(
             v.Id,
             v.BusinessNameAr,
@@ -49,7 +48,9 @@ public class GetAllVendorsQueryHandler : IRequestHandler<GetAllVendorsQuery, Pag
             v.Status.ToString(),
             v.User.FullName,
             v.ContactPhone,
-            v.CreatedAtUtc));
+            v.CreatedAtUtc,
+            v.ContactEmail,
+            v.CommissionRate));
 
         return await PaginatedList<VendorListItemDto>.CreateAsync(projected, request.Page, request.PageSize, cancellationToken);
     }

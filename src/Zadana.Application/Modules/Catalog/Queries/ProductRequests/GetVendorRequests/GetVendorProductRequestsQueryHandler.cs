@@ -1,4 +1,4 @@
-using MediatR;
+﻿using MediatR;
 using Microsoft.EntityFrameworkCore;
 using Zadana.Application.Common.Interfaces;
 using Zadana.Application.Common.Models;
@@ -8,20 +8,19 @@ namespace Zadana.Application.Modules.Catalog.Queries.ProductRequests.GetVendorRe
 public class GetVendorProductRequestsQueryHandler : IRequestHandler<GetVendorProductRequestsQuery, PaginatedList<ProductRequestDto>>
 {
     private readonly IApplicationDbContext _context;
-    private readonly ICurrentUserService _currentUserService;
+    private readonly ICurrentVendorService _currentVendorService;
 
-    public GetVendorProductRequestsQueryHandler(IApplicationDbContext context, ICurrentUserService currentUserService)
+    public GetVendorProductRequestsQueryHandler(IApplicationDbContext context, ICurrentVendorService currentVendorService)
     {
         _context = context;
-        _currentUserService = currentUserService;
+        _currentVendorService = currentVendorService;
     }
 
     public async Task<PaginatedList<ProductRequestDto>> Handle(GetVendorProductRequestsQuery request, CancellationToken cancellationToken)
     {
-        var vendorId = _currentUserService.UserId ?? Guid.Empty;
+        var vendorId = await _currentVendorService.TryGetVendorIdAsync(cancellationToken);
 
-        // If not authenticated as Vendor, return empty list
-        if (_currentUserService.Role != "Vendor" || vendorId == Guid.Empty)
+        if (vendorId is null)
         {
             return new PaginatedList<ProductRequestDto>([], 0, request.PageNumber, request.PageSize);
         }
@@ -29,7 +28,7 @@ public class GetVendorProductRequestsQueryHandler : IRequestHandler<GetVendorPro
         var query = _context.ProductRequests
             .Include(pr => pr.Category)
             .AsNoTracking()
-            .Where(pr => pr.VendorId == vendorId);
+            .Where(pr => pr.VendorId == vendorId.Value);
 
         if (request.Status.HasValue)
         {
