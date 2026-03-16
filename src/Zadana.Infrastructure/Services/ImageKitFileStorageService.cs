@@ -22,29 +22,37 @@ public class ImageKitFileStorageService : IFileStorageService
 
     public async Task<string> UploadAsync(FileUploadDto file, string directory, CancellationToken cancellationToken = default)
     {
-        byte[] fileBytes;
-        using (var ms = new MemoryStream())
+        try
         {
-            await file.ContentStream.CopyToAsync(ms, cancellationToken);
-            fileBytes = ms.ToArray();
+            byte[] fileBytes;
+            using (var ms = new MemoryStream())
+            {
+                await file.ContentStream.CopyToAsync(ms, cancellationToken);
+                fileBytes = ms.ToArray();
+            }
+
+            var request = new FileCreateRequest
+            {
+                file = fileBytes,
+                fileName = file.FileName,
+                folder = directory,
+                useUniqueFileName = true
+            };
+
+            var response = await _client.UploadAsync(request);
+
+            if (response.HttpStatusCode != 200)
+            {
+                var errorMessage = response.Raw ?? "Unknown error";
+                throw new Exception($"ImageKit upload failed. Status: {response.HttpStatusCode}, Error: {errorMessage}");
+            }
+
+            return response.url;
         }
-
-        var request = new FileCreateRequest
+        catch (Exception ex)
         {
-            file = fileBytes,
-            fileName = file.FileName,
-            folder = directory,
-            useUniqueFileName = true
-        };
-
-        var response = await _client.UploadAsync(request);
-
-        if (response.HttpStatusCode != 200)
-        {
-            throw new Exception($"Failed to upload image. Status code: {response.HttpStatusCode}");
+            throw new Exception($"ImageKit upload error: {ex.Message}", ex);
         }
-
-        return response.url;
     }
 
     public async Task DeleteAsync(string fileUrl, CancellationToken cancellationToken = default)

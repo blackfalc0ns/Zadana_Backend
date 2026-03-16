@@ -45,6 +45,8 @@ if (!builder.Environment.IsEnvironment("Testing"))
 
 builder.Services.AddScoped<IApplicationDbContext>(provider => provider.GetRequiredService<ApplicationDbContext>());
 builder.Services.AddScoped<IUnitOfWork>(provider => provider.GetRequiredService<ApplicationDbContext>());
+
+// Configure and validate ImageKit settings
 builder.Services.Configure<Zadana.Infrastructure.Settings.ImageKitSettings>(
     builder.Configuration.GetSection(Zadana.Infrastructure.Settings.ImageKitSettings.SectionName));
 

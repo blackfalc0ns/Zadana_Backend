@@ -30,7 +30,8 @@ public class ExceptionHandlingMiddleware
         }
         catch (Exception ex)
         {
-            _logger.LogError(ex, "An unhandled exception has occurred.");
+            _logger.LogError(ex, "An unhandled exception has occurred: {Message}. StackTrace: {StackTrace}", 
+                ex.Message, ex.StackTrace);
             var localizer = context.RequestServices.GetRequiredService<IStringLocalizer<SharedResource>>();
             await HandleExceptionAsync(context, ex, localizer);
         }
