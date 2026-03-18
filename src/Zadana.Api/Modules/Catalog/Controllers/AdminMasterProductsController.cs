@@ -4,6 +4,7 @@ using Microsoft.AspNetCore.Mvc;
 using Zadana.Application.Common.Models;
 using Zadana.Application.Modules.Catalog.Commands.CreateMasterProduct;
 using Zadana.Application.Modules.Catalog.Commands.UpdateMasterProduct;
+using Zadana.Application.Modules.Catalog.Commands.DeleteMasterProduct;
 using Zadana.Application.Modules.Catalog.DTOs;
 using Zadana.Application.Modules.Catalog.Queries.GetMasterProductById;
 using Zadana.Application.Modules.Catalog.Queries.GetMasterProducts;
@@ -55,6 +56,13 @@ public class AdminMasterProductsController : ControllerBase
             return BadRequest();
 
         await _sender.Send(command);
+        return NoContent();
+    }
+
+    [HttpDelete("{id}")]
+    public async Task<ActionResult> DeleteProduct(Guid id)
+    {
+        await _sender.Send(new DeleteMasterProductCommand(id));
         return NoContent();
     }
 }
