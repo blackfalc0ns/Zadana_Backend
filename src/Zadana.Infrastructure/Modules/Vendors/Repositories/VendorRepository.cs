@@ -15,13 +15,37 @@ public class VendorRepository : IVendorRepository
     }
 
     public Task<Vendor?> GetByIdAsync(Guid vendorId, CancellationToken cancellationToken = default) =>
-        _dbContext.Vendors.FirstOrDefaultAsync(vendor => vendor.Id == vendorId, cancellationToken);
+        _dbContext.Vendors
+            .Include(vendor => vendor.Branches)
+                .ThenInclude(branch => branch.OperatingHours)
+            .Include(vendor => vendor.BankAccounts)
+            .FirstOrDefaultAsync(vendor => vendor.Id == vendorId, cancellationToken);
 
     public Task<Vendor?> GetByUserIdAsync(Guid userId, CancellationToken cancellationToken = default) =>
-        _dbContext.Vendors.FirstOrDefaultAsync(vendor => vendor.UserId == userId, cancellationToken);
+        _dbContext.Vendors
+            .Include(vendor => vendor.Branches)
+                .ThenInclude(branch => branch.OperatingHours)
+            .Include(vendor => vendor.BankAccounts)
+            .FirstOrDefaultAsync(vendor => vendor.UserId == userId, cancellationToken);
 
     public Task<bool> ExistsAsync(Guid vendorId, CancellationToken cancellationToken = default) =>
         _dbContext.Vendors.AnyAsync(vendor => vendor.Id == vendorId, cancellationToken);
+
+    public Task<VendorBranch?> GetPrimaryBranchAsync(Guid vendorId, CancellationToken cancellationToken = default) =>
+        _dbContext.VendorBranches
+            .Include(branch => branch.OperatingHours)
+            .Where(branch => branch.VendorId == vendorId)
+            .OrderByDescending(branch => branch.IsActive)
+            .ThenBy(branch => branch.CreatedAtUtc)
+            .FirstOrDefaultAsync(cancellationToken);
+
+    public Task<VendorBankAccount?> GetPrimaryBankAccountAsync(Guid vendorId, CancellationToken cancellationToken = default) =>
+        _dbContext.VendorBankAccounts
+            .Where(account => account.VendorId == vendorId)
+            .OrderByDescending(account => account.IsPrimary)
+            .ThenByDescending(account => account.VerifiedAtUtc)
+            .ThenBy(account => account.CreatedAtUtc)
+            .FirstOrDefaultAsync(cancellationToken);
 
     public void Add(Vendor vendor) => _dbContext.Vendors.Add(vendor);
 

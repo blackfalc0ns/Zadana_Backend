@@ -10,4 +10,10 @@ public record VendorListItemDto(
     string ContactPhone,
     DateTime CreatedAtUtc,
     string ContactEmail = "",
-    decimal? CommissionRate = null);
+    decimal? CommissionRate = null,
+    string? City = null,
+    string? Region = null,
+    string? AccountStatus = null,
+    bool IsLoginLocked = false,
+    DateTime? LockedAtUtc = null,
+    DateTime? ArchivedAtUtc = null);

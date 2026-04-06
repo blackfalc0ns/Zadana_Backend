@@ -63,6 +63,11 @@ public class IdentityService : IIdentityService
             throw new UnauthorizedException(_localizer["AccountLoginDenied", user.AccountStatus]);
         }
 
+        if (user.IsLoginLocked)
+        {
+            throw new UnauthorizedException(_localizer["AccountLoginDenied", user.AccountStatus]);
+        }
+
         var tokens = await _jwtTokenService.GenerateTokenPairAsync(user, cancellationToken);
 
         _refreshTokenStore.Add(new NewRefreshToken(
@@ -94,6 +99,11 @@ public class IdentityService : IIdentityService
         }
 
         if (tokenEntity.User.AccountStatus != AccountStatus.Active)
+        {
+            throw new UnauthorizedException(_localizer["UserAccountNotActive"]);
+        }
+
+        if (tokenEntity.User.IsLoginLocked)
         {
             throw new UnauthorizedException(_localizer["UserAccountNotActive"]);
         }

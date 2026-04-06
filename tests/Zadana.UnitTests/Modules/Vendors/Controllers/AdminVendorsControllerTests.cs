@@ -4,8 +4,8 @@ using Microsoft.AspNetCore.Mvc;
 using Microsoft.Extensions.DependencyInjection;
 using Microsoft.Extensions.Localization;
 using Moq;
-using Xunit;
 using Zadana.Api.Modules.Vendors.Controllers;
+using Zadana.Api.Modules.Vendors.Requests;
 using Zadana.Application.Common.Localization;
 using Zadana.Application.Common.Models;
 using Zadana.Application.Modules.Vendors.Commands.ApproveVendor;
@@ -31,7 +31,7 @@ public class AdminVendorsControllerTests
 
         _controller = new AdminVendorsController(_localizerMock.Object);
 
-        var services = new Microsoft.Extensions.DependencyInjection.ServiceCollection();
+        var services = new ServiceCollection();
         services.AddSingleton(_senderMock.Object);
         var serviceProvider = services.BuildServiceProvider();
 
@@ -47,7 +47,6 @@ public class AdminVendorsControllerTests
     [Fact]
     public async Task GetAllVendors_ReturnsOkResult()
     {
-        // Arrange
         var items = new List<VendorListItemDto>
         {
             new(Guid.NewGuid(), "Ar", "En", "Retail", "Active", "Owner", "123", DateTime.UtcNow)
@@ -57,10 +56,8 @@ public class AdminVendorsControllerTests
         _senderMock.Setup(x => x.Send(It.IsAny<GetAllVendorsQuery>(), default))
             .ReturnsAsync(paginatedList);
 
-        // Act
         var result = await _controller.GetAllVendors(null, null, 1, 10);
 
-        // Assert
         var okResult = result.Should().BeOfType<OkObjectResult>().Subject;
         okResult.Value.Should().BeEquivalentTo(paginatedList);
     }
@@ -68,17 +65,56 @@ public class AdminVendorsControllerTests
     [Fact]
     public async Task GetVendorDetail_ReturnsOkResult()
     {
-        // Arrange
         var vendorId = Guid.NewGuid();
-        var dto = new VendorDetailDto(vendorId, "Ar", "En", "Retail", "CR", null, "c@t.com", "123", null, "Active", null, null, null, null, null, DateTime.UtcNow, "Owner", "o@t.com", "123", 0, 0);
+        var dto = new VendorDetailDto(
+            vendorId,
+            "Ar",
+            "En",
+            "Retail",
+            "CR",
+            null,
+            null,
+            null,
+            "c@t.com",
+            "123",
+            null,
+            null,
+            null,
+            null,
+            null,
+            null,
+            "Active",
+            "Active",
+            false,
+            null,
+            null,
+            null,
+            null,
+            null,
+            null,
+            null,
+            null,
+            null,
+            null,
+            null,
+            DateTime.UtcNow,
+            DateTime.UtcNow,
+            "Owner",
+            "o@t.com",
+            "123",
+            null,
+            null,
+            null,
+            null,
+            [],
+            0,
+            0);
 
         _senderMock.Setup(x => x.Send(It.Is<GetVendorDetailQuery>(q => q.VendorId == vendorId), default))
             .ReturnsAsync(dto);
 
-        // Act
         var result = await _controller.GetVendorDetail(vendorId);
 
-        // Assert
         var okResult = result.Should().BeOfType<OkObjectResult>().Subject;
         okResult.Value.Should().BeEquivalentTo(dto);
     }
@@ -86,14 +122,11 @@ public class AdminVendorsControllerTests
     [Fact]
     public async Task ApproveVendor_ReturnsOkResult_WithLocalizedMessage()
     {
-        // Arrange
         var vendorId = Guid.NewGuid();
         var request = new ApproveVendorRequest(15.5m);
 
-        // Act
         var result = await _controller.ApproveVendor(vendorId, request);
 
-        // Assert
         _senderMock.Verify(x => x.Send(It.Is<ApproveVendorCommand>(c => c.VendorId == vendorId && c.CommissionRate == 15.5m), default), Times.Once);
         result.Should().BeOfType<OkObjectResult>();
     }
@@ -101,14 +134,11 @@ public class AdminVendorsControllerTests
     [Fact]
     public async Task RejectVendor_ReturnsOkResult_WithLocalizedMessage()
     {
-        // Arrange
         var vendorId = Guid.NewGuid();
         var request = new RejectVendorRequest("Missing documents");
 
-        // Act
         var result = await _controller.RejectVendor(vendorId, request);
 
-        // Assert
         _senderMock.Verify(x => x.Send(It.Is<RejectVendorCommand>(c => c.VendorId == vendorId && c.Reason == "Missing documents"), default), Times.Once);
         result.Should().BeOfType<OkObjectResult>();
     }
@@ -116,14 +146,11 @@ public class AdminVendorsControllerTests
     [Fact]
     public async Task SuspendVendor_ReturnsOkResult_WithLocalizedMessage()
     {
-        // Arrange
         var vendorId = Guid.NewGuid();
         var request = new SuspendVendorRequest("Policy violation");
 
-        // Act
         var result = await _controller.SuspendVendor(vendorId, request);
 
-        // Assert
         _senderMock.Verify(x => x.Send(It.Is<SuspendVendorCommand>(c => c.VendorId == vendorId && c.Reason == "Policy violation"), default), Times.Once);
         result.Should().BeOfType<OkObjectResult>();
     }

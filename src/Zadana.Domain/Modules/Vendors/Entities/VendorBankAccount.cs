@@ -38,6 +38,22 @@ public class VendorBankAccount : BaseEntity
         Status = BankAccountStatus.PendingVerification;
     }
 
+    public void UpdateDetails(
+        string bankName,
+        string accountHolderName,
+        string iban,
+        string? swiftCode = null)
+    {
+        BankName = bankName.Trim();
+        AccountHolderName = accountHolderName.Trim();
+        IBAN = iban.Trim().ToUpperInvariant();
+        SwiftCode = swiftCode?.Trim().ToUpperInvariant();
+        Status = BankAccountStatus.PendingVerification;
+        RejectionReason = null;
+        VerifiedAtUtc = null;
+        VerifiedBy = null;
+    }
+
     public void Verify(Guid verifiedBy)
     {
         if (Status != BankAccountStatus.PendingVerification)
@@ -68,4 +84,9 @@ public class VendorBankAccount : BaseEntity
     }
 
     public void UnsetPrimary() => IsPrimary = false;
+
+    public void MarkAsPreferredForSetup()
+    {
+        IsPrimary = true;
+    }
 }

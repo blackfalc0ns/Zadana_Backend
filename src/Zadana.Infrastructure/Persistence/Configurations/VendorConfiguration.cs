@@ -41,6 +41,44 @@ public class VendorConfiguration : IEntityTypeConfiguration<Vendor>
             .IsRequired()
             .HasMaxLength(20);
 
+        builder.Property(v => v.DescriptionAr)
+            .HasMaxLength(2000);
+
+        builder.Property(v => v.DescriptionEn)
+            .HasMaxLength(2000);
+
+        builder.Property(v => v.OwnerName)
+            .HasMaxLength(200);
+
+        builder.Property(v => v.OwnerEmail)
+            .HasMaxLength(256);
+
+        builder.Property(v => v.OwnerPhone)
+            .HasMaxLength(20);
+
+        builder.Property(v => v.IdNumber)
+            .HasMaxLength(50);
+
+        builder.Property(v => v.Nationality)
+            .HasMaxLength(100);
+
+        builder.Property(v => v.Region)
+            .HasMaxLength(100);
+
+        builder.Property(v => v.City)
+            .HasMaxLength(100);
+
+        builder.Property(v => v.NationalAddress)
+            .HasMaxLength(500);
+
+        builder.Property(v => v.CommercialRegistrationExpiryDate);
+
+        builder.Property(v => v.LicenseNumber)
+            .HasMaxLength(100);
+
+        builder.Property(v => v.PayoutCycle)
+            .HasMaxLength(50);
+
         builder.Property(v => v.CommissionRate)
             .HasPrecision(5, 2);
 
@@ -55,6 +93,18 @@ public class VendorConfiguration : IEntityTypeConfiguration<Vendor>
 
         builder.Property(v => v.ApprovedAtUtc);
         builder.Property(v => v.ApprovedBy);
+        builder.Property(v => v.ApprovalNote)
+            .HasMaxLength(500);
+        builder.Property(v => v.SuspendedAtUtc);
+        builder.Property(v => v.SuspensionReason)
+            .HasMaxLength(500);
+        builder.Property(v => v.LockedAtUtc);
+        builder.Property(v => v.LockReason)
+            .HasMaxLength(500);
+        builder.Property(v => v.ArchivedAtUtc);
+        builder.Property(v => v.ArchiveReason)
+            .HasMaxLength(500);
+        builder.Property(v => v.LastStatusChangedAtUtc);
 
         // Relationships
         builder.HasOne<User>()

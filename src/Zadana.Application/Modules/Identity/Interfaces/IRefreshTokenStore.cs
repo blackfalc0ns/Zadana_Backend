@@ -8,4 +8,5 @@ public interface IRefreshTokenStore
     Task<RefreshTokenRecord?> GetByTokenWithUserAsync(string token, CancellationToken cancellationToken = default);
     void Add(NewRefreshToken refreshToken);
     Task<bool> RevokeAsync(string token, CancellationToken cancellationToken = default);
+    Task<int> RevokeAllByUserAsync(Guid userId, CancellationToken cancellationToken = default);
 }

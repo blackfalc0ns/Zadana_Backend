@@ -2,6 +2,8 @@ using Microsoft.EntityFrameworkCore;
 using Zadana.Application.Common.Models;
 using Zadana.Application.Modules.Vendors.DTOs;
 using Zadana.Application.Modules.Vendors.Interfaces;
+using Zadana.Domain.Modules.Identity.Entities;
+using Zadana.Domain.Modules.Vendors.Entities;
 using Zadana.Domain.Modules.Vendors.Enums;
 using Zadana.Infrastructure.Persistence;
 
@@ -42,7 +44,9 @@ public class VendorReadService : IVendorReadService
                 EF.Functions.Like(item.vendor.BusinessNameEn, pattern) ||
                 EF.Functions.Like(item.vendor.ContactPhone, pattern) ||
                 EF.Functions.Like(item.vendor.ContactEmail, pattern) ||
-                EF.Functions.Like(item.user.FullName, pattern));
+                EF.Functions.Like(item.user.FullName, pattern) ||
+                (item.vendor.OwnerName != null && EF.Functions.Like(item.vendor.OwnerName, pattern)) ||
+                (item.vendor.OwnerEmail != null && EF.Functions.Like(item.vendor.OwnerEmail, pattern)));
         }
 
         var projected = query
@@ -52,63 +56,89 @@ public class VendorReadService : IVendorReadService
                 item.vendor.BusinessNameAr,
                 item.vendor.BusinessNameEn,
                 item.vendor.BusinessType,
-                item.vendor.Status.ToString(),
-                item.user.FullName,
+                NormalizeVendorStatus(item.vendor.Status),
+                item.vendor.OwnerName ?? item.user.FullName,
                 item.vendor.ContactPhone,
                 item.vendor.CreatedAtUtc,
                 item.vendor.ContactEmail,
-                item.vendor.CommissionRate));
+                item.vendor.CommissionRate,
+                item.vendor.City,
+                item.vendor.Region,
+                item.user.AccountStatus.ToString(),
+                item.user.IsLoginLocked,
+                item.user.LockedAtUtc,
+                item.user.ArchivedAtUtc));
 
         return await PaginatedList<VendorListItemDto>.CreateAsync(projected, page, pageSize, cancellationToken);
     }
 
-    public Task<VendorDetailDto?> GetDetailAsync(Guid vendorId, CancellationToken cancellationToken = default) =>
-        (from vendor in _dbContext.Vendors.AsNoTracking()
-         join user in _dbContext.Users.AsNoTracking() on vendor.UserId equals user.Id
-         where vendor.Id == vendorId
-         select new VendorDetailDto(
-             vendor.Id,
-             vendor.BusinessNameAr,
-             vendor.BusinessNameEn,
-             vendor.BusinessType,
-             vendor.CommercialRegistrationNumber,
-             vendor.TaxId,
-             vendor.ContactEmail,
-             vendor.ContactPhone,
-             vendor.CommissionRate,
-             vendor.Status.ToString(),
-             vendor.RejectionReason,
-             vendor.LogoUrl,
-             vendor.CommercialRegisterDocumentUrl,
-             vendor.ApprovedAtUtc,
-             vendor.ApprovedBy,
-             vendor.CreatedAtUtc,
-             user.FullName,
-             user.Email ?? string.Empty,
-             user.PhoneNumber ?? string.Empty,
-             _dbContext.VendorBranches.Count(branch => branch.VendorId == vendor.Id),
-             _dbContext.VendorBankAccounts.Count(account => account.VendorId == vendor.Id)))
-        .FirstOrDefaultAsync(cancellationToken);
-
-    public Task<VendorProfileDto?> GetProfileByUserIdAsync(Guid userId, CancellationToken cancellationToken = default) =>
-        _dbContext.Vendors
+    public async Task<VendorDetailDto?> GetDetailAsync(Guid vendorId, CancellationToken cancellationToken = default)
+    {
+        var vendor = await _dbContext.Vendors
             .AsNoTracking()
-            .Where(vendor => vendor.UserId == userId)
-            .Select(vendor => new VendorProfileDto(
-                vendor.Id,
-                vendor.BusinessNameAr,
-                vendor.BusinessNameEn,
-                vendor.BusinessType,
-                vendor.CommercialRegistrationNumber,
-                vendor.TaxId,
-                vendor.ContactEmail,
-                vendor.ContactPhone,
-                vendor.CommissionRate,
-                vendor.Status.ToString(),
-                vendor.LogoUrl,
-                vendor.ApprovedAtUtc,
-                vendor.CreatedAtUtc))
-            .FirstOrDefaultAsync(cancellationToken);
+            .Include(item => item.Branches)
+                .ThenInclude(branch => branch.OperatingHours)
+            .Include(item => item.BankAccounts)
+            .FirstOrDefaultAsync(item => item.Id == vendorId, cancellationToken);
+
+        if (vendor == null)
+        {
+            return null;
+        }
+
+        var user = await _dbContext.Users
+            .AsNoTracking()
+            .FirstOrDefaultAsync(item => item.Id == vendor.UserId, cancellationToken);
+
+        if (user == null)
+        {
+            return null;
+        }
+
+        var approvedByName = vendor.ApprovedBy.HasValue
+            ? await _dbContext.Users
+                .AsNoTracking()
+                .Where(item => item.Id == vendor.ApprovedBy.Value)
+                .Select(item => item.FullName)
+                .FirstOrDefaultAsync(cancellationToken)
+            : null;
+
+        return MapDetail(vendor, user, approvedByName);
+    }
+
+    public async Task<VendorWorkspaceDto?> GetWorkspaceByUserIdAsync(Guid userId, CancellationToken cancellationToken = default)
+    {
+        var vendor = await _dbContext.Vendors
+            .AsNoTracking()
+            .Include(item => item.Branches)
+                .ThenInclude(branch => branch.OperatingHours)
+            .Include(item => item.BankAccounts)
+            .FirstOrDefaultAsync(item => item.UserId == userId, cancellationToken);
+
+        if (vendor == null)
+        {
+            return null;
+        }
+
+        var user = await _dbContext.Users
+            .AsNoTracking()
+            .FirstOrDefaultAsync(item => item.Id == vendor.UserId, cancellationToken);
+
+        if (user == null)
+        {
+            return null;
+        }
+
+        var approvedByName = vendor.ApprovedBy.HasValue
+            ? await _dbContext.Users
+                .AsNoTracking()
+                .Where(item => item.Id == vendor.ApprovedBy.Value)
+                .Select(item => item.FullName)
+                .FirstOrDefaultAsync(cancellationToken)
+            : null;
+
+        return MapWorkspace(vendor, user, approvedByName);
+    }
 
     public Task<Guid?> GetVendorIdByUserIdAsync(Guid userId, CancellationToken cancellationToken = default) =>
         _dbContext.Vendors
@@ -116,4 +146,144 @@ public class VendorReadService : IVendorReadService
             .Where(vendor => vendor.UserId == userId)
             .Select(vendor => (Guid?)vendor.Id)
             .FirstOrDefaultAsync(cancellationToken);
+
+    private static VendorWorkspaceDto MapWorkspace(Vendor vendor, User user, string? approvedByName)
+    {
+        var primaryBankAccount = GetPrimaryBankAccount(vendor);
+        var primaryBranch = GetPrimaryBranch(vendor);
+
+        return new VendorWorkspaceDto(
+            vendor.Id,
+            vendor.BusinessNameAr,
+            vendor.BusinessNameEn,
+            vendor.BusinessType,
+            vendor.CommercialRegistrationNumber,
+            vendor.CommercialRegistrationExpiryDate,
+            vendor.TaxId,
+            vendor.LicenseNumber,
+            vendor.ContactEmail,
+            vendor.ContactPhone,
+            vendor.DescriptionAr,
+            vendor.DescriptionEn,
+            vendor.Region,
+            vendor.City,
+            vendor.NationalAddress,
+            vendor.OwnerName ?? user.FullName,
+            vendor.OwnerEmail ?? user.Email,
+            vendor.OwnerPhone ?? user.PhoneNumber,
+            vendor.IdNumber,
+            vendor.Nationality,
+            vendor.PayoutCycle,
+            vendor.CommissionRate,
+            NormalizeVendorStatus(vendor.Status),
+            user.AccountStatus.ToString(),
+            user.IsLoginLocked,
+            user.LockedAtUtc,
+            user.ArchivedAtUtc,
+            vendor.SuspendedAtUtc,
+            vendor.RejectionReason,
+            vendor.SuspensionReason,
+            vendor.LockReason,
+            vendor.ArchiveReason,
+            vendor.LogoUrl,
+            vendor.CommercialRegisterDocumentUrl,
+            vendor.ApprovedAtUtc,
+            approvedByName,
+            vendor.CreatedAtUtc,
+            vendor.UpdatedAtUtc,
+            vendor.Branches.Count,
+            vendor.BankAccounts.Count,
+            MapBankAccount(primaryBankAccount),
+            MapOperatingHours(primaryBranch));
+    }
+
+    private static VendorDetailDto MapDetail(Vendor vendor, User user, string? approvedByName)
+    {
+        var workspace = MapWorkspace(vendor, user, approvedByName);
+
+        return new VendorDetailDto(
+            workspace.Id,
+            workspace.BusinessNameAr,
+            workspace.BusinessNameEn,
+            workspace.BusinessType,
+            workspace.CommercialRegistrationNumber,
+            workspace.CommercialRegistrationExpiryDate,
+            workspace.TaxId,
+            workspace.LicenseNumber,
+            workspace.ContactEmail,
+            workspace.ContactPhone,
+            workspace.DescriptionAr,
+            workspace.DescriptionEn,
+            workspace.Region,
+            workspace.City,
+            workspace.NationalAddress,
+            workspace.CommissionRate,
+            workspace.Status,
+            workspace.AccountStatus,
+            workspace.IsLoginLocked,
+            workspace.LockedAtUtc,
+            workspace.ArchivedAtUtc,
+            workspace.SuspendedAtUtc,
+            workspace.RejectionReason,
+            workspace.SuspensionReason,
+            workspace.LockReason,
+            workspace.ArchiveReason,
+            workspace.LogoUrl,
+            workspace.CommercialRegisterDocumentUrl,
+            workspace.ApprovedAtUtc,
+            workspace.ApprovedByName,
+            workspace.CreatedAtUtc,
+            workspace.UpdatedAtUtc,
+            workspace.OwnerName ?? user.FullName,
+            workspace.OwnerEmail ?? user.Email ?? string.Empty,
+            workspace.OwnerPhone ?? user.PhoneNumber ?? string.Empty,
+            workspace.IdNumber,
+            workspace.Nationality,
+            workspace.PayoutCycle,
+            workspace.PrimaryBankAccount,
+            workspace.OperatingHours,
+            workspace.BranchesCount,
+            workspace.BankAccountsCount);
+    }
+
+    private static VendorBranch? GetPrimaryBranch(Vendor vendor) =>
+        vendor.Branches
+            .OrderByDescending(branch => branch.IsActive)
+            .ThenBy(branch => branch.CreatedAtUtc)
+            .FirstOrDefault();
+
+    private static VendorBankAccount? GetPrimaryBankAccount(Vendor vendor) =>
+        vendor.BankAccounts
+            .OrderByDescending(account => account.IsPrimary)
+            .ThenByDescending(account => account.VerifiedAtUtc)
+            .ThenBy(account => account.CreatedAtUtc)
+            .FirstOrDefault();
+
+    private static VendorBankAccountDto? MapBankAccount(VendorBankAccount? account) =>
+        account == null
+            ? null
+            : new VendorBankAccountDto(
+                account.Id,
+                account.BankName,
+                account.AccountHolderName,
+                account.IBAN,
+                account.SwiftCode,
+                account.IsPrimary,
+                account.Status.ToString(),
+                account.RejectionReason,
+                account.VerifiedAtUtc);
+
+    private static IReadOnlyList<VendorOperatingHourDto> MapOperatingHours(VendorBranch? branch) =>
+        branch?.OperatingHours
+            .OrderBy(item => item.DayOfWeek)
+            .Select(item => new VendorOperatingHourDto(
+                item.DayOfWeek,
+                item.OpenTime.ToString(@"hh\:mm"),
+                item.CloseTime.ToString(@"hh\:mm"),
+                !item.IsClosed))
+            .ToList()
+        ?? [];
+
+    private static string NormalizeVendorStatus(VendorStatus status) =>
+        status == VendorStatus.PendingReview ? "Pending" : status.ToString();
 }

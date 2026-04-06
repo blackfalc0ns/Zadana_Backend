@@ -23,7 +23,18 @@ public class UserConfiguration : IEntityTypeConfiguration<User>
             .HasMaxLength(20)
             .HasConversion<string>();
 
+        builder.Property(u => u.IsLoginLocked)
+            .HasDefaultValue(false);
+
+        builder.Property(u => u.LockReason)
+            .HasMaxLength(500);
+
+        builder.Property(u => u.ArchiveReason)
+            .HasMaxLength(500);
+
         builder.Property(u => u.LastLoginAtUtc);
+        builder.Property(u => u.LockedAtUtc);
+        builder.Property(u => u.ArchivedAtUtc);
 
         builder.HasMany(u => u.RefreshTokens)
             .WithOne(r => r.User)

@@ -13,29 +13,58 @@ public class GetVendorProfileQueryHandlerTests
     private readonly Mock<ICurrentUserService> _currentUserMock = new();
 
     [Fact]
-    public async Task Handle_WithValidRequest_ReturnsProfileDto()
+    public async Task Handle_WithValidRequest_ReturnsWorkspaceDto()
     {
         var userId = Guid.NewGuid();
-        var expected = new VendorProfileDto(
+        var expected = new VendorWorkspaceDto(
             Guid.NewGuid(),
             "Business Ar",
             "Business En",
             "Retail",
             "CR001",
             null,
+            null,
+            null,
             "contact@test.com",
             "999",
-            10,
-            "Active",
             null,
+            null,
+            null,
+            null,
+            null,
+            "Owner Name",
+            "owner@test.com",
+            "1234567890",
+            null,
+            null,
+            null,
+            10m,
+            "Active",
+            "Active",
+            false,
+            null,
+            null,
+            null,
+            null,
+            null,
+            null,
+            null,
+            null,
+            null,
+            null,
+            "Admin User",
             DateTime.UtcNow,
-            DateTime.UtcNow);
+            DateTime.UtcNow,
+            1,
+            1,
+            null,
+            []);
 
         _currentUserMock.Setup(currentUser => currentUser.UserId).Returns(userId);
 
         var readService = new Mock<IVendorReadService>();
         readService
-            .Setup(service => service.GetProfileByUserIdAsync(userId, It.IsAny<CancellationToken>()))
+            .Setup(service => service.GetWorkspaceByUserIdAsync(userId, It.IsAny<CancellationToken>()))
             .ReturnsAsync(expected);
 
         var handler = new GetVendorProfileQueryHandler(readService.Object, _currentUserMock.Object);
@@ -65,8 +94,8 @@ public class GetVendorProfileQueryHandlerTests
 
         var readService = new Mock<IVendorReadService>();
         readService
-            .Setup(service => service.GetProfileByUserIdAsync(userId, It.IsAny<CancellationToken>()))
-            .ReturnsAsync((VendorProfileDto?)null);
+            .Setup(service => service.GetWorkspaceByUserIdAsync(userId, It.IsAny<CancellationToken>()))
+            .ReturnsAsync((VendorWorkspaceDto?)null);
 
         var handler = new GetVendorProfileQueryHandler(readService.Object, _currentUserMock.Object);
 

@@ -51,6 +51,40 @@ public class RegisterVendorCommandValidator : AbstractValidator<RegisterVendorCo
             .NotEmpty().WithMessage(localizer["RequiredField"].Value)
             .MaximumLength(20).WithMessage(localizer["MaxLength"].Value)
             .WithName(localizer["ContactPhone"].Value);
+        RuleFor(x => x.OwnerName)
+            .NotEmpty().WithMessage(localizer["RequiredField"].Value)
+            .MaximumLength(200).WithMessage(localizer["MaxLength"].Value);
+        RuleFor(x => x.OwnerEmail)
+            .NotEmpty().WithMessage(localizer["RequiredField"].Value)
+            .EmailAddress().WithMessage(localizer["InvalidEmail"].Value)
+            .MaximumLength(255).WithMessage(localizer["MaxLength"].Value);
+        RuleFor(x => x.OwnerPhone)
+            .NotEmpty().WithMessage(localizer["RequiredField"].Value)
+            .MaximumLength(20).WithMessage(localizer["MaxLength"].Value);
+        RuleFor(x => x.Region)
+            .NotEmpty().WithMessage(localizer["RequiredField"].Value)
+            .MaximumLength(100).WithMessage(localizer["MaxLength"].Value);
+        RuleFor(x => x.City)
+            .NotEmpty().WithMessage(localizer["RequiredField"].Value)
+            .MaximumLength(100).WithMessage(localizer["MaxLength"].Value);
+        RuleFor(x => x.NationalAddress)
+            .NotEmpty().WithMessage(localizer["RequiredField"].Value)
+            .MaximumLength(500).WithMessage(localizer["MaxLength"].Value);
+        RuleFor(x => x.LicenseNumber)
+            .MaximumLength(100).WithMessage(localizer["MaxLength"].Value);
+        RuleFor(x => x.BankName)
+            .NotEmpty().WithMessage(localizer["RequiredField"].Value)
+            .MaximumLength(200).WithMessage(localizer["MaxLength"].Value);
+        RuleFor(x => x.AccountHolderName)
+            .NotEmpty().WithMessage(localizer["RequiredField"].Value)
+            .MaximumLength(200).WithMessage(localizer["MaxLength"].Value);
+        RuleFor(x => x.Iban)
+            .NotEmpty().WithMessage(localizer["RequiredField"].Value)
+            .MaximumLength(34).WithMessage(localizer["MaxLength"].Value);
+        RuleFor(x => x.SwiftCode)
+            .MaximumLength(11).WithMessage(localizer["MaxLength"].Value);
+        RuleFor(x => x.PayoutCycle)
+            .MaximumLength(50).WithMessage(localizer["MaxLength"].Value);
 
         // Branch
         RuleFor(x => x.BranchName)

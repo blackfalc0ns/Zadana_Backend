@@ -45,6 +45,19 @@ public class RegisterVendorCommandHandler : IRequestHandler<RegisterVendorComman
                 request.ContactEmail,
                 request.ContactPhone,
                 request.TaxId,
+                request.DescriptionAr,
+                request.DescriptionEn,
+                request.OwnerName,
+                request.OwnerEmail,
+                request.OwnerPhone,
+                request.IdNumber,
+                request.Nationality,
+                request.Region,
+                request.City,
+                request.NationalAddress,
+                request.CommercialRegistrationExpiryDate,
+                request.LicenseNumber,
+                request.PayoutCycle,
                 request.LogoUrl,
                 request.CommercialRegisterDocumentUrl);
 
@@ -59,6 +72,23 @@ public class RegisterVendorCommandHandler : IRequestHandler<RegisterVendorComman
                 request.BranchDeliveryRadiusKm);
 
             _vendorRepository.AddBranch(branch);
+            branch.OperatingHours.Add(new BranchOperatingHour(branch.Id, 0, new TimeSpan(9, 0, 0), new TimeSpan(22, 0, 0)));
+            branch.OperatingHours.Add(new BranchOperatingHour(branch.Id, 1, new TimeSpan(9, 0, 0), new TimeSpan(22, 0, 0)));
+            branch.OperatingHours.Add(new BranchOperatingHour(branch.Id, 2, new TimeSpan(9, 0, 0), new TimeSpan(22, 0, 0)));
+            branch.OperatingHours.Add(new BranchOperatingHour(branch.Id, 3, new TimeSpan(9, 0, 0), new TimeSpan(22, 0, 0)));
+            branch.OperatingHours.Add(new BranchOperatingHour(branch.Id, 4, new TimeSpan(9, 0, 0), new TimeSpan(22, 0, 0)));
+            branch.OperatingHours.Add(new BranchOperatingHour(branch.Id, 5, new TimeSpan(9, 0, 0), new TimeSpan(23, 0, 0)));
+            branch.OperatingHours.Add(new BranchOperatingHour(branch.Id, 6, new TimeSpan(14, 0, 0), new TimeSpan(23, 30, 0)));
+
+            var bankAccount = new VendorBankAccount(
+                vendor.Id,
+                request.BankName,
+                request.AccountHolderName,
+                request.Iban,
+                request.SwiftCode);
+            bankAccount.MarkAsPreferredForSetup();
+            _vendorRepository.AddBankAccount(bankAccount);
+
             var authResponse = await _registrationWorkflow.BuildAuthResponseAsync(user, cancellationToken);
             await _unitOfWork.SaveChangesAsync(cancellationToken);
 

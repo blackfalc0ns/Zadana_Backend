@@ -51,6 +51,20 @@ public class RefreshTokenRepository : IRefreshTokenStore
         return true;
     }
 
+    public async Task<int> RevokeAllByUserAsync(Guid userId, CancellationToken cancellationToken = default)
+    {
+        var tokens = await _dbContext.RefreshTokens
+            .Where(item => item.UserId == userId && !item.IsRevoked)
+            .ToListAsync(cancellationToken);
+
+        foreach (var token in tokens)
+        {
+            token.Revoke();
+        }
+
+        return tokens.Count;
+    }
+
     private static RefreshTokenRecord Map(RefreshToken refreshToken, bool includeUser = false) =>
         new(
             refreshToken.UserId,
@@ -66,6 +80,9 @@ public class RefreshTokenRepository : IRefreshTokenStore
                     refreshToken.User.PhoneNumber,
                     refreshToken.User.Role,
                     refreshToken.User.AccountStatus,
+                    refreshToken.User.IsLoginLocked,
+                    refreshToken.User.LockedAtUtc,
+                    refreshToken.User.ArchivedAtUtc,
                     refreshToken.User.EmailConfirmed,
                     refreshToken.User.PhoneNumberConfirmed)
                 : null);

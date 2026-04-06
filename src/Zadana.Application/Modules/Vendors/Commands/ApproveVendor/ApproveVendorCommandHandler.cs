@@ -1,5 +1,6 @@
 using MediatR;
 using Zadana.Application.Common.Interfaces;
+using Zadana.Application.Modules.Identity.Interfaces;
 using Zadana.Application.Modules.Vendors.Interfaces;
 using Zadana.SharedKernel.Exceptions;
 
@@ -8,15 +9,18 @@ namespace Zadana.Application.Modules.Vendors.Commands.ApproveVendor;
 public class ApproveVendorCommandHandler : IRequestHandler<ApproveVendorCommand>
 {
     private readonly IVendorRepository _vendorRepository;
+    private readonly IIdentityAccountService _identityAccountService;
     private readonly IUnitOfWork _unitOfWork;
     private readonly ICurrentUserService _currentUserService;
 
     public ApproveVendorCommandHandler(
         IVendorRepository vendorRepository,
+        IIdentityAccountService identityAccountService,
         IUnitOfWork unitOfWork,
         ICurrentUserService currentUserService)
     {
         _vendorRepository = vendorRepository;
+        _identityAccountService = identityAccountService;
         _unitOfWork = unitOfWork;
         _currentUserService = currentUserService;
     }
@@ -30,6 +34,18 @@ public class ApproveVendorCommandHandler : IRequestHandler<ApproveVendorCommand>
             ?? throw new UnauthorizedException("USER_NOT_AUTHENTICATED");
 
         vendor.Approve(request.CommissionRate, adminId);
+
+        var activateResult = await _identityAccountService.ActivateAsync(vendor.UserId, cancellationToken);
+        if (!activateResult.Succeeded)
+        {
+            throw new BusinessRuleException("IDENTITY_ACTIVATE_FAILED", string.Join(", ", activateResult.Errors ?? []));
+        }
+
+        var unlockResult = await _identityAccountService.UnlockLoginAsync(vendor.UserId, cancellationToken);
+        if (!unlockResult.Succeeded)
+        {
+            throw new BusinessRuleException("IDENTITY_UNLOCK_FAILED", string.Join(", ", unlockResult.Errors ?? []));
+        }
 
         await _unitOfWork.SaveChangesAsync(cancellationToken);
     }

@@ -15,7 +15,7 @@ public interface IVendorReadService
 
     Task<VendorDetailDto?> GetDetailAsync(Guid vendorId, CancellationToken cancellationToken = default);
 
-    Task<VendorProfileDto?> GetProfileByUserIdAsync(Guid userId, CancellationToken cancellationToken = default);
+    Task<VendorWorkspaceDto?> GetWorkspaceByUserIdAsync(Guid userId, CancellationToken cancellationToken = default);
 
     Task<Guid?> GetVendorIdByUserIdAsync(Guid userId, CancellationToken cancellationToken = default);
 }

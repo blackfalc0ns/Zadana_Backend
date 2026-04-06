@@ -15,6 +15,9 @@ public record IdentityAccountSnapshot(
     string? PhoneNumber,
     UserRole Role,
     AccountStatus AccountStatus,
+    bool IsLoginLocked,
+    DateTime? LockedAtUtc,
+    DateTime? ArchivedAtUtc,
     bool EmailConfirmed,
     bool PhoneNumberConfirmed);
 

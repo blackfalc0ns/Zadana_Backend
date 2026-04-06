@@ -9,6 +9,11 @@ public class User : IdentityUser<Guid>
     public string FullName { get; private set; } = null!;
     public UserRole Role { get; private set; }
     public AccountStatus AccountStatus { get; private set; }
+    public bool IsLoginLocked { get; private set; }
+    public DateTime? LockedAtUtc { get; private set; }
+    public string? LockReason { get; private set; }
+    public DateTime? ArchivedAtUtc { get; private set; }
+    public string? ArchiveReason { get; private set; }
     
     public string? OtpCode { get; private set; }
     public DateTime? OtpExpiryTime { get; private set; }
@@ -45,6 +50,7 @@ public class User : IdentityUser<Guid>
         PhoneNumber = phone.Trim();
         Role = role;
         AccountStatus = AccountStatus.Active;
+        IsLoginLocked = false;
         EmailConfirmed = false;
         PhoneNumberConfirmed = false;
         ProfilePhotoUrl = profilePhotoUrl;
@@ -52,10 +58,13 @@ public class User : IdentityUser<Guid>
         UpdatedAtUtc = DateTime.UtcNow;
     }
 
-    public void UpdateProfile(string fullName, string phone)
+    public void UpdateProfile(string fullName, string email, string phone)
     {
         FullName = fullName.Trim();
+        Email = email.ToLowerInvariant().Trim();
+        UserName = Email;
         PhoneNumber = phone.Trim();
+        UpdatedAtUtc = DateTime.UtcNow;
     }
 
     public void VerifyEmail() => EmailConfirmed = true;
@@ -63,10 +72,77 @@ public class User : IdentityUser<Guid>
 
     public void RecordLogin() => LastLoginAtUtc = DateTime.UtcNow;
 
-    public void Suspend() => AccountStatus = AccountStatus.Suspended;
-    public void Activate() => AccountStatus = AccountStatus.Active;
-    public void Ban() => AccountStatus = AccountStatus.Banned;
-    public void Deactivate() => AccountStatus = AccountStatus.Inactive;
+    public void Suspend()
+    {
+        AccountStatus = AccountStatus.Suspended;
+        UpdatedAtUtc = DateTime.UtcNow;
+    }
+
+    public void Activate()
+    {
+        AccountStatus = AccountStatus.Active;
+        if (!IsArchived())
+        {
+            IsLoginLocked = false;
+            LockedAtUtc = null;
+            LockReason = null;
+        }
+
+        UpdatedAtUtc = DateTime.UtcNow;
+    }
+
+    public void Ban()
+    {
+        AccountStatus = AccountStatus.Banned;
+        UpdatedAtUtc = DateTime.UtcNow;
+    }
+
+    public void Deactivate()
+    {
+        AccountStatus = AccountStatus.Inactive;
+        UpdatedAtUtc = DateTime.UtcNow;
+    }
+
+    public void LockLogin(string reason)
+    {
+        IsLoginLocked = true;
+        LockedAtUtc = DateTime.UtcNow;
+        LockReason = reason.Trim();
+        AccountStatus = AccountStatus.Suspended;
+        LockoutEnabled = true;
+        LockoutEnd = DateTimeOffset.UtcNow.AddYears(100);
+        UpdatedAtUtc = DateTime.UtcNow;
+    }
+
+    public void UnlockLogin()
+    {
+        IsLoginLocked = false;
+        LockedAtUtc = null;
+        LockReason = null;
+        LockoutEnd = null;
+
+        if (!IsArchived() && AccountStatus == AccountStatus.Suspended)
+        {
+            AccountStatus = AccountStatus.Active;
+        }
+
+        UpdatedAtUtc = DateTime.UtcNow;
+    }
+
+    public void Archive(string reason)
+    {
+        ArchivedAtUtc = DateTime.UtcNow;
+        ArchiveReason = reason.Trim();
+        IsLoginLocked = true;
+        LockedAtUtc ??= DateTime.UtcNow;
+        LockReason ??= reason.Trim();
+        AccountStatus = AccountStatus.Inactive;
+        LockoutEnabled = true;
+        LockoutEnd = DateTimeOffset.UtcNow.AddYears(100);
+        UpdatedAtUtc = DateTime.UtcNow;
+    }
+
+    public bool IsArchived() => ArchivedAtUtc.HasValue;
 
     // --- OTP Domain Behavior ---
     public string GenerateOtp()
@@ -100,6 +176,7 @@ public class User : IdentityUser<Guid>
         OtpCode = null;
         OtpExpiryTime = null;
         PhoneNumberConfirmed = true; // Assuming OTP is primarily for Phone in this scenario
+        UpdatedAtUtc = DateTime.UtcNow;
         
         return true;
     }
@@ -128,6 +205,7 @@ public class User : IdentityUser<Guid>
         // Success: Clear the Reset OTP
         PasswordResetOtp = null;
         PasswordResetOtpExpiry = null;
+        UpdatedAtUtc = DateTime.UtcNow;
         
         return true;
     }

@@ -4,8 +4,14 @@ using Microsoft.Extensions.Localization;
 using Zadana.Api.Controllers;
 using Zadana.Api.Modules.Vendors.Requests;
 using Zadana.Application.Common.Localization;
+using Zadana.Application.Modules.Vendors.Commands.UpdateVendorBanking;
+using Zadana.Application.Modules.Vendors.Commands.UpdateVendorContact;
+using Zadana.Application.Modules.Vendors.Commands.UpdateVendorHours;
+using Zadana.Application.Modules.Vendors.Commands.UpdateVendorLegal;
+using Zadana.Application.Modules.Vendors.Commands.UpdateVendorOwner;
 using Zadana.Application.Modules.Vendors.Commands.RegisterVendor;
 using Zadana.Application.Modules.Vendors.Commands.UpdateVendorProfile;
+using Zadana.Application.Modules.Vendors.Commands.UpdateVendorStore;
 using Zadana.Application.Modules.Vendors.Queries.GetVendorProfile;
 
 namespace Zadana.Api.Modules.Vendors.Controllers;
@@ -33,9 +39,26 @@ public class VendorsController : ApiControllerBase
             request.BusinessNameEn,
             request.BusinessType,
             request.CommercialRegistrationNumber,
+            request.CommercialRegistrationExpiryDate,
             request.ContactEmail,
             request.ContactPhone,
+            request.DescriptionAr,
+            request.DescriptionEn,
+            request.OwnerName,
+            request.OwnerEmail,
+            request.OwnerPhone,
+            request.IdNumber,
+            request.Nationality,
+            request.Region,
+            request.City,
+            request.NationalAddress,
             request.TaxId,
+            request.LicenseNumber,
+            request.BankName,
+            request.AccountHolderName,
+            request.Iban,
+            request.SwiftCode,
+            request.PayoutCycle,
             request.LogoUrl,
             request.CommercialRegisterDocumentUrl,
             request.BranchName,
@@ -55,6 +78,92 @@ public class VendorsController : ApiControllerBase
     {
         var result = await Sender.Send(new GetVendorProfileQuery());
         return Ok(result);
+    }
+
+    [HttpPut("profile/store")]
+    [Authorize(Policy = "VendorOnly")]
+    public async Task<IActionResult> UpdateStore([FromBody] UpdateVendorStoreRequest request)
+    {
+        var result = await Sender.Send(new UpdateVendorStoreCommand(
+            request.BusinessNameAr,
+            request.BusinessNameEn,
+            request.BusinessType,
+            request.ContactEmail,
+            request.ContactPhone,
+            request.DescriptionAr,
+            request.DescriptionEn,
+            request.LogoUrl,
+            request.CommercialRegisterDocumentUrl));
+
+        return Ok(new { Data = result, Message = _localizer["VendorProfileUpdated"].Value });
+    }
+
+    [HttpPut("profile/owner")]
+    [Authorize(Policy = "VendorOnly")]
+    public async Task<IActionResult> UpdateOwner([FromBody] UpdateVendorOwnerRequest request)
+    {
+        var result = await Sender.Send(new UpdateVendorOwnerCommand(
+            request.OwnerName,
+            request.OwnerEmail,
+            request.OwnerPhone,
+            request.IdNumber,
+            request.Nationality));
+
+        return Ok(new { Data = result, Message = _localizer["VendorProfileUpdated"].Value });
+    }
+
+    [HttpPut("profile/contact")]
+    [Authorize(Policy = "VendorOnly")]
+    public async Task<IActionResult> UpdateContact([FromBody] UpdateVendorContactRequest request)
+    {
+        var result = await Sender.Send(new UpdateVendorContactCommand(
+            request.Region,
+            request.City,
+            request.NationalAddress));
+
+        return Ok(new { Data = result, Message = _localizer["VendorProfileUpdated"].Value });
+    }
+
+    [HttpPut("profile/legal")]
+    [Authorize(Policy = "VendorOnly")]
+    public async Task<IActionResult> UpdateLegal([FromBody] UpdateVendorLegalRequest request)
+    {
+        var result = await Sender.Send(new UpdateVendorLegalCommand(
+            request.CommercialRegistrationNumber,
+            request.CommercialRegistrationExpiryDate,
+            request.TaxId,
+            request.LicenseNumber,
+            request.CommercialRegisterDocumentUrl));
+
+        return Ok(new { Data = result, Message = _localizer["VendorProfileUpdated"].Value });
+    }
+
+    [HttpPut("profile/banking")]
+    [Authorize(Policy = "VendorOnly")]
+    public async Task<IActionResult> UpdateBanking([FromBody] UpdateVendorBankingRequest request)
+    {
+        var result = await Sender.Send(new UpdateVendorBankingCommand(
+            request.BankName,
+            request.AccountHolderName,
+            request.Iban,
+            request.SwiftCode,
+            request.PayoutCycle));
+
+        return Ok(new { Data = result, Message = _localizer["VendorProfileUpdated"].Value });
+    }
+
+    [HttpPut("profile/hours")]
+    [Authorize(Policy = "VendorOnly")]
+    public async Task<IActionResult> UpdateHours([FromBody] UpdateVendorHoursRequest request)
+    {
+        var result = await Sender.Send(new UpdateVendorHoursCommand(
+            request.Hours.Select(item => new UpdateVendorHoursItem(
+                item.DayOfWeek,
+                item.OpenTime,
+                item.CloseTime,
+                item.IsOpen)).ToList()));
+
+        return Ok(new { Data = result, Message = _localizer["VendorProfileUpdated"].Value });
     }
 
     [HttpPut("profile")]

@@ -6,7 +6,7 @@ using Zadana.SharedKernel.Exceptions;
 
 namespace Zadana.Application.Modules.Vendors.Queries.GetVendorProfile;
 
-public class GetVendorProfileQueryHandler : IRequestHandler<GetVendorProfileQuery, VendorProfileDto>
+public class GetVendorProfileQueryHandler : IRequestHandler<GetVendorProfileQuery, VendorWorkspaceDto>
 {
     private readonly IVendorReadService _vendorReadService;
     private readonly ICurrentUserService _currentUser;
@@ -17,12 +17,12 @@ public class GetVendorProfileQueryHandler : IRequestHandler<GetVendorProfileQuer
         _currentUser = currentUser;
     }
 
-    public async Task<VendorProfileDto> Handle(GetVendorProfileQuery request, CancellationToken cancellationToken)
+    public async Task<VendorWorkspaceDto> Handle(GetVendorProfileQuery request, CancellationToken cancellationToken)
     {
         var userId = _currentUser.UserId
             ?? throw new UnauthorizedException("USER_NOT_AUTHENTICATED");
 
-        var vendor = await _vendorReadService.GetProfileByUserIdAsync(userId, cancellationToken)
+        var vendor = await _vendorReadService.GetWorkspaceByUserIdAsync(userId, cancellationToken)
             ?? throw new NotFoundException("Vendor", userId);
 
         return vendor;

@@ -113,6 +113,106 @@ public class IdentityAccountService : IIdentityAccountService
         return await PersistUserAsync(user);
     }
 
+    public async Task<IdentityOperationResult> UpdateProfileAsync(
+        Guid userId,
+        string fullName,
+        string email,
+        string phoneNumber,
+        CancellationToken cancellationToken = default)
+    {
+        var user = await _userManager.FindByIdAsync(userId.ToString());
+        if (user == null)
+        {
+            return new IdentityOperationResult(false, ["User account was not found."]);
+        }
+
+        user.UpdateProfile(fullName, email, phoneNumber);
+        return await PersistUserAsync(user);
+    }
+
+    public async Task<IdentityOperationResult> ActivateAsync(Guid userId, CancellationToken cancellationToken = default)
+    {
+        var user = await _userManager.FindByIdAsync(userId.ToString());
+        if (user == null)
+        {
+            return new IdentityOperationResult(false, ["User account was not found."]);
+        }
+
+        user.Activate();
+        return await PersistUserAsync(user);
+    }
+
+    public async Task<IdentityOperationResult> SuspendAsync(Guid userId, CancellationToken cancellationToken = default)
+    {
+        var user = await _userManager.FindByIdAsync(userId.ToString());
+        if (user == null)
+        {
+            return new IdentityOperationResult(false, ["User account was not found."]);
+        }
+
+        user.Suspend();
+        return await PersistUserAsync(user);
+    }
+
+    public async Task<IdentityOperationResult> LockLoginAsync(Guid userId, string reason, CancellationToken cancellationToken = default)
+    {
+        var user = await _userManager.FindByIdAsync(userId.ToString());
+        if (user == null)
+        {
+            return new IdentityOperationResult(false, ["User account was not found."]);
+        }
+
+        user.LockLogin(reason);
+        return await PersistUserAsync(user);
+    }
+
+    public async Task<IdentityOperationResult> UnlockLoginAsync(Guid userId, CancellationToken cancellationToken = default)
+    {
+        var user = await _userManager.FindByIdAsync(userId.ToString());
+        if (user == null)
+        {
+            return new IdentityOperationResult(false, ["User account was not found."]);
+        }
+
+        user.UnlockLogin();
+        return await PersistUserAsync(user);
+    }
+
+    public async Task<IdentityOperationResult> ArchiveAsync(Guid userId, string reason, CancellationToken cancellationToken = default)
+    {
+        var user = await _userManager.FindByIdAsync(userId.ToString());
+        if (user == null)
+        {
+            return new IdentityOperationResult(false, ["User account was not found."]);
+        }
+
+        user.Archive(reason);
+        return await PersistUserAsync(user);
+    }
+
+    public async Task<IdentityOperationResult> ResetPasswordByAdminAsync(
+        Guid userId,
+        string newPassword,
+        CancellationToken cancellationToken = default)
+    {
+        var user = await _userManager.FindByIdAsync(userId.ToString());
+        if (user == null)
+        {
+            return new IdentityOperationResult(false, ["User account was not found."]);
+        }
+
+        var resetToken = await _userManager.GeneratePasswordResetTokenAsync(user);
+        var result = await _userManager.ResetPasswordAsync(user, resetToken, newPassword);
+        if (result.Succeeded)
+        {
+            return new IdentityOperationResult(true);
+        }
+
+        return new IdentityOperationResult(
+            false,
+            result.Errors.Select(error => error.Description).ToArray());
+    }
+
     public async Task<OtpDispatchResult> GenerateRegistrationOtpAsync(Guid userId, CancellationToken cancellationToken = default)
     {
         var user = await _userManager.FindByIdAsync(userId.ToString());
@@ -275,6 +375,9 @@ public class IdentityAccountService : IIdentityAccountService
             user.PhoneNumber,
             user.Role,
             user.AccountStatus,
+            user.IsLoginLocked,
+            user.LockedAtUtc,
+            user.ArchivedAtUtc,
             user.EmailConfirmed,
             user.PhoneNumberConfirmed);
 }
