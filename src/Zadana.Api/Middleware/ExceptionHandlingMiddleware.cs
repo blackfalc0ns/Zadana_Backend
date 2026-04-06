@@ -1,8 +1,9 @@
 using System.Net;
 using System.Text.Json;
 using Microsoft.AspNetCore.Http;
-using Microsoft.Extensions.Logging;
+using Microsoft.AspNetCore.Mvc;
 using Microsoft.Extensions.Localization;
+using Microsoft.Extensions.Logging;
 using Zadana.Application.Common.Localization;
 using Zadana.SharedKernel.Exceptions;
 using ValidationException = Zadana.Application.Common.Exceptions.ValidationException;
@@ -15,7 +16,7 @@ public class ExceptionHandlingMiddleware
     private readonly ILogger<ExceptionHandlingMiddleware> _logger;
 
     public ExceptionHandlingMiddleware(
-        RequestDelegate next, 
+        RequestDelegate next,
         ILogger<ExceptionHandlingMiddleware> logger)
     {
         _next = next;
@@ -30,8 +31,12 @@ public class ExceptionHandlingMiddleware
         }
         catch (Exception ex)
         {
-            _logger.LogError(ex, "An unhandled exception has occurred: {Message}. StackTrace: {StackTrace}", 
-                ex.Message, ex.StackTrace);
+            _logger.LogError(
+                ex,
+                "An unhandled exception has occurred: {Message}. StackTrace: {StackTrace}",
+                ex.Message,
+                ex.StackTrace);
+
             var localizer = context.RequestServices.GetRequiredService<IStringLocalizer<SharedResource>>();
             await HandleExceptionAsync(context, ex, localizer);
         }
@@ -41,83 +46,58 @@ public class ExceptionHandlingMiddleware
     {
         context.Response.ContentType = "application/json";
 
-        string message;
-
-        // --- Resolve Detail Message based on exception type ---
-        // Handlers already inject their own IStringLocalizer and pass localized messages 
-        // in the exception. We trust the exception's message and only override for specific cases.
-
-        if (exception is ValidationException validationEx)
-        {
-            // Extract the first specific validation error for a clear message
-            var firstError = validationEx.Errors
-                .SelectMany(e => e.Value)
-                .FirstOrDefault();
-            
-            message = firstError ?? localizer["ValidationErrorTitle"];
-        }
-        else if (exception is BusinessRuleException)
-        {
-            // The handler already set the localized message via _localizer in the exception
-            message = exception.Message;
-        }
-        else if (exception is NotFoundException)
-        {
-            // The handler already set the localized message via ErrorCode in the exception
-            message = exception.Message;
-        }
-        else if (exception is UnauthorizedException)
-        {
-            // The handler already set the localized message (e.g. AccountNotFound, InvalidCredentials)
-            // Only fallback to generic message if no specific message was set
-            if (string.IsNullOrWhiteSpace(exception.Message) || 
-                exception.Message == "Exception of type 'Zadana.SharedKernel.Exceptions.UnauthorizedException' was thrown.")
-            {
-                message = localizer["USER_NOT_AUTHENTICATED"];
-            }
-            else
-            {
-                message = exception.Message;
-            }
-        }
-        else
-        {
-            // 500 Internal Server Error: mask with generic localized message
-            message = localizer["ServerErrorMessage"];
-        }
-
-        // Fallback or Legacy: Bilingual splitting if still present
-        if (!string.IsNullOrWhiteSpace(message) && message.Contains('|'))
-        {
-            var language = context.Request.Headers["Accept-Language"].ToString().ToLower();
-            var isArabic = language.Contains("ar");
-            var parts = message.Split('|', StringSplitOptions.RemoveEmptyEntries | StringSplitOptions.TrimEntries);
-            if (parts.Length >= 2)
-            {
-                message = isArabic ? parts[0] : parts[1];
-            }
-        }
-
-        var response = new 
-        {
-            Title = GetTitle(exception, localizer),
-            Status = GetStatusCode(exception),
-            Detail = message,
-            Errors = GetErrors(exception)
-        };
-
-        context.Response.StatusCode = response.Status;
+        var problemDetails = CreateProblemDetails(context, exception, localizer);
+        context.Response.StatusCode = problemDetails.Status ?? (int)HttpStatusCode.InternalServerError;
 
         var options = new JsonSerializerOptions { PropertyNamingPolicy = JsonNamingPolicy.CamelCase };
-        await context.Response.WriteAsync(JsonSerializer.Serialize(response, options));
+        await context.Response.WriteAsync(JsonSerializer.Serialize(problemDetails, options));
+    }
+
+    private static ProblemDetails CreateProblemDetails(HttpContext context, Exception exception, IStringLocalizer<SharedResource> localizer)
+    {
+        if (exception is ValidationException validationException)
+        {
+            var validationProblem = new ValidationProblemDetails(validationException.Errors)
+            {
+                Status = (int)HttpStatusCode.BadRequest,
+                Title = localizer["ValidationErrorTitle"],
+                Detail = validationException.Errors.SelectMany(e => e.Value).FirstOrDefault() ?? localizer["ValidationErrorTitle"],
+                Instance = context.Request.Path
+            };
+
+            validationProblem.Extensions["traceId"] = context.TraceIdentifier;
+            validationProblem.Extensions["errorCode"] = "VALIDATION_ERROR";
+            return validationProblem;
+        }
+
+        var problemDetails = new ProblemDetails
+        {
+            Status = GetStatusCode(exception),
+            Title = GetTitle(exception, localizer),
+            Detail = ResolveDetail(exception, context, localizer),
+            Instance = context.Request.Path
+        };
+
+        var errorCode = GetErrorCode(exception);
+        if (!string.IsNullOrWhiteSpace(errorCode))
+        {
+            problemDetails.Extensions["errorCode"] = errorCode;
+        }
+
+        problemDetails.Extensions["traceId"] = context.TraceIdentifier;
+        return problemDetails;
     }
 
     private static int GetStatusCode(Exception exception) =>
         exception switch
         {
             ValidationException => (int)HttpStatusCode.BadRequest,
-            BusinessRuleException => (int)HttpStatusCode.BadRequest,
+            BadRequestException => (int)HttpStatusCode.BadRequest,
+            BusinessRuleException => (int)HttpStatusCode.Conflict,
+            ExternalServiceException => (int)HttpStatusCode.BadGateway,
             UnauthorizedException => (int)HttpStatusCode.Unauthorized,
+            UnauthorizedAccessException => (int)HttpStatusCode.Forbidden,
+            ForbiddenAccessException => (int)HttpStatusCode.Forbidden,
             NotFoundException => (int)HttpStatusCode.NotFound,
             _ => (int)HttpStatusCode.InternalServerError
         };
@@ -126,19 +106,56 @@ public class ExceptionHandlingMiddleware
         exception switch
         {
             ValidationException => localizer["ValidationErrorTitle"],
+            BadRequestException => localizer["ValidationErrorTitle"],
             BusinessRuleException => localizer["BusinessRuleViolationTitle"],
+            ExternalServiceException => localizer["ExternalServiceErrorTitle"],
             UnauthorizedException => localizer["UnauthorizedTitle"],
+            UnauthorizedAccessException => localizer["UnauthorizedTitle"],
+            ForbiddenAccessException => localizer["UnauthorizedTitle"],
             NotFoundException => localizer["ResourceNotFoundTitle"],
             _ => localizer["ServerErrorTitle"]
         };
 
-    private static object? GetErrors(Exception exception)
+    private static string ResolveDetail(Exception exception, HttpContext context, IStringLocalizer<SharedResource> localizer)
     {
-        if (exception is ValidationException validationException)
+        var message = exception switch
         {
-            return validationException.Errors;
+            BusinessRuleException => exception.Message,
+            BadRequestException => exception.Message,
+            NotFoundException => exception.Message,
+            ExternalServiceException => exception.Message,
+            ForbiddenAccessException => exception.Message,
+            UnauthorizedAccessException => exception.Message,
+            UnauthorizedException unauthorizedException when
+                string.IsNullOrWhiteSpace(unauthorizedException.Message) ||
+                unauthorizedException.Message == "Exception of type 'Zadana.SharedKernel.Exceptions.UnauthorizedException' was thrown."
+                => localizer["USER_NOT_AUTHENTICATED"],
+            UnauthorizedException => exception.Message,
+            _ => localizer["ServerErrorMessage"]
+        };
+
+        if (!string.IsNullOrWhiteSpace(message) && message.Contains('|'))
+        {
+            var language = context.Request.Headers["Accept-Language"].ToString().ToLowerInvariant();
+            var isArabic = language.Contains("ar");
+            var parts = message.Split('|', StringSplitOptions.RemoveEmptyEntries | StringSplitOptions.TrimEntries);
+            if (parts.Length >= 2)
+            {
+                message = isArabic ? parts[0] : parts[1];
+            }
         }
 
-        return null;
+        return message;
     }
+
+    private static string? GetErrorCode(Exception exception) =>
+        exception switch
+        {
+            BadRequestException badRequestException => badRequestException.ErrorCode,
+            BusinessRuleException businessRuleException => businessRuleException.ErrorCode,
+            NotFoundException notFoundException => notFoundException.ErrorCode,
+            ExternalServiceException externalServiceException => externalServiceException.ErrorCode,
+            ForbiddenAccessException forbiddenAccessException => forbiddenAccessException.ErrorCode,
+            _ => null
+        };
 }

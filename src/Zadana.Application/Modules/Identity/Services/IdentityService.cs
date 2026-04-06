@@ -1,11 +1,7 @@
-using Microsoft.AspNetCore.Identity;
-using Microsoft.EntityFrameworkCore;
 using Zadana.Application.Common.Interfaces;
 using Zadana.Application.Modules.Identity.DTOs;
 using Zadana.Application.Modules.Identity.Interfaces;
-using Zadana.Domain.Modules.Identity.Entities;
 using Zadana.Domain.Modules.Identity.Enums;
-using Zadana.Domain.Modules.Identity.Interfaces;
 using Zadana.SharedKernel.Exceptions;
 using Microsoft.Extensions.Localization;
 using Zadana.Application.Common.Localization;
@@ -14,29 +10,26 @@ namespace Zadana.Application.Modules.Identity.Services;
 
 public class IdentityService : IIdentityService
 {
-    private readonly UserManager<User> _userManager;
-    private readonly IRefreshTokenRepository _refreshTokenRepository;
+    private readonly IIdentityAccountService _identityAccountService;
+    private readonly IRefreshTokenStore _refreshTokenStore;
     private readonly IUnitOfWork _unitOfWork;
     private readonly IJwtTokenService _jwtTokenService;
     private readonly ICurrentUserService _currentUserService;
-    private readonly IOtpService _otpService;
     private readonly IStringLocalizer<SharedResource> _localizer;
 
     public IdentityService(
-        UserManager<User> userManager,
-        IRefreshTokenRepository refreshTokenRepository,
+        IIdentityAccountService identityAccountService,
+        IRefreshTokenStore refreshTokenStore,
         IUnitOfWork unitOfWork,
         IJwtTokenService jwtTokenService,
         ICurrentUserService currentUserService,
-        IOtpService otpService,
         IStringLocalizer<SharedResource> localizer)
     {
-        _userManager = userManager;
-        _refreshTokenRepository = refreshTokenRepository;
+        _identityAccountService = identityAccountService;
+        _refreshTokenStore = refreshTokenStore;
         _unitOfWork = unitOfWork;
         _jwtTokenService = jwtTokenService;
         _currentUserService = currentUserService;
-        _otpService = otpService;
         _localizer = localizer;
     }
 
@@ -47,21 +40,18 @@ public class IdentityService : IIdentityService
             throw new UnauthorizedException(_localizer["InvalidCredentials"]);
         }
 
-        var user = await _userManager.FindByEmailAsync(identifier);
-        if (user == null)
-        {
-            user = await _userManager.Users.FirstOrDefaultAsync(u => u.PhoneNumber == identifier, cancellationToken);
-        }
-            
-        if (user == null)
+        var credentialValidation = await _identityAccountService.ValidateCredentialsAsync(identifier, password, cancellationToken);
+        if (credentialValidation.Status == CredentialValidationStatus.UserNotFound)
         {
             throw new UnauthorizedException(_localizer["AccountNotFound"]);
         }
 
-        if (!await _userManager.CheckPasswordAsync(user, password))
+        if (credentialValidation.Status == CredentialValidationStatus.InvalidPassword || credentialValidation.Account == null)
         {
             throw new UnauthorizedException(_localizer["InvalidCredentials"]);
         }
+
+        var user = credentialValidation.Account;
 
         if (expectedRoles != null && expectedRoles.Length > 0 && !expectedRoles.Contains(user.Role))
         {
@@ -74,16 +64,20 @@ public class IdentityService : IIdentityService
         }
 
         var tokens = await _jwtTokenService.GenerateTokenPairAsync(user, cancellationToken);
-        
-        var refreshTokenEntity = new RefreshToken(
+
+        _refreshTokenStore.Add(new NewRefreshToken(
             user.Id,
-            tokens.RefreshToken, 
+            tokens.RefreshToken,
             DateTime.UtcNow.AddDays(7)
-        );
-        
-        _refreshTokenRepository.Add(refreshTokenEntity);
-        user.RecordLogin();
-        
+        ));
+
+        var recordLoginResult = await _identityAccountService.RecordLoginAsync(user.Id, cancellationToken);
+        if (!recordLoginResult.Succeeded)
+        {
+            var errors = string.Join(", ", recordLoginResult.Errors ?? []);
+            throw new BusinessRuleException("IDENTITY_OPERATION_FAILED", $"{_localizer["IDENTITY_OPERATION_FAILED"]}: {errors}");
+        }
+
         await _unitOfWork.SaveChangesAsync(cancellationToken);
 
         var userDto = new CurrentUserDto(user.Id, user.FullName, user.Email, user.PhoneNumber, user.Role.ToString());
@@ -92,9 +86,9 @@ public class IdentityService : IIdentityService
 
     public async Task<TokenPairDto> RefreshTokenAsync(string refreshToken, CancellationToken cancellationToken = default)
     {
-        var tokenEntity = await _refreshTokenRepository.GetByTokenWithUserAsync(refreshToken, cancellationToken);
+        var tokenEntity = await _refreshTokenStore.GetByTokenWithUserAsync(refreshToken, cancellationToken);
 
-        if (tokenEntity == null || !tokenEntity.IsActive)
+        if (tokenEntity == null || !tokenEntity.IsActive || tokenEntity.User == null)
         {
             throw new UnauthorizedException(_localizer["InvalidRefreshToken"]);
         }
@@ -105,15 +99,13 @@ public class IdentityService : IIdentityService
         }
 
         var newTokens = await _jwtTokenService.GenerateTokenPairAsync(tokenEntity.User, cancellationToken);
-        tokenEntity.Revoke();
-
-        var newRefreshTokenEntity = new RefreshToken(
+        await _refreshTokenStore.RevokeAsync(refreshToken, cancellationToken);
+        _refreshTokenStore.Add(new NewRefreshToken(
             tokenEntity.UserId,
             newTokens.RefreshToken,
             DateTime.UtcNow.AddDays(7)
-        );
+        ));
 
-        _refreshTokenRepository.Add(newRefreshTokenEntity);
         await _unitOfWork.SaveChangesAsync(cancellationToken);
 
         return newTokens;
@@ -121,11 +113,10 @@ public class IdentityService : IIdentityService
 
     public async Task LogoutAsync(string refreshToken, CancellationToken cancellationToken = default)
     {
-        var tokenEntity = await _refreshTokenRepository.GetByTokenAsync(refreshToken, cancellationToken);
-
+        var tokenEntity = await _refreshTokenStore.GetByTokenAsync(refreshToken, cancellationToken);
         if (tokenEntity != null && tokenEntity.IsActive)
         {
-            tokenEntity.Revoke();
+            await _refreshTokenStore.RevokeAsync(refreshToken, cancellationToken);
             await _unitOfWork.SaveChangesAsync(cancellationToken);
         }
     }
@@ -138,7 +129,7 @@ public class IdentityService : IIdentityService
             throw new UnauthorizedException(_localizer["UserNotAuthenticated"]);
         }
 
-        var user = await _userManager.FindByIdAsync(userId.Value.ToString());
+        var user = await _identityAccountService.FindByIdAsync(userId.Value, cancellationToken);
         if (user == null)
         {
             throw new UnauthorizedException(_localizer["UserNotFound"]);

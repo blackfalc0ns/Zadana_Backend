@@ -1,5 +1,6 @@
-﻿using Microsoft.EntityFrameworkCore;
+using Zadana.Application.Common.Extensions;
 using Zadana.Application.Common.Interfaces;
+using Zadana.Application.Modules.Vendors.Interfaces;
 using Zadana.Domain.Modules.Identity.Enums;
 using Zadana.SharedKernel.Exceptions;
 
@@ -7,12 +8,12 @@ namespace Zadana.Application.Common.Services;
 
 public class CurrentVendorService : ICurrentVendorService
 {
-    private readonly IApplicationDbContext _context;
+    private readonly IVendorReadService _vendorReadService;
     private readonly ICurrentUserService _currentUserService;
 
-    public CurrentVendorService(IApplicationDbContext context, ICurrentUserService currentUserService)
+    public CurrentVendorService(IVendorReadService vendorReadService, ICurrentUserService currentUserService)
     {
-        _context = context;
+        _vendorReadService = vendorReadService;
         _currentUserService = currentUserService;
     }
 
@@ -24,16 +25,12 @@ public class CurrentVendorService : ICurrentVendorService
             return null;
         }
 
-        if (!string.Equals(_currentUserService.Role, UserRole.Vendor.ToString(), StringComparison.Ordinal))
+        if (!_currentUserService.HasRole(UserRole.Vendor))
         {
             return null;
         }
 
-        return await _context.Vendors
-            .AsNoTracking()
-            .Where(v => v.UserId == userId.Value)
-            .Select(v => (Guid?)v.Id)
-            .FirstOrDefaultAsync(cancellationToken);
+        return await _vendorReadService.GetVendorIdByUserIdAsync(userId.Value, cancellationToken);
     }
 
     public async Task<Guid> GetRequiredVendorIdAsync(CancellationToken cancellationToken = default)
@@ -43,7 +40,7 @@ public class CurrentVendorService : ICurrentVendorService
             throw new UnauthorizedException("USER_NOT_AUTHENTICATED");
         }
 
-        if (!string.Equals(_currentUserService.Role, UserRole.Vendor.ToString(), StringComparison.Ordinal))
+        if (!_currentUserService.HasRole(UserRole.Vendor))
         {
             throw new UnauthorizedException("VENDORS_ONLY");
         }

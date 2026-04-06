@@ -6,7 +6,6 @@ using Microsoft.Extensions.Configuration;
 using Microsoft.IdentityModel.Tokens;
 using Zadana.Application.Common.Interfaces;
 using Zadana.Application.Modules.Identity.DTOs;
-using Zadana.Domain.Modules.Identity.Entities;
 
 namespace Zadana.Infrastructure.Modules.Identity.Services;
 
@@ -19,7 +18,7 @@ public class JwtTokenService : IJwtTokenService
         _configuration = configuration;
     }
 
-    public Task<TokenPairDto> GenerateTokenPairAsync(User user, CancellationToken cancellationToken = default)
+    public Task<TokenPairDto> GenerateTokenPairAsync(IdentityAccountSnapshot user, CancellationToken cancellationToken = default)
     {
         var claims = new List<Claim>
         {

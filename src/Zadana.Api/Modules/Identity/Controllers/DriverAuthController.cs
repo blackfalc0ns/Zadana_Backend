@@ -1,72 +1,44 @@
 using Microsoft.AspNetCore.Authorization;
 using Microsoft.AspNetCore.Mvc;
-using Zadana.Api.Controllers;
-using Zadana.Api.Modules.Identity.Requests;
-using Zadana.Application.Modules.Identity.Commands.Login;
-using Zadana.Application.Modules.Identity.Commands.ForgotPassword;
-using Zadana.Application.Modules.Identity.Commands.ResetPassword;
-using Zadana.Application.Modules.Identity.Commands.Logout;
-using Zadana.Application.Modules.Identity.Commands.RefreshToken;
-using Zadana.Application.Modules.Identity.Queries.GetCurrentUser;
-using Zadana.Domain.Modules.Identity.Enums;
-
-using Zadana.Application.Common.Localization;
 using Microsoft.Extensions.Localization;
+using Zadana.Api.Modules.Identity.Requests;
+using Zadana.Application.Common.Localization;
+using Zadana.Domain.Modules.Identity.Enums;
 
 namespace Zadana.Api.Modules.Identity.Controllers;
 
 [Route("api/drivers/auth")]
-[Tags("🛵 3. Driver App API")]
-public class DriverAuthController : ApiControllerBase
+[Tags("Driver App API")]
+public class DriverAuthController : IdentityAuthControllerBase
 {
-    private readonly IStringLocalizer<SharedResource> _localizer;
-
     public DriverAuthController(IStringLocalizer<SharedResource> localizer)
+        : base(localizer)
     {
-        _localizer = localizer;
     }
 
     [HttpPost("login")]
-    public async Task<IActionResult> Login([FromBody] LoginRequest request)
-    {
-        var result = await Sender.Send(new LoginCommand(request.Identifier, request.Password, [UserRole.Driver]));
-        return Ok(result);
-    }
+    public Task<IActionResult> Login([FromBody] LoginRequest request) =>
+        LoginAsync(request, UserRole.Driver);
 
     [HttpPost("forgot-password")]
-    public async Task<IActionResult> ForgotPassword([FromBody] ForgotPasswordCommand command)
-    {
-        await Sender.Send(command);
-        return Ok(new { Message = _localizer["PasswordResetOtpSent"].Value });
-    }
+    public Task<IActionResult> ForgotPassword([FromBody] ForgotPasswordRequest request) =>
+        ForgotPasswordAsync(request);
 
     [HttpPost("reset-password")]
-    public async Task<IActionResult> ResetPassword([FromBody] ResetPasswordCommand command)
-    {
-        await Sender.Send(command);
-        return Ok(new { Message = _localizer["PasswordResetSuccess"].Value });
-    }
+    public Task<IActionResult> ResetPassword([FromBody] ResetPasswordRequest request) =>
+        ResetPasswordAsync(request);
 
     [HttpPost("refresh-token")]
-    public async Task<IActionResult> RefreshToken([FromBody] RefreshTokenCommand command)
-    {
-        var result = await Sender.Send(command);
-        return Ok(result);
-    }
+    public Task<IActionResult> RefreshToken([FromBody] RefreshTokenRequest request) =>
+        RefreshTokenAsync(request);
 
     [Authorize(Policy = "DriverOnly")]
     [HttpPost("logout")]
-    public async Task<IActionResult> Logout([FromBody] LogoutCommand command)
-    {
-        await Sender.Send(command);
-        return NoContent();
-    }
+    public Task<IActionResult> Logout([FromBody] LogoutRequest request) =>
+        LogoutAsync(request);
 
     [Authorize(Policy = "DriverOnly")]
     [HttpGet("me")]
-    public async Task<IActionResult> GetCurrentUser()
-    {
-        var result = await Sender.Send(new GetCurrentUserQuery());
-        return Ok(result);
-    }
+    public Task<IActionResult> GetCurrentUser() =>
+        GetCurrentUserAsync();
 }

@@ -1,57 +1,74 @@
 using MediatR;
-using Microsoft.EntityFrameworkCore;
+using Microsoft.Extensions.Localization;
 using Zadana.Application.Common.Interfaces;
+using Zadana.Application.Common.Localization;
+using Zadana.Application.Modules.Orders.Interfaces;
 using Zadana.Domain.Modules.Orders.Entities;
 using Zadana.Domain.Modules.Payments.Enums;
 using Zadana.SharedKernel.Exceptions;
-using Microsoft.Extensions.Localization;
-using Zadana.Application.Common.Localization;
 
 namespace Zadana.Application.Modules.Orders.Commands.PlaceOrder;
 
 public class PlaceOrderCommandHandler : IRequestHandler<PlaceOrderCommand, Guid>
 {
-    private readonly IApplicationDbContext _context;
+    private readonly IOrderRepository _orderRepository;
     private readonly IStringLocalizer<SharedResource> _localizer;
+    private readonly IUnitOfWork _unitOfWork;
 
-    public PlaceOrderCommandHandler(IApplicationDbContext context, IStringLocalizer<SharedResource> localizer)
+    public PlaceOrderCommandHandler(
+        IOrderRepository orderRepository,
+        IStringLocalizer<SharedResource> localizer,
+        IUnitOfWork unitOfWork)
     {
-        _context = context;
+        _orderRepository = orderRepository;
         _localizer = localizer;
+        _unitOfWork = unitOfWork;
     }
 
     public async Task<Guid> Handle(PlaceOrderCommand request, CancellationToken cancellationToken)
     {
-        // 1. Get User's Cart for the Vendor
-        var cart = await _context.Carts
-            .Include(c => c.Items)
-                .ThenInclude(i => i.VendorProduct)
-                    .ThenInclude(vp => vp.MasterProduct)
-            .FirstOrDefaultAsync(c => c.UserId == request.UserId && c.VendorId == request.VendorId, cancellationToken);
+        var cart = await _orderRepository.GetCartForCheckoutAsync(request.UserId, cancellationToken);
 
         if (cart == null || !cart.Items.Any())
+        {
             throw new BusinessRuleException("EMPTY_CART", _localizer["EMPTY_CART"]);
+        }
 
-        // 2. Map Payment Method
         if (!Enum.TryParse<PaymentMethodType>(request.PaymentMethod, true, out var paymentMethod))
         {
             throw new BusinessRuleException("INVALID_PAYMENT", _localizer["INVALID_PAYMENT"]);
         }
 
-        // 3. Generate Order Number
+        var masterProductIds = cart.Items.Select(item => item.MasterProductId).Distinct().ToArray();
+        var vendorProducts = await _orderRepository.GetVendorProductsForCheckoutAsync(
+            request.VendorId,
+            masterProductIds,
+            cancellationToken);
+
+        foreach (var cartItem in cart.Items)
+        {
+            if (!vendorProducts.TryGetValue(cartItem.MasterProductId, out var vendorProduct))
+            {
+                throw new BusinessRuleException("VENDOR_MISSING_CART_PRODUCT", _localizer["VENDOR_MISSING_CART_PRODUCT"]);
+            }
+
+            if (vendorProduct.StockQuantity < cartItem.Quantity)
+            {
+                throw new BusinessRuleException("INSUFFICIENT_STOCK", _localizer["INSUFFICIENT_STOCK"]);
+            }
+        }
+
+        var subtotal = cart.Items.Sum(item => vendorProducts[item.MasterProductId].SellingPrice * item.Quantity);
         var orderNumber = $"ORD-{DateTime.UtcNow:yyyyMMdd}-{Guid.NewGuid().ToString().Substring(0, 8).ToUpper()}";
+        var commissionAmount = subtotal * 0.05m;
 
-        // 4. Calculate Commission (mocked at 5% for now)
-        var commissionAmount = cart.Subtotal * 0.05m;
-
-        // 5. Create Order
         var order = new Order(
             orderNumber: orderNumber,
             userId: request.UserId,
             vendorId: request.VendorId,
             customerAddressId: request.CustomerAddressId,
             paymentMethod: paymentMethod,
-            subtotal: cart.Subtotal,
+            subtotal: subtotal,
             discountTotal: cart.DiscountTotal,
             deliveryFee: cart.DeliveryFee,
             commissionAmount: commissionAmount,
@@ -60,26 +77,25 @@ public class PlaceOrderCommandHandler : IRequestHandler<PlaceOrderCommand, Guid>
             couponId: request.CouponId
         );
 
-        _context.Orders.Add(order);
+        _orderRepository.AddOrder(order);
 
-        // 6. Create Order Items
         foreach (var item in cart.Items)
         {
+            var vendorProduct = vendorProducts[item.MasterProductId];
             var orderItem = new OrderItem(
                 orderId: order.Id,
-                vendorProductId: item.VendorProductId,
-                masterProductId: item.VendorProduct.MasterProduct.Id,
-                productName: item.VendorProduct.MasterProduct.NameAr, // Using Ar as default
+                vendorProductId: vendorProduct.Id,
+                masterProductId: item.MasterProductId,
+                productName: item.ProductName,
                 quantity: item.Quantity,
-                unitPrice: item.UnitPrice
+                unitPrice: vendorProduct.SellingPrice
             );
-            _context.OrderItems.Add(orderItem);
+
+            _orderRepository.AddOrderItem(orderItem);
         }
 
-        // 7. Clear Cart
-        _context.Carts.Remove(cart); // Or just empty the items
-
-        await _context.SaveChangesAsync(cancellationToken);
+        _orderRepository.RemoveCart(cart);
+        await _unitOfWork.SaveChangesAsync(cancellationToken);
 
         return order.Id;
     }

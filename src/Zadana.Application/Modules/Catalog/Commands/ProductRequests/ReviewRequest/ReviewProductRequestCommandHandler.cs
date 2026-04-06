@@ -1,56 +1,61 @@
 using MediatR;
-using Microsoft.EntityFrameworkCore;
-using Zadana.Application.Common.Interfaces;
-using Zadana.Domain.Modules.Catalog.Entities;
-using Zadana.SharedKernel.Exceptions;
 using Microsoft.Extensions.Localization;
+using Zadana.Application.Common.Extensions;
+using Zadana.Application.Common.Interfaces;
 using Zadana.Application.Common.Localization;
+using Zadana.Application.Modules.Catalog.Interfaces;
+using Zadana.Domain.Modules.Catalog.Entities;
+using Zadana.Domain.Modules.Catalog.Enums;
+using Zadana.Domain.Modules.Identity.Enums;
+using Zadana.SharedKernel.Exceptions;
 
 namespace Zadana.Application.Modules.Catalog.Commands.ProductRequests.ReviewRequest;
 
 public class ReviewProductRequestCommandHandler : IRequestHandler<ReviewProductRequestCommand, Guid?>
 {
-    private readonly IApplicationDbContext _context;
+    private readonly IProductRequestRepository _productRequestRepository;
     private readonly ICurrentUserService _currentUserService;
     private readonly IStringLocalizer<SharedResource> _localizer;
+    private readonly IUnitOfWork _unitOfWork;
 
     public ReviewProductRequestCommandHandler(
-        IApplicationDbContext context, 
+        IProductRequestRepository productRequestRepository,
         ICurrentUserService currentUserService,
-        IStringLocalizer<SharedResource> localizer)
+        IStringLocalizer<SharedResource> localizer,
+        IUnitOfWork unitOfWork)
     {
-        _context = context;
+        _productRequestRepository = productRequestRepository;
         _currentUserService = currentUserService;
         _localizer = localizer;
+        _unitOfWork = unitOfWork;
     }
 
     public async Task<Guid?> Handle(ReviewProductRequestCommand request, CancellationToken cancellationToken)
     {
-        // Only Admin or SuperAdmin can review
-        if (_currentUserService.Role != "Admin" && _currentUserService.Role != "SuperAdmin")
+        if (!_currentUserService.HasRole(UserRole.Admin, UserRole.SuperAdmin))
         {
-            throw new UnauthorizedAccessException(_localizer["UNAUTHORIZED_REVIEW_REQUESTS"]);
+            throw new ForbiddenAccessException(_localizer["UNAUTHORIZED_REVIEW_REQUESTS"]);
         }
 
-        var productRequest = await _context.ProductRequests.FindAsync([request.ProductRequestId], cancellationToken);
+        var productRequest = await _productRequestRepository.GetByIdAsync(request.ProductRequestId, cancellationToken);
         if (productRequest == null)
-            throw new NotFoundException(nameof(ProductRequest), request.ProductRequestId);
-
-        if (productRequest.Status != Domain.Modules.Catalog.Enums.ApprovalStatus.Pending)
         {
-            throw new InvalidOperationException(_localizer["REQUEST_ALREADY_REVIEWED"]);
+            throw new NotFoundException(nameof(ProductRequest), request.ProductRequestId);
+        }
+
+        if (productRequest.Status != ApprovalStatus.Pending)
+        {
+            throw new BusinessRuleException("REQUEST_ALREADY_REVIEWED", _localizer["REQUEST_ALREADY_REVIEWED"]);
         }
 
         if (request.IsApproved)
         {
             productRequest.Approve();
 
-            // Generate slug from English name or Arabic name
-            var slug = !string.IsNullOrWhiteSpace(productRequest.SuggestedNameEn) 
+            var slug = !string.IsNullOrWhiteSpace(productRequest.SuggestedNameEn)
                 ? productRequest.SuggestedNameEn.ToLowerInvariant().Replace(" ", "-")
                 : productRequest.SuggestedNameAr.Replace(" ", "-");
 
-            // Create new MasterProduct
             var masterProduct = new MasterProduct(
                 nameAr: productRequest.SuggestedNameAr,
                 nameEn: productRequest.SuggestedNameEn,
@@ -60,25 +65,23 @@ public class ReviewProductRequestCommandHandler : IRequestHandler<ReviewProductR
                 descriptionEn: productRequest.SuggestedDescriptionEn
             );
 
-            _context.MasterProducts.Add(masterProduct);
-
-            // Link image directly using the new unified structure
             if (!string.IsNullOrWhiteSpace(productRequest.ImageUrl))
             {
                 masterProduct.AddImage(productRequest.ImageUrl, productRequest.SuggestedNameEn, 0, true);
             }
 
-            await _context.SaveChangesAsync(cancellationToken);
+            _productRequestRepository.AddMasterProduct(masterProduct);
+            await _unitOfWork.SaveChangesAsync(cancellationToken);
             return masterProduct.Id;
         }
-        else
-        {
-            if (string.IsNullOrWhiteSpace(request.RejectionReason))
-                throw new ArgumentException(_localizer["REJECTION_REASON_REQUIRED"]);
 
-            productRequest.Reject(request.RejectionReason);
-            await _context.SaveChangesAsync(cancellationToken);
-            return null; // No MasterProduct created
+        if (string.IsNullOrWhiteSpace(request.RejectionReason))
+        {
+            throw new BadRequestException("REJECTION_REASON_REQUIRED", _localizer["REJECTION_REASON_REQUIRED"]);
         }
+
+        productRequest.Reject(request.RejectionReason);
+        await _unitOfWork.SaveChangesAsync(cancellationToken);
+        return null;
     }
 }

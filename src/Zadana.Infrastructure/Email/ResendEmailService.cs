@@ -1,15 +1,21 @@
+using System.ComponentModel.DataAnnotations;
 using Microsoft.Extensions.Logging;
 using Microsoft.Extensions.Options;
 using System.Net.Http.Json;
 using Zadana.Application.Common.Interfaces;
+using Zadana.SharedKernel.Exceptions;
 
 namespace Zadana.Infrastructure.Email;
 
 public class ResendEmailSettings
 {
     public const string SectionName = "ResendSettings";
+    [Required]
     public string ApiKey { get; set; } = string.Empty;
+    [Required]
+    [EmailAddress]
     public string FromEmail { get; set; } = string.Empty;
+    [Required]
     public string FromName { get; set; } = string.Empty;
 }
 
@@ -52,7 +58,7 @@ public class ResendEmailService : IEmailService
             {
                 var errorContent = await response.Content.ReadAsStringAsync(cancellationToken);
                 _logger.LogError("Resend API failed with status {Status}. Error: {Error}", response.StatusCode, errorContent);
-                throw new Exception($"Resend API Error: {errorContent}");
+                throw new ExternalServiceException("RESEND_API_ERROR", $"Resend email delivery failed. Provider response: {errorContent}");
             }
 
             _logger.LogInformation("Email sent successfully to {Email}", to);

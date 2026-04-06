@@ -272,6 +272,9 @@
   <data name="VERIFICATION_FAILED" xml:space="preserve">
     <value>Failed to activate account.</value>
   </data>
+  <data name="IDENTITY_OPERATION_FAILED" xml:space="preserve">
+    <value>Failed to update account state.</value>
+  </data>
   <data name="PASSWORD_RESET_FAILED" xml:space="preserve">
     <value>Failed to reset password.</value>
   </data>
@@ -293,6 +296,9 @@
   </data>
   <data name="INSUFFICIENT_STOCK" xml:space="preserve">
     <value>Requested quantity exceeds available stock.</value>
+  </data>
+  <data name="VENDOR_MISSING_CART_PRODUCT" xml:space="preserve">
+    <value>The selected vendor does not offer all products currently in the cart.</value>
   </data>
   <data name="EMPTY_CART" xml:space="preserve">
     <value>Cannot place an order with an empty cart.</value>
@@ -380,6 +386,9 @@
   </data>
   <data name="ResourceNotFoundTitle" xml:space="preserve">
     <value>Resource Not Found</value>
+  </data>
+  <data name="ExternalServiceErrorTitle" xml:space="preserve">
+    <value>External Service Error</value>
   </data>
   <data name="ServerErrorTitle" xml:space="preserve">
     <value>Server Error</value>

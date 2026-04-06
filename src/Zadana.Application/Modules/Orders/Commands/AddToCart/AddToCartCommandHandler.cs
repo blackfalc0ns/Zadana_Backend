@@ -1,47 +1,47 @@
 using MediatR;
-using Microsoft.EntityFrameworkCore;
+using Microsoft.Extensions.Localization;
 using Zadana.Application.Common.Interfaces;
+using Zadana.Application.Common.Localization;
+using Zadana.Application.Modules.Orders.Interfaces;
 using Zadana.Domain.Modules.Orders.Entities;
 using Zadana.SharedKernel.Exceptions;
-using Microsoft.Extensions.Localization;
-using Zadana.Application.Common.Localization;
 
 namespace Zadana.Application.Modules.Orders.Commands.AddToCart;
 
 public class AddToCartCommandHandler : IRequestHandler<AddToCartCommand, Guid>
 {
-    private readonly IApplicationDbContext _context;
+    private readonly IOrderRepository _orderRepository;
     private readonly IStringLocalizer<SharedResource> _localizer;
+    private readonly IUnitOfWork _unitOfWork;
 
-    public AddToCartCommandHandler(IApplicationDbContext context, IStringLocalizer<SharedResource> localizer)
+    public AddToCartCommandHandler(
+        IOrderRepository orderRepository,
+        IStringLocalizer<SharedResource> localizer,
+        IUnitOfWork unitOfWork)
     {
-        _context = context;
+        _orderRepository = orderRepository;
         _localizer = localizer;
+        _unitOfWork = unitOfWork;
     }
 
     public async Task<Guid> Handle(AddToCartCommand request, CancellationToken cancellationToken)
     {
-        // 1. Validate VendorProduct exists and has sufficient stock
-        var vendorProduct = await _context.VendorProducts
-            .FirstOrDefaultAsync(vp => vp.Id == request.VendorProductId, cancellationToken);
-            
-        if (vendorProduct == null)
-            throw new NotFoundException("VendorProduct", request.VendorProductId);
+        var masterProduct = await _orderRepository.GetMasterProductAsync(request.MasterProductId, cancellationToken);
 
-        if (vendorProduct.StockQuantity < request.Quantity)
+        if (masterProduct == null)
         {
-            throw new BusinessRuleException("INSUFFICIENT_STOCK", _localizer["INSUFFICIENT_STOCK"]);
+            throw new NotFoundException("MasterProduct", request.MasterProductId);
         }
-        // 2. Get or Create Cart for User/Vendor
-        var cart = await _context.Carts
-            .Include(c => c.Items)
-            .FirstOrDefaultAsync(c => c.UserId == request.UserId && c.VendorId == request.VendorId, cancellationToken);
+
+        var cart = await _orderRepository.GetCartAsync(request.UserId, cancellationToken);
+        var isNewCart = cart == null;
 
         if (cart == null)
-            cart = new Cart(request.UserId, request.VendorId);
+        {
+            cart = new Cart(request.UserId);
+        }
 
-        // 3. Check if Item already exists in Cart
-        var existingItem = cart.Items.FirstOrDefault(i => i.VendorProductId == request.VendorProductId);
+        var existingItem = cart.Items.FirstOrDefault(item => item.MasterProductId == request.MasterProductId);
         if (existingItem != null)
         {
             existingItem.UpdateQuantity(existingItem.Quantity + request.Quantity);
@@ -49,30 +49,26 @@ public class AddToCartCommandHandler : IRequestHandler<AddToCartCommand, Guid>
         else
         {
             var cartItem = new CartItem(
-                cart.Id, 
-                request.VendorProductId, 
-                request.Quantity, 
-                vendorProduct.SellingPrice);
-                
+                cart.Id,
+                request.MasterProductId,
+                !string.IsNullOrWhiteSpace(masterProduct.NameEn) ? masterProduct.NameEn : masterProduct.NameAr,
+                request.Quantity);
+
             cart.Items.Add(cartItem);
         }
 
-        // 4. Update Cart Totals
-        var subtotal = cart.Items.Sum(i => i.LineTotal);
-        var deliveryFee = 0; // Simplified for now
-        cart.UpdateTotals(subtotal, deliveryFee);
+        cart.UpdateTotals(0, 0);
 
-        // 5. Save Changes
-        if (cart.Id == Guid.Empty)
+        if (isNewCart)
         {
-            _context.Carts.Add(cart);
+            _orderRepository.AddCart(cart);
         }
         else
         {
-            _context.Carts.Update(cart);
+            _orderRepository.UpdateCart(cart);
         }
 
-        await _context.SaveChangesAsync(cancellationToken);
+        await _unitOfWork.SaveChangesAsync(cancellationToken);
 
         return cart.Id;
     }

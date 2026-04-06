@@ -275,6 +275,9 @@
   <data name="PASSWORD_RESET_FAILED" xml:space="preserve">
     <value>فشل إعادة تعيين كلمة المرور.</value>
   </data>
+  <data name="IDENTITY_OPERATION_FAILED" xml:space="preserve">
+    <value>ØªØ¹Ø°Ø± ØªØ­Ø¯ÙŠØ« Ø­Ø§Ù„Ø© Ø§Ù„Ø­Ø³Ø§Ø¨.</value>
+  </data>
   <data name="OtpSmsMessage" xml:space="preserve">
     <value>رمز التحقق الخاص بك في زادنا هو: {0}</value>
   </data>
@@ -293,6 +296,9 @@
   </data>
   <data name="INSUFFICIENT_STOCK" xml:space="preserve">
     <value>الكمية المطلوبة تتجاوز المخزون المتاح.</value>
+  </data>
+  <data name="VENDOR_MISSING_CART_PRODUCT" xml:space="preserve">
+    <value>التاجر المختار لا يوفر كل المنتجات الموجودة حاليًا في العربة.</value>
   </data>
   <data name="EMPTY_CART" xml:space="preserve">
     <value>لا يمكنك إنشاء طلب بسلة فارغة.</value>
@@ -381,6 +387,9 @@
   </data>
   <data name="ResourceNotFoundTitle" xml:space="preserve">
     <value>المورد غير موجود</value>
+  </data>
+  <data name="ExternalServiceErrorTitle" xml:space="preserve">
+    <value>خطأ في خدمة خارجية</value>
   </data>
   <data name="ServerErrorTitle" xml:space="preserve">
     <value>خطأ في الخادم</value>

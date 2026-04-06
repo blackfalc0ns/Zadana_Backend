@@ -13,14 +13,13 @@ public class CartItemConfiguration : IEntityTypeConfiguration<CartItem>
         builder.HasKey(x => x.Id);
 
         builder.Property(x => x.Quantity).IsRequired();
-        builder.Property(x => x.UnitPrice).HasPrecision(18, 2).IsRequired();
-        builder.Property(x => x.LineTotal).HasPrecision(18, 2).IsRequired();
+        builder.Property(x => x.ProductName).HasMaxLength(250).IsRequired();
 
-        builder.HasOne(x => x.VendorProduct)
+        builder.HasOne(x => x.MasterProduct)
             .WithMany()
-            .HasForeignKey(x => x.VendorProductId)
+            .HasForeignKey(x => x.MasterProductId)
             .OnDelete(DeleteBehavior.Restrict);
 
-        builder.HasIndex(x => new { x.CartId, x.VendorProductId }).IsUnique();
+        builder.HasIndex(x => new { x.CartId, x.MasterProductId }).IsUnique();
     }
 }

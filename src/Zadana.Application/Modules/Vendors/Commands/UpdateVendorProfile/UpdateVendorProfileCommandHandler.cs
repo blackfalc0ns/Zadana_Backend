@@ -1,19 +1,24 @@
 using MediatR;
-using Microsoft.EntityFrameworkCore;
 using Zadana.Application.Common.Interfaces;
 using Zadana.Application.Modules.Vendors.DTOs;
+using Zadana.Application.Modules.Vendors.Interfaces;
 using Zadana.SharedKernel.Exceptions;
 
 namespace Zadana.Application.Modules.Vendors.Commands.UpdateVendorProfile;
 
 public class UpdateVendorProfileCommandHandler : IRequestHandler<UpdateVendorProfileCommand, VendorProfileDto>
 {
-    private readonly IApplicationDbContext _db;
+    private readonly IVendorRepository _vendorRepository;
+    private readonly IUnitOfWork _unitOfWork;
     private readonly ICurrentUserService _currentUser;
 
-    public UpdateVendorProfileCommandHandler(IApplicationDbContext db, ICurrentUserService currentUser)
+    public UpdateVendorProfileCommandHandler(
+        IVendorRepository vendorRepository,
+        IUnitOfWork unitOfWork,
+        ICurrentUserService currentUser)
     {
-        _db = db;
+        _vendorRepository = vendorRepository;
+        _unitOfWork = unitOfWork;
         _currentUser = currentUser;
     }
 
@@ -22,8 +27,7 @@ public class UpdateVendorProfileCommandHandler : IRequestHandler<UpdateVendorPro
         var userId = _currentUser.UserId
             ?? throw new UnauthorizedException("USER_NOT_AUTHENTICATED");
 
-        var vendor = await _db.Vendors
-            .FirstOrDefaultAsync(v => v.UserId == userId, cancellationToken)
+        var vendor = await _vendorRepository.GetByUserIdAsync(userId, cancellationToken)
             ?? throw new NotFoundException("Vendor", userId);
 
         vendor.UpdateProfile(
@@ -34,7 +38,7 @@ public class UpdateVendorProfileCommandHandler : IRequestHandler<UpdateVendorPro
             request.ContactPhone,
             request.TaxId);
 
-        await _db.SaveChangesAsync(cancellationToken);
+        await _unitOfWork.SaveChangesAsync(cancellationToken);
 
         return new VendorProfileDto(
             vendor.Id,

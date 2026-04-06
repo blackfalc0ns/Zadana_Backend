@@ -1,5 +1,6 @@
 using MediatR;
 using Zadana.Application.Common.Interfaces;
+using Zadana.Application.Modules.Vendors.Interfaces;
 using Zadana.Domain.Modules.Vendors.Entities;
 using Zadana.SharedKernel.Exceptions;
 
@@ -7,17 +8,18 @@ namespace Zadana.Application.Modules.Vendors.Commands.AddVendorBranch;
 
 public class AddVendorBranchCommandHandler : IRequestHandler<AddVendorBranchCommand, Guid>
 {
-    private readonly IApplicationDbContext _context;
+    private readonly IVendorRepository _vendorRepository;
+    private readonly IUnitOfWork _unitOfWork;
 
-    public AddVendorBranchCommandHandler(IApplicationDbContext context)
+    public AddVendorBranchCommandHandler(IVendorRepository vendorRepository, IUnitOfWork unitOfWork)
     {
-        _context = context;
+        _vendorRepository = vendorRepository;
+        _unitOfWork = unitOfWork;
     }
 
     public async Task<Guid> Handle(AddVendorBranchCommand request, CancellationToken cancellationToken)
     {
-        // 1. Check if vendor exists
-        var vendorExists = _context.Vendors.Any(v => v.Id == request.VendorId);
+        var vendorExists = await _vendorRepository.ExistsAsync(request.VendorId, cancellationToken);
         if (!vendorExists)
         {
             throw new NotFoundException("Vendor", request.VendorId);
@@ -39,8 +41,8 @@ public class AddVendorBranchCommandHandler : IRequestHandler<AddVendorBranchComm
         // if Domain supported it via parameters or helper methods.
 
         // 3. Save to database
-        _context.VendorBranches.Add(branch);
-        await _context.SaveChangesAsync(cancellationToken);
+        _vendorRepository.AddBranch(branch);
+        await _unitOfWork.SaveChangesAsync(cancellationToken);
 
         return branch.Id;
     }

@@ -1,27 +1,28 @@
 using MediatR;
-using Microsoft.EntityFrameworkCore;
 using Zadana.Application.Common.Interfaces;
+using Zadana.Application.Modules.Vendors.Interfaces;
 using Zadana.SharedKernel.Exceptions;
 
 namespace Zadana.Application.Modules.Vendors.Commands.SuspendVendor;
 
 public class SuspendVendorCommandHandler : IRequestHandler<SuspendVendorCommand>
 {
-    private readonly IApplicationDbContext _db;
+    private readonly IVendorRepository _vendorRepository;
+    private readonly IUnitOfWork _unitOfWork;
 
-    public SuspendVendorCommandHandler(IApplicationDbContext db)
+    public SuspendVendorCommandHandler(IVendorRepository vendorRepository, IUnitOfWork unitOfWork)
     {
-        _db = db;
+        _vendorRepository = vendorRepository;
+        _unitOfWork = unitOfWork;
     }
 
     public async Task Handle(SuspendVendorCommand request, CancellationToken cancellationToken)
     {
-        var vendor = await _db.Vendors
-            .FirstOrDefaultAsync(v => v.Id == request.VendorId, cancellationToken)
+        var vendor = await _vendorRepository.GetByIdAsync(request.VendorId, cancellationToken)
             ?? throw new NotFoundException("Vendor", request.VendorId);
 
         vendor.Suspend(request.Reason);
 
-        await _db.SaveChangesAsync(cancellationToken);
+        await _unitOfWork.SaveChangesAsync(cancellationToken);
     }
 }

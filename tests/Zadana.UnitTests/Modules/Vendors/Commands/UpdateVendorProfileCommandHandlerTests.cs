@@ -1,55 +1,58 @@
 using FluentAssertions;
 using Moq;
-using Xunit;
 using Zadana.Application.Common.Interfaces;
 using Zadana.Application.Modules.Vendors.Commands.UpdateVendorProfile;
-using Zadana.Domain.Modules.Identity.Entities;
-using Zadana.Domain.Modules.Identity.Enums;
+using Zadana.Application.Modules.Vendors.Interfaces;
 using Zadana.Domain.Modules.Vendors.Entities;
 using Zadana.SharedKernel.Exceptions;
-using Zadana.UnitTests.Common;
 
 namespace Zadana.UnitTests.Modules.Vendors.Commands;
 
 public class UpdateVendorProfileCommandHandlerTests
 {
     private readonly Mock<ICurrentUserService> _currentUserMock = new();
+    private readonly Mock<IVendorRepository> _vendorRepositoryMock = new();
+    private readonly Mock<IUnitOfWork> _unitOfWorkMock = new();
 
     [Fact]
     public async Task Handle_WithValidRequest_UpdatesProfileAndReturnsDto()
     {
-        // Arrange
-        var db = TestDbContextFactory.Create();
         var userId = Guid.NewGuid();
         _currentUserMock.Setup(c => c.UserId).Returns(userId);
 
-        var user = new User("Owner", "owner@test.com", "123", UserRole.Vendor);
-        typeof(User).GetProperty("Id")!.SetValue(user, userId);
-        db.Users.Add(user);
-
         var vendor = new Vendor(userId, "Old Ar", "Old En", "Retail", "CR", "old@test.com", "123");
-        db.Vendors.Add(vendor);
-        await db.SaveChangesAsync();
+        _vendorRepositoryMock
+            .Setup(repository => repository.GetByUserIdAsync(userId, It.IsAny<CancellationToken>()))
+            .ReturnsAsync(vendor);
 
-        var handler = new UpdateVendorProfileCommandHandler(db, _currentUserMock.Object);
-        var command = new UpdateVendorProfileCommand("New Ar", "New En", "Wholesale", "new@test.com", "999", "Tax123");
+        var handler = new UpdateVendorProfileCommandHandler(
+            _vendorRepositoryMock.Object,
+            _unitOfWorkMock.Object,
+            _currentUserMock.Object);
 
-        // Act
-        var result = await handler.Handle(command, default);
+        var result = await handler.Handle(
+            new UpdateVendorProfileCommand("New Ar", "New En", "Wholesale", "new@test.com", "999", "Tax123"),
+            default);
 
-        // Assert
-        result.Should().NotBeNull();
         result.BusinessNameEn.Should().Be("New En");
         result.TaxId.Should().Be("Tax123");
         result.ContactEmail.Should().Be("new@test.com");
+        _unitOfWorkMock.Verify(unitOfWork => unitOfWork.SaveChangesAsync(It.IsAny<CancellationToken>()), Times.Once);
     }
 
     [Fact]
     public async Task Handle_WhenUserNotVendor_ThrowsNotFoundException()
     {
-        var db = TestDbContextFactory.Create();
-        _currentUserMock.Setup(c => c.UserId).Returns(Guid.NewGuid());
-        var handler = new UpdateVendorProfileCommandHandler(db, _currentUserMock.Object);
+        var userId = Guid.NewGuid();
+        _currentUserMock.Setup(c => c.UserId).Returns(userId);
+        _vendorRepositoryMock
+            .Setup(repository => repository.GetByUserIdAsync(userId, It.IsAny<CancellationToken>()))
+            .ReturnsAsync((Vendor?)null);
+
+        var handler = new UpdateVendorProfileCommandHandler(
+            _vendorRepositoryMock.Object,
+            _unitOfWorkMock.Object,
+            _currentUserMock.Object);
 
         await Assert.ThrowsAsync<NotFoundException>(() =>
             handler.Handle(new UpdateVendorProfileCommand("A", "B", "C", "d@e.com", "1", null), default));
@@ -58,9 +61,12 @@ public class UpdateVendorProfileCommandHandlerTests
     [Fact]
     public async Task Handle_WithoutAuthenticatedUser_ThrowsUnauthorizedException()
     {
-        var db = TestDbContextFactory.Create();
         _currentUserMock.Setup(c => c.UserId).Returns((Guid?)null);
-        var handler = new UpdateVendorProfileCommandHandler(db, _currentUserMock.Object);
+
+        var handler = new UpdateVendorProfileCommandHandler(
+            _vendorRepositoryMock.Object,
+            _unitOfWorkMock.Object,
+            _currentUserMock.Object);
 
         await Assert.ThrowsAsync<UnauthorizedException>(() =>
             handler.Handle(new UpdateVendorProfileCommand("A", "B", "C", "d@e.com", "1", null), default));

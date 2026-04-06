@@ -1,95 +1,84 @@
 using Microsoft.AspNetCore.Authorization;
 using Microsoft.AspNetCore.Mvc;
 using Microsoft.Extensions.Localization;
-using Zadana.Api.Controllers;
 using Zadana.Api.Modules.Identity.Requests;
 using Zadana.Application.Common.Localization;
-using Zadana.Application.Modules.Identity.Commands.Login;
-using Zadana.Application.Modules.Identity.Commands.Logout;
-using Zadana.Application.Modules.Identity.Commands.RefreshToken;
 using Zadana.Application.Modules.Identity.Commands.RegisterCustomer;
-using Zadana.Application.Modules.Identity.Commands.VerifyOtp;
 using Zadana.Application.Modules.Identity.Commands.ResendOtp;
-using Zadana.Application.Modules.Identity.Commands.ForgotPassword;
-using Zadana.Application.Modules.Identity.Commands.ResetPassword;
-using Zadana.Application.Modules.Identity.Queries.GetCurrentUser;
+using Zadana.Application.Modules.Identity.Commands.VerifyOtp;
 using Zadana.Domain.Modules.Identity.Enums;
 
 namespace Zadana.Api.Modules.Identity.Controllers;
 
 [Route("api/customers/auth")]
-[Tags("🙋‍♂️ 1. Customer App API")]
-public class CustomerAuthController : ApiControllerBase
+[Tags("Customer App API")]
+public class CustomerAuthController : IdentityAuthControllerBase
 {
-    private readonly IStringLocalizer<SharedResource> _localizer;
-
     public CustomerAuthController(IStringLocalizer<SharedResource> localizer)
+        : base(localizer)
     {
-        _localizer = localizer;
     }
 
     [HttpPost("register")]
-    public async Task<IActionResult> Register([FromBody] RegisterCustomerCommand command)
+    public async Task<IActionResult> Register([FromBody] RegisterCustomerRequest request)
     {
+        var command = new RegisterCustomerCommand(
+            request.FullName,
+            request.Email,
+            request.Phone,
+            request.Password,
+            request.ProfilePhotoUrl,
+            request.AddressLine,
+            request.Label,
+            request.BuildingNo,
+            request.FloorNo,
+            request.ApartmentNo,
+            request.City,
+            request.Area,
+            request.Latitude,
+            request.Longitude);
+
         var result = await Sender.Send(command);
         return Ok(result);
     }
 
     [HttpPost("verify-otp")]
-    public async Task<IActionResult> VerifyOtp([FromBody] VerifyOtpCommand command)
+    public async Task<IActionResult> VerifyOtp([FromBody] VerifyOtpRequest request)
     {
-        var result = await Sender.Send(command);
+        var result = await Sender.Send(new VerifyOtpCommand(request.Identifier, request.OtpCode));
         return Ok(result);
     }
 
     [HttpPost("resend-otp")]
-    public async Task<IActionResult> ResendOtp([FromBody] ResendOtpCommand command)
+    public async Task<IActionResult> ResendOtp([FromBody] ResendOtpRequest request)
     {
-        var result = await Sender.Send(command);
+        var result = await Sender.Send(new ResendOtpCommand(request.Identifier));
         return Ok(result);
     }
 
     [HttpPost("login")]
-    public async Task<IActionResult> Login([FromBody] LoginRequest request)
-    {
-        var result = await Sender.Send(new LoginCommand(request.Identifier, request.Password, [UserRole.Customer]));
-        return Ok(result);
-    }
+    public Task<IActionResult> Login([FromBody] LoginRequest request) =>
+        LoginAsync(request, UserRole.Customer);
 
     [HttpPost("refresh-token")]
-    public async Task<IActionResult> RefreshToken([FromBody] RefreshTokenCommand command)
-    {
-        var result = await Sender.Send(command);
-        return Ok(result);
-    }
+    public Task<IActionResult> RefreshToken([FromBody] RefreshTokenRequest request) =>
+        RefreshTokenAsync(request);
 
     [HttpPost("forgot-password")]
-    public async Task<IActionResult> ForgotPassword([FromBody] ForgotPasswordCommand command)
-    {
-        await Sender.Send(command);
-        return Ok(new { Message = _localizer["PasswordResetOtpSent"].Value });
-    }
+    public Task<IActionResult> ForgotPassword([FromBody] ForgotPasswordRequest request) =>
+        ForgotPasswordAsync(request);
 
     [HttpPost("reset-password")]
-    public async Task<IActionResult> ResetPassword([FromBody] ResetPasswordCommand command)
-    {
-        await Sender.Send(command);
-        return Ok(new { Message = _localizer["PasswordResetSuccess"].Value });
-    }
+    public Task<IActionResult> ResetPassword([FromBody] ResetPasswordRequest request) =>
+        ResetPasswordAsync(request);
 
     [Authorize(Policy = "CustomerOnly")]
     [HttpPost("logout")]
-    public async Task<IActionResult> Logout([FromBody] LogoutCommand command)
-    {
-        await Sender.Send(command);
-        return NoContent();
-    }
+    public Task<IActionResult> Logout([FromBody] LogoutRequest request) =>
+        LogoutAsync(request);
 
     [Authorize(Policy = "CustomerOnly")]
     [HttpGet("me")]
-    public async Task<IActionResult> GetCurrentUser()
-    {
-        var result = await Sender.Send(new GetCurrentUserQuery());
-        return Ok(result);
-    }
+    public Task<IActionResult> GetCurrentUser() =>
+        GetCurrentUserAsync();
 }

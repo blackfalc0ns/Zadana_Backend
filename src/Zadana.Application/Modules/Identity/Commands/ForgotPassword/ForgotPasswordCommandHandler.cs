@@ -1,9 +1,7 @@
-using Microsoft.AspNetCore.Identity;
 using MediatR;
-using Microsoft.EntityFrameworkCore;
 using Zadana.Application.Common.Interfaces;
-using Zadana.Domain.Modules.Identity.Entities;
-using Zadana.Domain.Modules.Identity.Interfaces;
+using Zadana.Application.Modules.Identity.DTOs;
+using Zadana.Application.Modules.Identity.Interfaces;
 using Zadana.SharedKernel.Exceptions;
 using Microsoft.Extensions.Localization;
 using Zadana.Application.Common.Localization;
@@ -12,16 +10,16 @@ namespace Zadana.Application.Modules.Identity.Commands.ForgotPassword;
 
 public class ForgotPasswordCommandHandler : IRequestHandler<ForgotPasswordCommand>
 {
-    private readonly UserManager<User> _userManager;
+    private readonly IIdentityAccountService _identityAccountService;
     private readonly IOtpService _otpService;
     private readonly IStringLocalizer<SharedResource> _localizer;
 
     public ForgotPasswordCommandHandler(
-        UserManager<User> userManager,
+        IIdentityAccountService identityAccountService,
         IOtpService otpService,
         IStringLocalizer<SharedResource> localizer)
     {
-        _userManager = userManager;
+        _identityAccountService = identityAccountService;
         _otpService = otpService;
         _localizer = localizer;
     }
@@ -33,39 +31,27 @@ public class ForgotPasswordCommandHandler : IRequestHandler<ForgotPasswordComman
             return;
         }
 
-        var user = await _userManager.FindByEmailAsync(request.Identifier);
-        if (user == null)
+        var otpResult = await _identityAccountService.GeneratePasswordResetOtpAsync(request.Identifier, cancellationToken);
+        if (otpResult.Status == OtpDispatchStatus.Failed)
         {
-            user = await _userManager.Users.FirstOrDefaultAsync(u => u.PhoneNumber == request.Identifier, cancellationToken);
-        }
-        
-        // Enhance security: We don't throw an error if the user isn't found to prevent email enumeration.
-        if (user == null)
-        {
-            return; 
+            var errors = string.Join(", ", otpResult.Errors ?? []);
+            throw new BusinessRuleException("IDENTITY_OPERATION_FAILED", $"{_localizer["IDENTITY_OPERATION_FAILED"]}: {errors}");
         }
 
-        // Cooldown check
-        if (!user.CanResendOtp())
+        if (otpResult.Status != OtpDispatchStatus.Succeeded || otpResult.Account == null || string.IsNullOrWhiteSpace(otpResult.OtpCode))
         {
-            return; // Or throw a specific exception if preferred, but usually silent for security in Forgot Password
+            return;
         }
 
-        // Generate the reset OTP
-        var resetOtp = user.GeneratePasswordResetOtp();
-
-        // Send OTP via SMS
+        var user = otpResult.Account;
         if (!string.IsNullOrWhiteSpace(user.PhoneNumber))
         {
-            await _otpService.SendOtpSmsAsync(user.PhoneNumber, resetOtp, cancellationToken);
+            await _otpService.SendOtpSmsAsync(user.PhoneNumber, otpResult.OtpCode, cancellationToken);
         }
 
-        // Send OTP via Email (if email is provided)
         if (!string.IsNullOrWhiteSpace(user.Email))
         {
-            await _otpService.SendOtpEmailAsync(user.Email, resetOtp, cancellationToken);
+            await _otpService.SendOtpEmailAsync(user.Email, otpResult.OtpCode, cancellationToken);
         }
-
-        await _userManager.UpdateAsync(user);
     }
 }

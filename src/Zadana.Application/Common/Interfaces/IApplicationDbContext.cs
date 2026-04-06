@@ -13,10 +13,6 @@ namespace Zadana.Application.Common.Interfaces;
 
 public interface IApplicationDbContext
 {
-    // Identity
-    DbSet<User> Users { get; }
-    DbSet<RefreshToken> RefreshTokens { get; }
-
     // Vendors
     DbSet<Vendor> Vendors { get; }
     DbSet<VendorBranch> VendorBranches { get; }

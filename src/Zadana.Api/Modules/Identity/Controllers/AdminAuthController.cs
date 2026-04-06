@@ -1,46 +1,36 @@
 using Microsoft.AspNetCore.Authorization;
 using Microsoft.AspNetCore.Mvc;
-using Zadana.Api.Controllers;
 using Zadana.Api.Modules.Identity.Requests;
-using Zadana.Application.Modules.Identity.Commands.Login;
-using Zadana.Application.Modules.Identity.Commands.Logout;
-using Zadana.Application.Modules.Identity.Commands.RefreshToken;
-using Zadana.Application.Modules.Identity.Queries.GetCurrentUser;
+using Zadana.Application.Common.Localization;
 using Zadana.Domain.Modules.Identity.Enums;
+using Microsoft.Extensions.Localization;
 
 namespace Zadana.Api.Modules.Identity.Controllers;
 
 [Route("api/admin/auth")]
-[Tags("👑 4. Admin Dashboard API")]
-public class AdminAuthController : ApiControllerBase
+[Tags("Admin Dashboard API")]
+public class AdminAuthController : IdentityAuthControllerBase
 {
-    [HttpPost("login")]
-    public async Task<IActionResult> Login([FromBody] LoginRequest request)
+    public AdminAuthController(IStringLocalizer<SharedResource> localizer)
+        : base(localizer)
     {
-        var result = await Sender.Send(new LoginCommand(request.Identifier, request.Password, [UserRole.Admin, UserRole.SuperAdmin]));
-        return Ok(result);
     }
 
+    [HttpPost("login")]
+    public Task<IActionResult> Login([FromBody] LoginRequest request) =>
+        LoginAsync(request, UserRole.Admin, UserRole.SuperAdmin);
+
     [HttpPost("refresh-token")]
-    public async Task<IActionResult> RefreshToken([FromBody] RefreshTokenCommand command)
-    {
-        var result = await Sender.Send(command);
-        return Ok(result);
-    }
+    public Task<IActionResult> RefreshToken([FromBody] RefreshTokenRequest request) =>
+        RefreshTokenAsync(request);
 
     [Authorize(Policy = "AdminOnly")]
     [HttpPost("logout")]
-    public async Task<IActionResult> Logout([FromBody] LogoutCommand command)
-    {
-        await Sender.Send(command);
-        return NoContent();
-    }
+    public Task<IActionResult> Logout([FromBody] LogoutRequest request) =>
+        LogoutAsync(request);
 
     [Authorize(Policy = "AdminOnly")]
     [HttpGet("me")]
-    public async Task<IActionResult> GetCurrentUser()
-    {
-        var result = await Sender.Send(new GetCurrentUserQuery());
-        return Ok(result);
-    }
+    public Task<IActionResult> GetCurrentUser() =>
+        GetCurrentUserAsync();
 }

@@ -1,10 +1,9 @@
-﻿using FluentAssertions;
+using FluentAssertions;
 using Moq;
-using Microsoft.EntityFrameworkCore;
-using Microsoft.EntityFrameworkCore.Query;
 using Zadana.Application.Common.Interfaces;
 using Zadana.Application.Common.Localization;
 using Zadana.Application.Modules.Orders.Commands.AddToCart;
+using Zadana.Application.Modules.Orders.Interfaces;
 using Zadana.Application.Tests.Helpers;
 using Zadana.Domain.Modules.Catalog.Entities;
 using Zadana.SharedKernel.Exceptions;
@@ -13,26 +12,20 @@ namespace Zadana.Application.Tests.Application.Orders;
 
 public class AddToCartCommandHandlerTests
 {
-    private readonly Mock<IApplicationDbContext> _dbContextMock = new();
+    private readonly Mock<IOrderRepository> _orderRepositoryMock = new();
+    private readonly Mock<IUnitOfWork> _unitOfWorkMock = new();
 
     private AddToCartCommandHandler CreateHandler() =>
-        new(_dbContextMock.Object, TestLocalizer.Create<SharedResource>());
+        new(_orderRepositoryMock.Object, TestLocalizer.Create<SharedResource>(), _unitOfWorkMock.Object);
 
     [Fact]
     public async Task Handle_WhenProductNotFound_ShouldThrowNotFoundException()
     {
-        var vendorProducts = Array.Empty<VendorProduct>().AsQueryable();
-        var mockVpSet = new Mock<DbSet<VendorProduct>>();
-        var mockQueryable = new TestAsyncEnumerable<VendorProduct>(vendorProducts);
-        mockVpSet.As<IAsyncEnumerable<VendorProduct>>().Setup(m => m.GetAsyncEnumerator(It.IsAny<CancellationToken>())).Returns(mockQueryable.GetAsyncEnumerator());
-        mockVpSet.As<IQueryable<VendorProduct>>().Setup(m => m.Provider).Returns(((IQueryable<VendorProduct>)mockQueryable).Provider);
-        mockVpSet.As<IQueryable<VendorProduct>>().Setup(m => m.Expression).Returns(((IQueryable<VendorProduct>)mockQueryable).Expression);
-        mockVpSet.As<IQueryable<VendorProduct>>().Setup(m => m.ElementType).Returns(((IQueryable<VendorProduct>)mockQueryable).ElementType);
-        mockVpSet.As<IQueryable<VendorProduct>>().Setup(m => m.GetEnumerator()).Returns(((IQueryable<VendorProduct>)mockQueryable).GetEnumerator());
+        _orderRepositoryMock
+            .Setup(repository => repository.GetMasterProductAsync(It.IsAny<Guid>(), It.IsAny<CancellationToken>()))
+            .ReturnsAsync((MasterProduct?)null);
 
-        _dbContextMock.Setup(c => c.VendorProducts).Returns(mockVpSet.Object);
-
-        var command = new AddToCartCommand(Guid.NewGuid(), Guid.NewGuid(), Guid.NewGuid(), 2);
+        var command = new AddToCartCommand(Guid.NewGuid(), Guid.NewGuid(), 2);
         var handler = CreateHandler();
 
         var act = () => handler.Handle(command, CancellationToken.None);
@@ -41,108 +34,28 @@ public class AddToCartCommandHandlerTests
     }
 
     [Fact]
-    public async Task Handle_WhenInsufficientStock_ShouldThrowBusinessRuleException()
+    public async Task Handle_WhenCartItemExists_ShouldIncreaseQuantity()
     {
-        var vendorProduct = new VendorProduct(Guid.NewGuid(), Guid.NewGuid(), 50m, 3, null, null);
-        var vpList = new List<VendorProduct> { vendorProduct }.AsQueryable();
-        var mockVpSet = new Mock<DbSet<VendorProduct>>();
-        var mockQueryable = new TestAsyncEnumerable<VendorProduct>(vpList);
-        mockVpSet.As<IAsyncEnumerable<VendorProduct>>().Setup(m => m.GetAsyncEnumerator(It.IsAny<CancellationToken>())).Returns(mockQueryable.GetAsyncEnumerator());
-        mockVpSet.As<IQueryable<VendorProduct>>().Setup(m => m.Provider).Returns(((IQueryable<VendorProduct>)mockQueryable).Provider);
-        mockVpSet.As<IQueryable<VendorProduct>>().Setup(m => m.Expression).Returns(((IQueryable<VendorProduct>)mockQueryable).Expression);
-        mockVpSet.As<IQueryable<VendorProduct>>().Setup(m => m.ElementType).Returns(((IQueryable<VendorProduct>)mockQueryable).ElementType);
-        mockVpSet.As<IQueryable<VendorProduct>>().Setup(m => m.GetEnumerator()).Returns(((IQueryable<VendorProduct>)mockQueryable).GetEnumerator());
+        var userId = Guid.NewGuid();
+        var masterProduct = new MasterProduct("Name Ar", "Name En", "name-en", Guid.NewGuid());
+        var cart = new Zadana.Domain.Modules.Orders.Entities.Cart(userId);
+        cart.Items.Add(new Zadana.Domain.Modules.Orders.Entities.CartItem(cart.Id, masterProduct.Id, masterProduct.NameEn, 1));
 
-        _dbContextMock.Setup(c => c.VendorProducts).Returns(mockVpSet.Object);
+        _orderRepositoryMock
+            .Setup(repository => repository.GetMasterProductAsync(masterProduct.Id, It.IsAny<CancellationToken>()))
+            .ReturnsAsync(masterProduct);
+        _orderRepositoryMock
+            .Setup(repository => repository.GetCartAsync(userId, It.IsAny<CancellationToken>()))
+            .ReturnsAsync(cart);
 
-        var command = new AddToCartCommand(Guid.NewGuid(), Guid.NewGuid(), vendorProduct.Id, 100);
+        var command = new AddToCartCommand(userId, masterProduct.Id, 2);
         var handler = CreateHandler();
 
-        var act = () => handler.Handle(command, CancellationToken.None);
+        var cartId = await handler.Handle(command, CancellationToken.None);
 
-        await act.Should()
-            .ThrowAsync<BusinessRuleException>()
-            .Where(e => e.ErrorCode == "INSUFFICIENT_STOCK");
-    }
-}
-
-internal class TestAsyncQueryProvider<TEntity> : IAsyncQueryProvider
-{
-    private readonly IQueryProvider _inner;
-
-    internal TestAsyncQueryProvider(IQueryProvider inner)
-    {
-        _inner = inner;
-    }
-
-    public IQueryable CreateQuery(System.Linq.Expressions.Expression expression)
-    {
-        return new TestAsyncEnumerable<TEntity>(expression);
-    }
-
-    public IQueryable<TElement> CreateQuery<TElement>(System.Linq.Expressions.Expression expression)
-    {
-        return new TestAsyncEnumerable<TElement>(expression);
-    }
-
-    public object Execute(System.Linq.Expressions.Expression expression)
-    {
-        return _inner.Execute(expression)!;
-    }
-
-    public TResult Execute<TResult>(System.Linq.Expressions.Expression expression)
-    {
-        return _inner.Execute<TResult>(expression);
-    }
-
-    public TResult ExecuteAsync<TResult>(System.Linq.Expressions.Expression expression, CancellationToken cancellationToken = default)
-    {
-        var expectedResultType = typeof(TResult).GetGenericArguments()[0];
-        var executionResult = typeof(IQueryProvider)
-            .GetMethod(
-                name: nameof(IQueryProvider.Execute),
-                genericParameterCount: 1,
-                types: new[] { typeof(System.Linq.Expressions.Expression) })!
-            .MakeGenericMethod(expectedResultType)
-            .Invoke(this, new[] { expression });
-
-        return (TResult)typeof(Task).GetMethod(nameof(Task.FromResult))!
-            .MakeGenericMethod(expectedResultType)
-            .Invoke(null, new[] { executionResult })!;
-    }
-}
-
-internal class TestAsyncEnumerable<T> : EnumerableQuery<T>, IAsyncEnumerable<T>, IQueryable<T>
-{
-    public TestAsyncEnumerable(IEnumerable<T> enumerable)
-        : base(enumerable)
-    { }
-
-    public TestAsyncEnumerable(System.Linq.Expressions.Expression expression)
-        : base(expression)
-    { }
-
-    public IAsyncEnumerator<T> GetAsyncEnumerator(CancellationToken cancellationToken = default)
-    {
-        return new TestAsyncEnumerator<T>(this.AsEnumerable().GetEnumerator());
-    }
-
-    IQueryProvider IQueryable.Provider => new TestAsyncQueryProvider<T>(this);
-}
-
-internal class TestAsyncEnumerator<T> : IAsyncEnumerator<T>
-{
-    private readonly IEnumerator<T> _inner;
-
-    public TestAsyncEnumerator(IEnumerator<T> inner) => _inner = inner;
-
-    public T Current => _inner.Current;
-
-    public ValueTask<bool> MoveNextAsync() => new(_inner.MoveNext());
-
-    public ValueTask DisposeAsync()
-    {
-        _inner.Dispose();
-        return default;
+        cartId.Should().Be(cart.Id);
+        cart.Items.Should().ContainSingle();
+        cart.Items.Single().Quantity.Should().Be(3);
+        _unitOfWorkMock.Verify(unitOfWork => unitOfWork.SaveChangesAsync(It.IsAny<CancellationToken>()), Times.Once);
     }
 }

@@ -1,4 +1,3 @@
-using Zadana.Domain.Modules.Identity.Entities;
 using Zadana.Domain.Modules.Vendors.Enums;
 using Zadana.SharedKernel.Exceptions;
 using Zadana.SharedKernel.Primitives;
@@ -24,7 +23,6 @@ public class Vendor : BaseEntity
     public string? CommercialRegisterDocumentUrl { get; private set; }
 
     // Navigation
-    public User User { get; private set; } = null!;
     public ICollection<VendorBranch> Branches { get; private set; } = [];
     public ICollection<VendorBankAccount> BankAccounts { get; private set; } = [];
 

@@ -2,7 +2,6 @@
 
   <ItemGroup>
     <ProjectReference Include="..\Zadana.Domain\Zadana.Domain.csproj" />
-    <ProjectReference Include="..\Zadana.Contracts\Zadana.Contracts.csproj" />
     <ProjectReference Include="..\Zadana.SharedKernel\Zadana.SharedKernel.csproj" />
   </ItemGroup>
 

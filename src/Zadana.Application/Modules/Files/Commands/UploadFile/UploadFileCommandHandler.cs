@@ -1,8 +1,9 @@
 using MediatR;
-using Zadana.Application.Common.Interfaces;
-using Zadana.Domain.Modules.Catalog.Entities;
 using Microsoft.Extensions.Localization;
+using Zadana.Application.Common.Interfaces;
 using Zadana.Application.Common.Localization;
+using Zadana.Domain.Modules.Catalog.Entities;
+using Zadana.SharedKernel.Exceptions;
 
 namespace Zadana.Application.Modules.Files.Commands.UploadFile;
 
@@ -29,7 +30,7 @@ public class UploadFileCommandHandler : IRequestHandler<UploadFileCommand, strin
     {
         if (request.File == null || request.File.ContentStream == null || request.File.ContentStream.Length == 0)
         {
-            throw new ArgumentException(_localizer["NO_FILE_PROVIDED"]);
+            throw new BadRequestException("NO_FILE_PROVIDED", _localizer["NO_FILE_PROVIDED"]);
         }
 
         var extension = Path.GetExtension(request.File.FileName).ToLowerInvariant();
@@ -37,15 +38,12 @@ public class UploadFileCommandHandler : IRequestHandler<UploadFileCommand, strin
 
         if (!allowedExtensions.Contains(extension))
         {
-            throw new ArgumentException(_localizer["INVALID_FILE_EXTENSION", string.Join(", ", allowedExtensions)]);
+            throw new BadRequestException(
+                "INVALID_FILE_EXTENSION",
+                _localizer["INVALID_FILE_EXTENSION", string.Join(", ", allowedExtensions)]);
         }
 
-        // Upload and get public URL
         var fileUrl = await _fileStorageService.UploadAsync(request.File, request.Directory, cancellationToken);
-
-        // Record in database is no longer needed here as ImageBank is removed.
-        // The calling component (e.g. MasterProduct creation) will link this URL to its own entities.
-
         return fileUrl;
     }
 }

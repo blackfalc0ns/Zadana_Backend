@@ -1,26 +1,34 @@
-﻿using Microsoft.EntityFrameworkCore;
+using System.Text;
+using Microsoft.AspNetCore.Authentication.JwtBearer;
+using Microsoft.AspNetCore.Identity;
+using Microsoft.EntityFrameworkCore;
+using Microsoft.IdentityModel.Tokens;
+using Microsoft.OpenApi.Models;
+using Zadana.Api.Configuration;
+using Zadana.Api.Middleware;
 using Zadana.Application;
+using Zadana.Application.Common.Interfaces;
+using Zadana.Application.Modules.Catalog.Interfaces;
+using Zadana.Application.Modules.Delivery.Interfaces;
+using Zadana.Application.Modules.Orders.Interfaces;
+using Zadana.Application.Modules.Vendors.Interfaces;
+using Zadana.Infrastructure.Modules.Catalog.Repositories;
+using Zadana.Infrastructure.Modules.Catalog.Services;
+using Zadana.Domain.Modules.Identity.Entities;
+using Zadana.Infrastructure.Modules.Delivery.Repositories;
+using Zadana.Infrastructure.Modules.Identity;
+using Zadana.Infrastructure.Modules.Orders.Repositories;
+using Zadana.Infrastructure.Modules.Orders.Services;
+using Zadana.Infrastructure.Modules.Vendors.Repositories;
+using Zadana.Infrastructure.Modules.Vendors.Services;
 using Zadana.Infrastructure.Persistence;
 using Zadana.Infrastructure.Persistence.Interceptors;
-using Zadana.Application.Common.Interfaces;
-using Zadana.Infrastructure.Modules.Identity;
-using Zadana.Api.Middleware;
-using Microsoft.AspNetCore.Authentication.JwtBearer;
-using Microsoft.IdentityModel.Tokens;
-using System.Text;
-using Microsoft.OpenApi.Models;
-using Microsoft.AspNetCore.Identity;
-using Zadana.Domain.Modules.Identity.Entities;
-using Zadana.Api.Configuration;
 
 var builder = WebApplication.CreateBuilder(args);
 var jwtSecret = builder.Configuration.GetRequiredSetting("JwtSettings:Secret");
 
-// â”€â”€â”€â”€â”€ Application Layer â”€â”€â”€â”€â”€
 builder.Services.AddApplication();
 
-// â”€â”€â”€â”€â”€ Infrastructure: EF Core â”€â”€â”€â”€â”€
-// Skip SQL Server registration in Testing environment (WebApplicationFactory provides InMemory instead)
 if (!builder.Environment.IsEnvironment("Testing"))
 {
     builder.Services.AddSingleton<AuditableEntityInterceptor>();
@@ -33,7 +41,7 @@ if (!builder.Environment.IsEnvironment("Testing"))
                 sqlOptions.MigrationsAssembly(typeof(ApplicationDbContext).Assembly.FullName);
                 sqlOptions.EnableRetryOnFailure(maxRetryCount: 3);
             });
-        
+
         if (builder.Environment.IsDevelopment())
         {
             options.EnableSensitiveDataLogging();
@@ -45,16 +53,22 @@ if (!builder.Environment.IsEnvironment("Testing"))
 
 builder.Services.AddScoped<IApplicationDbContext>(provider => provider.GetRequiredService<ApplicationDbContext>());
 builder.Services.AddScoped<IUnitOfWork>(provider => provider.GetRequiredService<ApplicationDbContext>());
+builder.Services.AddScoped<IVendorRepository, VendorRepository>();
+builder.Services.AddScoped<IVendorReadService, VendorReadService>();
+builder.Services.AddScoped<IDriverRepository, DriverRepository>();
+builder.Services.AddScoped<IProductRequestRepository, ProductRequestRepository>();
+builder.Services.AddScoped<IProductRequestReadService, ProductRequestReadService>();
+builder.Services.AddScoped<IOrderRepository, OrderRepository>();
+builder.Services.AddScoped<IOrderReadService, OrderReadService>();
 
-// Configure and validate ImageKit settings
-builder.Services.Configure<Zadana.Infrastructure.Settings.ImageKitSettings>(
-    builder.Configuration.GetSection(Zadana.Infrastructure.Settings.ImageKitSettings.SectionName));
+builder.Services.AddOptions<Zadana.Infrastructure.Settings.ImageKitSettings>()
+    .Bind(builder.Configuration.GetSection(Zadana.Infrastructure.Settings.ImageKitSettings.SectionName))
+    .ValidateDataAnnotations()
+    .ValidateOnStart();
 
-builder.Services.AddTransient<Zadana.Application.Common.Interfaces.IFileStorageService, Zadana.Infrastructure.Services.ImageKitFileStorageService>();
+builder.Services.AddTransient<IFileStorageService, Zadana.Infrastructure.Services.ImageKitFileStorageService>();
 
-// â”€â”€â”€â”€â”€ Security & Auth â”€â”€â”€â”€â”€
 builder.Services.AddHttpContextAccessor();
-// Add Identity Infrastructure
 builder.Services.AddIdentity<User, IdentityRole<Guid>>(options =>
 {
     options.Password.RequireNonAlphanumeric = false;
@@ -70,6 +84,7 @@ builder.Services.ConfigureApplicationCookie(options =>
         context.Response.StatusCode = StatusCodes.Status401Unauthorized;
         return Task.CompletedTask;
     };
+
     options.Events.OnRedirectToAccessDenied = context =>
     {
         context.Response.StatusCode = StatusCodes.Status403Forbidden;
@@ -79,15 +94,30 @@ builder.Services.ConfigureApplicationCookie(options =>
 
 builder.Services.AddIdentityInfrastructure(builder.Configuration);
 
-// Add CORS Policy
+var allowedOrigins = builder.Configuration.GetSection("Cors:AllowedOrigins").Get<string[]>();
 builder.Services.AddCors(options =>
 {
-    options.AddPolicy("AllowAll", builder =>
-        builder.AllowAnyOrigin()
-               .AllowAnyMethod()
-               .AllowAnyHeader());
-});
+    options.AddPolicy("Frontend", policy =>
+    {
+        if (allowedOrigins is { Length: > 0 })
+        {
+            policy.WithOrigins(allowedOrigins)
+                .AllowAnyHeader()
+                .AllowAnyMethod();
+            return;
+        }
 
+        if (builder.Environment.IsDevelopment() || builder.Environment.IsEnvironment("Testing"))
+        {
+            policy.AllowAnyOrigin()
+                .AllowAnyHeader()
+                .AllowAnyMethod();
+            return;
+        }
+
+        throw new InvalidOperationException("CORS allowed origins are not configured.");
+    });
+});
 
 builder.Services.AddAuthentication(options =>
 {
@@ -95,43 +125,34 @@ builder.Services.AddAuthentication(options =>
     options.DefaultChallengeScheme = JwtBearerDefaults.AuthenticationScheme;
     options.DefaultScheme = JwtBearerDefaults.AuthenticationScheme;
 })
-    .AddJwtBearer(options =>
+.AddJwtBearer(options =>
+{
+    options.TokenValidationParameters = new TokenValidationParameters
     {
-        options.TokenValidationParameters = new TokenValidationParameters
-        {
-            ValidateIssuer = true,
-            ValidateAudience = true,
-            ValidateLifetime = true,
-            ValidateIssuerSigningKey = true,
-            ValidIssuer = builder.Configuration["JwtSettings:Issuer"],
-            ValidAudience = builder.Configuration["JwtSettings:Audience"],
-            IssuerSigningKey = new SymmetricSecurityKey(
-                Encoding.UTF8.GetBytes(jwtSecret))
-        };
-    });
+        ValidateIssuer = true,
+        ValidateAudience = true,
+        ValidateLifetime = true,
+        ValidateIssuerSigningKey = true,
+        ValidIssuer = builder.Configuration["JwtSettings:Issuer"],
+        ValidAudience = builder.Configuration["JwtSettings:Audience"],
+        IssuerSigningKey = new SymmetricSecurityKey(Encoding.UTF8.GetBytes(jwtSecret))
+    };
+});
 
 builder.Services.AddAuthorization(options =>
 {
-    options.AddPolicy("CustomerOnly", policy =>
-        policy.RequireRole("Customer"));
-
-    options.AddPolicy("DriverOnly", policy =>
-        policy.RequireRole("Driver"));
-
-    options.AddPolicy("VendorOnly", policy =>
-        policy.RequireRole("Vendor", "VendorStaff"));
-
-    options.AddPolicy("AdminOnly", policy =>
-        policy.RequireRole("Admin", "SuperAdmin"));
+    options.AddPolicy("CustomerOnly", policy => policy.RequireRole("Customer"));
+    options.AddPolicy("DriverOnly", policy => policy.RequireRole("Driver"));
+    options.AddPolicy("VendorOnly", policy => policy.RequireRole("Vendor", "VendorStaff"));
+    options.AddPolicy("AdminOnly", policy => policy.RequireRole("Admin", "SuperAdmin"));
 });
 
-// â”€â”€â”€â”€â”€ API â”€â”€â”€â”€â”€
 builder.Services.AddControllers()
     .ConfigureApiBehaviorOptions(options =>
     {
-        // Suppress default ASP.NET Core validation so FluentValidation can return our localized messages
         options.SuppressModelStateInvalidFilter = true;
     });
+
 builder.Services.AddEndpointsApiExplorer();
 builder.Services.AddSwaggerGen(c =>
 {
@@ -159,12 +180,11 @@ builder.Services.AddSwaggerGen(c =>
     });
 });
 
-// â”€â”€â”€â”€â”€ Localization â”€â”€â”€â”€â”€
 builder.Services.AddLocalization();
+builder.Services.AddHealthChecks();
 
 var app = builder.Build();
 
-// â”€â”€â”€â”€â”€ Pipeline â”€â”€â”€â”€â”€
 app.UseMiddleware<ExceptionHandlingMiddleware>();
 
 app.UseSwagger();
@@ -172,23 +192,19 @@ app.UseSwaggerUI();
 
 app.UseHttpsRedirection();
 
-// Use request localization (ar / en)
 var supportedCultures = new[] { "en", "ar" };
 var localizationOptions = new RequestLocalizationOptions()
-    .SetDefaultCulture("ar") // Default to Arabic if not specified
+    .SetDefaultCulture("ar")
     .AddSupportedCultures(supportedCultures)
     .AddSupportedUICultures(supportedCultures);
 
 app.UseRequestLocalization(localizationOptions);
-
-app.UseCors("AllowAll");
-
+app.UseCors("Frontend");
 app.UseAuthentication();
 app.UseAuthorization();
 app.MapControllers();
 
-// â”€â”€â”€â”€â”€ Auto-Migrate & Seed (skip in Testing environment) â”€â”€â”€â”€â”€
-if (!app.Environment.IsEnvironment("Testing"))
+if (app.Environment.IsDevelopment())
 {
     try
     {
@@ -201,25 +217,12 @@ if (!app.Environment.IsEnvironment("Testing"))
     {
         var logger = app.Services.GetRequiredService<ILogger<Program>>();
         logger.LogError(ex, "An error occurred during database initialization.");
-        // We don't rethrow here to allow the app to start even if DB is problematic, 
-        // enabling health checks and Swagger to be accessible for debugging.
     }
 }
 
-// Health check endpoint
-app.MapGet("/health", (ApplicationDbContext db) =>
-{
-    var canConnect = db.Database.CanConnect();
-    return Results.Ok(new
-    {
-        status = canConnect ? "Healthy" : "Unhealthy",
-        database = canConnect ? "Connected" : "Disconnected",
-        timestamp = DateTime.UtcNow
-    });
-});
+app.MapHealthChecks("/health");
+app.MapGet("/health/ready", () => Results.Ok(new { status = "Ready", timestamp = DateTime.UtcNow }));
 
 app.Run();
 
-// Required for WebApplicationFactory<Program> in integration tests
 public partial class Program { }
-

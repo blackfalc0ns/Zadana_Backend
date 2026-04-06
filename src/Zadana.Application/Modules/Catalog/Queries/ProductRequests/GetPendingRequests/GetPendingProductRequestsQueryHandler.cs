@@ -1,65 +1,41 @@
 using MediatR;
-using Microsoft.EntityFrameworkCore;
-using Zadana.Application.Common.Interfaces;
-using Zadana.Application.Common.Models;
-using Zadana.Domain.Modules.Catalog.Enums;
 using Microsoft.Extensions.Localization;
+using Zadana.Application.Common.Extensions;
+using Zadana.Application.Common.Interfaces;
 using Zadana.Application.Common.Localization;
+using Zadana.Application.Common.Models;
+using Zadana.Application.Modules.Catalog.Interfaces;
+using Zadana.Domain.Modules.Identity.Enums;
+using Zadana.SharedKernel.Exceptions;
 
 namespace Zadana.Application.Modules.Catalog.Queries.ProductRequests.GetPendingRequests;
 
 public class GetPendingProductRequestsQueryHandler : IRequestHandler<GetPendingProductRequestsQuery, PaginatedList<AdminProductRequestDto>>
 {
-    private readonly IApplicationDbContext _context;
+    private readonly IProductRequestReadService _productRequestReadService;
     private readonly ICurrentUserService _currentUserService;
     private readonly IStringLocalizer<SharedResource> _localizer;
 
     public GetPendingProductRequestsQueryHandler(
-        IApplicationDbContext context, 
+        IProductRequestReadService productRequestReadService,
         ICurrentUserService currentUserService,
         IStringLocalizer<SharedResource> localizer)
     {
-        _context = context;
+        _productRequestReadService = productRequestReadService;
         _currentUserService = currentUserService;
         _localizer = localizer;
     }
 
     public async Task<PaginatedList<AdminProductRequestDto>> Handle(GetPendingProductRequestsQuery request, CancellationToken cancellationToken)
     {
-        // Only Admin or SuperAdmin
-        if (_currentUserService.Role != "Admin" && _currentUserService.Role != "SuperAdmin")
+        if (!_currentUserService.HasRole(UserRole.Admin, UserRole.SuperAdmin))
         {
-            throw new UnauthorizedAccessException(_localizer["UNAUTHORIZED_VIEW_REQUESTS"]);
+            throw new ForbiddenAccessException(_localizer["UNAUTHORIZED_VIEW_REQUESTS"]);
         }
 
-        var query = _context.ProductRequests
-            .Include(pr => pr.Category)
-            .Include(pr => pr.Vendor)
-            .AsNoTracking()
-            .Where(pr => pr.Status == ApprovalStatus.Pending);
-
-        var totalCount = await query.CountAsync(cancellationToken);
-
-        var items = await query
-            .OrderBy(pr => pr.CreatedAtUtc) // Oldest first for fair processing
-            .Skip((request.PageNumber - 1) * request.PageSize)
-            .Take(request.PageSize)
-            .Select(pr => new AdminProductRequestDto(
-                pr.Id,
-                pr.VendorId,
-                pr.Vendor.BusinessNameAr,
-                pr.SuggestedNameAr,
-                pr.SuggestedNameEn,
-                pr.SuggestedDescriptionAr,
-                pr.SuggestedDescriptionEn,
-                pr.SuggestedCategoryId,
-                pr.Category.NameAr,
-                pr.Category.NameEn,
-                pr.ImageUrl,
-                pr.CreatedAtUtc
-            ))
-            .ToListAsync(cancellationToken);
-
-        return new PaginatedList<AdminProductRequestDto>(items, totalCount, request.PageNumber, request.PageSize);
+        return await _productRequestReadService.GetPendingAsync(
+            request.PageNumber,
+            request.PageSize,
+            cancellationToken);
     }
 }

@@ -1,6 +1,7 @@
-﻿using MediatR;
 using Microsoft.AspNetCore.Authorization;
 using Microsoft.AspNetCore.Mvc;
+using Zadana.Api.Controllers;
+using Zadana.Application.Common.Interfaces;
 using Zadana.Application.Common.Models;
 using Zadana.Application.Modules.Catalog.Commands.CreateVendorProduct;
 using Zadana.Application.Modules.Catalog.Commands.VendorProducts.ChangeStatus;
@@ -8,21 +9,17 @@ using Zadana.Application.Modules.Catalog.Commands.VendorProducts.UpdateVendorPro
 using Zadana.Application.Modules.Catalog.DTOs;
 using Zadana.Application.Modules.Catalog.Queries.GetVendorProducts;
 using Zadana.Application.Modules.Catalog.Queries.VendorProducts.GetVendorProductById;
-using Zadana.Application.Common.Interfaces;
 
 namespace Zadana.Api.Modules.Catalog.Controllers;
 
-[ApiController]
 [Route("api/vendor/products")]
 [Authorize(Roles = "Vendor")]
-public class VendorProductsController : ControllerBase
+public class VendorProductsController : ApiControllerBase
 {
-    private readonly ISender _sender;
     private readonly ICurrentVendorService _currentVendorService;
 
-    public VendorProductsController(ISender sender, ICurrentVendorService currentVendorService)
+    public VendorProductsController(ICurrentVendorService currentVendorService)
     {
-        _sender = sender;
         _currentVendorService = currentVendorService;
     }
 
@@ -35,7 +32,7 @@ public class VendorProductsController : ControllerBase
     {
         var vendorId = await _currentVendorService.GetRequiredVendorIdAsync(HttpContext.RequestAborted);
         var query = new GetVendorProductsQuery(vendorId, categoryId, branchId, pageNumber, pageSize);
-        var result = await _sender.Send(query);
+        var result = await Sender.Send(query);
         return Ok(result);
     }
 
@@ -43,7 +40,7 @@ public class VendorProductsController : ControllerBase
     public async Task<ActionResult<VendorProductDto>> GetProductById(Guid id)
     {
         var vendorId = await _currentVendorService.GetRequiredVendorIdAsync(HttpContext.RequestAborted);
-        var result = await _sender.Send(new GetVendorProductByIdQuery(vendorId, id));
+        var result = await Sender.Send(new GetVendorProductByIdQuery(vendorId, id));
         return Ok(result);
     }
 
@@ -63,7 +60,8 @@ public class VendorProductsController : ControllerBase
             request.Sku,
             request.BranchId
         );
-        var result = await _sender.Send(command);
+
+        var result = await Sender.Send(command);
         return CreatedAtAction(nameof(GetProductById), new { id = result }, result);
     }
 
@@ -82,7 +80,8 @@ public class VendorProductsController : ControllerBase
             request.CustomDescriptionAr,
             request.CustomDescriptionEn
         );
-        await _sender.Send(command);
+
+        await Sender.Send(command);
         return NoContent();
     }
 
@@ -91,7 +90,7 @@ public class VendorProductsController : ControllerBase
     {
         var vendorId = await _currentVendorService.GetRequiredVendorIdAsync(HttpContext.RequestAborted);
         var command = new ChangeVendorProductStatusCommand(id, vendorId, request.IsActive);
-        await _sender.Send(command);
+        await Sender.Send(command);
         return NoContent();
     }
 }
@@ -117,4 +116,3 @@ public record UpdateVendorProductRequest(
     string? CustomDescriptionEn);
 
 public record ChangeProductStatusRequest(bool IsActive);
-

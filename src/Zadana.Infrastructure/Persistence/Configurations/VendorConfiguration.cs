@@ -1,5 +1,6 @@
 using Microsoft.EntityFrameworkCore;
 using Microsoft.EntityFrameworkCore.Metadata.Builders;
+using Zadana.Domain.Modules.Identity.Entities;
 using Zadana.Domain.Modules.Vendors.Entities;
 using Zadana.Domain.Modules.Vendors.Enums;
 
@@ -56,7 +57,7 @@ public class VendorConfiguration : IEntityTypeConfiguration<Vendor>
         builder.Property(v => v.ApprovedBy);
 
         // Relationships
-        builder.HasOne(v => v.User)
+        builder.HasOne<User>()
             .WithOne()
             .HasForeignKey<Vendor>(v => v.UserId)
             .OnDelete(DeleteBehavior.Restrict);

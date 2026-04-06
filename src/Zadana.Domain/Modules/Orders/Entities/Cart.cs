@@ -1,6 +1,5 @@
 using Zadana.Domain.Modules.Identity.Entities;
 using Zadana.Domain.Modules.Marketing.Entities;
-using Zadana.Domain.Modules.Vendors.Entities;
 using Zadana.SharedKernel.Primitives;
 
 namespace Zadana.Domain.Modules.Orders.Entities;
@@ -8,7 +7,6 @@ namespace Zadana.Domain.Modules.Orders.Entities;
 public class Cart : BaseEntity
 {
     public Guid UserId { get; private set; }
-    public Guid VendorId { get; private set; }
     public Guid? CouponId { get; private set; }
     
     public decimal Subtotal { get; private set; }
@@ -18,17 +16,15 @@ public class Cart : BaseEntity
 
     // Navigation
     public User User { get; private set; } = null!;
-    public Vendor Vendor { get; private set; } = null!;
     // Note: Coupon is resolved from Marketing module
     
     public ICollection<CartItem> Items { get; private set; } = [];
 
     private Cart() { }
 
-    public Cart(Guid userId, Guid vendorId)
+    public Cart(Guid userId)
     {
         UserId = userId;
-        VendorId = vendorId;
         Subtotal = 0;
         DiscountTotal = 0;
         DeliveryFee = 0;

@@ -1,6 +1,7 @@
 using MediatR;
 using Microsoft.EntityFrameworkCore;
 using Zadana.Application.Common.Interfaces;
+using Zadana.SharedKernel.Exceptions;
 
 namespace Zadana.Application.Modules.Catalog.Commands.Categories.DeleteCategory;
 
@@ -19,12 +20,16 @@ public class DeleteCategoryCommandHandler : IRequestHandler<DeleteCategoryComman
             .Include(c => c.SubCategories)
             .FirstOrDefaultAsync(c => c.Id == request.Id, cancellationToken);
 
-        if (category == null) return;
+        if (category == null)
+        {
+            return;
+        }
 
-        // Check if it has sub-categories
         if (category.SubCategories != null && category.SubCategories.Any())
         {
-            throw new Exception("Cannot delete category with sub-categories. Please delete sub-categories first.");
+            throw new BusinessRuleException(
+                "CATEGORY_HAS_SUBCATEGORIES",
+                "Cannot delete category with sub-categories. Please delete sub-categories first.");
         }
 
         _context.Categories.Remove(category);

@@ -6,6 +6,7 @@ using Microsoft.Extensions.Localization;
 using Moq;
 using Xunit;
 using Zadana.Api.Modules.Vendors.Controllers;
+using Zadana.Api.Modules.Vendors.Requests;
 using Zadana.Application.Common.Localization;
 using Zadana.Application.Modules.Vendors.Commands.RegisterVendor;
 using Zadana.Application.Modules.Vendors.Commands.UpdateVendorProfile;
@@ -45,7 +46,7 @@ public class VendorsControllerTests
     public async Task RegisterVendor_ReturnsOkResult()
     {
         // Arrange
-        var command = new RegisterVendorCommand(
+        var request = new RegisterVendorRequest(
             "John Doe", "john@test.com", "1234567890", "password",
             "Business Ar", "Business En", "Retail", "CR123", "contact@test.com", "0987654321", null, null, null,
             "Branch 1", "Address 1", 0m, 0m, "1111111111", 5m);
@@ -58,7 +59,7 @@ public class VendorsControllerTests
             .ReturnsAsync(authResponse);
 
         // Act
-        var result = await _controller.RegisterVendor(command);
+        var result = await _controller.RegisterVendor(request);
 
         // Assert
         result.Should().BeOfType<OkObjectResult>();
@@ -84,14 +85,14 @@ public class VendorsControllerTests
     public async Task UpdateProfile_ReturnsOkResult_WithLocalizedMessage()
     {
         // Arrange
-        var command = new UpdateVendorProfileCommand("Ar", "En", "Type", "test@test.com", "123", null);
+        var request = new UpdateVendorProfileRequest("Ar", "En", "Type", "test@test.com", "123", null);
         var dto = new VendorProfileDto(Guid.NewGuid(), "Ar", "En", "Type", "CR", null, "test@test.com", "123", null, "Active", null, null, DateTime.UtcNow);
 
         _senderMock.Setup(x => x.Send(It.IsAny<UpdateVendorProfileCommand>(), default))
             .ReturnsAsync(dto);
 
         // Act
-        var result = await _controller.UpdateProfile(command);
+        var result = await _controller.UpdateProfile(request);
 
         // Assert
         var okResult = result.Should().BeOfType<OkObjectResult>().Subject;

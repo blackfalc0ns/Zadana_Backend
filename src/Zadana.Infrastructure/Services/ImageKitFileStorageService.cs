@@ -4,6 +4,7 @@ using Imagekit.Sdk;
 using Microsoft.Extensions.Options;
 using Zadana.Application.Common.Interfaces;
 using Zadana.Infrastructure.Settings;
+using Zadana.SharedKernel.Exceptions;
 
 namespace Zadana.Infrastructure.Services;
 
@@ -44,14 +45,20 @@ public class ImageKitFileStorageService : IFileStorageService
             if (response.HttpStatusCode != 200)
             {
                 var errorMessage = response.Raw ?? "Unknown error";
-                throw new Exception($"ImageKit upload failed. Status: {response.HttpStatusCode}, Error: {errorMessage}");
+                throw new ExternalServiceException(
+                    "IMAGEKIT_UPLOAD_FAILED",
+                    $"ImageKit upload failed. Status: {response.HttpStatusCode}. Error: {errorMessage}");
             }
 
             return response.url;
         }
+        catch (ExternalServiceException)
+        {
+            throw;
+        }
         catch (Exception ex)
         {
-            throw new Exception($"ImageKit upload error: {ex.Message}", ex);
+            throw new ExternalServiceException("IMAGEKIT_UPLOAD_ERROR", "ImageKit upload failed unexpectedly.", ex);
         }
     }
 

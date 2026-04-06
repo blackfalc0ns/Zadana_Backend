@@ -1,38 +1,38 @@
-using MediatR;
 using Microsoft.AspNetCore.Authorization;
 using Microsoft.AspNetCore.Mvc;
+using Zadana.Api.Controllers;
+using Zadana.Api.Modules.Catalog.Requests;
 using Zadana.Application.Modules.Catalog.Commands.Categories.CreateCategory;
+using Zadana.Application.Modules.Catalog.Commands.Categories.DeleteCategory;
 using Zadana.Application.Modules.Catalog.Commands.Categories.UpdateCategory;
 using Zadana.Application.Modules.Catalog.DTOs;
 using Zadana.Application.Modules.Catalog.Queries.Categories.GetCategories;
 using Zadana.Application.Modules.Catalog.Queries.Categories.GetCategoryById;
-using Zadana.Application.Modules.Catalog.Commands.Categories.DeleteCategory;
 
 namespace Zadana.Api.Modules.Catalog.Controllers;
 
-[ApiController]
 [Route("api/admin/catalog/categories")]
 [Authorize(Roles = "Admin,SuperAdmin")]
-public class AdminCategoriesController : ControllerBase
+public class AdminCategoriesController : ApiControllerBase
 {
-    private readonly ISender _sender;
-
-    public AdminCategoriesController(ISender sender)
-    {
-        _sender = sender;
-    }
-
     [HttpGet]
     public async Task<ActionResult<List<CategoryDto>>> GetCategories([FromQuery] bool includeInactive = false)
     {
-        var result = await _sender.Send(new GetCategoriesQuery(includeInactive));
+        var result = await Sender.Send(new GetCategoriesQuery(includeInactive));
         return Ok(result);
     }
 
     [HttpPost]
-    public async Task<ActionResult<CategoryDto>> CreateCategory(CreateCategoryCommand command)
+    public async Task<ActionResult<CategoryDto>> CreateCategory([FromBody] CreateCategoryRequest request)
     {
-        var result = await _sender.Send(command);
+        var command = new CreateCategoryCommand(
+            request.NameAr,
+            request.NameEn,
+            request.ImageUrl,
+            request.ParentCategoryId,
+            request.DisplayOrder);
+
+        var result = await Sender.Send(command);
         return Ok(result);
     }
 
@@ -48,30 +48,26 @@ public class AdminCategoriesController : ControllerBase
             request.DisplayOrder,
             request.IsActive);
 
-        await _sender.Send(command);
+        await Sender.Send(command);
         return Ok();
     }
 
     [HttpGet("{id}")]
     public async Task<ActionResult<CategoryDto>> GetCategoryById(Guid id)
     {
-        var result = await _sender.Send(new GetCategoryByIdQuery(id));
-        if (result == null) return NotFound();
+        var result = await Sender.Send(new GetCategoryByIdQuery(id));
+        if (result == null)
+        {
+            return NotFound();
+        }
+
         return Ok(result);
     }
 
     [HttpDelete("{id}")]
     public async Task<ActionResult> DeleteCategory(Guid id)
     {
-        await _sender.Send(new DeleteCategoryCommand(id));
+        await Sender.Send(new DeleteCategoryCommand(id));
         return NoContent();
     }
 }
-
-public record UpdateCategoryRequest(
-    string NameAr,
-    string NameEn,
-    string? ImageUrl,
-    Guid? ParentCategoryId,
-    int DisplayOrder,
-    bool IsActive);

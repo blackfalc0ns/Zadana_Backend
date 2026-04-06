@@ -1,5 +1,6 @@
 using MediatR;
 using Zadana.Application.Common.Interfaces;
+using Zadana.Application.Modules.Identity.Interfaces;
 using Zadana.Domain.Modules.Identity.Entities;
 using Zadana.Domain.Modules.Identity.Enums;
 using Zadana.SharedKernel.Exceptions;
@@ -9,16 +10,18 @@ namespace Zadana.Application.Modules.Identity.Commands.AddCustomerAddress;
 public class AddCustomerAddressCommandHandler : IRequestHandler<AddCustomerAddressCommand, Guid>
 {
     private readonly IApplicationDbContext _context;
+    private readonly IIdentityAccountService _identityAccountService;
 
-    public AddCustomerAddressCommandHandler(IApplicationDbContext context)
+    public AddCustomerAddressCommandHandler(IApplicationDbContext context, IIdentityAccountService identityAccountService)
     {
         _context = context;
+        _identityAccountService = identityAccountService;
     }
 
     public async Task<Guid> Handle(AddCustomerAddressCommand request, CancellationToken cancellationToken)
     {
         // Check if user exists
-        var userExists = _context.Users.Any(u => u.Id == request.UserId);
+        var userExists = await _identityAccountService.ExistsByIdAsync(request.UserId, cancellationToken);
         if (!userExists)
             throw new NotFoundException("User", request.UserId);
 

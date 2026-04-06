@@ -1,7 +1,6 @@
 ﻿using Microsoft.AspNetCore.Authorization;
 using Microsoft.AspNetCore.Mvc;
 using Zadana.Api.Controllers;
-using Zadana.Application.Modules.Files.Commands.DeleteFile;
 using Zadana.Application.Modules.Files.Commands.UploadFile;
 
 namespace Zadana.Api.Modules.Files.Controllers;
@@ -28,18 +27,6 @@ public class FilesController : ApiControllerBase
         var fileUrl = await Sender.Send(command);
         
         return Ok(new { url = fileUrl });
-    }
-
-
-    /// <summary>
-    /// Ø­Ø°Ù Ù…Ù„Ù Ù…Ù† Ø§Ù„Ø³ÙŠØ±ÙØ± ÙˆÙ‚Ø§Ø¹Ø¯Ø© Ø§Ù„Ø¨ÙŠØ§Ù†Ø§Øª
-    /// </summary>
-    [HttpDelete("{id:guid}")]
-    [Authorize]
-    public async Task<IActionResult> DeleteFile(Guid id)
-    {
-        await Sender.Send(new DeleteFileCommand(id));
-        return NoContent();
     }
 }
 

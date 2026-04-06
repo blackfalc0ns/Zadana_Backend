@@ -1,9 +1,7 @@
 using MediatR;
-using Microsoft.AspNetCore.Identity;
-using Microsoft.EntityFrameworkCore;
 using Zadana.Application.Common.Interfaces;
 using Zadana.Application.Modules.Identity.DTOs;
-using Zadana.Domain.Modules.Identity.Entities;
+using Zadana.Application.Modules.Identity.Interfaces;
 using Zadana.SharedKernel.Exceptions;
 using Zadana.Application.Common.Localization;
 using Microsoft.Extensions.Localization;
@@ -12,20 +10,17 @@ namespace Zadana.Application.Modules.Identity.Commands.ResendOtp;
 
 public class ResendOtpCommandHandler : IRequestHandler<ResendOtpCommand, AuthResponseDto>
 {
-    private readonly UserManager<User> _userManager;
+    private readonly IIdentityAccountService _identityAccountService;
     private readonly IOtpService _otpService;
-    private readonly IUnitOfWork _unitOfWork;
     private readonly IStringLocalizer<SharedResource> _localizer;
 
     public ResendOtpCommandHandler(
-        UserManager<User> userManager,
+        IIdentityAccountService identityAccountService,
         IOtpService otpService,
-        IUnitOfWork unitOfWork,
         IStringLocalizer<SharedResource> localizer)
     {
-        _userManager = userManager;
+        _identityAccountService = identityAccountService;
         _otpService = otpService;
-        _unitOfWork = unitOfWork;
         _localizer = localizer;
     }
 
@@ -36,30 +31,31 @@ public class ResendOtpCommandHandler : IRequestHandler<ResendOtpCommand, AuthRes
             throw new BusinessRuleException("EMAIL_REQUIRED", _localizer["RequiredField", _localizer["Email"].Value]);
         }
 
-        var user = await _userManager.FindByEmailAsync(request.Identifier);
-        if (user == null)
-        {
-            user = await _userManager.Users.FirstOrDefaultAsync(u => u.PhoneNumber == request.Identifier, cancellationToken);
-        }
-
-        if (user == null)
+        var otpResult = await _identityAccountService.ResendRegistrationOtpAsync(request.Identifier, cancellationToken);
+        if (otpResult.Status == OtpDispatchStatus.UserNotFound)
         {
             throw new BusinessRuleException("USER_NOT_FOUND", _localizer["USER_NOT_FOUND", request.Identifier]);
         }
 
-        if (!user.CanResendOtp())
+        if (otpResult.Status == OtpDispatchStatus.CooldownActive)
         {
-            var timeLeft = 60 - (int)(DateTime.UtcNow - user.LastOtpSentAt!.Value).TotalSeconds;
+            var timeLeft = otpResult.CooldownSecondsRemaining ?? 0;
             throw new BusinessRuleException("OTP_COOLDOWN", _localizer["OtpCooldown", timeLeft]);
         }
 
-        var otpCode = user.GenerateOtp();
-        await _userManager.UpdateAsync(user);
-        await _unitOfWork.SaveChangesAsync(cancellationToken);
+        if (otpResult.Status == OtpDispatchStatus.Failed)
+        {
+            var errors = string.Join(", ", otpResult.Errors ?? []);
+            throw new BusinessRuleException("IDENTITY_OPERATION_FAILED", $"{_localizer["IDENTITY_OPERATION_FAILED"]}: {errors}");
+        }
 
-        await _otpService.SendOtpEmailAsync(user.Email!, otpCode, cancellationToken);
+        var user = otpResult.Account!;
+        if (!string.IsNullOrWhiteSpace(user.Email) && !string.IsNullOrWhiteSpace(otpResult.OtpCode))
+        {
+            await _otpService.SendOtpEmailAsync(user.Email, otpResult.OtpCode, cancellationToken);
+        }
 
-        var userDto = new CurrentUserDto(user.Id, user.FullName, user.Email!, user.PhoneNumber!, user.Role.ToString());
+        var userDto = new CurrentUserDto(user.Id, user.FullName, user.Email, user.PhoneNumber, user.Role.ToString());
         return new AuthResponseDto(null, userDto, false, _localizer["OtpResentSuccessfully"]);
     }
 }

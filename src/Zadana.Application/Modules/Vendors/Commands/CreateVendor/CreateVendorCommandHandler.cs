@@ -1,5 +1,7 @@
 using MediatR;
 using Zadana.Application.Common.Interfaces;
+using Zadana.Application.Modules.Identity.Interfaces;
+using Zadana.Application.Modules.Vendors.Interfaces;
 using Zadana.Domain.Modules.Vendors.Entities;
 using Zadana.SharedKernel.Exceptions;
 
@@ -7,17 +9,24 @@ namespace Zadana.Application.Modules.Vendors.Commands.CreateVendor;
 
 public class CreateVendorCommandHandler : IRequestHandler<CreateVendorCommand, Guid>
 {
-    private readonly IApplicationDbContext _context;
+    private readonly IVendorRepository _vendorRepository;
+    private readonly IUnitOfWork _unitOfWork;
+    private readonly IIdentityAccountService _identityAccountService;
 
-    public CreateVendorCommandHandler(IApplicationDbContext context)
+    public CreateVendorCommandHandler(
+        IVendorRepository vendorRepository,
+        IUnitOfWork unitOfWork,
+        IIdentityAccountService identityAccountService)
     {
-        _context = context;
+        _vendorRepository = vendorRepository;
+        _unitOfWork = unitOfWork;
+        _identityAccountService = identityAccountService;
     }
 
     public async Task<Guid> Handle(CreateVendorCommand request, CancellationToken cancellationToken)
     {
         // 1. Check if user exists
-        var userExists = _context.Users.Any(u => u.Id == request.OwnerUserId);
+        var userExists = await _identityAccountService.ExistsByIdAsync(request.OwnerUserId, cancellationToken);
         if (!userExists)
         {
             throw new NotFoundException("User", request.OwnerUserId);
@@ -37,8 +46,8 @@ public class CreateVendorCommandHandler : IRequestHandler<CreateVendorCommand, G
             taxId: request.TaxNumber);
 
         // 3. Save to database
-        _context.Vendors.Add(vendor);
-        await _context.SaveChangesAsync(cancellationToken);
+        _vendorRepository.Add(vendor);
+        await _unitOfWork.SaveChangesAsync(cancellationToken);
 
         // 4. Return new ID
         return vendor.Id;

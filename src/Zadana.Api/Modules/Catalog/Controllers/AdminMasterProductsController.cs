@@ -1,28 +1,21 @@
-using MediatR;
 using Microsoft.AspNetCore.Authorization;
 using Microsoft.AspNetCore.Mvc;
+using Zadana.Api.Controllers;
+using Zadana.Api.Modules.Catalog.Requests;
 using Zadana.Application.Common.Models;
 using Zadana.Application.Modules.Catalog.Commands.CreateMasterProduct;
-using Zadana.Application.Modules.Catalog.Commands.UpdateMasterProduct;
 using Zadana.Application.Modules.Catalog.Commands.DeleteMasterProduct;
+using Zadana.Application.Modules.Catalog.Commands.UpdateMasterProduct;
 using Zadana.Application.Modules.Catalog.DTOs;
 using Zadana.Application.Modules.Catalog.Queries.GetMasterProductById;
 using Zadana.Application.Modules.Catalog.Queries.GetMasterProducts;
 
 namespace Zadana.Api.Modules.Catalog.Controllers;
 
-[ApiController]
 [Route("api/admin/catalog/products")]
 [Authorize(Roles = "Admin,SuperAdmin")]
-public class AdminMasterProductsController : ControllerBase
+public class AdminMasterProductsController : ApiControllerBase
 {
-    private readonly ISender _sender;
-
-    public AdminMasterProductsController(ISender sender)
-    {
-        _sender = sender;
-    }
-
     [HttpGet]
     public async Task<ActionResult<PaginatedList<MasterProductDto>>> GetProducts(
         [FromQuery] int pageNumber = 1,
@@ -31,38 +24,60 @@ public class AdminMasterProductsController : ControllerBase
         [FromQuery] Guid? categoryId = null,
         [FromQuery] Guid? brandId = null)
     {
-        var result = await _sender.Send(new GetMasterProductsQuery(searchTerm, categoryId, brandId, pageNumber, pageSize));
+        var result = await Sender.Send(new GetMasterProductsQuery(searchTerm, categoryId, brandId, pageNumber, pageSize));
         return Ok(result);
     }
 
     [HttpGet("{id}")]
     public async Task<ActionResult<MasterProductDto>> GetProduct(Guid id)
     {
-        var result = await _sender.Send(new GetMasterProductByIdQuery(id));
+        var result = await Sender.Send(new GetMasterProductByIdQuery(id));
         return Ok(result);
     }
 
     [HttpPost]
-    public async Task<ActionResult<Guid>> CreateProduct(CreateMasterProductCommand command)
+    public async Task<ActionResult<Guid>> CreateProduct([FromBody] CreateMasterProductRequest request)
     {
-        var result = await _sender.Send(command);
+        var command = new CreateMasterProductCommand(
+            request.CategoryId,
+            request.NameAr,
+            request.NameEn,
+            request.Slug,
+            request.Barcode,
+            request.DescriptionAr,
+            request.DescriptionEn,
+            request.BrandId,
+            request.UnitId,
+            request.Images);
+
+        var result = await Sender.Send(command);
         return Ok(result);
     }
 
     [HttpPut("{id}")]
-    public async Task<ActionResult> UpdateProduct(Guid id, UpdateMasterProductCommand command)
+    public async Task<ActionResult> UpdateProduct(Guid id, [FromBody] UpdateMasterProductRequest request)
     {
-        if (id != command.Id)
-            return BadRequest();
+        var command = new UpdateMasterProductCommand(
+            id,
+            request.CategoryId,
+            request.NameAr,
+            request.NameEn,
+            request.Slug,
+            request.Barcode,
+            request.DescriptionAr,
+            request.DescriptionEn,
+            request.BrandId,
+            request.UnitId,
+            request.Images);
 
-        await _sender.Send(command);
+        await Sender.Send(command);
         return NoContent();
     }
 
     [HttpDelete("{id}")]
     public async Task<ActionResult> DeleteProduct(Guid id)
     {
-        await _sender.Send(new DeleteMasterProductCommand(id));
+        await Sender.Send(new DeleteMasterProductCommand(id));
         return NoContent();
     }
 }

@@ -1,25 +1,29 @@
 using MediatR;
-using Microsoft.EntityFrameworkCore;
 using Zadana.Application.Common.Interfaces;
+using Zadana.Application.Modules.Vendors.Interfaces;
 using Zadana.SharedKernel.Exceptions;
 
 namespace Zadana.Application.Modules.Vendors.Commands.ApproveVendor;
 
 public class ApproveVendorCommandHandler : IRequestHandler<ApproveVendorCommand>
 {
-    private readonly IApplicationDbContext _db;
+    private readonly IVendorRepository _vendorRepository;
+    private readonly IUnitOfWork _unitOfWork;
     private readonly ICurrentUserService _currentUserService;
 
-    public ApproveVendorCommandHandler(IApplicationDbContext db, ICurrentUserService currentUserService)
+    public ApproveVendorCommandHandler(
+        IVendorRepository vendorRepository,
+        IUnitOfWork unitOfWork,
+        ICurrentUserService currentUserService)
     {
-        _db = db;
+        _vendorRepository = vendorRepository;
+        _unitOfWork = unitOfWork;
         _currentUserService = currentUserService;
     }
 
     public async Task Handle(ApproveVendorCommand request, CancellationToken cancellationToken)
     {
-        var vendor = await _db.Vendors
-            .FirstOrDefaultAsync(v => v.Id == request.VendorId, cancellationToken)
+        var vendor = await _vendorRepository.GetByIdAsync(request.VendorId, cancellationToken)
             ?? throw new NotFoundException("Vendor", request.VendorId);
 
         var adminId = _currentUserService.UserId
@@ -27,6 +31,6 @@ public class ApproveVendorCommandHandler : IRequestHandler<ApproveVendorCommand>
 
         vendor.Approve(request.CommissionRate, adminId);
 
-        await _db.SaveChangesAsync(cancellationToken);
+        await _unitOfWork.SaveChangesAsync(cancellationToken);
     }
 }

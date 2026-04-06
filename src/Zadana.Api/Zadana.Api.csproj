@@ -19,7 +19,6 @@
   <ItemGroup>
     <ProjectReference Include="..\Zadana.Application\Zadana.Application.csproj" />
     <ProjectReference Include="..\Zadana.Infrastructure\Zadana.Infrastructure.csproj" />
-    <ProjectReference Include="..\Zadana.Contracts\Zadana.Contracts.csproj" />
     <ProjectReference Include="..\Zadana.SharedKernel\Zadana.SharedKernel.csproj" />
   </ItemGroup>
 

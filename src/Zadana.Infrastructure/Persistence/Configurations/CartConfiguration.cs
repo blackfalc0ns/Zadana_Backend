@@ -22,16 +22,11 @@ public class CartConfiguration : IEntityTypeConfiguration<Cart>
             .HasForeignKey(x => x.UserId)
             .OnDelete(DeleteBehavior.Restrict);
 
-        builder.HasOne(x => x.Vendor)
-            .WithMany()
-            .HasForeignKey(x => x.VendorId)
-            .OnDelete(DeleteBehavior.Restrict);
-
         builder.HasMany(x => x.Items)
             .WithOne(x => x.Cart)
             .HasForeignKey(x => x.CartId)
             .OnDelete(DeleteBehavior.Cascade);
 
-        builder.HasIndex(x => new { x.UserId, x.VendorId }).IsUnique();
+        builder.HasIndex(x => x.UserId).IsUnique();
     }
 }

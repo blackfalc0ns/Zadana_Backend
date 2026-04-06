@@ -24,6 +24,7 @@ public static class DependencyInjection
         });
 
         services.AddScoped<Zadana.Application.Modules.Identity.Interfaces.IIdentityService, Zadana.Application.Modules.Identity.Services.IdentityService>();
+        services.AddScoped<Zadana.Application.Modules.Identity.Interfaces.IRegistrationWorkflow, Zadana.Application.Modules.Identity.Services.RegistrationWorkflow>();
         services.AddScoped<ICurrentVendorService, CurrentVendorService>();
 
         return services;
