@@ -26,6 +26,8 @@ public interface IApplicationDbContext
     DbSet<MasterProduct> MasterProducts { get; }
     DbSet<VendorProduct> VendorProducts { get; }
     DbSet<ProductRequest> ProductRequests { get; }
+    DbSet<BrandRequest> BrandRequests { get; }
+    DbSet<CategoryRequest> CategoryRequests { get; }
 
     // Orders & Carts
     DbSet<Cart> Carts { get; }

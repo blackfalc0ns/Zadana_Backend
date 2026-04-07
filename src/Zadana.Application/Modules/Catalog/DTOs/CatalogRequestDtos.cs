@@ -1,0 +1,76 @@
+using Zadana.Application.Common.Models;
+
+namespace Zadana.Application.Modules.Catalog.DTOs;
+
+public record CatalogRequestListItemDto(
+    Guid Id,
+    string RequestType,
+    Guid VendorId,
+    string VendorName,
+    string NameAr,
+    string NameEn,
+    string? DescriptionAr,
+    string? DescriptionEn,
+    Guid? CategoryId,
+    string? CategoryNameAr,
+    string? CategoryNameEn,
+    Guid? BrandId,
+    string? BrandNameAr,
+    string? BrandNameEn,
+    Guid? ParentCategoryId,
+    string? ParentCategoryNameAr,
+    string? ParentCategoryNameEn,
+    Guid? UnitId,
+    string? UnitNameAr,
+    string? UnitNameEn,
+    string? ImageUrl,
+    string Status,
+    string? RejectionReason,
+    string? ReviewedBy,
+    DateTime? ReviewedAtUtc,
+    DateTime CreatedAtUtc);
+
+public record CatalogRequestDetailDto(
+    Guid Id,
+    string RequestType,
+    Guid VendorId,
+    string VendorName,
+    string NameAr,
+    string NameEn,
+    string? DescriptionAr,
+    string? DescriptionEn,
+    Guid? CategoryId,
+    string? CategoryNameAr,
+    string? CategoryNameEn,
+    Guid? BrandId,
+    string? BrandNameAr,
+    string? BrandNameEn,
+    Guid? ParentCategoryId,
+    string? ParentCategoryNameAr,
+    string? ParentCategoryNameEn,
+    int? DisplayOrder,
+    Guid? UnitId,
+    string? UnitNameAr,
+    string? UnitNameEn,
+    string? ImageUrl,
+    string Status,
+    string? RejectionReason,
+    string? ReviewedBy,
+    DateTime? ReviewedAtUtc,
+    Guid? CreatedEntityId,
+    string? CreatedEntityType,
+    DateTime CreatedAtUtc);
+
+public record VendorCatalogNotificationDto(
+    Guid Id,
+    string Title,
+    string Body,
+    string? Type,
+    bool IsRead,
+    DateTime CreatedAtUtc);
+
+public record PagedCatalogRequestsDto(
+    PaginatedList<CatalogRequestListItemDto> Requests,
+    int PendingProducts,
+    int PendingBrands,
+    int PendingCategories);

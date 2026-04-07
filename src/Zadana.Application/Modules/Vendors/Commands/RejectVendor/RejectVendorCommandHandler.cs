@@ -8,12 +8,20 @@ namespace Zadana.Application.Modules.Vendors.Commands.RejectVendor;
 public class RejectVendorCommandHandler : IRequestHandler<RejectVendorCommand>
 {
     private readonly IVendorRepository _vendorRepository;
+    private readonly IVendorReviewAuditService _vendorReviewAuditService;
     private readonly IUnitOfWork _unitOfWork;
+    private readonly ICurrentUserService _currentUserService;
 
-    public RejectVendorCommandHandler(IVendorRepository vendorRepository, IUnitOfWork unitOfWork)
+    public RejectVendorCommandHandler(
+        IVendorRepository vendorRepository,
+        IVendorReviewAuditService vendorReviewAuditService,
+        IUnitOfWork unitOfWork,
+        ICurrentUserService currentUserService)
     {
         _vendorRepository = vendorRepository;
+        _vendorReviewAuditService = vendorReviewAuditService;
         _unitOfWork = unitOfWork;
+        _currentUserService = currentUserService;
     }
 
     public async Task Handle(RejectVendorCommand request, CancellationToken cancellationToken)
@@ -22,6 +30,16 @@ public class RejectVendorCommandHandler : IRequestHandler<RejectVendorCommand>
             ?? throw new NotFoundException("Vendor", request.VendorId);
 
         vendor.Reject(request.Reason);
+
+        await _vendorReviewAuditService.AppendEntryAsync(
+            vendor.UserId,
+            "rejected",
+            "danger",
+            request.Reason,
+            "Compliance Review",
+            "Vendor Compliance Desk",
+            _currentUserService.UserId,
+            cancellationToken: cancellationToken);
 
         await _unitOfWork.SaveChangesAsync(cancellationToken);
     }

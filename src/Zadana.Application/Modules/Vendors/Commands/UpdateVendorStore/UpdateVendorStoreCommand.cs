@@ -18,7 +18,11 @@ public record UpdateVendorStoreCommand(
     string? DescriptionAr,
     string? DescriptionEn,
     string? LogoUrl,
-    string? CommercialRegisterDocumentUrl) : IRequest<VendorWorkspaceDto>;
+    string? CommercialRegisterDocumentUrl,
+    string? Region,
+    string? City,
+    string? NationalAddress,
+    string? CommercialRegistrationNumber) : IRequest<VendorWorkspaceDto>;
 
 public class UpdateVendorStoreCommandValidator : AbstractValidator<UpdateVendorStoreCommand>
 {
@@ -31,6 +35,10 @@ public class UpdateVendorStoreCommandValidator : AbstractValidator<UpdateVendorS
         RuleFor(x => x.ContactPhone).NotEmpty().MaximumLength(20);
         RuleFor(x => x.DescriptionAr).MaximumLength(2000);
         RuleFor(x => x.DescriptionEn).MaximumLength(2000);
+        RuleFor(x => x.Region).MaximumLength(100);
+        RuleFor(x => x.City).MaximumLength(100);
+        RuleFor(x => x.NationalAddress).MaximumLength(500);
+        RuleFor(x => x.CommercialRegistrationNumber).MaximumLength(50);
     }
 }
 
@@ -68,7 +76,11 @@ public class UpdateVendorStoreCommandHandler : IRequestHandler<UpdateVendorStore
             request.DescriptionAr,
             request.DescriptionEn,
             request.LogoUrl,
-            request.CommercialRegisterDocumentUrl);
+            request.CommercialRegisterDocumentUrl,
+            request.Region,
+            request.City,
+            request.NationalAddress,
+            request.CommercialRegistrationNumber);
 
         await _unitOfWork.SaveChangesAsync(cancellationToken);
 

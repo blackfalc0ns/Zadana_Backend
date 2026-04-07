@@ -2,13 +2,32 @@ using Zadana.Domain.Modules.Catalog.Enums;
 
 namespace Zadana.Api.Modules.Catalog.Requests;
 
-public record SubmitProductRequestRequest(
-    string SuggestedNameAr,
-    string SuggestedNameEn,
-    Guid SuggestedCategoryId,
-    string? SuggestedDescriptionAr = null,
-    string? SuggestedDescriptionEn = null,
+public record SubmitProductRequestProductPayload(
+    string NameAr,
+    string NameEn,
+    string? DescriptionAr = null,
+    string? DescriptionEn = null,
+    Guid? CategoryId = null,
+    Guid? BrandId = null,
+    Guid? UnitId = null,
     string? ImageUrl = null);
+
+public record SubmitBrandRequestPayload(
+    string NameAr,
+    string NameEn,
+    string? LogoUrl = null);
+
+public record SubmitCategoryRequestPayload(
+    string NameAr,
+    string NameEn,
+    Guid? ParentCategoryId = null,
+    int DisplayOrder = 1,
+    string? ImageUrl = null);
+
+public record SubmitProductRequestRequest(
+    SubmitProductRequestProductPayload Product,
+    SubmitBrandRequestPayload? RequestedBrand = null,
+    SubmitCategoryRequestPayload? RequestedCategory = null);
 
 public record GetVendorProductRequestsRequest(
     int PageNumber = 1,
@@ -22,3 +41,10 @@ public record GetPendingProductRequestsRequest(
 public record ReviewProductRequestRequest(
     bool IsApproved,
     string? RejectionReason);
+
+public record GetCatalogRequestCenterRequest(
+    string? Type = null,
+    string? Status = null,
+    Guid? VendorId = null,
+    int PageNumber = 1,
+    int PageSize = 20);

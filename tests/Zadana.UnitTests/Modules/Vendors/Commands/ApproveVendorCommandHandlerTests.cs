@@ -14,6 +14,7 @@ namespace Zadana.UnitTests.Modules.Vendors.Commands;
 public class ApproveVendorCommandHandlerTests
 {
     private readonly Mock<ICurrentUserService> _currentUserServiceMock = new();
+    private readonly Mock<IVendorReviewAuditService> _vendorReviewAuditServiceMock = new();
     private readonly Mock<IVendorRepository> _vendorRepositoryMock = new();
     private readonly Mock<IIdentityAccountService> _identityAccountServiceMock = new();
     private readonly Mock<IUnitOfWork> _unitOfWorkMock = new();
@@ -23,8 +24,7 @@ public class ApproveVendorCommandHandlerTests
     {
         var vendor = new Vendor(Guid.NewGuid(), "Ar", "En", "Retail", "CR", "test@test.com", "123");
         var adminId = Guid.NewGuid();
-
-        _currentUserServiceMock.Setup(c => c.UserId).Returns(adminId);
+        _currentUserServiceMock.Setup(service => service.UserId).Returns(adminId);
         _vendorRepositoryMock
             .Setup(repository => repository.GetByIdAsync(vendor.Id, It.IsAny<CancellationToken>()))
             .ReturnsAsync(vendor);
@@ -38,6 +38,7 @@ public class ApproveVendorCommandHandlerTests
         var handler = new ApproveVendorCommandHandler(
             _vendorRepositoryMock.Object,
             _identityAccountServiceMock.Object,
+            _vendorReviewAuditServiceMock.Object,
             _unitOfWorkMock.Object,
             _currentUserServiceMock.Object);
 
@@ -52,7 +53,7 @@ public class ApproveVendorCommandHandlerTests
     [Fact]
     public async Task Handle_WithInvalidVendorId_ThrowsNotFoundException()
     {
-        _currentUserServiceMock.Setup(c => c.UserId).Returns(Guid.NewGuid());
+        _currentUserServiceMock.Setup(service => service.UserId).Returns(Guid.NewGuid());
         _vendorRepositoryMock
             .Setup(repository => repository.GetByIdAsync(It.IsAny<Guid>(), It.IsAny<CancellationToken>()))
             .ReturnsAsync((Vendor?)null);
@@ -60,6 +61,7 @@ public class ApproveVendorCommandHandlerTests
         var handler = new ApproveVendorCommandHandler(
             _vendorRepositoryMock.Object,
             _identityAccountServiceMock.Object,
+            _vendorReviewAuditServiceMock.Object,
             _unitOfWorkMock.Object,
             _currentUserServiceMock.Object);
 
@@ -72,7 +74,7 @@ public class ApproveVendorCommandHandlerTests
     {
         var vendor = new Vendor(Guid.NewGuid(), "Ar", "En", "Retail", "CR", "t@t.com", "1");
 
-        _currentUserServiceMock.Setup(c => c.UserId).Returns((Guid?)null);
+        _currentUserServiceMock.Setup(service => service.UserId).Returns((Guid?)null);
         _vendorRepositoryMock
             .Setup(repository => repository.GetByIdAsync(vendor.Id, It.IsAny<CancellationToken>()))
             .ReturnsAsync(vendor);
@@ -80,6 +82,7 @@ public class ApproveVendorCommandHandlerTests
         var handler = new ApproveVendorCommandHandler(
             _vendorRepositoryMock.Object,
             _identityAccountServiceMock.Object,
+            _vendorReviewAuditServiceMock.Object,
             _unitOfWorkMock.Object,
             _currentUserServiceMock.Object);
 

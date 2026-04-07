@@ -55,9 +55,11 @@ builder.Services.AddScoped<IApplicationDbContext>(provider => provider.GetRequir
 builder.Services.AddScoped<IUnitOfWork>(provider => provider.GetRequiredService<ApplicationDbContext>());
 builder.Services.AddScoped<IVendorRepository, VendorRepository>();
 builder.Services.AddScoped<IVendorReadService, VendorReadService>();
+builder.Services.AddScoped<IVendorReviewAuditService, VendorReviewAuditService>();
 builder.Services.AddScoped<IDriverRepository, DriverRepository>();
 builder.Services.AddScoped<IProductRequestRepository, ProductRequestRepository>();
 builder.Services.AddScoped<IProductRequestReadService, ProductRequestReadService>();
+builder.Services.AddScoped<ICatalogRequestReadService, CatalogRequestReadService>();
 builder.Services.AddScoped<IOrderRepository, OrderRepository>();
 builder.Services.AddScoped<IOrderReadService, OrderReadService>();
 
@@ -66,7 +68,14 @@ builder.Services.AddOptions<Zadana.Infrastructure.Settings.ImageKitSettings>()
     .ValidateDataAnnotations()
     .ValidateOnStart();
 
-builder.Services.AddTransient<IFileStorageService, Zadana.Infrastructure.Services.ImageKitFileStorageService>();
+if (builder.Environment.IsDevelopment())
+{
+    builder.Services.AddTransient<IFileStorageService, Zadana.Infrastructure.Modules.Files.Services.LocalFileStorageService>();
+}
+else
+{
+    builder.Services.AddTransient<IFileStorageService, Zadana.Infrastructure.Services.ImageKitFileStorageService>();
+}
 
 builder.Services.AddHttpContextAccessor();
 builder.Services.AddIdentity<User, IdentityRole<Guid>>(options =>
@@ -191,6 +200,7 @@ app.UseSwagger();
 app.UseSwaggerUI();
 
 app.UseHttpsRedirection();
+app.UseStaticFiles();
 
 var supportedCultures = new[] { "en", "ar" };
 var localizationOptions = new RequestLocalizationOptions()

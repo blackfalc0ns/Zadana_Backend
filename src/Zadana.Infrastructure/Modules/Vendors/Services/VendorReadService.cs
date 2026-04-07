@@ -3,6 +3,7 @@ using Zadana.Application.Common.Models;
 using Zadana.Application.Modules.Vendors.DTOs;
 using Zadana.Application.Modules.Vendors.Interfaces;
 using Zadana.Domain.Modules.Identity.Entities;
+using Zadana.Domain.Modules.Social.Entities;
 using Zadana.Domain.Modules.Vendors.Entities;
 using Zadana.Domain.Modules.Vendors.Enums;
 using Zadana.Infrastructure.Persistence;
@@ -103,7 +104,13 @@ public class VendorReadService : IVendorReadService
                 .FirstOrDefaultAsync(cancellationToken)
             : null;
 
-        return MapDetail(vendor, user, approvedByName);
+        var reviewNotifications = await _dbContext.Notifications
+            .AsNoTracking()
+            .Where(item => item.UserId == vendor.UserId && item.Type != null && item.Type.StartsWith("vendor-review|"))
+            .OrderByDescending(item => item.CreatedAtUtc)
+            .ToListAsync(cancellationToken);
+
+        return MapDetail(vendor, user, approvedByName, reviewNotifications);
     }
 
     public async Task<VendorWorkspaceDto?> GetWorkspaceByUserIdAsync(Guid userId, CancellationToken cancellationToken = default)
@@ -191,15 +198,54 @@ public class VendorReadService : IVendorReadService
             approvedByName,
             vendor.CreatedAtUtc,
             vendor.UpdatedAtUtc,
+            new VendorOperationsSettingsDto(
+                vendor.AcceptOrders,
+                vendor.MinimumOrderAmount,
+                vendor.PreparationTimeMinutes),
+            new VendorNotificationSettingsDto(
+                vendor.EmailNotificationsEnabled,
+                vendor.SmsNotificationsEnabled,
+                vendor.NewOrdersNotificationsEnabled),
             vendor.Branches.Count,
             vendor.BankAccounts.Count,
             MapBankAccount(primaryBankAccount),
             MapOperatingHours(primaryBranch));
     }
 
-    private static VendorDetailDto MapDetail(Vendor vendor, User user, string? approvedByName)
+    private static VendorDetailDto MapDetail(
+        Vendor vendor,
+        User user,
+        string? approvedByName,
+        IReadOnlyList<Notification> reviewNotifications)
     {
         var workspace = MapWorkspace(vendor, user, approvedByName);
+        var reviewNotes = reviewNotifications
+            .Select(MapReviewNote)
+            .ToList();
+        var reviewStartedAtUtc = reviewNotifications
+            .FirstOrDefault(item => GetReviewKind(item.Type) == "start-review")
+            ?.CreatedAtUtc;
+        var requestedChangesAtUtc = reviewNotifications
+            .FirstOrDefault(item => GetReviewKind(item.Type) == "request-documents")
+            ?.CreatedAtUtc;
+        var reviewCompletedAtUtc = vendor.ApprovedAtUtc
+            ?? reviewNotifications
+                .FirstOrDefault(item =>
+                    GetReviewKind(item.Type) == "approved"
+                    || GetReviewKind(item.Type) == "rejected")
+                ?.CreatedAtUtc;
+        var reviewDecisionReason = reviewNotifications
+            .FirstOrDefault(item =>
+                GetReviewKind(item.Type) == "request-documents"
+                || GetReviewKind(item.Type) == "rejected"
+                || GetReviewKind(item.Type) == "suspended"
+                || GetReviewKind(item.Type) == "archived"
+                || GetReviewKind(item.Type) == "locked")
+            ?.Body
+            ?? workspace.RejectionReason
+            ?? workspace.SuspensionReason
+            ?? workspace.ArchiveReason
+            ?? workspace.LockReason;
 
         return new VendorDetailDto(
             workspace.Id,
@@ -234,16 +280,40 @@ public class VendorReadService : IVendorReadService
             workspace.ApprovedByName,
             workspace.CreatedAtUtc,
             workspace.UpdatedAtUtc,
+            reviewStartedAtUtc,
+            reviewCompletedAtUtc,
+            requestedChangesAtUtc,
+            reviewDecisionReason,
             workspace.OwnerName ?? user.FullName,
             workspace.OwnerEmail ?? user.Email ?? string.Empty,
             workspace.OwnerPhone ?? user.PhoneNumber ?? string.Empty,
             workspace.IdNumber,
             workspace.Nationality,
             workspace.PayoutCycle,
+            workspace.OperationsSettings,
+            workspace.NotificationSettings,
             workspace.PrimaryBankAccount,
             workspace.OperatingHours,
+            reviewNotes,
             workspace.BranchesCount,
             workspace.BankAccountsCount);
+    }
+
+    private static VendorReviewNoteDto MapReviewNote(Notification notification)
+    {
+        var tone = GetReviewTone(notification.Type);
+        var roleLabel = GetReviewRole(notification.Type);
+        var kind = GetReviewKind(notification.Type);
+
+        return new VendorReviewNoteDto(
+            notification.Id.ToString(),
+            notification.Title,
+            roleLabel,
+            notification.CreatedAtUtc,
+            notification.Body,
+            null,
+            tone,
+            kind != "note");
     }
 
     private static VendorBranch? GetPrimaryBranch(Vendor vendor) =>
@@ -286,4 +356,26 @@ public class VendorReadService : IVendorReadService
 
     private static string NormalizeVendorStatus(VendorStatus status) =>
         status == VendorStatus.PendingReview ? "Pending" : status.ToString();
+
+    private static string GetReviewKind(string? type) => GetReviewMeta(type).Kind;
+
+    private static string GetReviewTone(string? type) => GetReviewMeta(type).Tone;
+
+    private static string GetReviewRole(string? type) => GetReviewMeta(type).RoleLabel;
+
+    private static (string Kind, string Tone, string RoleLabel) GetReviewMeta(string? type)
+    {
+        if (string.IsNullOrWhiteSpace(type))
+        {
+            return ("note", "info", "Vendor Review");
+        }
+
+        var parts = type.Split('|', 4, StringSplitOptions.TrimEntries);
+        if (parts.Length < 4 || !string.Equals(parts[0], "vendor-review", StringComparison.OrdinalIgnoreCase))
+        {
+            return ("note", "info", "Vendor Review");
+        }
+
+        return (parts[1], parts[2], parts[3]);
+    }
 }

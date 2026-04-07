@@ -8,18 +8,32 @@ public class LocalFileStorageService : IFileStorageService
 {
     private readonly IWebHostEnvironment _environment;
     private readonly IHttpContextAccessor _httpContextAccessor;
+    private readonly string _webRootPath;
 
     public LocalFileStorageService(IWebHostEnvironment environment, IHttpContextAccessor httpContextAccessor)
     {
         _environment = environment;
         _httpContextAccessor = httpContextAccessor;
+        _webRootPath = string.IsNullOrWhiteSpace(_environment.WebRootPath)
+            ? Path.Combine(_environment.ContentRootPath, "wwwroot")
+            : _environment.WebRootPath;
     }
 
     public async Task<string> UploadAsync(FileUploadDto file, string directory, CancellationToken cancellationToken = default)
     {
-        if (file.ContentStream == null || file.ContentStream.Length == 0)
+        if (file.ContentStream == null || !file.ContentStream.CanRead)
         {
             throw new ArgumentException("File stream cannot be empty.");
+        }
+
+        if (file.ContentStream.CanSeek)
+        {
+            file.ContentStream.Position = 0;
+
+            if (file.ContentStream.Length == 0)
+            {
+                throw new ArgumentException("File stream cannot be empty.");
+            }
         }
 
         // Generate safe unique filename
@@ -27,7 +41,9 @@ public class LocalFileStorageService : IFileStorageService
         var uniqueFileName = $"{Guid.NewGuid()}{extension}";
 
         // Ensure directory exists in wwwroot
-        var uploadPath = Path.Combine(_environment.WebRootPath, directory);
+        Directory.CreateDirectory(_webRootPath);
+
+        var uploadPath = Path.Combine(_webRootPath, directory);
         if (!Directory.Exists(uploadPath))
         {
             Directory.CreateDirectory(uploadPath);
@@ -56,7 +72,7 @@ public class LocalFileStorageService : IFileStorageService
         {
             var uri = new Uri(fileUrl);
             var localPath = uri.LocalPath.TrimStart('/');
-            var fullPath = Path.Combine(_environment.WebRootPath, localPath);
+            var fullPath = Path.Combine(_webRootPath, localPath);
 
             if (File.Exists(fullPath))
             {

@@ -42,6 +42,12 @@ public class Vendor : BaseEntity
     public DateTime? LastStatusChangedAtUtc { get; private set; }
     public string? LogoUrl { get; private set; }
     public string? CommercialRegisterDocumentUrl { get; private set; }
+    public bool AcceptOrders { get; private set; } = true;
+    public decimal? MinimumOrderAmount { get; private set; }
+    public int? PreparationTimeMinutes { get; private set; }
+    public bool EmailNotificationsEnabled { get; private set; } = true;
+    public bool SmsNotificationsEnabled { get; private set; }
+    public bool NewOrdersNotificationsEnabled { get; private set; } = true;
 
     // Navigation
     public ICollection<VendorBranch> Branches { get; private set; } = [];
@@ -97,6 +103,9 @@ public class Vendor : BaseEntity
         PayoutCycle = NormalizeOptional(payoutCycle);
         LogoUrl = logoUrl;
         CommercialRegisterDocumentUrl = commercialRegisterDocumentUrl;
+        AcceptOrders = true;
+        EmailNotificationsEnabled = true;
+        NewOrdersNotificationsEnabled = true;
         Status = VendorStatus.PendingReview;
         LastStatusChangedAtUtc = DateTime.UtcNow;
     }
@@ -127,7 +136,11 @@ public class Vendor : BaseEntity
         string? descriptionAr,
         string? descriptionEn,
         string? logoUrl,
-        string? commercialRegisterDocumentUrl)
+        string? commercialRegisterDocumentUrl,
+        string? region = null,
+        string? city = null,
+        string? nationalAddress = null,
+        string? commercialRegistrationNumber = null)
     {
         BusinessNameAr = businessNameAr.Trim();
         BusinessNameEn = businessNameEn.Trim();
@@ -136,6 +149,12 @@ public class Vendor : BaseEntity
         ContactPhone = contactPhone.Trim();
         DescriptionAr = NormalizeOptional(descriptionAr);
         DescriptionEn = NormalizeOptional(descriptionEn);
+        Region = NormalizeOptional(region) ?? Region;
+        City = NormalizeOptional(city) ?? City;
+        NationalAddress = NormalizeOptional(nationalAddress) ?? NationalAddress;
+        CommercialRegistrationNumber = string.IsNullOrWhiteSpace(commercialRegistrationNumber)
+            ? CommercialRegistrationNumber
+            : commercialRegistrationNumber.Trim();
 
         if (!string.IsNullOrWhiteSpace(logoUrl))
         {
@@ -202,6 +221,38 @@ public class Vendor : BaseEntity
         UpdatedAtUtc = DateTime.UtcNow;
     }
 
+    public void UpdateOperationsSettings(
+        bool acceptOrders,
+        decimal? minimumOrderAmount,
+        int? preparationTimeMinutes)
+    {
+        if (minimumOrderAmount is < 0)
+        {
+            throw new BusinessRuleException("InvalidMinimumOrderAmount", string.Empty);
+        }
+
+        if (preparationTimeMinutes is < 0)
+        {
+            throw new BusinessRuleException("InvalidPreparationTimeMinutes", string.Empty);
+        }
+
+        AcceptOrders = acceptOrders;
+        MinimumOrderAmount = minimumOrderAmount;
+        PreparationTimeMinutes = preparationTimeMinutes;
+        UpdatedAtUtc = DateTime.UtcNow;
+    }
+
+    public void UpdateNotificationSettings(
+        bool emailNotificationsEnabled,
+        bool smsNotificationsEnabled,
+        bool newOrdersNotificationsEnabled)
+    {
+        EmailNotificationsEnabled = emailNotificationsEnabled;
+        SmsNotificationsEnabled = smsNotificationsEnabled;
+        NewOrdersNotificationsEnabled = newOrdersNotificationsEnabled;
+        UpdatedAtUtc = DateTime.UtcNow;
+    }
+
     public void Approve(decimal commissionRate, Guid approvedBy)
     {
         if (Status != VendorStatus.PendingReview)
@@ -257,11 +308,14 @@ public class Vendor : BaseEntity
             throw new BusinessRuleException("VendorInvalidStatusForLock", $"Status: {Status}");
         }
 
-        Status = VendorStatus.Suspended;
         LockReason = reason.Trim();
         LockedAtUtc = DateTime.UtcNow;
-        SuspensionReason ??= reason.Trim();
-        SuspendedAtUtc ??= DateTime.UtcNow;
+
+        if (Status == VendorStatus.Active)
+        {
+            Status = VendorStatus.Suspended;
+        }
+
         LastStatusChangedAtUtc = DateTime.UtcNow;
         UpdatedAtUtc = DateTime.UtcNow;
     }
@@ -271,7 +325,10 @@ public class Vendor : BaseEntity
         LockReason = null;
         LockedAtUtc = null;
 
-        if (Status == VendorStatus.Suspended && ArchivedAtUtc == null)
+        if (Status == VendorStatus.Suspended
+            && ArchivedAtUtc == null
+            && string.IsNullOrWhiteSpace(SuspensionReason)
+            && string.IsNullOrWhiteSpace(RejectionReason))
         {
             Status = VendorStatus.Active;
         }

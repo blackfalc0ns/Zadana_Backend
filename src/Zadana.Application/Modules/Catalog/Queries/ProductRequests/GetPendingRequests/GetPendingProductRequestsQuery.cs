@@ -17,9 +17,9 @@ public record AdminProductRequestDto(
     string SuggestedNameEn,
     string? SuggestedDescriptionAr,
     string? SuggestedDescriptionEn,
-    Guid SuggestedCategoryId,
-    string CategoryNameAr,
-    string CategoryNameEn,
+    Guid? SuggestedCategoryId,
+    string? CategoryNameAr,
+    string? CategoryNameEn,
     string? ImageUrl,
     DateTime CreatedAt
 );

@@ -55,6 +55,8 @@ public class GetVendorProfileQueryHandlerTests
             "Admin User",
             DateTime.UtcNow,
             DateTime.UtcNow,
+            new VendorOperationsSettingsDto(true, null, null),
+            new VendorNotificationSettingsDto(true, false, true),
             1,
             1,
             null,

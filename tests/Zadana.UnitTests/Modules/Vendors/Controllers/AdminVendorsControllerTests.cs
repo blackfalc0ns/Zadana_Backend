@@ -10,11 +10,11 @@ using Zadana.Application.Common.Localization;
 using Zadana.Application.Common.Models;
 using Zadana.Application.Modules.Vendors.Commands.ApproveVendor;
 using Zadana.Application.Modules.Vendors.Commands.RejectVendor;
+using Zadana.Application.Modules.Vendors.Commands.ReactivateVendor;
 using Zadana.Application.Modules.Vendors.Commands.SuspendVendor;
 using Zadana.Application.Modules.Vendors.DTOs;
 using Zadana.Application.Modules.Vendors.Queries.GetAllVendors;
 using Zadana.Application.Modules.Vendors.Queries.GetVendorDetail;
-using Zadana.Domain.Modules.Vendors.Enums;
 
 namespace Zadana.UnitTests.Modules.Vendors.Controllers;
 
@@ -26,7 +26,7 @@ public class AdminVendorsControllerTests
 
     public AdminVendorsControllerTests()
     {
-        _localizerMock.Setup(x => x[It.IsAny<string>()])
+        _localizerMock.Setup(localizer => localizer[It.IsAny<string>()])
             .Returns((string key) => new LocalizedString(key, key));
 
         _controller = new AdminVendorsController(_localizerMock.Object);
@@ -53,7 +53,7 @@ public class AdminVendorsControllerTests
         };
         var paginatedList = new PaginatedList<VendorListItemDto>(items, 1, 1, 10);
 
-        _senderMock.Setup(x => x.Send(It.IsAny<GetAllVendorsQuery>(), default))
+        _senderMock.Setup(sender => sender.Send(It.IsAny<GetAllVendorsQuery>(), default))
             .ReturnsAsync(paginatedList);
 
         var result = await _controller.GetAllVendors(null, null, 1, 10);
@@ -99,18 +99,25 @@ public class AdminVendorsControllerTests
             null,
             DateTime.UtcNow,
             DateTime.UtcNow,
+            null,
+            null,
+            null,
+            null,
             "Owner",
             "o@t.com",
             "123",
             null,
             null,
             null,
+            new VendorOperationsSettingsDto(true, null, null),
+            new VendorNotificationSettingsDto(true, false, true),
             null,
+            [],
             [],
             0,
             0);
 
-        _senderMock.Setup(x => x.Send(It.Is<GetVendorDetailQuery>(q => q.VendorId == vendorId), default))
+        _senderMock.Setup(sender => sender.Send(It.Is<GetVendorDetailQuery>(query => query.VendorId == vendorId), default))
             .ReturnsAsync(dto);
 
         var result = await _controller.GetVendorDetail(vendorId);
@@ -127,7 +134,7 @@ public class AdminVendorsControllerTests
 
         var result = await _controller.ApproveVendor(vendorId, request);
 
-        _senderMock.Verify(x => x.Send(It.Is<ApproveVendorCommand>(c => c.VendorId == vendorId && c.CommissionRate == 15.5m), default), Times.Once);
+        _senderMock.Verify(sender => sender.Send(It.Is<ApproveVendorCommand>(command => command.VendorId == vendorId && command.CommissionRate == 15.5m), default), Times.Once);
         result.Should().BeOfType<OkObjectResult>();
     }
 
@@ -139,7 +146,7 @@ public class AdminVendorsControllerTests
 
         var result = await _controller.RejectVendor(vendorId, request);
 
-        _senderMock.Verify(x => x.Send(It.Is<RejectVendorCommand>(c => c.VendorId == vendorId && c.Reason == "Missing documents"), default), Times.Once);
+        _senderMock.Verify(sender => sender.Send(It.Is<RejectVendorCommand>(command => command.VendorId == vendorId && command.Reason == "Missing documents"), default), Times.Once);
         result.Should().BeOfType<OkObjectResult>();
     }
 
@@ -151,7 +158,18 @@ public class AdminVendorsControllerTests
 
         var result = await _controller.SuspendVendor(vendorId, request);
 
-        _senderMock.Verify(x => x.Send(It.Is<SuspendVendorCommand>(c => c.VendorId == vendorId && c.Reason == "Policy violation"), default), Times.Once);
+        _senderMock.Verify(sender => sender.Send(It.Is<SuspendVendorCommand>(command => command.VendorId == vendorId && command.Reason == "Policy violation"), default), Times.Once);
+        result.Should().BeOfType<OkObjectResult>();
+    }
+
+    [Fact]
+    public async Task ReactivateVendor_ReturnsOkResult()
+    {
+        var vendorId = Guid.NewGuid();
+
+        var result = await _controller.ReactivateVendor(vendorId);
+
+        _senderMock.Verify(sender => sender.Send(It.Is<ReactivateVendorCommand>(command => command.VendorId == vendorId), default), Times.Once);
         result.Should().BeOfType<OkObjectResult>();
     }
 }

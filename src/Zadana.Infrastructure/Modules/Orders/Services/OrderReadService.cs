@@ -1,4 +1,5 @@
 using Microsoft.EntityFrameworkCore;
+using Zadana.Application.Common.Models;
 using Zadana.Application.Modules.Orders.DTOs;
 using Zadana.Application.Modules.Orders.Interfaces;
 using Zadana.Infrastructure.Persistence;
@@ -40,4 +41,32 @@ public class OrderReadService : IOrderReadService
                     item.UnitPrice,
                     item.LineTotal)).ToList()))
             .FirstOrDefaultAsync(cancellationToken);
+
+    public Task<PaginatedList<AdminVendorOrderListItemDto>> GetVendorOrdersAsync(
+        Guid vendorId,
+        int page,
+        int pageSize,
+        CancellationToken cancellationToken = default)
+    {
+        var query = _dbContext.Orders
+            .AsNoTracking()
+            .Where(order => order.VendorId == vendorId)
+            .OrderByDescending(order => order.PlacedAtUtc)
+            .Select(order => new AdminVendorOrderListItemDto(
+                order.Id,
+                order.OrderNumber,
+                order.VendorId,
+                order.UserId,
+                order.User.FullName,
+                order.Status.ToString(),
+                order.PaymentStatus.ToString(),
+                order.Subtotal,
+                order.DeliveryFee,
+                order.CommissionAmount,
+                order.TotalAmount,
+                order.Items.Count,
+                order.PlacedAtUtc));
+
+        return PaginatedList<AdminVendorOrderListItemDto>.CreateAsync(query, page, pageSize, cancellationToken);
+    }
 }

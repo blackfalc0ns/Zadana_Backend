@@ -23,3 +23,18 @@ public record OrderItemDto(
     int Quantity,
     decimal UnitPrice,
     decimal LineTotal);
+
+public record AdminVendorOrderListItemDto(
+    Guid Id,
+    string OrderNumber,
+    Guid VendorId,
+    Guid CustomerId,
+    string CustomerName,
+    string Status,
+    string PaymentStatus,
+    decimal Subtotal,
+    decimal DeliveryFee,
+    decimal CommissionAmount,
+    decimal TotalAmount,
+    int ItemsCount,
+    DateTime PlacedAtUtc);

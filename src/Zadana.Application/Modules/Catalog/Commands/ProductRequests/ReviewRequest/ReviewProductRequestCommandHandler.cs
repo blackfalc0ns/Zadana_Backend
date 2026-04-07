@@ -1,33 +1,35 @@
 using MediatR;
+using Microsoft.EntityFrameworkCore;
 using Microsoft.Extensions.Localization;
 using Zadana.Application.Common.Extensions;
 using Zadana.Application.Common.Interfaces;
 using Zadana.Application.Common.Localization;
-using Zadana.Application.Modules.Catalog.Interfaces;
+using Zadana.Application.Modules.Identity.Interfaces;
 using Zadana.Domain.Modules.Catalog.Entities;
 using Zadana.Domain.Modules.Catalog.Enums;
 using Zadana.Domain.Modules.Identity.Enums;
+using Zadana.Domain.Modules.Social.Entities;
 using Zadana.SharedKernel.Exceptions;
 
 namespace Zadana.Application.Modules.Catalog.Commands.ProductRequests.ReviewRequest;
 
 public class ReviewProductRequestCommandHandler : IRequestHandler<ReviewProductRequestCommand, Guid?>
 {
-    private readonly IProductRequestRepository _productRequestRepository;
+    private readonly IApplicationDbContext _context;
     private readonly ICurrentUserService _currentUserService;
+    private readonly IIdentityAccountService _identityAccountService;
     private readonly IStringLocalizer<SharedResource> _localizer;
-    private readonly IUnitOfWork _unitOfWork;
 
     public ReviewProductRequestCommandHandler(
-        IProductRequestRepository productRequestRepository,
+        IApplicationDbContext context,
         ICurrentUserService currentUserService,
-        IStringLocalizer<SharedResource> localizer,
-        IUnitOfWork unitOfWork)
+        IIdentityAccountService identityAccountService,
+        IStringLocalizer<SharedResource> localizer)
     {
-        _productRequestRepository = productRequestRepository;
+        _context = context;
         _currentUserService = currentUserService;
+        _identityAccountService = identityAccountService;
         _localizer = localizer;
-        _unitOfWork = unitOfWork;
     }
 
     public async Task<Guid?> Handle(ReviewProductRequestCommand request, CancellationToken cancellationToken)
@@ -37,7 +39,11 @@ public class ReviewProductRequestCommandHandler : IRequestHandler<ReviewProductR
             throw new ForbiddenAccessException(_localizer["UNAUTHORIZED_REVIEW_REQUESTS"]);
         }
 
-        var productRequest = await _productRequestRepository.GetByIdAsync(request.ProductRequestId, cancellationToken);
+        var productRequest = await _context.ProductRequests
+            .Include(item => item.Vendor)
+            .Include(item => item.BrandRequest)
+            .Include(item => item.CategoryRequest)
+            .FirstOrDefaultAsync(item => item.Id == request.ProductRequestId, cancellationToken);
         if (productRequest == null)
         {
             throw new NotFoundException(nameof(ProductRequest), request.ProductRequestId);
@@ -48,9 +54,36 @@ public class ReviewProductRequestCommandHandler : IRequestHandler<ReviewProductR
             throw new BusinessRuleException("REQUEST_ALREADY_REVIEWED", _localizer["REQUEST_ALREADY_REVIEWED"]);
         }
 
+        var reviewerName = await ResolveReviewerNameAsync(cancellationToken);
+
         if (request.IsApproved)
         {
-            productRequest.Approve();
+            var resolvedCategoryId = productRequest.SuggestedCategoryId;
+            if (!resolvedCategoryId.HasValue && productRequest.CategoryRequest is not null)
+            {
+                if (productRequest.CategoryRequest.Status != ApprovalStatus.Approved || !productRequest.CategoryRequest.CreatedCategoryId.HasValue)
+                {
+                    throw new BusinessRuleException("CATEGORY_REQUEST_NOT_APPROVED", _localizer["REQUEST_ALREADY_REVIEWED"]);
+                }
+
+                resolvedCategoryId = productRequest.CategoryRequest.CreatedCategoryId.Value;
+            }
+
+            if (!resolvedCategoryId.HasValue)
+            {
+                throw new BadRequestException("CATEGORY_REQUIRED", _localizer["RequiredField"]);
+            }
+
+            var resolvedBrandId = productRequest.SuggestedBrandId;
+            if (!resolvedBrandId.HasValue && productRequest.BrandRequest is not null)
+            {
+                if (productRequest.BrandRequest.Status != ApprovalStatus.Approved || !productRequest.BrandRequest.CreatedBrandId.HasValue)
+                {
+                    throw new BusinessRuleException("BRAND_REQUEST_NOT_APPROVED", _localizer["REQUEST_ALREADY_REVIEWED"]);
+                }
+
+                resolvedBrandId = productRequest.BrandRequest.CreatedBrandId.Value;
+            }
 
             var slug = !string.IsNullOrWhiteSpace(productRequest.SuggestedNameEn)
                 ? productRequest.SuggestedNameEn.ToLowerInvariant().Replace(" ", "-")
@@ -60,7 +93,9 @@ public class ReviewProductRequestCommandHandler : IRequestHandler<ReviewProductR
                 nameAr: productRequest.SuggestedNameAr,
                 nameEn: productRequest.SuggestedNameEn,
                 slug: slug,
-                categoryId: productRequest.SuggestedCategoryId,
+                categoryId: resolvedCategoryId.Value,
+                brandId: resolvedBrandId,
+                unitOfMeasureId: productRequest.SuggestedUnitOfMeasureId,
                 descriptionAr: productRequest.SuggestedDescriptionAr,
                 descriptionEn: productRequest.SuggestedDescriptionEn
             );
@@ -70,8 +105,16 @@ public class ReviewProductRequestCommandHandler : IRequestHandler<ReviewProductR
                 masterProduct.AddImage(productRequest.ImageUrl, productRequest.SuggestedNameEn, 0, true);
             }
 
-            _productRequestRepository.AddMasterProduct(masterProduct);
-            await _unitOfWork.SaveChangesAsync(cancellationToken);
+            _context.MasterProducts.Add(masterProduct);
+            productRequest.Approve(reviewerName, masterProduct.Id);
+
+            _context.Notifications.Add(new Notification(
+                productRequest.Vendor.UserId,
+                "Catalog Request Approved",
+                $"Your product request '{productRequest.SuggestedNameEn}' has been approved.",
+                "catalog_request_product"));
+
+            await _context.SaveChangesAsync(cancellationToken);
             return masterProduct.Id;
         }
 
@@ -80,8 +123,26 @@ public class ReviewProductRequestCommandHandler : IRequestHandler<ReviewProductR
             throw new BadRequestException("REJECTION_REASON_REQUIRED", _localizer["REJECTION_REASON_REQUIRED"]);
         }
 
-        productRequest.Reject(request.RejectionReason);
-        await _unitOfWork.SaveChangesAsync(cancellationToken);
+        productRequest.Reject(request.RejectionReason, reviewerName);
+
+        _context.Notifications.Add(new Notification(
+            productRequest.Vendor.UserId,
+            "Catalog Request Rejected",
+            $"Your product request '{productRequest.SuggestedNameEn}' was rejected. Reason: {request.RejectionReason}",
+            "catalog_request_product"));
+
+        await _context.SaveChangesAsync(cancellationToken);
         return null;
+    }
+
+    private async Task<string> ResolveReviewerNameAsync(CancellationToken cancellationToken)
+    {
+        if (!_currentUserService.UserId.HasValue)
+        {
+            return "Admin";
+        }
+
+        var reviewer = await _identityAccountService.FindByIdAsync(_currentUserService.UserId.Value, cancellationToken);
+        return string.IsNullOrWhiteSpace(reviewer?.FullName) ? "Admin" : reviewer.FullName;
     }
 }

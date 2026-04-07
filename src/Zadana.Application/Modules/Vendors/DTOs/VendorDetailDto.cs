@@ -33,6 +33,10 @@ public record VendorDetailDto(
     string? ApprovedByName,
     DateTime CreatedAtUtc,
     DateTime UpdatedAtUtc,
+    DateTime? ReviewStartedAtUtc,
+    DateTime? ReviewCompletedAtUtc,
+    DateTime? RequestedChangesAtUtc,
+    string? ReviewDecisionReason,
     // Owner info
     string OwnerName,
     string OwnerEmail,
@@ -40,8 +44,11 @@ public record VendorDetailDto(
     string? IdNumber,
     string? Nationality,
     string? PayoutCycle,
+    VendorOperationsSettingsDto OperationsSettings,
+    VendorNotificationSettingsDto NotificationSettings,
     VendorBankAccountDto? PrimaryBankAccount,
     IReadOnlyList<VendorOperatingHourDto> OperatingHours,
+    IReadOnlyList<VendorReviewNoteDto> ReviewNotes,
     // Counts
     int BranchesCount,
     int BankAccountsCount);

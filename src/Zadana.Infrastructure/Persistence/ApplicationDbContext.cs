@@ -43,6 +43,8 @@ public class ApplicationDbContext : IdentityDbContext<User, IdentityRole<Guid>, 
     public DbSet<MasterProduct> MasterProducts => Set<MasterProduct>();
     public DbSet<VendorProduct> VendorProducts => Set<VendorProduct>();
     public DbSet<ProductRequest> ProductRequests => Set<ProductRequest>();
+    public DbSet<BrandRequest> BrandRequests => Set<BrandRequest>();
+    public DbSet<CategoryRequest> CategoryRequests => Set<CategoryRequest>();
 
     // Orders & Carts
     public DbSet<Cart> Carts => Set<Cart>();

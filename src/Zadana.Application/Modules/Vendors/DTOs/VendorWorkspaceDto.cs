@@ -39,6 +39,8 @@ public record VendorWorkspaceDto(
     string? ApprovedByName,
     DateTime CreatedAtUtc,
     DateTime UpdatedAtUtc,
+    VendorOperationsSettingsDto OperationsSettings,
+    VendorNotificationSettingsDto NotificationSettings,
     int BranchesCount,
     int BankAccountsCount,
     VendorBankAccountDto? PrimaryBankAccount,

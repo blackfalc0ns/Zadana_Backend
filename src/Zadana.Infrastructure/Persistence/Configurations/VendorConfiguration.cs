@@ -82,6 +82,18 @@ public class VendorConfiguration : IEntityTypeConfiguration<Vendor>
         builder.Property(v => v.CommissionRate)
             .HasPrecision(5, 2);
 
+        builder.Property(v => v.AcceptOrders)
+            .HasDefaultValue(true);
+
+        builder.Property(v => v.MinimumOrderAmount)
+            .HasPrecision(18, 2);
+
+        builder.Property(v => v.EmailNotificationsEnabled)
+            .HasDefaultValue(true);
+
+        builder.Property(v => v.NewOrdersNotificationsEnabled)
+            .HasDefaultValue(true);
+
         builder.Property(v => v.Status)
             .IsRequired()
             .HasMaxLength(30)

@@ -55,7 +55,11 @@ public record UpdateVendorStoreRequest(
     string? DescriptionAr,
     string? DescriptionEn,
     string? LogoUrl,
-    string? CommercialRegisterDocumentUrl);
+    string? CommercialRegisterDocumentUrl,
+    string? Region,
+    string? City,
+    string? NationalAddress,
+    string? CommercialRegistrationNumber);
 
 public record UpdateVendorOwnerRequest(
     string OwnerName,
@@ -91,6 +95,16 @@ public record UpdateVendorOperatingHourRequest(
 
 public record UpdateVendorHoursRequest(IReadOnlyCollection<UpdateVendorOperatingHourRequest> Hours);
 
+public record UpdateVendorOperationsSettingsRequest(
+    bool AcceptOrders,
+    decimal? MinimumOrderAmount,
+    int? PreparationTimeMinutes);
+
+public record UpdateVendorNotificationSettingsRequest(
+    bool EmailNotificationsEnabled,
+    bool SmsNotificationsEnabled,
+    bool NewOrdersNotificationsEnabled);
+
 public record ApproveVendorRequest(decimal CommissionRate);
 
 public record RejectVendorRequest(string Reason);
@@ -112,7 +126,11 @@ public record AdminUpdateVendorStoreRequest(
     string? DescriptionAr,
     string? DescriptionEn,
     string? LogoUrl,
-    string? CommercialRegisterDocumentUrl);
+    string? CommercialRegisterDocumentUrl,
+    string? Region,
+    string? City,
+    string? NationalAddress,
+    string? CommercialRegistrationNumber);
 
 public record AdminUpdateVendorOwnerRequest(
     string OwnerName,
@@ -132,3 +150,32 @@ public record AdminUpdateVendorLegalBankingRequest(
     string? SwiftCode,
     string? PayoutCycle,
     string? CommercialRegisterDocumentUrl);
+
+public record AdminUpdateVendorContactRequest(
+    string Region,
+    string City,
+    string NationalAddress);
+
+public record AdminUpdateVendorHoursRequest(IReadOnlyCollection<UpdateVendorOperatingHourRequest> Hours);
+
+public record AdminUpdateVendorOperationsSettingsRequest(
+    bool AcceptOrders,
+    decimal? MinimumOrderAmount,
+    int? PreparationTimeMinutes);
+
+public record AdminUpdateVendorNotificationSettingsRequest(
+    bool EmailNotificationsEnabled,
+    bool SmsNotificationsEnabled,
+    bool NewOrdersNotificationsEnabled);
+
+public record AdminCreateVendorSettlementRequest(
+    decimal GrossAmount,
+    decimal CommissionAmount,
+    decimal NetAmount);
+
+public record AdminRequestVendorDocumentsRequest(string Note);
+
+public record AdminAddVendorReviewNoteRequest(
+    string Message,
+    string? AuthorName,
+    string? RoleLabel);

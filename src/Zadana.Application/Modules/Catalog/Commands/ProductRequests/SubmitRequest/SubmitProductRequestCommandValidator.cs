@@ -19,8 +19,12 @@ public class SubmitProductRequestCommandValidator : AbstractValidator<SubmitProd
             .WithName("SuggestedNameEn");
 
         RuleFor(v => v.SuggestedCategoryId)
-            .NotEmpty().WithMessage(localizer["RequiredField"].Value)
+            .NotEmpty().When(v => v.RequestedCategory == null).WithMessage(localizer["RequiredField"].Value)
             .WithName("CategoryId");
+
+        RuleFor(v => v)
+            .Must(v => v.SuggestedCategoryId.HasValue || v.RequestedCategory is not null)
+            .WithMessage(localizer["RequiredField"].Value);
 
         RuleFor(v => v.SuggestedDescriptionAr)
             .MaximumLength(1000).WithMessage(localizer["MaxLength"].Value)
@@ -33,5 +37,35 @@ public class SubmitProductRequestCommandValidator : AbstractValidator<SubmitProd
         RuleFor(v => v.ImageUrl)
             .MaximumLength(1000).WithMessage(localizer["ImageUrlTooLong"].Value)
             .WithName("ImageUrl");
+
+        When(v => v.RequestedBrand is not null, () =>
+        {
+            RuleFor(v => v.RequestedBrand!.NameAr)
+                .NotEmpty().WithMessage(localizer["RequiredField"].Value)
+                .MaximumLength(200).WithMessage(localizer["MaxLength"].Value);
+
+            RuleFor(v => v.RequestedBrand!.NameEn)
+                .NotEmpty().WithMessage(localizer["RequiredField"].Value)
+                .MaximumLength(200).WithMessage(localizer["MaxLength"].Value);
+
+            RuleFor(v => v.RequestedBrand!.LogoUrl)
+                .MaximumLength(1000).When(v => !string.IsNullOrWhiteSpace(v.RequestedBrand!.LogoUrl))
+                .WithMessage(localizer["ImageUrlTooLong"].Value);
+        });
+
+        When(v => v.RequestedCategory is not null, () =>
+        {
+            RuleFor(v => v.RequestedCategory!.NameAr)
+                .NotEmpty().WithMessage(localizer["RequiredField"].Value)
+                .MaximumLength(200).WithMessage(localizer["MaxLength"].Value);
+
+            RuleFor(v => v.RequestedCategory!.NameEn)
+                .NotEmpty().WithMessage(localizer["RequiredField"].Value)
+                .MaximumLength(200).WithMessage(localizer["MaxLength"].Value);
+
+            RuleFor(v => v.RequestedCategory!.ImageUrl)
+                .MaximumLength(1000).When(v => !string.IsNullOrWhiteSpace(v.RequestedCategory!.ImageUrl))
+                .WithMessage(localizer["ImageUrlTooLong"].Value);
+        });
     }
 }

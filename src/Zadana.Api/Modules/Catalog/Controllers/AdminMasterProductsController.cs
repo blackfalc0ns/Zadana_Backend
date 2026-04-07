@@ -80,4 +80,14 @@ public class AdminMasterProductsController : ApiControllerBase
         await Sender.Send(new DeleteMasterProductCommand(id));
         return NoContent();
     }
+
+    [HttpGet("{id}/vendors")]
+    public async Task<ActionResult<PaginatedList<ProductVendorSnapshotDto>>> GetProductVendors(
+        Guid id,
+        [FromQuery] int pageNumber = 1,
+        [FromQuery] int pageSize = 10)
+    {
+        var result = await Sender.Send(new Zadana.Application.Modules.Catalog.Queries.GetProductVendors.GetProductVendorsQuery(id, pageNumber, pageSize));
+        return Ok(result);
+    }
 }

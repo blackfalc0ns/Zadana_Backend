@@ -10,6 +10,7 @@ using Zadana.Application.Modules.Catalog.Queries.ProductRequests.GetPendingReque
 namespace Zadana.Api.Modules.Catalog.Controllers;
 
 [Route("api/admin/product-requests")]
+[Route("api/admin/catalog/product-requests")]
 [Tags("Catalog Admins")]
 [Authorize(Policy = "AdminOnly")]
 public class AdminProductRequestsController : ApiControllerBase
@@ -42,5 +43,13 @@ public class AdminProductRequestsController : ApiControllerBase
                 : _localizer["PRODUCT_REQUEST_REJECTED"].Value,
             MasterProductId = masterProductId
         });
+    }
+
+    [HttpGet]
+    public async Task<IActionResult> GetPendingRequestsFlat([FromQuery] GetPendingProductRequestsRequest request)
+    {
+        var query = new GetPendingProductRequestsQuery(request.PageNumber, request.PageSize);
+        var result = await Sender.Send(query);
+        return Ok(result);
     }
 }

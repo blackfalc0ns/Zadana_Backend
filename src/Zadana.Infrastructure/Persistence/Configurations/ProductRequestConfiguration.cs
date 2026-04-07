@@ -29,6 +29,9 @@ public class ProductRequestConfiguration : IEntityTypeConfiguration<ProductReque
         builder.Property(pr => pr.ImageUrl)
             .HasMaxLength(1000);
 
+        builder.Property(pr => pr.ReviewedBy)
+            .HasMaxLength(200);
+
         builder.Property(pr => pr.Status)
             .IsRequired()
             .HasConversion<string>()
@@ -46,6 +49,31 @@ public class ProductRequestConfiguration : IEntityTypeConfiguration<ProductReque
         builder.HasOne(pr => pr.Category)
             .WithMany()
             .HasForeignKey(pr => pr.SuggestedCategoryId)
+            .OnDelete(DeleteBehavior.Restrict);
+
+        builder.HasOne(pr => pr.CategoryRequest)
+            .WithMany()
+            .HasForeignKey(pr => pr.SuggestedCategoryRequestId)
+            .OnDelete(DeleteBehavior.Restrict);
+
+        builder.HasOne(pr => pr.Brand)
+            .WithMany()
+            .HasForeignKey(pr => pr.SuggestedBrandId)
+            .OnDelete(DeleteBehavior.Restrict);
+
+        builder.HasOne(pr => pr.BrandRequest)
+            .WithMany()
+            .HasForeignKey(pr => pr.SuggestedBrandRequestId)
+            .OnDelete(DeleteBehavior.Restrict);
+
+        builder.HasOne(pr => pr.UnitOfMeasure)
+            .WithMany()
+            .HasForeignKey(pr => pr.SuggestedUnitOfMeasureId)
+            .OnDelete(DeleteBehavior.Restrict);
+
+        builder.HasOne(pr => pr.CreatedMasterProduct)
+            .WithMany()
+            .HasForeignKey(pr => pr.CreatedMasterProductId)
             .OnDelete(DeleteBehavior.Restrict);
 
         builder.HasIndex(pr => pr.VendorId)

@@ -32,6 +32,12 @@ public class UserConfiguration : IEntityTypeConfiguration<User>
         builder.Property(u => u.ArchiveReason)
             .HasMaxLength(500);
 
+        builder.Property(u => u.Latitude)
+            .HasPrecision(9, 6);
+
+        builder.Property(u => u.Longitude)
+            .HasPrecision(9, 6);
+
         builder.Property(u => u.LastLoginAtUtc);
         builder.Property(u => u.LockedAtUtc);
         builder.Property(u => u.ArchivedAtUtc);

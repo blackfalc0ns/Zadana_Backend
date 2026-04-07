@@ -11,18 +11,24 @@ public class SuspendVendorCommandHandler : IRequestHandler<SuspendVendorCommand>
     private readonly IVendorRepository _vendorRepository;
     private readonly IIdentityAccountService _identityAccountService;
     private readonly IRefreshTokenStore _refreshTokenStore;
+    private readonly IVendorReviewAuditService _vendorReviewAuditService;
     private readonly IUnitOfWork _unitOfWork;
+    private readonly ICurrentUserService _currentUserService;
 
     public SuspendVendorCommandHandler(
         IVendorRepository vendorRepository,
         IIdentityAccountService identityAccountService,
         IRefreshTokenStore refreshTokenStore,
-        IUnitOfWork unitOfWork)
+        IVendorReviewAuditService vendorReviewAuditService,
+        IUnitOfWork unitOfWork,
+        ICurrentUserService currentUserService)
     {
         _vendorRepository = vendorRepository;
         _identityAccountService = identityAccountService;
         _refreshTokenStore = refreshTokenStore;
+        _vendorReviewAuditService = vendorReviewAuditService;
         _unitOfWork = unitOfWork;
+        _currentUserService = currentUserService;
     }
 
     public async Task Handle(SuspendVendorCommand request, CancellationToken cancellationToken)
@@ -39,6 +45,16 @@ public class SuspendVendorCommandHandler : IRequestHandler<SuspendVendorCommand>
         }
 
         await _refreshTokenStore.RevokeAllByUserAsync(vendor.UserId, cancellationToken);
+
+        await _vendorReviewAuditService.AppendEntryAsync(
+            vendor.UserId,
+            "suspended",
+            "danger",
+            request.Reason,
+            "Risk & Compliance",
+            "Risk & Compliance Desk",
+            _currentUserService.UserId,
+            cancellationToken: cancellationToken);
 
         await _unitOfWork.SaveChangesAsync(cancellationToken);
     }

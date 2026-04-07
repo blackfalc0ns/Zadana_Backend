@@ -13,6 +13,8 @@ namespace Zadana.UnitTests.Modules.Vendors.Commands;
 
 public class SuspendVendorCommandHandlerTests
 {
+    private readonly Mock<ICurrentUserService> _currentUserServiceMock = new();
+    private readonly Mock<IVendorReviewAuditService> _vendorReviewAuditServiceMock = new();
     private readonly Mock<IVendorRepository> _vendorRepositoryMock = new();
     private readonly Mock<IIdentityAccountService> _identityAccountServiceMock = new();
     private readonly Mock<IRefreshTokenStore> _refreshTokenStoreMock = new();
@@ -24,6 +26,7 @@ public class SuspendVendorCommandHandlerTests
         var vendor = new Vendor(Guid.NewGuid(), "Ar", "En", "Retail", "CR", "t@t.com", "1");
         vendor.Approve(10, Guid.NewGuid());
 
+        _currentUserServiceMock.Setup(service => service.UserId).Returns((Guid?)null);
         _vendorRepositoryMock
             .Setup(repository => repository.GetByIdAsync(vendor.Id, It.IsAny<CancellationToken>()))
             .ReturnsAsync(vendor);
@@ -35,7 +38,9 @@ public class SuspendVendorCommandHandlerTests
             _vendorRepositoryMock.Object,
             _identityAccountServiceMock.Object,
             _refreshTokenStoreMock.Object,
-            _unitOfWorkMock.Object);
+            _vendorReviewAuditServiceMock.Object,
+            _unitOfWorkMock.Object,
+            _currentUserServiceMock.Object);
 
         await handler.Handle(new SuspendVendorCommand(vendor.Id, "Policy violation"), default);
 
@@ -56,7 +61,9 @@ public class SuspendVendorCommandHandlerTests
             _vendorRepositoryMock.Object,
             _identityAccountServiceMock.Object,
             _refreshTokenStoreMock.Object,
-            _unitOfWorkMock.Object);
+            _vendorReviewAuditServiceMock.Object,
+            _unitOfWorkMock.Object,
+            _currentUserServiceMock.Object);
 
         await Assert.ThrowsAsync<NotFoundException>(() =>
             handler.Handle(new SuspendVendorCommand(Guid.NewGuid(), "reason"), default));

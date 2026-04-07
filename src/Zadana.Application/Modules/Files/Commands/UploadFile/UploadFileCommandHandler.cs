@@ -28,9 +28,19 @@ public class UploadFileCommandHandler : IRequestHandler<UploadFileCommand, strin
 
     public async Task<string> Handle(UploadFileCommand request, CancellationToken cancellationToken)
     {
-        if (request.File == null || request.File.ContentStream == null || request.File.ContentStream.Length == 0)
+        if (request.File == null || request.File.ContentStream == null || !request.File.ContentStream.CanRead)
         {
             throw new BadRequestException("NO_FILE_PROVIDED", _localizer["NO_FILE_PROVIDED"]);
+        }
+
+        if (request.File.ContentStream.CanSeek)
+        {
+            request.File.ContentStream.Position = 0;
+
+            if (request.File.ContentStream.Length == 0)
+            {
+                throw new BadRequestException("NO_FILE_PROVIDED", _localizer["NO_FILE_PROVIDED"]);
+            }
         }
 
         var extension = Path.GetExtension(request.File.FileName).ToLowerInvariant();

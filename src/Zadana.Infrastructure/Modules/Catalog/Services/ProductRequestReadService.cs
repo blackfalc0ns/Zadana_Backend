@@ -25,7 +25,8 @@ public class ProductRequestReadService : IProductRequestReadService
         var query =
             from productRequest in _dbContext.ProductRequests.AsNoTracking()
             join vendor in _dbContext.Vendors.AsNoTracking() on productRequest.VendorId equals vendor.Id
-            join category in _dbContext.Categories.AsNoTracking() on productRequest.SuggestedCategoryId equals category.Id
+            join category in _dbContext.Categories.AsNoTracking() on productRequest.SuggestedCategoryId equals category.Id into categories
+            from category in categories.DefaultIfEmpty()
             where productRequest.Status == ApprovalStatus.Pending
             select new AdminProductRequestDto(
                 productRequest.Id,
@@ -36,8 +37,8 @@ public class ProductRequestReadService : IProductRequestReadService
                 productRequest.SuggestedDescriptionAr,
                 productRequest.SuggestedDescriptionEn,
                 productRequest.SuggestedCategoryId,
-                category.NameAr,
-                category.NameEn,
+                category != null ? category.NameAr : null,
+                category != null ? category.NameEn : null,
                 productRequest.ImageUrl,
                 productRequest.CreatedAtUtc);
 
@@ -60,7 +61,8 @@ public class ProductRequestReadService : IProductRequestReadService
     {
         var query =
             from productRequest in _dbContext.ProductRequests.AsNoTracking()
-            join category in _dbContext.Categories.AsNoTracking() on productRequest.SuggestedCategoryId equals category.Id
+            join category in _dbContext.Categories.AsNoTracking() on productRequest.SuggestedCategoryId equals category.Id into categories
+            from category in categories.DefaultIfEmpty()
             where productRequest.VendorId == vendorId
             select new { productRequest, category };
 
@@ -81,8 +83,8 @@ public class ProductRequestReadService : IProductRequestReadService
                 item.productRequest.SuggestedDescriptionAr,
                 item.productRequest.SuggestedDescriptionEn,
                 item.productRequest.SuggestedCategoryId,
-                item.category.NameAr,
-                item.category.NameEn,
+                item.category != null ? item.category.NameAr : null,
+                item.category != null ? item.category.NameEn : null,
                 item.productRequest.ImageUrl,
                 item.productRequest.Status.ToString(),
                 item.productRequest.RejectionReason,

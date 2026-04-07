@@ -32,3 +32,11 @@ public record VendorProductDto(
     bool IsAvailable,
     string Status,
     MasterProductDto MasterProduct);
+
+public record ProductVendorSnapshotDto(
+    Guid VendorId,
+    string NameAr,
+    string NameEn,
+    int Quantity,
+    decimal Price,
+    DateTime UpdatedAtUtc);

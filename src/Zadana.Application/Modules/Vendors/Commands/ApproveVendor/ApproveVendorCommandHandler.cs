@@ -10,17 +10,20 @@ public class ApproveVendorCommandHandler : IRequestHandler<ApproveVendorCommand>
 {
     private readonly IVendorRepository _vendorRepository;
     private readonly IIdentityAccountService _identityAccountService;
+    private readonly IVendorReviewAuditService _vendorReviewAuditService;
     private readonly IUnitOfWork _unitOfWork;
     private readonly ICurrentUserService _currentUserService;
 
     public ApproveVendorCommandHandler(
         IVendorRepository vendorRepository,
         IIdentityAccountService identityAccountService,
+        IVendorReviewAuditService vendorReviewAuditService,
         IUnitOfWork unitOfWork,
         ICurrentUserService currentUserService)
     {
         _vendorRepository = vendorRepository;
         _identityAccountService = identityAccountService;
+        _vendorReviewAuditService = vendorReviewAuditService;
         _unitOfWork = unitOfWork;
         _currentUserService = currentUserService;
     }
@@ -46,6 +49,16 @@ public class ApproveVendorCommandHandler : IRequestHandler<ApproveVendorCommand>
         {
             throw new BusinessRuleException("IDENTITY_UNLOCK_FAILED", string.Join(", ", unlockResult.Errors ?? []));
         }
+
+        await _vendorReviewAuditService.AppendEntryAsync(
+            vendor.UserId,
+            "approved",
+            "success",
+            $"Vendor approved with commission rate {request.CommissionRate:0.##}%.",
+            "Compliance Review",
+            "Admin",
+            adminId,
+            cancellationToken: cancellationToken);
 
         await _unitOfWork.SaveChangesAsync(cancellationToken);
     }

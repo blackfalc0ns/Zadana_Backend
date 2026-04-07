@@ -8,6 +8,8 @@ using Zadana.Application.Modules.Vendors.Commands.UpdateVendorBanking;
 using Zadana.Application.Modules.Vendors.Commands.UpdateVendorContact;
 using Zadana.Application.Modules.Vendors.Commands.UpdateVendorHours;
 using Zadana.Application.Modules.Vendors.Commands.UpdateVendorLegal;
+using Zadana.Application.Modules.Vendors.Commands.UpdateVendorNotificationSettings;
+using Zadana.Application.Modules.Vendors.Commands.UpdateVendorOperationsSettings;
 using Zadana.Application.Modules.Vendors.Commands.UpdateVendorOwner;
 using Zadana.Application.Modules.Vendors.Commands.RegisterVendor;
 using Zadana.Application.Modules.Vendors.Commands.UpdateVendorProfile;
@@ -93,7 +95,11 @@ public class VendorsController : ApiControllerBase
             request.DescriptionAr,
             request.DescriptionEn,
             request.LogoUrl,
-            request.CommercialRegisterDocumentUrl));
+            request.CommercialRegisterDocumentUrl,
+            request.Region,
+            request.City,
+            request.NationalAddress,
+            request.CommercialRegistrationNumber));
 
         return Ok(new { Data = result, Message = _localizer["VendorProfileUpdated"].Value });
     }
@@ -162,6 +168,30 @@ public class VendorsController : ApiControllerBase
                 item.OpenTime,
                 item.CloseTime,
                 item.IsOpen)).ToList()));
+
+        return Ok(new { Data = result, Message = _localizer["VendorProfileUpdated"].Value });
+    }
+
+    [HttpPut("profile/operations-settings")]
+    [Authorize(Policy = "VendorOnly")]
+    public async Task<IActionResult> UpdateOperationsSettings([FromBody] UpdateVendorOperationsSettingsRequest request)
+    {
+        var result = await Sender.Send(new UpdateVendorOperationsSettingsCommand(
+            request.AcceptOrders,
+            request.MinimumOrderAmount,
+            request.PreparationTimeMinutes));
+
+        return Ok(new { Data = result, Message = _localizer["VendorProfileUpdated"].Value });
+    }
+
+    [HttpPut("profile/notification-settings")]
+    [Authorize(Policy = "VendorOnly")]
+    public async Task<IActionResult> UpdateNotificationSettings([FromBody] UpdateVendorNotificationSettingsRequest request)
+    {
+        var result = await Sender.Send(new UpdateVendorNotificationSettingsCommand(
+            request.EmailNotificationsEnabled,
+            request.SmsNotificationsEnabled,
+            request.NewOrdersNotificationsEnabled));
 
         return Ok(new { Data = result, Message = _localizer["VendorProfileUpdated"].Value });
     }

@@ -87,7 +87,7 @@ public class RegisterCustomerCommandHandler : IRequestHandler<RegisterCustomerCo
             var address = new CustomerAddress(
                 userId: user.Id,
                 contactName: user.FullName,
-                contactPhone: user.PhoneNumber,
+                contactPhone: user.PhoneNumber ?? request.Phone,
                 addressLine: request.AddressLine,
                 label: parsedLabel,
                 buildingNo: request.BuildingNo,

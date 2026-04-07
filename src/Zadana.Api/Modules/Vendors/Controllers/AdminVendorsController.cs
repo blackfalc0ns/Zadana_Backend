@@ -4,18 +4,34 @@ using Microsoft.Extensions.Localization;
 using Zadana.Api.Controllers;
 using Zadana.Api.Modules.Vendors.Requests;
 using Zadana.Application.Common.Localization;
+using Zadana.Application.Modules.Catalog.Queries.GetVendorProducts;
+using Zadana.Application.Modules.Orders.Queries.GetVendorOrders;
 using Zadana.Application.Modules.Vendors.Commands.AdminResetVendorPassword;
+using Zadana.Application.Modules.Vendors.Commands.AddVendorReviewNote;
 using Zadana.Application.Modules.Vendors.Commands.AdminUpdateVendorLegalBanking;
+using Zadana.Application.Modules.Vendors.Commands.AdminUpdateVendorContact;
+using Zadana.Application.Modules.Vendors.Commands.AdminUpdateVendorHours;
+using Zadana.Application.Modules.Vendors.Commands.AdminUpdateVendorNotificationSettings;
 using Zadana.Application.Modules.Vendors.Commands.AdminUpdateVendorOwner;
+using Zadana.Application.Modules.Vendors.Commands.AdminUpdateVendorOperationsSettings;
 using Zadana.Application.Modules.Vendors.Commands.AdminUpdateVendorStore;
 using Zadana.Application.Modules.Vendors.Commands.ApproveVendor;
 using Zadana.Application.Modules.Vendors.Commands.ArchiveVendor;
 using Zadana.Application.Modules.Vendors.Commands.LockVendorLogin;
 using Zadana.Application.Modules.Vendors.Commands.RejectVendor;
+using Zadana.Application.Modules.Vendors.Commands.ReactivateVendor;
+using Zadana.Application.Modules.Vendors.Commands.RequestVendorDocuments;
+using Zadana.Application.Modules.Vendors.Commands.StartVendorReview;
 using Zadana.Application.Modules.Vendors.Commands.SuspendVendor;
 using Zadana.Application.Modules.Vendors.Commands.UnlockVendorLogin;
 using Zadana.Application.Modules.Vendors.Queries.GetAllVendors;
 using Zadana.Application.Modules.Vendors.Queries.GetVendorDetail;
+using Zadana.Application.Modules.Wallets.Commands.CreateSettlement;
+using Zadana.Application.Modules.Wallets.Commands.EscalateVendorPayout;
+using Zadana.Application.Modules.Wallets.Commands.RetryVendorPayout;
+using Zadana.Application.Modules.Wallets.Commands.SuspendVendorPayout;
+using Zadana.Application.Modules.Wallets.Queries.GetVendorPayouts;
+using Zadana.Application.Modules.Wallets.Queries.GetVendorSettlements;
 using Zadana.Domain.Modules.Vendors.Enums;
 
 namespace Zadana.Api.Modules.Vendors.Controllers;
@@ -56,6 +72,108 @@ public class AdminVendorsController : ApiControllerBase
         return Ok(result);
     }
 
+    [HttpGet("{vendorId:guid}/orders")]
+    public async Task<IActionResult> GetVendorOrders(
+        Guid vendorId,
+        [FromQuery] int page = 1,
+        [FromQuery] int pageSize = 10)
+    {
+        var result = await Sender.Send(new GetVendorOrdersQuery(vendorId, page, pageSize));
+        return Ok(result);
+    }
+
+    [HttpGet("{vendorId:guid}/products")]
+    public async Task<IActionResult> GetVendorProducts(
+        Guid vendorId,
+        [FromQuery] Guid? categoryId = null,
+        [FromQuery] Guid? branchId = null,
+        [FromQuery] int page = 1,
+        [FromQuery] int pageSize = 10)
+    {
+        var result = await Sender.Send(new GetVendorProductsQuery(vendorId, categoryId, branchId, page, pageSize));
+        return Ok(result);
+    }
+
+    [HttpGet("{vendorId:guid}/settlements")]
+    public async Task<IActionResult> GetVendorSettlements(
+        Guid vendorId,
+        [FromQuery] int page = 1,
+        [FromQuery] int pageSize = 20)
+    {
+        var result = await Sender.Send(new GetVendorSettlementsQuery(vendorId, page, pageSize));
+        return Ok(result);
+    }
+
+    [HttpGet("{vendorId:guid}/payouts")]
+    public async Task<IActionResult> GetVendorPayouts(
+        Guid vendorId,
+        [FromQuery] int page = 1,
+        [FromQuery] int pageSize = 20)
+    {
+        var result = await Sender.Send(new GetVendorPayoutsQuery(vendorId, page, pageSize));
+        return Ok(result);
+    }
+
+    [HttpPost("{vendorId:guid}/settlements")]
+    public async Task<IActionResult> CreateVendorSettlement(Guid vendorId, [FromBody] AdminCreateVendorSettlementRequest request)
+    {
+        var settlementId = await Sender.Send(new CreateSettlementCommand(
+            vendorId,
+            null,
+            request.GrossAmount,
+            request.CommissionAmount,
+            request.NetAmount));
+
+        return Ok(new { SettlementId = settlementId });
+    }
+
+    [HttpPost("{vendorId:guid}/start-review")]
+    public async Task<IActionResult> StartVendorReview(Guid vendorId)
+    {
+        var result = await Sender.Send(new StartVendorReviewCommand(vendorId));
+        return Ok(result);
+    }
+
+    [HttpPost("{vendorId:guid}/request-documents")]
+    public async Task<IActionResult> RequestVendorDocuments(Guid vendorId, [FromBody] AdminRequestVendorDocumentsRequest request)
+    {
+        var result = await Sender.Send(new RequestVendorDocumentsCommand(vendorId, request.Note));
+        return Ok(result);
+    }
+
+    [HttpPost("{vendorId:guid}/review-notes")]
+    public async Task<IActionResult> AddVendorReviewNote(Guid vendorId, [FromBody] AdminAddVendorReviewNoteRequest request)
+    {
+        var result = await Sender.Send(new AddVendorReviewNoteCommand(
+            vendorId,
+            request.Message,
+            request.AuthorName,
+            request.RoleLabel));
+
+        return Ok(result);
+    }
+
+    [HttpPost("{vendorId:guid}/payouts/{payoutId:guid}/retry")]
+    public async Task<IActionResult> RetryVendorPayout(Guid vendorId, Guid payoutId)
+    {
+        await Sender.Send(new RetryVendorPayoutCommand(vendorId, payoutId));
+        return Ok(new { Message = "Vendor payout moved back to processing." });
+    }
+
+    [HttpPost("{vendorId:guid}/payouts/{payoutId:guid}/suspend")]
+    public async Task<IActionResult> SuspendVendorPayout(Guid vendorId, Guid payoutId)
+    {
+        await Sender.Send(new SuspendVendorPayoutCommand(vendorId, payoutId));
+        return Ok(new { Message = "Vendor payout suspended successfully." });
+    }
+
+    [HttpPost("{vendorId:guid}/payouts/{payoutId:guid}/escalate")]
+    public async Task<IActionResult> EscalateVendorPayout(Guid vendorId, Guid payoutId)
+    {
+        await Sender.Send(new EscalateVendorPayoutCommand(vendorId, payoutId));
+        return Ok(new { Message = "Vendor payout escalated successfully." });
+    }
+
     /// <summary>
     /// الموافقة على تاجر وتحديد نسبة العمولة
     /// </summary>
@@ -84,6 +202,13 @@ public class AdminVendorsController : ApiControllerBase
     {
         await Sender.Send(new SuspendVendorCommand(vendorId, request.Reason));
         return Ok(new { Message = _localizer["VendorSuspended"].Value });
+    }
+
+    [HttpPost("{vendorId:guid}/reactivate")]
+    public async Task<IActionResult> ReactivateVendor(Guid vendorId)
+    {
+        await Sender.Send(new ReactivateVendorCommand(vendorId));
+        return Ok(new { Message = "Vendor reactivated successfully." });
     }
 
     [HttpPost("{vendorId:guid}/lock-login")]
@@ -127,7 +252,23 @@ public class AdminVendorsController : ApiControllerBase
             request.DescriptionAr,
             request.DescriptionEn,
             request.LogoUrl,
-            request.CommercialRegisterDocumentUrl));
+            request.CommercialRegisterDocumentUrl,
+            request.Region,
+            request.City,
+            request.NationalAddress,
+            request.CommercialRegistrationNumber));
+
+        return Ok(result);
+    }
+
+    [HttpPut("{vendorId:guid}/contact")]
+    public async Task<IActionResult> UpdateContact(Guid vendorId, [FromBody] AdminUpdateVendorContactRequest request)
+    {
+        var result = await Sender.Send(new AdminUpdateVendorContactCommand(
+            vendorId,
+            request.Region,
+            request.City,
+            request.NationalAddress));
 
         return Ok(result);
     }
@@ -161,6 +302,44 @@ public class AdminVendorsController : ApiControllerBase
             request.SwiftCode,
             request.PayoutCycle,
             request.CommercialRegisterDocumentUrl));
+
+        return Ok(result);
+    }
+
+    [HttpPut("{vendorId:guid}/hours")]
+    public async Task<IActionResult> UpdateHours(Guid vendorId, [FromBody] AdminUpdateVendorHoursRequest request)
+    {
+        var result = await Sender.Send(new AdminUpdateVendorHoursCommand(
+            vendorId,
+            request.Hours.Select(item => new AdminUpdateVendorHoursItem(
+                item.DayOfWeek,
+                item.OpenTime,
+                item.CloseTime,
+                item.IsOpen)).ToList()));
+
+        return Ok(result);
+    }
+
+    [HttpPut("{vendorId:guid}/operations-settings")]
+    public async Task<IActionResult> UpdateOperationsSettings(Guid vendorId, [FromBody] AdminUpdateVendorOperationsSettingsRequest request)
+    {
+        var result = await Sender.Send(new AdminUpdateVendorOperationsSettingsCommand(
+            vendorId,
+            request.AcceptOrders,
+            request.MinimumOrderAmount,
+            request.PreparationTimeMinutes));
+
+        return Ok(result);
+    }
+
+    [HttpPut("{vendorId:guid}/notification-settings")]
+    public async Task<IActionResult> UpdateNotificationSettings(Guid vendorId, [FromBody] AdminUpdateVendorNotificationSettingsRequest request)
+    {
+        var result = await Sender.Send(new AdminUpdateVendorNotificationSettingsCommand(
+            vendorId,
+            request.EmailNotificationsEnabled,
+            request.SmsNotificationsEnabled,
+            request.NewOrdersNotificationsEnabled));
 
         return Ok(result);
     }
