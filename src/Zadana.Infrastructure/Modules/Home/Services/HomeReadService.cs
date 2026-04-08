@@ -299,7 +299,12 @@ public class HomeReadService : IHomeReadService
     private async Task<IReadOnlyList<HomeCategoryDto>> GetCategoriesInternalAsync(int take, CancellationToken cancellationToken) =>
         (await _context.Categories
             .AsNoTracking()
-            .Where(x => x.IsActive && x.ParentCategoryId == null)
+            .Where(x => x.IsActive
+                && x.ParentCategoryId != null
+                && x.ParentCategory != null
+                && x.ParentCategory.ParentCategoryId != null
+                && x.ParentCategory.ParentCategory != null
+                && x.ParentCategory.ParentCategory.ParentCategoryId == null)
             .OrderBy(x => x.DisplayOrder)
             .ThenBy(x => x.NameAr)
             .Take(take)

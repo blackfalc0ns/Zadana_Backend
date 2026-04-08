@@ -73,6 +73,34 @@ public class HomeReadServiceTests
     }
 
     [Fact]
+    public async Task GetCategoriesAsync_ReturnsOnlyThirdLevelCategories()
+    {
+        using var scope = new CultureScope("en");
+        await using var context = TestDbContextFactory.Create();
+
+        var root = new Category("Food", "Food", "food.jpg", null, 1);
+        context.Categories.Add(root);
+        await context.SaveChangesAsync();
+
+        var level2 = new Category("Fresh", "Fresh", "fresh.jpg", root.Id, 1);
+        context.Categories.Add(level2);
+        await context.SaveChangesAsync();
+
+        var level3 = new Category("لحوم", "Meat", "meat.jpg", level2.Id, 1);
+        var otherLevel3 = new Category("مخبوزات", "Bakery", "bakery.jpg", level2.Id, 2);
+        context.Categories.AddRange(level3, otherLevel3);
+        await context.SaveChangesAsync();
+
+        var service = new HomeReadService(context, new FakeCurrentUserService(null, false));
+
+        var result = await service.GetCategoriesAsync(10);
+
+        result.Key.Should().Be("categories");
+        result.Items.Should().HaveCount(2);
+        result.Items.Select(x => x.Name).Should().BeEquivalentTo(["Meat", "Bakery"]);
+    }
+
+    [Fact]
     public async Task GetSpecialOffersAsync_ReturnsOnlyDiscountedProducts()
     {
         using var scope = new CultureScope("en");
