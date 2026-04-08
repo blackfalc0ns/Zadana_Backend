@@ -4245,9 +4245,461 @@
                                                                                                                        }
                                                                                                      }
                                                                                      }
+                                                                          }
+                                                        }
+                                            },
+                  "/api/categories/{categoryId}/products":  {
+                                                                  "get":  {
+                                                                              "summary":  "Get products for the selected category",
+                                                                             "description":  "Returns products for the selected category id only. Use a main category id to get its products, or use a subcategory id to get that subcategory's products. Typical flow: call GET /api/categories/{categoryId}/filters, read subcategories, then call GET /api/categories/{selectedSubcategoryId}/products. Filter query params are optional.",
+                                                                              "tags":  [
+                                                                                           "Customer/Categories"
+                                                                                       ],
+                                                                              "parameters":  [
+                                                                                                 {
+                                                                                                     "name":  "categoryId",
+                                                                                                     "in":  "path",
+                                                                                                     "required":  true,
+                                                                                                     "description":  "Selected category or subcategory id whose products should be returned.",
+                                                                                                     "schema":  {
+                                                                                                                    "type":  "string",
+                                                                                                                    "format":  "uuid"
+                                                                                                                }
+                                                                                                 },
+                                                                                                 {
+                                                                                                     "name":  "quantity_id",
+                                                                                                     "in":  "query",
+                                                                                                     "description":  "Optional unit filter. Use one of the ids returned by GET /api/categories/{categoryId}/filters.",
+                                                                                                     "schema":  {
+                                                                                                                    "type":  "string",
+                                                                                                                    "format":  "uuid",
+                                                                                                                    "nullable":  true
+                                                                                                                }
+                                                                                                 },
+                                                                                                 {
+                                                                                                     "name":  "brand_id",
+                                                                                                     "in":  "query",
+                                                                                                     "description":  "Optional brand filter. Use one of the ids returned by GET /api/categories/{categoryId}/filters.",
+                                                                                                     "schema":  {
+                                                                                                                    "type":  "string",
+                                                                                                                    "format":  "uuid",
+                                                                                                                    "nullable":  true
+                                                                                                                }
+                                                                                                 },
+                                                                                                 {
+                                                                                                     "name":  "min_price",
+                                                                                                     "in":  "query",
+                                                                                                     "description":  "Optional minimum selling price filter.",
+                                                                                                     "schema":  {
+                                                                                                                    "type":  "number",
+                                                                                                                    "format":  "double",
+                                                                                                                    "nullable":  true
+                                                                                                                }
+                                                                                                 },
+                                                                                                 {
+                                                                                                     "name":  "max_price",
+                                                                                                     "in":  "query",
+                                                                                                     "description":  "Optional maximum selling price filter.",
+                                                                                                     "schema":  {
+                                                                                                                    "type":  "number",
+                                                                                                                    "format":  "double",
+                                                                                                                    "nullable":  true
+                                                                                                                }
+                                                                                                 },
+                                                                                                 {
+                                                                                                     "name":  "sort",
+                                                                                                     "in":  "query",
+                                                                                                     "description":  "Optional sorting: newest, price_low_high, price_high_low, best_selling, highest_rated, alphabetical.",
+                                                                                                     "schema":  {
+                                                                                                                    "type":  "string",
+                                                                                                                    "nullable":  true
+                                                                                                                }
+                                                                                                 },
+                                                                                                 {
+                                                                                                     "name":  "page",
+                                                                                                     "in":  "query",
+                                                                                                     "description":  "Optional page number. Defaults to 1.",
+                                                                                                     "schema":  {
+                                                                                                                    "type":  "integer",
+                                                                                                                    "format":  "int32",
+                                                                                                                    "default":  1
+                                                                                                                }
+                                                                                                 },
+                                                                                                 {
+                                                                                                     "name":  "per_page",
+                                                                                                     "in":  "query",
+                                                                                                     "description":  "Optional page size. Defaults to 20.",
+                                                                                                     "schema":  {
+                                                                                                                    "type":  "integer",
+                                                                                                                    "format":  "int32",
+                                                                                                                    "default":  20
+                                                                                                                }
+                                                                                                 }
+                                                                                             ],
+                                                                              "responses":  {
+                                                                                                "200":  {
+                                                                                                            "description":  "OK",
+                                                                                                            "content":  {
+                                                                                                                            "text/plain":  {
+                                                                                                                                               "schema":  {
+                                                                                                                                                              "$ref":  "#/components/schemas/CategoryProductsDto"
+                                                                                                                                                          }
+                                                                                                                                           },
+                                                                                                                            "application/json":  {
+                                                                                                                                                     "schema":  {
+                                                                                                                                                                    "$ref":  "#/components/schemas/CategoryProductsDto"
+                                                                                                                                                                }
+                                                                                                                                                 },
+                                                                                                                            "text/json":  {
+                                                                                                                                              "schema":  {
+                                                                                                                                                             "$ref":  "#/components/schemas/CategoryProductsDto"
+                                                                                                                                                         }
+                                                                                                                                          }
+                                                                                                                        }
+                                                                                                        }
+                                                                                            }
+                                                                          }
+                                                              },
+                  "/api/categories/{categoryId}/filters":  {
+                                                                 "get":  {
+                                                                             "summary":  "Get category filters metadata",
+                                                                             "description":  "Returns filter options for the selected category. This endpoint does not accept query params; use the returned ids and ranges with GET /api/categories/{categoryId}/products. If the user selects a subcategory from the response, send that subcategory id as the route categoryId in the next /products request.",
+                                                                             "tags":  [
+                                                                                          "Customer/Categories"
+                                                                                      ],
+                                                                             "parameters":  [
+                                                                                                {
+                                                                                                    "name":  "categoryId",
+                                                                                                    "in":  "path",
+                                                                                                    "required":  true,
+                                                                                                    "description":  "Selected category id used to build the filter sheet.",
+                                                                                                    "schema":  {
+                                                                                                                   "type":  "string",
+                                                                                                                   "format":  "uuid"
+                                                                                                               }
+                                                                                                }
+                                                                                            ],
+                                                                             "responses":  {
+                                                                                               "200":  {
+                                                                                                           "description":  "OK",
+                                                                                                           "content":  {
+                                                                                                                           "text/plain":  {
+                                                                                                                                              "schema":  {
+                                                                                                                                                             "$ref":  "#/components/schemas/CategoryFiltersDto"
+                                                                                                                                                         }
+                                                                                                                                          },
+                                                                                                                           "application/json":  {
+                                                                                                                                                    "schema":  {
+                                                                                                                                                                   "$ref":  "#/components/schemas/CategoryFiltersDto"
+                                                                                                                                                               }
+                                                                                                                                                },
+                                                                                                                           "text/json":  {
+                                                                                                                                             "schema":  {
+                                                                                                                                                            "$ref":  "#/components/schemas/CategoryFiltersDto"
+                                                                                                                                                        }
+                                                                                                                                         }
+                                                                                                                       }
+                                                                                                       }
+                                                                                           }
                                                                          }
-                                                       }
-                                           },
+                                                             },
+                  "/api/categories/{categoryId}/subcategories":  {
+                                                                      "get":  {
+                                                                                  "tags":  [
+                                                                                               "Customer/Categories"
+                                                                                           ],
+                                                                                  "parameters":  [
+                                                                                                     {
+                                                                                                         "name":  "categoryId",
+                                                                                                         "in":  "path",
+                                                                                                         "required":  true,
+                                                                                                         "schema":  {
+                                                                                                                        "type":  "string",
+                                                                                                                        "format":  "uuid"
+                                                                                                                    }
+                                                                                                     }
+                                                                                                 ],
+                                                                                  "responses":  {
+                                                                                                    "200":  {
+                                                                                                                "description":  "OK",
+                                                                                                                "content":  {
+                                                                                                                                "text/plain":  {
+                                                                                                                                                   "schema":  {
+                                                                                                                                                                  "type":  "array",
+                                                                                                                                                                  "items":  {
+                                                                                                                                                                                "$ref":  "#/components/schemas/CategoryListItemDto"
+                                                                                                                                                                            }
+                                                                                                                                                              }
+                                                                                                                                               },
+                                                                                                                                "application/json":  {
+                                                                                                                                                         "schema":  {
+                                                                                                                                                                        "type":  "array",
+                                                                                                                                                                        "items":  {
+                                                                                                                                                                                      "$ref":  "#/components/schemas/CategoryListItemDto"
+                                                                                                                                                                                  }
+                                                                                                                                                                    }
+                                                                                                                                                     },
+                                                                                                                                "text/json":  {
+                                                                                                                                                  "schema":  {
+                                                                                                                                                                 "type":  "array",
+                                                                                                                                                                 "items":  {
+                                                                                                                                                                               "$ref":  "#/components/schemas/CategoryListItemDto"
+                                                                                                                                                                           }
+                                                                                                                                                             }
+                                                                                                                                              }
+                                                                                                                            }
+                                                                                                }
+                                                                            }
+                                                                }
+                                                            },
+                  "/api/brands":  {
+                                        "get":  {
+                                                    "summary":  "Get customer brands",
+                                                    "description":  "Returns active brands for the customer app brand listing.",
+                                                    "tags":  [
+                                                                 "Customer/Brands"
+                                                             ],
+                                                    "responses":  {
+                                                                      "200":  {
+                                                                                  "description":  "OK",
+                                                                                  "content":  {
+                                                                                                  "text/plain":  {
+                                                                                                                     "schema":  {
+                                                                                                                                    "type":  "array",
+                                                                                                                                    "items":  {
+                                                                                                                                                  "$ref":  "#/components/schemas/BrandCustomerDto"
+                                                                                                                                              }
+                                                                                                                                }
+                                                                                                                 },
+                                                                                                  "application/json":  {
+                                                                                                                           "schema":  {
+                                                                                                                                          "type":  "array",
+                                                                                                                                          "items":  {
+                                                                                                                                                        "$ref":  "#/components/schemas/BrandCustomerDto"
+                                                                                                                                                    }
+                                                                                                                                      }
+                                                                                                                       },
+                                                                                                  "text/json":  {
+                                                                                                                    "schema":  {
+                                                                                                                                   "type":  "array",
+                                                                                                                                   "items":  {
+                                                                                                                                                 "$ref":  "#/components/schemas/BrandCustomerDto"
+                                                                                                                                             }
+                                                                                                                               }
+                                                                                                                }
+                                                                                              }
+                                                                              }
+                                                                  }
+                                                }
+                                    },
+                  "/api/brands/{brandId}":  {
+                                                 "get":  {
+                                                             "summary":  "Get brand details",
+                                                             "description":  "Returns the selected active brand header data for the customer app.",
+                                                             "tags":  [
+                                                                          "Customer/Brands"
+                                                                      ],
+                                                             "parameters":  [
+                                                                                {
+                                                                                    "name":  "brandId",
+                                                                                    "in":  "path",
+                                                                                    "required":  true,
+                                                                                    "description":  "Selected brand id.",
+                                                                                    "schema":  {
+                                                                                                   "type":  "string",
+                                                                                                   "format":  "uuid"
+                                                                                               }
+                                                                                }
+                                                                            ],
+                                                             "responses":  {
+                                                                               "200":  {
+                                                                                           "description":  "OK",
+                                                                                           "content":  {
+                                                                                                           "text/plain":  {
+                                                                                                                              "schema":  {
+                                                                                                                                             "$ref":  "#/components/schemas/BrandCustomerDto"
+                                                                                                                                         }
+                                                                                                                          },
+                                                                                                           "application/json":  {
+                                                                                                                                    "schema":  {
+                                                                                                                                                   "$ref":  "#/components/schemas/BrandCustomerDto"
+                                                                                                                                               }
+                                                                                                                                },
+                                                                                                           "text/json":  {
+                                                                                                                             "schema":  {
+                                                                                                                                            "$ref":  "#/components/schemas/BrandCustomerDto"
+                                                                                                                                        }
+                                                                                                                         }
+                                                                                                       }
+                                                                                       }
+                                                                           }
+                                                         }
+                                             },
+                  "/api/brands/{brandId}/filters":  {
+                                                          "get":  {
+                                                                      "summary":  "Get brand filters metadata",
+                                                                      "description":  "Returns filter options for the selected brand. This endpoint does not accept query params; use the returned ids and ranges with GET /api/brands/{brandId}/products.",
+                                                                      "tags":  [
+                                                                                   "Customer/Brands"
+                                                                               ],
+                                                                      "parameters":  [
+                                                                                         {
+                                                                                             "name":  "brandId",
+                                                                                             "in":  "path",
+                                                                                             "required":  true,
+                                                                                             "description":  "Selected brand id used to build the filter sheet.",
+                                                                                             "schema":  {
+                                                                                                            "type":  "string",
+                                                                                                            "format":  "uuid"
+                                                                                                        }
+                                                                                         }
+                                                                                     ],
+                                                                      "responses":  {
+                                                                                        "200":  {
+                                                                                                    "description":  "OK",
+                                                                                                    "content":  {
+                                                                                                                    "text/plain":  {
+                                                                                                                                       "schema":  {
+                                                                                                                                                      "$ref":  "#/components/schemas/BrandFiltersDto"
+                                                                                                                                                  }
+                                                                                                                                   },
+                                                                                                                    "application/json":  {
+                                                                                                                                             "schema":  {
+                                                                                                                                                            "$ref":  "#/components/schemas/BrandFiltersDto"
+                                                                                                                                                        }
+                                                                                                                                         },
+                                                                                                                    "text/json":  {
+                                                                                                                                      "schema":  {
+                                                                                                                                                     "$ref":  "#/components/schemas/BrandFiltersDto"
+                                                                                                                                                 }
+                                                                                                                                  }
+                                                                                                                }
+                                                                                                }
+                                                                                    }
+                                                                  }
+                                                      },
+                  "/api/brands/{brandId}/products":  {
+                                                           "get":  {
+                                                                       "summary":  "Get products for the selected brand",
+                                                                       "description":  "Returns products for the selected brand id only. Call GET /api/brands/{brandId}/filters first to load available filters, then send the selected ids and price range to this endpoint. Filter query params are optional.",
+                                                                       "tags":  [
+                                                                                    "Customer/Brands"
+                                                                                ],
+                                                                       "parameters":  [
+                                                                                          {
+                                                                                              "name":  "brandId",
+                                                                                              "in":  "path",
+                                                                                              "required":  true,
+                                                                                              "description":  "Selected brand id whose products should be returned.",
+                                                                                              "schema":  {
+                                                                                                             "type":  "string",
+                                                                                                             "format":  "uuid"
+                                                                                                         }
+                                                                                          },
+                                                                                          {
+                                                                                              "name":  "category_id",
+                                                                                              "in":  "query",
+                                                                                              "description":  "Optional category filter. Use one of the ids returned by GET /api/brands/{brandId}/filters.",
+                                                                                              "schema":  {
+                                                                                                             "type":  "string",
+                                                                                                             "format":  "uuid",
+                                                                                                             "nullable":  true
+                                                                                                         }
+                                                                                          },
+                                                                                          {
+                                                                                              "name":  "subcategory_id",
+                                                                                              "in":  "query",
+                                                                                              "description":  "Optional subcategory filter. Use one of the ids returned by GET /api/brands/{brandId}/filters.",
+                                                                                              "schema":  {
+                                                                                                             "type":  "string",
+                                                                                                             "format":  "uuid",
+                                                                                                             "nullable":  true
+                                                                                                         }
+                                                                                          },
+                                                                                          {
+                                                                                              "name":  "unit_id",
+                                                                                              "in":  "query",
+                                                                                              "description":  "Optional unit filter. Use one of the ids returned by GET /api/brands/{brandId}/filters.",
+                                                                                              "schema":  {
+                                                                                                             "type":  "string",
+                                                                                                             "format":  "uuid",
+                                                                                                             "nullable":  true
+                                                                                                         }
+                                                                                          },
+                                                                                          {
+                                                                                              "name":  "min_price",
+                                                                                              "in":  "query",
+                                                                                              "description":  "Optional minimum selling price filter.",
+                                                                                              "schema":  {
+                                                                                                             "type":  "number",
+                                                                                                             "format":  "double",
+                                                                                                             "nullable":  true
+                                                                                                         }
+                                                                                          },
+                                                                                          {
+                                                                                              "name":  "max_price",
+                                                                                              "in":  "query",
+                                                                                              "description":  "Optional maximum selling price filter.",
+                                                                                              "schema":  {
+                                                                                                             "type":  "number",
+                                                                                                             "format":  "double",
+                                                                                                             "nullable":  true
+                                                                                                         }
+                                                                                          },
+                                                                                          {
+                                                                                              "name":  "sort",
+                                                                                              "in":  "query",
+                                                                                              "description":  "Optional sorting: newest, price_low_high, price_high_low, best_selling, highest_rated, alphabetical.",
+                                                                                              "schema":  {
+                                                                                                             "type":  "string",
+                                                                                                             "nullable":  true
+                                                                                                         }
+                                                                                          },
+                                                                                          {
+                                                                                              "name":  "page",
+                                                                                              "in":  "query",
+                                                                                              "description":  "Optional page number. Defaults to 1.",
+                                                                                              "schema":  {
+                                                                                                             "type":  "integer",
+                                                                                                             "format":  "int32",
+                                                                                                             "default":  1
+                                                                                                         }
+                                                                                          },
+                                                                                          {
+                                                                                              "name":  "per_page",
+                                                                                              "in":  "query",
+                                                                                              "description":  "Optional page size. Defaults to 20.",
+                                                                                              "schema":  {
+                                                                                                             "type":  "integer",
+                                                                                                             "format":  "int32",
+                                                                                                             "default":  20
+                                                                                                         }
+                                                                                          }
+                                                                                      ],
+                                                                       "responses":  {
+                                                                                         "200":  {
+                                                                                                     "description":  "OK",
+                                                                                                     "content":  {
+                                                                                                                     "text/plain":  {
+                                                                                                                                        "schema":  {
+                                                                                                                                                       "$ref":  "#/components/schemas/BrandProductsDto"
+                                                                                                                                                   }
+                                                                                                                                    },
+                                                                                                                     "application/json":  {
+                                                                                                                                              "schema":  {
+                                                                                                                                                             "$ref":  "#/components/schemas/BrandProductsDto"
+                                                                                                                                                         }
+                                                                                                                                          },
+                                                                                                                     "text/json":  {
+                                                                                                                                       "schema":  {
+                                                                                                                                                      "$ref":  "#/components/schemas/BrandProductsDto"
+                                                                                                                                                  }
+                                                                                                                                   }
+                                                                                                                 }
+                                                                                                 }
+                                                                                     }
+                                                                   }
+                                                       },
                   "/api/home/special-offers":  {
                                                    "get":  {
                                                                "tags":  [
@@ -5594,9 +6046,471 @@
                                                                                                 "format":  "date-time",
                                                                                                 "nullable":  true
                                                                                             }
-                                                                       },
+                                                                        },
                                                         "additionalProperties":  false
                                                     },
+                                       "CategoryListItemDto":  {
+                                                                     "type":  "object",
+                                                                     "properties":  {
+                                                                                        "id":  {
+                                                                                                   "type":  "string",
+                                                                                                   "format":  "uuid"
+                                                                                               },
+                                                                                        "name":  {
+                                                                                                     "type":  "string",
+                                                                                                     "nullable":  true
+                                                                                                 },
+                                                                                        "image_url":  {
+                                                                                                          "type":  "string",
+                                                                                                          "nullable":  true
+                                                                                                      }
+                                                                                    },
+                                                                     "additionalProperties":  false
+                                                                 },
+                                       "CatalogFilterBrandItemDto":  {
+                                                                          "type":  "object",
+                                                                          "properties":  {
+                                                                                             "id":  {
+                                                                                                        "type":  "string",
+                                                                                                        "format":  "uuid"
+                                                                                                    },
+                                                                                             "name":  {
+                                                                                                          "type":  "string",
+                                                                                                          "nullable":  true
+                                                                                                      },
+                                                                                             "logo_url":  {
+                                                                                                              "type":  "string",
+                                                                                                              "nullable":  true
+                                                                                                          }
+                                                                                         },
+                                                                          "additionalProperties":  false
+                                                                      },
+                                       "CatalogFilterNamedItemDto":  {
+                                                                          "type":  "object",
+                                                                          "properties":  {
+                                                                                             "id":  {
+                                                                                                        "type":  "string",
+                                                                                                        "format":  "uuid"
+                                                                                                    },
+                                                                                             "name":  {
+                                                                                                          "type":  "string",
+                                                                                                          "nullable":  true
+                                                                                                      }
+                                                                                         },
+                                                                          "additionalProperties":  false
+                                                                      },
+                                       "CatalogFilterPartItemDto":  {
+                                                                         "type":  "object",
+                                                                         "properties":  {
+                                                                                            "id":  {
+                                                                                                       "type":  "string",
+                                                                                                       "format":  "uuid"
+                                                                                                   },
+                                                                                            "name":  {
+                                                                                                         "type":  "string",
+                                                                                                         "nullable":  true
+                                                                                                     },
+                                                                                            "product_type_id":  {
+                                                                                                                    "type":  "string",
+                                                                                                                    "format":  "uuid",
+                                                                                                                    "nullable":  true
+                                                                                                                }
+                                                                                        },
+                                                                         "additionalProperties":  false
+                                                                     },
+                                       "CatalogFilterPriceRangeDto":  {
+                                                                            "type":  "object",
+                                                                            "properties":  {
+                                                                                               "min":  {
+                                                                                                           "type":  "number",
+                                                                                                           "format":  "double"
+                                                                                                       },
+                                                                                               "max":  {
+                                                                                                           "type":  "number",
+                                                                                                           "format":  "double"
+                                                                                                       }
+                                                                                           },
+                                                                            "additionalProperties":  false
+                                                                        },
+                                       "CatalogSortOptionDto":  {
+                                                                    "type":  "object",
+                                                                    "properties":  {
+                                                                                       "label":  {
+                                                                                                     "type":  "string",
+                                                                                                     "nullable":  true
+                                                                                                 },
+                                                                                       "value":  {
+                                                                                                     "type":  "string",
+                                                                                                     "nullable":  true
+                                                                                                 }
+                                                                                   },
+                                                                    "additionalProperties":  false
+                                                                },
+                                       "CategoryFiltersDto":  {
+                                                                  "type":  "object",
+                                                                  "properties":  {
+                                                                                     "category":  {
+                                                                                                      "$ref":  "#/components/schemas/CatalogFilterNamedItemDto"
+                                                                                                  },
+                                                                                     "subcategories":  {
+                                                                                                          "type":  "array",
+                                                                                                          "items":  {
+                                                                                                                        "$ref":  "#/components/schemas/CatalogFilterNamedItemDto"
+                                                                                                                    },
+                                                                                                          "nullable":  true
+                                                                                                      },
+                                                                                     "product_types":  {
+                                                                                                          "type":  "array",
+                                                                                                          "items":  {
+                                                                                                                        "$ref":  "#/components/schemas/CatalogFilterNamedItemDto"
+                                                                                                                    },
+                                                                                                          "nullable":  true
+                                                                                                      },
+                                                                                     "parts":  {
+                                                                                                   "type":  "array",
+                                                                                                   "items":  {
+                                                                                                                 "$ref":  "#/components/schemas/CatalogFilterPartItemDto"
+                                                                                                             },
+                                                                                                   "nullable":  true
+                                                                                               },
+                                                                                     "quantities":  {
+                                                                                                          "type":  "array",
+                                                                                                          "items":  {
+                                                                                                                        "$ref":  "#/components/schemas/CatalogFilterNamedItemDto"
+                                                                                                                    },
+                                                                                                          "nullable":  true
+                                                                                                      },
+                                                                                     "brands":  {
+                                                                                                  "type":  "array",
+                                                                                                  "items":  {
+                                                                                                                "$ref":  "#/components/schemas/CatalogFilterBrandItemDto"
+                                                                                                            },
+                                                                                                  "nullable":  true
+                                                                                              },
+                                                                                     "price_range":  {
+                                                                                                         "$ref":  "#/components/schemas/CatalogFilterPriceRangeDto"
+                                                                                                     },
+                                                                                     "sort_options":  {
+                                                                                                          "type":  "array",
+                                                                                                          "items":  {
+                                                                                                                        "$ref":  "#/components/schemas/CatalogSortOptionDto"
+                                                                                                                    },
+                                                                                                          "nullable":  true
+                                                                                                      }
+                                                                                 },
+                                                                  "additionalProperties":  false
+                                                              },
+                                       "CategoryProductsAppliedFiltersDto":  {
+                                                                                 "type":  "object",
+                                                                                 "properties":  {
+                                                                                                    "quantity_id":  {
+                                                                                                                        "type":  "string",
+                                                                                                                        "format":  "uuid",
+                                                                                                                        "nullable":  true
+                                                                                                                    },
+                                                                                                    "brand_id":  {
+                                                                                                                    "type":  "string",
+                                                                                                                    "format":  "uuid",
+                                                                                                                    "nullable":  true
+                                                                                                                },
+                                                                                                    "min_price":  {
+                                                                                                                      "type":  "number",
+                                                                                                                      "format":  "double",
+                                                                                                                      "nullable":  true
+                                                                                                                  },
+                                                                                                    "max_price":  {
+                                                                                                                      "type":  "number",
+                                                                                                                      "format":  "double",
+                                                                                                                      "nullable":  true
+                                                                                                                  },
+                                                                                                    "sort":  {
+                                                                                                                 "type":  "string",
+                                                                                                                 "nullable":  true
+                                                                                                             }
+                                                                                                },
+                                                                                 "additionalProperties":  false
+                                                                             },
+                                       "CategoryProductItemDto":  {
+                                                                        "type":  "object",
+                                                                        "properties":  {
+                                                                                           "id":  {
+                                                                                                      "type":  "string",
+                                                                                                      "format":  "uuid"
+                                                                                                  },
+                                                                                           "name":  {
+                                                                                                        "type":  "string",
+                                                                                                        "nullable":  true
+                                                                                                    },
+                                                                                           "store":  {
+                                                                                                         "type":  "string",
+                                                                                                         "nullable":  true
+                                                                                                     },
+                                                                                           "price":  {
+                                                                                                         "type":  "number",
+                                                                                                         "format":  "double"
+                                                                                                     },
+                                                                                           "old_price":  {
+                                                                                                             "type":  "number",
+                                                                                                             "format":  "double",
+                                                                                                             "nullable":  true
+                                                                                                         },
+                                                                                           "image_url":  {
+                                                                                                             "type":  "string",
+                                                                                                             "nullable":  true
+                                                                                                         },
+                                                                                           "rating":  {
+                                                                                                          "type":  "number",
+                                                                                                          "format":  "double",
+                                                                                                          "nullable":  true
+                                                                                                      },
+                                                                                           "review_count":  {
+                                                                                                                 "type":  "integer",
+                                                                                                                 "format":  "int32",
+                                                                                                                 "nullable":  true
+                                                                                                             },
+                                                                                           "discount":  {
+                                                                                                             "type":  "string",
+                                                                                                             "nullable":  true
+                                                                                                         },
+                                                                                           "is_favorite":  {
+                                                                                                                "type":  "boolean"
+                                                                                                            },
+                                                                                           "unit":  {
+                                                                                                        "type":  "string",
+                                                                                                        "nullable":  true
+                                                                                                    },
+                                                                                           "is_discounted":  {
+                                                                                                                  "type":  "boolean"
+                                                                                                              }
+                                                                                       },
+                                                                        "additionalProperties":  false
+                                                                    },
+                                       "CategoryProductsDto":  {
+                                                                   "type":  "object",
+                                                                   "properties":  {
+                                                                                      "applied_filters":  {
+                                                                                                              "$ref":  "#/components/schemas/CategoryProductsAppliedFiltersDto"
+                                                                                                          },
+                                                                                      "total":  {
+                                                                                                    "type":  "integer",
+                                                                                                    "format":  "int32"
+                                                                                                },
+                                                                                      "page":  {
+                                                                                                   "type":  "integer",
+                                                                                                   "format":  "int32"
+                                                                                               },
+                                                                                      "per_page":  {
+                                                                                                       "type":  "integer",
+                                                                                                       "format":  "int32"
+                                                                                                   },
+                                                                                      "items":  {
+                                                                                                    "type":  "array",
+                                                                                                    "items":  {
+                                                                                                                  "$ref":  "#/components/schemas/CategoryProductItemDto"
+                                                                                                              },
+                                                                                                    "nullable":  true
+                                                                                                }
+                                                                                  },
+                                                                   "additionalProperties":  false
+                                                               },
+                                       "BrandCustomerDto":  {
+                                                                 "type":  "object",
+                                                                 "properties":  {
+                                                                                    "id":  {
+                                                                                               "type":  "string",
+                                                                                               "format":  "uuid"
+                                                                                           },
+                                                                                    "name":  {
+                                                                                                 "type":  "string",
+                                                                                                 "nullable":  true
+                                                                                             },
+                                                                                    "logo":  {
+                                                                                                 "type":  "string",
+                                                                                                 "nullable":  true
+                                                                                             },
+                                                                                    "product_count":  {
+                                                                                                          "type":  "integer",
+                                                                                                          "format":  "int32"
+                                                                                                      }
+                                                                                },
+                                                                 "additionalProperties":  false
+                                                             },
+                                       "BrandFilterSubcategoryItemDto":  {
+                                                                              "type":  "object",
+                                                                              "properties":  {
+                                                                                                 "id":  {
+                                                                                                            "type":  "string",
+                                                                                                            "format":  "uuid"
+                                                                                                        },
+                                                                                                 "name":  {
+                                                                                                              "type":  "string",
+                                                                                                              "nullable":  true
+                                                                                                          },
+                                                                                                 "category_id":  {
+                                                                                                                     "type":  "string",
+                                                                                                                     "format":  "uuid"
+                                                                                                                 }
+                                                                                             },
+                                                                              "additionalProperties":  false
+                                                                          },
+                                       "BrandFiltersDto":  {
+                                                                "type":  "object",
+                                                                "properties":  {
+                                                                                   "brand":  {
+                                                                                                 "$ref":  "#/components/schemas/CatalogFilterNamedItemDto"
+                                                                                             },
+                                                                                   "categories":  {
+                                                                                                      "type":  "array",
+                                                                                                      "items":  {
+                                                                                                                    "$ref":  "#/components/schemas/CatalogFilterNamedItemDto"
+                                                                                                                },
+                                                                                                      "nullable":  true
+                                                                                                  },
+                                                                                   "subcategories":  {
+                                                                                                         "type":  "array",
+                                                                                                         "items":  {
+                                                                                                                       "$ref":  "#/components/schemas/BrandFilterSubcategoryItemDto"
+                                                                                                                   },
+                                                                                                         "nullable":  true
+                                                                                                     },
+                                                                                   "units":  {
+                                                                                                "type":  "array",
+                                                                                                "items":  {
+                                                                                                              "$ref":  "#/components/schemas/CatalogFilterNamedItemDto"
+                                                                                                          },
+                                                                                                "nullable":  true
+                                                                                            },
+                                                                                   "price_range":  {
+                                                                                                      "$ref":  "#/components/schemas/CatalogFilterPriceRangeDto"
+                                                                                                  },
+                                                                                   "sort_options":  {
+                                                                                                        "type":  "array",
+                                                                                                        "items":  {
+                                                                                                                      "$ref":  "#/components/schemas/CatalogSortOptionDto"
+                                                                                                                  },
+                                                                                                        "nullable":  true
+                                                                                                    }
+                                                                               },
+                                                                "additionalProperties":  false
+                                                            },
+                                       "BrandProductsAppliedFiltersDto":  {
+                                                                                "type":  "object",
+                                                                                "properties":  {
+                                                                                                   "category_id":  {
+                                                                                                                       "type":  "string",
+                                                                                                                       "format":  "uuid",
+                                                                                                                       "nullable":  true
+                                                                                                                   },
+                                                                                                   "subcategory_id":  {
+                                                                                                                          "type":  "string",
+                                                                                                                          "format":  "uuid",
+                                                                                                                          "nullable":  true
+                                                                                                                      },
+                                                                                                   "unit_id":  {
+                                                                                                                   "type":  "string",
+                                                                                                                   "format":  "uuid",
+                                                                                                                   "nullable":  true
+                                                                                                               },
+                                                                                                   "min_price":  {
+                                                                                                                     "type":  "number",
+                                                                                                                     "format":  "double",
+                                                                                                                     "nullable":  true
+                                                                                                                 },
+                                                                                                   "max_price":  {
+                                                                                                                     "type":  "number",
+                                                                                                                     "format":  "double",
+                                                                                                                     "nullable":  true
+                                                                                                                 },
+                                                                                                   "sort":  {
+                                                                                                                "type":  "string",
+                                                                                                                "nullable":  true
+                                                                                                            }
+                                                                                               },
+                                                                                "additionalProperties":  false
+                                                                            },
+                                       "BrandProductItemDto":  {
+                                                                     "type":  "object",
+                                                                     "properties":  {
+                                                                                        "id":  {
+                                                                                                   "type":  "string",
+                                                                                                   "format":  "uuid"
+                                                                                               },
+                                                                                        "name":  {
+                                                                                                     "type":  "string",
+                                                                                                     "nullable":  true
+                                                                                                 },
+                                                                                        "store":  {
+                                                                                                      "type":  "string",
+                                                                                                      "nullable":  true
+                                                                                                  },
+                                                                                        "price":  {
+                                                                                                      "type":  "number",
+                                                                                                      "format":  "double"
+                                                                                                  },
+                                                                                        "old_price":  {
+                                                                                                          "type":  "number",
+                                                                                                          "format":  "double",
+                                                                                                          "nullable":  true
+                                                                                                      },
+                                                                                        "image_url":  {
+                                                                                                          "type":  "string",
+                                                                                                          "nullable":  true
+                                                                                                      },
+                                                                                        "rating":  {
+                                                                                                       "type":  "number",
+                                                                                                       "format":  "double",
+                                                                                                       "nullable":  true
+                                                                                                   },
+                                                                                        "review_count":  {
+                                                                                                              "type":  "integer",
+                                                                                                              "format":  "int32",
+                                                                                                              "nullable":  true
+                                                                                                          },
+                                                                                        "discount":  {
+                                                                                                          "type":  "string",
+                                                                                                          "nullable":  true
+                                                                                                      },
+                                                                                        "is_favorite":  {
+                                                                                                             "type":  "boolean"
+                                                                                                         },
+                                                                                        "unit":  {
+                                                                                                     "type":  "string",
+                                                                                                     "nullable":  true
+                                                                                                 },
+                                                                                        "is_discounted":  {
+                                                                                                               "type":  "boolean"
+                                                                                                           }
+                                                                                    },
+                                                                     "additionalProperties":  false
+                                                                 },
+                                       "BrandProductsDto":  {
+                                                                  "type":  "object",
+                                                                  "properties":  {
+                                                                                     "applied_filters":  {
+                                                                                                             "$ref":  "#/components/schemas/BrandProductsAppliedFiltersDto"
+                                                                                                         },
+                                                                                     "total":  {
+                                                                                                   "type":  "integer",
+                                                                                                   "format":  "int32"
+                                                                                               },
+                                                                                     "page":  {
+                                                                                                  "type":  "integer",
+                                                                                                  "format":  "int32"
+                                                                                              },
+                                                                                     "per_page":  {
+                                                                                                      "type":  "integer",
+                                                                                                      "format":  "int32"
+                                                                                                  },
+                                                                                     "items":  {
+                                                                                                   "type":  "array",
+                                                                                                   "items":  {
+                                                                                                                 "$ref":  "#/components/schemas/BrandProductItemDto"
+                                                                                                             },
+                                                                                                   "nullable":  true
+                                                                                               }
+                                                                                 },
+                                                                  "additionalProperties":  false
+                                                              },
                                        "CategoryDto":  {
                                                            "type":  "object",
                                                            "properties":  {
@@ -7988,6 +8902,10 @@
                  {
                      "name":  "Customer/Home",
                      "description":  "APIDog folder for Customer/Home"
+                 },
+                 {
+                     "name":  "Customer/Categories",
+                     "description":  "APIDog folder for Customer/Categories"
                  },
                  {
                      "name":  "Vendor/Registration",
