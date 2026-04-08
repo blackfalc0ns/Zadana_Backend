@@ -32,6 +32,7 @@ public record HomeProductCardDto(
     [property: JsonPropertyName("review_count")] int? ReviewCount,
     [property: JsonPropertyName("discount")] string? Discount,
     [property: JsonPropertyName("is_favorite")] bool IsFavorite,
+    [property: JsonPropertyName("is_featured")] bool IsFeatured,
     [property: JsonPropertyName("unit")] string? Unit,
     [property: JsonPropertyName("is_discounted")] bool IsDiscounted);
 

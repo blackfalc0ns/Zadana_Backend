@@ -307,7 +307,7 @@ public class HomeReadService : IHomeReadService
             .ThenByDescending(x => x.SalesCount)
             .ThenByDescending(x => x.CreatedAtUtc)
             .Take(take)
-            .Select(MapToProductCard)
+            .Select(x => MapToProductCard(x, true))
             .ToList();
 
     private async Task<IReadOnlyList<HomeProductCardDto>> GetFeaturedProductsInternalAsync(
@@ -390,7 +390,7 @@ public class HomeReadService : IHomeReadService
                 continue;
             }
 
-            result.Add(MapToProductCard(product));
+            result.Add(MapToProductCard(product, true));
         }
 
         return result;
@@ -498,7 +498,7 @@ public class HomeReadService : IHomeReadService
         return query.Concat(additionalItems).ToList();
     }
 
-    private HomeProductCardDto MapToProductCard(HomeProductSource product)
+    private HomeProductCardDto MapToProductCard(HomeProductSource product, bool isFeatured = false)
     {
         var isDiscounted = product.CompareAtPrice.HasValue && product.CompareAtPrice.Value > product.SellingPrice;
 
@@ -513,6 +513,7 @@ public class HomeReadService : IHomeReadService
             product.ReviewCount,
             FormatDiscount(product),
             false,
+            isFeatured,
             product.Unit,
             isDiscounted);
     }

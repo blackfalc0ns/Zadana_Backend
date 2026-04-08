@@ -34,7 +34,7 @@ public class HomeControllerTests
     {
         IReadOnlyList<HomeProductCardDto> items =
         [
-            new HomeProductCardDto(Guid.NewGuid(), "Milk", "Store", 10m, 12m, "/milk.jpg", 4.5m, 5, "17%", false, "Liter", true)
+            new HomeProductCardDto(Guid.NewGuid(), "Milk", "Store", 10m, 12m, "/milk.jpg", 4.5m, 5, "17%", false, false, "Liter", true)
         ];
 
         _homeReadService.Setup(x => x.GetSpecialOffersAsync(5, It.IsAny<CancellationToken>())).ReturnsAsync(items);

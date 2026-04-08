@@ -5867,6 +5867,10 @@
                                                                                                   "type":  "string",
                                                                                                   "nullable":  true
                                                                                               },
+                                                                                 "address_line":  {
+                                                                                                      "type":  "string",
+                                                                                                      "nullable":  true
+                                                                                                  },
                                                                                  "notifications_count":  {
                                                                                                              "type":  "integer",
                                                                                                              "format":  "int32"
@@ -5937,14 +5941,18 @@
                                                                                                          "type":  "string",
                                                                                                          "nullable":  true
                                                                                                      },
-                                                                                "location":  {
-                                                                                                 "type":  "string",
-                                                                                                 "nullable":  true
-                                                                                             },
-                                                                                "notifications_count":  {
-                                                                                                            "type":  "integer",
-                                                                                                            "format":  "int32"
-                                                                                                        }
+                                                                          "location":  {
+                                                                                           "type":  "string",
+                                                                                           "nullable":  true
+                                                                                       },
+                                                                          "address_line":  {
+                                                                                               "type":  "string",
+                                                                                               "nullable":  true
+                                                                                           },
+                                                                          "notifications_count":  {
+                                                                                                      "type":  "integer",
+                                                                                                      "format":  "int32"
+                                                                                                  }
                                                                             },
                                                              "additionalProperties":  false
                                                          },
@@ -5991,8 +5999,11 @@
                                                                                                       "nullable":  true
                                                                                                   },
                                                                                      "is_favorite":  {
-                                                                                                         "type":  "boolean"
-                                                                                                     },
+                                                                                                           "type":  "boolean"
+                                                                                                       },
+                                                                                     "is_featured":  {
+                                                                                                           "type":  "boolean"
+                                                                                                       },
                                                                                      "unit":  {
                                                                                                   "type":  "string",
                                                                                                   "nullable":  true

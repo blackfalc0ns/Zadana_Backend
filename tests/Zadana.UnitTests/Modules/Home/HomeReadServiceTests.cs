@@ -132,7 +132,9 @@ public class HomeReadServiceTests
 
         result.Should().HaveCount(2);
         result[0].Id.Should().Be(setup.DiscountedProduct.Id);
+        result[0].IsFeatured.Should().BeTrue();
         result[1].Id.Should().Be(setup.OtherProduct!.Id);
+        result[1].IsFeatured.Should().BeTrue();
     }
 
     private static HomeBanner CreateInactiveBanner()
