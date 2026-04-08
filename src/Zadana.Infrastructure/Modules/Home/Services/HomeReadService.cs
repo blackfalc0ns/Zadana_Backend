@@ -586,23 +586,31 @@ public class HomeReadService : IHomeReadService
     {
         var now = DateTime.UtcNow;
 
-        var sections = await _context.HomeSections
-            .AsNoTracking()
-            .Where(x => x.IsActive
-                && x.Category.IsActive
-                && x.Category.ParentCategoryId != null
-                && (!x.StartsAtUtc.HasValue || x.StartsAtUtc <= now)
-                && (!x.EndsAtUtc.HasValue || x.EndsAtUtc >= now))
-            .OrderBy(x => x.DisplayOrder)
-            .ThenByDescending(x => x.CreatedAtUtc)
-            .Select(x => new ActiveHomeSection(
-                x.Id,
-                x.CategoryId,
-                x.Theme,
-                x.ProductsTake,
-                x.Category.NameAr,
-                x.Category.NameEn))
-            .ToListAsync(cancellationToken);
+        List<ActiveHomeSection> sections;
+        try
+        {
+            sections = await _context.HomeSections
+                .AsNoTracking()
+                .Where(x => x.IsActive
+                    && x.Category.IsActive
+                    && x.Category.ParentCategoryId != null
+                    && (!x.StartsAtUtc.HasValue || x.StartsAtUtc <= now)
+                    && (!x.EndsAtUtc.HasValue || x.EndsAtUtc >= now))
+                .OrderBy(x => x.DisplayOrder)
+                .ThenByDescending(x => x.CreatedAtUtc)
+                .Select(x => new ActiveHomeSection(
+                    x.Id,
+                    x.CategoryId,
+                    x.Theme,
+                    x.ProductsTake,
+                    x.Category.NameAr,
+                    x.Category.NameEn))
+                .ToListAsync(cancellationToken);
+        }
+        catch (Exception ex) when (IsMissingDatabaseObject(ex))
+        {
+            return [];
+        }
 
         return sections
             .Select(section => new HomeDynamicSectionDto(
@@ -644,14 +652,22 @@ public class HomeReadService : IHomeReadService
 
     private async Task<Dictionary<HomeContentSectionType, bool>> LoadSectionSettingsAsync(CancellationToken cancellationToken)
     {
-        var savedSettings = await _context.HomeContentSectionSettings
-            .AsNoTracking()
-            .ToDictionaryAsync(x => x.SectionType, x => x.IsEnabled, cancellationToken);
-
-        var result = new Dictionary<HomeContentSectionType, bool>();
-        foreach (var sectionType in Enum.GetValues<HomeContentSectionType>())
+        Dictionary<HomeContentSectionType, bool> savedSettings;
+        try
         {
-            result[sectionType] = savedSettings.TryGetValue(sectionType, out var isEnabled) ? isEnabled : true;
+            savedSettings = await _context.HomeContentSectionSettings
+                .AsNoTracking()
+                .ToDictionaryAsync(x => x.SectionType, x => x.IsEnabled, cancellationToken);
+        }
+        catch (Exception ex) when (IsMissingDatabaseObject(ex))
+        {
+            return CreateDefaultSectionSettings(dynamicSectionsEnabled: false);
+        }
+
+        var result = CreateDefaultSectionSettings(dynamicSectionsEnabled: true);
+        foreach (var setting in savedSettings)
+        {
+            result[setting.Key] = setting.Value;
         }
 
         return result;
@@ -659,17 +675,55 @@ public class HomeReadService : IHomeReadService
 
     private async Task<bool> IsSectionEnabledAsync(HomeContentSectionType sectionType, CancellationToken cancellationToken)
     {
-        var entity = await _context.HomeContentSectionSettings
-            .AsNoTracking()
-            .FirstOrDefaultAsync(x => x.SectionType == sectionType, cancellationToken);
+        try
+        {
+            var entity = await _context.HomeContentSectionSettings
+                .AsNoTracking()
+                .FirstOrDefaultAsync(x => x.SectionType == sectionType, cancellationToken);
 
-        return entity?.IsEnabled ?? true;
+            return entity?.IsEnabled ?? GetDefaultSectionEnabled(sectionType, dynamicSectionsEnabled: true);
+        }
+        catch (Exception ex) when (IsMissingDatabaseObject(ex))
+        {
+            return GetDefaultSectionEnabled(sectionType, dynamicSectionsEnabled: false);
+        }
     }
 
     private static bool IsSectionEnabled(
         IReadOnlyDictionary<HomeContentSectionType, bool> sectionSettings,
         HomeContentSectionType sectionType) =>
         sectionSettings.TryGetValue(sectionType, out var isEnabled) ? isEnabled : true;
+
+    private static Dictionary<HomeContentSectionType, bool> CreateDefaultSectionSettings(bool dynamicSectionsEnabled)
+    {
+        var defaults = new Dictionary<HomeContentSectionType, bool>();
+        foreach (var sectionType in Enum.GetValues<HomeContentSectionType>())
+        {
+            defaults[sectionType] = GetDefaultSectionEnabled(sectionType, dynamicSectionsEnabled);
+        }
+
+        return defaults;
+    }
+
+    private static bool GetDefaultSectionEnabled(HomeContentSectionType sectionType, bool dynamicSectionsEnabled) =>
+        sectionType == HomeContentSectionType.DynamicSections
+            ? dynamicSectionsEnabled
+            : true;
+
+    private static bool IsMissingDatabaseObject(Exception exception)
+    {
+        for (Exception? current = exception; current is not null; current = current.InnerException)
+        {
+            var message = current.Message;
+            if (message.Contains("Invalid object name", StringComparison.OrdinalIgnoreCase)
+                || message.Contains("no such table", StringComparison.OrdinalIgnoreCase))
+            {
+                return true;
+            }
+        }
+
+        return false;
+    }
 
     private static string BuildLocation(string? area, string? city, string addressLine)
     {
