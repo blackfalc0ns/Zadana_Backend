@@ -170,6 +170,45 @@ public class HomeReadServiceTests
     }
 
     [Fact]
+    public async Task GetBrandsAsync_ReturnsAllActiveBrandsEvenWhenOnlyOneHasEligibleProducts()
+    {
+        using var scope = new CultureScope("en");
+        await using var context = TestDbContextFactory.Create();
+
+        var setup = await SeedCatalogScenarioAsync(context);
+        var extraBrands = new[]
+        {
+            new Brand("براند 3", "Brand 3", "brand3.png"),
+            new Brand("براند 4", "Brand 4", "brand4.png"),
+            new Brand("براند 5", "Brand 5", "brand5.png")
+        };
+
+        context.Brands.AddRange(extraBrands);
+        await context.SaveChangesAsync();
+
+        foreach (var product in context.VendorProducts)
+        {
+            product.UpdateStock(0);
+        }
+
+        var eligibleBrandProduct = await context.VendorProducts.FirstAsync(x => x.Id == setup.DiscountedProduct.Id);
+        eligibleBrandProduct.UpdateStock(20);
+        eligibleBrandProduct.Activate();
+        eligibleBrandProduct.SetAvailability(true);
+        await context.SaveChangesAsync();
+
+        var service = new HomeReadService(context, new FakeCurrentUserService(null, false));
+
+        var result = await service.GetBrandsAsync(10);
+
+        result.Key.Should().Be("brands");
+        result.Items.Should().HaveCount(5);
+        result.Items.Select(x => x.Name).Should().Contain(["Almarai", "Samsung", "Brand 3", "Brand 4", "Brand 5"]);
+        result.Items.First(x => x.Name == "Almarai").ProductCount.Should().BeGreaterThan(0);
+        result.Items.First(x => x.Name == "Brand 3").ProductCount.Should().Be(0);
+    }
+
+    [Fact]
     public async Task GetContentAsync_ReturnsDynamicSectionsForActiveSubCategories()
     {
         using var scope = new CultureScope("en");

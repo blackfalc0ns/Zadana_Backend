@@ -73,7 +73,7 @@ public class HomeReadService : IHomeReadService
             .ToHashSet();
 
         var brands = IsSectionEnabled(sectionSettings, HomeContentSectionType.Brands)
-            ? SelectBrands(catalog.Products, DefaultBrandTake)
+            ? await GetBrandsInternalAsync(DefaultBrandTake, cancellationToken)
             : [];
         var exploreMore = IsSectionEnabled(sectionSettings, HomeContentSectionType.ExploreMore)
             ? SelectExploreMore(catalog.Products, DefaultProductTake, excludedExploreIds)
@@ -170,12 +170,11 @@ public class HomeReadService : IHomeReadService
             return CreateSection("brands", "Brands", false, Array.Empty<HomeBrandCardDto>());
         }
 
-        var catalog = await BuildProductCatalogAsync(cancellationToken);
         return CreateSection(
             "brands",
             "Brands",
             true,
-            SelectBrands(catalog.Products, NormalizeTake(take, DefaultBrandTake)));
+            await GetBrandsInternalAsync(NormalizeTake(take, DefaultBrandTake), cancellationToken));
     }
 
     public async Task<HomeListSectionDto<HomeProductCardDto>> GetFeaturedProductsAsync(int take, CancellationToken cancellationToken = default)
@@ -577,21 +576,53 @@ public class HomeReadService : IHomeReadService
             : SelectFeaturedProducts(catalog.Products, take);
     }
 
-    private IReadOnlyList<HomeBrandCardDto> SelectBrands(IEnumerable<HomeProductSource> products, int take) =>
-        products
-            .Where(x => x.BrandId.HasValue && x.BrandIsActive)
-            .GroupBy(x => new { x.BrandId, x.BrandName, x.BrandLogo })
+    private async Task<IReadOnlyList<HomeBrandCardDto>> GetBrandsInternalAsync(int take, CancellationToken cancellationToken)
+    {
+        var productCounts = await _context.VendorProducts
+            .AsNoTracking()
+            .Where(vp =>
+                vp.MasterProduct.BrandId.HasValue &&
+                vp.MasterProduct.Brand != null &&
+                vp.MasterProduct.Brand.IsActive &&
+                vp.Status == VendorProductStatus.Active &&
+                vp.IsAvailable &&
+                vp.StockQuantity > 0 &&
+                vp.MasterProduct.Status == ProductStatus.Active &&
+                vp.Vendor.Status == VendorStatus.Active &&
+                vp.Vendor.AcceptOrders)
+            .GroupBy(vp => vp.MasterProduct.BrandId!.Value)
+            .Select(group => new
+            {
+                BrandId = group.Key,
+                ProductCount = group.Select(vp => vp.Id).Distinct().Count()
+            })
+            .ToDictionaryAsync(x => x.BrandId, x => x.ProductCount, cancellationToken);
+
+        var brands = await _context.Brands
+            .AsNoTracking()
+            .Where(x => x.IsActive)
+            .Select(x => new
+            {
+                x.Id,
+                x.NameAr,
+                x.NameEn,
+                x.LogoUrl
+            })
+            .ToListAsync(cancellationToken);
+
+        return brands
             .Select(x => new HomeBrandCardDto(
-                x.Key.BrandId!.Value,
-                x.Key.BrandName ?? string.Empty,
-                x.Key.BrandLogo,
+                x.Id,
+                PickLocalized(x.NameAr, x.NameEn),
+                x.LogoUrl,
                 null,
-                x.Select(y => y.Id).Distinct().Count(),
+                productCounts.TryGetValue(x.Id, out var productCount) ? productCount : 0,
                 null))
             .OrderByDescending(x => x.ProductCount)
             .ThenBy(x => x.Name)
             .Take(take)
             .ToList();
+    }
 
     private IReadOnlyList<HomeProductCardDto> SelectExploreMore(
         IEnumerable<HomeProductSource> products,

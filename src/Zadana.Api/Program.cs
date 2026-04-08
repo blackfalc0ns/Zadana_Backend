@@ -72,7 +72,7 @@ builder.Services.AddOptions<Zadana.Infrastructure.Settings.ImageKitSettings>()
     .ValidateDataAnnotations()
     .ValidateOnStart();
 
-if (builder.Environment.IsDevelopment())
+if (builder.Environment.IsEnvironment("Testing"))
 {
     builder.Services.AddTransient<IFileStorageService, Zadana.Infrastructure.Modules.Files.Services.LocalFileStorageService>();
 }
