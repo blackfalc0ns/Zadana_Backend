@@ -1,4 +1,4 @@
-using Microsoft.AspNetCore.Authorization;
+﻿using Microsoft.AspNetCore.Authorization;
 using Microsoft.AspNetCore.Mvc;
 using Zadana.Api.Controllers;
 using Zadana.Application.Modules.Home.DTOs;
@@ -8,6 +8,7 @@ namespace Zadana.Api.Modules.Home.Controllers;
 
 [Route("api/home")]
 [AllowAnonymous]
+[Tags("Customer App API")]
 public class HomeController : ApiControllerBase
 {
     private readonly IHomeReadService _homeReadService;
@@ -87,3 +88,4 @@ public class HomeController : ApiControllerBase
         return Ok(result);
     }
 }
+

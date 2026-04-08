@@ -1,4 +1,4 @@
-using Microsoft.AspNetCore.Authorization;
+﻿using Microsoft.AspNetCore.Authorization;
 using Microsoft.AspNetCore.Mvc;
 using Microsoft.Extensions.Localization;
 using Zadana.Api.Controllers;
@@ -11,7 +11,7 @@ using Zadana.SharedKernel.Exceptions;
 namespace Zadana.Api.Modules.Identity.Controllers;
 
 [Route("api/customers/addresses")]
-[Tags("🙋‍♂️ 1. Customer App API")]
+[Tags("Customer App API")]
 [Authorize(Policy = "CustomerOnly")]
 public class CustomerAddressesController : ApiControllerBase
 {
@@ -52,3 +52,4 @@ public class CustomerAddressesController : ApiControllerBase
         return Ok(result);
     }
 }
+

@@ -1,4 +1,4 @@
-using Microsoft.AspNetCore.Authorization;
+﻿using Microsoft.AspNetCore.Authorization;
 using Microsoft.AspNetCore.Mvc;
 using Microsoft.Extensions.Localization;
 using Zadana.Api.Controllers;
@@ -38,7 +38,7 @@ namespace Zadana.Api.Modules.Vendors.Controllers;
 
 [Route("api/admin/vendors")]
 [Authorize(Policy = "AdminOnly")]
-[Tags("👑 4. Admin Dashboard API")]
+[Tags("Admin Dashboard API")]
 public class AdminVendorsController : ApiControllerBase
 {
     private readonly IStringLocalizer<SharedResource> _localizer;
@@ -49,7 +49,7 @@ public class AdminVendorsController : ApiControllerBase
     }
 
     /// <summary>
-    /// عرض قائمة التجار مع التصفية والبحث والترقيم
+    /// Ø¹Ø±Ø¶ Ù‚Ø§Ø¦Ù…Ø© Ø§Ù„ØªØ¬Ø§Ø± Ù…Ø¹ Ø§Ù„ØªØµÙÙŠØ© ÙˆØ§Ù„Ø¨Ø­Ø« ÙˆØ§Ù„ØªØ±Ù‚ÙŠÙ…
     /// </summary>
     [HttpGet]
     public async Task<IActionResult> GetAllVendors(
@@ -63,7 +63,7 @@ public class AdminVendorsController : ApiControllerBase
     }
 
     /// <summary>
-    /// عرض تفاصيل تاجر معين
+    /// Ø¹Ø±Ø¶ ØªÙØ§ØµÙŠÙ„ ØªØ§Ø¬Ø± Ù…Ø¹ÙŠÙ†
     /// </summary>
     [HttpGet("{vendorId:guid}")]
     public async Task<IActionResult> GetVendorDetail(Guid vendorId)
@@ -175,7 +175,7 @@ public class AdminVendorsController : ApiControllerBase
     }
 
     /// <summary>
-    /// الموافقة على تاجر وتحديد نسبة العمولة
+    /// Ø§Ù„Ù…ÙˆØ§ÙÙ‚Ø© Ø¹Ù„Ù‰ ØªØ§Ø¬Ø± ÙˆØªØ­Ø¯ÙŠØ¯ Ù†Ø³Ø¨Ø© Ø§Ù„Ø¹Ù…ÙˆÙ„Ø©
     /// </summary>
     [HttpPost("{vendorId:guid}/approve")]
     public async Task<IActionResult> ApproveVendor(Guid vendorId, [FromBody] ApproveVendorRequest request)
@@ -185,7 +185,7 @@ public class AdminVendorsController : ApiControllerBase
     }
 
     /// <summary>
-    /// رفض تاجر مع ذكر السبب
+    /// Ø±ÙØ¶ ØªØ§Ø¬Ø± Ù…Ø¹ Ø°ÙƒØ± Ø§Ù„Ø³Ø¨Ø¨
     /// </summary>
     [HttpPost("{vendorId:guid}/reject")]
     public async Task<IActionResult> RejectVendor(Guid vendorId, [FromBody] RejectVendorRequest request)
@@ -195,7 +195,7 @@ public class AdminVendorsController : ApiControllerBase
     }
 
     /// <summary>
-    /// تعليق تاجر نشط
+    /// ØªØ¹Ù„ÙŠÙ‚ ØªØ§Ø¬Ø± Ù†Ø´Ø·
     /// </summary>
     [HttpPost("{vendorId:guid}/suspend")]
     public async Task<IActionResult> SuspendVendor(Guid vendorId, [FromBody] SuspendVendorRequest request)
@@ -344,3 +344,4 @@ public class AdminVendorsController : ApiControllerBase
         return Ok(result);
     }
 }
+

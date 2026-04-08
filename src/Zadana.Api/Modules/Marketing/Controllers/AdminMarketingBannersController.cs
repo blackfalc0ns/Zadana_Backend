@@ -1,4 +1,4 @@
-using Microsoft.AspNetCore.Authorization;
+﻿using Microsoft.AspNetCore.Authorization;
 using Microsoft.AspNetCore.Mvc;
 using Zadana.Api.Controllers;
 using Zadana.Api.Modules.Marketing.Requests;
@@ -10,6 +10,7 @@ namespace Zadana.Api.Modules.Marketing.Controllers;
 
 [Route("api/admin/marketing/banners")]
 [Authorize(Policy = "AdminOnly")]
+[Tags("Marketing (Admins)")]
 public class AdminMarketingBannersController : ApiControllerBase
 {
     [HttpGet]
@@ -67,3 +68,4 @@ public class AdminMarketingBannersController : ApiControllerBase
         return NoContent();
     }
 }
+

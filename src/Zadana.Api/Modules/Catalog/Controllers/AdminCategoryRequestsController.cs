@@ -1,4 +1,4 @@
-using Microsoft.AspNetCore.Authorization;
+﻿using Microsoft.AspNetCore.Authorization;
 using Microsoft.AspNetCore.Mvc;
 using Zadana.Api.Controllers;
 using Zadana.Api.Modules.Catalog.Requests;
@@ -7,7 +7,7 @@ using Zadana.Application.Modules.Catalog.Commands.CategoryRequests.ReviewRequest
 namespace Zadana.Api.Modules.Catalog.Controllers;
 
 [Route("api/admin/catalog/category-requests")]
-[Tags("Catalog Admins")]
+[Tags("Catalog (Admins)")]
 [Authorize(Roles = "Admin,SuperAdmin")]
 public class AdminCategoryRequestsController : ApiControllerBase
 {
@@ -18,3 +18,4 @@ public class AdminCategoryRequestsController : ApiControllerBase
         return Ok(new { CreatedCategoryId = createdCategoryId });
     }
 }
+

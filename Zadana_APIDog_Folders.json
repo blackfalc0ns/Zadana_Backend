@@ -1,14 +1,15 @@
 ﻿{
     "openapi":  "3.0.1",
     "info":  {
-                 "title":  "Zadana.Api",
-                 "version":  "1.0"
+                 "title":  "Zadana API - APIDog Detailed Folders",
+                 "version":  "1.0",
+                 "description":  "OpenAPI document with detailed folder-style tags for APIDog import."
              },
     "paths":  {
                   "/api/admin/vendors":  {
                                              "get":  {
                                                          "tags":  [
-                                                                      "Admin Dashboard API"
+                                                                      "Admin/Vendors"
                                                                   ],
                                                          "parameters":  [
                                                                             {
@@ -54,7 +55,7 @@
                   "/api/admin/vendors/{vendorId}":  {
                                                         "get":  {
                                                                     "tags":  [
-                                                                                 "Admin Dashboard API"
+                                                                                 "Admin/Vendors"
                                                                              ],
                                                                     "parameters":  [
                                                                                        {
@@ -77,7 +78,7 @@
                   "/api/admin/vendors/{vendorId}/orders":  {
                                                                "get":  {
                                                                            "tags":  [
-                                                                                        "Admin Dashboard API"
+                                                                                        "Admin/Vendors"
                                                                                     ],
                                                                            "parameters":  [
                                                                                               {
@@ -118,7 +119,7 @@
                   "/api/admin/vendors/{vendorId}/products":  {
                                                                  "get":  {
                                                                              "tags":  [
-                                                                                          "Admin Dashboard API"
+                                                                                          "Admin/Vendors"
                                                                                       ],
                                                                              "parameters":  [
                                                                                                 {
@@ -175,7 +176,7 @@
                   "/api/admin/vendors/{vendorId}/settlements":  {
                                                                     "get":  {
                                                                                 "tags":  [
-                                                                                             "Admin Dashboard API"
+                                                                                             "Admin/Vendors"
                                                                                          ],
                                                                                 "parameters":  [
                                                                                                    {
@@ -214,7 +215,7 @@
                                                                             },
                                                                     "post":  {
                                                                                  "tags":  [
-                                                                                              "Admin Dashboard API"
+                                                                                              "Admin/Vendors"
                                                                                           ],
                                                                                  "parameters":  [
                                                                                                     {
@@ -256,7 +257,7 @@
                   "/api/admin/vendors/{vendorId}/payouts":  {
                                                                 "get":  {
                                                                             "tags":  [
-                                                                                         "Admin Dashboard API"
+                                                                                         "Admin/Vendors"
                                                                                      ],
                                                                             "parameters":  [
                                                                                                {
@@ -297,7 +298,7 @@
                   "/api/admin/vendors/{vendorId}/start-review":  {
                                                                      "post":  {
                                                                                   "tags":  [
-                                                                                               "Admin Dashboard API"
+                                                                                               "Admin/Vendors"
                                                                                            ],
                                                                                   "parameters":  [
                                                                                                      {
@@ -320,7 +321,7 @@
                   "/api/admin/vendors/{vendorId}/request-documents":  {
                                                                           "post":  {
                                                                                        "tags":  [
-                                                                                                    "Admin Dashboard API"
+                                                                                                    "Admin/Vendors"
                                                                                                 ],
                                                                                        "parameters":  [
                                                                                                           {
@@ -362,7 +363,7 @@
                   "/api/admin/vendors/{vendorId}/review-notes":  {
                                                                      "post":  {
                                                                                   "tags":  [
-                                                                                               "Admin Dashboard API"
+                                                                                               "Admin/Vendors"
                                                                                            ],
                                                                                   "parameters":  [
                                                                                                      {
@@ -404,7 +405,7 @@
                   "/api/admin/vendors/{vendorId}/payouts/{payoutId}/retry":  {
                                                                                  "post":  {
                                                                                               "tags":  [
-                                                                                                           "Admin Dashboard API"
+                                                                                                           "Admin/Vendors"
                                                                                                        ],
                                                                                               "parameters":  [
                                                                                                                  {
@@ -436,7 +437,7 @@
                   "/api/admin/vendors/{vendorId}/payouts/{payoutId}/suspend":  {
                                                                                    "post":  {
                                                                                                 "tags":  [
-                                                                                                             "Admin Dashboard API"
+                                                                                                             "Admin/Vendors"
                                                                                                          ],
                                                                                                 "parameters":  [
                                                                                                                    {
@@ -468,7 +469,7 @@
                   "/api/admin/vendors/{vendorId}/payouts/{payoutId}/escalate":  {
                                                                                     "post":  {
                                                                                                  "tags":  [
-                                                                                                              "Admin Dashboard API"
+                                                                                                              "Admin/Vendors"
                                                                                                           ],
                                                                                                  "parameters":  [
                                                                                                                     {
@@ -500,7 +501,7 @@
                   "/api/admin/vendors/{vendorId}/approve":  {
                                                                 "post":  {
                                                                              "tags":  [
-                                                                                          "Admin Dashboard API"
+                                                                                          "Admin/Vendors"
                                                                                       ],
                                                                              "parameters":  [
                                                                                                 {
@@ -542,7 +543,7 @@
                   "/api/admin/vendors/{vendorId}/reject":  {
                                                                "post":  {
                                                                             "tags":  [
-                                                                                         "Admin Dashboard API"
+                                                                                         "Admin/Vendors"
                                                                                      ],
                                                                             "parameters":  [
                                                                                                {
@@ -584,7 +585,7 @@
                   "/api/admin/vendors/{vendorId}/suspend":  {
                                                                 "post":  {
                                                                              "tags":  [
-                                                                                          "Admin Dashboard API"
+                                                                                          "Admin/Vendors"
                                                                                       ],
                                                                              "parameters":  [
                                                                                                 {
@@ -626,7 +627,7 @@
                   "/api/admin/vendors/{vendorId}/reactivate":  {
                                                                    "post":  {
                                                                                 "tags":  [
-                                                                                             "Admin Dashboard API"
+                                                                                             "Admin/Vendors"
                                                                                          ],
                                                                                 "parameters":  [
                                                                                                    {
@@ -649,7 +650,7 @@
                   "/api/admin/vendors/{vendorId}/lock-login":  {
                                                                    "post":  {
                                                                                 "tags":  [
-                                                                                             "Admin Dashboard API"
+                                                                                             "Admin/Vendors"
                                                                                          ],
                                                                                 "parameters":  [
                                                                                                    {
@@ -691,7 +692,7 @@
                   "/api/admin/vendors/{vendorId}/unlock-login":  {
                                                                      "post":  {
                                                                                   "tags":  [
-                                                                                               "Admin Dashboard API"
+                                                                                               "Admin/Vendors"
                                                                                            ],
                                                                                   "parameters":  [
                                                                                                      {
@@ -714,7 +715,7 @@
                   "/api/admin/vendors/{vendorId}/archive":  {
                                                                 "post":  {
                                                                              "tags":  [
-                                                                                          "Admin Dashboard API"
+                                                                                          "Admin/Vendors"
                                                                                       ],
                                                                              "parameters":  [
                                                                                                 {
@@ -756,7 +757,7 @@
                   "/api/admin/vendors/{vendorId}/reset-password":  {
                                                                        "post":  {
                                                                                     "tags":  [
-                                                                                                 "Admin Dashboard API"
+                                                                                                 "Admin/Vendors"
                                                                                              ],
                                                                                     "parameters":  [
                                                                                                        {
@@ -798,7 +799,7 @@
                   "/api/admin/vendors/{vendorId}/store":  {
                                                               "put":  {
                                                                           "tags":  [
-                                                                                       "Admin Dashboard API"
+                                                                                       "Admin/Vendors"
                                                                                    ],
                                                                           "parameters":  [
                                                                                              {
@@ -840,7 +841,7 @@
                   "/api/admin/vendors/{vendorId}/contact":  {
                                                                 "put":  {
                                                                             "tags":  [
-                                                                                         "Admin Dashboard API"
+                                                                                         "Admin/Vendors"
                                                                                      ],
                                                                             "parameters":  [
                                                                                                {
@@ -882,7 +883,7 @@
                   "/api/admin/vendors/{vendorId}/owner":  {
                                                               "put":  {
                                                                           "tags":  [
-                                                                                       "Admin Dashboard API"
+                                                                                       "Admin/Vendors"
                                                                                    ],
                                                                           "parameters":  [
                                                                                              {
@@ -924,7 +925,7 @@
                   "/api/admin/vendors/{vendorId}/legal-banking":  {
                                                                       "put":  {
                                                                                   "tags":  [
-                                                                                               "Admin Dashboard API"
+                                                                                               "Admin/Vendors"
                                                                                            ],
                                                                                   "parameters":  [
                                                                                                      {
@@ -966,7 +967,7 @@
                   "/api/admin/vendors/{vendorId}/hours":  {
                                                               "put":  {
                                                                           "tags":  [
-                                                                                       "Admin Dashboard API"
+                                                                                       "Admin/Vendors"
                                                                                    ],
                                                                           "parameters":  [
                                                                                              {
@@ -1008,7 +1009,7 @@
                   "/api/admin/vendors/{vendorId}/operations-settings":  {
                                                                             "put":  {
                                                                                         "tags":  [
-                                                                                                     "Admin Dashboard API"
+                                                                                                     "Admin/Vendors"
                                                                                                  ],
                                                                                         "parameters":  [
                                                                                                            {
@@ -1050,7 +1051,7 @@
                   "/api/admin/vendors/{vendorId}/notification-settings":  {
                                                                               "put":  {
                                                                                           "tags":  [
-                                                                                                       "Admin Dashboard API"
+                                                                                                       "Admin/Vendors"
                                                                                                    ],
                                                                                           "parameters":  [
                                                                                                              {
@@ -1092,7 +1093,7 @@
                   "/api/customers/addresses":  {
                                                    "post":  {
                                                                 "tags":  [
-                                                                             "Customer App API"
+                                                                             "Customer/Addresses"
                                                                          ],
                                                                 "requestBody":  {
                                                                                     "content":  {
@@ -1123,7 +1124,7 @@
                   "/api/admin/auth/login":  {
                                                 "post":  {
                                                              "tags":  [
-                                                                          "Admin Dashboard API"
+                                                                          "Admin/Auth"
                                                                       ],
                                                              "requestBody":  {
                                                                                  "content":  {
@@ -1154,7 +1155,7 @@
                   "/api/admin/auth/refresh-token":  {
                                                         "post":  {
                                                                      "tags":  [
-                                                                                  "Admin Dashboard API"
+                                                                                  "Admin/Auth"
                                                                               ],
                                                                      "requestBody":  {
                                                                                          "content":  {
@@ -1185,7 +1186,7 @@
                   "/api/admin/auth/logout":  {
                                                  "post":  {
                                                               "tags":  [
-                                                                           "Admin Dashboard API"
+                                                                           "Admin/Auth"
                                                                        ],
                                                               "requestBody":  {
                                                                                   "content":  {
@@ -1216,7 +1217,7 @@
                   "/api/admin/auth/me":  {
                                              "get":  {
                                                          "tags":  [
-                                                                      "Admin Dashboard API"
+                                                                      "Admin/Auth"
                                                                   ],
                                                          "responses":  {
                                                                            "200":  {
@@ -1228,7 +1229,7 @@
                   "/api/admin/catalog/brands":  {
                                                     "get":  {
                                                                 "tags":  [
-                                                                             "Catalog (Admins)"
+                                                                             "Admin/Catalog/Brands"
                                                                          ],
                                                                 "parameters":  [
                                                                                    {
@@ -1274,7 +1275,7 @@
                                                             },
                                                     "post":  {
                                                                  "tags":  [
-                                                                              "Catalog (Admins)"
+                                                                              "Admin/Catalog/Brands"
                                                                           ],
                                                                  "requestBody":  {
                                                                                      "content":  {
@@ -1322,7 +1323,7 @@
                   "/api/admin/catalog/brands/{id}":  {
                                                          "put":  {
                                                                      "tags":  [
-                                                                                  "Catalog (Admins)"
+                                                                                  "Admin/Catalog/Brands"
                                                                               ],
                                                                      "parameters":  [
                                                                                         {
@@ -1364,7 +1365,7 @@
                   "/api/admin/catalog/categories":  {
                                                         "get":  {
                                                                     "tags":  [
-                                                                                 "Catalog (Admins)"
+                                                                                 "Admin/Catalog/Categories"
                                                                              ],
                                                                     "parameters":  [
                                                                                        {
@@ -1410,7 +1411,7 @@
                                                                 },
                                                         "post":  {
                                                                      "tags":  [
-                                                                                  "Catalog (Admins)"
+                                                                                  "Admin/Catalog/Categories"
                                                                               ],
                                                                      "requestBody":  {
                                                                                          "content":  {
@@ -1458,7 +1459,7 @@
                   "/api/admin/catalog/categories/{id}":  {
                                                              "put":  {
                                                                          "tags":  [
-                                                                                      "Catalog (Admins)"
+                                                                                      "Admin/Catalog/Categories"
                                                                                   ],
                                                                          "parameters":  [
                                                                                             {
@@ -1498,7 +1499,7 @@
                                                                      },
                                                              "get":  {
                                                                          "tags":  [
-                                                                                      "Catalog (Admins)"
+                                                                                      "Admin/Catalog/Categories"
                                                                                   ],
                                                                          "parameters":  [
                                                                                             {
@@ -1536,7 +1537,7 @@
                                                                      },
                                                              "delete":  {
                                                                             "tags":  [
-                                                                                         "Catalog (Admins)"
+                                                                                         "Admin/Catalog/Categories"
                                                                                      ],
                                                                             "parameters":  [
                                                                                                {
@@ -1559,7 +1560,7 @@
                   "/api/admin/marketing/banners":  {
                                                        "get":  {
                                                                    "tags":  [
-                                                                                "Marketing (Admins)"
+                                                                                "Admin/Marketing/Banners"
                                                                             ],
                                                                    "responses":  {
                                                                                      "200":  {
@@ -1595,7 +1596,7 @@
                                                                },
                                                        "post":  {
                                                                     "tags":  [
-                                                                                 "Marketing (Admins)"
+                                                                                 "Admin/Marketing/Banners"
                                                                              ],
                                                                     "requestBody":  {
                                                                                         "content":  {
@@ -1643,7 +1644,7 @@
                   "/api/admin/marketing/banners/{id}":  {
                                                             "get":  {
                                                                         "tags":  [
-                                                                                     "Marketing (Admins)"
+                                                                                     "Admin/Marketing/Banners"
                                                                                  ],
                                                                         "parameters":  [
                                                                                            {
@@ -1681,7 +1682,7 @@
                                                                     },
                                                             "put":  {
                                                                         "tags":  [
-                                                                                     "Marketing (Admins)"
+                                                                                     "Admin/Marketing/Banners"
                                                                                  ],
                                                                         "parameters":  [
                                                                                            {
@@ -1738,7 +1739,7 @@
                                                                     },
                                                             "delete":  {
                                                                            "tags":  [
-                                                                                        "Marketing (Admins)"
+                                                                                        "Admin/Marketing/Banners"
                                                                                     ],
                                                                            "parameters":  [
                                                                                               {
@@ -1761,7 +1762,7 @@
                   "/api/admin/marketing/banners/{id}/activate":  {
                                                                      "patch":  {
                                                                                    "tags":  [
-                                                                                                "Marketing (Admins)"
+                                                                                                "Admin/Marketing/Banners"
                                                                                             ],
                                                                                    "parameters":  [
                                                                                                       {
@@ -1784,7 +1785,7 @@
                   "/api/admin/marketing/banners/{id}/deactivate":  {
                                                                        "patch":  {
                                                                                      "tags":  [
-                                                                                                  "Marketing (Admins)"
+                                                                                                  "Admin/Marketing/Banners"
                                                                                               ],
                                                                                      "parameters":  [
                                                                                                         {
@@ -1807,7 +1808,7 @@
                   "/api/admin/marketing/featured-products":  {
                                                                  "get":  {
                                                                              "tags":  [
-                                                                                          "Marketing (Admins)"
+                                                                                          "Admin/Marketing/Featured Products"
                                                                                       ],
                                                                              "responses":  {
                                                                                                "200":  {
@@ -1843,7 +1844,7 @@
                                                                          },
                                                                  "post":  {
                                                                               "tags":  [
-                                                                                           "Marketing (Admins)"
+                                                                                           "Admin/Marketing/Featured Products"
                                                                                        ],
                                                                               "requestBody":  {
                                                                                                   "content":  {
@@ -1891,7 +1892,7 @@
                   "/api/admin/marketing/featured-products/{id}":  {
                                                                       "get":  {
                                                                                   "tags":  [
-                                                                                               "Marketing (Admins)"
+                                                                                               "Admin/Marketing/Featured Products"
                                                                                            ],
                                                                                   "parameters":  [
                                                                                                      {
@@ -1929,7 +1930,7 @@
                                                                               },
                                                                       "put":  {
                                                                                   "tags":  [
-                                                                                               "Marketing (Admins)"
+                                                                                               "Admin/Marketing/Featured Products"
                                                                                            ],
                                                                                   "parameters":  [
                                                                                                      {
@@ -1986,7 +1987,7 @@
                                                                               },
                                                                       "delete":  {
                                                                                      "tags":  [
-                                                                                                  "Marketing (Admins)"
+                                                                                                  "Admin/Marketing/Featured Products"
                                                                                               ],
                                                                                      "parameters":  [
                                                                                                         {
@@ -2009,7 +2010,7 @@
                   "/api/admin/marketing/featured-products/{id}/activate":  {
                                                                                "patch":  {
                                                                                              "tags":  [
-                                                                                                          "Marketing (Admins)"
+                                                                                                          "Admin/Marketing/Featured Products"
                                                                                                       ],
                                                                                              "parameters":  [
                                                                                                                 {
@@ -2032,7 +2033,7 @@
                   "/api/admin/marketing/featured-products/{id}/deactivate":  {
                                                                                  "patch":  {
                                                                                                "tags":  [
-                                                                                                            "Marketing (Admins)"
+                                                                                                            "Admin/Marketing/Featured Products"
                                                                                                         ],
                                                                                                "parameters":  [
                                                                                                                   {
@@ -2055,7 +2056,7 @@
                   "/api/admin/catalog/products":  {
                                                       "get":  {
                                                                   "tags":  [
-                                                                               "Catalog (Admins)"
+                                                                               "Admin/Catalog/Master Products"
                                                                            ],
                                                                   "parameters":  [
                                                                                      {
@@ -2132,7 +2133,7 @@
                                                               },
                                                       "post":  {
                                                                    "tags":  [
-                                                                                "Catalog (Admins)"
+                                                                                "Admin/Catalog/Master Products"
                                                                             ],
                                                                    "requestBody":  {
                                                                                        "content":  {
@@ -2183,7 +2184,7 @@
                   "/api/admin/catalog/products/{id}":  {
                                                            "get":  {
                                                                        "tags":  [
-                                                                                    "Catalog (Admins)"
+                                                                                    "Admin/Catalog/Master Products"
                                                                                 ],
                                                                        "parameters":  [
                                                                                           {
@@ -2221,7 +2222,7 @@
                                                                    },
                                                            "put":  {
                                                                        "tags":  [
-                                                                                    "Catalog (Admins)"
+                                                                                    "Admin/Catalog/Master Products"
                                                                                 ],
                                                                        "parameters":  [
                                                                                           {
@@ -2261,7 +2262,7 @@
                                                                    },
                                                            "delete":  {
                                                                           "tags":  [
-                                                                                       "Catalog (Admins)"
+                                                                                       "Admin/Catalog/Master Products"
                                                                                    ],
                                                                           "parameters":  [
                                                                                              {
@@ -2284,7 +2285,7 @@
                   "/api/admin/catalog/products/{id}/vendors":  {
                                                                    "get":  {
                                                                                "tags":  [
-                                                                                            "Catalog (Admins)"
+                                                                                            "Admin/Catalog/Master Products"
                                                                                         ],
                                                                                "parameters":  [
                                                                                                   {
@@ -2342,7 +2343,7 @@
                   "/api/admin/catalog/units":  {
                                                    "get":  {
                                                                "tags":  [
-                                                                            "Catalog (Admins)"
+                                                                            "Admin/Catalog/Units"
                                                                         ],
                                                                "parameters":  [
                                                                                   {
@@ -2388,7 +2389,7 @@
                                                            },
                                                    "post":  {
                                                                 "tags":  [
-                                                                             "Catalog (Admins)"
+                                                                             "Admin/Catalog/Units"
                                                                          ],
                                                                 "requestBody":  {
                                                                                     "content":  {
@@ -2436,7 +2437,7 @@
                   "/api/admin/catalog/units/{id}":  {
                                                         "put":  {
                                                                     "tags":  [
-                                                                                 "Catalog (Admins)"
+                                                                                 "Admin/Catalog/Units"
                                                                              ],
                                                                     "parameters":  [
                                                                                        {
@@ -2478,7 +2479,7 @@
                   "/api/admin/catalog/brand-requests/{id}/review":  {
                                                                         "post":  {
                                                                                      "tags":  [
-                                                                                                  "Catalog (Admins)"
+                                                                                                  "Admin/Catalog/Brand Requests"
                                                                                               ],
                                                                                      "parameters":  [
                                                                                                         {
@@ -2520,7 +2521,7 @@
                   "/api/admin/catalog/request-center":  {
                                                             "get":  {
                                                                         "tags":  [
-                                                                                     "Catalog (Admins)"
+                                                                                     "Admin/Catalog/Request Center"
                                                                                  ],
                                                                         "parameters":  [
                                                                                            {
@@ -2572,7 +2573,7 @@
                   "/api/admin/catalog/request-center/{id}":  {
                                                                  "get":  {
                                                                              "tags":  [
-                                                                                          "Catalog (Admins)"
+                                                                                          "Admin/Catalog/Request Center"
                                                                                       ],
                                                                              "parameters":  [
                                                                                                 {
@@ -2602,7 +2603,7 @@
                   "/api/admin/catalog/category-requests/{id}/review":  {
                                                                            "post":  {
                                                                                         "tags":  [
-                                                                                                     "Catalog (Admins)"
+                                                                                                     "Admin/Catalog/Category Requests"
                                                                                                  ],
                                                                                         "parameters":  [
                                                                                                            {
@@ -2644,7 +2645,7 @@
                   "/api/admin/product-requests/pending":  {
                                                               "get":  {
                                                                           "tags":  [
-                                                                                       "Catalog (Admins)"
+                                                                                       "Admin/Catalog/Product Requests"
                                                                                    ],
                                                                           "parameters":  [
                                                                                              {
@@ -2674,7 +2675,7 @@
                   "/api/admin/catalog/product-requests/pending":  {
                                                                       "get":  {
                                                                                   "tags":  [
-                                                                                               "Catalog (Admins)"
+                                                                                               "Admin/Catalog/Product Requests"
                                                                                            ],
                                                                                   "parameters":  [
                                                                                                      {
@@ -2704,7 +2705,7 @@
                   "/api/admin/product-requests/{id}/review":  {
                                                                   "post":  {
                                                                                "tags":  [
-                                                                                            "Catalog (Admins)"
+                                                                                            "Admin/Catalog/Product Requests"
                                                                                         ],
                                                                                "parameters":  [
                                                                                                   {
@@ -2746,7 +2747,7 @@
                   "/api/admin/catalog/product-requests/{id}/review":  {
                                                                           "post":  {
                                                                                        "tags":  [
-                                                                                                    "Catalog (Admins)"
+                                                                                                    "Admin/Catalog/Product Requests"
                                                                                                 ],
                                                                                        "parameters":  [
                                                                                                           {
@@ -2788,7 +2789,7 @@
                   "/api/admin/product-requests":  {
                                                       "get":  {
                                                                   "tags":  [
-                                                                               "Catalog (Admins)"
+                                                                               "Admin/Catalog/Product Requests"
                                                                            ],
                                                                   "parameters":  [
                                                                                      {
@@ -2818,7 +2819,7 @@
                   "/api/admin/catalog/product-requests":  {
                                                               "get":  {
                                                                           "tags":  [
-                                                                                       "Catalog (Admins)"
+                                                                                       "Admin/Catalog/Product Requests"
                                                                                    ],
                                                                           "parameters":  [
                                                                                              {
@@ -2848,7 +2849,7 @@
                   "/api/vendor/catalog/brand-requests":  {
                                                              "post":  {
                                                                           "tags":  [
-                                                                                       "Catalog (Vendors)"
+                                                                                       "Vendor/Catalog/Brand Requests"
                                                                                    ],
                                                                           "requestBody":  {
                                                                                               "content":  {
@@ -2879,7 +2880,7 @@
                   "/api/vendor/catalog/categories":  {
                                                          "get":  {
                                                                      "tags":  [
-                                                                                  "Catalog (Vendors)"
+                                                                                  "Vendor/Catalog/Categories"
                                                                               ],
                                                                      "parameters":  [
                                                                                         {
@@ -2901,7 +2902,7 @@
                   "/api/vendor/catalog/brands":  {
                                                      "get":  {
                                                                  "tags":  [
-                                                                              "Catalog (Vendors)"
+                                                                              "Vendor/Catalog/Brands"
                                                                           ],
                                                                  "parameters":  [
                                                                                     {
@@ -2923,7 +2924,7 @@
                   "/api/vendor/catalog/units":  {
                                                     "get":  {
                                                                 "tags":  [
-                                                                             "Catalog (Vendors)"
+                                                                             "Vendor/Catalog/Units"
                                                                          ],
                                                                 "parameters":  [
                                                                                    {
@@ -2945,7 +2946,7 @@
                   "/api/vendor/catalog/master-products":  {
                                                               "get":  {
                                                                           "tags":  [
-                                                                                       "Catalog (Vendors)"
+                                                                                       "Vendor/Catalog/Master Products"
                                                                                    ],
                                                                           "parameters":  [
                                                                                              {
@@ -3000,7 +3001,7 @@
                   "/api/vendor/catalog/request-center":  {
                                                              "get":  {
                                                                          "tags":  [
-                                                                                      "Catalog (Vendors)"
+                                                                                      "Vendor/Catalog/Request Center"
                                                                                   ],
                                                                          "parameters":  [
                                                                                             {
@@ -3052,7 +3053,7 @@
                   "/api/vendor/catalog/notifications":  {
                                                             "get":  {
                                                                         "tags":  [
-                                                                                     "Catalog (Vendors)"
+                                                                                     "Vendor/Catalog/Notifications"
                                                                                  ],
                                                                         "responses":  {
                                                                                           "200":  {
@@ -3064,7 +3065,7 @@
                   "/api/vendor/catalog/category-requests":  {
                                                                 "post":  {
                                                                              "tags":  [
-                                                                                          "Catalog (Vendors)"
+                                                                                          "Vendor/Catalog/Category Requests"
                                                                                       ],
                                                                              "requestBody":  {
                                                                                                  "content":  {
@@ -3095,7 +3096,7 @@
                   "/api/vendor/product-requests":  {
                                                        "post":  {
                                                                     "tags":  [
-                                                                                 "Catalog (Vendors)"
+                                                                                 "Vendor/Catalog/Product Requests"
                                                                              ],
                                                                     "requestBody":  {
                                                                                         "content":  {
@@ -3124,7 +3125,7 @@
                                                                 },
                                                        "get":  {
                                                                    "tags":  [
-                                                                                "Catalog (Vendors)"
+                                                                                "Vendor/Catalog/Product Requests"
                                                                             ],
                                                                    "parameters":  [
                                                                                       {
@@ -3161,7 +3162,7 @@
                   "/api/vendor/catalog/product-requests":  {
                                                                "post":  {
                                                                             "tags":  [
-                                                                                         "Catalog (Vendors)"
+                                                                                         "Vendor/Catalog/Product Requests"
                                                                                      ],
                                                                             "requestBody":  {
                                                                                                 "content":  {
@@ -3190,7 +3191,7 @@
                                                                         },
                                                                "get":  {
                                                                            "tags":  [
-                                                                                        "Catalog (Vendors)"
+                                                                                        "Vendor/Catalog/Product Requests"
                                                                                     ],
                                                                            "parameters":  [
                                                                                               {
@@ -3227,7 +3228,7 @@
                   "/api/customers/auth/register":  {
                                                        "post":  {
                                                                     "tags":  [
-                                                                                 "Customer App API"
+                                                                                 "Customer/Auth"
                                                                              ],
                                                                     "requestBody":  {
                                                                                         "content":  {
@@ -3258,7 +3259,7 @@
                   "/api/customers/auth/verify-otp":  {
                                                          "post":  {
                                                                       "tags":  [
-                                                                                   "Customer App API"
+                                                                                   "Customer/Auth"
                                                                                ],
                                                                       "requestBody":  {
                                                                                           "content":  {
@@ -3289,7 +3290,7 @@
                   "/api/customers/auth/resend-otp":  {
                                                          "post":  {
                                                                       "tags":  [
-                                                                                   "Customer App API"
+                                                                                   "Customer/Auth"
                                                                                ],
                                                                       "requestBody":  {
                                                                                           "content":  {
@@ -3320,7 +3321,7 @@
                   "/api/customers/auth/login":  {
                                                     "post":  {
                                                                  "tags":  [
-                                                                              "Customer App API"
+                                                                              "Customer/Auth"
                                                                           ],
                                                                  "requestBody":  {
                                                                                      "content":  {
@@ -3351,7 +3352,7 @@
                   "/api/customers/auth/refresh-token":  {
                                                             "post":  {
                                                                          "tags":  [
-                                                                                      "Customer App API"
+                                                                                      "Customer/Auth"
                                                                                   ],
                                                                          "requestBody":  {
                                                                                              "content":  {
@@ -3382,7 +3383,7 @@
                   "/api/customers/auth/forgot-password":  {
                                                               "post":  {
                                                                            "tags":  [
-                                                                                        "Customer App API"
+                                                                                        "Customer/Auth"
                                                                                     ],
                                                                            "requestBody":  {
                                                                                                "content":  {
@@ -3413,7 +3414,7 @@
                   "/api/customers/auth/reset-password":  {
                                                              "post":  {
                                                                           "tags":  [
-                                                                                       "Customer App API"
+                                                                                       "Customer/Auth"
                                                                                    ],
                                                                           "requestBody":  {
                                                                                               "content":  {
@@ -3444,7 +3445,7 @@
                   "/api/customers/auth/logout":  {
                                                      "post":  {
                                                                   "tags":  [
-                                                                               "Customer App API"
+                                                                               "Customer/Auth"
                                                                            ],
                                                                   "requestBody":  {
                                                                                       "content":  {
@@ -3475,7 +3476,7 @@
                   "/api/customers/auth/me":  {
                                                  "get":  {
                                                              "tags":  [
-                                                                          "Customer App API"
+                                                                          "Customer/Auth"
                                                                       ],
                                                              "responses":  {
                                                                                "200":  {
@@ -3487,7 +3488,7 @@
                   "/api/drivers/auth/login":  {
                                                   "post":  {
                                                                "tags":  [
-                                                                            "Driver App API"
+                                                                            "Driver/Auth"
                                                                         ],
                                                                "requestBody":  {
                                                                                    "content":  {
@@ -3518,7 +3519,7 @@
                   "/api/drivers/auth/forgot-password":  {
                                                             "post":  {
                                                                          "tags":  [
-                                                                                      "Driver App API"
+                                                                                      "Driver/Auth"
                                                                                   ],
                                                                          "requestBody":  {
                                                                                              "content":  {
@@ -3549,7 +3550,7 @@
                   "/api/drivers/auth/reset-password":  {
                                                            "post":  {
                                                                         "tags":  [
-                                                                                     "Driver App API"
+                                                                                     "Driver/Auth"
                                                                                  ],
                                                                         "requestBody":  {
                                                                                             "content":  {
@@ -3580,7 +3581,7 @@
                   "/api/drivers/auth/refresh-token":  {
                                                           "post":  {
                                                                        "tags":  [
-                                                                                    "Driver App API"
+                                                                                    "Driver/Auth"
                                                                                 ],
                                                                        "requestBody":  {
                                                                                            "content":  {
@@ -3611,7 +3612,7 @@
                   "/api/drivers/auth/logout":  {
                                                    "post":  {
                                                                 "tags":  [
-                                                                             "Driver App API"
+                                                                             "Driver/Auth"
                                                                          ],
                                                                 "requestBody":  {
                                                                                     "content":  {
@@ -3642,7 +3643,7 @@
                   "/api/drivers/auth/me":  {
                                                "get":  {
                                                            "tags":  [
-                                                                        "Driver App API"
+                                                                        "Driver/Auth"
                                                                     ],
                                                            "responses":  {
                                                                              "200":  {
@@ -3654,7 +3655,7 @@
                   "/api/drivers/register":  {
                                                 "post":  {
                                                              "tags":  [
-                                                                          "Driver App API"
+                                                                          "Driver/Registration"
                                                                       ],
                                                              "requestBody":  {
                                                                                  "content":  {
@@ -3685,7 +3686,7 @@
                   "/api/files/upload":  {
                                             "post":  {
                                                          "tags":  [
-                                                                      "Common Systems (Files)"
+                                                                      "System/Files"
                                                                   ],
                                                          "requestBody":  {
                                                                              "content":  {
@@ -3724,7 +3725,7 @@
                   "/api/home":  {
                                     "get":  {
                                                 "tags":  [
-                                                             "Customer App API"
+                                                             "Customer/Home"
                                                          ],
                                                 "responses":  {
                                                                   "200":  {
@@ -3753,7 +3754,7 @@
                   "/api/home/content":  {
                                             "get":  {
                                                         "tags":  [
-                                                                     "Customer App API"
+                                                                     "Customer/Home"
                                                                  ],
                                                         "responses":  {
                                                                           "200":  {
@@ -3782,7 +3783,7 @@
                   "/api/home/banners":  {
                                             "get":  {
                                                         "tags":  [
-                                                                     "Customer App API"
+                                                                     "Customer/Home"
                                                                  ],
                                                         "parameters":  [
                                                                            {
@@ -3831,7 +3832,7 @@
                   "/api/home/categories":  {
                                                "get":  {
                                                            "tags":  [
-                                                                        "Customer App API"
+                                                                        "Customer/Home"
                                                                     ],
                                                            "parameters":  [
                                                                               {
@@ -3880,7 +3881,7 @@
                   "/api/home/special-offers":  {
                                                    "get":  {
                                                                "tags":  [
-                                                                            "Customer App API"
+                                                                            "Customer/Home"
                                                                         ],
                                                                "parameters":  [
                                                                                   {
@@ -3929,7 +3930,7 @@
                   "/api/home/recommended":  {
                                                 "get":  {
                                                             "tags":  [
-                                                                         "Customer App API"
+                                                                         "Customer/Home"
                                                                      ],
                                                             "parameters":  [
                                                                                {
@@ -3978,7 +3979,7 @@
                   "/api/home/best-selling":  {
                                                  "get":  {
                                                              "tags":  [
-                                                                          "Customer App API"
+                                                                          "Customer/Home"
                                                                       ],
                                                              "parameters":  [
                                                                                 {
@@ -4027,7 +4028,7 @@
                   "/api/home/brands":  {
                                            "get":  {
                                                        "tags":  [
-                                                                    "Customer App API"
+                                                                    "Customer/Home"
                                                                 ],
                                                        "parameters":  [
                                                                           {
@@ -4076,7 +4077,7 @@
                   "/api/home/featured-products":  {
                                                       "get":  {
                                                                   "tags":  [
-                                                                               "Customer App API"
+                                                                               "Customer/Home"
                                                                            ],
                                                                   "parameters":  [
                                                                                      {
@@ -4125,7 +4126,7 @@
                   "/api/home/explore-more":  {
                                                  "get":  {
                                                              "tags":  [
-                                                                          "Customer App API"
+                                                                          "Customer/Home"
                                                                       ],
                                                              "parameters":  [
                                                                                 {
@@ -4174,7 +4175,7 @@
                   "/api/vendors/register":  {
                                                 "post":  {
                                                              "tags":  [
-                                                                          "Vendor App API"
+                                                                          "Vendor/Registration"
                                                                       ],
                                                              "requestBody":  {
                                                                                  "content":  {
@@ -4205,7 +4206,7 @@
                   "/api/vendors/profile":  {
                                                "get":  {
                                                            "tags":  [
-                                                                        "Vendor App API"
+                                                                        "Vendor/Profile"
                                                                     ],
                                                            "responses":  {
                                                                              "200":  {
@@ -4215,7 +4216,7 @@
                                                        },
                                                "put":  {
                                                            "tags":  [
-                                                                        "Vendor App API"
+                                                                        "Vendor/Profile"
                                                                     ],
                                                            "requestBody":  {
                                                                                "content":  {
@@ -4246,7 +4247,7 @@
                   "/api/vendors/profile/store":  {
                                                      "put":  {
                                                                  "tags":  [
-                                                                              "Vendor App API"
+                                                                              "Vendor/Profile"
                                                                           ],
                                                                  "requestBody":  {
                                                                                      "content":  {
@@ -4277,7 +4278,7 @@
                   "/api/vendors/profile/owner":  {
                                                      "put":  {
                                                                  "tags":  [
-                                                                              "Vendor App API"
+                                                                              "Vendor/Profile"
                                                                           ],
                                                                  "requestBody":  {
                                                                                      "content":  {
@@ -4308,7 +4309,7 @@
                   "/api/vendors/profile/contact":  {
                                                        "put":  {
                                                                    "tags":  [
-                                                                                "Vendor App API"
+                                                                                "Vendor/Profile"
                                                                             ],
                                                                    "requestBody":  {
                                                                                        "content":  {
@@ -4339,7 +4340,7 @@
                   "/api/vendors/profile/legal":  {
                                                      "put":  {
                                                                  "tags":  [
-                                                                              "Vendor App API"
+                                                                              "Vendor/Profile"
                                                                           ],
                                                                  "requestBody":  {
                                                                                      "content":  {
@@ -4370,7 +4371,7 @@
                   "/api/vendors/profile/banking":  {
                                                        "put":  {
                                                                    "tags":  [
-                                                                                "Vendor App API"
+                                                                                "Vendor/Profile"
                                                                             ],
                                                                    "requestBody":  {
                                                                                        "content":  {
@@ -4401,7 +4402,7 @@
                   "/api/vendors/profile/hours":  {
                                                      "put":  {
                                                                  "tags":  [
-                                                                              "Vendor App API"
+                                                                              "Vendor/Profile"
                                                                           ],
                                                                  "requestBody":  {
                                                                                      "content":  {
@@ -4432,7 +4433,7 @@
                   "/api/vendors/profile/operations-settings":  {
                                                                    "put":  {
                                                                                "tags":  [
-                                                                                            "Vendor App API"
+                                                                                            "Vendor/Profile"
                                                                                         ],
                                                                                "requestBody":  {
                                                                                                    "content":  {
@@ -4463,7 +4464,7 @@
                   "/api/vendors/profile/notification-settings":  {
                                                                      "put":  {
                                                                                  "tags":  [
-                                                                                              "Vendor App API"
+                                                                                              "Vendor/Profile"
                                                                                           ],
                                                                                  "requestBody":  {
                                                                                                      "content":  {
@@ -4494,7 +4495,7 @@
                   "/api/vendors/auth/login":  {
                                                   "post":  {
                                                                "tags":  [
-                                                                            "Vendor App API"
+                                                                            "Vendor/Auth"
                                                                         ],
                                                                "requestBody":  {
                                                                                    "content":  {
@@ -4525,7 +4526,7 @@
                   "/api/vendors/auth/forgot-password":  {
                                                             "post":  {
                                                                          "tags":  [
-                                                                                      "Vendor App API"
+                                                                                      "Vendor/Auth"
                                                                                   ],
                                                                          "requestBody":  {
                                                                                              "content":  {
@@ -4556,7 +4557,7 @@
                   "/api/vendors/auth/reset-password":  {
                                                            "post":  {
                                                                         "tags":  [
-                                                                                     "Vendor App API"
+                                                                                     "Vendor/Auth"
                                                                                  ],
                                                                         "requestBody":  {
                                                                                             "content":  {
@@ -4587,7 +4588,7 @@
                   "/api/vendors/auth/refresh-token":  {
                                                           "post":  {
                                                                        "tags":  [
-                                                                                    "Vendor App API"
+                                                                                    "Vendor/Auth"
                                                                                 ],
                                                                        "requestBody":  {
                                                                                            "content":  {
@@ -4618,7 +4619,7 @@
                   "/api/vendors/auth/logout":  {
                                                    "post":  {
                                                                 "tags":  [
-                                                                             "Vendor App API"
+                                                                             "Vendor/Auth"
                                                                          ],
                                                                 "requestBody":  {
                                                                                     "content":  {
@@ -4649,7 +4650,7 @@
                   "/api/vendors/auth/me":  {
                                                "get":  {
                                                            "tags":  [
-                                                                        "Vendor App API"
+                                                                        "Vendor/Auth"
                                                                     ],
                                                            "responses":  {
                                                                              "200":  {
@@ -4661,7 +4662,7 @@
                   "/api/vendor/products":  {
                                                "get":  {
                                                            "tags":  [
-                                                                        "Catalog (Vendors)"
+                                                                        "Vendor/Catalog/Vendor Products"
                                                                     ],
                                                            "parameters":  [
                                                                               {
@@ -4724,7 +4725,7 @@
                                                        },
                                                "post":  {
                                                             "tags":  [
-                                                                         "Catalog (Vendors)"
+                                                                         "Vendor/Catalog/Vendor Products"
                                                                      ],
                                                             "requestBody":  {
                                                                                 "content":  {
@@ -4775,7 +4776,7 @@
                   "/api/vendor/products/{id}":  {
                                                     "get":  {
                                                                 "tags":  [
-                                                                             "Catalog (Vendors)"
+                                                                             "Vendor/Catalog/Vendor Products"
                                                                          ],
                                                                 "parameters":  [
                                                                                    {
@@ -4813,7 +4814,7 @@
                                                             },
                                                     "put":  {
                                                                 "tags":  [
-                                                                             "Catalog (Vendors)"
+                                                                             "Vendor/Catalog/Vendor Products"
                                                                          ],
                                                                 "parameters":  [
                                                                                    {
@@ -4855,7 +4856,7 @@
                   "/api/vendor/products/{id}/status":  {
                                                            "patch":  {
                                                                          "tags":  [
-                                                                                      "Catalog (Vendors)"
+                                                                                      "Vendor/Catalog/Vendor Products"
                                                                                   ],
                                                                          "parameters":  [
                                                                                             {
@@ -4897,7 +4898,7 @@
                   "/health/ready":  {
                                         "get":  {
                                                     "tags":  [
-                                                                 "Zadana.Api"
+                                                                 "System/Health"
                                                              ],
                                                     "responses":  {
                                                                       "200":  {
@@ -7347,5 +7348,135 @@
 
                                     ]
                      }
-                 ]
+                 ],
+    "tags":  [
+                 {
+                     "name":  "Customer/Auth",
+                     "description":  "APIDog folder for Customer/Auth"
+                 },
+                 {
+                     "name":  "Customer/Addresses",
+                     "description":  "APIDog folder for Customer/Addresses"
+                 },
+                 {
+                     "name":  "Customer/Home",
+                     "description":  "APIDog folder for Customer/Home"
+                 },
+                 {
+                     "name":  "Vendor/Registration",
+                     "description":  "APIDog folder for Vendor/Registration"
+                 },
+                 {
+                     "name":  "Vendor/Auth",
+                     "description":  "APIDog folder for Vendor/Auth"
+                 },
+                 {
+                     "name":  "Vendor/Profile",
+                     "description":  "APIDog folder for Vendor/Profile"
+                 },
+                 {
+                     "name":  "Vendor/Catalog/Brands",
+                     "description":  "APIDog folder for Vendor/Catalog/Brands"
+                 },
+                 {
+                     "name":  "Vendor/Catalog/Categories",
+                     "description":  "APIDog folder for Vendor/Catalog/Categories"
+                 },
+                 {
+                     "name":  "Vendor/Catalog/Units",
+                     "description":  "APIDog folder for Vendor/Catalog/Units"
+                 },
+                 {
+                     "name":  "Vendor/Catalog/Master Products",
+                     "description":  "APIDog folder for Vendor/Catalog/Master Products"
+                 },
+                 {
+                     "name":  "Vendor/Catalog/Request Center",
+                     "description":  "APIDog folder for Vendor/Catalog/Request Center"
+                 },
+                 {
+                     "name":  "Vendor/Catalog/Notifications",
+                     "description":  "APIDog folder for Vendor/Catalog/Notifications"
+                 },
+                 {
+                     "name":  "Vendor/Catalog/Brand Requests",
+                     "description":  "APIDog folder for Vendor/Catalog/Brand Requests"
+                 },
+                 {
+                     "name":  "Vendor/Catalog/Category Requests",
+                     "description":  "APIDog folder for Vendor/Catalog/Category Requests"
+                 },
+                 {
+                     "name":  "Vendor/Catalog/Product Requests",
+                     "description":  "APIDog folder for Vendor/Catalog/Product Requests"
+                 },
+                 {
+                     "name":  "Vendor/Catalog/Vendor Products",
+                     "description":  "APIDog folder for Vendor/Catalog/Vendor Products"
+                 },
+                 {
+                     "name":  "Admin/Auth",
+                     "description":  "APIDog folder for Admin/Auth"
+                 },
+                 {
+                     "name":  "Admin/Vendors",
+                     "description":  "APIDog folder for Admin/Vendors"
+                 },
+                 {
+                     "name":  "Admin/Marketing/Banners",
+                     "description":  "APIDog folder for Admin/Marketing/Banners"
+                 },
+                 {
+                     "name":  "Admin/Marketing/Featured Products",
+                     "description":  "APIDog folder for Admin/Marketing/Featured Products"
+                 },
+                 {
+                     "name":  "Admin/Catalog/Brands",
+                     "description":  "APIDog folder for Admin/Catalog/Brands"
+                 },
+                 {
+                     "name":  "Admin/Catalog/Categories",
+                     "description":  "APIDog folder for Admin/Catalog/Categories"
+                 },
+                 {
+                     "name":  "Admin/Catalog/Units",
+                     "description":  "APIDog folder for Admin/Catalog/Units"
+                 },
+                 {
+                     "name":  "Admin/Catalog/Master Products",
+                     "description":  "APIDog folder for Admin/Catalog/Master Products"
+                 },
+                 {
+                     "name":  "Admin/Catalog/Request Center",
+                     "description":  "APIDog folder for Admin/Catalog/Request Center"
+                 },
+                 {
+                     "name":  "Admin/Catalog/Brand Requests",
+                     "description":  "APIDog folder for Admin/Catalog/Brand Requests"
+                 },
+                 {
+                     "name":  "Admin/Catalog/Category Requests",
+                     "description":  "APIDog folder for Admin/Catalog/Category Requests"
+                 },
+                 {
+                     "name":  "Admin/Catalog/Product Requests",
+                     "description":  "APIDog folder for Admin/Catalog/Product Requests"
+                 },
+                 {
+                     "name":  "Driver/Auth",
+                     "description":  "APIDog folder for Driver/Auth"
+                 },
+                 {
+                     "name":  "Driver/Registration",
+                     "description":  "APIDog folder for Driver/Registration"
+                 },
+                 {
+                     "name":  "System/Files",
+                     "description":  "APIDog folder for System/Files"
+                 },
+                 {
+                     "name":  "System/Health",
+                     "description":  "APIDog folder for System/Health"
+                 }
+             ]
 }

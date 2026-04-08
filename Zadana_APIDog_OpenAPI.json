@@ -1,8 +1,9 @@
 ﻿{
     "openapi":  "3.0.1",
     "info":  {
-                 "title":  "Zadana.Api",
-                 "version":  "1.0"
+                 "title":  "Zadana API - APIDog Import",
+                 "version":  "1.0",
+                 "description":  "OpenAPI document prepared for APIDog import."
              },
     "paths":  {
                   "/api/admin/vendors":  {

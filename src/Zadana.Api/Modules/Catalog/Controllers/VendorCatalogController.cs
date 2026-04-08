@@ -1,4 +1,4 @@
-using Microsoft.AspNetCore.Authorization;
+﻿using Microsoft.AspNetCore.Authorization;
 using Microsoft.AspNetCore.Mvc;
 using Zadana.Api.Controllers;
 using Zadana.Api.Modules.Catalog.Requests;
@@ -14,7 +14,7 @@ using Zadana.Domain.Modules.Catalog.Enums;
 namespace Zadana.Api.Modules.Catalog.Controllers;
 
 [Route("api/vendor/catalog")]
-[Tags("Catalog Vendors")]
+[Tags("Catalog (Vendors)")]
 [Authorize(Roles = "Vendor")]
 public class VendorCatalogController : ApiControllerBase
 {
@@ -113,3 +113,4 @@ public class VendorCatalogController : ApiControllerBase
         return Ok(notifications);
     }
 }
+

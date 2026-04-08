@@ -1,4 +1,4 @@
-using Microsoft.AspNetCore.Authorization;
+﻿using Microsoft.AspNetCore.Authorization;
 using Microsoft.AspNetCore.Mvc;
 using Microsoft.Extensions.Localization;
 using Zadana.Api.Controllers;
@@ -11,7 +11,7 @@ namespace Zadana.Api.Modules.Catalog.Controllers;
 
 [Route("api/admin/product-requests")]
 [Route("api/admin/catalog/product-requests")]
-[Tags("Catalog Admins")]
+[Tags("Catalog (Admins)")]
 [Authorize(Policy = "AdminOnly")]
 public class AdminProductRequestsController : ApiControllerBase
 {
@@ -53,3 +53,4 @@ public class AdminProductRequestsController : ApiControllerBase
         return Ok(result);
     }
 }
+

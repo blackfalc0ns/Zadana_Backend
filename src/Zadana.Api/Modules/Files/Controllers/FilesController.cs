@@ -6,7 +6,7 @@ using Zadana.Application.Modules.Files.Commands.UploadFile;
 namespace Zadana.Api.Modules.Files.Controllers;
 
 [Route("api/files")]
-[Tags("ðŸ“ 5. Common Systems (Files)")]
+[Tags("Common Systems (Files)")]
 public class FilesController : ApiControllerBase
 {
     /// <summary>
@@ -29,4 +29,5 @@ public class FilesController : ApiControllerBase
         return Ok(new { url = fileUrl });
     }
 }
+
 

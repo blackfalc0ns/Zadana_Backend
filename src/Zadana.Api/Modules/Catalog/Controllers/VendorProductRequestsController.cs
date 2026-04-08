@@ -1,4 +1,4 @@
-using Microsoft.AspNetCore.Authorization;
+﻿using Microsoft.AspNetCore.Authorization;
 using Microsoft.AspNetCore.Mvc;
 using Zadana.Api.Controllers;
 using Zadana.Api.Modules.Catalog.Requests;
@@ -9,7 +9,7 @@ namespace Zadana.Api.Modules.Catalog.Controllers;
 
 [Route("api/vendor/product-requests")]
 [Route("api/vendor/catalog/product-requests")]
-[Tags("Catalog Vendors")]
+[Tags("Catalog (Vendors)")]
 [Authorize(Roles = "Vendor")]
 public class VendorProductRequestsController : ApiControllerBase
 {
@@ -52,3 +52,4 @@ public class VendorProductRequestsController : ApiControllerBase
         return Ok(result);
     }
 }
+

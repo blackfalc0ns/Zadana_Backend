@@ -142,7 +142,7 @@ public class HomeReadService : IHomeReadService
     {
         var now = DateTime.UtcNow;
 
-        return await _context.HomeBanners
+        var banners = await _context.HomeBanners
             .AsNoTracking()
             .Where(x => x.IsActive
                 && (!x.StartsAtUtc.HasValue || x.StartsAtUtc <= now)
@@ -150,6 +150,20 @@ public class HomeReadService : IHomeReadService
             .OrderBy(x => x.DisplayOrder)
             .ThenByDescending(x => x.CreatedAtUtc)
             .Take(take)
+            .Select(x => new RawHomeBanner(
+                x.Id,
+                x.TagAr,
+                x.TagEn,
+                x.TitleAr,
+                x.TitleEn,
+                x.SubtitleAr,
+                x.SubtitleEn,
+                x.ActionLabelAr,
+                x.ActionLabelEn,
+                x.ImageUrl))
+            .ToListAsync(cancellationToken);
+
+        return banners
             .Select(x => new HomeBannerDto(
                 x.Id,
                 PickLocalized(x.TagAr, x.TagEn),
@@ -157,21 +171,27 @@ public class HomeReadService : IHomeReadService
                 PickLocalizedNullable(x.SubtitleAr, x.SubtitleEn),
                 PickLocalizedNullable(x.ActionLabelAr, x.ActionLabelEn),
                 x.ImageUrl))
-            .ToListAsync(cancellationToken);
+            .ToList();
     }
 
     private async Task<IReadOnlyList<HomeCategoryDto>> GetCategoriesInternalAsync(int take, CancellationToken cancellationToken) =>
-        await _context.Categories
+        (await _context.Categories
             .AsNoTracking()
             .Where(x => x.IsActive && x.ParentCategoryId == null)
             .OrderBy(x => x.DisplayOrder)
             .ThenBy(x => x.NameAr)
             .Take(take)
-            .Select(x => new HomeCategoryDto(
+            .Select(x => new RawHomeCategory(
                 x.Id,
-                PickLocalized(x.NameAr, x.NameEn),
+                x.NameAr,
+                x.NameEn,
                 x.ImageUrl))
-            .ToListAsync(cancellationToken);
+            .ToListAsync(cancellationToken))
+        .Select(x => new HomeCategoryDto(
+            x.Id,
+            PickLocalized(x.NameAr, x.NameEn),
+            x.ImageUrl))
+        .ToList();
 
     private async Task<HomeProductCatalog> BuildProductCatalogAsync(CancellationToken cancellationToken)
     {
@@ -595,6 +615,24 @@ public class HomeReadService : IHomeReadService
         string? BrandNameAr,
         string? BrandNameEn,
         string? BrandLogo);
+
+    private sealed record RawHomeBanner(
+        Guid Id,
+        string TagAr,
+        string TagEn,
+        string TitleAr,
+        string TitleEn,
+        string? SubtitleAr,
+        string? SubtitleEn,
+        string? ActionLabelAr,
+        string? ActionLabelEn,
+        string ImageUrl);
+
+    private sealed record RawHomeCategory(
+        Guid Id,
+        string NameAr,
+        string NameEn,
+        string? ImageUrl);
 
     private sealed record HomeProductSource(
         Guid Id,

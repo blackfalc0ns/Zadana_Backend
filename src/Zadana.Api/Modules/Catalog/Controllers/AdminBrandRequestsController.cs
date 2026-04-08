@@ -1,4 +1,4 @@
-using Microsoft.AspNetCore.Authorization;
+﻿using Microsoft.AspNetCore.Authorization;
 using Microsoft.AspNetCore.Mvc;
 using Zadana.Api.Controllers;
 using Zadana.Api.Modules.Catalog.Requests;
@@ -7,7 +7,7 @@ using Zadana.Application.Modules.Catalog.Commands.BrandRequests.ReviewRequest;
 namespace Zadana.Api.Modules.Catalog.Controllers;
 
 [Route("api/admin/catalog/brand-requests")]
-[Tags("Catalog Admins")]
+[Tags("Catalog (Admins)")]
 [Authorize(Roles = "Admin,SuperAdmin")]
 public class AdminBrandRequestsController : ApiControllerBase
 {
@@ -18,3 +18,4 @@ public class AdminBrandRequestsController : ApiControllerBase
         return Ok(new { CreatedBrandId = createdBrandId });
     }
 }
+

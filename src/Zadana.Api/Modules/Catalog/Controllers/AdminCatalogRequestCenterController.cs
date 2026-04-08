@@ -1,4 +1,4 @@
-using Microsoft.AspNetCore.Authorization;
+﻿using Microsoft.AspNetCore.Authorization;
 using Microsoft.AspNetCore.Mvc;
 using Zadana.Api.Controllers;
 using Zadana.Api.Modules.Catalog.Requests;
@@ -7,7 +7,7 @@ using Zadana.Application.Modules.Catalog.Interfaces;
 namespace Zadana.Api.Modules.Catalog.Controllers;
 
 [Route("api/admin/catalog/request-center")]
-[Tags("Catalog Admins")]
+[Tags("Catalog (Admins)")]
 [Authorize(Roles = "Admin,SuperAdmin")]
 public class AdminCatalogRequestCenterController : ApiControllerBase
 {
@@ -44,3 +44,4 @@ public class AdminCatalogRequestCenterController : ApiControllerBase
         return Ok(result);
     }
 }
+

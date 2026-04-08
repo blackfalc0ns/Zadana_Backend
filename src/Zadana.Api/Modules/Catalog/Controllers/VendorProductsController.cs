@@ -1,4 +1,4 @@
-using Microsoft.AspNetCore.Authorization;
+﻿using Microsoft.AspNetCore.Authorization;
 using Microsoft.AspNetCore.Mvc;
 using Zadana.Api.Controllers;
 using Zadana.Application.Common.Interfaces;
@@ -14,6 +14,7 @@ namespace Zadana.Api.Modules.Catalog.Controllers;
 
 [Route("api/vendor/products")]
 [Authorize(Roles = "Vendor")]
+[Tags("Catalog (Vendors)")]
 public class VendorProductsController : ApiControllerBase
 {
     private readonly ICurrentVendorService _currentVendorService;
@@ -116,3 +117,4 @@ public record UpdateVendorProductRequest(
     string? CustomDescriptionEn);
 
 public record ChangeProductStatusRequest(bool IsActive);
+

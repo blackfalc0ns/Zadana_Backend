@@ -1,4 +1,4 @@
-using Microsoft.AspNetCore.Authorization;
+﻿using Microsoft.AspNetCore.Authorization;
 using Microsoft.AspNetCore.Mvc;
 using Zadana.Api.Controllers;
 using Zadana.Api.Modules.Catalog.Requests;
@@ -7,7 +7,7 @@ using Zadana.Application.Modules.Catalog.Commands.CategoryRequests.SubmitRequest
 namespace Zadana.Api.Modules.Catalog.Controllers;
 
 [Route("api/vendor/catalog/category-requests")]
-[Tags("Catalog Vendors")]
+[Tags("Catalog (Vendors)")]
 [Authorize(Roles = "Vendor")]
 public class VendorCategoryRequestsController : ApiControllerBase
 {
@@ -24,3 +24,4 @@ public class VendorCategoryRequestsController : ApiControllerBase
         return Ok(new { CategoryRequestId = requestId });
     }
 }
+

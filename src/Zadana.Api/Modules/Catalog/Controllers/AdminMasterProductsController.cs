@@ -1,4 +1,4 @@
-using Microsoft.AspNetCore.Authorization;
+﻿using Microsoft.AspNetCore.Authorization;
 using Microsoft.AspNetCore.Mvc;
 using Zadana.Api.Controllers;
 using Zadana.Api.Modules.Catalog.Requests;
@@ -15,6 +15,7 @@ namespace Zadana.Api.Modules.Catalog.Controllers;
 
 [Route("api/admin/catalog/products")]
 [Authorize(Roles = "Admin,SuperAdmin")]
+[Tags("Catalog (Admins)")]
 public class AdminMasterProductsController : ApiControllerBase
 {
     [HttpGet]
@@ -95,3 +96,4 @@ public class AdminMasterProductsController : ApiControllerBase
         return Ok(result);
     }
 }
+

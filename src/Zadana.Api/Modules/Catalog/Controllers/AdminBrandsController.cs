@@ -1,4 +1,4 @@
-using MediatR;
+﻿using MediatR;
 using Microsoft.AspNetCore.Authorization;
 using Microsoft.AspNetCore.Mvc;
 using Zadana.Api.Controllers;
@@ -12,6 +12,7 @@ namespace Zadana.Api.Modules.Catalog.Controllers;
 
 [Route("api/admin/catalog/brands")]
 [Authorize(Roles = "Admin,SuperAdmin")]
+[Tags("Catalog (Admins)")]
 public class AdminBrandsController : ApiControllerBase
 {
     [HttpGet]
@@ -42,3 +43,4 @@ public class AdminBrandsController : ApiControllerBase
         return Ok();
     }
 }
+
