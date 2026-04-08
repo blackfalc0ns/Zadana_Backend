@@ -1,6 +1,7 @@
 using FluentValidation;
 using Microsoft.Extensions.Localization;
 using Zadana.Application.Common.Localization;
+using Zadana.Domain.Modules.Catalog.Enums;
 
 namespace Zadana.Application.Modules.Catalog.Commands.CreateMasterProduct;
 
@@ -14,6 +15,7 @@ public record CreateMasterProductCommand(
     string? DescriptionEn,
     Guid? BrandId,
     Guid? UnitId,
+    ProductStatus Status = ProductStatus.Draft,
     List<CreateProductImageInfo>? Images = null) : MediatR.IRequest<Guid>;
 
 public record CreateProductImageInfo(string Url, string? AltText, int DisplayOrder, bool IsPrimary);

@@ -4,6 +4,7 @@ using Microsoft.EntityFrameworkCore;
 using Zadana.Domain.Modules.Catalog.Entities;
 using Zadana.Domain.Modules.Identity.Entities;
 using Zadana.Domain.Modules.Identity.Enums;
+using Zadana.Domain.Modules.Marketing.Entities;
 using Zadana.Domain.Modules.Vendors.Entities;
 
 namespace Zadana.Infrastructure.Persistence;
@@ -60,6 +61,7 @@ public class ApplicationDbContextInitialiser
         await SeedBrandsAsync();
         await SeedMasterProductsAsync();
         await SeedSampleVendorsAsync();
+        await SeedHomeBannersAsync();
     }
 
     private async Task SeedRolesAsync()
@@ -517,6 +519,61 @@ public class ApplicationDbContextInitialiser
         {
             await EnsureVendorSeedAsync(seed, adminUser.Id);
         }
+    }
+
+    private async Task SeedHomeBannersAsync()
+    {
+        if (await _context.HomeBanners.AnyAsync())
+        {
+            return;
+        }
+
+        var now = DateTime.UtcNow;
+        var banners = new List<HomeBanner>
+        {
+            new(
+                tagAr: "عروض اليوم",
+                tagEn: "Today's deals",
+                titleAr: "خصومات قوية على منتجاتك اليومية",
+                titleEn: "Strong discounts on your daily essentials",
+                imageUrl: "/images/home/banners/daily-deals.jpg",
+                subtitleAr: "توصيل سريع وأسعار أفضل من المعتاد",
+                subtitleEn: "Fast delivery and better-than-usual prices",
+                actionLabelAr: "تسوق الآن",
+                actionLabelEn: "Shop now",
+                displayOrder: 1,
+                startsAtUtc: now.AddDays(-7),
+                endsAtUtc: now.AddMonths(2)),
+            new(
+                tagAr: "منتجات مميزة",
+                tagEn: "Featured picks",
+                titleAr: "اختيارات موصى بها من أفضل المتاجر",
+                titleEn: "Recommended picks from top stores",
+                imageUrl: "/images/home/banners/featured-picks.jpg",
+                subtitleAr: "تشكيلة منتقاة بعناية لتسهيل قرار الشراء",
+                subtitleEn: "A curated selection to make buying easier",
+                actionLabelAr: "اكتشف المزيد",
+                actionLabelEn: "Explore more",
+                displayOrder: 2,
+                startsAtUtc: now.AddDays(-3),
+                endsAtUtc: now.AddMonths(1)),
+            new(
+                tagAr: "الأكثر مبيعاً",
+                tagEn: "Best sellers",
+                titleAr: "الأصناف الأكثر طلباً هذا الأسبوع",
+                titleEn: "The most ordered items this week",
+                imageUrl: "/images/home/banners/best-sellers.jpg",
+                subtitleAr: "منتجات يحبها العملاء ويكررون طلبها",
+                subtitleEn: "Products customers love and reorder",
+                actionLabelAr: "شاهد القائمة",
+                actionLabelEn: "See list",
+                displayOrder: 3,
+                startsAtUtc: now.AddDays(-1),
+                endsAtUtc: now.AddMonths(1))
+        };
+
+        await _context.HomeBanners.AddRangeAsync(banners);
+        await _context.SaveChangesAsync();
     }
 
     private async Task EnsureVendorSeedAsync(VendorSeedDefinition seed, Guid adminUserId)

@@ -1,4 +1,5 @@
 using System.Text;
+using System.Text.Json.Serialization;
 using Microsoft.AspNetCore.Authentication.JwtBearer;
 using Microsoft.AspNetCore.Identity;
 using Microsoft.EntityFrameworkCore;
@@ -10,12 +11,14 @@ using Zadana.Application;
 using Zadana.Application.Common.Interfaces;
 using Zadana.Application.Modules.Catalog.Interfaces;
 using Zadana.Application.Modules.Delivery.Interfaces;
+using Zadana.Application.Modules.Home.Interfaces;
 using Zadana.Application.Modules.Orders.Interfaces;
 using Zadana.Application.Modules.Vendors.Interfaces;
 using Zadana.Infrastructure.Modules.Catalog.Repositories;
 using Zadana.Infrastructure.Modules.Catalog.Services;
 using Zadana.Domain.Modules.Identity.Entities;
 using Zadana.Infrastructure.Modules.Delivery.Repositories;
+using Zadana.Infrastructure.Modules.Home.Services;
 using Zadana.Infrastructure.Modules.Identity;
 using Zadana.Infrastructure.Modules.Orders.Repositories;
 using Zadana.Infrastructure.Modules.Orders.Services;
@@ -60,6 +63,7 @@ builder.Services.AddScoped<IDriverRepository, DriverRepository>();
 builder.Services.AddScoped<IProductRequestRepository, ProductRequestRepository>();
 builder.Services.AddScoped<IProductRequestReadService, ProductRequestReadService>();
 builder.Services.AddScoped<ICatalogRequestReadService, CatalogRequestReadService>();
+builder.Services.AddScoped<IHomeReadService, HomeReadService>();
 builder.Services.AddScoped<IOrderRepository, OrderRepository>();
 builder.Services.AddScoped<IOrderReadService, OrderReadService>();
 
@@ -157,6 +161,10 @@ builder.Services.AddAuthorization(options =>
 });
 
 builder.Services.AddControllers()
+    .AddJsonOptions(options =>
+    {
+        options.JsonSerializerOptions.Converters.Add(new JsonStringEnumConverter());
+    })
     .ConfigureApiBehaviorOptions(options =>
     {
         options.SuppressModelStateInvalidFilter = true;

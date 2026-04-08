@@ -18,8 +18,13 @@ public record MasterProductDto(
     string? Barcode,
     Guid CategoryId,
     Guid? BrandId,
+    string? BrandNameAr,
+    string? BrandNameEn,
     Guid? UnitOfMeasureId,
+    string? UnitNameAr,
+    string? UnitNameEn,
     string Status,
+    bool IsInVendorStore,
     ICollection<MasterProductImageDto> Images);
 
 public record VendorProductDto(

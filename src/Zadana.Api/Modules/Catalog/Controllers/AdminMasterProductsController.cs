@@ -9,6 +9,7 @@ using Zadana.Application.Modules.Catalog.Commands.UpdateMasterProduct;
 using Zadana.Application.Modules.Catalog.DTOs;
 using Zadana.Application.Modules.Catalog.Queries.GetMasterProductById;
 using Zadana.Application.Modules.Catalog.Queries.GetMasterProducts;
+using Zadana.Domain.Modules.Catalog.Enums;
 
 namespace Zadana.Api.Modules.Catalog.Controllers;
 
@@ -22,9 +23,10 @@ public class AdminMasterProductsController : ApiControllerBase
         [FromQuery] int pageSize = 10,
         [FromQuery] string? searchTerm = null,
         [FromQuery] Guid? categoryId = null,
-        [FromQuery] Guid? brandId = null)
+        [FromQuery] Guid? brandId = null,
+        [FromQuery] ProductStatus? status = null)
     {
-        var result = await Sender.Send(new GetMasterProductsQuery(searchTerm, categoryId, brandId, pageNumber, pageSize));
+        var result = await Sender.Send(new GetMasterProductsQuery(searchTerm, categoryId, brandId, status, null, pageNumber, pageSize));
         return Ok(result);
     }
 
@@ -48,6 +50,7 @@ public class AdminMasterProductsController : ApiControllerBase
             request.DescriptionEn,
             request.BrandId,
             request.UnitId,
+            request.Status,
             request.Images);
 
         var result = await Sender.Send(command);
@@ -68,6 +71,7 @@ public class AdminMasterProductsController : ApiControllerBase
             request.DescriptionEn,
             request.BrandId,
             request.UnitId,
+            request.Status,
             request.Images);
 
         await Sender.Send(command);

@@ -110,7 +110,7 @@ public class CreateMasterProductCommandHandlerTests
             new("https://example.com/img2.png", "Alt 2", 1, false)
         };
 
-        var command = new CreateMasterProductCommand(category.Id, "منتج بالصور", "Product with Images", "slug", null, "وصف", "Description", null, null, images);
+        var command = new CreateMasterProductCommand(category.Id, "منتج بالصور", "Product with Images", "slug", null, "وصف", "Description", null, null, Zadana.Domain.Modules.Catalog.Enums.ProductStatus.Draft, images);
         var handler = CreateHandler();
 
         var result = await handler.Handle(command, CancellationToken.None);

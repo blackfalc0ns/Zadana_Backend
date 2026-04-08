@@ -74,6 +74,8 @@ public class ApplicationDbContext : IdentityDbContext<User, IdentityRole<Guid>, 
     // Marketing & Social
     public DbSet<Coupon> Coupons => Set<Coupon>();
     public DbSet<CouponVendor> CouponVendors => Set<CouponVendor>();
+    public DbSet<HomeBanner> HomeBanners => Set<HomeBanner>();
+    public DbSet<FeaturedProductPlacement> FeaturedProductPlacements => Set<FeaturedProductPlacement>();
     public DbSet<Review> Reviews => Set<Review>();
     public DbSet<Notification> Notifications => Set<Notification>();
 

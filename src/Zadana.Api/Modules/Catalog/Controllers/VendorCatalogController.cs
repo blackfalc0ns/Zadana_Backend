@@ -9,6 +9,7 @@ using Zadana.Application.Modules.Catalog.Queries.Brands.GetBrands;
 using Zadana.Application.Modules.Catalog.Queries.Categories.GetCategories;
 using Zadana.Application.Modules.Catalog.Queries.GetMasterProducts;
 using Zadana.Application.Modules.Catalog.Queries.Units.GetUnits;
+using Zadana.Domain.Modules.Catalog.Enums;
 
 namespace Zadana.Api.Modules.Catalog.Controllers;
 
@@ -60,7 +61,16 @@ public class VendorCatalogController : ApiControllerBase
         [FromQuery] Guid? categoryId = null,
         [FromQuery] Guid? brandId = null)
     {
-        var result = await Sender.Send(new GetMasterProductsQuery(searchTerm, categoryId, brandId, pageNumber, pageSize));
+        var vendorId = await _currentVendorService.TryGetVendorIdAsync(HttpContext.RequestAborted);
+
+        var result = await Sender.Send(new GetMasterProductsQuery(
+            searchTerm, 
+            categoryId, 
+            brandId, 
+            ProductStatus.Active, 
+            vendorId, 
+            pageNumber, 
+            pageSize));
         return Ok(result);
     }
 

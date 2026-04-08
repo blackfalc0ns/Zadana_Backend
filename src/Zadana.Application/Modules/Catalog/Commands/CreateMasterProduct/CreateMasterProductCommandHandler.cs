@@ -1,6 +1,7 @@
 using MediatR;
 using Zadana.Application.Common.Interfaces;
 using Zadana.Domain.Modules.Catalog.Entities;
+using Zadana.Domain.Modules.Catalog.Enums;
 using Zadana.SharedKernel.Exceptions;
 
 namespace Zadana.Application.Modules.Catalog.Commands.CreateMasterProduct;
@@ -38,6 +39,8 @@ public class CreateMasterProductCommandHandler : IRequestHandler<CreateMasterPro
             descriptionEn: request.DescriptionEn,
             barcode: request.Barcode
         );
+
+        masterProduct.SetStatus(request.Status);
 
         if (request.Images != null)
         {

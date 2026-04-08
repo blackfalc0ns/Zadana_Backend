@@ -19,6 +19,8 @@ public class GetMasterProductsQueryHandler : IRequestHandler<GetMasterProductsQu
     {
         var query = _context.MasterProducts
             .Include(p => p.Images)
+            .Include(p => p.Brand)
+            .Include(p => p.UnitOfMeasure)
             .AsNoTracking();
 
         if (!string.IsNullOrWhiteSpace(request.SearchTerm))
@@ -36,6 +38,11 @@ public class GetMasterProductsQueryHandler : IRequestHandler<GetMasterProductsQu
             query = query.Where(p => p.BrandId == request.BrandId.Value);
         }
 
+        if (request.Status.HasValue)
+        {
+            query = query.Where(p => p.Status == request.Status.Value);
+        }
+
         var projectedQuery = query
             .OrderByDescending(p => p.Id)
             .Select(p => new MasterProductDto(
@@ -48,8 +55,13 @@ public class GetMasterProductsQueryHandler : IRequestHandler<GetMasterProductsQu
                 p.Barcode,
                 p.CategoryId,
                 p.BrandId,
+                p.Brand != null ? p.Brand.NameAr : null,
+                p.Brand != null ? p.Brand.NameEn : null,
                 p.UnitOfMeasureId,
+                p.UnitOfMeasure != null ? p.UnitOfMeasure.NameAr : null,
+                p.UnitOfMeasure != null ? p.UnitOfMeasure.NameEn : null,
                 p.Status.ToString(),
+                request.VendorId.HasValue && _context.VendorProducts.Any(vp => vp.MasterProductId == p.Id && vp.VendorId == request.VendorId.Value),
                 p.Images.Select(i => new MasterProductImageDto(i.Url, i.AltText, i.DisplayOrder, i.IsPrimary)).ToList()
             ));
 

@@ -1,0 +1,34 @@
+namespace Zadana.Application.Modules.Marketing.DTOs;
+
+public record HomeBannerAdminDto(
+    Guid Id,
+    string TagAr,
+    string TagEn,
+    string TitleAr,
+    string TitleEn,
+    string? SubtitleAr,
+    string? SubtitleEn,
+    string? ActionLabelAr,
+    string? ActionLabelEn,
+    string ImageUrl,
+    int DisplayOrder,
+    bool IsActive,
+    DateTime? StartsAtUtc,
+    DateTime? EndsAtUtc,
+    DateTime CreatedAtUtc,
+    DateTime UpdatedAtUtc);
+
+public record FeaturedProductPlacementDto(
+    Guid Id,
+    string PlacementType,
+    Guid? VendorProductId,
+    Guid? MasterProductId,
+    string? DisplayNameAr,
+    string? DisplayNameEn,
+    int DisplayOrder,
+    bool IsActive,
+    DateTime? StartsAtUtc,
+    DateTime? EndsAtUtc,
+    string? Note,
+    DateTime CreatedAtUtc,
+    DateTime UpdatedAtUtc);

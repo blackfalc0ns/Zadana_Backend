@@ -1,4 +1,5 @@
 using Zadana.Application.Modules.Catalog.Commands.CreateMasterProduct;
+using Zadana.Domain.Modules.Catalog.Enums;
 
 namespace Zadana.Api.Modules.Catalog.Requests;
 
@@ -46,6 +47,7 @@ public record CreateMasterProductRequest(
     string? DescriptionEn,
     Guid? BrandId,
     Guid? UnitId,
+    ProductStatus Status = ProductStatus.Draft,
     List<CreateProductImageInfo>? Images = null);
 
 public record UpdateMasterProductRequest(
@@ -58,4 +60,5 @@ public record UpdateMasterProductRequest(
     string? DescriptionEn,
     Guid? BrandId,
     Guid? UnitId,
+    ProductStatus? Status = null,
     List<CreateProductImageInfo>? Images = null);

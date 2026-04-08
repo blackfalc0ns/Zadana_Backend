@@ -3,6 +3,7 @@ using System;
 using Microsoft.EntityFrameworkCore;
 using Microsoft.EntityFrameworkCore.Infrastructure;
 using Microsoft.EntityFrameworkCore.Metadata;
+using Microsoft.EntityFrameworkCore.Migrations;
 using Microsoft.EntityFrameworkCore.Storage.ValueConversion;
 using Zadana.Infrastructure.Persistence;
 
@@ -11,9 +12,11 @@ using Zadana.Infrastructure.Persistence;
 namespace Zadana.Infrastructure.Migrations
 {
     [DbContext(typeof(ApplicationDbContext))]
-    partial class ApplicationDbContextModelSnapshot : ModelSnapshot
+    [Migration("20260408075644_AddHomeContentBanners")]
+    partial class AddHomeContentBanners
     {
-        protected override void BuildModel(ModelBuilder modelBuilder)
+        /// <inheritdoc />
+        protected override void BuildTargetModel(ModelBuilder modelBuilder)
         {
 #pragma warning disable 612, 618
             modelBuilder
@@ -1195,64 +1198,6 @@ namespace Zadana.Infrastructure.Migrations
                         .IsUnique();
 
                     b.ToTable("CouponVendors", (string)null);
-                });
-
-            modelBuilder.Entity("Zadana.Domain.Modules.Marketing.Entities.FeaturedProductPlacement", b =>
-                {
-                    b.Property<Guid>("Id")
-                        .ValueGeneratedOnAdd()
-                        .HasColumnType("uniqueidentifier");
-
-                    b.Property<DateTime>("CreatedAtUtc")
-                        .HasColumnType("datetime2");
-
-                    b.Property<int>("DisplayOrder")
-                        .ValueGeneratedOnAdd()
-                        .HasColumnType("int")
-                        .HasDefaultValue(0);
-
-                    b.Property<DateTime?>("EndsAtUtc")
-                        .HasColumnType("datetime2");
-
-                    b.Property<bool>("IsActive")
-                        .ValueGeneratedOnAdd()
-                        .HasColumnType("bit")
-                        .HasDefaultValue(true);
-
-                    b.Property<Guid?>("MasterProductId")
-                        .HasColumnType("uniqueidentifier");
-
-                    b.Property<string>("Note")
-                        .HasMaxLength(500)
-                        .HasColumnType("nvarchar(500)");
-
-                    b.Property<string>("PlacementType")
-                        .IsRequired()
-                        .HasMaxLength(30)
-                        .HasColumnType("nvarchar(30)");
-
-                    b.Property<DateTime?>("StartsAtUtc")
-                        .HasColumnType("datetime2");
-
-                    b.Property<DateTime>("UpdatedAtUtc")
-                        .HasColumnType("datetime2");
-
-                    b.Property<Guid?>("VendorProductId")
-                        .HasColumnType("uniqueidentifier");
-
-                    b.HasKey("Id");
-
-                    b.HasIndex("MasterProductId");
-
-                    b.HasIndex("VendorProductId");
-
-                    b.HasIndex("IsActive", "DisplayOrder")
-                        .HasDatabaseName("IX_FeaturedProductPlacement_IsActive_DisplayOrder");
-
-                    b.HasIndex("PlacementType", "VendorProductId", "MasterProductId")
-                        .HasDatabaseName("IX_FeaturedProductPlacement_Target");
-
-                    b.ToTable("FeaturedProductPlacement", (string)null);
                 });
 
             modelBuilder.Entity("Zadana.Domain.Modules.Marketing.Entities.HomeBanner", b =>
@@ -2637,23 +2582,6 @@ namespace Zadana.Infrastructure.Migrations
                     b.Navigation("Coupon");
 
                     b.Navigation("Vendor");
-                });
-
-            modelBuilder.Entity("Zadana.Domain.Modules.Marketing.Entities.FeaturedProductPlacement", b =>
-                {
-                    b.HasOne("Zadana.Domain.Modules.Catalog.Entities.MasterProduct", "MasterProduct")
-                        .WithMany()
-                        .HasForeignKey("MasterProductId")
-                        .OnDelete(DeleteBehavior.Restrict);
-
-                    b.HasOne("Zadana.Domain.Modules.Catalog.Entities.VendorProduct", "VendorProduct")
-                        .WithMany()
-                        .HasForeignKey("VendorProductId")
-                        .OnDelete(DeleteBehavior.Restrict);
-
-                    b.Navigation("MasterProduct");
-
-                    b.Navigation("VendorProduct");
                 });
 
             modelBuilder.Entity("Zadana.Domain.Modules.Orders.Entities.Cart", b =>

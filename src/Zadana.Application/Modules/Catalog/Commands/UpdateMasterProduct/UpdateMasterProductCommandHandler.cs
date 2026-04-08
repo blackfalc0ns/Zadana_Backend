@@ -1,6 +1,7 @@
 using MediatR;
 using Microsoft.EntityFrameworkCore;
 using Zadana.Application.Common.Interfaces;
+using Zadana.Domain.Modules.Catalog.Enums;
 using Zadana.SharedKernel.Exceptions;
 
 namespace Zadana.Application.Modules.Catalog.Commands.UpdateMasterProduct;
@@ -42,6 +43,11 @@ public class UpdateMasterProductCommandHandler : IRequestHandler<UpdateMasterPro
         product.ChangeCategory(request.CategoryId);
         product.ChangeBrand(request.BrandId);
         product.ChangeUnit(request.UnitId);
+
+        if (request.Status.HasValue)
+        {
+            product.SetStatus(request.Status.Value);
+        }
 
         // Update Images
         if (request.Images != null)

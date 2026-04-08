@@ -66,6 +66,7 @@ public class MasterProduct : BaseEntity
     public void ChangeCategory(Guid categoryId) => CategoryId = categoryId;
     public void ChangeBrand(Guid? brandId) => BrandId = brandId;
     public void ChangeUnit(Guid? unitOfMeasureId) => UnitOfMeasureId = unitOfMeasureId;
+    public void SetStatus(ProductStatus status) => Status = status;
 
     public void AddImage(string url, string? altText = null, int displayOrder = 0, bool isPrimary = false)
     {

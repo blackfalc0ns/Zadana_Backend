@@ -28,6 +28,10 @@ public class GetVendorProductsQueryHandler : IRequestHandler<GetVendorProductsQu
             .AsNoTracking()
             .Include(vp => vp.MasterProduct)
                 .ThenInclude(mp => mp.Images)
+            .Include(vp => vp.MasterProduct)
+                .ThenInclude(mp => mp.Brand)
+            .Include(vp => vp.MasterProduct)
+                .ThenInclude(mp => mp.UnitOfMeasure)
             .Where(vp => vp.VendorId == request.VendorId);
 
         if (request.CategoryId.HasValue)
@@ -67,8 +71,13 @@ public class GetVendorProductsQueryHandler : IRequestHandler<GetVendorProductsQu
                 vp.MasterProduct.Barcode,
                 vp.MasterProduct.CategoryId,
                 vp.MasterProduct.BrandId,
+                vp.MasterProduct.Brand?.NameAr,
+                vp.MasterProduct.Brand?.NameEn,
                 vp.MasterProduct.UnitOfMeasureId,
+                vp.MasterProduct.UnitOfMeasure?.NameAr,
+                vp.MasterProduct.UnitOfMeasure?.NameEn,
                 vp.MasterProduct.Status.ToString(),
+                true,
                 vp.MasterProduct.Images.Select(i => new MasterProductImageDto(i.Url, i.AltText, i.DisplayOrder, i.IsPrimary)).ToList()
             )
         )).ToList();

@@ -3,6 +3,7 @@ using MediatR;
 using Microsoft.Extensions.Localization;
 using Zadana.Application.Common.Localization;
 using Zadana.Application.Modules.Catalog.Commands.CreateMasterProduct;
+using Zadana.Domain.Modules.Catalog.Enums;
 
 namespace Zadana.Application.Modules.Catalog.Commands.UpdateMasterProduct;
 
@@ -17,6 +18,7 @@ public record UpdateMasterProductCommand(
     string? DescriptionEn,
     Guid? BrandId,
     Guid? UnitId,
+    ProductStatus? Status = null,
     List<CreateProductImageInfo>? Images = null) : IRequest<Unit>;
 
 public class UpdateMasterProductCommandValidator : AbstractValidator<UpdateMasterProductCommand>
