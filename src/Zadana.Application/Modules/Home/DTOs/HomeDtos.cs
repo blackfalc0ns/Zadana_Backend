@@ -5,6 +5,7 @@ namespace Zadana.Application.Modules.Home.DTOs;
 public record HomeHeaderDto(
     [property: JsonPropertyName("deliver_to_label")] string DeliverToLabel,
     [property: JsonPropertyName("location")] string Location,
+    [property: JsonPropertyName("address_line")] string AddressLine,
     [property: JsonPropertyName("notifications_count")] int NotificationsCount);
 
 public record HomeBannerDto(
@@ -45,6 +46,7 @@ public record HomeBrandCardDto(
 public record HomeContentDto(
     [property: JsonPropertyName("deliver_to_label")] string DeliverToLabel,
     [property: JsonPropertyName("location")] string Location,
+    [property: JsonPropertyName("address_line")] string AddressLine,
     [property: JsonPropertyName("notifications_count")] int NotificationsCount,
     [property: JsonPropertyName("banners")] IReadOnlyList<HomeBannerDto> Banners,
     [property: JsonPropertyName("categories")] IReadOnlyList<HomeCategoryDto> Categories,

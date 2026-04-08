@@ -23,6 +23,7 @@ public class JwtTokenService : IJwtTokenService
         var claims = new List<Claim>
         {
             new Claim(JwtRegisteredClaimNames.Sub, user.Id.ToString()),
+            new Claim(ClaimTypes.NameIdentifier, user.Id.ToString()),
             new Claim(JwtRegisteredClaimNames.Jti, Guid.NewGuid().ToString()),
             new Claim(ClaimTypes.Role, user.Role.ToString()),
             new Claim(ClaimTypes.Name, user.FullName)
@@ -31,7 +32,7 @@ public class JwtTokenService : IJwtTokenService
         if (!string.IsNullOrEmpty(user.Email))
         {
             claims.Add(new Claim(ClaimTypes.Email, user.Email));
-            new Claim(JwtRegisteredClaimNames.Email, user.Email);
+            claims.Add(new Claim(JwtRegisteredClaimNames.Email, user.Email));
         }
         
         if (!string.IsNullOrEmpty(user.PhoneNumber))

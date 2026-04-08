@@ -46,7 +46,7 @@ public class HomeReadServiceTests
 
         var result = await service.GetHeaderAsync();
 
-        result.Should().BeEquivalentTo(new HomeHeaderDto("المنزل", "Maadi, Cairo", 2));
+        result.Should().BeEquivalentTo(new HomeHeaderDto("المنزل", "Maadi, Cairo", "Street 2", 2));
     }
 
     [Fact]

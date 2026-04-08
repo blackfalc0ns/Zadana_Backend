@@ -54,6 +54,7 @@ public class HomeReadService : IHomeReadService
         return new HomeContentDto(
             header.DeliverToLabel,
             header.Location,
+            header.AddressLine,
             header.NotificationsCount,
             banners,
             categories,
@@ -112,7 +113,7 @@ public class HomeReadService : IHomeReadService
         var userId = _currentUserService.UserId;
         if (!_currentUserService.IsAuthenticated || !userId.HasValue)
         {
-            return new HomeHeaderDto(string.Empty, string.Empty, 0);
+            return new HomeHeaderDto(string.Empty, string.Empty, string.Empty, 0);
         }
 
         var address = await _context.CustomerAddresses
@@ -129,13 +130,14 @@ public class HomeReadService : IHomeReadService
 
         if (address is null)
         {
-            return new HomeHeaderDto(string.Empty, string.Empty, notificationsCount);
+            return new HomeHeaderDto(string.Empty, string.Empty, string.Empty, notificationsCount);
         }
 
         var deliverToLabel = LocalizeAddressLabel(address.Label);
         var location = BuildLocation(address.Area, address.City, address.AddressLine);
+        var addressLine = address.AddressLine?.Trim() ?? string.Empty;
 
-        return new HomeHeaderDto(deliverToLabel, location, notificationsCount);
+        return new HomeHeaderDto(deliverToLabel, location, addressLine, notificationsCount);
     }
 
     private async Task<IReadOnlyList<HomeBannerDto>> GetBannersInternalAsync(int take, CancellationToken cancellationToken)

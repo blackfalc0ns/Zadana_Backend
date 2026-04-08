@@ -20,7 +20,7 @@ public class HomeControllerTests
     [Fact]
     public async Task GetHome_ReturnsOkResultWithHeader()
     {
-        var dto = new HomeHeaderDto("Home", "Maadi, Cairo", 3);
+        var dto = new HomeHeaderDto("Home", "Maadi, Cairo", "Street 2", 3);
         _homeReadService.Setup(x => x.GetHeaderAsync(It.IsAny<CancellationToken>())).ReturnsAsync(dto);
 
         var result = await _controller.GetHome(CancellationToken.None);
