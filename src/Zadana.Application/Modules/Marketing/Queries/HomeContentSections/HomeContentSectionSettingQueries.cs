@@ -1,6 +1,7 @@
 using MediatR;
 using Microsoft.EntityFrameworkCore;
 using Zadana.Application.Common.Interfaces;
+using Zadana.Application.Modules.Marketing;
 using Zadana.Application.Modules.Marketing.DTOs;
 using Zadana.Domain.Modules.Marketing.Enums;
 
@@ -15,9 +16,17 @@ public class GetHomeContentSectionSettingsQueryHandler : IRequestHandler<GetHome
 
     public async Task<List<HomeContentSectionSettingDto>> Handle(GetHomeContentSectionSettingsQuery request, CancellationToken cancellationToken)
     {
-        var existing = await _context.HomeContentSectionSettings
-            .AsNoTracking()
-            .ToDictionaryAsync(x => x.SectionType, x => x.IsEnabled, cancellationToken);
+        Dictionary<HomeContentSectionType, bool> existing;
+        try
+        {
+            existing = await _context.HomeContentSectionSettings
+                .AsNoTracking()
+                .ToDictionaryAsync(x => x.SectionType, x => x.IsEnabled, cancellationToken);
+        }
+        catch (Exception ex) when (MarketingDatabaseObjectFallbacks.IsMissingDatabaseObject(ex))
+        {
+            return MarketingDatabaseObjectFallbacks.CreateDefaultSectionSettings();
+        }
 
         return Enum.GetValues<HomeContentSectionType>()
             .Select(sectionType => new HomeContentSectionSettingDto(

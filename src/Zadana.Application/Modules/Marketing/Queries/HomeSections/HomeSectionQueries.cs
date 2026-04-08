@@ -1,6 +1,7 @@
 using MediatR;
 using Microsoft.EntityFrameworkCore;
 using Zadana.Application.Common.Interfaces;
+using Zadana.Application.Modules.Marketing;
 using Zadana.Application.Modules.Marketing.Commands.HomeSections;
 using Zadana.Application.Modules.Marketing.DTOs;
 using Zadana.Domain.Modules.Marketing.Entities;
@@ -18,19 +19,26 @@ public class GetHomeSectionsQueryHandler : IRequestHandler<GetHomeSectionsQuery,
 
     public async Task<List<HomeSectionAdminDto>> Handle(GetHomeSectionsQuery request, CancellationToken cancellationToken)
     {
-        var items = await _context.HomeSections
-            .AsNoTracking()
-            .OrderBy(x => x.DisplayOrder)
-            .ThenByDescending(x => x.CreatedAtUtc)
-            .Select(x => new
-            {
-                Entity = x,
-                x.Category.NameAr,
-                x.Category.NameEn
-            })
-            .ToListAsync(cancellationToken);
+        try
+        {
+            var items = await _context.HomeSections
+                .AsNoTracking()
+                .OrderBy(x => x.DisplayOrder)
+                .ThenByDescending(x => x.CreatedAtUtc)
+                .Select(x => new
+                {
+                    Entity = x,
+                    x.Category.NameAr,
+                    x.Category.NameEn
+                })
+                .ToListAsync(cancellationToken);
 
-        return items.Select(x => MarketingMappings.ToDto(x.Entity, x.NameAr, x.NameEn)).ToList();
+            return items.Select(x => MarketingMappings.ToDto(x.Entity, x.NameAr, x.NameEn)).ToList();
+        }
+        catch (Exception ex) when (MarketingDatabaseObjectFallbacks.IsMissingDatabaseObject(ex))
+        {
+            return [];
+        }
     }
 }
 

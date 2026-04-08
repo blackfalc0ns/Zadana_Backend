@@ -2,6 +2,8 @@
 using Microsoft.AspNetCore.Mvc;
 using Zadana.Api.Controllers;
 using Zadana.Api.Modules.Marketing.Requests;
+using Zadana.Application.Common.Interfaces;
+using Zadana.Application.Modules.Files.Commands.UploadFile;
 using Zadana.Application.Modules.Marketing.Commands.HomeBanners;
 using Zadana.Application.Modules.Marketing.DTOs;
 using Zadana.Application.Modules.Marketing.Queries.HomeBanners;
@@ -13,6 +15,21 @@ namespace Zadana.Api.Modules.Marketing.Controllers;
 [Tags("Marketing (Admins)")]
 public class AdminMarketingBannersController : ApiControllerBase
 {
+    [HttpPost("upload-image")]
+    public async Task<ActionResult<object>> UploadBannerImage(IFormFile file)
+    {
+        if (file == null || file.Length == 0)
+        {
+            return BadRequest("File is empty.");
+        }
+
+        await using var stream = file.OpenReadStream();
+        var fileDto = new FileUploadDto(file.FileName, file.ContentType, stream);
+        var fileUrl = await Sender.Send(new UploadFileCommand("marketing/banners", fileDto));
+
+        return Ok(new { url = fileUrl });
+    }
+
     [HttpGet]
     public async Task<ActionResult<List<HomeBannerAdminDto>>> GetBanners()
     {

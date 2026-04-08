@@ -2,6 +2,7 @@ using FluentValidation;
 using MediatR;
 using Microsoft.EntityFrameworkCore;
 using Zadana.Application.Common.Interfaces;
+using Zadana.Application.Modules.Marketing;
 using Zadana.Application.Modules.Marketing.DTOs;
 using Zadana.Domain.Modules.Marketing.Entities;
 using Zadana.Domain.Modules.Marketing.Enums;
@@ -45,8 +46,16 @@ public class UpdateHomeContentSectionSettingCommandHandler : IRequestHandler<Upd
     public async Task<HomeContentSectionSettingDto> Handle(UpdateHomeContentSectionSettingCommand request, CancellationToken cancellationToken)
     {
         var sectionType = HomeContentSectionSettingHelpers.ParseSectionType(request.SectionType);
-        var entity = await _context.HomeContentSectionSettings
-            .FirstOrDefaultAsync(x => x.SectionType == sectionType, cancellationToken);
+        HomeContentSectionSetting? entity;
+        try
+        {
+            entity = await _context.HomeContentSectionSettings
+                .FirstOrDefaultAsync(x => x.SectionType == sectionType, cancellationToken);
+        }
+        catch (Exception ex) when (MarketingDatabaseObjectFallbacks.IsMissingDatabaseObject(ex))
+        {
+            return new HomeContentSectionSettingDto(sectionType.ToString(), request.IsEnabled);
+        }
 
         if (entity is null)
         {
@@ -58,7 +67,15 @@ public class UpdateHomeContentSectionSettingCommandHandler : IRequestHandler<Upd
             entity.SetEnabled(request.IsEnabled);
         }
 
-        await _context.SaveChangesAsync(cancellationToken);
+        try
+        {
+            await _context.SaveChangesAsync(cancellationToken);
+        }
+        catch (Exception ex) when (MarketingDatabaseObjectFallbacks.IsMissingDatabaseObject(ex))
+        {
+            return new HomeContentSectionSettingDto(sectionType.ToString(), request.IsEnabled);
+        }
+
         return new HomeContentSectionSettingDto(entity.SectionType.ToString(), entity.IsEnabled);
     }
 }
@@ -71,8 +88,16 @@ public class ActivateHomeContentSectionSettingCommandHandler : IRequestHandler<A
     public async Task Handle(ActivateHomeContentSectionSettingCommand request, CancellationToken cancellationToken)
     {
         var sectionType = HomeContentSectionSettingHelpers.ParseSectionType(request.SectionType);
-        var entity = await _context.HomeContentSectionSettings
-            .FirstOrDefaultAsync(x => x.SectionType == sectionType, cancellationToken);
+        HomeContentSectionSetting? entity;
+        try
+        {
+            entity = await _context.HomeContentSectionSettings
+                .FirstOrDefaultAsync(x => x.SectionType == sectionType, cancellationToken);
+        }
+        catch (Exception ex) when (MarketingDatabaseObjectFallbacks.IsMissingDatabaseObject(ex))
+        {
+            return;
+        }
 
         if (entity is null)
         {
@@ -83,7 +108,14 @@ public class ActivateHomeContentSectionSettingCommandHandler : IRequestHandler<A
             entity.Activate();
         }
 
-        await _context.SaveChangesAsync(cancellationToken);
+        try
+        {
+            await _context.SaveChangesAsync(cancellationToken);
+        }
+        catch (Exception ex) when (MarketingDatabaseObjectFallbacks.IsMissingDatabaseObject(ex))
+        {
+            return;
+        }
     }
 }
 
@@ -95,8 +127,16 @@ public class DeactivateHomeContentSectionSettingCommandHandler : IRequestHandler
     public async Task Handle(DeactivateHomeContentSectionSettingCommand request, CancellationToken cancellationToken)
     {
         var sectionType = HomeContentSectionSettingHelpers.ParseSectionType(request.SectionType);
-        var entity = await _context.HomeContentSectionSettings
-            .FirstOrDefaultAsync(x => x.SectionType == sectionType, cancellationToken);
+        HomeContentSectionSetting? entity;
+        try
+        {
+            entity = await _context.HomeContentSectionSettings
+                .FirstOrDefaultAsync(x => x.SectionType == sectionType, cancellationToken);
+        }
+        catch (Exception ex) when (MarketingDatabaseObjectFallbacks.IsMissingDatabaseObject(ex))
+        {
+            return;
+        }
 
         if (entity is null)
         {
@@ -107,7 +147,14 @@ public class DeactivateHomeContentSectionSettingCommandHandler : IRequestHandler
             entity.Deactivate();
         }
 
-        await _context.SaveChangesAsync(cancellationToken);
+        try
+        {
+            await _context.SaveChangesAsync(cancellationToken);
+        }
+        catch (Exception ex) when (MarketingDatabaseObjectFallbacks.IsMissingDatabaseObject(ex))
+        {
+            return;
+        }
     }
 }
 
