@@ -578,26 +578,6 @@ public class HomeReadService : IHomeReadService
 
     private async Task<IReadOnlyList<HomeBrandCardDto>> GetBrandsInternalAsync(int take, CancellationToken cancellationToken)
     {
-        var productCounts = await _context.VendorProducts
-            .AsNoTracking()
-            .Where(vp =>
-                vp.MasterProduct.BrandId.HasValue &&
-                vp.MasterProduct.Brand != null &&
-                vp.MasterProduct.Brand.IsActive &&
-                vp.Status == VendorProductStatus.Active &&
-                vp.IsAvailable &&
-                vp.StockQuantity > 0 &&
-                vp.MasterProduct.Status == ProductStatus.Active &&
-                vp.Vendor.Status == VendorStatus.Active &&
-                vp.Vendor.AcceptOrders)
-            .GroupBy(vp => vp.MasterProduct.BrandId!.Value)
-            .Select(group => new
-            {
-                BrandId = group.Key,
-                ProductCount = group.Select(vp => vp.Id).Distinct().Count()
-            })
-            .ToDictionaryAsync(x => x.BrandId, x => x.ProductCount, cancellationToken);
-
         var brands = await _context.Brands
             .AsNoTracking()
             .Where(x => x.IsActive)
@@ -606,7 +586,8 @@ public class HomeReadService : IHomeReadService
                 x.Id,
                 x.NameAr,
                 x.NameEn,
-                x.LogoUrl
+                x.LogoUrl,
+                ProductCount = x.MasterProducts.Count()
             })
             .ToListAsync(cancellationToken);
 
@@ -616,7 +597,7 @@ public class HomeReadService : IHomeReadService
                 PickLocalized(x.NameAr, x.NameEn),
                 x.LogoUrl,
                 null,
-                productCounts.TryGetValue(x.Id, out var productCount) ? productCount : 0,
+                x.ProductCount,
                 null))
             .OrderByDescending(x => x.ProductCount)
             .ThenBy(x => x.Name)

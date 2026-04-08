@@ -31,6 +31,9 @@ public class UpdateMasterProductCommandHandler : IRequestHandler<UpdateMasterPro
         if (request.BrandId.HasValue && !await _context.Brands.AnyAsync(b => b.Id == request.BrandId.Value, cancellationToken))
             throw new NotFoundException("Brand", request.BrandId.Value);
 
+        if (request.UnitId.HasValue && !await _context.UnitsOfMeasure.AnyAsync(u => u.Id == request.UnitId.Value, cancellationToken))
+            throw new NotFoundException("UnitOfMeasure", request.UnitId.Value);
+
         product.UpdateDetails(
             nameAr: request.NameAr,
             nameEn: request.NameEn,

@@ -204,7 +204,8 @@ public class HomeReadServiceTests
         result.Key.Should().Be("brands");
         result.Items.Should().HaveCount(5);
         result.Items.Select(x => x.Name).Should().Contain(["Almarai", "Samsung", "Brand 3", "Brand 4", "Brand 5"]);
-        result.Items.First(x => x.Name == "Almarai").ProductCount.Should().BeGreaterThan(0);
+        result.Items.First(x => x.Name == "Almarai").ProductCount.Should().Be(2);
+        result.Items.First(x => x.Name == "Samsung").ProductCount.Should().Be(2);
         result.Items.First(x => x.Name == "Brand 3").ProductCount.Should().Be(0);
     }
 

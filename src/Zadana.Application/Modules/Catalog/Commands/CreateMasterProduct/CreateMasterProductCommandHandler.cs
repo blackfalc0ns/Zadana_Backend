@@ -28,6 +28,11 @@ public class CreateMasterProductCommandHandler : IRequestHandler<CreateMasterPro
             throw new NotFoundException("Brand", request.BrandId.Value);
         }
 
+        if (request.UnitId.HasValue && !_context.UnitsOfMeasure.Any(u => u.Id == request.UnitId.Value))
+        {
+            throw new NotFoundException("UnitOfMeasure", request.UnitId.Value);
+        }
+
         var masterProduct = new MasterProduct(
             nameAr: request.NameAr,
             nameEn: request.NameEn,
