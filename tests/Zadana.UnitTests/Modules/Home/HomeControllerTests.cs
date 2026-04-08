@@ -32,16 +32,21 @@ public class HomeControllerTests
     [Fact]
     public async Task GetSpecialOffers_ReturnsOkResultWithItems()
     {
-        IReadOnlyList<HomeProductCardDto> items =
-        [
-            new HomeProductCardDto(Guid.NewGuid(), "Milk", "Store", 10m, 12m, "/milk.jpg", 4.5m, 5, "17%", false, false, "Liter", true)
-        ];
+        HomeListSectionDto<HomeProductCardDto> section = new(
+            "special_offers",
+            "Special Offers",
+            true,
+            null,
+            1,
+            [
+                new HomeProductCardDto(Guid.NewGuid(), "Milk", "Store", 10m, 12m, "/milk.jpg", 4.5m, 5, "17%", false, false, "Liter", true)
+            ]);
 
-        _homeReadService.Setup(x => x.GetSpecialOffersAsync(5, It.IsAny<CancellationToken>())).ReturnsAsync(items);
+        _homeReadService.Setup(x => x.GetSpecialOffersAsync(5, It.IsAny<CancellationToken>())).ReturnsAsync(section);
 
         var result = await _controller.GetSpecialOffers(5, CancellationToken.None);
 
         var okResult = result.Result.Should().BeOfType<OkObjectResult>().Subject;
-        okResult.Value.Should().BeEquivalentTo(items);
+        okResult.Value.Should().BeEquivalentTo(section);
     }
 }

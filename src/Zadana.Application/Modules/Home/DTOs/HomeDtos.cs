@@ -36,13 +36,6 @@ public record HomeProductCardDto(
     [property: JsonPropertyName("unit")] string? Unit,
     [property: JsonPropertyName("is_discounted")] bool IsDiscounted);
 
-public record HomeDynamicSectionDto(
-    [property: JsonPropertyName("id")] Guid Id,
-    [property: JsonPropertyName("subcategory_id")] Guid SubcategoryId,
-    [property: JsonPropertyName("title")] string Title,
-    [property: JsonPropertyName("theme")] string Theme,
-    [property: JsonPropertyName("products")] IReadOnlyList<HomeProductCardDto> Products);
-
 public record HomeBrandCardDto(
     [property: JsonPropertyName("id")] Guid Id,
     [property: JsonPropertyName("name")] string Name,
@@ -51,17 +44,35 @@ public record HomeBrandCardDto(
     [property: JsonPropertyName("product_count")] int ProductCount,
     [property: JsonPropertyName("description")] string? Description);
 
+public record HomeListSectionDto<TItem>(
+    [property: JsonPropertyName("key")] string Key,
+    [property: JsonPropertyName("title")] string Title,
+    [property: JsonPropertyName("is_active")] bool IsActive,
+    [property: JsonPropertyName("theme")] string? Theme,
+    [property: JsonPropertyName("items_count")] int ItemsCount,
+    [property: JsonPropertyName("items")] IReadOnlyList<TItem> Items);
+
+public record HomeDynamicSectionDto(
+    [property: JsonPropertyName("id")] Guid Id,
+    [property: JsonPropertyName("key")] string Key,
+    [property: JsonPropertyName("title")] string Title,
+    [property: JsonPropertyName("subcategory_id")] Guid SubcategoryId,
+    [property: JsonPropertyName("is_active")] bool IsActive,
+    [property: JsonPropertyName("theme")] string Theme,
+    [property: JsonPropertyName("items_count")] int ItemsCount,
+    [property: JsonPropertyName("items")] IReadOnlyList<HomeProductCardDto> Items);
+
 public record HomeContentDto(
     [property: JsonPropertyName("deliver_to_label")] string DeliverToLabel,
     [property: JsonPropertyName("location")] string Location,
     [property: JsonPropertyName("address_line")] string AddressLine,
     [property: JsonPropertyName("notifications_count")] int NotificationsCount,
-    [property: JsonPropertyName("banners")] IReadOnlyList<HomeBannerDto> Banners,
-    [property: JsonPropertyName("categories")] IReadOnlyList<HomeCategoryDto> Categories,
-    [property: JsonPropertyName("special_offers")] IReadOnlyList<HomeProductCardDto> SpecialOffers,
-    [property: JsonPropertyName("recommended")] IReadOnlyList<HomeProductCardDto> Recommended,
-    [property: JsonPropertyName("best_selling")] IReadOnlyList<HomeProductCardDto> BestSelling,
-    [property: JsonPropertyName("brands")] IReadOnlyList<HomeBrandCardDto> Brands,
-    [property: JsonPropertyName("featured_products")] IReadOnlyList<HomeProductCardDto> FeaturedProducts,
-    [property: JsonPropertyName("explore_more")] IReadOnlyList<HomeProductCardDto> ExploreMore,
-    [property: JsonPropertyName("sections")] IReadOnlyList<HomeDynamicSectionDto> Sections);
+    [property: JsonPropertyName("banners_section")] HomeListSectionDto<HomeBannerDto> BannersSection,
+    [property: JsonPropertyName("categories_section")] HomeListSectionDto<HomeCategoryDto> CategoriesSection,
+    [property: JsonPropertyName("special_offers_section")] HomeListSectionDto<HomeProductCardDto> SpecialOffersSection,
+    [property: JsonPropertyName("recommended_section")] HomeListSectionDto<HomeProductCardDto> RecommendedSection,
+    [property: JsonPropertyName("best_selling_section")] HomeListSectionDto<HomeProductCardDto> BestSellingSection,
+    [property: JsonPropertyName("brands_section")] HomeListSectionDto<HomeBrandCardDto> BrandsSection,
+    [property: JsonPropertyName("featured_products_section")] HomeListSectionDto<HomeProductCardDto> FeaturedProductsSection,
+    [property: JsonPropertyName("explore_more_section")] HomeListSectionDto<HomeProductCardDto> ExploreMoreSection,
+    [property: JsonPropertyName("dynamic_sections")] IReadOnlyList<HomeDynamicSectionDto> DynamicSections);

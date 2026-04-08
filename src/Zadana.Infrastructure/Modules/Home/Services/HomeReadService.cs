@@ -81,93 +81,131 @@ public class HomeReadService : IHomeReadService
         var sections = IsSectionEnabled(sectionSettings, HomeContentSectionType.DynamicSections)
             ? await GetDynamicSectionsInternalAsync(catalog.Products, cancellationToken)
             : [];
+        var bannersSection = CreateSection("banners", "Banners", IsSectionEnabled(sectionSettings, HomeContentSectionType.Banners), banners);
+        var categoriesSection = CreateSection("categories", "Categories", IsSectionEnabled(sectionSettings, HomeContentSectionType.Categories), categories);
+        var specialOffersSection = CreateSection("special_offers", "Special Offers", IsSectionEnabled(sectionSettings, HomeContentSectionType.SpecialOffers), specialOffers);
+        var recommendedSection = CreateSection("recommended", "Recommended", IsSectionEnabled(sectionSettings, HomeContentSectionType.Recommended), recommended);
+        var bestSellingSection = CreateSection("best_selling", "Best Selling", IsSectionEnabled(sectionSettings, HomeContentSectionType.BestSelling), bestSelling);
+        var brandsSection = CreateSection("brands", "Brands", IsSectionEnabled(sectionSettings, HomeContentSectionType.Brands), brands);
+        var featuredProductsSection = CreateSection("featured_products", "Featured Products", IsSectionEnabled(sectionSettings, HomeContentSectionType.FeaturedProducts), featuredProducts);
+        var exploreMoreSection = CreateSection("explore_more", "Explore More", IsSectionEnabled(sectionSettings, HomeContentSectionType.ExploreMore), exploreMore);
 
         return new HomeContentDto(
             header.DeliverToLabel,
             header.Location,
             header.AddressLine,
             header.NotificationsCount,
-            banners,
-            categories,
-            specialOffers,
-            recommended,
-            bestSelling,
-            brands,
-            featuredProducts,
-            exploreMore,
+            bannersSection,
+            categoriesSection,
+            specialOffersSection,
+            recommendedSection,
+            bestSellingSection,
+            brandsSection,
+            featuredProductsSection,
+            exploreMoreSection,
             sections);
     }
 
-    public Task<IReadOnlyList<HomeBannerDto>> GetBannersAsync(int take, CancellationToken cancellationToken = default) =>
-        GetBannersOrEmptyAsync(NormalizeTake(take, DefaultBannerTake), cancellationToken);
+    public async Task<HomeListSectionDto<HomeBannerDto>> GetBannersAsync(int take, CancellationToken cancellationToken = default)
+    {
+        var items = await GetBannersOrEmptyAsync(NormalizeTake(take, DefaultBannerTake), cancellationToken);
+        return CreateSection("banners", "Banners", await IsSectionEnabledAsync(HomeContentSectionType.Banners, cancellationToken), items);
+    }
 
-    public Task<IReadOnlyList<HomeCategoryDto>> GetCategoriesAsync(int take, CancellationToken cancellationToken = default) =>
-        GetCategoriesOrEmptyAsync(NormalizeTake(take, DefaultCategoryTake), cancellationToken);
+    public async Task<HomeListSectionDto<HomeCategoryDto>> GetCategoriesAsync(int take, CancellationToken cancellationToken = default)
+    {
+        var items = await GetCategoriesOrEmptyAsync(NormalizeTake(take, DefaultCategoryTake), cancellationToken);
+        return CreateSection("categories", "Categories", await IsSectionEnabledAsync(HomeContentSectionType.Categories, cancellationToken), items);
+    }
 
-    public async Task<IReadOnlyList<HomeProductCardDto>> GetSpecialOffersAsync(int take, CancellationToken cancellationToken = default)
+    public async Task<HomeListSectionDto<HomeProductCardDto>> GetSpecialOffersAsync(int take, CancellationToken cancellationToken = default)
     {
         if (!await IsSectionEnabledAsync(HomeContentSectionType.SpecialOffers, cancellationToken))
         {
-            return [];
+            return CreateSection("special_offers", "Special Offers", false, Array.Empty<HomeProductCardDto>());
         }
 
         var catalog = await BuildProductCatalogAsync(cancellationToken);
-        return SelectSpecialOffers(catalog.Products, NormalizeTake(take, DefaultProductTake));
+        return CreateSection(
+            "special_offers",
+            "Special Offers",
+            true,
+            SelectSpecialOffers(catalog.Products, NormalizeTake(take, DefaultProductTake)));
     }
 
-    public async Task<IReadOnlyList<HomeProductCardDto>> GetRecommendedAsync(int take, CancellationToken cancellationToken = default)
+    public async Task<HomeListSectionDto<HomeProductCardDto>> GetRecommendedAsync(int take, CancellationToken cancellationToken = default)
     {
         if (!await IsSectionEnabledAsync(HomeContentSectionType.Recommended, cancellationToken))
         {
-            return [];
+            return CreateSection("recommended", "Recommended", false, Array.Empty<HomeProductCardDto>());
         }
 
         var catalog = await BuildProductCatalogAsync(cancellationToken);
-        return await SelectRecommendedAsync(catalog, NormalizeTake(take, DefaultProductTake), cancellationToken);
+        return CreateSection(
+            "recommended",
+            "Recommended",
+            true,
+            await SelectRecommendedAsync(catalog, NormalizeTake(take, DefaultProductTake), cancellationToken));
     }
 
-    public async Task<IReadOnlyList<HomeProductCardDto>> GetBestSellingAsync(int take, CancellationToken cancellationToken = default)
+    public async Task<HomeListSectionDto<HomeProductCardDto>> GetBestSellingAsync(int take, CancellationToken cancellationToken = default)
     {
         if (!await IsSectionEnabledAsync(HomeContentSectionType.BestSelling, cancellationToken))
         {
-            return [];
+            return CreateSection("best_selling", "Best Selling", false, Array.Empty<HomeProductCardDto>());
         }
 
         var catalog = await BuildProductCatalogAsync(cancellationToken);
-        return SelectBestSelling(catalog.Products, NormalizeTake(take, DefaultProductTake));
+        return CreateSection(
+            "best_selling",
+            "Best Selling",
+            true,
+            SelectBestSelling(catalog.Products, NormalizeTake(take, DefaultProductTake)));
     }
 
-    public async Task<IReadOnlyList<HomeBrandCardDto>> GetBrandsAsync(int take, CancellationToken cancellationToken = default)
+    public async Task<HomeListSectionDto<HomeBrandCardDto>> GetBrandsAsync(int take, CancellationToken cancellationToken = default)
     {
         if (!await IsSectionEnabledAsync(HomeContentSectionType.Brands, cancellationToken))
         {
-            return [];
+            return CreateSection("brands", "Brands", false, Array.Empty<HomeBrandCardDto>());
         }
 
         var catalog = await BuildProductCatalogAsync(cancellationToken);
-        return SelectBrands(catalog.Products, NormalizeTake(take, DefaultBrandTake));
+        return CreateSection(
+            "brands",
+            "Brands",
+            true,
+            SelectBrands(catalog.Products, NormalizeTake(take, DefaultBrandTake)));
     }
 
-    public async Task<IReadOnlyList<HomeProductCardDto>> GetFeaturedProductsAsync(int take, CancellationToken cancellationToken = default)
+    public async Task<HomeListSectionDto<HomeProductCardDto>> GetFeaturedProductsAsync(int take, CancellationToken cancellationToken = default)
     {
         if (!await IsSectionEnabledAsync(HomeContentSectionType.FeaturedProducts, cancellationToken))
         {
-            return [];
+            return CreateSection("featured_products", "Featured Products", false, Array.Empty<HomeProductCardDto>());
         }
 
         var catalog = await BuildProductCatalogAsync(cancellationToken);
-        return await GetFeaturedProductsInternalAsync(catalog.Products, NormalizeTake(take, DefaultProductTake), cancellationToken);
+        return CreateSection(
+            "featured_products",
+            "Featured Products",
+            true,
+            await GetFeaturedProductsInternalAsync(catalog.Products, NormalizeTake(take, DefaultProductTake), cancellationToken));
     }
 
-    public async Task<IReadOnlyList<HomeProductCardDto>> GetExploreMoreAsync(int take, CancellationToken cancellationToken = default)
+    public async Task<HomeListSectionDto<HomeProductCardDto>> GetExploreMoreAsync(int take, CancellationToken cancellationToken = default)
     {
         if (!await IsSectionEnabledAsync(HomeContentSectionType.ExploreMore, cancellationToken))
         {
-            return [];
+            return CreateSection("explore_more", "Explore More", false, Array.Empty<HomeProductCardDto>());
         }
 
         var catalog = await BuildProductCatalogAsync(cancellationToken);
-        return SelectExploreMore(catalog.Products, NormalizeTake(take, DefaultProductTake), null);
+        return CreateSection(
+            "explore_more",
+            "Explore More",
+            true,
+            SelectExploreMore(catalog.Products, NormalizeTake(take, DefaultProductTake), null));
     }
 
     private async Task<IReadOnlyList<HomeBannerDto>> GetBannersOrEmptyAsync(int take, CancellationToken cancellationToken)
@@ -613,22 +651,44 @@ public class HomeReadService : IHomeReadService
         }
 
         return sections
-            .Select(section => new HomeDynamicSectionDto(
-                section.Id,
-                section.CategoryId,
-                PickLocalized(section.CategoryNameAr, section.CategoryNameEn),
-                section.Theme,
-                products
+            .Select(section =>
+            {
+                var items = products
                     .Where(x => x.CategoryId == section.CategoryId)
                     .OrderByDescending(x => x.Rating ?? 0)
                     .ThenByDescending(x => x.SalesCount)
                     .ThenByDescending(x => x.CreatedAtUtc)
                     .Take(section.ProductsTake)
                     .Select(x => MapToProductCard(x))
-                    .ToList()))
-            .Where(x => x.Products.Count > 0)
+                    .ToList();
+
+                return new HomeDynamicSectionDto(
+                    section.Id,
+                    "dynamic_section",
+                    PickLocalized(section.CategoryNameAr, section.CategoryNameEn),
+                    section.CategoryId,
+                    true,
+                    section.Theme,
+                    items.Count,
+                    items);
+            })
+            .Where(x => x.Items.Count > 0)
             .ToList();
     }
+
+    private static HomeListSectionDto<TItem> CreateSection<TItem>(
+        string key,
+        string title,
+        bool isActive,
+        IReadOnlyList<TItem> items,
+        string? theme = null) =>
+        new(
+            key,
+            title,
+            isActive,
+            theme,
+            items.Count,
+            items);
 
     private HomeProductCardDto MapToProductCard(HomeProductSource product, bool isFeatured = false)
     {

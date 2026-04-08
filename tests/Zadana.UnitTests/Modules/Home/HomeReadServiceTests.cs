@@ -66,8 +66,10 @@ public class HomeReadServiceTests
 
         var result = await service.GetBannersAsync(10);
 
-        result.Should().HaveCount(1);
-        result[0].Title.Should().Be("Active title");
+        result.Key.Should().Be("banners");
+        result.IsActive.Should().BeTrue();
+        result.Items.Should().HaveCount(1);
+        result.Items[0].Title.Should().Be("Active title");
     }
 
     [Fact]
@@ -83,11 +85,12 @@ public class HomeReadServiceTests
 
         var result = await service.GetSpecialOffersAsync(10);
 
-        result.Should().ContainSingle();
-        result[0].Id.Should().Be(setup.DiscountedProduct.Id);
-        result[0].IsDiscounted.Should().BeTrue();
-        result[0].OldPrice.Should().Be(15m);
-        result[0].Discount.Should().Be("33%");
+        result.Key.Should().Be("special_offers");
+        result.Items.Should().ContainSingle();
+        result.Items[0].Id.Should().Be(setup.DiscountedProduct.Id);
+        result.Items[0].IsDiscounted.Should().BeTrue();
+        result.Items[0].OldPrice.Should().Be(15m);
+        result.Items[0].Discount.Should().Be("33%");
     }
 
     [Fact]
@@ -103,8 +106,8 @@ public class HomeReadServiceTests
 
         var result = await service.GetRecommendedAsync(1);
 
-        result.Should().ContainSingle();
-        result[0].Id.Should().Be(setup.HistoryMatchedProduct!.Id);
+        result.Items.Should().ContainSingle();
+        result.Items[0].Id.Should().Be(setup.HistoryMatchedProduct!.Id);
     }
 
     [Fact]
@@ -130,11 +133,12 @@ public class HomeReadServiceTests
 
         var result = await service.GetFeaturedProductsAsync(5);
 
-        result.Should().HaveCount(2);
-        result[0].Id.Should().Be(setup.DiscountedProduct.Id);
-        result[0].IsFeatured.Should().BeTrue();
-        result[1].Id.Should().Be(setup.OtherProduct!.Id);
-        result[1].IsFeatured.Should().BeTrue();
+        result.Key.Should().Be("featured_products");
+        result.Items.Should().HaveCount(2);
+        result.Items[0].Id.Should().Be(setup.DiscountedProduct.Id);
+        result.Items[0].IsFeatured.Should().BeTrue();
+        result.Items[1].Id.Should().Be(setup.OtherProduct!.Id);
+        result.Items[1].IsFeatured.Should().BeTrue();
     }
 
     [Fact]
@@ -151,11 +155,14 @@ public class HomeReadServiceTests
 
         var result = await service.GetContentAsync();
 
-        result.Sections.Should().ContainSingle();
-        result.Sections[0].SubcategoryId.Should().Be(setup.DynamicSectionCategoryId.Value);
-        result.Sections[0].Theme.Should().Be("theme1");
-        result.Sections[0].Title.Should().Be("Fruits");
-        result.Sections[0].Products.Should().NotBeEmpty();
+        result.DynamicSections.Should().ContainSingle();
+        result.DynamicSections[0].SubcategoryId.Should().Be(setup.DynamicSectionCategoryId.Value);
+        result.DynamicSections[0].Theme.Should().Be("theme1");
+        result.DynamicSections[0].IsActive.Should().BeTrue();
+        result.DynamicSections[0].Title.Should().Be("Fruits");
+        result.DynamicSections[0].Items.Should().NotBeEmpty();
+        result.DynamicSections[0].ItemsCount.Should().Be(1);
+        result.FeaturedProductsSection.Key.Should().Be("featured_products");
     }
 
     [Fact]
@@ -173,7 +180,7 @@ public class HomeReadServiceTests
 
         var result = await service.GetContentAsync();
 
-        result.Sections.Should().BeEmpty();
+        result.DynamicSections.Should().BeEmpty();
     }
 
     private static HomeBanner CreateInactiveBanner()

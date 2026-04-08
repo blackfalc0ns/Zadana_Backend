@@ -6,12 +6,12 @@ public interface IHomeReadService
 {
     Task<HomeHeaderDto> GetHeaderAsync(CancellationToken cancellationToken = default);
     Task<HomeContentDto> GetContentAsync(CancellationToken cancellationToken = default);
-    Task<IReadOnlyList<HomeBannerDto>> GetBannersAsync(int take, CancellationToken cancellationToken = default);
-    Task<IReadOnlyList<HomeCategoryDto>> GetCategoriesAsync(int take, CancellationToken cancellationToken = default);
-    Task<IReadOnlyList<HomeProductCardDto>> GetSpecialOffersAsync(int take, CancellationToken cancellationToken = default);
-    Task<IReadOnlyList<HomeProductCardDto>> GetRecommendedAsync(int take, CancellationToken cancellationToken = default);
-    Task<IReadOnlyList<HomeProductCardDto>> GetBestSellingAsync(int take, CancellationToken cancellationToken = default);
-    Task<IReadOnlyList<HomeBrandCardDto>> GetBrandsAsync(int take, CancellationToken cancellationToken = default);
-    Task<IReadOnlyList<HomeProductCardDto>> GetFeaturedProductsAsync(int take, CancellationToken cancellationToken = default);
-    Task<IReadOnlyList<HomeProductCardDto>> GetExploreMoreAsync(int take, CancellationToken cancellationToken = default);
+    Task<HomeListSectionDto<HomeBannerDto>> GetBannersAsync(int take, CancellationToken cancellationToken = default);
+    Task<HomeListSectionDto<HomeCategoryDto>> GetCategoriesAsync(int take, CancellationToken cancellationToken = default);
+    Task<HomeListSectionDto<HomeProductCardDto>> GetSpecialOffersAsync(int take, CancellationToken cancellationToken = default);
+    Task<HomeListSectionDto<HomeProductCardDto>> GetRecommendedAsync(int take, CancellationToken cancellationToken = default);
+    Task<HomeListSectionDto<HomeProductCardDto>> GetBestSellingAsync(int take, CancellationToken cancellationToken = default);
+    Task<HomeListSectionDto<HomeBrandCardDto>> GetBrandsAsync(int take, CancellationToken cancellationToken = default);
+    Task<HomeListSectionDto<HomeProductCardDto>> GetFeaturedProductsAsync(int take, CancellationToken cancellationToken = default);
+    Task<HomeListSectionDto<HomeProductCardDto>> GetExploreMoreAsync(int take, CancellationToken cancellationToken = default);
 }

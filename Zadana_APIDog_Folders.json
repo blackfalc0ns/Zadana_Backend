@@ -1,4 +1,4 @@
-﻿{
+{
     "openapi":  "3.0.1",
     "info":  {
                  "title":  "Zadana API - APIDog Detailed Folders",
@@ -2054,208 +2054,231 @@
                                                                                            }
                                                                              },
                   "/api/admin/marketing/home-sections":  {
-                                                              "get":  {
-                                                                          "tags":  [
-                                                                                       "Admin/Marketing/Home Sections"
-                                                                                   ],
-                                                                          "responses":  {
-                                                                                            "200":  {
-                                                                                                        "description":  "OK",
-                                                                                                        "content":  {
-                                                                                                                        "text/plain":  {
-                                                                                                                                           "schema":  {
-                                                                                                                                                          "type":  "array",
-                                                                                                                                                          "items":  {
-                                                                                                                                                                        "$ref":  "#/components/schemas/HomeSectionAdminDto"
-                                                                                                                                                                    }
-                                                                                                                                                      }
-                                                                                                                                       },
-                                                                                                                        "application/json":  {
-                                                                                                                                                 "schema":  {
-                                                                                                                                                                "type":  "array",
-                                                                                                                                                                "items":  {
-                                                                                                                                                                              "$ref":  "#/components/schemas/HomeSectionAdminDto"
-                                                                                                                                                                          }
-                                                                                                                                                            }
-                                                                                                                                             },
-                                                                                                                        "text/json":  {
+                                                             "get":  {
+                                                                         "tags":  [
+                                                                                      "Admin/Marketing/Home Sections"
+                                                                                  ],
+                                                                         "responses":  {
+                                                                                           "200":  {
+                                                                                                       "description":  "OK",
+                                                                                                       "content":  {
+                                                                                                                       "text/plain":  {
                                                                                                                                           "schema":  {
                                                                                                                                                          "type":  "array",
                                                                                                                                                          "items":  {
                                                                                                                                                                        "$ref":  "#/components/schemas/HomeSectionAdminDto"
                                                                                                                                                                    }
                                                                                                                                                      }
+                                                                                                                                      },
+                                                                                                                       "application/json":  {
+                                                                                                                                                "schema":  {
+                                                                                                                                                               "type":  "array",
+                                                                                                                                                               "items":  {
+                                                                                                                                                                             "$ref":  "#/components/schemas/HomeSectionAdminDto"
+                                                                                                                                                                         }
+                                                                                                                                                           }
+                                                                                                                                            },
+                                                                                                                       "text/json":  {
+                                                                                                                                         "schema":  {
+                                                                                                                                                        "type":  "array",
+                                                                                                                                                        "items":  {
+                                                                                                                                                                      "$ref":  "#/components/schemas/HomeSectionAdminDto"
+                                                                                                                                                                  }
+                                                                                                                                                    }
+                                                                                                                                     }
+                                                                                                                   }
+                                                                                                   }
+                                                                                       }
+                                                                     },
+                                                             "post":  {
+                                                                          "tags":  [
+                                                                                       "Admin/Marketing/Home Sections"
+                                                                                   ],
+                                                                          "requestBody":  {
+                                                                                              "content":  {
+                                                                                                              "application/json":  {
+                                                                                                                                       "schema":  {
+                                                                                                                                                      "$ref":  "#/components/schemas/CreateHomeSectionRequest"
+                                                                                                                                                  }
+                                                                                                                                   },
+                                                                                                              "text/json":  {
+                                                                                                                                "schema":  {
+                                                                                                                                               "$ref":  "#/components/schemas/CreateHomeSectionRequest"
+                                                                                                                                           }
+                                                                                                                            },
+                                                                                                              "application/*+json":  {
+                                                                                                                                         "schema":  {
+                                                                                                                                                        "$ref":  "#/components/schemas/CreateHomeSectionRequest"
+                                                                                                                                                    }
+                                                                                                                                     }
+                                                                                                          }
+                                                                                          },
+                                                                          "responses":  {
+                                                                                            "200":  {
+                                                                                                        "description":  "OK",
+                                                                                                        "content":  {
+                                                                                                                        "text/plain":  {
+                                                                                                                                           "schema":  {
+                                                                                                                                                          "$ref":  "#/components/schemas/HomeSectionAdminDto"
+                                                                                                                                                      }
+                                                                                                                                       },
+                                                                                                                        "application/json":  {
+                                                                                                                                                 "schema":  {
+                                                                                                                                                                "$ref":  "#/components/schemas/HomeSectionAdminDto"
+                                                                                                                                                            }
+                                                                                                                                             },
+                                                                                                                        "text/json":  {
+                                                                                                                                          "schema":  {
+                                                                                                                                                         "$ref":  "#/components/schemas/HomeSectionAdminDto"
+                                                                                                                                                     }
                                                                                                                                       }
                                                                                                                     }
                                                                                                     }
                                                                                         }
-                                                                      },
-                                                              "post":  {
-                                                                           "tags":  [
-                                                                                        "Admin/Marketing/Home Sections"
-                                                                                    ],
-                                                                           "requestBody":  {
-                                                                                               "content":  {
-                                                                                                               "application/json":  {
-                                                                                                                                        "schema":  {
-                                                                                                                                                       "$ref":  "#/components/schemas/CreateHomeSectionRequest"
-                                                                                                                                                   }
-                                                                                                                                    },
-                                                                                                               "text/json":  {
-                                                                                                                                 "schema":  {
-                                                                                                                                                "$ref":  "#/components/schemas/CreateHomeSectionRequest"
-                                                                                                                                            }
-                                                                                                                             },
-                                                                                                               "application/*+json":  {
-                                                                                                                                          "schema":  {
-                                                                                                                                                         "$ref":  "#/components/schemas/CreateHomeSectionRequest"
-                                                                                                                                                     }
-                                                                                                                                      }
-                                                                                                           }
-                                                                                           },
-                                                                           "responses":  {
-                                                                                             "200":  {
-                                                                                                         "description":  "OK",
-                                                                                                         "content":  {
-                                                                                                                         "text/plain":  {
-                                                                                                                                            "schema":  {
-                                                                                                                                                           "$ref":  "#/components/schemas/HomeSectionAdminDto"
-                                                                                                                                                       }
-                                                                                                                                        },
-                                                                                                                         "application/json":  {
-                                                                                                                                                  "schema":  {
-                                                                                                                                                                 "$ref":  "#/components/schemas/HomeSectionAdminDto"
-                                                                                                                                                             }
-                                                                                                                                              },
-                                                                                                                         "text/json":  {
-                                                                                                                                           "schema":  {
-                                                                                                                                                          "$ref":  "#/components/schemas/HomeSectionAdminDto"
-                                                                                                                                                      }
-                                                                                                                                       }
-                                                                                                                     }
-                                                                                                     }
-                                                                                         }
-                                                                       }
-                                                          },
+                                                                      }
+                                                         },
                   "/api/admin/marketing/home-sections/{id}":  {
-                                                                    "get":  {
-                                                                                "tags":  [
-                                                                                             "Admin/Marketing/Home Sections"
-                                                                                         ],
-                                                                                "parameters":  [
-                                                                                                   {
-                                                                                                       "name":  "id",
-                                                                                                       "in":  "path",
-                                                                                                       "required":  true,
-                                                                                                       "schema":  {
-                                                                                                                      "type":  "string",
-                                                                                                                      "format":  "uuid"
-                                                                                                                  }
-                                                                                                   }
-                                                                                               ],
-                                                                                "responses":  {
-                                                                                                  "200":  {
-                                                                                                              "description":  "OK",
-                                                                                                              "content":  {
-                                                                                                                              "text/plain":  {
-                                                                                                                                                 "schema":  {
-                                                                                                                                                                "$ref":  "#/components/schemas/HomeSectionAdminDto"
-                                                                                                                                                            }
-                                                                                                                                             },
-                                                                                                                              "application/json":  {
-                                                                                                                                                       "schema":  {
-                                                                                                                                                                      "$ref":  "#/components/schemas/HomeSectionAdminDto"
-                                                                                                                                                                  }
-                                                                                                                                                   },
-                                                                                                                              "text/json":  {
-                                                                                                                                                "schema":  {
-                                                                                                                                                               "$ref":  "#/components/schemas/HomeSectionAdminDto"
-                                                                                                                                                           }
-                                                                                                                                            }
-                                                                                                                          }
-                                                                                                          }
-                                                                                              }
-                                                                            },
-                                                                    "put":  {
-                                                                                "tags":  [
-                                                                                             "Admin/Marketing/Home Sections"
-                                                                                         ],
-                                                                                "parameters":  [
-                                                                                                   {
-                                                                                                       "name":  "id",
-                                                                                                       "in":  "path",
-                                                                                                       "required":  true,
-                                                                                                       "schema":  {
-                                                                                                                      "type":  "string",
-                                                                                                                      "format":  "uuid"
-                                                                                                                  }
-                                                                                                   }
-                                                                                               ],
-                                                                                "requestBody":  {
-                                                                                                    "content":  {
-                                                                                                                    "application/json":  {
+                                                                  "get":  {
+                                                                              "tags":  [
+                                                                                           "Admin/Marketing/Home Sections"
+                                                                                       ],
+                                                                              "parameters":  [
+                                                                                                 {
+                                                                                                     "name":  "id",
+                                                                                                     "in":  "path",
+                                                                                                     "required":  true,
+                                                                                                     "schema":  {
+                                                                                                                    "type":  "string",
+                                                                                                                    "format":  "uuid"
+                                                                                                                }
+                                                                                                 }
+                                                                                             ],
+                                                                              "responses":  {
+                                                                                                "200":  {
+                                                                                                            "description":  "OK",
+                                                                                                            "content":  {
+                                                                                                                            "text/plain":  {
+                                                                                                                                               "schema":  {
+                                                                                                                                                              "$ref":  "#/components/schemas/HomeSectionAdminDto"
+                                                                                                                                                          }
+                                                                                                                                           },
+                                                                                                                            "application/json":  {
+                                                                                                                                                     "schema":  {
+                                                                                                                                                                    "$ref":  "#/components/schemas/HomeSectionAdminDto"
+                                                                                                                                                                }
+                                                                                                                                                 },
+                                                                                                                            "text/json":  {
+                                                                                                                                              "schema":  {
+                                                                                                                                                             "$ref":  "#/components/schemas/HomeSectionAdminDto"
+                                                                                                                                                         }
+                                                                                                                                          }
+                                                                                                                        }
+                                                                                                        }
+                                                                                            }
+                                                                          },
+                                                                  "put":  {
+                                                                              "tags":  [
+                                                                                           "Admin/Marketing/Home Sections"
+                                                                                       ],
+                                                                              "parameters":  [
+                                                                                                 {
+                                                                                                     "name":  "id",
+                                                                                                     "in":  "path",
+                                                                                                     "required":  true,
+                                                                                                     "schema":  {
+                                                                                                                    "type":  "string",
+                                                                                                                    "format":  "uuid"
+                                                                                                                }
+                                                                                                 }
+                                                                                             ],
+                                                                              "requestBody":  {
+                                                                                                  "content":  {
+                                                                                                                  "application/json":  {
+                                                                                                                                           "schema":  {
+                                                                                                                                                          "$ref":  "#/components/schemas/UpdateHomeSectionRequest"
+                                                                                                                                                      }
+                                                                                                                                       },
+                                                                                                                  "text/json":  {
+                                                                                                                                    "schema":  {
+                                                                                                                                                   "$ref":  "#/components/schemas/UpdateHomeSectionRequest"
+                                                                                                                                               }
+                                                                                                                                },
+                                                                                                                  "application/*+json":  {
                                                                                                                                              "schema":  {
                                                                                                                                                             "$ref":  "#/components/schemas/UpdateHomeSectionRequest"
                                                                                                                                                         }
-                                                                                                                                         },
-                                                                                                                    "text/json":  {
-                                                                                                                                      "schema":  {
-                                                                                                                                                     "$ref":  "#/components/schemas/UpdateHomeSectionRequest"
-                                                                                                                                                 }
-                                                                                                                                  },
-                                                                                                                    "application/*+json":  {
+                                                                                                                                         }
+                                                                                                              }
+                                                                                              },
+                                                                              "responses":  {
+                                                                                                "200":  {
+                                                                                                            "description":  "OK",
+                                                                                                            "content":  {
+                                                                                                                            "text/plain":  {
                                                                                                                                                "schema":  {
-                                                                                                                                                              "$ref":  "#/components/schemas/UpdateHomeSectionRequest"
+                                                                                                                                                              "$ref":  "#/components/schemas/HomeSectionAdminDto"
                                                                                                                                                           }
-                                                                                                                                           }
-                                                                                                                }
-                                                                                                },
-                                                                                "responses":  {
-                                                                                                  "200":  {
-                                                                                                              "description":  "OK",
-                                                                                                              "content":  {
-                                                                                                                              "text/plain":  {
-                                                                                                                                                 "schema":  {
-                                                                                                                                                                "$ref":  "#/components/schemas/HomeSectionAdminDto"
-                                                                                                                                                            }
-                                                                                                                                             },
-                                                                                                                              "application/json":  {
-                                                                                                                                                       "schema":  {
-                                                                                                                                                                      "$ref":  "#/components/schemas/HomeSectionAdminDto"
-                                                                                                                                                                  }
-                                                                                                                                                   },
-                                                                                                                              "text/json":  {
-                                                                                                                                                "schema":  {
-                                                                                                                                                               "$ref":  "#/components/schemas/HomeSectionAdminDto"
-                                                                                                                                                           }
-                                                                                                                                            }
-                                                                                                                          }
-                                                                                                          }
-                                                                                              }
-                                                                            },
-                                                                    "delete":  {
-                                                                                   "tags":  [
-                                                                                                "Admin/Marketing/Home Sections"
-                                                                                            ],
-                                                                                   "parameters":  [
-                                                                                                      {
-                                                                                                          "name":  "id",
-                                                                                                          "in":  "path",
-                                                                                                          "required":  true,
-                                                                                                          "schema":  {
-                                                                                                                         "type":  "string",
-                                                                                                                         "format":  "uuid"
-                                                                                                                     }
-                                                                                                      }
-                                                                                                  ],
-                                                                                   "responses":  {
-                                                                                                     "204":  {
-                                                                                                                 "description":  "No Content"
-                                                                                                             }
-                                                                                                 }
-                                                                               }
-                                                                },
+                                                                                                                                           },
+                                                                                                                            "application/json":  {
+                                                                                                                                                     "schema":  {
+                                                                                                                                                                    "$ref":  "#/components/schemas/HomeSectionAdminDto"
+                                                                                                                                                                }
+                                                                                                                                                 },
+                                                                                                                            "text/json":  {
+                                                                                                                                              "schema":  {
+                                                                                                                                                             "$ref":  "#/components/schemas/HomeSectionAdminDto"
+                                                                                                                                                         }
+                                                                                                                                          }
+                                                                                                                        }
+                                                                                                        }
+                                                                                            }
+                                                                          },
+                                                                  "delete":  {
+                                                                                 "tags":  [
+                                                                                              "Admin/Marketing/Home Sections"
+                                                                                          ],
+                                                                                 "parameters":  [
+                                                                                                    {
+                                                                                                        "name":  "id",
+                                                                                                        "in":  "path",
+                                                                                                        "required":  true,
+                                                                                                        "schema":  {
+                                                                                                                       "type":  "string",
+                                                                                                                       "format":  "uuid"
+                                                                                                                   }
+                                                                                                    }
+                                                                                                ],
+                                                                                 "responses":  {
+                                                                                                   "204":  {
+                                                                                                               "description":  "No Content"
+                                                                                                           }
+                                                                                               }
+                                                                             }
+                                                              },
                   "/api/admin/marketing/home-sections/{id}/activate":  {
+                                                                           "patch":  {
+                                                                                         "tags":  [
+                                                                                                      "Admin/Marketing/Home Sections"
+                                                                                                  ],
+                                                                                         "parameters":  [
+                                                                                                            {
+                                                                                                                "name":  "id",
+                                                                                                                "in":  "path",
+                                                                                                                "required":  true,
+                                                                                                                "schema":  {
+                                                                                                                               "type":  "string",
+                                                                                                                               "format":  "uuid"
+                                                                                                                           }
+                                                                                                            }
+                                                                                                        ],
+                                                                                         "responses":  {
+                                                                                                           "204":  {
+                                                                                                                       "description":  "No Content"
+                                                                                                                   }
+                                                                                                       }
+                                                                                     }
+                                                                       },
+                  "/api/admin/marketing/home-sections/{id}/deactivate":  {
                                                                              "patch":  {
                                                                                            "tags":  [
                                                                                                         "Admin/Marketing/Home Sections"
@@ -2278,169 +2301,146 @@
                                                                                                          }
                                                                                        }
                                                                          },
-                  "/api/admin/marketing/home-sections/{id}/deactivate":  {
-                                                                               "patch":  {
-                                                                                             "tags":  [
-                                                                                                          "Admin/Marketing/Home Sections"
-                                                                                                      ],
-                                                                                             "parameters":  [
-                                                                                                                {
-                                                                                                                    "name":  "id",
-                                                                                                                    "in":  "path",
-                                                                                                                    "required":  true,
-                                                                                                                    "schema":  {
-                                                                                                                                   "type":  "string",
-                                                                                                                                   "format":  "uuid"
-                                                                                                                               }
-                                                                                                                }
-                                                                                                            ],
-                                                                                             "responses":  {
-                                                                                                               "204":  {
-                                                                                                                           "description":  "No Content"
-                                                                                                                       }
-                                                                                                           }
-                                                                                         }
-                                                                           },
                   "/api/admin/marketing/home-content-sections":  {
-                                                                      "get":  {
-                                                                                  "tags":  [
-                                                                                               "Admin/Marketing/Home Content Sections"
-                                                                                           ],
-                                                                                  "responses":  {
-                                                                                                    "200":  {
-                                                                                                                "description":  "OK",
-                                                                                                                "content":  {
-                                                                                                                                "text/plain":  {
-                                                                                                                                                   "schema":  {
-                                                                                                                                                                  "type":  "array",
-                                                                                                                                                                  "items":  {
-                                                                                                                                                                                "$ref":  "#/components/schemas/HomeContentSectionSettingDto"
-                                                                                                                                                                            }
-                                                                                                                                                              }
-                                                                                                                                               },
-                                                                                                                                "application/json":  {
-                                                                                                                                                         "schema":  {
-                                                                                                                                                                        "type":  "array",
-                                                                                                                                                                        "items":  {
-                                                                                                                                                                                      "$ref":  "#/components/schemas/HomeContentSectionSettingDto"
-                                                                                                                                                                                  }
-                                                                                                                                                                    }
-                                                                                                                                                     },
-                                                                                                                                "text/json":  {
+                                                                     "get":  {
+                                                                                 "tags":  [
+                                                                                              "Admin/Marketing/Home Content Sections"
+                                                                                          ],
+                                                                                 "responses":  {
+                                                                                                   "200":  {
+                                                                                                               "description":  "OK",
+                                                                                                               "content":  {
+                                                                                                                               "text/plain":  {
                                                                                                                                                   "schema":  {
                                                                                                                                                                  "type":  "array",
                                                                                                                                                                  "items":  {
                                                                                                                                                                                "$ref":  "#/components/schemas/HomeContentSectionSettingDto"
                                                                                                                                                                            }
                                                                                                                                                              }
-                                                                                                                                              }
-                                                                                                                            }
-                                                                                                            }
-                                                                                                }
-                                                                              }
-                                                                  },
-                  "/api/admin/marketing/home-content-sections/{sectionType}":  {
-                                                                                    "put":  {
-                                                                                                "tags":  [
-                                                                                                             "Admin/Marketing/Home Content Sections"
-                                                                                                         ],
-                                                                                                "parameters":  [
-                                                                                                                   {
-                                                                                                                       "name":  "sectionType",
-                                                                                                                       "in":  "path",
-                                                                                                                       "required":  true,
-                                                                                                                       "schema":  {
-                                                                                                                                      "$ref":  "#/components/schemas/HomeContentSectionType"
-                                                                                                                                  }
-                                                                                                                   }
-                                                                                                               ],
-                                                                                                "requestBody":  {
-                                                                                                                    "content":  {
-                                                                                                                                    "application/json":  {
-                                                                                                                                                             "schema":  {
-                                                                                                                                                                            "$ref":  "#/components/schemas/UpdateHomeContentSectionSettingRequest"
-                                                                                                                                                                        }
-                                                                                                                                                         },
-                                                                                                                                    "text/json":  {
-                                                                                                                                                      "schema":  {
-                                                                                                                                                                     "$ref":  "#/components/schemas/UpdateHomeContentSectionSettingRequest"
-                                                                                                                                                                 }
-                                                                                                                                                  },
-                                                                                                                                    "application/*+json":  {
-                                                                                                                                                               "schema":  {
-                                                                                                                                                                              "$ref":  "#/components/schemas/UpdateHomeContentSectionSettingRequest"
+                                                                                                                                              },
+                                                                                                                               "application/json":  {
+                                                                                                                                                        "schema":  {
+                                                                                                                                                                       "type":  "array",
+                                                                                                                                                                       "items":  {
+                                                                                                                                                                                     "$ref":  "#/components/schemas/HomeContentSectionSettingDto"
+                                                                                                                                                                                 }
+                                                                                                                                                                   }
+                                                                                                                                                    },
+                                                                                                                               "text/json":  {
+                                                                                                                                                 "schema":  {
+                                                                                                                                                                "type":  "array",
+                                                                                                                                                                "items":  {
+                                                                                                                                                                              "$ref":  "#/components/schemas/HomeContentSectionSettingDto"
                                                                                                                                                                           }
-                                                                                                                                                           }
-                                                                                                                                }
-                                                                                                                },
-                                                                                                "responses":  {
-                                                                                                                  "200":  {
-                                                                                                                              "description":  "OK",
-                                                                                                                              "content":  {
-                                                                                                                                              "text/plain":  {
-                                                                                                                                                                 "schema":  {
-                                                                                                                                                                                "$ref":  "#/components/schemas/HomeContentSectionSettingDto"
-                                                                                                                                                                            }
-                                                                                                                                                             },
-                                                                                                                                              "application/json":  {
-                                                                                                                                                                       "schema":  {
-                                                                                                                                                                                      "$ref":  "#/components/schemas/HomeContentSectionSettingDto"
-                                                                                                                                                                                  }
-                                                                                                                                                                   },
-                                                                                                                                              "text/json":  {
+                                                                                                                                                            }
+                                                                                                                                             }
+                                                                                                                           }
+                                                                                                           }
+                                                                                               }
+                                                                             }
+                                                                 },
+                  "/api/admin/marketing/home-content-sections/{sectionType}":  {
+                                                                                   "put":  {
+                                                                                               "tags":  [
+                                                                                                            "Admin/Marketing/Home Content Sections"
+                                                                                                        ],
+                                                                                               "parameters":  [
+                                                                                                                  {
+                                                                                                                      "name":  "sectionType",
+                                                                                                                      "in":  "path",
+                                                                                                                      "required":  true,
+                                                                                                                      "schema":  {
+                                                                                                                                     "$ref":  "#/components/schemas/HomeContentSectionType"
+                                                                                                                                 }
+                                                                                                                  }
+                                                                                                              ],
+                                                                                               "requestBody":  {
+                                                                                                                   "content":  {
+                                                                                                                                   "application/json":  {
+                                                                                                                                                            "schema":  {
+                                                                                                                                                                           "$ref":  "#/components/schemas/UpdateHomeContentSectionSettingRequest"
+                                                                                                                                                                       }
+                                                                                                                                                        },
+                                                                                                                                   "text/json":  {
+                                                                                                                                                     "schema":  {
+                                                                                                                                                                    "$ref":  "#/components/schemas/UpdateHomeContentSectionSettingRequest"
+                                                                                                                                                                }
+                                                                                                                                                 },
+                                                                                                                                   "application/*+json":  {
+                                                                                                                                                              "schema":  {
+                                                                                                                                                                             "$ref":  "#/components/schemas/UpdateHomeContentSectionSettingRequest"
+                                                                                                                                                                         }
+                                                                                                                                                          }
+                                                                                                                               }
+                                                                                                               },
+                                                                                               "responses":  {
+                                                                                                                 "200":  {
+                                                                                                                             "description":  "OK",
+                                                                                                                             "content":  {
+                                                                                                                                             "text/plain":  {
                                                                                                                                                                 "schema":  {
                                                                                                                                                                                "$ref":  "#/components/schemas/HomeContentSectionSettingDto"
                                                                                                                                                                            }
-                                                                                                                                                            }
-                                                                                                                                          }
-                                                                                                                          }
-                                                                                                              }
-                                                                                            }
-                                                                                },
-                  "/api/admin/marketing/home-content-sections/{sectionType}/activate":  {
-                                                                                               "patch":  {
-                                                                                                             "tags":  [
-                                                                                                                          "Admin/Marketing/Home Content Sections"
-                                                                                                                      ],
-                                                                                                             "parameters":  [
-                                                                                                                                {
-                                                                                                                                    "name":  "sectionType",
-                                                                                                                                    "in":  "path",
-                                                                                                                                    "required":  true,
-                                                                                                                                    "schema":  {
-                                                                                                                                                   "$ref":  "#/components/schemas/HomeContentSectionType"
-                                                                                                                                               }
-                                                                                                                                }
-                                                                                                                            ],
-                                                                                                             "responses":  {
-                                                                                                                               "204":  {
-                                                                                                                                           "description":  "No Content"
-                                                                                                                                       }
-                                                                                                                           }
-                                                                                                         }
-                                                                                           },
-                  "/api/admin/marketing/home-content-sections/{sectionType}/deactivate":  {
-                                                                                                 "patch":  {
-                                                                                                               "tags":  [
-                                                                                                                            "Admin/Marketing/Home Content Sections"
-                                                                                                                        ],
-                                                                                                               "parameters":  [
-                                                                                                                                  {
-                                                                                                                                      "name":  "sectionType",
-                                                                                                                                      "in":  "path",
-                                                                                                                                      "required":  true,
-                                                                                                                                      "schema":  {
-                                                                                                                                                     "$ref":  "#/components/schemas/HomeContentSectionType"
-                                                                                                                                                 }
-                                                                                                                                  }
-                                                                                                                              ],
-                                                                                                               "responses":  {
-                                                                                                                                 "204":  {
-                                                                                                                                             "description":  "No Content"
+                                                                                                                                                            },
+                                                                                                                                             "application/json":  {
+                                                                                                                                                                      "schema":  {
+                                                                                                                                                                                     "$ref":  "#/components/schemas/HomeContentSectionSettingDto"
+                                                                                                                                                                                 }
+                                                                                                                                                                  },
+                                                                                                                                             "text/json":  {
+                                                                                                                                                               "schema":  {
+                                                                                                                                                                              "$ref":  "#/components/schemas/HomeContentSectionSettingDto"
+                                                                                                                                                                          }
+                                                                                                                                                           }
                                                                                                                                          }
+                                                                                                                         }
+                                                                                                             }
+                                                                                           }
+                                                                               },
+                  "/api/admin/marketing/home-content-sections/{sectionType}/activate":  {
+                                                                                            "patch":  {
+                                                                                                          "tags":  [
+                                                                                                                       "Admin/Marketing/Home Content Sections"
+                                                                                                                   ],
+                                                                                                          "parameters":  [
+                                                                                                                             {
+                                                                                                                                 "name":  "sectionType",
+                                                                                                                                 "in":  "path",
+                                                                                                                                 "required":  true,
+                                                                                                                                 "schema":  {
+                                                                                                                                                "$ref":  "#/components/schemas/HomeContentSectionType"
+                                                                                                                                            }
                                                                                                                              }
-                                                                                                           }
-                                                                                             },
+                                                                                                                         ],
+                                                                                                          "responses":  {
+                                                                                                                            "204":  {
+                                                                                                                                        "description":  "No Content"
+                                                                                                                                    }
+                                                                                                                        }
+                                                                                                      }
+                                                                                        },
+                  "/api/admin/marketing/home-content-sections/{sectionType}/deactivate":  {
+                                                                                              "patch":  {
+                                                                                                            "tags":  [
+                                                                                                                         "Admin/Marketing/Home Content Sections"
+                                                                                                                     ],
+                                                                                                            "parameters":  [
+                                                                                                                               {
+                                                                                                                                   "name":  "sectionType",
+                                                                                                                                   "in":  "path",
+                                                                                                                                   "required":  true,
+                                                                                                                                   "schema":  {
+                                                                                                                                                  "$ref":  "#/components/schemas/HomeContentSectionType"
+                                                                                                                                              }
+                                                                                                                               }
+                                                                                                                           ],
+                                                                                                            "responses":  {
+                                                                                                                              "204":  {
+                                                                                                                                          "description":  "No Content"
+                                                                                                                                      }
+                                                                                                                          }
+                                                                                                        }
+                                                                                          },
                   "/api/admin/catalog/products":  {
                                                       "get":  {
                                                                   "tags":  [
@@ -4190,26 +4190,17 @@
                                                                                       "content":  {
                                                                                                       "text/plain":  {
                                                                                                                          "schema":  {
-                                                                                                                                        "type":  "array",
-                                                                                                                                        "items":  {
-                                                                                                                                                      "$ref":  "#/components/schemas/HomeBannerDto"
-                                                                                                                                                  }
+                                                                                                                                        "$ref":  "#/components/schemas/HomeBannerSectionDto"
                                                                                                                                     }
                                                                                                                      },
                                                                                                       "application/json":  {
                                                                                                                                "schema":  {
-                                                                                                                                              "type":  "array",
-                                                                                                                                              "items":  {
-                                                                                                                                                            "$ref":  "#/components/schemas/HomeBannerDto"
-                                                                                                                                                        }
+                                                                                                                                              "$ref":  "#/components/schemas/HomeBannerSectionDto"
                                                                                                                                           }
                                                                                                                            },
                                                                                                       "text/json":  {
                                                                                                                         "schema":  {
-                                                                                                                                       "type":  "array",
-                                                                                                                                       "items":  {
-                                                                                                                                                     "$ref":  "#/components/schemas/HomeBannerDto"
-                                                                                                                                                 }
+                                                                                                                                       "$ref":  "#/components/schemas/HomeBannerSectionDto"
                                                                                                                                    }
                                                                                                                     }
                                                                                                   }
@@ -4239,26 +4230,17 @@
                                                                                          "content":  {
                                                                                                          "text/plain":  {
                                                                                                                             "schema":  {
-                                                                                                                                           "type":  "array",
-                                                                                                                                           "items":  {
-                                                                                                                                                         "$ref":  "#/components/schemas/HomeCategoryDto"
-                                                                                                                                                     }
+                                                                                                                                           "$ref":  "#/components/schemas/HomeCategorySectionDto"
                                                                                                                                        }
                                                                                                                         },
                                                                                                          "application/json":  {
                                                                                                                                   "schema":  {
-                                                                                                                                                 "type":  "array",
-                                                                                                                                                 "items":  {
-                                                                                                                                                               "$ref":  "#/components/schemas/HomeCategoryDto"
-                                                                                                                                                           }
+                                                                                                                                                 "$ref":  "#/components/schemas/HomeCategorySectionDto"
                                                                                                                                              }
                                                                                                                               },
                                                                                                          "text/json":  {
                                                                                                                            "schema":  {
-                                                                                                                                          "type":  "array",
-                                                                                                                                          "items":  {
-                                                                                                                                                        "$ref":  "#/components/schemas/HomeCategoryDto"
-                                                                                                                                                    }
+                                                                                                                                          "$ref":  "#/components/schemas/HomeCategorySectionDto"
                                                                                                                                       }
                                                                                                                        }
                                                                                                      }
@@ -4288,26 +4270,17 @@
                                                                                              "content":  {
                                                                                                              "text/plain":  {
                                                                                                                                 "schema":  {
-                                                                                                                                               "type":  "array",
-                                                                                                                                               "items":  {
-                                                                                                                                                             "$ref":  "#/components/schemas/HomeProductCardDto"
-                                                                                                                                                         }
+                                                                                                                                               "$ref":  "#/components/schemas/HomeProductSectionDto"
                                                                                                                                            }
                                                                                                                             },
                                                                                                              "application/json":  {
                                                                                                                                       "schema":  {
-                                                                                                                                                     "type":  "array",
-                                                                                                                                                     "items":  {
-                                                                                                                                                                   "$ref":  "#/components/schemas/HomeProductCardDto"
-                                                                                                                                                               }
+                                                                                                                                                     "$ref":  "#/components/schemas/HomeProductSectionDto"
                                                                                                                                                  }
                                                                                                                                   },
                                                                                                              "text/json":  {
                                                                                                                                "schema":  {
-                                                                                                                                              "type":  "array",
-                                                                                                                                              "items":  {
-                                                                                                                                                            "$ref":  "#/components/schemas/HomeProductCardDto"
-                                                                                                                                                        }
+                                                                                                                                              "$ref":  "#/components/schemas/HomeProductSectionDto"
                                                                                                                                           }
                                                                                                                            }
                                                                                                          }
@@ -4337,26 +4310,17 @@
                                                                                           "content":  {
                                                                                                           "text/plain":  {
                                                                                                                              "schema":  {
-                                                                                                                                            "type":  "array",
-                                                                                                                                            "items":  {
-                                                                                                                                                          "$ref":  "#/components/schemas/HomeProductCardDto"
-                                                                                                                                                      }
+                                                                                                                                            "$ref":  "#/components/schemas/HomeProductSectionDto"
                                                                                                                                         }
                                                                                                                          },
                                                                                                           "application/json":  {
                                                                                                                                    "schema":  {
-                                                                                                                                                  "type":  "array",
-                                                                                                                                                  "items":  {
-                                                                                                                                                                "$ref":  "#/components/schemas/HomeProductCardDto"
-                                                                                                                                                            }
+                                                                                                                                                  "$ref":  "#/components/schemas/HomeProductSectionDto"
                                                                                                                                               }
                                                                                                                                },
                                                                                                           "text/json":  {
                                                                                                                             "schema":  {
-                                                                                                                                           "type":  "array",
-                                                                                                                                           "items":  {
-                                                                                                                                                         "$ref":  "#/components/schemas/HomeProductCardDto"
-                                                                                                                                                     }
+                                                                                                                                           "$ref":  "#/components/schemas/HomeProductSectionDto"
                                                                                                                                        }
                                                                                                                         }
                                                                                                       }
@@ -4386,26 +4350,17 @@
                                                                                            "content":  {
                                                                                                            "text/plain":  {
                                                                                                                               "schema":  {
-                                                                                                                                             "type":  "array",
-                                                                                                                                             "items":  {
-                                                                                                                                                           "$ref":  "#/components/schemas/HomeProductCardDto"
-                                                                                                                                                       }
+                                                                                                                                             "$ref":  "#/components/schemas/HomeProductSectionDto"
                                                                                                                                          }
                                                                                                                           },
                                                                                                            "application/json":  {
                                                                                                                                     "schema":  {
-                                                                                                                                                   "type":  "array",
-                                                                                                                                                   "items":  {
-                                                                                                                                                                 "$ref":  "#/components/schemas/HomeProductCardDto"
-                                                                                                                                                             }
+                                                                                                                                                   "$ref":  "#/components/schemas/HomeProductSectionDto"
                                                                                                                                                }
                                                                                                                                 },
                                                                                                            "text/json":  {
                                                                                                                              "schema":  {
-                                                                                                                                            "type":  "array",
-                                                                                                                                            "items":  {
-                                                                                                                                                          "$ref":  "#/components/schemas/HomeProductCardDto"
-                                                                                                                                                      }
+                                                                                                                                            "$ref":  "#/components/schemas/HomeProductSectionDto"
                                                                                                                                         }
                                                                                                                          }
                                                                                                        }
@@ -4435,26 +4390,17 @@
                                                                                      "content":  {
                                                                                                      "text/plain":  {
                                                                                                                         "schema":  {
-                                                                                                                                       "type":  "array",
-                                                                                                                                       "items":  {
-                                                                                                                                                     "$ref":  "#/components/schemas/HomeBrandCardDto"
-                                                                                                                                                 }
+                                                                                                                                       "$ref":  "#/components/schemas/HomeBrandSectionDto"
                                                                                                                                    }
                                                                                                                     },
                                                                                                      "application/json":  {
                                                                                                                               "schema":  {
-                                                                                                                                             "type":  "array",
-                                                                                                                                             "items":  {
-                                                                                                                                                           "$ref":  "#/components/schemas/HomeBrandCardDto"
-                                                                                                                                                       }
+                                                                                                                                             "$ref":  "#/components/schemas/HomeBrandSectionDto"
                                                                                                                                          }
                                                                                                                           },
                                                                                                      "text/json":  {
                                                                                                                        "schema":  {
-                                                                                                                                      "type":  "array",
-                                                                                                                                      "items":  {
-                                                                                                                                                    "$ref":  "#/components/schemas/HomeBrandCardDto"
-                                                                                                                                                }
+                                                                                                                                      "$ref":  "#/components/schemas/HomeBrandSectionDto"
                                                                                                                                   }
                                                                                                                    }
                                                                                                  }
@@ -4484,26 +4430,17 @@
                                                                                                 "content":  {
                                                                                                                 "text/plain":  {
                                                                                                                                    "schema":  {
-                                                                                                                                                  "type":  "array",
-                                                                                                                                                  "items":  {
-                                                                                                                                                                "$ref":  "#/components/schemas/HomeProductCardDto"
-                                                                                                                                                            }
+                                                                                                                                                  "$ref":  "#/components/schemas/HomeProductSectionDto"
                                                                                                                                               }
                                                                                                                                },
                                                                                                                 "application/json":  {
                                                                                                                                          "schema":  {
-                                                                                                                                                        "type":  "array",
-                                                                                                                                                        "items":  {
-                                                                                                                                                                      "$ref":  "#/components/schemas/HomeProductCardDto"
-                                                                                                                                                                  }
+                                                                                                                                                        "$ref":  "#/components/schemas/HomeProductSectionDto"
                                                                                                                                                     }
                                                                                                                                      },
                                                                                                                 "text/json":  {
                                                                                                                                   "schema":  {
-                                                                                                                                                 "type":  "array",
-                                                                                                                                                 "items":  {
-                                                                                                                                                               "$ref":  "#/components/schemas/HomeProductCardDto"
-                                                                                                                                                           }
+                                                                                                                                                 "$ref":  "#/components/schemas/HomeProductSectionDto"
                                                                                                                                              }
                                                                                                                               }
                                                                                                             }
@@ -4533,26 +4470,17 @@
                                                                                            "content":  {
                                                                                                            "text/plain":  {
                                                                                                                               "schema":  {
-                                                                                                                                             "type":  "array",
-                                                                                                                                             "items":  {
-                                                                                                                                                           "$ref":  "#/components/schemas/HomeProductCardDto"
-                                                                                                                                                       }
+                                                                                                                                             "$ref":  "#/components/schemas/HomeProductSectionDto"
                                                                                                                                          }
                                                                                                                           },
                                                                                                            "application/json":  {
                                                                                                                                     "schema":  {
-                                                                                                                                                   "type":  "array",
-                                                                                                                                                   "items":  {
-                                                                                                                                                                 "$ref":  "#/components/schemas/HomeProductCardDto"
-                                                                                                                                                             }
+                                                                                                                                                   "$ref":  "#/components/schemas/HomeProductSectionDto"
                                                                                                                                                }
                                                                                                                                 },
                                                                                                            "text/json":  {
                                                                                                                              "schema":  {
-                                                                                                                                            "type":  "array",
-                                                                                                                                            "items":  {
-                                                                                                                                                          "$ref":  "#/components/schemas/HomeProductCardDto"
-                                                                                                                                                      }
+                                                                                                                                            "$ref":  "#/components/schemas/HomeProductSectionDto"
                                                                                                                                         }
                                                                                                                          }
                                                                                                        }
@@ -5901,9 +5829,9 @@
                                                                                                                 "format":  "int32"
                                                                                                             },
                                                                                            "productsTake":  {
-                                                                                                               "type":  "integer",
-                                                                                                               "format":  "int32"
-                                                                                                           },
+                                                                                                                "type":  "integer",
+                                                                                                                "format":  "int32"
+                                                                                                            },
                                                                                            "startsAtUtc":  {
                                                                                                                "type":  "string",
                                                                                                                "format":  "date-time",
@@ -6199,31 +6127,31 @@
                                                                   "additionalProperties":  false
                                                               },
                                        "HomeContentSectionSettingDto":  {
-                                                                           "type":  "object",
-                                                                           "properties":  {
-                                                                                              "sectionType":  {
-                                                                                                                    "$ref":  "#/components/schemas/HomeContentSectionType"
-                                                                                                                },
-                                                                                              "isEnabled":  {
-                                                                                                                "type":  "boolean"
-                                                                                                            }
-                                                                                          },
-                                                                           "additionalProperties":  false
-                                                                       },
+                                                                            "type":  "object",
+                                                                            "properties":  {
+                                                                                               "sectionType":  {
+                                                                                                                   "$ref":  "#/components/schemas/HomeContentSectionType"
+                                                                                                               },
+                                                                                               "isEnabled":  {
+                                                                                                                 "type":  "boolean"
+                                                                                                             }
+                                                                                           },
+                                                                            "additionalProperties":  false
+                                                                        },
                                        "HomeContentSectionType":  {
-                                                                        "enum":  [
-                                                                                     "Banners",
-                                                                                     "Categories",
-                                                                                     "SpecialOffers",
-                                                                                     "Recommended",
-                                                                                     "BestSelling",
-                                                                                     "Brands",
-                                                                                     "FeaturedProducts",
-                                                                                     "ExploreMore",
-                                                                                     "DynamicSections"
-                                                                                 ],
-                                                                        "type":  "string"
-                                                                    },
+                                                                      "enum":  [
+                                                                                   "Banners",
+                                                                                   "Categories",
+                                                                                   "SpecialOffers",
+                                                                                   "Recommended",
+                                                                                   "BestSelling",
+                                                                                   "Brands",
+                                                                                   "FeaturedProducts",
+                                                                                   "ExploreMore",
+                                                                                   "DynamicSections"
+                                                                               ],
+                                                                      "type":  "string"
+                                                                  },
                                        "HomeBannerDto":  {
                                                              "type":  "object",
                                                              "properties":  {
@@ -6302,175 +6230,61 @@
                                                                               },
                                                                "additionalProperties":  false
                                                            },
-                                       "HomeContentDto":  {
-                                                              "type":  "object",
-                                                              "properties":  {
-                                                                                 "deliver_to_label":  {
-                                                                                                          "type":  "string",
-                                                                                                          "nullable":  true
-                                                                                                      },
-                                                                                 "location":  {
-                                                                                                  "type":  "string",
-                                                                                                  "nullable":  true
-                                                                                              },
-                                                                                 "address_line":  {
-                                                                                                      "type":  "string",
-                                                                                                      "nullable":  true
-                                                                                                  },
-                                                                                 "notifications_count":  {
-                                                                                                             "type":  "integer",
-                                                                                                             "format":  "int32"
-                                                                                                         },
-                                                                                 "banners":  {
-                                                                                                 "type":  "array",
-                                                                                                 "items":  {
-                                                                                                               "$ref":  "#/components/schemas/HomeBannerDto"
-                                                                                                           },
-                                                                                                 "nullable":  true
-                                                                                             },
-                                                                                 "categories":  {
-                                                                                                    "type":  "array",
-                                                                                                    "items":  {
-                                                                                                                  "$ref":  "#/components/schemas/HomeCategoryDto"
-                                                                                                              },
-                                                                                                    "nullable":  true
-                                                                                                },
-                                                                                 "special_offers":  {
-                                                                                                        "type":  "array",
-                                                                                                        "items":  {
-                                                                                                                      "$ref":  "#/components/schemas/HomeProductCardDto"
-                                                                                                                  },
-                                                                                                        "nullable":  true
-                                                                                                    },
-                                                                                 "recommended":  {
-                                                                                                     "type":  "array",
-                                                                                                     "items":  {
-                                                                                                                   "$ref":  "#/components/schemas/HomeProductCardDto"
-                                                                                                               },
-                                                                                                     "nullable":  true
-                                                                                                 },
-                                                                                 "best_selling":  {
-                                                                                                      "type":  "array",
-                                                                                                      "items":  {
-                                                                                                                    "$ref":  "#/components/schemas/HomeProductCardDto"
-                                                                                                                },
-                                                                                                      "nullable":  true
-                                                                                                  },
-                                                                                 "brands":  {
-                                                                                                "type":  "array",
-                                                                                                "items":  {
-                                                                                                              "$ref":  "#/components/schemas/HomeBrandCardDto"
-                                                                                                          },
-                                                                                                "nullable":  true
-                                                                                            },
-                                                                                 "featured_products":  {
-                                                                                                            "type":  "array",
-                                                                                                            "items":  {
-                                                                                                                          "$ref":  "#/components/schemas/HomeProductCardDto"
-                                                                                                                      },
-                                                                                                            "nullable":  true
-                                                                                                        },
-                                                                                 "explore_more":  {
-                                                                                                       "type":  "array",
-                                                                                                       "items":  {
-                                                                                                                     "$ref":  "#/components/schemas/HomeProductCardDto"
-                                                                                                                 },
-                                                                                                       "nullable":  true
-                                                                                                   },
-                                                                                 "sections":  {
-                                                                                                  "type":  "array",
-                                                                                                  "items":  {
-                                                                                                                "$ref":  "#/components/schemas/HomeDynamicSectionDto"
-                                                                                                            },
-                                                                                                  "nullable":  true
-                                                                                                    }
-                                                                             },
-                                                              "additionalProperties":  false
-                                                          },
-                                       "HomeDynamicSectionDto":  {
-                                                                      "type":  "object",
-                                                                      "properties":  {
-                                                                                         "id":  {
-                                                                                                    "type":  "string",
-                                                                                                    "format":  "uuid"
-                                                                                                },
-                                                                                         "subcategory_id":  {
-                                                                                                                 "type":  "string",
-                                                                                                                 "format":  "uuid"
-                                                                                                             },
-                                                                                         "title":  {
-                                                                                                       "type":  "string",
-                                                                                                       "nullable":  true
-                                                                                                   },
-                                                                                         "theme":  {
-                                                                                                       "type":  "string",
-                                                                                                       "nullable":  true
-                                                                                                   },
-                                                                                         "products":  {
-                                                                                                         "type":  "array",
-                                                                                                         "items":  {
-                                                                                                                       "$ref":  "#/components/schemas/HomeProductCardDto"
-                                                                                                                   },
-                                                                                                         "nullable":  true
-                                                                                                     }
-                                                                                     },
-                                                                      "additionalProperties":  false
-                                                                  },
                                        "HomeSectionAdminDto":  {
-                                                                      "type":  "object",
-                                                                      "properties":  {
-                                                                                         "id":  {
-                                                                                                    "type":  "string",
-                                                                                                    "format":  "uuid"
-                                                                                                },
-                                                                                         "categoryId":  {
-                                                                                                           "type":  "string",
-                                                                                                           "format":  "uuid"
-                                                                                                       },
-                                                                                         "categoryNameAr":  {
-                                                                                                                 "type":  "string",
-                                                                                                                 "nullable":  true
-                                                                                                             },
-                                                                                         "categoryNameEn":  {
-                                                                                                                 "type":  "string",
-                                                                                                                 "nullable":  true
-                                                                                                             },
-                                                                                         "theme":  {
-                                                                                                       "type":  "string",
-                                                                                                       "nullable":  true
-                                                                                                   },
-                                                                                         "displayOrder":  {
-                                                                                                              "type":  "integer",
-                                                                                                              "format":  "int32"
-                                                                                                          },
-                                                                                         "productsTake":  {
-                                                                                                             "type":  "integer",
-                                                                                                             "format":  "int32"
-                                                                                                         },
-                                                                                         "isActive":  {
-                                                                                                          "type":  "boolean"
-                                                                                                      },
-                                                                                         "startsAtUtc":  {
+                                                                   "type":  "object",
+                                                                   "properties":  {
+                                                                                      "id":  {
+                                                                                                 "type":  "string",
+                                                                                                 "format":  "uuid"
+                                                                                             },
+                                                                                      "categoryId":  {
+                                                                                                         "type":  "string",
+                                                                                                         "format":  "uuid"
+                                                                                                     },
+                                                                                      "categoryNameAr":  {
                                                                                                              "type":  "string",
-                                                                                                             "format":  "date-time",
                                                                                                              "nullable":  true
                                                                                                          },
-                                                                                         "endsAtUtc":  {
-                                                                                                           "type":  "string",
-                                                                                                           "format":  "date-time",
-                                                                                                           "nullable":  true
+                                                                                      "categoryNameEn":  {
+                                                                                                             "type":  "string",
+                                                                                                             "nullable":  true
+                                                                                                         },
+                                                                                      "theme":  {
+                                                                                                    "type":  "string",
+                                                                                                    "nullable":  true
+                                                                                                },
+                                                                                      "displayOrder":  {
+                                                                                                           "type":  "integer",
+                                                                                                           "format":  "int32"
                                                                                                        },
-                                                                                         "createdAtUtc":  {
-                                                                                                              "type":  "string",
-                                                                                                              "format":  "date-time"
-                                                                                                          },
-                                                                                         "updatedAtUtc":  {
-                                                                                                              "type":  "string",
-                                                                                                              "format":  "date-time"
-                                                                                                          }
-                                                                                     },
-                                                                      "additionalProperties":  false
-                                                                  },
+                                                                                      "productsTake":  {
+                                                                                                           "type":  "integer",
+                                                                                                           "format":  "int32"
+                                                                                                       },
+                                                                                      "isActive":  {
+                                                                                                       "type":  "boolean"
+                                                                                                   },
+                                                                                      "startsAtUtc":  {
+                                                                                                          "type":  "string",
+                                                                                                          "format":  "date-time",
+                                                                                                          "nullable":  true
+                                                                                                      },
+                                                                                      "endsAtUtc":  {
+                                                                                                        "type":  "string",
+                                                                                                        "format":  "date-time",
+                                                                                                        "nullable":  true
+                                                                                                    },
+                                                                                      "createdAtUtc":  {
+                                                                                                           "type":  "string",
+                                                                                                           "format":  "date-time"
+                                                                                                       },
+                                                                                      "updatedAtUtc":  {
+                                                                                                           "type":  "string",
+                                                                                                           "format":  "date-time"
+                                                                                                       }
+                                                                                  },
+                                                                   "additionalProperties":  false
+                                                               },
                                        "HomeHeaderDto":  {
                                                              "type":  "object",
                                                              "properties":  {
@@ -6478,18 +6292,18 @@
                                                                                                          "type":  "string",
                                                                                                          "nullable":  true
                                                                                                      },
-                                                                          "location":  {
-                                                                                           "type":  "string",
-                                                                                           "nullable":  true
-                                                                                       },
-                                                                          "address_line":  {
-                                                                                               "type":  "string",
-                                                                                               "nullable":  true
-                                                                                           },
-                                                                          "notifications_count":  {
-                                                                                                      "type":  "integer",
-                                                                                                      "format":  "int32"
-                                                                                                  }
+                                                                                "location":  {
+                                                                                                 "type":  "string",
+                                                                                                 "nullable":  true
+                                                                                             },
+                                                                                "address_line":  {
+                                                                                                     "type":  "string",
+                                                                                                     "nullable":  true
+                                                                                                 },
+                                                                                "notifications_count":  {
+                                                                                                            "type":  "integer",
+                                                                                                            "format":  "int32"
+                                                                                                        }
                                                                             },
                                                              "additionalProperties":  false
                                                          },
@@ -6536,11 +6350,11 @@
                                                                                                       "nullable":  true
                                                                                                   },
                                                                                      "is_favorite":  {
-                                                                                                           "type":  "boolean"
-                                                                                                       },
+                                                                                                         "type":  "boolean"
+                                                                                                     },
                                                                                      "is_featured":  {
-                                                                                                           "type":  "boolean"
-                                                                                                       },
+                                                                                                         "type":  "boolean"
+                                                                                                     },
                                                                                      "unit":  {
                                                                                                   "type":  "string",
                                                                                                   "nullable":  true
@@ -7413,9 +7227,9 @@
                                                                                           "isActive":  {
                                                                                                            "type":  "boolean"
                                                                                                        }
-                                                                                          },
-                                                                              "additionalProperties":  false
-                                                                          },
+                                                                                      },
+                                                                       "additionalProperties":  false
+                                                                   },
                                        "UpdateHomeContentSectionSettingRequest":  {
                                                                                       "type":  "object",
                                                                                       "properties":  {
@@ -7441,9 +7255,9 @@
                                                                                                                 "format":  "int32"
                                                                                                             },
                                                                                            "productsTake":  {
-                                                                                                               "type":  "integer",
-                                                                                                               "format":  "int32"
-                                                                                                           },
+                                                                                                                "type":  "integer",
+                                                                                                                "format":  "int32"
+                                                                                                            },
                                                                                            "startsAtUtc":  {
                                                                                                                "type":  "string",
                                                                                                                "format":  "date-time",
@@ -7924,7 +7738,228 @@
                                                                                                }
                                                                                },
                                                                 "additionalProperties":  false
-                                                            }
+                                                            },
+                                       "HomeContentDto":  {
+                                                              "type":  "object",
+                                                              "properties":  {
+                                                                                 "deliver_to_label":  {
+                                                                                                          "type":  "string",
+                                                                                                          "nullable":  true
+                                                                                                      },
+                                                                                 "location":  {
+                                                                                                  "type":  "string",
+                                                                                                  "nullable":  true
+                                                                                              },
+                                                                                 "address_line":  {
+                                                                                                      "type":  "string",
+                                                                                                      "nullable":  true
+                                                                                                  },
+                                                                                 "notifications_count":  {
+                                                                                                             "type":  "integer",
+                                                                                                             "format":  "int32"
+                                                                                                         },
+                                                                                 "banners_section":  {
+                                                                                                         "$ref":  "#/components/schemas/HomeBannerSectionDto"
+                                                                                                     },
+                                                                                 "categories_section":  {
+                                                                                                            "$ref":  "#/components/schemas/HomeCategorySectionDto"
+                                                                                                        },
+                                                                                 "special_offers_section":  {
+                                                                                                                "$ref":  "#/components/schemas/HomeProductSectionDto"
+                                                                                                            },
+                                                                                 "recommended_section":  {
+                                                                                                             "$ref":  "#/components/schemas/HomeProductSectionDto"
+                                                                                                         },
+                                                                                 "best_selling_section":  {
+                                                                                                              "$ref":  "#/components/schemas/HomeProductSectionDto"
+                                                                                                          },
+                                                                                 "brands_section":  {
+                                                                                                        "$ref":  "#/components/schemas/HomeBrandSectionDto"
+                                                                                                    },
+                                                                                 "featured_products_section":  {
+                                                                                                                   "$ref":  "#/components/schemas/HomeProductSectionDto"
+                                                                                                               },
+                                                                                 "explore_more_section":  {
+                                                                                                              "$ref":  "#/components/schemas/HomeProductSectionDto"
+                                                                                                          },
+                                                                                 "dynamic_sections":  {
+                                                                                                          "type":  "array",
+                                                                                                          "items":  {
+                                                                                                                        "$ref":  "#/components/schemas/HomeDynamicSectionDto"
+                                                                                                                    },
+                                                                                                          "nullable":  true
+                                                                                                      }
+                                                                             },
+                                                              "additionalProperties":  false
+                                                          },
+                                       "HomeBannerSectionDto":  {
+                                                                    "type":  "object",
+                                                                    "properties":  {
+                                                                                       "key":  {
+                                                                                                   "type":  "string",
+                                                                                                   "nullable":  true
+                                                                                               },
+                                                                                       "title":  {
+                                                                                                     "type":  "string",
+                                                                                                     "nullable":  true
+                                                                                                 },
+                                                                                       "is_active":  {
+                                                                                                         "type":  "boolean"
+                                                                                                     },
+                                                                                       "theme":  {
+                                                                                                     "type":  "string",
+                                                                                                     "nullable":  true
+                                                                                                 },
+                                                                                       "items_count":  {
+                                                                                                           "type":  "integer",
+                                                                                                           "format":  "int32"
+                                                                                                       },
+                                                                                       "items":  {
+                                                                                                     "type":  "array",
+                                                                                                     "items":  {
+                                                                                                                   "$ref":  "#/components/schemas/HomeBannerDto"
+                                                                                                               },
+                                                                                                     "nullable":  true
+                                                                                                 }
+                                                                                   },
+                                                                    "additionalProperties":  false
+                                                                },
+                                       "HomeCategorySectionDto":  {
+                                                                      "type":  "object",
+                                                                      "properties":  {
+                                                                                         "key":  {
+                                                                                                     "type":  "string",
+                                                                                                     "nullable":  true
+                                                                                                 },
+                                                                                         "title":  {
+                                                                                                       "type":  "string",
+                                                                                                       "nullable":  true
+                                                                                                   },
+                                                                                         "is_active":  {
+                                                                                                           "type":  "boolean"
+                                                                                                       },
+                                                                                         "theme":  {
+                                                                                                       "type":  "string",
+                                                                                                       "nullable":  true
+                                                                                                   },
+                                                                                         "items_count":  {
+                                                                                                             "type":  "integer",
+                                                                                                             "format":  "int32"
+                                                                                                         },
+                                                                                         "items":  {
+                                                                                                       "type":  "array",
+                                                                                                       "items":  {
+                                                                                                                     "$ref":  "#/components/schemas/HomeCategoryDto"
+                                                                                                                 },
+                                                                                                       "nullable":  true
+                                                                                                   }
+                                                                                     },
+                                                                      "additionalProperties":  false
+                                                                  },
+                                       "HomeBrandSectionDto":  {
+                                                                   "type":  "object",
+                                                                   "properties":  {
+                                                                                      "key":  {
+                                                                                                  "type":  "string",
+                                                                                                  "nullable":  true
+                                                                                              },
+                                                                                      "title":  {
+                                                                                                    "type":  "string",
+                                                                                                    "nullable":  true
+                                                                                                },
+                                                                                      "is_active":  {
+                                                                                                        "type":  "boolean"
+                                                                                                    },
+                                                                                      "theme":  {
+                                                                                                    "type":  "string",
+                                                                                                    "nullable":  true
+                                                                                                },
+                                                                                      "items_count":  {
+                                                                                                          "type":  "integer",
+                                                                                                          "format":  "int32"
+                                                                                                      },
+                                                                                      "items":  {
+                                                                                                    "type":  "array",
+                                                                                                    "items":  {
+                                                                                                                  "$ref":  "#/components/schemas/HomeBrandCardDto"
+                                                                                                              },
+                                                                                                    "nullable":  true
+                                                                                                }
+                                                                                  },
+                                                                   "additionalProperties":  false
+                                                               },
+                                       "HomeProductSectionDto":  {
+                                                                     "type":  "object",
+                                                                     "properties":  {
+                                                                                        "key":  {
+                                                                                                    "type":  "string",
+                                                                                                    "nullable":  true
+                                                                                                },
+                                                                                        "title":  {
+                                                                                                      "type":  "string",
+                                                                                                      "nullable":  true
+                                                                                                  },
+                                                                                        "is_active":  {
+                                                                                                          "type":  "boolean"
+                                                                                                      },
+                                                                                        "theme":  {
+                                                                                                      "type":  "string",
+                                                                                                      "nullable":  true
+                                                                                                  },
+                                                                                        "items_count":  {
+                                                                                                            "type":  "integer",
+                                                                                                            "format":  "int32"
+                                                                                                        },
+                                                                                        "items":  {
+                                                                                                      "type":  "array",
+                                                                                                      "items":  {
+                                                                                                                    "$ref":  "#/components/schemas/HomeProductCardDto"
+                                                                                                                },
+                                                                                                      "nullable":  true
+                                                                                                  }
+                                                                                    },
+                                                                     "additionalProperties":  false
+                                                                 },
+                                       "HomeDynamicSectionDto":  {
+                                                                     "type":  "object",
+                                                                     "properties":  {
+                                                                                        "id":  {
+                                                                                                   "type":  "string",
+                                                                                                   "format":  "uuid"
+                                                                                               },
+                                                                                        "key":  {
+                                                                                                    "type":  "string",
+                                                                                                    "nullable":  true
+                                                                                                },
+                                                                                        "title":  {
+                                                                                                      "type":  "string",
+                                                                                                      "nullable":  true
+                                                                                                  },
+                                                                                        "subcategory_id":  {
+                                                                                                               "type":  "string",
+                                                                                                               "format":  "uuid"
+                                                                                                           },
+                                                                                        "is_active":  {
+                                                                                                          "type":  "boolean"
+                                                                                                      },
+                                                                                        "theme":  {
+                                                                                                      "type":  "string",
+                                                                                                      "nullable":  true
+                                                                                                  },
+                                                                                        "items_count":  {
+                                                                                                            "type":  "integer",
+                                                                                                            "format":  "int32"
+                                                                                                        },
+                                                                                        "items":  {
+                                                                                                      "type":  "array",
+                                                                                                      "items":  {
+                                                                                                                    "$ref":  "#/components/schemas/HomeProductCardDto"
+                                                                                                                },
+                                                                                                      "nullable":  true
+                                                                                                  }
+                                                                                    },
+                                                                     "additionalProperties":  false
+                                                                 }
                                    },
                        "securitySchemes":  {
                                                "Bearer":  {

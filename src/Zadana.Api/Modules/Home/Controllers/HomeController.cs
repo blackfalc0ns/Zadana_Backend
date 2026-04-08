@@ -33,56 +33,56 @@ public class HomeController : ApiControllerBase
     }
 
     [HttpGet("banners")]
-    public async Task<ActionResult<IReadOnlyList<HomeBannerDto>>> GetBanners([FromQuery] int take = 0, CancellationToken cancellationToken = default)
+    public async Task<ActionResult<HomeListSectionDto<HomeBannerDto>>> GetBanners([FromQuery] int take = 0, CancellationToken cancellationToken = default)
     {
         var result = await _homeReadService.GetBannersAsync(take, cancellationToken);
         return Ok(result);
     }
 
     [HttpGet("categories")]
-    public async Task<ActionResult<IReadOnlyList<HomeCategoryDto>>> GetCategories([FromQuery] int take = 0, CancellationToken cancellationToken = default)
+    public async Task<ActionResult<HomeListSectionDto<HomeCategoryDto>>> GetCategories([FromQuery] int take = 0, CancellationToken cancellationToken = default)
     {
         var result = await _homeReadService.GetCategoriesAsync(take, cancellationToken);
         return Ok(result);
     }
 
     [HttpGet("special-offers")]
-    public async Task<ActionResult<IReadOnlyList<HomeProductCardDto>>> GetSpecialOffers([FromQuery] int take = 0, CancellationToken cancellationToken = default)
+    public async Task<ActionResult<HomeListSectionDto<HomeProductCardDto>>> GetSpecialOffers([FromQuery] int take = 0, CancellationToken cancellationToken = default)
     {
         var result = await _homeReadService.GetSpecialOffersAsync(take, cancellationToken);
         return Ok(result);
     }
 
     [HttpGet("recommended")]
-    public async Task<ActionResult<IReadOnlyList<HomeProductCardDto>>> GetRecommended([FromQuery] int take = 0, CancellationToken cancellationToken = default)
+    public async Task<ActionResult<HomeListSectionDto<HomeProductCardDto>>> GetRecommended([FromQuery] int take = 0, CancellationToken cancellationToken = default)
     {
         var result = await _homeReadService.GetRecommendedAsync(take, cancellationToken);
         return Ok(result);
     }
 
     [HttpGet("best-selling")]
-    public async Task<ActionResult<IReadOnlyList<HomeProductCardDto>>> GetBestSelling([FromQuery] int take = 0, CancellationToken cancellationToken = default)
+    public async Task<ActionResult<HomeListSectionDto<HomeProductCardDto>>> GetBestSelling([FromQuery] int take = 0, CancellationToken cancellationToken = default)
     {
         var result = await _homeReadService.GetBestSellingAsync(take, cancellationToken);
         return Ok(result);
     }
 
     [HttpGet("brands")]
-    public async Task<ActionResult<IReadOnlyList<HomeBrandCardDto>>> GetBrands([FromQuery] int take = 0, CancellationToken cancellationToken = default)
+    public async Task<ActionResult<HomeListSectionDto<HomeBrandCardDto>>> GetBrands([FromQuery] int take = 0, CancellationToken cancellationToken = default)
     {
         var result = await _homeReadService.GetBrandsAsync(take, cancellationToken);
         return Ok(result);
     }
 
     [HttpGet("featured-products")]
-    public async Task<ActionResult<IReadOnlyList<HomeProductCardDto>>> GetFeaturedProducts([FromQuery] int take = 0, CancellationToken cancellationToken = default)
+    public async Task<ActionResult<HomeListSectionDto<HomeProductCardDto>>> GetFeaturedProducts([FromQuery] int take = 0, CancellationToken cancellationToken = default)
     {
         var result = await _homeReadService.GetFeaturedProductsAsync(take, cancellationToken);
         return Ok(result);
     }
 
     [HttpGet("explore-more")]
-    public async Task<ActionResult<IReadOnlyList<HomeProductCardDto>>> GetExploreMore([FromQuery] int take = 0, CancellationToken cancellationToken = default)
+    public async Task<ActionResult<HomeListSectionDto<HomeProductCardDto>>> GetExploreMore([FromQuery] int take = 0, CancellationToken cancellationToken = default)
     {
         var result = await _homeReadService.GetExploreMoreAsync(take, cancellationToken);
         return Ok(result);
