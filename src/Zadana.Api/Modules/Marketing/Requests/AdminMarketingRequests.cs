@@ -47,3 +47,23 @@ public record UpdateFeaturedPlacementRequest(
     DateTime? EndsAtUtc,
     bool IsActive,
     string? Note);
+
+public record CreateHomeSectionRequest(
+    Guid CategoryId,
+    string Theme,
+    int DisplayOrder,
+    int ProductsTake,
+    DateTime? StartsAtUtc,
+    DateTime? EndsAtUtc);
+
+public record UpdateHomeSectionRequest(
+    Guid CategoryId,
+    string Theme,
+    int DisplayOrder,
+    int ProductsTake,
+    DateTime? StartsAtUtc,
+    DateTime? EndsAtUtc,
+    bool IsActive);
+
+public record UpdateHomeContentSectionSettingRequest(
+    bool IsEnabled);

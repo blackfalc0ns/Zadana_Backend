@@ -32,3 +32,21 @@ public record FeaturedProductPlacementDto(
     string? Note,
     DateTime CreatedAtUtc,
     DateTime UpdatedAtUtc);
+
+public record HomeSectionAdminDto(
+    Guid Id,
+    Guid CategoryId,
+    string CategoryNameAr,
+    string CategoryNameEn,
+    string Theme,
+    int DisplayOrder,
+    int ProductsTake,
+    bool IsActive,
+    DateTime? StartsAtUtc,
+    DateTime? EndsAtUtc,
+    DateTime CreatedAtUtc,
+    DateTime UpdatedAtUtc);
+
+public record HomeContentSectionSettingDto(
+    string SectionType,
+    bool IsEnabled);

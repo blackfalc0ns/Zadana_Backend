@@ -58,6 +58,8 @@ public interface IApplicationDbContext
     DbSet<Coupon> Coupons { get; }
     DbSet<CouponVendor> CouponVendors { get; }
     DbSet<HomeBanner> HomeBanners { get; }
+    DbSet<HomeContentSectionSetting> HomeContentSectionSettings { get; }
+    DbSet<HomeSection> HomeSections { get; }
     DbSet<FeaturedProductPlacement> FeaturedProductPlacements { get; }
     DbSet<Review> Reviews { get; }
     DbSet<Notification> Notifications { get; }

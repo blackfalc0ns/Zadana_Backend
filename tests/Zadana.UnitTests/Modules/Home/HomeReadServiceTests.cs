@@ -137,6 +137,45 @@ public class HomeReadServiceTests
         result[1].IsFeatured.Should().BeTrue();
     }
 
+    [Fact]
+    public async Task GetContentAsync_ReturnsDynamicSectionsForActiveSubCategories()
+    {
+        using var scope = new CultureScope("en");
+        await using var context = TestDbContextFactory.Create();
+
+        var setup = await SeedCatalogScenarioAsync(context, createSubcategoryData: true);
+        context.HomeSections.Add(new HomeSection(setup.DynamicSectionCategoryId!.Value, "theme1", 1, 6));
+        await context.SaveChangesAsync();
+
+        var service = new HomeReadService(context, new FakeCurrentUserService(null, false));
+
+        var result = await service.GetContentAsync();
+
+        result.Sections.Should().ContainSingle();
+        result.Sections[0].SubcategoryId.Should().Be(setup.DynamicSectionCategoryId.Value);
+        result.Sections[0].Theme.Should().Be("theme1");
+        result.Sections[0].Title.Should().Be("Fruits");
+        result.Sections[0].Products.Should().NotBeEmpty();
+    }
+
+    [Fact]
+    public async Task GetContentAsync_WhenDynamicSectionsSettingDisabled_ReturnsEmptySections()
+    {
+        using var scope = new CultureScope("en");
+        await using var context = TestDbContextFactory.Create();
+
+        var setup = await SeedCatalogScenarioAsync(context, createSubcategoryData: true);
+        context.HomeSections.Add(new HomeSection(setup.DynamicSectionCategoryId!.Value, "theme1", 1, 6));
+        context.HomeContentSectionSettings.Add(new HomeContentSectionSetting(HomeContentSectionType.DynamicSections, false));
+        await context.SaveChangesAsync();
+
+        var service = new HomeReadService(context, new FakeCurrentUserService(null, false));
+
+        var result = await service.GetContentAsync();
+
+        result.Sections.Should().BeEmpty();
+    }
+
     private static HomeBanner CreateInactiveBanner()
     {
         var banner = new HomeBanner("مخفي", "Hidden", "عنوان مخفي", "Hidden title", "/b.jpg", displayOrder: 2, startsAtUtc: DateTime.UtcNow.AddDays(-1), endsAtUtc: DateTime.UtcNow.AddDays(2));
@@ -144,7 +183,10 @@ public class HomeReadServiceTests
         return banner;
     }
 
-    private static async Task<HomeScenario> SeedCatalogScenarioAsync(ApplicationDbContext context, bool includeHistory = false)
+    private static async Task<HomeScenario> SeedCatalogScenarioAsync(
+        ApplicationDbContext context,
+        bool includeHistory = false,
+        bool createSubcategoryData = false)
     {
         var admin = CreateAdmin("admin-home@test.com");
         var customer = CreateCustomer("customer-home@test.com");
@@ -154,11 +196,18 @@ public class HomeReadServiceTests
 
         var category = new Category("ألبان", "Dairy", "cat.jpg", null, 1);
         var otherCategory = new Category("هواتف", "Phones", "phones.jpg", null, 2);
+        var subCategory = createSubcategoryData
+            ? new Category("فواكه", "Fruits", "fruits.jpg", category.Id, 1)
+            : null;
         var brand = new Brand("المراعي", "Almarai", "almarai.png");
         var otherBrand = new Brand("سامسونج", "Samsung", "samsung.png");
         var unit = new UnitOfMeasure("لتر", "Liter", "L");
 
         context.Categories.AddRange(category, otherCategory);
+        if (subCategory is not null)
+        {
+            context.Categories.Add(subCategory);
+        }
         context.Brands.AddRange(brand, otherBrand);
         context.UnitsOfMeasure.Add(unit);
 
@@ -191,15 +240,36 @@ public class HomeReadServiceTests
         historicalMaster.Publish();
         historicalMaster.AddImage("/labneh.jpg", isPrimary: true);
 
+        MasterProduct? subCategoryMaster = null;
+        if (subCategory is not null)
+        {
+            subCategoryMaster = new MasterProduct("تفاح", "Apple", "apple", subCategory.Id, brand.Id, unit.Id);
+            subCategoryMaster.Publish();
+            subCategoryMaster.AddImage("/apple.jpg", isPrimary: true);
+        }
+
         context.MasterProducts.AddRange(discountedMaster, regularMaster, otherMaster, historicalMaster);
+        if (subCategoryMaster is not null)
+        {
+            context.MasterProducts.Add(subCategoryMaster);
+        }
         await context.SaveChangesAsync();
 
         var discountedProduct = new VendorProduct(vendor.Id, discountedMaster.Id, 10m, 30, 15m);
         var regularProduct = new VendorProduct(vendor.Id, regularMaster.Id, 12m, 20, null);
         var otherProduct = new VendorProduct(vendor.Id, otherMaster.Id, 20m, 10, null);
         var historicalProduct = new VendorProduct(vendor.Id, historicalMaster.Id, 8m, 0, null);
+        VendorProduct? subCategoryProduct = null;
+        if (subCategoryMaster is not null)
+        {
+            subCategoryProduct = new VendorProduct(vendor.Id, subCategoryMaster.Id, 7m, 15, null);
+        }
 
         context.VendorProducts.AddRange(discountedProduct, regularProduct, otherProduct, historicalProduct);
+        if (subCategoryProduct is not null)
+        {
+            context.VendorProducts.Add(subCategoryProduct);
+        }
         context.Reviews.Add(new Review(Guid.NewGuid(), customer.Id, vendor.Id, 5, "Great"));
 
         HomeProductReference? historyMatchedProduct = null;
@@ -223,7 +293,8 @@ public class HomeReadServiceTests
             new HomeProductReference(discountedProduct.Id),
             historyMatchedProduct,
             otherMaster.Id,
-            new HomeProductReference(otherProduct.Id));
+            new HomeProductReference(otherProduct.Id),
+            subCategory?.Id);
     }
 
     private static User CreateAdmin(string email) => new("Admin", email, "01000000000", UserRole.SuperAdmin);
@@ -235,7 +306,8 @@ public class HomeReadServiceTests
         HomeProductReference DiscountedProduct,
         HomeProductReference? HistoryMatchedProduct,
         Guid OtherMasterProductId,
-        HomeProductReference? OtherProduct);
+        HomeProductReference? OtherProduct,
+        Guid? DynamicSectionCategoryId);
     private sealed record HomeProductReference(Guid Id);
 
     private sealed class FakeCurrentUserService : ICurrentUserService

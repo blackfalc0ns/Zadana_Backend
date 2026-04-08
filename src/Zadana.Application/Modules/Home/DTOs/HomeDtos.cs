@@ -36,6 +36,13 @@ public record HomeProductCardDto(
     [property: JsonPropertyName("unit")] string? Unit,
     [property: JsonPropertyName("is_discounted")] bool IsDiscounted);
 
+public record HomeDynamicSectionDto(
+    [property: JsonPropertyName("id")] Guid Id,
+    [property: JsonPropertyName("subcategory_id")] Guid SubcategoryId,
+    [property: JsonPropertyName("title")] string Title,
+    [property: JsonPropertyName("theme")] string Theme,
+    [property: JsonPropertyName("products")] IReadOnlyList<HomeProductCardDto> Products);
+
 public record HomeBrandCardDto(
     [property: JsonPropertyName("id")] Guid Id,
     [property: JsonPropertyName("name")] string Name,
@@ -56,4 +63,5 @@ public record HomeContentDto(
     [property: JsonPropertyName("best_selling")] IReadOnlyList<HomeProductCardDto> BestSelling,
     [property: JsonPropertyName("brands")] IReadOnlyList<HomeBrandCardDto> Brands,
     [property: JsonPropertyName("featured_products")] IReadOnlyList<HomeProductCardDto> FeaturedProducts,
-    [property: JsonPropertyName("explore_more")] IReadOnlyList<HomeProductCardDto> ExploreMore);
+    [property: JsonPropertyName("explore_more")] IReadOnlyList<HomeProductCardDto> ExploreMore,
+    [property: JsonPropertyName("sections")] IReadOnlyList<HomeDynamicSectionDto> Sections);
