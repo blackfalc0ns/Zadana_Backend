@@ -7,6 +7,15 @@ public record CartVendorPriceDto(
     decimal? OldPrice,
     bool IsDiscounted);
 
+public record CartAvailableVendorDto(
+    Guid Id,
+    string Name,
+    string? LogoUrl,
+    int ProductsCount);
+
+public record CartAvailableVendorsDto(
+    List<CartAvailableVendorDto> Vendors);
+
 public record CartItemDto(
     Guid Id,
     Guid ProductId,

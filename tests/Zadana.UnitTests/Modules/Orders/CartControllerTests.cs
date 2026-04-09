@@ -14,6 +14,7 @@ using Zadana.Application.Modules.Orders.Commands.RemoveCartItem;
 using Zadana.Application.Modules.Orders.Commands.UpdateCartItemQuantity;
 using Zadana.Application.Modules.Orders.DTOs;
 using Zadana.Application.Modules.Orders.Queries.GetCart;
+using Zadana.Application.Modules.Orders.Queries.GetCartVendors;
 
 namespace Zadana.UnitTests.Modules.Orders;
 
@@ -70,7 +71,7 @@ public class CartControllerTests
         _senderMock.Setup(x => x.Send(It.IsAny<AddCartItemCommand>(), It.IsAny<CancellationToken>()))
             .ReturnsAsync(dto);
 
-        var result = await _controller.AddItem(new AddCartItemRequest(Guid.NewGuid(), 1, null), CancellationToken.None);
+        var result = await _controller.AddItem(new AddCartItemRequest(Guid.NewGuid(), 1), CancellationToken.None);
 
         var okResult = result.Result.Should().BeOfType<OkObjectResult>().Subject;
         okResult.Value.Should().BeEquivalentTo(dto);
@@ -134,7 +135,7 @@ public class CartControllerTests
         _senderMock.Setup(x => x.Send(It.IsAny<AddCartItemCommand>(), It.IsAny<CancellationToken>()))
             .ReturnsAsync(dto);
 
-        var result = await _controller.AddItem(new AddCartItemRequest(Guid.NewGuid(), 1, null), CancellationToken.None);
+        var result = await _controller.AddItem(new AddCartItemRequest(Guid.NewGuid(), 1), CancellationToken.None);
 
         var okResult = result.Result.Should().BeOfType<OkObjectResult>().Subject;
         okResult.Value.Should().BeEquivalentTo(dto);
@@ -171,5 +172,21 @@ public class CartControllerTests
 
         sentQuery.Should().NotBeNull();
         sentQuery!.VendorId.Should().BeNull();
+    }
+
+    [Fact]
+    public async Task GetCartVendors_ReturnsOkResult()
+    {
+        var dto = new CartAvailableVendorsDto([
+            new CartAvailableVendorDto(Guid.NewGuid(), "Green Valley Market", null, 1)
+        ]);
+
+        _senderMock.Setup(x => x.Send(It.IsAny<GetCartVendorsQuery>(), It.IsAny<CancellationToken>()))
+            .ReturnsAsync(dto);
+
+        var result = await _controller.GetCartVendors(CancellationToken.None);
+
+        var okResult = result.Result.Should().BeOfType<OkObjectResult>().Subject;
+        okResult.Value.Should().BeEquivalentTo(dto);
     }
 }

@@ -21,7 +21,7 @@ public class CartCommandsTests
 
         var handler = new AddCartItemCommandHandler(context);
 
-        var result = await handler.Handle(new AddCartItemCommand(CartActor.Create(setup.UserId, null), setup.MasterProduct.Id, 2, null), CancellationToken.None);
+        var result = await handler.Handle(new AddCartItemCommand(CartActor.Create(setup.UserId, null), setup.MasterProduct.Id, 2), CancellationToken.None);
 
         result.Message.Should().Be("added to cart successfully");
         result.Item.ProductId.Should().Be(setup.MasterProduct.Id);
@@ -76,7 +76,7 @@ public class CartCommandsTests
     }
 
     [Fact]
-    public async Task AddCartItem_ReturnsOnlyRequestedVendorPrice_WhenVendorIdIsProvided()
+    public async Task AddCartItem_ReturnsNoVendorPrices_UntilVendorIsSelected()
     {
         await using var context = TestDbContextFactory.Create();
         var setup = await SeedAvailableProductAsync(context);
@@ -84,12 +84,10 @@ public class CartCommandsTests
         var handler = new AddCartItemCommandHandler(context);
 
         var result = await handler.Handle(
-            new AddCartItemCommand(CartActor.Create(setup.UserId, null), setup.MasterProduct.Id, 1, setup.FirstVendorId),
+            new AddCartItemCommand(CartActor.Create(setup.UserId, null), setup.MasterProduct.Id, 1),
             CancellationToken.None);
 
-        result.Item.VendorPrices.Should().ContainSingle();
-        result.Item.VendorPrices[0].Name.Should().Be("Green Valley Market");
-        result.Item.VendorPrices[0].Price.Should().Be(50m);
+        result.Item.VendorPrices.Should().BeEmpty();
     }
 
     private static async Task<ProductSetup> SeedAvailableProductAsync(Infrastructure.Persistence.ApplicationDbContext context)

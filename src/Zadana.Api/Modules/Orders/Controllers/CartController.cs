@@ -11,6 +11,7 @@ using Zadana.Application.Modules.Orders.Commands.RemoveCartItem;
 using Zadana.Application.Modules.Orders.Commands.UpdateCartItemQuantity;
 using Zadana.Application.Modules.Orders.DTOs;
 using Zadana.Application.Modules.Orders.Queries.GetCart;
+using Zadana.Application.Modules.Orders.Queries.GetCartVendors;
 using Zadana.Application.Modules.Orders.Support;
 using Zadana.SharedKernel.Exceptions;
 
@@ -43,13 +44,20 @@ public class CartController : ApiControllerBase
         return Ok(result);
     }
 
+    [HttpGet("vendors")]
+    public async Task<ActionResult<CartAvailableVendorsDto>> GetCartVendors(CancellationToken cancellationToken = default)
+    {
+        var result = await Sender.Send(new GetCartVendorsQuery(GetCartActor()), cancellationToken);
+        return Ok(result);
+    }
+
     [HttpPost("items")]
     public async Task<ActionResult<CartItemMutationResponseDto>> AddItem(
         [FromBody] AddCartItemRequest request,
         CancellationToken cancellationToken = default)
     {
         var result = await Sender.Send(
-            new AddCartItemCommand(GetCartActor(), request.ProductId, request.Quantity, request.VendorId),
+            new AddCartItemCommand(GetCartActor(), request.ProductId, request.Quantity),
             cancellationToken);
 
         return Ok(result);

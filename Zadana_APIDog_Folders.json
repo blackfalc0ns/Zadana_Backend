@@ -4881,6 +4881,9 @@
                                                  "tags":  [
                                                               "Customer/Orders"
                                                           ],
+                                                 "security":  [
+
+                                                              ],
                                                  "parameters":  [
                                                                     {
                                                                         "name":  "vendor_id",
@@ -4929,6 +4932,9 @@
                                                     "tags":  [
                                                                  "Customer/Orders"
                                                              ],
+                                                    "security":  [
+
+                                                                 ],
                                                     "parameters":  [
                                                                        {
                                                                            "name":  "X-Device-Id",
@@ -4962,14 +4968,61 @@
                                                                               }
                                                                   }
                                                 }
-                                 },
-                  "/api/cart/items":  {
-                                           "post":  {
-                                                        "summary":  "Add item to cart",
-                                                        "description":  "Adds a product to the cart owned by the authenticated customer or by the guest device provided in X-Device-Id. If vendor_id is omitted, the item is returned without prices until the customer selects a vendor. If vendor_id is sent, the response returns the price/options for that vendor only. If the product already exists in cart, the quantity is increased instead of creating a duplicate row.",
+                                             },
+                  "/api/cart/vendors":  {
+                                            "get":  {
+                                                        "summary":  "Get available cart vendors",
+                                                        "description":  "Returns the available vendors that can provide one or more of the products currently added to the cart. Use this list to let the customer pick a vendor before calling GET /api/cart with vendor_id.",
                                                         "tags":  [
                                                                      "Customer/Orders"
                                                                  ],
+                                                        "security":  [
+
+                                                                     ],
+                                                        "parameters":  [
+                                                                           {
+                                                                               "name":  "X-Device-Id",
+                                                                               "in":  "header",
+                                                                               "description":  "Optional for authenticated customers. Required for guest cart access and should contain a stable device/session identifier.",
+                                                                               "schema":  {
+                                                                                              "type":  "string"
+                                                                                          }
+                                                                           }
+                                                                       ],
+                                                        "responses":  {
+                                                                          "200":  {
+                                                                                      "description":  "OK",
+                                                                                      "content":  {
+                                                                                                      "text/plain":  {
+                                                                                                                         "schema":  {
+                                                                                                                                        "$ref":  "#/components/schemas/CartAvailableVendorsDto"
+                                                                                                                                    }
+                                                                                                                     },
+                                                                                                      "application/json":  {
+                                                                                                                               "schema":  {
+                                                                                                                                              "$ref":  "#/components/schemas/CartAvailableVendorsDto"
+                                                                                                                                          }
+                                                                                                                           },
+                                                                                                      "text/json":  {
+                                                                                                                        "schema":  {
+                                                                                                                                       "$ref":  "#/components/schemas/CartAvailableVendorsDto"
+                                                                                                                                   }
+                                                                                                                    }
+                                                                                                  }
+                                                                                  }
+                                                                      }
+                                                    }
+                                        },
+                  "/api/cart/items":  {
+                                           "post":  {
+                                                        "summary":  "Add item to cart",
+                                                        "description":  "Adds a product to the cart owned by the authenticated customer or by the guest device provided in X-Device-Id. The item is returned without prices until the customer selects a vendor using GET /api/cart/vendors and then requests GET /api/cart with vendor_id. If the product already exists in cart, the quantity is increased instead of creating a duplicate row.",
+                                                        "tags":  [
+                                                                     "Customer/Orders"
+                                                                 ],
+                                                        "security":  [
+
+                                                                     ],
                                                         "parameters":  [
                                                                            {
                                                                                "name":  "X-Device-Id",
@@ -5031,6 +5084,9 @@
                                                                   "tags":  [
                                                                                "Customer/Orders"
                                                                            ],
+                                                                  "security":  [
+
+                                                                               ],
                                                                   "parameters":  [
                                                                                      {
                                                                                          "name":  "X-Device-Id",
@@ -5099,6 +5155,9 @@
                                                                    "tags":  [
                                                                                 "Customer/Orders"
                                                                             ],
+                                                                   "security":  [
+
+                                                                                ],
                                                                    "parameters":  [
                                                                                       {
                                                                                           "name":  "X-Device-Id",
@@ -7230,12 +7289,6 @@
                                                                                      "quantity":  {
                                                                                                       "type":  "integer",
                                                                                                       "format":  "int32"
-                                                                                                  },
-                                                                                     "vendor_id":  {
-                                                                                                       "description":  "Optional vendor identifier. If omitted, the cart item is returned without prices until a vendor is selected.",
-                                                                                                       "type":  "string",
-                                                                                                       "format":  "uuid",
-                                                                                                       "nullable":  true
                                                                                                   }
                                                                                  },
                                                                   "additionalProperties":  false
@@ -7282,6 +7335,41 @@
                                                                                   },
                                                                    "additionalProperties":  false
                                                                },
+                                       "CartAvailableVendorDto":  {
+                                                                       "type":  "object",
+                                                                       "properties":  {
+                                                                                          "id":  {
+                                                                                                     "type":  "string",
+                                                                                                     "format":  "uuid"
+                                                                                                 },
+                                                                                          "name":  {
+                                                                                                       "type":  "string",
+                                                                                                       "nullable":  true
+                                                                                                   },
+                                                                                          "logo_url":  {
+                                                                                                           "type":  "string",
+                                                                                                           "nullable":  true
+                                                                                                       },
+                                                                                          "products_count":  {
+                                                                                                                  "type":  "integer",
+                                                                                                                  "format":  "int32"
+                                                                                                              }
+                                                                                      },
+                                                                       "additionalProperties":  false
+                                                                   },
+                                       "CartAvailableVendorsDto":  {
+                                                                        "type":  "object",
+                                                                        "properties":  {
+                                                                                           "vendors":  {
+                                                                                                           "type":  "array",
+                                                                                                           "items":  {
+                                                                                                                         "$ref":  "#/components/schemas/CartAvailableVendorDto"
+                                                                                                                     },
+                                                                                                           "nullable":  true
+                                                                                                       }
+                                                                                       },
+                                                                        "additionalProperties":  false
+                                                                    },
                                        "CartItemDto":  {
                                                              "type":  "object",
                                                              "properties":  {
@@ -9755,7 +9843,7 @@
                        "securitySchemes":  {
                                                "Bearer":  {
                                                               "type":  "http",
-                                                              "description":  "JWT Authorization header using the Bearer scheme. Example: \"Authorization: Bearer {token}\"",
+                                                              "description":  "JWT Authorization header using the Bearer scheme. Example: \"Authorization: Bearer {token}\". Note: some customer cart endpoints can also be used as guest endpoints with X-Device-Id and therefore do not require Bearer.",
                                                               "scheme":  "bearer"
                                                           }
                                            }

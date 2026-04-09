@@ -15,8 +15,7 @@ namespace Zadana.Application.Modules.Orders.Commands.AddCartItem;
 public record AddCartItemCommand(
     CartActor Actor,
     Guid ProductId,
-    int Quantity,
-    Guid? VendorId) : IRequest<CartItemMutationResponseDto>;
+    int Quantity) : IRequest<CartItemMutationResponseDto>;
 
 public class AddCartItemCommandValidator : AbstractValidator<AddCartItemCommand>
 {
@@ -48,7 +47,7 @@ public class AddCartItemCommandHandler : IRequestHandler<AddCartItemCommand, Car
             throw new NotFoundException("MasterProduct", request.ProductId);
         }
 
-        if (!await CartProjection.HasVisibleOfferAsync(_context, request.ProductId, request.VendorId, cancellationToken))
+        if (!await CartProjection.HasVisibleOfferAsync(_context, request.ProductId, null, cancellationToken))
         {
             throw new BusinessRuleException("PRODUCT_NOT_AVAILABLE", "Product is not available.");
         }
@@ -89,7 +88,7 @@ public class AddCartItemCommandHandler : IRequestHandler<AddCartItemCommand, Car
         cart.UpdateTotals(0, 0);
         await _context.SaveChangesAsync(cancellationToken);
 
-        var cartDto = await CartProjection.BuildCartDtoAsync(_context, cart, cancellationToken, request.VendorId);
+        var cartDto = await CartProjection.BuildCartDtoAsync(_context, cart, cancellationToken, null);
         var itemDto = cartDto.Items.Single(item => item.Id == affectedItem.Id);
 
         return new CartItemMutationResponseDto("added to cart successfully", itemDto, cartDto.Summary);

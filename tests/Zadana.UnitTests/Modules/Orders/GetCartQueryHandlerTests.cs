@@ -1,6 +1,7 @@
 using System.Globalization;
 using FluentAssertions;
 using Zadana.Application.Modules.Orders.Queries.GetCart;
+using Zadana.Application.Modules.Orders.Queries.GetCartVendors;
 using Zadana.Application.Modules.Orders.Support;
 using Zadana.Domain.Modules.Catalog.Entities;
 using Zadana.Domain.Modules.Orders.Entities;
@@ -62,6 +63,22 @@ public class GetCartQueryHandlerTests
         result.Items[0].VendorPrices.Should().ContainSingle();
         result.Items[0].VendorPrices[0].Name.Should().Be("Green Valley Market");
         result.Items[0].VendorPrices[0].Price.Should().Be(50m);
+    }
+
+    [Fact]
+    public async Task GetCartVendors_ReturnsAvailableVendorsForCartProducts()
+    {
+        using var scope = new CultureScope("en");
+        await using var context = TestDbContextFactory.Create();
+
+        var setup = await SeedCartScenarioAsync(context);
+        var handler = new GetCartVendorsQueryHandler(context);
+
+        var result = await handler.Handle(new GetCartVendorsQuery(CartActor.Create(setup.UserId, null)), CancellationToken.None);
+
+        result.Vendors.Should().HaveCount(2);
+        result.Vendors[0].ProductsCount.Should().Be(1);
+        result.Vendors.Select(item => item.Name).Should().Contain(["Green Valley Market", "Town Store"]);
     }
 
     private static async Task<CartScenario> SeedCartScenarioAsync(Infrastructure.Persistence.ApplicationDbContext context)
