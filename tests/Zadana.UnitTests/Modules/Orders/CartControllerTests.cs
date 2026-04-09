@@ -27,6 +27,7 @@ public class CartControllerTests
     public CartControllerTests()
     {
         _currentUserServiceMock.SetupGet(x => x.UserId).Returns(Guid.NewGuid());
+        _currentUserServiceMock.SetupGet(x => x.IsAuthenticated).Returns(true);
         _localizerMock.Setup(x => x[It.IsAny<string>()])
             .Returns((string key) => new LocalizedString(key, key));
 
@@ -52,7 +53,7 @@ public class CartControllerTests
         _senderMock.Setup(x => x.Send(It.IsAny<GetCartQuery>(), It.IsAny<CancellationToken>()))
             .ReturnsAsync(dto);
 
-        var result = await _controller.GetCart(CancellationToken.None);
+        var result = await _controller.GetCart(null, CancellationToken.None);
 
         var okResult = result.Result.Should().BeOfType<OkObjectResult>().Subject;
         okResult.Value.Should().BeEquivalentTo(dto);
@@ -69,7 +70,7 @@ public class CartControllerTests
         _senderMock.Setup(x => x.Send(It.IsAny<AddCartItemCommand>(), It.IsAny<CancellationToken>()))
             .ReturnsAsync(dto);
 
-        var result = await _controller.AddItem(new AddCartItemRequest(Guid.NewGuid(), 1), CancellationToken.None);
+        var result = await _controller.AddItem(new AddCartItemRequest(Guid.NewGuid(), 1, null), CancellationToken.None);
 
         var okResult = result.Result.Should().BeOfType<OkObjectResult>().Subject;
         okResult.Value.Should().BeEquivalentTo(dto);
@@ -116,5 +117,59 @@ public class CartControllerTests
 
         var okResult = result.Result.Should().BeOfType<OkObjectResult>().Subject;
         okResult.Value.Should().BeEquivalentTo(dto);
+    }
+
+    [Fact]
+    public async Task AddItem_AllowsGuest_WhenDeviceHeaderIsProvided()
+    {
+        _currentUserServiceMock.SetupGet(x => x.UserId).Returns((Guid?)null);
+        _currentUserServiceMock.SetupGet(x => x.IsAuthenticated).Returns(false);
+        _controller.ControllerContext.HttpContext.Request.Headers["X-Device-Id"] = "guest-device-123";
+
+        var dto = new CartItemMutationResponseDto(
+            "added to cart successfully",
+            new CartItemDto(Guid.NewGuid(), Guid.NewGuid(), "Milk", null, "Liter", 1, []),
+            new CartSummaryDto(1, 1));
+
+        _senderMock.Setup(x => x.Send(It.IsAny<AddCartItemCommand>(), It.IsAny<CancellationToken>()))
+            .ReturnsAsync(dto);
+
+        var result = await _controller.AddItem(new AddCartItemRequest(Guid.NewGuid(), 1, null), CancellationToken.None);
+
+        var okResult = result.Result.Should().BeOfType<OkObjectResult>().Subject;
+        okResult.Value.Should().BeEquivalentTo(dto);
+    }
+
+    [Fact]
+    public async Task GetCart_PassesVendorIdToQuery()
+    {
+        var dto = new CartDto([], new CartSummaryDto(0, 0));
+        GetCartQuery? sentQuery = null;
+
+        _senderMock.Setup(x => x.Send(It.IsAny<GetCartQuery>(), It.IsAny<CancellationToken>()))
+            .Callback<GetCartQuery, CancellationToken>((query, _) => sentQuery = query)
+            .ReturnsAsync(dto);
+
+        var vendorId = Guid.NewGuid();
+        await _controller.GetCart(vendorId, CancellationToken.None);
+
+        sentQuery.Should().NotBeNull();
+        sentQuery!.VendorId.Should().Be(vendorId);
+    }
+
+    [Fact]
+    public async Task GetCart_SendsNullVendorId_WhenNotProvided()
+    {
+        var dto = new CartDto([], new CartSummaryDto(0, 0));
+        GetCartQuery? sentQuery = null;
+
+        _senderMock.Setup(x => x.Send(It.IsAny<GetCartQuery>(), It.IsAny<CancellationToken>()))
+            .Callback<GetCartQuery, CancellationToken>((query, _) => sentQuery = query)
+            .ReturnsAsync(dto);
+
+        await _controller.GetCart(null, CancellationToken.None);
+
+        sentQuery.Should().NotBeNull();
+        sentQuery!.VendorId.Should().BeNull();
     }
 }

@@ -16,6 +16,7 @@ public class CartConfiguration : IEntityTypeConfiguration<Cart>
         builder.Property(x => x.DiscountTotal).HasPrecision(18, 2).IsRequired();
         builder.Property(x => x.DeliveryFee).HasPrecision(18, 2).IsRequired();
         builder.Property(x => x.Total).HasPrecision(18, 2).IsRequired();
+        builder.Property(x => x.GuestId).HasMaxLength(200);
 
         builder.HasOne(x => x.User)
             .WithMany()
@@ -27,6 +28,12 @@ public class CartConfiguration : IEntityTypeConfiguration<Cart>
             .HasForeignKey(x => x.CartId)
             .OnDelete(DeleteBehavior.Cascade);
 
-        builder.HasIndex(x => x.UserId).IsUnique();
+        builder.HasIndex(x => x.UserId)
+            .IsUnique()
+            .HasFilter("[UserId] IS NOT NULL");
+
+        builder.HasIndex(x => x.GuestId)
+            .IsUnique()
+            .HasFilter("[GuestId] IS NOT NULL");
     }
 }

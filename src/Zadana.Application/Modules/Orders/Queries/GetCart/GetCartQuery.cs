@@ -6,7 +6,7 @@ using Zadana.Application.Modules.Orders.Support;
 
 namespace Zadana.Application.Modules.Orders.Queries.GetCart;
 
-public record GetCartQuery(Guid UserId) : IRequest<CartDto>;
+public record GetCartQuery(CartActor Actor, Guid? VendorId) : IRequest<CartDto>;
 
 public class GetCartQueryHandler : IRequestHandler<GetCartQuery, CartDto>
 {
@@ -21,8 +21,12 @@ public class GetCartQueryHandler : IRequestHandler<GetCartQuery, CartDto>
     {
         var cart = await _context.Carts
             .Include(item => item.Items)
-            .FirstOrDefaultAsync(cart => cart.UserId == request.UserId, cancellationToken);
+            .FirstOrDefaultAsync(
+                cart => request.Actor.UserId.HasValue
+                    ? cart.UserId == request.Actor.UserId.Value
+                    : cart.GuestId == request.Actor.GuestId,
+                cancellationToken);
 
-        return await CartProjection.BuildCartDtoAsync(_context, cart, cancellationToken);
+        return await CartProjection.BuildCartDtoAsync(_context, cart, cancellationToken, request.VendorId);
     }
 }

@@ -3,6 +3,7 @@ using Zadana.Application.Modules.Orders.Commands.AddCartItem;
 using Zadana.Application.Modules.Orders.Commands.ClearCart;
 using Zadana.Application.Modules.Orders.Commands.RemoveCartItem;
 using Zadana.Application.Modules.Orders.Commands.UpdateCartItemQuantity;
+using Zadana.Application.Modules.Orders.Support;
 using Zadana.Domain.Modules.Catalog.Entities;
 using Zadana.Domain.Modules.Orders.Entities;
 using Zadana.Domain.Modules.Vendors.Entities;
@@ -20,12 +21,12 @@ public class CartCommandsTests
 
         var handler = new AddCartItemCommandHandler(context);
 
-        var result = await handler.Handle(new AddCartItemCommand(setup.UserId, setup.MasterProduct.Id, 2), CancellationToken.None);
+        var result = await handler.Handle(new AddCartItemCommand(CartActor.Create(setup.UserId, null), setup.MasterProduct.Id, 2, null), CancellationToken.None);
 
         result.Message.Should().Be("added to cart successfully");
         result.Item.ProductId.Should().Be(setup.MasterProduct.Id);
         result.Item.Quantity.Should().Be(2);
-        result.Item.VendorPrices.Should().HaveCount(2);
+        result.Item.VendorPrices.Should().BeEmpty();
         context.Carts.Should().ContainSingle();
     }
 
@@ -37,7 +38,7 @@ public class CartCommandsTests
 
         var handler = new UpdateCartItemQuantityCommandHandler(context);
 
-        var result = await handler.Handle(new UpdateCartItemQuantityCommand(setup.UserId, setup.CartItem.Id, 5), CancellationToken.None);
+        var result = await handler.Handle(new UpdateCartItemQuantityCommand(CartActor.Create(setup.UserId, null), setup.CartItem.Id, 5), CancellationToken.None);
 
         result.Message.Should().Be("cart item updated successfully");
         result.Item.Quantity.Should().Be(5);
@@ -52,7 +53,7 @@ public class CartCommandsTests
 
         var handler = new RemoveCartItemCommandHandler(context);
 
-        var result = await handler.Handle(new RemoveCartItemCommand(setup.UserId, setup.CartItem.Id), CancellationToken.None);
+        var result = await handler.Handle(new RemoveCartItemCommand(CartActor.Create(setup.UserId, null), setup.CartItem.Id), CancellationToken.None);
 
         result.Message.Should().Be("cart item removed successfully");
         result.Summary.ItemsCount.Should().Be(0);
@@ -68,10 +69,27 @@ public class CartCommandsTests
 
         var handler = new ClearCartCommandHandler(context);
 
-        var result = await handler.Handle(new ClearCartCommand(setup.UserId), CancellationToken.None);
+        var result = await handler.Handle(new ClearCartCommand(CartActor.Create(setup.UserId, null)), CancellationToken.None);
 
         result.Message.Should().Be("cart cleared successfully");
         context.Carts.Should().BeEmpty();
+    }
+
+    [Fact]
+    public async Task AddCartItem_ReturnsOnlyRequestedVendorPrice_WhenVendorIdIsProvided()
+    {
+        await using var context = TestDbContextFactory.Create();
+        var setup = await SeedAvailableProductAsync(context);
+
+        var handler = new AddCartItemCommandHandler(context);
+
+        var result = await handler.Handle(
+            new AddCartItemCommand(CartActor.Create(setup.UserId, null), setup.MasterProduct.Id, 1, setup.FirstVendorId),
+            CancellationToken.None);
+
+        result.Item.VendorPrices.Should().ContainSingle();
+        result.Item.VendorPrices[0].Name.Should().Be("Green Valley Market");
+        result.Item.VendorPrices[0].Price.Should().Be(50m);
     }
 
     private static async Task<ProductSetup> SeedAvailableProductAsync(Infrastructure.Persistence.ApplicationDbContext context)
@@ -100,7 +118,7 @@ public class CartCommandsTests
             new VendorProduct(secondVendor.Id, masterProduct.Id, 55m, 8));
         await context.SaveChangesAsync();
 
-        return new ProductSetup(Guid.NewGuid(), masterProduct);
+        return new ProductSetup(Guid.NewGuid(), masterProduct, firstVendor.Id, secondVendor.Id);
     }
 
     private static async Task<CartSetup> SeedCartWithItemAsync(Infrastructure.Persistence.ApplicationDbContext context)
@@ -130,7 +148,7 @@ public class CartCommandsTests
         return vendor;
     }
 
-    private sealed record ProductSetup(Guid UserId, MasterProduct MasterProduct);
+    private sealed record ProductSetup(Guid UserId, MasterProduct MasterProduct, Guid FirstVendorId, Guid SecondVendorId);
 
     private sealed record CartSetup(Guid UserId, MasterProduct MasterProduct, CartItem CartItem);
 }

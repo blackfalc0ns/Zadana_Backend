@@ -6,7 +6,8 @@ namespace Zadana.Domain.Modules.Orders.Entities;
 
 public class Cart : BaseEntity
 {
-    public Guid UserId { get; private set; }
+    public Guid? UserId { get; private set; }
+    public string? GuestId { get; private set; }
     public Guid? CouponId { get; private set; }
     
     public decimal Subtotal { get; private set; }
@@ -15,16 +16,22 @@ public class Cart : BaseEntity
     public decimal Total { get; private set; }
 
     // Navigation
-    public User User { get; private set; } = null!;
+    public User? User { get; private set; }
     // Note: Coupon is resolved from Marketing module
     
     public ICollection<CartItem> Items { get; private set; } = [];
 
     private Cart() { }
 
-    public Cart(Guid userId)
+    public Cart(Guid? userId, string? guestId = null)
     {
+        if (!userId.HasValue && string.IsNullOrWhiteSpace(guestId))
+        {
+            throw new InvalidOperationException("Cart owner is required.");
+        }
+
         UserId = userId;
+        GuestId = guestId?.Trim();
         Subtotal = 0;
         DiscountTotal = 0;
         DeliveryFee = 0;

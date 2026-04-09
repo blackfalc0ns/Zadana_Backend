@@ -1,6 +1,7 @@
 using System.Globalization;
 using FluentAssertions;
 using Zadana.Application.Modules.Orders.Queries.GetCart;
+using Zadana.Application.Modules.Orders.Support;
 using Zadana.Domain.Modules.Catalog.Entities;
 using Zadana.Domain.Modules.Orders.Entities;
 using Zadana.Domain.Modules.Vendors.Entities;
@@ -18,7 +19,7 @@ public class GetCartQueryHandlerTests
 
         var handler = new GetCartQueryHandler(context);
 
-        var result = await handler.Handle(new GetCartQuery(Guid.NewGuid()), CancellationToken.None);
+        var result = await handler.Handle(new GetCartQuery(CartActor.Create(Guid.NewGuid(), null), null), CancellationToken.None);
 
         result.Items.Should().BeEmpty();
         result.Summary.ItemsCount.Should().Be(0);
@@ -34,7 +35,7 @@ public class GetCartQueryHandlerTests
         var setup = await SeedCartScenarioAsync(context);
         var handler = new GetCartQueryHandler(context);
 
-        var result = await handler.Handle(new GetCartQuery(setup.UserId), CancellationToken.None);
+        var result = await handler.Handle(new GetCartQuery(CartActor.Create(setup.UserId, null), null), CancellationToken.None);
 
         result.Summary.ItemsCount.Should().Be(1);
         result.Summary.TotalQuantity.Should().Be(2);
@@ -43,10 +44,24 @@ public class GetCartQueryHandlerTests
         result.Items[0].Name.Should().Be("Full Cream Milk 1L");
         result.Items[0].Unit.Should().Be("Liter");
         result.Items[0].ImageUrl.Should().Be("https://cdn.test/milk-primary.jpg");
-        result.Items[0].VendorPrices.Should().HaveCount(2);
+        result.Items[0].VendorPrices.Should().BeEmpty();
+    }
+
+    [Fact]
+    public async Task Handle_FiltersVendorPrices_WhenVendorIdIsProvided()
+    {
+        using var scope = new CultureScope("en");
+        await using var context = TestDbContextFactory.Create();
+
+        var setup = await SeedCartScenarioAsync(context);
+        var handler = new GetCartQueryHandler(context);
+
+        var result = await handler.Handle(new GetCartQuery(CartActor.Create(setup.UserId, null), setup.FirstVendorId), CancellationToken.None);
+
+        result.Items.Should().ContainSingle();
+        result.Items[0].VendorPrices.Should().ContainSingle();
+        result.Items[0].VendorPrices[0].Name.Should().Be("Green Valley Market");
         result.Items[0].VendorPrices[0].Price.Should().Be(50m);
-        result.Items[0].VendorPrices[0].OldPrice.Should().Be(60m);
-        result.Items[0].VendorPrices[0].IsDiscounted.Should().BeTrue();
     }
 
     private static async Task<CartScenario> SeedCartScenarioAsync(Infrastructure.Persistence.ApplicationDbContext context)
@@ -80,7 +95,7 @@ public class GetCartQueryHandlerTests
         context.Carts.Add(cart);
         await context.SaveChangesAsync();
 
-        return new CartScenario(cart.UserId, masterProduct);
+        return new CartScenario(cart.UserId, masterProduct, firstVendor.Id, secondVendor.Id);
     }
 
     private static Vendor CreateActiveVendor(string businessNameEn)
@@ -98,7 +113,7 @@ public class GetCartQueryHandlerTests
         return vendor;
     }
 
-    private sealed record CartScenario(Guid UserId, MasterProduct MasterProduct);
+    private sealed record CartScenario(Guid? UserId, MasterProduct MasterProduct, Guid FirstVendorId, Guid SecondVendorId);
 
     private sealed class CultureScope : IDisposable
     {

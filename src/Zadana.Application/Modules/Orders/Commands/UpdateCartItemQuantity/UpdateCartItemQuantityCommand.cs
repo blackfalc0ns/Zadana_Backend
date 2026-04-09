@@ -11,7 +11,7 @@ using Zadana.SharedKernel.Exceptions;
 namespace Zadana.Application.Modules.Orders.Commands.UpdateCartItemQuantity;
 
 public record UpdateCartItemQuantityCommand(
-    Guid UserId,
+    CartActor Actor,
     Guid CartItemId,
     int Quantity) : IRequest<CartItemMutationResponseDto>;
 
@@ -19,7 +19,6 @@ public class UpdateCartItemQuantityCommandValidator : AbstractValidator<UpdateCa
 {
     public UpdateCartItemQuantityCommandValidator(IStringLocalizer<SharedResource> localizer)
     {
-        RuleFor(x => x.UserId).NotEmpty().WithMessage(x => localizer["RequiredField"]);
         RuleFor(x => x.CartItemId).NotEmpty().WithMessage(x => localizer["RequiredField"]);
         RuleFor(x => x.Quantity).GreaterThan(0).WithMessage(x => localizer["GreaterThanZero"]);
     }
@@ -38,7 +37,11 @@ public class UpdateCartItemQuantityCommandHandler : IRequestHandler<UpdateCartIt
     {
         var cart = await _context.Carts
             .Include(item => item.Items)
-            .FirstOrDefaultAsync(item => item.UserId == request.UserId, cancellationToken)
+            .FirstOrDefaultAsync(
+                item => request.Actor.UserId.HasValue
+                    ? item.UserId == request.Actor.UserId.Value
+                    : item.GuestId == request.Actor.GuestId,
+                cancellationToken)
             ?? throw new NotFoundException("CartItem", request.CartItemId);
 
         var cartItem = cart.Items.FirstOrDefault(item => item.Id == request.CartItemId)

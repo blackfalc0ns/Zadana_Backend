@@ -4877,10 +4877,29 @@
                   "/api/cart":  {
                                      "get":  {
                                                  "summary":  "Get customer cart",
-                                                 "description":  "Returns the authenticated customer's cart items, grouped by product with vendor price comparison for each item.",
+                                                 "description":  "Returns the cart items for either the authenticated customer or a guest device identified by the X-Device-Id header. When vendor_id is not sent, products are returned without prices until the customer selects a vendor. When vendor_id is sent, each cart item returns the price/options for that vendor only.",
                                                  "tags":  [
                                                               "Customer/Orders"
                                                           ],
+                                                 "parameters":  [
+                                                                    {
+                                                                        "name":  "vendor_id",
+                                                                        "in":  "query",
+                                                                        "description":  "Optional vendor identifier. When omitted, the cart returns products without prices. When provided, each cart item returns the price/options for this vendor only.",
+                                                                        "schema":  {
+                                                                                       "type":  "string",
+                                                                                       "format":  "uuid"
+                                                                                   }
+                                                                    },
+                                                                    {
+                                                                        "name":  "X-Device-Id",
+                                                                        "in":  "header",
+                                                                        "description":  "Optional for authenticated customers. Required for guest cart access and should contain a stable device/session identifier.",
+                                                                        "schema":  {
+                                                                                       "type":  "string"
+                                                                                   }
+                                                                    }
+                                                                ],
                                                  "responses":  {
                                                                    "200":  {
                                                                                "description":  "OK",
@@ -4906,10 +4925,20 @@
                                              },
                                      "delete":  {
                                                     "summary":  "Clear customer cart",
-                                                    "description":  "Removes all items from the authenticated customer's cart.",
+                                                    "description":  "Removes all items from the cart owned by the authenticated customer or by the guest device provided in X-Device-Id.",
                                                     "tags":  [
                                                                  "Customer/Orders"
                                                              ],
+                                                    "parameters":  [
+                                                                       {
+                                                                           "name":  "X-Device-Id",
+                                                                           "in":  "header",
+                                                                           "description":  "Optional for authenticated customers. Required for guest cart access and should contain a stable device/session identifier.",
+                                                                           "schema":  {
+                                                                                          "type":  "string"
+                                                                                      }
+                                                                       }
+                                                                   ],
                                                     "responses":  {
                                                                       "200":  {
                                                                                   "description":  "OK",
@@ -4937,10 +4966,20 @@
                   "/api/cart/items":  {
                                            "post":  {
                                                         "summary":  "Add item to cart",
-                                                        "description":  "Adds a product to the authenticated customer's cart. If the product already exists in cart, the quantity is increased instead of creating a duplicate row.",
+                                                        "description":  "Adds a product to the cart owned by the authenticated customer or by the guest device provided in X-Device-Id. If vendor_id is omitted, the item is returned without prices until the customer selects a vendor. If vendor_id is sent, the response returns the price/options for that vendor only. If the product already exists in cart, the quantity is increased instead of creating a duplicate row.",
                                                         "tags":  [
                                                                      "Customer/Orders"
                                                                  ],
+                                                        "parameters":  [
+                                                                           {
+                                                                               "name":  "X-Device-Id",
+                                                                               "in":  "header",
+                                                                               "description":  "Optional for authenticated customers. Required for guest cart access and should contain a stable device/session identifier.",
+                                                                               "schema":  {
+                                                                                              "type":  "string"
+                                                                                          }
+                                                                           }
+                                                                       ],
                                                         "requestBody":  {
                                                                             "required":  true,
                                                                             "content":  {
@@ -4988,11 +5027,19 @@
                   "/api/cart/items/{itemId}":  {
                                                     "patch":  {
                                                                   "summary":  "Update cart item quantity",
-                                                                  "description":  "Updates the quantity of a single cart item for the authenticated customer.",
+                                                                  "description":  "Updates the quantity of a single cart item for the cart owned by the authenticated customer or by the guest device provided in X-Device-Id.",
                                                                   "tags":  [
                                                                                "Customer/Orders"
                                                                            ],
                                                                   "parameters":  [
+                                                                                     {
+                                                                                         "name":  "X-Device-Id",
+                                                                                         "in":  "header",
+                                                                                         "description":  "Optional for authenticated customers. Required for guest cart access and should contain a stable device/session identifier.",
+                                                                                         "schema":  {
+                                                                                                        "type":  "string"
+                                                                                                    }
+                                                                                     },
                                                                                      {
                                                                                          "name":  "itemId",
                                                                                          "in":  "path",
@@ -5048,11 +5095,19 @@
                                                               },
                                                     "delete":  {
                                                                    "summary":  "Remove cart item",
-                                                                   "description":  "Removes one item from the authenticated customer's cart.",
+                                                                   "description":  "Removes one item from the cart owned by the authenticated customer or by the guest device provided in X-Device-Id.",
                                                                    "tags":  [
                                                                                 "Customer/Orders"
                                                                             ],
                                                                    "parameters":  [
+                                                                                      {
+                                                                                          "name":  "X-Device-Id",
+                                                                                          "in":  "header",
+                                                                                          "description":  "Optional for authenticated customers. Required for guest cart access and should contain a stable device/session identifier.",
+                                                                                          "schema":  {
+                                                                                                         "type":  "string"
+                                                                                                     }
+                                                                                      },
                                                                                       {
                                                                                           "name":  "itemId",
                                                                                           "in":  "path",
@@ -7175,6 +7230,12 @@
                                                                                      "quantity":  {
                                                                                                       "type":  "integer",
                                                                                                       "format":  "int32"
+                                                                                                  },
+                                                                                     "vendor_id":  {
+                                                                                                       "description":  "Optional vendor identifier. If omitted, the cart item is returned without prices until a vendor is selected.",
+                                                                                                       "type":  "string",
+                                                                                                       "format":  "uuid",
+                                                                                                       "nullable":  true
                                                                                                   }
                                                                                  },
                                                                   "additionalProperties":  false
@@ -7191,25 +7252,31 @@
                                                                           },
                                        "CartVendorPriceDto":  {
                                                                    "type":  "object",
+                                                                   "description":  "Represents one available store offer for the cart product. Use the returned id as the vendor offer identifier when the user chooses a specific store/price later in the flow.",
                                                                    "properties":  {
                                                                                       "id":  {
+                                                                                                 "description":  "Vendor offer identifier for this product price option. This is the id the app should keep/send later when the user selects a specific store offer.",
                                                                                                  "type":  "string",
                                                                                                  "format":  "uuid"
                                                                                              },
                                                                                       "name":  {
+                                                                                                   "description":  "Localized store name shown to the customer.",
                                                                                                    "type":  "string",
                                                                                                    "nullable":  true
                                                                                                },
                                                                                       "price":  {
+                                                                                                    "description":  "Current selling price offered by this store.",
                                                                                                     "type":  "number",
                                                                                                     "format":  "double"
                                                                                                 },
                                                                                       "old_price":  {
+                                                                                                        "description":  "Previous price for this store offer when discounted.",
                                                                                                         "type":  "number",
                                                                                                         "format":  "double",
                                                                                                         "nullable":  true
                                                                                                     },
                                                                                       "is_discounted":  {
+                                                                                                             "description":  "Indicates whether this store offer is currently discounted.",
                                                                                                              "type":  "boolean"
                                                                                                          }
                                                                                   },

@@ -11,15 +11,18 @@ using Zadana.Application.Modules.Orders.Commands.RemoveCartItem;
 using Zadana.Application.Modules.Orders.Commands.UpdateCartItemQuantity;
 using Zadana.Application.Modules.Orders.DTOs;
 using Zadana.Application.Modules.Orders.Queries.GetCart;
+using Zadana.Application.Modules.Orders.Support;
 using Zadana.SharedKernel.Exceptions;
 
 namespace Zadana.Api.Modules.Orders.Controllers;
 
 [Route("api/cart")]
 [Tags("Customer App API")]
-[Authorize(Policy = "CustomerOnly")]
+[AllowAnonymous]
 public class CartController : ApiControllerBase
 {
+    private const string GuestDeviceHeader = "X-Device-Id";
+
     private readonly ICurrentUserService _currentUserService;
     private readonly IStringLocalizer<SharedResource> _localizer;
 
@@ -32,9 +35,11 @@ public class CartController : ApiControllerBase
     }
 
     [HttpGet]
-    public async Task<ActionResult<CartDto>> GetCart(CancellationToken cancellationToken = default)
+    public async Task<ActionResult<CartDto>> GetCart(
+        [FromQuery(Name = "vendor_id")] Guid? vendorId = null,
+        CancellationToken cancellationToken = default)
     {
-        var result = await Sender.Send(new GetCartQuery(GetCurrentUserId()), cancellationToken);
+        var result = await Sender.Send(new GetCartQuery(GetCartActor(), vendorId), cancellationToken);
         return Ok(result);
     }
 
@@ -44,7 +49,7 @@ public class CartController : ApiControllerBase
         CancellationToken cancellationToken = default)
     {
         var result = await Sender.Send(
-            new AddCartItemCommand(GetCurrentUserId(), request.ProductId, request.Quantity),
+            new AddCartItemCommand(GetCartActor(), request.ProductId, request.Quantity, request.VendorId),
             cancellationToken);
 
         return Ok(result);
@@ -57,7 +62,7 @@ public class CartController : ApiControllerBase
         CancellationToken cancellationToken = default)
     {
         var result = await Sender.Send(
-            new UpdateCartItemQuantityCommand(GetCurrentUserId(), itemId, request.Quantity),
+            new UpdateCartItemQuantityCommand(GetCartActor(), itemId, request.Quantity),
             cancellationToken);
 
         return Ok(result);
@@ -68,25 +73,31 @@ public class CartController : ApiControllerBase
         Guid itemId,
         CancellationToken cancellationToken = default)
     {
-        var result = await Sender.Send(new RemoveCartItemCommand(GetCurrentUserId(), itemId), cancellationToken);
+        var result = await Sender.Send(new RemoveCartItemCommand(GetCartActor(), itemId), cancellationToken);
         return Ok(result);
     }
 
     [HttpDelete]
     public async Task<ActionResult<CartClearResponseDto>> ClearCart(CancellationToken cancellationToken = default)
     {
-        var result = await Sender.Send(new ClearCartCommand(GetCurrentUserId()), cancellationToken);
+        var result = await Sender.Send(new ClearCartCommand(GetCartActor()), cancellationToken);
         return Ok(result);
     }
 
-    private Guid GetCurrentUserId()
+    private CartActor GetCartActor()
     {
         var userId = _currentUserService.UserId;
-        if (userId is null)
+        if (userId.HasValue)
         {
-            throw new UnauthorizedException(_localizer["UserNotAuthenticated"]);
+            return CartActor.Create(userId.Value, null);
         }
 
-        return userId.Value;
+        var guestId = Request.Headers[GuestDeviceHeader].ToString();
+        if (!string.IsNullOrWhiteSpace(guestId))
+        {
+            return CartActor.Create(null, guestId);
+        }
+
+        throw new UnauthorizedException($"{_localizer["UserNotAuthenticated"]}. Send {GuestDeviceHeader} for guest cart access.");
     }
 }

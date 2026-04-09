@@ -11,14 +11,13 @@ using Zadana.SharedKernel.Exceptions;
 namespace Zadana.Application.Modules.Orders.Commands.RemoveCartItem;
 
 public record RemoveCartItemCommand(
-    Guid UserId,
+    CartActor Actor,
     Guid CartItemId) : IRequest<CartItemRemovalResponseDto>;
 
 public class RemoveCartItemCommandValidator : AbstractValidator<RemoveCartItemCommand>
 {
     public RemoveCartItemCommandValidator(IStringLocalizer<SharedResource> localizer)
     {
-        RuleFor(x => x.UserId).NotEmpty().WithMessage(x => localizer["RequiredField"]);
         RuleFor(x => x.CartItemId).NotEmpty().WithMessage(x => localizer["RequiredField"]);
     }
 }
@@ -36,7 +35,11 @@ public class RemoveCartItemCommandHandler : IRequestHandler<RemoveCartItemComman
     {
         var cart = await _context.Carts
             .Include(item => item.Items)
-            .FirstOrDefaultAsync(item => item.UserId == request.UserId, cancellationToken)
+            .FirstOrDefaultAsync(
+                item => request.Actor.UserId.HasValue
+                    ? item.UserId == request.Actor.UserId.Value
+                    : item.GuestId == request.Actor.GuestId,
+                cancellationToken)
             ?? throw new NotFoundException("CartItem", request.CartItemId);
 
         var cartItem = cart.Items.FirstOrDefault(item => item.Id == request.CartItemId)

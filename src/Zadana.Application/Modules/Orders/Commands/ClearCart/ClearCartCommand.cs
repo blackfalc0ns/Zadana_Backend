@@ -5,16 +5,17 @@ using Microsoft.Extensions.Localization;
 using Zadana.Application.Common.Interfaces;
 using Zadana.Application.Common.Localization;
 using Zadana.Application.Modules.Orders.DTOs;
+using Zadana.Application.Modules.Orders.Support;
 
 namespace Zadana.Application.Modules.Orders.Commands.ClearCart;
 
-public record ClearCartCommand(Guid UserId) : IRequest<CartClearResponseDto>;
+public record ClearCartCommand(CartActor Actor) : IRequest<CartClearResponseDto>;
 
 public class ClearCartCommandValidator : AbstractValidator<ClearCartCommand>
 {
     public ClearCartCommandValidator(IStringLocalizer<SharedResource> localizer)
     {
-        RuleFor(x => x.UserId).NotEmpty().WithMessage(x => localizer["RequiredField"]);
+        RuleFor(x => x.Actor).NotNull().WithMessage(x => localizer["RequiredField"]);
     }
 }
 
@@ -31,7 +32,11 @@ public class ClearCartCommandHandler : IRequestHandler<ClearCartCommand, CartCle
     {
         var cart = await _context.Carts
             .Include(item => item.Items)
-            .FirstOrDefaultAsync(item => item.UserId == request.UserId, cancellationToken);
+            .FirstOrDefaultAsync(
+                item => request.Actor.UserId.HasValue
+                    ? item.UserId == request.Actor.UserId.Value
+                    : item.GuestId == request.Actor.GuestId,
+                cancellationToken);
 
         if (cart is not null)
         {

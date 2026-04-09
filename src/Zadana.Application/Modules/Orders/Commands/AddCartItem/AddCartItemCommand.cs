@@ -13,15 +13,15 @@ using Zadana.SharedKernel.Exceptions;
 namespace Zadana.Application.Modules.Orders.Commands.AddCartItem;
 
 public record AddCartItemCommand(
-    Guid UserId,
+    CartActor Actor,
     Guid ProductId,
-    int Quantity) : IRequest<CartItemMutationResponseDto>;
+    int Quantity,
+    Guid? VendorId) : IRequest<CartItemMutationResponseDto>;
 
 public class AddCartItemCommandValidator : AbstractValidator<AddCartItemCommand>
 {
     public AddCartItemCommandValidator(IStringLocalizer<SharedResource> localizer)
     {
-        RuleFor(x => x.UserId).NotEmpty().WithMessage(x => localizer["RequiredField"]);
         RuleFor(x => x.ProductId).NotEmpty().WithMessage(x => localizer["RequiredField"]);
         RuleFor(x => x.Quantity).GreaterThan(0).WithMessage(x => localizer["GreaterThanZero"]);
     }
@@ -48,18 +48,22 @@ public class AddCartItemCommandHandler : IRequestHandler<AddCartItemCommand, Car
             throw new NotFoundException("MasterProduct", request.ProductId);
         }
 
-        if (!await CartProjection.HasVisibleOfferAsync(_context, request.ProductId, cancellationToken))
+        if (!await CartProjection.HasVisibleOfferAsync(_context, request.ProductId, request.VendorId, cancellationToken))
         {
             throw new BusinessRuleException("PRODUCT_NOT_AVAILABLE", "Product is not available.");
         }
 
         var cart = await _context.Carts
             .Include(item => item.Items)
-            .FirstOrDefaultAsync(item => item.UserId == request.UserId, cancellationToken);
+            .FirstOrDefaultAsync(
+                item => request.Actor.UserId.HasValue
+                    ? item.UserId == request.Actor.UserId.Value
+                    : item.GuestId == request.Actor.GuestId,
+                cancellationToken);
 
         if (cart is null)
         {
-            cart = new Cart(request.UserId);
+            cart = new Cart(request.Actor.UserId, request.Actor.GuestId);
             _context.Carts.Add(cart);
         }
 
@@ -85,7 +89,7 @@ public class AddCartItemCommandHandler : IRequestHandler<AddCartItemCommand, Car
         cart.UpdateTotals(0, 0);
         await _context.SaveChangesAsync(cancellationToken);
 
-        var cartDto = await CartProjection.BuildCartDtoAsync(_context, cart, cancellationToken);
+        var cartDto = await CartProjection.BuildCartDtoAsync(_context, cart, cancellationToken, request.VendorId);
         var itemDto = cartDto.Items.Single(item => item.Id == affectedItem.Id);
 
         return new CartItemMutationResponseDto("added to cart successfully", itemDto, cartDto.Summary);

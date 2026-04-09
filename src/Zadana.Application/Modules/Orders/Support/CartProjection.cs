@@ -13,7 +13,8 @@ internal static class CartProjection
     public static async Task<CartDto> BuildCartDtoAsync(
         IApplicationDbContext context,
         Cart? cart,
-        CancellationToken cancellationToken)
+        CancellationToken cancellationToken,
+        Guid? selectedVendorId = null)
     {
         if (cart is null || cart.Items.Count == 0)
         {
@@ -32,6 +33,11 @@ internal static class CartProjection
                 product.Id,
                 product.NameAr,
                 product.NameEn,
+                product.Images
+                    .OrderByDescending(image => image.IsPrimary)
+                    .ThenBy(image => image.DisplayOrder)
+                    .Select(image => image.Url)
+                    .FirstOrDefault(),
                 product.UnitOfMeasure != null ? product.UnitOfMeasure.NameAr : null,
                 product.UnitOfMeasure != null ? product.UnitOfMeasure.NameEn : null))
             .ToDictionaryAsync(product => product.Id, cancellationToken);
@@ -48,6 +54,7 @@ internal static class CartProjection
                 product.Vendor.AcceptOrders)
             .Select(product => new VisibleCartOfferSnapshot(
                 product.Id,
+                product.VendorId,
                 product.MasterProductId,
                 product.SellingPrice,
                 product.CompareAtPrice,
@@ -62,6 +69,7 @@ internal static class CartProjection
             .ToListAsync(cancellationToken);
 
         var offersByProductId = visibleOffers
+            .Where(offer => selectedVendorId.HasValue && offer.VendorId == selectedVendorId.Value)
             .GroupBy(offer => offer.MasterProductId)
             .ToDictionary(
                 group => group.Key,
@@ -92,7 +100,7 @@ internal static class CartProjection
                     item.Id,
                     item.MasterProductId,
                     product is null ? item.ProductName : PickLocalized(product.NameAr, product.NameEn),
-                    offers?.FirstOrDefault()?.ImageUrl,
+                    offers?.FirstOrDefault()?.ImageUrl ?? product?.ImageUrl,
                     product is null ? null : PickLocalizedNullable(product.UnitAr, product.UnitEn),
                     item.Quantity,
                     vendorPrices);
@@ -107,12 +115,14 @@ internal static class CartProjection
     public static Task<bool> HasVisibleOfferAsync(
         IApplicationDbContext context,
         Guid masterProductId,
+        Guid? vendorId,
         CancellationToken cancellationToken)
     {
         return context.VendorProducts
             .AsNoTracking()
             .AnyAsync(product =>
                 product.MasterProductId == masterProductId &&
+                (!vendorId.HasValue || product.VendorId == vendorId.Value) &&
                 product.Status == VendorProductStatus.Active &&
                 product.IsAvailable &&
                 product.StockQuantity > 0 &&
@@ -141,10 +151,11 @@ internal static class CartProjection
     private static bool IsDiscounted(decimal price, decimal? oldPrice) =>
         oldPrice.HasValue && oldPrice.Value > price;
 
-    private sealed record MasterProductSnapshot(Guid Id, string NameAr, string NameEn, string? UnitAr, string? UnitEn);
+    private sealed record MasterProductSnapshot(Guid Id, string NameAr, string NameEn, string? ImageUrl, string? UnitAr, string? UnitEn);
 
     private sealed record VisibleCartOfferSnapshot(
         Guid Id,
+        Guid VendorId,
         Guid MasterProductId,
         decimal Price,
         decimal? OldPrice,
