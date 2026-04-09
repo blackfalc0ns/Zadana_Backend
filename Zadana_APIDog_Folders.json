@@ -4971,8 +4971,8 @@
                                              },
                   "/api/cart/vendors":  {
                                             "get":  {
-                                                        "summary":  "Get available cart vendors",
-                                                        "description":  "Returns the available vendors that can provide one or more of the products currently added to the cart. Use this list to let the customer pick a vendor before calling GET /api/cart with vendor_id.",
+                                                        "summary":  "Get available vendors",
+                                                        "description":  "Returns all active vendors that currently have available products in the app. Use this list to let the customer pick a vendor before calling GET /api/cart with vendor_id.",
                                                         "tags":  [
                                                                      "Customer/Orders"
                                                                  ],

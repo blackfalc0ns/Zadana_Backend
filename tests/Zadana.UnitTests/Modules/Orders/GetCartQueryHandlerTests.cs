@@ -66,7 +66,7 @@ public class GetCartQueryHandlerTests
     }
 
     [Fact]
-    public async Task GetCartVendors_ReturnsAvailableVendorsForCartProducts()
+    public async Task GetCartVendors_ReturnsAllAvailableVendors()
     {
         using var scope = new CultureScope("en");
         await using var context = TestDbContextFactory.Create();
@@ -81,7 +81,34 @@ public class GetCartQueryHandlerTests
         result.Vendors.Select(item => item.Name).Should().Contain(["Green Valley Market", "Town Store"]);
     }
 
+    [Fact]
+    public async Task GetCartVendors_ReturnsAvailableVendors_EvenWhenCartIsEmpty()
+    {
+        using var scope = new CultureScope("en");
+        await using var context = TestDbContextFactory.Create();
+
+        var setup = await SeedCatalogOnlyScenarioAsync(context);
+        var handler = new GetCartVendorsQueryHandler(context);
+
+        var result = await handler.Handle(new GetCartVendorsQuery(CartActor.Create(Guid.NewGuid(), "guest-1")), CancellationToken.None);
+
+        result.Vendors.Should().HaveCount(2);
+        result.Vendors.Select(item => item.Name).Should().Contain(["Green Valley Market", "Town Store"]);
+    }
+
     private static async Task<CartScenario> SeedCartScenarioAsync(Infrastructure.Persistence.ApplicationDbContext context)
+    {
+        var seeded = await SeedCatalogOnlyScenarioAsync(context);
+
+        var cart = new Cart(Guid.NewGuid());
+        cart.Items.Add(new CartItem(cart.Id, seeded.MasterProduct.Id, seeded.MasterProduct.NameEn, 2));
+        context.Carts.Add(cart);
+        await context.SaveChangesAsync();
+
+        return new CartScenario(cart.UserId, seeded.MasterProduct, seeded.FirstVendorId, seeded.SecondVendorId);
+    }
+
+    private static async Task<CatalogScenario> SeedCatalogOnlyScenarioAsync(Infrastructure.Persistence.ApplicationDbContext context)
     {
         var category = new Category("milk-ar", "Milk", null, null, 1);
         var brand = new Brand("brand-ar", "Almarai", "almarai.png");
@@ -106,13 +133,8 @@ public class GetCartQueryHandlerTests
             new VendorProduct(firstVendor.Id, masterProduct.Id, 50m, 10, 60m),
             new VendorProduct(secondVendor.Id, masterProduct.Id, 55m, 8, 65m));
         await context.SaveChangesAsync();
-
-        var cart = new Cart(Guid.NewGuid());
-        cart.Items.Add(new CartItem(cart.Id, masterProduct.Id, masterProduct.NameEn, 2));
-        context.Carts.Add(cart);
-        await context.SaveChangesAsync();
-
-        return new CartScenario(cart.UserId, masterProduct, firstVendor.Id, secondVendor.Id);
+        
+        return new CatalogScenario(masterProduct, firstVendor.Id, secondVendor.Id);
     }
 
     private static Vendor CreateActiveVendor(string businessNameEn)
@@ -131,6 +153,7 @@ public class GetCartQueryHandlerTests
     }
 
     private sealed record CartScenario(Guid? UserId, MasterProduct MasterProduct, Guid FirstVendorId, Guid SecondVendorId);
+    private sealed record CatalogScenario(MasterProduct MasterProduct, Guid FirstVendorId, Guid SecondVendorId);
 
     private sealed class CultureScope : IDisposable
     {
