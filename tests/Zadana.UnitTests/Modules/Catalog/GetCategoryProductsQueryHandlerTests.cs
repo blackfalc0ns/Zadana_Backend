@@ -165,6 +165,53 @@ public class GetCategoryProductsQueryHandlerTests
         bestSelling.Items.First().Name.Should().Be("Zeta");
     }
 
+    [Fact]
+    public async Task Handle_WhenParentCategoryIsSelected_IncludesProductsFromActiveSubcategories()
+    {
+        using var scope = new CultureScope("en");
+        await using var context = TestDbContextFactory.Create();
+
+        var root = new Category("food-ar", "Food", null, null, 1);
+        context.Categories.Add(root);
+        await context.SaveChangesAsync();
+
+        var milk = new Category("milk-ar", "Milk", null, root.Id, 1);
+        var cheese = new Category("cheese-ar", "Cheese", null, root.Id, 2);
+        context.Categories.AddRange(milk, cheese);
+        await context.SaveChangesAsync();
+
+        var brand = new Brand("brand-ar", "Brand", "brand.png");
+        var unit = new UnitOfMeasure("unit-ar", "Unit", "U");
+        context.Brands.Add(brand);
+        context.UnitsOfMeasure.Add(unit);
+        await context.SaveChangesAsync();
+
+        var milkProduct = new MasterProduct("milk-prod-ar", "Milk Product", "milk-product", milk.Id, brand.Id, unit.Id);
+        var cheeseProduct = new MasterProduct("cheese-prod-ar", "Cheese Product", "cheese-product", cheese.Id, brand.Id, unit.Id);
+        milkProduct.Publish();
+        cheeseProduct.Publish();
+        context.MasterProducts.AddRange(milkProduct, cheeseProduct);
+        await context.SaveChangesAsync();
+
+        var vendor = CreateActiveVendor("Store One");
+        context.Vendors.Add(vendor);
+        await context.SaveChangesAsync();
+
+        context.VendorProducts.AddRange(
+            new VendorProduct(vendor.Id, milkProduct.Id, 10m, 10),
+            new VendorProduct(vendor.Id, cheeseProduct.Id, 15m, 10));
+        await context.SaveChangesAsync();
+
+        var handler = new GetCategoryProductsQueryHandler(context);
+
+        var result = await handler.Handle(
+            new GetCategoryProductsQuery(root.Id, null, null, null, null, "alphabetical", 1, 20),
+            CancellationToken.None);
+
+        result.Total.Should().Be(2);
+        result.Items.Select(item => item.Name).Should().Equal("Cheese Product", "Milk Product");
+    }
+
     private static Vendor CreateActiveVendor(string businessNameEn)
     {
         var vendor = new Vendor(

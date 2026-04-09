@@ -39,6 +39,7 @@ public class GetCategoryProductsQueryHandler : IRequestHandler<GetCategoryProduc
 
         var categoryScope = ResolveScope(request.CategoryId, categories)
             ?? throw new NotFoundException(nameof(Category), request.CategoryId);
+        var categoryScopeIds = categoryScope.ActiveSubtreeIds.ToHashSet();
 
         var salesByVendorProductId = await _context.OrderItems
             .AsNoTracking()
@@ -74,7 +75,7 @@ public class GetCategoryProductsQueryHandler : IRequestHandler<GetCategoryProduc
                 product.MasterProduct.Status == ProductStatus.Active &&
                 product.Vendor.Status == VendorStatus.Active &&
                 product.Vendor.AcceptOrders &&
-                product.MasterProduct.CategoryId == request.CategoryId &&
+                categoryScopeIds.Contains(product.MasterProduct.CategoryId) &&
                 (!request.BrandId.HasValue || product.MasterProduct.BrandId == request.BrandId.Value) &&
                 (!request.QuantityId.HasValue || product.MasterProduct.UnitOfMeasureId == request.QuantityId.Value) &&
                 (!request.MinPrice.HasValue || product.SellingPrice >= request.MinPrice.Value) &&
@@ -269,11 +270,37 @@ public class GetCategoryProductsQueryHandler : IRequestHandler<GetCategoryProduc
             return null;
         }
 
-        return new CategoryScope(category);
+        var activeChildrenByParent = categories
+            .Where(child => child.IsActive && child.ParentCategoryId.HasValue)
+            .GroupBy(child => child.ParentCategoryId!.Value)
+            .ToDictionary(group => group.Key, group => group.ToArray());
+
+        var activeSubtreeIds = new List<Guid>();
+        var stack = new Stack<Guid>();
+        stack.Push(category.Id);
+
+        while (stack.Count > 0)
+        {
+            var currentId = stack.Pop();
+            activeSubtreeIds.Add(currentId);
+
+            if (!activeChildrenByParent.TryGetValue(currentId, out var children))
+            {
+                continue;
+            }
+
+            foreach (var child in children)
+            {
+                stack.Push(child.Id);
+            }
+        }
+
+        return new CategoryScope(category, activeSubtreeIds);
     }
 
     private sealed record CategoryScope(
-        CategoryScopeRow Category);
+        CategoryScopeRow Category,
+        IReadOnlyList<Guid> ActiveSubtreeIds);
 
     private sealed record CategoryScopeRow(
         Guid Id,
