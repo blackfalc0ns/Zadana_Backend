@@ -59,6 +59,7 @@ public class ApplicationDbContextInitialiser
         await SeedUnitsAsync();
         await SeedCategoriesAsync();
         await SeedBrandsAsync();
+        await SeedProductTypesAndPartsAsync();
         await SeedMasterProductsAsync();
         await SeedSampleVendorsAsync();
         await SeedHomeBannersAsync();
@@ -160,11 +161,6 @@ public class ApplicationDbContextInitialiser
 
     private async Task SeedMasterProductsAsync()
     {
-        if (await _context.MasterProducts.AnyAsync())
-        {
-            return;
-        }
-
         var category = await _context.Categories.FirstOrDefaultAsync(item => item.NameEn == "Dairy");
         var brand = await _context.Brands.FirstOrDefaultAsync(item => item.NameEn == "Almarai");
         var unit = await _context.UnitsOfMeasure.FirstOrDefaultAsync(item => item.Symbol == "L");
@@ -174,19 +170,166 @@ public class ApplicationDbContextInitialiser
             return;
         }
 
-        var products = new List<MasterProduct>
+        var milkType = await _context.ProductTypes.FirstOrDefaultAsync(item => item.NameEn == "Milk" && item.CategoryId == category.Id);
+        var yogurtType = await _context.ProductTypes.FirstOrDefaultAsync(item => item.NameEn == "Yogurt" && item.CategoryId == category.Id);
+        var fullCreamPart = milkType == null
+            ? null
+            : await _context.Parts.FirstOrDefaultAsync(item => item.NameEn == "Full Cream" && item.ProductTypeId == milkType.Id);
+        var freshPart = yogurtType == null
+            ? null
+            : await _context.Parts.FirstOrDefaultAsync(item => item.NameEn == "Fresh" && item.ProductTypeId == yogurtType.Id);
+
+        var products = new List<(string Slug, MasterProduct Product)>
         {
-            new("Full Cream Milk 1L", "Full Cream Milk 1L", "full-cream-milk-1l", category.Id, brand.Id, unit.Id, "Fresh local milk", "Fresh local milk"),
-            new("Fresh Yoghurt", "Fresh Yoghurt", "fresh-yoghurt", category.Id, brand.Id, unit.Id, "Natural yoghurt", "Natural yoghurt")
+            (
+                "full-cream-milk-1l",
+                new MasterProduct(
+                    "Full Cream Milk 1L",
+                    "Full Cream Milk 1L",
+                    "full-cream-milk-1l",
+                    category.Id,
+                    brand.Id,
+                    unit.Id,
+                    "Fresh local milk",
+                    "Fresh local milk",
+                    null,
+                    milkType?.Id,
+                    fullCreamPart?.Id)
+            ),
+            (
+                "fresh-yoghurt",
+                new MasterProduct(
+                    "Fresh Yoghurt",
+                    "Fresh Yoghurt",
+                    "fresh-yoghurt",
+                    category.Id,
+                    brand.Id,
+                    unit.Id,
+                    "Natural yoghurt",
+                    "Natural yoghurt",
+                    null,
+                    yogurtType?.Id,
+                    freshPart?.Id)
+            )
         };
 
-        foreach (var product in products)
+        foreach (var (_, product) in products)
         {
             product.Publish();
         }
 
-        await _context.MasterProducts.AddRangeAsync(products);
+        foreach (var (slug, product) in products)
+        {
+            var existing = await _context.MasterProducts.FirstOrDefaultAsync(item => item.Slug == slug);
+            if (existing == null)
+            {
+                await _context.MasterProducts.AddAsync(product);
+                continue;
+            }
+
+            existing.ChangeProductType(product.ProductTypeId);
+            existing.ChangePart(product.PartId);
+        }
+
+        await BackfillDairyProductTypesAndPartsAsync(category.Id, milkType?.Id, yogurtType?.Id, fullCreamPart?.Id, freshPart?.Id);
         await _context.SaveChangesAsync();
+    }
+
+    private async Task SeedProductTypesAndPartsAsync()
+    {
+        var dairyCategory = await _context.Categories.FirstOrDefaultAsync(item => item.NameEn == "Dairy");
+        if (dairyCategory == null)
+        {
+            return;
+        }
+
+        var milkType = await EnsureProductTypeAsync("حليب", "Milk", dairyCategory.Id);
+        var yogurtType = await EnsureProductTypeAsync("زبادي", "Yogurt", dairyCategory.Id);
+
+        await EnsurePartAsync("كامل الدسم", "Full Cream", milkType.Id);
+        await EnsurePartAsync("خالي الدسم", "Skimmed", milkType.Id);
+        await EnsurePartAsync("طازج", "Fresh", yogurtType.Id);
+        await EnsurePartAsync("يوناني", "Greek", yogurtType.Id);
+
+        await _context.SaveChangesAsync();
+    }
+
+    private async Task<ProductType> EnsureProductTypeAsync(string nameAr, string nameEn, Guid categoryId)
+    {
+        var existing = await _context.ProductTypes
+            .FirstOrDefaultAsync(item => item.CategoryId == categoryId && item.NameEn == nameEn);
+
+        if (existing != null)
+        {
+            existing.Update(nameAr, nameEn, categoryId);
+            return existing;
+        }
+
+        var entity = new ProductType(nameAr, nameEn, categoryId);
+        await _context.ProductTypes.AddAsync(entity);
+        await _context.SaveChangesAsync();
+        return entity;
+    }
+
+    private async Task<Part> EnsurePartAsync(string nameAr, string nameEn, Guid productTypeId)
+    {
+        var existing = await _context.Parts
+            .FirstOrDefaultAsync(item => item.ProductTypeId == productTypeId && item.NameEn == nameEn);
+
+        if (existing != null)
+        {
+            existing.Update(nameAr, nameEn, productTypeId);
+            return existing;
+        }
+
+        var entity = new Part(nameAr, nameEn, productTypeId);
+        await _context.Parts.AddAsync(entity);
+        return entity;
+    }
+
+    private async Task BackfillDairyProductTypesAndPartsAsync(
+        Guid categoryId,
+        Guid? milkTypeId,
+        Guid? yogurtTypeId,
+        Guid? fullCreamPartId,
+        Guid? freshPartId)
+    {
+        var products = await _context.MasterProducts
+            .Where(item => item.CategoryId == categoryId && (!item.ProductTypeId.HasValue || !item.PartId.HasValue))
+            .ToListAsync();
+
+        foreach (var product in products)
+        {
+            var normalized = $"{product.NameEn} {product.NameAr} {product.Slug}".ToLowerInvariant();
+
+            if (normalized.Contains("milk") || normalized.Contains("حليب"))
+            {
+                if (!product.ProductTypeId.HasValue)
+                {
+                    product.ChangeProductType(milkTypeId);
+                }
+
+                if (!product.PartId.HasValue)
+                {
+                    product.ChangePart(fullCreamPartId);
+                }
+
+                continue;
+            }
+
+            if (normalized.Contains("yogurt") || normalized.Contains("yoghurt") || normalized.Contains("زباد"))
+            {
+                if (!product.ProductTypeId.HasValue)
+                {
+                    product.ChangeProductType(yogurtTypeId);
+                }
+
+                if (!product.PartId.HasValue)
+                {
+                    product.ChangePart(freshPartId);
+                }
+            }
+        }
     }
 
     private async Task SeedSampleVendorsAsync()

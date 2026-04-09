@@ -14,6 +14,7 @@ public class Category : BaseEntity
     // Navigation
     public Category? ParentCategory { get; private set; }
     public ICollection<Category> SubCategories { get; private set; } = [];
+    public ICollection<ProductType> ProductTypes { get; private set; } = [];
     public ICollection<MasterProduct> MasterProducts { get; private set; } = [];
 
     private Category() { }

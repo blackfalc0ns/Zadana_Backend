@@ -23,7 +23,7 @@ public class GetCategoryProductsQueryHandlerTests
         var handler = new GetCategoryProductsQueryHandler(context);
 
         var act = () => handler.Handle(
-            new GetCategoryProductsQuery(Guid.NewGuid(), null, null, null, null, null, 1, 20),
+            new GetCategoryProductsQuery(Guid.NewGuid(), null, null, null, null, null, null, null, 1, 20),
             CancellationToken.None);
 
         await act.Should().ThrowAsync<NotFoundException>();
@@ -46,19 +46,25 @@ public class GetCategoryProductsQueryHandlerTests
 
         var brandA = new Brand("brand-a-ar", "Brand A", "a.png");
         var brandB = new Brand("brand-b-ar", "Brand B", "b.png");
+        var milkType = new ProductType("milk-type-ar", "Milk", subcategory.Id);
+        var yogurtType = new ProductType("yogurt-type-ar", "Yogurt", otherSubcategory.Id);
+        var fullCreamPart = new Part("full-cream-ar", "Full Cream", milkType.Id);
+        var greekPart = new Part("greek-ar", "Greek", yogurtType.Id);
         var liter = new UnitOfMeasure("liter-ar", "Liter", "L");
         var pack = new UnitOfMeasure("pack-ar", "Pack", "P");
         context.Brands.AddRange(brandA, brandB);
+        context.ProductTypes.AddRange(milkType, yogurtType);
+        context.Parts.AddRange(fullCreamPart, greekPart);
         context.UnitsOfMeasure.AddRange(liter, pack);
         await context.SaveChangesAsync();
 
-        var matching = new MasterProduct("prod-a-ar", "Alpha Milk", "alpha-milk", subcategory.Id, brandA.Id, liter.Id);
+        var matching = new MasterProduct("prod-a-ar", "Alpha Milk", "alpha-milk", subcategory.Id, brandA.Id, liter.Id, productTypeId: milkType.Id, partId: fullCreamPart.Id);
         matching.Publish();
         var wrongBrand = new MasterProduct("prod-b-ar", "Beta Milk", "beta-milk", subcategory.Id, brandB.Id, liter.Id);
         wrongBrand.Publish();
         var wrongUnit = new MasterProduct("prod-c-ar", "Gamma Milk", "gamma-milk", subcategory.Id, brandA.Id, pack.Id);
         wrongUnit.Publish();
-        var wrongSubcategory = new MasterProduct("prod-d-ar", "Delta Yogurt", "delta-yogurt", otherSubcategory.Id, brandA.Id, liter.Id);
+        var wrongSubcategory = new MasterProduct("prod-d-ar", "Delta Yogurt", "delta-yogurt", otherSubcategory.Id, brandA.Id, liter.Id, productTypeId: yogurtType.Id, partId: greekPart.Id);
         wrongSubcategory.Publish();
         context.MasterProducts.AddRange(matching, wrongBrand, wrongUnit, wrongSubcategory);
         await context.SaveChangesAsync();
@@ -79,6 +85,8 @@ public class GetCategoryProductsQueryHandlerTests
         var result = await handler.Handle(
             new GetCategoryProductsQuery(
                 subcategory.Id,
+                milkType.Id,
+                fullCreamPart.Id,
                 liter.Id,
                 brandA.Id,
                 20m,
@@ -91,6 +99,8 @@ public class GetCategoryProductsQueryHandlerTests
         result.Total.Should().Be(1);
         result.Items.Should().ContainSingle();
         result.Items[0].Name.Should().Be("Alpha Milk");
+        result.AppliedFilters.ProductTypeId.Should().Be(milkType.Id);
+        result.AppliedFilters.PartId.Should().Be(fullCreamPart.Id);
         result.AppliedFilters.BrandId.Should().Be(brandA.Id);
         result.AppliedFilters.QuantityId.Should().Be(liter.Id);
     }
@@ -152,14 +162,14 @@ public class GetCategoryProductsQueryHandlerTests
         var handler = new GetCategoryProductsQueryHandler(context);
 
         var alphabetical = await handler.Handle(
-            new GetCategoryProductsQuery(root.Id, null, null, null, null, "alphabetical", 1, 2),
+            new GetCategoryProductsQuery(root.Id, null, null, null, null, null, null, "alphabetical", 1, 2),
             CancellationToken.None);
 
         alphabetical.Total.Should().Be(3);
         alphabetical.Items.Select(item => item.Name).Should().Equal("Alpha", "Gamma");
 
         var bestSelling = await handler.Handle(
-            new GetCategoryProductsQuery(root.Id, null, null, null, null, "best_selling", 1, 3),
+            new GetCategoryProductsQuery(root.Id, null, null, null, null, null, null, "best_selling", 1, 3),
             CancellationToken.None);
 
         bestSelling.Items.First().Name.Should().Be("Zeta");
@@ -205,7 +215,7 @@ public class GetCategoryProductsQueryHandlerTests
         var handler = new GetCategoryProductsQueryHandler(context);
 
         var result = await handler.Handle(
-            new GetCategoryProductsQuery(root.Id, null, null, null, null, "alphabetical", 1, 20),
+            new GetCategoryProductsQuery(root.Id, null, null, null, null, null, null, "alphabetical", 1, 20),
             CancellationToken.None);
 
         result.Total.Should().Be(2);

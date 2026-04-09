@@ -4267,6 +4267,26 @@
                                                                                                                 }
                                                                                                  },
                                                                                                  {
+                                                                                                     "name":  "product_type_id",
+                                                                                                     "in":  "query",
+                                                                                                     "description":  "Optional product type filter. Use one of the ids returned by GET /api/categories/{categoryId}/filters.",
+                                                                                                     "schema":  {
+                                                                                                                    "type":  "string",
+                                                                                                                    "format":  "uuid",
+                                                                                                                    "nullable":  true
+                                                                                                                }
+                                                                                                 },
+                                                                                                 {
+                                                                                                     "name":  "part_id",
+                                                                                                     "in":  "query",
+                                                                                                     "description":  "Optional part filter. Use one of the ids returned by GET /api/categories/{categoryId}/filters.",
+                                                                                                     "schema":  {
+                                                                                                                    "type":  "string",
+                                                                                                                    "format":  "uuid",
+                                                                                                                    "nullable":  true
+                                                                                                                }
+                                                                                                 },
+                                                                                                 {
                                                                                                      "name":  "quantity_id",
                                                                                                      "in":  "query",
                                                                                                      "description":  "Optional unit filter. Use one of the ids returned by GET /api/categories/{categoryId}/filters.",
@@ -4854,6 +4874,219 @@
                                                                           }
                                                         }
                                             },
+                  "/api/cart":  {
+                                     "get":  {
+                                                 "summary":  "Get customer cart",
+                                                 "description":  "Returns the authenticated customer's cart items, grouped by product with vendor price comparison for each item.",
+                                                 "tags":  [
+                                                              "Customer/Orders"
+                                                          ],
+                                                 "responses":  {
+                                                                   "200":  {
+                                                                               "description":  "OK",
+                                                                               "content":  {
+                                                                                               "text/plain":  {
+                                                                                                                  "schema":  {
+                                                                                                                                 "$ref":  "#/components/schemas/CartDto"
+                                                                                                                             }
+                                                                                                              },
+                                                                                               "application/json":  {
+                                                                                                                        "schema":  {
+                                                                                                                                       "$ref":  "#/components/schemas/CartDto"
+                                                                                                                                   }
+                                                                                                                    },
+                                                                                               "text/json":  {
+                                                                                                                 "schema":  {
+                                                                                                                                "$ref":  "#/components/schemas/CartDto"
+                                                                                                                            }
+                                                                                                             }
+                                                                                           }
+                                                                           }
+                                                               }
+                                             },
+                                     "delete":  {
+                                                    "summary":  "Clear customer cart",
+                                                    "description":  "Removes all items from the authenticated customer's cart.",
+                                                    "tags":  [
+                                                                 "Customer/Orders"
+                                                             ],
+                                                    "responses":  {
+                                                                      "200":  {
+                                                                                  "description":  "OK",
+                                                                                  "content":  {
+                                                                                                  "text/plain":  {
+                                                                                                                     "schema":  {
+                                                                                                                                    "$ref":  "#/components/schemas/CartClearResponseDto"
+                                                                                                                                }
+                                                                                                                 },
+                                                                                                  "application/json":  {
+                                                                                                                           "schema":  {
+                                                                                                                                          "$ref":  "#/components/schemas/CartClearResponseDto"
+                                                                                                                                      }
+                                                                                                                       },
+                                                                                                  "text/json":  {
+                                                                                                                    "schema":  {
+                                                                                                                                   "$ref":  "#/components/schemas/CartClearResponseDto"
+                                                                                                                               }
+                                                                                                                }
+                                                                                              }
+                                                                              }
+                                                                  }
+                                                }
+                                 },
+                  "/api/cart/items":  {
+                                           "post":  {
+                                                        "summary":  "Add item to cart",
+                                                        "description":  "Adds a product to the authenticated customer's cart. If the product already exists in cart, the quantity is increased instead of creating a duplicate row.",
+                                                        "tags":  [
+                                                                     "Customer/Orders"
+                                                                 ],
+                                                        "requestBody":  {
+                                                                            "required":  true,
+                                                                            "content":  {
+                                                                                            "application/json":  {
+                                                                                                                     "schema":  {
+                                                                                                                                    "$ref":  "#/components/schemas/AddCartItemRequest"
+                                                                                                                                }
+                                                                                                                 },
+                                                                                            "text/json":  {
+                                                                                                             "schema":  {
+                                                                                                                            "$ref":  "#/components/schemas/AddCartItemRequest"
+                                                                                                                        }
+                                                                                                         },
+                                                                                            "text/plain":  {
+                                                                                                              "schema":  {
+                                                                                                                             "$ref":  "#/components/schemas/AddCartItemRequest"
+                                                                                                                         }
+                                                                                                          }
+                                                                                        }
+                                                                        },
+                                                        "responses":  {
+                                                                          "200":  {
+                                                                                      "description":  "OK",
+                                                                                      "content":  {
+                                                                                                      "text/plain":  {
+                                                                                                                         "schema":  {
+                                                                                                                                        "$ref":  "#/components/schemas/CartItemMutationResponseDto"
+                                                                                                                                    }
+                                                                                                                     },
+                                                                                                      "application/json":  {
+                                                                                                                               "schema":  {
+                                                                                                                                              "$ref":  "#/components/schemas/CartItemMutationResponseDto"
+                                                                                                                                          }
+                                                                                                                           },
+                                                                                                      "text/json":  {
+                                                                                                                        "schema":  {
+                                                                                                                                       "$ref":  "#/components/schemas/CartItemMutationResponseDto"
+                                                                                                                                   }
+                                                                                                                    }
+                                                                                                  }
+                                                                                  }
+                                                                      }
+                                                    }
+                                       },
+                  "/api/cart/items/{itemId}":  {
+                                                    "patch":  {
+                                                                  "summary":  "Update cart item quantity",
+                                                                  "description":  "Updates the quantity of a single cart item for the authenticated customer.",
+                                                                  "tags":  [
+                                                                               "Customer/Orders"
+                                                                           ],
+                                                                  "parameters":  [
+                                                                                     {
+                                                                                         "name":  "itemId",
+                                                                                         "in":  "path",
+                                                                                         "required":  true,
+                                                                                         "schema":  {
+                                                                                                        "type":  "string",
+                                                                                                        "format":  "uuid"
+                                                                                                    }
+                                                                                     }
+                                                                                 ],
+                                                                  "requestBody":  {
+                                                                                      "required":  true,
+                                                                                      "content":  {
+                                                                                                      "application/json":  {
+                                                                                                                               "schema":  {
+                                                                                                                                              "$ref":  "#/components/schemas/UpdateCartItemQuantityRequest"
+                                                                                                                                          }
+                                                                                                                           },
+                                                                                                      "text/json":  {
+                                                                                                                        "schema":  {
+                                                                                                                                       "$ref":  "#/components/schemas/UpdateCartItemQuantityRequest"
+                                                                                                                                   }
+                                                                                                                    },
+                                                                                                      "text/plain":  {
+                                                                                                                         "schema":  {
+                                                                                                                                        "$ref":  "#/components/schemas/UpdateCartItemQuantityRequest"
+                                                                                                                                    }
+                                                                                                                     }
+                                                                                                  }
+                                                                                  },
+                                                                  "responses":  {
+                                                                                    "200":  {
+                                                                                                "description":  "OK",
+                                                                                                "content":  {
+                                                                                                                "text/plain":  {
+                                                                                                                                   "schema":  {
+                                                                                                                                                  "$ref":  "#/components/schemas/CartItemMutationResponseDto"
+                                                                                                                                              }
+                                                                                                                               },
+                                                                                                                "application/json":  {
+                                                                                                                                         "schema":  {
+                                                                                                                                                        "$ref":  "#/components/schemas/CartItemMutationResponseDto"
+                                                                                                                                                    }
+                                                                                                                                     },
+                                                                                                                "text/json":  {
+                                                                                                                                  "schema":  {
+                                                                                                                                                 "$ref":  "#/components/schemas/CartItemMutationResponseDto"
+                                                                                                                                             }
+                                                                                                                              }
+                                                                                                            }
+                                                                                            }
+                                                                                }
+                                                              },
+                                                    "delete":  {
+                                                                   "summary":  "Remove cart item",
+                                                                   "description":  "Removes one item from the authenticated customer's cart.",
+                                                                   "tags":  [
+                                                                                "Customer/Orders"
+                                                                            ],
+                                                                   "parameters":  [
+                                                                                      {
+                                                                                          "name":  "itemId",
+                                                                                          "in":  "path",
+                                                                                          "required":  true,
+                                                                                          "schema":  {
+                                                                                                         "type":  "string",
+                                                                                                         "format":  "uuid"
+                                                                                                     }
+                                                                                      }
+                                                                                  ],
+                                                                   "responses":  {
+                                                                                     "200":  {
+                                                                                                 "description":  "OK",
+                                                                                                 "content":  {
+                                                                                                                 "text/plain":  {
+                                                                                                                                    "schema":  {
+                                                                                                                                                   "$ref":  "#/components/schemas/CartItemRemovalResponseDto"
+                                                                                                                                               }
+                                                                                                                                },
+                                                                                                                 "application/json":  {
+                                                                                                                                          "schema":  {
+                                                                                                                                                         "$ref":  "#/components/schemas/CartItemRemovalResponseDto"
+                                                                                                                                                     }
+                                                                                                                                      },
+                                                                                                                 "text/json":  {
+                                                                                                                                   "schema":  {
+                                                                                                                                                  "$ref":  "#/components/schemas/CartItemRemovalResponseDto"
+                                                                                                                                              }
+                                                                                                                               }
+                                                                                                             }
+                                                                                             }
+                                                                                 }
+                                                               }
+                                                },
                   "/api/home/special-offers":  {
                                                    "get":  {
                                                                "tags":  [
@@ -6355,9 +6588,19 @@
                                                                   "additionalProperties":  false
                                                               },
                                        "CategoryProductsAppliedFiltersDto":  {
-                                                                                 "type":  "object",
-                                                                                 "properties":  {
-                                                                                                    "quantity_id":  {
+                                                                                "type":  "object",
+                                                                                "properties":  {
+                                                                                                    "product_type_id":  {
+                                                                                                                            "type":  "string",
+                                                                                                                            "format":  "uuid",
+                                                                                                                            "nullable":  true
+                                                                                                                        },
+                                                                                                    "part_id":  {
+                                                                                                                     "type":  "string",
+                                                                                                                     "format":  "uuid",
+                                                                                                                     "nullable":  true
+                                                                                                                 },
+                                                                                                   "quantity_id":  {
                                                                                                                         "type":  "string",
                                                                                                                         "format":  "uuid",
                                                                                                                         "nullable":  true
@@ -6922,6 +7165,162 @@
                                                                                           },
                                                                            "additionalProperties":  false
                                                                        },
+                                       "AddCartItemRequest":  {
+                                                                  "type":  "object",
+                                                                  "properties":  {
+                                                                                     "product_id":  {
+                                                                                                        "type":  "string",
+                                                                                                        "format":  "uuid"
+                                                                                                    },
+                                                                                     "quantity":  {
+                                                                                                      "type":  "integer",
+                                                                                                      "format":  "int32"
+                                                                                                  }
+                                                                                 },
+                                                                  "additionalProperties":  false
+                                                              },
+                                       "UpdateCartItemQuantityRequest":  {
+                                                                              "type":  "object",
+                                                                              "properties":  {
+                                                                                                 "quantity":  {
+                                                                                                                  "type":  "integer",
+                                                                                                                  "format":  "int32"
+                                                                                                              }
+                                                                                             },
+                                                                              "additionalProperties":  false
+                                                                          },
+                                       "CartVendorPriceDto":  {
+                                                                   "type":  "object",
+                                                                   "properties":  {
+                                                                                      "id":  {
+                                                                                                 "type":  "string",
+                                                                                                 "format":  "uuid"
+                                                                                             },
+                                                                                      "name":  {
+                                                                                                   "type":  "string",
+                                                                                                   "nullable":  true
+                                                                                               },
+                                                                                      "price":  {
+                                                                                                    "type":  "number",
+                                                                                                    "format":  "double"
+                                                                                                },
+                                                                                      "old_price":  {
+                                                                                                        "type":  "number",
+                                                                                                        "format":  "double",
+                                                                                                        "nullable":  true
+                                                                                                    },
+                                                                                      "is_discounted":  {
+                                                                                                             "type":  "boolean"
+                                                                                                         }
+                                                                                  },
+                                                                   "additionalProperties":  false
+                                                               },
+                                       "CartItemDto":  {
+                                                             "type":  "object",
+                                                             "properties":  {
+                                                                                "id":  {
+                                                                                           "type":  "string",
+                                                                                           "format":  "uuid"
+                                                                                       },
+                                                                                "product_id":  {
+                                                                                                   "type":  "string",
+                                                                                                   "format":  "uuid"
+                                                                                               },
+                                                                                "name":  {
+                                                                                             "type":  "string",
+                                                                                             "nullable":  true
+                                                                                         },
+                                                                                "image_url":  {
+                                                                                                  "type":  "string",
+                                                                                                  "nullable":  true
+                                                                                              },
+                                                                                "unit":  {
+                                                                                             "type":  "string",
+                                                                                             "nullable":  true
+                                                                                         },
+                                                                                "quantity":  {
+                                                                                                 "type":  "integer",
+                                                                                                 "format":  "int32"
+                                                                                             },
+                                                                                "vendor_prices":  {
+                                                                                                      "type":  "array",
+                                                                                                      "items":  {
+                                                                                                                    "$ref":  "#/components/schemas/CartVendorPriceDto"
+                                                                                                                },
+                                                                                                      "nullable":  true
+                                                                                                  }
+                                                                            },
+                                                             "additionalProperties":  false
+                                                         },
+                                       "CartSummaryDto":  {
+                                                                "type":  "object",
+                                                                "properties":  {
+                                                                                   "items_count":  {
+                                                                                                       "type":  "integer",
+                                                                                                       "format":  "int32"
+                                                                                                   },
+                                                                                   "total_quantity":  {
+                                                                                                          "type":  "integer",
+                                                                                                          "format":  "int32"
+                                                                                                      }
+                                                                               },
+                                                                "additionalProperties":  false
+                                                            },
+                                       "CartDto":  {
+                                                         "type":  "object",
+                                                         "properties":  {
+                                                                            "items":  {
+                                                                                          "type":  "array",
+                                                                                          "items":  {
+                                                                                                        "$ref":  "#/components/schemas/CartItemDto"
+                                                                                                    },
+                                                                                          "nullable":  true
+                                                                                      },
+                                                                            "summary":  {
+                                                                                            "$ref":  "#/components/schemas/CartSummaryDto"
+                                                                                        }
+                                                                        },
+                                                         "additionalProperties":  false
+                                                     },
+                                       "CartItemMutationResponseDto":  {
+                                                                             "type":  "object",
+                                                                             "properties":  {
+                                                                                                "message":  {
+                                                                                                                "type":  "string",
+                                                                                                                "nullable":  true
+                                                                                                            },
+                                                                                                "item":  {
+                                                                                                             "$ref":  "#/components/schemas/CartItemDto"
+                                                                                                         },
+                                                                                                "summary":  {
+                                                                                                                "$ref":  "#/components/schemas/CartSummaryDto"
+                                                                                                            }
+                                                                                            },
+                                                                             "additionalProperties":  false
+                                                                         },
+                                       "CartItemRemovalResponseDto":  {
+                                                                            "type":  "object",
+                                                                            "properties":  {
+                                                                                               "message":  {
+                                                                                                               "type":  "string",
+                                                                                                               "nullable":  true
+                                                                                                           },
+                                                                                               "summary":  {
+                                                                                                               "$ref":  "#/components/schemas/CartSummaryDto"
+                                                                                                           }
+                                                                                           },
+                                                                            "additionalProperties":  false
+                                                                        },
+                                       "CartClearResponseDto":  {
+                                                                      "type":  "object",
+                                                                      "properties":  {
+                                                                                         "message":  {
+                                                                                                         "type":  "string",
+                                                                                                         "nullable":  true
+                                                                                                     }
+                                                                                     },
+                                                                      "additionalProperties":  false
+                                                                  },
                                        "CategoryDto":  {
                                                            "type":  "object",
                                                            "properties":  {

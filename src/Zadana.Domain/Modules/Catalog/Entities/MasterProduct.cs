@@ -14,12 +14,16 @@ public class MasterProduct : BaseEntity
     public Guid CategoryId { get; private set; }
     public Guid? BrandId { get; private set; }
     public Guid? UnitOfMeasureId { get; private set; }
+    public Guid? ProductTypeId { get; private set; }
+    public Guid? PartId { get; private set; }
     public ProductStatus Status { get; private set; }
 
     // Navigation
     public Category Category { get; private set; } = null!;
     public Brand? Brand { get; private set; }
     public UnitOfMeasure? UnitOfMeasure { get; private set; }
+    public ProductType? ProductType { get; private set; }
+    public Part? Part { get; private set; }
     public ICollection<MasterProductImage> Images { get; private set; } = [];
 
     private MasterProduct() { }
@@ -28,12 +32,16 @@ public class MasterProduct : BaseEntity
         string nameAr,
         string nameEn,
         string slug,
+
+        
         Guid categoryId,
         Guid? brandId = null,
         Guid? unitOfMeasureId = null,
         string? descriptionAr = null,
         string? descriptionEn = null,
-        string? barcode = null)
+        string? barcode = null,
+        Guid? productTypeId = null,
+        Guid? partId = null)
     {
         NameAr = nameAr.Trim();
         NameEn = nameEn.Trim();
@@ -41,6 +49,8 @@ public class MasterProduct : BaseEntity
         CategoryId = categoryId;
         BrandId = brandId;
         UnitOfMeasureId = unitOfMeasureId;
+        ProductTypeId = productTypeId;
+        PartId = partId;
         DescriptionAr = descriptionAr?.Trim();
         DescriptionEn = descriptionEn?.Trim();
         Barcode = barcode?.Trim();
@@ -66,6 +76,8 @@ public class MasterProduct : BaseEntity
     public void ChangeCategory(Guid categoryId) => CategoryId = categoryId;
     public void ChangeBrand(Guid? brandId) => BrandId = brandId;
     public void ChangeUnit(Guid? unitOfMeasureId) => UnitOfMeasureId = unitOfMeasureId;
+    public void ChangeProductType(Guid? productTypeId) => ProductTypeId = productTypeId;
+    public void ChangePart(Guid? partId) => PartId = partId;
     public void SetStatus(ProductStatus status) => Status = status;
 
     public void AddImage(string url, string? altText = null, int displayOrder = 0, bool isPrimary = false)

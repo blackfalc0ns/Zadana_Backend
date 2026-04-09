@@ -42,6 +42,8 @@ public class GetCategoryFiltersQueryHandler : IRequestHandler<GetCategoryFilters
             .Where(product => product.Status == ProductStatus.Active)
             .Select(product => new ScopedMasterProductRow(
                 product.CategoryId,
+                product.ProductTypeId,
+                product.PartId,
                 product.BrandId,
                 product.UnitOfMeasureId))
             .ToListAsync(cancellationToken);
@@ -53,6 +55,18 @@ public class GetCategoryFiltersQueryHandler : IRequestHandler<GetCategoryFilters
         var brandIds = scopedMasterProducts
             .Where(product => product.BrandId.HasValue)
             .Select(product => product.BrandId!.Value)
+            .Distinct()
+            .ToList();
+
+        var productTypeIds = scopedMasterProducts
+            .Where(product => product.ProductTypeId.HasValue)
+            .Select(product => product.ProductTypeId!.Value)
+            .Distinct()
+            .ToList();
+
+        var partIds = scopedMasterProducts
+            .Where(product => product.PartId.HasValue)
+            .Select(product => product.PartId!.Value)
             .Distinct()
             .ToList();
 
@@ -78,6 +92,40 @@ public class GetCategoryFiltersQueryHandler : IRequestHandler<GetCategoryFilters
             .Select(child => new CatalogFilterNamedItemDto(
                 child.Id,
                 PickLocalized(child.NameAr, child.NameEn)))
+            .ToList();
+
+        var productTypeRows = await _context.ProductTypes
+            .AsNoTracking()
+            .Where(productType => productType.IsActive && productTypeIds.Contains(productType.Id))
+            .Select(productType => new RawNamedRow(
+                productType.Id,
+                productType.NameAr,
+                productType.NameEn))
+            .ToListAsync(cancellationToken);
+
+        var productTypes = productTypeRows
+            .Select(item => new CatalogFilterNamedItemDto(
+                item.Id,
+                PickLocalized(item.NameAr, item.NameEn)))
+            .OrderBy(item => item.Name, StringComparer.CurrentCultureIgnoreCase)
+            .ToList();
+
+        var partRows = await _context.Parts
+            .AsNoTracking()
+            .Where(part => part.IsActive && partIds.Contains(part.Id))
+            .Select(part => new RawPartRow(
+                part.Id,
+                part.NameAr,
+                part.NameEn,
+                part.ProductTypeId))
+            .ToListAsync(cancellationToken);
+
+        var parts = partRows
+            .Select(item => new CatalogFilterPartItemDto(
+                item.Id,
+                PickLocalized(item.NameAr, item.NameEn),
+                item.ProductTypeId))
+            .OrderBy(item => item.Name, StringComparer.CurrentCultureIgnoreCase)
             .ToList();
 
         var brands = brandRows
@@ -132,8 +180,8 @@ public class GetCategoryFiltersQueryHandler : IRequestHandler<GetCategoryFilters
                 scope.Category.Id,
                 PickLocalized(scope.Category.NameAr, scope.Category.NameEn)),
             subcategories,
-            Array.Empty<CatalogFilterNamedItemDto>(),
-            Array.Empty<CatalogFilterPartItemDto>(),
+            productTypes,
+            parts,
             quantities,
             brands,
             priceRange,
@@ -175,6 +223,8 @@ public class GetCategoryFiltersQueryHandler : IRequestHandler<GetCategoryFilters
 
     private sealed record ScopedMasterProductRow(
         Guid CategoryId,
+        Guid? ProductTypeId,
+        Guid? PartId,
         Guid? BrandId,
         Guid? UnitOfMeasureId);
 
@@ -188,6 +238,12 @@ public class GetCategoryFiltersQueryHandler : IRequestHandler<GetCategoryFilters
         Guid Id,
         string? NameAr,
         string? NameEn);
+
+    private sealed record RawPartRow(
+        Guid Id,
+        string? NameAr,
+        string? NameEn,
+        Guid ProductTypeId);
 
     private sealed record VisiblePriceRow(
         Guid CategoryId,

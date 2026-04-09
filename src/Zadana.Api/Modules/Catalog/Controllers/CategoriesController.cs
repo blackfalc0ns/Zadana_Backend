@@ -16,6 +16,8 @@ public class CategoriesController : ApiControllerBase
     [HttpGet("{categoryId:guid}/products")]
     public async Task<ActionResult<CategoryProductsDto>> GetProducts(
         Guid categoryId,
+        [FromQuery(Name = "product_type_id")] Guid? productTypeId,
+        [FromQuery(Name = "part_id")] Guid? partId,
         [FromQuery(Name = "quantity_id")] Guid? quantityId,
         [FromQuery(Name = "brand_id")] Guid? brandId,
         [FromQuery(Name = "min_price")] decimal? minPrice,
@@ -28,6 +30,8 @@ public class CategoriesController : ApiControllerBase
         var result = await Sender.Send(
             new GetCategoryProductsQuery(
                 categoryId,
+                productTypeId,
+                partId,
                 quantityId,
                 brandId,
                 minPrice,

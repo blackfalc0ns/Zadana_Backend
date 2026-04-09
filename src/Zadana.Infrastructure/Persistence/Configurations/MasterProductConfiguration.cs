@@ -54,6 +54,16 @@ public class MasterProductConfiguration : IEntityTypeConfiguration<MasterProduct
             .HasForeignKey(p => p.UnitOfMeasureId)
             .OnDelete(DeleteBehavior.Restrict);
 
+        builder.HasOne(p => p.ProductType)
+            .WithMany(pt => pt.MasterProducts)
+            .HasForeignKey(p => p.ProductTypeId)
+            .OnDelete(DeleteBehavior.Restrict);
+
+        builder.HasOne(p => p.Part)
+            .WithMany(part => part.MasterProducts)
+            .HasForeignKey(p => p.PartId)
+            .OnDelete(DeleteBehavior.Restrict);
+
         // Indexes
         builder.HasIndex(p => p.Slug)
             .IsUnique()
@@ -69,5 +79,11 @@ public class MasterProductConfiguration : IEntityTypeConfiguration<MasterProduct
 
         builder.HasIndex(p => p.BrandId)
             .HasDatabaseName("IX_MasterProduct_BrandId");
+
+        builder.HasIndex(p => p.ProductTypeId)
+            .HasDatabaseName("IX_MasterProduct_ProductTypeId");
+
+        builder.HasIndex(p => p.PartId)
+            .HasDatabaseName("IX_MasterProduct_PartId");
     }
 }

@@ -76,6 +76,8 @@ public class GetCategoryProductsQueryHandler : IRequestHandler<GetCategoryProduc
                 product.Vendor.Status == VendorStatus.Active &&
                 product.Vendor.AcceptOrders &&
                 categoryScopeIds.Contains(product.MasterProduct.CategoryId) &&
+                (!request.ProductTypeId.HasValue || product.MasterProduct.ProductTypeId == request.ProductTypeId.Value) &&
+                (!request.PartId.HasValue || product.MasterProduct.PartId == request.PartId.Value) &&
                 (!request.BrandId.HasValue || product.MasterProduct.BrandId == request.BrandId.Value) &&
                 (!request.QuantityId.HasValue || product.MasterProduct.UnitOfMeasureId == request.QuantityId.Value) &&
                 (!request.MinPrice.HasValue || product.SellingPrice >= request.MinPrice.Value) &&
@@ -134,6 +136,8 @@ public class GetCategoryProductsQueryHandler : IRequestHandler<GetCategoryProduc
 
         return new CategoryProductsDto(
             new CategoryProductsAppliedFiltersDto(
+                request.ProductTypeId,
+                request.PartId,
                 request.QuantityId,
                 request.BrandId,
                 request.MinPrice,
@@ -148,6 +152,8 @@ public class GetCategoryProductsQueryHandler : IRequestHandler<GetCategoryProduc
     private CategoryProductsDto CreateEmptyResult(CategoryScope scope, GetCategoryProductsQuery request) =>
         new(
             new CategoryProductsAppliedFiltersDto(
+                request.ProductTypeId,
+                request.PartId,
                 request.QuantityId,
                 request.BrandId,
                 request.MinPrice,

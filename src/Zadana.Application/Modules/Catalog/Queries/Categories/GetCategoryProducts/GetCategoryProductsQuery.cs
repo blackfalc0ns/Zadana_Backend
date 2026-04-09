@@ -5,6 +5,8 @@ namespace Zadana.Application.Modules.Catalog.Queries.Categories.GetCategoryProdu
 
 public record GetCategoryProductsQuery(
     Guid CategoryId,
+    Guid? ProductTypeId,
+    Guid? PartId,
     Guid? QuantityId,
     Guid? BrandId,
     decimal? MinPrice,

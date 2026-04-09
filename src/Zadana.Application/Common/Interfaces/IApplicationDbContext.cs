@@ -22,6 +22,8 @@ public interface IApplicationDbContext
     // Catalog
     DbSet<Category> Categories { get; }
     DbSet<Brand> Brands { get; }
+    DbSet<ProductType> ProductTypes { get; }
+    DbSet<Part> Parts { get; }
     DbSet<UnitOfMeasure> UnitsOfMeasure { get; }
     DbSet<MasterProduct> MasterProducts { get; }
     DbSet<VendorProduct> VendorProducts { get; }

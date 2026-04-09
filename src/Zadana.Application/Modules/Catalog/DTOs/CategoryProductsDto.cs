@@ -3,6 +3,8 @@ using System.Text.Json.Serialization;
 namespace Zadana.Application.Modules.Catalog.DTOs;
 
 public record CategoryProductsAppliedFiltersDto(
+    [property: JsonPropertyName("product_type_id")] Guid? ProductTypeId,
+    [property: JsonPropertyName("part_id")] Guid? PartId,
     [property: JsonPropertyName("quantity_id")] Guid? QuantityId,
     [property: JsonPropertyName("brand_id")] Guid? BrandId,
     [property: JsonPropertyName("min_price")] decimal? MinPrice,

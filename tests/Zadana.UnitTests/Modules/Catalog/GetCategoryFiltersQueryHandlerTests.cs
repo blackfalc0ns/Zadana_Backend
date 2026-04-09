@@ -103,19 +103,25 @@ public class GetCategoryFiltersQueryHandlerTests
         var activeBrand = new Brand("brand-ar", "FreshCo", "freshco.png");
         var inactiveBrand = new Brand("inactive-brand-ar", "HiddenBrand", "hidden.png");
         inactiveBrand.Deactivate();
+        var milkType = new ProductType("milk-type-ar", "Milk", root.Id);
+        var yogurtType = new ProductType("yogurt-type-ar", "Yogurt", child.Id);
+        var fullCreamPart = new Part("full-cream-ar", "Full Cream", milkType.Id);
+        var greekPart = new Part("greek-ar", "Greek", yogurtType.Id);
         var liter = new UnitOfMeasure("liter-ar", "Liter", "L");
         var piece = new UnitOfMeasure("piece-ar", "Piece", "pc");
         var inactiveUnit = new UnitOfMeasure("inactive-unit-ar", "Hidden Unit", "hu");
         inactiveUnit.Deactivate();
         context.Brands.AddRange(activeBrand, inactiveBrand);
+        context.ProductTypes.AddRange(milkType, yogurtType);
+        context.Parts.AddRange(fullCreamPart, greekPart);
         context.UnitsOfMeasure.AddRange(liter, piece, inactiveUnit);
         await context.SaveChangesAsync();
 
-        var rootProduct = new MasterProduct("milk-ar", "Milk", "milk", root.Id, activeBrand.Id, liter.Id);
+        var rootProduct = new MasterProduct("milk-ar", "Milk", "milk", root.Id, activeBrand.Id, liter.Id, productTypeId: milkType.Id, partId: fullCreamPart.Id);
         rootProduct.Publish();
-        var childProduct = new MasterProduct("yogurt-ar", "Yogurt", "yogurt", child.Id, activeBrand.Id, piece.Id);
+        var childProduct = new MasterProduct("yogurt-ar", "Yogurt", "yogurt", child.Id, activeBrand.Id, piece.Id, productTypeId: yogurtType.Id, partId: greekPart.Id);
         childProduct.Publish();
-        var grandProduct = new MasterProduct("cream-ar", "Cream", "cream", grandChild.Id, activeBrand.Id, liter.Id);
+        var grandProduct = new MasterProduct("cream-ar", "Cream", "cream", grandChild.Id, activeBrand.Id, liter.Id, productTypeId: milkType.Id, partId: fullCreamPart.Id);
         grandProduct.Publish();
         var inactiveBrandProduct = new MasterProduct("hidden-ar", "Hidden", "hidden", root.Id, inactiveBrand.Id, liter.Id);
         inactiveBrandProduct.Publish();
@@ -153,6 +159,11 @@ public class GetCategoryFiltersQueryHandlerTests
         result.Brands.Should().ContainSingle();
         result.Brands[0].Name.Should().Be("FreshCo");
         result.Brands[0].LogoUrl.Should().Be("freshco.png");
+
+        result.ProductTypes.Select(item => item.Name).Should().Equal("Milk", "Yogurt");
+        result.Parts.Should().HaveCount(2);
+        result.Parts.Should().Contain(item => item.Name == "Full Cream" && item.ProductTypeId == milkType.Id);
+        result.Parts.Should().Contain(item => item.Name == "Greek" && item.ProductTypeId == yogurtType.Id);
 
         result.Quantities.Select(item => item.Name).Should().Equal("Liter", "Piece");
 
