@@ -107,6 +107,18 @@ public class HomeReadServiceTests
         await using var context = TestDbContextFactory.Create();
 
         var setup = await SeedCatalogScenarioAsync(context);
+        var secondVendor = new Vendor(
+            Guid.NewGuid(),
+            "متجر آخر",
+            "Other Store",
+            "Grocery",
+            $"CR-{Guid.NewGuid():N}",
+            $"{Guid.NewGuid():N}@example.com",
+            "0500000003");
+        secondVendor.Approve(10m, Guid.NewGuid());
+        context.Vendors.Add(secondVendor);
+        await context.SaveChangesAsync();
+        context.VendorProducts.Add(new VendorProduct(secondVendor.Id, setup.DiscountedMasterProductId, 11m, 20, 14m));
         await context.SaveChangesAsync();
 
         var service = new HomeReadService(context, new FakeCurrentUserService(null, false));
@@ -115,7 +127,7 @@ public class HomeReadServiceTests
 
         result.Key.Should().Be("special_offers");
         result.Items.Should().ContainSingle();
-        result.Items[0].Id.Should().Be(setup.DiscountedProduct.Id);
+        result.Items[0].Id.Should().Be(setup.DiscountedMasterProductId);
         result.Items[0].IsDiscounted.Should().BeTrue();
         result.Items[0].OldPrice.Should().Be(15m);
         result.Items[0].Discount.Should().Be("33%");
@@ -135,7 +147,7 @@ public class HomeReadServiceTests
         var result = await service.GetRecommendedAsync(1);
 
         result.Items.Should().ContainSingle();
-        result.Items[0].Id.Should().Be(setup.HistoryMatchedProduct!.Id);
+        result.Items[0].Id.Should().Be(setup.HistoryMatchedMasterProductId!.Value);
     }
 
     [Fact]
@@ -153,7 +165,7 @@ public class HomeReadServiceTests
         context.FeaturedProductPlacements.Add(new FeaturedProductPlacement(
             FeaturedPlacementType.VendorProduct,
             1,
-            vendorProductId: setup.DiscountedProduct.Id,
+            vendorProductId: setup.DiscountedVendorProductId,
             note: "vendor placement"));
         await context.SaveChangesAsync();
 
@@ -163,9 +175,9 @@ public class HomeReadServiceTests
 
         result.Key.Should().Be("featured_products");
         result.Items.Should().HaveCount(2);
-        result.Items[0].Id.Should().Be(setup.DiscountedProduct.Id);
+        result.Items[0].Id.Should().Be(setup.DiscountedMasterProductId);
         result.Items[0].IsFeatured.Should().BeTrue();
-        result.Items[1].Id.Should().Be(setup.OtherProduct!.Id);
+        result.Items[1].Id.Should().Be(setup.OtherMasterProductId);
         result.Items[1].IsFeatured.Should().BeTrue();
     }
 
@@ -191,7 +203,7 @@ public class HomeReadServiceTests
             product.UpdateStock(0);
         }
 
-        var eligibleBrandProduct = await context.VendorProducts.FirstAsync(x => x.Id == setup.DiscountedProduct.Id);
+        var eligibleBrandProduct = await context.VendorProducts.FirstAsync(x => x.Id == setup.DiscountedVendorProductId);
         eligibleBrandProduct.UpdateStock(20);
         eligibleBrandProduct.Activate();
         eligibleBrandProduct.SetAvailability(true);
@@ -347,7 +359,7 @@ public class HomeReadServiceTests
         }
         context.Reviews.Add(new Review(Guid.NewGuid(), customer.Id, vendor.Id, 5, "Great"));
 
-        HomeProductReference? historyMatchedProduct = null;
+        Guid? historyMatchedMasterProductId = null;
         if (includeHistory)
         {
             var address = new CustomerAddress(customer.Id, "Customer", "0102", "History Address", AddressLabel.Home, city: "Cairo", area: "Maadi");
@@ -360,15 +372,15 @@ public class HomeReadServiceTests
             await context.SaveChangesAsync();
 
             context.OrderItems.Add(new OrderItem(deliveredOrder.Id, historicalProduct.Id, historicalMaster.Id, "Labneh", 2, 8m, unitName: "Liter"));
-            historyMatchedProduct = new HomeProductReference(discountedProduct.Id);
+            historyMatchedMasterProductId = discountedMaster.Id;
         }
 
         return new HomeScenario(
             customer,
-            new HomeProductReference(discountedProduct.Id),
-            historyMatchedProduct,
+            discountedMaster.Id,
+            discountedProduct.Id,
+            historyMatchedMasterProductId,
             otherMaster.Id,
-            new HomeProductReference(otherProduct.Id),
             subCategory?.Id);
     }
 
@@ -378,12 +390,11 @@ public class HomeReadServiceTests
 
     private sealed record HomeScenario(
         User Customer,
-        HomeProductReference DiscountedProduct,
-        HomeProductReference? HistoryMatchedProduct,
+        Guid DiscountedMasterProductId,
+        Guid DiscountedVendorProductId,
+        Guid? HistoryMatchedMasterProductId,
         Guid OtherMasterProductId,
-        HomeProductReference? OtherProduct,
         Guid? DynamicSectionCategoryId);
-    private sealed record HomeProductReference(Guid Id);
 
     private sealed class FakeCurrentUserService : ICurrentUserService
     {

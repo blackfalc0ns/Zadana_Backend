@@ -89,6 +89,7 @@ public class GetBrandProductsQueryHandler : IRequestHandler<GetBrandProductsQuer
                 (!request.MaxPrice.HasValue || product.SellingPrice <= request.MaxPrice.Value))
             .Select(product => new RawBrandProduct(
                 product.Id,
+                product.MasterProductId,
                 product.CreatedAtUtc,
                 product.VendorId,
                 !string.IsNullOrWhiteSpace(product.CustomNameAr) ? product.CustomNameAr : product.MasterProduct.NameAr,
@@ -113,7 +114,7 @@ public class GetBrandProductsQueryHandler : IRequestHandler<GetBrandProductsQuer
                 reviewStatsByVendorId.TryGetValue(product.VendorId, out var reviewStats);
 
                 return new BrandProductSource(
-                    product.Id,
+                    product.MasterProductId,
                     product.CreatedAtUtc,
                     BrandCatalogQueryHelpers.PickLocalized(product.NameAr, product.NameEn),
                     BrandCatalogQueryHelpers.PickLocalized(product.StoreAr, product.StoreEn),
@@ -124,7 +125,13 @@ public class GetBrandProductsQueryHandler : IRequestHandler<GetBrandProductsQuer
                     salesCount,
                     reviewStats?.AverageRating,
                     reviewStats?.ReviewCount ?? 0);
-            });
+            })
+            .GroupBy(product => product.Id)
+            .Select(group => group
+                .OrderBy(product => product.SellingPrice)
+                .ThenByDescending(product => product.CreatedAtUtc)
+                .ThenBy(product => product.Store, StringComparer.CurrentCultureIgnoreCase)
+                .First());
 
         var sortedProducts = ApplySorting(products, request.Sort).ToList();
         var total = sortedProducts.Count;
@@ -260,6 +267,7 @@ public class GetBrandProductsQueryHandler : IRequestHandler<GetBrandProductsQuer
 
     private sealed record RawBrandProduct(
         Guid Id,
+        Guid MasterProductId,
         DateTime CreatedAtUtc,
         Guid VendorId,
         string? NameAr,

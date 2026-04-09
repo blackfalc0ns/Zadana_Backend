@@ -148,7 +148,7 @@ public class CartControllerTests
         GetCartQuery? sentQuery = null;
 
         _senderMock.Setup(x => x.Send(It.IsAny<GetCartQuery>(), It.IsAny<CancellationToken>()))
-            .Callback<GetCartQuery, CancellationToken>((query, _) => sentQuery = query)
+            .Callback<IRequest<CartDto>, CancellationToken>((query, _) => sentQuery = (GetCartQuery)query)
             .ReturnsAsync(dto);
 
         var vendorId = Guid.NewGuid();
@@ -165,7 +165,7 @@ public class CartControllerTests
         GetCartQuery? sentQuery = null;
 
         _senderMock.Setup(x => x.Send(It.IsAny<GetCartQuery>(), It.IsAny<CancellationToken>()))
-            .Callback<GetCartQuery, CancellationToken>((query, _) => sentQuery = query)
+            .Callback<IRequest<CartDto>, CancellationToken>((query, _) => sentQuery = (GetCartQuery)query)
             .ReturnsAsync(dto);
 
         await _controller.GetCart(null, CancellationToken.None);

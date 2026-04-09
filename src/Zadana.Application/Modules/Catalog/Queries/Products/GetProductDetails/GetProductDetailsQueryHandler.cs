@@ -113,7 +113,7 @@ public class GetProductDetailsQueryHandler : IRequestHandler<GetProductDetailsQu
                 reviewStatsByVendorId.TryGetValue(offer.VendorId, out var stats);
 
                 return new ProductDetailsSimilarProductDto(
-                    offer.VendorProductId,
+                    offer.MasterProductId,
                     offer.Name,
                     offer.Store,
                     offer.Price,
@@ -131,7 +131,7 @@ public class GetProductDetailsQueryHandler : IRequestHandler<GetProductDetailsQu
         reviewStatsByVendorId.TryGetValue(defaultOffer.VendorId, out var defaultReviewStats);
 
         return new ProductDetailsDto(
-            defaultOffer.VendorProductId,
+            masterProductId,
             masterProductId,
             defaultOffer.VendorProductId,
             defaultOffer.Name,

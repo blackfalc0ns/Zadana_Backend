@@ -6745,6 +6745,7 @@
                                                                         "type":  "object",
                                                                         "properties":  {
                                                                                            "id":  {
+                                                                                                      "description":  "Master product identifier used across customer product cards and add-to-cart flows.",
                                                                                                       "type":  "string",
                                                                                                       "format":  "uuid"
                                                                                                   },
@@ -6943,6 +6944,7 @@
                                                                      "type":  "object",
                                                                      "properties":  {
                                                                                         "id":  {
+                                                                                                   "description":  "Master product identifier used across customer product cards and add-to-cart flows.",
                                                                                                    "type":  "string",
                                                                                                    "format":  "uuid"
                                                                                                },
@@ -7056,6 +7058,7 @@
                                                                                 "type":  "object",
                                                                                 "properties":  {
                                                                                                    "id":  {
+                                                                                                               "description":  "Master product identifier used across customer product cards and add-to-cart flows.",
                                                                                                               "type":  "string",
                                                                                                               "format":  "uuid"
                                                                                                           },
@@ -7111,6 +7114,7 @@
                                                                  "type":  "object",
                                                                  "properties":  {
                                                                                     "id":  {
+                                                                                                "description":  "Master product identifier. This matches master_product_id and is the product id to use for add-to-cart from customer screens.",
                                                                                                "type":  "string",
                                                                                                "format":  "uuid"
                                                                                            },
@@ -7199,6 +7203,7 @@
                                                                       "type":  "object",
                                                                       "properties":  {
                                                                                          "id":  {
+                                                                                                     "description":  "Master product identifier used across customer product cards and add-to-cart flows.",
                                                                                                     "type":  "string",
                                                                                                     "format":  "uuid"
                                                                                                 },
@@ -8190,6 +8195,7 @@
                                                                   "type":  "object",
                                                                   "properties":  {
                                                                                      "id":  {
+                                                                                                "description":  "Master product identifier used across customer product cards and add-to-cart flows.",
                                                                                                 "type":  "string",
                                                                                                 "format":  "uuid"
                                                                                             },

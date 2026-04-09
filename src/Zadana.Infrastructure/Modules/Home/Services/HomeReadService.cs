@@ -381,6 +381,7 @@ public class HomeReadService : IHomeReadService
                 reviewStatsByVendorId.TryGetValue(x.VendorId, out var reviewStats);
 
                 return new HomeProductSource(
+                    x.MasterProductId,
                     x.Id,
                     x.CreatedAtUtc,
                     x.VendorId,
@@ -400,6 +401,12 @@ public class HomeReadService : IHomeReadService
                     x.BrandId.HasValue ? PickLocalizedNullable(x.BrandNameAr, x.BrandNameEn) : null,
                     x.BrandLogo);
             })
+            .GroupBy(x => x.MasterProductId)
+            .Select(group => group
+                .OrderBy(x => x.SellingPrice)
+                .ThenByDescending(x => x.CreatedAtUtc)
+                .ThenBy(x => x.Store, StringComparer.CurrentCultureIgnoreCase)
+                .First())
             .ToList();
 
         return new HomeProductCatalog(products, _currentUserService.UserId);
@@ -475,7 +482,7 @@ public class HomeReadService : IHomeReadService
         IReadOnlyList<ActiveFeaturedPlacement> placements,
         int take)
     {
-        var byVendorProductId = products.ToDictionary(x => x.Id);
+        var byVendorProductId = products.ToDictionary(x => x.VendorProductId);
         var groupedByMasterProduct = products
             .GroupBy(x => x.MasterProductId)
             .ToDictionary(
@@ -486,7 +493,7 @@ public class HomeReadService : IHomeReadService
                     .ToList());
 
         var result = new List<HomeProductCardDto>();
-        var seenVendorProductIds = new HashSet<Guid>();
+        var seenMasterProductIds = new HashSet<Guid>();
 
         foreach (var placement in placements)
         {
@@ -505,11 +512,11 @@ public class HomeReadService : IHomeReadService
             {
                 if (groupedByMasterProduct.TryGetValue(placement.MasterProductId.Value, out var candidates))
                 {
-                    product = candidates.FirstOrDefault(x => !seenVendorProductIds.Contains(x.Id));
+                    product = candidates.FirstOrDefault(x => !seenMasterProductIds.Contains(x.Id));
                 }
             }
 
-            if (product is null || !seenVendorProductIds.Add(product.Id))
+            if (product is null || !seenMasterProductIds.Add(product.Id))
             {
                 continue;
             }
@@ -923,6 +930,7 @@ public class HomeReadService : IHomeReadService
 
     private sealed record HomeProductSource(
         Guid Id,
+        Guid VendorProductId,
         DateTime CreatedAtUtc,
         Guid VendorId,
         Guid MasterProductId,

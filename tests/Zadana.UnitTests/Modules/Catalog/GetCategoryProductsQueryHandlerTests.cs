@@ -98,6 +98,7 @@ public class GetCategoryProductsQueryHandlerTests
 
         result.Total.Should().Be(1);
         result.Items.Should().ContainSingle();
+        result.Items[0].Id.Should().Be(matching.Id);
         result.Items[0].Name.Should().Be("Alpha Milk");
         result.AppliedFilters.ProductTypeId.Should().Be(milkType.Id);
         result.AppliedFilters.PartId.Should().Be(fullCreamPart.Id);
@@ -220,6 +221,49 @@ public class GetCategoryProductsQueryHandlerTests
 
         result.Total.Should().Be(2);
         result.Items.Select(item => item.Name).Should().Equal("Cheese Product", "Milk Product");
+    }
+
+    [Fact]
+    public async Task Handle_WhenMultipleVendorsOfferSameMasterProduct_ReturnsSingleProductCard()
+    {
+        using var scope = new CultureScope("en");
+        await using var context = TestDbContextFactory.Create();
+
+        var category = new Category("milk-ar", "Milk", null, null, 1);
+        context.Categories.Add(category);
+        await context.SaveChangesAsync();
+
+        var brand = new Brand("brand-ar", "Brand", "brand.png");
+        var unit = new UnitOfMeasure("unit-ar", "Unit", "U");
+        context.Brands.Add(brand);
+        context.UnitsOfMeasure.Add(unit);
+        await context.SaveChangesAsync();
+
+        var masterProduct = new MasterProduct("milk-prod-ar", "Milk Product", "milk-product", category.Id, brand.Id, unit.Id);
+        masterProduct.Publish();
+        context.MasterProducts.Add(masterProduct);
+        await context.SaveChangesAsync();
+
+        var vendorOne = CreateActiveVendor("Store One");
+        var vendorTwo = CreateActiveVendor("Store Two");
+        context.Vendors.AddRange(vendorOne, vendorTwo);
+        await context.SaveChangesAsync();
+
+        context.VendorProducts.AddRange(
+            new VendorProduct(vendorOne.Id, masterProduct.Id, 10m, 10),
+            new VendorProduct(vendorTwo.Id, masterProduct.Id, 12m, 10));
+        await context.SaveChangesAsync();
+
+        var handler = new GetCategoryProductsQueryHandler(context);
+
+        var result = await handler.Handle(
+            new GetCategoryProductsQuery(category.Id, null, null, null, null, null, null, null, 1, 20),
+            CancellationToken.None);
+
+        result.Total.Should().Be(1);
+        result.Items.Should().ContainSingle();
+        result.Items[0].Id.Should().Be(masterProduct.Id);
+        result.Items[0].Price.Should().Be(10m);
     }
 
     private static Vendor CreateActiveVendor(string businessNameEn)

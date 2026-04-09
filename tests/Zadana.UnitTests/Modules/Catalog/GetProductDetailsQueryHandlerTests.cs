@@ -38,7 +38,7 @@ public class GetProductDetailsQueryHandlerTests
 
         var result = await handler.Handle(new GetProductDetailsQuery(setup.PrimaryVendorProduct.Id), CancellationToken.None);
 
-        result.Id.Should().Be(setup.PrimaryVendorProduct.Id);
+        result.Id.Should().Be(setup.PrimaryMasterProduct.Id);
         result.MasterProductId.Should().Be(setup.PrimaryMasterProduct.Id);
         result.DefaultVendorProductId.Should().Be(setup.PrimaryVendorProduct.Id);
         result.Name.Should().Be("Full Cream Milk 1L");
@@ -52,7 +52,7 @@ public class GetProductDetailsQueryHandlerTests
         result.VendorPrices.Should().HaveCount(2);
         result.VendorPrices.Select(item => item.Id).Should().Contain(new[] { setup.PrimaryVendorProduct.Id, setup.SecondaryVendorProduct.Id });
         result.SimilarProducts.Should().ContainSingle();
-        result.SimilarProducts[0].Id.Should().Be(setup.SimilarVendorProduct.Id);
+        result.SimilarProducts[0].Id.Should().Be(setup.SimilarVendorProduct.MasterProductId);
         result.Rating.Should().Be(4.5m);
         result.ReviewCount.Should().Be(2);
     }
@@ -70,7 +70,7 @@ public class GetProductDetailsQueryHandlerTests
 
         result.MasterProductId.Should().Be(setup.PrimaryMasterProduct.Id);
         result.DefaultVendorProductId.Should().Be(setup.PrimaryVendorProduct.Id);
-        result.Id.Should().Be(setup.PrimaryVendorProduct.Id);
+        result.Id.Should().Be(setup.PrimaryMasterProduct.Id);
     }
 
     private static async Task<ProductScenario> SeedProductScenarioAsync(Infrastructure.Persistence.ApplicationDbContext context)

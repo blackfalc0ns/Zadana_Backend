@@ -84,6 +84,7 @@ public class GetCategoryProductsQueryHandler : IRequestHandler<GetCategoryProduc
                 (!request.MaxPrice.HasValue || product.SellingPrice <= request.MaxPrice.Value))
             .Select(product => new RawCategoryProduct(
                 product.Id,
+                product.MasterProductId,
                 product.CreatedAtUtc,
                 product.VendorId,
                 product.MasterProduct.CategoryId,
@@ -109,7 +110,7 @@ public class GetCategoryProductsQueryHandler : IRequestHandler<GetCategoryProduc
                 reviewStatsByVendorId.TryGetValue(product.VendorId, out var reviewStats);
 
                 return new CategoryProductSource(
-                    product.Id,
+                    product.MasterProductId,
                     product.CreatedAtUtc,
                     product.CategoryId,
                     PickLocalized(product.NameAr, product.NameEn),
@@ -121,7 +122,13 @@ public class GetCategoryProductsQueryHandler : IRequestHandler<GetCategoryProduc
                     salesCount,
                     reviewStats?.AverageRating,
                     reviewStats?.ReviewCount ?? 0);
-            });
+            })
+            .GroupBy(product => product.Id)
+            .Select(group => group
+                .OrderBy(product => product.SellingPrice)
+                .ThenByDescending(product => product.CreatedAtUtc)
+                .ThenBy(product => product.Store, StringComparer.CurrentCultureIgnoreCase)
+                .First());
 
         var sortedProducts = ApplySorting(products, request.Sort).ToList();
 
@@ -320,6 +327,7 @@ public class GetCategoryProductsQueryHandler : IRequestHandler<GetCategoryProduc
 
     private sealed record RawCategoryProduct(
         Guid Id,
+        Guid MasterProductId,
         DateTime CreatedAtUtc,
         Guid VendorId,
         Guid CategoryId,
