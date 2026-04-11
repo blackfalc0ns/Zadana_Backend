@@ -5336,7 +5336,7 @@
         "/api/cart/items": {
             "post": {
                 "summary": "Add item to cart",
-                "description": "Adds a product to the cart owned by the authenticated customer or by the guest device provided in X-Device-Id. The item is returned without prices until the customer selects a vendor using GET /api/cart/vendors and then requests GET /api/cart with vendor_id. If the product already exists in cart, the quantity is increased instead of creating a duplicate row.",
+                "description": "Adds a product to the cart owned by the authenticated customer or by the guest device provided in X-Device-Id. The item is returned without prices and the financial summary fields remain null until the customer selects a vendor using GET /api/cart/vendors and then requests GET /api/cart with vendor_id. If the product already exists in cart, the quantity is increased instead of creating a duplicate row.",
                 "tags": [
                     "Customer/Orders"
                 ],
@@ -5398,7 +5398,7 @@
         "/api/cart/items/{itemId}": {
             "patch": {
                 "summary": "Update cart item quantity",
-                "description": "Updates the quantity of a single cart item for the cart owned by the authenticated customer or by the guest device provided in X-Device-Id.",
+                "description": "Updates the quantity of a single cart item for the cart owned by the authenticated customer or by the guest device provided in X-Device-Id. When vendor_id is sent, the same response returns the updated vendor-specific prices plus subtotal before discount, discountAmount, and totalAmount after discount so the client does not need to call GET /api/cart again. When vendor_id is omitted, vendorPrices stays empty and the financial summary fields remain null.",
                 "tags": [
                     "Customer/Orders"
                 ],
@@ -5416,6 +5416,15 @@
                         "name": "itemId",
                         "in": "path",
                         "required": true,
+                        "schema": {
+                            "type": "string",
+                            "format": "uuid"
+                        }
+                    },
+                    {
+                        "name": "vendor_id",
+                        "in": "query",
+                        "description": "Optional vendor identifier. When provided, the updated cart item response includes vendor-specific prices and recalculated subtotal, discountAmount, and totalAmount for that vendor.",
                         "schema": {
                             "type": "string",
                             "format": "uuid"

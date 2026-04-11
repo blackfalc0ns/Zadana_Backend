@@ -46,6 +46,26 @@ public class CartCommandsTests
     }
 
     [Fact]
+    public async Task UpdateCartItemQuantity_ReturnsVendorPricesAndUpdatedTotals_WhenVendorIsSelected()
+    {
+        await using var context = TestDbContextFactory.Create();
+        var setup = await SeedCartWithItemAsync(context);
+
+        var handler = new UpdateCartItemQuantityCommandHandler(context);
+
+        var result = await handler.Handle(
+            new UpdateCartItemQuantityCommand(CartActor.Create(setup.UserId, null), setup.CartItem.Id, 5, setup.FirstVendorId),
+            CancellationToken.None);
+
+        result.Item.Quantity.Should().Be(5);
+        result.Item.VendorPrices.Should().ContainSingle();
+        result.Item.VendorPrices[0].Price.Should().Be(50m);
+        result.Summary.Subtotal.Should().Be(300m);
+        result.Summary.DiscountAmount.Should().Be(50m);
+        result.Summary.TotalAmount.Should().Be(250m);
+    }
+
+    [Fact]
     public async Task RemoveCartItem_RemovesLastItemAndReturnsEmptySummary()
     {
         await using var context = TestDbContextFactory.Create();
@@ -128,7 +148,7 @@ public class CartCommandsTests
         context.Carts.Add(cart);
         await context.SaveChangesAsync();
 
-        return new CartSetup(productSetup.UserId, productSetup.MasterProduct, cartItem);
+        return new CartSetup(productSetup.UserId, productSetup.MasterProduct, cartItem, productSetup.FirstVendorId);
     }
 
     private static Vendor CreateActiveVendor(string businessNameEn)
@@ -148,5 +168,5 @@ public class CartCommandsTests
 
     private sealed record ProductSetup(Guid UserId, MasterProduct MasterProduct, Guid FirstVendorId, Guid SecondVendorId);
 
-    private sealed record CartSetup(Guid UserId, MasterProduct MasterProduct, CartItem CartItem);
+    private sealed record CartSetup(Guid UserId, MasterProduct MasterProduct, CartItem CartItem, Guid FirstVendorId);
 }

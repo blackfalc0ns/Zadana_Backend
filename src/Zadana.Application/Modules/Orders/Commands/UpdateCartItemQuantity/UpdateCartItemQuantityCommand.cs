@@ -13,7 +13,8 @@ namespace Zadana.Application.Modules.Orders.Commands.UpdateCartItemQuantity;
 public record UpdateCartItemQuantityCommand(
     CartActor Actor,
     Guid CartItemId,
-    int Quantity) : IRequest<CartItemMutationResponseDto>;
+    int Quantity,
+    Guid? VendorId = null) : IRequest<CartItemMutationResponseDto>;
 
 public class UpdateCartItemQuantityCommandValidator : AbstractValidator<UpdateCartItemQuantityCommand>
 {
@@ -52,7 +53,7 @@ public class UpdateCartItemQuantityCommandHandler : IRequestHandler<UpdateCartIt
 
         await _context.SaveChangesAsync(cancellationToken);
 
-        var cartDto = await CartProjection.BuildCartDtoAsync(_context, cart, cancellationToken);
+        var cartDto = await CartProjection.BuildCartDtoAsync(_context, cart, cancellationToken, request.VendorId);
         var itemDto = cartDto.Items.Single(item => item.Id == cartItem.Id);
 
         return new CartItemMutationResponseDto("cart item updated successfully", itemDto, cartDto.Summary);

@@ -88,10 +88,30 @@ public class CartControllerTests
         _senderMock.Setup(x => x.Send(It.IsAny<UpdateCartItemQuantityCommand>(), It.IsAny<CancellationToken>()))
             .ReturnsAsync(dto);
 
-        var result = await _controller.UpdateItem(Guid.NewGuid(), new UpdateCartItemQuantityRequest(2), CancellationToken.None);
+        var result = await _controller.UpdateItem(Guid.NewGuid(), new UpdateCartItemQuantityRequest(2), null, CancellationToken.None);
 
         var okResult = result.Result.Should().BeOfType<OkObjectResult>().Subject;
         okResult.Value.Should().BeEquivalentTo(dto);
+    }
+
+    [Fact]
+    public async Task UpdateItem_PassesVendorIdToCommand_WhenProvided()
+    {
+        var dto = new CartItemMutationResponseDto(
+            "cart item updated successfully",
+            new CartItemDto(Guid.NewGuid(), Guid.NewGuid(), "Milk", null, "Liter", 2, []),
+            new CartSummaryDto(1, 2, 120m, 20m, 100m));
+        UpdateCartItemQuantityCommand? sentCommand = null;
+
+        _senderMock.Setup(x => x.Send(It.IsAny<UpdateCartItemQuantityCommand>(), It.IsAny<CancellationToken>()))
+            .Callback<IRequest<CartItemMutationResponseDto>, CancellationToken>((command, _) => sentCommand = (UpdateCartItemQuantityCommand)command)
+            .ReturnsAsync(dto);
+
+        var vendorId = Guid.NewGuid();
+        await _controller.UpdateItem(Guid.NewGuid(), new UpdateCartItemQuantityRequest(2), vendorId, CancellationToken.None);
+
+        sentCommand.Should().NotBeNull();
+        sentCommand!.VendorId.Should().Be(vendorId);
     }
 
     [Fact]

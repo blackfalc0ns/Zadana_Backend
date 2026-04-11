@@ -67,10 +67,11 @@ public class CartController : ApiControllerBase
     public async Task<ActionResult<CartItemMutationResponseDto>> UpdateItem(
         Guid itemId,
         [FromBody] UpdateCartItemQuantityRequest request,
+        [FromQuery(Name = "vendor_id")] Guid? vendorId = null,
         CancellationToken cancellationToken = default)
     {
         var result = await Sender.Send(
-            new UpdateCartItemQuantityCommand(GetCartActor(), itemId, request.Quantity),
+            new UpdateCartItemQuantityCommand(GetCartActor(), itemId, request.Quantity, vendorId),
             cancellationToken);
 
         return Ok(result);
