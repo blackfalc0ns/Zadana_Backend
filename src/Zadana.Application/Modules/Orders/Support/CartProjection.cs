@@ -18,7 +18,7 @@ internal static class CartProjection
     {
         if (cart is null || cart.Items.Count == 0)
         {
-            return new CartDto([], new CartSummaryDto(0, 0));
+            return new CartDto([], new CartSummaryDto(0, 0, null, null, null));
         }
 
         var masterProductIds = cart.Items
@@ -107,9 +107,48 @@ internal static class CartProjection
             })
             .ToList();
 
+        decimal? subtotal = null;
+        decimal? discountAmount = null;
+        decimal? totalAmount = null;
+
+        if (selectedVendorId.HasValue)
+        {
+            var hasAllPrices = true;
+            var subtotalValue = 0m;
+            var discountAmountValue = 0m;
+            var totalAmountValue = 0m;
+
+            foreach (var cartItem in cart.Items)
+            {
+                if (!offersByProductId.TryGetValue(cartItem.MasterProductId, out var offers) || offers.Count == 0)
+                {
+                    hasAllPrices = false;
+                    break;
+                }
+
+                var selectedOffer = offers[0];
+                var originalUnitPrice = IsDiscounted(selectedOffer.Price, selectedOffer.OldPrice)
+                    ? selectedOffer.OldPrice!.Value
+                    : selectedOffer.Price;
+                var lineSubtotal = originalUnitPrice * cartItem.Quantity;
+                var lineTotal = selectedOffer.Price * cartItem.Quantity;
+
+                subtotalValue += lineSubtotal;
+                totalAmountValue += lineTotal;
+                discountAmountValue += lineSubtotal - lineTotal;
+            }
+
+            if (hasAllPrices)
+            {
+                subtotal = subtotalValue;
+                discountAmount = discountAmountValue;
+                totalAmount = totalAmountValue;
+            }
+        }
+
         return new CartDto(
             items,
-            new CartSummaryDto(items.Count, items.Sum(item => item.Quantity)));
+            new CartSummaryDto(items.Count, items.Sum(item => item.Quantity), subtotal, discountAmount, totalAmount));
     }
 
     public static Task<bool> HasVisibleOfferAsync(

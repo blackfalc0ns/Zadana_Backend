@@ -50,7 +50,7 @@ public class CartControllerTests
     [Fact]
     public async Task GetCart_ReturnsOkResult()
     {
-        var dto = new CartDto([], new CartSummaryDto(0, 0));
+        var dto = new CartDto([], new CartSummaryDto(0, 0, null, null, null));
         _senderMock.Setup(x => x.Send(It.IsAny<GetCartQuery>(), It.IsAny<CancellationToken>()))
             .ReturnsAsync(dto);
 
@@ -66,7 +66,7 @@ public class CartControllerTests
         var dto = new CartItemMutationResponseDto(
             "added to cart successfully",
             new CartItemDto(Guid.NewGuid(), Guid.NewGuid(), "Milk", null, "Liter", 1, []),
-            new CartSummaryDto(1, 1));
+            new CartSummaryDto(1, 1, null, null, null));
 
         _senderMock.Setup(x => x.Send(It.IsAny<AddCartItemCommand>(), It.IsAny<CancellationToken>()))
             .ReturnsAsync(dto);
@@ -83,7 +83,7 @@ public class CartControllerTests
         var dto = new CartItemMutationResponseDto(
             "cart item updated successfully",
             new CartItemDto(Guid.NewGuid(), Guid.NewGuid(), "Milk", null, "Liter", 2, []),
-            new CartSummaryDto(1, 2));
+            new CartSummaryDto(1, 2, null, null, null));
 
         _senderMock.Setup(x => x.Send(It.IsAny<UpdateCartItemQuantityCommand>(), It.IsAny<CancellationToken>()))
             .ReturnsAsync(dto);
@@ -97,7 +97,7 @@ public class CartControllerTests
     [Fact]
     public async Task RemoveItem_ReturnsOkResult()
     {
-        var dto = new CartItemRemovalResponseDto("cart item removed successfully", new CartSummaryDto(0, 0));
+        var dto = new CartItemRemovalResponseDto("cart item removed successfully", new CartSummaryDto(0, 0, null, null, null));
         _senderMock.Setup(x => x.Send(It.IsAny<RemoveCartItemCommand>(), It.IsAny<CancellationToken>()))
             .ReturnsAsync(dto);
 
@@ -130,7 +130,7 @@ public class CartControllerTests
         var dto = new CartItemMutationResponseDto(
             "added to cart successfully",
             new CartItemDto(Guid.NewGuid(), Guid.NewGuid(), "Milk", null, "Liter", 1, []),
-            new CartSummaryDto(1, 1));
+            new CartSummaryDto(1, 1, null, null, null));
 
         _senderMock.Setup(x => x.Send(It.IsAny<AddCartItemCommand>(), It.IsAny<CancellationToken>()))
             .ReturnsAsync(dto);
@@ -144,7 +144,7 @@ public class CartControllerTests
     [Fact]
     public async Task GetCart_PassesVendorIdToQuery()
     {
-        var dto = new CartDto([], new CartSummaryDto(0, 0));
+        var dto = new CartDto([], new CartSummaryDto(0, 0, null, null, null));
         GetCartQuery? sentQuery = null;
 
         _senderMock.Setup(x => x.Send(It.IsAny<GetCartQuery>(), It.IsAny<CancellationToken>()))
@@ -161,7 +161,7 @@ public class CartControllerTests
     [Fact]
     public async Task GetCart_SendsNullVendorId_WhenNotProvided()
     {
-        var dto = new CartDto([], new CartSummaryDto(0, 0));
+        var dto = new CartDto([], new CartSummaryDto(0, 0, null, null, null));
         GetCartQuery? sentQuery = null;
 
         _senderMock.Setup(x => x.Send(It.IsAny<GetCartQuery>(), It.IsAny<CancellationToken>()))

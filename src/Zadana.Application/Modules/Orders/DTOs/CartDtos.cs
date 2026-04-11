@@ -27,7 +27,10 @@ public record CartItemDto(
 
 public record CartSummaryDto(
     int ItemsCount,
-    int TotalQuantity);
+    int TotalQuantity,
+    decimal? Subtotal,
+    decimal? DiscountAmount,
+    decimal? TotalAmount);
 
 public record CartDto(
     List<CartItemDto> Items,

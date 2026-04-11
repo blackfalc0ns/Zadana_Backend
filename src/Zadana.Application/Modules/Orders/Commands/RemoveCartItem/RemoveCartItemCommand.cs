@@ -51,7 +51,7 @@ public class RemoveCartItemCommandHandler : IRequestHandler<RemoveCartItemComman
         if (cart.Items.Count == 0)
         {
             _context.Carts.Remove(cart);
-            summary = new CartSummaryDto(0, 0);
+            summary = new CartSummaryDto(0, 0, null, null, null);
         }
         else
         {

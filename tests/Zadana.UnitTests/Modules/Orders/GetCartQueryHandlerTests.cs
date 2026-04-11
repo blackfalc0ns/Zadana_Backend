@@ -25,6 +25,9 @@ public class GetCartQueryHandlerTests
         result.Items.Should().BeEmpty();
         result.Summary.ItemsCount.Should().Be(0);
         result.Summary.TotalQuantity.Should().Be(0);
+        result.Summary.Subtotal.Should().BeNull();
+        result.Summary.DiscountAmount.Should().BeNull();
+        result.Summary.TotalAmount.Should().BeNull();
     }
 
     [Fact]
@@ -40,6 +43,9 @@ public class GetCartQueryHandlerTests
 
         result.Summary.ItemsCount.Should().Be(1);
         result.Summary.TotalQuantity.Should().Be(2);
+        result.Summary.Subtotal.Should().BeNull();
+        result.Summary.DiscountAmount.Should().BeNull();
+        result.Summary.TotalAmount.Should().BeNull();
         result.Items.Should().ContainSingle();
         result.Items[0].ProductId.Should().Be(setup.MasterProduct.Id);
         result.Items[0].Name.Should().Be("Full Cream Milk 1L");
@@ -63,6 +69,27 @@ public class GetCartQueryHandlerTests
         result.Items[0].VendorPrices.Should().ContainSingle();
         result.Items[0].VendorPrices[0].Name.Should().Be("Green Valley Market");
         result.Items[0].VendorPrices[0].Price.Should().Be(50m);
+        result.Summary.Subtotal.Should().Be(120m);
+        result.Summary.DiscountAmount.Should().Be(20m);
+        result.Summary.TotalAmount.Should().Be(100m);
+    }
+
+    [Fact]
+    public async Task Handle_ReturnsNullFinancialTotals_WhenSelectedVendorDoesNotPriceAllCartItems()
+    {
+        using var scope = new CultureScope("en");
+        await using var context = TestDbContextFactory.Create();
+
+        var setup = await SeedCartScenarioWithMissingVendorPriceAsync(context);
+        var handler = new GetCartQueryHandler(context);
+
+        var result = await handler.Handle(new GetCartQuery(CartActor.Create(setup.UserId, null), setup.FirstVendorId), CancellationToken.None);
+
+        result.Summary.ItemsCount.Should().Be(2);
+        result.Summary.TotalQuantity.Should().Be(3);
+        result.Summary.Subtotal.Should().BeNull();
+        result.Summary.DiscountAmount.Should().BeNull();
+        result.Summary.TotalAmount.Should().BeNull();
     }
 
     [Fact]
@@ -102,6 +129,28 @@ public class GetCartQueryHandlerTests
 
         var cart = new Cart(Guid.NewGuid());
         cart.Items.Add(new CartItem(cart.Id, seeded.MasterProduct.Id, seeded.MasterProduct.NameEn, 2));
+        context.Carts.Add(cart);
+        await context.SaveChangesAsync();
+
+        return new CartScenario(cart.UserId, seeded.MasterProduct, seeded.FirstVendorId, seeded.SecondVendorId);
+    }
+
+    private static async Task<CartScenario> SeedCartScenarioWithMissingVendorPriceAsync(Infrastructure.Persistence.ApplicationDbContext context)
+    {
+        var seeded = await SeedCatalogOnlyScenarioAsync(context);
+
+        var secondProduct = new MasterProduct("eggs-ar", "Farm Eggs 6 pcs", "eggs", seeded.MasterProduct.CategoryId, seeded.MasterProduct.BrandId, seeded.MasterProduct.UnitOfMeasureId);
+        secondProduct.Publish();
+        secondProduct.AddImage("https://cdn.test/eggs-primary.jpg", displayOrder: 0, isPrimary: true);
+        context.MasterProducts.Add(secondProduct);
+        await context.SaveChangesAsync();
+
+        context.VendorProducts.Add(new VendorProduct(seeded.SecondVendorId, secondProduct.Id, 30m, 5, null));
+        await context.SaveChangesAsync();
+
+        var cart = new Cart(Guid.NewGuid());
+        cart.Items.Add(new CartItem(cart.Id, seeded.MasterProduct.Id, seeded.MasterProduct.NameEn, 2));
+        cart.Items.Add(new CartItem(cart.Id, secondProduct.Id, secondProduct.NameEn, 1));
         context.Carts.Add(cart);
         await context.SaveChangesAsync();
 

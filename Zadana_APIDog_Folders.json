@@ -5203,7 +5203,7 @@
         "/api/cart": {
             "get": {
                 "summary": "Get customer cart",
-                "description": "Returns the cart items for either the authenticated customer or a guest device identified by the X-Device-Id header. When vendor_id is not sent, products are returned without prices until the customer selects a vendor. When vendor_id is sent, each cart item returns the price/options for that vendor only.",
+                "description": "Returns the cart items for either the authenticated customer or a guest device identified by the X-Device-Id header. When vendor_id is not sent, products are returned without prices and the financial summary fields remain null until the customer selects a vendor. When vendor_id is sent, each cart item returns the price/options for that vendor only and the summary returns subtotal before discount, discountAmount, and totalAmount after discount when all cart items are priced by that vendor.",
                 "tags": [
                     "Customer/Orders"
                 ],
@@ -5212,7 +5212,7 @@
                     {
                         "name": "vendor_id",
                         "in": "query",
-                        "description": "Optional vendor identifier. When omitted, the cart returns products without prices. When provided, each cart item returns the price/options for this vendor only.",
+                        "description": "Optional vendor identifier. When omitted, the cart returns products without prices and the financial summary fields are null. When provided, each cart item returns the price/options for this vendor only, and the summary totals are calculated only if every cart item has a valid offer for that vendor.",
                         "schema": {
                             "type": "string",
                             "format": "uuid"
@@ -8000,6 +8000,24 @@
                     "total_quantity": {
                         "type": "integer",
                         "format": "int32"
+                    },
+                    "subtotal": {
+                        "type": "number",
+                        "format": "double",
+                        "nullable": true,
+                        "description": "Total product price before discount for the selected vendor. Null when vendor_id is not provided or when one or more cart items cannot be priced by that vendor."
+                    },
+                    "discount_amount": {
+                        "type": "number",
+                        "format": "double",
+                        "nullable": true,
+                        "description": "Total savings for discounted cart items for the selected vendor. Null when the financial totals cannot be computed."
+                    },
+                    "total_amount": {
+                        "type": "number",
+                        "format": "double",
+                        "nullable": true,
+                        "description": "Final product total after discount for the selected vendor. Null when vendor_id is not provided or when one or more cart items cannot be priced by that vendor."
                     }
                 },
                 "additionalProperties": false
