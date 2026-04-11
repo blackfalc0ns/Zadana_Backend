@@ -4,6 +4,8 @@ using Microsoft.EntityFrameworkCore.Migrations;
 
 namespace Zadana.Infrastructure.Migrations
 {
+    [Microsoft.EntityFrameworkCore.Infrastructure.DbContext(typeof(Zadana.Infrastructure.Persistence.ApplicationDbContext))]
+    [Migration("20260411165000_AddGuestFavoritesSupport")]
     public partial class AddGuestFavoritesSupport : Migration
     {
         protected override void Up(MigrationBuilder migrationBuilder)
