@@ -110,14 +110,14 @@ public class GetAdminCustomersQueryHandler : IRequestHandler<GetAdminCustomersQu
 
         var favoritesCountByUser = await _context.CustomerFavorites
             .AsNoTracking()
-            .Where(favorite => customerIds.Contains(favorite.UserId))
+            .Where(favorite => favorite.UserId.HasValue && customerIds.Contains(favorite.UserId.Value))
             .GroupBy(favorite => favorite.UserId)
             .Select(group => new
             {
                 UserId = group.Key,
                 Count = group.Count()
             })
-            .ToDictionaryAsync(item => item.UserId, item => item.Count, cancellationToken);
+            .ToDictionaryAsync(item => item.UserId!.Value, item => item.Count, cancellationToken);
 
         var items = customers.Select(customer =>
         {

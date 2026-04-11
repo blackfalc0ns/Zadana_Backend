@@ -1032,21 +1032,30 @@ namespace Zadana.Infrastructure.Migrations
                     b.Property<DateTime>("CreatedAtUtc")
                         .HasColumnType("datetime2");
 
+                    b.Property<string>("GuestId")
+                        .HasMaxLength(200)
+                        .HasColumnType("nvarchar(200)");
+
                     b.Property<Guid>("MasterProductId")
                         .HasColumnType("uniqueidentifier");
 
                     b.Property<DateTime>("UpdatedAtUtc")
                         .HasColumnType("datetime2");
 
-                    b.Property<Guid>("UserId")
+                    b.Property<Guid?>("UserId")
                         .HasColumnType("uniqueidentifier");
 
                     b.HasKey("Id");
 
+                    b.HasIndex("GuestId", "MasterProductId")
+                        .IsUnique()
+                        .HasFilter("[GuestId] IS NOT NULL");
+
                     b.HasIndex("MasterProductId");
 
                     b.HasIndex("UserId", "MasterProductId")
-                        .IsUnique();
+                        .IsUnique()
+                        .HasFilter("[UserId] IS NOT NULL");
 
                     b.ToTable("CustomerFavorites", (string)null);
                 });
@@ -2885,8 +2894,7 @@ namespace Zadana.Infrastructure.Migrations
                     b.HasOne("Zadana.Domain.Modules.Identity.Entities.User", "User")
                         .WithMany()
                         .HasForeignKey("UserId")
-                        .OnDelete(DeleteBehavior.Cascade)
-                        .IsRequired();
+                        .OnDelete(DeleteBehavior.Restrict);
 
                     b.Navigation("MasterProduct");
 
