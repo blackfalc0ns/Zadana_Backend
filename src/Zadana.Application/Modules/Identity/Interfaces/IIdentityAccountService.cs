@@ -12,6 +12,7 @@ public interface IIdentityAccountService
     Task<IdentityOperationResult> DeleteAsync(Guid userId, CancellationToken cancellationToken = default);
     Task<CredentialValidationResult> ValidateCredentialsAsync(string identifier, string password, CancellationToken cancellationToken = default);
     Task<IdentityOperationResult> RecordLoginAsync(Guid userId, CancellationToken cancellationToken = default);
+    Task<IdentityOperationResult> RecordActivityAsync(Guid userId, CancellationToken cancellationToken = default);
     Task<IdentityOperationResult> UpdateProfileAsync(Guid userId, string fullName, string email, string phoneNumber, CancellationToken cancellationToken = default);
     Task<IdentityOperationResult> ActivateAsync(Guid userId, CancellationToken cancellationToken = default);
     Task<IdentityOperationResult> SuspendAsync(Guid userId, CancellationToken cancellationToken = default);

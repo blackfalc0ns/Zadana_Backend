@@ -46,7 +46,9 @@ public class GetMasterProductByIdQueryHandler : IRequestHandler<GetMasterProduct
             product.UnitOfMeasure != null ? product.UnitOfMeasure.NameEn : null,
             product.Status.ToString(),
             false,
-            product.Images.Select(i => new MasterProductImageDto(i.Url, i.AltText, i.DisplayOrder, i.IsPrimary)).ToList()
+            product.Images.Select(i => new MasterProductImageDto(i.Url, i.AltText, i.DisplayOrder, i.IsPrimary)).ToList(),
+            product.CreatedAtUtc,
+            product.UpdatedAtUtc
         );
     }
 }

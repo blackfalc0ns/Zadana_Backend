@@ -25,6 +25,13 @@ public class GetCategoryByIdQueryHandler : IRequestHandler<GetCategoryByIdQuery,
         if (category == null) return null;
 
         var level = await CalculateLevelAsync(category.Id, cancellationToken);
+        var directCategoryIds = category.SubCategories.Select(item => item.Id).Append(category.Id).ToList();
+        var brandsCountByCategoryId = await _context.Brands
+            .AsNoTracking()
+            .Where(brand => brand.CategoryId.HasValue && directCategoryIds.Contains(brand.CategoryId.Value))
+            .GroupBy(brand => brand.CategoryId!.Value)
+            .Select(group => new { CategoryId = group.Key, Count = group.Count() })
+            .ToDictionaryAsync(item => item.CategoryId, item => item.Count, cancellationToken);
 
         return new CategoryDto(
             category.Id,
@@ -39,6 +46,7 @@ public class GetCategoryByIdQueryHandler : IRequestHandler<GetCategoryByIdQuery,
             category.CreatedAtUtc,
             category.UpdatedAtUtc,
             category.MasterProducts?.Count ?? 0,
+            brandsCountByCategoryId.TryGetValue(category.Id, out var categoryCount) ? categoryCount : 0,
             Level: level,
             SubCategories: category.SubCategories?
                 .OrderBy(sc => sc.DisplayOrder)
@@ -55,6 +63,7 @@ public class GetCategoryByIdQueryHandler : IRequestHandler<GetCategoryByIdQuery,
                     null,
                     null,
                     0,
+                    brandsCountByCategoryId.TryGetValue(sc.Id, out var childCount) ? childCount : 0,
                     Level: level + 1,
                     null))
                 .ToList());

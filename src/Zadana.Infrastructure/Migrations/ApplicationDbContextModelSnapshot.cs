@@ -159,6 +159,9 @@ namespace Zadana.Infrastructure.Migrations
                         .ValueGeneratedOnAdd()
                         .HasColumnType("uniqueidentifier");
 
+                    b.Property<Guid?>("CategoryId")
+                        .HasColumnType("uniqueidentifier");
+
                     b.Property<DateTime>("CreatedAtUtc")
                         .HasColumnType("datetime2");
 
@@ -185,6 +188,8 @@ namespace Zadana.Infrastructure.Migrations
                         .HasColumnType("datetime2");
 
                     b.HasKey("Id");
+
+                    b.HasIndex("CategoryId");
 
                     b.ToTable("Brand", (string)null);
                 });
@@ -1018,6 +1023,34 @@ namespace Zadana.Infrastructure.Migrations
                     b.ToTable("CustomerAddresses", (string)null);
                 });
 
+            modelBuilder.Entity("Zadana.Domain.Modules.Identity.Entities.CustomerFavorite", b =>
+                {
+                    b.Property<Guid>("Id")
+                        .ValueGeneratedOnAdd()
+                        .HasColumnType("uniqueidentifier");
+
+                    b.Property<DateTime>("CreatedAtUtc")
+                        .HasColumnType("datetime2");
+
+                    b.Property<Guid>("MasterProductId")
+                        .HasColumnType("uniqueidentifier");
+
+                    b.Property<DateTime>("UpdatedAtUtc")
+                        .HasColumnType("datetime2");
+
+                    b.Property<Guid>("UserId")
+                        .HasColumnType("uniqueidentifier");
+
+                    b.HasKey("Id");
+
+                    b.HasIndex("MasterProductId");
+
+                    b.HasIndex("UserId", "MasterProductId")
+                        .IsUnique();
+
+                    b.ToTable("CustomerFavorites", (string)null);
+                });
+
             modelBuilder.Entity("Zadana.Domain.Modules.Identity.Entities.RefreshToken", b =>
                 {
                     b.Property<Guid>("Id")
@@ -1115,6 +1148,9 @@ namespace Zadana.Infrastructure.Migrations
                     b.Property<DateTime?>("LastOtpSentAt")
                         .HasColumnType("datetime2");
 
+                    b.Property<DateTime?>("LastSeenAtUtc")
+                        .HasColumnType("datetime2");
+
                     b.Property<decimal?>("Latitude")
                         .HasPrecision(9, 6)
                         .HasColumnType("decimal(9,6)");
@@ -1164,6 +1200,11 @@ namespace Zadana.Infrastructure.Migrations
 
                     b.Property<bool>("PhoneNumberConfirmed")
                         .HasColumnType("bit");
+
+                    b.Property<string>("PresenceState")
+                        .IsRequired()
+                        .HasMaxLength(20)
+                        .HasColumnType("nvarchar(20)");
 
                     b.Property<string>("ProfilePhotoUrl")
                         .HasColumnType("nvarchar(max)");
@@ -2557,6 +2598,16 @@ namespace Zadana.Infrastructure.Migrations
                         .IsRequired();
                 });
 
+            modelBuilder.Entity("Zadana.Domain.Modules.Catalog.Entities.Brand", b =>
+                {
+                    b.HasOne("Zadana.Domain.Modules.Catalog.Entities.Category", "Category")
+                        .WithMany("Brands")
+                        .HasForeignKey("CategoryId")
+                        .OnDelete(DeleteBehavior.Restrict);
+
+                    b.Navigation("Category");
+                });
+
             modelBuilder.Entity("Zadana.Domain.Modules.Catalog.Entities.BrandRequest", b =>
                 {
                     b.HasOne("Zadana.Domain.Modules.Catalog.Entities.Brand", "CreatedBrand")
@@ -2819,6 +2870,25 @@ namespace Zadana.Infrastructure.Migrations
                         .HasForeignKey("UserId")
                         .OnDelete(DeleteBehavior.Cascade)
                         .IsRequired();
+
+                    b.Navigation("User");
+                });
+
+            modelBuilder.Entity("Zadana.Domain.Modules.Identity.Entities.CustomerFavorite", b =>
+                {
+                    b.HasOne("Zadana.Domain.Modules.Catalog.Entities.MasterProduct", "MasterProduct")
+                        .WithMany()
+                        .HasForeignKey("MasterProductId")
+                        .OnDelete(DeleteBehavior.Cascade)
+                        .IsRequired();
+
+                    b.HasOne("Zadana.Domain.Modules.Identity.Entities.User", "User")
+                        .WithMany()
+                        .HasForeignKey("UserId")
+                        .OnDelete(DeleteBehavior.Cascade)
+                        .IsRequired();
+
+                    b.Navigation("MasterProduct");
 
                     b.Navigation("User");
                 });
@@ -3176,6 +3246,8 @@ namespace Zadana.Infrastructure.Migrations
 
             modelBuilder.Entity("Zadana.Domain.Modules.Catalog.Entities.Category", b =>
                 {
+                    b.Navigation("Brands");
+
                     b.Navigation("MasterProducts");
 
                     b.Navigation("ProductTypes");

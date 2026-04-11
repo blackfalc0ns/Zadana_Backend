@@ -18,10 +18,12 @@ public class GetCategoryProductsQueryHandler : IRequestHandler<GetCategoryProduc
     private const int MaxPerPage = 100;
 
     private readonly IApplicationDbContext _context;
+    private readonly ICurrentUserService _currentUserService;
 
-    public GetCategoryProductsQueryHandler(IApplicationDbContext context)
+    public GetCategoryProductsQueryHandler(IApplicationDbContext context, ICurrentUserService currentUserService)
     {
         _context = context;
+        _currentUserService = currentUserService;
     }
 
     public async Task<CategoryProductsDto> Handle(GetCategoryProductsQuery request, CancellationToken cancellationToken)
@@ -40,6 +42,7 @@ public class GetCategoryProductsQueryHandler : IRequestHandler<GetCategoryProduc
         var categoryScope = ResolveScope(request.CategoryId, categories)
             ?? throw new NotFoundException(nameof(Category), request.CategoryId);
         var categoryScopeIds = categoryScope.ActiveSubtreeIds.ToHashSet();
+        var favoriteMasterProductIds = await LoadFavoriteMasterProductIdsAsync(cancellationToken);
 
         var salesByVendorProductId = await _context.OrderItems
             .AsNoTracking()
@@ -138,7 +141,7 @@ public class GetCategoryProductsQueryHandler : IRequestHandler<GetCategoryProduc
         var items = sortedProducts
             .Skip((page - 1) * perPage)
             .Take(perPage)
-            .Select(MapToProductItem)
+            .Select(product => MapToProductItem(product, favoriteMasterProductIds.Contains(product.Id)))
             .ToList();
 
         return new CategoryProductsDto(
@@ -220,7 +223,7 @@ public class GetCategoryProductsQueryHandler : IRequestHandler<GetCategoryProduc
         };
     }
 
-    private CategoryProductItemDto MapToProductItem(CategoryProductSource product)
+    private CategoryProductItemDto MapToProductItem(CategoryProductSource product, bool isFavorite)
     {
         var isDiscounted = product.CompareAtPrice.HasValue && product.CompareAtPrice.Value > product.SellingPrice;
 
@@ -234,9 +237,23 @@ public class GetCategoryProductsQueryHandler : IRequestHandler<GetCategoryProduc
             product.Rating,
             product.ReviewCount,
             FormatDiscount(product),
-            false,
+            isFavorite,
             product.Unit,
             isDiscounted);
+    }
+
+    private async Task<HashSet<Guid>> LoadFavoriteMasterProductIdsAsync(CancellationToken cancellationToken)
+    {
+        if (!_currentUserService.UserId.HasValue)
+        {
+            return [];
+        }
+
+        return await _context.CustomerFavorites
+            .AsNoTracking()
+            .Where(x => x.UserId == _currentUserService.UserId.Value)
+            .Select(x => x.MasterProductId)
+            .ToHashSetAsync(cancellationToken);
     }
 
     private static decimal CalculateDiscountRate(CategoryProductSource product)

@@ -18,10 +18,12 @@ public class GetBrandProductsQueryHandler : IRequestHandler<GetBrandProductsQuer
     private const int MaxPerPage = 100;
 
     private readonly IApplicationDbContext _context;
+    private readonly ICurrentUserService _currentUserService;
 
-    public GetBrandProductsQueryHandler(IApplicationDbContext context)
+    public GetBrandProductsQueryHandler(IApplicationDbContext context, ICurrentUserService currentUserService)
     {
         _context = context;
+        _currentUserService = currentUserService;
     }
 
     public async Task<BrandProductsDto> Handle(GetBrandProductsQuery request, CancellationToken cancellationToken)
@@ -34,6 +36,8 @@ public class GetBrandProductsQueryHandler : IRequestHandler<GetBrandProductsQuer
         {
             throw new NotFoundException(nameof(Brand), request.BrandId);
         }
+
+        var favoriteMasterProductIds = await LoadFavoriteMasterProductIdsAsync(cancellationToken);
 
         HashSet<Guid>? categoryScopeIds = null;
         if (request.CategoryId.HasValue && !request.SubcategoryId.HasValue)
@@ -140,7 +144,7 @@ public class GetBrandProductsQueryHandler : IRequestHandler<GetBrandProductsQuer
         var items = sortedProducts
             .Skip((page - 1) * perPage)
             .Take(perPage)
-            .Select(MapToProductItem)
+            .Select(product => MapToProductItem(product, favoriteMasterProductIds.Contains(product.Id)))
             .ToList();
 
         return new BrandProductsDto(
@@ -191,7 +195,7 @@ public class GetBrandProductsQueryHandler : IRequestHandler<GetBrandProductsQuer
         };
     }
 
-    private BrandProductItemDto MapToProductItem(BrandProductSource product)
+    private BrandProductItemDto MapToProductItem(BrandProductSource product, bool isFavorite)
     {
         var isDiscounted = product.CompareAtPrice.HasValue && product.CompareAtPrice.Value > product.SellingPrice;
 
@@ -205,9 +209,23 @@ public class GetBrandProductsQueryHandler : IRequestHandler<GetBrandProductsQuer
             product.Rating,
             product.ReviewCount,
             FormatDiscount(product),
-            false,
+            isFavorite,
             product.Unit,
             isDiscounted);
+    }
+
+    private async Task<HashSet<Guid>> LoadFavoriteMasterProductIdsAsync(CancellationToken cancellationToken)
+    {
+        if (!_currentUserService.UserId.HasValue)
+        {
+            return [];
+        }
+
+        return await _context.CustomerFavorites
+            .AsNoTracking()
+            .Where(x => x.UserId == _currentUserService.UserId.Value)
+            .Select(x => x.MasterProductId)
+            .ToHashSetAsync(cancellationToken);
     }
 
     private static decimal CalculateDiscountRate(BrandProductSource product)

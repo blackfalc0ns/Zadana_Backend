@@ -1,4 +1,5 @@
 using MediatR;
+using Microsoft.EntityFrameworkCore;
 using Zadana.Application.Common.Interfaces;
 using Zadana.Application.Modules.Catalog.DTOs;
 using Zadana.Domain.Modules.Catalog.Entities;
@@ -16,7 +17,11 @@ public class CreateBrandCommandHandler : IRequestHandler<CreateBrandCommand, Bra
 
     public async Task<BrandDto> Handle(CreateBrandCommand request, CancellationToken cancellationToken)
     {
-        var brand = new Brand(request.NameAr, request.NameEn, request.LogoUrl);
+        var category = await _context.Categories
+            .AsNoTracking()
+            .FirstAsync(item => item.Id == request.CategoryId, cancellationToken);
+
+        var brand = new Brand(request.NameAr, request.NameEn, request.LogoUrl, request.CategoryId);
 
         _context.Brands.Add(brand);
         await _context.SaveChangesAsync(cancellationToken);
@@ -26,6 +31,9 @@ public class CreateBrandCommandHandler : IRequestHandler<CreateBrandCommand, Bra
             brand.NameAr,
             brand.NameEn,
             brand.LogoUrl,
+            brand.CategoryId,
+            category.NameAr,
+            category.NameEn,
             brand.IsActive,
             0,
             brand.CreatedAtUtc,

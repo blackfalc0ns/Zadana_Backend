@@ -23,8 +23,18 @@ public class BrandConfiguration : IEntityTypeConfiguration<Brand>
         builder.Property(b => b.LogoUrl)
             .HasMaxLength(500);
 
+        builder.Property(b => b.CategoryId)
+            .IsRequired(false);
+
         builder.Property(b => b.IsActive)
             .IsRequired()
             .HasDefaultValue(true);
+
+        builder.HasOne(b => b.Category)
+            .WithMany(c => c.Brands)
+            .HasForeignKey(b => b.CategoryId)
+            .OnDelete(DeleteBehavior.Restrict);
+
+        builder.HasIndex(b => b.CategoryId);
     }
 }

@@ -2,11 +2,13 @@ using System.Text;
 using System.Text.Json.Serialization;
 using Microsoft.AspNetCore.Authentication.JwtBearer;
 using Microsoft.AspNetCore.Identity;
+using Microsoft.AspNetCore.SignalR;
 using Microsoft.EntityFrameworkCore;
 using Microsoft.IdentityModel.Tokens;
 using Microsoft.OpenApi.Models;
 using Zadana.Api.Configuration;
 using Zadana.Api.Middleware;
+using Zadana.Api.Realtime;
 using Zadana.Application;
 using Zadana.Application.Common.Interfaces;
 using Zadana.Application.Modules.Catalog.Interfaces;
@@ -66,6 +68,9 @@ builder.Services.AddScoped<ICatalogRequestReadService, CatalogRequestReadService
 builder.Services.AddScoped<IHomeReadService, HomeReadService>();
 builder.Services.AddScoped<IOrderRepository, OrderRepository>();
 builder.Services.AddScoped<IOrderReadService, OrderReadService>();
+builder.Services.AddSingleton<CustomerPresenceService>();
+builder.Services.AddSingleton<ICustomerPresenceService>(provider => provider.GetRequiredService<CustomerPresenceService>());
+builder.Services.AddHostedService<CustomerPresenceSweepWorker>();
 
 builder.Services.AddOptions<Zadana.Infrastructure.Settings.ImageKitSettings>()
     .Bind(builder.Configuration.GetSection(Zadana.Infrastructure.Settings.ImageKitSettings.SectionName))
@@ -116,15 +121,17 @@ builder.Services.AddCors(options =>
         {
             policy.WithOrigins(allowedOrigins)
                 .AllowAnyHeader()
-                .AllowAnyMethod();
+                .AllowAnyMethod()
+                .AllowCredentials();
             return;
         }
 
         if (builder.Environment.IsDevelopment() || builder.Environment.IsEnvironment("Testing"))
         {
-            policy.AllowAnyOrigin()
+            policy.SetIsOriginAllowed(_ => true)
                 .AllowAnyHeader()
-                .AllowAnyMethod();
+                .AllowAnyMethod()
+                .AllowCredentials();
             return;
         }
 
@@ -150,6 +157,20 @@ builder.Services.AddAuthentication(options =>
         ValidAudience = builder.Configuration["JwtSettings:Audience"],
         IssuerSigningKey = new SymmetricSecurityKey(Encoding.UTF8.GetBytes(jwtSecret))
     };
+    options.Events = new JwtBearerEvents
+    {
+        OnMessageReceived = context =>
+        {
+            var accessToken = context.Request.Query["access_token"];
+            var path = context.HttpContext.Request.Path;
+            if (!string.IsNullOrWhiteSpace(accessToken) && path.StartsWithSegments(CustomerPresenceHub.HubRoute))
+            {
+                context.Token = accessToken;
+            }
+
+            return Task.CompletedTask;
+        }
+    };
 });
 
 builder.Services.AddAuthorization(options =>
@@ -169,6 +190,7 @@ builder.Services.AddControllers()
     {
         options.SuppressModelStateInvalidFilter = true;
     });
+builder.Services.AddSignalR();
 
 builder.Services.AddEndpointsApiExplorer();
 builder.Services.AddSwaggerGen(c =>
@@ -221,6 +243,7 @@ app.UseCors("Frontend");
 app.UseAuthentication();
 app.UseAuthorization();
 app.MapControllers();
+app.MapHub<CustomerPresenceHub>(CustomerPresenceHub.HubRoute);
 
 if (app.Environment.IsDevelopment())
 {

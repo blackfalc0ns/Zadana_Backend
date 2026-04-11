@@ -78,7 +78,9 @@ public class GetVendorProductsQueryHandler : IRequestHandler<GetVendorProductsQu
                 vp.MasterProduct.UnitOfMeasure?.NameEn,
                 vp.MasterProduct.Status.ToString(),
                 true,
-                vp.MasterProduct.Images.Select(i => new MasterProductImageDto(i.Url, i.AltText, i.DisplayOrder, i.IsPrimary)).ToList()
+                vp.MasterProduct.Images.Select(i => new MasterProductImageDto(i.Url, i.AltText, i.DisplayOrder, i.IsPrimary)).ToList(),
+                vp.MasterProduct.CreatedAtUtc,
+                vp.MasterProduct.UpdatedAtUtc
             )
         )).ToList();
         

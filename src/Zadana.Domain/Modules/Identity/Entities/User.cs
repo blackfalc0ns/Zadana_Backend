@@ -21,6 +21,8 @@ public class User : IdentityUser<Guid>
     public DateTime? PasswordResetOtpExpiry { get; private set; }
     public DateTime? LastLoginAtUtc { get; private set; }
     public DateTime? LastOtpSentAt { get; private set; }
+    public DateTime? LastSeenAtUtc { get; private set; }
+    public PresenceState PresenceState { get; private set; }
 
     public DateTime CreatedAtUtc { get; set; }
     public DateTime UpdatedAtUtc { get; set; }
@@ -50,6 +52,7 @@ public class User : IdentityUser<Guid>
         PhoneNumber = phone.Trim();
         Role = role;
         AccountStatus = AccountStatus.Active;
+        PresenceState = PresenceState.Offline;
         IsLoginLocked = false;
         EmailConfirmed = false;
         PhoneNumberConfirmed = false;
@@ -71,6 +74,20 @@ public class User : IdentityUser<Guid>
     public void VerifyPhone() => PhoneNumberConfirmed = true;
 
     public void RecordLogin() => LastLoginAtUtc = DateTime.UtcNow;
+    public void RecordActivity() => LastLoginAtUtc = DateTime.UtcNow;
+    public void MarkPresenceOnline(DateTime timestampUtc)
+    {
+        PresenceState = PresenceState.Online;
+        LastSeenAtUtc = timestampUtc;
+        UpdatedAtUtc = DateTime.UtcNow;
+    }
+
+    public void MarkPresenceOffline(DateTime timestampUtc)
+    {
+        PresenceState = PresenceState.Offline;
+        LastSeenAtUtc = timestampUtc;
+        UpdatedAtUtc = DateTime.UtcNow;
+    }
 
     public void Suspend()
     {

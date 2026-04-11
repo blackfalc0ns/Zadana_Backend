@@ -23,7 +23,7 @@ public class UpdateBrandCommandHandlerTests
             .ReturnsAsync((Brand?)null);
         _dbContextMock.Setup(c => c.Brands).Returns(mockBrandSet.Object);
 
-        var command = new UpdateBrandCommand(Guid.NewGuid(), "Updated", "Updated", null, true);
+        var command = new UpdateBrandCommand(Guid.NewGuid(), "Updated", "Updated", null, Guid.NewGuid(), true);
         var handler = CreateHandler();
 
         // Act
@@ -44,7 +44,7 @@ public class UpdateBrandCommandHandlerTests
         _dbContextMock.Setup(c => c.Brands).Returns(mockBrandSet.Object);
         _dbContextMock.Setup(c => c.SaveChangesAsync(It.IsAny<CancellationToken>())).ReturnsAsync(1);
 
-        var command = new UpdateBrandCommand(brand.Id, "جديد", "New", "https://new.png", true);
+        var command = new UpdateBrandCommand(brand.Id, "جديد", "New", "https://new.png", Guid.NewGuid(), true);
         var handler = CreateHandler();
 
         // Act

@@ -28,7 +28,9 @@ public class ApplicationDbContext : IdentityDbContext<User, IdentityRole<Guid>, 
     }
 
     // Identity
+    public new DbSet<User> Users => Set<User>();
     public DbSet<RefreshToken> RefreshTokens => Set<RefreshToken>();
+    public DbSet<CustomerFavorite> CustomerFavorites => Set<CustomerFavorite>();
 
     // Vendors
     public DbSet<Vendor> Vendors => Set<Vendor>();

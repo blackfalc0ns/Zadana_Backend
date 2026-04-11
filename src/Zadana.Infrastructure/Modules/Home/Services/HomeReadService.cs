@@ -46,7 +46,7 @@ public class HomeReadService : IHomeReadService
 
         var catalog = needsCatalog
             ? await BuildProductCatalogAsync(cancellationToken)
-            : new HomeProductCatalog([], _currentUserService.UserId);
+            : new HomeProductCatalog([], _currentUserService.UserId, new HashSet<Guid>());
 
         var banners = IsSectionEnabled(sectionSettings, HomeContentSectionType.Banners)
             ? await GetBannersInternalAsync(DefaultBannerTake, cancellationToken)
@@ -55,13 +55,13 @@ public class HomeReadService : IHomeReadService
             ? await GetCategoriesInternalAsync(DefaultCategoryTake, cancellationToken)
             : [];
         var specialOffers = IsSectionEnabled(sectionSettings, HomeContentSectionType.SpecialOffers)
-            ? SelectSpecialOffers(catalog.Products, DefaultProductTake)
+            ? SelectSpecialOffers(catalog, DefaultProductTake)
             : [];
         var featuredProducts = IsSectionEnabled(sectionSettings, HomeContentSectionType.FeaturedProducts)
-            ? await GetFeaturedProductsInternalAsync(catalog.Products, DefaultProductTake, cancellationToken)
+            ? await GetFeaturedProductsInternalAsync(catalog, DefaultProductTake, cancellationToken)
             : [];
         var bestSelling = IsSectionEnabled(sectionSettings, HomeContentSectionType.BestSelling)
-            ? SelectBestSelling(catalog.Products, DefaultProductTake)
+            ? SelectBestSelling(catalog, DefaultProductTake)
             : [];
         var recommended = IsSectionEnabled(sectionSettings, HomeContentSectionType.Recommended)
             ? await SelectRecommendedAsync(catalog, DefaultProductTake, cancellationToken)
@@ -76,10 +76,10 @@ public class HomeReadService : IHomeReadService
             ? await GetBrandsInternalAsync(DefaultBrandTake, cancellationToken)
             : [];
         var exploreMore = IsSectionEnabled(sectionSettings, HomeContentSectionType.ExploreMore)
-            ? SelectExploreMore(catalog.Products, DefaultProductTake, excludedExploreIds)
+            ? SelectExploreMore(catalog, DefaultProductTake, excludedExploreIds)
             : [];
         var sections = IsSectionEnabled(sectionSettings, HomeContentSectionType.DynamicSections)
-            ? await GetDynamicSectionsInternalAsync(catalog.Products, cancellationToken)
+            ? await GetDynamicSectionsInternalAsync(catalog, cancellationToken)
             : [];
         var bannersSection = CreateSection("banners", "Banners", IsSectionEnabled(sectionSettings, HomeContentSectionType.Banners), banners);
         var categoriesSection = CreateSection("categories", "Categories", IsSectionEnabled(sectionSettings, HomeContentSectionType.Categories), categories);
@@ -130,7 +130,7 @@ public class HomeReadService : IHomeReadService
             "special_offers",
             "Special Offers",
             true,
-            SelectSpecialOffers(catalog.Products, NormalizeTake(take, DefaultProductTake)));
+            SelectSpecialOffers(catalog, NormalizeTake(take, DefaultProductTake)));
     }
 
     public async Task<HomeListSectionDto<HomeProductCardDto>> GetRecommendedAsync(int take, CancellationToken cancellationToken = default)
@@ -160,7 +160,7 @@ public class HomeReadService : IHomeReadService
             "best_selling",
             "Best Selling",
             true,
-            SelectBestSelling(catalog.Products, NormalizeTake(take, DefaultProductTake)));
+            SelectBestSelling(catalog, NormalizeTake(take, DefaultProductTake)));
     }
 
     public async Task<HomeListSectionDto<HomeBrandCardDto>> GetBrandsAsync(int take, CancellationToken cancellationToken = default)
@@ -189,7 +189,7 @@ public class HomeReadService : IHomeReadService
             "featured_products",
             "Featured Products",
             true,
-            await GetFeaturedProductsInternalAsync(catalog.Products, NormalizeTake(take, DefaultProductTake), cancellationToken));
+            await GetFeaturedProductsInternalAsync(catalog, NormalizeTake(take, DefaultProductTake), cancellationToken));
     }
 
     public async Task<HomeListSectionDto<HomeProductCardDto>> GetExploreMoreAsync(int take, CancellationToken cancellationToken = default)
@@ -204,7 +204,7 @@ public class HomeReadService : IHomeReadService
             "explore_more",
             "Explore More",
             true,
-            SelectExploreMore(catalog.Products, NormalizeTake(take, DefaultProductTake), null));
+            SelectExploreMore(catalog, NormalizeTake(take, DefaultProductTake), null));
     }
 
     private async Task<IReadOnlyList<HomeBannerDto>> GetBannersOrEmptyAsync(int take, CancellationToken cancellationToken)
@@ -409,53 +409,63 @@ public class HomeReadService : IHomeReadService
                 .First())
             .ToList();
 
-        return new HomeProductCatalog(products, _currentUserService.UserId);
+        var favoritedMasterProductIds = new HashSet<Guid>();
+        if (_currentUserService.UserId.HasValue)
+        {
+            favoritedMasterProductIds = await _context.CustomerFavorites
+                .AsNoTracking()
+                .Where(x => x.UserId == _currentUserService.UserId.Value)
+                .Select(x => x.MasterProductId)
+                .ToHashSetAsync(cancellationToken);
+        }
+
+        return new HomeProductCatalog(products, _currentUserService.UserId, favoritedMasterProductIds);
     }
 
-    private IReadOnlyList<HomeProductCardDto> SelectSpecialOffers(IEnumerable<HomeProductSource> products, int take) =>
-        products
+    private IReadOnlyList<HomeProductCardDto> SelectSpecialOffers(HomeProductCatalog catalog, int take) =>
+        catalog.Products
             .Where(x => x.CompareAtPrice.HasValue && x.CompareAtPrice.Value > x.SellingPrice)
             .OrderByDescending(x => CalculateDiscountRate(x))
             .ThenByDescending(x => x.SalesCount)
             .ThenByDescending(x => x.CreatedAtUtc)
             .Take(take)
-            .Select(x => MapToProductCard(x))
+            .Select(x => MapToProductCard(x, catalog.FavoritedMasterProductIds.Contains(x.MasterProductId)))
             .ToList();
 
-    private IReadOnlyList<HomeProductCardDto> SelectBestSelling(IEnumerable<HomeProductSource> products, int take) =>
-        products
+    private IReadOnlyList<HomeProductCardDto> SelectBestSelling(HomeProductCatalog catalog, int take) =>
+        catalog.Products
             .OrderByDescending(x => x.SalesCount)
             .ThenByDescending(x => x.Rating ?? 0)
             .ThenByDescending(x => x.CreatedAtUtc)
             .Take(take)
-            .Select(x => MapToProductCard(x))
+            .Select(x => MapToProductCard(x, catalog.FavoritedMasterProductIds.Contains(x.MasterProductId)))
             .ToList();
 
-    private IReadOnlyList<HomeProductCardDto> SelectFeaturedProducts(IEnumerable<HomeProductSource> products, int take) =>
-        products
+    private IReadOnlyList<HomeProductCardDto> SelectFeaturedProducts(HomeProductCatalog catalog, int take) =>
+        catalog.Products
             .OrderByDescending(x => x.Rating ?? 0)
             .ThenByDescending(x => x.ReviewCount)
             .ThenByDescending(x => x.SalesCount)
             .ThenByDescending(x => x.CreatedAtUtc)
             .Take(take)
-            .Select(x => MapToProductCard(x, true))
+            .Select(x => MapToProductCard(x, catalog.FavoritedMasterProductIds.Contains(x.MasterProductId), true))
             .ToList();
 
     private async Task<IReadOnlyList<HomeProductCardDto>> GetFeaturedProductsInternalAsync(
-        IReadOnlyList<HomeProductSource> products,
+        HomeProductCatalog catalog,
         int take,
         CancellationToken cancellationToken)
     {
         var placements = await GetActiveFeaturedPlacementsAsync(cancellationToken);
         if (placements.Count == 0)
         {
-            return SelectFeaturedProducts(products, take);
+            return SelectFeaturedProducts(catalog, take);
         }
 
-        var curated = ResolveFeaturedPlacements(products, placements, take);
+        var curated = ResolveFeaturedPlacements(catalog, placements, take);
         return curated.Count > 0
             ? curated
-            : SelectFeaturedProducts(products, take);
+            : SelectFeaturedProducts(catalog, take);
     }
 
     private async Task<List<ActiveFeaturedPlacement>> GetActiveFeaturedPlacementsAsync(CancellationToken cancellationToken)
@@ -478,10 +488,11 @@ public class HomeReadService : IHomeReadService
     }
 
     private IReadOnlyList<HomeProductCardDto> ResolveFeaturedPlacements(
-        IReadOnlyList<HomeProductSource> products,
+        HomeProductCatalog catalog,
         IReadOnlyList<ActiveFeaturedPlacement> placements,
         int take)
     {
+        var products = catalog.Products;
         var byVendorProductId = products.ToDictionary(x => x.VendorProductId);
         var groupedByMasterProduct = products
             .GroupBy(x => x.MasterProductId)
@@ -521,7 +532,7 @@ public class HomeReadService : IHomeReadService
                 continue;
             }
 
-            result.Add(MapToProductCard(product, true));
+            result.Add(MapToProductCard(product, catalog.FavoritedMasterProductIds.Contains(product.MasterProductId), true));
         }
 
         return result;
@@ -534,7 +545,7 @@ public class HomeReadService : IHomeReadService
     {
         if (!_currentUserService.IsAuthenticated || !catalog.CurrentUserId.HasValue)
         {
-            return SelectFeaturedProducts(catalog.Products, take);
+            return SelectFeaturedProducts(catalog, take);
         }
 
         var purchasedMasterProducts = await _context.OrderItems
@@ -549,7 +560,7 @@ public class HomeReadService : IHomeReadService
 
         if (purchasedMasterProducts.Count == 0)
         {
-            return SelectFeaturedProducts(catalog.Products, take);
+            return SelectFeaturedProducts(catalog, take);
         }
 
         var categoryIds = purchasedMasterProducts
@@ -575,12 +586,12 @@ public class HomeReadService : IHomeReadService
             .ThenByDescending(x => x.Product.SalesCount)
             .ThenByDescending(x => x.Product.CreatedAtUtc)
             .Take(take)
-            .Select(x => MapToProductCard(x.Product))
+            .Select(x => MapToProductCard(x.Product, catalog.FavoritedMasterProductIds.Contains(x.Product.MasterProductId)))
             .ToList();
 
         return recommended.Any()
             ? recommended
-            : SelectFeaturedProducts(catalog.Products, take);
+            : SelectFeaturedProducts(catalog, take);
     }
 
     private async Task<IReadOnlyList<HomeBrandCardDto>> GetBrandsInternalAsync(int take, CancellationToken cancellationToken)
@@ -613,17 +624,18 @@ public class HomeReadService : IHomeReadService
     }
 
     private IReadOnlyList<HomeProductCardDto> SelectExploreMore(
-        IEnumerable<HomeProductSource> products,
+        HomeProductCatalog catalog,
         int take,
         ISet<Guid>? excludedIds)
     {
+        var products = catalog.Products;
         var query = products
             .Where(x => excludedIds == null || !excludedIds.Contains(x.Id))
             .OrderByDescending(x => x.CreatedAtUtc)
             .ThenByDescending(x => x.SalesCount)
             .ThenBy(x => x.Name)
             .Take(take)
-            .Select(x => MapToProductCard(x))
+            .Select(x => MapToProductCard(x, catalog.FavoritedMasterProductIds.Contains(x.MasterProductId)))
             .ToList();
 
         if (query.Count >= take || excludedIds == null)
@@ -636,16 +648,17 @@ public class HomeReadService : IHomeReadService
             .OrderByDescending(x => x.CreatedAtUtc)
             .ThenByDescending(x => x.SalesCount)
             .Take(take - query.Count)
-            .Select(x => MapToProductCard(x))
+            .Select(x => MapToProductCard(x, catalog.FavoritedMasterProductIds.Contains(x.MasterProductId)))
             .ToList();
 
         return query.Concat(additionalItems).ToList();
     }
 
     private async Task<IReadOnlyList<HomeDynamicSectionDto>> GetDynamicSectionsInternalAsync(
-        IReadOnlyList<HomeProductSource> products,
+        HomeProductCatalog catalog,
         CancellationToken cancellationToken)
     {
+        var products = catalog.Products;
         var now = DateTime.UtcNow;
 
         List<ActiveHomeSection> sections;
@@ -683,7 +696,7 @@ public class HomeReadService : IHomeReadService
                     .ThenByDescending(x => x.SalesCount)
                     .ThenByDescending(x => x.CreatedAtUtc)
                     .Take(section.ProductsTake)
-                    .Select(x => MapToProductCard(x))
+                    .Select(x => MapToProductCard(x, catalog.FavoritedMasterProductIds.Contains(x.MasterProductId)))
                     .ToList();
 
                 return new HomeDynamicSectionDto(
@@ -714,7 +727,7 @@ public class HomeReadService : IHomeReadService
             items.Count,
             items);
 
-    private HomeProductCardDto MapToProductCard(HomeProductSource product, bool isFeatured = false)
+    private HomeProductCardDto MapToProductCard(HomeProductSource product, bool isFavorite = false, bool isFeatured = false)
     {
         var isDiscounted = product.CompareAtPrice.HasValue && product.CompareAtPrice.Value > product.SellingPrice;
 
@@ -728,7 +741,7 @@ public class HomeReadService : IHomeReadService
             product.Rating,
             product.ReviewCount,
             FormatDiscount(product),
-            false,
+            isFavorite,
             isFeatured,
             product.Unit,
             isDiscounted);
@@ -885,7 +898,7 @@ public class HomeReadService : IHomeReadService
         return $"{Math.Round(rate * 100, MidpointRounding.AwayFromZero):0}%";
     }
 
-    private sealed record HomeProductCatalog(IReadOnlyList<HomeProductSource> Products, Guid? CurrentUserId);
+    private sealed record HomeProductCatalog(IReadOnlyList<HomeProductSource> Products, Guid? CurrentUserId, IReadOnlySet<Guid> FavoritedMasterProductIds);
 
     private sealed record VendorReviewStats(decimal AverageRating, int ReviewCount);
 

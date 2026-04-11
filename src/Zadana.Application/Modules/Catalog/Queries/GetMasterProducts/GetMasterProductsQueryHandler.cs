@@ -62,7 +62,9 @@ public class GetMasterProductsQueryHandler : IRequestHandler<GetMasterProductsQu
                 p.UnitOfMeasure != null ? p.UnitOfMeasure.NameEn : null,
                 p.Status.ToString(),
                 request.VendorId.HasValue && _context.VendorProducts.Any(vp => vp.MasterProductId == p.Id && vp.VendorId == request.VendorId.Value),
-                p.Images.Select(i => new MasterProductImageDto(i.Url, i.AltText, i.DisplayOrder, i.IsPrimary)).ToList()
+                p.Images.Select(i => new MasterProductImageDto(i.Url, i.AltText, i.DisplayOrder, i.IsPrimary)).ToList(),
+                p.CreatedAtUtc,
+                p.UpdatedAtUtc
             ));
 
         return await PaginatedList<MasterProductDto>.CreateAsync(

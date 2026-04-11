@@ -25,7 +25,9 @@ public record MasterProductDto(
     string? UnitNameEn,
     string Status,
     bool IsInVendorStore,
-    ICollection<MasterProductImageDto> Images);
+    ICollection<MasterProductImageDto> Images,
+    DateTime? CreatedAtUtc = null,
+    DateTime? UpdatedAtUtc = null);
 
 public record VendorProductDto(
     Guid Id,

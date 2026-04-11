@@ -23,6 +23,11 @@ public class UserConfiguration : IEntityTypeConfiguration<User>
             .HasMaxLength(20)
             .HasConversion<string>();
 
+        builder.Property(u => u.PresenceState)
+            .IsRequired()
+            .HasMaxLength(20)
+            .HasConversion<string>();
+
         builder.Property(u => u.IsLoginLocked)
             .HasDefaultValue(false);
 
@@ -39,6 +44,7 @@ public class UserConfiguration : IEntityTypeConfiguration<User>
             .HasPrecision(9, 6);
 
         builder.Property(u => u.LastLoginAtUtc);
+        builder.Property(u => u.LastSeenAtUtc);
         builder.Property(u => u.LockedAtUtc);
         builder.Property(u => u.ArchivedAtUtc);
 

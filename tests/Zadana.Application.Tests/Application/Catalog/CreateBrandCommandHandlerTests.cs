@@ -21,7 +21,7 @@ public class CreateBrandCommandHandlerTests
         _dbContextMock.Setup(c => c.Brands).Returns(mockBrandSet.Object);
         _dbContextMock.Setup(c => c.SaveChangesAsync(It.IsAny<CancellationToken>())).ReturnsAsync(1);
 
-        var command = new CreateBrandCommand("علامة تجارية", "Test Brand", "https://logo.png");
+        var command = new CreateBrandCommand("علامة تجارية", "Test Brand", "https://logo.png", Guid.NewGuid());
         var handler = CreateHandler();
 
         // Act
@@ -43,7 +43,7 @@ public class CreateBrandCommandHandlerTests
         _dbContextMock.Setup(c => c.Brands).Returns(mockBrandSet.Object);
         _dbContextMock.Setup(c => c.SaveChangesAsync(It.IsAny<CancellationToken>())).ReturnsAsync(1);
 
-        var command = new CreateBrandCommand("ماركة", "Brand", null);
+        var command = new CreateBrandCommand("ماركة", "Brand", null, Guid.NewGuid());
         var handler = CreateHandler();
 
         // Act

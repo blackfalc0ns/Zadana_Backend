@@ -31,6 +31,28 @@ public class AdminMasterProductsController : ApiControllerBase
         return Ok(result);
     }
 
+    [HttpPost("search")]
+    public async Task<ActionResult<CatalogSearchResponse<MasterProductDto, ProductSearchFiltersDto, ProductSearchFacetsDto>>> SearchProducts([FromBody] ProductSearchRequest? request)
+    {
+        var pagination = request?.Pagination ?? new CatalogPaginationRequest();
+        var filters = request?.Filters;
+
+        var result = await Sender.Send(new SearchMasterProductsQuery(
+            request?.Search,
+            new ProductSearchFiltersDto(
+                filters?.SubcategoryIds,
+                filters?.BrandIds,
+                filters?.Statuses,
+                filters?.IsActiveBrand,
+                filters?.HasBrand),
+            request?.Sort?.Field,
+            request?.Sort?.Direction,
+            pagination.PageNumber,
+            pagination.PageSize));
+
+        return Ok(result);
+    }
+
     [HttpGet("{id}")]
     public async Task<ActionResult<MasterProductDto>> GetProduct(Guid id)
     {

@@ -113,6 +113,24 @@ public class IdentityAccountService : IIdentityAccountService
         return await PersistUserAsync(user);
     }
 
+    public async Task<IdentityOperationResult> RecordActivityAsync(Guid userId, CancellationToken cancellationToken = default)
+    {
+        var user = await _userManager.FindByIdAsync(userId.ToString());
+        if (user == null)
+        {
+            return new IdentityOperationResult(false, ["User account was not found."]);
+        }
+
+        // Avoid a write on every foreground ping while still keeping admin-side activity fresh.
+        if (user.LastLoginAtUtc.HasValue && user.LastLoginAtUtc.Value >= DateTime.UtcNow.AddMinutes(-2))
+        {
+            return new IdentityOperationResult(true);
+        }
+
+        user.RecordActivity();
+        return await PersistUserAsync(user);
+    }
+
     public async Task<IdentityOperationResult> UpdateProfileAsync(
         Guid userId,
         string fullName,

@@ -1,3 +1,4 @@
+using Microsoft.EntityFrameworkCore;
 using Zadana.Application.Common.Interfaces;
 using Zadana.Application.Modules.Identity.DTOs;
 using Zadana.Application.Modules.Identity.Interfaces;
@@ -15,6 +16,7 @@ public class IdentityService : IIdentityService
     private readonly IUnitOfWork _unitOfWork;
     private readonly IJwtTokenService _jwtTokenService;
     private readonly ICurrentUserService _currentUserService;
+    private readonly IApplicationDbContext _context;
     private readonly IStringLocalizer<SharedResource> _localizer;
 
     public IdentityService(
@@ -23,6 +25,7 @@ public class IdentityService : IIdentityService
         IUnitOfWork unitOfWork,
         IJwtTokenService jwtTokenService,
         ICurrentUserService currentUserService,
+        IApplicationDbContext context,
         IStringLocalizer<SharedResource> localizer)
     {
         _identityAccountService = identityAccountService;
@@ -30,6 +33,7 @@ public class IdentityService : IIdentityService
         _unitOfWork = unitOfWork;
         _jwtTokenService = jwtTokenService;
         _currentUserService = currentUserService;
+        _context = context;
         _localizer = localizer;
     }
 
@@ -85,7 +89,8 @@ public class IdentityService : IIdentityService
 
         await _unitOfWork.SaveChangesAsync(cancellationToken);
 
-        var userDto = new CurrentUserDto(user.Id, user.FullName, user.Email, user.PhoneNumber, user.Role.ToString());
+        var favoritesCount = await _context.CustomerFavorites.CountAsync(x => x.UserId == user.Id, cancellationToken);
+        var userDto = new CurrentUserDto(user.Id, user.FullName, user.Email, user.PhoneNumber, user.Role.ToString(), favoritesCount);
         return new AuthResponseDto(tokens, userDto);
     }
 
@@ -145,6 +150,16 @@ public class IdentityService : IIdentityService
             throw new UnauthorizedException(_localizer["UserNotFound"]);
         }
 
-        return new CurrentUserDto(user.Id, user.FullName, user.Email, user.PhoneNumber, user.Role.ToString());
+        var recordActivityResult = await _identityAccountService.RecordActivityAsync(user.Id, cancellationToken);
+        if (!recordActivityResult.Succeeded)
+        {
+            var errors = string.Join(", ", recordActivityResult.Errors ?? []);
+            throw new BusinessRuleException("IDENTITY_OPERATION_FAILED", $"{_localizer["IDENTITY_OPERATION_FAILED"]}: {errors}");
+        }
+
+        await _unitOfWork.SaveChangesAsync(cancellationToken);
+
+        var favoritesCount = await _context.CustomerFavorites.CountAsync(x => x.UserId == user.Id, cancellationToken);
+        return new CurrentUserDto(user.Id, user.FullName, user.Email, user.PhoneNumber, user.Role.ToString(), favoritesCount);
     }
 }

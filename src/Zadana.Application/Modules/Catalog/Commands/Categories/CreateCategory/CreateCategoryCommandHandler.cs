@@ -43,6 +43,7 @@ public class CreateCategoryCommandHandler : IRequestHandler<CreateCategoryComman
             category.DisplayOrder,
             category.IsActive,
             CreatedAtUtc: category.CreatedAtUtc,
-            UpdatedAtUtc: category.UpdatedAtUtc);
+            UpdatedAtUtc: category.UpdatedAtUtc,
+            BrandsCount: 0);
     }
 }

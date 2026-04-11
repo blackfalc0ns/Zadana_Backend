@@ -25,24 +25,31 @@ public class GetCategoriesQueryHandler : IRequestHandler<GetCategoriesQuery, Lis
         }
 
         var allCategories = await query.ToListAsync(cancellationToken);
+        var brandsCountByCategoryId = await _context.Brands
+            .AsNoTracking()
+            .Where(brand => brand.CategoryId.HasValue)
+            .GroupBy(brand => brand.CategoryId!.Value)
+            .Select(group => new { CategoryId = group.Key, Count = group.Count() })
+            .ToDictionaryAsync(item => item.CategoryId, item => item.Count, cancellationToken);
 
         // Build the tree in memory
         var rootCategories = allCategories
             .Where(c => c.ParentCategoryId == null)
             .OrderBy(c => c.DisplayOrder)
-            .Select(c => MapToDtoWithSubCategories(c, allCategories, 0))
+            .Select(c => MapToDtoWithSubCategories(c, allCategories, brandsCountByCategoryId, 0))
             .ToList();
 
         return rootCategories;
     }
 
-    private CategoryDto MapToDtoWithSubCategories(Category category, List<Category> allCategories, int level)
+    private CategoryDto MapToDtoWithSubCategories(Category category, List<Category> allCategories, IReadOnlyDictionary<Guid, int> brandsCountByCategoryId, int level)
     {
         var subCategories = allCategories
             .Where(c => c.ParentCategoryId == category.Id)
             .OrderBy(c => c.DisplayOrder)
-            .Select(c => MapToDtoWithSubCategories(c, allCategories, level + 1))
+            .Select(c => MapToDtoWithSubCategories(c, allCategories, brandsCountByCategoryId, level + 1))
             .ToList();
+        var brandsCount = brandsCountByCategoryId.TryGetValue(category.Id, out var count) ? count : 0;
 
         return new CategoryDto(
             category.Id,
@@ -57,6 +64,7 @@ public class GetCategoriesQueryHandler : IRequestHandler<GetCategoriesQuery, Lis
             CreatedAtUtc: category.CreatedAtUtc,
             UpdatedAtUtc: category.UpdatedAtUtc,
             MasterProductsCount: 0,
+            BrandsCount: brandsCount,
             Level: level,
             SubCategories: subCategories.Any() ? subCategories : null);
     }

@@ -146,13 +146,17 @@ public class ApplicationDbContextInitialiser
             return;
         }
 
+        var dairy = await _context.Categories.FirstOrDefaultAsync(item => item.NameEn == "Dairy");
+        var meat = await _context.Categories.FirstOrDefaultAsync(item => item.NameEn == "Meat");
+        var phones = await _context.Categories.FirstOrDefaultAsync(item => item.NameEn == "Phones");
+
         var brands = new List<Brand>
         {
-            new("Almarai", "Almarai"),
-            new("Nadec", "Nadec"),
-            new("Samsung", "Samsung"),
-            new("Apple", "Apple"),
-            new("LG", "LG")
+            new("Almarai", "Almarai", null, dairy?.Id),
+            new("Nadec", "Nadec", null, dairy?.Id),
+            new("Samsung", "Samsung", null, phones?.Id),
+            new("Apple", "Apple", null, phones?.Id),
+            new("LG", "LG", null, meat?.Id)
         };
 
         await _context.Brands.AddRangeAsync(brands);

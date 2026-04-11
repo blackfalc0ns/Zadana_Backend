@@ -1,4 +1,5 @@
 using MediatR;
+using Microsoft.EntityFrameworkCore;
 using Zadana.Application.Common.Interfaces;
 using Zadana.Domain.Modules.Catalog.Entities;
 using Zadana.SharedKernel.Exceptions;
@@ -20,7 +21,14 @@ public class UpdateBrandCommandHandler : IRequestHandler<UpdateBrandCommand>
         if (brand == null)
             throw new NotFoundException(nameof(Brand), request.Id);
 
-        brand.Update(request.NameAr, request.NameEn, request.LogoUrl);
+        var categoryExists = await _context.Categories
+            .AsNoTracking()
+            .AnyAsync(item => item.Id == request.CategoryId, cancellationToken);
+
+        if (!categoryExists)
+            throw new NotFoundException(nameof(Category), request.CategoryId);
+
+        brand.Update(request.NameAr, request.NameEn, request.LogoUrl, request.CategoryId);
 
         if (request.IsActive && !brand.IsActive)
             brand.Activate();

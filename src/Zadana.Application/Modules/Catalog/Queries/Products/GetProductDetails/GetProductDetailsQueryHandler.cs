@@ -16,10 +16,12 @@ public class GetProductDetailsQueryHandler : IRequestHandler<GetProductDetailsQu
     private const int SimilarProductsLimit = 10;
 
     private readonly IApplicationDbContext _context;
+    private readonly ICurrentUserService _currentUserService;
 
-    public GetProductDetailsQueryHandler(IApplicationDbContext context)
+    public GetProductDetailsQueryHandler(IApplicationDbContext context, ICurrentUserService currentUserService)
     {
         _context = context;
+        _currentUserService = currentUserService;
     }
 
     public async Task<ProductDetailsDto> Handle(GetProductDetailsQuery request, CancellationToken cancellationToken)
@@ -97,7 +99,7 @@ public class GetProductDetailsQueryHandler : IRequestHandler<GetProductDetailsQu
                 offer.IsDiscounted))
             .ToList();
 
-        var similarProducts = visibleOffers
+        var similarOfferRows = visibleOffers
             .Where(offer => offer.CategoryId == defaultOffer.CategoryId && offer.MasterProductId != masterProductId)
             .GroupBy(offer => offer.MasterProductId)
             .Select(group => group
@@ -108,6 +110,13 @@ public class GetProductDetailsQueryHandler : IRequestHandler<GetProductDetailsQu
             .ThenByDescending(offer => reviewStatsByVendorId.TryGetValue(offer.VendorId, out var stats) ? stats.AverageRating : 0)
             .ThenByDescending(offer => offer.CreatedAtUtc)
             .Take(SimilarProductsLimit)
+            .ToList();
+
+        var favoriteProductIds = await LoadFavoriteProductIdsAsync(
+            [masterProductId, .. similarOfferRows.Select(item => item.MasterProductId)],
+            cancellationToken);
+
+        var similarProducts = similarOfferRows
             .Select(offer =>
             {
                 reviewStatsByVendorId.TryGetValue(offer.VendorId, out var stats);
@@ -122,7 +131,7 @@ public class GetProductDetailsQueryHandler : IRequestHandler<GetProductDetailsQu
                     stats?.AverageRating,
                     stats?.ReviewCount ?? 0,
                     FormatDiscount(offer.Price, offer.OldPrice),
-                    false,
+                    favoriteProductIds.Contains(offer.MasterProductId),
                     offer.Unit,
                     offer.IsDiscounted);
             })
@@ -143,12 +152,32 @@ public class GetProductDetailsQueryHandler : IRequestHandler<GetProductDetailsQu
             defaultReviewStats?.AverageRating,
             defaultReviewStats?.ReviewCount ?? 0,
             FormatDiscount(defaultOffer.Price, defaultOffer.OldPrice),
-            false,
+            favoriteProductIds.Contains(masterProductId),
             defaultOffer.Unit,
             defaultOffer.IsDiscounted,
             defaultOffer.Description,
             vendorPrices,
             similarProducts);
+    }
+
+    private async Task<HashSet<Guid>> LoadFavoriteProductIdsAsync(IEnumerable<Guid> masterProductIds, CancellationToken cancellationToken)
+    {
+        if (!_currentUserService.UserId.HasValue)
+        {
+            return [];
+        }
+
+        var ids = masterProductIds.Distinct().ToArray();
+        if (ids.Length == 0)
+        {
+            return [];
+        }
+
+        return await _context.CustomerFavorites
+            .AsNoTracking()
+            .Where(x => x.UserId == _currentUserService.UserId.Value && ids.Contains(x.MasterProductId))
+            .Select(x => x.MasterProductId)
+            .ToHashSetAsync(cancellationToken);
     }
 
     private async Task<List<VisibleOfferRow>> LoadVisibleOffersAsync(CancellationToken cancellationToken)

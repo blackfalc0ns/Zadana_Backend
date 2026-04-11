@@ -1,12 +1,14 @@
 using FluentValidation;
+using Microsoft.EntityFrameworkCore;
 using Microsoft.Extensions.Localization;
 using Zadana.Application.Common.Localization;
+using Zadana.Application.Common.Interfaces;
 
 namespace Zadana.Application.Modules.Catalog.Commands.Brands.UpdateBrand;
 
 public class UpdateBrandCommandValidator : AbstractValidator<UpdateBrandCommand>
 {
-    public UpdateBrandCommandValidator(IStringLocalizer<SharedResource> localizer)
+    public UpdateBrandCommandValidator(IStringLocalizer<SharedResource> localizer, IApplicationDbContext context)
     {
         RuleFor(x => x.Id).NotEmpty().WithMessage(localizer["RequiredField"].Value).WithName("Id");
 
@@ -23,5 +25,25 @@ public class UpdateBrandCommandValidator : AbstractValidator<UpdateBrandCommand>
         RuleFor(x => x.LogoUrl)
             .MaximumLength(1000).WithMessage(localizer["MaxLength"].Value)
             .WithName("LogoUrl");
+
+        RuleFor(x => x.CategoryId)
+            .NotEmpty().WithMessage(localizer["RequiredField"].Value)
+            .MustAsync(async (categoryId, cancellationToken) =>
+            {
+                var category = await context.Categories
+                    .AsNoTracking()
+                    .FirstOrDefaultAsync(item => item.Id == categoryId, cancellationToken);
+
+                if (category == null)
+                {
+                    return false;
+                }
+
+                return !await context.Categories
+                    .AsNoTracking()
+                    .AnyAsync(item => item.ParentCategoryId == categoryId, cancellationToken);
+            })
+            .WithMessage("CategoryId must reference a valid leaf category.")
+            .WithName("CategoryId");
     }
 }

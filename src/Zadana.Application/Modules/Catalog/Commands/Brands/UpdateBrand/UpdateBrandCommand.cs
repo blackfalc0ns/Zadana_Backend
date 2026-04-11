@@ -7,4 +7,5 @@ public record UpdateBrandCommand(
     string NameAr,
     string NameEn,
     string? LogoUrl,
+    Guid CategoryId,
     bool IsActive) : IRequest;

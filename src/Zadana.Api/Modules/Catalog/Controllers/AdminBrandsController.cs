@@ -7,6 +7,7 @@ using Zadana.Application.Modules.Catalog.Commands.Brands.CreateBrand;
 using Zadana.Application.Modules.Catalog.Commands.Brands.UpdateBrand;
 using Zadana.Application.Modules.Catalog.DTOs;
 using Zadana.Application.Modules.Catalog.Queries.Brands.GetBrands;
+using Zadana.Application.Modules.Catalog.Queries.Brands.SearchBrands;
 
 namespace Zadana.Api.Modules.Catalog.Controllers;
 
@@ -22,10 +23,32 @@ public class AdminBrandsController : ApiControllerBase
         return Ok(result);
     }
 
+    [HttpPost("search")]
+    public async Task<ActionResult<CatalogSearchResponse<BrandDto, BrandSearchFiltersDto, BrandSearchFacetsDto>>> SearchBrands([FromBody] BrandSearchRequest? request)
+    {
+        var pagination = request?.Pagination ?? new CatalogPaginationRequest();
+        var filters = request?.Filters;
+
+        var result = await Sender.Send(new SearchBrandsQuery(
+            request?.Search,
+            new BrandSearchFiltersDto(
+                filters?.CategoryId,
+                filters?.IsActive,
+                filters?.HasProducts,
+                filters?.CreatedAtFrom,
+                filters?.CreatedAtTo),
+            request?.Sort?.Field,
+            request?.Sort?.Direction,
+            pagination.PageNumber,
+            pagination.PageSize));
+
+        return Ok(result);
+    }
+
     [HttpPost]
     public async Task<ActionResult<BrandDto>> CreateBrand([FromBody] CreateBrandRequest request)
     {
-        var result = await Sender.Send(new CreateBrandCommand(request.NameAr, request.NameEn, request.LogoUrl));
+        var result = await Sender.Send(new CreateBrandCommand(request.NameAr, request.NameEn, request.LogoUrl, request.CategoryId));
         return Ok(result);
     }
 
@@ -37,6 +60,7 @@ public class AdminBrandsController : ApiControllerBase
             request.NameAr,
             request.NameEn,
             request.LogoUrl,
+            request.CategoryId,
             request.IsActive);
 
         await Sender.Send(command);

@@ -13,5 +13,6 @@ public record CategoryDto(
     DateTime? CreatedAtUtc = null,
     DateTime? UpdatedAtUtc = null,
     int? MasterProductsCount = 0,
+    int? BrandsCount = 0,
     int Level = 0,
     List<CategoryDto>? SubCategories = null);

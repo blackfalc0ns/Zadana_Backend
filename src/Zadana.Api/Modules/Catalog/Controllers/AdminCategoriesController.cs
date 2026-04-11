@@ -8,6 +8,7 @@ using Zadana.Application.Modules.Catalog.Commands.Categories.UpdateCategory;
 using Zadana.Application.Modules.Catalog.DTOs;
 using Zadana.Application.Modules.Catalog.Queries.Categories.GetCategories;
 using Zadana.Application.Modules.Catalog.Queries.Categories.GetCategoryById;
+using Zadana.Application.Modules.Catalog.Queries.Categories.SearchCategories;
 
 namespace Zadana.Api.Modules.Catalog.Controllers;
 
@@ -20,6 +21,29 @@ public class AdminCategoriesController : ApiControllerBase
     public async Task<ActionResult<List<CategoryDto>>> GetCategories([FromQuery] bool includeInactive = false)
     {
         var result = await Sender.Send(new GetCategoriesQuery(includeInactive));
+        return Ok(result);
+    }
+
+    [HttpPost("search")]
+    public async Task<ActionResult<CatalogSearchResponse<CategoryDto, CategorySearchFiltersDto, CategorySearchFacetsDto>>> SearchCategories([FromBody] CategorySearchRequest? request)
+    {
+        var pagination = request?.Pagination ?? new CatalogPaginationRequest();
+        var filters = request?.Filters;
+
+        var result = await Sender.Send(new SearchCategoriesQuery(
+            request?.Search,
+            new CategorySearchFiltersDto(
+                filters?.ParentCategoryId,
+                filters?.Level,
+                filters?.IsActive,
+                filters?.HasChildren,
+                filters?.CreatedAtFrom,
+                filters?.CreatedAtTo),
+            request?.Sort?.Field,
+            request?.Sort?.Direction,
+            pagination.PageNumber,
+            pagination.PageSize));
+
         return Ok(result);
     }
 

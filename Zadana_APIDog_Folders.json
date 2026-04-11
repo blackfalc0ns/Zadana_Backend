@@ -1121,7 +1121,157 @@
                                                                               }
                                                             }
                                                },
-                  "/api/admin/auth/login":  {
+                    "/api/favorites":  {
+                                            "get":  {
+                                                        "summary":  "Get customer favorites",
+                                                        "description":  "Returns the favorite products saved by the authenticated customer.",
+                                                        "tags":  [
+                                                                     "Customer/Favorites"
+                                                                 ],
+                                                        "responses":  {
+                                                                          "200":  {
+                                                                                      "description":  "OK",
+                                                                                      "content":  {
+                                                                                                      "text/plain":  {
+                                                                                                                         "schema":  {
+                                                                                                                                        "$ref":  "#/components/schemas/FavoritesListResponse"
+                                                                                                                                    }
+                                                                                                                     },
+                                                                                                      "application/json":  {
+                                                                                                                              "schema":  {
+                                                                                                                                             "$ref":  "#/components/schemas/FavoritesListResponse"
+                                                                                                                                         }
+                                                                                                                          },
+                                                                                                      "text/json":  {
+                                                                                                                        "schema":  {
+                                                                                                                                       "$ref":  "#/components/schemas/FavoritesListResponse"
+                                                                                                                                   }
+                                                                                                                    }
+                                                                                                  }
+                                                                                  }
+                                                                      }
+                                                    },
+                                            "post":  {
+                                                         "summary":  "Add product to favorites",
+                                                         "description":  "Adds a master product to the authenticated customer's favorites list.",
+                                                         "tags":  [
+                                                                      "Customer/Favorites"
+                                                                  ],
+                                                         "requestBody":  {
+                                                                             "content":  {
+                                                                                             "application/json":  {
+                                                                                                                      "schema":  {
+                                                                                                                                     "$ref":  "#/components/schemas/AddFavoriteRequest"
+                                                                                                                                 }
+                                                                                                                  },
+                                                                                             "text/json":  {
+                                                                                                               "schema":  {
+                                                                                                                              "$ref":  "#/components/schemas/AddFavoriteRequest"
+                                                                                                                          }
+                                                                                                           },
+                                                                                             "application/*+json":  {
+                                                                                                                       "schema":  {
+                                                                                                                                      "$ref":  "#/components/schemas/AddFavoriteRequest"
+                                                                                                                                  }
+                                                                                                                   }
+                                                                                         }
+                                                                         },
+                                                         "responses":  {
+                                                                           "200":  {
+                                                                                       "description":  "OK",
+                                                                                       "content":  {
+                                                                                                       "text/plain":  {
+                                                                                                                          "schema":  {
+                                                                                                                                         "$ref":  "#/components/schemas/AddFavoriteResponse"
+                                                                                                                                     }
+                                                                                                                      },
+                                                                                                       "application/json":  {
+                                                                                                                               "schema":  {
+                                                                                                                                              "$ref":  "#/components/schemas/AddFavoriteResponse"
+                                                                                                                                          }
+                                                                                                                           },
+                                                                                                       "text/json":  {
+                                                                                                                         "schema":  {
+                                                                                                                                        "$ref":  "#/components/schemas/AddFavoriteResponse"
+                                                                                                                                    }
+                                                                                                                     }
+                                                                                                   }
+                                                                                   }
+                                                                       }
+                                                     },
+                                            "delete":  {
+                                                           "summary":  "Clear favorites",
+                                                           "description":  "Removes all favorite products for the authenticated customer.",
+                                                           "tags":  [
+                                                                        "Customer/Favorites"
+                                                                    ],
+                                                           "responses":  {
+                                                                             "200":  {
+                                                                                         "description":  "OK",
+                                                                                         "content":  {
+                                                                                                         "text/plain":  {
+                                                                                                                            "schema":  {
+                                                                                                                                           "$ref":  "#/components/schemas/ClearFavoritesResponse"
+                                                                                                                                       }
+                                                                                                                        },
+                                                                                                         "application/json":  {
+                                                                                                                                 "schema":  {
+                                                                                                                                                "$ref":  "#/components/schemas/ClearFavoritesResponse"
+                                                                                                                                            }
+                                                                                                                             },
+                                                                                                         "text/json":  {
+                                                                                                                           "schema":  {
+                                                                                                                                          "$ref":  "#/components/schemas/ClearFavoritesResponse"
+                                                                                                                                      }
+                                                                                                                       }
+                                                                                                     }
+                                                                                     }
+                                                                         }
+                                                       }
+                                        },
+                    "/api/favorites/{productId}":  {
+                                                        "delete":  {
+                                                                       "summary":  "Remove favorite product",
+                                                                       "description":  "Removes one product from the authenticated customer's favorites list.",
+                                                                       "tags":  [
+                                                                                    "Customer/Favorites"
+                                                                                ],
+                                                                       "parameters":  [
+                                                                                          {
+                                                                                              "name":  "productId",
+                                                                                              "in":  "path",
+                                                                                              "required":  true,
+                                                                                              "schema":  {
+                                                                                                             "type":  "string",
+                                                                                                             "format":  "uuid"
+                                                                                                         }
+                                                                                          }
+                                                                                      ],
+                                                                       "responses":  {
+                                                                                         "200":  {
+                                                                                                     "description":  "OK",
+                                                                                                     "content":  {
+                                                                                                                     "text/plain":  {
+                                                                                                                                        "schema":  {
+                                                                                                                                                       "$ref":  "#/components/schemas/RemoveFavoriteResponse"
+                                                                                                                                                   }
+                                                                                                                                    },
+                                                                                                                     "application/json":  {
+                                                                                                                                             "schema":  {
+                                                                                                                                                            "$ref":  "#/components/schemas/RemoveFavoriteResponse"
+                                                                                                                                                        }
+                                                                                                                                         },
+                                                                                                                     "text/json":  {
+                                                                                                                                       "schema":  {
+                                                                                                                                                      "$ref":  "#/components/schemas/RemoveFavoriteResponse"
+                                                                                                                                                  }
+                                                                                                                                   }
+                                                                                                                 }
+                                                                                                 }
+                                                                                     }
+                                                                   }
+                                                    },
+                    "/api/admin/auth/login":  {
                                                 "post":  {
                                                              "tags":  [
                                                                           "Admin/Auth"
@@ -7284,6 +7434,136 @@
                                                                                           },
                                                                            "additionalProperties":  false
                                                                        },
+                                       "AddFavoriteRequest":  {
+                                                                  "type":  "object",
+                                                                  "properties":  {
+                                                                                     "productId":  {
+                                                                                                       "type":  "string",
+                                                                                                       "format":  "uuid"
+                                                                                                   }
+                                                                                 },
+                                                                  "additionalProperties":  false
+                                                              },
+                                       "FavoriteItemDto":  {
+                                                                "type":  "object",
+                                                                "properties":  {
+                                                                                   "id":  {
+                                                                                              "type":  "string",
+                                                                                              "format":  "uuid"
+                                                                                          },
+                                                                                   "name":  {
+                                                                                                "type":  "string",
+                                                                                                "nullable":  true
+                                                                                            },
+                                                                                   "store":  {
+                                                                                                 "type":  "string",
+                                                                                                 "nullable":  true
+                                                                                             },
+                                                                                   "price":  {
+                                                                                                 "type":  "number",
+                                                                                                 "format":  "double"
+                                                                                             },
+                                                                                   "old_price":  {
+                                                                                                       "type":  "number",
+                                                                                                       "format":  "double",
+                                                                                                       "nullable":  true
+                                                                                                   },
+                                                                                   "image_url":  {
+                                                                                                     "type":  "string",
+                                                                                                     "nullable":  true
+                                                                                                 },
+                                                                                   "rating":  {
+                                                                                                "type":  "number",
+                                                                                                "format":  "double",
+                                                                                                "nullable":  true
+                                                                                            },
+                                                                                   "review_count":  {
+                                                                                                          "type":  "integer",
+                                                                                                          "format":  "int32",
+                                                                                                          "nullable":  true
+                                                                                                      },
+                                                                                   "discount":  {
+                                                                                                      "type":  "string",
+                                                                                                      "nullable":  true
+                                                                                                  },
+                                                                                   "is_favorite":  {
+                                                                                                        "type":  "boolean"
+                                                                                                    },
+                                                                                   "unit":  {
+                                                                                                "type":  "string",
+                                                                                                "nullable":  true
+                                                                                            },
+                                                                                   "is_discounted":  {
+                                                                                                          "type":  "boolean"
+                                                                                                      }
+                                                                               },
+                                                                "additionalProperties":  false
+                                                            },
+                                       "FavoritesSummaryDto":  {
+                                                                   "type":  "object",
+                                                                   "properties":  {
+                                                                                      "items_count":  {
+                                                                                                          "type":  "integer",
+                                                                                                          "format":  "int32"
+                                                                                                      }
+                                                                                  },
+                                                                   "additionalProperties":  false
+                                                               },
+                                       "FavoritesListResponse":  {
+                                                                     "type":  "object",
+                                                                     "properties":  {
+                                                                                        "items":  {
+                                                                                                      "type":  "array",
+                                                                                                      "items":  {
+                                                                                                                    "$ref":  "#/components/schemas/FavoriteItemDto"
+                                                                                                                },
+                                                                                                      "nullable":  true
+                                                                                                  },
+                                                                                        "summary":  {
+                                                                                                        "$ref":  "#/components/schemas/FavoritesSummaryDto"
+                                                                                                    }
+                                                                                    },
+                                                                     "additionalProperties":  false
+                                                                 },
+                                       "AddFavoriteResponse":  {
+                                                                    "type":  "object",
+                                                                    "properties":  {
+                                                                                       "message":  {
+                                                                                                       "type":  "string",
+                                                                                                       "nullable":  true
+                                                                                                   },
+                                                                                       "item":  {
+                                                                                                    "$ref":  "#/components/schemas/FavoriteItemDto"
+                                                                                                },
+                                                                                       "summary":  {
+                                                                                                       "$ref":  "#/components/schemas/FavoritesSummaryDto"
+                                                                                                   }
+                                                                                   },
+                                                                    "additionalProperties":  false
+                                                                },
+                                       "RemoveFavoriteResponse":  {
+                                                                       "type":  "object",
+                                                                       "properties":  {
+                                                                                          "message":  {
+                                                                                                          "type":  "string",
+                                                                                                          "nullable":  true
+                                                                                                      },
+                                                                                          "summary":  {
+                                                                                                          "$ref":  "#/components/schemas/FavoritesSummaryDto"
+                                                                                                      }
+                                                                                      },
+                                                                       "additionalProperties":  false
+                                                                   },
+                                       "ClearFavoritesResponse":  {
+                                                                      "type":  "object",
+                                                                      "properties":  {
+                                                                                         "message":  {
+                                                                                                         "type":  "string",
+                                                                                                         "nullable":  true
+                                                                                                     }
+                                                                                     },
+                                                                      "additionalProperties":  false
+                                                                  },
                                        "AddCartItemRequest":  {
                                                                   "type":  "object",
                                                                   "properties":  {
