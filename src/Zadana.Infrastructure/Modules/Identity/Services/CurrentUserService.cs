@@ -6,6 +6,7 @@ namespace Zadana.Infrastructure.Modules.Identity.Services;
 
 public class CurrentUserService : ICurrentUserService
 {
+    private const string GuestDeviceHeader = "X-Device-Id";
     private readonly IHttpContextAccessor _httpContextAccessor;
 
     public CurrentUserService(IHttpContextAccessor httpContextAccessor)
@@ -33,6 +34,15 @@ public class CurrentUserService : ICurrentUserService
     }
 
     public string? Role => _httpContextAccessor.HttpContext?.User?.FindFirst(ClaimTypes.Role)?.Value;
+
+    public string? GuestDeviceId
+    {
+        get
+        {
+            var value = _httpContextAccessor.HttpContext?.Request.Headers[GuestDeviceHeader].ToString();
+            return string.IsNullOrWhiteSpace(value) ? null : value.Trim();
+        }
+    }
 
     public bool IsAuthenticated => _httpContextAccessor.HttpContext?.User?.Identity?.IsAuthenticated ?? false;
 

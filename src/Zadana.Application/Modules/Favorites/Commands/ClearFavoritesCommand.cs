@@ -8,34 +8,33 @@ using Zadana.SharedKernel.Exceptions;
 
 namespace Zadana.Application.Modules.Favorites.Commands;
 
-public record ClearFavoritesCommand() : IRequest<ClearFavoritesResponse>;
+public record ClearFavoritesCommand(Guid? UserId, string? GuestId) : IRequest<ClearFavoritesResponse>;
 
 public class ClearFavoritesCommandHandler : IRequestHandler<ClearFavoritesCommand, ClearFavoritesResponse>
 {
     private readonly IApplicationDbContext _context;
-    private readonly ICurrentUserService _currentUserService;
     private readonly IStringLocalizer<SharedResource> _localizer;
 
     public ClearFavoritesCommandHandler(
         IApplicationDbContext context,
-        ICurrentUserService currentUserService,
         IStringLocalizer<SharedResource> localizer)
     {
         _context = context;
-        _currentUserService = currentUserService;
         _localizer = localizer;
     }
 
     public async Task<ClearFavoritesResponse> Handle(ClearFavoritesCommand request, CancellationToken cancellationToken)
     {
-        var userId = _currentUserService.UserId;
-        if (!userId.HasValue)
+        var guestId = string.IsNullOrWhiteSpace(request.GuestId) ? null : request.GuestId.Trim();
+        if (!request.UserId.HasValue && guestId is null)
         {
             throw new UnauthorizedException(_localizer["UserNotAuthenticated"]);
         }
 
         var favorites = await _context.CustomerFavorites
-            .Where(x => x.UserId == userId.Value)
+            .Where(x =>
+                (request.UserId.HasValue && x.UserId == request.UserId.Value) ||
+                (!request.UserId.HasValue && x.GuestId == guestId))
             .ToListAsync(cancellationToken);
 
         if (favorites.Count > 0)

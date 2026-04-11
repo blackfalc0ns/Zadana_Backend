@@ -8,34 +8,35 @@ using Zadana.SharedKernel.Exceptions;
 
 namespace Zadana.Application.Modules.Favorites.Commands;
 
-public record RemoveFavoriteCommand(Guid ProductId) : IRequest<RemoveFavoriteResponse>;
+public record RemoveFavoriteCommand(Guid? UserId, string? GuestId, Guid ProductId) : IRequest<RemoveFavoriteResponse>;
 
 public class RemoveFavoriteCommandHandler : IRequestHandler<RemoveFavoriteCommand, RemoveFavoriteResponse>
 {
     private readonly IApplicationDbContext _context;
-    private readonly ICurrentUserService _currentUserService;
     private readonly IStringLocalizer<SharedResource> _localizer;
 
     public RemoveFavoriteCommandHandler(
         IApplicationDbContext context,
-        ICurrentUserService currentUserService,
         IStringLocalizer<SharedResource> localizer)
     {
         _context = context;
-        _currentUserService = currentUserService;
         _localizer = localizer;
     }
 
     public async Task<RemoveFavoriteResponse> Handle(RemoveFavoriteCommand request, CancellationToken cancellationToken)
     {
-        var userId = _currentUserService.UserId;
-        if (!userId.HasValue)
+        var guestId = string.IsNullOrWhiteSpace(request.GuestId) ? null : request.GuestId.Trim();
+        if (!request.UserId.HasValue && guestId is null)
         {
             throw new UnauthorizedException(_localizer["UserNotAuthenticated"]);
         }
 
         var existing = await _context.CustomerFavorites
-            .FirstOrDefaultAsync(x => x.UserId == userId.Value && x.MasterProductId == request.ProductId, cancellationToken);
+            .FirstOrDefaultAsync(x =>
+                x.MasterProductId == request.ProductId &&
+                ((request.UserId.HasValue && x.UserId == request.UserId.Value) ||
+                 (!request.UserId.HasValue && x.GuestId == guestId)),
+                cancellationToken);
 
         if (existing is not null)
         {
@@ -43,10 +44,15 @@ public class RemoveFavoriteCommandHandler : IRequestHandler<RemoveFavoriteComman
             await _context.SaveChangesAsync(cancellationToken);
         }
 
-        var count = await _context.CustomerFavorites.CountAsync(x => x.UserId == userId.Value, cancellationToken);
+        var count = await CountFavoritesAsync(request.UserId, guestId, cancellationToken);
 
         return new RemoveFavoriteResponse(
             "product removed from favorites successfully",
             new FavoritesSummaryDto(count));
     }
+
+    private Task<int> CountFavoritesAsync(Guid? userId, string? guestId, CancellationToken cancellationToken) =>
+        userId.HasValue
+            ? _context.CustomerFavorites.CountAsync(x => x.UserId == userId.Value, cancellationToken)
+            : _context.CustomerFavorites.CountAsync(x => x.GuestId == guestId, cancellationToken);
 }

@@ -162,7 +162,7 @@ public class GetProductDetailsQueryHandler : IRequestHandler<GetProductDetailsQu
 
     private async Task<HashSet<Guid>> LoadFavoriteProductIdsAsync(IEnumerable<Guid> masterProductIds, CancellationToken cancellationToken)
     {
-        if (!_currentUserService.UserId.HasValue)
+        if (!_currentUserService.UserId.HasValue && string.IsNullOrWhiteSpace(_currentUserService.GuestDeviceId))
         {
             return [];
         }
@@ -175,7 +175,10 @@ public class GetProductDetailsQueryHandler : IRequestHandler<GetProductDetailsQu
 
         return await _context.CustomerFavorites
             .AsNoTracking()
-            .Where(x => x.UserId == _currentUserService.UserId.Value && ids.Contains(x.MasterProductId))
+            .Where(x =>
+                ids.Contains(x.MasterProductId) &&
+                ((_currentUserService.UserId.HasValue && x.UserId == _currentUserService.UserId.Value) ||
+                 (!_currentUserService.UserId.HasValue && x.GuestId == _currentUserService.GuestDeviceId)))
             .Select(x => x.MasterProductId)
             .ToHashSetAsync(cancellationToken);
     }

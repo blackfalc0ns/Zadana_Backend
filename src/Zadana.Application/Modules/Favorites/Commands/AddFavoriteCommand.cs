@@ -9,28 +9,25 @@ using Zadana.SharedKernel.Exceptions;
 
 namespace Zadana.Application.Modules.Favorites.Commands;
 
-public record AddFavoriteCommand(Guid ProductId) : IRequest<AddFavoriteResponse>;
+public record AddFavoriteCommand(Guid? UserId, string? GuestId, Guid ProductId) : IRequest<AddFavoriteResponse>;
 
 public class AddFavoriteCommandHandler : IRequestHandler<AddFavoriteCommand, AddFavoriteResponse>
 {
     private readonly IApplicationDbContext _context;
-    private readonly ICurrentUserService _currentUserService;
     private readonly IStringLocalizer<SharedResource> _localizer;
 
     public AddFavoriteCommandHandler(
         IApplicationDbContext context,
-        ICurrentUserService currentUserService,
         IStringLocalizer<SharedResource> localizer)
     {
         _context = context;
-        _currentUserService = currentUserService;
         _localizer = localizer;
     }
 
     public async Task<AddFavoriteResponse> Handle(AddFavoriteCommand request, CancellationToken cancellationToken)
     {
-        var userId = _currentUserService.UserId;
-        if (!userId.HasValue)
+        var guestId = string.IsNullOrWhiteSpace(request.GuestId) ? null : request.GuestId.Trim();
+        if (!request.UserId.HasValue && guestId is null)
         {
             throw new UnauthorizedException(_localizer["UserNotAuthenticated"]);
         }
@@ -42,19 +39,28 @@ public class AddFavoriteCommandHandler : IRequestHandler<AddFavoriteCommand, Add
         }
 
         var existing = await _context.CustomerFavorites
-            .FirstOrDefaultAsync(x => x.UserId == userId.Value && x.MasterProductId == request.ProductId, cancellationToken);
+            .FirstOrDefaultAsync(x =>
+                x.MasterProductId == request.ProductId &&
+                ((request.UserId.HasValue && x.UserId == request.UserId.Value) ||
+                 (!request.UserId.HasValue && x.GuestId == guestId)),
+                cancellationToken);
 
         if (existing is null)
         {
-            _context.CustomerFavorites.Add(new CustomerFavorite(userId.Value, request.ProductId));
+            _context.CustomerFavorites.Add(new CustomerFavorite(request.UserId, guestId, request.ProductId));
             await _context.SaveChangesAsync(cancellationToken);
         }
 
-        var count = await _context.CustomerFavorites.CountAsync(x => x.UserId == userId.Value, cancellationToken);
+        var count = await CountFavoritesAsync(request.UserId, guestId, cancellationToken);
 
         return new AddFavoriteResponse(
             "product added to favorites successfully",
             item,
             new FavoritesSummaryDto(count));
     }
+
+    private Task<int> CountFavoritesAsync(Guid? userId, string? guestId, CancellationToken cancellationToken) =>
+        userId.HasValue
+            ? _context.CustomerFavorites.CountAsync(x => x.UserId == userId.Value, cancellationToken)
+            : _context.CustomerFavorites.CountAsync(x => x.GuestId == guestId, cancellationToken);
 }

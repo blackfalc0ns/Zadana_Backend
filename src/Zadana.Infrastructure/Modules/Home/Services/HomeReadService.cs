@@ -410,11 +410,13 @@ public class HomeReadService : IHomeReadService
             .ToList();
 
         var favoritedMasterProductIds = new HashSet<Guid>();
-        if (_currentUserService.UserId.HasValue)
+        if (_currentUserService.UserId.HasValue || !string.IsNullOrWhiteSpace(_currentUserService.GuestDeviceId))
         {
             favoritedMasterProductIds = await _context.CustomerFavorites
                 .AsNoTracking()
-                .Where(x => x.UserId == _currentUserService.UserId.Value)
+                .Where(x =>
+                    (_currentUserService.UserId.HasValue && x.UserId == _currentUserService.UserId.Value) ||
+                    (!_currentUserService.UserId.HasValue && x.GuestId == _currentUserService.GuestDeviceId))
                 .Select(x => x.MasterProductId)
                 .ToHashSetAsync(cancellationToken);
         }
