@@ -398,13 +398,15 @@ public class HomeReadServiceTests
 
     private sealed class FakeCurrentUserService : ICurrentUserService
     {
-        public FakeCurrentUserService(Guid? userId, bool isAuthenticated)
+        public FakeCurrentUserService(Guid? userId, bool isAuthenticated, string? guestDeviceId = null)
         {
             UserId = userId;
             IsAuthenticated = isAuthenticated;
+            GuestDeviceId = guestDeviceId;
         }
 
         public Guid? UserId { get; }
+        public string? GuestDeviceId { get; }
         public string? Role => IsAuthenticated ? "Customer" : null;
         public bool IsAuthenticated { get; }
         public string? GetDeviceInfo() => "test";
