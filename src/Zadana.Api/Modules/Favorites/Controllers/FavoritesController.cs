@@ -46,9 +46,9 @@ public class FavoritesController : ApiControllerBase
     [ProducesResponseType(typeof(AddFavoriteResponse), StatusCodes.Status200OK)]
     public async Task<IActionResult> AddFavorite([FromBody] AddFavoriteRequest request, CancellationToken cancellationToken)
     {
-        if (!Guid.TryParse(request.ProductId, out var productId))
+        if (!TryParseProductId(request.ProductId, out var productId))
         {
-            throw new BadRequestException("INVALID_PRODUCT_ID", "Invalid product id.");
+            throw new BadRequestException("INVALID_PRODUCT_ID", _localizer["InvalidProductId"]);
         }
 
         var result = await _mediator.Send(new AddFavoriteCommand(_currentUserService.UserId, GetGuestId(), productId), cancellationToken);
@@ -59,9 +59,9 @@ public class FavoritesController : ApiControllerBase
     [ProducesResponseType(typeof(RemoveFavoriteResponse), StatusCodes.Status200OK)]
     public async Task<IActionResult> RemoveFavorite(string productId, CancellationToken cancellationToken)
     {
-        if (!Guid.TryParse(productId, out var parsedProductId))
+        if (!TryParseProductId(productId, out var parsedProductId))
         {
-            throw new BadRequestException("INVALID_PRODUCT_ID", "Invalid product id.");
+            throw new BadRequestException("INVALID_PRODUCT_ID", _localizer["InvalidProductId"]);
         }
 
         var result = await _mediator.Send(new RemoveFavoriteCommand(_currentUserService.UserId, GetGuestId(), parsedProductId), cancellationToken);
@@ -89,6 +89,17 @@ public class FavoritesController : ApiControllerBase
             return guestId.Trim();
         }
 
-        throw new UnauthorizedException($"{_localizer["UserNotAuthenticated"]}. Send {GuestDeviceHeader} for guest favorites access.");
+        throw new UnauthorizedException(_localizer["GuestFavoritesHeaderRequired", GuestDeviceHeader]);
+    }
+
+    private static bool TryParseProductId(string? productId, out Guid parsedProductId)
+    {
+        if (string.IsNullOrWhiteSpace(productId))
+        {
+            parsedProductId = Guid.Empty;
+            return false;
+        }
+
+        return Guid.TryParse(productId.Trim(), out parsedProductId);
     }
 }

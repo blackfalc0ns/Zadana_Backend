@@ -47,7 +47,7 @@ public class RemoveFavoriteCommandHandler : IRequestHandler<RemoveFavoriteComman
         var count = await CountFavoritesAsync(request.UserId, guestId, cancellationToken);
 
         return new RemoveFavoriteResponse(
-            "product removed from favorites successfully",
+            _localizer["FavoriteRemovedSuccessfully"],
             new FavoritesSummaryDto(count));
     }
 

@@ -397,4 +397,19 @@
   <data name="ServerErrorMessage" xml:space="preserve">
     <value>حدث خطأ غير متوقع. يرجى المحاولة مرة أخرى لاحقاً.</value>
   </data>
+  <data name="InvalidProductId" xml:space="preserve">
+    <value>معرّف المنتج غير صالح.</value>
+  </data>
+  <data name="GuestFavoritesHeaderRequired" xml:space="preserve">
+    <value>المستخدم غير مسجل الدخول. أرسل الهيدر {0} لاستخدام المفضلة كزائر.</value>
+  </data>
+  <data name="FavoriteAddedSuccessfully" xml:space="preserve">
+    <value>تمت إضافة المنتج إلى المفضلة بنجاح.</value>
+  </data>
+  <data name="FavoriteRemovedSuccessfully" xml:space="preserve">
+    <value>تمت إزالة المنتج من المفضلة بنجاح.</value>
+  </data>
+  <data name="FavoritesClearedSuccessfully" xml:space="preserve">
+    <value>تم مسح المفضلة بنجاح.</value>
+  </data>
 </root>

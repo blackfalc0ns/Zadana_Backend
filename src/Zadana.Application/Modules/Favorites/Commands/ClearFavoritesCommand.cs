@@ -43,6 +43,6 @@ public class ClearFavoritesCommandHandler : IRequestHandler<ClearFavoritesComman
             await _context.SaveChangesAsync(cancellationToken);
         }
 
-        return new ClearFavoritesResponse("favorites cleared successfully");
+        return new ClearFavoritesResponse(_localizer["FavoritesClearedSuccessfully"]);
     }
 }

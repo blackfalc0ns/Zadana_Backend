@@ -54,7 +54,7 @@ public class AddFavoriteCommandHandler : IRequestHandler<AddFavoriteCommand, Add
         var count = await CountFavoritesAsync(request.UserId, guestId, cancellationToken);
 
         return new AddFavoriteResponse(
-            "product added to favorites successfully",
+            _localizer["FavoriteAddedSuccessfully"],
             item,
             new FavoritesSummaryDto(count));
     }
