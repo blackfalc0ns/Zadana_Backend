@@ -1263,10 +1263,31 @@ public class ApplicationDbContextInitialiser
             return;
         }
 
-        var deliveredOrder = await _context.Orders.FirstAsync(x => x.OrderNumber == "ORD-DEV-1001");
-        var deliveredPayment = await _context.Payments.FirstAsync(x => x.OrderId == deliveredOrder.Id);
-        var vendor = await _context.Vendors.Include(x => x.BankAccounts).FirstAsync(x => x.Id == deliveredOrder.VendorId);
-        var driver = await _context.Drivers.FirstAsync(x => x.IsAvailable);
+        var deliveredOrder = await _context.Orders.FirstOrDefaultAsync(x => x.OrderNumber == "ORD-DEV-1001");
+        if (deliveredOrder == null)
+        {
+            return;
+        }
+
+        var deliveredPayment = await _context.Payments.FirstOrDefaultAsync(x => x.OrderId == deliveredOrder.Id);
+        if (deliveredPayment == null)
+        {
+            return;
+        }
+
+        var vendor = await _context.Vendors
+            .Include(x => x.BankAccounts)
+            .FirstOrDefaultAsync(x => x.Id == deliveredOrder.VendorId);
+        if (vendor == null)
+        {
+            return;
+        }
+
+        var driver = await _context.Drivers.FirstOrDefaultAsync(x => x.IsAvailable);
+        if (driver == null)
+        {
+            return;
+        }
 
         var vendorWallet = new Wallet(WalletOwnerType.Vendor, vendor.Id);
         vendorWallet.Credit(5200m);

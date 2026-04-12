@@ -5,6 +5,8 @@ using Microsoft.EntityFrameworkCore.Migrations;
 
 namespace Zadana.Infrastructure.Migrations
 {
+    [Microsoft.EntityFrameworkCore.Infrastructure.DbContext(typeof(Zadana.Infrastructure.Persistence.ApplicationDbContext))]
+    [Migration("20260408120000_AddHomeSections")]
     public partial class AddHomeSections : Migration
     {
         protected override void Up(MigrationBuilder migrationBuilder)

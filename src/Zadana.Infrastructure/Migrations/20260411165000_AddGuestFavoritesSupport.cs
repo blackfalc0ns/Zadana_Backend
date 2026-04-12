@@ -10,9 +10,17 @@ namespace Zadana.Infrastructure.Migrations
     {
         protected override void Up(MigrationBuilder migrationBuilder)
         {
-            migrationBuilder.DropIndex(
-                name: "IX_CustomerFavorites_UserId_MasterProductId",
-                table: "CustomerFavorites");
+            migrationBuilder.Sql("""
+                IF EXISTS (
+                    SELECT 1
+                    FROM sys.indexes
+                    WHERE name = N'IX_CustomerFavorites_UserId_MasterProductId'
+                      AND object_id = OBJECT_ID(N'[CustomerFavorites]')
+                )
+                BEGIN
+                    DROP INDEX [IX_CustomerFavorites_UserId_MasterProductId] ON [CustomerFavorites];
+                END
+                """);
 
             migrationBuilder.AlterColumn<Guid>(
                 name: "UserId",
@@ -46,13 +54,29 @@ namespace Zadana.Infrastructure.Migrations
 
         protected override void Down(MigrationBuilder migrationBuilder)
         {
-            migrationBuilder.DropIndex(
-                name: "IX_CustomerFavorites_GuestId_MasterProductId",
-                table: "CustomerFavorites");
+            migrationBuilder.Sql("""
+                IF EXISTS (
+                    SELECT 1
+                    FROM sys.indexes
+                    WHERE name = N'IX_CustomerFavorites_GuestId_MasterProductId'
+                      AND object_id = OBJECT_ID(N'[CustomerFavorites]')
+                )
+                BEGIN
+                    DROP INDEX [IX_CustomerFavorites_GuestId_MasterProductId] ON [CustomerFavorites];
+                END
+                """);
 
-            migrationBuilder.DropIndex(
-                name: "IX_CustomerFavorites_UserId_MasterProductId",
-                table: "CustomerFavorites");
+            migrationBuilder.Sql("""
+                IF EXISTS (
+                    SELECT 1
+                    FROM sys.indexes
+                    WHERE name = N'IX_CustomerFavorites_UserId_MasterProductId'
+                      AND object_id = OBJECT_ID(N'[CustomerFavorites]')
+                )
+                BEGIN
+                    DROP INDEX [IX_CustomerFavorites_UserId_MasterProductId] ON [CustomerFavorites];
+                END
+                """);
 
             migrationBuilder.DropColumn(
                 name: "GuestId",
