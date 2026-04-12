@@ -26,7 +26,9 @@ public class CartCommandsTests
         result.Message.Should().Be("added to cart successfully");
         result.Item.ProductId.Should().Be(setup.MasterProduct.Id);
         result.Item.Quantity.Should().Be(2);
-        result.Item.VendorPrices.Should().BeEmpty();
+        result.Item.VendorPrices.Should().HaveCount(2);
+        result.Summary.Subtotal.Should().BeNull();
+        result.Summary.TotalAmount.Should().BeNull();
         context.Carts.Should().ContainSingle();
     }
 
@@ -96,7 +98,7 @@ public class CartCommandsTests
     }
 
     [Fact]
-    public async Task AddCartItem_ReturnsNoVendorPrices_UntilVendorIsSelected()
+    public async Task AddCartItem_ReturnsAllVendorPrices_UntilVendorIsSelected()
     {
         await using var context = TestDbContextFactory.Create();
         var setup = await SeedAvailableProductAsync(context);
@@ -107,7 +109,39 @@ public class CartCommandsTests
             new AddCartItemCommand(CartActor.Create(setup.UserId, null), setup.MasterProduct.Id, 1),
             CancellationToken.None);
 
+        result.Item.VendorPrices.Should().HaveCount(2);
+        result.Item.VendorPrices.Select(x => x.Name).Should().Equal("Green Valley Market", "Town Store");
+        result.Summary.Subtotal.Should().BeNull();
+        result.Summary.TotalAmount.Should().BeNull();
+    }
+
+    [Fact]
+    public async Task AddCartItem_AllowsActiveMasterProduct_EvenWithoutVisibleOffer()
+    {
+        await using var context = TestDbContextFactory.Create();
+
+        var category = new Category("milk-ar", "Milk", null, null, 1);
+        var brand = new Brand("brand-ar", "Almarai", "almarai.png");
+        var unit = new UnitOfMeasure("liter-ar", "Liter", "L");
+        context.Categories.Add(category);
+        context.Brands.Add(brand);
+        context.UnitsOfMeasure.Add(unit);
+        await context.SaveChangesAsync();
+
+        var masterProduct = new MasterProduct("milk-ar", "Full Cream Milk 1L", "milk-no-offer", category.Id, brand.Id, unit.Id);
+        masterProduct.Publish();
+        context.MasterProducts.Add(masterProduct);
+        await context.SaveChangesAsync();
+
+        var handler = new AddCartItemCommandHandler(context);
+
+        var result = await handler.Handle(
+            new AddCartItemCommand(CartActor.Create(Guid.NewGuid(), null), masterProduct.Id, 1),
+            CancellationToken.None);
+
+        result.Item.ProductId.Should().Be(masterProduct.Id);
         result.Item.VendorPrices.Should().BeEmpty();
+        result.Summary.Subtotal.Should().BeNull();
     }
 
     private static async Task<ProductSetup> SeedAvailableProductAsync(Infrastructure.Persistence.ApplicationDbContext context)

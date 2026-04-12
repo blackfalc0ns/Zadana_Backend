@@ -68,8 +68,11 @@ internal static class CartProjection
                     .FirstOrDefault()))
             .ToListAsync(cancellationToken);
 
-        var offersByProductId = visibleOffers
-            .Where(offer => selectedVendorId.HasValue && offer.VendorId == selectedVendorId.Value)
+        var scopedOffers = selectedVendorId.HasValue
+            ? visibleOffers.Where(offer => offer.VendorId == selectedVendorId.Value)
+            : visibleOffers;
+
+        var offersByProductId = scopedOffers
             .GroupBy(offer => offer.MasterProductId)
             .ToDictionary(
                 group => group.Key,

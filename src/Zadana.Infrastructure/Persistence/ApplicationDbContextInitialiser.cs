@@ -1522,6 +1522,13 @@ public class ApplicationDbContextInitialiser
 
             await DeleteRangeAsync(_context.UnitsOfMeasure);
 
+            // Identity junction tables must be deleted manually since FK constraints are disabled
+            await _context.Database.ExecuteSqlRawAsync("DELETE FROM [AspNetUserRoles]");
+            await _context.Database.ExecuteSqlRawAsync("DELETE FROM [AspNetUserClaims]");
+            await _context.Database.ExecuteSqlRawAsync("DELETE FROM [AspNetUserLogins]");
+            await _context.Database.ExecuteSqlRawAsync("DELETE FROM [AspNetUserTokens]");
+            await _context.Database.ExecuteSqlRawAsync("DELETE FROM [AspNetRoleClaims]");
+
             var users = await _userManager.Users.ToListAsync();
             foreach (var user in users)
             {
@@ -1577,7 +1584,7 @@ public class ApplicationDbContextInitialiser
 
         const string sql = """
             DECLARE @sql NVARCHAR(MAX) = N'';
-            SELECT @sql += N'ALTER TABLE [' + SCHEMA_NAME(schema_id) + N'].[' + name + N'] WITH CHECK CHECK CONSTRAINT ALL;'
+            SELECT @sql += N'ALTER TABLE [' + SCHEMA_NAME(schema_id) + N'].[' + name + N'] CHECK CONSTRAINT ALL;'
             FROM sys.tables;
             EXEC sp_executesql @sql;
             """;

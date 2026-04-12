@@ -47,11 +47,6 @@ public class AddCartItemCommandHandler : IRequestHandler<AddCartItemCommand, Car
             throw new NotFoundException("MasterProduct", request.ProductId);
         }
 
-        if (!await CartProjection.HasVisibleOfferAsync(_context, request.ProductId, null, cancellationToken))
-        {
-            throw new BusinessRuleException("PRODUCT_NOT_AVAILABLE", "Product is not available.");
-        }
-
         var cart = await _context.Carts
             .Include(item => item.Items)
             .FirstOrDefaultAsync(
