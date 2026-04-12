@@ -223,6 +223,7 @@ builder.Services.AddLocalization();
 builder.Services.AddHealthChecks();
 
 var app = builder.Build();
+var shouldSeedOnStartup = app.Environment.IsDevelopment() || app.Configuration.GetValue<bool>("Seeding:EnableOnStartup");
 
 app.UseMiddleware<ExceptionHandlingMiddleware>();
 
@@ -245,7 +246,7 @@ app.UseAuthorization();
 app.MapControllers();
 app.MapHub<CustomerPresenceHub>(CustomerPresenceHub.HubRoute);
 
-if (app.Environment.IsDevelopment())
+if (shouldSeedOnStartup)
 {
     try
     {
@@ -259,7 +260,10 @@ if (app.Environment.IsDevelopment())
         var logger = app.Services.GetRequiredService<ILogger<Program>>();
         logger.LogError(ex, "An error occurred during database initialization.");
     }
+}
 
+if (app.Environment.IsDevelopment())
+{
     app.MapPost("/dev/reset-seed", async (
             ApplicationDbContextInitialiser initialiser,
             ILogger<Program> logger,
