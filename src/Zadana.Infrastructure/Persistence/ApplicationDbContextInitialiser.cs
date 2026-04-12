@@ -1409,77 +1409,85 @@ public class ApplicationDbContextInitialiser
 
     private async Task ResetDevelopmentDataAsync()
     {
-        await DeleteRangeAsync(_context.DeliveryProofs);
-        await DeleteRangeAsync(_context.DriverLocations);
-        await DeleteRangeAsync(_context.DeliveryAssignments);
-        await DeleteRangeAsync(_context.Refunds);
-        await DeleteRangeAsync(_context.Reviews);
-        await DeleteRangeAsync(_context.Notifications);
-        await DeleteRangeAsync(_context.Payouts);
-        await DeleteRangeAsync(_context.WalletTransactions);
-        await DeleteRangeAsync(_context.Wallets);
-        await DeleteRangeAsync(_context.SettlementItems);
-        await DeleteRangeAsync(_context.Settlements);
-        await DeleteRangeAsync(_context.Payments);
-        await DeleteRangeAsync(_context.OrderStatusHistories);
-        await DeleteRangeAsync(_context.OrderItems);
-        await DeleteRangeAsync(_context.Orders);
-        await DeleteRangeAsync(_context.CartItems);
-        await DeleteRangeAsync(_context.Carts);
-        await DeleteRangeAsync(_context.CustomerFavorites);
-        await DeleteRangeAsync(_context.CustomerAddresses);
-        await DeleteRangeAsync(_context.CouponVendors);
-        await DeleteRangeAsync(_context.Coupons);
-        await DeleteRangeAsync(_context.FeaturedProductPlacements);
-        await DeleteRangeAsync(_context.HomeSections);
-        await DeleteRangeAsync(_context.HomeContentSectionSettings);
-        await DeleteRangeAsync(_context.HomeBanners);
-        await DeleteRangeAsync(_context.VendorProducts);
-        await DeleteRangeAsync(_context.ProductRequests);
-        await DeleteRangeAsync(_context.BrandRequests);
-        await DeleteRangeAsync(_context.CategoryRequests);
-        await DeleteRangeAsync(_context.Drivers);
-        await DeleteRangeAsync(_context.VendorBankAccounts);
-        await DeleteRangeAsync(_context.BranchOperatingHours);
-        await DeleteRangeAsync(_context.VendorBranches);
-        await DeleteRangeAsync(_context.Vendors);
-        await DeleteRangeAsync(_context.RefreshTokens);
-
-        var products = await _context.MasterProducts.ToListAsync();
-        if (products.Count > 0)
+        await DisableAllTableConstraintsAsync();
+        try
         {
-            _context.MasterProducts.RemoveRange(products);
-            await _context.SaveChangesAsync();
+            await DeleteRangeAsync(_context.DeliveryProofs);
+            await DeleteRangeAsync(_context.DriverLocations);
+            await DeleteRangeAsync(_context.DeliveryAssignments);
+            await DeleteRangeAsync(_context.Refunds);
+            await DeleteRangeAsync(_context.Reviews);
+            await DeleteRangeAsync(_context.Notifications);
+            await DeleteRangeAsync(_context.Payouts);
+            await DeleteRangeAsync(_context.WalletTransactions);
+            await DeleteRangeAsync(_context.Wallets);
+            await DeleteRangeAsync(_context.SettlementItems);
+            await DeleteRangeAsync(_context.Settlements);
+            await DeleteRangeAsync(_context.Payments);
+            await DeleteRangeAsync(_context.OrderStatusHistories);
+            await DeleteRangeAsync(_context.OrderItems);
+            await DeleteRangeAsync(_context.Orders);
+            await DeleteRangeAsync(_context.CartItems);
+            await DeleteRangeAsync(_context.Carts);
+            await DeleteRangeAsync(_context.CustomerFavorites);
+            await DeleteRangeAsync(_context.CustomerAddresses);
+            await DeleteRangeAsync(_context.CouponVendors);
+            await DeleteRangeAsync(_context.Coupons);
+            await DeleteRangeAsync(_context.FeaturedProductPlacements);
+            await DeleteRangeAsync(_context.HomeSections);
+            await DeleteRangeAsync(_context.HomeContentSectionSettings);
+            await DeleteRangeAsync(_context.HomeBanners);
+            await DeleteRangeAsync(_context.VendorProducts);
+            await DeleteRangeAsync(_context.ProductRequests);
+            await DeleteRangeAsync(_context.BrandRequests);
+            await DeleteRangeAsync(_context.CategoryRequests);
+            await DeleteRangeAsync(_context.Drivers);
+            await DeleteRangeAsync(_context.VendorBankAccounts);
+            await DeleteRangeAsync(_context.BranchOperatingHours);
+            await DeleteRangeAsync(_context.VendorBranches);
+            await DeleteRangeAsync(_context.Vendors);
+            await DeleteRangeAsync(_context.RefreshTokens);
+
+            var products = await _context.MasterProducts.ToListAsync();
+            if (products.Count > 0)
+            {
+                _context.MasterProducts.RemoveRange(products);
+                await _context.SaveChangesAsync();
+            }
+
+            await DeleteRangeAsync(_context.Parts);
+            await DeleteRangeAsync(_context.ProductTypes);
+            await DeleteRangeAsync(_context.Brands);
+
+            var categories = await _context.Categories
+                .OrderByDescending(x => x.ParentCategoryId.HasValue)
+                .ToListAsync();
+            if (categories.Count > 0)
+            {
+                _context.Categories.RemoveRange(categories);
+                await _context.SaveChangesAsync();
+            }
+
+            await DeleteRangeAsync(_context.UnitsOfMeasure);
+
+            var users = await _userManager.Users.ToListAsync();
+            foreach (var user in users)
+            {
+                await _userManager.DeleteAsync(user);
+            }
+
+            var roles = await _roleManager.Roles.ToListAsync();
+            foreach (var role in roles)
+            {
+                await _roleManager.DeleteAsync(role);
+            }
+
+            _context.ChangeTracker.Clear();
         }
-
-        await DeleteRangeAsync(_context.Parts);
-        await DeleteRangeAsync(_context.ProductTypes);
-        await DeleteRangeAsync(_context.Brands);
-
-        var categories = await _context.Categories
-            .OrderByDescending(x => x.ParentCategoryId.HasValue)
-            .ToListAsync();
-        if (categories.Count > 0)
+        finally
         {
-            _context.Categories.RemoveRange(categories);
-            await _context.SaveChangesAsync();
+            await EnableAllTableConstraintsAsync();
         }
-
-        await DeleteRangeAsync(_context.UnitsOfMeasure);
-
-        var users = await _userManager.Users.ToListAsync();
-        foreach (var user in users)
-        {
-            await _userManager.DeleteAsync(user);
-        }
-
-        var roles = await _roleManager.Roles.ToListAsync();
-        foreach (var role in roles)
-        {
-            await _roleManager.DeleteAsync(role);
-        }
-
-        _context.ChangeTracker.Clear();
     }
 
     private async Task DeleteRangeAsync<TEntity>(DbSet<TEntity> dbSet) where TEntity : class
@@ -1488,6 +1496,40 @@ public class ApplicationDbContextInitialiser
         {
             await dbSet.ExecuteDeleteAsync();
         }
+    }
+
+    private async Task DisableAllTableConstraintsAsync()
+    {
+        if (!_context.Database.IsSqlServer())
+        {
+            return;
+        }
+
+        const string sql = """
+            DECLARE @sql NVARCHAR(MAX) = N'';
+            SELECT @sql += N'ALTER TABLE [' + SCHEMA_NAME(schema_id) + N'].[' + name + N'] NOCHECK CONSTRAINT ALL;'
+            FROM sys.tables;
+            EXEC sp_executesql @sql;
+            """;
+
+        await _context.Database.ExecuteSqlRawAsync(sql);
+    }
+
+    private async Task EnableAllTableConstraintsAsync()
+    {
+        if (!_context.Database.IsSqlServer())
+        {
+            return;
+        }
+
+        const string sql = """
+            DECLARE @sql NVARCHAR(MAX) = N'';
+            SELECT @sql += N'ALTER TABLE [' + SCHEMA_NAME(schema_id) + N'].[' + name + N'] WITH CHECK CHECK CONSTRAINT ALL;'
+            FROM sys.tables;
+            EXEC sp_executesql @sql;
+            """;
+
+        await _context.Database.ExecuteSqlRawAsync(sql);
     }
 
     private async Task<User> EnsureUserAsync(

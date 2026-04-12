@@ -311,10 +311,8 @@ public class HomeReadService : IHomeReadService
                 .AsNoTracking()
                 .Where(x => x.IsActive
                     && x.ParentCategoryId != null
-                    && x.ParentCategory != null
-                    && x.ParentCategory.ParentCategoryId != null
-                    && x.ParentCategory.ParentCategory != null
-                    && x.ParentCategory.ParentCategory.ParentCategoryId == null)
+                    && x.SubCategories.Any(child => child.IsActive)
+                    && !x.SubCategories.Any(child => child.IsActive && child.SubCategories.Any(grandChild => grandChild.IsActive)))
                 .OrderBy(x => x.DisplayOrder)
                 .ThenBy(x => x.NameAr)
                 .Take(take)

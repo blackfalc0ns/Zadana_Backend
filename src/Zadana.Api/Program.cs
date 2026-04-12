@@ -224,6 +224,7 @@ builder.Services.AddHealthChecks();
 
 var app = builder.Build();
 var shouldSeedOnStartup = app.Environment.IsDevelopment() || app.Configuration.GetValue<bool>("Seeding:EnableOnStartup");
+var shouldResetOnStartup = app.Configuration.GetValue<bool>("Seeding:ResetOnStartup");
 var allowRemoteSeedEndpoints = app.Environment.IsDevelopment() || app.Configuration.GetValue<bool>("Seeding:EnableRemoteEndpoints");
 var seedingManagementKey = app.Configuration["Seeding:ManagementKey"];
 
@@ -255,7 +256,15 @@ if (shouldSeedOnStartup)
         using var scope = app.Services.CreateScope();
         var initialiser = scope.ServiceProvider.GetRequiredService<ApplicationDbContextInitialiser>();
         await initialiser.InitialiseAsync();
-        await initialiser.SeedAsync();
+
+        if (shouldResetOnStartup)
+        {
+            await initialiser.ResetAndSeedAsync();
+        }
+        else
+        {
+            await initialiser.SeedAsync();
+        }
     }
     catch (Exception ex)
     {
