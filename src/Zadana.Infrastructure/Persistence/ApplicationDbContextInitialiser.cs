@@ -2,15 +2,28 @@ using System.Linq;
 using Microsoft.AspNetCore.Identity;
 using Microsoft.EntityFrameworkCore;
 using Zadana.Domain.Modules.Catalog.Entities;
+using Zadana.Domain.Modules.Delivery.Entities;
+using Zadana.Domain.Modules.Delivery.Enums;
 using Zadana.Domain.Modules.Identity.Entities;
 using Zadana.Domain.Modules.Identity.Enums;
 using Zadana.Domain.Modules.Marketing.Entities;
+using Zadana.Domain.Modules.Marketing.Enums;
+using Zadana.Domain.Modules.Orders.Entities;
+using Zadana.Domain.Modules.Orders.Enums;
+using Zadana.Domain.Modules.Payments.Entities;
+using Zadana.Domain.Modules.Payments.Enums;
+using Zadana.Domain.Modules.Social.Entities;
 using Zadana.Domain.Modules.Vendors.Entities;
+using Zadana.Domain.Modules.Wallets.Entities;
+using Zadana.Domain.Modules.Wallets.Enums;
 
 namespace Zadana.Infrastructure.Persistence;
 
 public class ApplicationDbContextInitialiser
 {
+    private const string DefaultAdminPassword = "Admin@123";
+    private const string DefaultUserPassword = "Zadana@12345";
+
     private readonly ApplicationDbContext _context;
     private readonly UserManager<User> _userManager;
     private readonly RoleManager<IdentityRole<Guid>> _roleManager;
@@ -42,27 +55,37 @@ public class ApplicationDbContextInitialiser
 
     public async Task SeedAsync()
     {
-        try
-        {
-            await TrySeedAsync();
-        }
-        catch (Exception)
-        {
-            throw;
-        }
+        await TrySeedAsync();
+    }
+
+    public async Task<DevelopmentSeedSummary> ResetAndSeedAsync()
+    {
+        await ResetDevelopmentDataAsync();
+        await TrySeedAsync();
+        return await BuildSummaryAsync();
     }
 
     private async Task TrySeedAsync()
     {
         await SeedRolesAsync();
         await SeedSuperAdminAsync();
+        await SeedSupportUsersAsync();
         await SeedUnitsAsync();
         await SeedCategoriesAsync();
         await SeedBrandsAsync();
         await SeedProductTypesAndPartsAsync();
         await SeedMasterProductsAsync();
         await SeedSampleVendorsAsync();
+        await SeedVendorProductsAsync();
         await SeedHomeBannersAsync();
+        await SeedHomeSectionsAsync();
+        await SeedFeaturedPlacementsAsync();
+        await SeedCouponsAsync();
+        await SeedCustomersAsync();
+        await SeedDriversAsync();
+        await SeedCustomerExperienceAsync();
+        await SeedDriverAssignmentsAsync();
+        await SeedWalletsAndSettlementsAsync();
     }
 
     private async Task SeedRolesAsync()
@@ -89,8 +112,25 @@ public class ApplicationDbContextInitialiser
             "01000000000",
             UserRole.SuperAdmin);
 
-        await _userManager.CreateAsync(admin, "Admin@123");
+        await _userManager.CreateAsync(admin, DefaultAdminPassword);
         await _userManager.AddToRoleAsync(admin, UserRole.SuperAdmin.ToString());
+    }
+
+    private async Task SeedSupportUsersAsync()
+    {
+        await EnsureUserAsync(
+            "ops.admin@zadana.local",
+            "Operations Admin",
+            "01000000001",
+            UserRole.Admin,
+            DefaultAdminPassword,
+            user =>
+            {
+                user.VerifyEmail();
+                user.VerifyPhone();
+                user.RecordLogin();
+                user.MarkPresenceOffline(DateTime.UtcNow.AddHours(-2));
+            });
     }
 
     private async Task SeedUnitsAsync()
@@ -107,6 +147,7 @@ public class ApplicationDbContextInitialiser
             new("Liter", "Liter", "L"),
             new("Milliliter", "Milliliter", "mL"),
             new("Piece", "Piece", "pcs"),
+            new("Roll", "Roll", "roll"),
             new("Carton", "Carton", "ctn"),
             new("Pack", "Pack", "pk"),
             new("Box", "Box", "box"),
@@ -124,18 +165,27 @@ public class ApplicationDbContextInitialiser
             return;
         }
 
-        var food = new Category("Food", "Food", null, null, 1);
-        var electronics = new Category("Electronics", "Electronics", null, null, 2);
-        var home = new Category("Home", "Home Appliances", null, null, 3);
+        var food = new Category("البقالة", "Groceries", ImageCatalog.CategoryGroceries, null, 1);
+        var electronics = new Category("الإلكترونيات", "Electronics", ImageCatalog.CategoryElectronics, null, 2);
+        var home = new Category("المنزل", "Home Essentials", ImageCatalog.CategoryHome, null, 3);
 
         await _context.Categories.AddRangeAsync(food, electronics, home);
         await _context.SaveChangesAsync();
 
-        var dairy = new Category("Dairy", "Dairy", null, food.Id, 1);
-        var meat = new Category("Meat", "Meat", null, food.Id, 2);
-        var phones = new Category("Phones", "Phones", null, electronics.Id, 1);
+        var categories = new[]
+        {
+            new Category("الألبان", "Dairy", ImageCatalog.CategoryDairy, food.Id, 1),
+            new Category("المشروبات", "Beverages", ImageCatalog.CategoryBeverages, food.Id, 2),
+            new Category("الفاكهة والخضار", "Fruits & Vegetables", ImageCatalog.CategoryProduce, food.Id, 3),
+            new Category("المخبوزات", "Bakery", ImageCatalog.CategoryBakery, food.Id, 4),
+            new Category("الوجبات الخفيفة", "Snacks", ImageCatalog.CategorySnacks, food.Id, 5),
+            new Category("الهواتف", "Phones", ImageCatalog.CategoryPhones, electronics.Id, 1),
+            new Category("الإكسسوارات", "Accessories", ImageCatalog.CategoryAccessories, electronics.Id, 2),
+            new Category("العناية المنزلية", "Home Care", ImageCatalog.CategoryHomeCare, home.Id, 1),
+            new Category("مستلزمات المطبخ", "Kitchen Supplies", ImageCatalog.CategoryKitchen, home.Id, 2)
+        };
 
-        await _context.Categories.AddRangeAsync(dairy, meat, phones);
+        await _context.Categories.AddRangeAsync(categories);
         await _context.SaveChangesAsync();
     }
 
@@ -147,16 +197,24 @@ public class ApplicationDbContextInitialiser
         }
 
         var dairy = await _context.Categories.FirstOrDefaultAsync(item => item.NameEn == "Dairy");
-        var meat = await _context.Categories.FirstOrDefaultAsync(item => item.NameEn == "Meat");
+        var beverages = await _context.Categories.FirstOrDefaultAsync(item => item.NameEn == "Beverages");
+        var snacks = await _context.Categories.FirstOrDefaultAsync(item => item.NameEn == "Snacks");
         var phones = await _context.Categories.FirstOrDefaultAsync(item => item.NameEn == "Phones");
+        var accessories = await _context.Categories.FirstOrDefaultAsync(item => item.NameEn == "Accessories");
+        var homeCare = await _context.Categories.FirstOrDefaultAsync(item => item.NameEn == "Home Care");
 
         var brands = new List<Brand>
         {
-            new("Almarai", "Almarai", null, dairy?.Id),
-            new("Nadec", "Nadec", null, dairy?.Id),
-            new("Samsung", "Samsung", null, phones?.Id),
-            new("Apple", "Apple", null, phones?.Id),
-            new("LG", "LG", null, meat?.Id)
+            new("المراعي", "Almarai", "https://cdn.simpleicons.org/tesco/00539f", dairy?.Id),
+            new("نادك", "Nadec", "https://cdn.simpleicons.org/carrefour/004f9f", dairy?.Id),
+            new("نادا", "Nada", "https://cdn.simpleicons.org/walmart/0071ce", beverages?.Id),
+            new("بيبسي", "Pepsi", "https://cdn.simpleicons.org/pepsi/2151a1", beverages?.Id),
+            new("ليز", "Lay's", "https://cdn.simpleicons.org/fritolay/ffcc00", snacks?.Id),
+            new("سامسونج", "Samsung", "https://cdn.simpleicons.org/samsung/1428a0", phones?.Id),
+            new("آبل", "Apple", "https://cdn.simpleicons.org/apple/000000", phones?.Id),
+            new("أنكر", "Anker", "https://cdn.simpleicons.org/anker/00a7e1", accessories?.Id),
+            new("برايل", "Pril", "https://cdn.simpleicons.org/homeassistant/41bdf5", homeCare?.Id),
+            new("فاين", "Fine", "https://cdn.simpleicons.org/cloudflare/ff6633", homeCare?.Id)
         };
 
         await _context.Brands.AddRangeAsync(brands);
@@ -165,77 +223,44 @@ public class ApplicationDbContextInitialiser
 
     private async Task SeedMasterProductsAsync()
     {
-        var category = await _context.Categories.FirstOrDefaultAsync(item => item.NameEn == "Dairy");
-        var brand = await _context.Brands.FirstOrDefaultAsync(item => item.NameEn == "Almarai");
-        var unit = await _context.UnitsOfMeasure.FirstOrDefaultAsync(item => item.Symbol == "L");
+        var categories = await _context.Categories.ToDictionaryAsync(x => x.NameEn);
+        var brands = await _context.Brands.ToDictionaryAsync(x => x.NameEn);
+        var units = await _context.UnitsOfMeasure.ToDictionaryAsync(x => x.Symbol!);
+        var productTypes = await _context.ProductTypes.ToDictionaryAsync(x => x.NameEn);
+        var parts = await _context.Parts.ToDictionaryAsync(x => x.NameEn);
+        var existingSlugs = await _context.MasterProducts
+            .Select(x => x.Slug)
+            .ToListAsync();
+        var existingSlugSet = existingSlugs.ToHashSet(StringComparer.OrdinalIgnoreCase);
 
-        if (category == null || brand == null || unit == null)
+        var products = new List<MasterProduct>
+        {
+            CreateProduct("حليب كامل الدسم 1 لتر", "Full Cream Milk 1L", "full-cream-milk-1l", "حليب طازج يومي غني بالكالسيوم.", "Fresh full cream milk for daily essentials.", categories["Dairy"].Id, brands["Almarai"].Id, units["L"].Id, productTypes.GetValueOrDefault("Milk")?.Id, parts.GetValueOrDefault("Full Cream")?.Id, ImageCatalog.Milk1, ImageCatalog.Milk2),
+            CreateProduct("زبادي يوناني", "Greek Yogurt", "greek-yogurt", "زبادي كثيف مناسب للفطور والوجبات الخفيفة.", "Rich Greek yogurt for breakfast and snacks.", categories["Dairy"].Id, brands["Almarai"].Id, units["pk"].Id, productTypes.GetValueOrDefault("Yogurt")?.Id, parts.GetValueOrDefault("Greek")?.Id, ImageCatalog.Yogurt1, ImageCatalog.Yogurt2),
+            CreateProduct("عصير برتقال طازج 1 لتر", "Orange Juice 1L", "orange-juice-1l", "عصير منعش بطعم طبيعي.", "Refreshing orange juice with a natural taste.", categories["Beverages"].Id, brands["Nada"].Id, units["L"].Id, null, null, ImageCatalog.Juice1, ImageCatalog.Juice2),
+            CreateProduct("مياه شرب عبوة 6", "Water Pack 6x330ml", "water-pack-6", "عبوة مياه للشرب اليومي.", "Convenient water pack for daily hydration.", categories["Beverages"].Id, brands["Pepsi"].Id, units["ctn"].Id, null, null, ImageCatalog.Water1, ImageCatalog.Water2),
+            CreateProduct("خبز توست أبيض", "White Toast Bread", "white-toast-bread", "خبز طازج للسندويتشات اليومية.", "Fresh toast bread for everyday sandwiches.", categories["Bakery"].Id, null, units["pk"].Id, null, null, ImageCatalog.Bread1, ImageCatalog.Bread2),
+            CreateProduct("بطاطس شيبس كلاسيك", "Classic Potato Chips", "classic-potato-chips", "وجبة خفيفة مقرمشة.", "Crunchy classic potato chips.", categories["Snacks"].Id, brands["Lay's"].Id, units["pk"].Id, null, null, ImageCatalog.Chips1, ImageCatalog.Chips2),
+            CreateProduct("موز طازج", "Fresh Bananas", "fresh-bananas", "موز طازج صالح للوجبات الخفيفة والعصائر.", "Fresh bananas for snacks and smoothies.", categories["Fruits & Vegetables"].Id, null, units["kg"].Id, null, null, ImageCatalog.Banana1, ImageCatalog.Banana2),
+            CreateProduct("طماطم حمراء", "Red Tomatoes", "red-tomatoes", "طماطم يومية للطبخ والسلطات.", "Everyday tomatoes for cooking and salads.", categories["Fruits & Vegetables"].Id, null, units["kg"].Id, null, null, ImageCatalog.Tomato1, ImageCatalog.Tomato2),
+            CreateProduct("سائل تنظيف أطباق", "Dishwashing Liquid", "dishwashing-liquid", "منظف أطباق بفعالية عالية.", "High-performance dishwashing liquid.", categories["Home Care"].Id, brands["Pril"].Id, units["L"].Id, null, null, ImageCatalog.DishSoap1, ImageCatalog.DishSoap2),
+            CreateProduct("مناديل مطبخ رولين", "Kitchen Towels 2 Rolls", "kitchen-towels-2-rolls", "مناديل مطبخ بامتصاص ممتاز.", "Kitchen towels with strong absorption.", categories["Home Care"].Id, brands["Fine"].Id, units["roll"].Id, null, null, ImageCatalog.Towel1, ImageCatalog.Towel2),
+            CreateProduct("شاحن سريع USB-C", "USB-C Fast Charger", "usb-c-fast-charger", "شاحن سريع متوافق مع أغلب الهواتف الحديثة.", "Fast charger compatible with most modern phones.", categories["Accessories"].Id, brands["Anker"].Id, units["pcs"].Id, null, null, ImageCatalog.Charger1, ImageCatalog.Charger2),
+            CreateProduct("غطاء آيفون شفاف", "Transparent iPhone Case", "transparent-iphone-case", "غطاء شفاف خفيف يحمي الهاتف من الخدوش.", "Slim transparent case for scratch protection.", categories["Accessories"].Id, brands["Apple"].Id, units["pcs"].Id, null, null, ImageCatalog.Case1, ImageCatalog.Case2),
+            CreateProduct("هاتف سامسونج جالاكسي A55", "Samsung Galaxy A55", "samsung-galaxy-a55", "هاتف ذكي للأداء اليومي.", "Smartphone with balanced daily performance.", categories["Phones"].Id, brands["Samsung"].Id, units["pcs"].Id, null, null, ImageCatalog.Phone1, ImageCatalog.Phone2),
+            CreateProduct("آيفون 15", "iPhone 15", "iphone-15", "هاتف آيفون حديث بتجربة سلسة.", "Modern iPhone with a smooth experience.", categories["Phones"].Id, brands["Apple"].Id, units["pcs"].Id, null, null, ImageCatalog.Iphone1, ImageCatalog.Iphone2)
+        };
+
+        var missingProducts = products
+            .Where(product => !existingSlugSet.Contains(product.Slug))
+            .ToList();
+
+        if (missingProducts.Count == 0)
         {
             return;
         }
 
-        var milkType = await _context.ProductTypes.FirstOrDefaultAsync(item => item.NameEn == "Milk" && item.CategoryId == category.Id);
-        var yogurtType = await _context.ProductTypes.FirstOrDefaultAsync(item => item.NameEn == "Yogurt" && item.CategoryId == category.Id);
-        var fullCreamPart = milkType == null
-            ? null
-            : await _context.Parts.FirstOrDefaultAsync(item => item.NameEn == "Full Cream" && item.ProductTypeId == milkType.Id);
-        var freshPart = yogurtType == null
-            ? null
-            : await _context.Parts.FirstOrDefaultAsync(item => item.NameEn == "Fresh" && item.ProductTypeId == yogurtType.Id);
-
-        var products = new List<(string Slug, MasterProduct Product)>
-        {
-            (
-                "full-cream-milk-1l",
-                new MasterProduct(
-                    "Full Cream Milk 1L",
-                    "Full Cream Milk 1L",
-                    "full-cream-milk-1l",
-                    category.Id,
-                    brand.Id,
-                    unit.Id,
-                    "Fresh local milk",
-                    "Fresh local milk",
-                    null,
-                    milkType?.Id,
-                    fullCreamPart?.Id)
-            ),
-            (
-                "fresh-yoghurt",
-                new MasterProduct(
-                    "Fresh Yoghurt",
-                    "Fresh Yoghurt",
-                    "fresh-yoghurt",
-                    category.Id,
-                    brand.Id,
-                    unit.Id,
-                    "Natural yoghurt",
-                    "Natural yoghurt",
-                    null,
-                    yogurtType?.Id,
-                    freshPart?.Id)
-            )
-        };
-
-        foreach (var (_, product) in products)
-        {
-            product.Publish();
-        }
-
-        foreach (var (slug, product) in products)
-        {
-            var existing = await _context.MasterProducts.FirstOrDefaultAsync(item => item.Slug == slug);
-            if (existing == null)
-            {
-                await _context.MasterProducts.AddAsync(product);
-                continue;
-            }
-
-            existing.ChangeProductType(product.ProductTypeId);
-            existing.ChangePart(product.PartId);
-        }
-
-        await BackfillDairyProductTypesAndPartsAsync(category.Id, milkType?.Id, yogurtType?.Id, fullCreamPart?.Id, freshPart?.Id);
+        await _context.MasterProducts.AddRangeAsync(missingProducts);
         await _context.SaveChangesAsync();
     }
 
@@ -334,6 +359,39 @@ public class ApplicationDbContextInitialiser
                 }
             }
         }
+    }
+
+    private static MasterProduct CreateProduct(
+        string nameAr,
+        string nameEn,
+        string slug,
+        string descriptionAr,
+        string descriptionEn,
+        Guid categoryId,
+        Guid? brandId,
+        Guid? unitId,
+        Guid? productTypeId,
+        Guid? partId,
+        string primaryImage,
+        string secondaryImage)
+    {
+        var product = new MasterProduct(
+            nameAr,
+            nameEn,
+            slug,
+            categoryId,
+            brandId,
+            unitId,
+            descriptionAr,
+            descriptionEn,
+            null,
+            productTypeId,
+            partId);
+
+        product.Publish();
+        product.AddImage(primaryImage, nameEn, 0, true);
+        product.AddImage(secondaryImage, nameEn, 1, false);
+        return product;
     }
 
     private async Task SeedSampleVendorsAsync()
@@ -683,7 +741,7 @@ public class ApplicationDbContextInitialiser
                 tagEn: "Today's deals",
                 titleAr: "خصومات قوية على منتجاتك اليومية",
                 titleEn: "Strong discounts on your daily essentials",
-                imageUrl: "/images/home/banners/daily-deals.jpg",
+                imageUrl: ImageCatalog.BannerDeals,
                 subtitleAr: "توصيل سريع وأسعار أفضل من المعتاد",
                 subtitleEn: "Fast delivery and better-than-usual prices",
                 actionLabelAr: "تسوق الآن",
@@ -696,7 +754,7 @@ public class ApplicationDbContextInitialiser
                 tagEn: "Featured picks",
                 titleAr: "اختيارات موصى بها من أفضل المتاجر",
                 titleEn: "Recommended picks from top stores",
-                imageUrl: "/images/home/banners/featured-picks.jpg",
+                imageUrl: ImageCatalog.BannerStores,
                 subtitleAr: "تشكيلة منتقاة بعناية لتسهيل قرار الشراء",
                 subtitleEn: "A curated selection to make buying easier",
                 actionLabelAr: "اكتشف المزيد",
@@ -709,7 +767,7 @@ public class ApplicationDbContextInitialiser
                 tagEn: "Best sellers",
                 titleAr: "الأصناف الأكثر طلباً هذا الأسبوع",
                 titleEn: "The most ordered items this week",
-                imageUrl: "/images/home/banners/best-sellers.jpg",
+                imageUrl: ImageCatalog.BannerBestSelling,
                 subtitleAr: "منتجات يحبها العملاء ويكررون طلبها",
                 subtitleEn: "Products customers love and reorder",
                 actionLabelAr: "شاهد القائمة",
@@ -721,6 +779,655 @@ public class ApplicationDbContextInitialiser
 
         await _context.HomeBanners.AddRangeAsync(banners);
         await _context.SaveChangesAsync();
+    }
+
+    private async Task SeedVendorProductsAsync()
+    {
+        var vendors = await _context.Vendors
+            .Include(x => x.Branches)
+            .ToDictionaryAsync(x => x.BusinessNameEn);
+        var products = await _context.MasterProducts.ToDictionaryAsync(x => x.Slug);
+        var existingPairs = await _context.VendorProducts
+            .Select(x => new { x.VendorId, x.MasterProductId })
+            .ToListAsync();
+        var existingLookup = existingPairs
+            .Select(x => (x.VendorId, x.MasterProductId))
+            .ToHashSet();
+
+        var offers = new[]
+        {
+            new VendorProductSeed("Green Valley Market", "full-cream-milk-1l", 16.95m, 120, 19.95m),
+            new VendorProductSeed("Green Valley Market", "greek-yogurt", 8.50m, 90, 10.00m),
+            new VendorProductSeed("Green Valley Market", "orange-juice-1l", 11.75m, 70, 13.50m),
+            new VendorProductSeed("Green Valley Market", "water-pack-6", 9.95m, 150, null),
+            new VendorProductSeed("Green Valley Market", "white-toast-bread", 6.25m, 55, null),
+            new VendorProductSeed("Green Valley Market", "fresh-bananas", 12.50m, 80, null),
+            new VendorProductSeed("Green Valley Market", "red-tomatoes", 8.95m, 65, null),
+            new VendorProductSeed("Green Valley Market", "dishwashing-liquid", 14.95m, 45, 17.95m),
+            new VendorProductSeed("Green Valley Market", "kitchen-towels-2-rolls", 13.50m, 40, null),
+
+            new VendorProductSeed("Fresh Basket", "full-cream-milk-1l", 17.50m, 35, 19.95m),
+            new VendorProductSeed("Fresh Basket", "orange-juice-1l", 12.10m, 30, null),
+            new VendorProductSeed("Fresh Basket", "classic-potato-chips", 7.25m, 25, null),
+            new VendorProductSeed("Fresh Basket", "fresh-bananas", 13.20m, 22, null),
+
+            new VendorProductSeed("Modern Tech Mart", "usb-c-fast-charger", 79.00m, 28, 99.00m),
+            new VendorProductSeed("Modern Tech Mart", "transparent-iphone-case", 49.00m, 40, 59.00m),
+            new VendorProductSeed("Modern Tech Mart", "samsung-galaxy-a55", 1499.00m, 12, 1599.00m),
+            new VendorProductSeed("Modern Tech Mart", "iphone-15", 3199.00m, 8, 3399.00m),
+
+            new VendorProductSeed("Riyadh Kitchens", "water-pack-6", 8.95m, 0, null),
+            new VendorProductSeed("Riyadh Kitchens", "dishwashing-liquid", 16.95m, 10, null)
+        };
+
+        foreach (var offer in offers)
+        {
+            if (!vendors.TryGetValue(offer.VendorName, out var vendor))
+            {
+                continue;
+            }
+
+            if (!products.TryGetValue(offer.ProductSlug, out var product))
+            {
+                continue;
+            }
+
+            var branch = vendor.Branches.FirstOrDefault();
+            if (branch == null)
+            {
+                continue;
+            }
+
+            if (existingLookup.Contains((vendor.Id, product.Id)))
+            {
+                continue;
+            }
+
+            var entity = new VendorProduct(vendor.Id, product.Id, offer.SellingPrice, offer.Quantity, offer.CompareAtPrice, branch.Id);
+            if (offer.Quantity == 0)
+            {
+                entity.UpdateStock(0);
+            }
+
+            await _context.VendorProducts.AddAsync(entity);
+            existingLookup.Add((vendor.Id, product.Id));
+        }
+
+        await _context.SaveChangesAsync();
+    }
+
+    private async Task SeedHomeSectionsAsync()
+    {
+        if (await _context.HomeContentSectionSettings.AnyAsync())
+        {
+            return;
+        }
+
+        var settings = Enum.GetValues<HomeContentSectionType>()
+            .Select(section => new HomeContentSectionSetting(section, true))
+            .ToArray();
+        await _context.HomeContentSectionSettings.AddRangeAsync(settings);
+
+        var dairy = await _context.Categories.FirstAsync(x => x.NameEn == "Dairy");
+        var beverages = await _context.Categories.FirstAsync(x => x.NameEn == "Beverages");
+        var accessories = await _context.Categories.FirstAsync(x => x.NameEn == "Accessories");
+
+        await _context.HomeSections.AddRangeAsync(
+            new HomeSection(dairy.Id, "soft-blue", 1, 8, DateTime.UtcNow.AddDays(-15), DateTime.UtcNow.AddMonths(2)),
+            new HomeSection(beverages.Id, "fresh-orange", 2, 8, DateTime.UtcNow.AddDays(-10), DateTime.UtcNow.AddMonths(2)),
+            new HomeSection(accessories.Id, "bold-dark", 3, 6, DateTime.UtcNow.AddDays(-5), DateTime.UtcNow.AddMonths(2)));
+
+        await _context.SaveChangesAsync();
+    }
+
+    private async Task SeedFeaturedPlacementsAsync()
+    {
+        var vendorProducts = await _context.VendorProducts
+            .Include(x => x.MasterProduct)
+            .ToListAsync();
+        var existingOrders = await _context.FeaturedProductPlacements
+            .Select(x => x.DisplayOrder)
+            .ToListAsync();
+        var now = DateTime.UtcNow;
+        var placements = new List<FeaturedProductPlacement>();
+
+        var milkOffer = vendorProducts.FirstOrDefault(x => x.MasterProduct.Slug == "full-cream-milk-1l");
+        if (milkOffer != null && !existingOrders.Contains(1))
+        {
+            placements.Add(new FeaturedProductPlacement(
+                FeaturedPlacementType.VendorProduct,
+                1,
+                milkOffer.Id,
+                null,
+                now.AddDays(-7),
+                now.AddMonths(1),
+                "Daily essentials spotlight"));
+        }
+
+        var juice = await _context.MasterProducts.FirstOrDefaultAsync(x => x.Slug == "orange-juice-1l");
+        if (juice != null && !existingOrders.Contains(2))
+        {
+            placements.Add(new FeaturedProductPlacement(
+                FeaturedPlacementType.MasterProduct,
+                2,
+                null,
+                juice.Id,
+                now.AddDays(-7),
+                now.AddMonths(1),
+                "Fresh beverages"));
+        }
+
+        var phoneOffer = vendorProducts.FirstOrDefault(x => x.MasterProduct.Slug == "samsung-galaxy-a55");
+        if (phoneOffer != null && !existingOrders.Contains(3))
+        {
+            placements.Add(new FeaturedProductPlacement(
+                FeaturedPlacementType.VendorProduct,
+                3,
+                phoneOffer.Id,
+                null,
+                now.AddDays(-7),
+                now.AddMonths(1),
+                "Trending tech"));
+        }
+
+        if (placements.Count == 0)
+        {
+            return;
+        }
+
+        await _context.FeaturedProductPlacements.AddRangeAsync(placements);
+
+        await _context.SaveChangesAsync();
+    }
+
+    private async Task SeedCouponsAsync()
+    {
+        if (await _context.Coupons.AnyAsync())
+        {
+            return;
+        }
+
+        var greenValley = await _context.Vendors.FirstAsync(x => x.BusinessNameEn == "Green Valley Market");
+        var modernTech = await _context.Vendors.FirstAsync(x => x.BusinessNameEn == "Modern Tech Mart");
+        var now = DateTime.UtcNow;
+
+        var groceryCoupon = new Coupon("FRESH10", "Fresh Basket Savings", CouponDiscountType.Percentage, 10m, 60m, 25m, now.AddDays(-5), now.AddMonths(1), 500, 2);
+        var techCoupon = new Coupon("TECH50", "Tech Accessories Deal", CouponDiscountType.Fixed, 50m, 300m, null, now.AddDays(-2), now.AddMonths(1), 100, 1);
+
+        groceryCoupon.ApplicableVendors.Add(new CouponVendor(groceryCoupon.Id, greenValley.Id));
+        techCoupon.ApplicableVendors.Add(new CouponVendor(techCoupon.Id, modernTech.Id));
+
+        await _context.Coupons.AddRangeAsync(groceryCoupon, techCoupon);
+        await _context.SaveChangesAsync();
+    }
+
+    private async Task SeedCustomersAsync()
+    {
+        await EnsureUserAsync("ahmed.customer@zadana.local", "Ahmed Mostafa", "01000000010", UserRole.Customer, DefaultUserPassword, user =>
+        {
+            user.VerifyEmail();
+            user.VerifyPhone();
+            user.RecordLogin();
+            user.MarkPresenceOnline(DateTime.UtcNow.AddMinutes(-2));
+        });
+
+        await EnsureUserAsync("layla.customer@zadana.local", "Layla Adel", "01000000011", UserRole.Customer, DefaultUserPassword, user =>
+        {
+            user.VerifyEmail();
+            user.VerifyPhone();
+            user.RecordLogin();
+            user.MarkPresenceOffline(DateTime.UtcNow.AddHours(-1));
+        });
+
+        await EnsureUserAsync("noor.customer@zadana.local", "Noor Hossam", "01000000012", UserRole.Customer, DefaultUserPassword, user =>
+        {
+            user.VerifyEmail();
+            user.VerifyPhone();
+            user.RecordLogin();
+            user.MarkPresenceOffline(DateTime.UtcNow.AddDays(-1));
+        });
+    }
+
+    private async Task SeedDriversAsync()
+    {
+        if (await _context.Drivers.AnyAsync())
+        {
+            return;
+        }
+
+        var activeDriverUser = await EnsureUserAsync("driver.active@zadana.local", "Mahmoud Driver", "01000000020", UserRole.Driver, DefaultUserPassword, user =>
+        {
+            user.VerifyEmail();
+            user.VerifyPhone();
+            user.RecordLogin();
+            user.MarkPresenceOnline(DateTime.UtcNow.AddMinutes(-12));
+        });
+
+        var pendingDriverUser = await EnsureUserAsync("driver.pending@zadana.local", "Yara Driver", "01000000021", UserRole.Driver, DefaultUserPassword, user =>
+        {
+            user.VerifyEmail();
+            user.VerifyPhone();
+            user.RecordLogin();
+            user.MarkPresenceOffline(DateTime.UtcNow.AddHours(-5));
+        });
+
+        var activeDriver = new Driver(activeDriverUser.Id, "Motorbike", "29801011234567", "DRV-1001", "Riyadh", ImageCatalog.DriverNationalId, ImageCatalog.DriverLicense, ImageCatalog.DriverVehicle, ImageCatalog.DriverProfile);
+        activeDriver.Approve();
+        activeDriver.ToggleAvailability(true);
+
+        var pendingDriver = new Driver(pendingDriverUser.Id, "Car", "29801011234568", "DRV-1002", "Jeddah", ImageCatalog.DriverNationalId, ImageCatalog.DriverLicense, ImageCatalog.DriverVehicle, ImageCatalog.DriverProfile);
+
+        await _context.Drivers.AddRangeAsync(activeDriver, pendingDriver);
+        await _context.SaveChangesAsync();
+    }
+
+    private async Task SeedCustomerExperienceAsync()
+    {
+        if (await _context.Orders.AnyAsync())
+        {
+            return;
+        }
+
+        var ahmed = await _userManager.FindByEmailAsync("ahmed.customer@zadana.local");
+        var layla = await _userManager.FindByEmailAsync("layla.customer@zadana.local");
+        var noor = await _userManager.FindByEmailAsync("noor.customer@zadana.local");
+        if (ahmed is null || layla is null || noor is null)
+        {
+            return;
+        }
+
+        var ahmedHome = new CustomerAddress(ahmed.Id, "Ahmed Mostafa", ahmed.PhoneNumber!, "King Fahd Road, Building 18", AddressLabel.Home, "18", "3", "12", "Riyadh", "Al Olaya", 24.7136m, 46.6753m);
+        ahmedHome.SetAsDefault();
+        var laylaWork = new CustomerAddress(layla.Id, "Layla Adel", layla.PhoneNumber!, "Prince Sultan Street, Tower 5", AddressLabel.Work, "5", "6", "22", "Jeddah", "Al Zahraa", 21.5433m, 39.1728m);
+        laylaWork.SetAsDefault();
+        var noorHome = new CustomerAddress(noor.Id, "Noor Hossam", noor.PhoneNumber!, "Corniche Road, Villa 7", AddressLabel.Home, "7", null, null, "Khobar", "Corniche", 26.2794m, 50.2083m);
+        noorHome.SetAsDefault();
+
+        await _context.CustomerAddresses.AddRangeAsync(ahmedHome, laylaWork, noorHome);
+        await _context.SaveChangesAsync();
+
+        await SeedFavoritesAsync(ahmed.Id, layla.Id, noor.Id);
+        await SeedCartsAsync(ahmed.Id, layla.Id);
+        await SeedOrdersAsync(ahmed, ahmedHome, layla, laylaWork, noor, noorHome);
+        await SeedReviewsAsync(ahmed.Id, layla.Id);
+        await SeedNotificationsAsync(ahmed.Id, layla.Id, noor.Id);
+    }
+
+    private async Task SeedFavoritesAsync(Guid ahmedId, Guid laylaId, Guid noorId)
+    {
+        var products = await _context.MasterProducts.ToDictionaryAsync(x => x.Slug);
+        var favorites = new List<CustomerFavorite>();
+
+        if (products.TryGetValue("full-cream-milk-1l", out var milk))
+        {
+            favorites.Add(new CustomerFavorite(ahmedId, null, milk.Id));
+        }
+
+        if (products.TryGetValue("usb-c-fast-charger", out var charger))
+        {
+            favorites.Add(new CustomerFavorite(ahmedId, null, charger.Id));
+        }
+
+        if (products.TryGetValue("orange-juice-1l", out var juice))
+        {
+            favorites.Add(new CustomerFavorite(laylaId, null, juice.Id));
+        }
+
+        if (products.TryGetValue("iphone-15", out var iphone))
+        {
+            favorites.Add(new CustomerFavorite(noorId, null, iphone.Id));
+        }
+
+        if (favorites.Count == 0)
+        {
+            return;
+        }
+
+        await _context.CustomerFavorites.AddRangeAsync(favorites);
+        await _context.SaveChangesAsync();
+    }
+
+    private async Task SeedCartsAsync(Guid ahmedId, Guid laylaId)
+    {
+        var products = await _context.MasterProducts.ToDictionaryAsync(x => x.Slug);
+
+        var ahmedCart = new Cart(ahmedId);
+        if (products.TryGetValue("full-cream-milk-1l", out var milk))
+        {
+            ahmedCart.Items.Add(new CartItem(ahmedCart.Id, milk.Id, milk.NameEn, 2));
+        }
+
+        if (products.TryGetValue("dishwashing-liquid", out var soap))
+        {
+            ahmedCart.Items.Add(new CartItem(ahmedCart.Id, soap.Id, soap.NameEn, 1));
+        }
+
+        var laylaCart = new Cart(laylaId);
+        if (products.TryGetValue("usb-c-fast-charger", out var charger))
+        {
+            laylaCart.Items.Add(new CartItem(laylaCart.Id, charger.Id, charger.NameEn, 1));
+        }
+
+        var carts = new List<Cart>();
+        if (ahmedCart.Items.Count > 0)
+        {
+            carts.Add(ahmedCart);
+        }
+
+        if (laylaCart.Items.Count > 0)
+        {
+            carts.Add(laylaCart);
+        }
+
+        if (carts.Count == 0)
+        {
+            return;
+        }
+
+        await _context.Carts.AddRangeAsync(carts);
+        await _context.SaveChangesAsync();
+    }
+
+    private async Task SeedOrdersAsync(User ahmed, CustomerAddress ahmedHome, User layla, CustomerAddress laylaWork, User noor, CustomerAddress noorHome)
+    {
+        var vendors = await _context.Vendors.Include(x => x.Branches).ToDictionaryAsync(x => x.BusinessNameEn);
+        var vendorProducts = await _context.VendorProducts.Include(x => x.MasterProduct).ToListAsync();
+        var coupons = await _context.Coupons.ToDictionaryAsync(x => x.Code);
+
+        if (!vendors.TryGetValue("Green Valley Market", out var groceryVendor) ||
+            !vendors.TryGetValue("Modern Tech Mart", out var techVendor))
+        {
+            return;
+        }
+
+        var groceryBranch = groceryVendor.Branches.Single();
+        var techBranch = techVendor.Branches.Single();
+
+        var milk = vendorProducts.FirstOrDefault(x => x.MasterProduct.Slug == "full-cream-milk-1l" && x.VendorId == groceryVendor.Id);
+        var soap = vendorProducts.FirstOrDefault(x => x.MasterProduct.Slug == "dishwashing-liquid" && x.VendorId == groceryVendor.Id);
+        var charger = vendorProducts.FirstOrDefault(x => x.MasterProduct.Slug == "usb-c-fast-charger" && x.VendorId == techVendor.Id);
+        var phone = vendorProducts.FirstOrDefault(x => x.MasterProduct.Slug == "samsung-galaxy-a55" && x.VendorId == techVendor.Id);
+
+        if (milk is null || soap is null || charger is null || phone is null)
+        {
+            return;
+        }
+
+        coupons.TryGetValue("FRESH10", out var freshCoupon);
+        coupons.TryGetValue("TECH50", out var techCoupon);
+
+        var deliveredOrder = new Order("ORD-DEV-1001", ahmed.Id, groceryVendor.Id, ahmedHome.Id, PaymentMethodType.Card, 48.85m, 4.00m, 12m, 5.50m, "Leave at the door", groceryBranch.Id, freshCoupon?.Id);
+        deliveredOrder.Items.Add(new OrderItem(deliveredOrder.Id, milk.Id, milk.MasterProductId, milk.MasterProduct.NameEn, 2, 16.95m, 2.00m, "Liter"));
+        deliveredOrder.Items.Add(new OrderItem(deliveredOrder.Id, soap.Id, soap.MasterProductId, soap.MasterProduct.NameEn, 1, 14.95m, 2.00m, "Liter"));
+        var deliveredPayment = new Payment(deliveredOrder.Id, PaymentMethodType.Card, deliveredOrder.TotalAmount);
+        deliveredPayment.MarkAsPending("MockGateway", "PAY-DEV-1001");
+        deliveredPayment.MarkAsPaid();
+        deliveredOrder.ChangeStatus(OrderStatus.Accepted, null, "Seed vendor accepted");
+        deliveredOrder.ChangeStatus(OrderStatus.Preparing, null, "Seed preparing");
+        deliveredOrder.ChangeStatus(OrderStatus.ReadyForPickup, null, "Seed ready");
+        deliveredOrder.ChangeStatus(OrderStatus.DriverAssignmentInProgress, null, "Looking for driver");
+        deliveredOrder.ChangeStatus(OrderStatus.DriverAssigned, null, "Driver assigned");
+        deliveredOrder.ChangeStatus(OrderStatus.PickedUp, null, "Picked up");
+        deliveredOrder.ChangeStatus(OrderStatus.OnTheWay, null, "On the way");
+        deliveredOrder.ChangeStatus(OrderStatus.Delivered, null, "Delivered successfully");
+
+        var refundedOrder = new Order("ORD-DEV-1002", layla.Id, techVendor.Id, laylaWork.Id, PaymentMethodType.ApplePay, 1578.00m, 79.00m, 0m, 90m, "Office reception", techBranch.Id, techCoupon?.Id);
+        refundedOrder.Items.Add(new OrderItem(refundedOrder.Id, charger.Id, charger.MasterProductId, charger.MasterProduct.NameEn, 1, 79m, 0m, "Piece"));
+        refundedOrder.Items.Add(new OrderItem(refundedOrder.Id, phone.Id, phone.MasterProductId, phone.MasterProduct.NameEn, 1, 1499m, 79m, "Piece"));
+        var refundedPayment = new Payment(refundedOrder.Id, PaymentMethodType.ApplePay, refundedOrder.TotalAmount);
+        refundedPayment.MarkAsPending("MockGateway", "PAY-DEV-1002");
+        refundedPayment.MarkAsPaid();
+        refundedOrder.ChangeStatus(OrderStatus.Accepted, null, "Accepted");
+        refundedOrder.ChangeStatus(OrderStatus.Cancelled, null, "Customer cancellation");
+        refundedOrder.ChangeStatus(OrderStatus.Refunded, null, "Refund completed");
+        var refund = new Refund(refundedPayment.Id, refundedOrder.TotalAmount, "Customer cancellation after payment");
+        refund.Process();
+        refundedOrder.UpdatePaymentStatus(PaymentStatus.Refunded);
+
+        var codOrder = new Order("ORD-DEV-1003", noor.Id, groceryVendor.Id, noorHome.Id, PaymentMethodType.CashOnDelivery, 29.70m, 0m, 10m, 3m, "Call on arrival", groceryBranch.Id);
+        codOrder.Items.Add(new OrderItem(codOrder.Id, milk.Id, milk.MasterProductId, milk.MasterProduct.NameEn, 1, 16.95m, 0m, "Liter"));
+        codOrder.Items.Add(new OrderItem(codOrder.Id, soap.Id, soap.MasterProductId, soap.MasterProduct.NameEn, 1, 14.95m, 2.20m, "Liter"));
+        var codPayment = new Payment(codOrder.Id, PaymentMethodType.CashOnDelivery, codOrder.TotalAmount);
+        codPayment.MarkAsPending("CashOnDelivery", "PAY-DEV-1003");
+        codOrder.ChangeStatus(OrderStatus.Placed, null, "Order placed");
+        codOrder.ChangeStatus(OrderStatus.PendingVendorAcceptance, null, "Awaiting vendor response");
+
+        await _context.Orders.AddRangeAsync(deliveredOrder, refundedOrder, codOrder);
+        await _context.Payments.AddRangeAsync(deliveredPayment, refundedPayment, codPayment);
+        await _context.Refunds.AddAsync(refund);
+        await _context.SaveChangesAsync();
+    }
+
+    private async Task SeedReviewsAsync(Guid ahmedId, Guid laylaId)
+    {
+        if (await _context.Reviews.AnyAsync())
+        {
+            return;
+        }
+
+        var delivered = await _context.Orders.FirstOrDefaultAsync(x => x.Status == OrderStatus.Delivered);
+        if (delivered == null)
+        {
+            return;
+        }
+
+        await _context.Reviews.AddRangeAsync(
+            new Review(delivered.Id, ahmedId, delivered.VendorId, 5, "طلب ممتاز، التغليف جيد والتوصيل سريع."),
+            new Review(delivered.Id, laylaId, delivered.VendorId, 4, "Quality products and fast support."));
+        await _context.SaveChangesAsync();
+    }
+
+    private async Task SeedNotificationsAsync(Guid ahmedId, Guid laylaId, Guid noorId)
+    {
+        if (await _context.Notifications.AnyAsync())
+        {
+            return;
+        }
+
+        await _context.Notifications.AddRangeAsync(
+            new Notification(ahmedId, "تم توصيل طلبك", "طلبك الأخير وصل بنجاح وتم تقييمه كأحد أفضل الطلبات هذا الأسبوع.", "order"),
+            new Notification(ahmedId, "عرض جديد", "خصم 10% على منتجات البقالة من Green Valley Market.", "marketing"),
+            new Notification(laylaId, "Refund completed", "Your refund for order ORD-DEV-1002 has been completed.", "payment"),
+            new Notification(noorId, "طلبك قيد المراجعة", "المتجر يراجع طلب الدفع عند الاستلام الخاص بك الآن.", "order"));
+        await _context.SaveChangesAsync();
+    }
+
+    private async Task SeedDriverAssignmentsAsync()
+    {
+        if (await _context.DeliveryAssignments.AnyAsync())
+        {
+            return;
+        }
+
+        var activeDriver = await _context.Drivers.FirstAsync(x => x.IsAvailable);
+        var deliveredOrder = await _context.Orders.FirstAsync(x => x.OrderNumber == "ORD-DEV-1001");
+        var pendingOrder = await _context.Orders.FirstAsync(x => x.OrderNumber == "ORD-DEV-1003");
+
+        var deliveredAssignment = new DeliveryAssignment(deliveredOrder.Id, 0m);
+        deliveredAssignment.OfferTo(activeDriver.Id);
+        deliveredAssignment.Accept();
+        deliveredAssignment.MarkPickedUp();
+        deliveredAssignment.MarkDelivered();
+
+        var searchingAssignment = new DeliveryAssignment(pendingOrder.Id, pendingOrder.TotalAmount);
+        searchingAssignment.OfferTo(activeDriver.Id);
+
+        await _context.DeliveryAssignments.AddRangeAsync(deliveredAssignment, searchingAssignment);
+        await _context.SaveChangesAsync();
+    }
+
+    private async Task SeedWalletsAndSettlementsAsync()
+    {
+        if (await _context.Wallets.AnyAsync())
+        {
+            return;
+        }
+
+        var deliveredOrder = await _context.Orders.FirstAsync(x => x.OrderNumber == "ORD-DEV-1001");
+        var deliveredPayment = await _context.Payments.FirstAsync(x => x.OrderId == deliveredOrder.Id);
+        var vendor = await _context.Vendors.Include(x => x.BankAccounts).FirstAsync(x => x.Id == deliveredOrder.VendorId);
+        var driver = await _context.Drivers.FirstAsync(x => x.IsAvailable);
+
+        var vendorWallet = new Wallet(WalletOwnerType.Vendor, vendor.Id);
+        vendorWallet.Credit(5200m);
+        var driverWallet = new Wallet(WalletOwnerType.Driver, driver.Id);
+        driverWallet.Credit(850m);
+
+        await _context.Wallets.AddRangeAsync(vendorWallet, driverWallet);
+        await _context.SaveChangesAsync();
+
+        var settlement = new Settlement(vendor.Id, null);
+        settlement.UpdateTotals(deliveredOrder.TotalAmount, deliveredOrder.CommissionAmount);
+        settlement.MarkAsProcessing();
+        settlement.Items.Add(new SettlementItem(
+            settlement.Id,
+            deliveredOrder.Id,
+            settlement.NetAmount,
+            18m,
+            deliveredOrder.CommissionAmount,
+            0m));
+        settlement.MarkAsSettled();
+
+        var payout = new Payout(settlement.Id, settlement.NetAmount, vendor.BankAccounts.FirstOrDefault(x => x.IsPrimary)?.Id);
+        payout.MarkAsProcessing();
+        payout.MarkAsPaid("TRX-SETTLEMENT-1001");
+        settlement.Payouts.Add(payout);
+
+        await _context.Settlements.AddAsync(settlement);
+        await _context.WalletTransactions.AddRangeAsync(
+            new WalletTransaction(vendorWallet.Id, WalletTxnType.Credit, settlement.NetAmount, "IN", deliveredOrder.Id, deliveredPayment.Id, settlement.Id, "SETTLEMENT", settlement.Id, "Seeded vendor settlement payout"),
+            new WalletTransaction(driverWallet.Id, WalletTxnType.Credit, 18m, "IN", deliveredOrder.Id, null, null, "DELIVERY_FEE", deliveredOrder.Id, "Seeded driver earning"));
+        await _context.SaveChangesAsync();
+    }
+
+    private async Task ResetDevelopmentDataAsync()
+    {
+        await DeleteRangeAsync(_context.DeliveryProofs);
+        await DeleteRangeAsync(_context.DriverLocations);
+        await DeleteRangeAsync(_context.DeliveryAssignments);
+        await DeleteRangeAsync(_context.Refunds);
+        await DeleteRangeAsync(_context.Payments);
+        await DeleteRangeAsync(_context.OrderStatusHistories);
+        await DeleteRangeAsync(_context.OrderItems);
+        await DeleteRangeAsync(_context.Orders);
+        await DeleteRangeAsync(_context.CartItems);
+        await DeleteRangeAsync(_context.Carts);
+        await DeleteRangeAsync(_context.CustomerFavorites);
+        await DeleteRangeAsync(_context.CustomerAddresses);
+        await DeleteRangeAsync(_context.Notifications);
+        await DeleteRangeAsync(_context.Reviews);
+        await DeleteRangeAsync(_context.Payouts);
+        await DeleteRangeAsync(_context.SettlementItems);
+        await DeleteRangeAsync(_context.Settlements);
+        await DeleteRangeAsync(_context.WalletTransactions);
+        await DeleteRangeAsync(_context.Wallets);
+        await DeleteRangeAsync(_context.CouponVendors);
+        await DeleteRangeAsync(_context.Coupons);
+        await DeleteRangeAsync(_context.FeaturedProductPlacements);
+        await DeleteRangeAsync(_context.HomeSections);
+        await DeleteRangeAsync(_context.HomeContentSectionSettings);
+        await DeleteRangeAsync(_context.HomeBanners);
+        await DeleteRangeAsync(_context.VendorProducts);
+        await DeleteRangeAsync(_context.ProductRequests);
+        await DeleteRangeAsync(_context.BrandRequests);
+        await DeleteRangeAsync(_context.CategoryRequests);
+        await DeleteRangeAsync(_context.Drivers);
+        await DeleteRangeAsync(_context.VendorBankAccounts);
+        await DeleteRangeAsync(_context.BranchOperatingHours);
+        await DeleteRangeAsync(_context.VendorBranches);
+        await DeleteRangeAsync(_context.Vendors);
+        await DeleteRangeAsync(_context.RefreshTokens);
+
+        var products = await _context.MasterProducts.ToListAsync();
+        if (products.Count > 0)
+        {
+            _context.MasterProducts.RemoveRange(products);
+            await _context.SaveChangesAsync();
+        }
+
+        await DeleteRangeAsync(_context.Parts);
+        await DeleteRangeAsync(_context.ProductTypes);
+        await DeleteRangeAsync(_context.Brands);
+
+        var categories = await _context.Categories
+            .OrderByDescending(x => x.ParentCategoryId.HasValue)
+            .ToListAsync();
+        if (categories.Count > 0)
+        {
+            _context.Categories.RemoveRange(categories);
+            await _context.SaveChangesAsync();
+        }
+
+        await DeleteRangeAsync(_context.UnitsOfMeasure);
+
+        var users = await _userManager.Users.ToListAsync();
+        foreach (var user in users)
+        {
+            await _userManager.DeleteAsync(user);
+        }
+
+        var roles = await _roleManager.Roles.ToListAsync();
+        foreach (var role in roles)
+        {
+            await _roleManager.DeleteAsync(role);
+        }
+
+        _context.ChangeTracker.Clear();
+    }
+
+    private async Task DeleteRangeAsync<TEntity>(DbSet<TEntity> dbSet) where TEntity : class
+    {
+        if (await dbSet.AnyAsync())
+        {
+            await dbSet.ExecuteDeleteAsync();
+        }
+    }
+
+    private async Task<User> EnsureUserAsync(
+        string email,
+        string fullName,
+        string phone,
+        UserRole role,
+        string password,
+        Action<User>? configure = null)
+    {
+        var user = await _userManager.FindByEmailAsync(email);
+        if (user == null)
+        {
+            user = new User(fullName, email, phone, role);
+            var result = await _userManager.CreateAsync(user, password);
+            if (!result.Succeeded)
+            {
+                throw new InvalidOperationException($"Failed to create seeded user {email}: {string.Join(", ", result.Errors.Select(x => x.Description))}");
+            }
+        }
+
+        if (!await _userManager.IsInRoleAsync(user, role.ToString()))
+        {
+            await _userManager.AddToRoleAsync(user, role.ToString());
+        }
+
+        configure?.Invoke(user);
+        _context.Users.Update(user);
+        await _context.SaveChangesAsync();
+        return user;
+    }
+
+    private async Task<DevelopmentSeedSummary> BuildSummaryAsync()
+    {
+        return new DevelopmentSeedSummary(
+            await _context.Categories.CountAsync(),
+            await _context.Brands.CountAsync(),
+            await _context.MasterProducts.CountAsync(),
+            await _context.Vendors.CountAsync(),
+            await _context.VendorProducts.CountAsync(),
+            await _userManager.Users.CountAsync(x => x.Role == UserRole.Customer),
+            await _context.Drivers.CountAsync(),
+            await _context.Orders.CountAsync(),
+            await _context.HomeBanners.CountAsync(),
+            await _context.Coupons.CountAsync(),
+            await _context.Reviews.CountAsync(),
+            await _context.Notifications.CountAsync());
     }
 
     private async Task EnsureVendorSeedAsync(VendorSeedDefinition seed, Guid adminUserId)
@@ -913,3 +1620,75 @@ internal sealed record SeedOperatingHour(
     string OpenTime,
     string CloseTime,
     bool IsOpen);
+
+public sealed record DevelopmentSeedSummary(
+    int Categories,
+    int Brands,
+    int MasterProducts,
+    int Vendors,
+    int VendorProducts,
+    int Customers,
+    int Drivers,
+    int Orders,
+    int Banners,
+    int Coupons,
+    int Reviews,
+    int Notifications);
+
+internal sealed record VendorProductSeed(
+    string VendorName,
+    string ProductSlug,
+    decimal SellingPrice,
+    int Quantity,
+    decimal? CompareAtPrice);
+
+internal static class ImageCatalog
+{
+    public const string CategoryGroceries = "https://images.unsplash.com/photo-1542838132-92c53300491e?auto=format&fit=crop&w=1200&q=80";
+    public const string CategoryElectronics = "https://images.unsplash.com/photo-1519389950473-47ba0277781c?auto=format&fit=crop&w=1200&q=80";
+    public const string CategoryHome = "https://images.unsplash.com/photo-1484154218962-a197022b5858?auto=format&fit=crop&w=1200&q=80";
+    public const string CategoryDairy = "https://images.unsplash.com/photo-1550583724-b2692b85b150?auto=format&fit=crop&w=1200&q=80";
+    public const string CategoryBeverages = "https://images.unsplash.com/photo-1544145945-f90425340c7e?auto=format&fit=crop&w=1200&q=80";
+    public const string CategoryProduce = "https://images.unsplash.com/photo-1610832958506-aa56368176cf?auto=format&fit=crop&w=1200&q=80";
+    public const string CategoryBakery = "https://images.unsplash.com/photo-1509440159596-0249088772ff?auto=format&fit=crop&w=1200&q=80";
+    public const string CategorySnacks = "https://images.unsplash.com/photo-1585238342024-78d387f4a707?auto=format&fit=crop&w=1200&q=80";
+    public const string CategoryPhones = "https://images.unsplash.com/photo-1511707171634-5f897ff02aa9?auto=format&fit=crop&w=1200&q=80";
+    public const string CategoryAccessories = "https://images.unsplash.com/photo-1585386959984-a41552231658?auto=format&fit=crop&w=1200&q=80";
+    public const string CategoryHomeCare = "https://images.unsplash.com/photo-1581578731548-c64695cc6952?auto=format&fit=crop&w=1200&q=80";
+    public const string CategoryKitchen = "https://images.unsplash.com/photo-1513694203232-719a280e022f?auto=format&fit=crop&w=1200&q=80";
+    public const string BannerDeals = "https://images.unsplash.com/photo-1607082350899-7e105aa886ae?auto=format&fit=crop&w=1600&q=80";
+    public const string BannerStores = "https://images.unsplash.com/photo-1520607162513-77705c0f0d4a?auto=format&fit=crop&w=1600&q=80";
+    public const string BannerBestSelling = "https://images.unsplash.com/photo-1515169067868-5387ec356754?auto=format&fit=crop&w=1600&q=80";
+    public const string Milk1 = "https://images.unsplash.com/photo-1550583724-b2692b85b150?auto=format&fit=crop&w=1200&q=80";
+    public const string Milk2 = "https://images.unsplash.com/photo-1563636619-e9143da7973b?auto=format&fit=crop&w=1200&q=80";
+    public const string Yogurt1 = "https://images.unsplash.com/photo-1571212515416-fca88f7c75bb?auto=format&fit=crop&w=1200&q=80";
+    public const string Yogurt2 = "https://images.unsplash.com/photo-1488477181946-6428a0291777?auto=format&fit=crop&w=1200&q=80";
+    public const string Juice1 = "https://images.unsplash.com/photo-1600271886742-f049cd451bba?auto=format&fit=crop&w=1200&q=80";
+    public const string Juice2 = "https://images.unsplash.com/photo-1621506289937-a8e4df240d0b?auto=format&fit=crop&w=1200&q=80";
+    public const string Water1 = "https://images.unsplash.com/photo-1564419320461-6870880221ad?auto=format&fit=crop&w=1200&q=80";
+    public const string Water2 = "https://images.unsplash.com/photo-1616118132534-381148898bb4?auto=format&fit=crop&w=1200&q=80";
+    public const string Bread1 = "https://images.unsplash.com/photo-1509440159596-0249088772ff?auto=format&fit=crop&w=1200&q=80";
+    public const string Bread2 = "https://images.unsplash.com/photo-1608198093002-ad4e005484ec?auto=format&fit=crop&w=1200&q=80";
+    public const string Chips1 = "https://images.unsplash.com/photo-1585238342024-78d387f4a707?auto=format&fit=crop&w=1200&q=80";
+    public const string Chips2 = "https://images.unsplash.com/photo-1621939514649-280e2ee25f60?auto=format&fit=crop&w=1200&q=80";
+    public const string Banana1 = "https://images.unsplash.com/photo-1571771894821-ce9b6c11b08e?auto=format&fit=crop&w=1200&q=80";
+    public const string Banana2 = "https://images.unsplash.com/photo-1603833665858-e61d17a86224?auto=format&fit=crop&w=1200&q=80";
+    public const string Tomato1 = "https://images.unsplash.com/photo-1592924357228-91a4daadcfea?auto=format&fit=crop&w=1200&q=80";
+    public const string Tomato2 = "https://images.unsplash.com/photo-1546094096-0df4bcaaa337?auto=format&fit=crop&w=1200&q=80";
+    public const string DishSoap1 = "https://images.unsplash.com/photo-1581578731548-c64695cc6952?auto=format&fit=crop&w=1200&q=80";
+    public const string DishSoap2 = "https://images.unsplash.com/photo-1583947582886-f40ec95dd752?auto=format&fit=crop&w=1200&q=80";
+    public const string Towel1 = "https://images.unsplash.com/photo-1527515637462-cff94eecc1ac?auto=format&fit=crop&w=1200&q=80";
+    public const string Towel2 = "https://images.unsplash.com/photo-1616627456094-7d0f04f0353f?auto=format&fit=crop&w=1200&q=80";
+    public const string Charger1 = "https://images.unsplash.com/photo-1585386959984-a41552231658?auto=format&fit=crop&w=1200&q=80";
+    public const string Charger2 = "https://images.unsplash.com/photo-1615526675159-e248c3021d3f?auto=format&fit=crop&w=1200&q=80";
+    public const string Case1 = "https://images.unsplash.com/photo-1601593346740-925612772716?auto=format&fit=crop&w=1200&q=80";
+    public const string Case2 = "https://images.unsplash.com/photo-1511707171634-5f897ff02aa9?auto=format&fit=crop&w=1200&q=80";
+    public const string Phone1 = "https://images.unsplash.com/photo-1511707171634-5f897ff02aa9?auto=format&fit=crop&w=1200&q=80";
+    public const string Phone2 = "https://images.unsplash.com/photo-1598327105666-5b89351aff97?auto=format&fit=crop&w=1200&q=80";
+    public const string Iphone1 = "https://images.unsplash.com/photo-1695048133142-1a20484d2569?auto=format&fit=crop&w=1200&q=80";
+    public const string Iphone2 = "https://images.unsplash.com/photo-1592750475338-74b7b21085ab?auto=format&fit=crop&w=1200&q=80";
+    public const string DriverNationalId = "https://images.unsplash.com/photo-1517841905240-472988babdf9?auto=format&fit=crop&w=800&q=80";
+    public const string DriverLicense = "https://images.unsplash.com/photo-1516321318423-f06f85e504b3?auto=format&fit=crop&w=800&q=80";
+    public const string DriverVehicle = "https://images.unsplash.com/photo-1558981806-ec527fa84c39?auto=format&fit=crop&w=800&q=80";
+    public const string DriverProfile = "https://images.unsplash.com/photo-1500648767791-00dcc994a43e?auto=format&fit=crop&w=800&q=80";
+}

@@ -259,6 +259,28 @@ if (app.Environment.IsDevelopment())
         var logger = app.Services.GetRequiredService<ILogger<Program>>();
         logger.LogError(ex, "An error occurred during database initialization.");
     }
+
+    app.MapPost("/dev/reset-seed", async (
+            ApplicationDbContextInitialiser initialiser,
+            ILogger<Program> logger,
+            CancellationToken cancellationToken) =>
+        {
+            cancellationToken.ThrowIfCancellationRequested();
+
+            await initialiser.InitialiseAsync();
+            var summary = await initialiser.ResetAndSeedAsync();
+
+            logger.LogInformation("Development database reset and reseed completed successfully.");
+
+            return Results.Ok(new
+            {
+                message = "Development database reset and reseed completed successfully.",
+                summary
+            });
+        })
+        .WithTags("Development")
+        .WithSummary("Reset and reseed the development database")
+        .WithDescription("Deletes development data and rebuilds a complete deterministic seed dataset. Available only in Development.");
 }
 
 app.MapHealthChecks("/health");
