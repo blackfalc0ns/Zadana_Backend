@@ -2,6 +2,7 @@ using FluentValidation;
 using MediatR;
 using Microsoft.EntityFrameworkCore;
 using Microsoft.Extensions.Localization;
+using Microsoft.Extensions.Logging;
 using Zadana.Application.Common.Interfaces;
 using Zadana.Application.Common.Localization;
 using Zadana.Application.Modules.Orders.DTOs;
@@ -28,28 +29,50 @@ public class UpdateCartItemQuantityCommandValidator : AbstractValidator<UpdateCa
 public class UpdateCartItemQuantityCommandHandler : IRequestHandler<UpdateCartItemQuantityCommand, CartItemMutationResponseDto>
 {
     private readonly IApplicationDbContext _context;
+    private readonly ILogger<UpdateCartItemQuantityCommandHandler> _logger;
 
-    public UpdateCartItemQuantityCommandHandler(IApplicationDbContext context)
+    public UpdateCartItemQuantityCommandHandler(
+        IApplicationDbContext context,
+        ILogger<UpdateCartItemQuantityCommandHandler> logger)
     {
         _context = context;
+        _logger = logger;
     }
 
     public async Task<CartItemMutationResponseDto> Handle(UpdateCartItemQuantityCommand request, CancellationToken cancellationToken)
     {
-        var cart = await _context.Carts
-            .Include(item => item.Items)
-            .FirstOrDefaultAsync(
-                item => request.Actor.UserId.HasValue
-                    ? item.UserId == request.Actor.UserId.Value
-                    : item.GuestId == request.Actor.GuestId,
-                cancellationToken)
+        var actor = CartActor.Create(request.Actor.UserId, CartLookup.NormalizeGuestId(request.Actor.GuestId));
+
+        try
+        {
+            return await UpdateAsync(actor, request, cancellationToken);
+        }
+        catch (Exception exception) when (CartWriteSupport.IsRetryableWriteConflict(exception, actor))
+        {
+            _logger.LogWarning(
+                exception,
+                "Retrying UpdateCartItemQuantity after cart write conflict for user {UserId} guest {GuestId} item {CartItemId}",
+                actor.UserId,
+                actor.GuestId,
+                request.CartItemId);
+
+            CartWriteSupport.ResetTrackedState(_context);
+            return await UpdateAsync(actor, request, cancellationToken);
+        }
+    }
+
+    private async Task<CartItemMutationResponseDto> UpdateAsync(
+        CartActor actor,
+        UpdateCartItemQuantityCommand request,
+        CancellationToken cancellationToken)
+    {
+        var cart = await CartLookup.FindCartAsync(_context, actor, cancellationToken, includeItems: true)
             ?? throw new NotFoundException("CartItem", request.CartItemId);
 
         var cartItem = cart.Items.FirstOrDefault(item => item.Id == request.CartItemId)
             ?? throw new NotFoundException("CartItem", request.CartItemId);
 
         cartItem.UpdateQuantity(request.Quantity);
-        cart.UpdateTotals(0, 0);
 
         await _context.SaveChangesAsync(cancellationToken);
 

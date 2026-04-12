@@ -181,6 +181,41 @@ public class CartControllerTests
     }
 
     [Fact]
+    public async Task AddItem_UsesTrimmedGuestHeader_WhenGuestRequestsCartMutation()
+    {
+        _currentUserServiceMock.SetupGet(x => x.UserId).Returns((Guid?)null);
+        _currentUserServiceMock.SetupGet(x => x.IsAuthenticated).Returns(false);
+        _controller.ControllerContext.HttpContext.Request.Headers["X-Device-Id"] = "  guest-device-123  ";
+
+        AddCartItemCommand? sentCommand = null;
+        var dto = new CartItemMutationResponseDto(
+            "added to cart successfully",
+            new CartItemDto(Guid.NewGuid(), Guid.NewGuid(), "Milk", null, "Liter", 1, []),
+            new CartSummaryDto(1, 1, null, null, null));
+
+        _senderMock.Setup(x => x.Send(It.IsAny<AddCartItemCommand>(), It.IsAny<CancellationToken>()))
+            .Callback<IRequest<CartItemMutationResponseDto>, CancellationToken>((command, _) => sentCommand = (AddCartItemCommand)command)
+            .ReturnsAsync(dto);
+
+        await _controller.AddItem(new AddCartItemRequest(Guid.NewGuid(), 1), CancellationToken.None);
+
+        sentCommand.Should().NotBeNull();
+        sentCommand!.Actor.UserId.Should().BeNull();
+        sentCommand.Actor.GuestId.Should().Be("guest-device-123");
+    }
+
+    [Fact]
+    public async Task AddItem_ThrowsUnauthorizedException_WhenGuestHeaderIsMissing()
+    {
+        _currentUserServiceMock.SetupGet(x => x.UserId).Returns((Guid?)null);
+        _currentUserServiceMock.SetupGet(x => x.IsAuthenticated).Returns(false);
+
+        var act = () => _controller.AddItem(new AddCartItemRequest(Guid.NewGuid(), 1), CancellationToken.None);
+
+        await act.Should().ThrowAsync<UnauthorizedException>();
+    }
+
+    [Fact]
     public async Task GetCart_PassesVendorIdToQuery()
     {
         var dto = new CartDto([], new CartSummaryDto(0, 0, null, null, null));

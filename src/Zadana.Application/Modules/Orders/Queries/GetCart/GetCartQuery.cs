@@ -1,5 +1,4 @@
 using MediatR;
-using Microsoft.EntityFrameworkCore;
 using Zadana.Application.Common.Interfaces;
 using Zadana.Application.Modules.Orders.DTOs;
 using Zadana.Application.Modules.Orders.Support;
@@ -19,13 +18,8 @@ public class GetCartQueryHandler : IRequestHandler<GetCartQuery, CartDto>
 
     public async Task<CartDto> Handle(GetCartQuery request, CancellationToken cancellationToken)
     {
-        var cart = await _context.Carts
-            .Include(item => item.Items)
-            .FirstOrDefaultAsync(
-                cart => request.Actor.UserId.HasValue
-                    ? cart.UserId == request.Actor.UserId.Value
-                    : cart.GuestId == request.Actor.GuestId,
-                cancellationToken);
+        var actor = CartActor.Create(request.Actor.UserId, CartLookup.NormalizeGuestId(request.Actor.GuestId));
+        var cart = await CartLookup.FindCartAsync(_context, actor, cancellationToken, includeItems: true, asTracking: false);
 
         return await CartProjection.BuildCartDtoAsync(_context, cart, cancellationToken, request.VendorId);
     }

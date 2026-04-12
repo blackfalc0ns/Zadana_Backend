@@ -111,12 +111,17 @@ public class CartController : ApiControllerBase
             return CartActor.Create(userId.Value, null);
         }
 
+        return CartActor.Create(null, GetGuestId());
+    }
+
+    private string? GetGuestId()
+    {
         var guestId = Request.Headers[GuestDeviceHeader].ToString();
         if (!string.IsNullOrWhiteSpace(guestId))
         {
-            return CartActor.Create(null, guestId);
+            return guestId.Trim();
         }
 
-        throw new UnauthorizedException($"{_localizer["UserNotAuthenticated"]}. Send {GuestDeviceHeader} for guest cart access.");
+        throw new UnauthorizedException(_localizer["GuestFavoritesHeaderRequired", GuestDeviceHeader]);
     }
 }

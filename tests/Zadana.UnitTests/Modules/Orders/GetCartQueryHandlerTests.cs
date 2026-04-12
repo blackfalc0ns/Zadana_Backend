@@ -51,7 +51,7 @@ public class GetCartQueryHandlerTests
         result.Items[0].Name.Should().Be("Full Cream Milk 1L");
         result.Items[0].Unit.Should().Be("Liter");
         result.Items[0].ImageUrl.Should().Be("https://cdn.test/milk-primary.jpg");
-        result.Items[0].VendorPrices.Should().BeEmpty();
+        result.Items[0].VendorPrices.Should().HaveCount(2);
     }
 
     [Fact]
@@ -123,6 +123,23 @@ public class GetCartQueryHandlerTests
         result.Vendors.Select(item => item.Name).Should().Contain(["Green Valley Market", "Town Store"]);
     }
 
+    [Fact]
+    public async Task Handle_ReturnsGuestCartItems_WhenGuestIdMatchesAfterTrim()
+    {
+        using var scope = new CultureScope("en");
+        await using var context = TestDbContextFactory.Create();
+
+        var setup = await SeedGuestCartScenarioAsync(context);
+        var handler = new GetCartQueryHandler(context);
+
+        var result = await handler.Handle(new GetCartQuery(CartActor.Create(null, " guest-1 "), null), CancellationToken.None);
+
+        result.Summary.ItemsCount.Should().Be(1);
+        result.Summary.TotalQuantity.Should().Be(2);
+        result.Items.Should().ContainSingle();
+        result.Items[0].ProductId.Should().Be(setup.MasterProduct.Id);
+    }
+
     private static async Task<CartScenario> SeedCartScenarioAsync(Infrastructure.Persistence.ApplicationDbContext context)
     {
         var seeded = await SeedCatalogOnlyScenarioAsync(context);
@@ -133,6 +150,18 @@ public class GetCartQueryHandlerTests
         await context.SaveChangesAsync();
 
         return new CartScenario(cart.UserId, seeded.MasterProduct, seeded.FirstVendorId, seeded.SecondVendorId);
+    }
+
+    private static async Task<CatalogScenario> SeedGuestCartScenarioAsync(Infrastructure.Persistence.ApplicationDbContext context)
+    {
+        var seeded = await SeedCatalogOnlyScenarioAsync(context);
+
+        var cart = new Cart(null, "guest-1");
+        cart.Items.Add(new CartItem(cart.Id, seeded.MasterProduct.Id, seeded.MasterProduct.NameEn, 2));
+        context.Carts.Add(cart);
+        await context.SaveChangesAsync();
+
+        return seeded;
     }
 
     private static async Task<CartScenario> SeedCartScenarioWithMissingVendorPriceAsync(Infrastructure.Persistence.ApplicationDbContext context)
