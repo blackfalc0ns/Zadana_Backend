@@ -53,9 +53,14 @@ public class CartController : ApiControllerBase
 
     [HttpPost("items")]
     public async Task<ActionResult<CartItemMutationResponseDto>> AddItem(
-        [FromBody] AddCartItemRequest request,
+        [FromBody] AddCartItemRequest? request,
         CancellationToken cancellationToken = default)
     {
+        if (request is null)
+        {
+            throw new BadRequestException("INVALID_REQUEST_BODY", "Request body is required.");
+        }
+
         var result = await Sender.Send(
             new AddCartItemCommand(GetCartActor(), request.ProductId, request.Quantity),
             cancellationToken);
@@ -66,10 +71,15 @@ public class CartController : ApiControllerBase
     [HttpPatch("items/{itemId:guid}")]
     public async Task<ActionResult<CartItemMutationResponseDto>> UpdateItem(
         Guid itemId,
-        [FromBody] UpdateCartItemQuantityRequest request,
+        [FromBody] UpdateCartItemQuantityRequest? request,
         [FromQuery(Name = "vendor_id")] Guid? vendorId = null,
         CancellationToken cancellationToken = default)
     {
+        if (request is null)
+        {
+            throw new BadRequestException("INVALID_REQUEST_BODY", "Request body is required.");
+        }
+
         var result = await Sender.Send(
             new UpdateCartItemQuantityCommand(GetCartActor(), itemId, request.Quantity, vendorId),
             cancellationToken);

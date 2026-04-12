@@ -1,4 +1,5 @@
 using System.Linq;
+using System.Reflection;
 using Microsoft.AspNetCore.Identity;
 using Microsoft.EntityFrameworkCore;
 using Zadana.Domain.Modules.Catalog.Entities;
@@ -16,6 +17,7 @@ using Zadana.Domain.Modules.Social.Entities;
 using Zadana.Domain.Modules.Vendors.Entities;
 using Zadana.Domain.Modules.Wallets.Entities;
 using Zadana.Domain.Modules.Wallets.Enums;
+using Zadana.SharedKernel.Primitives;
 
 namespace Zadana.Infrastructure.Persistence;
 
@@ -314,39 +316,58 @@ public class ApplicationDbContextInitialiser
         var units = await _context.UnitsOfMeasure.ToDictionaryAsync(x => x.Symbol!);
         var productTypes = await _context.ProductTypes.ToDictionaryAsync(x => x.NameEn);
         var parts = await _context.Parts.ToDictionaryAsync(x => x.NameEn);
-        var existingSlugs = await _context.MasterProducts
-            .Select(x => x.Slug)
+        var existingProducts = await _context.MasterProducts
+            .Include(x => x.Images)
             .ToListAsync();
-        var existingSlugSet = existingSlugs.ToHashSet(StringComparer.OrdinalIgnoreCase);
+        var existingProductsBySlug = existingProducts.ToDictionary(x => x.Slug, StringComparer.OrdinalIgnoreCase);
 
-        var products = new List<MasterProduct>
+        var products = new List<SeededMasterProduct>
         {
-            CreateProduct("حليب كامل الدسم 1 لتر", "Full Cream Milk 1L", "full-cream-milk-1l", "حليب طازج يومي غني بالكالسيوم.", "Fresh full cream milk for daily essentials.", categories["Milk"].Id, brands["Almarai"].Id, units["L"].Id, productTypes.GetValueOrDefault("Milk")?.Id, parts.GetValueOrDefault("Full Cream")?.Id, ImageCatalog.Milk1, ImageCatalog.Milk2),
-            CreateProduct("زبادي يوناني", "Greek Yogurt", "greek-yogurt", "زبادي كثيف مناسب للفطور والوجبات الخفيفة.", "Rich Greek yogurt for breakfast and snacks.", categories["Yogurt"].Id, brands["Almarai"].Id, units["pk"].Id, productTypes.GetValueOrDefault("Yogurt")?.Id, parts.GetValueOrDefault("Greek")?.Id, ImageCatalog.Yogurt1, ImageCatalog.Yogurt2),
-            CreateProduct("عصير برتقال طازج 1 لتر", "Orange Juice 1L", "orange-juice-1l", "عصير منعش بطعم طبيعي.", "Refreshing orange juice with a natural taste.", categories["Juices"].Id, brands["Nada"].Id, units["L"].Id, null, null, ImageCatalog.Juice1, ImageCatalog.Juice2),
-            CreateProduct("مياه شرب عبوة 6", "Water Pack 6x330ml", "water-pack-6", "عبوة مياه للشرب اليومي.", "Convenient water pack for daily hydration.", categories["Water"].Id, brands["Pepsi"].Id, units["ctn"].Id, null, null, ImageCatalog.Water1, ImageCatalog.Water2),
-            CreateProduct("خبز توست أبيض", "White Toast Bread", "white-toast-bread", "خبز طازج للسندويتشات اليومية.", "Fresh toast bread for everyday sandwiches.", categories["Toast Bread"].Id, null, units["pk"].Id, null, null, ImageCatalog.Bread1, ImageCatalog.Bread2),
-            CreateProduct("بطاطس شيبس كلاسيك", "Classic Potato Chips", "classic-potato-chips", "وجبة خفيفة مقرمشة.", "Crunchy classic potato chips.", categories["Chips"].Id, brands["Lay's"].Id, units["pk"].Id, null, null, ImageCatalog.Chips1, ImageCatalog.Chips2),
-            CreateProduct("موز طازج", "Fresh Bananas", "fresh-bananas", "موز طازج صالح للوجبات الخفيفة والعصائر.", "Fresh bananas for snacks and smoothies.", categories["Bananas"].Id, null, units["kg"].Id, null, null, ImageCatalog.Banana1, ImageCatalog.Banana2),
-            CreateProduct("طماطم حمراء", "Red Tomatoes", "red-tomatoes", "طماطم يومية للطبخ والسلطات.", "Everyday tomatoes for cooking and salads.", categories["Tomatoes"].Id, null, units["kg"].Id, null, null, ImageCatalog.Tomato1, ImageCatalog.Tomato2),
-            CreateProduct("سائل تنظيف أطباق", "Dishwashing Liquid", "dishwashing-liquid", "منظف أطباق بفعالية عالية.", "High-performance dishwashing liquid.", categories["Dishwashing"].Id, brands["Pril"].Id, units["L"].Id, null, null, ImageCatalog.DishSoap1, ImageCatalog.DishSoap2),
-            CreateProduct("مناديل مطبخ رولين", "Kitchen Towels 2 Rolls", "kitchen-towels-2-rolls", "مناديل مطبخ بامتصاص ممتاز.", "Kitchen towels with strong absorption.", categories["Tissues"].Id, brands["Fine"].Id, units["roll"].Id, null, null, ImageCatalog.Towel1, ImageCatalog.Towel2),
-            CreateProduct("شاحن سريع USB-C", "USB-C Fast Charger", "usb-c-fast-charger", "شاحن سريع متوافق مع أغلب الهواتف الحديثة.", "Fast charger compatible with most modern phones.", categories["Chargers"].Id, brands["Anker"].Id, units["pcs"].Id, null, null, ImageCatalog.Charger1, ImageCatalog.Charger2),
-            CreateProduct("غطاء آيفون شفاف", "Transparent iPhone Case", "transparent-iphone-case", "غطاء شفاف خفيف يحمي الهاتف من الخدوش.", "Slim transparent case for scratch protection.", categories["Phone Cases"].Id, brands["Apple"].Id, units["pcs"].Id, null, null, ImageCatalog.Case1, ImageCatalog.Case2),
-            CreateProduct("هاتف سامسونج جالاكسي A55", "Samsung Galaxy A55", "samsung-galaxy-a55", "هاتف ذكي للأداء اليومي.", "Smartphone with balanced daily performance.", categories["Samsung Phones"].Id, brands["Samsung"].Id, units["pcs"].Id, null, null, ImageCatalog.Phone1, ImageCatalog.Phone2),
-            CreateProduct("آيفون 15", "iPhone 15", "iphone-15", "هاتف آيفون حديث بتجربة سلسة.", "Modern iPhone with a smooth experience.", categories["iPhone Phones"].Id, brands["Apple"].Id, units["pcs"].Id, null, null, ImageCatalog.Iphone1, ImageCatalog.Iphone2)
+            CreateProduct(new Guid("00000000-0000-0000-0000-000000000101"), "حليب كامل الدسم 1 لتر", "Full Cream Milk 1L", "full-cream-milk-1l", "حليب طازج يومي غني بالكالسيوم.", "Fresh full cream milk for daily essentials.", categories["Milk"].Id, brands["Almarai"].Id, units["L"].Id, productTypes.GetValueOrDefault("Milk")?.Id, parts.GetValueOrDefault("Full Cream")?.Id, ImageCatalog.Milk1, ImageCatalog.Milk2),
+            CreateProduct(new Guid("00000000-0000-0000-0000-000000000102"), "زبادي يوناني", "Greek Yogurt", "greek-yogurt", "زبادي كثيف مناسب للفطور والوجبات الخفيفة.", "Rich Greek yogurt for breakfast and snacks.", categories["Yogurt"].Id, brands["Almarai"].Id, units["pk"].Id, productTypes.GetValueOrDefault("Yogurt")?.Id, parts.GetValueOrDefault("Greek")?.Id, ImageCatalog.Yogurt1, ImageCatalog.Yogurt2),
+            CreateProduct(new Guid("00000000-0000-0000-0000-000000000103"), "عصير برتقال طازج 1 لتر", "Orange Juice 1L", "orange-juice-1l", "عصير منعش بطعم طبيعي.", "Refreshing orange juice with a natural taste.", categories["Juices"].Id, brands["Nada"].Id, units["L"].Id, null, null, ImageCatalog.Juice1, ImageCatalog.Juice2),
+            CreateProduct(new Guid("00000000-0000-0000-0000-000000000104"), "مياه شرب عبوة 6", "Water Pack 6x330ml", "water-pack-6", "عبوة مياه للشرب اليومي.", "Convenient water pack for daily hydration.", categories["Water"].Id, brands["Pepsi"].Id, units["ctn"].Id, null, null, ImageCatalog.Water1, ImageCatalog.Water2),
+            CreateProduct(new Guid("00000000-0000-0000-0000-000000000105"), "خبز توست أبيض", "White Toast Bread", "white-toast-bread", "خبز طازج للسندويتشات اليومية.", "Fresh toast bread for everyday sandwiches.", categories["Toast Bread"].Id, null, units["pk"].Id, null, null, ImageCatalog.Bread1, ImageCatalog.Bread2),
+            CreateProduct(new Guid("00000000-0000-0000-0000-000000000106"), "بطاطس شيبس كلاسيك", "Classic Potato Chips", "classic-potato-chips", "وجبة خفيفة مقرمشة.", "Crunchy classic potato chips.", categories["Chips"].Id, brands["Lay's"].Id, units["pk"].Id, null, null, ImageCatalog.Chips1, ImageCatalog.Chips2),
+            CreateProduct(new Guid("00000000-0000-0000-0000-000000000107"), "موز طازج", "Fresh Bananas", "fresh-bananas", "موز طازج صالح للوجبات الخفيفة والعصائر.", "Fresh bananas for snacks and smoothies.", categories["Bananas"].Id, null, units["kg"].Id, null, null, ImageCatalog.Banana1, ImageCatalog.Banana2),
+            CreateProduct(new Guid("00000000-0000-0000-0000-000000000108"), "طماطم حمراء", "Red Tomatoes", "red-tomatoes", "طماطم يومية للطبخ والسلطات.", "Everyday tomatoes for cooking and salads.", categories["Tomatoes"].Id, null, units["kg"].Id, null, null, ImageCatalog.Tomato1, ImageCatalog.Tomato2),
+            CreateProduct(new Guid("00000000-0000-0000-0000-000000000109"), "سائل تنظيف أطباق", "Dishwashing Liquid", "dishwashing-liquid", "منظف أطباق بفعالية عالية.", "High-performance dishwashing liquid.", categories["Dishwashing"].Id, brands["Pril"].Id, units["L"].Id, null, null, ImageCatalog.DishSoap1, ImageCatalog.DishSoap2),
+            CreateProduct(new Guid("00000000-0000-0000-0000-000000000110"), "مناديل مطبخ رولين", "Kitchen Towels 2 Rolls", "kitchen-towels-2-rolls", "مناديل مطبخ بامتصاص ممتاز.", "Kitchen towels with strong absorption.", categories["Tissues"].Id, brands["Fine"].Id, units["roll"].Id, null, null, ImageCatalog.Towel1, ImageCatalog.Towel2),
+            CreateProduct(new Guid("00000000-0000-0000-0000-000000000111"), "شاحن سريع USB-C", "USB-C Fast Charger", "usb-c-fast-charger", "شاحن سريع متوافق مع أغلب الهواتف الحديثة.", "Fast charger compatible with most modern phones.", categories["Chargers"].Id, brands["Anker"].Id, units["pcs"].Id, null, null, ImageCatalog.Charger1, ImageCatalog.Charger2),
+            CreateProduct(new Guid("00000000-0000-0000-0000-000000000112"), "غطاء آيفون شفاف", "Transparent iPhone Case", "transparent-iphone-case", "غطاء شفاف خفيف يحمي الهاتف من الخدوش.", "Slim transparent case for scratch protection.", categories["Phone Cases"].Id, brands["Apple"].Id, units["pcs"].Id, null, null, ImageCatalog.Case1, ImageCatalog.Case2),
+            CreateProduct(new Guid("00000000-0000-0000-0000-000000000113"), "هاتف سامسونج جالاكسي A55", "Samsung Galaxy A55", "samsung-galaxy-a55", "هاتف ذكي للأداء اليومي.", "Smartphone with balanced daily performance.", categories["Samsung Phones"].Id, brands["Samsung"].Id, units["pcs"].Id, null, null, ImageCatalog.Phone1, ImageCatalog.Phone2),
+            CreateProduct(new Guid("00000000-0000-0000-0000-000000000114"), "آيفون 15", "iPhone 15", "iphone-15", "هاتف آيفون حديث بتجربة سلسة.", "Modern iPhone with a smooth experience.", categories["iPhone Phones"].Id, brands["Apple"].Id, units["pcs"].Id, null, null, ImageCatalog.Iphone1, ImageCatalog.Iphone2)
         };
 
-        var missingProducts = products
-            .Where(product => !existingSlugSet.Contains(product.Slug))
-            .ToList();
-
-        if (missingProducts.Count == 0)
+        foreach (var seed in products)
         {
-            return;
+            if (existingProductsBySlug.TryGetValue(seed.Product.Slug, out var existing))
+            {
+                existing.UpdateDetails(
+                    seed.Product.NameAr,
+                    seed.Product.NameEn,
+                    seed.Product.Slug,
+                    seed.Product.DescriptionAr,
+                    seed.Product.DescriptionEn,
+                    seed.Product.Barcode);
+                existing.ChangeCategory(seed.Product.CategoryId);
+                existing.ChangeBrand(seed.Product.BrandId);
+                existing.ChangeUnit(seed.Product.UnitOfMeasureId);
+                existing.ChangeProductType(seed.Product.ProductTypeId);
+                existing.ChangePart(seed.Product.PartId);
+                existing.Publish();
+                existing.ClearImages();
+                foreach (var image in seed.Product.Images.OrderBy(x => x.DisplayOrder))
+                {
+                    existing.AddImage(image.Url, image.AltText, image.DisplayOrder, image.IsPrimary);
+                }
+
+                continue;
+            }
+
+            await _context.MasterProducts.AddAsync(seed.Product);
         }
 
-        await _context.MasterProducts.AddRangeAsync(missingProducts);
         await _context.SaveChangesAsync();
     }
 
@@ -447,7 +468,8 @@ public class ApplicationDbContextInitialiser
         }
     }
 
-    private static MasterProduct CreateProduct(
+    private static SeededMasterProduct CreateProduct(
+        Guid id,
         string nameAr,
         string nameEn,
         string slug,
@@ -474,10 +496,18 @@ public class ApplicationDbContextInitialiser
             productTypeId,
             partId);
 
+        SetSeedEntityId(product, id);
         product.Publish();
         product.AddImage(primaryImage, nameEn, 0, true);
         product.AddImage(secondaryImage, nameEn, 1, false);
-        return product;
+        return new SeededMasterProduct(id, product);
+    }
+
+    private static void SetSeedEntityId(BaseEntity entity, Guid id)
+    {
+        var property = typeof(BaseEntity).GetProperty(nameof(BaseEntity.Id), BindingFlags.Instance | BindingFlags.Public);
+        var setter = property?.SetMethod;
+        setter?.Invoke(entity, [id]);
     }
 
     private async Task SeedSampleVendorsAsync()
@@ -1769,6 +1799,10 @@ internal sealed record SeedOperatingHour(
     string OpenTime,
     string CloseTime,
     bool IsOpen);
+
+internal sealed record SeededMasterProduct(
+    Guid Id,
+    MasterProduct Product);
 
 public sealed record DevelopmentSeedSummary(
     int Categories,

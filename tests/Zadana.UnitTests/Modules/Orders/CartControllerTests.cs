@@ -15,6 +15,7 @@ using Zadana.Application.Modules.Orders.Commands.UpdateCartItemQuantity;
 using Zadana.Application.Modules.Orders.DTOs;
 using Zadana.Application.Modules.Orders.Queries.GetCart;
 using Zadana.Application.Modules.Orders.Queries.GetCartVendors;
+using Zadana.SharedKernel.Exceptions;
 
 namespace Zadana.UnitTests.Modules.Orders;
 
@@ -78,6 +79,15 @@ public class CartControllerTests
     }
 
     [Fact]
+    public async Task AddItem_ThrowsBadRequestException_WhenRequestBodyIsMissing()
+    {
+        var act = () => _controller.AddItem(null!, CancellationToken.None);
+
+        await act.Should().ThrowAsync<BadRequestException>()
+            .WithMessage("Request body is required.");
+    }
+
+    [Fact]
     public async Task UpdateItem_ReturnsOkResult()
     {
         var dto = new CartItemMutationResponseDto(
@@ -92,6 +102,15 @@ public class CartControllerTests
 
         var okResult = result.Result.Should().BeOfType<OkObjectResult>().Subject;
         okResult.Value.Should().BeEquivalentTo(dto);
+    }
+
+    [Fact]
+    public async Task UpdateItem_ThrowsBadRequestException_WhenRequestBodyIsMissing()
+    {
+        var act = () => _controller.UpdateItem(Guid.NewGuid(), null!, null, CancellationToken.None);
+
+        await act.Should().ThrowAsync<BadRequestException>()
+            .WithMessage("Request body is required.");
     }
 
     [Fact]
