@@ -311,6 +311,13 @@ public class ApplicationDbContextInitialiser
 
     private async Task SeedMasterProductsAsync()
     {
+        // Clean up orphaned images that may remain from a previous reset
+        await _context.Database.ExecuteSqlRawAsync("""
+            DELETE mpi FROM [MasterProductImage] mpi
+            LEFT JOIN [MasterProduct] mp ON mpi.[MasterProductId] = mp.[Id]
+            WHERE mp.[Id] IS NULL
+        """);
+
         var categories = await _context.Categories.ToDictionaryAsync(x => x.NameEn);
         var brands = await _context.Brands.ToDictionaryAsync(x => x.NameEn);
         var units = await _context.UnitsOfMeasure.ToDictionaryAsync(x => x.Symbol!);
@@ -339,6 +346,19 @@ public class ApplicationDbContextInitialiser
             CreateProduct(new Guid("00000000-0000-0000-0000-000000000114"), "آيفون 15", "iPhone 15", "iphone-15", "هاتف آيفون حديث بتجربة سلسة.", "Modern iPhone with a smooth experience.", categories["iPhone Phones"].Id, brands["Apple"].Id, units["pcs"].Id, null, null, ImageCatalog.Iphone1, ImageCatalog.Iphone2)
         };
 
+        // Delete images for existing products via raw SQL to avoid PK conflicts during re-seed
+        if (existingProducts.Count > 0)
+        {
+            var existingIds = existingProducts.Select(p => p.Id).ToList();
+            var idList = string.Join(",", existingIds.Select(id => $"'{id}'"));
+            await _context.Database.ExecuteSqlRawAsync($"DELETE FROM [MasterProductImage] WHERE [MasterProductId] IN ({idList})");
+
+            // Detach and re-load existing products so EF doesn't track stale images
+            _context.ChangeTracker.Clear();
+            existingProducts = await _context.MasterProducts.Include(x => x.Images).ToListAsync();
+            existingProductsBySlug = existingProducts.ToDictionary(x => x.Slug, StringComparer.OrdinalIgnoreCase);
+        }
+
         foreach (var seed in products)
         {
             if (existingProductsBySlug.TryGetValue(seed.Product.Slug, out var existing))
@@ -356,7 +376,6 @@ public class ApplicationDbContextInitialiser
                 existing.ChangeProductType(seed.Product.ProductTypeId);
                 existing.ChangePart(seed.Product.PartId);
                 existing.Publish();
-                existing.ClearImages();
                 foreach (var image in seed.Product.Images.OrderBy(x => x.DisplayOrder))
                 {
                     existing.AddImage(image.Url, image.AltText, image.DisplayOrder, image.IsPrimary);
@@ -1478,6 +1497,9 @@ public class ApplicationDbContextInitialiser
             await DeleteRangeAsync(_context.Vendors);
             await DeleteRangeAsync(_context.RefreshTokens);
 
+            // MasterProductImage has no DbSet — delete via raw SQL before deleting MasterProducts
+            await _context.Database.ExecuteSqlRawAsync("DELETE FROM [MasterProductImage]");
+
             var products = await _context.MasterProducts.ToListAsync();
             if (products.Count > 0)
             {
@@ -1522,9 +1544,10 @@ public class ApplicationDbContextInitialiser
 
     private async Task DeleteRangeAsync<TEntity>(DbSet<TEntity> dbSet) where TEntity : class
     {
-        if (await dbSet.AnyAsync())
+        var query = dbSet.IgnoreQueryFilters();
+        if (await query.AnyAsync())
         {
-            await dbSet.ExecuteDeleteAsync();
+            await query.ExecuteDeleteAsync();
         }
     }
 
