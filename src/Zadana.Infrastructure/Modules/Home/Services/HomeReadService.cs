@@ -262,27 +262,34 @@ public class HomeReadService : IHomeReadService
     private async Task<IReadOnlyList<HomeBannerDto>> GetBannersInternalAsync(int take, CancellationToken cancellationToken)
     {
         var now = DateTime.UtcNow;
-
-        var banners = await _context.HomeBanners
-            .AsNoTracking()
-            .Where(x => x.IsActive
-                && (!x.StartsAtUtc.HasValue || x.StartsAtUtc <= now)
-                && (!x.EndsAtUtc.HasValue || x.EndsAtUtc >= now))
-            .OrderBy(x => x.DisplayOrder)
-            .ThenByDescending(x => x.CreatedAtUtc)
-            .Take(take)
-            .Select(x => new RawHomeBanner(
-                x.Id,
-                x.TagAr,
-                x.TagEn,
-                x.TitleAr,
-                x.TitleEn,
-                x.SubtitleAr,
-                x.SubtitleEn,
-                x.ActionLabelAr,
-                x.ActionLabelEn,
-                x.ImageUrl))
-            .ToListAsync(cancellationToken);
+        List<RawHomeBanner> banners;
+        try
+        {
+            banners = await _context.HomeBanners
+                .AsNoTracking()
+                .Where(x => x.IsActive
+                    && (!x.StartsAtUtc.HasValue || x.StartsAtUtc <= now)
+                    && (!x.EndsAtUtc.HasValue || x.EndsAtUtc >= now))
+                .OrderBy(x => x.DisplayOrder)
+                .ThenByDescending(x => x.CreatedAtUtc)
+                .Take(take)
+                .Select(x => new RawHomeBanner(
+                    x.Id,
+                    x.TagAr,
+                    x.TagEn,
+                    x.TitleAr,
+                    x.TitleEn,
+                    x.SubtitleAr,
+                    x.SubtitleEn,
+                    x.ActionLabelAr,
+                    x.ActionLabelEn,
+                    x.ImageUrl))
+                .ToListAsync(cancellationToken);
+        }
+        catch (Exception ex) when (IsMissingDatabaseObject(ex))
+        {
+            return [];
+        }
 
         return banners
             .Select(x => new HomeBannerDto(
@@ -295,84 +302,106 @@ public class HomeReadService : IHomeReadService
             .ToList();
     }
 
-    private async Task<IReadOnlyList<HomeCategoryDto>> GetCategoriesInternalAsync(int take, CancellationToken cancellationToken) =>
-        (await _context.Categories
-            .AsNoTracking()
-            .Where(x => x.IsActive
-                && x.ParentCategoryId != null
-                && x.ParentCategory != null
-                && x.ParentCategory.ParentCategoryId != null
-                && x.ParentCategory.ParentCategory != null
-                && x.ParentCategory.ParentCategory.ParentCategoryId == null)
-            .OrderBy(x => x.DisplayOrder)
-            .ThenBy(x => x.NameAr)
-            .Take(take)
-            .Select(x => new RawHomeCategory(
+    private async Task<IReadOnlyList<HomeCategoryDto>> GetCategoriesInternalAsync(int take, CancellationToken cancellationToken)
+    {
+        List<RawHomeCategory> categories;
+        try
+        {
+            categories = await _context.Categories
+                .AsNoTracking()
+                .Where(x => x.IsActive
+                    && x.ParentCategoryId != null
+                    && x.ParentCategory != null
+                    && x.ParentCategory.ParentCategoryId != null
+                    && x.ParentCategory.ParentCategory != null
+                    && x.ParentCategory.ParentCategory.ParentCategoryId == null)
+                .OrderBy(x => x.DisplayOrder)
+                .ThenBy(x => x.NameAr)
+                .Take(take)
+                .Select(x => new RawHomeCategory(
+                    x.Id,
+                    x.NameAr,
+                    x.NameEn,
+                    x.ImageUrl))
+                .ToListAsync(cancellationToken);
+        }
+        catch (Exception ex) when (IsMissingDatabaseObject(ex))
+        {
+            return [];
+        }
+
+        return categories
+            .Select(x => new HomeCategoryDto(
                 x.Id,
-                x.NameAr,
-                x.NameEn,
+                PickLocalized(x.NameAr, x.NameEn),
                 x.ImageUrl))
-            .ToListAsync(cancellationToken))
-        .Select(x => new HomeCategoryDto(
-            x.Id,
-            PickLocalized(x.NameAr, x.NameEn),
-            x.ImageUrl))
-        .ToList();
+            .ToList();
+    }
 
     private async Task<HomeProductCatalog> BuildProductCatalogAsync(CancellationToken cancellationToken)
     {
-        var salesByVendorProductId = await _context.OrderItems
-            .AsNoTracking()
-            .Where(x => x.Order.Status == OrderStatus.Delivered)
-            .GroupBy(x => x.VendorProductId)
-            .Select(x => new { VendorProductId = x.Key, Quantity = x.Sum(y => y.Quantity) })
-            .ToDictionaryAsync(x => x.VendorProductId, x => x.Quantity, cancellationToken);
+        Dictionary<Guid, int> salesByVendorProductId;
+        Dictionary<Guid, VendorReviewStats> reviewStatsByVendorId;
+        List<RawHomeProduct> rawProducts;
+        try
+        {
+            salesByVendorProductId = await _context.OrderItems
+                .AsNoTracking()
+                .Where(x => x.Order.Status == OrderStatus.Delivered)
+                .GroupBy(x => x.VendorProductId)
+                .Select(x => new { VendorProductId = x.Key, Quantity = x.Sum(y => y.Quantity) })
+                .ToDictionaryAsync(x => x.VendorProductId, x => x.Quantity, cancellationToken);
 
-        var reviewStatsByVendorId = await _context.Reviews
-            .AsNoTracking()
-            .GroupBy(x => x.VendorId)
-            .Select(x => new
-            {
-                VendorId = x.Key,
-                AverageRating = Math.Round(x.Average(y => y.Rating), 1),
-                ReviewCount = x.Count()
-            })
-            .ToDictionaryAsync(x => x.VendorId, x => new VendorReviewStats((decimal)x.AverageRating, x.ReviewCount), cancellationToken);
+            reviewStatsByVendorId = await _context.Reviews
+                .AsNoTracking()
+                .GroupBy(x => x.VendorId)
+                .Select(x => new
+                {
+                    VendorId = x.Key,
+                    AverageRating = Math.Round(x.Average(y => y.Rating), 1),
+                    ReviewCount = x.Count()
+                })
+                .ToDictionaryAsync(x => x.VendorId, x => new VendorReviewStats((decimal)x.AverageRating, x.ReviewCount), cancellationToken);
 
-        var rawProducts = await _context.VendorProducts
-            .AsNoTracking()
-            .Where(vp =>
-                vp.Status == VendorProductStatus.Active &&
-                vp.IsAvailable &&
-                vp.StockQuantity > 0 &&
-                vp.MasterProduct.Status == ProductStatus.Active &&
-                vp.Vendor.Status == VendorStatus.Active &&
-                vp.Vendor.AcceptOrders)
-            .Select(vp => new RawHomeProduct(
-                vp.Id,
-                vp.CreatedAtUtc,
-                vp.VendorId,
-                vp.MasterProductId,
-                vp.MasterProduct.CategoryId,
-                vp.MasterProduct.BrandId,
-                vp.MasterProduct.Brand != null && vp.MasterProduct.Brand.IsActive,
-                !string.IsNullOrWhiteSpace(vp.CustomNameAr) ? vp.CustomNameAr : vp.MasterProduct.NameAr,
-                !string.IsNullOrWhiteSpace(vp.CustomNameEn) ? vp.CustomNameEn : vp.MasterProduct.NameEn,
-                vp.Vendor.BusinessNameAr,
-                vp.Vendor.BusinessNameEn,
-                vp.SellingPrice,
-                vp.CompareAtPrice,
-                vp.MasterProduct.UnitOfMeasure != null ? vp.MasterProduct.UnitOfMeasure.NameAr : null,
-                vp.MasterProduct.UnitOfMeasure != null ? vp.MasterProduct.UnitOfMeasure.NameEn : null,
-                vp.MasterProduct.Images
-                    .OrderByDescending(i => i.IsPrimary)
-                    .ThenBy(i => i.DisplayOrder)
-                    .Select(i => i.Url)
-                    .FirstOrDefault(),
-                vp.MasterProduct.Brand != null ? vp.MasterProduct.Brand.NameAr : null,
-                vp.MasterProduct.Brand != null ? vp.MasterProduct.Brand.NameEn : null,
-                vp.MasterProduct.Brand != null ? vp.MasterProduct.Brand.LogoUrl : null))
-            .ToListAsync(cancellationToken);
+            rawProducts = await _context.VendorProducts
+                .AsNoTracking()
+                .Where(vp =>
+                    vp.Status == VendorProductStatus.Active &&
+                    vp.IsAvailable &&
+                    vp.StockQuantity > 0 &&
+                    vp.MasterProduct.Status == ProductStatus.Active &&
+                    vp.Vendor.Status == VendorStatus.Active &&
+                    vp.Vendor.AcceptOrders)
+                .Select(vp => new RawHomeProduct(
+                    vp.Id,
+                    vp.CreatedAtUtc,
+                    vp.VendorId,
+                    vp.MasterProductId,
+                    vp.MasterProduct.CategoryId,
+                    vp.MasterProduct.BrandId,
+                    vp.MasterProduct.Brand != null && vp.MasterProduct.Brand.IsActive,
+                    !string.IsNullOrWhiteSpace(vp.CustomNameAr) ? vp.CustomNameAr : vp.MasterProduct.NameAr,
+                    !string.IsNullOrWhiteSpace(vp.CustomNameEn) ? vp.CustomNameEn : vp.MasterProduct.NameEn,
+                    vp.Vendor.BusinessNameAr,
+                    vp.Vendor.BusinessNameEn,
+                    vp.SellingPrice,
+                    vp.CompareAtPrice,
+                    vp.MasterProduct.UnitOfMeasure != null ? vp.MasterProduct.UnitOfMeasure.NameAr : null,
+                    vp.MasterProduct.UnitOfMeasure != null ? vp.MasterProduct.UnitOfMeasure.NameEn : null,
+                    vp.MasterProduct.Images
+                        .OrderByDescending(i => i.IsPrimary)
+                        .ThenBy(i => i.DisplayOrder)
+                        .Select(i => i.Url)
+                        .FirstOrDefault(),
+                    vp.MasterProduct.Brand != null ? vp.MasterProduct.Brand.NameAr : null,
+                    vp.MasterProduct.Brand != null ? vp.MasterProduct.Brand.NameEn : null,
+                    vp.MasterProduct.Brand != null ? vp.MasterProduct.Brand.LogoUrl : null))
+                .ToListAsync(cancellationToken);
+        }
+        catch (Exception ex) when (IsMissingDatabaseObject(ex))
+        {
+            return new HomeProductCatalog([], _currentUserService.UserId, new HashSet<Guid>());
+        }
 
         var products = rawProducts
             .Select(x =>
@@ -473,20 +502,26 @@ public class HomeReadService : IHomeReadService
     private async Task<List<ActiveFeaturedPlacement>> GetActiveFeaturedPlacementsAsync(CancellationToken cancellationToken)
     {
         var now = DateTime.UtcNow;
-
-        return await _context.FeaturedProductPlacements
-            .AsNoTracking()
-            .Where(x => x.IsActive
-                && (!x.StartsAtUtc.HasValue || x.StartsAtUtc <= now)
-                && (!x.EndsAtUtc.HasValue || x.EndsAtUtc >= now))
-            .OrderBy(x => x.PlacementType == FeaturedPlacementType.VendorProduct ? 0 : 1)
-            .ThenBy(x => x.DisplayOrder)
-            .ThenByDescending(x => x.CreatedAtUtc)
-            .Select(x => new ActiveFeaturedPlacement(
-                x.PlacementType,
-                x.VendorProductId,
-                x.MasterProductId))
-            .ToListAsync(cancellationToken);
+        try
+        {
+            return await _context.FeaturedProductPlacements
+                .AsNoTracking()
+                .Where(x => x.IsActive
+                    && (!x.StartsAtUtc.HasValue || x.StartsAtUtc <= now)
+                    && (!x.EndsAtUtc.HasValue || x.EndsAtUtc >= now))
+                .OrderBy(x => x.PlacementType == FeaturedPlacementType.VendorProduct ? 0 : 1)
+                .ThenBy(x => x.DisplayOrder)
+                .ThenByDescending(x => x.CreatedAtUtc)
+                .Select(x => new ActiveFeaturedPlacement(
+                    x.PlacementType,
+                    x.VendorProductId,
+                    x.MasterProductId))
+                .ToListAsync(cancellationToken);
+        }
+        catch (Exception ex) when (IsMissingDatabaseObject(ex))
+        {
+            return [];
+        }
     }
 
     private IReadOnlyList<HomeProductCardDto> ResolveFeaturedPlacements(
@@ -598,18 +633,24 @@ public class HomeReadService : IHomeReadService
 
     private async Task<IReadOnlyList<HomeBrandCardDto>> GetBrandsInternalAsync(int take, CancellationToken cancellationToken)
     {
-        var brands = await _context.Brands
-            .AsNoTracking()
-            .Where(x => x.IsActive)
-            .Select(x => new
-            {
-                x.Id,
-                x.NameAr,
-                x.NameEn,
-                x.LogoUrl,
-                ProductCount = x.MasterProducts.Count()
-            })
-            .ToListAsync(cancellationToken);
+        List<RawHomeBrand> brands;
+        try
+        {
+            brands = await _context.Brands
+                .AsNoTracking()
+                .Where(x => x.IsActive)
+                .Select(x => new RawHomeBrand(
+                    x.Id,
+                    x.NameAr,
+                    x.NameEn,
+                    x.LogoUrl,
+                    x.MasterProducts.Count()))
+                .ToListAsync(cancellationToken);
+        }
+        catch (Exception ex) when (IsMissingDatabaseObject(ex))
+        {
+            return [];
+        }
 
         return brands
             .Select(x => new HomeBrandCardDto(
@@ -942,6 +983,13 @@ public class HomeReadService : IHomeReadService
         string NameAr,
         string NameEn,
         string? ImageUrl);
+
+    private sealed record RawHomeBrand(
+        Guid Id,
+        string NameAr,
+        string NameEn,
+        string? LogoUrl,
+        int ProductCount);
 
     private sealed record HomeProductSource(
         Guid Id,
