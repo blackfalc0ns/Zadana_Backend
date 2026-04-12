@@ -411,4 +411,7 @@
   <data name="FavoritesClearedSuccessfully" xml:space="preserve">
     <value>Favorites cleared successfully.</value>
   </data>
+  <data name="BrandMustBeLinkedToSubcategory" xml:space="preserve">
+    <value>Brand must be linked to a subcategory, not a main category.</value>
+  </data>
 </root>

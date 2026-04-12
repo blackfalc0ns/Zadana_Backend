@@ -21,11 +21,11 @@ public class UpdateBrandCommandHandler : IRequestHandler<UpdateBrandCommand>
         if (brand == null)
             throw new NotFoundException(nameof(Brand), request.Id);
 
-        var categoryExists = await _context.Categories
+        var category = await _context.Categories
             .AsNoTracking()
-            .AnyAsync(item => item.Id == request.CategoryId, cancellationToken);
+            .FirstOrDefaultAsync(item => item.Id == request.CategoryId && item.ParentCategoryId != null, cancellationToken);
 
-        if (!categoryExists)
+        if (category == null)
             throw new NotFoundException(nameof(Category), request.CategoryId);
 
         brand.Update(request.NameAr, request.NameEn, request.LogoUrl, request.CategoryId);

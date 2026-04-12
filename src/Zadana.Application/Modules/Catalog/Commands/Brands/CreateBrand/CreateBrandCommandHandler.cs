@@ -19,7 +19,7 @@ public class CreateBrandCommandHandler : IRequestHandler<CreateBrandCommand, Bra
     {
         var category = await _context.Categories
             .AsNoTracking()
-            .FirstAsync(item => item.Id == request.CategoryId, cancellationToken);
+            .FirstAsync(item => item.Id == request.CategoryId && item.ParentCategoryId != null, cancellationToken);
 
         var brand = new Brand(request.NameAr, request.NameEn, request.LogoUrl, request.CategoryId);
 

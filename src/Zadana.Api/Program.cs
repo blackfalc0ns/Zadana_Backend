@@ -224,6 +224,8 @@ builder.Services.AddHealthChecks();
 
 var app = builder.Build();
 var shouldSeedOnStartup = app.Environment.IsDevelopment() || app.Configuration.GetValue<bool>("Seeding:EnableOnStartup");
+var allowRemoteSeedEndpoints = app.Environment.IsDevelopment() || app.Configuration.GetValue<bool>("Seeding:EnableRemoteEndpoints");
+var seedingManagementKey = app.Configuration["Seeding:ManagementKey"];
 
 app.UseMiddleware<ExceptionHandlingMiddleware>();
 
@@ -287,9 +289,82 @@ if (app.Environment.IsDevelopment())
         .WithDescription("Deletes development data and rebuilds a complete deterministic seed dataset. Available only in Development.");
 }
 
+if (allowRemoteSeedEndpoints)
+{
+    app.MapPost("/ops/seed/run", async (
+            HttpContext httpContext,
+            ApplicationDbContextInitialiser initialiser,
+            ILogger<Program> logger,
+            CancellationToken cancellationToken) =>
+        {
+            cancellationToken.ThrowIfCancellationRequested();
+
+            if (!IsAuthorizedSeedRequest(httpContext, seedingManagementKey))
+            {
+                return Results.Unauthorized();
+            }
+
+            await initialiser.InitialiseAsync();
+            await initialiser.SeedAsync();
+
+            logger.LogInformation("Seed operation completed successfully via remote management endpoint.");
+
+            return Results.Ok(new
+            {
+                message = "Seed operation completed successfully."
+            });
+        })
+        .WithTags("Operations")
+        .WithSummary("Run seed data on the current environment")
+        .WithDescription("Runs the application seed logic on the current environment. Requires X-Seeding-Key.");
+
+    app.MapPost("/ops/seed/reset", async (
+            HttpContext httpContext,
+            ApplicationDbContextInitialiser initialiser,
+            ILogger<Program> logger,
+            CancellationToken cancellationToken) =>
+        {
+            cancellationToken.ThrowIfCancellationRequested();
+
+            if (!IsAuthorizedSeedRequest(httpContext, seedingManagementKey))
+            {
+                return Results.Unauthorized();
+            }
+
+            await initialiser.InitialiseAsync();
+            var summary = await initialiser.ResetAndSeedAsync();
+
+            logger.LogInformation("Reset and seed operation completed successfully via remote management endpoint.");
+
+            return Results.Ok(new
+            {
+                message = "Reset and seed operation completed successfully.",
+                summary
+            });
+        })
+        .WithTags("Operations")
+        .WithSummary("Reset and reseed data on the current environment")
+        .WithDescription("Resets and reseeds the database on the current environment. Requires X-Seeding-Key.");
+}
+
 app.MapHealthChecks("/health");
 app.MapGet("/health/ready", () => Results.Ok(new { status = "Ready", timestamp = DateTime.UtcNow }));
 
 app.Run();
+
+static bool IsAuthorizedSeedRequest(HttpContext httpContext, string? expectedKey)
+{
+    if (string.IsNullOrWhiteSpace(expectedKey))
+    {
+        return false;
+    }
+
+    if (!httpContext.Request.Headers.TryGetValue("X-Seeding-Key", out var providedKey))
+    {
+        return false;
+    }
+
+    return string.Equals(providedKey.ToString(), expectedKey, StringComparison.Ordinal);
+}
 
 public partial class Program { }

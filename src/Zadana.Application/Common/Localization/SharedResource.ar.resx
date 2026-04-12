@@ -412,4 +412,7 @@
   <data name="FavoritesClearedSuccessfully" xml:space="preserve">
     <value>تم مسح المفضلة بنجاح.</value>
   </data>
+  <data name="BrandMustBeLinkedToSubcategory" xml:space="preserve">
+    <value>يجب ربط العلامة التجارية بتصنيف فرعي وليس بتصنيف رئيسي.</value>
+  </data>
 </root>

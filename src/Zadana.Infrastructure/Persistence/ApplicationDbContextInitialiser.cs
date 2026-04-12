@@ -135,26 +135,59 @@ public class ApplicationDbContextInitialiser
 
     private async Task SeedUnitsAsync()
     {
-        if (await _context.UnitsOfMeasure.AnyAsync())
+        var unitSeeds = new (string NameAr, string NameEn, string Symbol)[]
         {
-            return;
-        }
-
-        var units = new List<UnitOfMeasure>
-        {
-            new("Kilogram", "Kilogram", "kg"),
-            new("Gram", "Gram", "g"),
-            new("Liter", "Liter", "L"),
-            new("Milliliter", "Milliliter", "mL"),
-            new("Piece", "Piece", "pcs"),
-            new("Roll", "Roll", "roll"),
-            new("Carton", "Carton", "ctn"),
-            new("Pack", "Pack", "pk"),
-            new("Box", "Box", "box"),
-            new("Dozen", "Dozen", "dz")
+            ("كيلوغرام", "Kilogram", "kg"),
+            ("غرام", "Gram", "g"),
+            ("ملليغرام", "Milligram", "mg"),
+            ("طن", "Ton", "t"),
+            ("لتر", "Liter", "L"),
+            ("ملليلتر", "Milliliter", "mL"),
+            ("سنتيلتر", "Centiliter", "cL"),
+            ("قطعة", "Piece", "pcs"),
+            ("حبة", "Unit", "unit"),
+            ("رول", "Roll", "roll"),
+            ("عبوة", "Pack", "pk"),
+            ("كرتون", "Carton", "ctn"),
+            ("صندوق", "Box", "box"),
+            ("زجاجة", "Bottle", "btl"),
+            ("علبة", "Can", "can"),
+            ("برطمان", "Jar", "jar"),
+            ("كيس", "Bag", "bag"),
+            ("صينية", "Tray", "tray"),
+            ("رابطة", "Bundle", "bdl"),
+            ("ربطة", "Bunch", "bnch"),
+            ("شريحة", "Slice", "slc"),
+            ("رغيف", "Loaf", "loaf"),
+            ("ظرف", "Sachet", "scht"),
+            ("عود", "Stick", "stk"),
+            ("شريط", "Strip", "strip"),
+            ("لوح", "Bar", "bar"),
+            ("طقم", "Set", "set"),
+            ("زوج", "Pair", "pair"),
+            ("دزينة", "Dozen", "dz"),
+            ("كبسولة", "Capsule", "cap"),
+            ("قرص", "Tablet", "tab"),
+            ("أنبوب", "Tube", "tube")
         };
 
-        await _context.UnitsOfMeasure.AddRangeAsync(units);
+        var existingUnits = await _context.UnitsOfMeasure.ToListAsync();
+        var existingBySymbol = existingUnits
+            .Where(x => !string.IsNullOrWhiteSpace(x.Symbol))
+            .ToDictionary(x => x.Symbol!, StringComparer.OrdinalIgnoreCase);
+
+        foreach (var seed in unitSeeds)
+        {
+            if (existingBySymbol.TryGetValue(seed.Symbol, out var existing))
+            {
+                existing.Update(seed.NameAr, seed.NameEn, seed.Symbol);
+                existing.Activate();
+                continue;
+            }
+
+            await _context.UnitsOfMeasure.AddAsync(new UnitOfMeasure(seed.NameAr, seed.NameEn, seed.Symbol));
+        }
+
         await _context.SaveChangesAsync();
     }
 
@@ -174,18 +207,70 @@ public class ApplicationDbContextInitialiser
 
         var categories = new[]
         {
-            new Category("الألبان", "Dairy", ImageCatalog.CategoryDairy, food.Id, 1),
-            new Category("المشروبات", "Beverages", ImageCatalog.CategoryBeverages, food.Id, 2),
-            new Category("الفاكهة والخضار", "Fruits & Vegetables", ImageCatalog.CategoryProduce, food.Id, 3),
-            new Category("المخبوزات", "Bakery", ImageCatalog.CategoryBakery, food.Id, 4),
-            new Category("الوجبات الخفيفة", "Snacks", ImageCatalog.CategorySnacks, food.Id, 5),
-            new Category("الهواتف", "Phones", ImageCatalog.CategoryPhones, electronics.Id, 1),
-            new Category("الإكسسوارات", "Accessories", ImageCatalog.CategoryAccessories, electronics.Id, 2),
+            new Category("الأغذية والمشروبات", "Food & Drinks", ImageCatalog.CategoryGroceries, food.Id, 1),
+            new Category("الخضار والفاكهة", "Fresh Market", ImageCatalog.CategoryProduce, food.Id, 2),
+            new Category("الأجهزة الذكية", "Smart Devices", ImageCatalog.CategoryElectronics, electronics.Id, 1),
+            new Category("ملحقات الأجهزة", "Device Accessories", ImageCatalog.CategoryAccessories, electronics.Id, 2),
             new Category("العناية المنزلية", "Home Care", ImageCatalog.CategoryHomeCare, home.Id, 1),
-            new Category("مستلزمات المطبخ", "Kitchen Supplies", ImageCatalog.CategoryKitchen, home.Id, 2)
+            new Category("المطبخ", "Kitchen", ImageCatalog.CategoryKitchen, home.Id, 2)
         };
 
         await _context.Categories.AddRangeAsync(categories);
+        await _context.SaveChangesAsync();
+
+        var foodAndDrinks = categories.Single(x => x.NameEn == "Food & Drinks");
+        var freshMarket = categories.Single(x => x.NameEn == "Fresh Market");
+        var smartDevices = categories.Single(x => x.NameEn == "Smart Devices");
+        var deviceAccessories = categories.Single(x => x.NameEn == "Device Accessories");
+        var homeCare = categories.Single(x => x.NameEn == "Home Care");
+        var kitchen = categories.Single(x => x.NameEn == "Kitchen");
+
+        var subCategories = new[]
+        {
+            new Category("الألبان", "Dairy", ImageCatalog.CategoryDairy, foodAndDrinks.Id, 1),
+            new Category("المشروبات", "Beverages", ImageCatalog.CategoryBeverages, foodAndDrinks.Id, 2),
+            new Category("المخبوزات", "Bakery", ImageCatalog.CategoryBakery, foodAndDrinks.Id, 3),
+            new Category("الوجبات الخفيفة", "Snacks", ImageCatalog.CategorySnacks, foodAndDrinks.Id, 4),
+            new Category("الفاكهة", "Fruits", ImageCatalog.CategoryProduce, freshMarket.Id, 1),
+            new Category("الخضار", "Vegetables", ImageCatalog.CategoryProduce, freshMarket.Id, 2),
+            new Category("الهواتف", "Phones", ImageCatalog.CategoryPhones, smartDevices.Id, 1),
+            new Category("الإكسسوارات", "Accessories", ImageCatalog.CategoryAccessories, deviceAccessories.Id, 1),
+            new Category("منظفات المنزل", "Household Care", ImageCatalog.CategoryHomeCare, homeCare.Id, 1),
+            new Category("مستلزمات المطبخ", "Kitchen Supplies", ImageCatalog.CategoryKitchen, kitchen.Id, 1)
+        };
+
+        await _context.Categories.AddRangeAsync(subCategories);
+        await _context.SaveChangesAsync();
+
+        var dairy = subCategories.Single(x => x.NameEn == "Dairy");
+        var beverages = subCategories.Single(x => x.NameEn == "Beverages");
+        var bakery = subCategories.Single(x => x.NameEn == "Bakery");
+        var snacks = subCategories.Single(x => x.NameEn == "Snacks");
+        var fruits = subCategories.Single(x => x.NameEn == "Fruits");
+        var vegetables = subCategories.Single(x => x.NameEn == "Vegetables");
+        var phones = subCategories.Single(x => x.NameEn == "Phones");
+        var accessories = subCategories.Single(x => x.NameEn == "Accessories");
+        var householdCare = subCategories.Single(x => x.NameEn == "Household Care");
+
+        var leafCategories = new[]
+        {
+            new Category("الحليب", "Milk", ImageCatalog.CategoryDairy, dairy.Id, 1),
+            new Category("الزبادي", "Yogurt", ImageCatalog.CategoryDairy, dairy.Id, 2),
+            new Category("العصائر", "Juices", ImageCatalog.CategoryBeverages, beverages.Id, 1),
+            new Category("المياه", "Water", ImageCatalog.CategoryBeverages, beverages.Id, 2),
+            new Category("خبز التوست", "Toast Bread", ImageCatalog.CategoryBakery, bakery.Id, 1),
+            new Category("الشيبس", "Chips", ImageCatalog.CategorySnacks, snacks.Id, 1),
+            new Category("الموز", "Bananas", ImageCatalog.CategoryProduce, fruits.Id, 1),
+            new Category("الطماطم", "Tomatoes", ImageCatalog.CategoryProduce, vegetables.Id, 1),
+            new Category("هواتف سامسونج", "Samsung Phones", ImageCatalog.CategoryPhones, phones.Id, 1),
+            new Category("هواتف آيفون", "iPhone Phones", ImageCatalog.CategoryPhones, phones.Id, 2),
+            new Category("الشواحن", "Chargers", ImageCatalog.CategoryAccessories, accessories.Id, 1),
+            new Category("أغطية الجوال", "Phone Cases", ImageCatalog.CategoryAccessories, accessories.Id, 2),
+            new Category("منظفات الأطباق", "Dishwashing", ImageCatalog.CategoryHomeCare, householdCare.Id, 1),
+            new Category("المناديل", "Tissues", ImageCatalog.CategoryHomeCare, householdCare.Id, 2)
+        };
+
+        await _context.Categories.AddRangeAsync(leafCategories);
         await _context.SaveChangesAsync();
     }
 
@@ -196,12 +281,13 @@ public class ApplicationDbContextInitialiser
             return;
         }
 
-        var dairy = await _context.Categories.FirstOrDefaultAsync(item => item.NameEn == "Dairy");
-        var beverages = await _context.Categories.FirstOrDefaultAsync(item => item.NameEn == "Beverages");
-        var snacks = await _context.Categories.FirstOrDefaultAsync(item => item.NameEn == "Snacks");
-        var phones = await _context.Categories.FirstOrDefaultAsync(item => item.NameEn == "Phones");
-        var accessories = await _context.Categories.FirstOrDefaultAsync(item => item.NameEn == "Accessories");
-        var homeCare = await _context.Categories.FirstOrDefaultAsync(item => item.NameEn == "Home Care");
+        // Only fetch subcategories (categories that have a parent)
+        var dairy = await _context.Categories.FirstOrDefaultAsync(item => item.NameEn == "Dairy" && item.ParentCategoryId != null);
+        var beverages = await _context.Categories.FirstOrDefaultAsync(item => item.NameEn == "Beverages" && item.ParentCategoryId != null);
+        var snacks = await _context.Categories.FirstOrDefaultAsync(item => item.NameEn == "Snacks" && item.ParentCategoryId != null);
+        var phones = await _context.Categories.FirstOrDefaultAsync(item => item.NameEn == "Phones" && item.ParentCategoryId != null);
+        var accessories = await _context.Categories.FirstOrDefaultAsync(item => item.NameEn == "Accessories" && item.ParentCategoryId != null);
+        var householdCare = await _context.Categories.FirstOrDefaultAsync(item => item.NameEn == "Household Care" && item.ParentCategoryId != null);
 
         var brands = new List<Brand>
         {
@@ -213,8 +299,8 @@ public class ApplicationDbContextInitialiser
             new("سامسونج", "Samsung", "https://cdn.simpleicons.org/samsung/1428a0", phones?.Id),
             new("آبل", "Apple", "https://cdn.simpleicons.org/apple/000000", phones?.Id),
             new("أنكر", "Anker", "https://cdn.simpleicons.org/anker/00a7e1", accessories?.Id),
-            new("برايل", "Pril", "https://cdn.simpleicons.org/homeassistant/41bdf5", homeCare?.Id),
-            new("فاين", "Fine", "https://cdn.simpleicons.org/cloudflare/ff6633", homeCare?.Id)
+            new("برايل", "Pril", "https://cdn.simpleicons.org/homeassistant/41bdf5", householdCare?.Id),
+            new("فاين", "Fine", "https://cdn.simpleicons.org/cloudflare/ff6633", householdCare?.Id)
         };
 
         await _context.Brands.AddRangeAsync(brands);
@@ -235,20 +321,20 @@ public class ApplicationDbContextInitialiser
 
         var products = new List<MasterProduct>
         {
-            CreateProduct("حليب كامل الدسم 1 لتر", "Full Cream Milk 1L", "full-cream-milk-1l", "حليب طازج يومي غني بالكالسيوم.", "Fresh full cream milk for daily essentials.", categories["Dairy"].Id, brands["Almarai"].Id, units["L"].Id, productTypes.GetValueOrDefault("Milk")?.Id, parts.GetValueOrDefault("Full Cream")?.Id, ImageCatalog.Milk1, ImageCatalog.Milk2),
-            CreateProduct("زبادي يوناني", "Greek Yogurt", "greek-yogurt", "زبادي كثيف مناسب للفطور والوجبات الخفيفة.", "Rich Greek yogurt for breakfast and snacks.", categories["Dairy"].Id, brands["Almarai"].Id, units["pk"].Id, productTypes.GetValueOrDefault("Yogurt")?.Id, parts.GetValueOrDefault("Greek")?.Id, ImageCatalog.Yogurt1, ImageCatalog.Yogurt2),
-            CreateProduct("عصير برتقال طازج 1 لتر", "Orange Juice 1L", "orange-juice-1l", "عصير منعش بطعم طبيعي.", "Refreshing orange juice with a natural taste.", categories["Beverages"].Id, brands["Nada"].Id, units["L"].Id, null, null, ImageCatalog.Juice1, ImageCatalog.Juice2),
-            CreateProduct("مياه شرب عبوة 6", "Water Pack 6x330ml", "water-pack-6", "عبوة مياه للشرب اليومي.", "Convenient water pack for daily hydration.", categories["Beverages"].Id, brands["Pepsi"].Id, units["ctn"].Id, null, null, ImageCatalog.Water1, ImageCatalog.Water2),
-            CreateProduct("خبز توست أبيض", "White Toast Bread", "white-toast-bread", "خبز طازج للسندويتشات اليومية.", "Fresh toast bread for everyday sandwiches.", categories["Bakery"].Id, null, units["pk"].Id, null, null, ImageCatalog.Bread1, ImageCatalog.Bread2),
-            CreateProduct("بطاطس شيبس كلاسيك", "Classic Potato Chips", "classic-potato-chips", "وجبة خفيفة مقرمشة.", "Crunchy classic potato chips.", categories["Snacks"].Id, brands["Lay's"].Id, units["pk"].Id, null, null, ImageCatalog.Chips1, ImageCatalog.Chips2),
-            CreateProduct("موز طازج", "Fresh Bananas", "fresh-bananas", "موز طازج صالح للوجبات الخفيفة والعصائر.", "Fresh bananas for snacks and smoothies.", categories["Fruits & Vegetables"].Id, null, units["kg"].Id, null, null, ImageCatalog.Banana1, ImageCatalog.Banana2),
-            CreateProduct("طماطم حمراء", "Red Tomatoes", "red-tomatoes", "طماطم يومية للطبخ والسلطات.", "Everyday tomatoes for cooking and salads.", categories["Fruits & Vegetables"].Id, null, units["kg"].Id, null, null, ImageCatalog.Tomato1, ImageCatalog.Tomato2),
-            CreateProduct("سائل تنظيف أطباق", "Dishwashing Liquid", "dishwashing-liquid", "منظف أطباق بفعالية عالية.", "High-performance dishwashing liquid.", categories["Home Care"].Id, brands["Pril"].Id, units["L"].Id, null, null, ImageCatalog.DishSoap1, ImageCatalog.DishSoap2),
-            CreateProduct("مناديل مطبخ رولين", "Kitchen Towels 2 Rolls", "kitchen-towels-2-rolls", "مناديل مطبخ بامتصاص ممتاز.", "Kitchen towels with strong absorption.", categories["Home Care"].Id, brands["Fine"].Id, units["roll"].Id, null, null, ImageCatalog.Towel1, ImageCatalog.Towel2),
-            CreateProduct("شاحن سريع USB-C", "USB-C Fast Charger", "usb-c-fast-charger", "شاحن سريع متوافق مع أغلب الهواتف الحديثة.", "Fast charger compatible with most modern phones.", categories["Accessories"].Id, brands["Anker"].Id, units["pcs"].Id, null, null, ImageCatalog.Charger1, ImageCatalog.Charger2),
-            CreateProduct("غطاء آيفون شفاف", "Transparent iPhone Case", "transparent-iphone-case", "غطاء شفاف خفيف يحمي الهاتف من الخدوش.", "Slim transparent case for scratch protection.", categories["Accessories"].Id, brands["Apple"].Id, units["pcs"].Id, null, null, ImageCatalog.Case1, ImageCatalog.Case2),
-            CreateProduct("هاتف سامسونج جالاكسي A55", "Samsung Galaxy A55", "samsung-galaxy-a55", "هاتف ذكي للأداء اليومي.", "Smartphone with balanced daily performance.", categories["Phones"].Id, brands["Samsung"].Id, units["pcs"].Id, null, null, ImageCatalog.Phone1, ImageCatalog.Phone2),
-            CreateProduct("آيفون 15", "iPhone 15", "iphone-15", "هاتف آيفون حديث بتجربة سلسة.", "Modern iPhone with a smooth experience.", categories["Phones"].Id, brands["Apple"].Id, units["pcs"].Id, null, null, ImageCatalog.Iphone1, ImageCatalog.Iphone2)
+            CreateProduct("حليب كامل الدسم 1 لتر", "Full Cream Milk 1L", "full-cream-milk-1l", "حليب طازج يومي غني بالكالسيوم.", "Fresh full cream milk for daily essentials.", categories["Milk"].Id, brands["Almarai"].Id, units["L"].Id, productTypes.GetValueOrDefault("Milk")?.Id, parts.GetValueOrDefault("Full Cream")?.Id, ImageCatalog.Milk1, ImageCatalog.Milk2),
+            CreateProduct("زبادي يوناني", "Greek Yogurt", "greek-yogurt", "زبادي كثيف مناسب للفطور والوجبات الخفيفة.", "Rich Greek yogurt for breakfast and snacks.", categories["Yogurt"].Id, brands["Almarai"].Id, units["pk"].Id, productTypes.GetValueOrDefault("Yogurt")?.Id, parts.GetValueOrDefault("Greek")?.Id, ImageCatalog.Yogurt1, ImageCatalog.Yogurt2),
+            CreateProduct("عصير برتقال طازج 1 لتر", "Orange Juice 1L", "orange-juice-1l", "عصير منعش بطعم طبيعي.", "Refreshing orange juice with a natural taste.", categories["Juices"].Id, brands["Nada"].Id, units["L"].Id, null, null, ImageCatalog.Juice1, ImageCatalog.Juice2),
+            CreateProduct("مياه شرب عبوة 6", "Water Pack 6x330ml", "water-pack-6", "عبوة مياه للشرب اليومي.", "Convenient water pack for daily hydration.", categories["Water"].Id, brands["Pepsi"].Id, units["ctn"].Id, null, null, ImageCatalog.Water1, ImageCatalog.Water2),
+            CreateProduct("خبز توست أبيض", "White Toast Bread", "white-toast-bread", "خبز طازج للسندويتشات اليومية.", "Fresh toast bread for everyday sandwiches.", categories["Toast Bread"].Id, null, units["pk"].Id, null, null, ImageCatalog.Bread1, ImageCatalog.Bread2),
+            CreateProduct("بطاطس شيبس كلاسيك", "Classic Potato Chips", "classic-potato-chips", "وجبة خفيفة مقرمشة.", "Crunchy classic potato chips.", categories["Chips"].Id, brands["Lay's"].Id, units["pk"].Id, null, null, ImageCatalog.Chips1, ImageCatalog.Chips2),
+            CreateProduct("موز طازج", "Fresh Bananas", "fresh-bananas", "موز طازج صالح للوجبات الخفيفة والعصائر.", "Fresh bananas for snacks and smoothies.", categories["Bananas"].Id, null, units["kg"].Id, null, null, ImageCatalog.Banana1, ImageCatalog.Banana2),
+            CreateProduct("طماطم حمراء", "Red Tomatoes", "red-tomatoes", "طماطم يومية للطبخ والسلطات.", "Everyday tomatoes for cooking and salads.", categories["Tomatoes"].Id, null, units["kg"].Id, null, null, ImageCatalog.Tomato1, ImageCatalog.Tomato2),
+            CreateProduct("سائل تنظيف أطباق", "Dishwashing Liquid", "dishwashing-liquid", "منظف أطباق بفعالية عالية.", "High-performance dishwashing liquid.", categories["Dishwashing"].Id, brands["Pril"].Id, units["L"].Id, null, null, ImageCatalog.DishSoap1, ImageCatalog.DishSoap2),
+            CreateProduct("مناديل مطبخ رولين", "Kitchen Towels 2 Rolls", "kitchen-towels-2-rolls", "مناديل مطبخ بامتصاص ممتاز.", "Kitchen towels with strong absorption.", categories["Tissues"].Id, brands["Fine"].Id, units["roll"].Id, null, null, ImageCatalog.Towel1, ImageCatalog.Towel2),
+            CreateProduct("شاحن سريع USB-C", "USB-C Fast Charger", "usb-c-fast-charger", "شاحن سريع متوافق مع أغلب الهواتف الحديثة.", "Fast charger compatible with most modern phones.", categories["Chargers"].Id, brands["Anker"].Id, units["pcs"].Id, null, null, ImageCatalog.Charger1, ImageCatalog.Charger2),
+            CreateProduct("غطاء آيفون شفاف", "Transparent iPhone Case", "transparent-iphone-case", "غطاء شفاف خفيف يحمي الهاتف من الخدوش.", "Slim transparent case for scratch protection.", categories["Phone Cases"].Id, brands["Apple"].Id, units["pcs"].Id, null, null, ImageCatalog.Case1, ImageCatalog.Case2),
+            CreateProduct("هاتف سامسونج جالاكسي A55", "Samsung Galaxy A55", "samsung-galaxy-a55", "هاتف ذكي للأداء اليومي.", "Smartphone with balanced daily performance.", categories["Samsung Phones"].Id, brands["Samsung"].Id, units["pcs"].Id, null, null, ImageCatalog.Phone1, ImageCatalog.Phone2),
+            CreateProduct("آيفون 15", "iPhone 15", "iphone-15", "هاتف آيفون حديث بتجربة سلسة.", "Modern iPhone with a smooth experience.", categories["iPhone Phones"].Id, brands["Apple"].Id, units["pcs"].Id, null, null, ImageCatalog.Iphone1, ImageCatalog.Iphone2)
         };
 
         var missingProducts = products
@@ -1327,6 +1413,13 @@ public class ApplicationDbContextInitialiser
         await DeleteRangeAsync(_context.DriverLocations);
         await DeleteRangeAsync(_context.DeliveryAssignments);
         await DeleteRangeAsync(_context.Refunds);
+        await DeleteRangeAsync(_context.Reviews);
+        await DeleteRangeAsync(_context.Notifications);
+        await DeleteRangeAsync(_context.Payouts);
+        await DeleteRangeAsync(_context.WalletTransactions);
+        await DeleteRangeAsync(_context.Wallets);
+        await DeleteRangeAsync(_context.SettlementItems);
+        await DeleteRangeAsync(_context.Settlements);
         await DeleteRangeAsync(_context.Payments);
         await DeleteRangeAsync(_context.OrderStatusHistories);
         await DeleteRangeAsync(_context.OrderItems);
@@ -1335,13 +1428,6 @@ public class ApplicationDbContextInitialiser
         await DeleteRangeAsync(_context.Carts);
         await DeleteRangeAsync(_context.CustomerFavorites);
         await DeleteRangeAsync(_context.CustomerAddresses);
-        await DeleteRangeAsync(_context.Notifications);
-        await DeleteRangeAsync(_context.Reviews);
-        await DeleteRangeAsync(_context.Payouts);
-        await DeleteRangeAsync(_context.SettlementItems);
-        await DeleteRangeAsync(_context.Settlements);
-        await DeleteRangeAsync(_context.WalletTransactions);
-        await DeleteRangeAsync(_context.Wallets);
         await DeleteRangeAsync(_context.CouponVendors);
         await DeleteRangeAsync(_context.Coupons);
         await DeleteRangeAsync(_context.FeaturedProductPlacements);

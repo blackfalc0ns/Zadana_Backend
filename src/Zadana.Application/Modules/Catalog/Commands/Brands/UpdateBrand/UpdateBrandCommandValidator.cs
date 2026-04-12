@@ -34,16 +34,9 @@ public class UpdateBrandCommandValidator : AbstractValidator<UpdateBrandCommand>
                     .AsNoTracking()
                     .FirstOrDefaultAsync(item => item.Id == categoryId, cancellationToken);
 
-                if (category == null)
-                {
-                    return false;
-                }
-
-                return !await context.Categories
-                    .AsNoTracking()
-                    .AnyAsync(item => item.ParentCategoryId == categoryId, cancellationToken);
+                return category is { ParentCategoryId: not null };
             })
-            .WithMessage("CategoryId must reference a valid leaf category.")
+            .WithMessage(localizer["BrandMustBeLinkedToSubcategory"].Value)
             .WithName("CategoryId");
     }
 }
