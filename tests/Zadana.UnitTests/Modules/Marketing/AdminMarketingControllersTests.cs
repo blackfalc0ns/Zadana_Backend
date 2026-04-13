@@ -47,13 +47,25 @@ public class AdminMarketingControllersTests
     public async Task CreateHomeSection_ReturnsOkResult()
     {
         var controller = CreateHomeSectionsController();
-        var dto = new HomeSectionAdminDto(Guid.NewGuid(), Guid.NewGuid(), "فواكه", "Fruits", "theme1", 1, 8, true, null, null, DateTime.UtcNow, DateTime.UtcNow);
+        var dto = new HomeSectionAdminDto(Guid.NewGuid(), Guid.NewGuid(), "فواكه", "Fruits", "soft-blue", "سمة 1", "Theme 1", 1, 8, true, null, null, DateTime.UtcNow, DateTime.UtcNow);
         _senderMock.Setup(x => x.Send(It.IsAny<CreateHomeSectionCommand>(), default)).ReturnsAsync(dto);
 
         var result = await controller.CreateSection(new CreateHomeSectionRequest(dto.CategoryId, dto.Theme, dto.DisplayOrder, dto.ProductsTake, null, null));
 
         var ok = result.Result.Should().BeOfType<OkObjectResult>().Subject;
         ok.Value.Should().BeEquivalentTo(dto);
+    }
+
+    [Fact]
+    public void GetHomeSectionThemes_ReturnsOkResult()
+    {
+        var controller = CreateHomeSectionsController();
+
+        var result = controller.GetThemes();
+
+        var ok = result.Result.Should().BeOfType<OkObjectResult>().Subject;
+        var payload = ok.Value.Should().BeAssignableTo<IEnumerable<HomeSectionThemeOptionResponse>>().Subject.ToList();
+        payload.Select(x => x.Key).Should().BeEquivalentTo(["soft-blue", "fresh-orange", "bold-dark"]);
     }
 
     [Fact]

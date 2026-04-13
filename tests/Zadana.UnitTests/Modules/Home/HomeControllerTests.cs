@@ -49,4 +49,32 @@ public class HomeControllerTests
         var okResult = result.Result.Should().BeOfType<OkObjectResult>().Subject;
         okResult.Value.Should().BeEquivalentTo(section);
     }
+
+    [Fact]
+    public async Task GetDynamicSections_ReturnsOkResultWithSections()
+    {
+        IReadOnlyList<HomeDynamicSectionDto> sections =
+        [
+            new HomeDynamicSectionDto(
+                Guid.NewGuid(),
+                "dynamic_section",
+                "Fruits",
+                Guid.NewGuid(),
+                true,
+                "theme1",
+                "theme1",
+                "Theme 1",
+                1,
+                [
+                    new HomeProductCardDto(Guid.NewGuid(), "Apple", "Store", 7m, null, "/apple.jpg", 4.8m, 10, null, false, false, "Kg", false)
+                ])
+        ];
+
+        _homeReadService.Setup(x => x.GetDynamicSectionsAsync(It.IsAny<CancellationToken>())).ReturnsAsync(sections);
+
+        var result = await _controller.GetDynamicSections(CancellationToken.None);
+
+        var okResult = result.Result.Should().BeOfType<OkObjectResult>().Subject;
+        okResult.Value.Should().BeEquivalentTo(sections);
+    }
 }

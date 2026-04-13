@@ -1,6 +1,122 @@
 @Zadana.Api_HostAddress = http://localhost:5298
+@AdminEmail = admin@system.com
+@AdminPassword = Admin@123
+@AdminToken = PUT_BEARER_TOKEN_HERE
+@DynamicSectionId = PUT_HOME_SECTION_ID_HERE
+@Level3CategoryId = PUT_LEVEL3_CATEGORY_ID_HERE
 
-GET {{Zadana.Api_HostAddress}}/weatherforecast/
+###
+# Admin login
+POST {{Zadana.Api_HostAddress}}/api/admin/auth/login
+Content-Type: application/json
+Accept: application/json
+
+{
+  "identifier": "{{AdminEmail}}",
+  "password": "{{AdminPassword}}"
+}
+
+###
+# Get dynamic section theme options
+GET {{Zadana.Api_HostAddress}}/api/admin/marketing/home-sections/themes
+Authorization: Bearer {{AdminToken}}
 Accept: application/json
 
 ###
+# List dynamic home sections
+GET {{Zadana.Api_HostAddress}}/api/admin/marketing/home-sections
+Authorization: Bearer {{AdminToken}}
+Accept: application/json
+
+###
+# Get one dynamic home section
+GET {{Zadana.Api_HostAddress}}/api/admin/marketing/home-sections/{{DynamicSectionId}}
+Authorization: Bearer {{AdminToken}}
+Accept: application/json
+
+###
+# Create dynamic home section - always visible
+POST {{Zadana.Api_HostAddress}}/api/admin/marketing/home-sections
+Authorization: Bearer {{AdminToken}}
+Content-Type: application/json
+Accept: application/json
+
+{
+  "categoryId": "{{Level3CategoryId}}",
+  "theme": "soft-blue",
+  "displayOrder": 1,
+  "productsTake": 8,
+  "startsAtUtc": null,
+  "endsAtUtc": null
+}
+
+###
+# Create dynamic home section - scheduled
+POST {{Zadana.Api_HostAddress}}/api/admin/marketing/home-sections
+Authorization: Bearer {{AdminToken}}
+Content-Type: application/json
+Accept: application/json
+
+{
+  "categoryId": "{{Level3CategoryId}}",
+  "theme": "fresh-orange",
+  "displayOrder": 2,
+  "productsTake": 6,
+  "startsAtUtc": "2026-04-13T00:00:00Z",
+  "endsAtUtc": "2026-04-30T23:59:59Z"
+}
+
+###
+# Update dynamic home section
+PUT {{Zadana.Api_HostAddress}}/api/admin/marketing/home-sections/{{DynamicSectionId}}
+Authorization: Bearer {{AdminToken}}
+Content-Type: application/json
+Accept: application/json
+
+{
+  "categoryId": "{{Level3CategoryId}}",
+  "theme": "bold-dark",
+  "displayOrder": 3,
+  "productsTake": 10,
+  "startsAtUtc": null,
+  "endsAtUtc": null,
+  "isActive": true
+}
+
+###
+# Activate dynamic home section
+PATCH {{Zadana.Api_HostAddress}}/api/admin/marketing/home-sections/{{DynamicSectionId}}/activate
+Authorization: Bearer {{AdminToken}}
+Accept: application/json
+
+{}
+
+###
+# Deactivate dynamic home section
+PATCH {{Zadana.Api_HostAddress}}/api/admin/marketing/home-sections/{{DynamicSectionId}}/deactivate
+Authorization: Bearer {{AdminToken}}
+Accept: application/json
+
+{}
+
+###
+# Delete dynamic home section
+DELETE {{Zadana.Api_HostAddress}}/api/admin/marketing/home-sections/{{DynamicSectionId}}
+Authorization: Bearer {{AdminToken}}
+Accept: application/json
+
+###
+# Customer home content
+GET {{Zadana.Api_HostAddress}}/api/home/content
+Accept: application/json
+
+###
+# Customer categories section
+GET {{Zadana.Api_HostAddress}}/api/home/categories?take=8
+Accept: application/json
+
+###
+# Customer featured products section
+GET {{Zadana.Api_HostAddress}}/api/home/featured-products?take=10
+Accept: application/json
+

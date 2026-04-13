@@ -14,4 +14,5 @@ public interface IHomeReadService
     Task<HomeListSectionDto<HomeBrandCardDto>> GetBrandsAsync(int take, CancellationToken cancellationToken = default);
     Task<HomeListSectionDto<HomeProductCardDto>> GetFeaturedProductsAsync(int take, CancellationToken cancellationToken = default);
     Task<HomeListSectionDto<HomeProductCardDto>> GetExploreMoreAsync(int take, CancellationToken cancellationToken = default);
+    Task<IReadOnlyList<HomeDynamicSectionDto>> GetDynamicSectionsAsync(CancellationToken cancellationToken = default);
 }

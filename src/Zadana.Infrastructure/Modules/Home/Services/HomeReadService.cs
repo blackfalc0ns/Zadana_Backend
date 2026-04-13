@@ -207,6 +207,17 @@ public class HomeReadService : IHomeReadService
             SelectExploreMore(catalog, NormalizeTake(take, DefaultProductTake), null));
     }
 
+    public async Task<IReadOnlyList<HomeDynamicSectionDto>> GetDynamicSectionsAsync(CancellationToken cancellationToken = default)
+    {
+        if (!await IsSectionEnabledAsync(HomeContentSectionType.DynamicSections, cancellationToken))
+        {
+            return [];
+        }
+
+        var catalog = await BuildProductCatalogAsync(cancellationToken);
+        return await GetDynamicSectionsInternalAsync(catalog, cancellationToken);
+    }
+
     private async Task<IReadOnlyList<HomeBannerDto>> GetBannersOrEmptyAsync(int take, CancellationToken cancellationToken)
     {
         if (!await IsSectionEnabledAsync(HomeContentSectionType.Banners, cancellationToken))
@@ -746,7 +757,9 @@ public class HomeReadService : IHomeReadService
                     PickLocalized(section.CategoryNameAr, section.CategoryNameEn),
                     section.CategoryId,
                     true,
-                    section.Theme,
+                    section.Theme.ToClientToken(),
+                    section.Theme.ToClientToken(),
+                    PickLocalized(section.Theme.ToArabicLabel(), section.Theme.ToEnglishLabel()),
                     items.Count,
                     items);
             })
@@ -1018,7 +1031,7 @@ public class HomeReadService : IHomeReadService
     private sealed record ActiveHomeSection(
         Guid Id,
         Guid CategoryId,
-        string Theme,
+        HomeSectionTheme Theme,
         int ProductsTake,
         string CategoryNameAr,
         string CategoryNameEn);

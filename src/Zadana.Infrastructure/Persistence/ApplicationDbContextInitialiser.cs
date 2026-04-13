@@ -1008,9 +1008,9 @@ public class ApplicationDbContextInitialiser
         var accessories = await _context.Categories.FirstAsync(x => x.NameEn == "Accessories");
 
         await _context.HomeSections.AddRangeAsync(
-            new HomeSection(dairy.Id, "soft-blue", 1, 8, DateTime.UtcNow.AddDays(-15), DateTime.UtcNow.AddMonths(2)),
-            new HomeSection(beverages.Id, "fresh-orange", 2, 8, DateTime.UtcNow.AddDays(-10), DateTime.UtcNow.AddMonths(2)),
-            new HomeSection(accessories.Id, "bold-dark", 3, 6, DateTime.UtcNow.AddDays(-5), DateTime.UtcNow.AddMonths(2)));
+            new HomeSection(dairy.Id, HomeSectionTheme.SoftBlue, 1, 8, DateTime.UtcNow.AddDays(-15), DateTime.UtcNow.AddMonths(2)),
+            new HomeSection(beverages.Id, HomeSectionTheme.FreshOrange, 2, 8, DateTime.UtcNow.AddDays(-10), DateTime.UtcNow.AddMonths(2)),
+            new HomeSection(accessories.Id, HomeSectionTheme.BoldDark, 3, 6, DateTime.UtcNow.AddDays(-5), DateTime.UtcNow.AddMonths(2)));
 
         await _context.SaveChangesAsync();
     }

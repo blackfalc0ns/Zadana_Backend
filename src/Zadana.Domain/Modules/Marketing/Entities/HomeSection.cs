@@ -1,4 +1,5 @@
 using Zadana.Domain.Modules.Catalog.Entities;
+using Zadana.Domain.Modules.Marketing.Enums;
 using Zadana.SharedKernel.Exceptions;
 using Zadana.SharedKernel.Primitives;
 
@@ -7,7 +8,7 @@ namespace Zadana.Domain.Modules.Marketing.Entities;
 public class HomeSection : BaseEntity
 {
     public Guid CategoryId { get; private set; }
-    public string Theme { get; private set; } = null!;
+    public HomeSectionTheme Theme { get; private set; }
     public int DisplayOrder { get; private set; }
     public int ProductsTake { get; private set; }
     public bool IsActive { get; private set; }
@@ -20,7 +21,7 @@ public class HomeSection : BaseEntity
 
     public HomeSection(
         Guid categoryId,
-        string theme,
+        HomeSectionTheme theme,
         int displayOrder,
         int productsTake = 10,
         DateTime? startsAtUtc = null,
@@ -32,7 +33,7 @@ public class HomeSection : BaseEntity
 
     public void Update(
         Guid categoryId,
-        string theme,
+        HomeSectionTheme theme,
         int displayOrder,
         int productsTake,
         DateTime? startsAtUtc,
@@ -48,7 +49,7 @@ public class HomeSection : BaseEntity
 
     private void ApplyState(
         Guid categoryId,
-        string theme,
+        HomeSectionTheme theme,
         int displayOrder,
         int productsTake,
         DateTime? startsAtUtc,
@@ -57,11 +58,6 @@ public class HomeSection : BaseEntity
         if (categoryId == Guid.Empty)
         {
             throw new BusinessRuleException("INVALID_HOME_SECTION_CATEGORY", "Category is required.");
-        }
-
-        if (string.IsNullOrWhiteSpace(theme))
-        {
-            throw new BusinessRuleException("INVALID_HOME_SECTION_THEME", "Theme is required.");
         }
 
         if (displayOrder < 0)
@@ -80,7 +76,7 @@ public class HomeSection : BaseEntity
         }
 
         CategoryId = categoryId;
-        Theme = theme.Trim();
+        Theme = theme;
         DisplayOrder = displayOrder;
         ProductsTake = productsTake;
         StartsAtUtc = startsAtUtc;

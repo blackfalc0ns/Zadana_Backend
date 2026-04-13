@@ -2559,6 +2559,44 @@
                 }
             }
         },
+        "/api/admin/marketing/home-sections/themes": {
+            "get": {
+                "tags": [
+                    "Admin/Marketing/Home Sections"
+                ],
+                "responses": {
+                    "200": {
+                        "description": "OK",
+                        "content": {
+                            "text/plain": {
+                                "schema": {
+                                    "type": "array",
+                                    "items": {
+                                        "$ref": "#/components/schemas/HomeSectionThemeOptionResponse"
+                                    }
+                                }
+                            },
+                            "application/json": {
+                                "schema": {
+                                    "type": "array",
+                                    "items": {
+                                        "$ref": "#/components/schemas/HomeSectionThemeOptionResponse"
+                                    }
+                                }
+                            },
+                            "text/json": {
+                                "schema": {
+                                    "type": "array",
+                                    "items": {
+                                        "$ref": "#/components/schemas/HomeSectionThemeOptionResponse"
+                                    }
+                                }
+                            }
+                        }
+                    }
+                }
+            }
+        },
         "/api/admin/marketing/home-content-sections": {
             "get": {
                 "tags": [
@@ -6632,6 +6670,44 @@
                     }
                 }
             }
+        },
+        "/api/home/dynamic-sections": {
+            "get": {
+                "tags": [
+                    "Customer/Home"
+                ],
+                "responses": {
+                    "200": {
+                        "description": "OK",
+                        "content": {
+                            "text/plain": {
+                                "schema": {
+                                    "type": "array",
+                                    "items": {
+                                        "$ref": "#/components/schemas/HomeDynamicSectionDto"
+                                    }
+                                }
+                            },
+                            "application/json": {
+                                "schema": {
+                                    "type": "array",
+                                    "items": {
+                                        "$ref": "#/components/schemas/HomeDynamicSectionDto"
+                                    }
+                                }
+                            },
+                            "text/json": {
+                                "schema": {
+                                    "type": "array",
+                                    "items": {
+                                        "$ref": "#/components/schemas/HomeDynamicSectionDto"
+                                    }
+                                }
+                            }
+                        }
+                    }
+                }
+            }
         }
     },
     "components": {
@@ -8742,6 +8818,14 @@
                         "type": "string",
                         "nullable": true
                     },
+                    "themeLabelAr": {
+                        "type": "string",
+                        "nullable": true
+                    },
+                    "themeLabelEn": {
+                        "type": "string",
+                        "nullable": true
+                    },
                     "displayOrder": {
                         "type": "integer",
                         "format": "int32"
@@ -8770,6 +8854,24 @@
                     "updatedAtUtc": {
                         "type": "string",
                         "format": "date-time"
+                    }
+                },
+                "additionalProperties": false
+            },
+            "HomeSectionThemeOptionResponse": {
+                "type": "object",
+                "properties": {
+                    "key": {
+                        "type": "string",
+                        "nullable": true
+                    },
+                    "labelAr": {
+                        "type": "string",
+                        "nullable": true
+                    },
+                    "labelEn": {
+                        "type": "string",
+                        "nullable": true
                     }
                 },
                 "additionalProperties": false
@@ -10436,6 +10538,15 @@
                         "type": "string",
                         "nullable": true
                     },
+                    "theme_key": {
+                        "type": "string",
+                        "description": "Client-facing theme token such as theme1, theme2, or theme3.",
+                        "nullable": true
+                    },
+                    "theme_label": {
+                        "type": "string",
+                        "nullable": true
+                    },
                     "items_count": {
                         "type": "integer",
                         "format": "int32"
@@ -10885,6 +10996,14 @@
         {
             "name": "Admin/Marketing/Featured Products",
             "description": "APIDog folder for Admin/Marketing/Featured Products"
+        },
+        {
+            "name": "Admin/Marketing/Home Sections",
+            "description": "APIDog folder for Admin/Marketing/Home Sections"
+        },
+        {
+            "name": "Admin/Marketing/Home Content Sections",
+            "description": "APIDog folder for Admin/Marketing/Home Content Sections"
         },
         {
             "name": "Admin/Catalog/Brands",

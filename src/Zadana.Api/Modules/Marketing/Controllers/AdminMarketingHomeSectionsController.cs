@@ -5,6 +5,8 @@ using Zadana.Api.Modules.Marketing.Requests;
 using Zadana.Application.Modules.Marketing.Commands.HomeSections;
 using Zadana.Application.Modules.Marketing.DTOs;
 using Zadana.Application.Modules.Marketing.Queries.HomeSections;
+using Zadana.Domain.Modules.Marketing.Enums;
+using Zadana.SharedKernel.Exceptions;
 
 namespace Zadana.Api.Modules.Marketing.Controllers;
 
@@ -13,6 +15,19 @@ namespace Zadana.Api.Modules.Marketing.Controllers;
 [Tags("Marketing (Admins)")]
 public class AdminMarketingHomeSectionsController : ApiControllerBase
 {
+    [HttpGet("themes")]
+    public ActionResult<List<HomeSectionThemeOptionResponse>> GetThemes()
+    {
+        var result = HomeSectionThemeCatalog.All
+            .Select(theme => new HomeSectionThemeOptionResponse(
+                theme.ToKey(),
+                theme.ToArabicLabel(),
+                theme.ToEnglishLabel()))
+            .ToList();
+
+        return Ok(result);
+    }
+
     [HttpGet]
     public async Task<ActionResult<List<HomeSectionAdminDto>>> GetSections()
     {
@@ -30,9 +45,14 @@ public class AdminMarketingHomeSectionsController : ApiControllerBase
     [HttpPost]
     public async Task<ActionResult<HomeSectionAdminDto>> CreateSection([FromBody] CreateHomeSectionRequest request)
     {
+        if (!HomeSectionThemeCatalog.TryParseKey(request.Theme, out var theme))
+        {
+            throw new BadRequestException("INVALID_HOME_SECTION_THEME", "Theme is invalid.");
+        }
+
         var result = await Sender.Send(new CreateHomeSectionCommand(
             request.CategoryId,
-            request.Theme,
+            theme,
             request.DisplayOrder,
             request.ProductsTake,
             request.StartsAtUtc,
@@ -44,10 +64,15 @@ public class AdminMarketingHomeSectionsController : ApiControllerBase
     [HttpPut("{id:guid}")]
     public async Task<ActionResult<HomeSectionAdminDto>> UpdateSection(Guid id, [FromBody] UpdateHomeSectionRequest request)
     {
+        if (!HomeSectionThemeCatalog.TryParseKey(request.Theme, out var theme))
+        {
+            throw new BadRequestException("INVALID_HOME_SECTION_THEME", "Theme is invalid.");
+        }
+
         var result = await Sender.Send(new UpdateHomeSectionCommand(
             id,
             request.CategoryId,
-            request.Theme,
+            theme,
             request.DisplayOrder,
             request.ProductsTake,
             request.StartsAtUtc,

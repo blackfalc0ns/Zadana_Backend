@@ -1,6 +1,7 @@
 using Microsoft.EntityFrameworkCore;
 using Microsoft.EntityFrameworkCore.Metadata.Builders;
 using Zadana.Domain.Modules.Marketing.Entities;
+using Zadana.Domain.Modules.Marketing.Enums;
 
 namespace Zadana.Infrastructure.Persistence.Configurations;
 
@@ -8,12 +9,20 @@ public class HomeSectionConfiguration : IEntityTypeConfiguration<HomeSection>
 {
     public void Configure(EntityTypeBuilder<HomeSection> builder)
     {
-        builder.ToTable("HomeSection");
+        builder.ToTable("HomeSection", table =>
+        {
+            table.HasCheckConstraint(
+                "CK_HomeSection_Theme",
+                $"[Theme] IN ('{HomeSectionThemeCatalog.SoftBlueKey}', '{HomeSectionThemeCatalog.FreshOrangeKey}', '{HomeSectionThemeCatalog.BoldDarkKey}')");
+        });
 
         builder.HasKey(x => x.Id);
 
         builder.Property(x => x.Theme)
-            .HasMaxLength(100)
+            .HasConversion(
+                theme => theme.ToKey(),
+                value => HomeSectionThemeCatalog.ParseOrDefault(value, HomeSectionTheme.SoftBlue))
+            .HasMaxLength(32)
             .IsRequired();
 
         builder.Property(x => x.DisplayOrder)

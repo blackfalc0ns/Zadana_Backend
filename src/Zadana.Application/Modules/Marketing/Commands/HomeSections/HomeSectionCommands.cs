@@ -6,13 +6,14 @@ using Zadana.Application.Common.Interfaces;
 using Zadana.Application.Common.Localization;
 using Zadana.Application.Modules.Marketing.DTOs;
 using Zadana.Domain.Modules.Marketing.Entities;
+using Zadana.Domain.Modules.Marketing.Enums;
 using Zadana.SharedKernel.Exceptions;
 
 namespace Zadana.Application.Modules.Marketing.Commands.HomeSections;
 
 public record CreateHomeSectionCommand(
     Guid CategoryId,
-    string Theme,
+    HomeSectionTheme Theme,
     int DisplayOrder,
     int ProductsTake,
     DateTime? StartsAtUtc,
@@ -21,7 +22,7 @@ public record CreateHomeSectionCommand(
 public record UpdateHomeSectionCommand(
     Guid Id,
     Guid CategoryId,
-    string Theme,
+    HomeSectionTheme Theme,
     int DisplayOrder,
     int ProductsTake,
     DateTime? StartsAtUtc,
@@ -37,7 +38,6 @@ public class CreateHomeSectionCommandValidator : AbstractValidator<CreateHomeSec
     public CreateHomeSectionCommandValidator(IStringLocalizer<SharedResource> localizer)
     {
         RuleFor(x => x.CategoryId).NotEmpty();
-        RuleFor(x => x.Theme).NotEmpty().MaximumLength(100);
         RuleFor(x => x.DisplayOrder).GreaterThanOrEqualTo(0);
         RuleFor(x => x.ProductsTake).InclusiveBetween(1, 20);
         RuleFor(x => x.EndsAtUtc)
@@ -53,7 +53,6 @@ public class UpdateHomeSectionCommandValidator : AbstractValidator<UpdateHomeSec
     {
         RuleFor(x => x.Id).NotEmpty();
         RuleFor(x => x.CategoryId).NotEmpty();
-        RuleFor(x => x.Theme).NotEmpty().MaximumLength(100);
         RuleFor(x => x.DisplayOrder).GreaterThanOrEqualTo(0);
         RuleFor(x => x.ProductsTake).InclusiveBetween(1, 20);
         RuleFor(x => x.EndsAtUtc)
@@ -162,7 +161,9 @@ internal static partial class MarketingMappings
             entity.CategoryId,
             categoryNameAr,
             categoryNameEn,
-            entity.Theme,
+            entity.Theme.ToKey(),
+            entity.Theme.ToArabicLabel(),
+            entity.Theme.ToEnglishLabel(),
             entity.DisplayOrder,
             entity.ProductsTake,
             entity.IsActive,

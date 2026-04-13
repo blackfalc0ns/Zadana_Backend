@@ -67,3 +67,8 @@ public record UpdateHomeSectionRequest(
 
 public record UpdateHomeContentSectionSettingRequest(
     bool IsEnabled);
+
+public record HomeSectionThemeOptionResponse(
+    string Key,
+    string LabelAr,
+    string LabelEn);

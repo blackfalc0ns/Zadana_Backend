@@ -39,6 +39,8 @@ public record HomeSectionAdminDto(
     string CategoryNameAr,
     string CategoryNameEn,
     string Theme,
+    string ThemeLabelAr,
+    string ThemeLabelEn,
     int DisplayOrder,
     int ProductsTake,
     bool IsActive,
@@ -46,6 +48,11 @@ public record HomeSectionAdminDto(
     DateTime? EndsAtUtc,
     DateTime CreatedAtUtc,
     DateTime UpdatedAtUtc);
+
+public record HomeSectionThemeOptionDto(
+    string Key,
+    string LabelAr,
+    string LabelEn);
 
 public record HomeContentSectionSettingDto(
     string SectionType,

@@ -87,5 +87,12 @@ public class HomeController : ApiControllerBase
         var result = await _homeReadService.GetExploreMoreAsync(take, cancellationToken);
         return Ok(result);
     }
+
+    [HttpGet("dynamic-sections")]
+    public async Task<ActionResult<IReadOnlyList<HomeDynamicSectionDto>>> GetDynamicSections(CancellationToken cancellationToken = default)
+    {
+        var result = await _homeReadService.GetDynamicSectionsAsync(cancellationToken);
+        return Ok(result);
+    }
 }
 

@@ -234,7 +234,7 @@ public class HomeReadServiceTests
         await using var context = TestDbContextFactory.Create();
 
         var setup = await SeedCatalogScenarioAsync(context, createSubcategoryData: true);
-        context.HomeSections.Add(new HomeSection(setup.DynamicSectionCategoryId!.Value, "theme1", 1, 6));
+        context.HomeSections.Add(new HomeSection(setup.DynamicSectionCategoryId!.Value, HomeSectionTheme.SoftBlue, 1, 6));
         await context.SaveChangesAsync();
 
         var service = new HomeReadService(context, new FakeCurrentUserService(null, false));
@@ -244,6 +244,8 @@ public class HomeReadServiceTests
         result.DynamicSections.Should().ContainSingle();
         result.DynamicSections[0].SubcategoryId.Should().Be(setup.DynamicSectionCategoryId.Value);
         result.DynamicSections[0].Theme.Should().Be("theme1");
+        result.DynamicSections[0].ThemeKey.Should().Be("theme1");
+        result.DynamicSections[0].ThemeLabel.Should().Be("Theme 1");
         result.DynamicSections[0].IsActive.Should().BeTrue();
         result.DynamicSections[0].Title.Should().Be("Fruits");
         result.DynamicSections[0].Items.Should().NotBeEmpty();
@@ -258,7 +260,7 @@ public class HomeReadServiceTests
         await using var context = TestDbContextFactory.Create();
 
         var setup = await SeedCatalogScenarioAsync(context, createSubcategoryData: true);
-        context.HomeSections.Add(new HomeSection(setup.DynamicSectionCategoryId!.Value, "theme1", 1, 6));
+        context.HomeSections.Add(new HomeSection(setup.DynamicSectionCategoryId!.Value, HomeSectionTheme.SoftBlue, 1, 6));
         context.HomeContentSectionSettings.Add(new HomeContentSectionSetting(HomeContentSectionType.DynamicSections, false));
         await context.SaveChangesAsync();
 
