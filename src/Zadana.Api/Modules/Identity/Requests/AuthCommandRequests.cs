@@ -11,3 +11,5 @@ public record ForgotPasswordRequest(string Identifier);
 public record ResetPasswordRequest(string Identifier, string OtpCode, string NewPassword);
 
 public record LogoutRequest(string RefreshToken);
+
+public record UpdateProfileRequest(string FullName, string Email, string Phone);

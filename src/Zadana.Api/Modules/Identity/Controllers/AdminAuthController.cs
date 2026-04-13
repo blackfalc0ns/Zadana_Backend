@@ -33,4 +33,9 @@ public class AdminAuthController : IdentityAuthControllerBase
     [HttpGet("me")]
     public Task<IActionResult> GetCurrentUser() =>
         GetCurrentUserAsync();
+
+    [Authorize(Policy = "AdminOnly")]
+    [HttpPut("me")]
+    public Task<IActionResult> UpdateCurrentUser([FromBody] UpdateProfileRequest request) =>
+        UpdateCurrentUserAsync(request);
 }

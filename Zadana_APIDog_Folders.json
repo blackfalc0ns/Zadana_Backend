@@ -4787,8 +4787,63 @@
                 }
             }
         },
+        "/api/categories/subcategories": {
+            "get": {
+                "summary": "Get all subcategories or filter by category",
+                "description": "Returns all active subcategories when categoryId is not provided. If categoryId is provided, returns only the active direct subcategories for that category.",
+                "tags": [
+                    "Customer/Categories"
+                ],
+                "parameters": [
+                    {
+                        "name": "categoryId",
+                        "in": "query",
+                        "required": false,
+                        "description": "Optional parent category id. Send it to return only that category's direct active subcategories; omit it to return all active subcategories.",
+                        "schema": {
+                            "type": "string",
+                            "format": "uuid",
+                            "nullable": true
+                        }
+                    }
+                ],
+                "responses": {
+                    "200": {
+                        "description": "OK",
+                        "content": {
+                            "text/plain": {
+                                "schema": {
+                                    "type": "array",
+                                    "items": {
+                                        "$ref": "#/components/schemas/CategoryListItemDto"
+                                    }
+                                }
+                            },
+                            "application/json": {
+                                "schema": {
+                                    "type": "array",
+                                    "items": {
+                                        "$ref": "#/components/schemas/CategoryListItemDto"
+                                    }
+                                }
+                            },
+                            "text/json": {
+                                "schema": {
+                                    "type": "array",
+                                    "items": {
+                                        "$ref": "#/components/schemas/CategoryListItemDto"
+                                    }
+                                }
+                            }
+                        }
+                    }
+                }
+            }
+        },
         "/api/categories/{categoryId}/subcategories": {
             "get": {
+                "summary": "Get subcategories for a specific category",
+                "description": "Returns the active direct subcategories for the provided parent category id.",
                 "tags": [
                     "Customer/Categories"
                 ],
@@ -4797,6 +4852,7 @@
                         "name": "categoryId",
                         "in": "path",
                         "required": true,
+                        "description": "Parent category id whose direct active subcategories should be returned.",
                         "schema": {
                             "type": "string",
                             "format": "uuid"

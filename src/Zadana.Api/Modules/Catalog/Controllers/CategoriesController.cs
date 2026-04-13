@@ -13,6 +13,15 @@ namespace Zadana.Api.Modules.Catalog.Controllers;
 [Tags("Customer App API")]
 public class CategoriesController : ApiControllerBase
 {
+    [HttpGet("{categoryId:guid}/subcategories")]
+    public async Task<ActionResult<List<CategoryListItemDto>>> GetSubcategoriesByCategoryId(
+        Guid categoryId,
+        CancellationToken cancellationToken)
+    {
+        var result = await Sender.Send(new GetCategorySubcategoriesQuery(categoryId), cancellationToken);
+        return Ok(result);
+    }
+
     [HttpGet("{categoryId:guid}/products")]
     public async Task<ActionResult<CategoryProductsDto>> GetProducts(
         Guid categoryId,
@@ -51,8 +60,10 @@ public class CategoriesController : ApiControllerBase
         return Ok(result);
     }
 
-    [HttpGet("{categoryId:guid}/subcategories")]
-    public async Task<ActionResult<List<CategoryListItemDto>>> GetSubcategories(Guid categoryId, CancellationToken cancellationToken)
+    [HttpGet("subcategories")]
+    public async Task<ActionResult<List<CategoryListItemDto>>> GetSubcategories(
+        [FromQuery] Guid? categoryId,
+        CancellationToken cancellationToken)
     {
         var result = await Sender.Send(new GetCategorySubcategoriesQuery(categoryId), cancellationToken);
         return Ok(result);

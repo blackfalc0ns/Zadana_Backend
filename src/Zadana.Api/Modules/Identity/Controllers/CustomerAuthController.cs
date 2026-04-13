@@ -81,4 +81,9 @@ public class CustomerAuthController : IdentityAuthControllerBase
     [HttpGet("me")]
     public Task<IActionResult> GetCurrentUser() =>
         GetCurrentUserAsync();
+
+    [Authorize(Policy = "CustomerOnly")]
+    [HttpPut("me")]
+    public Task<IActionResult> UpdateCurrentUser([FromBody] UpdateProfileRequest request) =>
+        UpdateCurrentUserAsync(request);
 }

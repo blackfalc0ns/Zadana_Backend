@@ -144,6 +144,19 @@ public class IdentityAccountService : IIdentityAccountService
             return new IdentityOperationResult(false, ["User account was not found."]);
         }
 
+        var normalizedEmail = email.Trim().ToLowerInvariant();
+        var normalizedPhone = phoneNumber.Trim();
+
+        var duplicateExists = await _userManager.Users.AnyAsync(
+            candidate => candidate.Id != userId
+                && (candidate.Email == normalizedEmail || candidate.PhoneNumber == normalizedPhone),
+            cancellationToken);
+
+        if (duplicateExists)
+        {
+            return new IdentityOperationResult(false, ["Email or phone number is already in use."]);
+        }
+
         user.UpdateProfile(fullName, email, phoneNumber);
         return await PersistUserAsync(user);
     }

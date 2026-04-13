@@ -8,6 +8,7 @@ using Zadana.Application.Modules.Identity.Commands.Login;
 using Zadana.Application.Modules.Identity.Commands.Logout;
 using Zadana.Application.Modules.Identity.Commands.RefreshToken;
 using Zadana.Application.Modules.Identity.Commands.ResetPassword;
+using Zadana.Application.Modules.Identity.Commands.UpdateCurrentUserProfile;
 using Zadana.Application.Modules.Identity.Queries.GetCurrentUser;
 using Zadana.Domain.Modules.Identity.Enums;
 
@@ -55,6 +56,16 @@ public abstract class IdentityAuthControllerBase : ApiControllerBase
     protected async Task<IActionResult> GetCurrentUserAsync()
     {
         var result = await Sender.Send(new GetCurrentUserQuery());
+        return Ok(result);
+    }
+
+    protected async Task<IActionResult> UpdateCurrentUserAsync(UpdateProfileRequest request)
+    {
+        var result = await Sender.Send(new UpdateCurrentUserProfileCommand(
+            request.FullName,
+            request.Email,
+            request.Phone));
+
         return Ok(result);
     }
 }

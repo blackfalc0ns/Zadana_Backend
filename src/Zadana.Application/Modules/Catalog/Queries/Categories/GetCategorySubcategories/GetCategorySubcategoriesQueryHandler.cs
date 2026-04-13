@@ -19,18 +19,28 @@ public class GetCategorySubcategoriesQueryHandler : IRequestHandler<GetCategoryS
 
     public async Task<List<CategoryListItemDto>> Handle(GetCategorySubcategoriesQuery request, CancellationToken cancellationToken)
     {
-        var categoryExists = await _context.Categories
-            .AsNoTracking()
-            .AnyAsync(c => c.Id == request.CategoryId, cancellationToken);
-
-        if (!categoryExists)
+        if (request.CategoryId.HasValue)
         {
-            throw new NotFoundException(nameof(Category), request.CategoryId);
+            var categoryExists = await _context.Categories
+                .AsNoTracking()
+                .AnyAsync(c => c.Id == request.CategoryId.Value, cancellationToken);
+
+            if (!categoryExists)
+            {
+                throw new NotFoundException(nameof(Category), request.CategoryId.Value);
+            }
         }
 
-        var subcategories = await _context.Categories
+        var query = _context.Categories
             .AsNoTracking()
-            .Where(c => c.ParentCategoryId == request.CategoryId && c.IsActive)
+            .Where(c => c.IsActive && c.ParentCategoryId != null);
+
+        if (request.CategoryId.HasValue)
+        {
+            query = query.Where(c => c.ParentCategoryId == request.CategoryId.Value);
+        }
+
+        var subcategories = await query
             .Select(c => new RawCategoryListItem(
                 c.Id,
                 c.NameAr,

@@ -96,6 +96,36 @@ public class GetCategorySubcategoriesQueryHandlerTests
         await act.Should().ThrowAsync<NotFoundException>();
     }
 
+    [Fact]
+    public async Task Handle_WhenCategoryIdIsNotProvided_ReturnsAllActiveSubcategories()
+    {
+        using var scope = new CultureScope("en");
+        await using var context = TestDbContextFactory.Create();
+
+        var rootOne = new Category("القسم الأول", "Root One", "root-one.jpg", null, 1);
+        var rootTwo = new Category("القسم الثاني", "Root Two", "root-two.jpg", null, 2);
+        context.Categories.AddRange(rootOne, rootTwo);
+        await context.SaveChangesAsync();
+
+        var childOne = new Category("طفل 1", "Child One", "child-one.jpg", rootOne.Id, 2);
+        var childTwo = new Category("طفل 2", "Child Two", "child-two.jpg", rootTwo.Id, 1);
+        var inactiveChild = new Category("طفل 3", "Child Three", "child-three.jpg", rootOne.Id, 3);
+        inactiveChild.Deactivate();
+        var rootOnly = new Category("جذر فقط", "Root Only", "root-only.jpg", null, 3);
+
+        context.Categories.AddRange(childOne, childTwo, inactiveChild, rootOnly);
+        await context.SaveChangesAsync();
+
+        var handler = new GetCategorySubcategoriesQueryHandler(context);
+
+        var result = await handler.Handle(new GetCategorySubcategoriesQuery(), CancellationToken.None);
+
+        result.Should().HaveCount(2);
+        result.Select(x => x.Id).Should().Equal(childTwo.Id, childOne.Id);
+        result.Select(x => x.Name).Should().Equal("Child Two", "Child One");
+        result.Should().NotContain(x => x.Id == inactiveChild.Id || x.Id == rootOnly.Id);
+    }
+
     private sealed class CultureScope : IDisposable
     {
         private readonly CultureInfo _originalCulture;

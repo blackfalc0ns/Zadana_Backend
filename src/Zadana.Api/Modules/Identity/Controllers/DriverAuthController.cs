@@ -41,4 +41,9 @@ public class DriverAuthController : IdentityAuthControllerBase
     [HttpGet("me")]
     public Task<IActionResult> GetCurrentUser() =>
         GetCurrentUserAsync();
+
+    [Authorize(Policy = "DriverOnly")]
+    [HttpPut("me")]
+    public Task<IActionResult> UpdateCurrentUser([FromBody] UpdateProfileRequest request) =>
+        UpdateCurrentUserAsync(request);
 }
