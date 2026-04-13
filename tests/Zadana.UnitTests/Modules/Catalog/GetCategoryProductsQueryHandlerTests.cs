@@ -266,6 +266,49 @@ public class GetCategoryProductsQueryHandlerTests
         result.Items[0].Price.Should().Be(10m);
     }
 
+    [Fact]
+    public async Task Handle_WhenCategoryIsNotProvided_ReturnsProductsFromAllCategories()
+    {
+        using var scope = new CultureScope("en");
+        await using var context = TestDbContextFactory.Create();
+
+        var rootOne = new Category("cat-one-ar", "Category One", null, null, 1);
+        var rootTwo = new Category("cat-two-ar", "Category Two", null, null, 2);
+        context.Categories.AddRange(rootOne, rootTwo);
+        await context.SaveChangesAsync();
+
+        var brand = new Brand("brand-ar", "Brand", "brand.png");
+        var unit = new UnitOfMeasure("unit-ar", "Unit", "U");
+        context.Brands.Add(brand);
+        context.UnitsOfMeasure.Add(unit);
+        await context.SaveChangesAsync();
+
+        var productOne = new MasterProduct("prod-one-ar", "Alpha Product", "alpha-product", rootOne.Id, brand.Id, unit.Id);
+        var productTwo = new MasterProduct("prod-two-ar", "Beta Product", "beta-product", rootTwo.Id, brand.Id, unit.Id);
+        productOne.Publish();
+        productTwo.Publish();
+        context.MasterProducts.AddRange(productOne, productTwo);
+        await context.SaveChangesAsync();
+
+        var vendor = CreateActiveVendor("Store One");
+        context.Vendors.Add(vendor);
+        await context.SaveChangesAsync();
+
+        context.VendorProducts.AddRange(
+            new VendorProduct(vendor.Id, productOne.Id, 10m, 10),
+            new VendorProduct(vendor.Id, productTwo.Id, 20m, 10));
+        await context.SaveChangesAsync();
+
+        var handler = new GetCategoryProductsQueryHandler(context, new FakeCurrentUserService());
+
+        var result = await handler.Handle(
+            new GetCategoryProductsQuery(null, null, null, null, null, null, null, "alphabetical", 1, 20),
+            CancellationToken.None);
+
+        result.Total.Should().Be(2);
+        result.Items.Select(item => item.Name).Should().Equal("Alpha Product", "Beta Product");
+    }
+
     private static Vendor CreateActiveVendor(string businessNameEn)
     {
         var vendor = new Vendor(

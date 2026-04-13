@@ -4574,6 +4574,8 @@
         },
         "/api/home/categories": {
             "get": {
+                "summary": "Get category-level items for home",
+                "description": "Returns active category-level items for the home categories section. In a hierarchy like activity > sub-activity > category > subcategory, this endpoint returns the category level.",
                 "tags": [
                     "Customer/Home"
                 ],
@@ -4789,8 +4791,8 @@
         },
         "/api/categories/subcategories": {
             "get": {
-                "summary": "Get all subcategories or filter by category",
-                "description": "Returns all active subcategories when categoryId is not provided. If categoryId is provided, returns only the active direct subcategories for that category.",
+                "summary": "Get all subcategories",
+                "description": "Returns all active leaf subcategories when called without categoryId. If categoryId is provided as a query parameter, returns only the active direct subcategories of that parent category.",
                 "tags": [
                     "Customer/Categories"
                 ],
@@ -4799,7 +4801,7 @@
                         "name": "categoryId",
                         "in": "query",
                         "required": false,
-                        "description": "Optional parent category id. Send it to return only that category's direct active subcategories; omit it to return all active subcategories.",
+                        "description": "Optional parent category id. Leave it empty to return all active leaf subcategories, or send it to return that parent category's direct active subcategories.",
                         "schema": {
                             "type": "string",
                             "format": "uuid",

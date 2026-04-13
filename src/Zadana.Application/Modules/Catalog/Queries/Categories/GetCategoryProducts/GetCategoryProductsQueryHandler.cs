@@ -28,20 +28,26 @@ public class GetCategoryProductsQueryHandler : IRequestHandler<GetCategoryProduc
 
     public async Task<CategoryProductsDto> Handle(GetCategoryProductsQuery request, CancellationToken cancellationToken)
     {
-        var categories = await _context.Categories
-            .AsNoTracking()
-            .Select(category => new CategoryScopeRow(
-                category.Id,
-                category.ParentCategoryId,
-                category.NameAr,
-                category.NameEn,
-                category.DisplayOrder,
-                category.IsActive))
-            .ToListAsync(cancellationToken);
+        HashSet<Guid>? categoryScopeIds = null;
+        if (request.CategoryId.HasValue)
+        {
+            var categories = await _context.Categories
+                .AsNoTracking()
+                .Select(category => new CategoryScopeRow(
+                    category.Id,
+                    category.ParentCategoryId,
+                    category.NameAr,
+                    category.NameEn,
+                    category.DisplayOrder,
+                    category.IsActive))
+                .ToListAsync(cancellationToken);
 
-        var categoryScope = ResolveScope(request.CategoryId, categories)
-            ?? throw new NotFoundException(nameof(Category), request.CategoryId);
-        var categoryScopeIds = categoryScope.ActiveSubtreeIds.ToHashSet();
+            var categoryScope = ResolveScope(request.CategoryId.Value, categories)
+                ?? throw new NotFoundException(nameof(Category), request.CategoryId.Value);
+
+            categoryScopeIds = categoryScope.ActiveSubtreeIds.ToHashSet();
+        }
+
         var favoriteMasterProductIds = await LoadFavoriteMasterProductIdsAsync(cancellationToken);
 
         var salesByVendorProductId = await _context.OrderItems
@@ -78,7 +84,7 @@ public class GetCategoryProductsQueryHandler : IRequestHandler<GetCategoryProduc
                 product.MasterProduct.Status == ProductStatus.Active &&
                 product.Vendor.Status == VendorStatus.Active &&
                 product.Vendor.AcceptOrders &&
-                categoryScopeIds.Contains(product.MasterProduct.CategoryId) &&
+                (categoryScopeIds == null || categoryScopeIds.Contains(product.MasterProduct.CategoryId)) &&
                 (!request.ProductTypeId.HasValue || product.MasterProduct.ProductTypeId == request.ProductTypeId.Value) &&
                 (!request.PartId.HasValue || product.MasterProduct.PartId == request.PartId.Value) &&
                 (!request.BrandId.HasValue || product.MasterProduct.BrandId == request.BrandId.Value) &&
@@ -158,21 +164,6 @@ public class GetCategoryProductsQueryHandler : IRequestHandler<GetCategoryProduc
             perPage,
             items);
     }
-
-    private CategoryProductsDto CreateEmptyResult(CategoryScope scope, GetCategoryProductsQuery request) =>
-        new(
-            new CategoryProductsAppliedFiltersDto(
-                request.ProductTypeId,
-                request.PartId,
-                request.QuantityId,
-                request.BrandId,
-                request.MinPrice,
-                request.MaxPrice,
-                NormalizeSort(request.Sort)),
-            0,
-            NormalizePage(request.Page),
-            NormalizePerPage(request.PerPage),
-            Array.Empty<CategoryProductItemDto>());
 
     private static int NormalizePage(int page) => page <= 0 ? DefaultPage : page;
 

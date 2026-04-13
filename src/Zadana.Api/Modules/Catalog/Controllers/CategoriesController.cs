@@ -53,6 +53,37 @@ public class CategoriesController : ApiControllerBase
         return Ok(result);
     }
 
+    [HttpGet("products")]
+    public async Task<ActionResult<CategoryProductsDto>> GetProducts(
+        [FromQuery] Guid? categoryId,
+        [FromQuery(Name = "product_type_id")] Guid? productTypeId,
+        [FromQuery(Name = "part_id")] Guid? partId,
+        [FromQuery(Name = "quantity_id")] Guid? quantityId,
+        [FromQuery(Name = "brand_id")] Guid? brandId,
+        [FromQuery(Name = "min_price")] decimal? minPrice,
+        [FromQuery(Name = "max_price")] decimal? maxPrice,
+        [FromQuery] string? sort,
+        [FromQuery] int page = 1,
+        [FromQuery(Name = "per_page")] int perPage = 20,
+        CancellationToken cancellationToken = default)
+    {
+        var result = await Sender.Send(
+            new GetCategoryProductsQuery(
+                categoryId,
+                productTypeId,
+                partId,
+                quantityId,
+                brandId,
+                minPrice,
+                maxPrice,
+                sort,
+                page,
+                perPage),
+            cancellationToken);
+
+        return Ok(result);
+    }
+
     [HttpGet("{categoryId:guid}/filters")]
     public async Task<ActionResult<CategoryFiltersDto>> GetFilters(Guid categoryId, CancellationToken cancellationToken)
     {

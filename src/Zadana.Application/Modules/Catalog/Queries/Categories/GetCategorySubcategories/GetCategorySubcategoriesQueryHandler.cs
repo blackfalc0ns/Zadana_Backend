@@ -39,6 +39,10 @@ public class GetCategorySubcategoriesQueryHandler : IRequestHandler<GetCategoryS
         {
             query = query.Where(c => c.ParentCategoryId == request.CategoryId.Value);
         }
+        else
+        {
+            query = query.Where(c => !c.SubCategories.Any(child => child.IsActive));
+        }
 
         var subcategories = await query
             .Select(c => new RawCategoryListItem(

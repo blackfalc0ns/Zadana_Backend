@@ -4,7 +4,7 @@ using Zadana.Application.Modules.Catalog.DTOs;
 namespace Zadana.Application.Modules.Catalog.Queries.Categories.GetCategoryProducts;
 
 public record GetCategoryProductsQuery(
-    Guid CategoryId,
+    Guid? CategoryId,
     Guid? ProductTypeId,
     Guid? PartId,
     Guid? QuantityId,

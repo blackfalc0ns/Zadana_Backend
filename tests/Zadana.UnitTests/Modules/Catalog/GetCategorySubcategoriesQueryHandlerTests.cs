@@ -97,7 +97,7 @@ public class GetCategorySubcategoriesQueryHandlerTests
     }
 
     [Fact]
-    public async Task Handle_WhenCategoryIdIsNotProvided_ReturnsAllActiveSubcategories()
+    public async Task Handle_WhenCategoryIdIsNotProvided_ReturnsAllLeafActiveSubcategories()
     {
         using var scope = new CultureScope("en");
         await using var context = TestDbContextFactory.Create();
@@ -109,11 +109,12 @@ public class GetCategorySubcategoriesQueryHandlerTests
 
         var childOne = new Category("طفل 1", "Child One", "child-one.jpg", rootOne.Id, 2);
         var childTwo = new Category("طفل 2", "Child Two", "child-two.jpg", rootTwo.Id, 1);
+        var grandChild = new Category("حفيد", "Grand Child", "grand-child.jpg", childOne.Id, 1);
         var inactiveChild = new Category("طفل 3", "Child Three", "child-three.jpg", rootOne.Id, 3);
         inactiveChild.Deactivate();
         var rootOnly = new Category("جذر فقط", "Root Only", "root-only.jpg", null, 3);
 
-        context.Categories.AddRange(childOne, childTwo, inactiveChild, rootOnly);
+        context.Categories.AddRange(childOne, childTwo, grandChild, inactiveChild, rootOnly);
         await context.SaveChangesAsync();
 
         var handler = new GetCategorySubcategoriesQueryHandler(context);
@@ -121,9 +122,9 @@ public class GetCategorySubcategoriesQueryHandlerTests
         var result = await handler.Handle(new GetCategorySubcategoriesQuery(), CancellationToken.None);
 
         result.Should().HaveCount(2);
-        result.Select(x => x.Id).Should().Equal(childTwo.Id, childOne.Id);
-        result.Select(x => x.Name).Should().Equal("Child Two", "Child One");
-        result.Should().NotContain(x => x.Id == inactiveChild.Id || x.Id == rootOnly.Id);
+        result.Select(x => x.Id).Should().Equal(childTwo.Id, grandChild.Id);
+        result.Select(x => x.Name).Should().Equal("Child Two", "Grand Child");
+        result.Should().NotContain(x => x.Id == inactiveChild.Id || x.Id == rootOnly.Id || x.Id == childOne.Id);
     }
 
     private sealed class CultureScope : IDisposable
