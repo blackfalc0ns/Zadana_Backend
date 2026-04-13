@@ -59,7 +59,6 @@ public record HomeDynamicSectionDto(
     [property: JsonPropertyName("subcategory_id")] Guid SubcategoryId,
     [property: JsonPropertyName("is_active")] bool IsActive,
     [property: JsonPropertyName("theme")] string Theme,
-    [property: JsonPropertyName("theme_key")] string ThemeKey,
     [property: JsonPropertyName("theme_label")] string ThemeLabel,
     [property: JsonPropertyName("items_count")] int ItemsCount,
     [property: JsonPropertyName("items")] IReadOnlyList<HomeProductCardDto> Items);

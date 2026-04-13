@@ -62,7 +62,6 @@ public class HomeControllerTests
                 Guid.NewGuid(),
                 true,
                 "theme1",
-                "theme1",
                 "Theme 1",
                 1,
                 [

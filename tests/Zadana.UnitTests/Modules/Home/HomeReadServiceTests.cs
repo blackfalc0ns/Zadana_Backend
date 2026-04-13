@@ -244,7 +244,6 @@ public class HomeReadServiceTests
         result.DynamicSections.Should().ContainSingle();
         result.DynamicSections[0].SubcategoryId.Should().Be(setup.DynamicSectionCategoryId.Value);
         result.DynamicSections[0].Theme.Should().Be("theme1");
-        result.DynamicSections[0].ThemeKey.Should().Be("theme1");
         result.DynamicSections[0].ThemeLabel.Should().Be("Theme 1");
         result.DynamicSections[0].IsActive.Should().BeTrue();
         result.DynamicSections[0].Title.Should().Be("Fruits");

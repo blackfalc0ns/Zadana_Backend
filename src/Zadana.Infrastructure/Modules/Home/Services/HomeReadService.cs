@@ -758,7 +758,6 @@ public class HomeReadService : IHomeReadService
                     section.CategoryId,
                     true,
                     section.Theme.ToClientToken(),
-                    section.Theme.ToClientToken(),
                     PickLocalized(section.Theme.ToArabicLabel(), section.Theme.ToEnglishLabel()),
                     items.Count,
                     items);

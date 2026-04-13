@@ -10538,11 +10538,6 @@
                         "type": "string",
                         "nullable": true
                     },
-                    "theme_key": {
-                        "type": "string",
-                        "description": "Client-facing theme token such as theme1, theme2, or theme3.",
-                        "nullable": true
-                    },
                     "theme_label": {
                         "type": "string",
                         "nullable": true
