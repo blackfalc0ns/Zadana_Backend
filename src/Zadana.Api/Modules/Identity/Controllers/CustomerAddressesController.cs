@@ -6,6 +6,8 @@ using Zadana.Api.Modules.Identity.Requests;
 using Zadana.Application.Common.Interfaces;
 using Zadana.Application.Common.Localization;
 using Zadana.Application.Modules.Identity.Commands.AddCustomerAddress;
+using Zadana.Application.Modules.Identity.Commands.DeleteCustomerAddress;
+using Zadana.Application.Modules.Identity.Commands.UpdateCustomerAddress;
 using Zadana.SharedKernel.Exceptions;
 
 namespace Zadana.Api.Modules.Identity.Controllers;
@@ -50,6 +52,44 @@ public class CustomerAddressesController : ApiControllerBase
 
         var result = await Sender.Send(command);
         return Ok(result);
+    }
+
+    [HttpPut("{addressId:guid}")]
+    public async Task<IActionResult> UpdateAddress(Guid addressId, [FromBody] AddCustomerAddressRequest request)
+    {
+        var userId = _currentUserService.UserId;
+        if (userId == null)
+            throw new UnauthorizedException(_localizer["UserNotAuthenticated"]);
+
+        var command = new UpdateCustomerAddressCommand(
+            addressId,
+            userId.Value,
+            request.ContactName,
+            request.ContactPhone,
+            request.AddressLine,
+            request.Label,
+            request.BuildingNo,
+            request.FloorNo,
+            request.ApartmentNo,
+            request.City,
+            request.Area,
+            request.Latitude,
+            request.Longitude
+        );
+
+        await Sender.Send(command);
+        return NoContent();
+    }
+
+    [HttpDelete("{addressId:guid}")]
+    public async Task<IActionResult> DeleteAddress(Guid addressId)
+    {
+        var userId = _currentUserService.UserId;
+        if (userId == null)
+            throw new UnauthorizedException(_localizer["UserNotAuthenticated"]);
+
+        await Sender.Send(new DeleteCustomerAddressCommand(addressId, userId.Value));
+        return NoContent();
     }
 }
 
