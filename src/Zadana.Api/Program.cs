@@ -7,6 +7,7 @@ using Microsoft.EntityFrameworkCore;
 using Microsoft.IdentityModel.Tokens;
 using Microsoft.OpenApi.Models;
 using Zadana.Api.Configuration;
+using Zadana.Api.BackgroundJobs;
 using Zadana.Api.Middleware;
 using Zadana.Api.Realtime;
 using Zadana.Application;
@@ -70,7 +71,9 @@ builder.Services.AddScoped<IOrderRepository, OrderRepository>();
 builder.Services.AddScoped<IOrderReadService, OrderReadService>();
 builder.Services.AddSingleton<CustomerPresenceService>();
 builder.Services.AddSingleton<ICustomerPresenceService>(provider => provider.GetRequiredService<CustomerPresenceService>());
+builder.Services.AddSingleton<IVendorProductBulkOperationQueue, VendorProductBulkOperationQueue>();
 builder.Services.AddHostedService<CustomerPresenceSweepWorker>();
+builder.Services.AddHostedService<VendorProductBulkOperationWorker>();
 
 builder.Services.AddOptions<Zadana.Infrastructure.Settings.ImageKitSettings>()
     .Bind(builder.Configuration.GetSection(Zadana.Infrastructure.Settings.ImageKitSettings.SectionName))

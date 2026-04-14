@@ -18,19 +18,22 @@ public class GetCustomerAddressesQueryHandler : IRequestHandler<GetCustomerAddre
 
     public async Task<IReadOnlyList<CustomerAddressDto>> Handle(GetCustomerAddressesQuery request, CancellationToken cancellationToken)
     {
-        return await _context.CustomerAddresses
+        var addresses = await _context.CustomerAddresses
             .AsNoTracking()
             .Where(x => x.UserId == request.UserId)
             .OrderByDescending(x => x.IsDefault)
             .ThenBy(x => x.City)
             .ThenBy(x => x.Area)
             .ThenBy(x => x.AddressLine)
+            .ToListAsync(cancellationToken);
+
+        return addresses
             .Select(x => new CustomerAddressDto(
                 x.Id,
                 x.ContactName,
                 x.ContactPhone,
                 x.AddressLine,
-                x.Label.HasValue ? x.Label.Value.ToString() : null,
+                x.Label?.ToString(),
                 x.BuildingNo,
                 x.FloorNo,
                 x.ApartmentNo,
@@ -39,6 +42,6 @@ public class GetCustomerAddressesQueryHandler : IRequestHandler<GetCustomerAddre
                 x.Latitude,
                 x.Longitude,
                 x.IsDefault))
-            .ToListAsync(cancellationToken);
+            .ToList();
     }
 }

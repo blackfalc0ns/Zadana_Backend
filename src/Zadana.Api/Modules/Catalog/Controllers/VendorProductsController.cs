@@ -4,10 +4,13 @@ using Zadana.Api.Controllers;
 using Zadana.Application.Common.Interfaces;
 using Zadana.Application.Common.Models;
 using Zadana.Application.Modules.Catalog.Commands.CreateVendorProduct;
+using Zadana.Application.Modules.Catalog.Commands.VendorProducts.BulkCreateVendorProducts;
 using Zadana.Application.Modules.Catalog.Commands.VendorProducts.ChangeStatus;
 using Zadana.Application.Modules.Catalog.Commands.VendorProducts.UpdateVendorProduct;
 using Zadana.Application.Modules.Catalog.DTOs;
 using Zadana.Application.Modules.Catalog.Queries.GetVendorProducts;
+using Zadana.Application.Modules.Catalog.Queries.VendorProducts.GetVendorProductBulkOperation;
+using Zadana.Application.Modules.Catalog.Queries.VendorProducts.GetVendorProductBulkOperationItems;
 using Zadana.Application.Modules.Catalog.Queries.VendorProducts.GetVendorProductById;
 
 namespace Zadana.Api.Modules.Catalog.Controllers;
@@ -66,6 +69,43 @@ public class VendorProductsController : ApiControllerBase
         return CreatedAtAction(nameof(GetProductById), new { id = result }, result);
     }
 
+    [HttpPost("bulk")]
+    public async Task<ActionResult<VendorProductBulkOperationDto>> CreateProductsBulk([FromBody] BulkCreateVendorProductsRequest request)
+    {
+        var vendorId = await _currentVendorService.GetRequiredVendorIdAsync(HttpContext.RequestAborted);
+        var command = new BulkCreateVendorProductsCommand(
+            vendorId,
+            request.IdempotencyKey,
+            request.Items.Select(item => new BulkCreateVendorProductItemInput(
+                item.MasterProductId,
+                item.SellingPrice,
+                item.CompareAtPrice,
+                item.StockQty,
+                item.BranchId,
+                item.Sku,
+                item.MinOrderQty,
+                item.MaxOrderQty)).ToList());
+
+        var result = await Sender.Send(command);
+        return AcceptedAtAction(nameof(GetBulkOperation), new { operationId = result.Id }, result);
+    }
+
+    [HttpGet("bulk/{operationId:guid}")]
+    public async Task<ActionResult<VendorProductBulkOperationDto>> GetBulkOperation(Guid operationId)
+    {
+        var vendorId = await _currentVendorService.GetRequiredVendorIdAsync(HttpContext.RequestAborted);
+        var result = await Sender.Send(new GetVendorProductBulkOperationQuery(operationId, vendorId));
+        return Ok(result);
+    }
+
+    [HttpGet("bulk/{operationId:guid}/items")]
+    public async Task<ActionResult<IReadOnlyList<VendorProductBulkOperationItemDto>>> GetBulkOperationItems(Guid operationId)
+    {
+        var vendorId = await _currentVendorService.GetRequiredVendorIdAsync(HttpContext.RequestAborted);
+        var result = await Sender.Send(new GetVendorProductBulkOperationItemsQuery(operationId, vendorId));
+        return Ok(result);
+    }
+
     [HttpPut("{id}")]
     public async Task<ActionResult> UpdateProduct(Guid id, [FromBody] UpdateVendorProductRequest request)
     {
@@ -106,6 +146,20 @@ public record CreateVendorProductRequest(
     int? MaxOrderQty,
     string? Sku,
     Guid? BranchId);
+
+public record BulkCreateVendorProductsRequest(
+    string IdempotencyKey,
+    IReadOnlyList<BulkCreateVendorProductItemRequest> Items);
+
+public record BulkCreateVendorProductItemRequest(
+    Guid MasterProductId,
+    decimal SellingPrice,
+    decimal? CompareAtPrice,
+    int StockQty,
+    Guid? BranchId,
+    string? Sku,
+    int MinOrderQty = 1,
+    int? MaxOrderQty = null);
 
 public record UpdateVendorProductRequest(
     decimal SellingPrice,

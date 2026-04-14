@@ -31,6 +31,8 @@ public interface IApplicationDbContext
     DbSet<UnitOfMeasure> UnitsOfMeasure { get; }
     DbSet<MasterProduct> MasterProducts { get; }
     DbSet<VendorProduct> VendorProducts { get; }
+    DbSet<VendorProductBulkOperation> VendorProductBulkOperations { get; }
+    DbSet<VendorProductBulkOperationItem> VendorProductBulkOperationItems { get; }
     DbSet<ProductRequest> ProductRequests { get; }
     DbSet<BrandRequest> BrandRequests { get; }
     DbSet<CategoryRequest> CategoryRequests { get; }
