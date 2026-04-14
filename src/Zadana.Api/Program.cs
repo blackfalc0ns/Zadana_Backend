@@ -71,8 +71,10 @@ builder.Services.AddScoped<IOrderRepository, OrderRepository>();
 builder.Services.AddScoped<IOrderReadService, OrderReadService>();
 builder.Services.AddSingleton<CustomerPresenceService>();
 builder.Services.AddSingleton<ICustomerPresenceService>(provider => provider.GetRequiredService<CustomerPresenceService>());
+builder.Services.AddSingleton<IAdminMasterProductBulkOperationQueue, AdminMasterProductBulkOperationQueue>();
 builder.Services.AddSingleton<IVendorProductBulkOperationQueue, VendorProductBulkOperationQueue>();
 builder.Services.AddHostedService<CustomerPresenceSweepWorker>();
+builder.Services.AddHostedService<AdminMasterProductBulkOperationWorker>();
 builder.Services.AddHostedService<VendorProductBulkOperationWorker>();
 
 builder.Services.AddOptions<Zadana.Infrastructure.Settings.ImageKitSettings>()

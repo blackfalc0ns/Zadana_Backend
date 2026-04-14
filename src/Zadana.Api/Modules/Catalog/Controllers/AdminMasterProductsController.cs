@@ -2,14 +2,19 @@
 using Microsoft.AspNetCore.Mvc;
 using Zadana.Api.Controllers;
 using Zadana.Api.Modules.Catalog.Requests;
+using Zadana.Application.Common.Interfaces;
 using Zadana.Application.Common.Models;
+using Zadana.Application.Modules.Catalog.Commands.AdminMasterProducts.BulkCreateMasterProducts;
 using Zadana.Application.Modules.Catalog.Commands.CreateMasterProduct;
 using Zadana.Application.Modules.Catalog.Commands.DeleteMasterProduct;
 using Zadana.Application.Modules.Catalog.Commands.UpdateMasterProduct;
 using Zadana.Application.Modules.Catalog.DTOs;
 using Zadana.Application.Modules.Catalog.Queries.GetMasterProductById;
 using Zadana.Application.Modules.Catalog.Queries.GetMasterProducts;
+using Zadana.Application.Modules.Catalog.Queries.AdminMasterProducts.GetAdminMasterProductBulkOperation;
+using Zadana.Application.Modules.Catalog.Queries.AdminMasterProducts.GetAdminMasterProductBulkOperationItems;
 using Zadana.Domain.Modules.Catalog.Enums;
+using Zadana.SharedKernel.Exceptions;
 
 namespace Zadana.Api.Modules.Catalog.Controllers;
 
@@ -18,6 +23,13 @@ namespace Zadana.Api.Modules.Catalog.Controllers;
 [Tags("Catalog (Admins)")]
 public class AdminMasterProductsController : ApiControllerBase
 {
+    private readonly ICurrentUserService _currentUserService;
+
+    public AdminMasterProductsController(ICurrentUserService currentUserService)
+    {
+        _currentUserService = currentUserService;
+    }
+
     [HttpGet]
     public async Task<ActionResult<PaginatedList<MasterProductDto>>> GetProducts(
         [FromQuery] int pageNumber = 1,
@@ -80,6 +92,46 @@ public class AdminMasterProductsController : ApiControllerBase
         return Ok(result);
     }
 
+    [HttpPost("bulk")]
+    public async Task<ActionResult<AdminMasterProductBulkOperationDto>> CreateProductsBulk([FromBody] BulkCreateMasterProductsRequest request)
+    {
+        var adminUserId = _currentUserService.UserId ?? throw new UnauthorizedException("USER_NOT_AUTHENTICATED");
+
+        var command = new BulkCreateMasterProductsCommand(
+            adminUserId,
+            request.IdempotencyKey,
+            request.Items.Select(item => new BulkCreateMasterProductItemInput(
+                item.NameAr,
+                item.NameEn,
+                item.Slug,
+                item.Barcode,
+                item.CategoryId,
+                item.BrandId,
+                item.UnitId,
+                item.Status,
+                item.DescriptionAr,
+                item.DescriptionEn)).ToList());
+
+        var result = await Sender.Send(command);
+        return AcceptedAtAction(nameof(GetBulkOperation), new { operationId = result.Id }, result);
+    }
+
+    [HttpGet("bulk/{operationId:guid}")]
+    public async Task<ActionResult<AdminMasterProductBulkOperationDto>> GetBulkOperation(Guid operationId)
+    {
+        var adminUserId = _currentUserService.UserId ?? throw new UnauthorizedException("USER_NOT_AUTHENTICATED");
+        var result = await Sender.Send(new GetAdminMasterProductBulkOperationQuery(operationId, adminUserId));
+        return Ok(result);
+    }
+
+    [HttpGet("bulk/{operationId:guid}/items")]
+    public async Task<ActionResult<IReadOnlyList<AdminMasterProductBulkOperationItemDto>>> GetBulkOperationItems(Guid operationId)
+    {
+        var adminUserId = _currentUserService.UserId ?? throw new UnauthorizedException("USER_NOT_AUTHENTICATED");
+        var result = await Sender.Send(new GetAdminMasterProductBulkOperationItemsQuery(operationId, adminUserId));
+        return Ok(result);
+    }
+
     [HttpPut("{id}")]
     public async Task<ActionResult> UpdateProduct(Guid id, [FromBody] UpdateMasterProductRequest request)
     {
@@ -118,4 +170,20 @@ public class AdminMasterProductsController : ApiControllerBase
         return Ok(result);
     }
 }
+
+public record BulkCreateMasterProductsRequest(
+    string IdempotencyKey,
+    IReadOnlyList<BulkCreateMasterProductItemRequest> Items);
+
+public record BulkCreateMasterProductItemRequest(
+    string NameAr,
+    string NameEn,
+    string? Slug,
+    string? Barcode,
+    Guid CategoryId,
+    Guid? BrandId,
+    Guid? UnitId,
+    ProductStatus Status,
+    string? DescriptionAr,
+    string? DescriptionEn);
 
