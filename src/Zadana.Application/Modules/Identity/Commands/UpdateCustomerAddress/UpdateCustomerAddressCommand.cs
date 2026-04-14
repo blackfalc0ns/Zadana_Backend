@@ -17,7 +17,8 @@ public record UpdateCustomerAddressCommand(
     string? City,
     string? Area,
     decimal? Latitude,
-    decimal? Longitude) : MediatR.IRequest;
+    decimal? Longitude,
+    bool IsDefault = false) : MediatR.IRequest;
 
 public class UpdateCustomerAddressCommandValidator : AbstractValidator<UpdateCustomerAddressCommand>
 {

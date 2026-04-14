@@ -45,6 +45,20 @@ public class UpdateCustomerAddressCommandHandler : IRequestHandler<UpdateCustome
             request.Latitude,
             request.Longitude);
 
+        if (request.IsDefault)
+        {
+            var currentDefaults = await _context.CustomerAddresses
+                .Where(x => x.UserId == request.UserId && x.IsDefault && x.Id != request.AddressId)
+                .ToListAsync(cancellationToken);
+
+            foreach (var currentDefault in currentDefaults)
+            {
+                currentDefault.RemoveDefault();
+            }
+
+            address.SetAsDefault();
+        }
+
         await _context.SaveChangesAsync(cancellationToken);
     }
 }

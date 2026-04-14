@@ -7,7 +7,10 @@ using Zadana.Application.Common.Interfaces;
 using Zadana.Application.Common.Localization;
 using Zadana.Application.Modules.Identity.Commands.AddCustomerAddress;
 using Zadana.Application.Modules.Identity.Commands.DeleteCustomerAddress;
+using Zadana.Application.Modules.Identity.Commands.SetDefaultCustomerAddress;
 using Zadana.Application.Modules.Identity.Commands.UpdateCustomerAddress;
+using Zadana.Application.Modules.Identity.DTOs;
+using Zadana.Application.Modules.Identity.Queries.GetCustomerAddresses;
 using Zadana.SharedKernel.Exceptions;
 
 namespace Zadana.Api.Modules.Identity.Controllers;
@@ -28,8 +31,19 @@ public class CustomerAddressesController : ApiControllerBase
         _localizer = localizer;
     }
 
+    [HttpGet]
+    public async Task<ActionResult<IReadOnlyList<CustomerAddressDto>>> GetAddresses()
+    {
+        var userId = _currentUserService.UserId;
+        if (userId == null)
+            throw new UnauthorizedException(_localizer["UserNotAuthenticated"]);
+
+        var result = await Sender.Send(new GetCustomerAddressesQuery(userId.Value));
+        return Ok(result);
+    }
+
     [HttpPost]
-    public async Task<IActionResult> AddAddress([FromBody] AddCustomerAddressRequest request)
+    public async Task<ActionResult<CustomerAddressDto>> AddAddress([FromBody] AddCustomerAddressRequest request)
     {
         var userId = _currentUserService.UserId;
         if (userId == null)
@@ -47,7 +61,8 @@ public class CustomerAddressesController : ApiControllerBase
             request.City,
             request.Area,
             request.Latitude,
-            request.Longitude
+            request.Longitude,
+            request.IsDefault
         );
 
         var result = await Sender.Send(command);
@@ -74,10 +89,22 @@ public class CustomerAddressesController : ApiControllerBase
             request.City,
             request.Area,
             request.Latitude,
-            request.Longitude
+            request.Longitude,
+            request.IsDefault
         );
 
         await Sender.Send(command);
+        return NoContent();
+    }
+
+    [HttpPatch("{addressId:guid}/default")]
+    public async Task<IActionResult> SetDefaultAddress(Guid addressId)
+    {
+        var userId = _currentUserService.UserId;
+        if (userId == null)
+            throw new UnauthorizedException(_localizer["UserNotAuthenticated"]);
+
+        await Sender.Send(new SetDefaultCustomerAddressCommand(addressId, userId.Value));
         return NoContent();
     }
 

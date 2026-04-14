@@ -1,5 +1,7 @@
 using MediatR;
+using Microsoft.EntityFrameworkCore;
 using Zadana.Application.Common.Interfaces;
+using Zadana.Application.Modules.Identity.DTOs;
 using Zadana.Application.Modules.Identity.Interfaces;
 using Zadana.Domain.Modules.Identity.Entities;
 using Zadana.Domain.Modules.Identity.Enums;
@@ -7,7 +9,7 @@ using Zadana.SharedKernel.Exceptions;
 
 namespace Zadana.Application.Modules.Identity.Commands.AddCustomerAddress;
 
-public class AddCustomerAddressCommandHandler : IRequestHandler<AddCustomerAddressCommand, Guid>
+public class AddCustomerAddressCommandHandler : IRequestHandler<AddCustomerAddressCommand, CustomerAddressDto>
 {
     private readonly IApplicationDbContext _context;
     private readonly IIdentityAccountService _identityAccountService;
@@ -18,9 +20,8 @@ public class AddCustomerAddressCommandHandler : IRequestHandler<AddCustomerAddre
         _identityAccountService = identityAccountService;
     }
 
-    public async Task<Guid> Handle(AddCustomerAddressCommand request, CancellationToken cancellationToken)
+    public async Task<CustomerAddressDto> Handle(AddCustomerAddressCommand request, CancellationToken cancellationToken)
     {
-        // Check if user exists
         var userExists = await _identityAccountService.ExistsByIdAsync(request.UserId, cancellationToken);
         if (!userExists)
             throw new NotFoundException("User", request.UserId);
@@ -46,9 +47,39 @@ public class AddCustomerAddressCommandHandler : IRequestHandler<AddCustomerAddre
             longitude: request.Longitude
         );
 
+        var hasExistingDefault = await _context.CustomerAddresses
+            .AnyAsync(x => x.UserId == request.UserId && x.IsDefault, cancellationToken);
+
+        if (request.IsDefault || !hasExistingDefault)
+        {
+            var currentDefaults = await _context.CustomerAddresses
+                .Where(x => x.UserId == request.UserId && x.IsDefault)
+                .ToListAsync(cancellationToken);
+
+            foreach (var currentDefault in currentDefaults)
+            {
+                currentDefault.RemoveDefault();
+            }
+
+            address.SetAsDefault();
+        }
+
         _context.CustomerAddresses.Add(address);
         await _context.SaveChangesAsync(cancellationToken);
 
-        return address.Id;
+        return new CustomerAddressDto(
+            address.Id,
+            address.ContactName,
+            address.ContactPhone,
+            address.AddressLine,
+            address.Label?.ToString(),
+            address.BuildingNo,
+            address.FloorNo,
+            address.ApartmentNo,
+            address.City,
+            address.Area,
+            address.Latitude,
+            address.Longitude,
+            address.IsDefault);
     }
 }

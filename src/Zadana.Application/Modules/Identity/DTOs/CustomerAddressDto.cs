@@ -1,6 +1,7 @@
-namespace Zadana.Api.Modules.Identity.Requests;
+namespace Zadana.Application.Modules.Identity.DTOs;
 
-public record AddCustomerAddressRequest(
+public record CustomerAddressDto(
+    Guid Id,
     string ContactName,
     string ContactPhone,
     string AddressLine,
@@ -12,4 +13,4 @@ public record AddCustomerAddressRequest(
     string? Area,
     decimal? Latitude,
     decimal? Longitude,
-    bool IsDefault = false);
+    bool IsDefault);

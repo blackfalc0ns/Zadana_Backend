@@ -1,4 +1,5 @@
 using FluentValidation;
+using Zadana.Application.Modules.Identity.DTOs;
 using Zadana.Domain.Modules.Identity.Enums;
 
 namespace Zadana.Application.Modules.Identity.Commands.AddCustomerAddress;
@@ -15,7 +16,8 @@ public record AddCustomerAddressCommand(
     string? City,
     string? Area,
     decimal? Latitude,
-    decimal? Longitude) : MediatR.IRequest<Guid>;
+    decimal? Longitude,
+    bool IsDefault = false) : MediatR.IRequest<CustomerAddressDto>;
 
 public class AddCustomerAddressCommandValidator : AbstractValidator<AddCustomerAddressCommand>
 {

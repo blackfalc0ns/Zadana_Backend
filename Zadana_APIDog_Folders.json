@@ -249,7 +249,24 @@
                 },
                 "responses": {
                     "200": {
-                        "description": "OK"
+                        "description": "OK",
+                        "content": {
+                            "application/json": {
+                                "schema": {
+                                    "$ref": "#/components/schemas/CustomerAddressDto"
+                                }
+                            },
+                            "text/json": {
+                                "schema": {
+                                    "$ref": "#/components/schemas/CustomerAddressDto"
+                                }
+                            },
+                            "application/*+json": {
+                                "schema": {
+                                    "$ref": "#/components/schemas/CustomerAddressDto"
+                                }
+                            }
+                        }
                     }
                 }
             }
@@ -1091,6 +1108,42 @@
             }
         },
         "/api/customers/addresses": {
+            "get": {
+                "tags": [
+                    "Customer/Addresses"
+                ],
+                "responses": {
+                    "200": {
+                        "description": "OK",
+                        "content": {
+                            "application/json": {
+                                "schema": {
+                                    "type": "array",
+                                    "items": {
+                                        "$ref": "#/components/schemas/CustomerAddressDto"
+                                    }
+                                }
+                            },
+                            "text/json": {
+                                "schema": {
+                                    "type": "array",
+                                    "items": {
+                                        "$ref": "#/components/schemas/CustomerAddressDto"
+                                    }
+                                }
+                            },
+                            "application/*+json": {
+                                "schema": {
+                                    "type": "array",
+                                    "items": {
+                                        "$ref": "#/components/schemas/CustomerAddressDto"
+                                    }
+                                }
+                            }
+                        }
+                    }
+                }
+            },
             "post": {
                 "tags": [
                     "Customer/Addresses"
@@ -1116,7 +1169,24 @@
                 },
                 "responses": {
                     "200": {
-                        "description": "OK"
+                        "description": "OK",
+                        "content": {
+                            "application/json": {
+                                "schema": {
+                                    "$ref": "#/components/schemas/CustomerAddressDto"
+                                }
+                            },
+                            "text/json": {
+                                "schema": {
+                                    "$ref": "#/components/schemas/CustomerAddressDto"
+                                }
+                            },
+                            "application/*+json": {
+                                "schema": {
+                                    "$ref": "#/components/schemas/CustomerAddressDto"
+                                }
+                            }
+                        }
                     }
                 }
             }
@@ -1163,6 +1233,29 @@
                 }
             },
             "delete": {
+                "tags": [
+                    "Customer/Addresses"
+                ],
+                "parameters": [
+                    {
+                        "name": "addressId",
+                        "in": "path",
+                        "required": true,
+                        "schema": {
+                            "type": "string",
+                            "format": "uuid"
+                        }
+                    }
+                ],
+                "responses": {
+                    "204": {
+                        "description": "No Content"
+                    }
+                }
+            }
+        },
+        "/api/customers/addresses/{addressId}/default": {
+            "patch": {
                 "tags": [
                     "Customer/Addresses"
                 ],
@@ -7157,6 +7250,68 @@
                         "type": "number",
                         "format": "double",
                         "nullable": true
+                    },
+                    "isDefault": {
+                        "type": "boolean"
+                    }
+                },
+                "additionalProperties": false
+            },
+            "CustomerAddressDto": {
+                "type": "object",
+                "properties": {
+                    "id": {
+                        "type": "string",
+                        "format": "uuid"
+                    },
+                    "contactName": {
+                        "type": "string",
+                        "nullable": true
+                    },
+                    "contactPhone": {
+                        "type": "string",
+                        "nullable": true
+                    },
+                    "addressLine": {
+                        "type": "string",
+                        "nullable": true
+                    },
+                    "label": {
+                        "type": "string",
+                        "nullable": true
+                    },
+                    "buildingNo": {
+                        "type": "string",
+                        "nullable": true
+                    },
+                    "floorNo": {
+                        "type": "string",
+                        "nullable": true
+                    },
+                    "apartmentNo": {
+                        "type": "string",
+                        "nullable": true
+                    },
+                    "city": {
+                        "type": "string",
+                        "nullable": true
+                    },
+                    "area": {
+                        "type": "string",
+                        "nullable": true
+                    },
+                    "latitude": {
+                        "type": "number",
+                        "format": "double",
+                        "nullable": true
+                    },
+                    "longitude": {
+                        "type": "number",
+                        "format": "double",
+                        "nullable": true
+                    },
+                    "isDefault": {
+                        "type": "boolean"
                     }
                 },
                 "additionalProperties": false
