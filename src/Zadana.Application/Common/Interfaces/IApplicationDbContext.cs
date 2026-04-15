@@ -30,6 +30,8 @@ public interface IApplicationDbContext
     DbSet<Part> Parts { get; }
     DbSet<UnitOfMeasure> UnitsOfMeasure { get; }
     DbSet<MasterProduct> MasterProducts { get; }
+    DbSet<AdminBrandBulkOperation> AdminBrandBulkOperations { get; }
+    DbSet<AdminBrandBulkOperationItem> AdminBrandBulkOperationItems { get; }
     DbSet<AdminMasterProductBulkOperation> AdminMasterProductBulkOperations { get; }
     DbSet<AdminMasterProductBulkOperationItem> AdminMasterProductBulkOperationItems { get; }
     DbSet<VendorProduct> VendorProducts { get; }

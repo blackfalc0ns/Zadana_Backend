@@ -6,6 +6,12 @@ using Zadana.Domain.Modules.Catalog.Enums;
 
 namespace Zadana.Application.Modules.Catalog.Commands.AdminMasterProducts.BulkCreateMasterProducts;
 
+public record BulkCreateMasterProductImageInput(
+    string Url,
+    string? AltText,
+    int DisplayOrder,
+    bool IsPrimary);
+
 public record BulkCreateMasterProductItemInput(
     string NameAr,
     string NameEn,
@@ -16,7 +22,8 @@ public record BulkCreateMasterProductItemInput(
     Guid? UnitId,
     ProductStatus Status,
     string? DescriptionAr,
-    string? DescriptionEn);
+    string? DescriptionEn,
+    IReadOnlyList<BulkCreateMasterProductImageInput>? Images);
 
 public record BulkCreateMasterProductsCommand(
     Guid AdminUserId,
@@ -48,6 +55,14 @@ public class BulkCreateMasterProductsCommandValidator : AbstractValidator<BulkCr
                 .MaximumLength(100).When(x => !string.IsNullOrWhiteSpace(x.Barcode)).WithMessage(x => localizer["MaxLength"]);
             item.RuleFor(x => x.CategoryId)
                 .NotEmpty().WithMessage(x => localizer["RequiredField"]);
+            item.RuleForEach(x => x.Images!).ChildRules(image =>
+            {
+                image.RuleFor(x => x.Url)
+                    .NotEmpty().WithMessage(x => localizer["RequiredField"])
+                    .MaximumLength(500).WithMessage(x => localizer["MaxLength"]);
+                image.RuleFor(x => x.AltText)
+                    .MaximumLength(500).When(x => !string.IsNullOrWhiteSpace(x.AltText)).WithMessage(x => localizer["MaxLength"]);
+            }).When(x => x.Images is { Count: > 0 });
         });
     }
 }

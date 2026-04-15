@@ -92,7 +92,12 @@ public class BulkCreateMasterProductsCommandHandler : IRequestHandler<BulkCreate
                 item.UnitId,
                 item.Status,
                 item.DescriptionAr,
-                item.DescriptionEn))
+                item.DescriptionEn,
+                item.Images?.Select(image => new AdminMasterProductBulkOperationItemImage(
+                    image.Url,
+                    image.AltText,
+                    image.DisplayOrder,
+                    image.IsPrimary)).ToList()))
             .ToList();
 
         var operation = new AdminMasterProductBulkOperation(request.AdminUserId, request.IdempotencyKey, items);

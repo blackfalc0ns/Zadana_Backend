@@ -33,6 +33,9 @@ public class AdminMasterProductBulkOperationItemConfiguration : IEntityTypeConfi
         builder.Property(x => x.DescriptionEn)
             .HasMaxLength(2000);
 
+        builder.Property(x => x.ImagesJson)
+            .HasColumnType("nvarchar(max)");
+
         builder.Property(x => x.ErrorMessage)
             .HasMaxLength(1000);
 

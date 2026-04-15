@@ -1,3 +1,4 @@
+using System.Text.Json;
 using Zadana.Domain.Modules.Catalog.Enums;
 using Zadana.SharedKernel.Primitives;
 
@@ -17,6 +18,7 @@ public class AdminMasterProductBulkOperationItem : BaseEntity
     public ProductStatus StatusValue { get; private set; }
     public string? DescriptionAr { get; private set; }
     public string? DescriptionEn { get; private set; }
+    public string? ImagesJson { get; private set; }
     public AdminMasterProductBulkOperationItemStatus Status { get; private set; }
     public string? ErrorMessage { get; private set; }
     public Guid? CreatedMasterProductId { get; private set; }
@@ -39,7 +41,8 @@ public class AdminMasterProductBulkOperationItem : BaseEntity
         Guid? unitId,
         ProductStatus statusValue,
         string? descriptionAr,
-        string? descriptionEn)
+        string? descriptionEn,
+        IReadOnlyList<AdminMasterProductBulkOperationItemImage>? images = null)
     {
         RowNumber = rowNumber;
         NameAr = nameAr.Trim();
@@ -52,6 +55,7 @@ public class AdminMasterProductBulkOperationItem : BaseEntity
         StatusValue = statusValue;
         DescriptionAr = descriptionAr?.Trim();
         DescriptionEn = descriptionEn?.Trim();
+        ImagesJson = images is { Count: > 0 } ? JsonSerializer.Serialize(images) : null;
         Status = AdminMasterProductBulkOperationItemStatus.Pending;
     }
 
@@ -85,3 +89,9 @@ public class AdminMasterProductBulkOperationItem : BaseEntity
         ErrorMessage = errorMessage;
     }
 }
+
+public record AdminMasterProductBulkOperationItemImage(
+    string Url,
+    string? AltText,
+    int DisplayOrder,
+    bool IsPrimary);

@@ -1,3 +1,4 @@
+using System.Text.Json;
 using System.Text;
 using Microsoft.EntityFrameworkCore;
 using Zadana.Domain.Modules.Catalog.Entities;
@@ -144,6 +145,12 @@ public sealed class AdminMasterProductBulkOperationWorker : BackgroundService
 
                     masterProduct.SetStatus(item.StatusValue);
 
+                    var images = DeserializeImages(item.ImagesJson);
+                    foreach (var image in images.OrderBy(x => x.DisplayOrder))
+                    {
+                        masterProduct.AddImage(image.Url, image.AltText, image.DisplayOrder, image.IsPrimary);
+                    }
+
                     context.MasterProducts.Add(masterProduct);
                     await context.SaveChangesAsync(cancellationToken);
 
@@ -241,5 +248,15 @@ public sealed class AdminMasterProductBulkOperationWorker : BackgroundService
         }
 
         return builder.ToString().Trim('-');
+    }
+
+    private static IReadOnlyList<AdminMasterProductBulkOperationItemImage> DeserializeImages(string? imagesJson)
+    {
+        if (string.IsNullOrWhiteSpace(imagesJson))
+        {
+            return [];
+        }
+
+        return JsonSerializer.Deserialize<List<AdminMasterProductBulkOperationItemImage>>(imagesJson) ?? [];
     }
 }

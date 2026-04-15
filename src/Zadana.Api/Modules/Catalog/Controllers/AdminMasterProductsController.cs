@@ -110,7 +110,12 @@ public class AdminMasterProductsController : ApiControllerBase
                 item.UnitId,
                 item.Status,
                 item.DescriptionAr,
-                item.DescriptionEn)).ToList());
+                item.DescriptionEn,
+                item.Images?.Select(image => new BulkCreateMasterProductImageInput(
+                    image.Url,
+                    image.AltText,
+                    image.DisplayOrder,
+                    image.IsPrimary)).ToList())).ToList());
 
         var result = await Sender.Send(command);
         return AcceptedAtAction(nameof(GetBulkOperation), new { operationId = result.Id }, result);
@@ -185,5 +190,12 @@ public record BulkCreateMasterProductItemRequest(
     Guid? UnitId,
     ProductStatus Status,
     string? DescriptionAr,
-    string? DescriptionEn);
+    string? DescriptionEn,
+    IReadOnlyList<BulkCreateMasterProductImageRequest>? Images);
+
+public record BulkCreateMasterProductImageRequest(
+    string Url,
+    string? AltText,
+    int DisplayOrder,
+    bool IsPrimary);
 
