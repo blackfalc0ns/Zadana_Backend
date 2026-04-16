@@ -39,15 +39,30 @@ public class Payment : BaseEntity
         Status = PaymentStatus.Pending;
     }
 
-    public void MarkAsPaid()
+    public void SetProviderTransactionId(string transactionId)
     {
+        ProviderTransactionId = transactionId.Trim();
+    }
+
+    public void MarkAsPaid(string? transactionId = null)
+    {
+        if (!string.IsNullOrWhiteSpace(transactionId))
+        {
+            ProviderTransactionId = transactionId.Trim();
+        }
+
         Status = PaymentStatus.Paid;
         PaidAtUtc = DateTime.UtcNow;
         Order?.UpdatePaymentStatus(Status);
     }
 
-    public void MarkAsFailed(string? failureReason)
+    public void MarkAsFailed(string? failureReason, string? transactionId = null)
     {
+        if (!string.IsNullOrWhiteSpace(transactionId))
+        {
+            ProviderTransactionId = transactionId.Trim();
+        }
+
         Status = PaymentStatus.Failed;
         FailedAtUtc = DateTime.UtcNow;
         Order?.UpdatePaymentStatus(Status);

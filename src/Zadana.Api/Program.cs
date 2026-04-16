@@ -16,6 +16,7 @@ using Zadana.Application.Modules.Catalog.Interfaces;
 using Zadana.Application.Modules.Delivery.Interfaces;
 using Zadana.Application.Modules.Home.Interfaces;
 using Zadana.Application.Modules.Orders.Interfaces;
+using Zadana.Application.Modules.Payments.Interfaces;
 using Zadana.Application.Modules.Vendors.Interfaces;
 using Zadana.Infrastructure.Modules.Catalog.Repositories;
 using Zadana.Infrastructure.Modules.Catalog.Services;
@@ -29,6 +30,8 @@ using Zadana.Infrastructure.Modules.Vendors.Repositories;
 using Zadana.Infrastructure.Modules.Vendors.Services;
 using Zadana.Infrastructure.Persistence;
 using Zadana.Infrastructure.Persistence.Interceptors;
+using Zadana.Infrastructure.Services;
+using Zadana.Infrastructure.Settings;
 
 var builder = WebApplication.CreateBuilder(args);
 var jwtSecret = builder.Configuration.GetRequiredSetting("JwtSettings:Secret");
@@ -83,6 +86,15 @@ builder.Services.AddOptions<Zadana.Infrastructure.Settings.ImageKitSettings>()
     .Bind(builder.Configuration.GetSection(Zadana.Infrastructure.Settings.ImageKitSettings.SectionName))
     .ValidateDataAnnotations()
     .ValidateOnStart();
+
+builder.Services.AddOptions<PaymobSettings>()
+    .Bind(builder.Configuration.GetSection(PaymobSettings.SectionName));
+
+builder.Services.AddHttpClient<IPaymobGateway, PaymobGateway>((serviceProvider, client) =>
+{
+    var settings = serviceProvider.GetRequiredService<Microsoft.Extensions.Options.IOptions<PaymobSettings>>().Value;
+    client.BaseAddress = new Uri(string.IsNullOrWhiteSpace(settings.BaseUrl) ? "https://accept.paymob.com" : settings.BaseUrl);
+});
 
 if (builder.Environment.IsEnvironment("Testing"))
 {
