@@ -4,7 +4,6 @@ using Zadana.Api.Controllers;
 using Zadana.Api.Modules.Orders.Requests;
 using Zadana.Application.Common.Interfaces;
 using Zadana.Application.Modules.Checkout.Commands.ApplyCheckoutPromoCode;
-using Zadana.Application.Modules.Checkout.Commands.PlaceCheckoutOrder;
 using Zadana.Application.Modules.Checkout.Commands.RemoveCheckoutPromoCode;
 using Zadana.Application.Modules.Checkout.DTOs;
 using Zadana.Application.Modules.Checkout.Queries.GetCheckoutSummary;
@@ -80,30 +79,6 @@ public class CheckoutController : ApiControllerBase
                 result.Summary.Discount,
                 result.Summary.Total,
                 result.Summary.Currency)));
-    }
-
-    [HttpPost("place-order")]
-    public async Task<ActionResult<PlaceOrderResponse>> PlaceOrderCompatibility(
-        [FromBody] LegacyPlaceCheckoutOrderRequest? request,
-        CancellationToken cancellationToken = default)
-    {
-        if (request is null)
-        {
-            throw new BadRequestException("INVALID_REQUEST_BODY", "Request body is required.");
-        }
-
-        var userId = _currentUserService.UserId ?? throw new UnauthorizedException("USER_NOT_AUTHENTICATED");
-        var result = await Sender.Send(
-            new PlaceCheckoutOrderCommand(
-                userId,
-                request.AddressId,
-                null,
-                request.PaymentMethodId,
-                request.PromoCode,
-                request.Notes),
-            cancellationToken);
-
-        return Ok(MapPlacedOrder(result));
     }
 
     private static GetCheckoutSummaryResponse MapSummary(CheckoutSummaryDto result)

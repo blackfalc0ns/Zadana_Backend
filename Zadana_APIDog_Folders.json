@@ -6266,57 +6266,6 @@
                 }
             }
         },
-        "/api/checkout/place-order": {
-            "post": {
-                "summary": "Place checkout order (compatibility endpoint)",
-                "description": "Legacy compatibility endpoint for older clients. It accepts the historical checkout payload, infers the new checkout flow behind the scenes, and returns the same order and optional payment payload used by POST /api/orders.",
-                "tags": [
-                    "Customer/Checkout"
-                ],
-                "requestBody": {
-                    "required": true,
-                    "content": {
-                        "application/json": {
-                            "schema": {
-                                "$ref": "#/components/schemas/LegacyPlaceCheckoutOrderRequest"
-                            }
-                        },
-                        "text/json": {
-                            "schema": {
-                                "$ref": "#/components/schemas/LegacyPlaceCheckoutOrderRequest"
-                            }
-                        },
-                        "text/plain": {
-                            "schema": {
-                                "$ref": "#/components/schemas/LegacyPlaceCheckoutOrderRequest"
-                            }
-                        }
-                    }
-                },
-                "responses": {
-                    "200": {
-                        "description": "OK",
-                        "content": {
-                            "text/plain": {
-                                "schema": {
-                                    "$ref": "#/components/schemas/PlaceOrderResponse"
-                                }
-                            },
-                            "application/json": {
-                                "schema": {
-                                    "$ref": "#/components/schemas/PlaceOrderResponse"
-                                }
-                            },
-                            "text/json": {
-                                "schema": {
-                                    "$ref": "#/components/schemas/PlaceOrderResponse"
-                                }
-                            }
-                        }
-                    }
-                }
-            }
-        },
         "/api/orders": {
             "post": {
                 "summary": "Place order from checkout",
@@ -9378,38 +9327,6 @@
                     },
                     "summary": {
                         "$ref": "#/components/schemas/CheckoutSummaryTotalsResponse"
-                    }
-                },
-                "additionalProperties": false
-            },
-            "LegacyPlaceCheckoutOrderRequest": {
-                "type": "object",
-                "properties": {
-                    "vendor_id": {
-                        "type": "string",
-                        "format": "uuid"
-                    },
-                    "address_id": {
-                        "type": "string",
-                        "format": "uuid"
-                    },
-                    "payment_method_id": {
-                        "type": "string",
-                        "nullable": true,
-                        "example": "card"
-                    },
-                    "promo_code": {
-                        "type": "string",
-                        "nullable": true
-                    },
-                    "notes": {
-                        "type": "string",
-                        "nullable": true
-                    },
-                    "vendor_branch_id": {
-                        "type": "string",
-                        "format": "uuid",
-                        "nullable": true
                     }
                 },
                 "additionalProperties": false
