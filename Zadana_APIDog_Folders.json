@@ -6138,6 +6138,290 @@
                 }
             }
         },
+        "/api/checkout/summary": {
+            "get": {
+                "summary": "Get checkout summary",
+                "description": "Returns the checkout payload used by the mobile checkout screen, including cart items, selected address, delivery slot, payment methods, applied promo code, and recalculated totals.",
+                "tags": [
+                    "Customer/Checkout"
+                ],
+                "parameters": [
+                    {
+                        "name": "address_id",
+                        "in": "query",
+                        "schema": {
+                            "type": "string",
+                            "format": "uuid"
+                        }
+                    },
+                    {
+                        "name": "delivery_slot_id",
+                        "in": "query",
+                        "schema": {
+                            "type": "string"
+                        }
+                    }
+                ],
+                "responses": {
+                    "200": {
+                        "description": "OK",
+                        "content": {
+                            "text/plain": {
+                                "schema": {
+                                    "$ref": "#/components/schemas/GetCheckoutSummaryResponse"
+                                }
+                            },
+                            "application/json": {
+                                "schema": {
+                                    "$ref": "#/components/schemas/GetCheckoutSummaryResponse"
+                                }
+                            },
+                            "text/json": {
+                                "schema": {
+                                    "$ref": "#/components/schemas/GetCheckoutSummaryResponse"
+                                }
+                            }
+                        }
+                    }
+                }
+            }
+        },
+        "/api/checkout/promo-code": {
+            "post": {
+                "summary": "Apply checkout promo code",
+                "description": "Applies a coupon to the current customer checkout context and returns the applied promo information with the recalculated checkout totals.",
+                "tags": [
+                    "Customer/Checkout"
+                ],
+                "requestBody": {
+                    "required": true,
+                    "content": {
+                        "application/json": {
+                            "schema": {
+                                "$ref": "#/components/schemas/ApplyCheckoutPromoCodeRequest"
+                            }
+                        },
+                        "text/json": {
+                            "schema": {
+                                "$ref": "#/components/schemas/ApplyCheckoutPromoCodeRequest"
+                            }
+                        },
+                        "text/plain": {
+                            "schema": {
+                                "$ref": "#/components/schemas/ApplyCheckoutPromoCodeRequest"
+                            }
+                        }
+                    }
+                },
+                "responses": {
+                    "200": {
+                        "description": "OK",
+                        "content": {
+                            "text/plain": {
+                                "schema": {
+                                    "$ref": "#/components/schemas/ApplyCheckoutPromoCodeResponse"
+                                }
+                            },
+                            "application/json": {
+                                "schema": {
+                                    "$ref": "#/components/schemas/ApplyCheckoutPromoCodeResponse"
+                                }
+                            },
+                            "text/json": {
+                                "schema": {
+                                    "$ref": "#/components/schemas/ApplyCheckoutPromoCodeResponse"
+                                }
+                            }
+                        }
+                    }
+                }
+            },
+            "delete": {
+                "summary": "Remove checkout promo code",
+                "description": "Removes the currently applied promo code from the checkout context and returns the refreshed financial summary.",
+                "tags": [
+                    "Customer/Checkout"
+                ],
+                "responses": {
+                    "200": {
+                        "description": "OK",
+                        "content": {
+                            "text/plain": {
+                                "schema": {
+                                    "$ref": "#/components/schemas/RemoveCheckoutPromoCodeResponse"
+                                }
+                            },
+                            "application/json": {
+                                "schema": {
+                                    "$ref": "#/components/schemas/RemoveCheckoutPromoCodeResponse"
+                                }
+                            },
+                            "text/json": {
+                                "schema": {
+                                    "$ref": "#/components/schemas/RemoveCheckoutPromoCodeResponse"
+                                }
+                            }
+                        }
+                    }
+                }
+            }
+        },
+        "/api/checkout/place-order": {
+            "post": {
+                "summary": "Place checkout order (compatibility endpoint)",
+                "description": "Legacy compatibility endpoint for older clients. It accepts the historical checkout payload, infers the new checkout flow behind the scenes, and returns the same order and optional payment payload used by POST /api/orders.",
+                "tags": [
+                    "Customer/Checkout"
+                ],
+                "requestBody": {
+                    "required": true,
+                    "content": {
+                        "application/json": {
+                            "schema": {
+                                "$ref": "#/components/schemas/LegacyPlaceCheckoutOrderRequest"
+                            }
+                        },
+                        "text/json": {
+                            "schema": {
+                                "$ref": "#/components/schemas/LegacyPlaceCheckoutOrderRequest"
+                            }
+                        },
+                        "text/plain": {
+                            "schema": {
+                                "$ref": "#/components/schemas/LegacyPlaceCheckoutOrderRequest"
+                            }
+                        }
+                    }
+                },
+                "responses": {
+                    "200": {
+                        "description": "OK",
+                        "content": {
+                            "text/plain": {
+                                "schema": {
+                                    "$ref": "#/components/schemas/PlaceOrderResponse"
+                                }
+                            },
+                            "application/json": {
+                                "schema": {
+                                    "$ref": "#/components/schemas/PlaceOrderResponse"
+                                }
+                            },
+                            "text/json": {
+                                "schema": {
+                                    "$ref": "#/components/schemas/PlaceOrderResponse"
+                                }
+                            }
+                        }
+                    }
+                }
+            }
+        },
+        "/api/orders": {
+            "post": {
+                "summary": "Place order from checkout",
+                "description": "Places an order from the current customer checkout state. Card payments create a Paymob session and return a payment object with iframe_url and provider_reference. Cash and bank transfer create local payments without Paymob.",
+                "tags": [
+                    "Customer/Checkout"
+                ],
+                "requestBody": {
+                    "required": true,
+                    "content": {
+                        "application/json": {
+                            "schema": {
+                                "$ref": "#/components/schemas/PlaceOrderRequest"
+                            }
+                        },
+                        "text/json": {
+                            "schema": {
+                                "$ref": "#/components/schemas/PlaceOrderRequest"
+                            }
+                        },
+                        "text/plain": {
+                            "schema": {
+                                "$ref": "#/components/schemas/PlaceOrderRequest"
+                            }
+                        }
+                    }
+                },
+                "responses": {
+                    "200": {
+                        "description": "OK",
+                        "content": {
+                            "text/plain": {
+                                "schema": {
+                                    "$ref": "#/components/schemas/PlaceOrderResponse"
+                                }
+                            },
+                            "application/json": {
+                                "schema": {
+                                    "$ref": "#/components/schemas/PlaceOrderResponse"
+                                }
+                            },
+                            "text/json": {
+                                "schema": {
+                                    "$ref": "#/components/schemas/PlaceOrderResponse"
+                                }
+                            }
+                        }
+                    }
+                }
+            }
+        },
+        "/api/payments/paymob/webhook": {
+            "post": {
+                "summary": "Receive Paymob webhook",
+                "description": "Processes Paymob webhook notifications, validates HMAC when configured, resolves the linked local payment using merchant_order_id or provider reference, and updates payment/order status idempotently.",
+                "tags": [
+                    "System/Payments"
+                ],
+                "security": [],
+                "requestBody": {
+                    "required": true,
+                    "content": {
+                        "application/json": {
+                            "schema": {
+                                "type": "object",
+                                "additionalProperties": true
+                            }
+                        },
+                        "text/json": {
+                            "schema": {
+                                "type": "object",
+                                "additionalProperties": true
+                            }
+                        },
+                        "text/plain": {
+                            "schema": {
+                                "type": "string"
+                            }
+                        }
+                    }
+                },
+                "responses": {
+                    "200": {
+                        "description": "OK",
+                        "content": {
+                            "text/plain": {
+                                "schema": {
+                                    "$ref": "#/components/schemas/PaymobWebhookProcessResultDto"
+                                }
+                            },
+                            "application/json": {
+                                "schema": {
+                                    "$ref": "#/components/schemas/PaymobWebhookProcessResultDto"
+                                }
+                            },
+                            "text/json": {
+                                "schema": {
+                                    "$ref": "#/components/schemas/PaymobWebhookProcessResultDto"
+                                }
+                            }
+                        }
+                    }
+                }
+            }
+        },
         "/api/home/special-offers": {
             "get": {
                 "tags": [
@@ -8842,6 +9126,417 @@
                     "message": {
                         "type": "string",
                         "nullable": true
+                    }
+                },
+                "additionalProperties": false
+            },
+            "GetCheckoutSummaryResponse": {
+                "type": "object",
+                "properties": {
+                    "cart": {
+                        "$ref": "#/components/schemas/CheckoutCartResponse"
+                    },
+                    "selected_address": {
+                        "$ref": "#/components/schemas/CheckoutSelectedAddressResponse"
+                    },
+                    "delivery_slots": {
+                        "type": "array",
+                        "items": {
+                            "$ref": "#/components/schemas/CheckoutDeliverySlotResponse"
+                        },
+                        "nullable": true
+                    },
+                    "payment_methods": {
+                        "type": "array",
+                        "items": {
+                            "$ref": "#/components/schemas/CheckoutPaymentMethodResponse"
+                        },
+                        "nullable": true
+                    },
+                    "promo_code": {
+                        "$ref": "#/components/schemas/CheckoutPromoCodeResponse"
+                    },
+                    "summary": {
+                        "$ref": "#/components/schemas/CheckoutSummaryTotalsResponse"
+                    }
+                },
+                "additionalProperties": false
+            },
+            "CheckoutCartResponse": {
+                "type": "object",
+                "properties": {
+                    "items_count": {
+                        "type": "integer",
+                        "format": "int32"
+                    },
+                    "total_quantity": {
+                        "type": "integer",
+                        "format": "int32"
+                    },
+                    "items": {
+                        "type": "array",
+                        "items": {
+                            "$ref": "#/components/schemas/CheckoutCartItemResponse"
+                        },
+                        "nullable": true
+                    }
+                },
+                "additionalProperties": false
+            },
+            "CheckoutCartItemResponse": {
+                "type": "object",
+                "properties": {
+                    "id": {
+                        "type": "string",
+                        "format": "uuid"
+                    },
+                    "product_id": {
+                        "type": "string",
+                        "format": "uuid"
+                    },
+                    "name": {
+                        "type": "string",
+                        "nullable": true
+                    },
+                    "image_url": {
+                        "type": "string",
+                        "nullable": true
+                    },
+                    "unit": {
+                        "type": "string",
+                        "nullable": true
+                    },
+                    "quantity": {
+                        "type": "integer",
+                        "format": "int32"
+                    },
+                    "price": {
+                        "type": "number",
+                        "format": "double"
+                    },
+                    "total_price": {
+                        "type": "number",
+                        "format": "double"
+                    }
+                },
+                "additionalProperties": false
+            },
+            "CheckoutSelectedAddressResponse": {
+                "type": "object",
+                "properties": {
+                    "id": {
+                        "type": "string",
+                        "format": "uuid"
+                    },
+                    "label": {
+                        "type": "string",
+                        "nullable": true
+                    },
+                    "address_line": {
+                        "type": "string",
+                        "nullable": true
+                    },
+                    "is_default": {
+                        "type": "boolean"
+                    }
+                },
+                "additionalProperties": false
+            },
+            "CheckoutDeliverySlotResponse": {
+                "type": "object",
+                "properties": {
+                    "id": {
+                        "type": "string",
+                        "nullable": true
+                    },
+                    "label": {
+                        "type": "string",
+                        "nullable": true
+                    },
+                    "start_at": {
+                        "type": "string",
+                        "format": "date-time"
+                    },
+                    "end_at": {
+                        "type": "string",
+                        "format": "date-time"
+                    },
+                    "is_available": {
+                        "type": "boolean"
+                    },
+                    "is_selected": {
+                        "type": "boolean"
+                    }
+                },
+                "additionalProperties": false
+            },
+            "CheckoutPaymentMethodResponse": {
+                "type": "object",
+                "properties": {
+                    "code": {
+                        "type": "string",
+                        "nullable": true,
+                        "example": "card"
+                    },
+                    "label": {
+                        "type": "string",
+                        "nullable": true
+                    },
+                    "is_available": {
+                        "type": "boolean"
+                    },
+                    "is_default": {
+                        "type": "boolean"
+                    }
+                },
+                "additionalProperties": false
+            },
+            "CheckoutPromoCodeResponse": {
+                "type": "object",
+                "properties": {
+                    "code": {
+                        "type": "string",
+                        "nullable": true
+                    },
+                    "discount_type": {
+                        "type": "string",
+                        "nullable": true,
+                        "example": "fixed"
+                    },
+                    "discount_value": {
+                        "type": "number",
+                        "format": "double"
+                    },
+                    "discount_amount": {
+                        "type": "number",
+                        "format": "double"
+                    }
+                },
+                "additionalProperties": false
+            },
+            "CheckoutSummaryTotalsResponse": {
+                "type": "object",
+                "properties": {
+                    "subtotal": {
+                        "type": "number",
+                        "format": "double"
+                    },
+                    "shipping_cost": {
+                        "type": "number",
+                        "format": "double"
+                    },
+                    "discount": {
+                        "type": "number",
+                        "format": "double"
+                    },
+                    "total": {
+                        "type": "number",
+                        "format": "double"
+                    },
+                    "currency": {
+                        "type": "string",
+                        "nullable": true,
+                        "example": "EGP"
+                    }
+                },
+                "additionalProperties": false
+            },
+            "ApplyCheckoutPromoCodeRequest": {
+                "type": "object",
+                "required": [
+                    "code"
+                ],
+                "properties": {
+                    "code": {
+                        "type": "string"
+                    }
+                },
+                "additionalProperties": false
+            },
+            "ApplyCheckoutPromoCodeResponse": {
+                "type": "object",
+                "properties": {
+                    "message": {
+                        "type": "string",
+                        "nullable": true
+                    },
+                    "promo_code": {
+                        "$ref": "#/components/schemas/CheckoutPromoCodeResponse"
+                    },
+                    "summary": {
+                        "$ref": "#/components/schemas/CheckoutSummaryTotalsResponse"
+                    }
+                },
+                "additionalProperties": false
+            },
+            "RemoveCheckoutPromoCodeResponse": {
+                "type": "object",
+                "properties": {
+                    "message": {
+                        "type": "string",
+                        "nullable": true
+                    },
+                    "summary": {
+                        "$ref": "#/components/schemas/CheckoutSummaryTotalsResponse"
+                    }
+                },
+                "additionalProperties": false
+            },
+            "LegacyPlaceCheckoutOrderRequest": {
+                "type": "object",
+                "properties": {
+                    "vendor_id": {
+                        "type": "string",
+                        "format": "uuid"
+                    },
+                    "address_id": {
+                        "type": "string",
+                        "format": "uuid"
+                    },
+                    "payment_method_id": {
+                        "type": "string",
+                        "nullable": true,
+                        "example": "card"
+                    },
+                    "promo_code": {
+                        "type": "string",
+                        "nullable": true
+                    },
+                    "notes": {
+                        "type": "string",
+                        "nullable": true
+                    },
+                    "vendor_branch_id": {
+                        "type": "string",
+                        "format": "uuid",
+                        "nullable": true
+                    }
+                },
+                "additionalProperties": false
+            },
+            "PlaceOrderRequest": {
+                "type": "object",
+                "required": [
+                    "address_id",
+                    "payment_method"
+                ],
+                "properties": {
+                    "address_id": {
+                        "type": "string",
+                        "format": "uuid"
+                    },
+                    "delivery_slot_id": {
+                        "type": "string",
+                        "nullable": true
+                    },
+                    "payment_method": {
+                        "type": "string",
+                        "nullable": true,
+                        "example": "card"
+                    },
+                    "promo_code": {
+                        "type": "string",
+                        "nullable": true
+                    },
+                    "notes": {
+                        "type": "string",
+                        "nullable": true
+                    }
+                },
+                "additionalProperties": false
+            },
+            "PlacedOrderSummaryResponse": {
+                "type": "object",
+                "properties": {
+                    "id": {
+                        "type": "string",
+                        "format": "uuid"
+                    },
+                    "created_at": {
+                        "type": "string",
+                        "format": "date-time"
+                    },
+                    "status": {
+                        "type": "string",
+                        "nullable": true,
+                        "example": "pending"
+                    },
+                    "payment_method": {
+                        "type": "string",
+                        "nullable": true,
+                        "example": "card"
+                    },
+                    "payment_status": {
+                        "type": "string",
+                        "nullable": true,
+                        "example": "pending"
+                    },
+                    "total_price": {
+                        "type": "number",
+                        "format": "double"
+                    }
+                },
+                "additionalProperties": false
+            },
+            "CheckoutOrderPaymentResponse": {
+                "type": "object",
+                "properties": {
+                    "id": {
+                        "type": "string",
+                        "format": "uuid"
+                    },
+                    "provider": {
+                        "type": "string",
+                        "nullable": true,
+                        "example": "paymob"
+                    },
+                    "status": {
+                        "type": "string",
+                        "nullable": true,
+                        "example": "pending"
+                    },
+                    "iframe_url": {
+                        "type": "string",
+                        "nullable": true
+                    },
+                    "provider_reference": {
+                        "type": "string",
+                        "nullable": true
+                    }
+                },
+                "additionalProperties": false
+            },
+            "PlaceOrderResponse": {
+                "type": "object",
+                "properties": {
+                    "message": {
+                        "type": "string",
+                        "nullable": true
+                    },
+                    "order": {
+                        "$ref": "#/components/schemas/PlacedOrderSummaryResponse"
+                    },
+                    "payment": {
+                        "$ref": "#/components/schemas/CheckoutOrderPaymentResponse"
+                    }
+                },
+                "additionalProperties": false
+            },
+            "PaymobWebhookProcessResultDto": {
+                "type": "object",
+                "properties": {
+                    "message": {
+                        "type": "string",
+                        "nullable": true
+                    },
+                    "paymentId": {
+                        "type": "string",
+                        "format": "uuid"
+                    },
+                    "status": {
+                        "type": "string",
+                        "nullable": true,
+                        "example": "paid"
                     }
                 },
                 "additionalProperties": false
@@ -11623,6 +12318,10 @@
             "description": "APIDog folder for Customer/Home"
         },
         {
+            "name": "Customer/Checkout",
+            "description": "APIDog folder for Customer/Checkout"
+        },
+        {
             "name": "Customer/Categories",
             "description": "APIDog folder for Customer/Categories"
         },
@@ -11749,6 +12448,10 @@
         {
             "name": "System/Health",
             "description": "APIDog folder for System/Health"
+        },
+        {
+            "name": "System/Payments",
+            "description": "APIDog folder for System/Payments"
         }
     ]
 }

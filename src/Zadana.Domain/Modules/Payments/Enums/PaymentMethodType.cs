@@ -4,6 +4,7 @@ public enum PaymentMethodType
 {
     CashOnDelivery,
     Card,
+    BankTransfer,
     Wallet,
     ApplePay,
     Mada
