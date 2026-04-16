@@ -33,6 +33,7 @@ public class PaymobGatewayTests
                 "ORD-123",
                 123.45m,
                 "EGP",
+                [new PaymobOrderItemRequest("Fresh Cabbage", "Fresh Cabbage", 2, 45.00m)],
                 "Paymob",
                 "Customer",
                 "paymob@test.com",

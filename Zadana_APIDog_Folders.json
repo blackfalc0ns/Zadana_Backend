@@ -6269,7 +6269,7 @@
         "/api/orders": {
             "post": {
                 "summary": "Place order from checkout",
-                "description": "Places an order from the current customer checkout state. Card payments create a Paymob session and return a payment object with iframe_url and provider_reference. Cash and bank transfer create local payments without Paymob.",
+                "description": "Places an order from the current customer checkout state. Card payments create a Paymob session and return a payment object with iframe_url and provider_reference. The backend sends the order line items and billing details to Paymob so the hosted payment page can display the purchased products when the iframe configuration enables Show Item / Product and billing address sections. Cash and bank transfer create local payments without Paymob.",
                 "tags": [
                     "Customer/Checkout"
                 ],
@@ -6320,7 +6320,7 @@
         "/api/payments/paymob/webhook": {
             "post": {
                 "summary": "Receive Paymob webhook",
-                "description": "Processes Paymob webhook notifications, validates HMAC when configured, resolves the linked local payment using merchant_order_id or provider reference, and updates payment/order status idempotently.",
+                "description": "Processes Paymob webhook notifications, validates HMAC when configured, resolves the linked local payment using merchant_order_id or provider reference, updates payment/order status idempotently, and clears the customer cart only after a successful card payment confirmation.",
                 "tags": [
                     "System/Payments"
                 ],
@@ -9349,7 +9349,8 @@
                     "payment_method": {
                         "type": "string",
                         "nullable": true,
-                        "example": "card"
+                        "example": "card",
+                        "description": "Supported values are card, cash, and bank. Card starts a Paymob iframe checkout session."
                     },
                     "promo_code": {
                         "type": "string",
@@ -9414,11 +9415,13 @@
                     },
                     "iframe_url": {
                         "type": "string",
-                        "nullable": true
+                        "nullable": true,
+                        "description": "Hosted Paymob iframe URL. Open this URL in the app or webview to complete card payment."
                     },
                     "provider_reference": {
                         "type": "string",
-                        "nullable": true
+                        "nullable": true,
+                        "description": "Paymob order/reference identifier returned by the provider."
                     }
                 },
                 "additionalProperties": false

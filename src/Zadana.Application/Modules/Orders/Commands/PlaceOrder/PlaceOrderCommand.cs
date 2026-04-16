@@ -12,7 +12,8 @@ public record PlaceOrderCommand(
     string PaymentMethod,
     string? Notes,
     Guid? VendorBranchId,
-    Guid? CouponId) : MediatR.IRequest<Guid>;
+    Guid? CouponId,
+    bool ClearCartAfterPlacement = true) : MediatR.IRequest<Guid>;
 
 public class PlaceOrderCommandValidator : AbstractValidator<PlaceOrderCommand>
 {

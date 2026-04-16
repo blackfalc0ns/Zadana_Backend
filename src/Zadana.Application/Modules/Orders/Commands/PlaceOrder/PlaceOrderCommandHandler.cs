@@ -94,7 +94,11 @@ public class PlaceOrderCommandHandler : IRequestHandler<PlaceOrderCommand, Guid>
             _orderRepository.AddOrderItem(orderItem);
         }
 
-        _orderRepository.RemoveCart(cart);
+        if (request.ClearCartAfterPlacement)
+        {
+            _orderRepository.RemoveCart(cart);
+        }
+
         await _unitOfWork.SaveChangesAsync(cancellationToken);
 
         return order.Id;

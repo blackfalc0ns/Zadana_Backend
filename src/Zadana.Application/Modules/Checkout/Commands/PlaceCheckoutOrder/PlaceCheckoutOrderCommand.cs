@@ -87,6 +87,7 @@ public class PlaceCheckoutOrderCommandHandler : IRequestHandler<PlaceCheckoutOrd
         await _unitOfWork.SaveChangesAsync(cancellationToken);
 
         var internalPaymentMethod = CheckoutSupport.MapPaymentMethodCodeToEnumName(paymentMethodCode);
+        var shouldClearCartAfterPlacement = paymentMethodCode is "cash" or "bank";
         var orderId = await _sender.Send(
             new PlaceOrderCommand(
                 request.UserId,
@@ -95,11 +96,13 @@ public class PlaceCheckoutOrderCommandHandler : IRequestHandler<PlaceCheckoutOrd
                 internalPaymentMethod,
                 request.Notes,
                 pricing.VendorBranchId,
-                coupon?.Id),
+                coupon?.Id,
+                shouldClearCartAfterPlacement),
             cancellationToken);
 
         var order = await _context.Orders
             .AsTracking()
+            .Include(x => x.Items)
             .FirstOrDefaultAsync(x => x.Id == orderId, cancellationToken)
             ?? throw new NotFoundException("Order", orderId);
 
@@ -125,6 +128,7 @@ public class PlaceCheckoutOrderCommandHandler : IRequestHandler<PlaceCheckoutOrd
                         order.OrderNumber,
                         order.TotalAmount,
                         CheckoutSupport.Currency,
+                        order.Items.Select(MapPaymobItem).ToArray(),
                         GetFirstName(user.FullName),
                         GetLastName(user.FullName),
                         user.Email ?? string.Empty,
@@ -215,4 +219,11 @@ public class PlaceCheckoutOrderCommandHandler : IRequestHandler<PlaceCheckoutOrd
         var parts = fullName.Split(' ', StringSplitOptions.RemoveEmptyEntries | StringSplitOptions.TrimEntries);
         return parts.Length > 1 ? string.Join(' ', parts.Skip(1)) : "Customer";
     }
+
+    private static PaymobOrderItemRequest MapPaymobItem(Zadana.Domain.Modules.Orders.Entities.OrderItem item) =>
+        new(
+            item.ProductName,
+            item.ProductName,
+            item.Quantity,
+            item.UnitPrice);
 }

@@ -123,7 +123,13 @@ public class PaymobGateway : IPaymobGateway
                 amount_cents = amountCents.ToString(CultureInfo.InvariantCulture),
                 currency = request.Currency,
                 merchant_order_id = request.PaymentId.ToString("D"),
-                items = Array.Empty<object>()
+                items = request.Items.Select(item => new
+                {
+                    name = item.Name,
+                    amount_cents = ToAmountCents(item.UnitPrice).ToString(CultureInfo.InvariantCulture),
+                    description = string.IsNullOrWhiteSpace(item.Description) ? item.Name : item.Description,
+                    quantity = item.Quantity
+                }).ToArray()
             },
             cancellationToken);
 

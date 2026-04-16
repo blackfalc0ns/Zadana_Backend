@@ -24,6 +24,7 @@ public record PaymobCheckoutSessionRequest(
     string OrderNumber,
     decimal Amount,
     string Currency,
+    IReadOnlyCollection<PaymobOrderItemRequest> Items,
     string CustomerFirstName,
     string CustomerLastName,
     string CustomerEmail,
@@ -31,6 +32,12 @@ public record PaymobCheckoutSessionRequest(
     string AddressLine,
     string City,
     string CountryCode);
+
+public record PaymobOrderItemRequest(
+    string Name,
+    string Description,
+    int Quantity,
+    decimal UnitPrice);
 
 public record PaymobCheckoutSessionDto(
     string ProviderReference,

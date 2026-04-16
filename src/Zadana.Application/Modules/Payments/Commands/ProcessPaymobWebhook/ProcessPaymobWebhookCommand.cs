@@ -66,6 +66,7 @@ public class ProcessPaymobWebhookCommandHandler : IRequestHandler<ProcessPaymobW
             if (payment.Status != PaymentStatus.Paid)
             {
                 payment.MarkAsPaid(notification.ProviderTransactionId);
+                await ClearCustomerCartAsync(payment.Order.UserId, cancellationToken);
                 await _unitOfWork.SaveChangesAsync(cancellationToken);
             }
 
@@ -79,6 +80,18 @@ public class ProcessPaymobWebhookCommandHandler : IRequestHandler<ProcessPaymobW
         }
 
         return new PaymobWebhookProcessResultDto("Webhook processed successfully.", payment.Id, ToApiToken(payment.Status.ToString()));
+    }
+
+    private async Task ClearCustomerCartAsync(Guid userId, CancellationToken cancellationToken)
+    {
+        var cart = await _context.Carts
+            .Include(x => x.Items)
+            .FirstOrDefaultAsync(x => x.UserId == userId, cancellationToken);
+
+        if (cart != null)
+        {
+            _context.Carts.Remove(cart);
+        }
     }
 
     private static string ToApiToken(string value)

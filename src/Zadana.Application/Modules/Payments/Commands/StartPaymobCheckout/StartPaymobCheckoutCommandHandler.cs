@@ -51,11 +51,13 @@ public class StartPaymobCheckoutCommandHandler : IRequestHandler<StartPaymobChec
                 nameof(PaymentMethodType.Card),
                 request.Notes,
                 request.VendorBranchId,
-                couponId),
+                couponId,
+                false),
             cancellationToken);
 
         var order = await _context.Orders
             .AsTracking()
+            .Include(x => x.Items)
             .FirstOrDefaultAsync(x => x.Id == orderId, cancellationToken)
             ?? throw new NotFoundException("Order", orderId);
 
@@ -82,6 +84,7 @@ public class StartPaymobCheckoutCommandHandler : IRequestHandler<StartPaymobChec
                     order.OrderNumber,
                     order.TotalAmount,
                     "EGP",
+                    order.Items.Select(MapPaymobItem).ToArray(),
                     GetFirstName(user.FullName),
                     GetLastName(user.FullName),
                     user.Email ?? string.Empty,
@@ -163,6 +166,13 @@ public class StartPaymobCheckoutCommandHandler : IRequestHandler<StartPaymobChec
         var parts = fullName.Split(' ', StringSplitOptions.RemoveEmptyEntries | StringSplitOptions.TrimEntries);
         return parts.Length > 1 ? string.Join(' ', parts.Skip(1)) : "Customer";
     }
+
+    private static PaymobOrderItemRequest MapPaymobItem(Zadana.Domain.Modules.Orders.Entities.OrderItem item) =>
+        new(
+            item.ProductName,
+            item.ProductName,
+            item.Quantity,
+            item.UnitPrice);
 
     private static string ToApiToken(string value)
     {
