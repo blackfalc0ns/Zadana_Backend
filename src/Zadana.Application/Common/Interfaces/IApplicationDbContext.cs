@@ -47,6 +47,8 @@ public interface IApplicationDbContext
     DbSet<Order> Orders { get; }
     DbSet<OrderItem> OrderItems { get; }
     DbSet<OrderStatusHistory> OrderStatusHistories { get; }
+    DbSet<OrderComplaint> OrderComplaints { get; }
+    DbSet<OrderComplaintAttachment> OrderComplaintAttachments { get; }
 
     // Payments
     DbSet<Payment> Payments { get; }

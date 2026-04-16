@@ -62,6 +62,8 @@ public class ApplicationDbContext : IdentityDbContext<User, IdentityRole<Guid>, 
     public DbSet<Order> Orders => Set<Order>();
     public DbSet<OrderItem> OrderItems => Set<OrderItem>();
     public DbSet<OrderStatusHistory> OrderStatusHistories => Set<OrderStatusHistory>();
+    public DbSet<OrderComplaint> OrderComplaints => Set<OrderComplaint>();
+    public DbSet<OrderComplaintAttachment> OrderComplaintAttachments => Set<OrderComplaintAttachment>();
 
     // Payments
     public DbSet<Payment> Payments => Set<Payment>();

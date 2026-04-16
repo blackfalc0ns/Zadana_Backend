@@ -38,3 +38,49 @@ public record AdminVendorOrderListItemDto(
     decimal TotalAmount,
     int ItemsCount,
     DateTime PlacedAtUtc);
+
+public record CustomerOrderListDto(
+    IReadOnlyList<CustomerOrderListItemDto> Items,
+    int Page,
+    int PerPage,
+    int Total);
+
+public record CustomerOrderListItemDto(
+    Guid Id,
+    DateTime CreatedAt,
+    decimal TotalPrice,
+    string Status,
+    int ItemsCount,
+    IReadOnlyList<CustomerOrderProductDto> Items);
+
+public record CustomerOrderDetailDto(
+    Guid Id,
+    DateTime CreatedAt,
+    decimal TotalPrice,
+    string Status,
+    bool CanCancel,
+    int ItemsCount,
+    CustomerOrderPriceSummaryDto Summary,
+    IReadOnlyList<CustomerOrderProductDto> Items);
+
+public record CustomerOrderPriceSummaryDto(
+    decimal Subtotal,
+    decimal ShippingCost,
+    decimal Total);
+
+public record CustomerOrderProductDto(
+    Guid Id,
+    string Name,
+    int Quantity,
+    decimal Price);
+
+public record OrderComplaintDto(
+    Guid Id,
+    string Status,
+    string Message,
+    IReadOnlyList<OrderComplaintAttachmentDto> Attachments,
+    DateTime CreatedAt);
+
+public record OrderComplaintAttachmentDto(
+    string FileName,
+    string FileUrl);
