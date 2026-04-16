@@ -74,6 +74,33 @@ public record CustomerOrderProductDto(
     int Quantity,
     decimal Price);
 
+public record CustomerOrderTrackingDto(
+    CustomerOrderTrackingOrderDto Order,
+    CustomerOrderEstimatedDeliveryDto? EstimatedDelivery,
+    CustomerOrderTrackingDriverDto? Driver,
+    IReadOnlyList<CustomerOrderTrackingTimelineItemDto> Timeline);
+
+public record CustomerOrderTrackingOrderDto(
+    Guid Id,
+    string Status);
+
+public record CustomerOrderEstimatedDeliveryDto(
+    DateTime Datetime,
+    string Formatted);
+
+public record CustomerOrderTrackingDriverDto(
+    Guid Id,
+    string Name,
+    string? PhoneNumber,
+    string Subtitle);
+
+public record CustomerOrderTrackingTimelineItemDto(
+    string Id,
+    string Title,
+    string Time,
+    bool IsActive,
+    bool IsCompleted);
+
 public record OrderComplaintDto(
     Guid Id,
     string Status,

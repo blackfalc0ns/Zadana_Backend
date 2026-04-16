@@ -6461,6 +6461,48 @@
                 }
             }
         },
+        "/api/orders/{orderId}/tracking": {
+            "get": {
+                "summary": "Track customer order",
+                "description": "Returns the current tracking status, estimated delivery, assigned driver details, and progress timeline for a customer order.",
+                "tags": [
+                    "Customer/Orders"
+                ],
+                "parameters": [
+                    {
+                        "name": "orderId",
+                        "in": "path",
+                        "required": true,
+                        "schema": {
+                            "type": "string",
+                            "format": "uuid"
+                        }
+                    }
+                ],
+                "responses": {
+                    "200": {
+                        "description": "OK",
+                        "content": {
+                            "text/plain": {
+                                "schema": {
+                                    "$ref": "#/components/schemas/CustomerOrderTrackingResponse"
+                                }
+                            },
+                            "application/json": {
+                                "schema": {
+                                    "$ref": "#/components/schemas/CustomerOrderTrackingResponse"
+                                }
+                            },
+                            "text/json": {
+                                "schema": {
+                                    "$ref": "#/components/schemas/CustomerOrderTrackingResponse"
+                                }
+                            }
+                        }
+                    }
+                }
+            }
+        },
         "/api/orders/{orderId}/cancel": {
             "post": {
                 "summary": "Cancel customer order",
@@ -9690,6 +9732,385 @@
                 },
                 "additionalProperties": false
             },
+            "CustomerOrdersResponse": {
+                "type": "object",
+                "properties": {
+                    "items": {
+                        "type": "array",
+                        "items": {
+                            "$ref": "#/components/schemas/CustomerOrderListItemResponse"
+                        },
+                        "nullable": true
+                    },
+                    "page": {
+                        "type": "integer",
+                        "format": "int32"
+                    },
+                    "per_page": {
+                        "type": "integer",
+                        "format": "int32"
+                    },
+                    "total": {
+                        "type": "integer",
+                        "format": "int32"
+                    }
+                },
+                "additionalProperties": false
+            },
+            "CustomerOrderListItemResponse": {
+                "type": "object",
+                "properties": {
+                    "id": {
+                        "type": "string",
+                        "format": "uuid"
+                    },
+                    "created_at": {
+                        "type": "string",
+                        "format": "date-time"
+                    },
+                    "total_price": {
+                        "type": "number",
+                        "format": "double"
+                    },
+                    "status": {
+                        "type": "string",
+                        "nullable": true
+                    },
+                    "items_count": {
+                        "type": "integer",
+                        "format": "int32"
+                    },
+                    "items": {
+                        "type": "array",
+                        "items": {
+                            "$ref": "#/components/schemas/CustomerOrderProductResponse"
+                        },
+                        "nullable": true
+                    }
+                },
+                "additionalProperties": false
+            },
+            "CustomerOrderProductResponse": {
+                "type": "object",
+                "properties": {
+                    "id": {
+                        "type": "string",
+                        "format": "uuid"
+                    },
+                    "name": {
+                        "type": "string",
+                        "nullable": true
+                    },
+                    "quantity": {
+                        "type": "integer",
+                        "format": "int32"
+                    },
+                    "price": {
+                        "type": "number",
+                        "format": "double"
+                    }
+                },
+                "additionalProperties": false
+            },
+            "CustomerOrderDetailResponse": {
+                "type": "object",
+                "properties": {
+                    "id": {
+                        "type": "string",
+                        "format": "uuid"
+                    },
+                    "created_at": {
+                        "type": "string",
+                        "format": "date-time"
+                    },
+                    "total_price": {
+                        "type": "number",
+                        "format": "double"
+                    },
+                    "status": {
+                        "type": "string",
+                        "nullable": true
+                    },
+                    "can_cancel": {
+                        "type": "boolean"
+                    },
+                    "items_count": {
+                        "type": "integer",
+                        "format": "int32"
+                    },
+                    "summary": {
+                        "$ref": "#/components/schemas/CustomerOrderSummaryResponse"
+                    },
+                    "items": {
+                        "type": "array",
+                        "items": {
+                            "$ref": "#/components/schemas/CustomerOrderProductResponse"
+                        },
+                        "nullable": true
+                    }
+                },
+                "additionalProperties": false
+            },
+            "CustomerOrderTrackingResponse": {
+                "type": "object",
+                "properties": {
+                    "order": {
+                        "$ref": "#/components/schemas/CustomerOrderTrackingOrderResponse"
+                    },
+                    "estimated_delivery": {
+                        "$ref": "#/components/schemas/CustomerOrderEstimatedDeliveryResponse"
+                    },
+                    "driver": {
+                        "$ref": "#/components/schemas/CustomerOrderTrackingDriverResponse"
+                    },
+                    "timeline": {
+                        "type": "array",
+                        "items": {
+                            "$ref": "#/components/schemas/CustomerOrderTrackingTimelineItemResponse"
+                        },
+                        "nullable": true
+                    }
+                },
+                "additionalProperties": false
+            },
+            "CustomerOrderTrackingOrderResponse": {
+                "type": "object",
+                "properties": {
+                    "id": {
+                        "type": "string",
+                        "format": "uuid"
+                    },
+                    "status": {
+                        "type": "string",
+                        "nullable": true,
+                        "example": "out_for_delivery"
+                    }
+                },
+                "additionalProperties": false
+            },
+            "CustomerOrderEstimatedDeliveryResponse": {
+                "type": "object",
+                "properties": {
+                    "datetime": {
+                        "type": "string",
+                        "format": "date-time"
+                    },
+                    "formatted": {
+                        "type": "string",
+                        "nullable": true
+                    }
+                },
+                "additionalProperties": false,
+                "nullable": true
+            },
+            "CustomerOrderTrackingDriverResponse": {
+                "type": "object",
+                "properties": {
+                    "id": {
+                        "type": "string",
+                        "format": "uuid"
+                    },
+                    "name": {
+                        "type": "string",
+                        "nullable": true
+                    },
+                    "phone_number": {
+                        "type": "string",
+                        "nullable": true
+                    },
+                    "subtitle": {
+                        "type": "string",
+                        "nullable": true
+                    }
+                },
+                "additionalProperties": false,
+                "nullable": true
+            },
+            "CustomerOrderTrackingTimelineItemResponse": {
+                "type": "object",
+                "properties": {
+                    "id": {
+                        "type": "string",
+                        "nullable": true
+                    },
+                    "title": {
+                        "type": "string",
+                        "nullable": true
+                    },
+                    "time": {
+                        "type": "string",
+                        "nullable": true
+                    },
+                    "is_active": {
+                        "type": "boolean"
+                    },
+                    "is_completed": {
+                        "type": "boolean"
+                    }
+                },
+                "additionalProperties": false
+            },
+            "CustomerOrderSummaryResponse": {
+                "type": "object",
+                "properties": {
+                    "subtotal": {
+                        "type": "number",
+                        "format": "double"
+                    },
+                    "shipping_cost": {
+                        "type": "number",
+                        "format": "double"
+                    },
+                    "total": {
+                        "type": "number",
+                        "format": "double"
+                    }
+                },
+                "additionalProperties": false
+            },
+            "CancelCustomerOrderRequest": {
+                "type": "object",
+                "required": [
+                    "reason"
+                ],
+                "properties": {
+                    "reason": {
+                        "type": "string",
+                        "nullable": true
+                    },
+                    "note": {
+                        "type": "string",
+                        "nullable": true
+                    }
+                },
+                "additionalProperties": false
+            },
+            "CancelCustomerOrderResponse": {
+                "type": "object",
+                "properties": {
+                    "message": {
+                        "type": "string",
+                        "nullable": true
+                    },
+                    "order": {
+                        "$ref": "#/components/schemas/CancelledOrderStatusResponse"
+                    }
+                },
+                "additionalProperties": false
+            },
+            "CancelledOrderStatusResponse": {
+                "type": "object",
+                "properties": {
+                    "id": {
+                        "type": "string",
+                        "format": "uuid"
+                    },
+                    "status": {
+                        "type": "string",
+                        "nullable": true
+                    }
+                },
+                "additionalProperties": false
+            },
+            "CreateOrderComplaintRequest": {
+                "type": "object",
+                "required": [
+                    "message"
+                ],
+                "properties": {
+                    "message": {
+                        "type": "string",
+                        "nullable": true
+                    },
+                    "attachments": {
+                        "type": "array",
+                        "items": {
+                            "$ref": "#/components/schemas/CreateOrderComplaintAttachmentRequest"
+                        },
+                        "nullable": true
+                    }
+                },
+                "additionalProperties": false
+            },
+            "CreateOrderComplaintAttachmentRequest": {
+                "type": "object",
+                "properties": {
+                    "file_name": {
+                        "type": "string",
+                        "nullable": true
+                    },
+                    "file_url": {
+                        "type": "string",
+                        "nullable": true
+                    }
+                },
+                "additionalProperties": false
+            },
+            "CreateOrderComplaintResponse": {
+                "type": "object",
+                "properties": {
+                    "message": {
+                        "type": "string",
+                        "nullable": true
+                    },
+                    "complaint": {
+                        "$ref": "#/components/schemas/OrderComplaintResponse"
+                    }
+                },
+                "additionalProperties": false
+            },
+            "GetOrderComplaintResponse": {
+                "type": "object",
+                "properties": {
+                    "complaint": {
+                        "$ref": "#/components/schemas/OrderComplaintResponse"
+                    }
+                },
+                "additionalProperties": false
+            },
+            "OrderComplaintResponse": {
+                "type": "object",
+                "properties": {
+                    "id": {
+                        "type": "string",
+                        "format": "uuid"
+                    },
+                    "status": {
+                        "type": "string",
+                        "nullable": true
+                    },
+                    "message": {
+                        "type": "string",
+                        "nullable": true
+                    },
+                    "attachments": {
+                        "type": "array",
+                        "items": {
+                            "$ref": "#/components/schemas/OrderComplaintAttachmentResponse"
+                        },
+                        "nullable": true
+                    },
+                    "created_at": {
+                        "type": "string",
+                        "format": "date-time"
+                    }
+                },
+                "additionalProperties": false
+            },
+            "OrderComplaintAttachmentResponse": {
+                "type": "object",
+                "properties": {
+                    "file_name": {
+                        "type": "string",
+                        "nullable": true
+                    },
+                    "file_url": {
+                        "type": "string",
+                        "nullable": true
+                    }
+                },
+                "additionalProperties": false
+            },
             "PlaceOrderRequest": {
                 "type": "object",
                 "required": [
@@ -12599,6 +13020,10 @@
         {
             "name": "Customer/Checkout",
             "description": "APIDog folder for Customer/Checkout"
+        },
+        {
+            "name": "Customer/Orders",
+            "description": "APIDog folder for Customer/Orders"
         },
         {
             "name": "Customer/Categories",

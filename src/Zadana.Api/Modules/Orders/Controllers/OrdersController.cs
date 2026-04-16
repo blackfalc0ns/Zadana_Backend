@@ -11,6 +11,7 @@ using Zadana.Application.Modules.Orders.Interfaces;
 using Zadana.Application.Modules.Orders.Queries.GetCustomerOrderComplaint;
 using Zadana.Application.Modules.Orders.Queries.GetCustomerOrderDetail;
 using Zadana.Application.Modules.Orders.Queries.GetCustomerOrders;
+using Zadana.Application.Modules.Orders.Queries.GetCustomerOrderTracking;
 using Zadana.SharedKernel.Exceptions;
 
 namespace Zadana.Api.Modules.Orders.Controllers;
@@ -66,6 +67,14 @@ public class OrdersController : ApiControllerBase
         var userId = _currentUserService.UserId ?? throw new UnauthorizedException("USER_NOT_AUTHENTICATED");
         var result = await Sender.Send(new GetCustomerOrderDetailQuery(orderId, userId), cancellationToken);
         return Ok(MapOrderDetail(result));
+    }
+
+    [HttpGet("{orderId:guid}/tracking")]
+    public async Task<ActionResult<CustomerOrderTrackingResponse>> GetOrderTracking(Guid orderId, CancellationToken cancellationToken = default)
+    {
+        var userId = _currentUserService.UserId ?? throw new UnauthorizedException("USER_NOT_AUTHENTICATED");
+        var result = await Sender.Send(new GetCustomerOrderTrackingQuery(orderId, userId), cancellationToken);
+        return Ok(MapOrderTracking(result));
     }
 
     [HttpPost("{orderId:guid}/cancel")]
@@ -176,6 +185,24 @@ public class OrdersController : ApiControllerBase
                 dto.Summary.ShippingCost,
                 dto.Summary.Total),
             dto.Items.Select(MapOrderProduct).ToList());
+
+    private static CustomerOrderTrackingResponse MapOrderTracking(CustomerOrderTrackingDto dto) =>
+        new(
+            new CustomerOrderTrackingOrderResponse(dto.Order.Id, dto.Order.Status),
+            dto.EstimatedDelivery is null
+                ? null
+                : new CustomerOrderEstimatedDeliveryResponse(dto.EstimatedDelivery.Datetime, dto.EstimatedDelivery.Formatted),
+            dto.Driver is null
+                ? null
+                : new CustomerOrderTrackingDriverResponse(dto.Driver.Id, dto.Driver.Name, dto.Driver.PhoneNumber, dto.Driver.Subtitle),
+            dto.Timeline
+                .Select(item => new CustomerOrderTrackingTimelineItemResponse(
+                    item.Id,
+                    item.Title,
+                    item.Time,
+                    item.IsActive,
+                    item.IsCompleted))
+                .ToList());
 
     private static OrderComplaintResponse MapComplaint(OrderComplaintDto dto) =>
         new(

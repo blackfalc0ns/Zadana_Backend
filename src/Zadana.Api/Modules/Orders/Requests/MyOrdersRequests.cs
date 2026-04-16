@@ -32,6 +32,33 @@ public record CustomerOrderDetailResponse(
     [property: JsonPropertyName("summary")] CustomerOrderSummaryResponse Summary,
     [property: JsonPropertyName("items")] List<CustomerOrderProductResponse> Items);
 
+public record CustomerOrderTrackingResponse(
+    [property: JsonPropertyName("order")] CustomerOrderTrackingOrderResponse Order,
+    [property: JsonPropertyName("estimated_delivery")] CustomerOrderEstimatedDeliveryResponse? EstimatedDelivery,
+    [property: JsonPropertyName("driver")] CustomerOrderTrackingDriverResponse? Driver,
+    [property: JsonPropertyName("timeline")] List<CustomerOrderTrackingTimelineItemResponse> Timeline);
+
+public record CustomerOrderTrackingOrderResponse(
+    [property: JsonPropertyName("id")] Guid Id,
+    [property: JsonPropertyName("status")] string Status);
+
+public record CustomerOrderEstimatedDeliveryResponse(
+    [property: JsonPropertyName("datetime")] DateTime Datetime,
+    [property: JsonPropertyName("formatted")] string Formatted);
+
+public record CustomerOrderTrackingDriverResponse(
+    [property: JsonPropertyName("id")] Guid Id,
+    [property: JsonPropertyName("name")] string Name,
+    [property: JsonPropertyName("phone_number")] string? PhoneNumber,
+    [property: JsonPropertyName("subtitle")] string Subtitle);
+
+public record CustomerOrderTrackingTimelineItemResponse(
+    [property: JsonPropertyName("id")] string Id,
+    [property: JsonPropertyName("title")] string Title,
+    [property: JsonPropertyName("time")] string Time,
+    [property: JsonPropertyName("is_active")] bool IsActive,
+    [property: JsonPropertyName("is_completed")] bool IsCompleted);
+
 public record CustomerOrderSummaryResponse(
     [property: JsonPropertyName("subtotal")] decimal Subtotal,
     [property: JsonPropertyName("shipping_cost")] decimal ShippingCost,

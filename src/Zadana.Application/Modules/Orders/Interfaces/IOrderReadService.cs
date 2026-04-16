@@ -16,6 +16,10 @@ public interface IOrderReadService
         Guid orderId,
         Guid userId,
         CancellationToken cancellationToken = default);
+    Task<CustomerOrderTrackingDto?> GetCustomerOrderTrackingAsync(
+        Guid orderId,
+        Guid userId,
+        CancellationToken cancellationToken = default);
     Task<OrderComplaintDto?> GetCustomerOrderComplaintAsync(
         Guid orderId,
         Guid userId,

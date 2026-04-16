@@ -1,5 +1,6 @@
 using FluentAssertions;
 using Microsoft.EntityFrameworkCore;
+using Zadana.Domain.Modules.Delivery.Entities;
 using Zadana.Application.Modules.Orders.Interfaces;
 using Zadana.Domain.Modules.Identity.Entities;
 using Zadana.Domain.Modules.Identity.Enums;
@@ -62,6 +63,68 @@ public class CustomerOrderReadServiceTests
         lockedDetail!.CanCancel.Should().BeFalse();
     }
 
+    [Fact]
+    public async Task GetCustomerOrderTrackingAsync_ShouldReturnDriverEtaAndTimelineForOutForDeliveryOrder()
+    {
+        await using var dbContext = CreateDbContext();
+        var customer = CreateUser();
+        var driverUser = new User("Driver User", "driver.orders@test.com", "01000000009", UserRole.Driver);
+        var driver = new Driver(driverUser.Id, "Motorbike", "12345678901234", "ABC-123");
+        var order = CreateOrder(customer.Id, "ORD-TRACK-001", OrderStatus.Placed, OrderStatus.Accepted, OrderStatus.Preparing, OrderStatus.PickedUp, OrderStatus.OnTheWay);
+        var assignment = new DeliveryAssignment(order.Id, 0m);
+
+        assignment.OfferTo(driver.Id);
+        assignment.Accept();
+        assignment.MarkPickedUp();
+
+        dbContext.Users.AddRange(customer, driverUser);
+        dbContext.Drivers.Add(driver);
+        dbContext.Orders.Add(order);
+        dbContext.DeliveryAssignments.Add(assignment);
+        await dbContext.SaveChangesAsync();
+
+        var service = new OrderReadService(dbContext);
+
+        var result = await service.GetCustomerOrderTrackingAsync(order.Id, customer.Id);
+
+        result.Should().NotBeNull();
+        result!.Order.Status.Should().Be("out_for_delivery");
+        result.Driver.Should().NotBeNull();
+        result.Driver!.Name.Should().Be("Driver User");
+        result.Driver.PhoneNumber.Should().Be("01000000009");
+        result.Driver.Subtitle.Should().Be("Motorbike");
+        result.EstimatedDelivery.Should().NotBeNull();
+        result.Timeline.Should().HaveCount(5);
+        result.Timeline[3].Id.Should().Be("out_for_delivery");
+        result.Timeline[3].IsActive.Should().BeTrue();
+        result.Timeline[0].IsCompleted.Should().BeTrue();
+    }
+
+    [Fact]
+    public async Task GetCustomerOrderTrackingAsync_ShouldReturnCancelledStateWithoutEta()
+    {
+        await using var dbContext = CreateDbContext();
+        var user = CreateUser();
+        var order = CreateOrder(user.Id, "ORD-TRACK-002", OrderStatus.Placed, OrderStatus.Accepted, OrderStatus.Cancelled);
+
+        dbContext.Users.Add(user);
+        dbContext.Orders.Add(order);
+        await dbContext.SaveChangesAsync();
+
+        var service = new OrderReadService(dbContext);
+
+        var result = await service.GetCustomerOrderTrackingAsync(order.Id, user.Id);
+
+        result.Should().NotBeNull();
+        result!.Order.Status.Should().Be("cancelled");
+        result.EstimatedDelivery.Should().BeNull();
+        result.Driver.Should().BeNull();
+        result.Timeline.Should().HaveCount(5);
+        result.Timeline[^1].Id.Should().Be("cancelled");
+        result.Timeline[^1].IsActive.Should().BeTrue();
+        result.Timeline[^1].Time.Should().NotBeNullOrWhiteSpace();
+    }
+
     private static ApplicationDbContext CreateDbContext()
     {
         var options = new DbContextOptionsBuilder<ApplicationDbContext>()
@@ -82,6 +145,22 @@ public class CustomerOrderReadServiceTests
         if (status != OrderStatus.PendingPayment)
         {
             order.ChangeStatus(status);
+        }
+
+        return order;
+    }
+
+    private static Order CreateOrder(Guid userId, string orderNumber, params OrderStatus[] statuses)
+    {
+        var order = new Order(orderNumber, userId, Guid.NewGuid(), Guid.NewGuid(), PaymentMethodType.CashOnDelivery, 100m, 0m, 10m, 5m);
+        order.Items.Add(new OrderItem(order.Id, Guid.NewGuid(), Guid.NewGuid(), "Fresh Item", 2, 50m));
+
+        foreach (var status in statuses)
+        {
+            if (order.Status != status)
+            {
+                order.ChangeStatus(status);
+            }
         }
 
         return order;
