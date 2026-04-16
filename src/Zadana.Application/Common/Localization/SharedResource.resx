@@ -140,6 +140,9 @@
   <data name="AccountNotFound" xml:space="preserve">
     <value>No account found with this phone number or email. Please register first.</value>
   </data>
+  <data name="AccountEmailNotVerified" xml:space="preserve">
+    <value>Your email address is not verified yet. Please verify your account using the OTP sent to your email before logging in.</value>
+  </data>
   <data name="UnauthorizedAppAccess" xml:space="preserve">
     <value>Unauthorized access to this application.</value>
   </data>

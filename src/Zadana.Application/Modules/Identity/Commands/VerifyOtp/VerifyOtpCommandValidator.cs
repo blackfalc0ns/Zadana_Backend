@@ -10,12 +10,20 @@ public class VerifyOtpCommandValidator : AbstractValidator<VerifyOtpCommand>
     {
         RuleFor(x => x.Identifier)
             .NotEmpty().WithMessage(localizer["RequiredField"].Value)
-            .EmailAddress().WithMessage(localizer["InvalidEmail"].Value)
-            .WithName(localizer["Email"].Value);
+            .Must(identifier => IsEmail(identifier) || IsPhone(identifier))
+            .WithMessage(localizer["InvalidEmail"].Value)
+            .WithName(localizer["Identifier"].Value);
 
         RuleFor(x => x.OtpCode)
             .NotEmpty().WithMessage(localizer["RequiredField"].Value)
             .Length(4).WithMessage(localizer["InvalidOtpLength"].Value)
             .WithName(localizer["OtpCode"].Value);
     }
+
+    private static bool IsEmail(string? value) =>
+        !string.IsNullOrWhiteSpace(value) && value.Contains('@');
+
+    private static bool IsPhone(string? value) =>
+        !string.IsNullOrWhiteSpace(value) &&
+        value.Trim().All(character => char.IsDigit(character) || character == '+');
 }

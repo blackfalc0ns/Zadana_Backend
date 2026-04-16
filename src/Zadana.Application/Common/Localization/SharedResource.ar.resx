@@ -415,4 +415,7 @@
   <data name="BrandMustBeLinkedToSubcategory" xml:space="preserve">
     <value>يجب ربط العلامة التجارية بتصنيف فرعي وليس بتصنيف رئيسي.</value>
   </data>
+  <data name="AccountEmailNotVerified" xml:space="preserve">
+    <value>بريدك الإلكتروني غير موثق بعد. يرجى تأكيد الحساب باستخدام كود التحقق المرسل إلى بريدك قبل تسجيل الدخول.</value>
+  </data>
 </root>
