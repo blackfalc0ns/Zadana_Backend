@@ -28,7 +28,13 @@ public record CatalogRequestListItemDto(
     string? RejectionReason,
     string? ReviewedBy,
     DateTime? ReviewedAtUtc,
-    DateTime CreatedAtUtc);
+    DateTime CreatedAtUtc,
+    string? RequestKind = null,
+    string? RequestedLevelKey = null,
+    string? RequestedPathAr = null,
+    string? RequestedPathEn = null,
+    string? ApprovedPathAr = null,
+    string? ApprovedPathEn = null);
 
 public record CatalogRequestDetailDto(
     Guid Id,
@@ -59,7 +65,13 @@ public record CatalogRequestDetailDto(
     DateTime? ReviewedAtUtc,
     Guid? CreatedEntityId,
     string? CreatedEntityType,
-    DateTime CreatedAtUtc);
+    DateTime CreatedAtUtc,
+    string? RequestKind = null,
+    string? RequestedLevelKey = null,
+    string? RequestedPathAr = null,
+    string? RequestedPathEn = null,
+    string? ApprovedPathAr = null,
+    string? ApprovedPathEn = null);
 
 public record VendorCatalogNotificationDto(
     Guid Id,

@@ -446,6 +446,9 @@ namespace Zadana.Infrastructure.Migrations
                         .ValueGeneratedOnAdd()
                         .HasColumnType("uniqueidentifier");
 
+                    b.Property<Guid>("CategoryId")
+                        .HasColumnType("uniqueidentifier");
+
                     b.Property<DateTime>("CreatedAtUtc")
                         .HasColumnType("datetime2");
 
@@ -489,6 +492,9 @@ namespace Zadana.Infrastructure.Migrations
                         .HasColumnType("uniqueidentifier");
 
                     b.HasKey("Id");
+
+                    b.HasIndex("CategoryId")
+                        .HasDatabaseName("IX_BrandRequest_CategoryId");
 
                     b.HasIndex("CreatedBrandId");
 
@@ -594,6 +600,11 @@ namespace Zadana.Infrastructure.Migrations
                         .IsRequired()
                         .HasMaxLength(20)
                         .HasColumnType("nvarchar(20)");
+
+                    b.Property<string>("TargetLevel")
+                        .IsRequired()
+                        .HasMaxLength(50)
+                        .HasColumnType("nvarchar(50)");
 
                     b.Property<DateTime>("UpdatedAtUtc")
                         .HasColumnType("datetime2");
@@ -2111,6 +2122,71 @@ namespace Zadana.Infrastructure.Migrations
                     b.ToTable("Orders", (string)null);
                 });
 
+            modelBuilder.Entity("Zadana.Domain.Modules.Orders.Entities.OrderComplaint", b =>
+                {
+                    b.Property<Guid>("Id")
+                        .ValueGeneratedOnAdd()
+                        .HasColumnType("uniqueidentifier");
+
+                    b.Property<DateTime>("CreatedAtUtc")
+                        .HasColumnType("datetime2");
+
+                    b.Property<string>("Message")
+                        .IsRequired()
+                        .HasMaxLength(2000)
+                        .HasColumnType("nvarchar(2000)");
+
+                    b.Property<Guid>("OrderId")
+                        .HasColumnType("uniqueidentifier");
+
+                    b.Property<string>("Status")
+                        .IsRequired()
+                        .HasMaxLength(50)
+                        .HasColumnType("nvarchar(50)");
+
+                    b.Property<DateTime>("UpdatedAtUtc")
+                        .HasColumnType("datetime2");
+
+                    b.HasKey("Id");
+
+                    b.HasIndex("OrderId")
+                        .IsUnique();
+
+                    b.ToTable("OrderComplaints", (string)null);
+                });
+
+            modelBuilder.Entity("Zadana.Domain.Modules.Orders.Entities.OrderComplaintAttachment", b =>
+                {
+                    b.Property<Guid>("Id")
+                        .ValueGeneratedOnAdd()
+                        .HasColumnType("uniqueidentifier");
+
+                    b.Property<DateTime>("CreatedAtUtc")
+                        .HasColumnType("datetime2");
+
+                    b.Property<string>("FileName")
+                        .IsRequired()
+                        .HasMaxLength(255)
+                        .HasColumnType("nvarchar(255)");
+
+                    b.Property<string>("FileUrl")
+                        .IsRequired()
+                        .HasMaxLength(2000)
+                        .HasColumnType("nvarchar(2000)");
+
+                    b.Property<Guid>("OrderComplaintId")
+                        .HasColumnType("uniqueidentifier");
+
+                    b.Property<DateTime>("UpdatedAtUtc")
+                        .HasColumnType("datetime2");
+
+                    b.HasKey("Id");
+
+                    b.HasIndex("OrderComplaintId");
+
+                    b.ToTable("OrderComplaintAttachments", (string)null);
+                });
+
             modelBuilder.Entity("Zadana.Domain.Modules.Orders.Entities.OrderItem", b =>
                 {
                     b.Property<Guid>("Id")
@@ -2289,7 +2365,12 @@ namespace Zadana.Infrastructure.Migrations
                         .ValueGeneratedOnAdd()
                         .HasColumnType("uniqueidentifier");
 
-                    b.Property<string>("Body")
+                    b.Property<string>("BodyAr")
+                        .IsRequired()
+                        .HasMaxLength(1000)
+                        .HasColumnType("nvarchar(1000)");
+
+                    b.Property<string>("BodyEn")
                         .IsRequired()
                         .HasMaxLength(1000)
                         .HasColumnType("nvarchar(1000)");
@@ -2297,10 +2378,22 @@ namespace Zadana.Infrastructure.Migrations
                     b.Property<DateTime>("CreatedAtUtc")
                         .HasColumnType("datetime2");
 
+                    b.Property<string>("Data")
+                        .HasMaxLength(4000)
+                        .HasColumnType("nvarchar(4000)");
+
                     b.Property<bool>("IsRead")
                         .HasColumnType("bit");
 
-                    b.Property<string>("Title")
+                    b.Property<Guid?>("ReferenceId")
+                        .HasColumnType("uniqueidentifier");
+
+                    b.Property<string>("TitleAr")
+                        .IsRequired()
+                        .HasMaxLength(200)
+                        .HasColumnType("nvarchar(200)");
+
+                    b.Property<string>("TitleEn")
                         .IsRequired()
                         .HasMaxLength(200)
                         .HasColumnType("nvarchar(200)");
@@ -2317,7 +2410,9 @@ namespace Zadana.Infrastructure.Migrations
 
                     b.HasKey("Id");
 
-                    b.HasIndex("UserId");
+                    b.HasIndex("CreatedAtUtc");
+
+                    b.HasIndex("UserId", "IsRead");
 
                     b.ToTable("Notifications", (string)null);
                 });
@@ -3050,6 +3145,12 @@ namespace Zadana.Infrastructure.Migrations
 
             modelBuilder.Entity("Zadana.Domain.Modules.Catalog.Entities.BrandRequest", b =>
                 {
+                    b.HasOne("Zadana.Domain.Modules.Catalog.Entities.Category", "Category")
+                        .WithMany()
+                        .HasForeignKey("CategoryId")
+                        .OnDelete(DeleteBehavior.Restrict)
+                        .IsRequired();
+
                     b.HasOne("Zadana.Domain.Modules.Catalog.Entities.Brand", "CreatedBrand")
                         .WithMany()
                         .HasForeignKey("CreatedBrandId")
@@ -3060,6 +3161,8 @@ namespace Zadana.Infrastructure.Migrations
                         .HasForeignKey("VendorId")
                         .OnDelete(DeleteBehavior.Restrict)
                         .IsRequired();
+
+                    b.Navigation("Category");
 
                     b.Navigation("CreatedBrand");
 
@@ -3480,6 +3583,28 @@ namespace Zadana.Infrastructure.Migrations
                     b.Navigation("VendorBranch");
                 });
 
+            modelBuilder.Entity("Zadana.Domain.Modules.Orders.Entities.OrderComplaint", b =>
+                {
+                    b.HasOne("Zadana.Domain.Modules.Orders.Entities.Order", "Order")
+                        .WithMany("Complaints")
+                        .HasForeignKey("OrderId")
+                        .OnDelete(DeleteBehavior.Cascade)
+                        .IsRequired();
+
+                    b.Navigation("Order");
+                });
+
+            modelBuilder.Entity("Zadana.Domain.Modules.Orders.Entities.OrderComplaintAttachment", b =>
+                {
+                    b.HasOne("Zadana.Domain.Modules.Orders.Entities.OrderComplaint", "OrderComplaint")
+                        .WithMany("Attachments")
+                        .HasForeignKey("OrderComplaintId")
+                        .OnDelete(DeleteBehavior.Cascade)
+                        .IsRequired();
+
+                    b.Navigation("OrderComplaint");
+                });
+
             modelBuilder.Entity("Zadana.Domain.Modules.Orders.Entities.OrderItem", b =>
                 {
                     b.HasOne("Zadana.Domain.Modules.Catalog.Entities.MasterProduct", "MasterProduct")
@@ -3795,9 +3920,16 @@ namespace Zadana.Infrastructure.Migrations
 
             modelBuilder.Entity("Zadana.Domain.Modules.Orders.Entities.Order", b =>
                 {
+                    b.Navigation("Complaints");
+
                     b.Navigation("Items");
 
                     b.Navigation("StatusHistory");
+                });
+
+            modelBuilder.Entity("Zadana.Domain.Modules.Orders.Entities.OrderComplaint", b =>
+                {
+                    b.Navigation("Attachments");
                 });
 
             modelBuilder.Entity("Zadana.Domain.Modules.Payments.Entities.Payment", b =>

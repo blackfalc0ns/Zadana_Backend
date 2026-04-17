@@ -16,6 +16,9 @@ public class BrandRequestConfiguration : IEntityTypeConfiguration<BrandRequest>
             .IsRequired()
             .HasMaxLength(200);
 
+        builder.Property(x => x.CategoryId)
+            .IsRequired();
+
         builder.Property(x => x.NameEn)
             .IsRequired()
             .HasMaxLength(200);
@@ -39,11 +42,17 @@ public class BrandRequestConfiguration : IEntityTypeConfiguration<BrandRequest>
             .HasForeignKey(x => x.VendorId)
             .OnDelete(DeleteBehavior.Restrict);
 
+        builder.HasOne(x => x.Category)
+            .WithMany()
+            .HasForeignKey(x => x.CategoryId)
+            .OnDelete(DeleteBehavior.Restrict);
+
         builder.HasOne(x => x.CreatedBrand)
             .WithMany()
             .HasForeignKey(x => x.CreatedBrandId)
             .OnDelete(DeleteBehavior.Restrict);
 
+        builder.HasIndex(x => x.CategoryId).HasDatabaseName("IX_BrandRequest_CategoryId");
         builder.HasIndex(x => x.VendorId).HasDatabaseName("IX_BrandRequest_VendorId");
         builder.HasIndex(x => x.Status).HasDatabaseName("IX_BrandRequest_Status");
     }

@@ -5,6 +5,7 @@ using Microsoft.Extensions.Localization;
 using Zadana.Application.Common.Interfaces;
 using Zadana.Application.Common.Localization;
 using Zadana.Application.Modules.Marketing.DTOs;
+using Zadana.Application.Modules.Marketing.Events;
 using Zadana.Domain.Modules.Marketing.Entities;
 using Zadana.SharedKernel.Exceptions;
 
@@ -81,7 +82,13 @@ public class UpdateHomeBannerCommandValidator : AbstractValidator<UpdateHomeBann
 public class CreateHomeBannerCommandHandler : IRequestHandler<CreateHomeBannerCommand, HomeBannerAdminDto>
 {
     private readonly IApplicationDbContext _context;
-    public CreateHomeBannerCommandHandler(IApplicationDbContext context) => _context = context;
+    private readonly IPublisher _publisher;
+
+    public CreateHomeBannerCommandHandler(IApplicationDbContext context, IPublisher publisher)
+    {
+        _context = context;
+        _publisher = publisher;
+    }
 
     public async Task<HomeBannerAdminDto> Handle(CreateHomeBannerCommand request, CancellationToken cancellationToken)
     {
@@ -92,6 +99,12 @@ public class CreateHomeBannerCommandHandler : IRequestHandler<CreateHomeBannerCo
 
         _context.HomeBanners.Add(entity);
         await _context.SaveChangesAsync(cancellationToken);
+
+        // Notify all customers about new banner
+        await _publisher.Publish(
+            new BannerActivatedNotification(entity.Id, entity.TitleAr, entity.TitleEn, entity.ImageUrl),
+            cancellationToken);
+
         return MarketingMappings.ToDto(entity);
     }
 }
@@ -121,13 +134,25 @@ public class UpdateHomeBannerCommandHandler : IRequestHandler<UpdateHomeBannerCo
 public class ActivateHomeBannerCommandHandler : IRequestHandler<ActivateHomeBannerCommand>
 {
     private readonly IApplicationDbContext _context;
-    public ActivateHomeBannerCommandHandler(IApplicationDbContext context) => _context = context;
+    private readonly IPublisher _publisher;
+
+    public ActivateHomeBannerCommandHandler(IApplicationDbContext context, IPublisher publisher)
+    {
+        _context = context;
+        _publisher = publisher;
+    }
+
     public async Task Handle(ActivateHomeBannerCommand request, CancellationToken cancellationToken)
     {
         var entity = await _context.HomeBanners.FirstOrDefaultAsync(x => x.Id == request.Id, cancellationToken)
             ?? throw new NotFoundException(nameof(HomeBanner), request.Id);
         entity.Activate();
         await _context.SaveChangesAsync(cancellationToken);
+
+        // Notify all customers about activated banner
+        await _publisher.Publish(
+            new BannerActivatedNotification(entity.Id, entity.TitleAr, entity.TitleEn, entity.ImageUrl),
+            cancellationToken);
     }
 }
 

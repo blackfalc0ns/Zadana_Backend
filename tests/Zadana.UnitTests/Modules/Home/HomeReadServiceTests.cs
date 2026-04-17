@@ -35,9 +35,9 @@ public class HomeReadServiceTests
         defaultAddress.SetAsDefault();
 
         context.CustomerAddresses.AddRange(newerAddress, defaultAddress);
-        context.Notifications.Add(new Notification(customer.Id, "n1", "b1"));
-        context.Notifications.Add(new Notification(customer.Id, "n2", "b2"));
-        var readNotification = new Notification(customer.Id, "n3", "b3");
+        context.Notifications.Add(new Notification(customer.Id, "n1", "n1", "b1", "b1"));
+        context.Notifications.Add(new Notification(customer.Id, "n2", "n2", "b2", "b2"));
+        var readNotification = new Notification(customer.Id, "n3", "n3", "b3", "b3");
         readNotification.MarkAsRead();
         context.Notifications.Add(readNotification);
         await context.SaveChangesAsync();

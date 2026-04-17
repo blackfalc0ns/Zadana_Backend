@@ -3,6 +3,7 @@ using MediatR;
 namespace Zadana.Application.Modules.Catalog.Commands.ProductRequests.SubmitRequest;
 
 public record RequestedBrandDraft(
+    Guid CategoryId,
     string NameAr,
     string NameEn,
     string? LogoUrl = null);
@@ -10,6 +11,7 @@ public record RequestedBrandDraft(
 public record RequestedCategoryDraft(
     string NameAr,
     string NameEn,
+    string TargetLevel,
     Guid? ParentCategoryId = null,
     int DisplayOrder = 1,
     string? ImageUrl = null);

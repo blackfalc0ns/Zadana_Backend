@@ -4,6 +4,7 @@ using Microsoft.EntityFrameworkCore;
 using Microsoft.Extensions.Localization;
 using Zadana.Application.Common.Interfaces;
 using Zadana.Application.Common.Localization;
+using Zadana.Application.Modules.Orders.Events;
 using Zadana.Domain.Modules.Orders.Enums;
 using Zadana.SharedKernel.Exceptions;
 
@@ -37,11 +38,13 @@ public class CancelCustomerOrderCommandHandler : IRequestHandler<CancelCustomerO
 {
     private readonly IApplicationDbContext _context;
     private readonly IUnitOfWork _unitOfWork;
+    private readonly IPublisher _publisher;
 
-    public CancelCustomerOrderCommandHandler(IApplicationDbContext context, IUnitOfWork unitOfWork)
+    public CancelCustomerOrderCommandHandler(IApplicationDbContext context, IUnitOfWork unitOfWork, IPublisher publisher)
     {
         _context = context;
         _unitOfWork = unitOfWork;
+        _publisher = publisher;
     }
 
     public async Task<CancelCustomerOrderResultDto> Handle(CancelCustomerOrderCommand request, CancellationToken cancellationToken)
@@ -56,6 +59,7 @@ public class CancelCustomerOrderCommandHandler : IRequestHandler<CancelCustomerO
             throw new BusinessRuleException("ORDER_CANNOT_BE_CANCELLED", "Order cannot be cancelled at the current stage.");
         }
 
+        var oldStatus = order.Status;
         var note = string.IsNullOrWhiteSpace(request.Note)
             ? $"Customer cancellation reason: {request.Reason.Trim()}"
             : $"Customer cancellation reason: {request.Reason.Trim()}. Note: {request.Note.Trim()}";
@@ -63,6 +67,20 @@ public class CancelCustomerOrderCommandHandler : IRequestHandler<CancelCustomerO
         order.ChangeStatus(OrderStatus.Cancelled, null, note);
         _context.OrderStatusHistories.Add(order.StatusHistory.Last());
         await _unitOfWork.SaveChangesAsync(cancellationToken);
+
+        // Publish notification event
+        await _publisher.Publish(
+            new OrderStatusChangedNotification(
+                order.Id,
+                order.UserId,
+                order.VendorId,
+                order.OrderNumber,
+                oldStatus,
+                OrderStatus.Cancelled,
+                NotifyCustomer: true,
+                NotifyVendor: true,
+                ActorRole: "customer"),
+            cancellationToken);
 
         return new CancelCustomerOrderResultDto(order.Id, "cancelled", "order cancelled successfully");
     }

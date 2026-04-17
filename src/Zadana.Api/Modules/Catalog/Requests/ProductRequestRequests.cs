@@ -13,6 +13,7 @@ public record SubmitProductRequestProductPayload(
     string? ImageUrl = null);
 
 public record SubmitBrandRequestPayload(
+    Guid CategoryId,
     string NameAr,
     string NameEn,
     string? LogoUrl = null);
@@ -20,6 +21,7 @@ public record SubmitBrandRequestPayload(
 public record SubmitCategoryRequestPayload(
     string NameAr,
     string NameEn,
+    string TargetLevel,
     Guid? ParentCategoryId = null,
     int DisplayOrder = 1,
     string? ImageUrl = null);
@@ -41,6 +43,12 @@ public record GetPendingProductRequestsRequest(
 public record ReviewProductRequestRequest(
     bool IsApproved,
     string? RejectionReason);
+
+public record ReviewCategoryRequestRequest(
+    bool IsApproved,
+    string? RejectionReason,
+    string? ApprovedTargetLevel = null,
+    Guid? ApprovedParentCategoryId = null);
 
 public record GetCatalogRequestCenterRequest(
     string? Type = null,

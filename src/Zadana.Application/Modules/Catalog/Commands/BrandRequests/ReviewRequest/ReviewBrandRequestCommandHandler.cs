@@ -53,12 +53,14 @@ public class ReviewBrandRequestCommandHandler : IRequestHandler<ReviewBrandReque
 
         if (request.IsApproved)
         {
-            var brand = new Brand(brandRequest.NameAr, brandRequest.NameEn, brandRequest.LogoUrl);
+            var brand = new Brand(brandRequest.NameAr, brandRequest.NameEn, brandRequest.LogoUrl, brandRequest.CategoryId);
             _context.Brands.Add(brand);
             brandRequest.Approve(reviewerName, brand.Id);
             _context.Notifications.Add(new Notification(
                 brandRequest.Vendor.UserId,
+                "تمت الموافقة على طلب الكتالوج",
                 "Catalog Request Approved",
+                $"تمت الموافقة على طلب العلامة التجارية '{brandRequest.NameAr}'.",
                 $"Your brand request '{brandRequest.NameEn}' has been approved.",
                 "catalog_request_brand"));
             await _context.SaveChangesAsync(cancellationToken);
@@ -73,7 +75,9 @@ public class ReviewBrandRequestCommandHandler : IRequestHandler<ReviewBrandReque
         brandRequest.Reject(request.RejectionReason, reviewerName);
         _context.Notifications.Add(new Notification(
             brandRequest.Vendor.UserId,
+            "تم رفض طلب الكتالوج",
             "Catalog Request Rejected",
+            $"تم رفض طلب العلامة التجارية '{brandRequest.NameAr}'. السبب: {request.RejectionReason}",
             $"Your brand request '{brandRequest.NameEn}' was rejected. Reason: {request.RejectionReason}",
             "catalog_request_brand"));
         await _context.SaveChangesAsync(cancellationToken);

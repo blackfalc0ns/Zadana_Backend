@@ -15,6 +15,7 @@ public class VendorBrandRequestsController : ApiControllerBase
     public async Task<IActionResult> SubmitRequest([FromBody] SubmitBrandRequestPayload request)
     {
         var requestId = await Sender.Send(new SubmitBrandRequestCommand(
+            request.CategoryId,
             request.NameAr,
             request.NameEn,
             request.LogoUrl));

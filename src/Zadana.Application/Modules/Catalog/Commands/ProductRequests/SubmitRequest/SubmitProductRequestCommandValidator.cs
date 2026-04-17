@@ -63,6 +63,10 @@ public class SubmitProductRequestCommandValidator : AbstractValidator<SubmitProd
                 .NotEmpty().WithMessage(localizer["RequiredField"].Value)
                 .MaximumLength(200).WithMessage(localizer["MaxLength"].Value);
 
+            RuleFor(v => v.RequestedCategory!.TargetLevel)
+                .NotEmpty().WithMessage(localizer["RequiredField"].Value)
+                .MaximumLength(50).WithMessage(localizer["MaxLength"].Value);
+
             RuleFor(v => v.RequestedCategory!.ImageUrl)
                 .MaximumLength(1000).When(v => !string.IsNullOrWhiteSpace(v.RequestedCategory!.ImageUrl))
                 .WithMessage(localizer["ImageUrlTooLong"].Value);

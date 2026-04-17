@@ -5,4 +5,6 @@ namespace Zadana.Application.Modules.Catalog.Commands.CategoryRequests.ReviewReq
 public record ReviewCategoryRequestCommand(
     Guid CategoryRequestId,
     bool IsApproved,
-    string? RejectionReason = null) : IRequest<Guid?>;
+    string? RejectionReason = null,
+    string? ApprovedTargetLevel = null,
+    Guid? ApprovedParentCategoryId = null) : IRequest<Guid?>;

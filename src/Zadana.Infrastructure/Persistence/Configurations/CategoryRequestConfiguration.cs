@@ -20,6 +20,10 @@ public class CategoryRequestConfiguration : IEntityTypeConfiguration<CategoryReq
             .IsRequired()
             .HasMaxLength(200);
 
+        builder.Property(x => x.TargetLevel)
+            .IsRequired()
+            .HasMaxLength(50);
+
         builder.Property(x => x.ImageUrl)
             .HasMaxLength(1000);
 

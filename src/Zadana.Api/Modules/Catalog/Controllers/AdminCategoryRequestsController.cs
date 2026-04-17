@@ -12,9 +12,15 @@ namespace Zadana.Api.Modules.Catalog.Controllers;
 public class AdminCategoryRequestsController : ApiControllerBase
 {
     [HttpPost("{id:guid}/review")]
-    public async Task<IActionResult> ReviewRequest(Guid id, [FromBody] ReviewProductRequestRequest request)
+    public async Task<IActionResult> ReviewRequest(Guid id, [FromBody] ReviewCategoryRequestRequest request)
     {
-        var createdCategoryId = await Sender.Send(new ReviewCategoryRequestCommand(id, request.IsApproved, request.RejectionReason));
+        var createdCategoryId = await Sender.Send(new ReviewCategoryRequestCommand(
+            id,
+            request.IsApproved,
+            request.RejectionReason,
+            request.ApprovedTargetLevel,
+            request.ApprovedParentCategoryId));
+
         return Ok(new { CreatedCategoryId = createdCategoryId });
     }
 }

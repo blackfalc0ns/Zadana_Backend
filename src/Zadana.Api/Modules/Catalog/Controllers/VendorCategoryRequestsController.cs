@@ -17,6 +17,7 @@ public class VendorCategoryRequestsController : ApiControllerBase
         var requestId = await Sender.Send(new SubmitCategoryRequestCommand(
             request.NameAr,
             request.NameEn,
+            request.TargetLevel,
             request.ParentCategoryId,
             request.DisplayOrder,
             request.ImageUrl));

@@ -29,6 +29,30 @@ public interface IOrderReadService
         int page,
         int pageSize,
         CancellationToken cancellationToken = default);
+    Task<PaginatedList<VendorOrderListItemDto>> GetVendorWorkspaceOrdersAsync(
+        Guid vendorId,
+        string? search,
+        string? status,
+        string? paymentMethod,
+        int page,
+        int pageSize,
+        CancellationToken cancellationToken = default);
+    Task<VendorOrderDetailDto?> GetVendorOrderDetailAsync(
+        Guid vendorId,
+        Guid orderId,
+        CancellationToken cancellationToken = default);
+    Task<AdminOrdersListDto> GetAdminOrdersAsync(
+        string? search,
+        string? status,
+        string? paymentStatus,
+        string? fulfillmentStatus,
+        string? queueView,
+        int page,
+        int pageSize,
+        CancellationToken cancellationToken = default);
+    Task<AdminOrderDetailDto?> GetAdminOrderDetailAsync(
+        Guid orderId,
+        CancellationToken cancellationToken = default);
 }
 
 public enum CustomerOrderBucket

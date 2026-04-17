@@ -12,9 +12,19 @@ public class NotificationConfiguration : IEntityTypeConfiguration<Notification>
 
         builder.HasKey(x => x.Id);
 
-        builder.Property(x => x.Title).HasMaxLength(200).IsRequired();
-        builder.Property(x => x.Body).HasMaxLength(1000).IsRequired();
+        builder.Property(x => x.TitleAr).HasMaxLength(200).IsRequired();
+        builder.Property(x => x.TitleEn).HasMaxLength(200).IsRequired();
+        builder.Property(x => x.BodyAr).HasMaxLength(1000).IsRequired();
+        builder.Property(x => x.BodyEn).HasMaxLength(1000).IsRequired();
         builder.Property(x => x.Type).HasMaxLength(100);
+        builder.Property(x => x.Data).HasMaxLength(4000);
+
+        // Ignore computed properties (legacy compatibility)
+        builder.Ignore(x => x.Title);
+        builder.Ignore(x => x.Body);
+
+        builder.HasIndex(x => new { x.UserId, x.IsRead });
+        builder.HasIndex(x => x.CreatedAtUtc);
 
         builder.HasOne(x => x.User)
             .WithMany()
@@ -22,3 +32,4 @@ public class NotificationConfiguration : IEntityTypeConfiguration<Notification>
             .OnDelete(DeleteBehavior.Cascade);
     }
 }
+

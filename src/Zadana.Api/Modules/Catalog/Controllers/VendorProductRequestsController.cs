@@ -28,6 +28,7 @@ public class VendorProductRequestsController : ApiControllerBase
             request.RequestedBrand is null
                 ? null
                 : new RequestedBrandDraft(
+                    request.RequestedBrand.CategoryId,
                     request.RequestedBrand.NameAr,
                     request.RequestedBrand.NameEn,
                     request.RequestedBrand.LogoUrl),
@@ -36,6 +37,7 @@ public class VendorProductRequestsController : ApiControllerBase
                 : new RequestedCategoryDraft(
                     request.RequestedCategory.NameAr,
                     request.RequestedCategory.NameEn,
+                    request.RequestedCategory.TargetLevel,
                     request.RequestedCategory.ParentCategoryId,
                     request.RequestedCategory.DisplayOrder,
                     request.RequestedCategory.ImageUrl));

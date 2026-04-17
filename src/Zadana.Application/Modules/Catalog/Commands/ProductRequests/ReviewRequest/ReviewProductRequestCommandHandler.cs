@@ -110,7 +110,9 @@ public class ReviewProductRequestCommandHandler : IRequestHandler<ReviewProductR
 
             _context.Notifications.Add(new Notification(
                 productRequest.Vendor.UserId,
+                "تمت الموافقة على طلب الكتالوج",
                 "Catalog Request Approved",
+                $"تمت الموافقة على طلب المنتج '{productRequest.SuggestedNameAr}'.",
                 $"Your product request '{productRequest.SuggestedNameEn}' has been approved.",
                 "catalog_request_product"));
 
@@ -127,7 +129,9 @@ public class ReviewProductRequestCommandHandler : IRequestHandler<ReviewProductR
 
         _context.Notifications.Add(new Notification(
             productRequest.Vendor.UserId,
+            "تم رفض طلب الكتالوج",
             "Catalog Request Rejected",
+            $"تم رفض طلب المنتج '{productRequest.SuggestedNameAr}'. السبب: {request.RejectionReason}",
             $"Your product request '{productRequest.SuggestedNameEn}' was rejected. Reason: {request.RejectionReason}",
             "catalog_request_product"));
 

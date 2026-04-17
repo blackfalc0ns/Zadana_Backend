@@ -1360,10 +1360,10 @@ public class ApplicationDbContextInitialiser
         }
 
         await _context.Notifications.AddRangeAsync(
-            new Notification(ahmedId, "تم توصيل طلبك", "طلبك الأخير وصل بنجاح وتم تقييمه كأحد أفضل الطلبات هذا الأسبوع.", "order"),
-            new Notification(ahmedId, "عرض جديد", "خصم 10% على منتجات البقالة من Green Valley Market.", "marketing"),
-            new Notification(laylaId, "Refund completed", "Your refund for order ORD-DEV-1002 has been completed.", "payment"),
-            new Notification(noorId, "طلبك قيد المراجعة", "المتجر يراجع طلب الدفع عند الاستلام الخاص بك الآن.", "order"));
+            new Notification(ahmedId, "تم توصيل طلبك", "Order Delivered", "طلبك الأخير وصل بنجاح وتم تقييمه كأحد أفضل الطلبات هذا الأسبوع.", "Your latest order has been delivered successfully.", "order"),
+            new Notification(ahmedId, "عرض جديد", "New Offer", "خصم 10% على منتجات البقالة من Green Valley Market.", "10% discount on grocery products from Green Valley Market.", "marketing"),
+            new Notification(laylaId, "تم استرداد المبلغ", "Refund completed", "تم استرداد مبلغ طلبك ORD-DEV-1002 بنجاح.", "Your refund for order ORD-DEV-1002 has been completed.", "payment"),
+            new Notification(noorId, "طلبك قيد المراجعة", "Order Under Review", "المتجر يراجع طلب الدفع عند الاستلام الخاص بك الآن.", "The store is reviewing your cash-on-delivery order now.", "order"));
         await _context.SaveChangesAsync();
     }
 

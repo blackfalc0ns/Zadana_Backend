@@ -74,6 +74,8 @@ builder.Services.AddScoped<IOrderRepository, OrderRepository>();
 builder.Services.AddScoped<IOrderReadService, OrderReadService>();
 builder.Services.AddSingleton<CustomerPresenceService>();
 builder.Services.AddSingleton<ICustomerPresenceService>(provider => provider.GetRequiredService<CustomerPresenceService>());
+builder.Services.AddSingleton<NotificationService>();
+builder.Services.AddSingleton<Zadana.Application.Common.Interfaces.INotificationService>(provider => provider.GetRequiredService<NotificationService>());
 builder.Services.AddSingleton<IAdminBrandBulkOperationQueue, AdminBrandBulkOperationQueue>();
 builder.Services.AddSingleton<IAdminMasterProductBulkOperationQueue, AdminMasterProductBulkOperationQueue>();
 builder.Services.AddSingleton<IVendorProductBulkOperationQueue, VendorProductBulkOperationQueue>();
@@ -182,7 +184,9 @@ builder.Services.AddAuthentication(options =>
         {
             var accessToken = context.Request.Query["access_token"];
             var path = context.HttpContext.Request.Path;
-            if (!string.IsNullOrWhiteSpace(accessToken) && path.StartsWithSegments(CustomerPresenceHub.HubRoute))
+            if (!string.IsNullOrWhiteSpace(accessToken) &&
+                (path.StartsWithSegments(CustomerPresenceHub.HubRoute) ||
+                 path.StartsWithSegments(NotificationHub.HubRoute)))
             {
                 context.Token = accessToken;
             }
@@ -267,6 +271,7 @@ app.UseAuthentication();
 app.UseAuthorization();
 app.MapControllers();
 app.MapHub<CustomerPresenceHub>(CustomerPresenceHub.HubRoute);
+app.MapHub<NotificationHub>(NotificationHub.HubRoute);
 
 if (shouldSeedOnStartup)
 {

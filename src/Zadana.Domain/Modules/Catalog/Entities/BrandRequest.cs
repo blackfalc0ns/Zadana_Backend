@@ -7,6 +7,7 @@ namespace Zadana.Domain.Modules.Catalog.Entities;
 public class BrandRequest : BaseEntity
 {
     public Guid VendorId { get; private set; }
+    public Guid CategoryId { get; private set; }
     public string NameAr { get; private set; } = null!;
     public string NameEn { get; private set; } = null!;
     public string? LogoUrl { get; private set; }
@@ -17,13 +18,15 @@ public class BrandRequest : BaseEntity
     public Guid? CreatedBrandId { get; private set; }
 
     public Vendor Vendor { get; private set; } = null!;
+    public Category Category { get; private set; } = null!;
     public Brand? CreatedBrand { get; private set; }
 
     private BrandRequest() { }
 
-    public BrandRequest(Guid vendorId, string nameAr, string nameEn, string? logoUrl = null)
+    public BrandRequest(Guid vendorId, Guid categoryId, string nameAr, string nameEn, string? logoUrl = null)
     {
         VendorId = vendorId;
+        CategoryId = categoryId;
         NameAr = nameAr.Trim();
         NameEn = nameEn.Trim();
         LogoUrl = string.IsNullOrWhiteSpace(logoUrl) ? null : logoUrl.Trim();

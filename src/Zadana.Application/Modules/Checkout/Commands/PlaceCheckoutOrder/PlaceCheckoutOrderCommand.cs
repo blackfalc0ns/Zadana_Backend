@@ -5,6 +5,7 @@ using Zadana.Application.Common.Interfaces;
 using Zadana.Application.Modules.Checkout.DTOs;
 using Zadana.Application.Modules.Checkout.Support;
 using Zadana.Application.Modules.Orders.Commands.PlaceOrder;
+using Zadana.Application.Modules.Orders.Events;
 using Zadana.Application.Modules.Payments.DTOs;
 using Zadana.Application.Modules.Payments.Interfaces;
 using Zadana.Domain.Modules.Orders.Enums;
@@ -40,17 +41,20 @@ public class PlaceCheckoutOrderCommandHandler : IRequestHandler<PlaceCheckoutOrd
     private readonly IPaymobGateway _paymobGateway;
     private readonly ISender _sender;
     private readonly IUnitOfWork _unitOfWork;
+    private readonly IPublisher _publisher;
 
     public PlaceCheckoutOrderCommandHandler(
         IApplicationDbContext context,
         IPaymobGateway paymobGateway,
         ISender sender,
-        IUnitOfWork unitOfWork)
+        IUnitOfWork unitOfWork,
+        IPublisher publisher)
     {
         _context = context;
         _paymobGateway = paymobGateway;
         _sender = sender;
         _unitOfWork = unitOfWork;
+        _publisher = publisher;
     }
 
     public async Task<PlaceCheckoutOrderResultDto> Handle(PlaceCheckoutOrderCommand request, CancellationToken cancellationToken)
@@ -171,6 +175,23 @@ public class PlaceCheckoutOrderCommandHandler : IRequestHandler<PlaceCheckoutOrd
         }
 
         await _unitOfWork.SaveChangesAsync(cancellationToken);
+
+        // Publish notification for order placement
+        if (paymentMethodCode is "cash" or "bank")
+        {
+            await _publisher.Publish(
+                new OrderStatusChangedNotification(
+                    order.Id,
+                    request.UserId,
+                    order.VendorId,
+                    order.OrderNumber,
+                    OrderStatus.PendingPayment,
+                    order.Status,
+                    NotifyCustomer: true,
+                    NotifyVendor: true,
+                    ActorRole: "customer"),
+                cancellationToken);
+        }
 
         return new PlaceCheckoutOrderResultDto(
             "order placed successfully",

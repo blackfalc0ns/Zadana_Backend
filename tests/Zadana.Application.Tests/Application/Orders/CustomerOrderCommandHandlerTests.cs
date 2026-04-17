@@ -1,5 +1,7 @@
 using FluentAssertions;
+using MediatR;
 using Microsoft.EntityFrameworkCore;
+using Moq;
 using Zadana.Application.Modules.Orders.Commands.CancelCustomerOrder;
 using Zadana.Application.Modules.Orders.Commands.CreateOrderComplaint;
 using Zadana.Domain.Modules.Identity.Entities;
@@ -26,7 +28,8 @@ public class CustomerOrderCommandHandlerTests
         dbContext.Orders.Add(order);
         await dbContext.SaveChangesAsync();
 
-        var handler = new CancelCustomerOrderCommandHandler(dbContext, dbContext);
+        var publisherMock = new Mock<IPublisher>();
+        var handler = new CancelCustomerOrderCommandHandler(dbContext, dbContext, publisherMock.Object);
 
         var act = () => handler.Handle(
             new CancelCustomerOrderCommand(order.Id, user.Id, "Changed my mind", null),

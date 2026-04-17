@@ -9,6 +9,7 @@ public class CategoryRequest : BaseEntity
     public Guid VendorId { get; private set; }
     public string NameAr { get; private set; } = null!;
     public string NameEn { get; private set; } = null!;
+    public string TargetLevel { get; private set; } = null!;
     public string? ImageUrl { get; private set; }
     public Guid? ParentCategoryId { get; private set; }
     public int DisplayOrder { get; private set; }
@@ -28,6 +29,7 @@ public class CategoryRequest : BaseEntity
         Guid vendorId,
         string nameAr,
         string nameEn,
+        string targetLevel,
         Guid? parentCategoryId = null,
         int displayOrder = 1,
         string? imageUrl = null)
@@ -35,6 +37,7 @@ public class CategoryRequest : BaseEntity
         VendorId = vendorId;
         NameAr = nameAr.Trim();
         NameEn = nameEn.Trim();
+        TargetLevel = targetLevel.Trim().ToLowerInvariant();
         ParentCategoryId = parentCategoryId;
         DisplayOrder = displayOrder < 1 ? 1 : displayOrder;
         ImageUrl = string.IsNullOrWhiteSpace(imageUrl) ? null : imageUrl.Trim();

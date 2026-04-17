@@ -36,6 +36,8 @@ public class VendorReviewAuditService : IVendorReviewAuditService
         _dbContext.Notifications.Add(new Notification(
             vendorUserId,
             resolvedAuthorName,
+            resolvedAuthorName,
+            message,
             message,
             $"vendor-review|{kind}|{tone}|{roleLabel}"));
 

@@ -4,8 +4,11 @@ using Zadana.Application.Common.Models;
 using Zadana.Application.Modules.Orders.DTOs;
 using Zadana.Application.Modules.Orders.Interfaces;
 using Zadana.Domain.Modules.Delivery.Entities;
+using Zadana.Domain.Modules.Identity.Enums;
 using Zadana.Domain.Modules.Orders.Entities;
 using Zadana.Domain.Modules.Orders.Enums;
+using Zadana.Domain.Modules.Payments.Entities;
+using Zadana.Domain.Modules.Payments.Enums;
 using Zadana.Infrastructure.Persistence;
 
 namespace Zadana.Infrastructure.Modules.Orders.Services;
@@ -173,6 +176,219 @@ public class OrderReadService : IOrderReadService
                 order.PlacedAtUtc));
 
         return PaginatedList<AdminVendorOrderListItemDto>.CreateAsync(query, page, pageSize, cancellationToken);
+    }
+
+    public Task<PaginatedList<VendorOrderListItemDto>> GetVendorWorkspaceOrdersAsync(
+        Guid vendorId,
+        string? search,
+        string? status,
+        string? paymentMethod,
+        int page,
+        int pageSize,
+        CancellationToken cancellationToken = default)
+    {
+        var query = _dbContext.Orders
+            .AsNoTracking()
+            .Where(order => order.VendorId == vendorId);
+
+        if (!string.IsNullOrWhiteSpace(search))
+        {
+            var normalizedSearch = search.Trim().ToLower();
+            query = query.Where(order =>
+                order.OrderNumber.ToLower().Contains(normalizedSearch) ||
+                order.User.FullName.ToLower().Contains(normalizedSearch) ||
+                (order.User.PhoneNumber != null && order.User.PhoneNumber.ToLower().Contains(normalizedSearch)));
+        }
+
+        if (!string.IsNullOrWhiteSpace(status) && Enum.TryParse<OrderStatus>(status, true, out var parsedStatus))
+        {
+            query = query.Where(order => order.Status == parsedStatus);
+        }
+
+        if (!string.IsNullOrWhiteSpace(paymentMethod) && Enum.TryParse<Zadana.Domain.Modules.Payments.Enums.PaymentMethodType>(paymentMethod, true, out var parsedPaymentMethod))
+        {
+            query = query.Where(order => order.PaymentMethod == parsedPaymentMethod);
+        }
+
+        query = query.OrderByDescending(order => order.PlacedAtUtc);
+
+        var projected = query.Select(order => new VendorOrderListItemDto(
+            order.Id,
+            order.OrderNumber,
+            order.User.FullName,
+            order.User.PhoneNumber ?? string.Empty,
+            order.Status.ToString(),
+            order.PaymentStatus.ToString(),
+            order.PaymentMethod.ToString(),
+            order.TotalAmount,
+            order.Items.Count,
+            order.PlacedAtUtc,
+            IsLate(order.Status, order.PlacedAtUtc)));
+
+        return PaginatedList<VendorOrderListItemDto>.CreateAsync(projected, page, pageSize, cancellationToken);
+    }
+
+    public async Task<VendorOrderDetailDto?> GetVendorOrderDetailAsync(
+        Guid vendorId,
+        Guid orderId,
+        CancellationToken cancellationToken = default)
+    {
+        var order = await _dbContext.Orders
+            .AsNoTracking()
+            .Include(item => item.User)
+            .Include(item => item.Items)
+            .Include(item => item.StatusHistory)
+            .Include(item => item.Vendor)
+            .Where(item => item.VendorId == vendorId && item.Id == orderId)
+            .FirstOrDefaultAsync(cancellationToken);
+
+        if (order is null)
+        {
+            return null;
+        }
+
+        var customerAddress = await _dbContext.CustomerAddresses
+            .AsNoTracking()
+            .Where(address => address.Id == order.CustomerAddressId)
+            .Select(address => new
+            {
+                address.AddressLine,
+                address.City,
+                address.Area,
+                address.ContactPhone
+            })
+            .FirstOrDefaultAsync(cancellationToken);
+
+        var customerAddressText = customerAddress is null
+            ? string.Empty
+            : string.Join(", ", new[] { customerAddress.AddressLine, customerAddress.Area, customerAddress.City }
+                .Where(value => !string.IsNullOrWhiteSpace(value)));
+
+        return new VendorOrderDetailDto(
+            order.Id,
+            order.OrderNumber,
+            order.User.FullName,
+            customerAddress?.ContactPhone ?? order.User.PhoneNumber ?? string.Empty,
+            customerAddressText,
+            order.Status.ToString(),
+            order.PaymentStatus.ToString(),
+            order.PaymentMethod.ToString(),
+            order.Subtotal,
+            order.DeliveryFee,
+            order.TotalAmount,
+            order.Notes,
+            order.PlacedAtUtc,
+            order.Items.Select(item => new OrderItemDto(
+                item.Id,
+                item.VendorProductId,
+                item.MasterProductId,
+                item.ProductName,
+                item.Quantity,
+                item.UnitPrice,
+                item.LineTotal)).ToList(),
+            BuildVendorTimeline(order));
+    }
+
+    public async Task<AdminOrdersListDto> GetAdminOrdersAsync(
+        string? search,
+        string? status,
+        string? paymentStatus,
+        string? fulfillmentStatus,
+        string? queueView,
+        int page,
+        int pageSize,
+        CancellationToken cancellationToken = default)
+    {
+        var normalizedPage = page <= 0 ? 1 : page;
+        var normalizedPageSize = pageSize <= 0 ? 10 : pageSize;
+
+        var orders = await _dbContext.Orders
+            .AsNoTracking()
+            .Include(order => order.User)
+            .Include(order => order.Vendor)
+            .Include(order => order.VendorBranch)
+            .Include(order => order.StatusHistory)
+            .Include(order => order.Complaints)
+            .Include(order => order.Items)
+            .OrderByDescending(order => order.PlacedAtUtc)
+            .ToListAsync(cancellationToken);
+
+        var orderIds = orders.Select(order => order.Id).ToList();
+        var addressMap = await LoadAddressMapAsync(orderIds, cancellationToken);
+        var paymentMap = await LoadPaymentMapAsync(orderIds, cancellationToken);
+        var refundMap = await LoadRefundMapAsync(orderIds, cancellationToken);
+        var assignmentMap = await LoadAssignmentMapAsync(orderIds, cancellationToken);
+
+        var projected = orders
+            .Select(order => BuildAdminOrderProjection(
+                order,
+                addressMap.GetValueOrDefault(order.Id),
+                paymentMap.GetValueOrDefault(order.Id),
+                refundMap.GetValueOrDefault(order.Id),
+                assignmentMap.GetValueOrDefault(order.Id)))
+            .ToList();
+
+        var filtered = projected
+            .Where(item => MatchesAdminOrderFilters(item, search, status, paymentStatus, fulfillmentStatus, queueView))
+            .ToList();
+
+        var totalCount = filtered.Count;
+        var totalPages = Math.Max(1, (int)Math.Ceiling(totalCount / (double)normalizedPageSize));
+        var safePage = Math.Min(normalizedPage, totalPages);
+        var paged = filtered
+            .Skip((safePage - 1) * normalizedPageSize)
+            .Take(normalizedPageSize)
+            .Select(item => item.ListItem)
+            .ToList();
+
+        return new AdminOrdersListDto(
+            paged,
+            safePage,
+            normalizedPageSize,
+            totalCount,
+            totalPages,
+            safePage > 1,
+            safePage < totalPages,
+            new AdminOrdersSummaryDto(
+                filtered.Count,
+                filtered.Count(item => item.ListItem.Status != "CANCELLED" && item.ListItem.Status != "COMPLETED"),
+                filtered.Count(item => item.ListItem.IsLate),
+                filtered.Count(item => item.ListItem.PaymentStatus is "FAILED" or "PENDING" or "COD_PENDING"),
+                filtered.Count(item => item.ListItem.PaymentStatus is "REFUNDED" or "PARTIALLY_REFUNDED")));
+    }
+
+    public async Task<AdminOrderDetailDto?> GetAdminOrderDetailAsync(
+        Guid orderId,
+        CancellationToken cancellationToken = default)
+    {
+        var order = await _dbContext.Orders
+            .AsNoTracking()
+            .Include(item => item.User)
+            .Include(item => item.Items)
+            .Include(item => item.StatusHistory)
+            .Include(item => item.Vendor)
+            .Include(item => item.VendorBranch)
+            .Include(item => item.Complaints)
+            .FirstOrDefaultAsync(item => item.Id == orderId, cancellationToken);
+
+        if (order is null)
+        {
+            return null;
+        }
+
+        var address = await LoadAddressMapAsync([order.Id], cancellationToken);
+        var payment = await LoadPaymentMapAsync([order.Id], cancellationToken);
+        var refunds = await LoadRefundMapAsync([order.Id], cancellationToken);
+        var assignments = await LoadAssignmentMapAsync([order.Id], cancellationToken);
+        var driverCandidates = await LoadDriverCandidatesAsync(order, cancellationToken);
+
+        return BuildAdminOrderDetail(
+            order,
+            address.GetValueOrDefault(order.Id),
+            payment.GetValueOrDefault(order.Id),
+            refunds.GetValueOrDefault(order.Id),
+            assignments.GetValueOrDefault(order.Id),
+            driverCandidates);
     }
 
     private static CustomerOrderListItemDto MapListItem(Order order) =>
@@ -385,12 +601,676 @@ public class OrderReadService : IOrderReadService
             ? dateTimeUtc.Value.ToString("hh:mm tt", CultureInfo.InvariantCulture)
             : string.Empty;
 
+    private static IReadOnlyList<VendorOrderTimelineItemDto> BuildVendorTimeline(Order order)
+    {
+        var timeline = new List<VendorOrderTimelineItemDto>
+        {
+            new(
+                OrderStatus.PendingVendorAcceptance.ToString(),
+                "Order placed",
+                order.PlacedAtUtc,
+                true,
+                null)
+        };
+
+        timeline.AddRange(order.StatusHistory
+            .OrderBy(entry => entry.CreatedAtUtc)
+            .Select(entry => new VendorOrderTimelineItemDto(
+                entry.NewStatus.ToString(),
+                entry.NewStatus.ToString(),
+                entry.CreatedAtUtc,
+                true,
+                entry.Note)));
+
+        return timeline;
+    }
+
+    private static bool IsLate(OrderStatus status, DateTime placedAtUtc)
+    {
+        if (status is OrderStatus.Delivered or OrderStatus.Cancelled or OrderStatus.VendorRejected or OrderStatus.DeliveryFailed or OrderStatus.Refunded)
+        {
+            return false;
+        }
+
+        return DateTime.UtcNow - placedAtUtc > TimeSpan.FromMinutes(45);
+    }
+
     private sealed record TrackingStepDefinition(
         string Id,
         string Title,
         string Time,
         bool IsActive,
         bool IsCompleted);
+
+    private sealed record AdminAddressSnapshot(string AddressLine, string City, string Area, string ContactPhone);
+
+    private sealed record AdminOrderProjection(AdminOrderListItemDto ListItem);
+
+    private async Task<Dictionary<Guid, AdminAddressSnapshot>> LoadAddressMapAsync(
+        IReadOnlyCollection<Guid> orderIds,
+        CancellationToken cancellationToken)
+    {
+        return await _dbContext.Orders
+            .AsNoTracking()
+            .Where(order => orderIds.Contains(order.Id))
+            .Join(
+                _dbContext.CustomerAddresses.AsNoTracking(),
+                order => order.CustomerAddressId,
+                address => address.Id,
+                (order, address) => new
+                {
+                    order.Id,
+                    Address = new AdminAddressSnapshot(
+                        address.AddressLine,
+                        address.City ?? string.Empty,
+                        address.Area ?? string.Empty,
+                        address.ContactPhone ?? string.Empty)
+                })
+            .ToDictionaryAsync(item => item.Id, item => item.Address, cancellationToken);
+    }
+
+    private async Task<Dictionary<Guid, Payment>> LoadPaymentMapAsync(
+        IReadOnlyCollection<Guid> orderIds,
+        CancellationToken cancellationToken)
+    {
+        return await _dbContext.Payments
+            .AsNoTracking()
+            .Where(payment => orderIds.Contains(payment.OrderId))
+            .OrderByDescending(payment => payment.CreatedAtUtc)
+            .GroupBy(payment => payment.OrderId)
+            .Select(group => group.First())
+            .ToDictionaryAsync(payment => payment.OrderId, payment => payment, cancellationToken);
+    }
+
+    private async Task<Dictionary<Guid, List<Refund>>> LoadRefundMapAsync(
+        IReadOnlyCollection<Guid> orderIds,
+        CancellationToken cancellationToken)
+    {
+        return await _dbContext.Refunds
+            .AsNoTracking()
+            .Include(refund => refund.Payment)
+            .Where(refund => orderIds.Contains(refund.Payment.OrderId))
+            .GroupBy(refund => refund.Payment.OrderId)
+            .ToDictionaryAsync(group => group.Key, group => group.ToList(), cancellationToken);
+    }
+
+    private async Task<Dictionary<Guid, DeliveryAssignment>> LoadAssignmentMapAsync(
+        IReadOnlyCollection<Guid> orderIds,
+        CancellationToken cancellationToken)
+    {
+        return await _dbContext.DeliveryAssignments
+            .AsNoTracking()
+            .Include(assignment => assignment.Driver)
+            .ThenInclude(driver => driver!.User)
+            .Where(assignment => orderIds.Contains(assignment.OrderId))
+            .OrderByDescending(assignment => assignment.CreatedAtUtc)
+            .GroupBy(assignment => assignment.OrderId)
+            .Select(group => group.First())
+            .ToDictionaryAsync(item => item.OrderId, item => item, cancellationToken);
+    }
+
+    private async Task<IReadOnlyList<AdminDriverCandidateDto>> LoadDriverCandidatesAsync(
+        Order order,
+        CancellationToken cancellationToken)
+    {
+        var regionCity = order.Vendor?.City;
+
+        var drivers = await _dbContext.Drivers
+            .AsNoTracking()
+            .Include(driver => driver.User)
+            .Where(driver => driver.Status == AccountStatus.Active)
+            .OrderByDescending(driver => driver.IsAvailable)
+            .ThenBy(driver => driver.User.FullName)
+            .Take(12)
+            .ToListAsync(cancellationToken);
+
+        var assignmentCounts = await _dbContext.DeliveryAssignments
+            .AsNoTracking()
+            .Where(assignment => assignment.DriverId.HasValue)
+            .GroupBy(assignment => assignment.DriverId!.Value)
+            .Select(group => new { DriverId = group.Key, Count = group.Count() })
+            .ToDictionaryAsync(item => item.DriverId, item => item.Count, cancellationToken);
+
+        return drivers
+            .Select((driver, index) => new AdminDriverCandidateDto(
+                driver.Id.ToString(),
+                driver.User.FullName,
+                $"#DRV-{driver.Id.ToString("N")[..6].ToUpperInvariant()}",
+                driver.User.PhoneNumber ?? string.Empty,
+                regionCity ?? "Unknown",
+                driver.Address ?? "Coverage zone",
+                driver.IsAvailable ? "AVAILABLE" : "DELIVERING",
+                Math.Round(1.2m + (index * 0.7m), 1),
+                assignmentCounts.GetValueOrDefault(driver.Id),
+                Math.Round(Math.Max(3.1m, 4.9m - (index * 0.2m)), 1),
+                Math.Round(index * 2.5m, 1),
+                driver.IsAvailable ? "Now" : "Recently active",
+                BuildInitials(driver.User.FullName),
+                (index % 3) switch
+                {
+                    0 => "from-teal-500 to-cyan-500",
+                    1 => "from-amber-500 to-orange-500",
+                    _ => "from-rose-500 to-pink-500"
+                },
+                index > 3,
+                true))
+            .ToList();
+    }
+
+    private static AdminOrderProjection BuildAdminOrderProjection(
+        Order order,
+        AdminAddressSnapshot? address,
+        Payment? payment,
+        IReadOnlyList<Refund>? refunds,
+        DeliveryAssignment? assignment)
+    {
+        var listItem = BuildAdminOrderListItem(order, address, payment, refunds, assignment);
+        return new AdminOrderProjection(listItem);
+    }
+
+    private AdminOrderDetailDto BuildAdminOrderDetail(
+        Order order,
+        AdminAddressSnapshot? address,
+        Payment? payment,
+        IReadOnlyList<Refund>? refunds,
+        DeliveryAssignment? assignment,
+        IReadOnlyList<AdminDriverCandidateDto> driverCandidates)
+    {
+        var baseItem = BuildAdminOrderListItem(order, address, payment, refunds, assignment);
+        var operationalCase = BuildOperationalCase(order, refunds);
+        var placedAtLocal = order.PlacedAtUtc.ToLocalTime();
+        var merchantLocation = string.Join(", ", new[] { order.VendorBranch?.AddressLine, order.Vendor?.City, order.Vendor?.NationalAddress }
+            .Where(value => !string.IsNullOrWhiteSpace(value)));
+
+        var timeline = BuildAdminTimeline(order, payment, assignment, operationalCase);
+        var activities = BuildAdminActivities(order, payment, refunds, assignment, operationalCase);
+
+        return new AdminOrderDetailDto(
+            order.Id,
+            baseItem.DisplayId,
+            order.User.FullName,
+            address?.ContactPhone ?? order.User.PhoneNumber ?? string.Empty,
+            order.User.Email ?? string.Empty,
+            BuildCustomerAddress(address),
+            order.Vendor.BusinessNameAr,
+            order.VendorBranch?.Name ?? "Main branch",
+            merchantLocation,
+            assignment?.DriverId?.ToString(),
+            assignment?.Driver?.User?.FullName ?? string.Empty,
+            assignment?.Driver?.User?.PhoneNumber ?? string.Empty,
+            assignment?.Driver?.VehicleType ?? "Delivery vehicle",
+            assignment?.Driver?.LicenseNumber ?? "N/A",
+            address?.City ?? order.Vendor.City ?? string.Empty,
+            address?.Area ?? string.Empty,
+            CalculateSlaScore(order, assignment),
+            placedAtLocal.ToString("yyyy-MM-dd"),
+            placedAtLocal.ToString("hh:mm tt", CultureInfo.InvariantCulture),
+            baseItem.Status,
+            baseItem.PaymentStatus,
+            baseItem.FulfillmentStatus,
+            BuildPaymentMethodLabel(order.PaymentMethod),
+            BuildExpectedDeliveryWindow(order, assignment),
+            payment?.ProviderTransactionId ?? $"ORD-{order.OrderNumber}",
+            BuildPaymentStatusNote(order, payment, refunds),
+            BuildFulfillmentStatusNote(order, assignment),
+            BuildSupportSummary(baseItem.IsLate, operationalCase),
+            BuildAlertLabel(baseItem.IsLate, operationalCase, baseItem.Status),
+            ResolveLastUpdatedAtUtc(order),
+            order.Subtotal,
+            order.DeliveryFee,
+            Math.Max(0, order.TotalAmount - order.Subtotal - order.DeliveryFee),
+            order.TotalAmount,
+            order.Items.Select(item => new AdminOrderItemDto(
+                item.ProductName,
+                "General",
+                item.Quantity.ToString(CultureInfo.InvariantCulture),
+                item.UnitPrice,
+                item.LineTotal,
+                "inventory_2",
+                item.MasterProductId == Guid.Empty ? item.Id.ToString("N")[..8].ToUpperInvariant() : item.MasterProductId.ToString("N")[..8].ToUpperInvariant()))
+                .ToList(),
+            timeline,
+            activities,
+            driverCandidates,
+            BuildCancellationSummary(order, refunds),
+            operationalCase);
+    }
+
+    private static AdminOrderListItemDto BuildAdminOrderListItem(
+        Order order,
+        AdminAddressSnapshot? address,
+        Payment? payment,
+        IReadOnlyList<Refund>? refunds,
+        DeliveryAssignment? assignment)
+    {
+        var placedAtLocal = order.PlacedAtUtc.ToLocalTime();
+        var isLate = IsLate(order.Status, order.PlacedAtUtc);
+        var operationalCase = BuildOperationalCase(order, refunds);
+
+        return new AdminOrderListItemDto(
+            order.Id,
+            $"#{order.OrderNumber}",
+            order.User.FullName,
+            address?.ContactPhone ?? order.User.PhoneNumber ?? string.Empty,
+            order.Vendor.BusinessNameAr,
+            order.VendorBranch?.Name ?? "Main branch",
+            placedAtLocal.ToString("yyyy-MM-dd"),
+            placedAtLocal.ToString("hh:mm tt", CultureInfo.InvariantCulture),
+            MapAdminStatus(order.Status),
+            MapAdminPaymentStatus(order.PaymentStatus, refunds),
+            MapFulfillmentStatus(order.Status, assignment),
+            BuildPaymentMethodLabel(order.PaymentMethod),
+            ResolveLastUpdatedAtUtc(order),
+            order.TotalAmount,
+            isLate,
+            operationalCase is not null || isLate,
+            BuildCancellationReason(order),
+            operationalCase);
+    }
+
+    private static bool MatchesAdminOrderFilters(
+        AdminOrderProjection item,
+        string? search,
+        string? status,
+        string? paymentStatus,
+        string? fulfillmentStatus,
+        string? queueView)
+    {
+        var list = item.ListItem;
+
+        if (!string.IsNullOrWhiteSpace(search))
+        {
+            var normalizedSearch = search.Trim().ToLowerInvariant();
+            var matchesSearch =
+                list.DisplayId.ToLowerInvariant().Contains(normalizedSearch) ||
+                list.CustomerName.ToLowerInvariant().Contains(normalizedSearch) ||
+                list.CustomerPhone.ToLowerInvariant().Contains(normalizedSearch) ||
+                list.MerchantName.ToLowerInvariant().Contains(normalizedSearch);
+
+            if (!matchesSearch)
+            {
+                return false;
+            }
+        }
+
+        if (!string.IsNullOrWhiteSpace(status) && !string.Equals(status, "ALL", StringComparison.OrdinalIgnoreCase) &&
+            !string.Equals(list.Status, status, StringComparison.OrdinalIgnoreCase))
+        {
+            return false;
+        }
+
+        if (!string.IsNullOrWhiteSpace(paymentStatus) && !string.Equals(paymentStatus, "ALL", StringComparison.OrdinalIgnoreCase) &&
+            !string.Equals(list.PaymentStatus, paymentStatus, StringComparison.OrdinalIgnoreCase))
+        {
+            return false;
+        }
+
+        if (!string.IsNullOrWhiteSpace(fulfillmentStatus) && !string.Equals(fulfillmentStatus, "ALL", StringComparison.OrdinalIgnoreCase) &&
+            !string.Equals(list.FulfillmentStatus, fulfillmentStatus, StringComparison.OrdinalIgnoreCase))
+        {
+            return false;
+        }
+
+        return queueView?.ToUpperInvariant() switch
+        {
+            "ACTIVE" => list.Status != "CANCELLED" && list.Status != "COMPLETED",
+            "LATE" => list.IsLate,
+            "PAYMENT_ISSUES" => list.PaymentStatus is "FAILED" or "PENDING" or "COD_PENDING",
+            "REFUNDS" => list.PaymentStatus is "REFUNDED" or "PARTIALLY_REFUNDED",
+            _ => true
+        };
+    }
+
+    private static string MapAdminStatus(OrderStatus status) =>
+        status switch
+        {
+            OrderStatus.PendingPayment or OrderStatus.Placed or OrderStatus.PendingVendorAcceptance => "NEW",
+            OrderStatus.Accepted => "PENDING",
+            OrderStatus.Preparing or OrderStatus.ReadyForPickup or OrderStatus.DriverAssignmentInProgress or OrderStatus.DriverAssigned => "IN_PROGRESS",
+            OrderStatus.PickedUp or OrderStatus.OnTheWay => "OUT_FOR_DELIVERY",
+            OrderStatus.Delivered => "DELIVERED",
+            OrderStatus.Refunded => "COMPLETED",
+            _ => "CANCELLED"
+        };
+
+    private static string MapAdminPaymentStatus(PaymentStatus paymentStatus, IReadOnlyList<Refund>? refunds)
+    {
+        var latestRefund = refunds?
+            .OrderByDescending(refund => refund.CreatedAtUtc)
+            .FirstOrDefault();
+
+        if (latestRefund is not null)
+        {
+            return latestRefund.Amount > 0 && paymentStatus == PaymentStatus.Refunded
+                ? "REFUNDED"
+                : latestRefund.Amount > 0
+                    ? "PARTIALLY_REFUNDED"
+                    : paymentStatus switch
+                    {
+                        PaymentStatus.Pending => "PENDING",
+                        PaymentStatus.Paid => "PAID",
+                        PaymentStatus.Failed => "FAILED",
+                        _ => "PENDING"
+                    };
+        }
+
+        return paymentStatus switch
+        {
+            PaymentStatus.Paid => "PAID",
+            PaymentStatus.Pending or PaymentStatus.Initiated => "PENDING",
+            PaymentStatus.Failed => "FAILED",
+            PaymentStatus.Refunded => "REFUNDED",
+            _ => "COD_PENDING"
+        };
+    }
+
+    private static string MapFulfillmentStatus(OrderStatus status, DeliveryAssignment? assignment) =>
+        status switch
+        {
+            OrderStatus.PendingPayment or OrderStatus.Placed or OrderStatus.PendingVendorAcceptance or OrderStatus.Accepted => "QUEUED",
+            OrderStatus.Preparing => "PREPARING",
+            OrderStatus.ReadyForPickup => "READY_FOR_PICKUP",
+            OrderStatus.DriverAssignmentInProgress or OrderStatus.DriverAssigned => "DRIVER_ASSIGNED",
+            OrderStatus.PickedUp => "PICKED_UP",
+            OrderStatus.OnTheWay => "ON_ROUTE",
+            OrderStatus.Delivered or OrderStatus.Refunded => "DELIVERED",
+            OrderStatus.DeliveryFailed => "FAILED",
+            _ => assignment?.Status == Zadana.Domain.Modules.Delivery.Enums.AssignmentStatus.Failed ? "FAILED" : "CANCELLED"
+        };
+
+    private static string BuildPaymentMethodLabel(PaymentMethodType paymentMethod) =>
+        paymentMethod switch
+        {
+            PaymentMethodType.CashOnDelivery => "Cash on delivery",
+            _ => paymentMethod.ToString()
+        };
+
+    private static DateTime ResolveLastUpdatedAtUtc(Order order)
+    {
+        var statusUpdatedAt = order.StatusHistory
+            .OrderByDescending(item => item.CreatedAtUtc)
+            .Select(item => (DateTime?)item.CreatedAtUtc)
+            .FirstOrDefault();
+
+        return statusUpdatedAt ?? order.UpdatedAtUtc;
+    }
+
+    private static string BuildCustomerAddress(AdminAddressSnapshot? address)
+    {
+        if (address is null)
+        {
+            return string.Empty;
+        }
+
+        return string.Join(", ", new[] { address.AddressLine, address.Area, address.City }
+            .Where(value => !string.IsNullOrWhiteSpace(value)));
+    }
+
+    private static int CalculateSlaScore(Order order, DeliveryAssignment? assignment)
+    {
+        var elapsed = (assignment?.DeliveredAtUtc ?? DateTime.UtcNow) - order.PlacedAtUtc;
+        var score = 100 - (int)Math.Min(65, elapsed.TotalMinutes / 2);
+        return Math.Max(35, score);
+    }
+
+    private static string BuildExpectedDeliveryWindow(Order order, DeliveryAssignment? assignment)
+    {
+        var estimated = assignment?.AcceptedAtUtc?.AddMinutes(30)
+            ?? assignment?.OfferedAtUtc?.AddMinutes(40)
+            ?? order.PlacedAtUtc.AddMinutes(45);
+
+        return estimated.ToLocalTime().ToString("hh:mm tt", CultureInfo.InvariantCulture);
+    }
+
+    private static string BuildPaymentStatusNote(Order order, Payment? payment, IReadOnlyList<Refund>? refunds)
+    {
+        if (refunds is { Count: > 0 })
+        {
+            var refund = refunds.OrderByDescending(item => item.CreatedAtUtc).First();
+            return $"Refund {refund.Status} for {refund.Amount:0.00} SAR.";
+        }
+
+        return order.PaymentStatus switch
+        {
+            PaymentStatus.Paid => "Payment confirmed with no active failure trace.",
+            PaymentStatus.Failed => "Latest payment attempt failed and needs finance review.",
+            PaymentStatus.Pending or PaymentStatus.Initiated => "Payment is pending confirmation before fulfillment moves forward.",
+            _ => payment?.ProviderName is not null
+                ? $"Processed through {payment.ProviderName}."
+                : "Payment state is being monitored."
+        };
+    }
+
+    private static string BuildFulfillmentStatusNote(Order order, DeliveryAssignment? assignment)
+    {
+        return MapFulfillmentStatus(order.Status, assignment) switch
+        {
+            "QUEUED" => "Execution has not started yet and the order is still queued.",
+            "PREPARING" => "Vendor is actively preparing the order.",
+            "READY_FOR_PICKUP" => "Order is ready and waiting for pickup.",
+            "DRIVER_ASSIGNED" => "A driver has been assigned and dispatch is in progress.",
+            "PICKED_UP" => "Driver picked up the order and is moving toward delivery.",
+            "ON_ROUTE" => "Driver is on the way to the customer.",
+            "DELIVERED" => "Delivery completed successfully.",
+            "FAILED" => "Fulfillment failed and requires intervention.",
+            _ => "Order execution stopped after cancellation."
+        };
+    }
+
+    private static string BuildSupportSummary(bool isLate, AdminOrderOperationalCaseDto? operationalCase)
+    {
+        if (operationalCase is not null)
+        {
+            return $"Open {operationalCase.Type.ToLowerInvariant()} case is routed to {operationalCase.QueueLabel}.";
+        }
+
+        return isLate
+            ? "Order exceeded the expected SLA and should be monitored by operations."
+            : "No active support case is currently attached to the order.";
+    }
+
+    private static string BuildAlertLabel(bool isLate, AdminOrderOperationalCaseDto? operationalCase, string status)
+    {
+        if (operationalCase is not null)
+        {
+            return operationalCase.Title;
+        }
+
+        if (isLate)
+        {
+            return "Order is running behind SLA";
+        }
+
+        return status == "CANCELLED"
+            ? "Order has been cancelled"
+            : "Order flow is healthy";
+    }
+
+    private static string? BuildCancellationReason(Order order) =>
+        order.Status switch
+        {
+            OrderStatus.Cancelled => "Cancelled by operations",
+            OrderStatus.VendorRejected => "Rejected by merchant",
+            OrderStatus.DeliveryFailed => "Delivery failed",
+            _ => null
+        };
+
+    private static AdminOrderCancellationSummaryDto? BuildCancellationSummary(Order order, IReadOnlyList<Refund>? refunds)
+    {
+        var reason = BuildCancellationReason(order);
+        if (reason is null)
+        {
+            return null;
+        }
+
+        var latestRefund = refunds?
+            .OrderByDescending(item => item.CreatedAtUtc)
+            .FirstOrDefault();
+
+        var refundType = latestRefund is null
+            ? "none"
+            : latestRefund.Amount >= order.TotalAmount ? "full" : "partial";
+
+        return new AdminOrderCancellationSummaryDto(
+            reason,
+            order.Notes ?? "Cancellation was recorded from the admin workflow.",
+            refundType,
+            latestRefund is null ? "platform" : "merchant",
+            (order.CancelledAtUtc ?? ResolveLastUpdatedAtUtc(order)).ToLocalTime().ToString("g", CultureInfo.InvariantCulture),
+            "Operations desk",
+            "Your order status was updated to cancelled.");
+    }
+
+    private static AdminOrderOperationalCaseDto? BuildOperationalCase(Order order, IReadOnlyList<Refund>? refunds)
+    {
+        var latestRefund = refunds?
+            .OrderByDescending(item => item.CreatedAtUtc)
+            .FirstOrDefault();
+
+        if (latestRefund is not null)
+        {
+            return new AdminOrderOperationalCaseDto(
+                "REFUND",
+                latestRefund.Status == PaymentStatus.Refunded ? "RESOLVED" : "OPEN",
+                latestRefund.Amount >= order.TotalAmount ? "Full refund review" : "Partial refund review",
+                "Finance",
+                latestRefund.CreatedAtUtc.ToLocalTime().ToString("g", CultureInfo.InvariantCulture),
+                latestRefund.UpdatedAtUtc.ToLocalTime().ToString("g", CultureInfo.InvariantCulture));
+        }
+
+        var complaint = order.Complaints
+            .OrderByDescending(item => item.CreatedAtUtc)
+            .FirstOrDefault();
+
+        if (complaint is null)
+        {
+            return null;
+        }
+
+        var type = complaint.Message.Contains("issue", StringComparison.OrdinalIgnoreCase)
+            ? "ISSUE"
+            : "DISPUTE";
+
+        var status = complaint.Status switch
+        {
+            OrderComplaintStatus.Submitted => "OPEN",
+            OrderComplaintStatus.InReview => "OPEN",
+            OrderComplaintStatus.Resolved when order.Status is OrderStatus.Cancelled or OrderStatus.Refunded or OrderStatus.Delivered => "CLOSED",
+            _ => "RESOLVED"
+        };
+
+        return new AdminOrderOperationalCaseDto(
+            type,
+            status,
+            complaint.Message,
+            type == "ISSUE" ? "Operations" : "Support",
+            complaint.CreatedAtUtc.ToLocalTime().ToString("g", CultureInfo.InvariantCulture),
+            complaint.UpdatedAtUtc.ToLocalTime().ToString("g", CultureInfo.InvariantCulture));
+    }
+
+    private static IReadOnlyList<AdminOrderTimelineItemDto> BuildAdminTimeline(
+        Order order,
+        Payment? payment,
+        DeliveryAssignment? assignment,
+        AdminOrderOperationalCaseDto? operationalCase)
+    {
+        var steps = new List<AdminOrderTimelineItemDto>
+        {
+            new(
+                "Order created",
+                payment?.Status == PaymentStatus.Paid ? "Payment captured" : "Waiting for payment confirmation",
+                order.PlacedAtUtc.ToLocalTime().ToString("hh:mm tt", CultureInfo.InvariantCulture),
+                "COMPLETED",
+                false),
+            new(
+                "Vendor handling",
+                BuildFulfillmentStatusNote(order, assignment),
+                ResolveStepDate(order.StatusHistory.ToList(), OrderStatus.Accepted, OrderStatus.Preparing, OrderStatus.ReadyForPickup)?.ToLocalTime().ToString("hh:mm tt", CultureInfo.InvariantCulture) ?? "--:--",
+                order.Status is OrderStatus.PendingPayment or OrderStatus.Placed or OrderStatus.PendingVendorAcceptance ? "PENDING" : "COMPLETED",
+                order.Status is OrderStatus.Accepted or OrderStatus.Preparing or OrderStatus.ReadyForPickup),
+            new(
+                "Delivery progress",
+                assignment?.Driver is null ? "Awaiting assignment" : $"Driver: {assignment.Driver.User.FullName}",
+                (assignment?.AcceptedAtUtc ?? assignment?.OfferedAtUtc)?.ToLocalTime().ToString("hh:mm tt", CultureInfo.InvariantCulture) ?? "--:--",
+                order.Status is OrderStatus.DriverAssigned or OrderStatus.PickedUp or OrderStatus.OnTheWay ? "IN_PROGRESS" : order.Status is OrderStatus.Delivered or OrderStatus.Refunded ? "COMPLETED" : "PENDING",
+                order.Status is OrderStatus.DriverAssigned or OrderStatus.PickedUp or OrderStatus.OnTheWay),
+            new(
+                operationalCase is null ? "Case status" : operationalCase.Title,
+                operationalCase is null ? "No open operational case" : operationalCase.QueueLabel,
+                operationalCase?.LastUpdatedAt ?? ResolveLastUpdatedAtUtc(order).ToLocalTime().ToString("hh:mm tt", CultureInfo.InvariantCulture),
+                operationalCase is null ? "PENDING" : operationalCase.Status == "OPEN" ? "IN_PROGRESS" : "COMPLETED",
+                operationalCase?.Status == "OPEN")
+        };
+
+        return steps;
+    }
+
+    private static IReadOnlyList<AdminOrderActivityDto> BuildAdminActivities(
+        Order order,
+        Payment? payment,
+        IReadOnlyList<Refund>? refunds,
+        DeliveryAssignment? assignment,
+        AdminOrderOperationalCaseDto? operationalCase)
+    {
+        var activities = order.StatusHistory
+            .OrderByDescending(item => item.CreatedAtUtc)
+            .Take(5)
+            .Select(item => new AdminOrderActivityDto(
+                $"Order moved to {item.NewStatus}",
+                item.ChangedByUserId.HasValue ? "Workflow user" : "System",
+                item.CreatedAtUtc.ToLocalTime().ToString("g", CultureInfo.InvariantCulture),
+                "status"))
+            .ToList();
+
+        if (payment is not null)
+        {
+            activities.Insert(0, new AdminOrderActivityDto(
+                $"Payment state: {payment.Status}",
+                payment.ProviderName ?? "Payment gateway",
+                (payment.PaidAtUtc ?? payment.FailedAtUtc ?? payment.CreatedAtUtc).ToLocalTime().ToString("g", CultureInfo.InvariantCulture),
+                "payment"));
+        }
+
+        if (assignment?.Driver is not null)
+        {
+            activities.Insert(0, new AdminOrderActivityDto(
+                $"Driver assigned: {assignment.Driver.User.FullName}",
+                "Dispatch",
+                assignment.CreatedAtUtc.ToLocalTime().ToString("g", CultureInfo.InvariantCulture),
+                "status"));
+        }
+
+        if (operationalCase is not null)
+        {
+            activities.Insert(0, new AdminOrderActivityDto(
+                operationalCase.Title,
+                operationalCase.QueueLabel,
+                operationalCase.LastUpdatedAt,
+                "issue"));
+        }
+
+        if (refunds is { Count: > 0 })
+        {
+            var refund = refunds.OrderByDescending(item => item.CreatedAtUtc).First();
+            activities.Insert(0, new AdminOrderActivityDto(
+                $"Refund {refund.Status}",
+                "Finance",
+                refund.CreatedAtUtc.ToLocalTime().ToString("g", CultureInfo.InvariantCulture),
+                "payment"));
+        }
+
+        return activities.Take(8).ToList();
+    }
+
+    private static string BuildInitials(string fullName)
+    {
+        var parts = fullName
+            .Split(' ', StringSplitOptions.RemoveEmptyEntries)
+            .Take(2)
+            .Select(part => char.ToUpperInvariant(part[0]));
+
+        return string.Concat(parts);
+    }
 
     private enum TrackingStage
     {

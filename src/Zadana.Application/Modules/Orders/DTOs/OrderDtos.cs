@@ -39,6 +39,43 @@ public record AdminVendorOrderListItemDto(
     int ItemsCount,
     DateTime PlacedAtUtc);
 
+public record VendorOrderListItemDto(
+    Guid Id,
+    string OrderNumber,
+    string CustomerName,
+    string CustomerPhone,
+    string Status,
+    string PaymentStatus,
+    string PaymentMethod,
+    decimal TotalAmount,
+    int ItemsCount,
+    DateTime PlacedAtUtc,
+    bool IsLate);
+
+public record VendorOrderDetailDto(
+    Guid Id,
+    string OrderNumber,
+    string CustomerName,
+    string CustomerPhone,
+    string CustomerAddress,
+    string Status,
+    string PaymentStatus,
+    string PaymentMethod,
+    decimal Subtotal,
+    decimal DeliveryFee,
+    decimal TotalAmount,
+    string? Notes,
+    DateTime PlacedAtUtc,
+    IReadOnlyList<OrderItemDto> Items,
+    IReadOnlyList<VendorOrderTimelineItemDto> Timeline);
+
+public record VendorOrderTimelineItemDto(
+    string Status,
+    string Label,
+    DateTime TimestampUtc,
+    bool IsCompleted,
+    string? Note);
+
 public record CustomerOrderListDto(
     IReadOnlyList<CustomerOrderListItemDto> Items,
     int Page,
@@ -111,3 +148,139 @@ public record OrderComplaintDto(
 public record OrderComplaintAttachmentDto(
     string FileName,
     string FileUrl);
+
+public record AdminOrdersListDto(
+    IReadOnlyList<AdminOrderListItemDto> Items,
+    int PageNumber,
+    int PageSize,
+    int TotalCount,
+    int TotalPages,
+    bool HasPreviousPage,
+    bool HasNextPage,
+    AdminOrdersSummaryDto Summary);
+
+public record AdminOrdersSummaryDto(
+    int Total,
+    int Active,
+    int Late,
+    int PaymentIssues,
+    int Refunds);
+
+public record AdminOrderListItemDto(
+    Guid Id,
+    string DisplayId,
+    string CustomerName,
+    string CustomerPhone,
+    string MerchantName,
+    string MerchantBranch,
+    string Date,
+    string Time,
+    string Status,
+    string PaymentStatus,
+    string FulfillmentStatus,
+    string PaymentMethodLabel,
+    DateTime LastUpdatedAtUtc,
+    decimal Total,
+    bool IsLate,
+    bool HasActiveIssue,
+    string? CancellationReason,
+    AdminOrderOperationalCaseDto? OperationalCase);
+
+public record AdminOrderDetailDto(
+    Guid Id,
+    string DisplayId,
+    string CustomerName,
+    string CustomerPhone,
+    string CustomerEmail,
+    string CustomerAddress,
+    string MerchantName,
+    string MerchantBranch,
+    string MerchantLocation,
+    string? DriverId,
+    string DriverName,
+    string DriverPhone,
+    string DriverVehicleLabel,
+    string DriverPlateNumber,
+    string City,
+    string District,
+    int SlaScore,
+    string Date,
+    string Time,
+    string Status,
+    string PaymentStatus,
+    string FulfillmentStatus,
+    string PaymentMethodLabel,
+    string ExpectedDeliveryWindow,
+    string TransactionRef,
+    string PaymentStatusNote,
+    string FulfillmentStatusNote,
+    string SupportSummary,
+    string AlertLabel,
+    DateTime LastUpdatedAtUtc,
+    decimal Subtotal,
+    decimal DeliveryFee,
+    decimal Tax,
+    decimal Total,
+    IReadOnlyList<AdminOrderItemDto> Items,
+    IReadOnlyList<AdminOrderTimelineItemDto> Timeline,
+    IReadOnlyList<AdminOrderActivityDto> Activities,
+    IReadOnlyList<AdminDriverCandidateDto> DriverCandidates,
+    AdminOrderCancellationSummaryDto? CancellationSummary,
+    AdminOrderOperationalCaseDto? OperationalCase);
+
+public record AdminOrderItemDto(
+    string Name,
+    string Brand,
+    string Quantity,
+    decimal Price,
+    decimal Total,
+    string Icon,
+    string Sku);
+
+public record AdminOrderTimelineItemDto(
+    string Title,
+    string Subtitle,
+    string Time,
+    string Status,
+    bool Current);
+
+public record AdminOrderActivityDto(
+    string Title,
+    string Actor,
+    string Time,
+    string Tone);
+
+public record AdminDriverCandidateDto(
+    string Id,
+    string Name,
+    string Code,
+    string Phone,
+    string City,
+    string Area,
+    string Status,
+    decimal DistanceKm,
+    int ActiveOrders,
+    decimal Rating,
+    decimal RejectionRate,
+    string LastActivity,
+    string Initials,
+    string AvatarTone,
+    bool LowPerformance,
+    bool Verified);
+
+public record AdminOrderCancellationSummaryDto(
+    string ReasonLabel,
+    string Details,
+    string RefundType,
+    string CostBearer,
+    string CancelledAt,
+    string CancelledBy,
+    string CustomerMessage);
+
+public record AdminOrderOperationalCaseDto(
+    string Type,
+    string Status,
+    string Title,
+    string QueueLabel,
+    string OpenedAt,
+    string LastUpdatedAt);
