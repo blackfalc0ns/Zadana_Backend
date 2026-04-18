@@ -40,14 +40,26 @@ public class CartController : ApiControllerBase
         [FromQuery(Name = "vendor_id")] Guid? vendorId = null,
         CancellationToken cancellationToken = default)
     {
-        var result = await Sender.Send(new GetCartQuery(GetCartActor(), vendorId), cancellationToken);
+        var actor = TryGetCartActor();
+        if (actor is null)
+        {
+            return Ok(new CartDto([], new CartSummaryDto(0, 0, null, null, null)));
+        }
+
+        var result = await Sender.Send(new GetCartQuery(actor, vendorId), cancellationToken);
         return Ok(result);
     }
 
     [HttpGet("vendors")]
     public async Task<ActionResult<CartAvailableVendorsDto>> GetCartVendors(CancellationToken cancellationToken = default)
     {
-        var result = await Sender.Send(new GetCartVendorsQuery(GetCartActor()), cancellationToken);
+        var actor = TryGetCartActor();
+        if (actor is null)
+        {
+            return Ok(new CartAvailableVendorsDto([]));
+        }
+
+        var result = await Sender.Send(new GetCartVendorsQuery(actor), cancellationToken);
         return Ok(result);
     }
 
@@ -62,7 +74,7 @@ public class CartController : ApiControllerBase
         }
 
         var result = await Sender.Send(
-            new AddCartItemCommand(GetCartActor(), request.ProductId, request.Quantity),
+            new AddCartItemCommand(GetRequiredCartActor(), request.ProductId, request.Quantity),
             cancellationToken);
 
         return Ok(result);
@@ -81,7 +93,7 @@ public class CartController : ApiControllerBase
         }
 
         var result = await Sender.Send(
-            new UpdateCartItemQuantityCommand(GetCartActor(), itemId, request.Quantity, vendorId),
+            new UpdateCartItemQuantityCommand(GetRequiredCartActor(), itemId, request.Quantity, vendorId),
             cancellationToken);
 
         return Ok(result);
@@ -92,18 +104,18 @@ public class CartController : ApiControllerBase
         Guid itemId,
         CancellationToken cancellationToken = default)
     {
-        var result = await Sender.Send(new RemoveCartItemCommand(GetCartActor(), itemId), cancellationToken);
+        var result = await Sender.Send(new RemoveCartItemCommand(GetRequiredCartActor(), itemId), cancellationToken);
         return Ok(result);
     }
 
     [HttpDelete]
     public async Task<ActionResult<CartClearResponseDto>> ClearCart(CancellationToken cancellationToken = default)
     {
-        var result = await Sender.Send(new ClearCartCommand(GetCartActor()), cancellationToken);
+        var result = await Sender.Send(new ClearCartCommand(GetRequiredCartActor()), cancellationToken);
         return Ok(result);
     }
 
-    private CartActor GetCartActor()
+    private CartActor? TryGetCartActor()
     {
         var userId = _currentUserService.UserId;
         if (userId.HasValue)
@@ -111,17 +123,18 @@ public class CartController : ApiControllerBase
             return CartActor.Create(userId.Value, null);
         }
 
-        return CartActor.Create(null, GetGuestId());
-    }
-
-    private string? GetGuestId()
-    {
         var guestId = Request.Headers[GuestDeviceHeader].ToString();
         if (!string.IsNullOrWhiteSpace(guestId))
         {
-            return guestId.Trim();
+            return CartActor.Create(null, guestId.Trim());
         }
 
-        throw new UnauthorizedException(_localizer["GuestFavoritesHeaderRequired", GuestDeviceHeader]);
+        return null;
+    }
+
+    private CartActor GetRequiredCartActor()
+    {
+        return TryGetCartActor()
+            ?? throw new UnauthorizedException(_localizer["GuestCartHeaderRequired", GuestDeviceHeader]);
     }
 }

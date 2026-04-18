@@ -403,6 +403,9 @@
   <data name="GuestFavoritesHeaderRequired" xml:space="preserve">
     <value>المستخدم غير مسجل الدخول. أرسل الهيدر {0} لاستخدام المفضلة كزائر.</value>
   </data>
+  <data name="GuestCartHeaderRequired" xml:space="preserve">
+    <value>المستخدم غير مسجل الدخول. أرسل الهيدر {0} لاستخدام العربة كزائر.</value>
+  </data>
   <data name="FavoriteAddedSuccessfully" xml:space="preserve">
     <value>تمت إضافة المنتج إلى المفضلة بنجاح.</value>
   </data>

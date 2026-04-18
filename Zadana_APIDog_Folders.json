@@ -6775,7 +6775,7 @@
         "/api/payments/paymob/return": {
             "get": {
                 "summary": "Handle Paymob return fallback",
-                "description": "Fallback confirmation endpoint used only when the customer returns from Paymob before the webhook arrives. Resolves the linked local payment using Paymob return query parameters, reuses the same idempotent confirmation flow as the webhook, clears the customer cart after successful card payment, and moves the order into PendingVendorAcceptance when needed.",
+                "description": "Fallback confirmation endpoint used only when the customer returns from Paymob before the webhook arrives. Resolves the linked local payment using Paymob return query parameters, reuses the same idempotent confirmation flow as the webhook, clears the customer cart after successful card payment, and moves the order into PendingVendorAcceptance when needed. Mobile/Flutter should use the JSON response from this endpoint as the source of truth for the payment result screen instead of relying on the Paymob Approved page alone.",
                 "tags": [
                     "System/Payments"
                 ],
@@ -6835,21 +6835,48 @@
                 ],
                 "responses": {
                     "200": {
-                        "description": "OK",
+                        "description": "OK. Use this response in the mobile app to decide whether payment succeeded and whether the success screen should be shown.",
                         "content": {
                             "text/plain": {
                                 "schema": {
                                     "$ref": "#/components/schemas/ConfirmPaymobPaymentResponse"
+                                },
+                                "example": {
+                                    "message": "Payment confirmed successfully.",
+                                    "paymentId": "544b60c9-416b-4865-aad8-2913f564a2ea",
+                                    "paymentStatus": "paid",
+                                    "userId": "54321dc7-03d3-4056-ac6d-9819c50d466e",
+                                    "orderId": "35932fc1-1181-4bcf-90d5-b0cbf2c58287",
+                                    "orderStatus": "pending_vendor_acceptance",
+                                    "alreadyConfirmed": false
                                 }
                             },
                             "application/json": {
                                 "schema": {
                                     "$ref": "#/components/schemas/ConfirmPaymobPaymentResponse"
+                                },
+                                "example": {
+                                    "message": "Payment confirmed successfully.",
+                                    "paymentId": "544b60c9-416b-4865-aad8-2913f564a2ea",
+                                    "paymentStatus": "paid",
+                                    "userId": "54321dc7-03d3-4056-ac6d-9819c50d466e",
+                                    "orderId": "35932fc1-1181-4bcf-90d5-b0cbf2c58287",
+                                    "orderStatus": "pending_vendor_acceptance",
+                                    "alreadyConfirmed": false
                                 }
                             },
                             "text/json": {
                                 "schema": {
                                     "$ref": "#/components/schemas/ConfirmPaymobPaymentResponse"
+                                },
+                                "example": {
+                                    "message": "Payment confirmed successfully.",
+                                    "paymentId": "544b60c9-416b-4865-aad8-2913f564a2ea",
+                                    "paymentStatus": "paid",
+                                    "userId": "54321dc7-03d3-4056-ac6d-9819c50d466e",
+                                    "orderId": "35932fc1-1181-4bcf-90d5-b0cbf2c58287",
+                                    "orderStatus": "pending_vendor_acceptance",
+                                    "alreadyConfirmed": false
                                 }
                             }
                         }
@@ -10813,32 +10840,44 @@
                 "properties": {
                     "message": {
                         "type": "string",
-                        "nullable": true
+                        "nullable": true,
+                        "description": "Human-readable payment confirmation result message for the client.",
+                        "example": "Payment confirmed successfully."
                     },
                     "paymentId": {
                         "type": "string",
-                        "format": "uuid"
+                        "format": "uuid",
+                        "description": "Local payment identifier inside Zadana.",
+                        "example": "544b60c9-416b-4865-aad8-2913f564a2ea"
                     },
                     "paymentStatus": {
                         "type": "string",
                         "nullable": true,
+                        "description": "Final payment status. Mobile should treat `paid` as successful payment confirmation.",
                         "example": "paid"
                     },
                     "userId": {
                         "type": "string",
-                        "format": "uuid"
+                        "format": "uuid",
+                        "description": "Customer user identifier linked to the payment and order.",
+                        "example": "54321dc7-03d3-4056-ac6d-9819c50d466e"
                     },
                     "orderId": {
                         "type": "string",
-                        "format": "uuid"
+                        "format": "uuid",
+                        "description": "Local order identifier linked to the confirmed payment.",
+                        "example": "35932fc1-1181-4bcf-90d5-b0cbf2c58287"
                     },
                     "orderStatus": {
                         "type": "string",
                         "nullable": true,
+                        "description": "Operational order status after confirmation. Mobile can use this with `paymentStatus` to decide the post-payment flow.",
                         "example": "pending_vendor_acceptance"
                     },
                     "alreadyConfirmed": {
-                        "type": "boolean"
+                        "type": "boolean",
+                        "description": "True when webhook or a previous return already confirmed the payment. The mobile app can still treat this as a successful paid result if `paymentStatus` is `paid`.",
+                        "example": false
                     }
                 },
                 "additionalProperties": false

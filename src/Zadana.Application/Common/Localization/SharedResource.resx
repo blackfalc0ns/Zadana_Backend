@@ -405,6 +405,9 @@
   <data name="GuestFavoritesHeaderRequired" xml:space="preserve">
     <value>User is not authenticated. Send {0} header for guest favorites access.</value>
   </data>
+  <data name="GuestCartHeaderRequired" xml:space="preserve">
+    <value>User is not authenticated. Send {0} header for guest cart access.</value>
+  </data>
   <data name="FavoriteAddedSuccessfully" xml:space="preserve">
     <value>Product added to favorites successfully.</value>
   </data>
