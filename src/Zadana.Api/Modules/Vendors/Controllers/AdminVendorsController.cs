@@ -1,8 +1,11 @@
 ﻿using Microsoft.AspNetCore.Authorization;
 using Microsoft.AspNetCore.Mvc;
+using Microsoft.EntityFrameworkCore;
 using Microsoft.Extensions.Localization;
+using System.Text.Json;
 using Zadana.Api.Controllers;
 using Zadana.Api.Modules.Vendors.Requests;
+using Zadana.Application.Common.Interfaces;
 using Zadana.Application.Common.Localization;
 using Zadana.Application.Modules.Catalog.Queries.GetVendorProducts;
 using Zadana.Application.Modules.Orders.Queries.GetVendorOrders;
@@ -33,6 +36,7 @@ using Zadana.Application.Modules.Wallets.Commands.SuspendVendorPayout;
 using Zadana.Application.Modules.Wallets.Queries.GetVendorPayouts;
 using Zadana.Application.Modules.Wallets.Queries.GetVendorSettlements;
 using Zadana.Domain.Modules.Vendors.Enums;
+using Zadana.SharedKernel.Exceptions;
 
 namespace Zadana.Api.Modules.Vendors.Controllers;
 
@@ -42,10 +46,20 @@ namespace Zadana.Api.Modules.Vendors.Controllers;
 public class AdminVendorsController : ApiControllerBase
 {
     private readonly IStringLocalizer<SharedResource> _localizer;
+    private readonly IApplicationDbContext _context;
+    private readonly INotificationService _notificationService;
+    private readonly IOneSignalPushService _oneSignalPushService;
 
-    public AdminVendorsController(IStringLocalizer<SharedResource> localizer)
+    public AdminVendorsController(
+        IStringLocalizer<SharedResource> localizer,
+        IApplicationDbContext context,
+        INotificationService notificationService,
+        IOneSignalPushService oneSignalPushService)
     {
         _localizer = localizer;
+        _context = context;
+        _notificationService = notificationService;
+        _oneSignalPushService = oneSignalPushService;
     }
 
     /// <summary>
@@ -70,6 +84,87 @@ public class AdminVendorsController : ApiControllerBase
     {
         var result = await Sender.Send(new GetVendorDetailQuery(vendorId));
         return Ok(result);
+    }
+
+    [HttpPost("{vendorId:guid}/notifications/test")]
+    public async Task<ActionResult<AdminVendorNotificationResponse>> SendVendorNotification(
+        Guid vendorId,
+        [FromBody] AdminSendVendorNotificationRequest? request,
+        CancellationToken cancellationToken = default)
+    {
+        var vendor = await _context.Vendors
+            .AsNoTracking()
+            .Where(v => v.Id == vendorId)
+            .Select(v => new { v.Id, v.UserId })
+            .FirstOrDefaultAsync(cancellationToken)
+            ?? throw new NotFoundException("Vendor", vendorId);
+
+        request ??= new AdminSendVendorNotificationRequest();
+
+        var titleAr = string.IsNullOrWhiteSpace(request.TitleAr) ? "إشعار تجريبي للتاجر" : request.TitleAr.Trim();
+        var titleEn = string.IsNullOrWhiteSpace(request.TitleEn) ? "Vendor test notification" : request.TitleEn.Trim();
+        var bodyAr = string.IsNullOrWhiteSpace(request.BodyAr)
+            ? "هذا إشعار تجريبي من واجهة الأدمن للتأكد من وصول الإشعارات إلى التاجر."
+            : request.BodyAr.Trim();
+        var bodyEn = string.IsNullOrWhiteSpace(request.BodyEn)
+            ? "This is a test notification sent from the admin API to verify vendor delivery."
+            : request.BodyEn.Trim();
+        var type = string.IsNullOrWhiteSpace(request.Type) ? "vendor_test" : request.Type.Trim();
+        var data = string.IsNullOrWhiteSpace(request.Data)
+            ? JsonSerializer.Serialize(new
+            {
+                source = "admin_vendor_notifications_test_api",
+                vendorId = vendor.Id,
+                userId = vendor.UserId,
+                generatedAtUtc = DateTime.UtcNow,
+                targetUrl = request.TargetUrl
+            })
+            : request.Data;
+
+        await _notificationService.SendToUserAsync(
+            vendor.UserId,
+            titleAr,
+            titleEn,
+            bodyAr,
+            bodyEn,
+            type,
+            request.ReferenceId,
+            data,
+            cancellationToken);
+
+        var pushResult = request.SendPush
+            ? await _oneSignalPushService.SendToExternalUserAsync(
+                vendor.UserId.ToString(),
+                titleAr,
+                titleEn,
+                bodyAr,
+                bodyEn,
+                type,
+                request.ReferenceId,
+                data,
+                request.TargetUrl,
+                cancellationToken)
+            : new OneSignalPushDispatchResult(
+                Attempted: false,
+                Sent: false,
+                Skipped: true,
+                ProviderStatusCode: null,
+                ProviderNotificationId: null,
+                Reason: "Push dispatch was disabled for this admin request.");
+
+        return Ok(new AdminVendorNotificationResponse(
+            Message: "Vendor notification queued successfully.",
+            VendorId: vendor.Id,
+            UserId: vendor.UserId,
+            ExternalId: vendor.UserId.ToString(),
+            Type: type,
+            InboxRequested: true,
+            PushAttempted: pushResult.Attempted,
+            PushSent: pushResult.Sent,
+            PushSkipped: pushResult.Skipped,
+            PushStatusCode: pushResult.ProviderStatusCode,
+            ProviderNotificationId: pushResult.ProviderNotificationId,
+            PushReason: pushResult.Reason));
     }
 
     [HttpGet("{vendorId:guid}/orders")]

@@ -75,6 +75,92 @@
                 }
             }
         },
+        "/api/admin/vendors/{vendorId}/notifications/test": {
+            "post": {
+                "summary": "Send a test notification to a specific vendor",
+                "description": "Creates an inbox notification for the selected vendor user and optionally dispatches a OneSignal web push using the vendor user id as external_id.",
+                "tags": [
+                    "Admin/Vendors"
+                ],
+                "parameters": [
+                    {
+                        "name": "vendorId",
+                        "in": "path",
+                        "required": true,
+                        "schema": {
+                            "type": "string",
+                            "format": "uuid"
+                        }
+                    }
+                ],
+                "requestBody": {
+                    "content": {
+                        "application/json": {
+                            "schema": {
+                                "$ref": "#/components/schemas/AdminSendVendorNotificationRequest"
+                            },
+                            "example": {
+                                "titleAr": "إشعار اختبار للتاجر",
+                                "titleEn": "Vendor test notification",
+                                "bodyAr": "هذا إشعار تجريبي للتأكد من ظهور الإشعار في لوحة التاجر.",
+                                "bodyEn": "This is a test notification to verify delivery in the vendor panel.",
+                                "type": "vendor_test",
+                                "referenceId": null,
+                                "data": "{\"source\":\"admin_apidog_test\"}",
+                                "targetUrl": "/alerts",
+                                "sendPush": true
+                            }
+                        },
+                        "text/json": {
+                            "schema": {
+                                "$ref": "#/components/schemas/AdminSendVendorNotificationRequest"
+                            }
+                        },
+                        "application/*+json": {
+                            "schema": {
+                                "$ref": "#/components/schemas/AdminSendVendorNotificationRequest"
+                            }
+                        }
+                    }
+                },
+                "responses": {
+                    "200": {
+                        "description": "OK",
+                        "content": {
+                            "application/json": {
+                                "schema": {
+                                    "$ref": "#/components/schemas/AdminVendorNotificationResponse"
+                                },
+                                "example": {
+                                    "message": "Vendor notification queued successfully.",
+                                    "vendorId": "11111111-1111-1111-1111-111111111111",
+                                    "userId": "54321dc7-03d3-4056-ac6d-9819c50d466e",
+                                    "externalId": "54321dc7-03d3-4056-ac6d-9819c50d466e",
+                                    "type": "vendor_test",
+                                    "inboxRequested": true,
+                                    "pushAttempted": true,
+                                    "pushSent": true,
+                                    "pushSkipped": false,
+                                    "pushStatusCode": 200,
+                                    "providerNotificationId": "onesignal-notification-id",
+                                    "pushReason": null
+                                }
+                            },
+                            "text/json": {
+                                "schema": {
+                                    "$ref": "#/components/schemas/AdminVendorNotificationResponse"
+                                }
+                            },
+                            "text/plain": {
+                                "schema": {
+                                    "$ref": "#/components/schemas/AdminVendorNotificationResponse"
+                                }
+                            }
+                        }
+                    }
+                }
+            }
+        },
         "/api/admin/vendors/{vendorId}/orders": {
             "get": {
                 "tags": [
@@ -8872,6 +8958,102 @@
                     "netAmount": {
                         "type": "number",
                         "format": "double"
+                    }
+                },
+                "additionalProperties": false
+            },
+            "AdminSendVendorNotificationRequest": {
+                "type": "object",
+                "properties": {
+                    "titleAr": {
+                        "type": "string",
+                        "nullable": true
+                    },
+                    "titleEn": {
+                        "type": "string",
+                        "nullable": true
+                    },
+                    "bodyAr": {
+                        "type": "string",
+                        "nullable": true
+                    },
+                    "bodyEn": {
+                        "type": "string",
+                        "nullable": true
+                    },
+                    "type": {
+                        "type": "string",
+                        "nullable": true,
+                        "example": "vendor_test"
+                    },
+                    "referenceId": {
+                        "type": "string",
+                        "format": "uuid",
+                        "nullable": true
+                    },
+                    "data": {
+                        "type": "string",
+                        "nullable": true
+                    },
+                    "targetUrl": {
+                        "type": "string",
+                        "nullable": true,
+                        "example": "/alerts"
+                    },
+                    "sendPush": {
+                        "type": "boolean",
+                        "default": true
+                    }
+                },
+                "additionalProperties": false
+            },
+            "AdminVendorNotificationResponse": {
+                "type": "object",
+                "properties": {
+                    "message": {
+                        "type": "string",
+                        "nullable": true
+                    },
+                    "vendorId": {
+                        "type": "string",
+                        "format": "uuid"
+                    },
+                    "userId": {
+                        "type": "string",
+                        "format": "uuid"
+                    },
+                    "externalId": {
+                        "type": "string",
+                        "nullable": true
+                    },
+                    "type": {
+                        "type": "string",
+                        "nullable": true
+                    },
+                    "inboxRequested": {
+                        "type": "boolean"
+                    },
+                    "pushAttempted": {
+                        "type": "boolean"
+                    },
+                    "pushSent": {
+                        "type": "boolean"
+                    },
+                    "pushSkipped": {
+                        "type": "boolean"
+                    },
+                    "pushStatusCode": {
+                        "type": "integer",
+                        "format": "int32",
+                        "nullable": true
+                    },
+                    "providerNotificationId": {
+                        "type": "string",
+                        "nullable": true
+                    },
+                    "pushReason": {
+                        "type": "string",
+                        "nullable": true
                     }
                 },
                 "additionalProperties": false
