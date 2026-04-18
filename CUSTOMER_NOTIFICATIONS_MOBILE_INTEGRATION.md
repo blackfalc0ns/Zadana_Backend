@@ -8,10 +8,12 @@ The current backend supports two notification-related areas:
 
 1. Inbox notifications stored in the database and shown inside the app.
 2. Push device registration for the authenticated customer.
+3. Real-time notification delivery over SignalR for authenticated users.
 
 Important:
 
 - The backend currently supports storing notifications, listing them, unread counts, mark-as-read flows, and registering customer push devices.
+- The backend currently supports real-time notification events on `/hubs/notifications` for authenticated users.
 - The backend does **not** currently send real push notifications through Firebase or APNs yet.
 - Mobile can safely integrate the notification inbox and device registration today.
 
@@ -57,6 +59,65 @@ Key backend files involved:
 - `src/Zadana.Application/Modules/Social/Queries/NotificationQueries.cs`
 - `src/Zadana.Application/Modules/Social/Commands/NotificationDeviceCommands.cs`
 - `src/Zadana.Api/Realtime/NotificationService.cs`
+- `src/Zadana.Api/Realtime/NotificationHub.cs`
+- `src/Zadana.Application/Modules/Orders/Events/OrderStatusChangedHandler.cs`
+
+## Real-time Notifications (SignalR)
+
+The backend exposes a real-time notifications hub at:
+
+```http
+/hubs/notifications
+```
+
+The mobile app should connect with the same customer `Bearer token` using the SignalR `access_token` query string flow.
+
+### Recommended SignalR Usage
+
+- Connect after login using the current customer access token.
+- Listen for `ReceiveNotification`.
+- Treat the received payload as the same logical notification contract used by `GET /api/notifications`.
+- Refresh `GET /api/notifications/unread-count` when needed for badge reconciliation, but do not require polling for every notification.
+
+### Real-time Event Name
+
+```text
+ReceiveNotification
+```
+
+### Real-time Payload Shape
+
+```json
+{
+  "id": "11111111-1111-1111-1111-111111111111",
+  "titleAr": "تم تحديث حالة الطلب",
+  "titleEn": "Order update",
+  "bodyAr": "تم تحديث حالة طلبك رقم 12345",
+  "bodyEn": "Your order #12345 status has been updated",
+  "type": "order_status_changed",
+  "referenceId": "22222222-2222-2222-2222-222222222222",
+  "data": "{\"orderId\":\"22222222-2222-2222-2222-222222222222\",\"action\":\"status_changed\",\"targetUrl\":\"/orders/22222222-2222-2222-2222-222222222222\"}",
+  "dataObject": {
+    "orderId": "22222222-2222-2222-2222-222222222222",
+    "orderNumber": "12345",
+    "vendorId": "33333333-3333-3333-3333-333333333333",
+    "oldStatus": "Accepted",
+    "newStatus": "Preparing",
+    "actorRole": "vendor",
+    "action": "status_changed",
+    "targetUrl": "/orders/22222222-2222-2222-2222-222222222222"
+  },
+  "isRead": false,
+  "createdAtUtc": "2026-04-18T12:34:56Z"
+}
+```
+
+### Mobile Recommendation
+
+- Use `referenceId` or `dataObject.orderId` for navigation to order details.
+- Prefer `dataObject.targetUrl` when the app wants to preserve backend routing intent.
+- Use SignalR as the primary real-time channel.
+- Use `GET /api/notifications` as the source for inbox history and pagination.
 
 ## Inbox APIs
 
@@ -101,7 +162,8 @@ Authorization: Bearer <token>
         "oldStatus": "PendingPayment",
         "newStatus": "PendingVendorAcceptance",
         "actorRole": "system",
-        "action": "placed"
+        "action": "placed",
+        "targetUrl": "/orders/22222222-2222-2222-2222-222222222222"
       },
       "isRead": false,
       "createdAtUtc": "2026-04-18T12:34:56Z"
@@ -121,6 +183,7 @@ Authorization: Bearer <token>
 - `referenceId` usually points to the main related entity, such as an `orderId`.
 - `data` is the raw string payload.
 - `dataObject` is the parsed JSON payload and should be preferred by mobile when available.
+- `dataObject.targetUrl` is included for order-related notifications and can be used as the preferred navigation target.
 - `unreadCount` is returned with the list to reduce extra calls.
 - `hasMore` should be used for pagination.
 
@@ -550,4 +613,3 @@ For the next backend phase:
 - Add FCM/APNs sending service
 - Reuse the existing `UserPushDevices` registrations
 - Trigger push delivery whenever a new customer notification is created
-

@@ -11,15 +11,21 @@ public class OrderStatusChangedHandler : INotificationHandler<OrderStatusChanged
 {
     private readonly INotificationService _notificationService;
     private readonly IApplicationDbContext _context;
+    private readonly IOneSignalPushService _oneSignalPushService;
 
-    public OrderStatusChangedHandler(INotificationService notificationService, IApplicationDbContext context)
+    public OrderStatusChangedHandler(
+        INotificationService notificationService,
+        IApplicationDbContext context,
+        IOneSignalPushService oneSignalPushService)
     {
         _notificationService = notificationService;
         _context = context;
+        _oneSignalPushService = oneSignalPushService;
     }
 
     public async Task Handle(OrderStatusChangedNotification notification, CancellationToken cancellationToken)
     {
+        var targetUrl = ResolveTargetUrl(notification);
         var data = JsonSerializer.Serialize(new
         {
             orderId = notification.OrderId,
@@ -28,7 +34,8 @@ public class OrderStatusChangedHandler : INotificationHandler<OrderStatusChanged
             oldStatus = notification.OldStatus.ToString(),
             newStatus = notification.NewStatus.ToString(),
             actorRole = notification.ActorRole,
-            action = ResolveAction(notification)
+            action = ResolveAction(notification),
+            targetUrl
         });
 
         if (notification.NotifyCustomer)
@@ -84,6 +91,23 @@ public class OrderStatusChangedHandler : INotificationHandler<OrderStatusChanged
             vendorType,
             notification.OrderId,
             data,
+            cancellationToken);
+
+        if (notification.NewStatus != OrderStatus.PendingVendorAcceptance)
+        {
+            return;
+        }
+
+        await _oneSignalPushService.SendToExternalUserAsync(
+            vendorRecipient.UserId.ToString(),
+            vendorTitleAr,
+            vendorTitleEn,
+            vendorBodyAr,
+            vendorBodyEn,
+            vendorType,
+            notification.OrderId,
+            data,
+            targetUrl,
             cancellationToken);
     }
 
@@ -218,4 +242,7 @@ public class OrderStatusChangedHandler : INotificationHandler<OrderStatusChanged
             OrderStatus.Cancelled => "cancelled",
             _ => "status_changed"
         };
+
+    private static string ResolveTargetUrl(OrderStatusChangedNotification notification) =>
+        $"/orders/{notification.OrderId}";
 }

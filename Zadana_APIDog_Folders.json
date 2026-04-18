@@ -7063,6 +7063,7 @@
         "/api/notifications": {
             "get": {
                 "summary": "Get customer notifications",
+                "description": "Returns the stored customer inbox notifications. The same notification shape is also emitted in real-time through `/hubs/notifications` using the `ReceiveNotification` event for authenticated users.",
                 "tags": [
                     "Customer/Notifications"
                 ],
@@ -7214,6 +7215,7 @@
         "/api/vendor/notifications": {
             "get": {
                 "summary": "Get vendor notifications",
+                "description": "Returns the stored vendor inbox notifications. The same notification shape is also emitted in real-time through `/hubs/notifications` using the `ReceiveNotification` event for authenticated vendor users.",
                 "tags": [
                     "Vendor/Notifications"
                 ],
@@ -11267,7 +11269,8 @@
                     "dataObject": {
                         "type": "object",
                         "nullable": true,
-                        "additionalProperties": true
+                        "additionalProperties": true,
+                        "description": "Parsed JSON payload used by clients for real-time and inbox rendering. For order notifications it includes orderId, orderNumber, vendorId, oldStatus, newStatus, actorRole, action, and targetUrl."
                     },
                     "isRead": {
                         "type": "boolean"
