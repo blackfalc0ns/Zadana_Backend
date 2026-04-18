@@ -61,6 +61,15 @@ public class VendorUpdateOrderStatusCommandHandler : IRequestHandler<VendorUpdat
             .FirstOrDefaultAsync(x => x.Id == request.OrderId && x.VendorId == request.VendorId, cancellationToken)
             ?? throw new NotFoundException("Order", request.OrderId);
 
+        // Idempotent: if already in target status, return success without re-processing
+        if (order.Status == request.NewStatus)
+        {
+            return new VendorUpdateOrderStatusResultDto(
+                order.Id,
+                request.NewStatus.ToString(),
+                "Order status updated successfully");
+        }
+
         ValidateTransition(order.Status, request.NewStatus);
 
         var oldStatus = order.Status;
