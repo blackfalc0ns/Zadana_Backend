@@ -1,6 +1,7 @@
 using Microsoft.AspNetCore.SignalR;
 using Microsoft.EntityFrameworkCore;
 using Zadana.Application.Common.Interfaces;
+using Zadana.Application.Modules.Social.Support;
 using Zadana.Domain.Modules.Social.Entities;
 using Zadana.Infrastructure.Persistence;
 
@@ -33,6 +34,8 @@ public sealed class NotificationService : INotificationService
         string? data = null,
         CancellationToken cancellationToken = default)
     {
+        var sanitized = NotificationPayloadHelper.Sanitize(titleAr, titleEn, bodyAr, bodyEn, type, data);
+
         // 1. Persist to database
         Guid notificationId;
         DateTime createdAtUtc;
@@ -41,7 +44,15 @@ public sealed class NotificationService : INotificationService
             await using var scope = _scopeFactory.CreateAsyncScope();
             var dbContext = scope.ServiceProvider.GetRequiredService<ApplicationDbContext>();
 
-            var notification = new Notification(userId, titleAr, titleEn, bodyAr, bodyEn, type, referenceId, data);
+            var notification = new Notification(
+                userId,
+                sanitized.TitleAr,
+                sanitized.TitleEn,
+                sanitized.BodyAr,
+                sanitized.BodyEn,
+                sanitized.Type,
+                referenceId,
+                sanitized.Data);
             dbContext.Notifications.Add(notification);
             await dbContext.SaveChangesAsync(cancellationToken);
 
@@ -60,13 +71,15 @@ public sealed class NotificationService : INotificationService
         {
             var payload = new NotificationPayload(
                 notificationId,
-                titleAr,
-                titleEn,
-                bodyAr,
-                bodyEn,
-                type,
+                sanitized.TitleAr,
+                sanitized.TitleEn,
+                sanitized.BodyAr,
+                sanitized.BodyEn,
+                sanitized.Type,
                 referenceId,
-                data,
+                sanitized.Data,
+                sanitized.DataObject,
+                false,
                 createdAtUtc);
 
             await _hubContext.Clients
@@ -88,17 +101,21 @@ public sealed class NotificationService : INotificationService
         string? data = null,
         CancellationToken cancellationToken = default)
     {
+        var sanitized = NotificationPayloadHelper.Sanitize(titleAr, titleEn, bodyAr, bodyEn, type, data);
+
         try
         {
             var payload = new NotificationPayload(
                 Guid.NewGuid(),
-                titleAr,
-                titleEn,
-                bodyAr,
-                bodyEn,
-                type,
+                sanitized.TitleAr,
+                sanitized.TitleEn,
+                sanitized.BodyAr,
+                sanitized.BodyEn,
+                sanitized.Type,
                 null,
-                data,
+                sanitized.Data,
+                sanitized.DataObject,
+                false,
                 DateTime.UtcNow);
 
             await _hubContext.Clients
@@ -121,4 +138,6 @@ public sealed record NotificationPayload(
     string? Type,
     Guid? ReferenceId,
     string? Data,
+    System.Text.Json.JsonElement? DataObject,
+    bool IsRead,
     DateTime CreatedAtUtc);

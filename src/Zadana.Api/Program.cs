@@ -92,10 +92,19 @@ builder.Services.AddOptions<Zadana.Infrastructure.Settings.ImageKitSettings>()
 builder.Services.AddOptions<PaymobSettings>()
     .Bind(builder.Configuration.GetSection(PaymobSettings.SectionName));
 
+builder.Services.AddOptions<OneSignalSettings>()
+    .Bind(builder.Configuration.GetSection(OneSignalSettings.SectionName));
+
 builder.Services.AddHttpClient<IPaymobGateway, PaymobGateway>((serviceProvider, client) =>
 {
     var settings = serviceProvider.GetRequiredService<Microsoft.Extensions.Options.IOptions<PaymobSettings>>().Value;
     client.BaseAddress = new Uri(string.IsNullOrWhiteSpace(settings.BaseUrl) ? "https://accept.paymob.com" : settings.BaseUrl);
+});
+
+builder.Services.AddHttpClient<IOneSignalPushService, OneSignalPushService>((serviceProvider, client) =>
+{
+    var settings = serviceProvider.GetRequiredService<Microsoft.Extensions.Options.IOptions<OneSignalSettings>>().Value;
+    client.BaseAddress = new Uri(string.IsNullOrWhiteSpace(settings.BaseUrl) ? "https://api.onesignal.com" : settings.BaseUrl);
 });
 
 if (builder.Environment.IsEnvironment("Testing"))
@@ -138,18 +147,18 @@ builder.Services.AddCors(options =>
 {
     options.AddPolicy("Frontend", policy =>
     {
-        if (allowedOrigins is { Length: > 0 })
+        if (builder.Environment.IsDevelopment() || builder.Environment.IsEnvironment("Testing"))
         {
-            policy.WithOrigins(allowedOrigins)
+            policy.SetIsOriginAllowed(origin => IsAllowedDevelopmentOrigin(origin, allowedOrigins))
                 .AllowAnyHeader()
                 .AllowAnyMethod()
                 .AllowCredentials();
             return;
         }
 
-        if (builder.Environment.IsDevelopment() || builder.Environment.IsEnvironment("Testing"))
+        if (allowedOrigins is { Length: > 0 })
         {
-            policy.SetIsOriginAllowed(_ => true)
+            policy.WithOrigins(allowedOrigins)
                 .AllowAnyHeader()
                 .AllowAnyMethod()
                 .AllowCredentials();
@@ -398,6 +407,29 @@ static bool IsAuthorizedSeedRequest(HttpContext httpContext, string? expectedKey
     }
 
     return string.Equals(providedKey.ToString(), expectedKey, StringComparison.Ordinal);
+}
+
+static bool IsAllowedDevelopmentOrigin(string? origin, string[]? configuredOrigins)
+{
+    if (string.IsNullOrWhiteSpace(origin))
+    {
+        return false;
+    }
+
+    if (configuredOrigins is { Length: > 0 } &&
+        configuredOrigins.Any(allowedOrigin => string.Equals(allowedOrigin, origin, StringComparison.OrdinalIgnoreCase)))
+    {
+        return true;
+    }
+
+    if (!Uri.TryCreate(origin, UriKind.Absolute, out var uri))
+    {
+        return false;
+    }
+
+    return uri.Host.Equals("localhost", StringComparison.OrdinalIgnoreCase) ||
+           uri.Host.Equals("127.0.0.1", StringComparison.OrdinalIgnoreCase) ||
+           uri.Host.Equals("::1", StringComparison.OrdinalIgnoreCase);
 }
 
 public partial class Program { }

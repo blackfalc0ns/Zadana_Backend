@@ -1,3 +1,4 @@
+using System.Text.Json;
 using Microsoft.AspNetCore.Authorization;
 using Microsoft.AspNetCore.Mvc;
 using Zadana.Api.Controllers;
@@ -23,16 +24,24 @@ public class NotificationsController : ApiControllerBase
     public async Task<ActionResult<NotificationsResponse>> GetNotifications(
         [FromQuery(Name = "page")] int page = 1,
         [FromQuery(Name = "per_page")] int perPage = 20,
+        [FromQuery(Name = "type")] string? type = null,
+        [FromQuery(Name = "is_read")] bool? isRead = null,
+        [FromQuery(Name = "from_utc")] DateTime? fromUtc = null,
+        [FromQuery(Name = "to_utc")] DateTime? toUtc = null,
         CancellationToken cancellationToken = default)
     {
         var userId = _currentUserService.UserId ?? throw new UnauthorizedException("USER_NOT_AUTHENTICATED");
-        var result = await Sender.Send(new GetNotificationsQuery(userId, page, perPage), cancellationToken);
+        var result = await Sender.Send(
+            new GetNotificationsQuery(userId, page, perPage, type, isRead, fromUtc, toUtc),
+            cancellationToken);
 
         return Ok(new NotificationsResponse(
             result.Items.Select(MapNotification).ToList(),
             result.Page,
             result.PerPage,
-            result.Total));
+            result.Total,
+            result.UnreadCount,
+            result.HasMore));
     }
 
     [HttpGet("unread-count")]
@@ -61,7 +70,7 @@ public class NotificationsController : ApiControllerBase
 
     private static NotificationResponse MapNotification(NotificationDto dto) =>
         new(dto.Id, dto.TitleAr, dto.TitleEn, dto.BodyAr, dto.BodyEn,
-            dto.Type, dto.ReferenceId, dto.Data, dto.IsRead, dto.CreatedAtUtc);
+            dto.Type, dto.ReferenceId, dto.Data, dto.DataObject, dto.IsRead, dto.CreatedAtUtc);
 }
 
 // Response DTOs
@@ -69,7 +78,9 @@ public record NotificationsResponse(
     List<NotificationResponse> Items,
     int Page,
     int PerPage,
-    int Total);
+    int Total,
+    int UnreadCount,
+    bool HasMore);
 
 public record NotificationResponse(
     Guid Id,
@@ -80,6 +91,7 @@ public record NotificationResponse(
     string? Type,
     Guid? ReferenceId,
     string? Data,
+    JsonElement? DataObject,
     bool IsRead,
     DateTime CreatedAtUtc);
 

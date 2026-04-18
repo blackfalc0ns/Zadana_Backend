@@ -1,6 +1,8 @@
+using System.Text.Json;
 using MediatR;
 using Microsoft.EntityFrameworkCore;
 using Zadana.Application.Common.Interfaces;
+using Zadana.Application.Modules.Social.Support;
 
 namespace Zadana.Application.Modules.Social.Queries;
 
@@ -14,6 +16,7 @@ public record NotificationDto(
     string? Type,
     Guid? ReferenceId,
     string? Data,
+    JsonElement? DataObject,
     bool IsRead,
     DateTime CreatedAtUtc);
 
@@ -21,13 +24,19 @@ public record NotificationListDto(
     List<NotificationDto> Items,
     int Page,
     int PerPage,
-    int Total);
+    int Total,
+    int UnreadCount,
+    bool HasMore);
 
 // Get Notifications (paginated)
 public record GetNotificationsQuery(
     Guid UserId,
     int Page = 1,
-    int PerPage = 20) : IRequest<NotificationListDto>;
+    int PerPage = 20,
+    string? Type = null,
+    bool? IsRead = null,
+    DateTime? CreatedFromUtc = null,
+    DateTime? CreatedToUtc = null) : IRequest<NotificationListDto>;
 
 public class GetNotificationsQueryHandler : IRequestHandler<GetNotificationsQuery, NotificationListDto>
 {
@@ -37,15 +46,45 @@ public class GetNotificationsQueryHandler : IRequestHandler<GetNotificationsQuer
 
     public async Task<NotificationListDto> Handle(GetNotificationsQuery request, CancellationToken cancellationToken)
     {
+        var page = Math.Max(request.Page, 1);
+        var perPage = Math.Clamp(request.PerPage, 1, 100);
+
         var query = _context.Notifications
             .AsNoTracking()
-            .Where(x => x.UserId == request.UserId)
+            .Where(x => x.UserId == request.UserId);
+
+        if (!string.IsNullOrWhiteSpace(request.Type))
+        {
+            var type = request.Type.Trim();
+            query = query.Where(x => x.Type == type);
+        }
+
+        if (request.IsRead.HasValue)
+        {
+            query = query.Where(x => x.IsRead == request.IsRead.Value);
+        }
+
+        if (request.CreatedFromUtc.HasValue)
+        {
+            query = query.Where(x => x.CreatedAtUtc >= request.CreatedFromUtc.Value);
+        }
+
+        if (request.CreatedToUtc.HasValue)
+        {
+            query = query.Where(x => x.CreatedAtUtc <= request.CreatedToUtc.Value);
+        }
+
+        query = query
             .OrderByDescending(x => x.CreatedAtUtc);
 
+        var unreadCount = await _context.Notifications
+            .AsNoTracking()
+            .CountAsync(x => x.UserId == request.UserId && !x.IsRead, cancellationToken);
+
         var total = await query.CountAsync(cancellationToken);
-        var items = await query
-            .Skip((request.Page - 1) * request.PerPage)
-            .Take(request.PerPage)
+        var rawItems = await query
+            .Skip((page - 1) * perPage)
+            .Take(perPage + 1)
             .Select(x => new NotificationDto(
                 x.Id,
                 x.TitleAr,
@@ -55,11 +94,18 @@ public class GetNotificationsQueryHandler : IRequestHandler<GetNotificationsQuer
                 x.Type,
                 x.ReferenceId,
                 x.Data,
+                null,
                 x.IsRead,
                 x.CreatedAtUtc))
             .ToListAsync(cancellationToken);
 
-        return new NotificationListDto(items, request.Page, request.PerPage, total);
+        var hasMore = rawItems.Count > perPage;
+        var items = rawItems
+            .Take(perPage)
+            .Select(item => item with { DataObject = NotificationPayloadHelper.TryParseData(item.Data) })
+            .ToList();
+
+        return new NotificationListDto(items, page, perPage, total, unreadCount, hasMore);
     }
 }
 
@@ -87,14 +133,11 @@ public class MarkNotificationReadCommandHandler : IRequestHandler<MarkNotificati
 
     public async Task Handle(MarkNotificationReadCommand request, CancellationToken cancellationToken)
     {
-        var notification = await _context.Notifications
-            .FirstOrDefaultAsync(x => x.Id == request.NotificationId && x.UserId == request.UserId, cancellationToken);
-
-        if (notification is not null && !notification.IsRead)
-        {
-            notification.MarkAsRead();
-            await _context.SaveChangesAsync(cancellationToken);
-        }
+        await _context.Notifications
+            .Where(x => x.Id == request.NotificationId && x.UserId == request.UserId && !x.IsRead)
+            .ExecuteUpdateAsync(
+                setters => setters.SetProperty(x => x.IsRead, _ => true),
+                cancellationToken);
     }
 }
 
@@ -109,16 +152,10 @@ public class MarkAllNotificationsReadCommandHandler : IRequestHandler<MarkAllNot
 
     public async Task<int> Handle(MarkAllNotificationsReadCommand request, CancellationToken cancellationToken)
     {
-        var unread = await _context.Notifications
+        return await _context.Notifications
             .Where(x => x.UserId == request.UserId && !x.IsRead)
-            .ToListAsync(cancellationToken);
-
-        foreach (var notification in unread)
-        {
-            notification.MarkAsRead();
-        }
-
-        await _context.SaveChangesAsync(cancellationToken);
-        return unread.Count;
+            .ExecuteUpdateAsync(
+                setters => setters.SetProperty(x => x.IsRead, _ => true),
+                cancellationToken);
     }
 }

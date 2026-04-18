@@ -23,8 +23,9 @@ public class NotificationConfiguration : IEntityTypeConfiguration<Notification>
         builder.Ignore(x => x.Title);
         builder.Ignore(x => x.Body);
 
-        builder.HasIndex(x => new { x.UserId, x.IsRead });
-        builder.HasIndex(x => x.CreatedAtUtc);
+        builder.HasIndex(x => new { x.UserId, x.CreatedAtUtc });
+        builder.HasIndex(x => new { x.UserId, x.IsRead, x.CreatedAtUtc });
+        builder.HasIndex(x => new { x.UserId, x.Type, x.CreatedAtUtc });
 
         builder.HasOne(x => x.User)
             .WithMany()

@@ -6291,6 +6291,36 @@
                             "format": "int32",
                             "default": 20
                         }
+                    },
+                    {
+                        "name": "type",
+                        "in": "query",
+                        "schema": {
+                            "type": "string"
+                        }
+                    },
+                    {
+                        "name": "is_read",
+                        "in": "query",
+                        "schema": {
+                            "type": "boolean"
+                        }
+                    },
+                    {
+                        "name": "from_utc",
+                        "in": "query",
+                        "schema": {
+                            "type": "string",
+                            "format": "date-time"
+                        }
+                    },
+                    {
+                        "name": "to_utc",
+                        "in": "query",
+                        "schema": {
+                            "type": "string",
+                            "format": "date-time"
+                        }
                     }
                 ],
                 "responses": {
@@ -6342,6 +6372,36 @@
                             "format": "int32",
                             "default": 20
                         }
+                    },
+                    {
+                        "name": "type",
+                        "in": "query",
+                        "schema": {
+                            "type": "string"
+                        }
+                    },
+                    {
+                        "name": "is_read",
+                        "in": "query",
+                        "schema": {
+                            "type": "boolean"
+                        }
+                    },
+                    {
+                        "name": "from_utc",
+                        "in": "query",
+                        "schema": {
+                            "type": "string",
+                            "format": "date-time"
+                        }
+                    },
+                    {
+                        "name": "to_utc",
+                        "in": "query",
+                        "schema": {
+                            "type": "string",
+                            "format": "date-time"
+                        }
                     }
                 ],
                 "responses": {
@@ -6392,6 +6452,36 @@
                             "type": "integer",
                             "format": "int32",
                             "default": 20
+                        }
+                    },
+                    {
+                        "name": "type",
+                        "in": "query",
+                        "schema": {
+                            "type": "string"
+                        }
+                    },
+                    {
+                        "name": "is_read",
+                        "in": "query",
+                        "schema": {
+                            "type": "boolean"
+                        }
+                    },
+                    {
+                        "name": "from_utc",
+                        "in": "query",
+                        "schema": {
+                            "type": "string",
+                            "format": "date-time"
+                        }
+                    },
+                    {
+                        "name": "to_utc",
+                        "in": "query",
+                        "schema": {
+                            "type": "string",
+                            "format": "date-time"
                         }
                     }
                 ],
@@ -7179,6 +7269,80 @@
                             "text/plain": {
                                 "schema": {
                                     "$ref": "#/components/schemas/NotificationsMarkedReadAllResponse"
+                                }
+                            }
+                        }
+                    }
+                }
+            }
+        },
+        "/api/vendor/notifications/test": {
+            "post": {
+                "summary": "Send a test vendor notification to the current vendor user",
+                "description": "Creates an inbox notification for the authenticated vendor user and optionally dispatches a OneSignal web push using the same user id as external_id.",
+                "tags": [
+                    "Vendor/Notifications"
+                ],
+                "requestBody": {
+                    "content": {
+                        "application/json": {
+                            "schema": {
+                                "$ref": "#/components/schemas/SendVendorTestNotificationRequest"
+                            },
+                            "example": {
+                                "titleAr": "إشعار اختبار",
+                                "titleEn": "Test notification",
+                                "bodyAr": "هذا إشعار تجريبي للتأكد من ربط OneSignal.",
+                                "bodyEn": "This is a test notification to verify OneSignal is connected.",
+                                "type": "vendor_test",
+                                "referenceId": null,
+                                "data": "{\"source\":\"apidog_test\"}",
+                                "targetUrl": "/orders",
+                                "sendPush": true
+                            }
+                        },
+                        "text/json": {
+                            "schema": {
+                                "$ref": "#/components/schemas/SendVendorTestNotificationRequest"
+                            }
+                        },
+                        "application/*+json": {
+                            "schema": {
+                                "$ref": "#/components/schemas/SendVendorTestNotificationRequest"
+                            }
+                        }
+                    }
+                },
+                "responses": {
+                    "200": {
+                        "description": "OK",
+                        "content": {
+                            "application/json": {
+                                "schema": {
+                                    "$ref": "#/components/schemas/VendorTestNotificationResponse"
+                                },
+                                "example": {
+                                    "message": "Vendor test notification queued.",
+                                    "userId": "54321dc7-03d3-4056-ac6d-9819c50d466e",
+                                    "externalId": "54321dc7-03d3-4056-ac6d-9819c50d466e",
+                                    "type": "vendor_test",
+                                    "inboxRequested": true,
+                                    "pushAttempted": true,
+                                    "pushSent": true,
+                                    "pushSkipped": false,
+                                    "pushStatusCode": 200,
+                                    "providerNotificationId": "onesignal-notification-id",
+                                    "pushReason": null
+                                }
+                            },
+                            "text/json": {
+                                "schema": {
+                                    "$ref": "#/components/schemas/VendorTestNotificationResponse"
+                                }
+                            },
+                            "text/plain": {
+                                "schema": {
+                                    "$ref": "#/components/schemas/VendorTestNotificationResponse"
                                 }
                             }
                         }
@@ -10918,6 +11082,11 @@
                         "type": "string",
                         "nullable": true
                     },
+                    "dataObject": {
+                        "type": "object",
+                        "nullable": true,
+                        "additionalProperties": true
+                    },
                     "isRead": {
                         "type": "boolean"
                     },
@@ -10949,6 +11118,13 @@
                     "total": {
                         "type": "integer",
                         "format": "int32"
+                    },
+                    "unreadCount": {
+                        "type": "integer",
+                        "format": "int32"
+                    },
+                    "hasMore": {
+                        "type": "boolean"
                     }
                 },
                 "additionalProperties": false
@@ -10985,6 +11161,98 @@
                     "count": {
                         "type": "integer",
                         "format": "int32"
+                    }
+                },
+                "additionalProperties": false
+            },
+            "SendVendorTestNotificationRequest": {
+                "type": "object",
+                "properties": {
+                    "titleAr": {
+                        "type": "string",
+                        "nullable": true
+                    },
+                    "titleEn": {
+                        "type": "string",
+                        "nullable": true
+                    },
+                    "bodyAr": {
+                        "type": "string",
+                        "nullable": true
+                    },
+                    "bodyEn": {
+                        "type": "string",
+                        "nullable": true
+                    },
+                    "type": {
+                        "type": "string",
+                        "nullable": true,
+                        "example": "vendor_test"
+                    },
+                    "referenceId": {
+                        "type": "string",
+                        "format": "uuid",
+                        "nullable": true
+                    },
+                    "data": {
+                        "type": "string",
+                        "nullable": true
+                    },
+                    "targetUrl": {
+                        "type": "string",
+                        "nullable": true,
+                        "example": "/orders"
+                    },
+                    "sendPush": {
+                        "type": "boolean",
+                        "default": true
+                    }
+                },
+                "additionalProperties": false
+            },
+            "VendorTestNotificationResponse": {
+                "type": "object",
+                "properties": {
+                    "message": {
+                        "type": "string",
+                        "nullable": true
+                    },
+                    "userId": {
+                        "type": "string",
+                        "format": "uuid"
+                    },
+                    "externalId": {
+                        "type": "string",
+                        "nullable": true
+                    },
+                    "type": {
+                        "type": "string",
+                        "nullable": true
+                    },
+                    "inboxRequested": {
+                        "type": "boolean"
+                    },
+                    "pushAttempted": {
+                        "type": "boolean"
+                    },
+                    "pushSent": {
+                        "type": "boolean"
+                    },
+                    "pushSkipped": {
+                        "type": "boolean"
+                    },
+                    "pushStatusCode": {
+                        "type": "integer",
+                        "format": "int32",
+                        "nullable": true
+                    },
+                    "providerNotificationId": {
+                        "type": "string",
+                        "nullable": true
+                    },
+                    "pushReason": {
+                        "type": "string",
+                        "nullable": true
                     }
                 },
                 "additionalProperties": false
