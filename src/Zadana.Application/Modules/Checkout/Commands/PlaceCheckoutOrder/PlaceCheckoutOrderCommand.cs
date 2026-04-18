@@ -6,6 +6,7 @@ using Zadana.Application.Modules.Checkout.DTOs;
 using Zadana.Application.Modules.Checkout.Support;
 using Zadana.Application.Modules.Orders.Commands.PlaceOrder;
 using Zadana.Application.Modules.Orders.Events;
+using Zadana.Application.Modules.Orders.Support;
 using Zadana.Application.Modules.Payments.DTOs;
 using Zadana.Application.Modules.Payments.Interfaces;
 using Zadana.Domain.Modules.Orders.Enums;
@@ -165,12 +166,14 @@ public class PlaceCheckoutOrderCommandHandler : IRequestHandler<PlaceCheckoutOrd
             payment.MarkAsPending("CashOnDelivery", $"COD-{order.OrderNumber}");
             order.ChangeStatus(OrderStatus.Placed, null, "Cash on delivery selected");
             order.ChangeStatus(OrderStatus.PendingVendorAcceptance, null, "Awaiting vendor response");
+            OrderStatusHistoryTracking.TrackNewEntries(_context, order);
         }
         else if (paymentMethodCode == "bank")
         {
             payment.MarkAsPending("BankTransfer", $"BANK-{order.OrderNumber}");
             order.ChangeStatus(OrderStatus.Placed, null, "Bank transfer selected");
             order.ChangeStatus(OrderStatus.PendingVendorAcceptance, null, "Awaiting bank transfer confirmation");
+            OrderStatusHistoryTracking.TrackNewEntries(_context, order);
         }
         else
         {

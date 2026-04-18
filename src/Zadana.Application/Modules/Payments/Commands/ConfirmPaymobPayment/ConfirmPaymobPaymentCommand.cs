@@ -3,6 +3,7 @@ using MediatR;
 using Microsoft.EntityFrameworkCore;
 using Zadana.Application.Common.Interfaces;
 using Zadana.Application.Modules.Orders.Events;
+using Zadana.Application.Modules.Orders.Support;
 using Zadana.Application.Modules.Payments.DTOs;
 using Zadana.Application.Modules.Payments.Interfaces;
 using Zadana.Domain.Modules.Orders.Enums;
@@ -110,6 +111,7 @@ public class ConfirmPaymobPaymentCommandHandler : IRequestHandler<ConfirmPaymobP
                 }
 
                 EnsureVendorAcceptanceTransition(order);
+                OrderStatusHistoryTracking.TrackNewEntries(_context, order);
             }
 
             var shouldPublishVendorPlacement = ShouldPublishVendorPlacement(
