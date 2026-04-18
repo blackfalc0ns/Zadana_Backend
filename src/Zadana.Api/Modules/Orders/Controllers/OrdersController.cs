@@ -144,12 +144,12 @@ public class OrdersController : ApiControllerBase
         var result = await Sender.Send(
             new PlaceCheckoutOrderCommand(
                 userId,
-                request.VendorId,
-                request.AddressId,
-                request.DeliverySlotId,
-                request.PaymentMethod,
-                request.PromoCode,
-                request.Notes,
+                request.EffectiveVendorId,
+                request.EffectiveAddressId,
+                request.EffectiveDeliverySlotId,
+                request.EffectivePaymentMethod,
+                request.EffectivePromoCode,
+                request.EffectiveNotes,
                 ResolveDeviceIdHeader()),
             cancellationToken);
 

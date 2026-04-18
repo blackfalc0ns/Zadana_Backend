@@ -1,3 +1,4 @@
+using System.Text.Json;
 using System.Text.Json.Serialization;
 
 namespace Zadana.Api.Modules.Orders.Requests;
@@ -70,13 +71,87 @@ public record RemoveCheckoutPromoCodeResponse(
     [property: JsonPropertyName("message")] string Message,
     [property: JsonPropertyName("summary")] CheckoutSummaryTotalsResponse Summary);
 
-public record PlaceOrderRequest(
-    [property: JsonPropertyName("vendor_id")] Guid? VendorId,
-    [property: JsonPropertyName("address_id")] Guid AddressId,
-    [property: JsonPropertyName("delivery_slot_id")] string? DeliverySlotId,
-    [property: JsonPropertyName("payment_method")] string PaymentMethod,
-    [property: JsonPropertyName("promo_code")] string? PromoCode,
-    [property: JsonPropertyName("notes")] string? Notes);
+public class PlaceOrderRequest
+{
+    [JsonPropertyName("vendor_id")]
+    public Guid? VendorId { get; init; }
+
+    [JsonPropertyName("address_id")]
+    public Guid AddressId { get; init; }
+
+    [JsonPropertyName("delivery_slot_id")]
+    public string? DeliverySlotId { get; init; }
+
+    [JsonPropertyName("payment_method")]
+    public string? PaymentMethod { get; init; }
+
+    [JsonPropertyName("promo_code")]
+    public string? PromoCode { get; init; }
+
+    [JsonPropertyName("notes")]
+    public string? Notes { get; init; }
+
+    [JsonExtensionData]
+    public Dictionary<string, JsonElement>? ExtensionData { get; init; }
+
+    [JsonIgnore]
+    public Guid? EffectiveVendorId => VendorId ?? ReadGuid("vendorId");
+
+    [JsonIgnore]
+    public Guid EffectiveAddressId => AddressId != Guid.Empty ? AddressId : ReadGuid("addressId") ?? Guid.Empty;
+
+    [JsonIgnore]
+    public string? EffectiveDeliverySlotId => DeliverySlotId ?? ReadString("deliverySlotId");
+
+    [JsonIgnore]
+    public string EffectivePaymentMethod => NormalizePaymentMethod(PaymentMethod ?? ReadString("paymentMethod"));
+
+    [JsonIgnore]
+    public string? EffectivePromoCode => PromoCode ?? ReadString("promoCode");
+
+    [JsonIgnore]
+    public string? EffectiveNotes => Notes ?? ReadString("note") ?? ReadString("notes");
+
+    private Guid? ReadGuid(string propertyName)
+    {
+        if (ExtensionData is null || !ExtensionData.TryGetValue(propertyName, out var value))
+        {
+            return null;
+        }
+
+        if (value.ValueKind == JsonValueKind.String &&
+            Guid.TryParse(value.GetString(), out var parsedGuid))
+        {
+            return parsedGuid;
+        }
+
+        return null;
+    }
+
+    private string? ReadString(string propertyName)
+    {
+        if (ExtensionData is null || !ExtensionData.TryGetValue(propertyName, out var value))
+        {
+            return null;
+        }
+
+        return value.ValueKind == JsonValueKind.String ? value.GetString()?.Trim() : null;
+    }
+
+    private static string NormalizePaymentMethod(string? value)
+    {
+        var normalized = value?.Trim().ToLowerInvariant();
+
+        return normalized switch
+        {
+            "cash_on_delivery" or "cashondelivery" or "cod" => "cash",
+            "bank_transfer" or "banktransfer" => "bank",
+            "credit_card" or "creditcard" or "debit_card" or "debitcard" => "card",
+            "applepay" => "apple_pay",
+            _ => normalized ?? string.Empty
+        };
+    }
+}
 
 public record PlaceOrderResponse(
     [property: JsonPropertyName("message")] string Message,
