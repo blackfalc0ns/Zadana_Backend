@@ -6,6 +6,7 @@ using Microsoft.Extensions.Localization;
 using Moq;
 using Zadana.Api.Modules.Vendors.Controllers;
 using Zadana.Api.Modules.Vendors.Requests;
+using Zadana.Application.Common.Interfaces;
 using Zadana.Application.Common.Localization;
 using Zadana.Application.Common.Models;
 using Zadana.Application.Modules.Vendors.Commands.ApproveVendor;
@@ -22,6 +23,9 @@ public class AdminVendorsControllerTests
 {
     private readonly Mock<ISender> _senderMock = new();
     private readonly Mock<IStringLocalizer<SharedResource>> _localizerMock = new();
+    private readonly Mock<IApplicationDbContext> _contextMock = new();
+    private readonly Mock<INotificationService> _notificationServiceMock = new();
+    private readonly Mock<IOneSignalPushService> _oneSignalPushServiceMock = new();
     private readonly AdminVendorsController _controller;
 
     public AdminVendorsControllerTests()
@@ -29,7 +33,11 @@ public class AdminVendorsControllerTests
         _localizerMock.Setup(localizer => localizer[It.IsAny<string>()])
             .Returns((string key) => new LocalizedString(key, key));
 
-        _controller = new AdminVendorsController(_localizerMock.Object);
+        _controller = new AdminVendorsController(
+            _localizerMock.Object,
+            _contextMock.Object,
+            _notificationServiceMock.Object,
+            _oneSignalPushServiceMock.Object);
 
         var services = new ServiceCollection();
         services.AddSingleton(_senderMock.Object);
