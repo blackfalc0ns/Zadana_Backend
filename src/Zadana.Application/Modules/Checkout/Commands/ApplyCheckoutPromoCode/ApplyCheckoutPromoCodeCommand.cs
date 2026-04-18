@@ -6,7 +6,7 @@ using Zadana.Application.Modules.Checkout.Support;
 
 namespace Zadana.Application.Modules.Checkout.Commands.ApplyCheckoutPromoCode;
 
-public record ApplyCheckoutPromoCodeCommand(Guid UserId, string Code) : IRequest<ApplyCheckoutPromoCodeResultDto>;
+public record ApplyCheckoutPromoCodeCommand(Guid UserId, Guid? VendorId, string Code) : IRequest<ApplyCheckoutPromoCodeResultDto>;
 
 public class ApplyCheckoutPromoCodeCommandValidator : AbstractValidator<ApplyCheckoutPromoCodeCommand>
 {
@@ -31,7 +31,7 @@ public class ApplyCheckoutPromoCodeCommandHandler : IRequestHandler<ApplyCheckou
     public async Task<ApplyCheckoutPromoCodeResultDto> Handle(ApplyCheckoutPromoCodeCommand request, CancellationToken cancellationToken)
     {
         var cart = await CheckoutSupport.GetRequiredCartAsync(_context, request.UserId, cancellationToken, asTracking: true);
-        var pricing = await CheckoutSupport.BuildPricingSnapshotAsync(_context, cart, cancellationToken);
+        var pricing = await CheckoutSupport.BuildPricingSnapshotAsync(_context, cart, request.VendorId, cancellationToken);
         var coupon = await CheckoutSupport.ResolveCouponByCodeAsync(_context, request.Code, pricing.VendorId, pricing.Subtotal, cancellationToken);
         var shippingCost = CheckoutSupport.ResolveShippingCost(cart);
         var discount = CheckoutSupport.CalculateDiscountAmount(coupon, pricing.Subtotal);

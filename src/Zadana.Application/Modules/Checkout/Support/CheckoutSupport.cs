@@ -36,6 +36,7 @@ internal static class CheckoutSupport
     public static async Task<CheckoutPricingSnapshot> BuildPricingSnapshotAsync(
         IApplicationDbContext context,
         Cart cart,
+        Guid? selectedVendorId,
         CancellationToken cancellationToken)
     {
         var masterProductIds = cart.Items.Select(x => x.MasterProductId).Distinct().ToList();
@@ -43,6 +44,7 @@ internal static class CheckoutSupport
             .AsNoTracking()
             .Where(product =>
                 masterProductIds.Contains(product.MasterProductId) &&
+                (!selectedVendorId.HasValue || product.VendorId == selectedVendorId.Value) &&
                 product.Status == VendorProductStatus.Active &&
                 product.IsAvailable &&
                 product.StockQuantity > 0 &&
@@ -69,30 +71,55 @@ internal static class CheckoutSupport
                 product.MasterProduct.UnitOfMeasure != null ? product.MasterProduct.UnitOfMeasure.NameEn : null))
             .ToListAsync(cancellationToken);
 
-        var candidateVendor = visibleOffers
-            .GroupBy(x => x.VendorId)
-            .Select(group =>
-            {
-                var chosenOffers = group
-                    .GroupBy(x => x.MasterProductId)
-                    .Select(offerGroup => offerGroup
-                        .OrderBy(x => x.Price)
-                        .ThenByDescending(x => x.CreatedAtUtc)
-                        .First())
-                    .ToList();
+        CandidateVendorSnapshot? candidateVendor;
+        if (selectedVendorId.HasValue)
+        {
+            var offers = visibleOffers
+                .Where(x => x.VendorId == selectedVendorId.Value)
+                .GroupBy(x => x.MasterProductId)
+                .Select(offerGroup => offerGroup
+                    .OrderBy(x => x.Price)
+                    .ThenByDescending(x => x.CreatedAtUtc)
+                    .First())
+                .ToList();
 
-                var coversAll = chosenOffers.Count == masterProductIds.Count;
-                var total = chosenOffers.Sum(chosen => chosen.Price * cart.Items.First(item => item.MasterProductId == chosen.MasterProductId).Quantity);
-                return new CandidateVendorSnapshot(group.Key, coversAll, total, chosenOffers);
-            })
-            .Where(x => x.CoversAllProducts)
-            .OrderBy(x => x.Total)
-            .ThenBy(x => x.VendorId)
-            .FirstOrDefault();
+            candidateVendor = offers.Count == masterProductIds.Count
+                ? new CandidateVendorSnapshot(
+                    selectedVendorId.Value,
+                    true,
+                    offers.Sum(chosen => chosen.Price * cart.Items.First(item => item.MasterProductId == chosen.MasterProductId).Quantity),
+                    offers)
+                : null;
+        }
+        else
+        {
+            candidateVendor = visibleOffers
+                .GroupBy(x => x.VendorId)
+                .Select(group =>
+                {
+                    var chosenOffers = group
+                        .GroupBy(x => x.MasterProductId)
+                        .Select(offerGroup => offerGroup
+                            .OrderBy(x => x.Price)
+                            .ThenByDescending(x => x.CreatedAtUtc)
+                            .First())
+                        .ToList();
+
+                    var coversAll = chosenOffers.Count == masterProductIds.Count;
+                    var total = chosenOffers.Sum(chosen => chosen.Price * cart.Items.First(item => item.MasterProductId == chosen.MasterProductId).Quantity);
+                    return new CandidateVendorSnapshot(group.Key, coversAll, total, chosenOffers);
+                })
+                .Where(x => x.CoversAllProducts)
+                .OrderBy(x => x.Total)
+                .ThenBy(x => x.VendorId)
+                .FirstOrDefault();
+        }
 
         if (candidateVendor == null)
         {
-            throw new BusinessRuleException("CHECKOUT_VENDOR_UNAVAILABLE", "No single vendor can fulfill all cart items for checkout.");
+            throw selectedVendorId.HasValue
+                ? new BusinessRuleException("VENDOR_MISSING_CART_PRODUCT", "The selected vendor does not offer all products currently in the cart.")
+                : new BusinessRuleException("CHECKOUT_VENDOR_UNAVAILABLE", "No single vendor can fulfill all cart items for checkout.");
         }
 
         var items = cart.Items

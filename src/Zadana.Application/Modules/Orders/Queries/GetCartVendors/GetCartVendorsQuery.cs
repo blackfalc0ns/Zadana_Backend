@@ -22,9 +22,27 @@ public class GetCartVendorsQueryHandler : IRequestHandler<GetCartVendorsQuery, C
 
     public async Task<CartAvailableVendorsDto> Handle(GetCartVendorsQuery request, CancellationToken cancellationToken)
     {
+        var cart = await CartLookup.FindCartAsync(
+            _context,
+            request.Actor.UserId,
+            request.Actor.GuestId,
+            cancellationToken,
+            includeItems: true);
+
+        if (cart == null || cart.Items.Count == 0)
+        {
+            return new CartAvailableVendorsDto([]);
+        }
+
+        var productIds = cart.Items
+            .Select(item => item.MasterProductId)
+            .Distinct()
+            .ToList();
+
         var vendorRows = await _context.VendorProducts
             .AsNoTracking()
             .Where(product =>
+                productIds.Contains(product.MasterProductId) &&
                 product.Status == VendorProductStatus.Active &&
                 product.IsAvailable &&
                 product.StockQuantity > 0 &&

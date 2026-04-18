@@ -7,7 +7,7 @@ using Zadana.Application.Modules.Payments.Interfaces;
 
 namespace Zadana.Application.Modules.Checkout.Queries.GetCheckoutSummary;
 
-public record GetCheckoutSummaryQuery(Guid UserId, Guid? AddressId, string? DeliverySlotId) : IRequest<CheckoutSummaryDto>;
+public record GetCheckoutSummaryQuery(Guid UserId, Guid? VendorId, Guid? AddressId, string? DeliverySlotId) : IRequest<CheckoutSummaryDto>;
 
 public class GetCheckoutSummaryQueryHandler : IRequestHandler<GetCheckoutSummaryQuery, CheckoutSummaryDto>
 {
@@ -29,7 +29,7 @@ public class GetCheckoutSummaryQueryHandler : IRequestHandler<GetCheckoutSummary
             cancellationToken);
 
         var cart = await CheckoutSupport.GetRequiredCartAsync(_context, request.UserId, cancellationToken);
-        var pricing = await CheckoutSupport.BuildPricingSnapshotAsync(_context, cart, cancellationToken);
+        var pricing = await CheckoutSupport.BuildPricingSnapshotAsync(_context, cart, request.VendorId, cancellationToken);
         var address = await CheckoutSupport.ResolveSelectedAddressAsync(_context, request.UserId, request.AddressId, cancellationToken);
         var coupon = await CheckoutSupport.ResolveAppliedCouponAsync(_context, cart, cancellationToken);
         var shippingCost = CheckoutSupport.ResolveShippingCost(cart);

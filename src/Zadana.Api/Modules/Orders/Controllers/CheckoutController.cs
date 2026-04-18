@@ -25,13 +25,14 @@ public class CheckoutController : ApiControllerBase
 
     [HttpGet("summary")]
     public async Task<ActionResult<GetCheckoutSummaryResponse>> GetSummary(
+        [FromQuery(Name = "vendor_id")] Guid? vendorId = null,
         [FromQuery(Name = "address_id")] Guid? addressId = null,
         [FromQuery(Name = "delivery_slot_id")] string? deliverySlotId = null,
         CancellationToken cancellationToken = default)
     {
         var userId = _currentUserService.UserId ?? throw new UnauthorizedException("USER_NOT_AUTHENTICATED");
         var result = await Sender.Send(
-            new GetCheckoutSummaryQuery(userId, addressId, deliverySlotId),
+            new GetCheckoutSummaryQuery(userId, vendorId, addressId, deliverySlotId),
             cancellationToken);
 
         return Ok(MapSummary(result));
@@ -40,6 +41,7 @@ public class CheckoutController : ApiControllerBase
     [HttpPost("promo-code")]
     public async Task<ActionResult<ApplyCheckoutPromoCodeResponse>> ApplyPromoCode(
         [FromBody] ApplyCheckoutPromoCodeRequest? request,
+        [FromQuery(Name = "vendor_id")] Guid? vendorId = null,
         CancellationToken cancellationToken = default)
     {
         if (request is null)
@@ -48,7 +50,7 @@ public class CheckoutController : ApiControllerBase
         }
 
         var userId = _currentUserService.UserId ?? throw new UnauthorizedException("USER_NOT_AUTHENTICATED");
-        var result = await Sender.Send(new ApplyCheckoutPromoCodeCommand(userId, request.Code), cancellationToken);
+        var result = await Sender.Send(new ApplyCheckoutPromoCodeCommand(userId, vendorId, request.Code), cancellationToken);
 
         return Ok(new ApplyCheckoutPromoCodeResponse(
             result.Message,
@@ -66,10 +68,12 @@ public class CheckoutController : ApiControllerBase
     }
 
     [HttpDelete("promo-code")]
-    public async Task<ActionResult<RemoveCheckoutPromoCodeResponse>> RemovePromoCode(CancellationToken cancellationToken = default)
+    public async Task<ActionResult<RemoveCheckoutPromoCodeResponse>> RemovePromoCode(
+        [FromQuery(Name = "vendor_id")] Guid? vendorId = null,
+        CancellationToken cancellationToken = default)
     {
         var userId = _currentUserService.UserId ?? throw new UnauthorizedException("USER_NOT_AUTHENTICATED");
-        var result = await Sender.Send(new RemoveCheckoutPromoCodeCommand(userId), cancellationToken);
+        var result = await Sender.Send(new RemoveCheckoutPromoCodeCommand(userId, vendorId), cancellationToken);
 
         return Ok(new RemoveCheckoutPromoCodeResponse(
             result.Message,

@@ -17,6 +17,7 @@ namespace Zadana.Application.Modules.Checkout.Commands.PlaceCheckoutOrder;
 
 public record PlaceCheckoutOrderCommand(
     Guid UserId,
+    Guid? VendorId,
     Guid AddressId,
     string? DeliverySlotId,
     string PaymentMethod,
@@ -69,7 +70,7 @@ public class PlaceCheckoutOrderCommandHandler : IRequestHandler<PlaceCheckoutOrd
         }
 
         var cart = await CheckoutSupport.GetRequiredCartAsync(_context, request.UserId, cancellationToken, asTracking: true);
-        var pricing = await CheckoutSupport.BuildPricingSnapshotAsync(_context, cart, cancellationToken);
+        var pricing = await CheckoutSupport.BuildPricingSnapshotAsync(_context, cart, request.VendorId, cancellationToken);
         var address = await CheckoutSupport.ResolveSelectedAddressAsync(_context, request.UserId, request.AddressId, cancellationToken)
             ?? throw new NotFoundException("CustomerAddress", request.AddressId);
         var user = await _context.Users.FirstOrDefaultAsync(x => x.Id == request.UserId, cancellationToken)

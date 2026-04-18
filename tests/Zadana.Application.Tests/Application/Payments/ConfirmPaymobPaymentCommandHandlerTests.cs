@@ -1,6 +1,7 @@
 using FluentAssertions;
 using MediatR;
 using Microsoft.EntityFrameworkCore;
+using Microsoft.EntityFrameworkCore.Storage;
 using Moq;
 using Zadana.Application.Common.Interfaces;
 using Zadana.Application.Modules.Orders.Events;
@@ -47,7 +48,7 @@ public class ConfirmPaymobPaymentCommandHandlerTests
 
         payment.Status.Should().Be(PaymentStatus.Paid);
         order.Status.Should().Be(OrderStatus.PendingVendorAcceptance);
-        dbContext.Entry(cart).State.Should().Be(EntityState.Deleted);
+        (await dbContext.Carts.AnyAsync(item => item.Id == cart.Id)).Should().BeFalse();
         result.PaymentStatus.Should().Be("paid");
         result.OrderStatus.Should().Be("pending_vendor_acceptance");
         result.AlreadyConfirmed.Should().BeFalse();
@@ -89,8 +90,8 @@ public class ConfirmPaymobPaymentCommandHandlerTests
             new ConfirmPaymobPaymentCommand(payment.Id, null, payment.ProviderTransactionId, "txn-paid-2", true, false, "device-100"),
             CancellationToken.None);
 
-        dbContext.Entry(userCart).State.Should().Be(EntityState.Deleted);
-        dbContext.Entry(guestCart).State.Should().Be(EntityState.Deleted);
+        (await dbContext.Carts.AnyAsync(item => item.Id == userCart.Id)).Should().BeFalse();
+        (await dbContext.Carts.AnyAsync(item => item.Id == guestCart.Id)).Should().BeFalse();
     }
 
     [Fact]
@@ -130,7 +131,7 @@ public class ConfirmPaymobPaymentCommandHandlerTests
             new ConfirmPaymobPaymentCommand(payment.Id, "payload-success", null, null, null, null, null),
             CancellationToken.None);
 
-        dbContext.Entry(guestCart).State.Should().Be(EntityState.Deleted);
+        (await dbContext.Carts.AnyAsync(item => item.Id == guestCart.Id)).Should().BeFalse();
     }
 
     [Fact]
@@ -200,7 +201,7 @@ public class ConfirmPaymobPaymentCommandHandlerTests
             CancellationToken.None);
 
         result.AlreadyConfirmed.Should().BeTrue();
-        unitOfWorkMock.Verify(unit => unit.SaveChangesAsync(It.IsAny<CancellationToken>()), Times.Once);
+        unitOfWorkMock.Verify(unit => unit.SaveChangesAsync(It.IsAny<CancellationToken>()), Times.Never);
         publisherMock.Verify(
             publisher => publisher.Publish(It.IsAny<OrderStatusChangedNotification>(), It.IsAny<CancellationToken>()),
             Times.Never);
@@ -327,7 +328,85 @@ public class ConfirmPaymobPaymentCommandHandlerTests
         result.PaymentId.Should().Be(payment.Id);
         result.PaymentStatus.Should().Be("paid");
         result.OrderStatus.Should().Be("pending_vendor_acceptance");
-        dbContext.Entry(cart).State.Should().Be(EntityState.Deleted);
+        (await dbContext.Carts.AnyAsync(item => item.Id == cart.Id)).Should().BeFalse();
+    }
+
+    [Fact]
+    public async Task Handle_WhenWebhookOrReturnWinsRace_ShouldRetryAndReturnAlreadyConfirmedWithoutRepublishing()
+    {
+        var databaseName = Guid.NewGuid().ToString();
+        var databaseRoot = new InMemoryDatabaseRoot();
+        await using var dbContext = CreateDbContext(databaseName, databaseRoot);
+        var user = CreateUser();
+        var order = CreateOrder(user.Id);
+        var payment = CreatePendingCardPayment(order);
+        var cart = CreateCart(user.Id);
+
+        dbContext.Users.Add(user);
+        dbContext.Orders.Add(order);
+        dbContext.Payments.Add(payment);
+        dbContext.Carts.Add(cart);
+        await dbContext.SaveChangesAsync();
+
+        var saveAttempt = 0;
+        var publisherMock = CreatePublisherMock();
+        var unitOfWorkMock = new Mock<IUnitOfWork>();
+        unitOfWorkMock
+            .Setup(unit => unit.SaveChangesAsync(It.IsAny<CancellationToken>()))
+            .Returns<CancellationToken>(async cancellationToken =>
+            {
+                saveAttempt++;
+                if (saveAttempt == 1)
+                {
+                    await using var parallelContext = CreateDbContext(databaseName, databaseRoot);
+                    var parallelPayment = await parallelContext.Payments
+                        .Include(item => item.Order)
+                        .FirstAsync(item => item.Id == payment.Id, cancellationToken);
+                    var parallelOrder = parallelPayment.Order;
+
+                    parallelPayment.MarkAsPaid("txn-paid-race");
+
+                    var parallelCarts = await parallelContext.Carts
+                        .Include(item => item.Items)
+                        .Where(item => item.UserId == user.Id)
+                        .ToListAsync(cancellationToken);
+
+                    parallelContext.CartItems.RemoveRange(parallelCarts.SelectMany(item => item.Items));
+                    parallelContext.Carts.RemoveRange(parallelCarts);
+                    await parallelContext.SaveChangesAsync(cancellationToken);
+
+                    throw new DbUpdateConcurrencyException("Simulated concurrent confirmation.");
+                }
+
+                return 0;
+            });
+
+        var handler = new ConfirmPaymobPaymentCommandHandler(
+            dbContext,
+            Mock.Of<IPaymobGateway>(),
+            unitOfWorkMock.Object,
+            publisherMock.Object);
+
+        var result = await handler.Handle(
+            new ConfirmPaymobPaymentCommand(payment.Id, null, payment.ProviderTransactionId, "txn-paid-race", true, false, null),
+            CancellationToken.None);
+
+        result.AlreadyConfirmed.Should().BeTrue();
+        result.PaymentStatus.Should().Be("paid");
+        result.OrderStatus.Should().Be("pending_vendor_acceptance");
+        saveAttempt.Should().Be(1);
+        publisherMock.Verify(
+            publisher => publisher.Publish(It.IsAny<OrderStatusChangedNotification>(), It.IsAny<CancellationToken>()),
+            Times.Never);
+
+        await using var verificationContext = CreateDbContext(databaseName, databaseRoot);
+        var persistedPayment = await verificationContext.Payments.FirstAsync(item => item.Id == payment.Id);
+        var persistedOrder = await verificationContext.Orders.FirstAsync(item => item.Id == order.Id);
+        var remainingCart = await verificationContext.Carts.FirstOrDefaultAsync(item => item.UserId == user.Id);
+
+        persistedPayment.Status.Should().Be(PaymentStatus.Paid);
+        persistedOrder.Status.Should().Be(OrderStatus.PendingVendorAcceptance);
+        remainingCart.Should().BeNull();
     }
 
     private static Mock<IPublisher> CreatePublisherMock()
@@ -351,10 +430,10 @@ public class ConfirmPaymobPaymentCommandHandlerTests
         return unitOfWorkMock;
     }
 
-    private static ApplicationDbContext CreateDbContext()
+    private static ApplicationDbContext CreateDbContext(string? databaseName = null, InMemoryDatabaseRoot? databaseRoot = null)
     {
         var options = new DbContextOptionsBuilder<ApplicationDbContext>()
-            .UseInMemoryDatabase(Guid.NewGuid().ToString())
+            .UseInMemoryDatabase(databaseName ?? Guid.NewGuid().ToString(), databaseRoot ?? new InMemoryDatabaseRoot())
             .Options;
 
         return new ApplicationDbContext(options, new AuditableEntityInterceptor());

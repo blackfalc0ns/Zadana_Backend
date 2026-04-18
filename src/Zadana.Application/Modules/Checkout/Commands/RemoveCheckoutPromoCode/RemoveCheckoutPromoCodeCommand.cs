@@ -5,7 +5,7 @@ using Zadana.Application.Modules.Checkout.Support;
 
 namespace Zadana.Application.Modules.Checkout.Commands.RemoveCheckoutPromoCode;
 
-public record RemoveCheckoutPromoCodeCommand(Guid UserId) : IRequest<RemoveCheckoutPromoCodeResultDto>;
+public record RemoveCheckoutPromoCodeCommand(Guid UserId, Guid? VendorId) : IRequest<RemoveCheckoutPromoCodeResultDto>;
 
 public class RemoveCheckoutPromoCodeCommandHandler : IRequestHandler<RemoveCheckoutPromoCodeCommand, RemoveCheckoutPromoCodeResultDto>
 {
@@ -21,7 +21,7 @@ public class RemoveCheckoutPromoCodeCommandHandler : IRequestHandler<RemoveCheck
     public async Task<RemoveCheckoutPromoCodeResultDto> Handle(RemoveCheckoutPromoCodeCommand request, CancellationToken cancellationToken)
     {
         var cart = await CheckoutSupport.GetRequiredCartAsync(_context, request.UserId, cancellationToken, asTracking: true);
-        var pricing = await CheckoutSupport.BuildPricingSnapshotAsync(_context, cart, cancellationToken);
+        var pricing = await CheckoutSupport.BuildPricingSnapshotAsync(_context, cart, request.VendorId, cancellationToken);
         var shippingCost = CheckoutSupport.ResolveShippingCost(cart);
 
         cart.UpdateTotals(pricing.Subtotal, shippingCost);

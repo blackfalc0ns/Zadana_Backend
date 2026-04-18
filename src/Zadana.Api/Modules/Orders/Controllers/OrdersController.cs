@@ -144,6 +144,7 @@ public class OrdersController : ApiControllerBase
         var result = await Sender.Send(
             new PlaceCheckoutOrderCommand(
                 userId,
+                request.VendorId,
                 request.AddressId,
                 request.DeliverySlotId,
                 request.PaymentMethod,

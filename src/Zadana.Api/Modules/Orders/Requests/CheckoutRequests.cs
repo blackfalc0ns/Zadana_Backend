@@ -71,6 +71,7 @@ public record RemoveCheckoutPromoCodeResponse(
     [property: JsonPropertyName("summary")] CheckoutSummaryTotalsResponse Summary);
 
 public record PlaceOrderRequest(
+    [property: JsonPropertyName("vendor_id")] Guid? VendorId,
     [property: JsonPropertyName("address_id")] Guid AddressId,
     [property: JsonPropertyName("delivery_slot_id")] string? DeliverySlotId,
     [property: JsonPropertyName("payment_method")] string PaymentMethod,

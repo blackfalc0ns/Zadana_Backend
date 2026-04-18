@@ -56,36 +56,85 @@ public class ConfirmPaymobPaymentCommandHandler : IRequestHandler<ConfirmPaymobP
     public async Task<PaymobPaymentConfirmationResultDto> Handle(ConfirmPaymobPaymentCommand request, CancellationToken cancellationToken)
     {
         var notification = ResolveNotification(request);
-        var payment = await ResolvePaymentAsync(request, notification, cancellationToken);
-
-        if (!string.IsNullOrWhiteSpace(notification.ProviderReference) &&
-            !string.Equals(payment.ProviderTransactionId, notification.ProviderReference, StringComparison.Ordinal))
-        {
-            payment.SetProviderTransactionId(notification.ProviderReference);
-        }
-
-        var order = payment.Order;
-        var originalOrderStatus = order.Status;
-        var shouldPublishVendorPlacement = false;
-
         if (notification.IsSuccess)
         {
-            if (payment.Status != PaymentStatus.Paid)
+            return await HandleSuccessfulConfirmationAsync(request, notification, cancellationToken);
+        }
+
+        var failedPayment = await ResolvePaymentAsync(request, notification, cancellationToken);
+        ApplyProviderReferenceIfNeeded(failedPayment, notification.ProviderReference);
+        var failedOrder = failedPayment.Order;
+
+        if (IsAlreadyConfirmed(failedPayment, failedOrder))
+        {
+            return BuildResult(failedPayment, failedOrder, "Payment already confirmed.", true);
+        }
+
+        if (!notification.IsPending && failedPayment.Status != PaymentStatus.Paid && failedPayment.Status != PaymentStatus.Failed)
+        {
+            failedPayment.MarkAsFailed("Paymob reported payment failure.", notification.ProviderTransactionId);
+            await _unitOfWork.SaveChangesAsync(cancellationToken);
+        }
+
+        return new PaymobPaymentConfirmationResultDto(
+            notification.IsPending ? "Payment is still pending." : "Payment confirmation failed.",
+            failedPayment.Id,
+            ToApiToken(failedPayment.Status.ToString()),
+            failedOrder.UserId,
+            failedOrder.Id,
+            ToApiToken(failedOrder.Status.ToString()),
+            false);
+    }
+
+    private async Task<PaymobPaymentConfirmationResultDto> HandleSuccessfulConfirmationAsync(
+        ConfirmPaymobPaymentCommand request,
+        PaymobWebhookNotificationDto notification,
+        CancellationToken cancellationToken)
+    {
+        const int maxAttempts = 2;
+
+        for (var attempt = 0; attempt < maxAttempts; attempt++)
+        {
+            var payment = await ResolvePaymentAsync(request, notification, cancellationToken);
+            ApplyProviderReferenceIfNeeded(payment, notification.ProviderReference);
+
+            var order = payment.Order;
+            var originalOrderStatus = order.Status;
+            var alreadyConfirmed = IsAlreadyConfirmed(payment, order);
+
+            if (!alreadyConfirmed)
             {
-                payment.MarkAsPaid(notification.ProviderTransactionId);
+                if (payment.Status != PaymentStatus.Paid)
+                {
+                    payment.MarkAsPaid(notification.ProviderTransactionId);
+                }
+
+                EnsureVendorAcceptanceTransition(order);
+            }
+
+            var shouldPublishVendorPlacement = !alreadyConfirmed &&
+                order.Status == OrderStatus.PendingVendorAcceptance &&
+                originalOrderStatus != OrderStatus.PendingVendorAcceptance;
+
+            try
+            {
+                if (!alreadyConfirmed)
+                {
+                    await _unitOfWork.SaveChangesAsync(cancellationToken);
+                }
+            }
+            catch (DbUpdateConcurrencyException) when (attempt < maxAttempts - 1)
+            {
+                ResetTrackedState();
+                continue;
+            }
+            catch (DbUpdateConcurrencyException) when (attempt == maxAttempts - 1)
+            {
+                ResetTrackedState();
+                return await RecoverSuccessfulConfirmationAfterConcurrencyAsync(request, notification, cancellationToken);
             }
 
             await ClearCustomerCartAsync(order.UserId, request.CustomerDeviceId ?? payment.CheckoutDeviceId, cancellationToken);
-
-            if (order.Status == OrderStatus.Placed)
-            {
-                order.ChangeStatus(OrderStatus.PendingVendorAcceptance, null, "Online payment confirmed and awaiting vendor response");
-            }
-
-            shouldPublishVendorPlacement = order.Status == OrderStatus.PendingVendorAcceptance &&
-                originalOrderStatus != OrderStatus.PendingVendorAcceptance;
-
-            await _unitOfWork.SaveChangesAsync(cancellationToken);
 
             if (shouldPublishVendorPlacement)
             {
@@ -103,34 +152,86 @@ public class ConfirmPaymobPaymentCommandHandler : IRequestHandler<ConfirmPaymobP
                     cancellationToken);
             }
 
-            var alreadyConfirmed = payment.Status == PaymentStatus.Paid &&
-                originalOrderStatus == OrderStatus.PendingVendorAcceptance &&
-                !shouldPublishVendorPlacement;
-
-            return new PaymobPaymentConfirmationResultDto(
+            return BuildResult(
+                payment,
+                order,
                 alreadyConfirmed ? "Payment already confirmed." : "Payment confirmed successfully.",
-                payment.Id,
-                ToApiToken(payment.Status.ToString()),
-                order.UserId,
-                order.Id,
-                ToApiToken(order.Status.ToString()),
                 alreadyConfirmed);
         }
 
-        if (!notification.IsPending && payment.Status != PaymentStatus.Paid && payment.Status != PaymentStatus.Failed)
+        throw new InvalidOperationException("Paymob payment confirmation could not be completed.");
+    }
+
+    private async Task<PaymobPaymentConfirmationResultDto> RecoverSuccessfulConfirmationAfterConcurrencyAsync(
+        ConfirmPaymobPaymentCommand request,
+        PaymobWebhookNotificationDto notification,
+        CancellationToken cancellationToken)
+    {
+        ResetTrackedState();
+
+        var payment = await ResolvePaymentAsync(request, notification, cancellationToken);
+        var order = payment.Order;
+        var normalizedProviderTransactionId = string.IsNullOrWhiteSpace(notification.ProviderTransactionId)
+            ? null
+            : notification.ProviderTransactionId.Trim();
+        var desiredStatus = ResolveDesiredOperationalStatus(order.Status, payment.Method);
+
+        if (!IsAlreadyConfirmed(payment, order))
         {
-            payment.MarkAsFailed("Paymob reported payment failure.", notification.ProviderTransactionId);
-            await _unitOfWork.SaveChangesAsync(cancellationToken);
+            var utcNow = DateTime.UtcNow;
+
+            var paymentQuery = _context.Payments.Where(x => x.Id == payment.Id);
+            if (!string.IsNullOrWhiteSpace(normalizedProviderTransactionId))
+            {
+                await paymentQuery.ExecuteUpdateAsync(
+                    setters => setters
+                        .SetProperty(x => x.Status, PaymentStatus.Paid)
+                        .SetProperty(x => x.PaidAtUtc, utcNow)
+                        .SetProperty(x => x.ProviderTransactionId, normalizedProviderTransactionId)
+                        .SetProperty(x => x.UpdatedAtUtc, utcNow),
+                    cancellationToken);
+            }
+            else
+            {
+                await paymentQuery.ExecuteUpdateAsync(
+                    setters => setters
+                        .SetProperty(x => x.Status, PaymentStatus.Paid)
+                        .SetProperty(x => x.PaidAtUtc, utcNow)
+                        .SetProperty(x => x.UpdatedAtUtc, utcNow),
+                    cancellationToken);
+            }
+
+            await _context.Orders
+                .Where(x => x.Id == order.Id)
+                .ExecuteUpdateAsync(
+                    setters => setters
+                        .SetProperty(x => x.PaymentStatus, PaymentStatus.Paid)
+                        .SetProperty(
+                            x => x.Status,
+                            x => x.Status == OrderStatus.PendingPayment || x.Status == OrderStatus.Placed
+                                ? desiredStatus
+                                : x.Status)
+                        .SetProperty(x => x.UpdatedAtUtc, utcNow),
+                    cancellationToken);
         }
 
-        return new PaymobPaymentConfirmationResultDto(
-            notification.IsPending ? "Payment is still pending." : "Payment confirmation failed.",
-            payment.Id,
-            ToApiToken(payment.Status.ToString()),
-            order.UserId,
-            order.Id,
-            ToApiToken(order.Status.ToString()),
-            false);
+        ResetTrackedState();
+
+        var latestPayment = await ResolvePaymentAsync(request, notification, cancellationToken);
+        var latestOrder = latestPayment.Order;
+
+        if (!IsAlreadyConfirmed(latestPayment, latestOrder))
+        {
+            throw new DbUpdateConcurrencyException("Paymob payment confirmation could not be reconciled after a concurrent update.");
+        }
+
+        await ClearCustomerCartAsync(latestOrder.UserId, request.CustomerDeviceId ?? latestPayment.CheckoutDeviceId, cancellationToken);
+
+        return BuildResult(
+            latestPayment,
+            latestOrder,
+            IsAlreadyConfirmed(payment, order) ? "Payment already confirmed." : "Payment confirmed successfully.",
+            IsAlreadyConfirmed(payment, order));
     }
 
     private PaymobWebhookNotificationDto ResolveNotification(ConfirmPaymobPaymentCommand request)
@@ -203,43 +304,123 @@ public class ConfirmPaymobPaymentCommandHandler : IRequestHandler<ConfirmPaymobP
         return payment;
     }
 
+    private static void ApplyProviderReferenceIfNeeded(
+        Zadana.Domain.Modules.Payments.Entities.Payment payment,
+        string? providerReference)
+    {
+        if (!string.IsNullOrWhiteSpace(providerReference) &&
+            !string.Equals(payment.ProviderTransactionId, providerReference, StringComparison.Ordinal))
+        {
+            payment.SetProviderTransactionId(providerReference);
+        }
+    }
+
+    private static bool IsAlreadyConfirmed(
+        Zadana.Domain.Modules.Payments.Entities.Payment payment,
+        Zadana.Domain.Modules.Orders.Entities.Order order) =>
+        payment.Status == PaymentStatus.Paid &&
+        order.Status == OrderStatus.PendingVendorAcceptance;
+
+    private static void EnsureVendorAcceptanceTransition(Zadana.Domain.Modules.Orders.Entities.Order order)
+    {
+        var desiredStatus = ResolveDesiredOperationalStatus(order.Status, order.PaymentMethod);
+        if (desiredStatus != order.Status)
+        {
+            order.ChangeStatus(desiredStatus, null, "Online payment confirmed and awaiting vendor response");
+        }
+    }
+
+    private static OrderStatus ResolveDesiredOperationalStatus(OrderStatus currentStatus, PaymentMethodType paymentMethod)
+    {
+        if (currentStatus is OrderStatus.PendingPayment or OrderStatus.Placed)
+        {
+            return paymentMethod == PaymentMethodType.Card
+                ? OrderStatus.PendingVendorAcceptance
+                : OrderStatus.Placed;
+        }
+
+        return currentStatus;
+    }
+
     private async Task ClearCustomerCartAsync(Guid userId, string? deviceId, CancellationToken cancellationToken)
     {
         var normalizedDeviceId = string.IsNullOrWhiteSpace(deviceId) ? null : deviceId.Trim();
-        var userCarts = await _context.Carts
-            .Include(x => x.Items)
-            .Where(x => x.UserId == userId)
-            .ToListAsync(cancellationToken);
+        const int maxAttempts = 2;
 
-        var guestCarts = normalizedDeviceId == null
-            ? []
-            : await _context.Carts
+        for (var attempt = 0; attempt < maxAttempts; attempt++)
+        {
+            var userCarts = await _context.Carts
                 .Include(x => x.Items)
-                .Where(x => x.GuestId == normalizedDeviceId)
+                .Where(x => x.UserId == userId)
                 .ToListAsync(cancellationToken);
 
-        var carts = userCarts
-            .Concat(guestCarts)
-            .GroupBy(x => x.Id)
-            .Select(group => group.First())
-            .ToList();
+            var guestCarts = normalizedDeviceId == null
+                ? []
+                : await _context.Carts
+                    .Include(x => x.Items)
+                    .Where(x => x.GuestId == normalizedDeviceId)
+                    .ToListAsync(cancellationToken);
 
-        if (carts.Count == 0)
-        {
-            return;
+            var carts = userCarts
+                .Concat(guestCarts)
+                .GroupBy(x => x.Id)
+                .Select(group => group.First())
+                .ToList();
+
+            if (carts.Count == 0)
+            {
+                return;
+            }
+
+            var cartItems = carts
+                .SelectMany(x => x.Items)
+                .ToList();
+
+            if (cartItems.Count > 0)
+            {
+                _context.CartItems.RemoveRange(cartItems);
+            }
+
+            _context.Carts.RemoveRange(carts);
+
+            try
+            {
+                await _context.SaveChangesAsync(cancellationToken);
+                return;
+            }
+            catch (DbUpdateConcurrencyException) when (attempt < maxAttempts - 1)
+            {
+                ResetTrackedState();
+            }
+            catch (DbUpdateConcurrencyException) when (attempt == maxAttempts - 1)
+            {
+                ResetTrackedState();
+                return;
+            }
         }
-
-        var cartItems = carts
-            .SelectMany(x => x.Items)
-            .ToList();
-
-        if (cartItems.Count > 0)
-        {
-            _context.CartItems.RemoveRange(cartItems);
-        }
-
-        _context.Carts.RemoveRange(carts);
     }
+
+    private void ResetTrackedState()
+    {
+        if (_context is DbContext dbContext)
+        {
+            dbContext.ChangeTracker.Clear();
+        }
+    }
+
+    private static PaymobPaymentConfirmationResultDto BuildResult(
+        Zadana.Domain.Modules.Payments.Entities.Payment payment,
+        Zadana.Domain.Modules.Orders.Entities.Order order,
+        string message,
+        bool alreadyConfirmed) =>
+        new(
+            message,
+            payment.Id,
+            ToApiToken(payment.Status.ToString()),
+            order.UserId,
+            order.Id,
+            ToApiToken(order.Status.ToString()),
+            alreadyConfirmed);
 
     private static string ToApiToken(string value)
     {
