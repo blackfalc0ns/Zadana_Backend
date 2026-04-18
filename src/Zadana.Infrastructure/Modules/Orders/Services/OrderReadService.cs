@@ -189,7 +189,7 @@ public class OrderReadService : IOrderReadService
     {
         var query = _dbContext.Orders
             .AsNoTracking()
-            .Where(order => order.VendorId == vendorId);
+            .Where(order => order.VendorId == vendorId && order.Status != OrderStatus.PendingPayment);
 
         if (!string.IsNullOrWhiteSpace(search))
         {
@@ -239,7 +239,7 @@ public class OrderReadService : IOrderReadService
             .Include(item => item.Items)
             .Include(item => item.StatusHistory)
             .Include(item => item.Vendor)
-            .Where(item => item.VendorId == vendorId && item.Id == orderId)
+            .Where(item => item.VendorId == vendorId && item.Id == orderId && item.Status != OrderStatus.PendingPayment)
             .FirstOrDefaultAsync(cancellationToken);
 
         if (order is null)
