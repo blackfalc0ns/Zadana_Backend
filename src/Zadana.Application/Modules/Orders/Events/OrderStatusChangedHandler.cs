@@ -74,11 +74,6 @@ public class OrderStatusChangedHandler : INotificationHandler<OrderStatusChanged
             return;
         }
 
-        if (notification.NewStatus == OrderStatus.PendingVendorAcceptance && !vendorRecipient.NewOrdersNotificationsEnabled)
-        {
-            return;
-        }
-
         var (vendorTitleAr, vendorTitleEn, vendorBodyAr, vendorBodyEn, vendorType) =
             GetVendorNotificationContent(notification.NewStatus, notification.OrderNumber);
 
@@ -92,6 +87,11 @@ public class OrderStatusChangedHandler : INotificationHandler<OrderStatusChanged
             notification.OrderId,
             data,
             cancellationToken);
+
+        if (notification.NewStatus == OrderStatus.PendingVendorAcceptance && !vendorRecipient.NewOrdersNotificationsEnabled)
+        {
+            return;
+        }
 
         await _oneSignalPushService.SendToExternalUserAsync(
             vendorRecipient.UserId.ToString(),

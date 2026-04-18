@@ -128,7 +128,7 @@ public class OrderStatusChangedHandlerTests
     }
 
     [Fact]
-    public async Task Handle_WhenNewOrderPushIsDisabled_ShouldSkipInboxAndWebPushForVendor()
+    public async Task Handle_WhenNewOrderPushIsDisabled_ShouldStillCreateInboxButSkipWebPush()
     {
         await using var dbContext = CreateDbContext();
         var vendorUser = CreateVendorUser();
@@ -162,11 +162,11 @@ public class OrderStatusChangedHandlerTests
                 It.IsAny<string>(),
                 It.IsAny<string>(),
                 It.IsAny<string>(),
-                It.IsAny<string?>(),
+                NotificationTypes.VendorNewOrder,
                 It.IsAny<Guid?>(),
                 It.IsAny<string?>(),
                 It.IsAny<CancellationToken>()),
-            Times.Never);
+            Times.Once);
 
         pushServiceMock.Verify(
             service => service.SendToExternalUserAsync(
