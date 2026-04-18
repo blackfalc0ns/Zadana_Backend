@@ -93,11 +93,6 @@ public class OrderStatusChangedHandler : INotificationHandler<OrderStatusChanged
             data,
             cancellationToken);
 
-        if (notification.NewStatus != OrderStatus.PendingVendorAcceptance)
-        {
-            return;
-        }
-
         await _oneSignalPushService.SendToExternalUserAsync(
             vendorRecipient.UserId.ToString(),
             vendorTitleAr,

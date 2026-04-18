@@ -112,9 +112,10 @@ public class ConfirmPaymobPaymentCommandHandler : IRequestHandler<ConfirmPaymobP
                 EnsureVendorAcceptanceTransition(order);
             }
 
-            var shouldPublishVendorPlacement = !alreadyConfirmed &&
-                order.Status == OrderStatus.PendingVendorAcceptance &&
-                originalOrderStatus != OrderStatus.PendingVendorAcceptance;
+            var shouldPublishVendorPlacement = ShouldPublishVendorPlacement(
+                originalOrderStatus,
+                order.Status,
+                alreadyConfirmed);
 
             try
             {
@@ -138,18 +139,7 @@ public class ConfirmPaymobPaymentCommandHandler : IRequestHandler<ConfirmPaymobP
 
             if (shouldPublishVendorPlacement)
             {
-                await _publisher.Publish(
-                    new OrderStatusChangedNotification(
-                        order.Id,
-                        order.UserId,
-                        order.VendorId,
-                        order.OrderNumber,
-                        originalOrderStatus,
-                        order.Status,
-                        NotifyCustomer: true,
-                        NotifyVendor: true,
-                        ActorRole: "payment_gateway"),
-                    cancellationToken);
+                await PublishVendorPlacementAsync(order, originalOrderStatus, cancellationToken);
             }
 
             return BuildResult(
@@ -171,12 +161,18 @@ public class ConfirmPaymobPaymentCommandHandler : IRequestHandler<ConfirmPaymobP
 
         var payment = await ResolvePaymentAsync(request, notification, cancellationToken);
         var order = payment.Order;
+        var originalOrderStatus = order.Status;
+        var alreadyConfirmed = IsAlreadyConfirmed(payment, order);
         var normalizedProviderTransactionId = string.IsNullOrWhiteSpace(notification.ProviderTransactionId)
             ? null
             : notification.ProviderTransactionId.Trim();
         var desiredStatus = ResolveDesiredOperationalStatus(order.Status, payment.Method);
+        var shouldPublishVendorPlacement = ShouldPublishVendorPlacement(
+            originalOrderStatus,
+            desiredStatus,
+            alreadyConfirmed);
 
-        if (!IsAlreadyConfirmed(payment, order))
+        if (!alreadyConfirmed)
         {
             var utcNow = DateTime.UtcNow;
 
@@ -227,11 +223,16 @@ public class ConfirmPaymobPaymentCommandHandler : IRequestHandler<ConfirmPaymobP
 
         await ClearCustomerCartAsync(latestOrder.UserId, request.CustomerDeviceId ?? latestPayment.CheckoutDeviceId, cancellationToken);
 
+        if (shouldPublishVendorPlacement)
+        {
+            await PublishVendorPlacementAsync(latestOrder, originalOrderStatus, cancellationToken);
+        }
+
         return BuildResult(
             latestPayment,
             latestOrder,
-            IsAlreadyConfirmed(payment, order) ? "Payment already confirmed." : "Payment confirmed successfully.",
-            IsAlreadyConfirmed(payment, order));
+            alreadyConfirmed ? "Payment already confirmed." : "Payment confirmed successfully.",
+            alreadyConfirmed);
     }
 
     private PaymobWebhookNotificationDto ResolveNotification(ConfirmPaymobPaymentCommand request)
@@ -321,6 +322,14 @@ public class ConfirmPaymobPaymentCommandHandler : IRequestHandler<ConfirmPaymobP
         payment.Status == PaymentStatus.Paid &&
         order.Status == OrderStatus.PendingVendorAcceptance;
 
+    private static bool ShouldPublishVendorPlacement(
+        OrderStatus oldStatus,
+        OrderStatus newStatus,
+        bool alreadyConfirmed) =>
+        !alreadyConfirmed &&
+        newStatus == OrderStatus.PendingVendorAcceptance &&
+        oldStatus != OrderStatus.PendingVendorAcceptance;
+
     private static void EnsureVendorAcceptanceTransition(Zadana.Domain.Modules.Orders.Entities.Order order)
     {
         var desiredStatus = ResolveDesiredOperationalStatus(order.Status, order.PaymentMethod);
@@ -341,6 +350,23 @@ public class ConfirmPaymobPaymentCommandHandler : IRequestHandler<ConfirmPaymobP
 
         return currentStatus;
     }
+
+    private Task PublishVendorPlacementAsync(
+        Zadana.Domain.Modules.Orders.Entities.Order order,
+        OrderStatus oldStatus,
+        CancellationToken cancellationToken) =>
+        _publisher.Publish(
+            new OrderStatusChangedNotification(
+                order.Id,
+                order.UserId,
+                order.VendorId,
+                order.OrderNumber,
+                oldStatus,
+                order.Status,
+                NotifyCustomer: true,
+                NotifyVendor: true,
+                ActorRole: "payment_gateway"),
+            cancellationToken);
 
     private async Task ClearCustomerCartAsync(Guid userId, string? deviceId, CancellationToken cancellationToken)
     {
