@@ -61,6 +61,7 @@ public record PaymobPaymentConfirmationResultDto(
     string Message,
     Guid PaymentId,
     string PaymentStatus,
+    Guid UserId,
     Guid OrderId,
     string OrderStatus,
     bool AlreadyConfirmed);

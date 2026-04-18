@@ -19,6 +19,15 @@ public class GetCartQueryHandler : IRequestHandler<GetCartQuery, CartDto>
     public async Task<CartDto> Handle(GetCartQuery request, CancellationToken cancellationToken)
     {
         var actor = CartActor.Create(request.Actor.UserId, CartLookup.NormalizeGuestId(request.Actor.GuestId));
+        if (actor.UserId.HasValue)
+        {
+            await CartCleanupSupport.ClearStalePaidCheckoutCartIfNeededAsync(
+                _context,
+                actor.UserId.Value,
+                actor.GuestId,
+                cancellationToken);
+        }
+
         var cart = await CartLookup.FindCartAsync(_context, actor, cancellationToken, includeItems: true, asTracking: false);
 
         return await CartProjection.BuildCartDtoAsync(_context, cart, cancellationToken, request.VendorId);

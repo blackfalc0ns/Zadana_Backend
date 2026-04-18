@@ -18,15 +18,19 @@ public record ConfirmPaymobPaymentCommand(
     string? ProviderTransactionId,
     bool? IsSuccess,
     bool? IsPending,
-    Guid? CustomerUserId = null) : IRequest<PaymobPaymentConfirmationResultDto>;
+    string? CustomerDeviceId = null) : IRequest<PaymobPaymentConfirmationResultDto>;
 
 public class ConfirmPaymobPaymentCommandValidator : AbstractValidator<ConfirmPaymobPaymentCommand>
 {
     public ConfirmPaymobPaymentCommandValidator()
     {
         RuleFor(x => x)
-            .Must(x => x.PaymentId.HasValue || !string.IsNullOrWhiteSpace(x.Payload))
-            .WithMessage("Payment id or payload is required.");
+            .Must(x =>
+                x.PaymentId.HasValue ||
+                !string.IsNullOrWhiteSpace(x.Payload) ||
+                !string.IsNullOrWhiteSpace(x.ProviderReference) ||
+                !string.IsNullOrWhiteSpace(x.ProviderTransactionId))
+            .WithMessage("Payment id, payload, provider reference, or provider transaction id is required.");
     }
 }
 
@@ -54,8 +58,6 @@ public class ConfirmPaymobPaymentCommandHandler : IRequestHandler<ConfirmPaymobP
         var notification = ResolveNotification(request);
         var payment = await ResolvePaymentAsync(request, notification, cancellationToken);
 
-        EnsureCustomerOwnsPayment(payment, request.CustomerUserId);
-
         if (!string.IsNullOrWhiteSpace(notification.ProviderReference) &&
             !string.Equals(payment.ProviderTransactionId, notification.ProviderReference, StringComparison.Ordinal))
         {
@@ -73,7 +75,7 @@ public class ConfirmPaymobPaymentCommandHandler : IRequestHandler<ConfirmPaymobP
                 payment.MarkAsPaid(notification.ProviderTransactionId);
             }
 
-            await ClearCustomerCartAsync(order.UserId, cancellationToken);
+            await ClearCustomerCartAsync(order.UserId, request.CustomerDeviceId ?? payment.CheckoutDeviceId, cancellationToken);
 
             if (order.Status == OrderStatus.Placed)
             {
@@ -109,6 +111,7 @@ public class ConfirmPaymobPaymentCommandHandler : IRequestHandler<ConfirmPaymobP
                 alreadyConfirmed ? "Payment already confirmed." : "Payment confirmed successfully.",
                 payment.Id,
                 ToApiToken(payment.Status.ToString()),
+                order.UserId,
                 order.Id,
                 ToApiToken(order.Status.ToString()),
                 alreadyConfirmed);
@@ -124,6 +127,7 @@ public class ConfirmPaymobPaymentCommandHandler : IRequestHandler<ConfirmPaymobP
             notification.IsPending ? "Payment is still pending." : "Payment confirmation failed.",
             payment.Id,
             ToApiToken(payment.Status.ToString()),
+            order.UserId,
             order.Id,
             ToApiToken(order.Status.ToString()),
             false);
@@ -153,7 +157,6 @@ public class ConfirmPaymobPaymentCommandHandler : IRequestHandler<ConfirmPaymobP
         var payment = notification.PaymentId.HasValue
             ? await _context.Payments
                 .Include(x => x.Order)
-                .ThenInclude(order => order.StatusHistory)
                 .FirstOrDefaultAsync(x => x.Id == notification.PaymentId.Value, cancellationToken)
             : null;
 
@@ -161,9 +164,22 @@ public class ConfirmPaymobPaymentCommandHandler : IRequestHandler<ConfirmPaymobP
         {
             payment = await _context.Payments
                 .Include(x => x.Order)
-                .ThenInclude(order => order.StatusHistory)
                 .FirstOrDefaultAsync(
                     x => x.ProviderName == "Paymob" && x.ProviderTransactionId == notification.ProviderReference,
+                    cancellationToken);
+        }
+
+        var providerTransactionLookup = !string.IsNullOrWhiteSpace(notification.ProviderTransactionId)
+            ? notification.ProviderTransactionId
+            : request.ProviderTransactionId;
+
+        if (payment == null && !string.IsNullOrWhiteSpace(providerTransactionLookup))
+        {
+            var normalizedProviderTransactionId = providerTransactionLookup.Trim();
+            payment = await _context.Payments
+                .Include(x => x.Order)
+                .FirstOrDefaultAsync(
+                    x => x.ProviderName == "Paymob" && x.ProviderTransactionId == normalizedProviderTransactionId,
                     cancellationToken);
         }
 
@@ -171,7 +187,6 @@ public class ConfirmPaymobPaymentCommandHandler : IRequestHandler<ConfirmPaymobP
         {
             payment = await _context.Payments
                 .Include(x => x.Order)
-                .ThenInclude(order => order.StatusHistory)
                 .FirstOrDefaultAsync(x => x.Id == request.PaymentId.Value, cancellationToken);
         }
 
@@ -180,6 +195,7 @@ public class ConfirmPaymobPaymentCommandHandler : IRequestHandler<ConfirmPaymobP
             var lookupId = notification.PaymentId?.ToString() ??
                            request.PaymentId?.ToString() ??
                            notification.ProviderReference ??
+                           notification.ProviderTransactionId ??
                            "unknown";
             throw new NotFoundException("Payment", lookupId);
         }
@@ -187,29 +203,42 @@ public class ConfirmPaymobPaymentCommandHandler : IRequestHandler<ConfirmPaymobP
         return payment;
     }
 
-    private static void EnsureCustomerOwnsPayment(Zadana.Domain.Modules.Payments.Entities.Payment payment, Guid? customerUserId)
+    private async Task ClearCustomerCartAsync(Guid userId, string? deviceId, CancellationToken cancellationToken)
     {
-        if (!customerUserId.HasValue)
+        var normalizedDeviceId = string.IsNullOrWhiteSpace(deviceId) ? null : deviceId.Trim();
+        var userCarts = await _context.Carts
+            .Include(x => x.Items)
+            .Where(x => x.UserId == userId)
+            .ToListAsync(cancellationToken);
+
+        var guestCarts = normalizedDeviceId == null
+            ? []
+            : await _context.Carts
+                .Include(x => x.Items)
+                .Where(x => x.GuestId == normalizedDeviceId)
+                .ToListAsync(cancellationToken);
+
+        var carts = userCarts
+            .Concat(guestCarts)
+            .GroupBy(x => x.Id)
+            .Select(group => group.First())
+            .ToList();
+
+        if (carts.Count == 0)
         {
             return;
         }
 
-        if (payment.Order.UserId != customerUserId.Value)
-        {
-            throw new UnauthorizedException("PAYMENT_NOT_OWNED_BY_CUSTOMER");
-        }
-    }
+        var cartItems = carts
+            .SelectMany(x => x.Items)
+            .ToList();
 
-    private async Task ClearCustomerCartAsync(Guid userId, CancellationToken cancellationToken)
-    {
-        var cart = await _context.Carts
-            .Include(x => x.Items)
-            .FirstOrDefaultAsync(x => x.UserId == userId, cancellationToken);
-
-        if (cart != null)
+        if (cartItems.Count > 0)
         {
-            _context.Carts.Remove(cart);
+            _context.CartItems.RemoveRange(cartItems);
         }
+
+        _context.Carts.RemoveRange(carts);
     }
 
     private static string ToApiToken(string value)

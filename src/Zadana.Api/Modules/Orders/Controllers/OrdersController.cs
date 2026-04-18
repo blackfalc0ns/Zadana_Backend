@@ -21,6 +21,7 @@ namespace Zadana.Api.Modules.Orders.Controllers;
 [Authorize(Policy = "CustomerOnly")]
 public class OrdersController : ApiControllerBase
 {
+    private const string DeviceIdHeader = "X-Device-Id";
     private readonly ICurrentUserService _currentUserService;
 
     public OrdersController(ICurrentUserService currentUserService)
@@ -147,7 +148,8 @@ public class OrdersController : ApiControllerBase
                 request.DeliverySlotId,
                 request.PaymentMethod,
                 request.PromoCode,
-                request.Notes),
+                request.Notes,
+                ResolveDeviceIdHeader()),
             cancellationToken);
 
         return Ok(CheckoutController.MapPlacedOrder(result));
@@ -211,4 +213,10 @@ public class OrdersController : ApiControllerBase
             dto.Message,
             dto.Attachments.Select(x => new OrderComplaintAttachmentResponse(x.FileName, x.FileUrl)).ToList(),
             dto.CreatedAt);
+
+    private string? ResolveDeviceIdHeader()
+    {
+        var deviceId = Request.Headers[DeviceIdHeader].ToString();
+        return string.IsNullOrWhiteSpace(deviceId) ? null : deviceId.Trim();
+    }
 }

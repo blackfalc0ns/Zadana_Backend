@@ -42,7 +42,7 @@ public class ConfirmPaymobPaymentCommandHandlerTests
         var handler = new ConfirmPaymobPaymentCommandHandler(dbContext, gatewayMock.Object, unitOfWorkMock.Object, publisherMock.Object);
 
         var result = await handler.Handle(
-            new ConfirmPaymobPaymentCommand(payment.Id, null, payment.ProviderTransactionId, "txn-paid-1", true, false, user.Id),
+            new ConfirmPaymobPaymentCommand(payment.Id, null, payment.ProviderTransactionId, "txn-paid-1", true, false, null),
             CancellationToken.None);
 
         payment.Status.Should().Be(PaymentStatus.Paid);
@@ -61,6 +61,76 @@ public class ConfirmPaymobPaymentCommandHandlerTests
                     notification.NotifyVendor),
                 It.IsAny<CancellationToken>()),
             Times.Once);
+    }
+
+    [Fact]
+    public async Task Handle_WhenDeviceIdProvided_ShouldClearGuestCartForSameDeviceToo()
+    {
+        await using var dbContext = CreateDbContext();
+        var user = CreateUser();
+        var order = CreateOrder(user.Id);
+        var payment = CreatePendingCardPayment(order);
+        var userCart = CreateCart(user.Id);
+        var guestCart = CreateGuestCart("device-100");
+
+        dbContext.Users.Add(user);
+        dbContext.Orders.Add(order);
+        dbContext.Payments.Add(payment);
+        dbContext.Carts.AddRange(userCart, guestCart);
+        await dbContext.SaveChangesAsync();
+
+        var handler = new ConfirmPaymobPaymentCommandHandler(
+            dbContext,
+            Mock.Of<IPaymobGateway>(),
+            CreateUnitOfWorkMock().Object,
+            CreatePublisherMock().Object);
+
+        await handler.Handle(
+            new ConfirmPaymobPaymentCommand(payment.Id, null, payment.ProviderTransactionId, "txn-paid-2", true, false, "device-100"),
+            CancellationToken.None);
+
+        dbContext.Entry(userCart).State.Should().Be(EntityState.Deleted);
+        dbContext.Entry(guestCart).State.Should().Be(EntityState.Deleted);
+    }
+
+    [Fact]
+    public async Task Handle_WhenPaymentCarriesCheckoutDeviceId_WebhookConfirmationShouldClearGuestCartToo()
+    {
+        await using var dbContext = CreateDbContext();
+        var user = CreateUser();
+        var order = CreateOrder(user.Id);
+        var payment = CreatePendingCardPayment(order);
+        payment.SetCheckoutDeviceId("device-200");
+        var guestCart = CreateGuestCart("device-200");
+
+        dbContext.Users.Add(user);
+        dbContext.Orders.Add(order);
+        dbContext.Payments.Add(payment);
+        dbContext.Carts.Add(guestCart);
+        await dbContext.SaveChangesAsync();
+
+        var gatewayMock = new Mock<IPaymobGateway>();
+        gatewayMock
+            .Setup(gateway => gateway.ParseWebhookNotification("payload-success"))
+            .Returns(new PaymobWebhookNotificationDto(
+                payment.Id,
+                payment.ProviderTransactionId,
+                "txn-webhook-200",
+                true,
+                false,
+                "TRANSACTION"));
+
+        var handler = new ConfirmPaymobPaymentCommandHandler(
+            dbContext,
+            gatewayMock.Object,
+            CreateUnitOfWorkMock().Object,
+            CreatePublisherMock().Object);
+
+        await handler.Handle(
+            new ConfirmPaymobPaymentCommand(payment.Id, "payload-success", null, null, null, null, null),
+            CancellationToken.None);
+
+        dbContext.Entry(guestCart).State.Should().Be(EntityState.Deleted);
     }
 
     [Fact]
@@ -87,7 +157,7 @@ public class ConfirmPaymobPaymentCommandHandlerTests
             publisherMock.Object);
 
         var result = await handler.Handle(
-            new ConfirmPaymobPaymentCommand(payment.Id, null, payment.ProviderTransactionId, payment.ProviderTransactionId, true, false, user.Id),
+            new ConfirmPaymobPaymentCommand(payment.Id, null, payment.ProviderTransactionId, payment.ProviderTransactionId, true, false, null),
             CancellationToken.None);
 
         order.Status.Should().Be(OrderStatus.PendingVendorAcceptance);
@@ -126,7 +196,7 @@ public class ConfirmPaymobPaymentCommandHandlerTests
             publisherMock.Object);
 
         var result = await handler.Handle(
-            new ConfirmPaymobPaymentCommand(payment.Id, null, payment.ProviderTransactionId, payment.ProviderTransactionId, true, false, user.Id),
+            new ConfirmPaymobPaymentCommand(payment.Id, null, payment.ProviderTransactionId, payment.ProviderTransactionId, true, false, null),
             CancellationToken.None);
 
         result.AlreadyConfirmed.Should().BeTrue();
@@ -160,7 +230,7 @@ public class ConfirmPaymobPaymentCommandHandlerTests
             publisherMock.Object);
 
         var result = await handler.Handle(
-            new ConfirmPaymobPaymentCommand(payment.Id, null, payment.ProviderTransactionId, "txn-failed", false, false, user.Id),
+            new ConfirmPaymobPaymentCommand(payment.Id, null, payment.ProviderTransactionId, "txn-failed", false, false, null),
             CancellationToken.None);
 
         payment.Status.Should().Be(PaymentStatus.Failed);
@@ -222,6 +292,44 @@ public class ConfirmPaymobPaymentCommandHandlerTests
             Times.Once);
     }
 
+    [Fact]
+    public async Task Handle_WhenPaymentIdMissing_ShouldResolvePaymentByProviderTransactionId()
+    {
+        await using var dbContext = CreateDbContext();
+        var user = CreateUser();
+        var order = CreateOrder(user.Id);
+        var payment = CreatePendingCardPayment(order);
+        var cart = CreateCart(user.Id);
+
+        dbContext.Users.Add(user);
+        dbContext.Orders.Add(order);
+        dbContext.Payments.Add(payment);
+        dbContext.Carts.Add(cart);
+        await dbContext.SaveChangesAsync();
+
+        var handler = new ConfirmPaymobPaymentCommandHandler(
+            dbContext,
+            Mock.Of<IPaymobGateway>(),
+            CreateUnitOfWorkMock().Object,
+            CreatePublisherMock().Object);
+
+        var result = await handler.Handle(
+            new ConfirmPaymobPaymentCommand(
+                null,
+                null,
+                null,
+                payment.ProviderTransactionId,
+                true,
+                false,
+                null),
+            CancellationToken.None);
+
+        result.PaymentId.Should().Be(payment.Id);
+        result.PaymentStatus.Should().Be("paid");
+        result.OrderStatus.Should().Be("pending_vendor_acceptance");
+        dbContext.Entry(cart).State.Should().Be(EntityState.Deleted);
+    }
+
     private static Mock<IPublisher> CreatePublisherMock()
     {
         var publisherMock = new Mock<IPublisher>();
@@ -268,6 +376,13 @@ public class ConfirmPaymobPaymentCommandHandlerTests
     private static Cart CreateCart(Guid userId)
     {
         var cart = new Cart(userId);
+        cart.UpdateTotals(110m, 10m);
+        return cart;
+    }
+
+    private static Cart CreateGuestCart(string deviceId)
+    {
+        var cart = new Cart(null, deviceId);
         cart.UpdateTotals(110m, 10m);
         return cart;
     }

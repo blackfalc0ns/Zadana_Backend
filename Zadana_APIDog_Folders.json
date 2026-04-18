@@ -6772,33 +6772,67 @@
                 }
             }
         },
-        "/api/payments/paymob/confirm": {
-            "post": {
-                "summary": "Confirm Paymob payment after return",
-                "description": "Customer-authenticated fallback confirmation for online card payments after returning from Paymob. Reuses the same idempotent confirmation flow as the webhook, marks the payment as paid when successful, clears the customer cart, moves the order into PendingVendorAcceptance, and triggers vendor new-order notification when needed.",
+        "/api/payments/paymob/return": {
+            "get": {
+                "summary": "Handle Paymob return fallback",
+                "description": "Fallback confirmation endpoint used only when the customer returns from Paymob before the webhook arrives. Resolves the linked local payment using Paymob return query parameters, reuses the same idempotent confirmation flow as the webhook, clears the customer cart after successful card payment, and moves the order into PendingVendorAcceptance when needed.",
                 "tags": [
                     "System/Payments"
                 ],
-                "requestBody": {
-                    "required": true,
-                    "content": {
-                        "application/json": {
-                            "schema": {
-                                "$ref": "#/components/schemas/ConfirmPaymobPaymentRequest"
-                            }
+                "security": [],
+                "parameters": [
+                    {
+                        "name": "paymentId",
+                        "in": "query",
+                        "schema": {
+                            "type": "string",
+                            "format": "uuid"
                         },
-                        "text/json": {
-                            "schema": {
-                                "$ref": "#/components/schemas/ConfirmPaymobPaymentRequest"
-                            }
+                        "required": false
+                    },
+                    {
+                        "name": "merchant_order_id",
+                        "in": "query",
+                        "schema": {
+                            "type": "string"
                         },
-                        "text/plain": {
-                            "schema": {
-                                "$ref": "#/components/schemas/ConfirmPaymobPaymentRequest"
-                            }
-                        }
+                        "required": false
+                    },
+                    {
+                        "name": "order",
+                        "in": "query",
+                        "schema": {
+                            "type": "string"
+                        },
+                        "required": false,
+                        "description": "Paymob provider order/reference identifier."
+                    },
+                    {
+                        "name": "id",
+                        "in": "query",
+                        "schema": {
+                            "type": "string"
+                        },
+                        "required": false,
+                        "description": "Paymob transaction identifier."
+                    },
+                    {
+                        "name": "success",
+                        "in": "query",
+                        "schema": {
+                            "type": "boolean"
+                        },
+                        "required": false
+                    },
+                    {
+                        "name": "pending",
+                        "in": "query",
+                        "schema": {
+                            "type": "boolean"
+                        },
+                        "required": false
                     }
-                },
+                ],
                 "responses": {
                     "200": {
                         "description": "OK",
@@ -10774,40 +10808,6 @@
                 },
                 "additionalProperties": false
             },
-            "ConfirmPaymobPaymentRequest": {
-                "type": "object",
-                "properties": {
-                    "paymentId": {
-                        "type": "string",
-                        "format": "uuid",
-                        "nullable": true
-                    },
-                    "payload": {
-                        "type": "string",
-                        "nullable": true,
-                        "description": "Optional raw Paymob payload if the client forwards provider callback data directly."
-                    },
-                    "providerReference": {
-                        "type": "string",
-                        "nullable": true,
-                        "description": "Paymob provider order/reference identifier."
-                    },
-                    "providerTransactionId": {
-                        "type": "string",
-                        "nullable": true,
-                        "description": "Paymob transaction identifier for the successful or failed payment attempt."
-                    },
-                    "isSuccess": {
-                        "type": "boolean",
-                        "nullable": true
-                    },
-                    "isPending": {
-                        "type": "boolean",
-                        "nullable": true
-                    }
-                },
-                "additionalProperties": false
-            },
             "ConfirmPaymobPaymentResponse": {
                 "type": "object",
                 "properties": {
@@ -10823,6 +10823,10 @@
                         "type": "string",
                         "nullable": true,
                         "example": "paid"
+                    },
+                    "userId": {
+                        "type": "string",
+                        "format": "uuid"
                     },
                     "orderId": {
                         "type": "string",

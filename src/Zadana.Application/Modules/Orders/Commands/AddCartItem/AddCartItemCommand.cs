@@ -10,6 +10,7 @@ using Zadana.Application.Modules.Orders.Support;
 using Zadana.Domain.Modules.Catalog.Entities;
 using Zadana.Domain.Modules.Catalog.Enums;
 using Zadana.Domain.Modules.Orders.Entities;
+using Zadana.Domain.Modules.Vendors.Enums;
 using Zadana.SharedKernel.Exceptions;
 
 namespace Zadana.Application.Modules.Orders.Commands.AddCartItem;
@@ -136,6 +137,11 @@ public class AddCartItemCommandHandler : IRequestHandler<AddCartItemCommand, Car
         CancellationToken cancellationToken)
     {
         var existingItem = cart.Items.FirstOrDefault(item => item.MasterProductId == request.ProductId);
+        if (existingItem is null)
+        {
+            await EnsureSingleVendorCheckoutCoverageAsync(cart, request.ProductId, cancellationToken);
+        }
+
         CartItem affectedItem;
 
         if (existingItem is not null)
@@ -161,6 +167,40 @@ public class AddCartItemCommandHandler : IRequestHandler<AddCartItemCommand, Car
 
         await _context.SaveChangesAsync(cancellationToken);
         return affectedItem;
+    }
+
+    private async Task EnsureSingleVendorCheckoutCoverageAsync(
+        Cart cart,
+        Guid newProductId,
+        CancellationToken cancellationToken)
+    {
+        var productIds = cart.Items
+            .Select(item => item.MasterProductId)
+            .Append(newProductId)
+            .Distinct()
+            .ToList();
+
+        var supportingVendorIds = await _context.VendorProducts
+            .AsNoTracking()
+            .Where(product =>
+                productIds.Contains(product.MasterProductId) &&
+                product.Status == VendorProductStatus.Active &&
+                product.IsAvailable &&
+                product.StockQuantity > 0 &&
+                product.MasterProduct.Status == ProductStatus.Active &&
+                product.Vendor.Status == VendorStatus.Active &&
+                product.Vendor.AcceptOrders)
+            .GroupBy(product => product.VendorId)
+            .Where(group => group.Select(item => item.MasterProductId).Distinct().Count() == productIds.Count)
+            .Select(group => group.Key)
+            .ToListAsync(cancellationToken);
+
+        if (supportingVendorIds.Count == 0)
+        {
+            throw new BusinessRuleException(
+                "CART_VENDOR_CONFLICT",
+                "Cart items must remain fulfillable by a single vendor. Remove products from another store first.");
+        }
     }
 
     private async Task<Cart> ReloadCartForWriteAsync(CartActor actor, CancellationToken cancellationToken)

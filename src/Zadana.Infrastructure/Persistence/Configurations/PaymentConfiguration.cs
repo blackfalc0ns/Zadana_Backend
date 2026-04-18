@@ -17,6 +17,7 @@ public class PaymentConfiguration : IEntityTypeConfiguration<Payment>
 
         builder.Property(x => x.ProviderName).HasMaxLength(100);
         builder.Property(x => x.ProviderTransactionId).HasMaxLength(200);
+        builder.Property(x => x.CheckoutDeviceId).HasMaxLength(200);
 
         builder.Property(x => x.Amount).HasPrecision(18, 2).IsRequired();
 

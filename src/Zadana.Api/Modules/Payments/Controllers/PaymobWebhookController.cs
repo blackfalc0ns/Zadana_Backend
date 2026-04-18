@@ -2,7 +2,6 @@ using System.Text;
 using Microsoft.AspNetCore.Authorization;
 using Microsoft.AspNetCore.Mvc;
 using Zadana.Api.Controllers;
-using Zadana.Application.Common.Interfaces;
 using Zadana.Application.Modules.Payments.Commands.ConfirmPaymobPayment;
 using Zadana.Application.Modules.Payments.Commands.ProcessPaymobWebhook;
 
@@ -12,12 +11,7 @@ namespace Zadana.Api.Modules.Payments.Controllers;
 [Tags("Payments")]
 public class PaymobWebhookController : ApiControllerBase
 {
-    private readonly ICurrentUserService _currentUserService;
-
-    public PaymobWebhookController(ICurrentUserService currentUserService)
-    {
-        _currentUserService = currentUserService;
-    }
+    private const string DeviceIdHeader = "X-Device-Id";
 
     [AllowAnonymous]
     [HttpPost("webhook")]
@@ -32,51 +26,81 @@ public class PaymobWebhookController : ApiControllerBase
         return Ok(result);
     }
 
-    [Authorize(Policy = "CustomerOnly")]
-    [HttpPost("confirm")]
-    public async Task<ActionResult<ConfirmPaymobPaymentResponse>> ConfirmPayment(
-        [FromBody] ConfirmPaymobPaymentRequest? request,
+    [AllowAnonymous]
+    [HttpGet("return")]
+    public async Task<ActionResult<ConfirmPaymobPaymentResponse>> ConfirmPaymentReturn(
+        [FromQuery] PaymobReturnRequest? request,
         CancellationToken cancellationToken = default)
     {
-        if (request is null)
-        {
-            return BadRequest();
-        }
+        var paymentId = Guid.TryParse(request?.MerchantOrderId, out var parsedPaymentId)
+            ? parsedPaymentId
+            : request?.PaymentId;
+        var inferredSuccess = InferReturnSuccess(request, paymentId);
 
-        var userId = _currentUserService.UserId ?? throw new UnauthorizedAccessException("USER_NOT_AUTHENTICATED");
         var result = await Sender.Send(
             new ConfirmPaymobPaymentCommand(
-                request.PaymentId,
-                request.Payload,
-                request.ProviderReference,
-                request.ProviderTransactionId,
-                request.IsSuccess,
-                request.IsPending,
-                userId),
+                paymentId,
+                null,
+                request?.ProviderReference,
+                request?.ProviderTransactionId,
+                inferredSuccess,
+                request?.IsPending,
+                ResolveDeviceIdHeader()),
             cancellationToken);
 
         return Ok(new ConfirmPaymobPaymentResponse(
             result.Message,
             result.PaymentId,
             result.PaymentStatus,
+            result.UserId,
             result.OrderId,
             result.OrderStatus,
             result.AlreadyConfirmed));
     }
-}
 
-public record ConfirmPaymobPaymentRequest(
-    Guid? PaymentId,
-    string? Payload,
-    string? ProviderReference,
-    string? ProviderTransactionId,
-    bool? IsSuccess,
-    bool? IsPending);
+    private string? ResolveDeviceIdHeader()
+    {
+        var deviceId = Request.Headers[DeviceIdHeader].ToString();
+        return string.IsNullOrWhiteSpace(deviceId) ? null : deviceId.Trim();
+    }
+
+    private static bool? InferReturnSuccess(PaymobReturnRequest? request, Guid? paymentId)
+    {
+        if (request?.IsSuccess.HasValue == true)
+        {
+            return request.IsSuccess.Value;
+        }
+
+        if (request?.IsPending == true)
+        {
+            return false;
+        }
+
+        var hasPaymobIdentifiers =
+            paymentId.HasValue ||
+            !string.IsNullOrWhiteSpace(request?.MerchantOrderId) ||
+            !string.IsNullOrWhiteSpace(request?.ProviderReference) ||
+            !string.IsNullOrWhiteSpace(request?.ProviderTransactionId);
+
+        return hasPaymobIdentifiers ? true : null;
+    }
+}
 
 public record ConfirmPaymobPaymentResponse(
     string Message,
     Guid PaymentId,
     string PaymentStatus,
+    Guid UserId,
     Guid OrderId,
     string OrderStatus,
     bool AlreadyConfirmed);
+
+public record PaymobReturnRequest(
+    [property: FromQuery(Name = "paymentId")] Guid? PaymentId,
+    [property: FromQuery(Name = "merchant_order_id")] string? MerchantOrderId,
+    [property: FromQuery(Name = "order")] string? ProviderReference,
+    [property: FromQuery(Name = "id")] string? ProviderTransactionId,
+    [property: FromQuery(Name = "success")] bool? IsSuccess,
+    [property: FromQuery(Name = "pending")] bool? IsPending);
+
+    

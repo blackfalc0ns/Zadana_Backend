@@ -2,6 +2,7 @@ using MediatR;
 using Zadana.Application.Common.Interfaces;
 using Zadana.Application.Modules.Checkout.DTOs;
 using Zadana.Application.Modules.Checkout.Support;
+using Zadana.Application.Modules.Orders.Support;
 using Zadana.Application.Modules.Payments.Interfaces;
 
 namespace Zadana.Application.Modules.Checkout.Queries.GetCheckoutSummary;
@@ -21,6 +22,12 @@ public class GetCheckoutSummaryQueryHandler : IRequestHandler<GetCheckoutSummary
 
     public async Task<CheckoutSummaryDto> Handle(GetCheckoutSummaryQuery request, CancellationToken cancellationToken)
     {
+        await CartCleanupSupport.ClearStalePaidCheckoutCartIfNeededAsync(
+            _context,
+            request.UserId,
+            null,
+            cancellationToken);
+
         var cart = await CheckoutSupport.GetRequiredCartAsync(_context, request.UserId, cancellationToken);
         var pricing = await CheckoutSupport.BuildPricingSnapshotAsync(_context, cart, cancellationToken);
         var address = await CheckoutSupport.ResolveSelectedAddressAsync(_context, request.UserId, request.AddressId, cancellationToken);

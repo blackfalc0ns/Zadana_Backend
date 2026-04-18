@@ -21,7 +21,8 @@ public record PlaceCheckoutOrderCommand(
     string? DeliverySlotId,
     string PaymentMethod,
     string? PromoCode,
-    string? Notes) : IRequest<PlaceCheckoutOrderResultDto>;
+    string? Notes,
+    string? DeviceId = null) : IRequest<PlaceCheckoutOrderResultDto>;
 
 public class PlaceCheckoutOrderCommandValidator : AbstractValidator<PlaceCheckoutOrderCommand>
 {
@@ -111,6 +112,7 @@ public class PlaceCheckoutOrderCommandHandler : IRequestHandler<PlaceCheckoutOrd
             ?? throw new NotFoundException("Order", orderId);
 
         var payment = new Payment(order.Id, Enum.Parse<PaymentMethodType>(internalPaymentMethod, true), order.TotalAmount);
+        payment.SetCheckoutDeviceId(request.DeviceId);
         _context.Payments.Add(payment);
         await _unitOfWork.SaveChangesAsync(cancellationToken);
 

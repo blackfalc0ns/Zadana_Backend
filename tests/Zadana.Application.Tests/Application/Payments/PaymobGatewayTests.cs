@@ -3,6 +3,7 @@ using System.Security.Cryptography;
 using System.Text;
 using System.Text.Json;
 using FluentAssertions;
+using Microsoft.AspNetCore.Http;
 using Microsoft.Extensions.Logging.Abstractions;
 using Microsoft.Extensions.Options;
 using Zadana.Application.Modules.Payments.DTOs;
@@ -107,6 +108,7 @@ public class PaymobGatewayTests
 
         return new PaymobGateway(
             httpClient,
+            new HttpContextAccessor(),
             Options.Create(new PaymobSettings
             {
                 Enabled = true,

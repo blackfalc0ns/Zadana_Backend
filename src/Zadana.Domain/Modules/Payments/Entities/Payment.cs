@@ -12,6 +12,7 @@ public class Payment : BaseEntity
     public PaymentStatus Status { get; private set; }
     public string? ProviderName { get; private set; }
     public string? ProviderTransactionId { get; private set; }
+    public string? CheckoutDeviceId { get; private set; }
     public decimal Amount { get; private set; }
     public DateTime? PaidAtUtc { get; private set; }
     public DateTime? FailedAtUtc { get; private set; }
@@ -42,6 +43,11 @@ public class Payment : BaseEntity
     public void SetProviderTransactionId(string transactionId)
     {
         ProviderTransactionId = transactionId.Trim();
+    }
+
+    public void SetCheckoutDeviceId(string? deviceId)
+    {
+        CheckoutDeviceId = string.IsNullOrWhiteSpace(deviceId) ? null : deviceId.Trim();
     }
 
     public void MarkAsPaid(string? transactionId = null)

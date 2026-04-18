@@ -3,6 +3,7 @@ using System.Net.Http.Json;
 using System.Security.Cryptography;
 using System.Text;
 using System.Text.Json;
+using Microsoft.AspNetCore.Http;
 using Microsoft.Extensions.Logging;
 using Microsoft.Extensions.Options;
 using Zadana.Application.Modules.Payments.DTOs;
@@ -15,15 +16,18 @@ namespace Zadana.Infrastructure.Services;
 public class PaymobGateway : IPaymobGateway
 {
     private readonly HttpClient _httpClient;
+    private readonly IHttpContextAccessor _httpContextAccessor;
     private readonly ILogger<PaymobGateway> _logger;
     private readonly PaymobSettings _settings;
 
     public PaymobGateway(
         HttpClient httpClient,
+        IHttpContextAccessor httpContextAccessor,
         IOptions<PaymobSettings> settings,
         ILogger<PaymobGateway> logger)
     {
         _httpClient = httpClient;
+        _httpContextAccessor = httpContextAccessor;
         _settings = settings.Value;
         _logger = logger;
     }
@@ -147,45 +151,99 @@ public class PaymobGateway : IPaymobGateway
         int amountCents,
         CancellationToken cancellationToken)
     {
+        var payload = new Dictionary<string, object?>
+        {
+            ["auth_token"] = authToken,
+            ["amount_cents"] = amountCents.ToString(CultureInfo.InvariantCulture),
+            ["expiration"] = _settings.PaymentKeyExpirationSeconds,
+            ["order_id"] = providerOrderId,
+            ["billing_data"] = new Dictionary<string, object?>
+            {
+                ["apartment"] = "NA",
+                ["email"] = RequiredBillingValue(request.CustomerEmail, "email"),
+                ["floor"] = "NA",
+                ["first_name"] = RequiredBillingValue(request.CustomerFirstName, "first_name"),
+                ["street"] = RequiredBillingValue(request.AddressLine, "street"),
+                ["building"] = "NA",
+                ["phone_number"] = RequiredBillingValue(request.CustomerPhone, "phone_number"),
+                ["shipping_method"] = "PKG",
+                ["postal_code"] = "NA",
+                ["city"] = RequiredBillingValue(request.City, "city"),
+                ["country"] = RequiredBillingValue(request.CountryCode, "country"),
+                ["last_name"] = RequiredBillingValue(request.CustomerLastName, "last_name"),
+                ["state"] = request.City
+            },
+            ["currency"] = request.Currency,
+            ["integration_id"] = _settings.IntegrationId,
+            ["lock_order_when_paid"] = true
+        };
+
+        var notificationUrl = BuildNotificationUrl();
+        if (!string.IsNullOrWhiteSpace(notificationUrl))
+        {
+            payload["notification_url"] = notificationUrl;
+        }
+
+        var redirectionUrl = BuildReturnUrl(request.PaymentId);
+        if (!string.IsNullOrWhiteSpace(redirectionUrl))
+        {
+            payload["redirection_url"] = redirectionUrl;
+        }
+
         var response = await _httpClient.PostAsJsonAsync(
             "/api/acceptance/payment_keys",
-            new
-            {
-                auth_token = authToken,
-                amount_cents = amountCents.ToString(CultureInfo.InvariantCulture),
-                expiration = _settings.PaymentKeyExpirationSeconds,
-                order_id = providerOrderId,
-                billing_data = new
-                {
-                    apartment = "NA",
-                    email = RequiredBillingValue(request.CustomerEmail, "email"),
-                    floor = "NA",
-                    first_name = RequiredBillingValue(request.CustomerFirstName, "first_name"),
-                    street = RequiredBillingValue(request.AddressLine, "street"),
-                    building = "NA",
-                    phone_number = RequiredBillingValue(request.CustomerPhone, "phone_number"),
-                    shipping_method = "PKG",
-                    postal_code = "NA",
-                    city = RequiredBillingValue(request.City, "city"),
-                    country = RequiredBillingValue(request.CountryCode, "country"),
-                    last_name = RequiredBillingValue(request.CustomerLastName, "last_name"),
-                    state = request.City
-                },
-                currency = request.Currency,
-                integration_id = _settings.IntegrationId,
-                lock_order_when_paid = true
-            },
+            payload,
             cancellationToken);
 
-        var payload = await response.Content.ReadAsStringAsync(cancellationToken);
-        EnsureSuccess(response, payload, "PAYMOB_PAYMENT_KEY_FAILED");
+        var responsePayload = await response.Content.ReadAsStringAsync(cancellationToken);
+        EnsureSuccess(response, responsePayload, "PAYMOB_PAYMENT_KEY_FAILED");
 
-        using var document = JsonDocument.Parse(payload);
+        using var document = JsonDocument.Parse(responsePayload);
         return GetRequiredString(document.RootElement, "token", "PAYMOB_PAYMENT_KEY_FAILED");
     }
 
     private string BuildIframeUrl(string paymentToken) =>
         $"{_settings.BaseUrl.TrimEnd('/')}/api/acceptance/iframes/{_settings.IframeId}?payment_token={Uri.EscapeDataString(paymentToken)}";
+
+    private string? BuildNotificationUrl()
+    {
+        var callbackUrl = ResolveCallbackUrl();
+        return string.IsNullOrWhiteSpace(callbackUrl) ? null : callbackUrl;
+    }
+
+    private string? BuildReturnUrl(Guid paymentId)
+    {
+        var callbackUrl = ResolveCallbackUrl();
+        if (string.IsNullOrWhiteSpace(callbackUrl))
+        {
+            return null;
+        }
+
+        var baseReturnUrl = callbackUrl.EndsWith("/webhook", StringComparison.OrdinalIgnoreCase)
+            ? $"{callbackUrl[..^"/webhook".Length]}/return"
+            : callbackUrl;
+
+        var separator = baseReturnUrl.Contains('?', StringComparison.Ordinal) ? "&" : "?";
+        return $"{baseReturnUrl}{separator}paymentId={Uri.EscapeDataString(paymentId.ToString("D"))}";
+    }
+
+    private string? ResolveCallbackUrl()
+    {
+        var configuredCallbackUrl = _settings.CallbackUrl?.Trim();
+        if (!string.IsNullOrWhiteSpace(configuredCallbackUrl))
+        {
+            return configuredCallbackUrl;
+        }
+
+        var httpContext = _httpContextAccessor.HttpContext;
+        var request = httpContext?.Request;
+        if (request == null || !request.Host.HasValue)
+        {
+            return null;
+        }
+
+        return $"{request.Scheme}://{request.Host}{request.PathBase}/api/payments/paymob/webhook";
+    }
 
     private void EnsureConfigured()
     {
