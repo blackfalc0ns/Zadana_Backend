@@ -91,7 +91,10 @@ public class Order : BaseEntity
         PaymentStatus = newStatus;
         if (newStatus == Zadana.Domain.Modules.Payments.Enums.PaymentStatus.Paid && Status == OrderStatus.PendingPayment)
         {
-            ChangeStatus(OrderStatus.Placed, null, "Payment confirmed");
+            ChangeStatus(
+                PaymentMethod == PaymentMethodType.Card ? OrderStatus.PendingVendorAcceptance : OrderStatus.Placed,
+                null,
+                PaymentMethod == PaymentMethodType.Card ? "Online payment confirmed and awaiting vendor response" : "Payment confirmed");
         }
     }
 }

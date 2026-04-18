@@ -16,6 +16,7 @@ public interface IApplicationDbContext
     // Identity
     DbSet<User> Users { get; }
     DbSet<CustomerFavorite> CustomerFavorites { get; }
+    DbSet<UserPushDevice> UserPushDevices { get; }
 
     // Vendors
     DbSet<Vendor> Vendors { get; }

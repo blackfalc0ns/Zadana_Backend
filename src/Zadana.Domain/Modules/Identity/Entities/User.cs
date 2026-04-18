@@ -35,6 +35,7 @@ public class User : IdentityUser<Guid>
 
     // Navigation
     public ICollection<RefreshToken> RefreshTokens { get; private set; } = [];
+    public ICollection<UserPushDevice> PushDevices { get; private set; } = [];
 
     private User() { }
 

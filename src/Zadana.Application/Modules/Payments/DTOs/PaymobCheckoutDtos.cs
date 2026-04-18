@@ -56,3 +56,11 @@ public record PaymobWebhookProcessResultDto(
     string Message,
     Guid PaymentId,
     string Status);
+
+public record PaymobPaymentConfirmationResultDto(
+    string Message,
+    Guid PaymentId,
+    string PaymentStatus,
+    Guid OrderId,
+    string OrderStatus,
+    bool AlreadyConfirmed);

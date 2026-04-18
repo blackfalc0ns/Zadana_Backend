@@ -6772,6 +6772,539 @@
                 }
             }
         },
+        "/api/payments/paymob/confirm": {
+            "post": {
+                "summary": "Confirm Paymob payment after return",
+                "description": "Customer-authenticated fallback confirmation for online card payments after returning from Paymob. Reuses the same idempotent confirmation flow as the webhook, marks the payment as paid when successful, clears the customer cart, moves the order into PendingVendorAcceptance, and triggers vendor new-order notification when needed.",
+                "tags": [
+                    "System/Payments"
+                ],
+                "requestBody": {
+                    "required": true,
+                    "content": {
+                        "application/json": {
+                            "schema": {
+                                "$ref": "#/components/schemas/ConfirmPaymobPaymentRequest"
+                            }
+                        },
+                        "text/json": {
+                            "schema": {
+                                "$ref": "#/components/schemas/ConfirmPaymobPaymentRequest"
+                            }
+                        },
+                        "text/plain": {
+                            "schema": {
+                                "$ref": "#/components/schemas/ConfirmPaymobPaymentRequest"
+                            }
+                        }
+                    }
+                },
+                "responses": {
+                    "200": {
+                        "description": "OK",
+                        "content": {
+                            "text/plain": {
+                                "schema": {
+                                    "$ref": "#/components/schemas/ConfirmPaymobPaymentResponse"
+                                }
+                            },
+                            "application/json": {
+                                "schema": {
+                                    "$ref": "#/components/schemas/ConfirmPaymobPaymentResponse"
+                                }
+                            },
+                            "text/json": {
+                                "schema": {
+                                    "$ref": "#/components/schemas/ConfirmPaymobPaymentResponse"
+                                }
+                            }
+                        }
+                    }
+                }
+            }
+        },
+        "/api/notifications": {
+            "get": {
+                "summary": "Get customer notifications",
+                "tags": [
+                    "Customer/Notifications"
+                ],
+                "parameters": [
+                    {
+                        "name": "page",
+                        "in": "query",
+                        "schema": {
+                            "type": "integer",
+                            "format": "int32",
+                            "default": 1
+                        }
+                    },
+                    {
+                        "name": "per_page",
+                        "in": "query",
+                        "schema": {
+                            "type": "integer",
+                            "format": "int32",
+                            "default": 20
+                        }
+                    }
+                ],
+                "responses": {
+                    "200": {
+                        "description": "OK",
+                        "content": {
+                            "application/json": {
+                                "schema": {
+                                    "$ref": "#/components/schemas/NotificationsResponse"
+                                }
+                            },
+                            "text/json": {
+                                "schema": {
+                                    "$ref": "#/components/schemas/NotificationsResponse"
+                                }
+                            },
+                            "text/plain": {
+                                "schema": {
+                                    "$ref": "#/components/schemas/NotificationsResponse"
+                                }
+                            }
+                        }
+                    }
+                }
+            }
+        },
+        "/api/notifications/unread-count": {
+            "get": {
+                "summary": "Get customer unread notifications count",
+                "tags": [
+                    "Customer/Notifications"
+                ],
+                "responses": {
+                    "200": {
+                        "description": "OK",
+                        "content": {
+                            "application/json": {
+                                "schema": {
+                                    "$ref": "#/components/schemas/UnreadCountResponse"
+                                }
+                            },
+                            "text/json": {
+                                "schema": {
+                                    "$ref": "#/components/schemas/UnreadCountResponse"
+                                }
+                            },
+                            "text/plain": {
+                                "schema": {
+                                    "$ref": "#/components/schemas/UnreadCountResponse"
+                                }
+                            }
+                        }
+                    }
+                }
+            }
+        },
+        "/api/notifications/{id}/read": {
+            "post": {
+                "summary": "Mark customer notification as read",
+                "tags": [
+                    "Customer/Notifications"
+                ],
+                "parameters": [
+                    {
+                        "name": "id",
+                        "in": "path",
+                        "required": true,
+                        "schema": {
+                            "type": "string",
+                            "format": "uuid"
+                        }
+                    }
+                ],
+                "responses": {
+                    "200": {
+                        "description": "OK",
+                        "content": {
+                            "application/json": {
+                                "schema": {
+                                    "$ref": "#/components/schemas/NotificationMarkedReadResponse"
+                                }
+                            },
+                            "text/json": {
+                                "schema": {
+                                    "$ref": "#/components/schemas/NotificationMarkedReadResponse"
+                                }
+                            },
+                            "text/plain": {
+                                "schema": {
+                                    "$ref": "#/components/schemas/NotificationMarkedReadResponse"
+                                }
+                            }
+                        }
+                    }
+                }
+            }
+        },
+        "/api/notifications/read-all": {
+            "post": {
+                "summary": "Mark all customer notifications as read",
+                "tags": [
+                    "Customer/Notifications"
+                ],
+                "responses": {
+                    "200": {
+                        "description": "OK",
+                        "content": {
+                            "application/json": {
+                                "schema": {
+                                    "$ref": "#/components/schemas/NotificationsMarkedReadAllResponse"
+                                }
+                            },
+                            "text/json": {
+                                "schema": {
+                                    "$ref": "#/components/schemas/NotificationsMarkedReadAllResponse"
+                                }
+                            },
+                            "text/plain": {
+                                "schema": {
+                                    "$ref": "#/components/schemas/NotificationsMarkedReadAllResponse"
+                                }
+                            }
+                        }
+                    }
+                }
+            }
+        },
+        "/api/vendor/notifications": {
+            "get": {
+                "summary": "Get vendor notifications",
+                "tags": [
+                    "Vendor/Notifications"
+                ],
+                "parameters": [
+                    {
+                        "name": "page",
+                        "in": "query",
+                        "schema": {
+                            "type": "integer",
+                            "format": "int32",
+                            "default": 1
+                        }
+                    },
+                    {
+                        "name": "per_page",
+                        "in": "query",
+                        "schema": {
+                            "type": "integer",
+                            "format": "int32",
+                            "default": 20
+                        }
+                    }
+                ],
+                "responses": {
+                    "200": {
+                        "description": "OK",
+                        "content": {
+                            "application/json": {
+                                "schema": {
+                                    "$ref": "#/components/schemas/NotificationsResponse"
+                                }
+                            },
+                            "text/json": {
+                                "schema": {
+                                    "$ref": "#/components/schemas/NotificationsResponse"
+                                }
+                            },
+                            "text/plain": {
+                                "schema": {
+                                    "$ref": "#/components/schemas/NotificationsResponse"
+                                }
+                            }
+                        }
+                    }
+                }
+            }
+        },
+        "/api/vendor/notifications/unread-count": {
+            "get": {
+                "summary": "Get vendor unread notifications count",
+                "tags": [
+                    "Vendor/Notifications"
+                ],
+                "responses": {
+                    "200": {
+                        "description": "OK",
+                        "content": {
+                            "application/json": {
+                                "schema": {
+                                    "$ref": "#/components/schemas/UnreadCountResponse"
+                                }
+                            },
+                            "text/json": {
+                                "schema": {
+                                    "$ref": "#/components/schemas/UnreadCountResponse"
+                                }
+                            },
+                            "text/plain": {
+                                "schema": {
+                                    "$ref": "#/components/schemas/UnreadCountResponse"
+                                }
+                            }
+                        }
+                    }
+                }
+            }
+        },
+        "/api/vendor/notifications/{id}/read": {
+            "post": {
+                "summary": "Mark vendor notification as read",
+                "tags": [
+                    "Vendor/Notifications"
+                ],
+                "parameters": [
+                    {
+                        "name": "id",
+                        "in": "path",
+                        "required": true,
+                        "schema": {
+                            "type": "string",
+                            "format": "uuid"
+                        }
+                    }
+                ],
+                "responses": {
+                    "200": {
+                        "description": "OK",
+                        "content": {
+                            "application/json": {
+                                "schema": {
+                                    "$ref": "#/components/schemas/NotificationMarkedReadResponse"
+                                }
+                            },
+                            "text/json": {
+                                "schema": {
+                                    "$ref": "#/components/schemas/NotificationMarkedReadResponse"
+                                }
+                            },
+                            "text/plain": {
+                                "schema": {
+                                    "$ref": "#/components/schemas/NotificationMarkedReadResponse"
+                                }
+                            }
+                        }
+                    }
+                }
+            }
+        },
+        "/api/vendor/notifications/read-all": {
+            "post": {
+                "summary": "Mark all vendor notifications as read",
+                "tags": [
+                    "Vendor/Notifications"
+                ],
+                "responses": {
+                    "200": {
+                        "description": "OK",
+                        "content": {
+                            "application/json": {
+                                "schema": {
+                                    "$ref": "#/components/schemas/NotificationsMarkedReadAllResponse"
+                                }
+                            },
+                            "text/json": {
+                                "schema": {
+                                    "$ref": "#/components/schemas/NotificationsMarkedReadAllResponse"
+                                }
+                            },
+                            "text/plain": {
+                                "schema": {
+                                    "$ref": "#/components/schemas/NotificationsMarkedReadAllResponse"
+                                }
+                            }
+                        }
+                    }
+                }
+            }
+        },
+        "/api/notifications/devices": {
+            "get": {
+                "summary": "Get registered customer push devices",
+                "tags": [
+                    "Customer/Notifications"
+                ],
+                "responses": {
+                    "200": {
+                        "description": "OK",
+                        "content": {
+                            "application/json": {
+                                "schema": {
+                                    "$ref": "#/components/schemas/NotificationDevicesResponse"
+                                }
+                            },
+                            "text/json": {
+                                "schema": {
+                                    "$ref": "#/components/schemas/NotificationDevicesResponse"
+                                }
+                            },
+                            "text/plain": {
+                                "schema": {
+                                    "$ref": "#/components/schemas/NotificationDevicesResponse"
+                                }
+                            }
+                        }
+                    }
+                }
+            }
+        },
+        "/api/notifications/devices/register": {
+            "post": {
+                "summary": "Register or update a customer push device",
+                "tags": [
+                    "Customer/Notifications"
+                ],
+                "requestBody": {
+                    "required": true,
+                    "content": {
+                        "application/json": {
+                            "schema": {
+                                "$ref": "#/components/schemas/RegisterNotificationDeviceRequest"
+                            }
+                        },
+                        "text/json": {
+                            "schema": {
+                                "$ref": "#/components/schemas/RegisterNotificationDeviceRequest"
+                            }
+                        },
+                        "application/*+json": {
+                            "schema": {
+                                "$ref": "#/components/schemas/RegisterNotificationDeviceRequest"
+                            }
+                        }
+                    }
+                },
+                "responses": {
+                    "200": {
+                        "description": "OK",
+                        "content": {
+                            "application/json": {
+                                "schema": {
+                                    "$ref": "#/components/schemas/NotificationDeviceResponse"
+                                }
+                            },
+                            "text/json": {
+                                "schema": {
+                                    "$ref": "#/components/schemas/NotificationDeviceResponse"
+                                }
+                            },
+                            "text/plain": {
+                                "schema": {
+                                    "$ref": "#/components/schemas/NotificationDeviceResponse"
+                                }
+                            }
+                        }
+                    }
+                }
+            }
+        },
+        "/api/notifications/devices/preferences": {
+            "put": {
+                "summary": "Update customer push device notification preferences",
+                "tags": [
+                    "Customer/Notifications"
+                ],
+                "requestBody": {
+                    "required": true,
+                    "content": {
+                        "application/json": {
+                            "schema": {
+                                "$ref": "#/components/schemas/UpdateNotificationDevicePreferencesRequest"
+                            }
+                        },
+                        "text/json": {
+                            "schema": {
+                                "$ref": "#/components/schemas/UpdateNotificationDevicePreferencesRequest"
+                            }
+                        },
+                        "application/*+json": {
+                            "schema": {
+                                "$ref": "#/components/schemas/UpdateNotificationDevicePreferencesRequest"
+                            }
+                        }
+                    }
+                },
+                "responses": {
+                    "200": {
+                        "description": "OK",
+                        "content": {
+                            "application/json": {
+                                "schema": {
+                                    "$ref": "#/components/schemas/NotificationDeviceResponse"
+                                }
+                            },
+                            "text/json": {
+                                "schema": {
+                                    "$ref": "#/components/schemas/NotificationDeviceResponse"
+                                }
+                            },
+                            "text/plain": {
+                                "schema": {
+                                    "$ref": "#/components/schemas/NotificationDeviceResponse"
+                                }
+                            }
+                        }
+                    }
+                }
+            }
+        },
+        "/api/notifications/devices/unregister": {
+            "post": {
+                "summary": "Unregister a customer push device",
+                "tags": [
+                    "Customer/Notifications"
+                ],
+                "requestBody": {
+                    "required": true,
+                    "content": {
+                        "application/json": {
+                            "schema": {
+                                "$ref": "#/components/schemas/UnregisterNotificationDeviceRequest"
+                            }
+                        },
+                        "text/json": {
+                            "schema": {
+                                "$ref": "#/components/schemas/UnregisterNotificationDeviceRequest"
+                            }
+                        },
+                        "application/*+json": {
+                            "schema": {
+                                "$ref": "#/components/schemas/UnregisterNotificationDeviceRequest"
+                            }
+                        }
+                    }
+                },
+                "responses": {
+                    "200": {
+                        "description": "OK",
+                        "content": {
+                            "application/json": {
+                                "schema": {
+                                    "$ref": "#/components/schemas/NotificationDeviceUnregisterResponse"
+                                }
+                            },
+                            "text/json": {
+                                "schema": {
+                                    "$ref": "#/components/schemas/NotificationDeviceUnregisterResponse"
+                                }
+                            },
+                            "text/plain": {
+                                "schema": {
+                                    "$ref": "#/components/schemas/NotificationDeviceUnregisterResponse"
+                                }
+                            }
+                        }
+                    }
+                }
+            }
+        },
         "/api/home/special-offers": {
             "get": {
                 "tags": [
@@ -10237,6 +10770,314 @@
                         "type": "string",
                         "nullable": true,
                         "example": "paid"
+                    }
+                },
+                "additionalProperties": false
+            },
+            "ConfirmPaymobPaymentRequest": {
+                "type": "object",
+                "properties": {
+                    "paymentId": {
+                        "type": "string",
+                        "format": "uuid",
+                        "nullable": true
+                    },
+                    "payload": {
+                        "type": "string",
+                        "nullable": true,
+                        "description": "Optional raw Paymob payload if the client forwards provider callback data directly."
+                    },
+                    "providerReference": {
+                        "type": "string",
+                        "nullable": true,
+                        "description": "Paymob provider order/reference identifier."
+                    },
+                    "providerTransactionId": {
+                        "type": "string",
+                        "nullable": true,
+                        "description": "Paymob transaction identifier for the successful or failed payment attempt."
+                    },
+                    "isSuccess": {
+                        "type": "boolean",
+                        "nullable": true
+                    },
+                    "isPending": {
+                        "type": "boolean",
+                        "nullable": true
+                    }
+                },
+                "additionalProperties": false
+            },
+            "ConfirmPaymobPaymentResponse": {
+                "type": "object",
+                "properties": {
+                    "message": {
+                        "type": "string",
+                        "nullable": true
+                    },
+                    "paymentId": {
+                        "type": "string",
+                        "format": "uuid"
+                    },
+                    "paymentStatus": {
+                        "type": "string",
+                        "nullable": true,
+                        "example": "paid"
+                    },
+                    "orderId": {
+                        "type": "string",
+                        "format": "uuid"
+                    },
+                    "orderStatus": {
+                        "type": "string",
+                        "nullable": true,
+                        "example": "pending_vendor_acceptance"
+                    },
+                    "alreadyConfirmed": {
+                        "type": "boolean"
+                    }
+                },
+                "additionalProperties": false
+            },
+            "NotificationResponse": {
+                "type": "object",
+                "properties": {
+                    "id": {
+                        "type": "string",
+                        "format": "uuid"
+                    },
+                    "titleAr": {
+                        "type": "string",
+                        "nullable": true
+                    },
+                    "titleEn": {
+                        "type": "string",
+                        "nullable": true
+                    },
+                    "bodyAr": {
+                        "type": "string",
+                        "nullable": true
+                    },
+                    "bodyEn": {
+                        "type": "string",
+                        "nullable": true
+                    },
+                    "type": {
+                        "type": "string",
+                        "nullable": true
+                    },
+                    "referenceId": {
+                        "type": "string",
+                        "format": "uuid",
+                        "nullable": true
+                    },
+                    "data": {
+                        "type": "string",
+                        "nullable": true
+                    },
+                    "isRead": {
+                        "type": "boolean"
+                    },
+                    "createdAtUtc": {
+                        "type": "string",
+                        "format": "date-time"
+                    }
+                },
+                "additionalProperties": false
+            },
+            "NotificationsResponse": {
+                "type": "object",
+                "properties": {
+                    "items": {
+                        "type": "array",
+                        "items": {
+                            "$ref": "#/components/schemas/NotificationResponse"
+                        },
+                        "nullable": true
+                    },
+                    "page": {
+                        "type": "integer",
+                        "format": "int32"
+                    },
+                    "perPage": {
+                        "type": "integer",
+                        "format": "int32"
+                    },
+                    "total": {
+                        "type": "integer",
+                        "format": "int32"
+                    }
+                },
+                "additionalProperties": false
+            },
+            "UnreadCountResponse": {
+                "type": "object",
+                "properties": {
+                    "count": {
+                        "type": "integer",
+                        "format": "int32"
+                    }
+                },
+                "additionalProperties": false
+            },
+            "NotificationMarkedReadResponse": {
+                "type": "object",
+                "properties": {
+                    "message": {
+                        "type": "string",
+                        "nullable": true,
+                        "example": "notification marked as read"
+                    }
+                },
+                "additionalProperties": false
+            },
+            "NotificationsMarkedReadAllResponse": {
+                "type": "object",
+                "properties": {
+                    "message": {
+                        "type": "string",
+                        "nullable": true,
+                        "example": "all notifications marked as read"
+                    },
+                    "count": {
+                        "type": "integer",
+                        "format": "int32"
+                    }
+                },
+                "additionalProperties": false
+            },
+            "RegisterNotificationDeviceRequest": {
+                "type": "object",
+                "properties": {
+                    "deviceToken": {
+                        "type": "string",
+                        "nullable": true
+                    },
+                    "platform": {
+                        "type": "string",
+                        "nullable": true,
+                        "example": "fcm"
+                    },
+                    "deviceId": {
+                        "type": "string",
+                        "nullable": true
+                    },
+                    "deviceName": {
+                        "type": "string",
+                        "nullable": true
+                    },
+                    "appVersion": {
+                        "type": "string",
+                        "nullable": true
+                    },
+                    "locale": {
+                        "type": "string",
+                        "nullable": true
+                    },
+                    "notificationsEnabled": {
+                        "type": "boolean"
+                    }
+                },
+                "additionalProperties": false
+            },
+            "UpdateNotificationDevicePreferencesRequest": {
+                "type": "object",
+                "properties": {
+                    "deviceId": {
+                        "type": "string",
+                        "nullable": true
+                    },
+                    "deviceToken": {
+                        "type": "string",
+                        "nullable": true
+                    },
+                    "notificationsEnabled": {
+                        "type": "boolean"
+                    }
+                },
+                "additionalProperties": false
+            },
+            "UnregisterNotificationDeviceRequest": {
+                "type": "object",
+                "properties": {
+                    "deviceId": {
+                        "type": "string",
+                        "nullable": true
+                    },
+                    "deviceToken": {
+                        "type": "string",
+                        "nullable": true
+                    }
+                },
+                "additionalProperties": false
+            },
+            "NotificationDeviceResponse": {
+                "type": "object",
+                "properties": {
+                    "id": {
+                        "type": "string",
+                        "format": "uuid"
+                    },
+                    "deviceToken": {
+                        "type": "string",
+                        "nullable": true
+                    },
+                    "platform": {
+                        "type": "string",
+                        "nullable": true
+                    },
+                    "deviceId": {
+                        "type": "string",
+                        "nullable": true
+                    },
+                    "deviceName": {
+                        "type": "string",
+                        "nullable": true
+                    },
+                    "appVersion": {
+                        "type": "string",
+                        "nullable": true
+                    },
+                    "locale": {
+                        "type": "string",
+                        "nullable": true
+                    },
+                    "notificationsEnabled": {
+                        "type": "boolean"
+                    },
+                    "isActive": {
+                        "type": "boolean"
+                    },
+                    "lastRegisteredAtUtc": {
+                        "type": "string",
+                        "format": "date-time"
+                    },
+                    "lastSeenAtUtc": {
+                        "type": "string",
+                        "format": "date-time"
+                    }
+                },
+                "additionalProperties": false
+            },
+            "NotificationDevicesResponse": {
+                "type": "object",
+                "properties": {
+                    "items": {
+                        "type": "array",
+                        "items": {
+                            "$ref": "#/components/schemas/NotificationDeviceResponse"
+                        },
+                        "nullable": true
+                    }
+                },
+                "additionalProperties": false
+            },
+            "NotificationDeviceUnregisterResponse": {
+                "type": "object",
+                "properties": {
+                    "count": {
+                        "type": "integer",
+                        "format": "int32"
                     }
                 },
                 "additionalProperties": false
