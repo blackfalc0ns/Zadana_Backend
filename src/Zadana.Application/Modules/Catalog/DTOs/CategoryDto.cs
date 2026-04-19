@@ -14,5 +14,7 @@ public record CategoryDto(
     DateTime? UpdatedAtUtc = null,
     int? MasterProductsCount = 0,
     int? BrandsCount = 0,
+    string? ActivityNameAr = null,
+    string? ActivityNameEn = null,
     int Level = 0,
     List<CategoryDto>? SubCategories = null);

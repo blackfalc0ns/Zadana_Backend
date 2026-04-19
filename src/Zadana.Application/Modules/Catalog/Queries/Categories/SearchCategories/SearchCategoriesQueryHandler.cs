@@ -38,6 +38,7 @@ public class SearchCategoriesQueryHandler : IRequestHandler<SearchCategoriesQuer
             var level = ResolveLevel(category, categories);
             var hasChildren = categories.Any(item => item.ParentCategoryId == category.Id);
             var parent = categories.FirstOrDefault(item => item.Id == category.ParentCategoryId);
+            var activity = ResolveActivity(category, categories);
             var masterProductsCount = masterProductCounts.TryGetValue(category.Id, out var count) ? count : 0;
             var brandsCount = brandsCountByCategoryId.TryGetValue(category.Id, out var brandCount) ? brandCount : 0;
 
@@ -47,6 +48,8 @@ public class SearchCategoriesQueryHandler : IRequestHandler<SearchCategoriesQuer
                 hasChildren,
                 parent?.NameAr,
                 parent?.NameEn,
+                activity.NameAr,
+                activity.NameEn,
                 masterProductsCount,
                 brandsCount);
         });
@@ -112,6 +115,8 @@ public class SearchCategoriesQueryHandler : IRequestHandler<SearchCategoriesQuer
                 item.Entity.UpdatedAtUtc,
                 item.MasterProductsCount,
                 item.BrandsCount,
+                item.ActivityNameAr,
+                item.ActivityNameEn,
                 item.Level,
                 null))
             .ToList();
@@ -155,6 +160,24 @@ public class SearchCategoriesQueryHandler : IRequestHandler<SearchCategoriesQuer
         return level;
     }
 
+    private static (string? NameAr, string? NameEn) ResolveActivity(Category category, List<Category> categories)
+    {
+        var current = category;
+
+        while (current.ParentCategoryId.HasValue)
+        {
+            var parent = categories.FirstOrDefault(item => item.Id == current.ParentCategoryId.Value);
+            if (parent is null)
+            {
+                break;
+            }
+
+            current = parent;
+        }
+
+        return (current.NameAr, current.NameEn);
+    }
+
     private static DateTime ToInclusiveUpperBound(DateTime value)
     {
         return value.TimeOfDay == TimeSpan.Zero
@@ -184,6 +207,8 @@ public class SearchCategoriesQueryHandler : IRequestHandler<SearchCategoriesQuer
         bool HasChildren,
         string? ParentNameAr,
         string? ParentNameEn,
+        string? ActivityNameAr,
+        string? ActivityNameEn,
         int MasterProductsCount,
         int BrandsCount);
 }

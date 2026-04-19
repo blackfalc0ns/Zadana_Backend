@@ -65,7 +65,7 @@ public class GetCategoryByIdQueryHandler : IRequestHandler<GetCategoryByIdQuery,
                     0,
                     brandsCountByCategoryId.TryGetValue(sc.Id, out var childCount) ? childCount : 0,
                     Level: level + 1,
-                    null))
+                    SubCategories: null))
                 .ToList());
     }
 
