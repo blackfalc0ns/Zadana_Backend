@@ -117,6 +117,7 @@ public class AdminVendorsControllerTests
             null,
             null,
             null,
+            "weekly",
             new VendorOperationsSettingsDto(true, null, null),
             new VendorNotificationSettingsDto(true, false, true),
             null,

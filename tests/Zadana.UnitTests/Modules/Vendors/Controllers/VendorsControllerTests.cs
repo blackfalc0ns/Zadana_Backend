@@ -119,6 +119,7 @@ public class VendorsControllerTests
             null,
             null,
             null,
+            "weekly",
             null,
             "Active",
             "Active",

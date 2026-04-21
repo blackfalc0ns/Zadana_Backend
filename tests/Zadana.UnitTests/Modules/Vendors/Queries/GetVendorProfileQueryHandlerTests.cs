@@ -38,6 +38,7 @@ public class GetVendorProfileQueryHandlerTests
             null,
             null,
             null,
+            "weekly",
             10m,
             "Active",
             "Active",
