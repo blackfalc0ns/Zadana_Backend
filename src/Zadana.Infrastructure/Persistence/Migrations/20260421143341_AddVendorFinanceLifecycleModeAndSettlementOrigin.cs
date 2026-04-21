@@ -10,43 +10,52 @@ namespace Zadana.Infrastructure.Persistence.Migrations
         /// <inheritdoc />
         protected override void Up(MigrationBuilder migrationBuilder)
         {
-            migrationBuilder.AddColumn<string>(
-                name: "FinancialLifecycleMode",
-                table: "Vendor",
-                type: "nvarchar(50)",
-                maxLength: 50,
-                nullable: false,
-                defaultValue: "Weekly");
-
-            migrationBuilder.AddColumn<string>(
-                name: "Origin",
-                table: "Settlements",
-                type: "nvarchar(50)",
-                maxLength: 50,
-                nullable: false,
-                defaultValue: "ManualBatch");
+            migrationBuilder.Sql("""
+                IF COL_LENGTH('dbo.Vendor', 'FinancialLifecycleMode') IS NULL
+                BEGIN
+                    ALTER TABLE [Vendor]
+                    ADD [FinancialLifecycleMode] nvarchar(50) NOT NULL DEFAULT N'Weekly';
+                END
+                """);
 
             migrationBuilder.Sql("""
-                UPDATE [Vendor]
-                SET [FinancialLifecycleMode] =
-                    CASE
-                        WHEN [PayoutCycle] = 'biweekly' THEN 'Biweekly'
-                        WHEN [PayoutCycle] = 'monthly' THEN 'Monthly'
-                        ELSE 'Weekly'
-                    END
+                IF COL_LENGTH('dbo.Settlements', 'Origin') IS NULL
+                BEGIN
+                    ALTER TABLE [Settlements]
+                    ADD [Origin] nvarchar(50) NOT NULL DEFAULT N'ManualBatch';
+                END
+                """);
+
+            migrationBuilder.Sql("""
+                IF COL_LENGTH('dbo.Vendor', 'FinancialLifecycleMode') IS NOT NULL
+                BEGIN
+                    UPDATE [Vendor]
+                    SET [FinancialLifecycleMode] =
+                        CASE
+                            WHEN [PayoutCycle] = 'biweekly' THEN 'Biweekly'
+                            WHEN [PayoutCycle] = 'monthly' THEN 'Monthly'
+                            ELSE 'Weekly'
+                        END
+                END
                 """);
         }
 
         /// <inheritdoc />
         protected override void Down(MigrationBuilder migrationBuilder)
         {
-            migrationBuilder.DropColumn(
-                name: "FinancialLifecycleMode",
-                table: "Vendor");
+            migrationBuilder.Sql("""
+                IF COL_LENGTH('dbo.Vendor', 'FinancialLifecycleMode') IS NOT NULL
+                BEGIN
+                    ALTER TABLE [Vendor] DROP COLUMN [FinancialLifecycleMode];
+                END
+                """);
 
-            migrationBuilder.DropColumn(
-                name: "Origin",
-                table: "Settlements");
+            migrationBuilder.Sql("""
+                IF COL_LENGTH('dbo.Settlements', 'Origin') IS NOT NULL
+                BEGIN
+                    ALTER TABLE [Settlements] DROP COLUMN [Origin];
+                END
+                """);
         }
     }
 }
