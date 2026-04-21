@@ -2,6 +2,7 @@ using Microsoft.AspNetCore.SignalR;
 using Microsoft.EntityFrameworkCore;
 using Zadana.Application.Common.Interfaces;
 using Zadana.Application.Modules.Social.Support;
+using Zadana.Api.Realtime.Contracts;
 using Zadana.Domain.Modules.Social.Entities;
 using Zadana.Infrastructure.Persistence;
 
@@ -84,11 +85,50 @@ public sealed class NotificationService : INotificationService
 
             await _hubContext.Clients
                 .Group(NotificationHub.GetUserGroup(userId))
-                .SendAsync("ReceiveNotification", payload, cancellationToken);
+                .SendAsync(NotificationHub.ReceiveNotificationMethod, payload, cancellationToken);
         }
         catch (Exception ex)
         {
             _logger.LogError(ex, "Failed to send SignalR notification to user {UserId}", userId);
+        }
+    }
+
+    public async Task SendOrderStatusChangedToUserAsync(
+        Guid userId,
+        Guid orderId,
+        string orderNumber,
+        Guid vendorId,
+        string oldStatus,
+        string newStatus,
+        string? actorRole = null,
+        string? action = null,
+        string? targetUrl = null,
+        CancellationToken cancellationToken = default)
+    {
+        try
+        {
+            var payload = new OrderStatusChangedRealtimePayload(
+                orderId,
+                orderNumber,
+                vendorId,
+                oldStatus,
+                newStatus,
+                actorRole,
+                string.IsNullOrWhiteSpace(action) ? "status_changed" : action,
+                string.IsNullOrWhiteSpace(targetUrl) ? $"/orders/{orderId}" : targetUrl,
+                DateTime.UtcNow);
+
+            await _hubContext.Clients
+                .Group(NotificationHub.GetUserGroup(userId))
+                .SendAsync(NotificationHub.ReceiveOrderStatusChangedMethod, payload, cancellationToken);
+        }
+        catch (Exception ex)
+        {
+            _logger.LogError(
+                ex,
+                "Failed to send order status SignalR event to user {UserId} for order {OrderId}",
+                userId,
+                orderId);
         }
     }
 
@@ -120,7 +160,7 @@ public sealed class NotificationService : INotificationService
 
             await _hubContext.Clients
                 .Group("all-customers")
-                .SendAsync("ReceiveBroadcast", payload, cancellationToken);
+                .SendAsync(NotificationHub.ReceiveBroadcastMethod, payload, cancellationToken);
         }
         catch (Exception ex)
         {

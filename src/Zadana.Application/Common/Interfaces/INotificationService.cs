@@ -17,6 +17,21 @@ public interface INotificationService
         CancellationToken cancellationToken = default);
 
     /// <summary>
+    /// Send a real-time order status update to a specific user without requiring the client to parse inbox notifications first.
+    /// </summary>
+    Task SendOrderStatusChangedToUserAsync(
+        Guid userId,
+        Guid orderId,
+        string orderNumber,
+        Guid vendorId,
+        string oldStatus,
+        string newStatus,
+        string? actorRole = null,
+        string? action = null,
+        string? targetUrl = null,
+        CancellationToken cancellationToken = default);
+
+    /// <summary>
     /// Broadcast a notification to all connected customers via SignalR (real-time only, not persisted).
     /// </summary>
     Task BroadcastToAllCustomersAsync(

@@ -56,6 +56,20 @@ public class OrderStatusChangedHandlerTests
                 It.IsAny<CancellationToken>()),
             Times.Once);
 
+        notificationServiceMock.Verify(
+            service => service.SendOrderStatusChangedToUserAsync(
+                vendorUser.Id,
+                It.IsAny<Guid>(),
+                "ORD-NEW-001",
+                vendor.Id,
+                nameof(OrderStatus.PendingPayment),
+                nameof(OrderStatus.PendingVendorAcceptance),
+                "payment_gateway",
+                "placed",
+                It.Is<string>(url => url.Contains("/orders/")),
+                It.IsAny<CancellationToken>()),
+            Times.Once);
+
         pushServiceMock.Verify(
             service => service.SendToExternalUserAsync(
                 vendorUser.Id.ToString(),
@@ -109,6 +123,20 @@ public class OrderStatusChangedHandlerTests
                 NotificationTypes.OrderCancelled,
                 It.IsAny<Guid?>(),
                 It.IsAny<string?>(),
+                It.IsAny<CancellationToken>()),
+            Times.Once);
+
+        notificationServiceMock.Verify(
+            service => service.SendOrderStatusChangedToUserAsync(
+                vendorUser.Id,
+                It.IsAny<Guid>(),
+                "ORD-CANCEL-001",
+                vendor.Id,
+                nameof(OrderStatus.Accepted),
+                nameof(OrderStatus.Cancelled),
+                "customer",
+                "cancelled",
+                It.Is<string>(url => url.Contains("/orders/")),
                 It.IsAny<CancellationToken>()),
             Times.Once);
 
@@ -168,6 +196,20 @@ public class OrderStatusChangedHandlerTests
                 It.IsAny<CancellationToken>()),
             Times.Once);
 
+        notificationServiceMock.Verify(
+            service => service.SendOrderStatusChangedToUserAsync(
+                vendorUser.Id,
+                It.IsAny<Guid>(),
+                "ORD-SILENT-001",
+                vendor.Id,
+                nameof(OrderStatus.PendingPayment),
+                nameof(OrderStatus.PendingVendorAcceptance),
+                "payment_gateway",
+                "placed",
+                It.Is<string>(url => url.Contains("/orders/")),
+                It.IsAny<CancellationToken>()),
+            Times.Once);
+
         pushServiceMock.Verify(
             service => service.SendToExternalUserAsync(
                 vendorUser.Id.ToString(),
@@ -181,6 +223,58 @@ public class OrderStatusChangedHandlerTests
                 It.IsAny<string?>(),
                 It.IsAny<CancellationToken>()),
             Times.Never);
+    }
+
+    [Fact]
+    public async Task Handle_WhenCustomerShouldBeNotified_ShouldSendInboxAndRealtimeOrderEvent()
+    {
+        await using var dbContext = CreateDbContext();
+        var notificationServiceMock = new Mock<INotificationService>();
+        var pushServiceMock = CreatePushServiceMock();
+        var handler = new OrderStatusChangedHandler(notificationServiceMock.Object, dbContext, pushServiceMock.Object);
+        var customerId = Guid.NewGuid();
+        var vendorId = Guid.NewGuid();
+        var orderId = Guid.NewGuid();
+
+        await handler.Handle(
+            new OrderStatusChangedNotification(
+                orderId,
+                customerId,
+                vendorId,
+                "ORD-CUSTOMER-001",
+                OrderStatus.PendingVendorAcceptance,
+                OrderStatus.Accepted,
+                NotifyCustomer: true,
+                NotifyVendor: false,
+                ActorRole: "vendor"),
+            CancellationToken.None);
+
+        notificationServiceMock.Verify(
+            service => service.SendToUserAsync(
+                customerId,
+                It.IsAny<string>(),
+                It.IsAny<string>(),
+                It.IsAny<string>(),
+                It.IsAny<string>(),
+                NotificationTypes.OrderStatusChanged,
+                orderId,
+                It.Is<string?>(data => data != null && data.Contains("\"newStatus\":\"Accepted\"")),
+                It.IsAny<CancellationToken>()),
+            Times.Once);
+
+        notificationServiceMock.Verify(
+            service => service.SendOrderStatusChangedToUserAsync(
+                customerId,
+                orderId,
+                "ORD-CUSTOMER-001",
+                vendorId,
+                nameof(OrderStatus.PendingVendorAcceptance),
+                nameof(OrderStatus.Accepted),
+                "vendor",
+                "status_changed",
+                $"/orders/{orderId}",
+                It.IsAny<CancellationToken>()),
+            Times.Once);
     }
 
     private static Mock<IOneSignalPushService> CreatePushServiceMock()

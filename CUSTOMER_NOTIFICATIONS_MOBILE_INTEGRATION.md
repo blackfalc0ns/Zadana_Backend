@@ -76,6 +76,7 @@ The mobile app should connect with the same customer `Bearer token` using the Si
 
 - Connect after login using the current customer access token.
 - Listen for `ReceiveNotification`.
+- Listen for `ReceiveOrderStatusChanged` on order details and tracking screens.
 - Treat the received payload as the same logical notification contract used by `GET /api/notifications`.
 - Refresh `GET /api/notifications/unread-count` when needed for badge reconciliation, but do not require polling for every notification.
 
@@ -83,6 +84,12 @@ The mobile app should connect with the same customer `Bearer token` using the Si
 
 ```text
 ReceiveNotification
+```
+
+### Direct Order Status Event Name
+
+```text
+ReceiveOrderStatusChanged
 ```
 
 ### Real-time Payload Shape
@@ -118,6 +125,23 @@ ReceiveNotification
 - Prefer `dataObject.targetUrl` when the app wants to preserve backend routing intent.
 - Use SignalR as the primary real-time channel.
 - Use `GET /api/notifications` as the source for inbox history and pagination.
+- When `ReceiveOrderStatusChanged` arrives, update the currently open order/tracking screen immediately without waiting for an inbox refresh.
+
+### Direct Order Status Payload Shape
+
+```json
+{
+  "orderId": "22222222-2222-2222-2222-222222222222",
+  "orderNumber": "12345",
+  "vendorId": "33333333-3333-3333-3333-333333333333",
+  "oldStatus": "PendingVendorAcceptance",
+  "newStatus": "Accepted",
+  "actorRole": "vendor",
+  "action": "status_changed",
+  "targetUrl": "/orders/22222222-2222-2222-2222-222222222222",
+  "changedAtUtc": "2026-04-21T14:45:00Z"
+}
+```
 
 ## Inbox APIs
 

@@ -58,6 +58,18 @@ public class OrderStatusChangedHandler : INotificationHandler<OrderStatusChanged
                 notification.OrderId,
                 data,
                 cancellationToken);
+
+            await _notificationService.SendOrderStatusChangedToUserAsync(
+                notification.UserId,
+                notification.OrderId,
+                notification.OrderNumber,
+                notification.VendorId,
+                notification.OldStatus.ToString(),
+                notification.NewStatus.ToString(),
+                notification.ActorRole,
+                ResolveAction(notification),
+                targetUrl,
+                cancellationToken);
         }
 
         if (!notification.NotifyVendor)
@@ -92,6 +104,18 @@ public class OrderStatusChangedHandler : INotificationHandler<OrderStatusChanged
             vendorType,
             notification.OrderId,
             data,
+            cancellationToken);
+
+        await _notificationService.SendOrderStatusChangedToUserAsync(
+            vendorRecipient.UserId,
+            notification.OrderId,
+            notification.OrderNumber,
+            notification.VendorId,
+            notification.OldStatus.ToString(),
+            notification.NewStatus.ToString(),
+            notification.ActorRole,
+            ResolveAction(notification),
+            targetUrl,
             cancellationToken);
 
         if (notification.NewStatus == OrderStatus.PendingVendorAcceptance && !vendorRecipient.NewOrdersNotificationsEnabled)
