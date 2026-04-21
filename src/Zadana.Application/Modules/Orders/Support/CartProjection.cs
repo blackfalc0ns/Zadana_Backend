@@ -165,6 +165,7 @@ internal static class CartProjection
                 subtotal,
                 discountAmount,
                 totalAmount,
+                totalAmount.HasValue,
                 unavailableItemsCount > 0,
                 unavailableItemsCount));
     }

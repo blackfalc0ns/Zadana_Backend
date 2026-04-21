@@ -46,6 +46,7 @@ public class GetCartQueryHandlerTests
         result.Summary.Subtotal.Should().BeNull();
         result.Summary.DiscountAmount.Should().BeNull();
         result.Summary.TotalAmount.Should().BeNull();
+        result.Summary.IsPricingAvailable.Should().BeFalse();
         result.Items.Should().ContainSingle();
         result.Items[0].ProductId.Should().Be(setup.MasterProduct.Id);
         result.Items[0].Name.Should().Be("Full Cream Milk 1L");
@@ -72,6 +73,7 @@ public class GetCartQueryHandlerTests
         result.Summary.Subtotal.Should().Be(120m);
         result.Summary.DiscountAmount.Should().Be(20m);
         result.Summary.TotalAmount.Should().Be(100m);
+        result.Summary.IsPricingAvailable.Should().BeTrue();
     }
 
     [Fact]
@@ -90,6 +92,7 @@ public class GetCartQueryHandlerTests
         result.Summary.Subtotal.Should().BeNull();
         result.Summary.DiscountAmount.Should().BeNull();
         result.Summary.TotalAmount.Should().BeNull();
+        result.Summary.IsPricingAvailable.Should().BeFalse();
         result.Summary.HasUnavailableItems.Should().BeTrue();
         result.Summary.UnavailableItemsCount.Should().Be(1);
         result.Items.Count(item => !item.IsAvailable).Should().Be(1);

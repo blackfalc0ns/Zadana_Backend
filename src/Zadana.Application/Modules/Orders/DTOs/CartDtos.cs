@@ -33,6 +33,7 @@ public record CartSummaryDto(
     decimal? Subtotal,
     decimal? DiscountAmount,
     decimal? TotalAmount,
+    bool IsPricingAvailable = false,
     bool HasUnavailableItems = false,
     int UnavailableItemsCount = 0);
 
