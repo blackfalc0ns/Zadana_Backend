@@ -34,6 +34,8 @@ public record CartSummaryDto(
     decimal? DiscountAmount,
     decimal? TotalAmount,
     bool IsPricingAvailable = false,
+    bool CanCheckout = false,
+    string? CheckoutBlockReason = null,
     bool HasUnavailableItems = false,
     int UnavailableItemsCount = 0);
 

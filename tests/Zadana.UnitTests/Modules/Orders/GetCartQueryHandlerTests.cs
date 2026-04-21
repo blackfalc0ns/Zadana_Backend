@@ -74,6 +74,8 @@ public class GetCartQueryHandlerTests
         result.Summary.DiscountAmount.Should().Be(20m);
         result.Summary.TotalAmount.Should().Be(100m);
         result.Summary.IsPricingAvailable.Should().BeTrue();
+        result.Summary.CanCheckout.Should().BeTrue();
+        result.Summary.CheckoutBlockReason.Should().BeNull();
     }
 
     [Fact]
@@ -89,10 +91,12 @@ public class GetCartQueryHandlerTests
 
         result.Summary.ItemsCount.Should().Be(2);
         result.Summary.TotalQuantity.Should().Be(3);
-        result.Summary.Subtotal.Should().BeNull();
-        result.Summary.DiscountAmount.Should().BeNull();
-        result.Summary.TotalAmount.Should().BeNull();
-        result.Summary.IsPricingAvailable.Should().BeFalse();
+        result.Summary.Subtotal.Should().Be(120m);
+        result.Summary.DiscountAmount.Should().Be(20m);
+        result.Summary.TotalAmount.Should().Be(100m);
+        result.Summary.IsPricingAvailable.Should().BeTrue();
+        result.Summary.CanCheckout.Should().BeFalse();
+        result.Summary.CheckoutBlockReason.Should().Be("cart_contains_unavailable_items");
         result.Summary.HasUnavailableItems.Should().BeTrue();
         result.Summary.UnavailableItemsCount.Should().Be(1);
         result.Items.Count(item => !item.IsAvailable).Should().Be(1);

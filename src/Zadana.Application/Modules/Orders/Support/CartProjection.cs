@@ -119,20 +119,21 @@ internal static class CartProjection
         decimal? subtotal = null;
         decimal? discountAmount = null;
         decimal? totalAmount = null;
+        var checkoutBlockReason = default(string);
+        var canCheckout = false;
 
         if (selectedVendorId.HasValue)
         {
-            var hasAllPrices = true;
             var subtotalValue = 0m;
             var discountAmountValue = 0m;
             var totalAmountValue = 0m;
+            var pricedItemsCount = 0;
 
             foreach (var cartItem in cart.Items)
             {
                 if (!offersByProductId.TryGetValue(cartItem.MasterProductId, out var offers) || offers.Count == 0)
                 {
-                    hasAllPrices = false;
-                    break;
+                    continue;
                 }
 
                 var selectedOffer = offers[0];
@@ -145,9 +146,10 @@ internal static class CartProjection
                 subtotalValue += lineSubtotal;
                 totalAmountValue += lineTotal;
                 discountAmountValue += lineSubtotal - lineTotal;
+                pricedItemsCount++;
             }
 
-            if (hasAllPrices)
+            if (pricedItemsCount > 0)
             {
                 subtotal = subtotalValue;
                 discountAmount = discountAmountValue;
@@ -156,6 +158,15 @@ internal static class CartProjection
         }
 
         var unavailableItemsCount = items.Count(item => !item.IsAvailable);
+        if (selectedVendorId.HasValue)
+        {
+            canCheckout = unavailableItemsCount == 0 && totalAmount.HasValue;
+            checkoutBlockReason = canCheckout
+                ? null
+                : unavailableItemsCount > 0
+                    ? "cart_contains_unavailable_items"
+                    : "pricing_unavailable_for_selected_vendor";
+        }
 
         return new CartDto(
             items,
@@ -166,6 +177,8 @@ internal static class CartProjection
                 discountAmount,
                 totalAmount,
                 totalAmount.HasValue,
+                canCheckout,
+                checkoutBlockReason,
                 unavailableItemsCount > 0,
                 unavailableItemsCount));
     }
