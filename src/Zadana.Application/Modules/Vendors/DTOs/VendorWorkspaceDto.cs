@@ -22,6 +22,7 @@ public record VendorWorkspaceDto(
     string? IdNumber,
     string? Nationality,
     string? PayoutCycle,
+    string FinancialLifecycleMode,
     decimal? CommissionRate,
     string Status,
     string AccountStatus,

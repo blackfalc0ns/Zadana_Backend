@@ -44,6 +44,7 @@ public record VendorDetailDto(
     string? IdNumber,
     string? Nationality,
     string? PayoutCycle,
+    string FinancialLifecycleMode,
     VendorOperationsSettingsDto OperationsSettings,
     VendorNotificationSettingsDto NotificationSettings,
     VendorBankAccountDto? PrimaryBankAccount,

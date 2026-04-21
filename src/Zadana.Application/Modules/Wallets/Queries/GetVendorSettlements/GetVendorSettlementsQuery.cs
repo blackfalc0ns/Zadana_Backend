@@ -38,10 +38,18 @@ public class GetVendorSettlementsQueryHandler : IRequestHandler<GetVendorSettlem
                 item.GrossAmount,
                 item.CommissionAmount,
                 item.NetAmount,
+                Origin = item.Origin.ToString(),
                 Status = item.Status.ToString(),
                 item.CreatedAtUtc,
                 item.ProcessedAtUtc,
-                PayoutsCount = item.Payouts.Count
+                PayoutsCount = item.Payouts.Count,
+                OrdersCount = item.Items.Count,
+                SourceOrderId = item.Items
+                    .Select(settlementItem => (Guid?)settlementItem.OrderId)
+                    .FirstOrDefault(),
+                SourceOrderNumber = item.Items
+                    .Select(settlementItem => settlementItem.Order.OrderNumber)
+                    .FirstOrDefault()
             })
             .ToListAsync(cancellationToken);
 
@@ -52,10 +60,14 @@ public class GetVendorSettlementsQueryHandler : IRequestHandler<GetVendorSettlem
                 item.GrossAmount,
                 item.CommissionAmount,
                 item.NetAmount,
+                item.Origin,
                 item.Status,
                 item.CreatedAtUtc,
                 item.ProcessedAtUtc,
-                item.PayoutsCount))
+                item.PayoutsCount,
+                item.OrdersCount,
+                item.SourceOrderId,
+                item.SourceOrderNumber))
             .ToList();
 
         return new PaginatedList<AdminVendorSettlementDto>(settlementDtos, totalCount, request.Page, request.PageSize);

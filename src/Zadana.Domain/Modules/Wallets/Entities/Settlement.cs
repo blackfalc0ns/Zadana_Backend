@@ -9,6 +9,7 @@ public class Settlement : BaseEntity
 {
     public Guid? VendorId { get; private set; }
     public Guid? DriverId { get; private set; }
+    public SettlementOrigin Origin { get; private set; }
     public SettlementStatus Status { get; private set; }
     
     public decimal GrossAmount { get; private set; }
@@ -25,13 +26,14 @@ public class Settlement : BaseEntity
 
     private Settlement() { }
 
-    public Settlement(Guid? vendorId, Guid? driverId)
+    public Settlement(Guid? vendorId, Guid? driverId, SettlementOrigin origin = SettlementOrigin.ManualBatch)
     {
         if (vendorId == null && driverId == null) 
             throw new InvalidOperationException("Settlement must be linked to either a Vendor or a Driver.");
 
         VendorId = vendorId;
         DriverId = driverId;
+        Origin = origin;
         Status = SettlementStatus.Pending;
         GrossAmount = 0;
         CommissionAmount = 0;

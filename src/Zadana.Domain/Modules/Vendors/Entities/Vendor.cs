@@ -27,6 +27,7 @@ public class Vendor : BaseEntity
     public DateTime? CommercialRegistrationExpiryDate { get; private set; }
     public string? LicenseNumber { get; private set; }
     public string? PayoutCycle { get; private set; }
+    public VendorFinancialLifecycleMode FinancialLifecycleMode { get; private set; }
     public decimal? CommissionRate { get; private set; }
     public VendorStatus Status { get; private set; }
     public string? RejectionReason { get; private set; }
@@ -101,6 +102,7 @@ public class Vendor : BaseEntity
         LicenseNumber = NormalizeOptional(licenseNumber);
         TaxId = taxId?.Trim();
         PayoutCycle = NormalizeOptional(payoutCycle);
+        FinancialLifecycleMode = ResolveFinancialLifecycleMode(PayoutCycle);
         LogoUrl = logoUrl;
         CommercialRegisterDocumentUrl = commercialRegisterDocumentUrl;
         AcceptOrders = true;
@@ -218,6 +220,23 @@ public class Vendor : BaseEntity
     public void UpdateBanking(string? payoutCycle)
     {
         PayoutCycle = NormalizeOptional(payoutCycle);
+        FinancialLifecycleMode = ResolveFinancialLifecycleMode(PayoutCycle);
+        UpdatedAtUtc = DateTime.UtcNow;
+    }
+
+    public void UpdateFinanceSettings(VendorFinancialLifecycleMode financialLifecycleMode, string? payoutCycle = null)
+    {
+        FinancialLifecycleMode = financialLifecycleMode;
+
+        if (financialLifecycleMode == VendorFinancialLifecycleMode.PerOrderDirectPayout)
+        {
+            PayoutCycle = null;
+        }
+        else
+        {
+            PayoutCycle = NormalizeOptional(payoutCycle) ?? MapFinancialLifecycleModeToPayoutCycle(financialLifecycleMode);
+        }
+
         UpdatedAtUtc = DateTime.UtcNow;
     }
 
@@ -373,4 +392,24 @@ public class Vendor : BaseEntity
 
     private static string? NormalizeEmail(string? value) =>
         string.IsNullOrWhiteSpace(value) ? null : value.ToLowerInvariant().Trim();
+
+    private static VendorFinancialLifecycleMode ResolveFinancialLifecycleMode(string? payoutCycle)
+    {
+        var normalized = NormalizeOptional(payoutCycle)?.ToLowerInvariant();
+
+        return normalized switch
+        {
+            "biweekly" => VendorFinancialLifecycleMode.Biweekly,
+            "monthly" => VendorFinancialLifecycleMode.Monthly,
+            _ => VendorFinancialLifecycleMode.Weekly
+        };
+    }
+
+    private static string MapFinancialLifecycleModeToPayoutCycle(VendorFinancialLifecycleMode mode) =>
+        mode switch
+        {
+            VendorFinancialLifecycleMode.Biweekly => "biweekly",
+            VendorFinancialLifecycleMode.Monthly => "monthly",
+            _ => "weekly"
+        };
 }

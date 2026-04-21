@@ -12,6 +12,7 @@ using Zadana.Application.Modules.Orders.Queries.GetVendorOrders;
 using Zadana.Application.Modules.Vendors.Commands.AdminResetVendorPassword;
 using Zadana.Application.Modules.Vendors.Commands.AddVendorReviewNote;
 using Zadana.Application.Modules.Vendors.Commands.AdminUpdateVendorLegalBanking;
+using Zadana.Application.Modules.Vendors.Commands.AdminUpdateVendorFinanceSettings;
 using Zadana.Application.Modules.Vendors.Commands.AdminUpdateVendorContact;
 using Zadana.Application.Modules.Vendors.Commands.AdminUpdateVendorHours;
 using Zadana.Application.Modules.Vendors.Commands.AdminUpdateVendorNotificationSettings;
@@ -412,6 +413,17 @@ public class AdminVendorsController : ApiControllerBase
             request.SwiftCode,
             request.PayoutCycle,
             request.CommercialRegisterDocumentUrl));
+
+        return Ok(result);
+    }
+
+    [HttpPut("{vendorId:guid}/finance-settings")]
+    public async Task<IActionResult> UpdateFinanceSettings(Guid vendorId, [FromBody] AdminUpdateVendorFinanceSettingsRequest request)
+    {
+        var result = await Sender.Send(new AdminUpdateVendorFinanceSettingsCommand(
+            vendorId,
+            request.FinancialLifecycleMode,
+            request.PayoutCycle));
 
         return Ok(result);
     }

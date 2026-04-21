@@ -79,6 +79,12 @@ public class VendorConfiguration : IEntityTypeConfiguration<Vendor>
         builder.Property(v => v.PayoutCycle)
             .HasMaxLength(50);
 
+        builder.Property(v => v.FinancialLifecycleMode)
+            .IsRequired()
+            .HasMaxLength(50)
+            .HasConversion<string>()
+            .HasDefaultValue(VendorFinancialLifecycleMode.Weekly);
+
         builder.Property(v => v.CommissionRate)
             .HasPrecision(5, 2);
 

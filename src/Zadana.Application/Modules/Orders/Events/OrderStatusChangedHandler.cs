@@ -2,8 +2,12 @@ using System.Text.Json;
 using MediatR;
 using Microsoft.EntityFrameworkCore;
 using Zadana.Application.Common.Interfaces;
+using Zadana.Domain.Modules.Payments.Enums;
 using Zadana.Domain.Modules.Orders.Enums;
 using Zadana.Domain.Modules.Social.Enums;
+using Zadana.Domain.Modules.Vendors.Enums;
+using Zadana.Domain.Modules.Wallets.Entities;
+using Zadana.Domain.Modules.Wallets.Enums;
 
 namespace Zadana.Application.Modules.Orders.Events;
 
@@ -25,6 +29,8 @@ public class OrderStatusChangedHandler : INotificationHandler<OrderStatusChanged
 
     public async Task Handle(OrderStatusChangedNotification notification, CancellationToken cancellationToken)
     {
+        await HandleDirectPerOrderPayoutAsync(notification, cancellationToken);
+
         var targetUrl = ResolveTargetUrl(notification);
         var data = JsonSerializer.Serialize(new
         {
@@ -104,6 +110,78 @@ public class OrderStatusChangedHandler : INotificationHandler<OrderStatusChanged
             data,
             targetUrl,
             cancellationToken);
+    }
+
+    private async Task HandleDirectPerOrderPayoutAsync(
+        OrderStatusChangedNotification notification,
+        CancellationToken cancellationToken)
+    {
+        if (notification.NewStatus != OrderStatus.Delivered)
+        {
+            return;
+        }
+
+        var vendor = await _context.Vendors
+            .AsNoTracking()
+            .Where(item => item.Id == notification.VendorId)
+            .Select(item => new
+            {
+                item.Id,
+                item.FinancialLifecycleMode
+            })
+            .FirstOrDefaultAsync(cancellationToken);
+
+        if (vendor is null || vendor.FinancialLifecycleMode != VendorFinancialLifecycleMode.PerOrderDirectPayout)
+        {
+            return;
+        }
+
+        var alreadySettled = await _context.SettlementItems
+            .AsNoTracking()
+            .AnyAsync(item => item.OrderId == notification.OrderId, cancellationToken);
+
+        if (alreadySettled)
+        {
+            return;
+        }
+
+        var order = await _context.Orders
+            .AsNoTracking()
+            .FirstOrDefaultAsync(item => item.Id == notification.OrderId, cancellationToken);
+
+        if (order is null)
+        {
+            return;
+        }
+
+        var primaryBankAccount = await _context.VendorBankAccounts
+            .AsNoTracking()
+            .Where(item => item.VendorId == notification.VendorId)
+            .OrderByDescending(item => item.IsPrimary)
+            .ThenByDescending(item => item.VerifiedAtUtc)
+            .ThenByDescending(item => item.CreatedAtUtc)
+            .FirstOrDefaultAsync(cancellationToken);
+
+        if (primaryBankAccount is null)
+        {
+            return;
+        }
+
+        var settlement = new Settlement(notification.VendorId, null, SettlementOrigin.DirectPerOrder);
+        settlement.UpdateTotals(order.TotalAmount, order.CommissionAmount);
+        _context.Settlements.Add(settlement);
+        await _context.SaveChangesAsync(cancellationToken);
+
+        _context.SettlementItems.Add(new SettlementItem(
+            settlement.Id,
+            order.Id,
+            settlement.NetAmount,
+            0m,
+            settlement.CommissionAmount,
+            order.PaymentMethod == PaymentMethodType.CashOnDelivery ? order.TotalAmount : 0m));
+
+        _context.Payouts.Add(new Payout(settlement.Id, settlement.NetAmount, primaryBankAccount.Id));
+        await _context.SaveChangesAsync(cancellationToken);
     }
 
     private static (string TitleAr, string TitleEn, string BodyAr, string BodyEn) GetCustomerNotificationContent(

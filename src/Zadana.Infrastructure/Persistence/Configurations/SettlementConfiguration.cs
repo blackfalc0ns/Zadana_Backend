@@ -12,6 +12,11 @@ public class SettlementConfiguration : IEntityTypeConfiguration<Settlement>
 
         builder.HasKey(x => x.Id);
 
+        builder.Property(x => x.Origin)
+            .HasConversion<string>()
+            .HasMaxLength(50)
+            .IsRequired();
+
         builder.Property(x => x.Status).HasConversion<string>().HasMaxLength(50).IsRequired();
 
         builder.Property(x => x.GrossAmount).HasPrecision(18, 2).IsRequired();

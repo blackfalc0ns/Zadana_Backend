@@ -4,6 +4,7 @@ using Zadana.Application.Common.Interfaces;
 using Microsoft.Extensions.Localization;
 using Zadana.Application.Common.Localization;
 using Zadana.Domain.Modules.Wallets.Entities;
+using Zadana.Domain.Modules.Wallets.Enums;
 using Microsoft.EntityFrameworkCore;
 
 namespace Zadana.Application.Modules.Wallets.Commands.CreateSettlement;
@@ -13,7 +14,8 @@ public record CreateSettlementCommand(
     Guid? DriverId,
     decimal GrossAmount,
     decimal CommissionAmount,
-    decimal NetAmount) : MediatR.IRequest<Guid>;
+    decimal NetAmount,
+    SettlementOrigin Origin = SettlementOrigin.ManualBatch) : MediatR.IRequest<Guid>;
 
 public class CreateSettlementCommandValidator : AbstractValidator<CreateSettlementCommand>
 {
@@ -49,7 +51,7 @@ public class CreateSettlementCommandHandler : IRequestHandler<CreateSettlementCo
 
     public async Task<Guid> Handle(CreateSettlementCommand request, CancellationToken cancellationToken)
     {
-        var settlement = new Settlement(request.VendorId, request.DriverId);
+        var settlement = new Settlement(request.VendorId, request.DriverId, request.Origin);
         settlement.UpdateTotals(request.GrossAmount, request.CommissionAmount);
 
         _context.Settlements.Add(settlement);

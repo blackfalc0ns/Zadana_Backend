@@ -39,10 +39,17 @@ public class GetVendorPayoutsQueryHandler : IRequestHandler<GetVendorPayoutsQuer
                 item.Id,
                 item.SettlementId,
                 item.Amount,
+                Origin = item.Settlement.Origin.ToString(),
                 Status = item.Status.ToString(),
                 item.TransferReference,
                 item.CreatedAtUtc,
                 item.ProcessedAtUtc,
+                SourceOrderId = item.Settlement.Items
+                    .Select(settlementItem => (Guid?)settlementItem.OrderId)
+                    .FirstOrDefault(),
+                SourceOrderNumber = item.Settlement.Items
+                    .Select(settlementItem => settlementItem.Order.OrderNumber)
+                    .FirstOrDefault(),
                 item.VendorBankAccountId,
                 BankName = item.VendorBankAccount != null ? item.VendorBankAccount.BankName : null,
                 AccountHolderName = item.VendorBankAccount != null ? item.VendorBankAccount.AccountHolderName : null,
@@ -57,10 +64,13 @@ public class GetVendorPayoutsQueryHandler : IRequestHandler<GetVendorPayoutsQuer
                 item.SettlementId,
                 $"PAY-{item.Id.ToString("N")[..8].ToUpperInvariant()}",
                 item.Amount,
+                item.Origin,
                 item.Status,
                 item.TransferReference,
                 item.CreatedAtUtc,
                 item.ProcessedAtUtc,
+                item.SourceOrderId,
+                item.SourceOrderNumber,
                 item.VendorBankAccountId,
                 item.BankName,
                 item.AccountHolderName,
