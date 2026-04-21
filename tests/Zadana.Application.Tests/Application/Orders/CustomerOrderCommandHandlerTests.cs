@@ -1,7 +1,9 @@
 using FluentAssertions;
 using MediatR;
 using Microsoft.EntityFrameworkCore;
+using Microsoft.Extensions.Localization;
 using Moq;
+using Zadana.Application.Common.Localization;
 using Zadana.Application.Modules.Orders.Commands.CancelCustomerOrder;
 using Zadana.Application.Modules.Orders.Commands.CreateOrderComplaint;
 using Zadana.Application.Modules.Orders.Commands.DeleteCustomerOrder;
@@ -33,12 +35,59 @@ public class CustomerOrderCommandHandlerTests
         var handler = new CancelCustomerOrderCommandHandler(dbContext, dbContext, publisherMock.Object);
 
         var act = () => handler.Handle(
-            new CancelCustomerOrderCommand(order.Id, user.Id, "Changed my mind", null),
+            new CancelCustomerOrderCommand(order.Id, user.Id, "changed_my_mind", null, null),
             CancellationToken.None);
 
         await act.Should()
             .ThrowAsync<BusinessRuleException>()
             .Where(x => x.ErrorCode == "ORDER_CANNOT_BE_CANCELLED");
+    }
+
+    [Fact]
+    public async Task CancelCustomerOrder_ShouldAcceptPredefinedReasonCode()
+    {
+        await using var dbContext = CreateDbContext();
+        var user = CreateUser();
+        var order = CreateOrder(user.Id, OrderStatus.Preparing, "ORD-CANCEL-003");
+
+        dbContext.Users.Add(user);
+        dbContext.Orders.Add(order);
+        await dbContext.SaveChangesAsync();
+
+        var publisherMock = new Mock<IPublisher>();
+        var handler = new CancelCustomerOrderCommandHandler(dbContext, dbContext, publisherMock.Object);
+
+        var result = await handler.Handle(
+            new CancelCustomerOrderCommand(order.Id, user.Id, "changed_my_mind", null, null),
+            CancellationToken.None);
+
+        result.Status.Should().Be("cancelled");
+        order.Status.Should().Be(OrderStatus.Cancelled);
+        order.StatusHistory.Last().Note.Should().Contain("changed_my_mind");
+    }
+
+    [Fact]
+    public async Task CancelCustomerOrderValidator_ShouldRequireNoteForOtherReason()
+    {
+        var validator = new CancelCustomerOrderCommandValidator(CreateLocalizer().Object);
+
+        var result = await validator.ValidateAsync(
+            new CancelCustomerOrderCommand(Guid.NewGuid(), Guid.NewGuid(), "other", null, null));
+
+        result.IsValid.Should().BeFalse();
+        result.Errors.Should().Contain(x => x.ErrorMessage.Contains("Note is required"));
+    }
+
+    [Fact]
+    public async Task CancelCustomerOrderValidator_ShouldRejectInvalidReasonCode()
+    {
+        var validator = new CancelCustomerOrderCommandValidator(CreateLocalizer().Object);
+
+        var result = await validator.ValidateAsync(
+            new CancelCustomerOrderCommand(Guid.NewGuid(), Guid.NewGuid(), "not-valid", null, null));
+
+        result.IsValid.Should().BeFalse();
+        result.Errors.Should().Contain(x => x.ErrorMessage.Contains("invalid", StringComparison.OrdinalIgnoreCase));
     }
 
     [Fact]
@@ -145,6 +194,15 @@ public class CustomerOrderCommandHandlerTests
 
     private static User CreateUser() =>
         new("Customer User", "customer.commands@test.com", "01000000001", UserRole.Customer);
+
+    private static Mock<IStringLocalizer<SharedResource>> CreateLocalizer()
+    {
+        var localizer = new Mock<IStringLocalizer<SharedResource>>();
+        localizer
+            .Setup(x => x["RequiredField"])
+            .Returns(new LocalizedString("RequiredField", "{PropertyName} is required."));
+        return localizer;
+    }
 
     private static Order CreateOrder(Guid userId, OrderStatus status, string orderNumber)
     {

@@ -13,6 +13,7 @@ using Zadana.Application.Modules.Orders.Queries.GetCustomerOrderComplaint;
 using Zadana.Application.Modules.Orders.Queries.GetCustomerOrderDetail;
 using Zadana.Application.Modules.Orders.Queries.GetCustomerOrders;
 using Zadana.Application.Modules.Orders.Queries.GetCustomerOrderTracking;
+using Zadana.Application.Modules.Orders.Support;
 using Zadana.Application.Modules.Payments.Commands.RetryPaymobPayment;
 using Zadana.SharedKernel.Exceptions;
 
@@ -80,6 +81,20 @@ public class OrdersController : ApiControllerBase
         return Ok(MapOrderTracking(result));
     }
 
+    [HttpGet("cancellation-reasons")]
+    public ActionResult<IReadOnlyList<CustomerOrderCancellationReasonResponse>> GetCancellationReasons()
+    {
+        var reasons = CustomerOrderCancellationReasonCatalog.GetAll()
+            .Select(item => new CustomerOrderCancellationReasonResponse(
+                item.Code,
+                item.LabelAr,
+                item.LabelEn,
+                item.RequiresNote))
+            .ToList();
+
+        return Ok(reasons);
+    }
+
     [HttpPost("{orderId:guid}/cancel")]
     public async Task<ActionResult<CancelCustomerOrderResponse>> CancelOrder(
         Guid orderId,
@@ -92,7 +107,9 @@ public class OrdersController : ApiControllerBase
         }
 
         var userId = _currentUserService.UserId ?? throw new UnauthorizedException("USER_NOT_AUTHENTICATED");
-        var result = await Sender.Send(new CancelCustomerOrderCommand(orderId, userId, request.Reason, request.Note), cancellationToken);
+        var result = await Sender.Send(
+            new CancelCustomerOrderCommand(orderId, userId, request.ReasonCode, request.Reason, request.Note),
+            cancellationToken);
 
         return Ok(new CancelCustomerOrderResponse(
             result.Message,

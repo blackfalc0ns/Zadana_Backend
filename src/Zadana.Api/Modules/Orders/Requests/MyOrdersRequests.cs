@@ -78,12 +78,19 @@ public record CustomerOrderSummaryResponse(
     [property: JsonPropertyName("total")] decimal Total);
 
 public record CancelCustomerOrderRequest(
-    [property: JsonPropertyName("reason")] string Reason,
+    [property: JsonPropertyName("reason_code")] string? ReasonCode,
+    [property: JsonPropertyName("reason")] string? Reason,
     [property: JsonPropertyName("note")] string? Note);
 
 public record CancelCustomerOrderResponse(
     [property: JsonPropertyName("message")] string Message,
     [property: JsonPropertyName("order")] CancelledOrderStatusResponse Order);
+
+public record CustomerOrderCancellationReasonResponse(
+    [property: JsonPropertyName("code")] string Code,
+    [property: JsonPropertyName("label_ar")] string LabelAr,
+    [property: JsonPropertyName("label_en")] string LabelEn,
+    [property: JsonPropertyName("requires_note")] bool RequiresNote);
 
 public record CancelledOrderStatusResponse(
     [property: JsonPropertyName("id")] Guid Id,

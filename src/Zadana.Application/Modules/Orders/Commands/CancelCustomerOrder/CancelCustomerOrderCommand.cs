@@ -5,6 +5,7 @@ using Microsoft.Extensions.Localization;
 using Zadana.Application.Common.Interfaces;
 using Zadana.Application.Common.Localization;
 using Zadana.Application.Modules.Orders.Events;
+using Zadana.Application.Modules.Orders.Support;
 using Zadana.Domain.Modules.Orders.Enums;
 using Zadana.SharedKernel.Exceptions;
 
@@ -13,7 +14,8 @@ namespace Zadana.Application.Modules.Orders.Commands.CancelCustomerOrder;
 public record CancelCustomerOrderCommand(
     Guid OrderId,
     Guid UserId,
-    string Reason,
+    string? ReasonCode,
+    string? Reason,
     string? Note) : IRequest<CancelCustomerOrderResultDto>;
 
 public record CancelCustomerOrderResultDto(Guid Id, string Status, string Message);
@@ -24,13 +26,26 @@ public class CancelCustomerOrderCommandValidator : AbstractValidator<CancelCusto
     {
         var reasonRequired = localizer["RequiredField"].Value.Replace("{PropertyName}", "reason");
 
+        RuleFor(x => x)
+            .Must(x => !string.IsNullOrWhiteSpace(x.ReasonCode) || !string.IsNullOrWhiteSpace(x.Reason))
+            .WithMessage(reasonRequired);
+
+        RuleFor(x => x.ReasonCode)
+            .Must(code => string.IsNullOrWhiteSpace(code) || CustomerOrderCancellationReasonCatalog.IsValidCode(code))
+            .WithMessage("Reason code is invalid.");
+
         RuleFor(x => x.Reason)
-            .NotEmpty().WithMessage(reasonRequired)
-            .MaximumLength(500);
+            .MaximumLength(500)
+            .When(x => !string.IsNullOrWhiteSpace(x.Reason));
 
         RuleFor(x => x.Note)
             .MaximumLength(1000)
             .When(x => !string.IsNullOrWhiteSpace(x.Note));
+
+        RuleFor(x => x.Note)
+            .NotEmpty()
+            .When(x => string.Equals(x.ReasonCode, "other", StringComparison.OrdinalIgnoreCase))
+            .WithMessage("Note is required when reason code is other.");
     }
 }
 
@@ -59,10 +74,11 @@ public class CancelCustomerOrderCommandHandler : IRequestHandler<CancelCustomerO
             throw new BusinessRuleException("ORDER_CANNOT_BE_CANCELLED", "Order cannot be cancelled at the current stage.");
         }
 
+        var resolvedReason = ResolveReasonText(request);
         var oldStatus = order.Status;
         var note = string.IsNullOrWhiteSpace(request.Note)
-            ? $"Customer cancellation reason: {request.Reason.Trim()}"
-            : $"Customer cancellation reason: {request.Reason.Trim()}. Note: {request.Note.Trim()}";
+            ? $"Customer cancellation reason: {resolvedReason}"
+            : $"Customer cancellation reason: {resolvedReason}. Note: {request.Note.Trim()}";
 
         order.ChangeStatus(OrderStatus.Cancelled, null, note);
         _context.OrderStatusHistories.Add(order.StatusHistory.Last());
@@ -83,6 +99,17 @@ public class CancelCustomerOrderCommandHandler : IRequestHandler<CancelCustomerO
             cancellationToken);
 
         return new CancelCustomerOrderResultDto(order.Id, "cancelled", "order cancelled successfully");
+    }
+
+    private static string ResolveReasonText(CancelCustomerOrderCommand request)
+    {
+        var option = CustomerOrderCancellationReasonCatalog.FindByCode(request.ReasonCode);
+        if (option != null)
+        {
+            return $"{option.Code}: {option.LabelEn}";
+        }
+
+        return request.Reason!.Trim();
     }
 
     private static bool CanCancel(OrderStatus status) =>

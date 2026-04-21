@@ -5254,6 +5254,44 @@
                 }
             }
         },
+        "/api/orders/cancellation-reasons": {
+            "get": {
+                "tags": [
+                    "Customer/Orders"
+                ],
+                "responses": {
+                    "200": {
+                        "description": "OK",
+                        "content": {
+                            "text/plain": {
+                                "schema": {
+                                    "type": "array",
+                                    "items": {
+                                        "$ref": "#/components/schemas/CustomerOrderCancellationReasonResponse"
+                                    }
+                                }
+                            },
+                            "application/json": {
+                                "schema": {
+                                    "type": "array",
+                                    "items": {
+                                        "$ref": "#/components/schemas/CustomerOrderCancellationReasonResponse"
+                                    }
+                                }
+                            },
+                            "text/json": {
+                                "schema": {
+                                    "type": "array",
+                                    "items": {
+                                        "$ref": "#/components/schemas/CustomerOrderCancellationReasonResponse"
+                                    }
+                                }
+                            }
+                        }
+                    }
+                }
+            }
+        },
         "/api/orders/{orderId}/cancel": {
             "post": {
                 "tags": [
@@ -11781,6 +11819,10 @@
             "CancelCustomerOrderRequest": {
                 "type": "object",
                 "properties": {
+                    "reason_code": {
+                        "type": "string",
+                        "nullable": true
+                    },
                     "reason": {
                         "type": "string",
                         "nullable": true
@@ -11788,6 +11830,27 @@
                     "note": {
                         "type": "string",
                         "nullable": true
+                    }
+                },
+                "additionalProperties": false
+            },
+            "CustomerOrderCancellationReasonResponse": {
+                "type": "object",
+                "properties": {
+                    "code": {
+                        "type": "string",
+                        "nullable": true
+                    },
+                    "label_ar": {
+                        "type": "string",
+                        "nullable": true
+                    },
+                    "label_en": {
+                        "type": "string",
+                        "nullable": true
+                    },
+                    "requires_note": {
+                        "type": "boolean"
                     }
                 },
                 "additionalProperties": false
