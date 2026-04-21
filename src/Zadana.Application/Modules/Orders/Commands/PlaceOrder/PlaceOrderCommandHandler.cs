@@ -59,8 +59,38 @@ public class PlaceOrderCommandHandler : IRequestHandler<PlaceOrderCommand, Guid>
         }
 
         var subtotal = cart.Items.Sum(item => vendorProducts[item.MasterProductId].SellingPrice * item.Quantity);
-        var orderNumber = $"ORD-{DateTime.UtcNow:yyyyMMdd}-{Guid.NewGuid().ToString().Substring(0, 8).ToUpper()}";
         var commissionAmount = subtotal * 0.05m;
+        var itemQuantities = cart.Items
+            .GroupBy(item => item.MasterProductId)
+            .ToDictionary(group => group.Key, group => group.Sum(item => item.Quantity));
+
+        var reusableOrder = await _orderRepository.GetReusablePendingOrderForCheckoutAsync(
+            request.UserId,
+            request.VendorId,
+            request.CustomerAddressId,
+            paymentMethod,
+            request.VendorBranchId,
+            request.CouponId,
+            request.Notes,
+            subtotal,
+            cart.DiscountTotal,
+            cart.DeliveryFee,
+            commissionAmount,
+            itemQuantities,
+            cancellationToken);
+
+        if (reusableOrder is not null)
+        {
+            if (request.ClearCartAfterPlacement)
+            {
+                _orderRepository.RemoveCart(cart);
+                await _unitOfWork.SaveChangesAsync(cancellationToken);
+            }
+
+            return reusableOrder.Id;
+        }
+
+        var orderNumber = $"ORD-{DateTime.UtcNow:yyyyMMdd}-{Guid.NewGuid().ToString().Substring(0, 8).ToUpper()}";
 
         var order = new Order(
             orderNumber: orderNumber,
