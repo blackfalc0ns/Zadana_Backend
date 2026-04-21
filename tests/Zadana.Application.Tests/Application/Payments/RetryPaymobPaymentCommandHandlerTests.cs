@@ -19,7 +19,7 @@ namespace Zadana.Application.Tests.Application.Payments;
 public class RetryPaymobPaymentCommandHandlerTests
 {
     [Fact]
-    public async Task Handle_ShouldReuseExistingOrderAndPayment_WhenRetryIsAllowed()
+    public async Task Handle_ShouldCreateNewPaymentAttempt_WhenRetryIsAllowed()
     {
         await using var dbContext = CreateDbContext();
         var user = CreateUser();
@@ -45,14 +45,55 @@ public class RetryPaymobPaymentCommandHandlerTests
 
         var result = await handler.Handle(new RetryPaymobPaymentCommand(order.Id, user.Id), CancellationToken.None);
 
-        result.Payment.Id.Should().Be(payment.Id);
+        result.Payment.Id.Should().NotBe(payment.Id);
         result.Payment.Status.Should().Be("pending");
         result.Payment.IframeUrl.Should().Be("https://paymob/retry");
-        payment.Status.Should().Be(PaymentStatus.Pending);
-        payment.ProviderTransactionId.Should().Be("provider-new");
+        payment.Status.Should().Be(PaymentStatus.Failed);
+        payment.ProviderTransactionId.Should().Be("provider-old");
         order.Status.Should().Be(OrderStatus.PendingPayment);
         order.PaymentStatus.Should().Be(PaymentStatus.Pending);
-        (await dbContext.Payments.CountAsync(x => x.OrderId == order.Id)).Should().Be(1);
+        (await dbContext.Payments.CountAsync(x => x.OrderId == order.Id)).Should().Be(2);
+
+        var latestPayment = await dbContext.Payments
+            .Where(x => x.OrderId == order.Id)
+            .OrderByDescending(x => x.CreatedAtUtc)
+            .FirstAsync();
+
+        latestPayment.Id.Should().Be(result.Payment.Id);
+        latestPayment.Status.Should().Be(PaymentStatus.Pending);
+        latestPayment.ProviderTransactionId.Should().Be("provider-new");
+    }
+
+    [Fact]
+    public async Task Handle_ShouldMarkExistingPendingAttemptFailed_WhenCreatingRetryAttempt()
+    {
+        await using var dbContext = CreateDbContext();
+        var user = CreateUser();
+        var address = CreateAddress(user.Id);
+        var order = CreateOrder(user.Id, address.Id);
+        order.UpdatePaymentStatus(PaymentStatus.Pending);
+        var payment = new Payment(order.Id, PaymentMethodType.Card, order.TotalAmount);
+        payment.MarkAsPending("Paymob", "provider-pending");
+
+        dbContext.Users.Add(user);
+        dbContext.CustomerAddresses.Add(address);
+        dbContext.Orders.Add(order);
+        dbContext.Payments.Add(payment);
+        await dbContext.SaveChangesAsync();
+
+        var gatewayMock = new Mock<IPaymobGateway>();
+        gatewayMock.SetupGet(x => x.IsEnabled).Returns(true);
+        gatewayMock
+            .Setup(x => x.CreateCheckoutSessionAsync(It.IsAny<PaymobCheckoutSessionRequest>(), It.IsAny<CancellationToken>()))
+            .ReturnsAsync(new PaymobCheckoutSessionDto("provider-retry", "token-retry", "https://paymob/retry-2"));
+
+        var handler = new RetryPaymobPaymentCommandHandler(dbContext, gatewayMock.Object, dbContext);
+
+        var result = await handler.Handle(new RetryPaymobPaymentCommand(order.Id, user.Id), CancellationToken.None);
+
+        payment.Status.Should().Be(PaymentStatus.Failed);
+        result.Payment.Id.Should().NotBe(payment.Id);
+        order.PaymentStatus.Should().Be(PaymentStatus.Pending);
     }
 
     [Fact]

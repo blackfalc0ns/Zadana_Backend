@@ -1,0 +1,127 @@
+{
+  "feature": "retry_payment",
+  "purpose": "Mobile handoff for retrying payment on the same order.",
+  "business_rules": {
+    "available_only_when": {
+      "can_retry_payment": true,
+      "order_status": "PendingPayment",
+      "payment_method": "card",
+      "payment_status": [
+        "pending",
+        "failed"
+      ]
+    },
+    "not_allowed_when": [
+      "order already paid",
+      "order left PendingPayment",
+      "payment method is not card"
+    ],
+    "important_notes": [
+      "The backend creates the payment session.",
+      "The backend returns payment.iframe_url.",
+      "The frontend must not generate the payment URL manually.",
+      "Retry payment works on the same orderId and does not create a new order.",
+      "The order stays hidden from the vendor until payment succeeds."
+    ]
+  },
+  "endpoint": {
+    "method": "POST",
+    "path": "/api/orders/{orderId}/retry-payment",
+    "body_required": false,
+    "body_note": "This endpoint does not require a request body. The mobile app only sends the orderId in the path plus the required headers.",
+    "headers": [
+      {
+        "name": "Authorization",
+        "value_format": "Bearer <token>",
+        "required": true
+      },
+      {
+        "name": "X-Device-Id",
+        "value_format": "<device-id>",
+        "required": false,
+        "recommended": true
+      }
+    ],
+    "path_params": [
+      {
+        "name": "orderId",
+        "type": "uuid",
+        "required": true,
+        "source_for_mobile": "Read it from the selected order item returned by GET /api/orders/active or from GET /api/orders/{orderId}."
+      }
+    ],
+    "request_body": null,
+    "response_example": {
+      "message": "payment retry session created successfully",
+      "payment": {
+        "id": "33333333-3333-3333-3333-333333333333",
+        "iframe_url": "https://accept.paymob.com/api/acceptance/iframes/xxx?payment_token=yyy",
+        "provider": "paymob",
+        "provider_reference": "provider-ref-123",
+        "status": "pending"
+      }
+    },
+    "response_contract": {
+      "message": "string | null",
+      "payment": {
+        "id": "string(uuid)",
+        "iframe_url": "string | null",
+        "provider": "string | null",
+        "provider_reference": "string | null",
+        "status": "string | null"
+      }
+    }
+  },
+  "frontend_flow": {
+    "steps": [
+      "Show loading when user taps Retry Payment.",
+      "Call POST /api/orders/{orderId}/retry-payment.",
+      "Read payment.iframe_url from response.",
+      "Open payment.iframe_url in WebView or Custom Tab.",
+      "Wait for the user to return from the payment flow.",
+      "Refresh the order details or active orders list from backend.",
+      "Update UI using backend values only."
+    ],
+    "refresh_after_return": [
+      "GET /api/orders/{orderId}",
+      "GET /api/orders/active"
+    ],
+    "ui_rules_after_refresh": [
+      "If payment_status = paid, hide Retry Payment and Delete Order.",
+      "If payment_status = failed and can_retry_payment = true, show Retry Payment again.",
+      "Never assume payment success before backend refresh."
+    ]
+  },
+  "frontend_must_not": [
+    "Do not construct Paymob URL manually.",
+    "Do not generate payment token locally.",
+    "Do not mark the order as paid locally.",
+    "Do not create a new order for retry."
+  ],
+  "related_fields_from_order_api": [
+    "payment_status",
+    "payment_method",
+    "can_retry_payment",
+    "can_delete",
+    "can_cancel"
+  ],
+  "expected_errors": [
+    "ORDER_PAYMENT_RETRY_NOT_ALLOWED",
+    "ORDER_ALREADY_PAID",
+    "PAYMENT_UNAVAILABLE"
+  ],
+  "recommended_error_handling": {
+    "ORDER_PAYMENT_RETRY_NOT_ALLOWED": [
+      "Refresh the order from backend.",
+      "Hide retry button if can_retry_payment becomes false."
+    ],
+    "ORDER_ALREADY_PAID": [
+      "Refresh the order from backend.",
+      "Hide retry button."
+    ],
+    "PAYMENT_UNAVAILABLE": [
+      "Show error message.",
+      "Keep the current screen state."
+    ]
+  }
+}
