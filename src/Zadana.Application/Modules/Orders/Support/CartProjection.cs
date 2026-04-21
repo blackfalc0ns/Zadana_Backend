@@ -89,6 +89,10 @@ internal static class CartProjection
             {
                 masterProducts.TryGetValue(item.MasterProductId, out var product);
                 offersByProductId.TryGetValue(item.MasterProductId, out var offers);
+                var isAvailable = !selectedVendorId.HasValue || (offers?.Count > 0);
+                var availabilityStatus = isAvailable
+                    ? null
+                    : "unavailable_at_selected_vendor";
 
                 var vendorPrices = offers?
                     .Select(offer => new CartVendorPriceDto(
@@ -106,7 +110,9 @@ internal static class CartProjection
                     offers?.FirstOrDefault()?.ImageUrl ?? product?.ImageUrl,
                     product is null ? null : PickLocalizedNullable(product.UnitAr, product.UnitEn),
                     item.Quantity,
-                    vendorPrices);
+                    vendorPrices,
+                    isAvailable,
+                    availabilityStatus);
             })
             .ToList();
 
@@ -149,9 +155,18 @@ internal static class CartProjection
             }
         }
 
+        var unavailableItemsCount = items.Count(item => !item.IsAvailable);
+
         return new CartDto(
             items,
-            new CartSummaryDto(items.Count, items.Sum(item => item.Quantity), subtotal, discountAmount, totalAmount));
+            new CartSummaryDto(
+                items.Count,
+                items.Sum(item => item.Quantity),
+                subtotal,
+                discountAmount,
+                totalAmount,
+                unavailableItemsCount > 0,
+                unavailableItemsCount));
     }
 
     public static Task<bool> HasVisibleOfferAsync(

@@ -23,14 +23,18 @@ public record CartItemDto(
     string? ImageUrl,
     string? Unit,
     int Quantity,
-    List<CartVendorPriceDto> VendorPrices);
+    List<CartVendorPriceDto> VendorPrices,
+    bool IsAvailable = true,
+    string? AvailabilityStatus = null);
 
 public record CartSummaryDto(
     int ItemsCount,
     int TotalQuantity,
     decimal? Subtotal,
     decimal? DiscountAmount,
-    decimal? TotalAmount);
+    decimal? TotalAmount,
+    bool HasUnavailableItems = false,
+    int UnavailableItemsCount = 0);
 
 public record CartDto(
     List<CartItemDto> Items,

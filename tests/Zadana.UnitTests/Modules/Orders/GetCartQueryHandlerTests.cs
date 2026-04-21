@@ -90,6 +90,10 @@ public class GetCartQueryHandlerTests
         result.Summary.Subtotal.Should().BeNull();
         result.Summary.DiscountAmount.Should().BeNull();
         result.Summary.TotalAmount.Should().BeNull();
+        result.Summary.HasUnavailableItems.Should().BeTrue();
+        result.Summary.UnavailableItemsCount.Should().Be(1);
+        result.Items.Count(item => !item.IsAvailable).Should().Be(1);
+        result.Items.Single(item => !item.IsAvailable).AvailabilityStatus.Should().Be("unavailable_at_selected_vendor");
     }
 
     [Fact]
