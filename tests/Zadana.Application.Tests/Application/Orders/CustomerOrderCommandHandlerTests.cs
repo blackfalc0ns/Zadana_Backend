@@ -4,6 +4,7 @@ using Microsoft.EntityFrameworkCore;
 using Moq;
 using Zadana.Application.Modules.Orders.Commands.CancelCustomerOrder;
 using Zadana.Application.Modules.Orders.Commands.CreateOrderComplaint;
+using Zadana.Application.Modules.Orders.Commands.DeleteCustomerOrder;
 using Zadana.Domain.Modules.Identity.Entities;
 using Zadana.Domain.Modules.Identity.Enums;
 using Zadana.Domain.Modules.Orders.Entities;
@@ -22,7 +23,7 @@ public class CustomerOrderCommandHandlerTests
     {
         await using var dbContext = CreateDbContext();
         var user = CreateUser();
-        var order = CreateOrder(user.Id, OrderStatus.DriverAssigned, "ORD-CANCEL-002");
+        var order = CreateOrder(user.Id, OrderStatus.ReadyForPickup, "ORD-CANCEL-002");
 
         dbContext.Users.Add(user);
         dbContext.Orders.Add(order);
@@ -38,6 +39,50 @@ public class CustomerOrderCommandHandlerTests
         await act.Should()
             .ThrowAsync<BusinessRuleException>()
             .Where(x => x.ErrorCode == "ORDER_CANNOT_BE_CANCELLED");
+    }
+
+    [Fact]
+    public async Task DeleteCustomerOrder_ShouldRemovePendingPaymentOrderAndLinkedPayment()
+    {
+        await using var dbContext = CreateDbContext();
+        var user = CreateUser();
+        var order = CreateOrder(user.Id, OrderStatus.PendingPayment, "ORD-DELETE-001");
+        var payment = new Zadana.Domain.Modules.Payments.Entities.Payment(order.Id, PaymentMethodType.Card, order.TotalAmount);
+        payment.MarkAsPending("Paymob", "provider-delete-1");
+
+        dbContext.Users.Add(user);
+        dbContext.Orders.Add(order);
+        dbContext.Payments.Add(payment);
+        await dbContext.SaveChangesAsync();
+
+        var handler = new DeleteCustomerOrderCommandHandler(dbContext, dbContext);
+
+        var result = await handler.Handle(new DeleteCustomerOrderCommand(order.Id, user.Id), CancellationToken.None);
+
+        result.OrderId.Should().Be(order.Id);
+        (await dbContext.Orders.AnyAsync(x => x.Id == order.Id)).Should().BeFalse();
+        (await dbContext.Payments.AnyAsync(x => x.OrderId == order.Id)).Should().BeFalse();
+    }
+
+    [Fact]
+    public async Task DeleteCustomerOrder_ShouldRejectPaidOrder()
+    {
+        await using var dbContext = CreateDbContext();
+        var user = CreateUser();
+        var order = CreateOrder(user.Id, OrderStatus.PendingPayment, "ORD-DELETE-002");
+        order.UpdatePaymentStatus(PaymentStatus.Paid);
+
+        dbContext.Users.Add(user);
+        dbContext.Orders.Add(order);
+        await dbContext.SaveChangesAsync();
+
+        var handler = new DeleteCustomerOrderCommandHandler(dbContext, dbContext);
+
+        var act = () => handler.Handle(new DeleteCustomerOrderCommand(order.Id, user.Id), CancellationToken.None);
+
+        await act.Should()
+            .ThrowAsync<BusinessRuleException>()
+            .Where(x => x.ErrorCode == "ORDER_DELETE_NOT_ALLOWED");
     }
 
     [Fact]

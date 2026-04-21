@@ -38,6 +38,8 @@ public class Payment : BaseEntity
         ProviderName = providerName.Trim();
         ProviderTransactionId = transactionId.Trim();
         Status = PaymentStatus.Pending;
+        FailedAtUtc = null;
+        Order?.UpdatePaymentStatus(Status);
     }
 
     public void SetProviderTransactionId(string transactionId)
@@ -59,6 +61,7 @@ public class Payment : BaseEntity
 
         Status = PaymentStatus.Paid;
         PaidAtUtc = DateTime.UtcNow;
+        FailedAtUtc = null;
         Order?.UpdatePaymentStatus(Status);
     }
 

@@ -10,6 +10,8 @@ public record GetVendorProductsQuery(
     Guid VendorId, 
     Guid? CategoryId, 
     Guid? BranchId, 
+    string? Search,
+    string? Status,
     int PageNumber = 1, 
     int PageSize = 10) : IRequest<PaginatedList<VendorProductDto>>;
 
@@ -32,7 +34,7 @@ public class GetVendorProductsQueryHandler : IRequestHandler<GetVendorProductsQu
                 .ThenInclude(mp => mp.Brand)
             .Include(vp => vp.MasterProduct)
                 .ThenInclude(mp => mp.UnitOfMeasure)
-            .Where(vp => vp.VendorId == request.VendorId);
+            .Where(vp => vp.VendorId == request.VendorId && vp.MasterProduct != null);
 
         if (request.CategoryId.HasValue)
         {
@@ -42,6 +44,39 @@ public class GetVendorProductsQueryHandler : IRequestHandler<GetVendorProductsQu
         if (request.BranchId.HasValue)
         {
             query = query.Where(vp => vp.VendorBranchId == request.BranchId.Value);
+        }
+
+        if (!string.IsNullOrWhiteSpace(request.Search))
+        {
+            var search = request.Search.Trim().ToLower();
+            query = query.Where(vp =>
+                (vp.MasterProduct.NameAr != null && vp.MasterProduct.NameAr.ToLower().Contains(search)) ||
+                (vp.MasterProduct.NameEn != null && vp.MasterProduct.NameEn.ToLower().Contains(search)) ||
+                (vp.MasterProduct.Barcode != null && vp.MasterProduct.Barcode.ToLower().Contains(search)) ||
+                (vp.MasterProduct.Slug != null && vp.MasterProduct.Slug.ToLower().Contains(search)));
+        }
+
+        if (!string.IsNullOrWhiteSpace(request.Status))
+        {
+            var normalizedStatus = request.Status.Trim().ToLower();
+
+            query = normalizedStatus switch
+            {
+                "active" => query.Where(vp =>
+                    vp.IsAvailable &&
+                    vp.StockQuantity > 0 &&
+                    !vp.Status.ToString().ToLower().Contains("inactive") &&
+                    !vp.Status.ToString().ToLower().Contains("review") &&
+                    !vp.Status.ToString().ToLower().Contains("pending")),
+                "under_review" => query.Where(vp =>
+                    vp.Status.ToString().ToLower().Contains("review") ||
+                    vp.Status.ToString().ToLower().Contains("pending")),
+                "out_of_stock" => query.Where(vp =>
+                    !vp.IsAvailable ||
+                    vp.StockQuantity <= 0 ||
+                    vp.Status.ToString().ToLower().Contains("inactive")),
+                _ => query
+            };
         }
 
         var totalCount = await query.CountAsync(cancellationToken);
@@ -63,9 +98,9 @@ public class GetVendorProductsQueryHandler : IRequestHandler<GetVendorProductsQu
             vp.Status.ToString(),
             new MasterProductDto(
                 vp.MasterProduct.Id,
-                vp.MasterProduct.NameAr,
-                vp.MasterProduct.NameEn,
-                vp.MasterProduct.Slug,
+                vp.MasterProduct.NameAr ?? string.Empty,
+                vp.MasterProduct.NameEn ?? string.Empty,
+                vp.MasterProduct.Slug ?? string.Empty,
                 vp.MasterProduct.DescriptionAr,
                 vp.MasterProduct.DescriptionEn,
                 vp.MasterProduct.Barcode,

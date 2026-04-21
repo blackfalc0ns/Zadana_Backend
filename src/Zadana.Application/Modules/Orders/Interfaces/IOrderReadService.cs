@@ -26,6 +26,9 @@ public interface IOrderReadService
         CancellationToken cancellationToken = default);
     Task<PaginatedList<AdminVendorOrderListItemDto>> GetVendorOrdersAsync(
         Guid vendorId,
+        string? search,
+        string? status,
+        string? paymentStatus,
         int page,
         int pageSize,
         CancellationToken cancellationToken = default);

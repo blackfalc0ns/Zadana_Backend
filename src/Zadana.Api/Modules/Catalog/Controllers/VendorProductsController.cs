@@ -31,11 +31,13 @@ public class VendorProductsController : ApiControllerBase
     public async Task<ActionResult<PaginatedList<VendorProductDto>>> GetProducts(
         [FromQuery] Guid? categoryId,
         [FromQuery] Guid? branchId,
+        [FromQuery] string? search,
+        [FromQuery] string? status,
         [FromQuery] int pageNumber = 1,
         [FromQuery] int pageSize = 10)
     {
         var vendorId = await _currentVendorService.GetRequiredVendorIdAsync(HttpContext.RequestAborted);
-        var query = new GetVendorProductsQuery(vendorId, categoryId, branchId, pageNumber, pageSize);
+        var query = new GetVendorProductsQuery(vendorId, categoryId, branchId, search, status, pageNumber, pageSize);
         var result = await Sender.Send(query);
         return Ok(result);
     }

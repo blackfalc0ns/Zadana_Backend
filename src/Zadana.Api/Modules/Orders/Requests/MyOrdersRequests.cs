@@ -13,6 +13,11 @@ public record CustomerOrderListItemResponse(
     [property: JsonPropertyName("created_at")] DateTime CreatedAt,
     [property: JsonPropertyName("total_price")] decimal TotalPrice,
     [property: JsonPropertyName("status")] string Status,
+    [property: JsonPropertyName("payment_status")] string PaymentStatus,
+    [property: JsonPropertyName("payment_method")] string PaymentMethod,
+    [property: JsonPropertyName("can_retry_payment")] bool CanRetryPayment,
+    [property: JsonPropertyName("can_delete")] bool CanDelete,
+    [property: JsonPropertyName("can_cancel")] bool CanCancel,
     [property: JsonPropertyName("items_count")] int ItemsCount,
     [property: JsonPropertyName("items")] List<CustomerOrderProductResponse> Items);
 
@@ -27,10 +32,18 @@ public record CustomerOrderDetailResponse(
     [property: JsonPropertyName("created_at")] DateTime CreatedAt,
     [property: JsonPropertyName("total_price")] decimal TotalPrice,
     [property: JsonPropertyName("status")] string Status,
+    [property: JsonPropertyName("payment_status")] string PaymentStatus,
+    [property: JsonPropertyName("payment_method")] string PaymentMethod,
+    [property: JsonPropertyName("can_retry_payment")] bool CanRetryPayment,
+    [property: JsonPropertyName("can_delete")] bool CanDelete,
     [property: JsonPropertyName("can_cancel")] bool CanCancel,
     [property: JsonPropertyName("items_count")] int ItemsCount,
     [property: JsonPropertyName("summary")] CustomerOrderSummaryResponse Summary,
     [property: JsonPropertyName("items")] List<CustomerOrderProductResponse> Items);
+
+public record RetryOrderPaymentResponse(
+    [property: JsonPropertyName("message")] string Message,
+    [property: JsonPropertyName("payment")] CheckoutOrderPaymentResponse Payment);
 
 public record CustomerOrderTrackingResponse(
     [property: JsonPropertyName("order")] CustomerOrderTrackingOrderResponse Order,
@@ -75,6 +88,11 @@ public record CancelCustomerOrderResponse(
 public record CancelledOrderStatusResponse(
     [property: JsonPropertyName("id")] Guid Id,
     [property: JsonPropertyName("status")] string Status);
+
+public record DeleteCustomerOrderResponse(
+    [property: JsonPropertyName("message")] string Message,
+    [property: JsonPropertyName("order_id")] Guid OrderId,
+    [property: JsonPropertyName("deleted")] bool Deleted);
 
 public record CreateOrderComplaintRequest(
     [property: JsonPropertyName("message")] string Message,

@@ -28,6 +28,7 @@ using Zadana.Application.Modules.Vendors.Commands.StartVendorReview;
 using Zadana.Application.Modules.Vendors.Commands.SuspendVendor;
 using Zadana.Application.Modules.Vendors.Commands.UnlockVendorLogin;
 using Zadana.Application.Modules.Vendors.Queries.GetAllVendors;
+using Zadana.Application.Modules.Vendors.Queries.GetVendorAnalytics;
 using Zadana.Application.Modules.Vendors.Queries.GetVendorDetail;
 using Zadana.Application.Modules.Wallets.Commands.CreateSettlement;
 using Zadana.Application.Modules.Wallets.Commands.EscalateVendorPayout;
@@ -170,10 +171,13 @@ public class AdminVendorsController : ApiControllerBase
     [HttpGet("{vendorId:guid}/orders")]
     public async Task<IActionResult> GetVendorOrders(
         Guid vendorId,
+        [FromQuery] string? search = null,
+        [FromQuery] string? status = null,
+        [FromQuery] string? paymentStatus = null,
         [FromQuery] int page = 1,
         [FromQuery] int pageSize = 10)
     {
-        var result = await Sender.Send(new GetVendorOrdersQuery(vendorId, page, pageSize));
+        var result = await Sender.Send(new GetVendorOrdersQuery(vendorId, search, status, paymentStatus, page, pageSize));
         return Ok(result);
     }
 
@@ -182,10 +186,21 @@ public class AdminVendorsController : ApiControllerBase
         Guid vendorId,
         [FromQuery] Guid? categoryId = null,
         [FromQuery] Guid? branchId = null,
+        [FromQuery] string? search = null,
+        [FromQuery] string? status = null,
         [FromQuery] int page = 1,
         [FromQuery] int pageSize = 10)
     {
-        var result = await Sender.Send(new GetVendorProductsQuery(vendorId, categoryId, branchId, page, pageSize));
+        var result = await Sender.Send(new GetVendorProductsQuery(vendorId, categoryId, branchId, search, status, page, pageSize));
+        return Ok(result);
+    }
+
+    [HttpGet("{vendorId:guid}/analytics")]
+    public async Task<IActionResult> GetVendorAnalytics(
+        Guid vendorId,
+        [FromQuery] string range = "30d")
+    {
+        var result = await Sender.Send(new GetVendorAnalyticsQuery(vendorId, range));
         return Ok(result);
     }
 

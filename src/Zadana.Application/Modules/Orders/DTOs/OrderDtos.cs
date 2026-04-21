@@ -87,6 +87,11 @@ public record CustomerOrderListItemDto(
     DateTime CreatedAt,
     decimal TotalPrice,
     string Status,
+    string PaymentStatus,
+    string PaymentMethod,
+    bool CanRetryPayment,
+    bool CanDelete,
+    bool CanCancel,
     int ItemsCount,
     IReadOnlyList<CustomerOrderProductDto> Items);
 
@@ -95,6 +100,10 @@ public record CustomerOrderDetailDto(
     DateTime CreatedAt,
     decimal TotalPrice,
     string Status,
+    string PaymentStatus,
+    string PaymentMethod,
+    bool CanRetryPayment,
+    bool CanDelete,
     bool CanCancel,
     int ItemsCount,
     CustomerOrderPriceSummaryDto Summary,

@@ -5174,6 +5174,44 @@
                         }
                     }
                 }
+            },
+            "delete": {
+                "tags": [
+                    "Customer/Orders"
+                ],
+                "parameters": [
+                    {
+                        "name": "orderId",
+                        "in": "path",
+                        "required": true,
+                        "schema": {
+                            "type": "string",
+                            "format": "uuid"
+                        }
+                    }
+                ],
+                "responses": {
+                    "200": {
+                        "description": "OK",
+                        "content": {
+                            "text/plain": {
+                                "schema": {
+                                    "$ref": "#/components/schemas/DeleteCustomerOrderResponse"
+                                }
+                            },
+                            "application/json": {
+                                "schema": {
+                                    "$ref": "#/components/schemas/DeleteCustomerOrderResponse"
+                                }
+                            },
+                            "text/json": {
+                                "schema": {
+                                    "$ref": "#/components/schemas/DeleteCustomerOrderResponse"
+                                }
+                            }
+                        }
+                    }
+                }
             }
         },
         "/api/orders/{orderId}/tracking": {
@@ -5268,6 +5306,46 @@
                             "text/json": {
                                 "schema": {
                                     "$ref": "#/components/schemas/CancelCustomerOrderResponse"
+                                }
+                            }
+                        }
+                    }
+                }
+            }
+        },
+        "/api/orders/{orderId}/retry-payment": {
+            "post": {
+                "tags": [
+                    "Customer/Orders"
+                ],
+                "parameters": [
+                    {
+                        "name": "orderId",
+                        "in": "path",
+                        "required": true,
+                        "schema": {
+                            "type": "string",
+                            "format": "uuid"
+                        }
+                    }
+                ],
+                "responses": {
+                    "200": {
+                        "description": "OK",
+                        "content": {
+                            "text/plain": {
+                                "schema": {
+                                    "$ref": "#/components/schemas/RetryOrderPaymentResponse"
+                                }
+                            },
+                            "application/json": {
+                                "schema": {
+                                    "$ref": "#/components/schemas/RetryOrderPaymentResponse"
+                                }
+                            },
+                            "text/json": {
+                                "schema": {
+                                    "$ref": "#/components/schemas/RetryOrderPaymentResponse"
                                 }
                             }
                         }
@@ -13164,6 +13242,20 @@
                         "type": "string",
                         "nullable": true
                     },
+                    "payment_status": {
+                        "type": "string",
+                        "nullable": true
+                    },
+                    "payment_method": {
+                        "type": "string",
+                        "nullable": true
+                    },
+                    "can_retry_payment": {
+                        "type": "boolean"
+                    },
+                    "can_delete": {
+                        "type": "boolean"
+                    },
                     "can_cancel": {
                         "type": "boolean"
                     },
@@ -13216,6 +13308,23 @@
                     "status": {
                         "type": "string",
                         "nullable": true
+                    },
+                    "payment_status": {
+                        "type": "string",
+                        "nullable": true
+                    },
+                    "payment_method": {
+                        "type": "string",
+                        "nullable": true
+                    },
+                    "can_retry_payment": {
+                        "type": "boolean"
+                    },
+                    "can_delete": {
+                        "type": "boolean"
+                    },
+                    "can_cancel": {
+                        "type": "boolean"
                     },
                     "items_count": {
                         "type": "integer",
@@ -13374,6 +13483,23 @@
                     "total": {
                         "type": "integer",
                         "format": "int32"
+                    }
+                },
+                "additionalProperties": false
+            },
+            "DeleteCustomerOrderResponse": {
+                "type": "object",
+                "properties": {
+                    "message": {
+                        "type": "string",
+                        "nullable": true
+                    },
+                    "order_id": {
+                        "type": "string",
+                        "format": "uuid"
+                    },
+                    "deleted": {
+                        "type": "boolean"
                     }
                 },
                 "additionalProperties": false
@@ -14638,6 +14764,19 @@
                     "total_price": {
                         "type": "number",
                         "format": "double"
+                    }
+                },
+                "additionalProperties": false
+            },
+            "RetryOrderPaymentResponse": {
+                "type": "object",
+                "properties": {
+                    "message": {
+                        "type": "string",
+                        "nullable": true
+                    },
+                    "payment": {
+                        "$ref": "#/components/schemas/CheckoutOrderPaymentResponse"
                     }
                 },
                 "additionalProperties": false

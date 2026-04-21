@@ -152,13 +152,37 @@ public class OrderReadService : IOrderReadService
 
     public Task<PaginatedList<AdminVendorOrderListItemDto>> GetVendorOrdersAsync(
         Guid vendorId,
+        string? search,
+        string? status,
+        string? paymentStatus,
         int page,
         int pageSize,
         CancellationToken cancellationToken = default)
     {
         var query = _dbContext.Orders
             .AsNoTracking()
-            .Where(order => order.VendorId == vendorId)
+            .Where(order => order.VendorId == vendorId);
+
+        if (!string.IsNullOrWhiteSpace(search))
+        {
+            var normalizedSearch = search.Trim().ToLower();
+            query = query.Where(order =>
+                order.OrderNumber.ToLower().Contains(normalizedSearch) ||
+                order.User.FullName.ToLower().Contains(normalizedSearch) ||
+                (order.User.PhoneNumber != null && order.User.PhoneNumber.ToLower().Contains(normalizedSearch)));
+        }
+
+        if (!string.IsNullOrWhiteSpace(status) && Enum.TryParse<OrderStatus>(status, true, out var parsedStatus))
+        {
+            query = query.Where(order => order.Status == parsedStatus);
+        }
+
+        if (!string.IsNullOrWhiteSpace(paymentStatus) && Enum.TryParse<PaymentStatus>(paymentStatus, true, out var parsedPaymentStatus))
+        {
+            query = query.Where(order => order.PaymentStatus == parsedPaymentStatus);
+        }
+
+        var projected = query
             .OrderByDescending(order => order.PlacedAtUtc)
             .Select(order => new AdminVendorOrderListItemDto(
                 order.Id,
@@ -175,7 +199,7 @@ public class OrderReadService : IOrderReadService
                 order.Items.Count,
                 order.PlacedAtUtc));
 
-        return PaginatedList<AdminVendorOrderListItemDto>.CreateAsync(query, page, pageSize, cancellationToken);
+        return PaginatedList<AdminVendorOrderListItemDto>.CreateAsync(projected, page, pageSize, cancellationToken);
     }
 
     public Task<PaginatedList<VendorOrderListItemDto>> GetVendorWorkspaceOrdersAsync(
@@ -397,6 +421,11 @@ public class OrderReadService : IOrderReadService
             order.PlacedAtUtc,
             order.TotalAmount,
             MapStatus(order.Status),
+            MapCustomerPaymentStatus(order.PaymentStatus),
+            MapCustomerPaymentMethod(order.PaymentMethod),
+            CanRetryPayment(order),
+            CanDelete(order),
+            CanCancel(order.Status),
             order.Items.Count,
             order.Items
                 .Select(item => new CustomerOrderProductDto(
@@ -412,6 +441,10 @@ public class OrderReadService : IOrderReadService
             order.PlacedAtUtc,
             order.TotalAmount,
             MapStatus(order.Status),
+            MapCustomerPaymentStatus(order.PaymentStatus),
+            MapCustomerPaymentMethod(order.PaymentMethod),
+            CanRetryPayment(order),
+            CanDelete(order),
             CanCancel(order.Status),
             order.Items.Count,
             new CustomerOrderPriceSummaryDto(
@@ -543,13 +576,34 @@ public class OrderReadService : IOrderReadService
         };
 
     private static bool CanCancel(OrderStatus status) =>
-        status is OrderStatus.PendingPayment or
-            OrderStatus.Placed or
-            OrderStatus.PendingVendorAcceptance or
+        status is OrderStatus.PendingVendorAcceptance or
             OrderStatus.Accepted or
-            OrderStatus.Preparing or
-            OrderStatus.ReadyForPickup or
-            OrderStatus.DriverAssignmentInProgress;
+            OrderStatus.Preparing;
+
+    private static bool CanRetryPayment(Order order) =>
+        order.PaymentMethod == PaymentMethodType.Card &&
+        order.Status == OrderStatus.PendingPayment &&
+        order.PaymentStatus is PaymentStatus.Initiated or PaymentStatus.Pending or PaymentStatus.Failed;
+
+    private static bool CanDelete(Order order) =>
+        order.Status == OrderStatus.PendingPayment &&
+        order.PaymentStatus != PaymentStatus.Paid;
+
+    private static string MapCustomerPaymentStatus(PaymentStatus paymentStatus) =>
+        paymentStatus switch
+        {
+            PaymentStatus.Paid => "paid",
+            PaymentStatus.Failed => "failed",
+            _ => "pending"
+        };
+
+    private static string MapCustomerPaymentMethod(PaymentMethodType paymentMethod) =>
+        paymentMethod switch
+        {
+            PaymentMethodType.Card => "card",
+            PaymentMethodType.BankTransfer => "bank",
+            _ => "cash"
+        };
 
     private static string MapComplaintStatus(OrderComplaintStatus status) =>
         status switch

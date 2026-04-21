@@ -6,12 +6,14 @@ using Zadana.Application.Common.Interfaces;
 using Zadana.Application.Modules.Checkout.Commands.PlaceCheckoutOrder;
 using Zadana.Application.Modules.Orders.Commands.CancelCustomerOrder;
 using Zadana.Application.Modules.Orders.Commands.CreateOrderComplaint;
+using Zadana.Application.Modules.Orders.Commands.DeleteCustomerOrder;
 using Zadana.Application.Modules.Orders.DTOs;
 using Zadana.Application.Modules.Orders.Interfaces;
 using Zadana.Application.Modules.Orders.Queries.GetCustomerOrderComplaint;
 using Zadana.Application.Modules.Orders.Queries.GetCustomerOrderDetail;
 using Zadana.Application.Modules.Orders.Queries.GetCustomerOrders;
 using Zadana.Application.Modules.Orders.Queries.GetCustomerOrderTracking;
+using Zadana.Application.Modules.Payments.Commands.RetryPaymobPayment;
 using Zadana.SharedKernel.Exceptions;
 
 namespace Zadana.Api.Modules.Orders.Controllers;
@@ -97,6 +99,35 @@ public class OrdersController : ApiControllerBase
             new CancelledOrderStatusResponse(result.Id, result.Status)));
     }
 
+    [HttpPost("{orderId:guid}/retry-payment")]
+    public async Task<ActionResult<RetryOrderPaymentResponse>> RetryPayment(
+        Guid orderId,
+        CancellationToken cancellationToken = default)
+    {
+        var userId = _currentUserService.UserId ?? throw new UnauthorizedException("USER_NOT_AUTHENTICATED");
+        var result = await Sender.Send(new RetryPaymobPaymentCommand(orderId, userId), cancellationToken);
+
+        return Ok(new RetryOrderPaymentResponse(
+            result.Message,
+            new CheckoutOrderPaymentResponse(
+                result.Payment.Id,
+                result.Payment.Provider,
+                result.Payment.Status,
+                result.Payment.IframeUrl,
+                result.Payment.ProviderReference)));
+    }
+
+    [HttpDelete("{orderId:guid}")]
+    public async Task<ActionResult<DeleteCustomerOrderResponse>> DeleteOrder(
+        Guid orderId,
+        CancellationToken cancellationToken = default)
+    {
+        var userId = _currentUserService.UserId ?? throw new UnauthorizedException("USER_NOT_AUTHENTICATED");
+        var result = await Sender.Send(new DeleteCustomerOrderCommand(orderId, userId), cancellationToken);
+
+        return Ok(new DeleteCustomerOrderResponse(result.Message, result.OrderId, true));
+    }
+
     [HttpPost("{orderId:guid}/complaints")]
     public async Task<ActionResult<CreateOrderComplaintResponse>> CreateComplaint(
         Guid orderId,
@@ -169,6 +200,11 @@ public class OrdersController : ApiControllerBase
             dto.CreatedAt,
             dto.TotalPrice,
             dto.Status,
+            dto.PaymentStatus,
+            dto.PaymentMethod,
+            dto.CanRetryPayment,
+            dto.CanDelete,
+            dto.CanCancel,
             dto.ItemsCount,
             dto.Items.Select(MapOrderProduct).ToList());
 
@@ -181,6 +217,10 @@ public class OrdersController : ApiControllerBase
             dto.CreatedAt,
             dto.TotalPrice,
             dto.Status,
+            dto.PaymentStatus,
+            dto.PaymentMethod,
+            dto.CanRetryPayment,
+            dto.CanDelete,
             dto.CanCancel,
             dto.ItemsCount,
             new CustomerOrderSummaryResponse(

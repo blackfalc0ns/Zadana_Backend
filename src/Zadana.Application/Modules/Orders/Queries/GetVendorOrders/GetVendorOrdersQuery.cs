@@ -7,6 +7,9 @@ namespace Zadana.Application.Modules.Orders.Queries.GetVendorOrders;
 
 public record GetVendorOrdersQuery(
     Guid VendorId,
+    string? Search = null,
+    string? Status = null,
+    string? PaymentStatus = null,
     int Page = 1,
     int PageSize = 10) : IRequest<PaginatedList<AdminVendorOrderListItemDto>>;
 
@@ -20,5 +23,12 @@ public class GetVendorOrdersQueryHandler : IRequestHandler<GetVendorOrdersQuery,
     }
 
     public Task<PaginatedList<AdminVendorOrderListItemDto>> Handle(GetVendorOrdersQuery request, CancellationToken cancellationToken) =>
-        _orderReadService.GetVendorOrdersAsync(request.VendorId, request.Page, request.PageSize, cancellationToken);
+        _orderReadService.GetVendorOrdersAsync(
+            request.VendorId,
+            request.Search,
+            request.Status,
+            request.PaymentStatus,
+            request.Page,
+            request.PageSize,
+            cancellationToken);
 }

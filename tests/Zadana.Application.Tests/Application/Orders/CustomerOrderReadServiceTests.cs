@@ -48,8 +48,8 @@ public class CustomerOrderReadServiceTests
         var user = CreateUser();
         dbContext.Users.Add(user);
 
-        var cancellable = CreateOrder(user.Id, OrderStatus.ReadyForPickup, "ORD-CAN-CANCEL");
-        var locked = CreateOrder(user.Id, OrderStatus.DriverAssigned, "ORD-LOCKED");
+        var cancellable = CreateOrder(user.Id, OrderStatus.Preparing, "ORD-CAN-CANCEL");
+        var locked = CreateOrder(user.Id, OrderStatus.ReadyForPickup, "ORD-LOCKED");
 
         dbContext.Orders.AddRange(cancellable, locked);
         await dbContext.SaveChangesAsync();
@@ -61,6 +61,40 @@ public class CustomerOrderReadServiceTests
 
         cancellableDetail!.CanCancel.Should().BeTrue();
         lockedDetail!.CanCancel.Should().BeFalse();
+    }
+
+    [Fact]
+    public async Task GetCustomerOrdersAsync_ShouldExposePaymentActionsForPendingPaymentOrders()
+    {
+        await using var dbContext = CreateDbContext();
+        var user = CreateUser();
+        dbContext.Users.Add(user);
+
+        var pendingCardOrder = CreateOrder(user.Id, OrderStatus.PendingPayment, "ORD-PAYMENT-PENDING", PaymentMethodType.Card);
+        pendingCardOrder.UpdatePaymentStatus(PaymentStatus.Pending);
+
+        var acceptedPaidOrder = CreateOrder(user.Id, OrderStatus.PendingVendorAcceptance, "ORD-PAID-ACTIVE", PaymentMethodType.Card);
+        acceptedPaidOrder.UpdatePaymentStatus(PaymentStatus.Paid);
+
+        dbContext.Orders.AddRange(pendingCardOrder, acceptedPaidOrder);
+        await dbContext.SaveChangesAsync();
+
+        var service = new OrderReadService(dbContext);
+
+        var active = await service.GetCustomerOrdersAsync(user.Id, CustomerOrderBucket.Active, 1, 20);
+        var pendingItem = active.Items.Single(item => item.Id == pendingCardOrder.Id);
+        var paidItem = active.Items.Single(item => item.Id == acceptedPaidOrder.Id);
+
+        pendingItem.PaymentStatus.Should().Be("pending");
+        pendingItem.PaymentMethod.Should().Be("card");
+        pendingItem.CanRetryPayment.Should().BeTrue();
+        pendingItem.CanDelete.Should().BeTrue();
+        pendingItem.CanCancel.Should().BeFalse();
+
+        paidItem.PaymentStatus.Should().Be("paid");
+        paidItem.CanRetryPayment.Should().BeFalse();
+        paidItem.CanDelete.Should().BeFalse();
+        paidItem.CanCancel.Should().BeTrue();
     }
 
     [Fact]
@@ -137,9 +171,9 @@ public class CustomerOrderReadServiceTests
     private static User CreateUser() =>
         new("Customer User", "customer.orders@test.com", "01000000000", UserRole.Customer);
 
-    private static Order CreateOrder(Guid userId, OrderStatus status, string orderNumber)
+    private static Order CreateOrder(Guid userId, OrderStatus status, string orderNumber, PaymentMethodType paymentMethod = PaymentMethodType.CashOnDelivery)
     {
-        var order = new Order(orderNumber, userId, Guid.NewGuid(), Guid.NewGuid(), PaymentMethodType.CashOnDelivery, 100m, 0m, 10m, 5m);
+        var order = new Order(orderNumber, userId, Guid.NewGuid(), Guid.NewGuid(), paymentMethod, 100m, 0m, 10m, 5m);
         order.Items.Add(new OrderItem(order.Id, Guid.NewGuid(), Guid.NewGuid(), "Fresh Item", 2, 50m));
 
         if (status != OrderStatus.PendingPayment)

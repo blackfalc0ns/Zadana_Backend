@@ -86,11 +86,7 @@ public class CancelCustomerOrderCommandHandler : IRequestHandler<CancelCustomerO
     }
 
     private static bool CanCancel(OrderStatus status) =>
-        status is OrderStatus.PendingPayment or
-            OrderStatus.Placed or
-            OrderStatus.PendingVendorAcceptance or
+        status is OrderStatus.PendingVendorAcceptance or
             OrderStatus.Accepted or
-            OrderStatus.Preparing or
-            OrderStatus.ReadyForPickup or
-            OrderStatus.DriverAssignmentInProgress;
+            OrderStatus.Preparing;
 }
