@@ -279,11 +279,15 @@ public sealed class OneSignalPushService : IOneSignalPushService
                 return;
 
             case OneSignalPushProfile.MobileOrderUpdates:
+                // Temporary operational alignment:
+                // order-status pushes should behave exactly like the working test pushes
+                // until the dedicated order-updates channel is verified on devices in
+                // killed/terminated state.
                 ApplyMobileProfile(
                     payload,
-                    FirstNonEmpty(_settings.OrderUpdatesExistingAndroidChannelId, _settings.MobileHeadsUpExistingAndroidChannelId),
-                    FirstNonEmpty(_settings.OrderUpdatesAndroidChannelId, _settings.MobileHeadsUpAndroidChannelId),
-                    _settings.OrderUpdatesPriority ?? _settings.MobileHeadsUpPriority);
+                    _settings.MobileHeadsUpExistingAndroidChannelId,
+                    _settings.MobileHeadsUpAndroidChannelId,
+                    _settings.MobileHeadsUpPriority);
                 return;
 
             default:

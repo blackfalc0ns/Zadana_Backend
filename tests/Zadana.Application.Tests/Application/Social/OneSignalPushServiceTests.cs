@@ -65,7 +65,7 @@ public class OneSignalPushServiceTests
     }
 
     [Fact]
-    public async Task SendToExternalUserAsync_WithMobileOrderUpdatesProfile_ShouldUseOrderUpdatesChannelFields()
+    public async Task SendToExternalUserAsync_WithMobileOrderUpdatesProfile_ShouldUseSameHeadsUpChannelTemporarily()
     {
         var handler = new RecordingHttpMessageHandler(HttpStatusCode.OK, """{"id":"push-2"}""");
         var service = CreateService(handler);
@@ -92,7 +92,7 @@ public class OneSignalPushServiceTests
         var headings = root.GetProperty("headings");
         var contents = root.GetProperty("contents");
 
-        root.GetProperty("existing_android_channel_id").GetString().Should().Be("zadana_order_updates_realtime_v2");
+        root.GetProperty("existing_android_channel_id").GetString().Should().Be("zadana_heads_up_notifications");
         root.TryGetProperty("android_channel_id", out _).Should().BeFalse();
         Guid.Parse(root.GetProperty("collapse_id").GetString()!).Should().NotBeEmpty();
         Guid.Parse(root.GetProperty("idempotency_key").GetString()!).Should().NotBeEmpty();
@@ -256,7 +256,7 @@ public class OneSignalPushServiceTests
                 MobileHeadsUpAndroidChannelId = "zadana_heads_up_notifications",
                 MobileHeadsUpExistingAndroidChannelId = "zadana_heads_up_notifications",
                 MobileHeadsUpPriority = 10,
-                OrderUpdatesAndroidChannelId = string.Empty,
+                OrderUpdatesAndroidChannelId = "zadana_order_updates_realtime_v2",
                 OrderUpdatesExistingAndroidChannelId = "zadana_order_updates_realtime_v2",
                 OrderUpdatesPriority = 10
             }),

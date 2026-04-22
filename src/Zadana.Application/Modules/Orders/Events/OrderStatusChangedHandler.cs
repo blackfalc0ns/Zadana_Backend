@@ -84,7 +84,10 @@ public class OrderStatusChangedHandler : INotificationHandler<OrderStatusChanged
                 notification.OrderId,
                 data,
                 targetUrl,
-                OneSignalPushProfile.MobileOrderUpdates,
+                // Use the proven heads-up mobile profile for live order-status pushes.
+                // The dedicated order-updates channel can be restored once the mobile
+                // app confirms killed-state visibility on that channel.
+                OneSignalPushProfile.MobileHeadsUp,
                 cancellationToken);
         }
 
