@@ -257,7 +257,11 @@ public sealed class OneSignalPushService : IOneSignalPushService
                 return;
 
             case OneSignalPushProfile.MobileHeadsUp:
-                if (!string.IsNullOrWhiteSpace(_settings.MobileHeadsUpAndroidChannelId))
+                if (!string.IsNullOrWhiteSpace(_settings.MobileHeadsUpExistingAndroidChannelId))
+                {
+                    payload["existing_android_channel_id"] = _settings.MobileHeadsUpExistingAndroidChannelId;
+                }
+                else if (!string.IsNullOrWhiteSpace(_settings.MobileHeadsUpAndroidChannelId))
                 {
                     payload["android_channel_id"] = _settings.MobileHeadsUpAndroidChannelId;
                 }

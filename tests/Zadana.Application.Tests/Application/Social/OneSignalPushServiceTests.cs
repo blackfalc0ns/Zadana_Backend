@@ -13,7 +13,7 @@ namespace Zadana.Application.Tests.Application.Social;
 public class OneSignalPushServiceTests
 {
     [Fact]
-    public async Task SendToExternalUserAsync_WithMobileHeadsUpProfile_ShouldAddMobileChannelFields()
+    public async Task SendToExternalUserAsync_WithMobileHeadsUpProfile_ShouldAddExistingMobileChannelFields()
     {
         var handler = new RecordingHttpMessageHandler(HttpStatusCode.OK, """{"id":"push-1"}""");
         var service = CreateService(handler);
@@ -37,7 +37,8 @@ public class OneSignalPushServiceTests
         using var document = JsonDocument.Parse(handler.RequestBodies[0]);
         var root = document.RootElement;
 
-        root.GetProperty("android_channel_id").GetString().Should().Be("zadana_heads_up_notifications");
+        root.GetProperty("existing_android_channel_id").GetString().Should().Be("zadana_heads_up_notifications");
+        root.TryGetProperty("android_channel_id", out _).Should().BeFalse();
         root.GetProperty("priority").GetInt32().Should().Be(10);
         root.GetProperty("isAndroid").GetBoolean().Should().BeTrue();
         root.GetProperty("isIos").GetBoolean().Should().BeTrue();
@@ -142,6 +143,7 @@ public class OneSignalPushServiceTests
                 BaseUrl = "https://api.onesignal.com",
                 DefaultWebUrl = "https://vendor.example/",
                 MobileHeadsUpAndroidChannelId = "zadana_heads_up_notifications",
+                MobileHeadsUpExistingAndroidChannelId = "zadana_heads_up_notifications",
                 MobileHeadsUpPriority = 10
             }),
             NullLogger<OneSignalPushService>.Instance);

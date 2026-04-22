@@ -10,5 +10,6 @@ public sealed class OneSignalSettings
     public string BaseUrl { get; set; } = "https://api.onesignal.com";
     public string DefaultWebUrl { get; set; } = string.Empty;
     public string MobileHeadsUpAndroidChannelId { get; set; } = "zadana_heads_up_notifications";
+    public string MobileHeadsUpExistingAndroidChannelId { get; set; } = "zadana_heads_up_notifications";
     public int MobileHeadsUpPriority { get; set; } = 10;
 }
