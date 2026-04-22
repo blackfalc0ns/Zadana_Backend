@@ -80,6 +80,7 @@ public class VendorReadService : IVendorReadService
             .Include(item => item.Branches)
                 .ThenInclude(branch => branch.OperatingHours)
             .Include(item => item.BankAccounts)
+            .Include(item => item.DocumentReviews)
             .FirstOrDefaultAsync(item => item.Id == vendorId, cancellationToken);
 
         if (vendor == null)
@@ -195,6 +196,8 @@ public class VendorReadService : IVendorReadService
             vendor.ArchiveReason,
             vendor.LogoUrl,
             vendor.CommercialRegisterDocumentUrl,
+            vendor.TaxDocumentUrl,
+            vendor.LicenseDocumentUrl,
             vendor.ApprovedAtUtc,
             approvedByName,
             vendor.CreatedAtUtc,
@@ -223,6 +226,7 @@ public class VendorReadService : IVendorReadService
         var reviewNotes = reviewNotifications
             .Select(MapReviewNote)
             .ToList();
+        var reviewDocuments = MapReviewDocuments(vendor, workspace.PrimaryBankAccount, user);
         var reviewStartedAtUtc = reviewNotifications
             .FirstOrDefault(item => GetReviewKind(item.Type) == "start-review")
             ?.CreatedAtUtc;
@@ -277,6 +281,8 @@ public class VendorReadService : IVendorReadService
             workspace.ArchiveReason,
             workspace.LogoUrl,
             workspace.CommercialRegisterDocumentUrl,
+            workspace.TaxDocumentUrl,
+            workspace.LicenseDocumentUrl,
             workspace.ApprovedAtUtc,
             workspace.ApprovedByName,
             workspace.CreatedAtUtc,
@@ -296,9 +302,111 @@ public class VendorReadService : IVendorReadService
             workspace.NotificationSettings,
             workspace.PrimaryBankAccount,
             workspace.OperatingHours,
+            reviewDocuments,
             reviewNotes,
             workspace.BranchesCount,
             workspace.BankAccountsCount);
+    }
+
+    private static IReadOnlyList<VendorReviewDocumentDto> MapReviewDocuments(
+        Vendor vendor,
+        VendorBankAccountDto? primaryBankAccount,
+        User user)
+    {
+        var reviewLookup = vendor.DocumentReviews.ToDictionary(item => item.Type);
+
+        return new[]
+        {
+            CreateReviewDocument(vendor, user, primaryBankAccount, reviewLookup, VendorDocumentType.Identity),
+            CreateReviewDocument(vendor, user, primaryBankAccount, reviewLookup, VendorDocumentType.Commercial),
+            CreateReviewDocument(vendor, user, primaryBankAccount, reviewLookup, VendorDocumentType.Tax),
+            CreateReviewDocument(vendor, user, primaryBankAccount, reviewLookup, VendorDocumentType.Bank),
+            CreateReviewDocument(vendor, user, primaryBankAccount, reviewLookup, VendorDocumentType.License)
+        };
+    }
+
+    private static VendorReviewDocumentDto CreateReviewDocument(
+        Vendor vendor,
+        User user,
+        VendorBankAccountDto? primaryBankAccount,
+        IReadOnlyDictionary<VendorDocumentType, VendorDocumentReview> reviewLookup,
+        VendorDocumentType type)
+    {
+        var review = reviewLookup.GetValueOrDefault(type);
+        var (titleKey, descriptionKey, icon) = GetReviewDocumentMetadata(type);
+        var fileUrl = GetDocumentFileUrl(vendor, type);
+        var isUploaded = IsDocumentUploaded(vendor, user, primaryBankAccount, type);
+        var status = isUploaded ? "completed" : "missing";
+        var previewKind = ResolvePreviewKind(type, fileUrl, isUploaded);
+        var reviewDecision = review?.Decision.ToString().ToLowerInvariant() ?? "pending";
+
+        return new VendorReviewDocumentDto(
+            type.ToString().ToLowerInvariant(),
+            type.ToString().ToLowerInvariant(),
+            titleKey,
+            descriptionKey,
+            icon,
+            status,
+            status == "completed" ? "COMPLIANCE.STATUS.COMPLETED" : "COMPLIANCE.STATUS.MISSING",
+            status == "completed" ? "bg-teal-50 text-teal-500" : "bg-slate-100 text-slate-500",
+            true,
+            isUploaded,
+            previewKind,
+            fileUrl,
+            reviewDecision,
+            review?.RejectionReason,
+            review?.ReviewedAtUtc,
+            review?.ReviewedByName);
+    }
+
+    private static (string TitleKey, string DescriptionKey, string Icon) GetReviewDocumentMetadata(VendorDocumentType type) =>
+        type switch
+        {
+            VendorDocumentType.Identity => ("COMPLIANCE.VERIFICATION.IDENTITY", "COMPLIANCE.VERIFICATION.IDENTITY_DESC", "badge"),
+            VendorDocumentType.Commercial => ("COMPLIANCE.VERIFICATION.COMMERCIAL_REG", "COMPLIANCE.VERIFICATION.COMMERCIAL_DESC", "storefront"),
+            VendorDocumentType.Tax => ("COMPLIANCE.VERIFICATION.TAX_CERT", "COMPLIANCE.VERIFICATION.TAX_DESC", "receipt_long"),
+            VendorDocumentType.Bank => ("COMPLIANCE.VERIFICATION.BANK_ACCOUNT", "COMPLIANCE.VERIFICATION.BANK_DESC", "account_balance"),
+            _ => ("COMPLIANCE.VERIFICATION.MUNICIPAL_LICENSE", "COMPLIANCE.VERIFICATION.LICENSE_DESC", "verified")
+        };
+
+    private static bool IsDocumentUploaded(
+        Vendor vendor,
+        User user,
+        VendorBankAccountDto? primaryBankAccount,
+        VendorDocumentType type) =>
+        type switch
+        {
+            VendorDocumentType.Identity => !string.IsNullOrWhiteSpace(vendor.IdNumber) || !string.IsNullOrWhiteSpace(vendor.OwnerName ?? user.FullName),
+            VendorDocumentType.Commercial => !string.IsNullOrWhiteSpace(vendor.CommercialRegisterDocumentUrl) || !string.IsNullOrWhiteSpace(vendor.CommercialRegistrationNumber),
+            VendorDocumentType.Tax => !string.IsNullOrWhiteSpace(vendor.TaxDocumentUrl) || !string.IsNullOrWhiteSpace(vendor.TaxId),
+            VendorDocumentType.Bank => primaryBankAccount is not null && !string.IsNullOrWhiteSpace(primaryBankAccount.Iban),
+            VendorDocumentType.License => !string.IsNullOrWhiteSpace(vendor.LicenseDocumentUrl) || !string.IsNullOrWhiteSpace(vendor.LicenseNumber),
+            _ => false
+        };
+
+    private static string? GetDocumentFileUrl(Vendor vendor, VendorDocumentType type) =>
+        type switch
+        {
+            VendorDocumentType.Commercial => vendor.CommercialRegisterDocumentUrl,
+            VendorDocumentType.Tax => vendor.TaxDocumentUrl,
+            VendorDocumentType.License => vendor.LicenseDocumentUrl,
+            _ => null
+        };
+
+    private static string ResolvePreviewKind(VendorDocumentType type, string? fileUrl, bool isUploaded)
+    {
+        if (!string.IsNullOrWhiteSpace(fileUrl))
+        {
+            var lowerUrl = fileUrl.ToLowerInvariant();
+            if (lowerUrl.EndsWith(".png") || lowerUrl.EndsWith(".jpg") || lowerUrl.EndsWith(".jpeg") || lowerUrl.EndsWith(".webp"))
+            {
+                return "image";
+            }
+
+            return "pdf";
+        }
+
+        return isUploaded ? "structured" : "unavailable";
     }
 
     private static VendorReviewNoteDto MapReviewNote(Notification notification)

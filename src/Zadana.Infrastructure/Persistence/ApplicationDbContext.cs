@@ -38,6 +38,7 @@ public class ApplicationDbContext : IdentityDbContext<User, IdentityRole<Guid>, 
     public DbSet<VendorBranch> VendorBranches => Set<VendorBranch>();
     public DbSet<BranchOperatingHour> BranchOperatingHours => Set<BranchOperatingHour>();
     public DbSet<VendorBankAccount> VendorBankAccounts => Set<VendorBankAccount>();
+    public DbSet<VendorDocumentReview> VendorDocumentReviews => Set<VendorDocumentReview>();
 
     // Catalog
     public DbSet<Category> Categories => Set<Category>();

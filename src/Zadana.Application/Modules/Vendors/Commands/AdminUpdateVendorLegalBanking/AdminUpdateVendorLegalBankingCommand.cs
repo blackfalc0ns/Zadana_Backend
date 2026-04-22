@@ -21,7 +21,9 @@ public record AdminUpdateVendorLegalBankingCommand(
     string Iban,
     string? SwiftCode,
     string? PayoutCycle,
-    string? CommercialRegisterDocumentUrl) : IRequest<VendorDetailDto>;
+    string? CommercialRegisterDocumentUrl,
+    string? TaxDocumentUrl,
+    string? LicenseDocumentUrl) : IRequest<VendorDetailDto>;
 
 public class AdminUpdateVendorLegalBankingCommandValidator : AbstractValidator<AdminUpdateVendorLegalBankingCommand>
 {
@@ -65,7 +67,9 @@ public class AdminUpdateVendorLegalBankingCommandHandler : IRequestHandler<Admin
             request.CommercialRegistrationExpiryDate,
             request.TaxId,
             request.LicenseNumber,
-            request.CommercialRegisterDocumentUrl);
+            request.CommercialRegisterDocumentUrl,
+            request.TaxDocumentUrl,
+            request.LicenseDocumentUrl);
         vendor.UpdateBanking(request.PayoutCycle);
 
         foreach (var account in vendor.BankAccounts)

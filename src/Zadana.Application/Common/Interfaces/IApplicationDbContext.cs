@@ -23,6 +23,7 @@ public interface IApplicationDbContext
     DbSet<VendorBranch> VendorBranches { get; }
     DbSet<BranchOperatingHour> BranchOperatingHours { get; }
     DbSet<VendorBankAccount> VendorBankAccounts { get; }
+    DbSet<VendorDocumentReview> VendorDocumentReviews { get; }
 
     // Catalog
     DbSet<Category> Categories { get; }

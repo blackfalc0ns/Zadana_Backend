@@ -1,0 +1,113 @@
+{
+  "document_name": "Mobile Customer Realtime SignalR Handoff",
+  "version": "1.0.0",
+  "updated_at_utc": "2026-04-22T00:00:00Z",
+  "purpose": "Ready-to-use realtime handoff for the customer mobile app to receive inbox notifications, direct order status updates, and banner broadcasts over SignalR.",
+  "connection_requirements": {
+    "transport": "SignalR",
+    "auth_required": true,
+    "auth_type": "Bearer <access_token>",
+    "hub_url_rule": "If API base URL is https://api.example.com/api then the SignalR hub URL is https://api.example.com/hubs/notifications",
+    "signalr_auth_note": "Pass the authenticated customer access token using SignalR accessTokenFactory or the access_token query-string flow."
+  },
+  "events": [
+    {
+      "hub_url": "{BASE_URL_WITHOUT_/api}/hubs/notifications",
+      "event_name": "ReceiveNotification",
+      "subscribe_method": "connection.on('ReceiveNotification', handler)",
+      "subscribe_params": [],
+      "auth_required": true,
+      "payload_sample": {
+        "id": "11111111-1111-1111-1111-111111111111",
+        "titleAr": "تم تحديث حالة الطلب",
+        "titleEn": "Order update",
+        "bodyAr": "تم تحديث حالة طلبك رقم 12345",
+        "bodyEn": "Your order #12345 status has been updated",
+        "type": "order_status_changed",
+        "referenceId": "22222222-2222-2222-2222-222222222222",
+        "data": "{\"orderId\":\"22222222-2222-2222-2222-222222222222\",\"orderNumber\":\"12345\",\"vendorId\":\"33333333-3333-3333-3333-333333333333\",\"oldStatus\":\"Accepted\",\"newStatus\":\"Preparing\",\"actorRole\":\"vendor\",\"action\":\"status_changed\",\"targetUrl\":\"/orders/22222222-2222-2222-2222-222222222222\"}",
+        "dataObject": {
+          "orderId": "22222222-2222-2222-2222-222222222222",
+          "orderNumber": "12345",
+          "vendorId": "33333333-3333-3333-3333-333333333333",
+          "oldStatus": "Accepted",
+          "newStatus": "Preparing",
+          "actorRole": "vendor",
+          "action": "status_changed",
+          "targetUrl": "/orders/22222222-2222-2222-2222-222222222222"
+        },
+        "isRead": false,
+        "createdAtUtc": "2026-04-22T10:00:00Z"
+      }
+    },
+    {
+      "hub_url": "{BASE_URL_WITHOUT_/api}/hubs/notifications",
+      "event_name": "ReceiveOrderStatusChanged",
+      "subscribe_method": "connection.on('ReceiveOrderStatusChanged', handler)",
+      "subscribe_params": [],
+      "auth_required": true,
+      "payload_sample": {
+        "orderId": "22222222-2222-2222-2222-222222222222",
+        "orderNumber": "12345",
+        "vendorId": "33333333-3333-3333-3333-333333333333",
+        "oldStatus": "PendingVendorAcceptance",
+        "newStatus": "Accepted",
+        "actorRole": "vendor",
+        "action": "status_changed",
+        "targetUrl": "/orders/22222222-2222-2222-2222-222222222222",
+        "changedAtUtc": "2026-04-22T10:05:00Z"
+      }
+    },
+    {
+      "hub_url": "{BASE_URL_WITHOUT_/api}/hubs/notifications",
+      "event_name": "ReceiveBroadcast",
+      "subscribe_method": "connection.on('ReceiveBroadcast', handler)",
+      "subscribe_params": [],
+      "auth_required": true,
+      "payload_sample": {
+        "id": "44444444-4444-4444-4444-444444444444",
+        "titleAr": "عرض جديد: خصم الربيع",
+        "titleEn": "New Offer: Spring Sale",
+        "bodyAr": "اكتشف أحدث العروض والخصومات المتاحة الآن!",
+        "bodyEn": "Discover the latest offers and discounts available now!",
+        "type": "new_banner",
+        "referenceId": null,
+        "data": "{\"bannerId\":\"55555555-5555-5555-5555-555555555555\",\"imageUrl\":\"https://example.com/banner.jpg\"}",
+        "dataObject": {
+          "bannerId": "55555555-5555-5555-5555-555555555555",
+          "imageUrl": "https://example.com/banner.jpg"
+        },
+        "isRead": false,
+        "createdAtUtc": "2026-04-22T10:10:00Z"
+      }
+    }
+  ],
+  "mobile_recommendations": [
+    "Connect to the hub after customer login using the current access token.",
+    "Listen to ReceiveNotification to update the inbox and badge state.",
+    "Listen to ReceiveOrderStatusChanged to update the currently opened order details screen immediately.",
+    "Listen to ReceiveBroadcast to show real-time marketing banners or offers.",
+    "Use referenceId or dataObject.orderId for order navigation.",
+    "Use dataObject.targetUrl when the app wants to preserve backend navigation intent."
+  ],
+  "flutter_signalr_example": {
+    "listen_calls": [
+      "connection.on('ReceiveNotification', (args) { /* handle inbox notification */ });",
+      "connection.on('ReceiveOrderStatusChanged', (args) { /* handle order status realtime */ });",
+      "connection.on('ReceiveBroadcast', (args) { /* handle banner broadcast */ });"
+    ]
+  },
+  "important_notes": [
+    "There are no subscribe params for these realtime events.",
+    "The backend targets the authenticated customer automatically based on the access token.",
+    "ReceiveBroadcast is sent to connected customer clients through the all-customers SignalR group.",
+    "The hub route for customer mobile realtime is /hubs/notifications."
+  ],
+  "backend_source_files": [
+    "src/Zadana.Api/Realtime/NotificationHub.cs",
+    "src/Zadana.Api/Realtime/NotificationService.cs",
+    "src/Zadana.Api/Realtime/Contracts/OrderStatusChangedRealtimePayload.cs",
+    "src/Zadana.Application/Modules/Orders/Events/OrderStatusChangedHandler.cs",
+    "src/Zadana.Application/Modules/Marketing/Events/BannerActivatedHandler.cs"
+  ]
+}

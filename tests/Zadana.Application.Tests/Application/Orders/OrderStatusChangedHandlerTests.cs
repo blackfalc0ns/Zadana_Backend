@@ -275,6 +275,21 @@ public class OrderStatusChangedHandlerTests
                 $"/orders/{orderId}",
                 It.IsAny<CancellationToken>()),
             Times.Once);
+
+        pushServiceMock.Verify(
+            service => service.SendToExternalUserAsync(
+                customerId.ToString(),
+                It.IsAny<string>(),
+                It.IsAny<string>(),
+                It.IsAny<string>(),
+                It.IsAny<string>(),
+                NotificationTypes.OrderStatusChanged,
+                orderId,
+                It.Is<string?>(data => data != null && data.Contains("\"newStatus\":\"Accepted\"")),
+                $"/orders/{orderId}",
+                OneSignalPushProfile.MobileHeadsUp,
+                It.IsAny<CancellationToken>()),
+            Times.Once);
     }
 
     private static Mock<IOneSignalPushService> CreatePushServiceMock()
@@ -291,6 +306,26 @@ public class OrderStatusChangedHandlerTests
                 It.IsAny<Guid?>(),
                 It.IsAny<string?>(),
                 It.IsAny<string?>(),
+                It.IsAny<CancellationToken>()))
+            .ReturnsAsync(new OneSignalPushDispatchResult(
+                Attempted: true,
+                Sent: true,
+                Skipped: false,
+                ProviderStatusCode: 200,
+                ProviderNotificationId: "push-id",
+                Reason: null));
+        pushServiceMock
+            .Setup(service => service.SendToExternalUserAsync(
+                It.IsAny<string>(),
+                It.IsAny<string>(),
+                It.IsAny<string>(),
+                It.IsAny<string>(),
+                It.IsAny<string>(),
+                It.IsAny<string?>(),
+                It.IsAny<Guid?>(),
+                It.IsAny<string?>(),
+                It.IsAny<string?>(),
+                It.IsAny<OneSignalPushProfile>(),
                 It.IsAny<CancellationToken>()))
             .ReturnsAsync(new OneSignalPushDispatchResult(
                 Attempted: true,

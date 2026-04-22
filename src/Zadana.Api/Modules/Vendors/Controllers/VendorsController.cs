@@ -63,6 +63,8 @@ public class VendorsController : ApiControllerBase
             request.PayoutCycle,
             request.LogoUrl,
             request.CommercialRegisterDocumentUrl,
+            request.TaxDocumentUrl,
+            request.LicenseDocumentUrl,
             request.BranchName,
             request.BranchAddressLine,
             request.BranchLatitude,
@@ -139,7 +141,9 @@ public class VendorsController : ApiControllerBase
             request.CommercialRegistrationExpiryDate,
             request.TaxId,
             request.LicenseNumber,
-            request.CommercialRegisterDocumentUrl));
+            request.CommercialRegisterDocumentUrl,
+            request.TaxDocumentUrl,
+            request.LicenseDocumentUrl));
 
         return Ok(new { Data = result, Message = _localizer["VendorProfileUpdated"].Value });
     }

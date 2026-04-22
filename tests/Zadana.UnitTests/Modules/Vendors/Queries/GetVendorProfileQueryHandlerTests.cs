@@ -53,6 +53,8 @@ public class GetVendorProfileQueryHandlerTests
             null,
             null,
             null,
+            null,
+            null,
             "Admin User",
             DateTime.UtcNow,
             DateTime.UtcNow,

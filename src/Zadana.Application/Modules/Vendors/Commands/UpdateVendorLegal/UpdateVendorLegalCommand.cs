@@ -14,7 +14,9 @@ public record UpdateVendorLegalCommand(
     DateTime? CommercialRegistrationExpiryDate,
     string? TaxId,
     string? LicenseNumber,
-    string? CommercialRegisterDocumentUrl) : IRequest<VendorWorkspaceDto>;
+    string? CommercialRegisterDocumentUrl,
+    string? TaxDocumentUrl,
+    string? LicenseDocumentUrl) : IRequest<VendorWorkspaceDto>;
 
 public class UpdateVendorLegalCommandValidator : AbstractValidator<UpdateVendorLegalCommand>
 {
@@ -56,7 +58,9 @@ public class UpdateVendorLegalCommandHandler : IRequestHandler<UpdateVendorLegal
             request.CommercialRegistrationExpiryDate,
             request.TaxId,
             request.LicenseNumber,
-            request.CommercialRegisterDocumentUrl);
+            request.CommercialRegisterDocumentUrl,
+            request.TaxDocumentUrl,
+            request.LicenseDocumentUrl);
 
         await _unitOfWork.SaveChangesAsync(cancellationToken);
 

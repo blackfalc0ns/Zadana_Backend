@@ -19,6 +19,7 @@ public class VendorRepository : IVendorRepository
             .Include(vendor => vendor.Branches)
                 .ThenInclude(branch => branch.OperatingHours)
             .Include(vendor => vendor.BankAccounts)
+            .Include(vendor => vendor.DocumentReviews)
             .FirstOrDefaultAsync(vendor => vendor.Id == vendorId, cancellationToken);
 
     public Task<Vendor?> GetByUserIdAsync(Guid userId, CancellationToken cancellationToken = default) =>
@@ -26,6 +27,7 @@ public class VendorRepository : IVendorRepository
             .Include(vendor => vendor.Branches)
                 .ThenInclude(branch => branch.OperatingHours)
             .Include(vendor => vendor.BankAccounts)
+            .Include(vendor => vendor.DocumentReviews)
             .FirstOrDefaultAsync(vendor => vendor.UserId == userId, cancellationToken);
 
     public Task<bool> ExistsAsync(Guid vendorId, CancellationToken cancellationToken = default) =>

@@ -1943,6 +1943,65 @@
                 }
             }
         },
+        "/api/admin/customers/{customerId}/notifications/test": {
+            "post": {
+                "tags": [
+                    "Customers"
+                ],
+                "parameters": [
+                    {
+                        "name": "customerId",
+                        "in": "path",
+                        "required": true,
+                        "schema": {
+                            "type": "string",
+                            "format": "uuid"
+                        }
+                    }
+                ],
+                "requestBody": {
+                    "content": {
+                        "application/json": {
+                            "schema": {
+                                "$ref": "#/components/schemas/AdminSendCustomerNotificationRequest"
+                            }
+                        },
+                        "text/json": {
+                            "schema": {
+                                "$ref": "#/components/schemas/AdminSendCustomerNotificationRequest"
+                            }
+                        },
+                        "application/*+json": {
+                            "schema": {
+                                "$ref": "#/components/schemas/AdminSendCustomerNotificationRequest"
+                            }
+                        }
+                    }
+                },
+                "responses": {
+                    "200": {
+                        "description": "OK",
+                        "content": {
+                            "text/plain": {
+                                "schema": {
+                                    "$ref": "#/components/schemas/AdminCustomerNotificationResponse"
+                                }
+                            },
+                            "application/json": {
+                                "schema": {
+                                    "$ref": "#/components/schemas/AdminCustomerNotificationResponse"
+                                }
+                            },
+                            "text/json": {
+                                "schema": {
+                                    "$ref": "#/components/schemas/AdminCustomerNotificationResponse"
+                                }
+                            }
+                        }
+                    }
+                }
+            }
+        },
         "/api/admin/catalog/brand-requests/{id}/review": {
             "post": {
                 "tags": [
@@ -11016,6 +11075,48 @@
                 },
                 "additionalProperties": false
             },
+            "AdminSendCustomerNotificationRequest": {
+                "type": "object",
+                "properties": {
+                    "titleAr": {
+                        "type": "string",
+                        "nullable": true
+                    },
+                    "titleEn": {
+                        "type": "string",
+                        "nullable": true
+                    },
+                    "bodyAr": {
+                        "type": "string",
+                        "nullable": true
+                    },
+                    "bodyEn": {
+                        "type": "string",
+                        "nullable": true
+                    },
+                    "type": {
+                        "type": "string",
+                        "nullable": true
+                    },
+                    "referenceId": {
+                        "type": "string",
+                        "format": "uuid",
+                        "nullable": true
+                    },
+                    "data": {
+                        "type": "string",
+                        "nullable": true
+                    },
+                    "targetUrl": {
+                        "type": "string",
+                        "nullable": true
+                    },
+                    "sendPush": {
+                        "type": "boolean"
+                    }
+                },
+                "additionalProperties": false
+            },
             "AdminVendorNotificationResponse": {
                 "type": "object",
                 "properties": {
@@ -11024,6 +11125,57 @@
                         "nullable": true
                     },
                     "vendorId": {
+                        "type": "string",
+                        "format": "uuid"
+                    },
+                    "userId": {
+                        "type": "string",
+                        "format": "uuid"
+                    },
+                    "externalId": {
+                        "type": "string",
+                        "nullable": true
+                    },
+                    "type": {
+                        "type": "string",
+                        "nullable": true
+                    },
+                    "inboxRequested": {
+                        "type": "boolean"
+                    },
+                    "pushAttempted": {
+                        "type": "boolean"
+                    },
+                    "pushSent": {
+                        "type": "boolean"
+                    },
+                    "pushSkipped": {
+                        "type": "boolean"
+                    },
+                    "pushStatusCode": {
+                        "type": "integer",
+                        "format": "int32",
+                        "nullable": true
+                    },
+                    "providerNotificationId": {
+                        "type": "string",
+                        "nullable": true
+                    },
+                    "pushReason": {
+                        "type": "string",
+                        "nullable": true
+                    }
+                },
+                "additionalProperties": false
+            },
+            "AdminCustomerNotificationResponse": {
+                "type": "object",
+                "properties": {
+                    "message": {
+                        "type": "string",
+                        "nullable": true
+                    },
+                    "customerId": {
                         "type": "string",
                         "format": "uuid"
                     },

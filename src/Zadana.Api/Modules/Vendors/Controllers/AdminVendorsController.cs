@@ -19,9 +19,11 @@ using Zadana.Application.Modules.Vendors.Commands.AdminUpdateVendorNotificationS
 using Zadana.Application.Modules.Vendors.Commands.AdminUpdateVendorOwner;
 using Zadana.Application.Modules.Vendors.Commands.AdminUpdateVendorOperationsSettings;
 using Zadana.Application.Modules.Vendors.Commands.AdminUpdateVendorStore;
+using Zadana.Application.Modules.Vendors.Commands.ApproveVendorDocumentReview;
 using Zadana.Application.Modules.Vendors.Commands.ApproveVendor;
 using Zadana.Application.Modules.Vendors.Commands.ArchiveVendor;
 using Zadana.Application.Modules.Vendors.Commands.LockVendorLogin;
+using Zadana.Application.Modules.Vendors.Commands.RejectVendorDocumentReview;
 using Zadana.Application.Modules.Vendors.Commands.RejectVendor;
 using Zadana.Application.Modules.Vendors.Commands.ReactivateVendor;
 using Zadana.Application.Modules.Vendors.Commands.RequestVendorDocuments;
@@ -264,6 +266,20 @@ public class AdminVendorsController : ApiControllerBase
         return Ok(result);
     }
 
+    [HttpPost("{vendorId:guid}/documents/{documentId}/approve")]
+    public async Task<IActionResult> ApproveVendorDocument(Guid vendorId, string documentId)
+    {
+        var result = await Sender.Send(new ApproveVendorDocumentReviewCommand(vendorId, documentId));
+        return Ok(result);
+    }
+
+    [HttpPost("{vendorId:guid}/documents/{documentId}/reject")]
+    public async Task<IActionResult> RejectVendorDocument(Guid vendorId, string documentId, [FromBody] AdminRejectVendorDocumentRequest request)
+    {
+        var result = await Sender.Send(new RejectVendorDocumentReviewCommand(vendorId, documentId, request.Reason));
+        return Ok(result);
+    }
+
     [HttpPost("{vendorId:guid}/payouts/{payoutId:guid}/retry")]
     public async Task<IActionResult> RetryVendorPayout(Guid vendorId, Guid payoutId)
     {
@@ -412,7 +428,9 @@ public class AdminVendorsController : ApiControllerBase
             request.Iban,
             request.SwiftCode,
             request.PayoutCycle,
-            request.CommercialRegisterDocumentUrl));
+            request.CommercialRegisterDocumentUrl,
+            request.TaxDocumentUrl,
+            request.LicenseDocumentUrl));
 
         return Ok(result);
     }

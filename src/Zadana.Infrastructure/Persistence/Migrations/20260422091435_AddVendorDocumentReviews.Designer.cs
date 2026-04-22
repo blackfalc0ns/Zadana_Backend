@@ -3,17 +3,20 @@ using System;
 using Microsoft.EntityFrameworkCore;
 using Microsoft.EntityFrameworkCore.Infrastructure;
 using Microsoft.EntityFrameworkCore.Metadata;
+using Microsoft.EntityFrameworkCore.Migrations;
 using Microsoft.EntityFrameworkCore.Storage.ValueConversion;
 using Zadana.Infrastructure.Persistence;
 
 #nullable disable
 
-namespace Zadana.Infrastructure.Migrations
+namespace Zadana.Infrastructure.Persistence.Migrations
 {
     [DbContext(typeof(ApplicationDbContext))]
-    partial class ApplicationDbContextModelSnapshot : ModelSnapshot
+    [Migration("20260422091435_AddVendorDocumentReviews")]
+    partial class AddVendorDocumentReviews
     {
-        protected override void BuildModel(ModelBuilder modelBuilder)
+        /// <inheritdoc />
+        protected override void BuildTargetModel(ModelBuilder modelBuilder)
         {
 #pragma warning disable 612, 618
             modelBuilder
@@ -2661,9 +2664,6 @@ namespace Zadana.Infrastructure.Migrations
                     b.Property<DateTime?>("LastStatusChangedAtUtc")
                         .HasColumnType("datetime2");
 
-                    b.Property<string>("LicenseDocumentUrl")
-                        .HasColumnType("nvarchar(max)");
-
                     b.Property<string>("LicenseNumber")
                         .HasMaxLength(100)
                         .HasColumnType("nvarchar(100)");
@@ -2738,9 +2738,6 @@ namespace Zadana.Infrastructure.Migrations
                     b.Property<string>("SuspensionReason")
                         .HasMaxLength(500)
                         .HasColumnType("nvarchar(500)");
-
-                    b.Property<string>("TaxDocumentUrl")
-                        .HasColumnType("nvarchar(max)");
 
                     b.Property<string>("TaxId")
                         .HasMaxLength(50)

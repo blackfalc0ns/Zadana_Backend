@@ -1943,6 +1943,65 @@
                 }
             }
         },
+        "/api/admin/customers/{customerId}/notifications/test": {
+            "post": {
+                "tags": [
+                    "Admin/Customers"
+                ],
+                "parameters": [
+                    {
+                        "name": "customerId",
+                        "in": "path",
+                        "required": true,
+                        "schema": {
+                            "type": "string",
+                            "format": "uuid"
+                        }
+                    }
+                ],
+                "requestBody": {
+                    "content": {
+                        "application/json": {
+                            "schema": {
+                                "$ref": "#/components/schemas/AdminSendCustomerNotificationRequest"
+                            }
+                        },
+                        "text/json": {
+                            "schema": {
+                                "$ref": "#/components/schemas/AdminSendCustomerNotificationRequest"
+                            }
+                        },
+                        "application/*+json": {
+                            "schema": {
+                                "$ref": "#/components/schemas/AdminSendCustomerNotificationRequest"
+                            }
+                        }
+                    }
+                },
+                "responses": {
+                    "200": {
+                        "description": "OK",
+                        "content": {
+                            "text/plain": {
+                                "schema": {
+                                    "$ref": "#/components/schemas/AdminCustomerNotificationResponse"
+                                }
+                            },
+                            "application/json": {
+                                "schema": {
+                                    "$ref": "#/components/schemas/AdminCustomerNotificationResponse"
+                                }
+                            },
+                            "text/json": {
+                                "schema": {
+                                    "$ref": "#/components/schemas/AdminCustomerNotificationResponse"
+                                }
+                            }
+                        }
+                    }
+                }
+            }
+        },
         "/api/admin/catalog/brand-requests/{id}/review": {
             "post": {
                 "tags": [
@@ -5174,44 +5233,6 @@
                         }
                     }
                 }
-            },
-            "delete": {
-                "tags": [
-                    "Customer/Orders"
-                ],
-                "parameters": [
-                    {
-                        "name": "orderId",
-                        "in": "path",
-                        "required": true,
-                        "schema": {
-                            "type": "string",
-                            "format": "uuid"
-                        }
-                    }
-                ],
-                "responses": {
-                    "200": {
-                        "description": "OK",
-                        "content": {
-                            "text/plain": {
-                                "schema": {
-                                    "$ref": "#/components/schemas/DeleteCustomerOrderResponse"
-                                }
-                            },
-                            "application/json": {
-                                "schema": {
-                                    "$ref": "#/components/schemas/DeleteCustomerOrderResponse"
-                                }
-                            },
-                            "text/json": {
-                                "schema": {
-                                    "$ref": "#/components/schemas/DeleteCustomerOrderResponse"
-                                }
-                            }
-                        }
-                    }
-                }
             }
         },
         "/api/orders/{orderId}/tracking": {
@@ -5247,44 +5268,6 @@
                             "text/json": {
                                 "schema": {
                                     "$ref": "#/components/schemas/CustomerOrderTrackingResponse"
-                                }
-                            }
-                        }
-                    }
-                }
-            }
-        },
-        "/api/orders/cancellation-reasons": {
-            "get": {
-                "tags": [
-                    "Customer/Orders"
-                ],
-                "responses": {
-                    "200": {
-                        "description": "OK",
-                        "content": {
-                            "text/plain": {
-                                "schema": {
-                                    "type": "array",
-                                    "items": {
-                                        "$ref": "#/components/schemas/CustomerOrderCancellationReasonResponse"
-                                    }
-                                }
-                            },
-                            "application/json": {
-                                "schema": {
-                                    "type": "array",
-                                    "items": {
-                                        "$ref": "#/components/schemas/CustomerOrderCancellationReasonResponse"
-                                    }
-                                }
-                            },
-                            "text/json": {
-                                "schema": {
-                                    "type": "array",
-                                    "items": {
-                                        "$ref": "#/components/schemas/CustomerOrderCancellationReasonResponse"
-                                    }
                                 }
                             }
                         }
@@ -5344,78 +5327,6 @@
                             "text/json": {
                                 "schema": {
                                     "$ref": "#/components/schemas/CancelCustomerOrderResponse"
-                                }
-                            }
-                        }
-                    }
-                }
-            }
-        },
-        "/api/orders/{orderId}/retry-payment": {
-            "post": {
-                "tags": [
-                    "Customer/Orders"
-                ],
-                "summary": "Retry card payment for the same order",
-                "description": "Creates a new Paymob checkout session for the same pending unpaid card order. The frontend should only open payment.iframe_url and then refresh the order state from the backend.",
-                "parameters": [
-                    {
-                        "name": "orderId",
-                        "in": "path",
-                        "required": true,
-                        "schema": {
-                            "type": "string",
-                            "format": "uuid"
-                        }
-                    }
-                ],
-                "responses": {
-                    "200": {
-                        "description": "Retry payment session created successfully",
-                        "content": {
-                            "text/plain": {
-                                "schema": {
-                                    "$ref": "#/components/schemas/RetryOrderPaymentResponse"
-                                },
-                                "example": {
-                                    "message": "payment retry session created successfully",
-                                    "payment": {
-                                        "id": "33333333-3333-3333-3333-333333333333",
-                                        "iframe_url": "https://accept.paymob.com/api/acceptance/iframes/xxx?payment_token=yyy",
-                                        "provider": "paymob",
-                                        "provider_reference": "provider-ref-123",
-                                        "status": "pending"
-                                    }
-                                }
-                            },
-                            "application/json": {
-                                "schema": {
-                                    "$ref": "#/components/schemas/RetryOrderPaymentResponse"
-                                },
-                                "example": {
-                                    "message": "payment retry session created successfully",
-                                    "payment": {
-                                        "id": "33333333-3333-3333-3333-333333333333",
-                                        "iframe_url": "https://accept.paymob.com/api/acceptance/iframes/xxx?payment_token=yyy",
-                                        "provider": "paymob",
-                                        "provider_reference": "provider-ref-123",
-                                        "status": "pending"
-                                    }
-                                }
-                            },
-                            "text/json": {
-                                "schema": {
-                                    "$ref": "#/components/schemas/RetryOrderPaymentResponse"
-                                },
-                                "example": {
-                                    "message": "payment retry session created successfully",
-                                    "payment": {
-                                        "id": "33333333-3333-3333-3333-333333333333",
-                                        "iframe_url": "https://accept.paymob.com/api/acceptance/iframes/xxx?payment_token=yyy",
-                                        "provider": "paymob",
-                                        "provider_reference": "provider-ref-123",
-                                        "status": "pending"
-                                    }
                                 }
                             }
                         }
@@ -11164,6 +11075,48 @@
                 },
                 "additionalProperties": false
             },
+            "AdminSendCustomerNotificationRequest": {
+                "type": "object",
+                "properties": {
+                    "titleAr": {
+                        "type": "string",
+                        "nullable": true
+                    },
+                    "titleEn": {
+                        "type": "string",
+                        "nullable": true
+                    },
+                    "bodyAr": {
+                        "type": "string",
+                        "nullable": true
+                    },
+                    "bodyEn": {
+                        "type": "string",
+                        "nullable": true
+                    },
+                    "type": {
+                        "type": "string",
+                        "nullable": true
+                    },
+                    "referenceId": {
+                        "type": "string",
+                        "format": "uuid",
+                        "nullable": true
+                    },
+                    "data": {
+                        "type": "string",
+                        "nullable": true
+                    },
+                    "targetUrl": {
+                        "type": "string",
+                        "nullable": true
+                    },
+                    "sendPush": {
+                        "type": "boolean"
+                    }
+                },
+                "additionalProperties": false
+            },
             "AdminVendorNotificationResponse": {
                 "type": "object",
                 "properties": {
@@ -11172,6 +11125,57 @@
                         "nullable": true
                     },
                     "vendorId": {
+                        "type": "string",
+                        "format": "uuid"
+                    },
+                    "userId": {
+                        "type": "string",
+                        "format": "uuid"
+                    },
+                    "externalId": {
+                        "type": "string",
+                        "nullable": true
+                    },
+                    "type": {
+                        "type": "string",
+                        "nullable": true
+                    },
+                    "inboxRequested": {
+                        "type": "boolean"
+                    },
+                    "pushAttempted": {
+                        "type": "boolean"
+                    },
+                    "pushSent": {
+                        "type": "boolean"
+                    },
+                    "pushSkipped": {
+                        "type": "boolean"
+                    },
+                    "pushStatusCode": {
+                        "type": "integer",
+                        "format": "int32",
+                        "nullable": true
+                    },
+                    "providerNotificationId": {
+                        "type": "string",
+                        "nullable": true
+                    },
+                    "pushReason": {
+                        "type": "string",
+                        "nullable": true
+                    }
+                },
+                "additionalProperties": false
+            },
+            "AdminCustomerNotificationResponse": {
+                "type": "object",
+                "properties": {
+                    "message": {
+                        "type": "string",
+                        "nullable": true
+                    },
+                    "customerId": {
                         "type": "string",
                         "format": "uuid"
                     },
@@ -11851,10 +11855,6 @@
             "CancelCustomerOrderRequest": {
                 "type": "object",
                 "properties": {
-                    "reason_code": {
-                        "type": "string",
-                        "nullable": true
-                    },
                     "reason": {
                         "type": "string",
                         "nullable": true
@@ -11862,27 +11862,6 @@
                     "note": {
                         "type": "string",
                         "nullable": true
-                    }
-                },
-                "additionalProperties": false
-            },
-            "CustomerOrderCancellationReasonResponse": {
-                "type": "object",
-                "properties": {
-                    "code": {
-                        "type": "string",
-                        "nullable": true
-                    },
-                    "label_ar": {
-                        "type": "string",
-                        "nullable": true
-                    },
-                    "label_en": {
-                        "type": "string",
-                        "nullable": true
-                    },
-                    "requires_note": {
-                        "type": "boolean"
                     }
                 },
                 "additionalProperties": false
@@ -12745,31 +12724,25 @@
             },
             "CheckoutOrderPaymentResponse": {
                 "type": "object",
-                "description": "Payment session data returned by the backend. The mobile app should open iframe_url and then refresh order state after the payment flow ends.",
                 "properties": {
                     "id": {
                         "type": "string",
-                        "format": "uuid",
-                        "description": "Internal payment identifier."
+                        "format": "uuid"
                     },
                     "provider": {
                         "type": "string",
-                        "description": "Payment provider name, usually paymob.",
                         "nullable": true
                     },
                     "status": {
                         "type": "string",
-                        "description": "Current payment status such as pending, paid, or failed.",
                         "nullable": true
                     },
                     "iframe_url": {
                         "type": "string",
-                        "description": "Hosted payment URL generated by the backend. Frontend should open this URL and must not construct it manually.",
                         "nullable": true
                     },
                     "provider_reference": {
                         "type": "string",
-                        "description": "Provider-side payment reference if available.",
                         "nullable": true
                     }
                 },
@@ -13343,20 +13316,6 @@
                         "type": "string",
                         "nullable": true
                     },
-                    "payment_status": {
-                        "type": "string",
-                        "nullable": true
-                    },
-                    "payment_method": {
-                        "type": "string",
-                        "nullable": true
-                    },
-                    "can_retry_payment": {
-                        "type": "boolean"
-                    },
-                    "can_delete": {
-                        "type": "boolean"
-                    },
                     "can_cancel": {
                         "type": "boolean"
                     },
@@ -13409,23 +13368,6 @@
                     "status": {
                         "type": "string",
                         "nullable": true
-                    },
-                    "payment_status": {
-                        "type": "string",
-                        "nullable": true
-                    },
-                    "payment_method": {
-                        "type": "string",
-                        "nullable": true
-                    },
-                    "can_retry_payment": {
-                        "type": "boolean"
-                    },
-                    "can_delete": {
-                        "type": "boolean"
-                    },
-                    "can_cancel": {
-                        "type": "boolean"
                     },
                     "items_count": {
                         "type": "integer",
@@ -13584,23 +13526,6 @@
                     "total": {
                         "type": "integer",
                         "format": "int32"
-                    }
-                },
-                "additionalProperties": false
-            },
-            "DeleteCustomerOrderResponse": {
-                "type": "object",
-                "properties": {
-                    "message": {
-                        "type": "string",
-                        "nullable": true
-                    },
-                    "order_id": {
-                        "type": "string",
-                        "format": "uuid"
-                    },
-                    "deleted": {
-                        "type": "boolean"
                     }
                 },
                 "additionalProperties": false
@@ -14865,22 +14790,6 @@
                     "total_price": {
                         "type": "number",
                         "format": "double"
-                    }
-                },
-                "additionalProperties": false
-            },
-            "RetryOrderPaymentResponse": {
-                "type": "object",
-                "description": "Response returned after requesting a retry payment session for the same order.",
-                "properties": {
-                    "message": {
-                        "type": "string",
-                        "description": "Human-readable status message.",
-                        "nullable": true
-                    },
-                    "payment": {
-                        "description": "The new checkout session to be opened by the mobile app.",
-                        "$ref": "#/components/schemas/CheckoutOrderPaymentResponse"
                     }
                 },
                 "additionalProperties": false

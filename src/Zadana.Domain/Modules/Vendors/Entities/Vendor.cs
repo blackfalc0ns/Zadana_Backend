@@ -43,6 +43,8 @@ public class Vendor : BaseEntity
     public DateTime? LastStatusChangedAtUtc { get; private set; }
     public string? LogoUrl { get; private set; }
     public string? CommercialRegisterDocumentUrl { get; private set; }
+    public string? TaxDocumentUrl { get; private set; }
+    public string? LicenseDocumentUrl { get; private set; }
     public bool AcceptOrders { get; private set; } = true;
     public decimal? MinimumOrderAmount { get; private set; }
     public int? PreparationTimeMinutes { get; private set; }
@@ -53,6 +55,7 @@ public class Vendor : BaseEntity
     // Navigation
     public ICollection<VendorBranch> Branches { get; private set; } = [];
     public ICollection<VendorBankAccount> BankAccounts { get; private set; } = [];
+    public ICollection<VendorDocumentReview> DocumentReviews { get; private set; } = [];
 
     private Vendor() { }
 
@@ -79,7 +82,9 @@ public class Vendor : BaseEntity
         string? licenseNumber = null,
         string? payoutCycle = null,
         string? logoUrl = null,
-        string? commercialRegisterDocumentUrl = null)
+        string? commercialRegisterDocumentUrl = null,
+        string? taxDocumentUrl = null,
+        string? licenseDocumentUrl = null)
     {
         UserId = userId;
         BusinessNameAr = businessNameAr.Trim();
@@ -105,6 +110,8 @@ public class Vendor : BaseEntity
         FinancialLifecycleMode = ResolveFinancialLifecycleMode(PayoutCycle);
         LogoUrl = logoUrl;
         CommercialRegisterDocumentUrl = commercialRegisterDocumentUrl;
+        TaxDocumentUrl = NormalizeOptional(taxDocumentUrl);
+        LicenseDocumentUrl = NormalizeOptional(licenseDocumentUrl);
         AcceptOrders = true;
         EmailNotificationsEnabled = true;
         NewOrdersNotificationsEnabled = true;
@@ -202,7 +209,9 @@ public class Vendor : BaseEntity
         DateTime? commercialRegistrationExpiryDate,
         string? taxId,
         string? licenseNumber,
-        string? commercialRegisterDocumentUrl)
+        string? commercialRegisterDocumentUrl,
+        string? taxDocumentUrl = null,
+        string? licenseDocumentUrl = null)
     {
         CommercialRegistrationNumber = commercialRegistrationNumber.Trim();
         CommercialRegistrationExpiryDate = commercialRegistrationExpiryDate;
@@ -212,6 +221,16 @@ public class Vendor : BaseEntity
         if (!string.IsNullOrWhiteSpace(commercialRegisterDocumentUrl))
         {
             CommercialRegisterDocumentUrl = commercialRegisterDocumentUrl.Trim();
+        }
+
+        if (!string.IsNullOrWhiteSpace(taxDocumentUrl))
+        {
+            TaxDocumentUrl = taxDocumentUrl.Trim();
+        }
+
+        if (!string.IsNullOrWhiteSpace(licenseDocumentUrl))
+        {
+            LicenseDocumentUrl = licenseDocumentUrl.Trim();
         }
 
         UpdatedAtUtc = DateTime.UtcNow;

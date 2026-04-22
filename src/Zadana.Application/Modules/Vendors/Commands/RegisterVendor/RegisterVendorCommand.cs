@@ -37,6 +37,8 @@ public record RegisterVendorCommand(
     string? PayoutCycle,
     string? LogoUrl,
     string? CommercialRegisterDocumentUrl,
+    string? TaxDocumentUrl,
+    string? LicenseDocumentUrl,
 
     // Branch Info
     string BranchName,

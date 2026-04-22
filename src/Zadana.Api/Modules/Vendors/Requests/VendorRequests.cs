@@ -31,6 +31,8 @@ public record RegisterVendorRequest(
     string? PayoutCycle,
     string? LogoUrl,
     string? CommercialRegisterDocumentUrl,
+    string? TaxDocumentUrl,
+    string? LicenseDocumentUrl,
     string BranchName,
     string BranchAddressLine,
     decimal BranchLatitude,
@@ -78,7 +80,9 @@ public record UpdateVendorLegalRequest(
     DateTime? CommercialRegistrationExpiryDate,
     string? TaxId,
     string? LicenseNumber,
-    string? CommercialRegisterDocumentUrl);
+    string? CommercialRegisterDocumentUrl,
+    string? TaxDocumentUrl,
+    string? LicenseDocumentUrl);
 
 public record UpdateVendorBankingRequest(
     string BankName,
@@ -149,7 +153,9 @@ public record AdminUpdateVendorLegalBankingRequest(
     string Iban,
     string? SwiftCode,
     string? PayoutCycle,
-    string? CommercialRegisterDocumentUrl);
+    string? CommercialRegisterDocumentUrl,
+    string? TaxDocumentUrl,
+    string? LicenseDocumentUrl);
 
 public record AdminUpdateVendorContactRequest(
     string Region,
@@ -183,6 +189,8 @@ public record AdminAddVendorReviewNoteRequest(
     string Message,
     string? AuthorName,
     string? RoleLabel);
+
+public record AdminRejectVendorDocumentRequest(string Reason);
 
 public sealed class AdminSendVendorNotificationRequest
 {

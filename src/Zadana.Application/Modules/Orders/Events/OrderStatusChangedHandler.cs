@@ -46,6 +46,9 @@ public class OrderStatusChangedHandler : INotificationHandler<OrderStatusChanged
 
         if (notification.NotifyCustomer)
         {
+            var customerType = notification.NewStatus == OrderStatus.Cancelled
+                ? NotificationTypes.OrderCancelled
+                : NotificationTypes.OrderStatusChanged;
             var (titleAr, titleEn, bodyAr, bodyEn) = GetCustomerNotificationContent(notification.NewStatus, notification.OrderNumber);
 
             await _notificationService.SendToUserAsync(
@@ -54,7 +57,7 @@ public class OrderStatusChangedHandler : INotificationHandler<OrderStatusChanged
                 titleEn,
                 bodyAr,
                 bodyEn,
-                notification.NewStatus == OrderStatus.Cancelled ? NotificationTypes.OrderCancelled : NotificationTypes.OrderStatusChanged,
+                customerType,
                 notification.OrderId,
                 data,
                 cancellationToken);
@@ -69,6 +72,19 @@ public class OrderStatusChangedHandler : INotificationHandler<OrderStatusChanged
                 notification.ActorRole,
                 ResolveAction(notification),
                 targetUrl,
+                cancellationToken);
+
+            await _oneSignalPushService.SendToExternalUserAsync(
+                notification.UserId.ToString(),
+                titleAr,
+                titleEn,
+                bodyAr,
+                bodyEn,
+                customerType,
+                notification.OrderId,
+                data,
+                targetUrl,
+                OneSignalPushProfile.MobileHeadsUp,
                 cancellationToken);
         }
 

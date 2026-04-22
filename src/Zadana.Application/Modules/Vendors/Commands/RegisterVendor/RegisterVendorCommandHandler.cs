@@ -59,7 +59,9 @@ public class RegisterVendorCommandHandler : IRequestHandler<RegisterVendorComman
                 request.LicenseNumber,
                 request.PayoutCycle,
                 request.LogoUrl,
-                request.CommercialRegisterDocumentUrl);
+                request.CommercialRegisterDocumentUrl,
+                request.TaxDocumentUrl,
+                request.LicenseDocumentUrl);
 
             _vendorRepository.Add(vendor);
             var branch = new VendorBranch(

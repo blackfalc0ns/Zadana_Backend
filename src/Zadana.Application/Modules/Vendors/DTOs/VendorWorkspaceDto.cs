@@ -36,6 +36,8 @@ public record VendorWorkspaceDto(
     string? ArchiveReason,
     string? LogoUrl,
     string? CommercialRegisterDocumentUrl,
+    string? TaxDocumentUrl,
+    string? LicenseDocumentUrl,
     DateTime? ApprovedAtUtc,
     string? ApprovedByName,
     DateTime CreatedAtUtc,

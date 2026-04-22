@@ -29,6 +29,8 @@ public record VendorDetailDto(
     string? ArchiveReason,
     string? LogoUrl,
     string? CommercialRegisterDocumentUrl,
+    string? TaxDocumentUrl,
+    string? LicenseDocumentUrl,
     DateTime? ApprovedAtUtc,
     string? ApprovedByName,
     DateTime CreatedAtUtc,
@@ -49,6 +51,7 @@ public record VendorDetailDto(
     VendorNotificationSettingsDto NotificationSettings,
     VendorBankAccountDto? PrimaryBankAccount,
     IReadOnlyList<VendorOperatingHourDto> OperatingHours,
+    IReadOnlyList<VendorReviewDocumentDto> ReviewDocuments,
     IReadOnlyList<VendorReviewNoteDto> ReviewNotes,
     // Counts
     int BranchesCount,
