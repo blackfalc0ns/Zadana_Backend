@@ -116,12 +116,20 @@ public sealed class OneSignalPushService : IOneSignalPushService
 
         var sanitized = NotificationPayloadHelper.Sanitize(titleAr, titleEn, bodyAr, bodyEn, type, data);
         var resolvedTargetUrl = ShouldIncludeWebUrl(profile) ? ResolveTargetUrl(targetUrl) : null;
+        var notificationEventId = Guid.NewGuid();
 
         var results = new List<OneSignalPushDispatchResult>();
 
         foreach (var batch in normalizedExternalUserIds.Chunk(MaxExternalIdsPerRequest))
         {
-            var payload = BuildPayload(batch, sanitized, referenceId, resolvedTargetUrl, profile);
+            var payload = BuildPayload(
+                batch,
+                sanitized,
+                referenceId,
+                resolvedTargetUrl,
+                profile,
+                notificationEventId,
+                Guid.NewGuid());
             var result = await SendPayloadAsync(batch, payload, cancellationToken);
             results.Add(result);
         }
@@ -202,11 +210,15 @@ public sealed class OneSignalPushService : IOneSignalPushService
         SanitizedNotificationPayload sanitized,
         Guid? referenceId,
         string? targetUrl,
-        OneSignalPushProfile profile)
+        OneSignalPushProfile profile,
+        Guid notificationEventId,
+        Guid requestIdempotencyKey)
     {
         var payload = new Dictionary<string, object?>
         {
             ["app_id"] = _settings.AppId,
+            ["idempotency_key"] = requestIdempotencyKey,
+            ["collapse_id"] = notificationEventId.ToString(),
             ["target_channel"] = "push",
             ["include_aliases"] = new Dictionary<string, string[]>
             {
@@ -214,7 +226,7 @@ public sealed class OneSignalPushService : IOneSignalPushService
             },
             ["headings"] = BuildLocalizedContent(sanitized.TitleAr, sanitized.TitleEn, "Vendor notification"),
             ["contents"] = BuildLocalizedContent(sanitized.BodyAr, sanitized.BodyEn, "You have a new vendor notification."),
-            ["data"] = BuildAdditionalData(sanitized, referenceId)
+            ["data"] = BuildAdditionalData(sanitized, referenceId, notificationEventId)
         };
 
         if (!string.IsNullOrWhiteSpace(targetUrl))
@@ -298,9 +310,15 @@ public sealed class OneSignalPushService : IOneSignalPushService
         payload["isAnyWeb"] = false;
     }
 
-    private static Dictionary<string, object?> BuildAdditionalData(SanitizedNotificationPayload sanitized, Guid? referenceId)
+    private static Dictionary<string, object?> BuildAdditionalData(
+        SanitizedNotificationPayload sanitized,
+        Guid? referenceId,
+        Guid notificationEventId)
     {
-        var data = new Dictionary<string, object?>();
+        var data = new Dictionary<string, object?>
+        {
+            ["notificationId"] = notificationEventId
+        };
 
         if (!string.IsNullOrWhiteSpace(sanitized.Type))
         {
@@ -314,10 +332,38 @@ public sealed class OneSignalPushService : IOneSignalPushService
 
         if (!string.IsNullOrWhiteSpace(sanitized.Data))
         {
-            data["payload"] = DeserializeJsonValue(sanitized.Data);
+            var payload = DeserializeJsonValue(sanitized.Data);
+            data["payload"] = payload;
+            TryMergePayloadObject(data, sanitized.Data);
         }
 
         return data;
+    }
+
+    private static void TryMergePayloadObject(Dictionary<string, object?> data, string rawData)
+    {
+        try
+        {
+            using var document = JsonDocument.Parse(rawData);
+            if (document.RootElement.ValueKind != JsonValueKind.Object)
+            {
+                return;
+            }
+
+            foreach (var property in document.RootElement.EnumerateObject())
+            {
+                if (data.ContainsKey(property.Name))
+                {
+                    continue;
+                }
+
+                data[property.Name] = DeserializeJsonValue(property.Value.GetRawText());
+            }
+        }
+        catch
+        {
+            // Keep the original nested payload only if the raw data is not valid JSON object content.
+        }
     }
 
     private string? ResolveTargetUrl(string? requestedTargetUrl)

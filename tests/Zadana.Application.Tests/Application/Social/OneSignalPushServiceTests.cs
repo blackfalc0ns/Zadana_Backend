@@ -36,15 +36,22 @@ public class OneSignalPushServiceTests
 
         using var document = JsonDocument.Parse(handler.RequestBodies[0]);
         var root = document.RootElement;
+        var data = root.GetProperty("data");
 
         root.GetProperty("existing_android_channel_id").GetString().Should().Be("zadana_heads_up_notifications");
         root.TryGetProperty("android_channel_id", out _).Should().BeFalse();
+        Guid.Parse(root.GetProperty("collapse_id").GetString()!).Should().NotBeEmpty();
+        Guid.Parse(root.GetProperty("idempotency_key").GetString()!).Should().NotBeEmpty();
         root.GetProperty("priority").GetInt32().Should().Be(10);
         root.GetProperty("isAndroid").GetBoolean().Should().BeTrue();
         root.GetProperty("isIos").GetBoolean().Should().BeTrue();
         root.GetProperty("isAnyWeb").GetBoolean().Should().BeFalse();
         root.TryGetProperty("web_url", out _).Should().BeFalse();
         root.GetProperty("include_aliases").GetProperty("external_id")[0].GetString().Should().Be("customer-1");
+        Guid.Parse(data.GetProperty("notificationId").GetString()!).Should().NotBeEmpty();
+        data.GetProperty("type").GetString().Should().Be("order_status_changed");
+        data.GetProperty("referenceId").GetGuid().Should().NotBeEmpty();
+        data.GetProperty("orderId").GetString().Should().Be("123");
     }
 
     [Fact]
@@ -71,15 +78,22 @@ public class OneSignalPushServiceTests
 
         using var document = JsonDocument.Parse(handler.RequestBodies[0]);
         var root = document.RootElement;
+        var data = root.GetProperty("data");
 
         root.GetProperty("existing_android_channel_id").GetString().Should().Be("zadana_order_updates_realtime_v2");
         root.TryGetProperty("android_channel_id", out _).Should().BeFalse();
+        Guid.Parse(root.GetProperty("collapse_id").GetString()!).Should().NotBeEmpty();
+        Guid.Parse(root.GetProperty("idempotency_key").GetString()!).Should().NotBeEmpty();
         root.GetProperty("priority").GetInt32().Should().Be(10);
         root.GetProperty("isAndroid").GetBoolean().Should().BeTrue();
         root.GetProperty("isIos").GetBoolean().Should().BeTrue();
         root.GetProperty("isAnyWeb").GetBoolean().Should().BeFalse();
         root.TryGetProperty("web_url", out _).Should().BeFalse();
         root.GetProperty("include_aliases").GetProperty("external_id")[0].GetString().Should().Be("customer-2");
+        Guid.Parse(data.GetProperty("notificationId").GetString()!).Should().NotBeEmpty();
+        data.GetProperty("type").GetString().Should().Be("order_status_changed");
+        data.GetProperty("referenceId").GetGuid().Should().NotBeEmpty();
+        data.GetProperty("orderId").GetString().Should().Be("456");
     }
 
     [Fact]
@@ -113,6 +127,9 @@ public class OneSignalPushServiceTests
         root.TryGetProperty("isAnyWeb", out _).Should().BeFalse();
         root.GetProperty("web_url").GetString().Should().Be("https://vendor.example/orders/123");
         root.GetProperty("include_aliases").GetProperty("external_id")[0].GetString().Should().Be("vendor-1");
+        Guid.Parse(root.GetProperty("collapse_id").GetString()!).Should().NotBeEmpty();
+        Guid.Parse(root.GetProperty("idempotency_key").GetString()!).Should().NotBeEmpty();
+        Guid.Parse(root.GetProperty("data").GetProperty("notificationId").GetString()!).Should().NotBeEmpty();
     }
 
     [Fact]
