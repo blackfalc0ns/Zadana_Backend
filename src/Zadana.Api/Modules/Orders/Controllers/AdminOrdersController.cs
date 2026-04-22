@@ -1,10 +1,13 @@
+using MediatR;
 using Microsoft.AspNetCore.Authorization;
 using Microsoft.AspNetCore.Mvc;
 using Microsoft.EntityFrameworkCore;
 using Zadana.Api.Controllers;
 using Zadana.Application.Common.Interfaces;
 using Zadana.Application.Modules.Orders.DTOs;
+using Zadana.Application.Modules.Orders.Events;
 using Zadana.Application.Modules.Orders.Interfaces;
+using Zadana.Application.Modules.Orders.Services;
 using Zadana.Domain.Modules.Delivery.Entities;
 using Zadana.Domain.Modules.Orders.Entities;
 using Zadana.Domain.Modules.Orders.Enums;
@@ -22,15 +25,21 @@ public class AdminOrdersController : ApiControllerBase
     private readonly IApplicationDbContext _dbContext;
     private readonly ICurrentUserService _currentUserService;
     private readonly IOrderReadService _orderReadService;
+    private readonly IPublisher _publisher;
+    private readonly IOrderStatusNotificationDispatcher _orderStatusNotificationDispatcher;
 
     public AdminOrdersController(
         IApplicationDbContext dbContext,
         ICurrentUserService currentUserService,
-        IOrderReadService orderReadService)
+        IOrderReadService orderReadService,
+        IPublisher publisher,
+        IOrderStatusNotificationDispatcher orderStatusNotificationDispatcher)
     {
         _dbContext = dbContext;
         _currentUserService = currentUserService;
         _orderReadService = orderReadService;
+        _publisher = publisher;
+        _orderStatusNotificationDispatcher = orderStatusNotificationDispatcher;
     }
 
     [HttpGet]
@@ -75,8 +84,9 @@ public class AdminOrdersController : ApiControllerBase
         [FromBody] AdminOrderStatusUpdateRequest request,
         CancellationToken cancellationToken = default)
     {
-        var order = await LoadOrderAsync(orderId, cancellationToken);
+        var order = await LoadOrderWithUserAsync(orderId, cancellationToken);
         var adminUserId = GetRequiredAdminUserId();
+        var oldStatus = order.Status;
 
         var newStatus = request.NewStatus?.Trim().ToUpperInvariant() switch
         {
@@ -93,6 +103,33 @@ public class AdminOrdersController : ApiControllerBase
         order.ChangeStatus(newStatus, adminUserId, request.AdminNotes);
         await _dbContext.SaveChangesAsync(cancellationToken);
 
+        // Dispatch customer push notification
+        await _orderStatusNotificationDispatcher.DispatchCustomerAsync(
+            new OrderStatusCustomerNotificationRequest(
+                order.UserId,
+                order.Id,
+                order.VendorId,
+                order.OrderNumber,
+                oldStatus,
+                newStatus,
+                ActorRole: "admin"),
+            cancellationToken);
+
+        // Publish event for vendor notification and other handlers
+        await _publisher.Publish(
+            new OrderStatusChangedNotification(
+                order.Id,
+                order.UserId,
+                order.VendorId,
+                order.OrderNumber,
+                oldStatus,
+                newStatus,
+                NotifyCustomer: true,
+                NotifyVendor: true,
+                ActorRole: "admin",
+                CustomerNotificationAlreadySent: true),
+            cancellationToken);
+
         return Ok(await RequireDetailAsync(orderId, cancellationToken));
     }
 
@@ -102,7 +139,8 @@ public class AdminOrdersController : ApiControllerBase
         [FromBody] AdminAssignDriverRequest request,
         CancellationToken cancellationToken = default)
     {
-        var order = await LoadOrderAsync(orderId, cancellationToken);
+        var order = await LoadOrderWithUserAsync(orderId, cancellationToken);
+        var oldStatus = order.Status;
         var driverId = ParseGuid(request.SelectedDriverId, "driver");
         var driver = await _dbContext.Drivers.FirstOrDefaultAsync(item => item.Id == driverId, cancellationToken)
             ?? throw new NotFoundException("Driver", driverId);
@@ -121,6 +159,34 @@ public class AdminOrdersController : ApiControllerBase
         order.ChangeStatus(OrderStatus.DriverAssigned, GetRequiredAdminUserId(), request.InternalNotes ?? "Driver assigned by admin.");
 
         await _dbContext.SaveChangesAsync(cancellationToken);
+
+        // Dispatch customer push notification
+        await _orderStatusNotificationDispatcher.DispatchCustomerAsync(
+            new OrderStatusCustomerNotificationRequest(
+                order.UserId,
+                order.Id,
+                order.VendorId,
+                order.OrderNumber,
+                oldStatus,
+                OrderStatus.DriverAssigned,
+                ActorRole: "admin"),
+            cancellationToken);
+
+        // Publish event for vendor notification and other handlers
+        await _publisher.Publish(
+            new OrderStatusChangedNotification(
+                order.Id,
+                order.UserId,
+                order.VendorId,
+                order.OrderNumber,
+                oldStatus,
+                OrderStatus.DriverAssigned,
+                NotifyCustomer: true,
+                NotifyVendor: true,
+                ActorRole: "admin",
+                CustomerNotificationAlreadySent: true),
+            cancellationToken);
+
         return Ok(await RequireDetailAsync(orderId, cancellationToken));
     }
 
@@ -130,7 +196,8 @@ public class AdminOrdersController : ApiControllerBase
         [FromBody] AdminCancelOrderRequest request,
         CancellationToken cancellationToken = default)
     {
-        var order = await LoadOrderAsync(orderId, cancellationToken);
+        var order = await LoadOrderWithUserAsync(orderId, cancellationToken);
+        var oldStatus = order.Status;
         order.ChangeStatus(OrderStatus.Cancelled, GetRequiredAdminUserId(), request.InternalNote ?? request.Details ?? "Cancelled by admin.");
 
         if (request.RefundType is "full" or "partial")
@@ -139,6 +206,33 @@ public class AdminOrdersController : ApiControllerBase
         }
 
         await _dbContext.SaveChangesAsync(cancellationToken);
+
+        // Dispatch customer push notification
+        await _orderStatusNotificationDispatcher.DispatchCustomerAsync(
+            new OrderStatusCustomerNotificationRequest(
+                order.UserId,
+                order.Id,
+                order.VendorId,
+                order.OrderNumber,
+                oldStatus,
+                OrderStatus.Cancelled,
+                ActorRole: "admin"),
+            cancellationToken);
+
+        // Publish event for vendor notification and other handlers
+        await _publisher.Publish(
+            new OrderStatusChangedNotification(
+                order.Id,
+                order.UserId,
+                order.VendorId,
+                order.OrderNumber,
+                oldStatus,
+                OrderStatus.Cancelled,
+                NotifyCustomer: true,
+                NotifyVendor: true,
+                ActorRole: "admin",
+                CustomerNotificationAlreadySent: true),
+            cancellationToken);
         return Ok(await RequireDetailAsync(orderId, cancellationToken));
     }
 
