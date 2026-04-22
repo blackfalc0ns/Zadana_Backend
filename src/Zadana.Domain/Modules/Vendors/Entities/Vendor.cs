@@ -293,8 +293,11 @@ public class Vendor : BaseEntity
 
     public void Approve(decimal commissionRate, Guid approvedBy)
     {
+        if (Status == VendorStatus.Active)
+            throw new BusinessRuleException("VendorAlreadyApproved", "التاجر معتمد بالفعل ولا يحتاج اعتمادًا جديدًا.|Vendor is already approved and does not need another approval.");
+
         if (Status != VendorStatus.PendingReview)
-            throw new BusinessRuleException("VendorInvalidStatusForApproval", $"Status: {Status}");
+            throw new BusinessRuleException("VendorInvalidStatusForApproval", $"لا يمكن اعتماد التاجر بينما حالته الحالية هي {Status}.|Vendor cannot be approved while its current status is {Status}.");
 
         if (commissionRate < 0 || commissionRate > 100)
             throw new BusinessRuleException("InvalidCommissionRate", string.Empty);
