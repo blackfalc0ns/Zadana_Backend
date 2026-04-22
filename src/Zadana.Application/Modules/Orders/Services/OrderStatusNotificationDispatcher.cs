@@ -89,11 +89,22 @@ public sealed class OrderStatusNotificationDispatcher : IOrderStatusNotification
                 request.UserId);
         }
 
+        var externalId = request.UserId.ToString();
+
+        _logger.LogWarning(
+            "[PUSH-DIAG] About to send OneSignal push for order {OrderId}. ExternalId: {ExternalId}. Type: {NotificationType}. TitleEn: {TitleEn}. BodyEn: {BodyEn}. Profile: MobileHeadsUp. TargetUrl: {TargetUrl}",
+            request.OrderId,
+            externalId,
+            composed.NotificationType,
+            composed.TitleEn,
+            composed.BodyEn,
+            composed.TargetUrl);
+
         OneSignalPushDispatchResult pushResult;
         try
         {
             pushResult = await _oneSignalPushService.SendToExternalUserAsync(
-                request.UserId.ToString(),
+                externalId,
                 composed.TitleAr,
                 composed.TitleEn,
                 composed.BodyAr,
@@ -109,7 +120,7 @@ public sealed class OrderStatusNotificationDispatcher : IOrderStatusNotification
         {
             _logger.LogError(
                 ex,
-                "Order-status push dispatch threw unexpectedly for order {OrderId} user {UserId}",
+                "[PUSH-DIAG] Order-status push dispatch threw unexpectedly for order {OrderId} user {UserId}",
                 request.OrderId,
                 request.UserId);
             pushResult = new OneSignalPushDispatchResult(
@@ -120,6 +131,17 @@ public sealed class OrderStatusNotificationDispatcher : IOrderStatusNotification
                 ProviderNotificationId: null,
                 Reason: ex.Message);
         }
+
+        _logger.LogWarning(
+            "[PUSH-DIAG] OneSignal push result for order {OrderId}. ExternalId: {ExternalId}. Attempted: {Attempted}. Sent: {Sent}. Skipped: {Skipped}. ProviderStatusCode: {ProviderStatusCode}. ProviderNotificationId: {ProviderNotificationId}. Reason: {Reason}",
+            request.OrderId,
+            externalId,
+            pushResult.Attempted,
+            pushResult.Sent,
+            pushResult.Skipped,
+            pushResult.ProviderStatusCode,
+            pushResult.ProviderNotificationId,
+            pushResult.Reason);
 
         if (!pushResult.Sent && !pushResult.Skipped)
         {
@@ -132,14 +154,15 @@ public sealed class OrderStatusNotificationDispatcher : IOrderStatusNotification
         }
 
         _logger.LogInformation(
-            "Customer order-status notification dispatch completed for order {OrderId} user {UserId}. InboxQueued {InboxQueued}. RealtimeQueued {RealtimeQueued}. PushAttempted {PushAttempted}. PushSent {PushSent}. ProviderStatusCode {ProviderStatusCode}",
+            "Customer order-status notification dispatch completed for order {OrderId} user {UserId}. InboxQueued {InboxQueued}. RealtimeQueued {RealtimeQueued}. PushAttempted {PushAttempted}. PushSent {PushSent}. ProviderStatusCode {ProviderStatusCode}. ProviderNotificationId {ProviderNotificationId}",
             request.OrderId,
             request.UserId,
             inboxQueued,
             realtimeQueued,
             pushResult.Attempted,
             pushResult.Sent,
-            pushResult.ProviderStatusCode);
+            pushResult.ProviderStatusCode,
+            pushResult.ProviderNotificationId);
 
         return new OrderStatusNotificationDispatchResult(
             inboxQueued,

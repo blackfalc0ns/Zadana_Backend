@@ -132,6 +132,22 @@ public sealed class OneSignalPushService : IOneSignalPushService
                 profile,
                 notificationEventId,
                 Guid.NewGuid());
+
+            try
+            {
+                var payloadJson = System.Text.Json.JsonSerializer.Serialize(payload);
+                _logger.LogWarning(
+                    "[PUSH-DIAG] OneSignal raw payload for {ExternalUserCount} users (type={Type}, profile={Profile}): {PayloadJson}",
+                    batch.Length,
+                    sanitized.Type,
+                    profile,
+                    payloadJson);
+            }
+            catch
+            {
+                // Diagnostic logging should never break the push flow.
+            }
+
             var result = await SendPayloadAsync(batch, payload, cancellationToken);
             results.Add(result);
         }
