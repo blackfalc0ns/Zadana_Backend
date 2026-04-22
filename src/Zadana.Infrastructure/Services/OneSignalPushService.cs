@@ -12,6 +12,8 @@ namespace Zadana.Infrastructure.Services;
 public sealed class OneSignalPushService : IOneSignalPushService
 {
     private const int MaxExternalIdsPerRequest = 20_000;
+    private const string DefaultMobileClickAction = "FLUTTER_NOTIFICATION_CLICK";
+    private const string DefaultMobileAccentColor = "FF127C8C";
 
     private readonly HttpClient _httpClient;
     private readonly OneSignalSettings _settings;
@@ -295,6 +297,8 @@ public sealed class OneSignalPushService : IOneSignalPushService
         string? androidChannelId,
         int priority)
     {
+        // The Zadana mobile apps define their Android channels programmatically, so
+        // OneSignal expects existing_android_channel_id instead of android_channel_id.
         if (!string.IsNullOrWhiteSpace(existingAndroidChannelId))
         {
             payload["existing_android_channel_id"] = existingAndroidChannelId;
@@ -305,9 +309,19 @@ public sealed class OneSignalPushService : IOneSignalPushService
         }
 
         payload["priority"] = priority;
+        payload["android_accent_color"] = DefaultMobileAccentColor;
+        payload["content_available"] = true;
+        payload["mutable_content"] = true;
         payload["isAndroid"] = true;
         payload["isIos"] = true;
         payload["isAnyWeb"] = false;
+
+        if (payload.TryGetValue("data", out var dataValue) &&
+            dataValue is Dictionary<string, object?> data &&
+            !data.ContainsKey("click_action"))
+        {
+            data["click_action"] = DefaultMobileClickAction;
+        }
     }
 
     private static Dictionary<string, object?> BuildAdditionalData(

@@ -13,7 +13,7 @@ namespace Zadana.Application.Tests.Application.Social;
 public class OneSignalPushServiceTests
 {
     [Fact]
-    public async Task SendToExternalUserAsync_WithMobileHeadsUpProfile_ShouldAddExistingMobileChannelFields()
+    public async Task SendToExternalUserAsync_WithMobileHeadsUpProfile_ShouldBuildDisplayableMobilePayload()
     {
         var handler = new RecordingHttpMessageHandler(HttpStatusCode.OK, """{"id":"push-1"}""");
         var service = CreateService(handler);
@@ -37,21 +37,31 @@ public class OneSignalPushServiceTests
         using var document = JsonDocument.Parse(handler.RequestBodies[0]);
         var root = document.RootElement;
         var data = root.GetProperty("data");
+        var headings = root.GetProperty("headings");
+        var contents = root.GetProperty("contents");
 
         root.GetProperty("existing_android_channel_id").GetString().Should().Be("zadana_heads_up_notifications");
         root.TryGetProperty("android_channel_id", out _).Should().BeFalse();
         Guid.Parse(root.GetProperty("collapse_id").GetString()!).Should().NotBeEmpty();
         Guid.Parse(root.GetProperty("idempotency_key").GetString()!).Should().NotBeEmpty();
         root.GetProperty("priority").GetInt32().Should().Be(10);
+        root.GetProperty("android_accent_color").GetString().Should().Be("FF127C8C");
+        root.GetProperty("content_available").GetBoolean().Should().BeTrue();
+        root.GetProperty("mutable_content").GetBoolean().Should().BeTrue();
         root.GetProperty("isAndroid").GetBoolean().Should().BeTrue();
         root.GetProperty("isIos").GetBoolean().Should().BeTrue();
         root.GetProperty("isAnyWeb").GetBoolean().Should().BeFalse();
         root.TryGetProperty("web_url", out _).Should().BeFalse();
         root.GetProperty("include_aliases").GetProperty("external_id")[0].GetString().Should().Be("customer-1");
+        headings.GetProperty("en").GetString().Should().Be("Title");
+        headings.GetProperty("ar").GetString().Should().Be("Ø¹Ù†ÙˆØ§Ù†");
+        contents.GetProperty("en").GetString().Should().Be("Body");
+        contents.GetProperty("ar").GetString().Should().Be("Ù…Ø­ØªÙˆÙ‰");
         Guid.Parse(data.GetProperty("notificationId").GetString()!).Should().NotBeEmpty();
         data.GetProperty("type").GetString().Should().Be("order_status_changed");
         data.GetProperty("referenceId").GetGuid().Should().NotBeEmpty();
         data.GetProperty("orderId").GetString().Should().Be("123");
+        data.GetProperty("click_action").GetString().Should().Be("FLUTTER_NOTIFICATION_CLICK");
     }
 
     [Fact]
@@ -79,21 +89,31 @@ public class OneSignalPushServiceTests
         using var document = JsonDocument.Parse(handler.RequestBodies[0]);
         var root = document.RootElement;
         var data = root.GetProperty("data");
+        var headings = root.GetProperty("headings");
+        var contents = root.GetProperty("contents");
 
         root.GetProperty("existing_android_channel_id").GetString().Should().Be("zadana_order_updates_realtime_v2");
         root.TryGetProperty("android_channel_id", out _).Should().BeFalse();
         Guid.Parse(root.GetProperty("collapse_id").GetString()!).Should().NotBeEmpty();
         Guid.Parse(root.GetProperty("idempotency_key").GetString()!).Should().NotBeEmpty();
         root.GetProperty("priority").GetInt32().Should().Be(10);
+        root.GetProperty("android_accent_color").GetString().Should().Be("FF127C8C");
+        root.GetProperty("content_available").GetBoolean().Should().BeTrue();
+        root.GetProperty("mutable_content").GetBoolean().Should().BeTrue();
         root.GetProperty("isAndroid").GetBoolean().Should().BeTrue();
         root.GetProperty("isIos").GetBoolean().Should().BeTrue();
         root.GetProperty("isAnyWeb").GetBoolean().Should().BeFalse();
         root.TryGetProperty("web_url", out _).Should().BeFalse();
         root.GetProperty("include_aliases").GetProperty("external_id")[0].GetString().Should().Be("customer-2");
+        headings.GetProperty("en").GetString().Should().Be("Title");
+        headings.GetProperty("ar").GetString().Should().Be("Ø¹Ù†ÙˆØ§Ù†");
+        contents.GetProperty("en").GetString().Should().Be("Body");
+        contents.GetProperty("ar").GetString().Should().Be("Ù…Ø­ØªÙˆÙ‰");
         Guid.Parse(data.GetProperty("notificationId").GetString()!).Should().NotBeEmpty();
         data.GetProperty("type").GetString().Should().Be("order_status_changed");
         data.GetProperty("referenceId").GetGuid().Should().NotBeEmpty();
         data.GetProperty("orderId").GetString().Should().Be("456");
+        data.GetProperty("click_action").GetString().Should().Be("FLUTTER_NOTIFICATION_CLICK");
     }
 
     [Fact]
@@ -119,17 +139,56 @@ public class OneSignalPushServiceTests
 
         using var document = JsonDocument.Parse(handler.RequestBodies[0]);
         var root = document.RootElement;
+        var headings = root.GetProperty("headings");
+        var contents = root.GetProperty("contents");
 
         root.TryGetProperty("android_channel_id", out _).Should().BeFalse();
         root.TryGetProperty("priority", out _).Should().BeFalse();
+        root.TryGetProperty("content_available", out _).Should().BeFalse();
+        root.TryGetProperty("mutable_content", out _).Should().BeFalse();
         root.TryGetProperty("isAndroid", out _).Should().BeFalse();
         root.TryGetProperty("isIos", out _).Should().BeFalse();
         root.TryGetProperty("isAnyWeb", out _).Should().BeFalse();
         root.GetProperty("web_url").GetString().Should().Be("https://vendor.example/orders/123");
         root.GetProperty("include_aliases").GetProperty("external_id")[0].GetString().Should().Be("vendor-1");
+        headings.GetProperty("en").GetString().Should().Be("Title");
+        headings.GetProperty("ar").GetString().Should().Be("Ø¹Ù†ÙˆØ§Ù†");
+        contents.GetProperty("en").GetString().Should().Be("Body");
+        contents.GetProperty("ar").GetString().Should().Be("Ù…Ø­ØªÙˆÙ‰");
         Guid.Parse(root.GetProperty("collapse_id").GetString()!).Should().NotBeEmpty();
         Guid.Parse(root.GetProperty("idempotency_key").GetString()!).Should().NotBeEmpty();
         Guid.Parse(root.GetProperty("data").GetProperty("notificationId").GetString()!).Should().NotBeEmpty();
+    }
+
+    [Fact]
+    public async Task SendToExternalUserAsync_WithMobileProfile_ShouldPreserveExistingClickAction()
+    {
+        var handler = new RecordingHttpMessageHandler(HttpStatusCode.OK, """{"id":"push-3"}""");
+        var service = CreateService(handler);
+
+        var result = await service.SendToExternalUserAsync(
+            "customer-3",
+            "Ø¹Ù†ÙˆØ§Ù†",
+            "Title",
+            "Ù…Ø­ØªÙˆÙ‰",
+            "Body",
+            "order_status_changed",
+            Guid.NewGuid(),
+            """{"orderId":"789","click_action":"CUSTOM_CLICK"}""",
+            "/orders/789",
+            OneSignalPushProfile.MobileOrderUpdates,
+            CancellationToken.None);
+
+        result.Sent.Should().BeTrue();
+        handler.RequestBodies.Should().HaveCount(1);
+
+        using var document = JsonDocument.Parse(handler.RequestBodies[0]);
+        document.RootElement
+            .GetProperty("data")
+            .GetProperty("click_action")
+            .GetString()
+            .Should()
+            .Be("CUSTOM_CLICK");
     }
 
     [Fact]
