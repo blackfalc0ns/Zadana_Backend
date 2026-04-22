@@ -31,6 +31,7 @@ public sealed class OrderStatusNotificationDispatcher : IOrderStatusNotification
             request.OldStatus,
             request.NewStatus,
             request.ActorRole);
+        var pushRequest = BuildCustomerMobilePushRequest(request, composed);
 
         var inboxQueued = false;
         var realtimeQueued = false;
@@ -89,32 +90,20 @@ public sealed class OrderStatusNotificationDispatcher : IOrderStatusNotification
                 request.UserId);
         }
 
-        var externalId = request.UserId.ToString();
-
         _logger.LogWarning(
-            "[PUSH-DIAG] About to send OneSignal push for order {OrderId}. ExternalId: {ExternalId}. Type: {NotificationType}. TitleEn: {TitleEn}. BodyEn: {BodyEn}. Profile: MobileHeadsUp. TargetUrl: {TargetUrl}",
+            "[PUSH-DIAG] About to send OneSignal push for order {OrderId}. ExternalId: {ExternalId}. Type: {NotificationType}. TitleEn: {TitleEn}. BodyEn: {BodyEn}. Profile: {Profile}. TargetUrl: {TargetUrl}",
             request.OrderId,
-            externalId,
-            composed.NotificationType,
-            composed.TitleEn,
-            composed.BodyEn,
-            composed.TargetUrl);
+            pushRequest.ExternalUserId,
+            pushRequest.Type,
+            pushRequest.TitleEn,
+            pushRequest.BodyEn,
+            pushRequest.Profile,
+            pushRequest.TargetUrl);
 
         OneSignalPushDispatchResult pushResult;
         try
         {
-            pushResult = await _oneSignalPushService.SendToExternalUserAsync(
-                externalId,
-                composed.TitleAr,
-                composed.TitleEn,
-                composed.BodyAr,
-                composed.BodyEn,
-                composed.NotificationType,
-                request.OrderId,
-                composed.Data,
-                composed.TargetUrl,
-                OneSignalPushProfile.MobileHeadsUp,
-                cancellationToken);
+            pushResult = await pushRequest.DispatchAsync(_oneSignalPushService, cancellationToken);
         }
         catch (Exception ex)
         {
@@ -135,7 +124,7 @@ public sealed class OrderStatusNotificationDispatcher : IOrderStatusNotification
         _logger.LogWarning(
             "[PUSH-DIAG] OneSignal push result for order {OrderId}. ExternalId: {ExternalId}. Attempted: {Attempted}. Sent: {Sent}. Skipped: {Skipped}. ProviderStatusCode: {ProviderStatusCode}. ProviderNotificationId: {ProviderNotificationId}. Reason: {Reason}",
             request.OrderId,
-            externalId,
+            pushRequest.ExternalUserId,
             pushResult.Attempted,
             pushResult.Sent,
             pushResult.Skipped,
@@ -172,4 +161,18 @@ public sealed class OrderStatusNotificationDispatcher : IOrderStatusNotification
             pushResult.ProviderStatusCode,
             pushResult.Reason);
     }
+
+    private static OneSignalMobilePushRequest BuildCustomerMobilePushRequest(
+        OrderStatusCustomerNotificationRequest request,
+        CustomerOrderStatusNotification composed) =>
+        OneSignalMobilePushRequest.CreateHeadsUp(
+            request.UserId.ToString(),
+            composed.TitleAr,
+            composed.TitleEn,
+            composed.BodyAr,
+            composed.BodyEn,
+            composed.NotificationType,
+            request.OrderId,
+            composed.Data,
+            composed.TargetUrl);
 }

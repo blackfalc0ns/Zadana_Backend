@@ -93,20 +93,19 @@ public class AdminCustomersController : ApiControllerBase
             request.ReferenceId,
             data,
             cancellationToken);
+        var pushRequest = OneSignalMobilePushRequest.CreateHeadsUp(
+            customer.Id.ToString(),
+            titleAr,
+            titleEn,
+            bodyAr,
+            bodyEn,
+            type,
+            request.ReferenceId,
+            data,
+            targetUrl);
 
         var pushResult = request.SendPush
-            ? await _oneSignalPushService.SendToExternalUserAsync(
-                customer.Id.ToString(),
-                titleAr,
-                titleEn,
-                bodyAr,
-                bodyEn,
-                type,
-                request.ReferenceId,
-                data,
-                targetUrl,
-                OneSignalPushProfile.MobileHeadsUp,
-                cancellationToken)
+            ? await pushRequest.DispatchAsync(_oneSignalPushService, cancellationToken)
             : new OneSignalPushDispatchResult(
                 Attempted: false,
                 Sent: false,

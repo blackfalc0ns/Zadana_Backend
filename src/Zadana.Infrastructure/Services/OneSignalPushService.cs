@@ -124,7 +124,7 @@ public sealed class OneSignalPushService : IOneSignalPushService
 
         foreach (var batch in normalizedExternalUserIds.Chunk(MaxExternalIdsPerRequest))
         {
-            var payload = BuildPayload(
+            var preparedPayload = BuildPayload(
                 batch,
                 sanitized,
                 referenceId,
@@ -135,12 +135,15 @@ public sealed class OneSignalPushService : IOneSignalPushService
 
             try
             {
-                var payloadJson = System.Text.Json.JsonSerializer.Serialize(payload);
+                var payloadJson = System.Text.Json.JsonSerializer.Serialize(preparedPayload.Payload);
                 _logger.LogWarning(
-                    "[PUSH-DIAG] OneSignal raw payload for {ExternalUserCount} users (type={Type}, profile={Profile}): {PayloadJson}",
-                    batch.Length,
-                    sanitized.Type,
-                    profile,
+                    "[PUSH-DIAG] OneSignal prepared payload. ExternalUserCount: {ExternalUserCount}. ExternalIdBatch: {ExternalIdBatch}. Profile: {Profile}. Type: {Type}. Channel: {Channel}. DataKeys: {DataKeys}. PayloadJson: {PayloadJson}",
+                    preparedPayload.ExternalUserCount,
+                    preparedPayload.ExternalIdBatch,
+                    preparedPayload.Profile,
+                    preparedPayload.Type,
+                    preparedPayload.Channel,
+                    preparedPayload.DataKeys,
                     payloadJson);
             }
             catch
@@ -148,7 +151,7 @@ public sealed class OneSignalPushService : IOneSignalPushService
                 // Diagnostic logging should never break the push flow.
             }
 
-            var result = await SendPayloadAsync(batch, payload, cancellationToken);
+            var result = await SendPayloadAsync(preparedPayload, cancellationToken);
             results.Add(result);
         }
 
@@ -156,13 +159,12 @@ public sealed class OneSignalPushService : IOneSignalPushService
     }
 
     private async Task<OneSignalPushDispatchResult> SendPayloadAsync(
-        IReadOnlyCollection<string> externalUserIds,
-        Dictionary<string, object?> payload,
+        PreparedOneSignalPayload preparedPayload,
         CancellationToken cancellationToken)
     {
         using var request = new HttpRequestMessage(HttpMethod.Post, "notifications")
         {
-            Content = JsonContent.Create(payload)
+            Content = JsonContent.Create(preparedPayload.Payload)
         };
         request.Headers.Authorization = new AuthenticationHeaderValue("Key", _settings.RestApiKey);
 
@@ -171,13 +173,20 @@ public sealed class OneSignalPushService : IOneSignalPushService
             using var response = await _httpClient.SendAsync(request, cancellationToken);
             var responseBody = await response.Content.ReadAsStringAsync(cancellationToken);
             var statusCode = (int)response.StatusCode;
+            var notificationId = ExtractNotificationId(responseBody);
 
             if (!response.IsSuccessStatusCode)
             {
                 _logger.LogWarning(
-                    "OneSignal push send failed for {ExternalUserCount} external users. Status {StatusCode}. Response: {ResponseBody}",
-                    externalUserIds.Count,
+                    "[PUSH-DIAG] OneSignal push provider response failed. ExternalUserCount: {ExternalUserCount}. ExternalIdBatch: {ExternalIdBatch}. Profile: {Profile}. Type: {Type}. Channel: {Channel}. DataKeys: {DataKeys}. StatusCode: {StatusCode}. ProviderNotificationId: {ProviderNotificationId}. ResponseBody: {ResponseBody}",
+                    preparedPayload.ExternalUserCount,
+                    preparedPayload.ExternalIdBatch,
+                    preparedPayload.Profile,
+                    preparedPayload.Type,
+                    preparedPayload.Channel,
+                    preparedPayload.DataKeys,
                     statusCode,
+                    notificationId,
                     responseBody);
 
                 return new OneSignalPushDispatchResult(
@@ -185,18 +194,23 @@ public sealed class OneSignalPushService : IOneSignalPushService
                     Sent: false,
                     Skipped: false,
                     ProviderStatusCode: statusCode,
-                    ProviderNotificationId: ExtractNotificationId(responseBody),
+                    ProviderNotificationId: notificationId,
                     Reason: string.IsNullOrWhiteSpace(responseBody)
                         ? "OneSignal rejected the notification request."
                         : responseBody);
             }
 
-            var notificationId = ExtractNotificationId(responseBody);
-
             _logger.LogInformation(
-                "OneSignal push sent successfully for {ExternalUserCount} external users. NotificationId: {NotificationId}",
-                externalUserIds.Count,
-                notificationId);
+                "[PUSH-DIAG] OneSignal push provider response succeeded. ExternalUserCount: {ExternalUserCount}. ExternalIdBatch: {ExternalIdBatch}. Profile: {Profile}. Type: {Type}. Channel: {Channel}. DataKeys: {DataKeys}. StatusCode: {StatusCode}. ProviderNotificationId: {ProviderNotificationId}. ResponseBody: {ResponseBody}",
+                preparedPayload.ExternalUserCount,
+                preparedPayload.ExternalIdBatch,
+                preparedPayload.Profile,
+                preparedPayload.Type,
+                preparedPayload.Channel,
+                preparedPayload.DataKeys,
+                statusCode,
+                notificationId,
+                responseBody);
 
             return new OneSignalPushDispatchResult(
                 Attempted: true,
@@ -210,8 +224,13 @@ public sealed class OneSignalPushService : IOneSignalPushService
         {
             _logger.LogError(
                 ex,
-                "OneSignal push send threw an exception for {ExternalUserCount} external users",
-                externalUserIds.Count);
+                "[PUSH-DIAG] OneSignal push send threw an exception. ExternalUserCount: {ExternalUserCount}. ExternalIdBatch: {ExternalIdBatch}. Profile: {Profile}. Type: {Type}. Channel: {Channel}. DataKeys: {DataKeys}",
+                preparedPayload.ExternalUserCount,
+                preparedPayload.ExternalIdBatch,
+                preparedPayload.Profile,
+                preparedPayload.Type,
+                preparedPayload.Channel,
+                preparedPayload.DataKeys);
 
             return new OneSignalPushDispatchResult(
                 Attempted: true,
@@ -223,7 +242,7 @@ public sealed class OneSignalPushService : IOneSignalPushService
         }
     }
 
-    private Dictionary<string, object?> BuildPayload(
+    private PreparedOneSignalPayload BuildPayload(
         IReadOnlyCollection<string> externalUserIds,
         SanitizedNotificationPayload sanitized,
         Guid? referenceId,
@@ -254,7 +273,14 @@ public sealed class OneSignalPushService : IOneSignalPushService
 
         ApplyProfile(payload, profile);
 
-        return payload;
+        return new PreparedOneSignalPayload(
+            payload,
+            externalUserIds.Count,
+            string.Join(",", externalUserIds),
+            profile,
+            sanitized.Type,
+            ResolveChannel(payload),
+            ResolveDataKeys(payload));
     }
 
     private static Dictionary<string, string> BuildLocalizedContent(string? arabic, string? english, string fallback)
@@ -424,9 +450,6 @@ public sealed class OneSignalPushService : IOneSignalPushService
     private static bool ShouldIncludeWebUrl(OneSignalPushProfile profile) =>
         profile == OneSignalPushProfile.Default;
 
-    private static string? FirstNonEmpty(string? primary, string? fallback) =>
-        !string.IsNullOrWhiteSpace(primary) ? primary : fallback;
-
     private static object? DeserializeJsonValue(string rawData)
     {
         try
@@ -462,6 +485,49 @@ public sealed class OneSignalPushService : IOneSignalPushService
         return null;
     }
 
+    private static string ResolveChannel(Dictionary<string, object?> payload)
+    {
+        if (TryGetString(payload, "existing_android_channel_id", out var existingChannelId))
+        {
+            return $"existing_android_channel_id:{existingChannelId}";
+        }
+
+        if (TryGetString(payload, "android_channel_id", out var androidChannelId))
+        {
+            return $"android_channel_id:{androidChannelId}";
+        }
+
+        return "none";
+    }
+
+    private static string ResolveDataKeys(Dictionary<string, object?> payload)
+    {
+        if (!payload.TryGetValue("data", out var dataValue) ||
+            dataValue is not Dictionary<string, object?> data)
+        {
+            return "none";
+        }
+
+        return string.Join(",", data.Keys.OrderBy(key => key, StringComparer.Ordinal));
+    }
+
+    private static bool TryGetString(
+        IReadOnlyDictionary<string, object?> payload,
+        string key,
+        out string? value)
+    {
+        if (payload.TryGetValue(key, out var rawValue) &&
+            rawValue is string stringValue &&
+            !string.IsNullOrWhiteSpace(stringValue))
+        {
+            value = stringValue;
+            return true;
+        }
+
+        value = null;
+        return false;
+    }
+
     private OneSignalPushDispatchResult CreateSkippedResult(string reason, int externalUserCount)
     {
         _logger.LogWarning(
@@ -477,4 +543,13 @@ public sealed class OneSignalPushService : IOneSignalPushService
             ProviderNotificationId: null,
             Reason: reason);
     }
+
+    private sealed record PreparedOneSignalPayload(
+        Dictionary<string, object?> Payload,
+        int ExternalUserCount,
+        string ExternalIdBatch,
+        OneSignalPushProfile Profile,
+        string? Type,
+        string Channel,
+        string DataKeys);
 }
