@@ -342,6 +342,9 @@ public class AdminOrdersController : ApiControllerBase
             ?? throw new NotFoundException("Order", orderId);
     }
 
+    private Task<Order> LoadOrderWithUserAsync(Guid orderId, CancellationToken cancellationToken) =>
+        LoadOrderAsync(orderId, cancellationToken);
+
     private async Task<AdminOrderDetailDto> RequireDetailAsync(Guid orderId, CancellationToken cancellationToken)
     {
         return await _orderReadService.GetAdminOrderDetailAsync(orderId, cancellationToken)
