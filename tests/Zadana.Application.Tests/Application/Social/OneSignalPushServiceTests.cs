@@ -48,6 +48,41 @@ public class OneSignalPushServiceTests
     }
 
     [Fact]
+    public async Task SendToExternalUserAsync_WithMobileOrderUpdatesProfile_ShouldUseOrderUpdatesChannelFields()
+    {
+        var handler = new RecordingHttpMessageHandler(HttpStatusCode.OK, """{"id":"push-2"}""");
+        var service = CreateService(handler);
+
+        var result = await service.SendToExternalUserAsync(
+            "customer-2",
+            "عنوان",
+            "Title",
+            "محتوى",
+            "Body",
+            "order_status_changed",
+            Guid.NewGuid(),
+            """{"orderId":"456"}""",
+            "/orders/456",
+            OneSignalPushProfile.MobileOrderUpdates,
+            CancellationToken.None);
+
+        result.Sent.Should().BeTrue();
+        handler.RequestBodies.Should().HaveCount(1);
+
+        using var document = JsonDocument.Parse(handler.RequestBodies[0]);
+        var root = document.RootElement;
+
+        root.GetProperty("existing_android_channel_id").GetString().Should().Be("zadana_order_updates_realtime_v2");
+        root.TryGetProperty("android_channel_id", out _).Should().BeFalse();
+        root.GetProperty("priority").GetInt32().Should().Be(10);
+        root.GetProperty("isAndroid").GetBoolean().Should().BeTrue();
+        root.GetProperty("isIos").GetBoolean().Should().BeTrue();
+        root.GetProperty("isAnyWeb").GetBoolean().Should().BeFalse();
+        root.TryGetProperty("web_url", out _).Should().BeFalse();
+        root.GetProperty("include_aliases").GetProperty("external_id")[0].GetString().Should().Be("customer-2");
+    }
+
+    [Fact]
     public async Task SendToExternalUserAsync_WithDefaultProfile_ShouldKeepExistingPayloadShape()
     {
         var handler = new RecordingHttpMessageHandler(HttpStatusCode.OK, """{"id":"push-1"}""");
@@ -144,7 +179,10 @@ public class OneSignalPushServiceTests
                 DefaultWebUrl = "https://vendor.example/",
                 MobileHeadsUpAndroidChannelId = "zadana_heads_up_notifications",
                 MobileHeadsUpExistingAndroidChannelId = "zadana_heads_up_notifications",
-                MobileHeadsUpPriority = 10
+                MobileHeadsUpPriority = 10,
+                OrderUpdatesAndroidChannelId = string.Empty,
+                OrderUpdatesExistingAndroidChannelId = "zadana_order_updates_realtime_v2",
+                OrderUpdatesPriority = 10
             }),
             NullLogger<OneSignalPushService>.Instance);
     }

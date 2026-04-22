@@ -257,24 +257,45 @@ public sealed class OneSignalPushService : IOneSignalPushService
                 return;
 
             case OneSignalPushProfile.MobileHeadsUp:
-                if (!string.IsNullOrWhiteSpace(_settings.MobileHeadsUpExistingAndroidChannelId))
-                {
-                    payload["existing_android_channel_id"] = _settings.MobileHeadsUpExistingAndroidChannelId;
-                }
-                else if (!string.IsNullOrWhiteSpace(_settings.MobileHeadsUpAndroidChannelId))
-                {
-                    payload["android_channel_id"] = _settings.MobileHeadsUpAndroidChannelId;
-                }
+                ApplyMobileProfile(
+                    payload,
+                    _settings.MobileHeadsUpExistingAndroidChannelId,
+                    _settings.MobileHeadsUpAndroidChannelId,
+                    _settings.MobileHeadsUpPriority);
+                return;
 
-                payload["priority"] = _settings.MobileHeadsUpPriority;
-                payload["isAndroid"] = true;
-                payload["isIos"] = true;
-                payload["isAnyWeb"] = false;
+            case OneSignalPushProfile.MobileOrderUpdates:
+                ApplyMobileProfile(
+                    payload,
+                    FirstNonEmpty(_settings.OrderUpdatesExistingAndroidChannelId, _settings.MobileHeadsUpExistingAndroidChannelId),
+                    FirstNonEmpty(_settings.OrderUpdatesAndroidChannelId, _settings.MobileHeadsUpAndroidChannelId),
+                    _settings.OrderUpdatesPriority ?? _settings.MobileHeadsUpPriority);
                 return;
 
             default:
                 throw new ArgumentOutOfRangeException(nameof(profile), profile, "Unsupported OneSignal push profile.");
         }
+    }
+
+    private static void ApplyMobileProfile(
+        Dictionary<string, object?> payload,
+        string? existingAndroidChannelId,
+        string? androidChannelId,
+        int priority)
+    {
+        if (!string.IsNullOrWhiteSpace(existingAndroidChannelId))
+        {
+            payload["existing_android_channel_id"] = existingAndroidChannelId;
+        }
+        else if (!string.IsNullOrWhiteSpace(androidChannelId))
+        {
+            payload["android_channel_id"] = androidChannelId;
+        }
+
+        payload["priority"] = priority;
+        payload["isAndroid"] = true;
+        payload["isIos"] = true;
+        payload["isAnyWeb"] = false;
     }
 
     private static Dictionary<string, object?> BuildAdditionalData(SanitizedNotificationPayload sanitized, Guid? referenceId)
@@ -322,6 +343,9 @@ public sealed class OneSignalPushService : IOneSignalPushService
 
     private static bool ShouldIncludeWebUrl(OneSignalPushProfile profile) =>
         profile == OneSignalPushProfile.Default;
+
+    private static string? FirstNonEmpty(string? primary, string? fallback) =>
+        !string.IsNullOrWhiteSpace(primary) ? primary : fallback;
 
     private static object? DeserializeJsonValue(string rawData)
     {

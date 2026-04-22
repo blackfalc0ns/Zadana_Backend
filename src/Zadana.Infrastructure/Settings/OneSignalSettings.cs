@@ -12,4 +12,7 @@ public sealed class OneSignalSettings
     public string MobileHeadsUpAndroidChannelId { get; set; } = "zadana_heads_up_notifications";
     public string MobileHeadsUpExistingAndroidChannelId { get; set; } = "zadana_heads_up_notifications";
     public int MobileHeadsUpPriority { get; set; } = 10;
+    public string OrderUpdatesAndroidChannelId { get; set; } = string.Empty;
+    public string OrderUpdatesExistingAndroidChannelId { get; set; } = "zadana_order_updates_realtime_v2";
+    public int? OrderUpdatesPriority { get; set; } = 10;
 }

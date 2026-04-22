@@ -44,7 +44,8 @@ public interface IOneSignalPushService
 public enum OneSignalPushProfile
 {
     Default = 0,
-    MobileHeadsUp = 1
+    MobileHeadsUp = 1,
+    MobileOrderUpdates = 2
 }
 
 public sealed record OneSignalPushDispatchResult(

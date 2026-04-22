@@ -287,7 +287,7 @@ public class OrderStatusChangedHandlerTests
                 orderId,
                 It.Is<string?>(data => data != null && data.Contains("\"newStatus\":\"Accepted\"")),
                 $"/orders/{orderId}",
-                OneSignalPushProfile.MobileHeadsUp,
+                OneSignalPushProfile.MobileOrderUpdates,
                 It.IsAny<CancellationToken>()),
             Times.Once);
     }

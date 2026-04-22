@@ -84,7 +84,7 @@ public class OrderStatusChangedHandler : INotificationHandler<OrderStatusChanged
                 notification.OrderId,
                 data,
                 targetUrl,
-                OneSignalPushProfile.MobileHeadsUp,
+                OneSignalPushProfile.MobileOrderUpdates,
                 cancellationToken);
         }
 
