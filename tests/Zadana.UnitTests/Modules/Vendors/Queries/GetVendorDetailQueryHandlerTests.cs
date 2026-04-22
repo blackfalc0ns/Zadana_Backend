@@ -52,6 +52,7 @@ public class GetVendorDetailQueryHandlerTests
             null,
             null,
             null,
+            false,
             "Owner Name",
             "owner@test.com",
             "123",

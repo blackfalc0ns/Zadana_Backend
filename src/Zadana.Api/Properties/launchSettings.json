@@ -8,7 +8,7 @@
       "applicationUrl": "http://localhost:5298",
       "environmentVariables": {
         "ASPNETCORE_ENVIRONMENT": "Development",
-        "OneSignal__RestApiKey": "os_v2_app_4vl5utuupndixk23g7cvfq25zkoila5q6imuwm42uiqqjx2ns3lkxekvuzdx72gmcn7fngu5lnf3doh55vp74hshki4nukep3kpcnya"
+        "OneSignal__RestApiKey": "os_v2_app_4vl5utuupndixk23g7cvfq25zkng3tvlfydei4vbz2qagxuibv6vyceaijydkzl3s2a7krqkppzzljoyihghkfnmyrilwzrx2gtr45q"
       }
     },
     "https": {
@@ -18,7 +18,7 @@
       "applicationUrl": "https://localhost:7081;http://localhost:5298",
       "environmentVariables": {
         "ASPNETCORE_ENVIRONMENT": "Development",
-        "OneSignal__RestApiKey": "os_v2_app_4vl5utuupndixk23g7cvfq25zkoila5q6imuwm42uiqqjx2ns3lkxekvuzdx72gmcn7fngu5lnf3doh55vp74hshki4nukep3kpcnya"
+        "OneSignal__RestApiKey": "os_v2_app_4vl5utuupndixk23g7cvfq25zkng3tvlfydei4vbz2qagxuibv6vyceaijydkzl3s2a7krqkppzzljoyihghkfnmyrilwzrx2gtr45q"
       }
     }
   }

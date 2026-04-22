@@ -10,8 +10,12 @@ using Zadana.Application.Common.Interfaces;
 using Zadana.Application.Common.Localization;
 using Zadana.Application.Common.Models;
 using Zadana.Application.Modules.Vendors.Commands.ApproveVendor;
+using Zadana.Application.Modules.Vendors.Commands.ApproveVendorDocumentReview;
+using Zadana.Application.Modules.Vendors.Commands.RequestVendorDocuments;
 using Zadana.Application.Modules.Vendors.Commands.RejectVendor;
+using Zadana.Application.Modules.Vendors.Commands.RejectVendorDocumentReview;
 using Zadana.Application.Modules.Vendors.Commands.ReactivateVendor;
+using Zadana.Application.Modules.Vendors.Commands.StartVendorReview;
 using Zadana.Application.Modules.Vendors.Commands.SuspendVendor;
 using Zadana.Application.Modules.Vendors.DTOs;
 using Zadana.Application.Modules.Vendors.Queries.GetAllVendors;
@@ -113,6 +117,7 @@ public class AdminVendorsControllerTests
             null,
             null,
             null,
+            false,
             "Owner",
             "o@t.com",
             "123",
@@ -182,6 +187,57 @@ public class AdminVendorsControllerTests
         var result = await _controller.ReactivateVendor(vendorId);
 
         _senderMock.Verify(sender => sender.Send(It.Is<ReactivateVendorCommand>(command => command.VendorId == vendorId), default), Times.Once);
+        result.Should().BeOfType<OkObjectResult>();
+    }
+
+    [Fact]
+    public async Task StartVendorReview_ReturnsOkResult()
+    {
+        var vendorId = Guid.NewGuid();
+
+        var result = await _controller.StartVendorReview(vendorId);
+
+        _senderMock.Verify(sender => sender.Send(It.Is<StartVendorReviewCommand>(command => command.VendorId == vendorId), default), Times.Once);
+        result.Should().BeOfType<OkObjectResult>();
+    }
+
+    [Fact]
+    public async Task RequestVendorDocuments_ReturnsOkResult()
+    {
+        var vendorId = Guid.NewGuid();
+        var request = new AdminRequestVendorDocumentsRequest("Need fresh tax and license files.");
+
+        var result = await _controller.RequestVendorDocuments(vendorId, request);
+
+        _senderMock.Verify(sender => sender.Send(It.Is<RequestVendorDocumentsCommand>(command =>
+            command.VendorId == vendorId && command.Note == request.Note), default), Times.Once);
+        result.Should().BeOfType<OkObjectResult>();
+    }
+
+    [Fact]
+    public async Task ApproveVendorDocument_ReturnsOkResult()
+    {
+        var vendorId = Guid.NewGuid();
+        const string documentId = "commercial";
+
+        var result = await _controller.ApproveVendorDocument(vendorId, documentId);
+
+        _senderMock.Verify(sender => sender.Send(It.Is<ApproveVendorDocumentReviewCommand>(command =>
+            command.VendorId == vendorId && command.DocumentId == documentId), default), Times.Once);
+        result.Should().BeOfType<OkObjectResult>();
+    }
+
+    [Fact]
+    public async Task RejectVendorDocument_ReturnsOkResult()
+    {
+        var vendorId = Guid.NewGuid();
+        const string documentId = "tax";
+        var request = new AdminRejectVendorDocumentRequest("Missing official stamp.");
+
+        var result = await _controller.RejectVendorDocument(vendorId, documentId, request);
+
+        _senderMock.Verify(sender => sender.Send(It.Is<RejectVendorDocumentReviewCommand>(command =>
+            command.VendorId == vendorId && command.DocumentId == documentId && command.Reason == request.Reason), default), Times.Once);
         result.Should().BeOfType<OkObjectResult>();
     }
 }

@@ -39,6 +39,7 @@ public record VendorDetailDto(
     DateTime? ReviewCompletedAtUtc,
     DateTime? RequestedChangesAtUtc,
     string? ReviewDecisionReason,
+    bool ReadyForFinalApproval,
     // Owner info
     string OwnerName,
     string OwnerEmail,

@@ -5,6 +5,7 @@ using Zadana.Application.Common.Interfaces;
 using Zadana.Application.Modules.Identity.Interfaces;
 using Zadana.Application.Modules.Vendors.DTOs;
 using Zadana.Application.Modules.Vendors.Interfaces;
+using Zadana.Application.Modules.Vendors.Support;
 using Zadana.Domain.Modules.Vendors.Entities;
 using Zadana.Domain.Modules.Vendors.Enums;
 using Zadana.SharedKernel.Exceptions;
@@ -52,6 +53,7 @@ public class RejectVendorDocumentReviewCommandHandler : IRequestHandler<RejectVe
             ?? throw new NotFoundException("Vendor", request.VendorId);
 
         var documentType = ParseDocumentType(request.DocumentId);
+        VendorReviewWorkflow.EnsureDocumentCanBeReviewed(vendor, documentType);
         var reviewerName = await ResolveReviewerNameAsync(cancellationToken);
 
         var review = vendor.DocumentReviews.FirstOrDefault(item => item.Type == documentType);

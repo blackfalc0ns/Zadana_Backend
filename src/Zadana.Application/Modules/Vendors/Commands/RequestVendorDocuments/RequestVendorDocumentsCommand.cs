@@ -2,6 +2,7 @@ using MediatR;
 using Zadana.Application.Common.Interfaces;
 using Zadana.Application.Modules.Vendors.DTOs;
 using Zadana.Application.Modules.Vendors.Interfaces;
+using Zadana.Application.Modules.Vendors.Support;
 using Zadana.SharedKernel.Exceptions;
 
 namespace Zadana.Application.Modules.Vendors.Commands.RequestVendorDocuments;
@@ -31,12 +32,17 @@ public class RequestVendorDocumentsCommandHandler : IRequestHandler<RequestVendo
     {
         var vendor = await _vendorRepository.GetByIdAsync(request.VendorId, cancellationToken)
             ?? throw new NotFoundException("Vendor", request.VendorId);
+        VendorReviewWorkflow.EnsureComplianceActionAllowed(vendor);
+
+        var note = string.IsNullOrWhiteSpace(request.Note)
+            ? "Please re-upload the required legal documents and confirm the latest vendor information."
+            : request.Note.Trim();
 
         await _vendorReviewAuditService.AppendEntryAsync(
             vendor.UserId,
             "request-documents",
             "warning",
-            request.Note,
+            note,
             "Compliance Review",
             "Vendor Compliance Desk",
             _currentUserService.UserId,

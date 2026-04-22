@@ -2,6 +2,7 @@ using MediatR;
 using Zadana.Application.Common.Interfaces;
 using Zadana.Application.Modules.Vendors.DTOs;
 using Zadana.Application.Modules.Vendors.Interfaces;
+using Zadana.Application.Modules.Vendors.Support;
 using Zadana.SharedKernel.Exceptions;
 
 namespace Zadana.Application.Modules.Vendors.Commands.StartVendorReview;
@@ -31,6 +32,7 @@ public class StartVendorReviewCommandHandler : IRequestHandler<StartVendorReview
     {
         var vendor = await _vendorRepository.GetByIdAsync(request.VendorId, cancellationToken)
             ?? throw new NotFoundException("Vendor", request.VendorId);
+        VendorReviewWorkflow.EnsureComplianceActionAllowed(vendor);
 
         await _vendorReviewAuditService.AppendEntryAsync(
             vendor.UserId,

@@ -2,6 +2,7 @@ using Microsoft.EntityFrameworkCore;
 using Zadana.Application.Common.Models;
 using Zadana.Application.Modules.Vendors.DTOs;
 using Zadana.Application.Modules.Vendors.Interfaces;
+using Zadana.Application.Modules.Vendors.Support;
 using Zadana.Domain.Modules.Identity.Entities;
 using Zadana.Domain.Modules.Social.Entities;
 using Zadana.Domain.Modules.Vendors.Entities;
@@ -227,19 +228,22 @@ public class VendorReadService : IVendorReadService
             .Select(MapReviewNote)
             .ToList();
         var reviewDocuments = MapReviewDocuments(vendor, workspace.PrimaryBankAccount, user);
+        var latestRejectedDocumentReview = VendorReviewWorkflow.GetLatestRejectedRequiredReview(vendor);
         var reviewStartedAtUtc = reviewNotifications
             .FirstOrDefault(item => GetReviewKind(item.Type) == "start-review")
             ?.CreatedAtUtc;
         var requestedChangesAtUtc = reviewNotifications
             .FirstOrDefault(item => GetReviewKind(item.Type) == "request-documents")
-            ?.CreatedAtUtc;
+            ?.CreatedAtUtc
+            ?? latestRejectedDocumentReview?.ReviewedAtUtc;
         var reviewCompletedAtUtc = vendor.ApprovedAtUtc
             ?? reviewNotifications
                 .FirstOrDefault(item =>
                     GetReviewKind(item.Type) == "approved"
                     || GetReviewKind(item.Type) == "rejected")
                 ?.CreatedAtUtc;
-        var reviewDecisionReason = reviewNotifications
+        var reviewDecisionReason = latestRejectedDocumentReview?.RejectionReason
+            ?? reviewNotifications
             .FirstOrDefault(item =>
                 GetReviewKind(item.Type) == "request-documents"
                 || GetReviewKind(item.Type) == "rejected"
@@ -291,6 +295,7 @@ public class VendorReadService : IVendorReadService
             reviewCompletedAtUtc,
             requestedChangesAtUtc,
             reviewDecisionReason,
+            VendorReviewWorkflow.IsReadyForFinalApproval(vendor),
             workspace.OwnerName ?? user.FullName,
             workspace.OwnerEmail ?? user.Email ?? string.Empty,
             workspace.OwnerPhone ?? user.PhoneNumber ?? string.Empty,
@@ -332,12 +337,15 @@ public class VendorReadService : IVendorReadService
         IReadOnlyDictionary<VendorDocumentType, VendorDocumentReview> reviewLookup,
         VendorDocumentType type)
     {
+        _ = user;
+        _ = primaryBankAccount;
+
         var review = reviewLookup.GetValueOrDefault(type);
         var (titleKey, descriptionKey, icon) = GetReviewDocumentMetadata(type);
         var fileUrl = GetDocumentFileUrl(vendor, type);
-        var isUploaded = IsDocumentUploaded(vendor, user, primaryBankAccount, type);
-        var status = isUploaded ? "completed" : "missing";
-        var previewKind = ResolvePreviewKind(type, fileUrl, isUploaded);
+        var isUploaded = VendorReviewWorkflow.IsUploaded(vendor, type);
+        var status = VendorReviewWorkflow.ResolveStatus(isUploaded, review?.Decision);
+        var previewKind = VendorReviewWorkflow.ResolvePreviewKind(fileUrl, isUploaded);
         var reviewDecision = review?.Decision.ToString().ToLowerInvariant() ?? "pending";
 
         return new VendorReviewDocumentDto(
@@ -347,9 +355,9 @@ public class VendorReadService : IVendorReadService
             descriptionKey,
             icon,
             status,
-            status == "completed" ? "COMPLIANCE.STATUS.COMPLETED" : "COMPLIANCE.STATUS.MISSING",
-            status == "completed" ? "bg-teal-50 text-teal-500" : "bg-slate-100 text-slate-500",
-            true,
+            VendorReviewWorkflow.ResolveStatusLabelKey(status),
+            VendorReviewWorkflow.ResolveStatusBadgeClass(status),
+            VendorReviewWorkflow.IsRequired(type),
             isUploaded,
             previewKind,
             fileUrl,
@@ -369,21 +377,6 @@ public class VendorReadService : IVendorReadService
             _ => ("COMPLIANCE.VERIFICATION.MUNICIPAL_LICENSE", "COMPLIANCE.VERIFICATION.LICENSE_DESC", "verified")
         };
 
-    private static bool IsDocumentUploaded(
-        Vendor vendor,
-        User user,
-        VendorBankAccountDto? primaryBankAccount,
-        VendorDocumentType type) =>
-        type switch
-        {
-            VendorDocumentType.Identity => !string.IsNullOrWhiteSpace(vendor.IdNumber) || !string.IsNullOrWhiteSpace(vendor.OwnerName ?? user.FullName),
-            VendorDocumentType.Commercial => !string.IsNullOrWhiteSpace(vendor.CommercialRegisterDocumentUrl) || !string.IsNullOrWhiteSpace(vendor.CommercialRegistrationNumber),
-            VendorDocumentType.Tax => !string.IsNullOrWhiteSpace(vendor.TaxDocumentUrl) || !string.IsNullOrWhiteSpace(vendor.TaxId),
-            VendorDocumentType.Bank => primaryBankAccount is not null && !string.IsNullOrWhiteSpace(primaryBankAccount.Iban),
-            VendorDocumentType.License => !string.IsNullOrWhiteSpace(vendor.LicenseDocumentUrl) || !string.IsNullOrWhiteSpace(vendor.LicenseNumber),
-            _ => false
-        };
-
     private static string? GetDocumentFileUrl(Vendor vendor, VendorDocumentType type) =>
         type switch
         {
@@ -392,22 +385,6 @@ public class VendorReadService : IVendorReadService
             VendorDocumentType.License => vendor.LicenseDocumentUrl,
             _ => null
         };
-
-    private static string ResolvePreviewKind(VendorDocumentType type, string? fileUrl, bool isUploaded)
-    {
-        if (!string.IsNullOrWhiteSpace(fileUrl))
-        {
-            var lowerUrl = fileUrl.ToLowerInvariant();
-            if (lowerUrl.EndsWith(".png") || lowerUrl.EndsWith(".jpg") || lowerUrl.EndsWith(".jpeg") || lowerUrl.EndsWith(".webp"))
-            {
-                return "image";
-            }
-
-            return "pdf";
-        }
-
-        return isUploaded ? "structured" : "unavailable";
-    }
 
     private static VendorReviewNoteDto MapReviewNote(Notification notification)
     {
