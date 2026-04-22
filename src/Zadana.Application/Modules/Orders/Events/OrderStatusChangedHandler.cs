@@ -1,9 +1,9 @@
-using System.Text.Json;
 using MediatR;
 using Microsoft.EntityFrameworkCore;
 using Zadana.Application.Common.Interfaces;
-using Zadana.Domain.Modules.Payments.Enums;
+using Zadana.Application.Modules.Orders.Support;
 using Zadana.Domain.Modules.Orders.Enums;
+using Zadana.Domain.Modules.Payments.Enums;
 using Zadana.Domain.Modules.Social.Enums;
 using Zadana.Domain.Modules.Vendors.Enums;
 using Zadana.Domain.Modules.Wallets.Entities;
@@ -16,78 +16,47 @@ public class OrderStatusChangedHandler : INotificationHandler<OrderStatusChanged
     private readonly INotificationService _notificationService;
     private readonly IApplicationDbContext _context;
     private readonly IOneSignalPushService _oneSignalPushService;
+    private readonly IOrderStatusNotificationDispatcher _orderStatusNotificationDispatcher;
 
     public OrderStatusChangedHandler(
         INotificationService notificationService,
         IApplicationDbContext context,
-        IOneSignalPushService oneSignalPushService)
+        IOneSignalPushService oneSignalPushService,
+        IOrderStatusNotificationDispatcher orderStatusNotificationDispatcher)
     {
         _notificationService = notificationService;
         _context = context;
         _oneSignalPushService = oneSignalPushService;
+        _orderStatusNotificationDispatcher = orderStatusNotificationDispatcher;
     }
 
     public async Task Handle(OrderStatusChangedNotification notification, CancellationToken cancellationToken)
     {
         await HandleDirectPerOrderPayoutAsync(notification, cancellationToken);
 
-        var targetUrl = ResolveTargetUrl(notification);
-        var data = JsonSerializer.Serialize(new
+        var targetUrl = OrderStatusNotificationComposer.ResolveTargetUrl(notification.OrderId);
+        var action = OrderStatusNotificationComposer.ResolveAction(notification.NewStatus);
+        var data = OrderStatusNotificationComposer.BuildData(
+            notification.OrderId,
+            notification.OrderNumber,
+            notification.VendorId,
+            notification.OldStatus,
+            notification.NewStatus,
+            notification.ActorRole,
+            action,
+            targetUrl);
+
+        if (notification.NotifyCustomer && !notification.CustomerNotificationAlreadySent)
         {
-            orderId = notification.OrderId,
-            orderNumber = notification.OrderNumber,
-            vendorId = notification.VendorId,
-            oldStatus = notification.OldStatus.ToString(),
-            newStatus = notification.NewStatus.ToString(),
-            actorRole = notification.ActorRole,
-            action = ResolveAction(notification),
-            targetUrl
-        });
-
-        if (notification.NotifyCustomer)
-        {
-            var customerType = notification.NewStatus == OrderStatus.Cancelled
-                ? NotificationTypes.OrderCancelled
-                : NotificationTypes.OrderStatusChanged;
-            var (titleAr, titleEn, bodyAr, bodyEn) = GetCustomerNotificationContent(notification.NewStatus, notification.OrderNumber);
-
-            await _notificationService.SendToUserAsync(
-                notification.UserId,
-                titleAr,
-                titleEn,
-                bodyAr,
-                bodyEn,
-                customerType,
-                notification.OrderId,
-                data,
-                cancellationToken);
-
-            await _notificationService.SendOrderStatusChangedToUserAsync(
-                notification.UserId,
-                notification.OrderId,
-                notification.OrderNumber,
-                notification.VendorId,
-                notification.OldStatus.ToString(),
-                notification.NewStatus.ToString(),
-                notification.ActorRole,
-                ResolveAction(notification),
-                targetUrl,
-                cancellationToken);
-
-            await _oneSignalPushService.SendToExternalUserAsync(
-                notification.UserId.ToString(),
-                titleAr,
-                titleEn,
-                bodyAr,
-                bodyEn,
-                customerType,
-                notification.OrderId,
-                data,
-                targetUrl,
-                // Use the proven heads-up mobile profile for live order-status pushes.
-                // The dedicated order-updates channel can be restored once the mobile
-                // app confirms killed-state visibility on that channel.
-                OneSignalPushProfile.MobileHeadsUp,
+            await _orderStatusNotificationDispatcher.DispatchCustomerAsync(
+                new OrderStatusCustomerNotificationRequest(
+                    notification.UserId,
+                    notification.OrderId,
+                    notification.VendorId,
+                    notification.OrderNumber,
+                    notification.OldStatus,
+                    notification.NewStatus,
+                    notification.ActorRole),
                 cancellationToken);
         }
 
@@ -133,7 +102,7 @@ public class OrderStatusChangedHandler : INotificationHandler<OrderStatusChanged
             notification.OldStatus.ToString(),
             notification.NewStatus.ToString(),
             notification.ActorRole,
-            ResolveAction(notification),
+            action,
             targetUrl,
             cancellationToken);
 
@@ -227,97 +196,6 @@ public class OrderStatusChangedHandler : INotificationHandler<OrderStatusChanged
         await _context.SaveChangesAsync(cancellationToken);
     }
 
-    private static (string TitleAr, string TitleEn, string BodyAr, string BodyEn) GetCustomerNotificationContent(
-        OrderStatus status, string orderNumber)
-    {
-        return status switch
-        {
-            OrderStatus.Placed => (
-                "تم تأكيد الطلب",
-                "Order Confirmed",
-                $"تم تأكيد طلبك رقم {orderNumber} بنجاح",
-                $"Your order #{orderNumber} has been confirmed successfully"),
-
-            OrderStatus.PendingVendorAcceptance => (
-                "في انتظار موافقة التاجر",
-                "Awaiting Vendor Approval",
-                $"طلبك رقم {orderNumber} في انتظار موافقة التاجر",
-                $"Your order #{orderNumber} is awaiting vendor approval"),
-
-            OrderStatus.Accepted => (
-                "تم قبول الطلب",
-                "Order Accepted",
-                $"تم قبول طلبك رقم {orderNumber} من قبل التاجر",
-                $"Your order #{orderNumber} has been accepted by the vendor"),
-
-            OrderStatus.VendorRejected => (
-                "تم رفض الطلب",
-                "Order Rejected",
-                $"للأسف، تم رفض طلبك رقم {orderNumber} من قبل التاجر",
-                $"Sorry, your order #{orderNumber} has been rejected by the vendor"),
-
-            OrderStatus.Preparing => (
-                "جاري تحضير الطلب",
-                "Order Being Prepared",
-                $"طلبك رقم {orderNumber} قيد التحضير الآن",
-                $"Your order #{orderNumber} is now being prepared"),
-
-            OrderStatus.ReadyForPickup => (
-                "الطلب جاهز للاستلام",
-                "Order Ready for Pickup",
-                $"طلبك رقم {orderNumber} جاهز وفي انتظار المندوب",
-                $"Your order #{orderNumber} is ready and waiting for the driver"),
-
-            OrderStatus.DriverAssigned => (
-                "تم تعيين مندوب التوصيل",
-                "Driver Assigned",
-                $"تم تعيين مندوب لتوصيل طلبك رقم {orderNumber}",
-                $"A driver has been assigned to deliver your order #{orderNumber}"),
-
-            OrderStatus.PickedUp => (
-                "تم استلام الطلب من التاجر",
-                "Order Picked Up",
-                $"المندوب استلم طلبك رقم {orderNumber} من التاجر",
-                $"The driver has picked up your order #{orderNumber} from the vendor"),
-
-            OrderStatus.OnTheWay => (
-                "الطلب في الطريق إليك",
-                "Order On The Way",
-                $"طلبك رقم {orderNumber} في الطريق إليك الآن!",
-                $"Your order #{orderNumber} is on its way to you!"),
-
-            OrderStatus.Delivered => (
-                "تم التوصيل بنجاح",
-                "Order Delivered",
-                $"تم توصيل طلبك رقم {orderNumber} بنجاح. شكراً لك!",
-                $"Your order #{orderNumber} has been delivered successfully. Thank you!"),
-
-            OrderStatus.DeliveryFailed => (
-                "فشل التوصيل",
-                "Delivery Failed",
-                $"للأسف، فشل توصيل طلبك رقم {orderNumber}. سيتم التواصل معك",
-                $"Sorry, delivery of your order #{orderNumber} failed. We will contact you"),
-
-            OrderStatus.Cancelled => (
-                "تم إلغاء الطلب",
-                "Order Cancelled",
-                $"تم إلغاء طلبك رقم {orderNumber}",
-                $"Your order #{orderNumber} has been cancelled"),
-
-            OrderStatus.Refunded => (
-                "تم استرداد المبلغ",
-                "Order Refunded",
-                $"تم استرداد مبلغ طلبك رقم {orderNumber}",
-                $"Your order #{orderNumber} has been refunded"),
-
-            _ => (
-                "تحديث على الطلب",
-                "Order Update",
-                $"تم تحديث حالة طلبك رقم {orderNumber}",
-                $"Your order #{orderNumber} status has been updated")
-        };
-    }
-
     private static (string TitleAr, string TitleEn, string BodyAr, string BodyEn, string Type) GetVendorNotificationContent(
         OrderStatus status,
         string orderNumber)
@@ -350,15 +228,4 @@ public class OrderStatusChangedHandler : INotificationHandler<OrderStatusChanged
                 NotificationTypes.OrderStatusChanged)
         };
     }
-
-    private static string ResolveAction(OrderStatusChangedNotification notification) =>
-        notification.NewStatus switch
-        {
-            OrderStatus.PendingVendorAcceptance => "placed",
-            OrderStatus.Cancelled => "cancelled",
-            _ => "status_changed"
-        };
-
-    private static string ResolveTargetUrl(OrderStatusChangedNotification notification) =>
-        $"/orders/{notification.OrderId}";
 }

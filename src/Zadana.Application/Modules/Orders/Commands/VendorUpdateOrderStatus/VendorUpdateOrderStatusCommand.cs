@@ -43,15 +43,18 @@ public class VendorUpdateOrderStatusCommandHandler : IRequestHandler<VendorUpdat
     private readonly IApplicationDbContext _context;
     private readonly IUnitOfWork _unitOfWork;
     private readonly IPublisher _publisher;
+    private readonly IOrderStatusNotificationDispatcher _orderStatusNotificationDispatcher;
 
     public VendorUpdateOrderStatusCommandHandler(
         IApplicationDbContext context,
         IUnitOfWork unitOfWork,
-        IPublisher publisher)
+        IPublisher publisher,
+        IOrderStatusNotificationDispatcher orderStatusNotificationDispatcher)
     {
         _context = context;
         _unitOfWork = unitOfWork;
         _publisher = publisher;
+        _orderStatusNotificationDispatcher = orderStatusNotificationDispatcher;
     }
 
     public async Task<VendorUpdateOrderStatusResultDto> Handle(VendorUpdateOrderStatusCommand request, CancellationToken cancellationToken)
@@ -77,6 +80,17 @@ public class VendorUpdateOrderStatusCommandHandler : IRequestHandler<VendorUpdat
         _context.OrderStatusHistories.Add(order.StatusHistory.Last());
         await _unitOfWork.SaveChangesAsync(cancellationToken);
 
+        await _orderStatusNotificationDispatcher.DispatchCustomerAsync(
+            new OrderStatusCustomerNotificationRequest(
+                order.UserId,
+                order.Id,
+                order.VendorId,
+                order.OrderNumber,
+                oldStatus,
+                request.NewStatus,
+                ActorRole: "vendor"),
+            cancellationToken);
+
         // Publish notification event
         await _publisher.Publish(
             new OrderStatusChangedNotification(
@@ -88,7 +102,8 @@ public class VendorUpdateOrderStatusCommandHandler : IRequestHandler<VendorUpdat
                 request.NewStatus,
                 NotifyCustomer: true,
                 NotifyVendor: false,
-                ActorRole: "vendor"),
+                ActorRole: "vendor",
+                CustomerNotificationAlreadySent: true),
             cancellationToken);
 
         return new VendorUpdateOrderStatusResultDto(

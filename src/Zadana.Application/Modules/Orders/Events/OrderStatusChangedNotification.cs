@@ -15,4 +15,5 @@ public record OrderStatusChangedNotification(
     OrderStatus NewStatus,
     bool NotifyCustomer = true,
     bool NotifyVendor = false,
-    string? ActorRole = null) : INotification;
+    string? ActorRole = null,
+    bool CustomerNotificationAlreadySent = false) : INotification;

@@ -28,7 +28,12 @@ public class OrderStatusChangedHandlerTests
 
         var notificationServiceMock = new Mock<INotificationService>();
         var pushServiceMock = CreatePushServiceMock();
-        var handler = new OrderStatusChangedHandler(notificationServiceMock.Object, dbContext, pushServiceMock.Object);
+        var dispatcherMock = CreateDispatcherMock();
+        var handler = new OrderStatusChangedHandler(
+            notificationServiceMock.Object,
+            dbContext,
+            pushServiceMock.Object,
+            dispatcherMock.Object);
 
         await handler.Handle(
             new OrderStatusChangedNotification(
@@ -83,6 +88,10 @@ public class OrderStatusChangedHandlerTests
                 It.IsAny<string?>(),
                 It.IsAny<CancellationToken>()),
             Times.Once);
+
+        dispatcherMock.Verify(
+            service => service.DispatchCustomerAsync(It.IsAny<OrderStatusCustomerNotificationRequest>(), It.IsAny<CancellationToken>()),
+            Times.Never);
     }
 
     [Fact]
@@ -98,7 +107,12 @@ public class OrderStatusChangedHandlerTests
 
         var notificationServiceMock = new Mock<INotificationService>();
         var pushServiceMock = CreatePushServiceMock();
-        var handler = new OrderStatusChangedHandler(notificationServiceMock.Object, dbContext, pushServiceMock.Object);
+        var dispatcherMock = CreateDispatcherMock();
+        var handler = new OrderStatusChangedHandler(
+            notificationServiceMock.Object,
+            dbContext,
+            pushServiceMock.Object,
+            dispatcherMock.Object);
 
         await handler.Handle(
             new OrderStatusChangedNotification(
@@ -153,6 +167,10 @@ public class OrderStatusChangedHandlerTests
                 It.IsAny<string?>(),
                 It.IsAny<CancellationToken>()),
             Times.Once);
+
+        dispatcherMock.Verify(
+            service => service.DispatchCustomerAsync(It.IsAny<OrderStatusCustomerNotificationRequest>(), It.IsAny<CancellationToken>()),
+            Times.Never);
     }
 
     [Fact]
@@ -168,7 +186,12 @@ public class OrderStatusChangedHandlerTests
 
         var notificationServiceMock = new Mock<INotificationService>();
         var pushServiceMock = CreatePushServiceMock();
-        var handler = new OrderStatusChangedHandler(notificationServiceMock.Object, dbContext, pushServiceMock.Object);
+        var dispatcherMock = CreateDispatcherMock();
+        var handler = new OrderStatusChangedHandler(
+            notificationServiceMock.Object,
+            dbContext,
+            pushServiceMock.Object,
+            dispatcherMock.Object);
 
         await handler.Handle(
             new OrderStatusChangedNotification(
@@ -223,15 +246,24 @@ public class OrderStatusChangedHandlerTests
                 It.IsAny<string?>(),
                 It.IsAny<CancellationToken>()),
             Times.Never);
+
+        dispatcherMock.Verify(
+            service => service.DispatchCustomerAsync(It.IsAny<OrderStatusCustomerNotificationRequest>(), It.IsAny<CancellationToken>()),
+            Times.Never);
     }
 
     [Fact]
-    public async Task Handle_WhenCustomerShouldBeNotified_ShouldSendInboxAndRealtimeOrderEvent()
+    public async Task Handle_WhenCustomerShouldBeNotified_ShouldUseSharedDispatcher()
     {
         await using var dbContext = CreateDbContext();
         var notificationServiceMock = new Mock<INotificationService>();
         var pushServiceMock = CreatePushServiceMock();
-        var handler = new OrderStatusChangedHandler(notificationServiceMock.Object, dbContext, pushServiceMock.Object);
+        var dispatcherMock = CreateDispatcherMock();
+        var handler = new OrderStatusChangedHandler(
+            notificationServiceMock.Object,
+            dbContext,
+            pushServiceMock.Object,
+            dispatcherMock.Object);
         var customerId = Guid.NewGuid();
         var vendorId = Guid.NewGuid();
         var orderId = Guid.NewGuid();
@@ -249,6 +281,19 @@ public class OrderStatusChangedHandlerTests
                 ActorRole: "vendor"),
             CancellationToken.None);
 
+        dispatcherMock.Verify(
+            service => service.DispatchCustomerAsync(
+                It.Is<OrderStatusCustomerNotificationRequest>(request =>
+                    request.UserId == customerId &&
+                    request.OrderId == orderId &&
+                    request.VendorId == vendorId &&
+                    request.OrderNumber == "ORD-CUSTOMER-001" &&
+                    request.OldStatus == OrderStatus.PendingVendorAcceptance &&
+                    request.NewStatus == OrderStatus.Accepted &&
+                    request.ActorRole == "vendor"),
+                It.IsAny<CancellationToken>()),
+            Times.Once);
+
         notificationServiceMock.Verify(
             service => service.SendToUserAsync(
                 customerId,
@@ -256,25 +301,11 @@ public class OrderStatusChangedHandlerTests
                 It.IsAny<string>(),
                 It.IsAny<string>(),
                 It.IsAny<string>(),
-                NotificationTypes.OrderStatusChanged,
-                orderId,
-                It.Is<string?>(data => data != null && data.Contains("\"newStatus\":\"Accepted\"")),
+                It.IsAny<string?>(),
+                It.IsAny<Guid?>(),
+                It.IsAny<string?>(),
                 It.IsAny<CancellationToken>()),
-            Times.Once);
-
-        notificationServiceMock.Verify(
-            service => service.SendOrderStatusChangedToUserAsync(
-                customerId,
-                orderId,
-                "ORD-CUSTOMER-001",
-                vendorId,
-                nameof(OrderStatus.PendingVendorAcceptance),
-                nameof(OrderStatus.Accepted),
-                "vendor",
-                "status_changed",
-                $"/orders/{orderId}",
-                It.IsAny<CancellationToken>()),
-            Times.Once);
+            Times.Never);
 
         pushServiceMock.Verify(
             service => service.SendToExternalUserAsync(
@@ -283,13 +314,62 @@ public class OrderStatusChangedHandlerTests
                 It.IsAny<string>(),
                 It.IsAny<string>(),
                 It.IsAny<string>(),
-                NotificationTypes.OrderStatusChanged,
-                orderId,
-                It.Is<string?>(data => data != null && data.Contains("\"newStatus\":\"Accepted\"")),
-                $"/orders/{orderId}",
-                OneSignalPushProfile.MobileHeadsUp,
+                It.IsAny<string?>(),
+                It.IsAny<Guid?>(),
+                It.IsAny<string?>(),
+                It.IsAny<string?>(),
+                It.IsAny<OneSignalPushProfile>(),
                 It.IsAny<CancellationToken>()),
-            Times.Once);
+            Times.Never);
+    }
+
+    [Fact]
+    public async Task Handle_WhenCustomerNotificationAlreadySent_ShouldSkipSharedDispatcher()
+    {
+        await using var dbContext = CreateDbContext();
+        var notificationServiceMock = new Mock<INotificationService>();
+        var pushServiceMock = CreatePushServiceMock();
+        var dispatcherMock = CreateDispatcherMock();
+        var handler = new OrderStatusChangedHandler(
+            notificationServiceMock.Object,
+            dbContext,
+            pushServiceMock.Object,
+            dispatcherMock.Object);
+
+        await handler.Handle(
+            new OrderStatusChangedNotification(
+                Guid.NewGuid(),
+                Guid.NewGuid(),
+                Guid.NewGuid(),
+                "ORD-CUSTOMER-DEDUP-001",
+                OrderStatus.PendingVendorAcceptance,
+                OrderStatus.Accepted,
+                NotifyCustomer: true,
+                NotifyVendor: false,
+                ActorRole: "vendor",
+                CustomerNotificationAlreadySent: true),
+            CancellationToken.None);
+
+        dispatcherMock.Verify(
+            service => service.DispatchCustomerAsync(It.IsAny<OrderStatusCustomerNotificationRequest>(), It.IsAny<CancellationToken>()),
+            Times.Never);
+    }
+
+    private static Mock<IOrderStatusNotificationDispatcher> CreateDispatcherMock()
+    {
+        var dispatcherMock = new Mock<IOrderStatusNotificationDispatcher>();
+        dispatcherMock
+            .Setup(service => service.DispatchCustomerAsync(
+                It.IsAny<OrderStatusCustomerNotificationRequest>(),
+                It.IsAny<CancellationToken>()))
+            .ReturnsAsync(new OrderStatusNotificationDispatchResult(
+                InboxQueued: true,
+                RealtimeQueued: true,
+                PushAttempted: true,
+                PushSent: true,
+                PushProviderStatusCode: 200,
+                PushReason: null));
+        return dispatcherMock;
     }
 
     private static Mock<IOneSignalPushService> CreatePushServiceMock()

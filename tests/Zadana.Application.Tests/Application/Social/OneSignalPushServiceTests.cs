@@ -54,9 +54,9 @@ public class OneSignalPushServiceTests
         root.TryGetProperty("web_url", out _).Should().BeFalse();
         root.GetProperty("include_aliases").GetProperty("external_id")[0].GetString().Should().Be("customer-1");
         headings.GetProperty("en").GetString().Should().Be("Title");
-        headings.GetProperty("ar").GetString().Should().Be("Ø¹Ù†ÙˆØ§Ù†");
+        headings.GetProperty("ar").GetString().Should().Be("عنوان");
         contents.GetProperty("en").GetString().Should().Be("Body");
-        contents.GetProperty("ar").GetString().Should().Be("Ù…Ø­ØªÙˆÙ‰");
+        contents.GetProperty("ar").GetString().Should().Be("محتوى");
         Guid.Parse(data.GetProperty("notificationId").GetString()!).Should().NotBeEmpty();
         data.GetProperty("type").GetString().Should().Be("order_status_changed");
         data.GetProperty("referenceId").GetGuid().Should().NotBeEmpty();
@@ -106,9 +106,9 @@ public class OneSignalPushServiceTests
         root.TryGetProperty("web_url", out _).Should().BeFalse();
         root.GetProperty("include_aliases").GetProperty("external_id")[0].GetString().Should().Be("customer-2");
         headings.GetProperty("en").GetString().Should().Be("Title");
-        headings.GetProperty("ar").GetString().Should().Be("Ø¹Ù†ÙˆØ§Ù†");
+        headings.GetProperty("ar").GetString().Should().Be("عنوان");
         contents.GetProperty("en").GetString().Should().Be("Body");
-        contents.GetProperty("ar").GetString().Should().Be("Ù…Ø­ØªÙˆÙ‰");
+        contents.GetProperty("ar").GetString().Should().Be("محتوى");
         Guid.Parse(data.GetProperty("notificationId").GetString()!).Should().NotBeEmpty();
         data.GetProperty("type").GetString().Should().Be("order_status_changed");
         data.GetProperty("referenceId").GetGuid().Should().NotBeEmpty();
@@ -152,9 +152,9 @@ public class OneSignalPushServiceTests
         root.GetProperty("web_url").GetString().Should().Be("https://vendor.example/orders/123");
         root.GetProperty("include_aliases").GetProperty("external_id")[0].GetString().Should().Be("vendor-1");
         headings.GetProperty("en").GetString().Should().Be("Title");
-        headings.GetProperty("ar").GetString().Should().Be("Ø¹Ù†ÙˆØ§Ù†");
+        headings.GetProperty("ar").GetString().Should().Be("عنوان");
         contents.GetProperty("en").GetString().Should().Be("Body");
-        contents.GetProperty("ar").GetString().Should().Be("Ù…Ø­ØªÙˆÙ‰");
+        contents.GetProperty("ar").GetString().Should().Be("محتوى");
         Guid.Parse(root.GetProperty("collapse_id").GetString()!).Should().NotBeEmpty();
         Guid.Parse(root.GetProperty("idempotency_key").GetString()!).Should().NotBeEmpty();
         Guid.Parse(root.GetProperty("data").GetProperty("notificationId").GetString()!).Should().NotBeEmpty();
@@ -168,9 +168,9 @@ public class OneSignalPushServiceTests
 
         var result = await service.SendToExternalUserAsync(
             "customer-3",
-            "Ø¹Ù†ÙˆØ§Ù†",
+            "عنوان",
             "Title",
-            "Ù…Ø­ØªÙˆÙ‰",
+            "محتوى",
             "Body",
             "order_status_changed",
             Guid.NewGuid(),
