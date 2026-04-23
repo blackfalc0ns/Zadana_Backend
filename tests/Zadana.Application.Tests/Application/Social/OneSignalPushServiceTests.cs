@@ -66,7 +66,7 @@ public class OneSignalPushServiceTests
     }
 
     [Fact]
-    public async Task SendToExternalUserAsync_WithMobileOrderUpdatesProfile_ShouldUseSameHeadsUpChannelTemporarily()
+    public async Task SendToExternalUserAsync_WithMobileOrderUpdatesProfile_ShouldBuildDisplayableMobilePayload()
     {
         var handler = new RecordingHttpMessageHandler(HttpStatusCode.OK, """{"id":"push-2"}""");
         var service = CreateService(handler);
@@ -276,6 +276,7 @@ public class OneSignalPushServiceTests
 
         failedResult.Sent.Should().BeFalse();
         failedResult.ProviderStatusCode.Should().Be(400);
+        failedResult.Reason.Should().Be("""{"errors":["invalid_aliases"]}""");
 
         logger.Entries.Should().Contain(entry =>
             entry.Level == LogLevel.Information &&

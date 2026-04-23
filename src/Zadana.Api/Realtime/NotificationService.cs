@@ -24,6 +24,31 @@ public sealed class NotificationService : INotificationService
         _logger = logger;
     }
 
+    public async Task PersistToUserAsync(
+        Guid userId,
+        string titleAr,
+        string titleEn,
+        string bodyAr,
+        string bodyEn,
+        string? type = null,
+        Guid? referenceId = null,
+        string? data = null,
+        CancellationToken cancellationToken = default)
+    {
+        var sanitized = NotificationPayloadHelper.Sanitize(titleAr, titleEn, bodyAr, bodyEn, type, data);
+
+        await PersistNotificationAsync(
+            userId,
+            sanitized.TitleAr,
+            sanitized.TitleEn,
+            sanitized.BodyAr,
+            sanitized.BodyEn,
+            sanitized.Type,
+            referenceId,
+            sanitized.Data,
+            cancellationToken);
+    }
+
     public async Task SendToUserAsync(
         Guid userId,
         string titleAr,
@@ -37,15 +62,11 @@ public sealed class NotificationService : INotificationService
     {
         var sanitized = NotificationPayloadHelper.Sanitize(titleAr, titleEn, bodyAr, bodyEn, type, data);
 
-        // 1. Persist to database
         Guid notificationId;
         DateTime createdAtUtc;
         try
         {
-            await using var scope = _scopeFactory.CreateAsyncScope();
-            var dbContext = scope.ServiceProvider.GetRequiredService<ApplicationDbContext>();
-
-            var notification = new Notification(
+            (notificationId, createdAtUtc) = await PersistNotificationAsync(
                 userId,
                 sanitized.TitleAr,
                 sanitized.TitleEn,
@@ -53,12 +74,8 @@ public sealed class NotificationService : INotificationService
                 sanitized.BodyEn,
                 sanitized.Type,
                 referenceId,
-                sanitized.Data);
-            dbContext.Notifications.Add(notification);
-            await dbContext.SaveChangesAsync(cancellationToken);
-
-            notificationId = notification.Id;
-            createdAtUtc = notification.CreatedAtUtc;
+                sanitized.Data,
+                cancellationToken);
         }
         catch (Exception ex)
         {
@@ -67,7 +84,7 @@ public sealed class NotificationService : INotificationService
             createdAtUtc = DateTime.UtcNow;
         }
 
-        // 2. Send real-time via SignalR
+        // Send real-time via SignalR after the inbox record is persisted.
         try
         {
             var payload = new NotificationPayload(
@@ -166,6 +183,36 @@ public sealed class NotificationService : INotificationService
         {
             _logger.LogError(ex, "Failed to broadcast notification to all customers");
         }
+    }
+
+    private async Task<(Guid NotificationId, DateTime CreatedAtUtc)> PersistNotificationAsync(
+        Guid userId,
+        string titleAr,
+        string titleEn,
+        string bodyAr,
+        string bodyEn,
+        string? type,
+        Guid? referenceId,
+        string? data,
+        CancellationToken cancellationToken)
+    {
+        await using var scope = _scopeFactory.CreateAsyncScope();
+        var dbContext = scope.ServiceProvider.GetRequiredService<ApplicationDbContext>();
+
+        var notification = new Notification(
+            userId,
+            titleAr,
+            titleEn,
+            bodyAr,
+            bodyEn,
+            type,
+            referenceId,
+            data);
+
+        dbContext.Notifications.Add(notification);
+        await dbContext.SaveChangesAsync(cancellationToken);
+
+        return (notification.Id, notification.CreatedAtUtc);
     }
 }
 

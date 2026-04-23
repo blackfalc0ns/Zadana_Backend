@@ -1,4 +1,3 @@
-using System.Text.Json;
 using Microsoft.Extensions.Logging;
 using Zadana.Application.Common.Interfaces;
 using Zadana.Application.Modules.Orders.Support;
@@ -7,9 +6,6 @@ namespace Zadana.Application.Modules.Orders.Services;
 
 public sealed class OrderStatusNotificationDispatcher : IOrderStatusNotificationDispatcher
 {
-    private const string TemporaryDiagnosticPushType = "customer_test";
-    private const string TemporaryDiagnosticPushSource = "order_status_push_customer_test_alignment";
-
     private readonly INotificationService _notificationService;
     private readonly IOneSignalPushService _oneSignalPushService;
     private readonly ILogger<OrderStatusNotificationDispatcher> _logger;
@@ -38,7 +34,7 @@ public sealed class OrderStatusNotificationDispatcher : IOrderStatusNotification
         var pushRequest = BuildCustomerMobilePushRequest(request, composed);
 
         var inboxQueued = false;
-        var realtimeQueued = false;
+        const bool realtimeQueued = false;
 
         _logger.LogInformation(
             "Dispatching customer order-status notification for order {OrderId} user {UserId} from {OldStatus} to {NewStatus}",
@@ -49,7 +45,7 @@ public sealed class OrderStatusNotificationDispatcher : IOrderStatusNotification
 
         try
         {
-            await _notificationService.SendToUserAsync(
+            await _notificationService.PersistToUserAsync(
                 request.UserId,
                 composed.TitleAr,
                 composed.TitleEn,
@@ -65,37 +61,13 @@ public sealed class OrderStatusNotificationDispatcher : IOrderStatusNotification
         {
             _logger.LogError(
                 ex,
-                "Failed to queue inbox notification for order {OrderId} user {UserId}",
-                request.OrderId,
-                request.UserId);
-        }
-
-        try
-        {
-            await _notificationService.SendOrderStatusChangedToUserAsync(
-                request.UserId,
-                request.OrderId,
-                request.OrderNumber,
-                request.VendorId,
-                request.OldStatus.ToString(),
-                request.NewStatus.ToString(),
-                request.ActorRole,
-                composed.Action,
-                composed.TargetUrl,
-                cancellationToken);
-            realtimeQueued = true;
-        }
-        catch (Exception ex)
-        {
-            _logger.LogError(
-                ex,
-                "Failed to queue realtime order-status notification for order {OrderId} user {UserId}",
+                "Failed to persist inbox notification for order {OrderId} user {UserId}",
                 request.OrderId,
                 request.UserId);
         }
 
         _logger.LogWarning(
-            "[PUSH-DIAG] About to send OneSignal push for order {OrderId}. ExternalId: {ExternalId}. PushType: {PushType}. BusinessType: {BusinessType}. TitleEn: {TitleEn}. BodyEn: {BodyEn}. Profile: {Profile}. TargetUrl: {TargetUrl}",
+            "[PUSH-DIAG] About to send OneSignal push for order {OrderId}. ExternalId: {ExternalId}. PushType: {PushType}. BusinessType: {BusinessType}. TitleEn: {TitleEn}. BodyEn: {BodyEn}. Profile: {Profile}. TargetUrl: {TargetUrl}. RealtimeSuppressed: {RealtimeSuppressed}",
             request.OrderId,
             pushRequest.ExternalUserId,
             pushRequest.Type,
@@ -103,7 +75,8 @@ public sealed class OrderStatusNotificationDispatcher : IOrderStatusNotification
             pushRequest.TitleEn,
             pushRequest.BodyEn,
             pushRequest.Profile,
-            pushRequest.TargetUrl);
+            pushRequest.TargetUrl,
+            true);
 
         OneSignalPushDispatchResult pushResult;
         try
@@ -178,28 +151,8 @@ public sealed class OrderStatusNotificationDispatcher : IOrderStatusNotification
             composed.TitleEn,
             composed.BodyAr,
             composed.BodyEn,
-            TemporaryDiagnosticPushType,
+            composed.NotificationType,
             request.OrderId,
-            BuildCustomerDiagnosticPushData(request, composed),
+            composed.Data,
             composed.TargetUrl);
-
-    private static string BuildCustomerDiagnosticPushData(
-        OrderStatusCustomerNotificationRequest request,
-        CustomerOrderStatusNotification composed) =>
-        JsonSerializer.Serialize(new
-        {
-            source = TemporaryDiagnosticPushSource,
-            customerId = request.UserId,
-            userId = request.UserId,
-            generatedAtUtc = DateTime.UtcNow,
-            targetUrl = composed.TargetUrl,
-            orderId = request.OrderId,
-            orderNumber = request.OrderNumber,
-            vendorId = request.VendorId,
-            oldStatus = request.OldStatus.ToString(),
-            newStatus = request.NewStatus.ToString(),
-            actorRole = request.ActorRole,
-            action = composed.Action,
-            originalType = composed.NotificationType
-        });
 }

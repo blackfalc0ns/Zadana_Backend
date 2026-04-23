@@ -1,5 +1,6 @@
 using FluentAssertions;
 using Microsoft.AspNetCore.Mvc;
+using Microsoft.Extensions.Logging.Abstractions;
 using Moq;
 using Zadana.Api.Modules.Identity.Controllers;
 using Zadana.Api.Modules.Identity.Requests;
@@ -156,5 +157,9 @@ public class AdminCustomersControllerTests
         ApplicationDbContext dbContext,
         INotificationService notificationService,
         IOneSignalPushService oneSignalPushService) =>
-        new(dbContext, notificationService, oneSignalPushService);
+        new(
+            dbContext,
+            notificationService,
+            oneSignalPushService,
+            NullLogger<AdminCustomersController>.Instance);
 }

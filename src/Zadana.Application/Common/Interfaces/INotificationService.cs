@@ -3,6 +3,20 @@ namespace Zadana.Application.Common.Interfaces;
 public interface INotificationService
 {
     /// <summary>
+    /// Persist a notification to the user's inbox without sending any real-time SignalR events.
+    /// </summary>
+    Task PersistToUserAsync(
+        Guid userId,
+        string titleAr,
+        string titleEn,
+        string bodyAr,
+        string bodyEn,
+        string? type = null,
+        Guid? referenceId = null,
+        string? data = null,
+        CancellationToken cancellationToken = default);
+
+    /// <summary>
     /// Send a notification to a specific user and persist it in the database.
     /// </summary>
     Task SendToUserAsync(
