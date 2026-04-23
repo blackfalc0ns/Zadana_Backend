@@ -111,7 +111,9 @@ public class IdentityService : IIdentityService
             }
         }
 
-        return new AuthResponseDto(tokens, userDto, DriverStatus: driverStatus);
+        var isVerified = AuthResponseVerificationResolver.Resolve(user.Role, driverStatus);
+
+        return new AuthResponseDto(tokens, userDto, IsVerified: isVerified, DriverStatus: driverStatus);
     }
 
     public async Task<TokenPairDto> RefreshTokenAsync(string refreshToken, CancellationToken cancellationToken = default)

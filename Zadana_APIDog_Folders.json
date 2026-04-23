@@ -7330,7 +7330,7 @@
                                         "zoneName": null,
                                         "message": "Driver profile is currently under admin review."
                                     },
-                                    "isVerified": true,
+                                    "isVerified": false,
                                     "message": null
                                 }
                             },
@@ -7720,7 +7720,7 @@
                                         "zoneName": null,
                                         "message": "Driver profile is currently under admin review."
                                     },
-                                    "isVerified": true,
+                                    "isVerified": false,
                                     "message": null
                                 }
                             },
@@ -15865,7 +15865,8 @@
                         "nullable": true
                     },
                     "isVerified": {
-                        "type": "boolean"
+                        "type": "boolean",
+                        "description": "For driver auth responses, this remains false until the driver is operationally approved by admin."
                     },
                     "message": {
                         "type": "string",

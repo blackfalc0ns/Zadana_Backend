@@ -64,7 +64,9 @@ public class RegistrationWorkflow : IRegistrationWorkflow
             account.PhoneNumber,
             account.Role.ToString());
 
-        return new AuthResponseDto(tokens, userDto, DriverStatus: driverStatus);
+        var isVerified = AuthResponseVerificationResolver.Resolve(account.Role, driverStatus);
+
+        return new AuthResponseDto(tokens, userDto, IsVerified: isVerified, DriverStatus: driverStatus);
     }
 
     public async Task CompensateAccountCreationFailureAsync(

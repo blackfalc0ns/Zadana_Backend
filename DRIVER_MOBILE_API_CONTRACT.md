@@ -261,7 +261,7 @@ Example shape:
     "zoneName": null,
     "message": "Driver profile is currently under admin review."
   },
-  "isVerified": true,
+  "isVerified": false,
   "message": null
 }
 ```
@@ -271,7 +271,8 @@ Notes:
 - `favoritesCount` is a legacy customer-oriented field in the shared auth DTO.
 - the driver app should ignore `favoritesCount` if it appears in auth or `me` responses.
 - for driver login and driver registration, `driverStatus` is the field the app should use for routing.
-- operational readiness is not represented by `isVerified`; use `driverStatus.gateStatus` or `GET /api/drivers/me/status`.
+- for driver auth responses, `isVerified` is `false` until the driver becomes operationally approved.
+- use `driverStatus.gateStatus` or `GET /api/drivers/me/status` to know the exact blocked state and choose the correct screen.
 
 ## Endpoints
 
@@ -683,7 +684,7 @@ Mobile recommendation:
 
 - call this endpoint after login if you need a fresh server read, and on every app startup after restoring tokens
 - use it as the single source of truth for waiting, rejected, suspended, or approved screens
-- do not infer approval state from `isVerified` in auth responses
+- `isVerified` in driver auth responses is a quick boolean gate, but `driverStatus.gateStatus` is the exact routing state
 - keep `assignments/current` only for assignment polling
 
 ### Delivery: Set Driver Availability
