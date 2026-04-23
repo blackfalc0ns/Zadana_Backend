@@ -61,137 +61,69 @@ namespace Zadana.Infrastructure.Migrations
                 oldType: "nvarchar(max)",
                 oldNullable: true);
 
-            migrationBuilder.AddColumn<Guid>(
-                name: "PrimaryZoneId",
-                table: "Drivers",
-                type: "uniqueidentifier",
-                nullable: true);
+            AddColumnIfMissing(migrationBuilder, "Drivers", "PrimaryZoneId", "uniqueidentifier NULL");
+            AddColumnIfMissing(migrationBuilder, "Drivers", "ReviewNote", "nvarchar(500) NULL");
+            AddColumnIfMissing(migrationBuilder, "Drivers", "ReviewedAtUtc", "datetime2 NULL");
+            AddColumnIfMissing(migrationBuilder, "Drivers", "ReviewedByUserId", "uniqueidentifier NULL");
+            AddColumnIfMissing(migrationBuilder, "Drivers", "SuspensionReason", "nvarchar(500) NULL");
+            AddColumnIfMissing(migrationBuilder, "Drivers", "VerificationStatus", "nvarchar(50) NULL");
 
-            migrationBuilder.AddColumn<string>(
-                name: "ReviewNote",
-                table: "Drivers",
-                type: "nvarchar(500)",
-                maxLength: 500,
-                nullable: true);
+            CreateTableIfMissing(
+                migrationBuilder,
+                "DeliveryZones",
+                """
+                CREATE TABLE [dbo].[DeliveryZones] (
+                    [Id] uniqueidentifier NOT NULL,
+                    [City] nvarchar(100) NOT NULL,
+                    [Name] nvarchar(200) NOT NULL,
+                    [CenterLat] decimal(10,7) NOT NULL,
+                    [CenterLng] decimal(10,7) NOT NULL,
+                    [RadiusKm] decimal(8,2) NOT NULL,
+                    [IsActive] bit NOT NULL,
+                    [CreatedAtUtc] datetime2 NOT NULL,
+                    [UpdatedAtUtc] datetime2 NOT NULL,
+                    CONSTRAINT [PK_DeliveryZones] PRIMARY KEY ([Id])
+                );
+                """);
 
-            migrationBuilder.AddColumn<DateTime>(
-                name: "ReviewedAtUtc",
-                table: "Drivers",
-                type: "datetime2",
-                nullable: true);
+            CreateTableIfMissing(
+                migrationBuilder,
+                "DriverIncidents",
+                """
+                CREATE TABLE [dbo].[DriverIncidents] (
+                    [Id] uniqueidentifier NOT NULL,
+                    [DriverId] uniqueidentifier NOT NULL,
+                    [IncidentType] nvarchar(200) NOT NULL,
+                    [Severity] nvarchar(50) NOT NULL,
+                    [Status] nvarchar(50) NOT NULL,
+                    [ReviewerName] nvarchar(200) NULL,
+                    [LinkedOrderId] uniqueidentifier NULL,
+                    [Summary] nvarchar(1000) NOT NULL,
+                    [CreatedAtUtc] datetime2 NOT NULL,
+                    [UpdatedAtUtc] datetime2 NOT NULL,
+                    CONSTRAINT [PK_DriverIncidents] PRIMARY KEY ([Id])
+                );
+                """);
 
-            migrationBuilder.AddColumn<Guid>(
-                name: "ReviewedByUserId",
-                table: "Drivers",
-                type: "uniqueidentifier",
-                nullable: true);
+            CreateTableIfMissing(
+                migrationBuilder,
+                "DriverNotes",
+                """
+                CREATE TABLE [dbo].[DriverNotes] (
+                    [Id] uniqueidentifier NOT NULL,
+                    [DriverId] uniqueidentifier NOT NULL,
+                    [AuthorUserId] uniqueidentifier NOT NULL,
+                    [Message] nvarchar(1000) NOT NULL,
+                    [CreatedAtUtc] datetime2 NOT NULL,
+                    [UpdatedAtUtc] datetime2 NOT NULL,
+                    CONSTRAINT [PK_DriverNotes] PRIMARY KEY ([Id])
+                );
+                """);
 
-            migrationBuilder.AddColumn<string>(
-                name: "SuspensionReason",
-                table: "Drivers",
-                type: "nvarchar(500)",
-                maxLength: 500,
-                nullable: true);
-
-            migrationBuilder.AddColumn<string>(
-                name: "VerificationStatus",
-                table: "Drivers",
-                type: "nvarchar(50)",
-                maxLength: 50,
-                nullable: true);
-
-            migrationBuilder.CreateTable(
-                name: "DeliveryZones",
-                columns: table => new
-                {
-                    Id = table.Column<Guid>(type: "uniqueidentifier", nullable: false),
-                    City = table.Column<string>(type: "nvarchar(100)", maxLength: 100, nullable: false),
-                    Name = table.Column<string>(type: "nvarchar(200)", maxLength: 200, nullable: false),
-                    CenterLat = table.Column<decimal>(type: "decimal(10,7)", precision: 10, scale: 7, nullable: false),
-                    CenterLng = table.Column<decimal>(type: "decimal(10,7)", precision: 10, scale: 7, nullable: false),
-                    RadiusKm = table.Column<decimal>(type: "decimal(8,2)", precision: 8, scale: 2, nullable: false),
-                    IsActive = table.Column<bool>(type: "bit", nullable: false),
-                    CreatedAtUtc = table.Column<DateTime>(type: "datetime2", nullable: false),
-                    UpdatedAtUtc = table.Column<DateTime>(type: "datetime2", nullable: false)
-                },
-                constraints: table =>
-                {
-                    table.PrimaryKey("PK_DeliveryZones", x => x.Id);
-                });
-
-            migrationBuilder.CreateTable(
-                name: "DriverIncidents",
-                columns: table => new
-                {
-                    Id = table.Column<Guid>(type: "uniqueidentifier", nullable: false),
-                    DriverId = table.Column<Guid>(type: "uniqueidentifier", nullable: false),
-                    IncidentType = table.Column<string>(type: "nvarchar(200)", maxLength: 200, nullable: false),
-                    Severity = table.Column<string>(type: "nvarchar(50)", maxLength: 50, nullable: false),
-                    Status = table.Column<string>(type: "nvarchar(50)", maxLength: 50, nullable: false),
-                    ReviewerName = table.Column<string>(type: "nvarchar(200)", maxLength: 200, nullable: true),
-                    LinkedOrderId = table.Column<Guid>(type: "uniqueidentifier", nullable: true),
-                    Summary = table.Column<string>(type: "nvarchar(1000)", maxLength: 1000, nullable: false),
-                    CreatedAtUtc = table.Column<DateTime>(type: "datetime2", nullable: false),
-                    UpdatedAtUtc = table.Column<DateTime>(type: "datetime2", nullable: false)
-                },
-                constraints: table =>
-                {
-                    table.PrimaryKey("PK_DriverIncidents", x => x.Id);
-                    table.ForeignKey(
-                        name: "FK_DriverIncidents_Drivers_DriverId",
-                        column: x => x.DriverId,
-                        principalTable: "Drivers",
-                        principalColumn: "Id",
-                        onDelete: ReferentialAction.Cascade);
-                });
-
-            migrationBuilder.CreateTable(
-                name: "DriverNotes",
-                columns: table => new
-                {
-                    Id = table.Column<Guid>(type: "uniqueidentifier", nullable: false),
-                    DriverId = table.Column<Guid>(type: "uniqueidentifier", nullable: false),
-                    AuthorUserId = table.Column<Guid>(type: "uniqueidentifier", nullable: false),
-                    Message = table.Column<string>(type: "nvarchar(1000)", maxLength: 1000, nullable: false),
-                    CreatedAtUtc = table.Column<DateTime>(type: "datetime2", nullable: false),
-                    UpdatedAtUtc = table.Column<DateTime>(type: "datetime2", nullable: false)
-                },
-                constraints: table =>
-                {
-                    table.PrimaryKey("PK_DriverNotes", x => x.Id);
-                    table.ForeignKey(
-                        name: "FK_DriverNotes_AspNetUsers_AuthorUserId",
-                        column: x => x.AuthorUserId,
-                        principalTable: "AspNetUsers",
-                        principalColumn: "Id",
-                        onDelete: ReferentialAction.Restrict);
-                    table.ForeignKey(
-                        name: "FK_DriverNotes_Drivers_DriverId",
-                        column: x => x.DriverId,
-                        principalTable: "Drivers",
-                        principalColumn: "Id",
-                        onDelete: ReferentialAction.Cascade);
-                });
-
-            migrationBuilder.CreateIndex(
-                name: "IX_Drivers_PrimaryZoneId",
-                table: "Drivers",
-                column: "PrimaryZoneId");
-
-            migrationBuilder.CreateIndex(
-                name: "IX_DriverIncidents_DriverId",
-                table: "DriverIncidents",
-                column: "DriverId");
-
-            migrationBuilder.CreateIndex(
-                name: "IX_DriverNotes_AuthorUserId",
-                table: "DriverNotes",
-                column: "AuthorUserId");
-
-            migrationBuilder.CreateIndex(
-                name: "IX_DriverNotes_DriverId",
-                table: "DriverNotes",
-                column: "DriverId");
+            CreateIndexIfMissing(migrationBuilder, "Drivers", "IX_Drivers_PrimaryZoneId", "[PrimaryZoneId]");
+            CreateIndexIfMissing(migrationBuilder, "DriverIncidents", "IX_DriverIncidents_DriverId", "[DriverId]");
+            CreateIndexIfMissing(migrationBuilder, "DriverNotes", "IX_DriverNotes_AuthorUserId", "[AuthorUserId]");
+            CreateIndexIfMissing(migrationBuilder, "DriverNotes", "IX_DriverNotes_DriverId", "[DriverId]");
 
             migrationBuilder.Sql(
                 """
@@ -218,58 +150,63 @@ namespace Zadana.Infrastructure.Migrations
                 oldMaxLength: 50,
                 oldNullable: true);
 
-            migrationBuilder.AddForeignKey(
-                name: "FK_Drivers_DeliveryZones_PrimaryZoneId",
-                table: "Drivers",
-                column: "PrimaryZoneId",
-                principalTable: "DeliveryZones",
-                principalColumn: "Id",
-                onDelete: ReferentialAction.SetNull);
+            AddForeignKeyIfMissing(
+                migrationBuilder,
+                "DriverIncidents",
+                "FK_DriverIncidents_Drivers_DriverId",
+                "[DriverId]",
+                "Drivers",
+                "[Id]",
+                "CASCADE");
+
+            AddForeignKeyIfMissing(
+                migrationBuilder,
+                "DriverNotes",
+                "FK_DriverNotes_AspNetUsers_AuthorUserId",
+                "[AuthorUserId]",
+                "AspNetUsers",
+                "[Id]",
+                "NO ACTION");
+
+            AddForeignKeyIfMissing(
+                migrationBuilder,
+                "DriverNotes",
+                "FK_DriverNotes_Drivers_DriverId",
+                "[DriverId]",
+                "Drivers",
+                "[Id]",
+                "CASCADE");
+
+            AddForeignKeyIfMissing(
+                migrationBuilder,
+                "Drivers",
+                "FK_Drivers_DeliveryZones_PrimaryZoneId",
+                "[PrimaryZoneId]",
+                "DeliveryZones",
+                "[Id]",
+                "SET NULL");
         }
 
         /// <inheritdoc />
         protected override void Down(MigrationBuilder migrationBuilder)
         {
-            migrationBuilder.DropForeignKey(
-                name: "FK_Drivers_DeliveryZones_PrimaryZoneId",
-                table: "Drivers");
+            DropForeignKeyIfExists(migrationBuilder, "Drivers", "FK_Drivers_DeliveryZones_PrimaryZoneId");
+            DropForeignKeyIfExists(migrationBuilder, "DriverIncidents", "FK_DriverIncidents_Drivers_DriverId");
+            DropForeignKeyIfExists(migrationBuilder, "DriverNotes", "FK_DriverNotes_AspNetUsers_AuthorUserId");
+            DropForeignKeyIfExists(migrationBuilder, "DriverNotes", "FK_DriverNotes_Drivers_DriverId");
 
-            migrationBuilder.DropTable(
-                name: "DeliveryZones");
+            DropTableIfExists(migrationBuilder, "DeliveryZones");
+            DropTableIfExists(migrationBuilder, "DriverIncidents");
+            DropTableIfExists(migrationBuilder, "DriverNotes");
 
-            migrationBuilder.DropTable(
-                name: "DriverIncidents");
+            DropIndexIfExists(migrationBuilder, "Drivers", "IX_Drivers_PrimaryZoneId");
 
-            migrationBuilder.DropTable(
-                name: "DriverNotes");
-
-            migrationBuilder.DropIndex(
-                name: "IX_Drivers_PrimaryZoneId",
-                table: "Drivers");
-
-            migrationBuilder.DropColumn(
-                name: "PrimaryZoneId",
-                table: "Drivers");
-
-            migrationBuilder.DropColumn(
-                name: "ReviewNote",
-                table: "Drivers");
-
-            migrationBuilder.DropColumn(
-                name: "ReviewedAtUtc",
-                table: "Drivers");
-
-            migrationBuilder.DropColumn(
-                name: "ReviewedByUserId",
-                table: "Drivers");
-
-            migrationBuilder.DropColumn(
-                name: "SuspensionReason",
-                table: "Drivers");
-
-            migrationBuilder.DropColumn(
-                name: "VerificationStatus",
-                table: "Drivers");
+            DropColumnIfExists(migrationBuilder, "Drivers", "PrimaryZoneId");
+            DropColumnIfExists(migrationBuilder, "Drivers", "ReviewNote");
+            DropColumnIfExists(migrationBuilder, "Drivers", "ReviewedAtUtc");
+            DropColumnIfExists(migrationBuilder, "Drivers", "ReviewedByUserId");
+            DropColumnIfExists(migrationBuilder, "Drivers", "SuspensionReason");
+            DropColumnIfExists(migrationBuilder, "Drivers", "VerificationStatus");
 
             migrationBuilder.AlterColumn<string>(
                 name: "VehicleImageUrl",
@@ -320,6 +257,122 @@ namespace Zadana.Infrastructure.Migrations
                 oldType: "nvarchar(500)",
                 oldMaxLength: 500,
                 oldNullable: true);
+        }
+
+        private static void AddColumnIfMissing(MigrationBuilder migrationBuilder, string table, string column, string definition)
+        {
+            migrationBuilder.Sql(
+                $"""
+                IF COL_LENGTH(N'dbo.{table}', N'{column}') IS NULL
+                BEGIN
+                    ALTER TABLE [dbo].[{table}] ADD [{column}] {definition};
+                END
+                """);
+        }
+
+        private static void CreateTableIfMissing(MigrationBuilder migrationBuilder, string table, string createTableSql)
+        {
+            migrationBuilder.Sql(
+                $"""
+                IF OBJECT_ID(N'[dbo].[{table}]', N'U') IS NULL
+                BEGIN
+                {createTableSql}
+                END
+                """);
+        }
+
+        private static void CreateIndexIfMissing(MigrationBuilder migrationBuilder, string table, string index, string columnsSql)
+        {
+            migrationBuilder.Sql(
+                $"""
+                IF NOT EXISTS (
+                    SELECT 1
+                    FROM sys.indexes
+                    WHERE name = N'{index}'
+                      AND object_id = OBJECT_ID(N'[dbo].[{table}]')
+                )
+                BEGIN
+                    CREATE INDEX [{index}] ON [dbo].[{table}] ({columnsSql});
+                END
+                """);
+        }
+
+        private static void AddForeignKeyIfMissing(
+            MigrationBuilder migrationBuilder,
+            string table,
+            string foreignKey,
+            string columnSql,
+            string principalTable,
+            string principalColumnSql,
+            string onDeleteAction)
+        {
+            migrationBuilder.Sql(
+                $"""
+                IF NOT EXISTS (
+                    SELECT 1
+                    FROM sys.foreign_keys
+                    WHERE name = N'{foreignKey}'
+                )
+                BEGIN
+                    ALTER TABLE [dbo].[{table}] ADD CONSTRAINT [{foreignKey}]
+                        FOREIGN KEY ({columnSql})
+                        REFERENCES [dbo].[{principalTable}] ({principalColumnSql})
+                        ON DELETE {onDeleteAction};
+                END
+                """);
+        }
+
+        private static void DropForeignKeyIfExists(MigrationBuilder migrationBuilder, string table, string foreignKey)
+        {
+            migrationBuilder.Sql(
+                $"""
+                IF EXISTS (
+                    SELECT 1
+                    FROM sys.foreign_keys
+                    WHERE name = N'{foreignKey}'
+                )
+                BEGIN
+                    ALTER TABLE [dbo].[{table}] DROP CONSTRAINT [{foreignKey}];
+                END
+                """);
+        }
+
+        private static void DropTableIfExists(MigrationBuilder migrationBuilder, string table)
+        {
+            migrationBuilder.Sql(
+                $"""
+                IF OBJECT_ID(N'[dbo].[{table}]', N'U') IS NOT NULL
+                BEGIN
+                    DROP TABLE [dbo].[{table}];
+                END
+                """);
+        }
+
+        private static void DropIndexIfExists(MigrationBuilder migrationBuilder, string table, string index)
+        {
+            migrationBuilder.Sql(
+                $"""
+                IF EXISTS (
+                    SELECT 1
+                    FROM sys.indexes
+                    WHERE name = N'{index}'
+                      AND object_id = OBJECT_ID(N'[dbo].[{table}]')
+                )
+                BEGIN
+                    DROP INDEX [{index}] ON [dbo].[{table}];
+                END
+                """);
+        }
+
+        private static void DropColumnIfExists(MigrationBuilder migrationBuilder, string table, string column)
+        {
+            migrationBuilder.Sql(
+                $"""
+                IF COL_LENGTH(N'dbo.{table}', N'{column}') IS NOT NULL
+                BEGIN
+                    ALTER TABLE [dbo].[{table}] DROP COLUMN [{column}];
+                END
+                """);
         }
     }
 }
