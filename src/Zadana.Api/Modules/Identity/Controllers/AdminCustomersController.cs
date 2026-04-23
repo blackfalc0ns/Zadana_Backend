@@ -1,6 +1,7 @@
 using Microsoft.AspNetCore.Authorization;
 using Microsoft.AspNetCore.Mvc;
 using Microsoft.EntityFrameworkCore;
+using Microsoft.Extensions.Logging;
 using System.Text.Json;
 using Zadana.Api.Controllers;
 using Zadana.Api.Modules.Identity.Requests;
@@ -19,15 +20,18 @@ public class AdminCustomersController : ApiControllerBase
     private readonly IApplicationDbContext _context;
     private readonly INotificationService _notificationService;
     private readonly IOneSignalPushService _oneSignalPushService;
+    private readonly ILogger<AdminCustomersController> _logger;
 
     public AdminCustomersController(
         IApplicationDbContext context,
         INotificationService notificationService,
-        IOneSignalPushService oneSignalPushService)
+        IOneSignalPushService oneSignalPushService,
+        ILogger<AdminCustomersController> logger)
     {
         _context = context;
         _notificationService = notificationService;
         _oneSignalPushService = oneSignalPushService;
+        _logger = logger;
     }
 
     [HttpGet]
@@ -104,6 +108,11 @@ public class AdminCustomersController : ApiControllerBase
             data,
             targetUrl);
 
+        if (request.SendPush)
+        {
+            LogPushDispatchStart(customer.Id, pushRequest);
+        }
+
         var pushResult = request.SendPush
             ? await pushRequest.DispatchAsync(_oneSignalPushService, cancellationToken)
             : new OneSignalPushDispatchResult(
@@ -113,6 +122,11 @@ public class AdminCustomersController : ApiControllerBase
                 ProviderStatusCode: null,
                 ProviderNotificationId: null,
                 Reason: "Push dispatch was disabled for this admin request.");
+
+        if (request.SendPush)
+        {
+            LogPushDispatchResult(customer.Id, pushRequest, pushResult);
+        }
 
         return Ok(new AdminCustomerNotificationResponse(
             Message: "Customer notification queued successfully.",
@@ -127,5 +141,38 @@ public class AdminCustomersController : ApiControllerBase
             PushStatusCode: pushResult.ProviderStatusCode,
             ProviderNotificationId: pushResult.ProviderNotificationId,
             PushReason: pushResult.Reason));
+    }
+
+    private void LogPushDispatchStart(Guid customerId, OneSignalMobilePushRequest pushRequest)
+    {
+        _logger.LogWarning(
+            "[PUSH-DIAG] About to send admin customer OneSignal push. CustomerId: {CustomerId}. ExternalId: {ExternalId}. Type: {NotificationType}. ReferenceId: {ReferenceId}. TitleEn: {TitleEn}. BodyEn: {BodyEn}. Profile: {Profile}. TargetUrl: {TargetUrl}",
+            customerId,
+            pushRequest.ExternalUserId,
+            pushRequest.Type,
+            pushRequest.ReferenceId,
+            pushRequest.TitleEn,
+            pushRequest.BodyEn,
+            pushRequest.Profile,
+            pushRequest.TargetUrl);
+    }
+
+    private void LogPushDispatchResult(
+        Guid customerId,
+        OneSignalMobilePushRequest pushRequest,
+        OneSignalPushDispatchResult pushResult)
+    {
+        _logger.LogWarning(
+            "[PUSH-DIAG] Admin customer OneSignal push result. CustomerId: {CustomerId}. ExternalId: {ExternalId}. Type: {NotificationType}. ReferenceId: {ReferenceId}. Attempted: {Attempted}. Sent: {Sent}. Skipped: {Skipped}. ProviderStatusCode: {ProviderStatusCode}. ProviderNotificationId: {ProviderNotificationId}. Reason: {Reason}",
+            customerId,
+            pushRequest.ExternalUserId,
+            pushRequest.Type,
+            pushRequest.ReferenceId,
+            pushResult.Attempted,
+            pushResult.Sent,
+            pushResult.Skipped,
+            pushResult.ProviderStatusCode,
+            pushResult.ProviderNotificationId,
+            pushResult.Reason);
     }
 }

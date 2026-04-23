@@ -246,6 +246,7 @@ public class OneSignalPushServiceTests
             HttpStatusCode.BadRequest,
             """{"errors":["invalid_aliases"]}""");
         var service = CreateService(handler, logger);
+        var failureReferenceId = Guid.NewGuid();
 
         await service.SendToExternalUserAsync(
             "customer-success",
@@ -267,7 +268,7 @@ public class OneSignalPushServiceTests
             "Order body ar",
             "Failure body",
             "order_status_changed",
-            Guid.NewGuid(),
+            failureReferenceId,
             """{"orderId":"456","targetUrl":"/orders/456"}""",
             "/orders/456",
             OneSignalPushProfile.MobileHeadsUp,
@@ -280,6 +281,7 @@ public class OneSignalPushServiceTests
             entry.Level == LogLevel.Information &&
             entry.Message.Contains("customer-success", StringComparison.Ordinal) &&
             entry.Message.Contains("MobileHeadsUp", StringComparison.Ordinal) &&
+            entry.Message.Contains("NotificationEventId", StringComparison.Ordinal) &&
             entry.Message.Contains("existing_android_channel_id:zadana_heads_up_notifications", StringComparison.Ordinal) &&
             entry.Message.Contains("click_action", StringComparison.Ordinal) &&
             entry.Message.Contains("push-success", StringComparison.Ordinal) &&
@@ -289,6 +291,7 @@ public class OneSignalPushServiceTests
             entry.Level == LogLevel.Warning &&
             entry.Message.Contains("customer-failure", StringComparison.Ordinal) &&
             entry.Message.Contains("order_status_changed", StringComparison.Ordinal) &&
+            entry.Message.Contains(failureReferenceId.ToString(), StringComparison.Ordinal) &&
             entry.Message.Contains("400", StringComparison.Ordinal) &&
             entry.Message.Contains("errors", StringComparison.Ordinal) &&
             entry.Message.Contains("invalid_aliases", StringComparison.Ordinal));

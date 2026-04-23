@@ -1,3 +1,4 @@
+using System.Text.Json;
 using Microsoft.Extensions.Logging;
 using Zadana.Application.Common.Interfaces;
 using Zadana.Application.Modules.Orders.Support;
@@ -6,6 +7,9 @@ namespace Zadana.Application.Modules.Orders.Services;
 
 public sealed class OrderStatusNotificationDispatcher : IOrderStatusNotificationDispatcher
 {
+    private const string TemporaryDiagnosticPushType = "customer_test";
+    private const string TemporaryDiagnosticPushSource = "order_status_push_customer_test_alignment";
+
     private readonly INotificationService _notificationService;
     private readonly IOneSignalPushService _oneSignalPushService;
     private readonly ILogger<OrderStatusNotificationDispatcher> _logger;
@@ -91,10 +95,11 @@ public sealed class OrderStatusNotificationDispatcher : IOrderStatusNotification
         }
 
         _logger.LogWarning(
-            "[PUSH-DIAG] About to send OneSignal push for order {OrderId}. ExternalId: {ExternalId}. Type: {NotificationType}. TitleEn: {TitleEn}. BodyEn: {BodyEn}. Profile: {Profile}. TargetUrl: {TargetUrl}",
+            "[PUSH-DIAG] About to send OneSignal push for order {OrderId}. ExternalId: {ExternalId}. PushType: {PushType}. BusinessType: {BusinessType}. TitleEn: {TitleEn}. BodyEn: {BodyEn}. Profile: {Profile}. TargetUrl: {TargetUrl}",
             request.OrderId,
             pushRequest.ExternalUserId,
             pushRequest.Type,
+            composed.NotificationType,
             pushRequest.TitleEn,
             pushRequest.BodyEn,
             pushRequest.Profile,
@@ -122,9 +127,11 @@ public sealed class OrderStatusNotificationDispatcher : IOrderStatusNotification
         }
 
         _logger.LogWarning(
-            "[PUSH-DIAG] OneSignal push result for order {OrderId}. ExternalId: {ExternalId}. Attempted: {Attempted}. Sent: {Sent}. Skipped: {Skipped}. ProviderStatusCode: {ProviderStatusCode}. ProviderNotificationId: {ProviderNotificationId}. Reason: {Reason}",
+            "[PUSH-DIAG] OneSignal push result for order {OrderId}. ExternalId: {ExternalId}. PushType: {PushType}. BusinessType: {BusinessType}. Attempted: {Attempted}. Sent: {Sent}. Skipped: {Skipped}. ProviderStatusCode: {ProviderStatusCode}. ProviderNotificationId: {ProviderNotificationId}. Reason: {Reason}",
             request.OrderId,
             pushRequest.ExternalUserId,
+            pushRequest.Type,
+            composed.NotificationType,
             pushResult.Attempted,
             pushResult.Sent,
             pushResult.Skipped,
@@ -171,8 +178,28 @@ public sealed class OrderStatusNotificationDispatcher : IOrderStatusNotification
             composed.TitleEn,
             composed.BodyAr,
             composed.BodyEn,
-            composed.NotificationType,
+            TemporaryDiagnosticPushType,
             request.OrderId,
-            composed.Data,
+            BuildCustomerDiagnosticPushData(request, composed),
             composed.TargetUrl);
+
+    private static string BuildCustomerDiagnosticPushData(
+        OrderStatusCustomerNotificationRequest request,
+        CustomerOrderStatusNotification composed) =>
+        JsonSerializer.Serialize(new
+        {
+            source = TemporaryDiagnosticPushSource,
+            customerId = request.UserId,
+            userId = request.UserId,
+            generatedAtUtc = DateTime.UtcNow,
+            targetUrl = composed.TargetUrl,
+            orderId = request.OrderId,
+            orderNumber = request.OrderNumber,
+            vendorId = request.VendorId,
+            oldStatus = request.OldStatus.ToString(),
+            newStatus = request.NewStatus.ToString(),
+            actorRole = request.ActorRole,
+            action = composed.Action,
+            originalType = composed.NotificationType
+        });
 }

@@ -11,7 +11,7 @@ namespace Zadana.Application.Tests.Application.Orders;
 public class OrderStatusNotificationDispatcherTests
 {
     [Fact]
-    public async Task DispatchCustomerAsync_ShouldQueueInboxRealtimeAndHeadsUpPush()
+    public async Task DispatchCustomerAsync_ShouldQueueInboxRealtimeAndTemporarilyAlignPushWithAdminTestContract()
     {
         var notificationServiceMock = new Mock<INotificationService>();
         var pushServiceMock = new Mock<IOneSignalPushService>();
@@ -26,7 +26,7 @@ public class OrderStatusNotificationDispatcherTests
                 It.IsAny<string>(),
                 It.IsAny<string>(),
                 It.IsAny<string>(),
-                It.IsAny<string?>(),
+                "customer_test",
                 orderId,
                 It.IsAny<string?>(),
                 $"/orders/{orderId}",
@@ -100,10 +100,12 @@ public class OrderStatusNotificationDispatcherTests
                 "Order Accepted",
                 It.IsAny<string>(),
                 It.Is<string>(body => body.Contains("ORD-DISPATCH-001")),
-                NotificationTypes.OrderStatusChanged,
+                "customer_test",
                 orderId,
                 It.Is<string?>(data =>
                     data != null &&
+                    data.Contains("\"source\":\"order_status_push_customer_test_alignment\"") &&
+                    data.Contains("\"originalType\":\"order_status_changed\"") &&
                     data.Contains("\"newStatus\":\"Accepted\"") &&
                     data.Contains("\"targetUrl\":\"/orders/")),
                 $"/orders/{orderId}",

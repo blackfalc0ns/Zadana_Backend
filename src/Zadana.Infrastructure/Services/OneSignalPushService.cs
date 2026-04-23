@@ -137,11 +137,13 @@ public sealed class OneSignalPushService : IOneSignalPushService
             {
                 var payloadJson = System.Text.Json.JsonSerializer.Serialize(preparedPayload.Payload);
                 _logger.LogWarning(
-                    "[PUSH-DIAG] OneSignal prepared payload. ExternalUserCount: {ExternalUserCount}. ExternalIdBatch: {ExternalIdBatch}. Profile: {Profile}. Type: {Type}. Channel: {Channel}. DataKeys: {DataKeys}. PayloadJson: {PayloadJson}",
+                    "[PUSH-DIAG] OneSignal prepared payload. ExternalUserCount: {ExternalUserCount}. ExternalIdBatch: {ExternalIdBatch}. Profile: {Profile}. Type: {Type}. ReferenceId: {ReferenceId}. NotificationEventId: {NotificationEventId}. Channel: {Channel}. DataKeys: {DataKeys}. PayloadJson: {PayloadJson}",
                     preparedPayload.ExternalUserCount,
                     preparedPayload.ExternalIdBatch,
                     preparedPayload.Profile,
                     preparedPayload.Type,
+                    preparedPayload.ReferenceId,
+                    preparedPayload.NotificationEventId,
                     preparedPayload.Channel,
                     preparedPayload.DataKeys,
                     payloadJson);
@@ -178,11 +180,13 @@ public sealed class OneSignalPushService : IOneSignalPushService
             if (!response.IsSuccessStatusCode)
             {
                 _logger.LogWarning(
-                    "[PUSH-DIAG] OneSignal push provider response failed. ExternalUserCount: {ExternalUserCount}. ExternalIdBatch: {ExternalIdBatch}. Profile: {Profile}. Type: {Type}. Channel: {Channel}. DataKeys: {DataKeys}. StatusCode: {StatusCode}. ProviderNotificationId: {ProviderNotificationId}. ResponseBody: {ResponseBody}",
+                    "[PUSH-DIAG] OneSignal push provider response failed. ExternalUserCount: {ExternalUserCount}. ExternalIdBatch: {ExternalIdBatch}. Profile: {Profile}. Type: {Type}. ReferenceId: {ReferenceId}. NotificationEventId: {NotificationEventId}. Channel: {Channel}. DataKeys: {DataKeys}. StatusCode: {StatusCode}. ProviderNotificationId: {ProviderNotificationId}. ResponseBody: {ResponseBody}",
                     preparedPayload.ExternalUserCount,
                     preparedPayload.ExternalIdBatch,
                     preparedPayload.Profile,
                     preparedPayload.Type,
+                    preparedPayload.ReferenceId,
+                    preparedPayload.NotificationEventId,
                     preparedPayload.Channel,
                     preparedPayload.DataKeys,
                     statusCode,
@@ -201,11 +205,13 @@ public sealed class OneSignalPushService : IOneSignalPushService
             }
 
             _logger.LogInformation(
-                "[PUSH-DIAG] OneSignal push provider response succeeded. ExternalUserCount: {ExternalUserCount}. ExternalIdBatch: {ExternalIdBatch}. Profile: {Profile}. Type: {Type}. Channel: {Channel}. DataKeys: {DataKeys}. StatusCode: {StatusCode}. ProviderNotificationId: {ProviderNotificationId}. ResponseBody: {ResponseBody}",
+                "[PUSH-DIAG] OneSignal push provider response succeeded. ExternalUserCount: {ExternalUserCount}. ExternalIdBatch: {ExternalIdBatch}. Profile: {Profile}. Type: {Type}. ReferenceId: {ReferenceId}. NotificationEventId: {NotificationEventId}. Channel: {Channel}. DataKeys: {DataKeys}. StatusCode: {StatusCode}. ProviderNotificationId: {ProviderNotificationId}. ResponseBody: {ResponseBody}",
                 preparedPayload.ExternalUserCount,
                 preparedPayload.ExternalIdBatch,
                 preparedPayload.Profile,
                 preparedPayload.Type,
+                preparedPayload.ReferenceId,
+                preparedPayload.NotificationEventId,
                 preparedPayload.Channel,
                 preparedPayload.DataKeys,
                 statusCode,
@@ -224,11 +230,13 @@ public sealed class OneSignalPushService : IOneSignalPushService
         {
             _logger.LogError(
                 ex,
-                "[PUSH-DIAG] OneSignal push send threw an exception. ExternalUserCount: {ExternalUserCount}. ExternalIdBatch: {ExternalIdBatch}. Profile: {Profile}. Type: {Type}. Channel: {Channel}. DataKeys: {DataKeys}",
+                "[PUSH-DIAG] OneSignal push send threw an exception. ExternalUserCount: {ExternalUserCount}. ExternalIdBatch: {ExternalIdBatch}. Profile: {Profile}. Type: {Type}. ReferenceId: {ReferenceId}. NotificationEventId: {NotificationEventId}. Channel: {Channel}. DataKeys: {DataKeys}",
                 preparedPayload.ExternalUserCount,
                 preparedPayload.ExternalIdBatch,
                 preparedPayload.Profile,
                 preparedPayload.Type,
+                preparedPayload.ReferenceId,
+                preparedPayload.NotificationEventId,
                 preparedPayload.Channel,
                 preparedPayload.DataKeys);
 
@@ -278,6 +286,8 @@ public sealed class OneSignalPushService : IOneSignalPushService
             externalUserIds.Count,
             string.Join(",", externalUserIds),
             profile,
+            referenceId,
+            notificationEventId,
             sanitized.Type,
             ResolveChannel(payload),
             ResolveDataKeys(payload));
@@ -549,6 +559,8 @@ public sealed class OneSignalPushService : IOneSignalPushService
         int ExternalUserCount,
         string ExternalIdBatch,
         OneSignalPushProfile Profile,
+        Guid? ReferenceId,
+        Guid NotificationEventId,
         string? Type,
         string Channel,
         string DataKeys);
