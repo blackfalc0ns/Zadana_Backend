@@ -1,6 +1,7 @@
 using Microsoft.EntityFrameworkCore;
 using Microsoft.EntityFrameworkCore.Metadata.Builders;
 using Zadana.Domain.Modules.Delivery.Entities;
+using Zadana.Domain.Modules.Delivery.Enums;
 
 namespace Zadana.Infrastructure.Persistence.Configurations;
 
@@ -12,7 +13,11 @@ public class DriverConfiguration : IEntityTypeConfiguration<Driver>
 
         builder.HasKey(x => x.Id);
 
-        builder.Property(x => x.VehicleType).HasConversion<string>().HasMaxLength(100);
+        builder.Property(x => x.VehicleType)
+            .HasConversion(
+                vehicleType => DriverVehicleTypeMapper.ToStorageValue(vehicleType),
+                value => DriverVehicleTypeMapper.ParseOrNull(value))
+            .HasMaxLength(100);
         builder.Property(x => x.NationalId).HasMaxLength(100);
         builder.Property(x => x.LicenseNumber).HasMaxLength(100);
         builder.Property(x => x.Address).HasMaxLength(500);

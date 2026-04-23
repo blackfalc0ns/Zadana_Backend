@@ -314,7 +314,7 @@ public class DriverReadService : IDriverReadService
         acceptanceRate >= 55 ? "NeedsImprovement" : "Low";
 
     private static bool TryParseVehicleType(string value, out DriverVehicleType vehicleType) =>
-        Enum.TryParse(value.Trim(), ignoreCase: true, out vehicleType);
+        DriverVehicleTypeMapper.TryParse(value, out vehicleType);
 
     private static string[] DeriveIssues(Driver driver, decimal walletBalance)
     {

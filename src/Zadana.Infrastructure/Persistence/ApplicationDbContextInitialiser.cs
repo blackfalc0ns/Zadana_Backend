@@ -72,6 +72,7 @@ public class ApplicationDbContextInitialiser
         await SeedRolesAsync();
         await SeedSuperAdminAsync();
         await SeedSupportUsersAsync();
+        await SeedDeliveryZonesAsync();
         await SeedUnitsAsync();
         await SeedCategoriesAsync();
         await SeedBrandsAsync();
@@ -88,6 +89,44 @@ public class ApplicationDbContextInitialiser
         await SeedCustomerExperienceAsync();
         await SeedDriverAssignmentsAsync();
         await SeedWalletsAndSettlementsAsync();
+    }
+
+    private async Task SeedDeliveryZonesAsync()
+    {
+        var zoneSeeds = new (string City, string Name, decimal CenterLat, decimal CenterLng, decimal RadiusKm)[]
+        {
+            ("Riyadh", "Al Olaya", 24.7136m, 46.6753m, 6m),
+            ("Riyadh", "Al Sulaymaniyah", 24.6948m, 46.6892m, 6m),
+            ("Riyadh", "Al Malqa", 24.8074m, 46.6256m, 7m),
+            ("Riyadh", "Al Yasmin", 24.8296m, 46.6423m, 7m),
+            ("Riyadh", "Al Nakheel", 24.7553m, 46.6318m, 6m),
+            ("Riyadh", "Al Rawdah", 24.7487m, 46.7766m, 7m)
+        };
+
+        var existingZones = await _context.DeliveryZones.ToListAsync();
+
+        foreach (var seed in zoneSeeds)
+        {
+            var existingZone = existingZones.FirstOrDefault(zone =>
+                string.Equals(zone.City, seed.City, StringComparison.OrdinalIgnoreCase) &&
+                string.Equals(zone.Name, seed.Name, StringComparison.OrdinalIgnoreCase));
+
+            if (existingZone is null)
+            {
+                await _context.DeliveryZones.AddAsync(new DeliveryZone(
+                    seed.City,
+                    seed.Name,
+                    seed.CenterLat,
+                    seed.CenterLng,
+                    seed.RadiusKm));
+                continue;
+            }
+
+            existingZone.Update(seed.City, seed.Name, seed.CenterLat, seed.CenterLng, seed.RadiusKm);
+            existingZone.Activate();
+        }
+
+        await _context.SaveChangesAsync();
     }
 
     private async Task SeedRolesAsync()
