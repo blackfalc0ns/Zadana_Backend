@@ -34,6 +34,14 @@ using Zadana.Infrastructure.Services;
 using Zadana.Infrastructure.Settings;
 
 var builder = WebApplication.CreateBuilder(args);
+
+// In local development, re-apply user secrets after the default providers so
+// stale environment variables do not override freshly rotated local secrets.
+if (builder.Environment.IsDevelopment())
+{
+    builder.Configuration.AddUserSecrets<Program>(optional: true, reloadOnChange: true);
+}
+
 var jwtSecret = builder.Configuration.GetRequiredSetting("JwtSettings:Secret");
 
 builder.Services.AddApplication();

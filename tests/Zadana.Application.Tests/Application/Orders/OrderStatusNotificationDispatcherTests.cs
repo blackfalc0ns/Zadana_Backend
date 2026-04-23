@@ -11,13 +11,26 @@ namespace Zadana.Application.Tests.Application.Orders;
 public class OrderStatusNotificationDispatcherTests
 {
     [Fact]
-    public async Task DispatchCustomerAsync_ShouldQueueInboxRealtimeAndTemporarilyAlignPushWithAdminTestContract()
+    public async Task DispatchCustomerAsync_ShouldQueueInboxRealtimeAndUseProductionOrderStatusPushContract()
     {
         var notificationServiceMock = new Mock<INotificationService>();
         var pushServiceMock = new Mock<IOneSignalPushService>();
         var orderId = Guid.NewGuid();
         var userId = Guid.NewGuid();
         var vendorId = Guid.NewGuid();
+
+        notificationServiceMock
+            .Setup(service => service.PersistToUserAsync(
+                It.IsAny<Guid>(),
+                It.IsAny<string>(),
+                It.IsAny<string>(),
+                It.IsAny<string>(),
+                It.IsAny<string>(),
+                It.IsAny<string?>(),
+                It.IsAny<Guid?>(),
+                It.IsAny<string?>(),
+                It.IsAny<CancellationToken>()))
+            .Returns(Task.CompletedTask);
 
         pushServiceMock
             .Setup(service => service.SendToExternalUserAsync(
@@ -26,7 +39,7 @@ public class OrderStatusNotificationDispatcherTests
                 It.IsAny<string>(),
                 It.IsAny<string>(),
                 It.IsAny<string>(),
-                "customer_test",
+                NotificationTypes.OrderStatusChanged,
                 orderId,
                 It.IsAny<string?>(),
                 $"/orders/{orderId}",
@@ -57,13 +70,13 @@ public class OrderStatusNotificationDispatcherTests
             CancellationToken.None);
 
         result.InboxQueued.Should().BeTrue();
-        result.RealtimeQueued.Should().BeTrue();
+        result.RealtimeQueued.Should().BeFalse();
         result.PushAttempted.Should().BeTrue();
         result.PushSent.Should().BeTrue();
         result.PushProviderStatusCode.Should().Be(200);
 
         notificationServiceMock.Verify(
-            service => service.SendToUserAsync(
+            service => service.PersistToUserAsync(
                 userId,
                 It.IsAny<string>(),
                 "Order Accepted",
@@ -81,17 +94,17 @@ public class OrderStatusNotificationDispatcherTests
 
         notificationServiceMock.Verify(
             service => service.SendOrderStatusChangedToUserAsync(
-                userId,
-                orderId,
-                "ORD-DISPATCH-001",
-                vendorId,
-                nameof(OrderStatus.PendingVendorAcceptance),
-                nameof(OrderStatus.Accepted),
-                "vendor",
-                "status_changed",
-                $"/orders/{orderId}",
+                It.IsAny<Guid>(),
+                It.IsAny<Guid>(),
+                It.IsAny<string>(),
+                It.IsAny<Guid>(),
+                It.IsAny<string>(),
+                It.IsAny<string>(),
+                It.IsAny<string?>(),
+                It.IsAny<string?>(),
+                It.IsAny<string?>(),
                 It.IsAny<CancellationToken>()),
-            Times.Once);
+            Times.Never);
 
         pushServiceMock.Verify(
             service => service.SendToExternalUserAsync(
@@ -100,13 +113,17 @@ public class OrderStatusNotificationDispatcherTests
                 "Order Accepted",
                 It.IsAny<string>(),
                 It.Is<string>(body => body.Contains("ORD-DISPATCH-001")),
-                "customer_test",
+                NotificationTypes.OrderStatusChanged,
                 orderId,
                 It.Is<string?>(data =>
                     data != null &&
-                    data.Contains("\"source\":\"order_status_push_customer_test_alignment\"") &&
-                    data.Contains("\"originalType\":\"order_status_changed\"") &&
+                    data.Contains($"\"orderId\":\"{orderId}\"") &&
+                    data.Contains($"\"vendorId\":\"{vendorId}\"") &&
+                    data.Contains("\"orderNumber\":\"ORD-DISPATCH-001\"") &&
+                    data.Contains("\"oldStatus\":\"PendingVendorAcceptance\"") &&
                     data.Contains("\"newStatus\":\"Accepted\"") &&
+                    data.Contains("\"actorRole\":\"vendor\"") &&
+                    data.Contains("\"action\":\"status_changed\"") &&
                     data.Contains("\"targetUrl\":\"/orders/")),
                 $"/orders/{orderId}",
                 OneSignalPushProfile.MobileHeadsUp,

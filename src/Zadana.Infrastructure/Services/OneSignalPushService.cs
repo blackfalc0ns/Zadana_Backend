@@ -1,5 +1,7 @@
 using System.Net.Http.Headers;
 using System.Net.Http.Json;
+using System.Security.Cryptography;
+using System.Text;
 using System.Text.Json;
 using Microsoft.Extensions.Logging;
 using Microsoft.Extensions.Options;
@@ -18,6 +20,7 @@ public sealed class OneSignalPushService : IOneSignalPushService
     private readonly HttpClient _httpClient;
     private readonly OneSignalSettings _settings;
     private readonly ILogger<OneSignalPushService> _logger;
+    private readonly string _restApiKeyFingerprint;
 
     public OneSignalPushService(
         HttpClient httpClient,
@@ -27,6 +30,7 @@ public sealed class OneSignalPushService : IOneSignalPushService
         _httpClient = httpClient;
         _settings = settings.Value;
         _logger = logger;
+        _restApiKeyFingerprint = CreateApiKeyFingerprint(_settings.RestApiKey);
     }
 
     public Task<OneSignalPushDispatchResult> SendToExternalUserAsync(
@@ -137,7 +141,9 @@ public sealed class OneSignalPushService : IOneSignalPushService
             {
                 var payloadJson = System.Text.Json.JsonSerializer.Serialize(preparedPayload.Payload);
                 _logger.LogWarning(
-                    "[PUSH-DIAG] OneSignal prepared payload. ExternalUserCount: {ExternalUserCount}. ExternalIdBatch: {ExternalIdBatch}. Profile: {Profile}. Type: {Type}. ReferenceId: {ReferenceId}. NotificationEventId: {NotificationEventId}. Channel: {Channel}. DataKeys: {DataKeys}. PayloadJson: {PayloadJson}",
+                    "[PUSH-DIAG] OneSignal prepared payload. AppId: {AppId}. RestApiKeyFingerprint: {RestApiKeyFingerprint}. ExternalUserCount: {ExternalUserCount}. ExternalIdBatch: {ExternalIdBatch}. Profile: {Profile}. Type: {Type}. ReferenceId: {ReferenceId}. NotificationEventId: {NotificationEventId}. Channel: {Channel}. DataKeys: {DataKeys}. PayloadJson: {PayloadJson}",
+                    _settings.AppId,
+                    _restApiKeyFingerprint,
                     preparedPayload.ExternalUserCount,
                     preparedPayload.ExternalIdBatch,
                     preparedPayload.Profile,
@@ -180,7 +186,9 @@ public sealed class OneSignalPushService : IOneSignalPushService
             if (!response.IsSuccessStatusCode)
             {
                 _logger.LogWarning(
-                    "[PUSH-DIAG] OneSignal push provider response failed. ExternalUserCount: {ExternalUserCount}. ExternalIdBatch: {ExternalIdBatch}. Profile: {Profile}. Type: {Type}. ReferenceId: {ReferenceId}. NotificationEventId: {NotificationEventId}. Channel: {Channel}. DataKeys: {DataKeys}. StatusCode: {StatusCode}. ProviderNotificationId: {ProviderNotificationId}. ResponseBody: {ResponseBody}",
+                    "[PUSH-DIAG] OneSignal push provider response failed. AppId: {AppId}. RestApiKeyFingerprint: {RestApiKeyFingerprint}. ExternalUserCount: {ExternalUserCount}. ExternalIdBatch: {ExternalIdBatch}. Profile: {Profile}. Type: {Type}. ReferenceId: {ReferenceId}. NotificationEventId: {NotificationEventId}. Channel: {Channel}. DataKeys: {DataKeys}. StatusCode: {StatusCode}. ProviderNotificationId: {ProviderNotificationId}. ResponseBody: {ResponseBody}",
+                    _settings.AppId,
+                    _restApiKeyFingerprint,
                     preparedPayload.ExternalUserCount,
                     preparedPayload.ExternalIdBatch,
                     preparedPayload.Profile,
@@ -199,13 +207,16 @@ public sealed class OneSignalPushService : IOneSignalPushService
                     Skipped: false,
                     ProviderStatusCode: statusCode,
                     ProviderNotificationId: notificationId,
-                    Reason: string.IsNullOrWhiteSpace(responseBody)
-                        ? "OneSignal rejected the notification request."
-                        : responseBody);
+                    Reason: BuildDiagnosticReason(
+                        string.IsNullOrWhiteSpace(responseBody)
+                            ? "OneSignal rejected the notification request."
+                            : responseBody));
             }
 
             _logger.LogInformation(
-                "[PUSH-DIAG] OneSignal push provider response succeeded. ExternalUserCount: {ExternalUserCount}. ExternalIdBatch: {ExternalIdBatch}. Profile: {Profile}. Type: {Type}. ReferenceId: {ReferenceId}. NotificationEventId: {NotificationEventId}. Channel: {Channel}. DataKeys: {DataKeys}. StatusCode: {StatusCode}. ProviderNotificationId: {ProviderNotificationId}. ResponseBody: {ResponseBody}",
+                "[PUSH-DIAG] OneSignal push provider response succeeded. AppId: {AppId}. RestApiKeyFingerprint: {RestApiKeyFingerprint}. ExternalUserCount: {ExternalUserCount}. ExternalIdBatch: {ExternalIdBatch}. Profile: {Profile}. Type: {Type}. ReferenceId: {ReferenceId}. NotificationEventId: {NotificationEventId}. Channel: {Channel}. DataKeys: {DataKeys}. StatusCode: {StatusCode}. ProviderNotificationId: {ProviderNotificationId}. ResponseBody: {ResponseBody}",
+                _settings.AppId,
+                _restApiKeyFingerprint,
                 preparedPayload.ExternalUserCount,
                 preparedPayload.ExternalIdBatch,
                 preparedPayload.Profile,
@@ -230,7 +241,9 @@ public sealed class OneSignalPushService : IOneSignalPushService
         {
             _logger.LogError(
                 ex,
-                "[PUSH-DIAG] OneSignal push send threw an exception. ExternalUserCount: {ExternalUserCount}. ExternalIdBatch: {ExternalIdBatch}. Profile: {Profile}. Type: {Type}. ReferenceId: {ReferenceId}. NotificationEventId: {NotificationEventId}. Channel: {Channel}. DataKeys: {DataKeys}",
+                "[PUSH-DIAG] OneSignal push send threw an exception. AppId: {AppId}. RestApiKeyFingerprint: {RestApiKeyFingerprint}. ExternalUserCount: {ExternalUserCount}. ExternalIdBatch: {ExternalIdBatch}. Profile: {Profile}. Type: {Type}. ReferenceId: {ReferenceId}. NotificationEventId: {NotificationEventId}. Channel: {Channel}. DataKeys: {DataKeys}",
+                _settings.AppId,
+                _restApiKeyFingerprint,
                 preparedPayload.ExternalUserCount,
                 preparedPayload.ExternalIdBatch,
                 preparedPayload.Profile,
@@ -246,7 +259,7 @@ public sealed class OneSignalPushService : IOneSignalPushService
                 Skipped: false,
                 ProviderStatusCode: null,
                 ProviderNotificationId: null,
-                Reason: ex.Message);
+                Reason: BuildDiagnosticReason(ex.Message));
         }
     }
 
@@ -472,6 +485,21 @@ public sealed class OneSignalPushService : IOneSignalPushService
         }
     }
 
+    private static string CreateApiKeyFingerprint(string? apiKey)
+    {
+        if (string.IsNullOrWhiteSpace(apiKey))
+        {
+            return "missing";
+        }
+
+        var normalizedKey = apiKey.Trim();
+        var hash = SHA256.HashData(Encoding.UTF8.GetBytes(normalizedKey));
+        return Convert.ToHexString(hash)[..12];
+    }
+
+    private string BuildDiagnosticReason(string reason) =>
+        $"[diag app={_settings.AppId} fp={_restApiKeyFingerprint}] {reason}";
+
     private static string? ExtractNotificationId(string? responseBody)
     {
         if (string.IsNullOrWhiteSpace(responseBody))
@@ -551,7 +579,7 @@ public sealed class OneSignalPushService : IOneSignalPushService
             Skipped: true,
             ProviderStatusCode: null,
             ProviderNotificationId: null,
-            Reason: reason);
+            Reason: BuildDiagnosticReason(reason));
     }
 
     private sealed record PreparedOneSignalPayload(
