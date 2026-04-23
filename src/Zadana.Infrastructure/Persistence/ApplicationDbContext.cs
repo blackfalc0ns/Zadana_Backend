@@ -77,6 +77,9 @@ public class ApplicationDbContext : IdentityDbContext<User, IdentityRole<Guid>, 
     public DbSet<DeliveryAssignment> DeliveryAssignments => Set<DeliveryAssignment>();
     public DbSet<DeliveryProof> DeliveryProofs => Set<DeliveryProof>();
     public DbSet<CustomerAddress> CustomerAddresses => Set<CustomerAddress>();
+    public DbSet<DeliveryZone> DeliveryZones => Set<DeliveryZone>();
+    public DbSet<DriverNote> DriverNotes => Set<DriverNote>();
+    public DbSet<DriverIncident> DriverIncidents => Set<DriverIncident>();
 
     // Wallets & Settlements
     public DbSet<Wallet> Wallets => Set<Wallet>();

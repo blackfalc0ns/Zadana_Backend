@@ -4,6 +4,7 @@ using Microsoft.EntityFrameworkCore;
 using Microsoft.Extensions.Localization;
 using Zadana.Application.Common.Interfaces;
 using Zadana.Application.Common.Localization;
+using Zadana.Application.Modules.Delivery.Interfaces;
 using Zadana.Application.Modules.Orders.Events;
 using Zadana.Domain.Modules.Orders.Enums;
 using Zadana.SharedKernel.Exceptions;
@@ -44,17 +45,20 @@ public class VendorUpdateOrderStatusCommandHandler : IRequestHandler<VendorUpdat
     private readonly IUnitOfWork _unitOfWork;
     private readonly IPublisher _publisher;
     private readonly IOrderStatusNotificationDispatcher _orderStatusNotificationDispatcher;
+    private readonly IDeliveryDispatchService _deliveryDispatchService;
 
     public VendorUpdateOrderStatusCommandHandler(
         IApplicationDbContext context,
         IUnitOfWork unitOfWork,
         IPublisher publisher,
-        IOrderStatusNotificationDispatcher orderStatusNotificationDispatcher)
+        IOrderStatusNotificationDispatcher orderStatusNotificationDispatcher,
+        IDeliveryDispatchService deliveryDispatchService)
     {
         _context = context;
         _unitOfWork = unitOfWork;
         _publisher = publisher;
         _orderStatusNotificationDispatcher = orderStatusNotificationDispatcher;
+        _deliveryDispatchService = deliveryDispatchService;
     }
 
     public async Task<VendorUpdateOrderStatusResultDto> Handle(VendorUpdateOrderStatusCommand request, CancellationToken cancellationToken)
@@ -105,6 +109,11 @@ public class VendorUpdateOrderStatusCommandHandler : IRequestHandler<VendorUpdat
                 ActorRole: "vendor",
                 CustomerNotificationAlreadySent: true),
             cancellationToken);
+
+        if (request.NewStatus == OrderStatus.ReadyForPickup)
+        {
+            await _deliveryDispatchService.TryAutoDispatchAsync(order.Id, cancellationToken);
+        }
 
         return new VendorUpdateOrderStatusResultDto(
             order.Id,

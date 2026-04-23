@@ -1146,8 +1146,10 @@ public class ApplicationDbContextInitialiser
             user.MarkPresenceOffline(DateTime.UtcNow.AddHours(-5));
         });
 
+        var reviewerUser = await _userManager.FindByEmailAsync("ops.admin@zadana.local");
+
         var activeDriver = new Driver(activeDriverUser.Id, "Motorbike", "29801011234567", "DRV-1001", "Riyadh", ImageCatalog.DriverNationalId, ImageCatalog.DriverLicense, ImageCatalog.DriverVehicle, ImageCatalog.DriverProfile);
-        activeDriver.Approve();
+        activeDriver.Approve(reviewerUser?.Id ?? activeDriverUser.Id);
         activeDriver.ToggleAvailability(true);
 
         var pendingDriver = new Driver(pendingDriverUser.Id, "Car", "29801011234568", "DRV-1002", "Jeddah", ImageCatalog.DriverNationalId, ImageCatalog.DriverLicense, ImageCatalog.DriverVehicle, ImageCatalog.DriverProfile);

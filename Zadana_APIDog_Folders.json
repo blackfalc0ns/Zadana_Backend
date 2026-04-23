@@ -9710,6 +9710,914 @@
                     }
                 }
             }
+        },
+        "/api/admin/drivers": {
+            "get": {
+                "tags": [
+                    "Admin/Drivers"
+                ],
+                "parameters": [
+                    {
+                        "name": "search",
+                        "in": "query",
+                        "schema": {
+                            "type": "string"
+                        }
+                    },
+                    {
+                        "name": "city",
+                        "in": "query",
+                        "schema": {
+                            "type": "string"
+                        }
+                    },
+                    {
+                        "name": "status",
+                        "in": "query",
+                        "schema": {
+                            "type": "string"
+                        }
+                    },
+                    {
+                        "name": "verificationStatus",
+                        "in": "query",
+                        "schema": {
+                            "type": "string"
+                        }
+                    },
+                    {
+                        "name": "vehicleType",
+                        "in": "query",
+                        "schema": {
+                            "type": "string"
+                        }
+                    },
+                    {
+                        "name": "performance",
+                        "in": "query",
+                        "schema": {
+                            "type": "string"
+                        }
+                    },
+                    {
+                        "name": "page",
+                        "in": "query",
+                        "schema": {
+                            "type": "integer",
+                            "format": "int32",
+                            "default": 1
+                        }
+                    },
+                    {
+                        "name": "pageSize",
+                        "in": "query",
+                        "schema": {
+                            "type": "integer",
+                            "format": "int32",
+                            "default": 20
+                        }
+                    }
+                ],
+                "responses": {
+                    "200": {
+                        "description": "OK",
+                        "content": {
+                            "application/json": {
+                                "schema": {
+                                    "$ref": "#/components/schemas/AdminDriversListDto"
+                                }
+                            },
+                            "text/json": {
+                                "schema": {
+                                    "$ref": "#/components/schemas/AdminDriversListDto"
+                                }
+                            },
+                            "text/plain": {
+                                "schema": {
+                                    "$ref": "#/components/schemas/AdminDriversListDto"
+                                }
+                            }
+                        }
+                    }
+                }
+            }
+        },
+        "/api/admin/drivers/{id}": {
+            "get": {
+                "tags": [
+                    "Admin/Drivers"
+                ],
+                "parameters": [
+                    {
+                        "name": "id",
+                        "in": "path",
+                        "required": true,
+                        "schema": {
+                            "type": "string",
+                            "format": "uuid"
+                        }
+                    }
+                ],
+                "responses": {
+                    "200": {
+                        "description": "OK",
+                        "content": {
+                            "application/json": {
+                                "schema": {
+                                    "$ref": "#/components/schemas/AdminDriverDetailDto"
+                                }
+                            },
+                            "text/json": {
+                                "schema": {
+                                    "$ref": "#/components/schemas/AdminDriverDetailDto"
+                                }
+                            },
+                            "text/plain": {
+                                "schema": {
+                                    "$ref": "#/components/schemas/AdminDriverDetailDto"
+                                }
+                            }
+                        }
+                    }
+                }
+            }
+        },
+        "/api/admin/drivers/{id}/review": {
+            "post": {
+                "tags": [
+                    "Admin/Drivers"
+                ],
+                "parameters": [
+                    {
+                        "name": "id",
+                        "in": "path",
+                        "required": true,
+                        "schema": {
+                            "type": "string",
+                            "format": "uuid"
+                        }
+                    }
+                ],
+                "requestBody": {
+                    "content": {
+                        "application/json": {
+                            "schema": {
+                                "$ref": "#/components/schemas/ReviewDriverRequest"
+                            }
+                        },
+                        "text/json": {
+                            "schema": {
+                                "$ref": "#/components/schemas/ReviewDriverRequest"
+                            }
+                        },
+                        "application/*+json": {
+                            "schema": {
+                                "$ref": "#/components/schemas/ReviewDriverRequest"
+                            }
+                        }
+                    }
+                },
+                "responses": {
+                    "200": {
+                        "description": "OK",
+                        "content": {
+                            "application/json": {
+                                "schema": {
+                                    "$ref": "#/components/schemas/OperationMessageResponse"
+                                }
+                            },
+                            "text/json": {
+                                "schema": {
+                                    "$ref": "#/components/schemas/OperationMessageResponse"
+                                }
+                            },
+                            "text/plain": {
+                                "schema": {
+                                    "$ref": "#/components/schemas/OperationMessageResponse"
+                                }
+                            }
+                        }
+                    }
+                }
+            }
+        },
+        "/api/admin/drivers/{id}/suspend": {
+            "post": {
+                "tags": [
+                    "Admin/Drivers"
+                ],
+                "parameters": [
+                    {
+                        "name": "id",
+                        "in": "path",
+                        "required": true,
+                        "schema": {
+                            "type": "string",
+                            "format": "uuid"
+                        }
+                    }
+                ],
+                "requestBody": {
+                    "content": {
+                        "application/json": {
+                            "schema": {
+                                "$ref": "#/components/schemas/SuspendDriverRequest"
+                            }
+                        },
+                        "text/json": {
+                            "schema": {
+                                "$ref": "#/components/schemas/SuspendDriverRequest"
+                            }
+                        },
+                        "application/*+json": {
+                            "schema": {
+                                "$ref": "#/components/schemas/SuspendDriverRequest"
+                            }
+                        }
+                    }
+                },
+                "responses": {
+                    "200": {
+                        "description": "OK",
+                        "content": {
+                            "application/json": {
+                                "schema": {
+                                    "$ref": "#/components/schemas/OperationMessageResponse"
+                                }
+                            },
+                            "text/json": {
+                                "schema": {
+                                    "$ref": "#/components/schemas/OperationMessageResponse"
+                                }
+                            },
+                            "text/plain": {
+                                "schema": {
+                                    "$ref": "#/components/schemas/OperationMessageResponse"
+                                }
+                            }
+                        }
+                    }
+                }
+            }
+        },
+        "/api/admin/drivers/{id}/reactivate": {
+            "post": {
+                "tags": [
+                    "Admin/Drivers"
+                ],
+                "parameters": [
+                    {
+                        "name": "id",
+                        "in": "path",
+                        "required": true,
+                        "schema": {
+                            "type": "string",
+                            "format": "uuid"
+                        }
+                    }
+                ],
+                "responses": {
+                    "200": {
+                        "description": "OK",
+                        "content": {
+                            "application/json": {
+                                "schema": {
+                                    "$ref": "#/components/schemas/OperationMessageResponse"
+                                }
+                            },
+                            "text/json": {
+                                "schema": {
+                                    "$ref": "#/components/schemas/OperationMessageResponse"
+                                }
+                            },
+                            "text/plain": {
+                                "schema": {
+                                    "$ref": "#/components/schemas/OperationMessageResponse"
+                                }
+                            }
+                        }
+                    }
+                }
+            }
+        },
+        "/api/admin/drivers/{id}/notes": {
+            "post": {
+                "tags": [
+                    "Admin/Drivers"
+                ],
+                "parameters": [
+                    {
+                        "name": "id",
+                        "in": "path",
+                        "required": true,
+                        "schema": {
+                            "type": "string",
+                            "format": "uuid"
+                        }
+                    }
+                ],
+                "requestBody": {
+                    "content": {
+                        "application/json": {
+                            "schema": {
+                                "$ref": "#/components/schemas/AddDriverNoteRequest"
+                            }
+                        },
+                        "text/json": {
+                            "schema": {
+                                "$ref": "#/components/schemas/AddDriverNoteRequest"
+                            }
+                        },
+                        "application/*+json": {
+                            "schema": {
+                                "$ref": "#/components/schemas/AddDriverNoteRequest"
+                            }
+                        }
+                    }
+                },
+                "responses": {
+                    "200": {
+                        "description": "OK",
+                        "content": {
+                            "application/json": {
+                                "schema": {
+                                    "$ref": "#/components/schemas/OperationMessageResponse"
+                                }
+                            },
+                            "text/json": {
+                                "schema": {
+                                    "$ref": "#/components/schemas/OperationMessageResponse"
+                                }
+                            },
+                            "text/plain": {
+                                "schema": {
+                                    "$ref": "#/components/schemas/OperationMessageResponse"
+                                }
+                            }
+                        }
+                    }
+                }
+            }
+        },
+        "/api/admin/drivers/{id}/incidents": {
+            "post": {
+                "tags": [
+                    "Admin/Drivers"
+                ],
+                "parameters": [
+                    {
+                        "name": "id",
+                        "in": "path",
+                        "required": true,
+                        "schema": {
+                            "type": "string",
+                            "format": "uuid"
+                        }
+                    }
+                ],
+                "requestBody": {
+                    "content": {
+                        "application/json": {
+                            "schema": {
+                                "$ref": "#/components/schemas/AddDriverIncidentRequest"
+                            }
+                        },
+                        "text/json": {
+                            "schema": {
+                                "$ref": "#/components/schemas/AddDriverIncidentRequest"
+                            }
+                        },
+                        "application/*+json": {
+                            "schema": {
+                                "$ref": "#/components/schemas/AddDriverIncidentRequest"
+                            }
+                        }
+                    }
+                },
+                "responses": {
+                    "200": {
+                        "description": "OK",
+                        "content": {
+                            "application/json": {
+                                "schema": {
+                                    "$ref": "#/components/schemas/OperationMessageResponse"
+                                }
+                            },
+                            "text/json": {
+                                "schema": {
+                                    "$ref": "#/components/schemas/OperationMessageResponse"
+                                }
+                            },
+                            "text/plain": {
+                                "schema": {
+                                    "$ref": "#/components/schemas/OperationMessageResponse"
+                                }
+                            }
+                        }
+                    }
+                }
+            }
+        },
+        "/api/admin/delivery-zones": {
+            "get": {
+                "tags": [
+                    "Admin/Delivery Zones"
+                ],
+                "parameters": [
+                    {
+                        "name": "activeOnly",
+                        "in": "query",
+                        "schema": {
+                            "type": "boolean",
+                            "default": false
+                        }
+                    }
+                ],
+                "responses": {
+                    "200": {
+                        "description": "OK",
+                        "content": {
+                            "application/json": {
+                                "schema": {
+                                    "type": "array",
+                                    "items": {
+                                        "$ref": "#/components/schemas/DeliveryZoneDto"
+                                    }
+                                }
+                            },
+                            "text/json": {
+                                "schema": {
+                                    "type": "array",
+                                    "items": {
+                                        "$ref": "#/components/schemas/DeliveryZoneDto"
+                                    }
+                                }
+                            },
+                            "text/plain": {
+                                "schema": {
+                                    "type": "array",
+                                    "items": {
+                                        "$ref": "#/components/schemas/DeliveryZoneDto"
+                                    }
+                                }
+                            }
+                        }
+                    }
+                }
+            },
+            "post": {
+                "tags": [
+                    "Admin/Delivery Zones"
+                ],
+                "requestBody": {
+                    "content": {
+                        "application/json": {
+                            "schema": {
+                                "$ref": "#/components/schemas/CreateDeliveryZoneRequest"
+                            }
+                        },
+                        "text/json": {
+                            "schema": {
+                                "$ref": "#/components/schemas/CreateDeliveryZoneRequest"
+                            }
+                        },
+                        "application/*+json": {
+                            "schema": {
+                                "$ref": "#/components/schemas/CreateDeliveryZoneRequest"
+                            }
+                        }
+                    }
+                },
+                "responses": {
+                    "200": {
+                        "description": "OK",
+                        "content": {
+                            "application/json": {
+                                "schema": {
+                                    "$ref": "#/components/schemas/DeliveryZoneDto"
+                                }
+                            },
+                            "text/json": {
+                                "schema": {
+                                    "$ref": "#/components/schemas/DeliveryZoneDto"
+                                }
+                            },
+                            "text/plain": {
+                                "schema": {
+                                    "$ref": "#/components/schemas/DeliveryZoneDto"
+                                }
+                            }
+                        }
+                    }
+                }
+            }
+        },
+        "/api/admin/delivery-zones/{id}": {
+            "put": {
+                "tags": [
+                    "Admin/Delivery Zones"
+                ],
+                "parameters": [
+                    {
+                        "name": "id",
+                        "in": "path",
+                        "required": true,
+                        "schema": {
+                            "type": "string",
+                            "format": "uuid"
+                        }
+                    }
+                ],
+                "requestBody": {
+                    "content": {
+                        "application/json": {
+                            "schema": {
+                                "$ref": "#/components/schemas/UpdateDeliveryZoneRequest"
+                            }
+                        },
+                        "text/json": {
+                            "schema": {
+                                "$ref": "#/components/schemas/UpdateDeliveryZoneRequest"
+                            }
+                        },
+                        "application/*+json": {
+                            "schema": {
+                                "$ref": "#/components/schemas/UpdateDeliveryZoneRequest"
+                            }
+                        }
+                    }
+                },
+                "responses": {
+                    "200": {
+                        "description": "OK",
+                        "content": {
+                            "application/json": {
+                                "schema": {
+                                    "$ref": "#/components/schemas/DeliveryZoneDto"
+                                }
+                            },
+                            "text/json": {
+                                "schema": {
+                                    "$ref": "#/components/schemas/DeliveryZoneDto"
+                                }
+                            },
+                            "text/plain": {
+                                "schema": {
+                                    "$ref": "#/components/schemas/DeliveryZoneDto"
+                                }
+                            }
+                        }
+                    }
+                }
+            }
+        },
+        "/api/drivers/zones": {
+            "get": {
+                "tags": [
+                    "Driver/Operations"
+                ],
+                "responses": {
+                    "200": {
+                        "description": "OK",
+                        "content": {
+                            "application/json": {
+                                "schema": {
+                                    "type": "array",
+                                    "items": {
+                                        "$ref": "#/components/schemas/DeliveryZoneDto"
+                                    }
+                                }
+                            },
+                            "text/json": {
+                                "schema": {
+                                    "type": "array",
+                                    "items": {
+                                        "$ref": "#/components/schemas/DeliveryZoneDto"
+                                    }
+                                }
+                            },
+                            "text/plain": {
+                                "schema": {
+                                    "type": "array",
+                                    "items": {
+                                        "$ref": "#/components/schemas/DeliveryZoneDto"
+                                    }
+                                }
+                            }
+                        }
+                    }
+                }
+            }
+        },
+        "/api/drivers/me/zone": {
+            "put": {
+                "tags": [
+                    "Driver/Operations"
+                ],
+                "requestBody": {
+                    "content": {
+                        "application/json": {
+                            "schema": {
+                                "$ref": "#/components/schemas/SetDriverZoneRequest"
+                            }
+                        },
+                        "text/json": {
+                            "schema": {
+                                "$ref": "#/components/schemas/SetDriverZoneRequest"
+                            }
+                        },
+                        "application/*+json": {
+                            "schema": {
+                                "$ref": "#/components/schemas/SetDriverZoneRequest"
+                            }
+                        }
+                    }
+                },
+                "responses": {
+                    "200": {
+                        "description": "OK",
+                        "content": {
+                            "application/json": {
+                                "schema": {
+                                    "$ref": "#/components/schemas/OperationMessageResponse"
+                                }
+                            },
+                            "text/json": {
+                                "schema": {
+                                    "$ref": "#/components/schemas/OperationMessageResponse"
+                                }
+                            },
+                            "text/plain": {
+                                "schema": {
+                                    "$ref": "#/components/schemas/OperationMessageResponse"
+                                }
+                            }
+                        }
+                    }
+                }
+            }
+        },
+        "/api/drivers/me/availability": {
+            "put": {
+                "tags": [
+                    "Driver/Operations"
+                ],
+                "requestBody": {
+                    "content": {
+                        "application/json": {
+                            "schema": {
+                                "$ref": "#/components/schemas/SetAvailabilityRequest"
+                            }
+                        },
+                        "text/json": {
+                            "schema": {
+                                "$ref": "#/components/schemas/SetAvailabilityRequest"
+                            }
+                        },
+                        "application/*+json": {
+                            "schema": {
+                                "$ref": "#/components/schemas/SetAvailabilityRequest"
+                            }
+                        }
+                    }
+                },
+                "responses": {
+                    "200": {
+                        "description": "OK",
+                        "content": {
+                            "application/json": {
+                                "schema": {
+                                    "$ref": "#/components/schemas/OperationMessageResponse"
+                                }
+                            },
+                            "text/json": {
+                                "schema": {
+                                    "$ref": "#/components/schemas/OperationMessageResponse"
+                                }
+                            },
+                            "text/plain": {
+                                "schema": {
+                                    "$ref": "#/components/schemas/OperationMessageResponse"
+                                }
+                            }
+                        }
+                    }
+                }
+            }
+        },
+        "/api/drivers/location": {
+            "post": {
+                "tags": [
+                    "Driver/Operations"
+                ],
+                "requestBody": {
+                    "content": {
+                        "application/json": {
+                            "schema": {
+                                "$ref": "#/components/schemas/UpdateLocationRequest"
+                            }
+                        },
+                        "text/json": {
+                            "schema": {
+                                "$ref": "#/components/schemas/UpdateLocationRequest"
+                            }
+                        },
+                        "application/*+json": {
+                            "schema": {
+                                "$ref": "#/components/schemas/UpdateLocationRequest"
+                            }
+                        }
+                    }
+                },
+                "responses": {
+                    "200": {
+                        "description": "OK",
+                        "content": {
+                            "application/json": {
+                                "schema": {
+                                    "$ref": "#/components/schemas/OperationMessageResponse"
+                                }
+                            },
+                            "text/json": {
+                                "schema": {
+                                    "$ref": "#/components/schemas/OperationMessageResponse"
+                                }
+                            },
+                            "text/plain": {
+                                "schema": {
+                                    "$ref": "#/components/schemas/OperationMessageResponse"
+                                }
+                            }
+                        }
+                    }
+                }
+            }
+        },
+        "/api/drivers/assignments/current": {
+            "get": {
+                "tags": [
+                    "Driver/Operations"
+                ],
+                "responses": {
+                    "200": {
+                        "description": "OK",
+                        "content": {
+                            "application/json": {
+                                "schema": {
+                                    "$ref": "#/components/schemas/DriverCurrentAssignmentResponse"
+                                }
+                            },
+                            "text/json": {
+                                "schema": {
+                                    "$ref": "#/components/schemas/DriverCurrentAssignmentResponse"
+                                }
+                            },
+                            "text/plain": {
+                                "schema": {
+                                    "$ref": "#/components/schemas/DriverCurrentAssignmentResponse"
+                                }
+                            }
+                        }
+                    }
+                }
+            }
+        },
+        "/api/drivers/assignments/{assignmentId}/proof": {
+            "post": {
+                "tags": [
+                    "Driver/Operations"
+                ],
+                "parameters": [
+                    {
+                        "name": "assignmentId",
+                        "in": "path",
+                        "required": true,
+                        "schema": {
+                            "type": "string",
+                            "format": "uuid"
+                        }
+                    }
+                ],
+                "requestBody": {
+                    "content": {
+                        "application/json": {
+                            "schema": {
+                                "$ref": "#/components/schemas/SubmitProofRequest"
+                            }
+                        },
+                        "text/json": {
+                            "schema": {
+                                "$ref": "#/components/schemas/SubmitProofRequest"
+                            }
+                        },
+                        "application/*+json": {
+                            "schema": {
+                                "$ref": "#/components/schemas/SubmitProofRequest"
+                            }
+                        }
+                    }
+                },
+                "responses": {
+                    "200": {
+                        "description": "OK",
+                        "content": {
+                            "application/json": {
+                                "schema": {
+                                    "$ref": "#/components/schemas/OperationMessageResponse"
+                                }
+                            },
+                            "text/json": {
+                                "schema": {
+                                    "$ref": "#/components/schemas/OperationMessageResponse"
+                                }
+                            },
+                            "text/plain": {
+                                "schema": {
+                                    "$ref": "#/components/schemas/OperationMessageResponse"
+                                }
+                            }
+                        }
+                    }
+                }
+            }
+        },
+        "/api/drivers/assignments/history": {
+            "get": {
+                "tags": [
+                    "Driver/Operations"
+                ],
+                "responses": {
+                    "200": {
+                        "description": "OK",
+                        "content": {
+                            "application/json": {
+                                "schema": {
+                                    "type": "array",
+                                    "items": {
+                                        "$ref": "#/components/schemas/AdminDriverAssignmentDto"
+                                    }
+                                }
+                            },
+                            "text/json": {
+                                "schema": {
+                                    "type": "array",
+                                    "items": {
+                                        "$ref": "#/components/schemas/AdminDriverAssignmentDto"
+                                    }
+                                }
+                            },
+                            "text/plain": {
+                                "schema": {
+                                    "type": "array",
+                                    "items": {
+                                        "$ref": "#/components/schemas/AdminDriverAssignmentDto"
+                                    }
+                                }
+                            }
+                        }
+                    }
+                }
+            }
+        },
+        "/api/admin/orders/{orderId}/dispatch/recompute": {
+            "post": {
+                "tags": [
+                    "Admin/Orders"
+                ],
+                "parameters": [
+                    {
+                        "name": "orderId",
+                        "in": "path",
+                        "required": true,
+                        "schema": {
+                            "type": "string",
+                            "format": "uuid"
+                        }
+                    }
+                ],
+                "responses": {
+                    "200": {
+                        "description": "OK",
+                        "content": {
+                            "application/json": {
+                                "schema": {
+                                    "$ref": "#/components/schemas/AdminOrderDetailDto"
+                                }
+                            },
+                            "text/json": {
+                                "schema": {
+                                    "$ref": "#/components/schemas/AdminOrderDetailDto"
+                                }
+                            },
+                            "text/plain": {
+                                "schema": {
+                                    "$ref": "#/components/schemas/AdminOrderDetailDto"
+                                }
+                            }
+                        }
+                    }
+                }
+            }
         }
     },
     "components": {
@@ -10434,6 +11342,14 @@
                         "type": "string",
                         "nullable": true
                     },
+                    "dispatchState": {
+                        "type": "string",
+                        "nullable": true
+                    },
+                    "dispatchReason": {
+                        "type": "string",
+                        "nullable": true
+                    },
                     "paymentMethodLabel": {
                         "type": "string",
                         "nullable": true
@@ -10507,6 +11423,13 @@
                         "type": "array",
                         "items": {
                             "$ref": "#/components/schemas/AdminDriverCandidateDto"
+                        },
+                        "nullable": true
+                    },
+                    "candidateScoreBreakdown": {
+                        "type": "array",
+                        "items": {
+                            "type": "string"
                         },
                         "nullable": true
                     },
@@ -10597,6 +11520,14 @@
                         "nullable": true
                     },
                     "fulfillmentStatus": {
+                        "type": "string",
+                        "nullable": true
+                    },
+                    "dispatchState": {
+                        "type": "string",
+                        "nullable": true
+                    },
+                    "dispatchReason": {
                         "type": "string",
                         "nullable": true
                     },
@@ -16993,6 +17924,725 @@
                     }
                 },
                 "additionalProperties": false
+            },
+            "OperationMessageResponse": {
+                "type": "object",
+                "properties": {
+                    "id": {
+                        "type": "string",
+                        "format": "uuid",
+                        "nullable": true
+                    },
+                    "message": {
+                        "type": "string",
+                        "nullable": true
+                    }
+                },
+                "additionalProperties": false
+            },
+            "ReviewDriverRequest": {
+                "type": "object",
+                "properties": {
+                    "action": {
+                        "type": "string",
+                        "nullable": true
+                    },
+                    "note": {
+                        "type": "string",
+                        "nullable": true
+                    }
+                },
+                "additionalProperties": false
+            },
+            "SuspendDriverRequest": {
+                "type": "object",
+                "properties": {
+                    "reason": {
+                        "type": "string",
+                        "nullable": true
+                    }
+                },
+                "additionalProperties": false
+            },
+            "AddDriverNoteRequest": {
+                "type": "object",
+                "properties": {
+                    "message": {
+                        "type": "string",
+                        "nullable": true
+                    }
+                },
+                "additionalProperties": false
+            },
+            "AddDriverIncidentRequest": {
+                "type": "object",
+                "properties": {
+                    "incidentType": {
+                        "type": "string",
+                        "nullable": true
+                    },
+                    "severity": {
+                        "type": "string",
+                        "nullable": true
+                    },
+                    "summary": {
+                        "type": "string",
+                        "nullable": true
+                    },
+                    "linkedOrderId": {
+                        "type": "string",
+                        "format": "uuid",
+                        "nullable": true
+                    },
+                    "reviewerName": {
+                        "type": "string",
+                        "nullable": true
+                    }
+                },
+                "additionalProperties": false
+            },
+            "CreateDeliveryZoneRequest": {
+                "type": "object",
+                "properties": {
+                    "city": {
+                        "type": "string",
+                        "nullable": true
+                    },
+                    "name": {
+                        "type": "string",
+                        "nullable": true
+                    },
+                    "centerLat": {
+                        "type": "number",
+                        "format": "double"
+                    },
+                    "centerLng": {
+                        "type": "number",
+                        "format": "double"
+                    },
+                    "radiusKm": {
+                        "type": "number",
+                        "format": "double"
+                    }
+                },
+                "additionalProperties": false
+            },
+            "UpdateDeliveryZoneRequest": {
+                "type": "object",
+                "properties": {
+                    "city": {
+                        "type": "string",
+                        "nullable": true
+                    },
+                    "name": {
+                        "type": "string",
+                        "nullable": true
+                    },
+                    "centerLat": {
+                        "type": "number",
+                        "format": "double"
+                    },
+                    "centerLng": {
+                        "type": "number",
+                        "format": "double"
+                    },
+                    "radiusKm": {
+                        "type": "number",
+                        "format": "double"
+                    },
+                    "isActive": {
+                        "type": "boolean",
+                        "nullable": true
+                    }
+                },
+                "additionalProperties": false
+            },
+            "SetDriverZoneRequest": {
+                "type": "object",
+                "properties": {
+                    "zoneId": {
+                        "type": "string",
+                        "format": "uuid"
+                    }
+                },
+                "additionalProperties": false
+            },
+            "SetAvailabilityRequest": {
+                "type": "object",
+                "properties": {
+                    "isAvailable": {
+                        "type": "boolean"
+                    }
+                },
+                "additionalProperties": false
+            },
+            "UpdateLocationRequest": {
+                "type": "object",
+                "properties": {
+                    "latitude": {
+                        "type": "number",
+                        "format": "double"
+                    },
+                    "longitude": {
+                        "type": "number",
+                        "format": "double"
+                    }
+                },
+                "additionalProperties": false
+            },
+            "SubmitProofRequest": {
+                "type": "object",
+                "properties": {
+                    "proofType": {
+                        "type": "string",
+                        "nullable": true
+                    },
+                    "imageUrl": {
+                        "type": "string",
+                        "nullable": true
+                    },
+                    "otpCode": {
+                        "type": "string",
+                        "nullable": true
+                    },
+                    "recipientName": {
+                        "type": "string",
+                        "nullable": true
+                    },
+                    "note": {
+                        "type": "string",
+                        "nullable": true
+                    }
+                },
+                "additionalProperties": false
+            },
+            "DeliveryZoneDto": {
+                "type": "object",
+                "properties": {
+                    "id": {
+                        "type": "string",
+                        "format": "uuid"
+                    },
+                    "city": {
+                        "type": "string",
+                        "nullable": true
+                    },
+                    "name": {
+                        "type": "string",
+                        "nullable": true
+                    },
+                    "centerLat": {
+                        "type": "number",
+                        "format": "double"
+                    },
+                    "centerLng": {
+                        "type": "number",
+                        "format": "double"
+                    },
+                    "radiusKm": {
+                        "type": "number",
+                        "format": "double"
+                    },
+                    "isActive": {
+                        "type": "boolean"
+                    }
+                },
+                "additionalProperties": false
+            },
+            "AdminDriverKPIsDto": {
+                "type": "object",
+                "properties": {
+                    "total": {
+                        "type": "integer",
+                        "format": "int32"
+                    },
+                    "onlineNow": {
+                        "type": "integer",
+                        "format": "int32"
+                    },
+                    "onMission": {
+                        "type": "integer",
+                        "format": "int32"
+                    },
+                    "underReview": {
+                        "type": "integer",
+                        "format": "int32"
+                    },
+                    "suspended": {
+                        "type": "integer",
+                        "format": "int32"
+                    },
+                    "lowPerformance": {
+                        "type": "integer",
+                        "format": "int32"
+                    }
+                },
+                "additionalProperties": false
+            },
+            "AdminDriverListItemDto": {
+                "type": "object",
+                "properties": {
+                    "id": {
+                        "type": "string",
+                        "format": "uuid"
+                    },
+                    "driverDisplayId": {
+                        "type": "string",
+                        "nullable": true
+                    },
+                    "firstName": {
+                        "type": "string",
+                        "nullable": true
+                    },
+                    "lastName": {
+                        "type": "string",
+                        "nullable": true
+                    },
+                    "phoneNumber": {
+                        "type": "string",
+                        "nullable": true
+                    },
+                    "imageUrl": {
+                        "type": "string",
+                        "nullable": true
+                    },
+                    "city": {
+                        "type": "string",
+                        "nullable": true
+                    },
+                    "status": {
+                        "type": "string",
+                        "nullable": true
+                    },
+                    "verificationStatus": {
+                        "type": "string",
+                        "nullable": true
+                    },
+                    "activeTasks": {
+                        "type": "integer",
+                        "format": "int32"
+                    },
+                    "completedTasks": {
+                        "type": "integer",
+                        "format": "int32"
+                    },
+                    "acceptanceRate": {
+                        "type": "number",
+                        "format": "double"
+                    },
+                    "walletBalance": {
+                        "type": "number",
+                        "format": "double"
+                    },
+                    "performance": {
+                        "type": "string",
+                        "nullable": true
+                    },
+                    "vehicleType": {
+                        "type": "string",
+                        "nullable": true
+                    },
+                    "lastSeenAt": {
+                        "type": "string",
+                        "format": "date-time"
+                    },
+                    "issues": {
+                        "type": "array",
+                        "items": {
+                            "type": "string"
+                        },
+                        "nullable": true
+                    },
+                    "collectionPaymentStatus": {
+                        "type": "string",
+                        "nullable": true
+                    },
+                    "alerts": {
+                        "type": "array",
+                        "items": {
+                            "type": "string"
+                        },
+                        "nullable": true
+                    }
+                },
+                "additionalProperties": false
+            },
+            "AdminDriversListDto": {
+                "type": "object",
+                "properties": {
+                    "items": {
+                        "type": "array",
+                        "items": {
+                            "$ref": "#/components/schemas/AdminDriverListItemDto"
+                        },
+                        "nullable": true
+                    },
+                    "totalCount": {
+                        "type": "integer",
+                        "format": "int32"
+                    },
+                    "pageNumber": {
+                        "type": "integer",
+                        "format": "int32"
+                    },
+                    "pageSize": {
+                        "type": "integer",
+                        "format": "int32"
+                    },
+                    "kpis": {
+                        "$ref": "#/components/schemas/AdminDriverKPIsDto"
+                    }
+                },
+                "additionalProperties": false
+            },
+            "AdminDriverDocumentDto": {
+                "type": "object",
+                "properties": {
+                    "documentType": {
+                        "type": "string",
+                        "nullable": true
+                    },
+                    "imageUrl": {
+                        "type": "string",
+                        "nullable": true
+                    },
+                    "status": {
+                        "type": "string",
+                        "nullable": true
+                    },
+                    "expiryInfo": {
+                        "type": "string",
+                        "nullable": true
+                    }
+                },
+                "additionalProperties": false
+            },
+            "AdminDriverNoteDto": {
+                "type": "object",
+                "properties": {
+                    "id": {
+                        "type": "string",
+                        "format": "uuid"
+                    },
+                    "authorName": {
+                        "type": "string",
+                        "nullable": true
+                    },
+                    "message": {
+                        "type": "string",
+                        "nullable": true
+                    },
+                    "createdAtUtc": {
+                        "type": "string",
+                        "format": "date-time"
+                    }
+                },
+                "additionalProperties": false
+            },
+            "AdminDriverIncidentDto": {
+                "type": "object",
+                "properties": {
+                    "id": {
+                        "type": "string",
+                        "format": "uuid"
+                    },
+                    "incidentType": {
+                        "type": "string",
+                        "nullable": true
+                    },
+                    "severity": {
+                        "type": "string",
+                        "nullable": true
+                    },
+                    "status": {
+                        "type": "string",
+                        "nullable": true
+                    },
+                    "reviewerName": {
+                        "type": "string",
+                        "nullable": true
+                    },
+                    "linkedOrderId": {
+                        "type": "string",
+                        "format": "uuid",
+                        "nullable": true
+                    },
+                    "summary": {
+                        "type": "string",
+                        "nullable": true
+                    },
+                    "createdAtUtc": {
+                        "type": "string",
+                        "format": "date-time"
+                    }
+                },
+                "additionalProperties": false
+            },
+            "AdminDriverFinanceSummaryDto": {
+                "type": "object",
+                "properties": {
+                    "currentBalance": {
+                        "type": "number",
+                        "format": "double"
+                    },
+                    "pendingBalance": {
+                        "type": "number",
+                        "format": "double"
+                    },
+                    "totalEarnings": {
+                        "type": "number",
+                        "format": "double"
+                    },
+                    "codCollected": {
+                        "type": "number",
+                        "format": "double"
+                    },
+                    "totalSettlements": {
+                        "type": "integer",
+                        "format": "int32"
+                    },
+                    "totalPayouts": {
+                        "type": "integer",
+                        "format": "int32"
+                    }
+                },
+                "additionalProperties": false
+            },
+            "AdminDriverAssignmentDto": {
+                "type": "object",
+                "properties": {
+                    "id": {
+                        "type": "string",
+                        "format": "uuid"
+                    },
+                    "orderId": {
+                        "type": "string",
+                        "format": "uuid"
+                    },
+                    "orderNumber": {
+                        "type": "string",
+                        "nullable": true
+                    },
+                    "status": {
+                        "type": "string",
+                        "nullable": true
+                    },
+                    "acceptedAtUtc": {
+                        "type": "string",
+                        "format": "date-time",
+                        "nullable": true
+                    },
+                    "deliveredAtUtc": {
+                        "type": "string",
+                        "format": "date-time",
+                        "nullable": true
+                    },
+                    "failedAtUtc": {
+                        "type": "string",
+                        "format": "date-time",
+                        "nullable": true
+                    },
+                    "failureReason": {
+                        "type": "string",
+                        "nullable": true
+                    },
+                    "codAmount": {
+                        "type": "number",
+                        "format": "double"
+                    }
+                },
+                "additionalProperties": false
+            },
+            "AdminDriverDetailDto": {
+                "type": "object",
+                "properties": {
+                    "id": {
+                        "type": "string",
+                        "format": "uuid"
+                    },
+                    "driverDisplayId": {
+                        "type": "string",
+                        "nullable": true
+                    },
+                    "firstName": {
+                        "type": "string",
+                        "nullable": true
+                    },
+                    "lastName": {
+                        "type": "string",
+                        "nullable": true
+                    },
+                    "phoneNumber": {
+                        "type": "string",
+                        "nullable": true
+                    },
+                    "email": {
+                        "type": "string",
+                        "nullable": true
+                    },
+                    "imageUrl": {
+                        "type": "string",
+                        "nullable": true
+                    },
+                    "city": {
+                        "type": "string",
+                        "nullable": true
+                    },
+                    "status": {
+                        "type": "string",
+                        "nullable": true
+                    },
+                    "verificationStatus": {
+                        "type": "string",
+                        "nullable": true
+                    },
+                    "vehicleType": {
+                        "type": "string",
+                        "nullable": true
+                    },
+                    "joinedAt": {
+                        "type": "string",
+                        "format": "date-time"
+                    },
+                    "lastSeenAt": {
+                        "type": "string",
+                        "format": "date-time"
+                    },
+                    "activeTasks": {
+                        "type": "integer",
+                        "format": "int32"
+                    },
+                    "completedTasks": {
+                        "type": "integer",
+                        "format": "int32"
+                    },
+                    "acceptanceRate": {
+                        "type": "number",
+                        "format": "double"
+                    },
+                    "walletBalance": {
+                        "type": "number",
+                        "format": "double"
+                    },
+                    "performance": {
+                        "type": "string",
+                        "nullable": true
+                    },
+                    "issues": {
+                        "type": "array",
+                        "items": {
+                            "type": "string"
+                        },
+                        "nullable": true
+                    },
+                    "collectionPaymentStatus": {
+                        "type": "string",
+                        "nullable": true
+                    },
+                    "alerts": {
+                        "type": "array",
+                        "items": {
+                            "type": "string"
+                        },
+                        "nullable": true
+                    },
+                    "zoneName": {
+                        "type": "string",
+                        "nullable": true
+                    },
+                    "primaryZoneId": {
+                        "type": "string",
+                        "format": "uuid",
+                        "nullable": true
+                    },
+                    "reviewedAtUtc": {
+                        "type": "string",
+                        "format": "date-time",
+                        "nullable": true
+                    },
+                    "reviewNote": {
+                        "type": "string",
+                        "nullable": true
+                    },
+                    "suspensionReason": {
+                        "type": "string",
+                        "nullable": true
+                    },
+                    "documents": {
+                        "type": "array",
+                        "items": {
+                            "$ref": "#/components/schemas/AdminDriverDocumentDto"
+                        },
+                        "nullable": true
+                    },
+                    "notes": {
+                        "type": "array",
+                        "items": {
+                            "$ref": "#/components/schemas/AdminDriverNoteDto"
+                        },
+                        "nullable": true
+                    },
+                    "incidents": {
+                        "type": "array",
+                        "items": {
+                            "$ref": "#/components/schemas/AdminDriverIncidentDto"
+                        },
+                        "nullable": true
+                    },
+                    "finance": {
+                        "$ref": "#/components/schemas/AdminDriverFinanceSummaryDto"
+                    },
+                    "recentAssignments": {
+                        "type": "array",
+                        "items": {
+                            "$ref": "#/components/schemas/AdminDriverAssignmentDto"
+                        },
+                        "nullable": true
+                    }
+                },
+                "additionalProperties": false
+            },
+            "DriverCurrentAssignmentDto": {
+                "type": "object",
+                "properties": {
+                    "id": {
+                        "type": "string",
+                        "format": "uuid"
+                    },
+                    "orderId": {
+                        "type": "string",
+                        "format": "uuid"
+                    },
+                    "orderNumber": {
+                        "type": "string",
+                        "nullable": true
+                    },
+                    "status": {
+                        "type": "string",
+                        "nullable": true
+                    },
+                    "codAmount": {
+                        "type": "number",
+                        "format": "double"
+                    },
+                    "createdAtUtc": {
+                        "type": "string",
+                        "format": "date-time"
+                    }
+                },
+                "additionalProperties": false
+            },
+            "DriverCurrentAssignmentResponse": {
+                "type": "object",
+                "properties": {
+                    "hasAssignment": {
+                        "type": "boolean"
+                    },
+                    "assignment": {
+                        "$ref": "#/components/schemas/DriverCurrentAssignmentDto"
+                    }
+                },
+                "additionalProperties": false
             }
         },
         "securitySchemes": {
@@ -17192,6 +18842,18 @@
         {
             "name": "Vendor/Registration",
             "description": "APIDog folder for Vendor/Registration"
+        },
+        {
+            "name": "Admin/Drivers",
+            "description": "APIDog folder for Admin/Drivers"
+        },
+        {
+            "name": "Admin/Delivery Zones",
+            "description": "APIDog folder for Admin/Delivery Zones"
+        },
+        {
+            "name": "Driver/Operations",
+            "description": "APIDog folder for Driver/Operations"
         }
     ]
 }

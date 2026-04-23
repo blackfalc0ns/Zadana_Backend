@@ -3,6 +3,8 @@ using MediatR;
 using Microsoft.EntityFrameworkCore;
 using Moq;
 using Zadana.Application.Common.Interfaces;
+using Zadana.Application.Modules.Delivery.DTOs;
+using Zadana.Application.Modules.Delivery.Interfaces;
 using Zadana.Application.Modules.Orders.Commands.VendorUpdateOrderStatus;
 using Zadana.Application.Modules.Orders.Events;
 using Zadana.Domain.Modules.Identity.Entities;
@@ -37,6 +39,7 @@ public class VendorUpdateOrderStatusCommandHandlerTests
 
         var publisherMock = new Mock<IPublisher>();
         var dispatcherMock = new Mock<IOrderStatusNotificationDispatcher>();
+        var deliveryDispatchServiceMock = new Mock<IDeliveryDispatchService>();
         dispatcherMock
             .Setup(service => service.DispatchCustomerAsync(
                 It.IsAny<OrderStatusCustomerNotificationRequest>(),
@@ -53,7 +56,8 @@ public class VendorUpdateOrderStatusCommandHandlerTests
             dbContext,
             dbContext,
             publisherMock.Object,
-            dispatcherMock.Object);
+            dispatcherMock.Object,
+            deliveryDispatchServiceMock.Object);
 
         var result = await handler.Handle(
             new VendorUpdateOrderStatusCommand(order.Id, vendorId, newStatus, "vendor update note"),
@@ -91,6 +95,10 @@ public class VendorUpdateOrderStatusCommandHandlerTests
                     notification.CustomerNotificationAlreadySent),
                 It.IsAny<CancellationToken>()),
             Times.Once);
+
+        deliveryDispatchServiceMock.Verify(
+            service => service.TryAutoDispatchAsync(order.Id, It.IsAny<CancellationToken>()),
+            newStatus == OrderStatus.ReadyForPickup ? Times.Once() : Times.Never());
     }
 
     [Fact]
@@ -107,11 +115,13 @@ public class VendorUpdateOrderStatusCommandHandlerTests
 
         var publisherMock = new Mock<IPublisher>();
         var dispatcherMock = new Mock<IOrderStatusNotificationDispatcher>();
+        var deliveryDispatchServiceMock = new Mock<IDeliveryDispatchService>();
         var handler = new VendorUpdateOrderStatusCommandHandler(
             dbContext,
             dbContext,
             publisherMock.Object,
-            dispatcherMock.Object);
+            dispatcherMock.Object,
+            deliveryDispatchServiceMock.Object);
 
         var result = await handler.Handle(
             new VendorUpdateOrderStatusCommand(order.Id, vendorId, OrderStatus.Accepted, null),
@@ -123,6 +133,9 @@ public class VendorUpdateOrderStatusCommandHandlerTests
             Times.Never);
         publisherMock.Verify(
             publisher => publisher.Publish(It.IsAny<OrderStatusChangedNotification>(), It.IsAny<CancellationToken>()),
+            Times.Never);
+        deliveryDispatchServiceMock.Verify(
+            service => service.TryAutoDispatchAsync(It.IsAny<Guid>(), It.IsAny<CancellationToken>()),
             Times.Never);
     }
 

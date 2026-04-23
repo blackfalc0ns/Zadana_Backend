@@ -4,6 +4,7 @@ using Microsoft.EntityFrameworkCore;
 using Microsoft.Extensions.Localization;
 using Zadana.Application.Common.Interfaces;
 using Zadana.Application.Common.Localization;
+using Zadana.Application.Modules.Delivery.Interfaces;
 using Zadana.Application.Modules.Orders.Events;
 using Zadana.Domain.Modules.Orders.Enums;
 using Zadana.SharedKernel.Exceptions;
@@ -43,22 +44,29 @@ public class DriverUpdateOrderStatusCommandHandler : IRequestHandler<DriverUpdat
     private readonly IApplicationDbContext _context;
     private readonly IUnitOfWork _unitOfWork;
     private readonly IPublisher _publisher;
+    private readonly IDriverRepository _driverRepository;
 
     public DriverUpdateOrderStatusCommandHandler(
         IApplicationDbContext context,
         IUnitOfWork unitOfWork,
-        IPublisher publisher)
+        IPublisher publisher,
+        IDriverRepository driverRepository)
     {
         _context = context;
         _unitOfWork = unitOfWork;
         _publisher = publisher;
+        _driverRepository = driverRepository;
     }
 
     public async Task<DriverUpdateOrderStatusResultDto> Handle(DriverUpdateOrderStatusCommand request, CancellationToken cancellationToken)
     {
-        // Find the order through the delivery assignment
+        // BUG FIX: Resolve Driver.Id from the current user's UserId first
+        var driver = await _driverRepository.GetByUserIdAsync(request.DriverUserId, cancellationToken)
+            ?? throw new BusinessRuleException("DRIVER_NOT_FOUND", "No driver profile found for the current user");
+
+        // Now compare using the actual Driver.Id against the assignment
         var assignment = await _context.DeliveryAssignments
-            .FirstOrDefaultAsync(x => x.OrderId == request.OrderId && x.DriverId == request.DriverUserId, cancellationToken);
+            .FirstOrDefaultAsync(x => x.OrderId == request.OrderId && x.DriverId == driver.Id, cancellationToken);
 
         var order = await _context.Orders
             .Include(x => x.StatusHistory)
@@ -70,11 +78,45 @@ public class DriverUpdateOrderStatusCommandHandler : IRequestHandler<DriverUpdat
             throw new BusinessRuleException("DRIVER_NOT_ASSIGNED", "You are not assigned to this order");
         }
 
+        if (request.NewStatus == OrderStatus.Delivered)
+        {
+            var hasPhotoProof = await _context.DeliveryProofs
+                .AnyAsync(
+                    proof => proof.AssignmentId == assignment.Id &&
+                        (!string.IsNullOrWhiteSpace(proof.ImageUrl) ||
+                         proof.ProofType == "Image" ||
+                         proof.ProofType == "Photo"),
+                    cancellationToken);
+
+            if (!hasPhotoProof)
+            {
+                throw new BusinessRuleException(
+                    "DELIVERY_PROOF_REQUIRED",
+                    "Photo proof is required before marking an order as delivered.");
+            }
+        }
+
+        if (request.NewStatus == OrderStatus.DeliveryFailed && string.IsNullOrWhiteSpace(request.Note))
+        {
+            throw new BusinessRuleException(
+                "DELIVERY_FAILURE_NOTE_REQUIRED",
+                "A failure note is required before marking delivery as failed.");
+        }
+
         ValidateTransition(order.Status, request.NewStatus);
 
         var oldStatus = order.Status;
         order.ChangeStatus(request.NewStatus, request.DriverUserId, request.Note);
         _context.OrderStatusHistories.Add(order.StatusHistory.Last());
+
+        // Update assignment status to match order status
+        if (request.NewStatus == OrderStatus.PickedUp)
+            assignment.MarkPickedUp();
+        else if (request.NewStatus == OrderStatus.Delivered)
+            assignment.MarkDelivered();
+        else if (request.NewStatus == OrderStatus.DeliveryFailed)
+            assignment.Fail(request.Note ?? "Delivery failed");
+
         await _unitOfWork.SaveChangesAsync(cancellationToken);
 
         // Publish notification event

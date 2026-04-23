@@ -27,19 +27,22 @@ public class AdminOrdersController : ApiControllerBase
     private readonly IOrderReadService _orderReadService;
     private readonly IPublisher _publisher;
     private readonly IOrderStatusNotificationDispatcher _orderStatusNotificationDispatcher;
+    private readonly Application.Modules.Delivery.Interfaces.IDeliveryDispatchService _dispatchService;
 
     public AdminOrdersController(
         IApplicationDbContext dbContext,
         ICurrentUserService currentUserService,
         IOrderReadService orderReadService,
         IPublisher publisher,
-        IOrderStatusNotificationDispatcher orderStatusNotificationDispatcher)
+        IOrderStatusNotificationDispatcher orderStatusNotificationDispatcher,
+        Application.Modules.Delivery.Interfaces.IDeliveryDispatchService dispatchService)
     {
         _dbContext = dbContext;
         _currentUserService = currentUserService;
         _orderReadService = orderReadService;
         _publisher = publisher;
         _orderStatusNotificationDispatcher = orderStatusNotificationDispatcher;
+        _dispatchService = dispatchService;
     }
 
     [HttpGet]
@@ -157,6 +160,7 @@ public class AdminOrdersController : ApiControllerBase
         assignment.OfferTo(driver.Id);
         assignment.Accept();
         order.ChangeStatus(OrderStatus.DriverAssigned, GetRequiredAdminUserId(), request.InternalNotes ?? "Driver assigned by admin.");
+        _dbContext.OrderStatusHistories.Add(order.StatusHistory.Last());
 
         await _dbContext.SaveChangesAsync(cancellationToken);
 
@@ -187,6 +191,34 @@ public class AdminOrdersController : ApiControllerBase
                 CustomerNotificationAlreadySent: true),
             cancellationToken);
 
+        return Ok(await RequireDetailAsync(orderId, cancellationToken));
+    }
+
+    [HttpPost("{orderId:guid}/dispatch/recompute")]
+    public async Task<ActionResult<AdminOrderDetailDto>> RecomputeDispatch(
+        Guid orderId,
+        CancellationToken cancellationToken = default)
+    {
+        var order = await LoadOrderAsync(orderId, cancellationToken);
+
+        if (order.Status is not (OrderStatus.ReadyForPickup or OrderStatus.DriverAssignmentInProgress or OrderStatus.DriverAssigned))
+        {
+            throw new BusinessRuleException(
+                "INVALID_DISPATCH_STATE",
+                "Dispatch can only be recomputed for orders waiting for pickup or driver assignment.");
+        }
+
+        if (order.Status == OrderStatus.DriverAssigned)
+        {
+            order.ChangeStatus(
+                OrderStatus.DriverAssignmentInProgress,
+                GetRequiredAdminUserId(),
+                "Dispatch recompute requested by admin.");
+            _dbContext.OrderStatusHistories.Add(order.StatusHistory.Last());
+            await _dbContext.SaveChangesAsync(cancellationToken);
+        }
+
+        await _dispatchService.TryAutoDispatchAsync(orderId, cancellationToken);
         return Ok(await RequireDetailAsync(orderId, cancellationToken));
     }
 

@@ -187,6 +187,8 @@ public record AdminOrderListItemDto(
     string Status,
     string PaymentStatus,
     string FulfillmentStatus,
+    string DispatchState,
+    string DispatchReason,
     string PaymentMethodLabel,
     DateTime LastUpdatedAtUtc,
     decimal Total,
@@ -218,6 +220,8 @@ public record AdminOrderDetailDto(
     string Status,
     string PaymentStatus,
     string FulfillmentStatus,
+    string DispatchState,
+    string DispatchReason,
     string PaymentMethodLabel,
     string ExpectedDeliveryWindow,
     string TransactionRef,
@@ -234,6 +238,7 @@ public record AdminOrderDetailDto(
     IReadOnlyList<AdminOrderTimelineItemDto> Timeline,
     IReadOnlyList<AdminOrderActivityDto> Activities,
     IReadOnlyList<AdminDriverCandidateDto> DriverCandidates,
+    IReadOnlyList<string> CandidateScoreBreakdown,
     AdminOrderCancellationSummaryDto? CancellationSummary,
     AdminOrderOperationalCaseDto? OperationalCase);
 

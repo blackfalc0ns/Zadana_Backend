@@ -14,12 +14,21 @@ public record SubmitDeliveryProofCommand(
 
 public class SubmitDeliveryProofCommandValidator : AbstractValidator<SubmitDeliveryProofCommand>
 {
+    private static readonly string[] ImageProofTypes = ["image", "photo"];
+    private static readonly string[] OtpProofTypes = ["otp"];
+
     public SubmitDeliveryProofCommandValidator(IStringLocalizer<SharedResource> localizer)
     {
         RuleFor(x => x.AssignmentId).NotEmpty().WithMessage(x => localizer["RequiredField"]);
 
         RuleFor(x => x.ProofType)
             .NotEmpty().WithMessage(x => localizer["RequiredField"])
+            .Must(value =>
+            {
+                var normalized = value?.Trim().ToLowerInvariant();
+                return normalized is not null && (ImageProofTypes.Contains(normalized) || OtpProofTypes.Contains(normalized));
+            })
+            .WithMessage("Proof type must be Image, Photo, or OTP")
             .MaximumLength(50).WithMessage(x => localizer["MaxLength"]);
 
         RuleFor(x => x.ImageUrl)
@@ -34,13 +43,18 @@ public class SubmitDeliveryProofCommandValidator : AbstractValidator<SubmitDeliv
         RuleFor(x => x.Note)
             .MaximumLength(300).WithMessage(x => localizer["MaxLength"]);
             
-        // Complex validation logic depending on ProofType could also be added here
         RuleFor(x => x.OtpCode)
-            .NotEmpty().When(x => x.ProofType == "OTP")
+            .NotEmpty().When(x => IsOtpProof(x.ProofType))
             .WithMessage(x => localizer["RequiredField"]);
             
         RuleFor(x => x.ImageUrl)
-            .NotEmpty().When(x => x.ProofType == "Image")
+            .NotEmpty().When(x => IsImageProof(x.ProofType))
             .WithMessage(x => localizer["RequiredField"]);
     }
+
+    private static bool IsImageProof(string? proofType) =>
+        ImageProofTypes.Contains(proofType?.Trim().ToLowerInvariant() ?? string.Empty);
+
+    private static bool IsOtpProof(string? proofType) =>
+        OtpProofTypes.Contains(proofType?.Trim().ToLowerInvariant() ?? string.Empty);
 }

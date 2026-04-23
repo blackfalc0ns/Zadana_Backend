@@ -838,6 +838,7 @@ public class OrderReadService : IOrderReadService
 
         var timeline = BuildAdminTimeline(order, payment, assignment, operationalCase);
         var activities = BuildAdminActivities(order, payment, refunds, assignment, operationalCase);
+        var candidateScoreBreakdown = BuildCandidateScoreBreakdown(assignment, driverCandidates);
 
         return new AdminOrderDetailDto(
             order.Id,
@@ -862,6 +863,8 @@ public class OrderReadService : IOrderReadService
             baseItem.Status,
             baseItem.PaymentStatus,
             baseItem.FulfillmentStatus,
+            baseItem.DispatchState,
+            baseItem.DispatchReason,
             BuildPaymentMethodLabel(order.PaymentMethod),
             BuildExpectedDeliveryWindow(order, assignment),
             payment?.ProviderTransactionId ?? $"ORD-{order.OrderNumber}",
@@ -886,6 +889,7 @@ public class OrderReadService : IOrderReadService
             timeline,
             activities,
             driverCandidates,
+            candidateScoreBreakdown,
             BuildCancellationSummary(order, refunds),
             operationalCase);
     }
@@ -913,6 +917,8 @@ public class OrderReadService : IOrderReadService
             MapAdminStatus(order.Status),
             MapAdminPaymentStatus(order.PaymentStatus, refunds),
             MapFulfillmentStatus(order.Status, assignment),
+            BuildDispatchState(order.Status, assignment),
+            BuildDispatchReason(order, assignment),
             BuildPaymentMethodLabel(order.PaymentMethod),
             ResolveLastUpdatedAtUtc(order),
             order.TotalAmount,
@@ -1031,6 +1037,78 @@ public class OrderReadService : IOrderReadService
             OrderStatus.DeliveryFailed => "FAILED",
             _ => assignment?.Status == Zadana.Domain.Modules.Delivery.Enums.AssignmentStatus.Failed ? "FAILED" : "CANCELLED"
         };
+
+    private static string BuildDispatchState(OrderStatus status, DeliveryAssignment? assignment) =>
+        status switch
+        {
+            OrderStatus.ReadyForPickup => "PENDING",
+            OrderStatus.DriverAssignmentInProgress => "SEARCHING",
+            OrderStatus.DriverAssigned or OrderStatus.PickedUp or OrderStatus.OnTheWay =>
+                assignment?.DriverId is not null ? "ASSIGNED" : "SEARCHING",
+            OrderStatus.Delivered or OrderStatus.Refunded => "COMPLETED",
+            OrderStatus.DeliveryFailed => "FAILED",
+            OrderStatus.Cancelled or OrderStatus.VendorRejected => "CANCELLED",
+            _ => "NOT_REQUIRED"
+        };
+
+    private static string BuildDispatchReason(Order order, DeliveryAssignment? assignment)
+    {
+        if (!string.IsNullOrWhiteSpace(assignment?.FailureReason))
+        {
+            return assignment.FailureReason!;
+        }
+
+        var latestDispatchNote = order.StatusHistory
+            .OrderByDescending(item => item.CreatedAtUtc)
+            .FirstOrDefault(item =>
+                item.NewStatus is OrderStatus.ReadyForPickup or OrderStatus.DriverAssignmentInProgress or OrderStatus.DriverAssigned)
+            ?.Note;
+
+        if (!string.IsNullOrWhiteSpace(latestDispatchNote))
+        {
+            return latestDispatchNote!;
+        }
+
+        return order.Status switch
+        {
+            OrderStatus.ReadyForPickup => "Order is ready and waiting for dispatch.",
+            OrderStatus.DriverAssignmentInProgress => "Dispatch queue is searching for the best available driver.",
+            OrderStatus.DriverAssigned => assignment?.Driver?.User is not null
+                ? $"Assigned to {assignment.Driver.User.FullName}."
+                : "Driver assignment completed.",
+            OrderStatus.PickedUp => "Driver picked up the order.",
+            OrderStatus.OnTheWay => "Driver is on the way to the customer.",
+            OrderStatus.Delivered => "Delivery completed successfully.",
+            OrderStatus.DeliveryFailed => "Delivery attempt failed and needs intervention.",
+            _ => "Dispatch is not active for the current order state."
+        };
+    }
+
+    private static IReadOnlyList<string> BuildCandidateScoreBreakdown(
+        DeliveryAssignment? assignment,
+        IReadOnlyList<AdminDriverCandidateDto> driverCandidates)
+    {
+        if (assignment?.DriverId is null)
+        {
+            return [];
+        }
+
+        var matchedCandidate = driverCandidates.FirstOrDefault(candidate =>
+            string.Equals(candidate.Id, assignment.DriverId.Value.ToString(), StringComparison.OrdinalIgnoreCase));
+
+        if (matchedCandidate is null)
+        {
+            return [];
+        }
+
+        return
+        [
+            $"Distance: {matchedCandidate.DistanceKm:0.0} km",
+            $"Active orders: {matchedCandidate.ActiveOrders}",
+            $"Rating: {matchedCandidate.Rating:0.0}",
+            matchedCandidate.Verified ? "Verification: approved" : "Verification: pending"
+        ];
+    }
 
     private static string BuildPaymentMethodLabel(PaymentMethodType paymentMethod) =>
         paymentMethod switch

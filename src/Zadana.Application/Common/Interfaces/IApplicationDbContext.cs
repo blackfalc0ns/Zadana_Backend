@@ -62,6 +62,9 @@ public interface IApplicationDbContext
     DbSet<DeliveryAssignment> DeliveryAssignments { get; }
     DbSet<DeliveryProof> DeliveryProofs { get; }
     DbSet<CustomerAddress> CustomerAddresses { get; }
+    DbSet<DeliveryZone> DeliveryZones { get; }
+    DbSet<DriverNote> DriverNotes { get; }
+    DbSet<DriverIncident> DriverIncidents { get; }
 
     // Wallets & Settlements
     DbSet<Wallet> Wallets { get; }

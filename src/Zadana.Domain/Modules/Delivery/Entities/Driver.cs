@@ -1,3 +1,4 @@
+using Zadana.Domain.Modules.Delivery.Enums;
 using Zadana.Domain.Modules.Identity.Entities;
 using Zadana.Domain.Modules.Identity.Enums;
 using Zadana.SharedKernel.Primitives;
@@ -18,10 +19,25 @@ public class Driver : BaseEntity
     public AccountStatus Status { get; private set; }
     public bool IsAvailable { get; private set; }
 
+    // Verification & Review
+    public DriverVerificationStatus VerificationStatus { get; private set; }
+    public DateTime? ReviewedAtUtc { get; private set; }
+    public Guid? ReviewedByUserId { get; private set; }
+    public string? ReviewNote { get; private set; }
+
+    // Zone
+    public Guid? PrimaryZoneId { get; private set; }
+
+    // Suspension
+    public string? SuspensionReason { get; private set; }
+
     // Navigation
     public User User { get; private set; } = null!;
+    public DeliveryZone? PrimaryZone { get; private set; }
     public ICollection<DriverLocation> Locations { get; private set; } = [];
     public ICollection<DeliveryAssignment> Assignments { get; private set; } = [];
+    public ICollection<DriverNote> Notes { get; private set; } = [];
+    public ICollection<DriverIncident> Incidents { get; private set; } = [];
 
     private Driver() { }
 
@@ -47,6 +63,7 @@ public class Driver : BaseEntity
         PersonalPhotoUrl = personalPhotoUrl;
         Status = AccountStatus.Pending;
         IsAvailable = false;
+        VerificationStatus = DetermineInitialVerificationStatus(nationalIdImageUrl, licenseImageUrl, vehicleImageUrl, personalPhotoUrl);
     }
 
     public void UpdateDetails(string? vehicleType, string? nationalId, string? licenseNumber)
@@ -56,12 +73,74 @@ public class Driver : BaseEntity
         LicenseNumber = licenseNumber?.Trim();
     }
 
-    public void Approve() => Status = AccountStatus.Active;
-    public void Suspend() => Status = AccountStatus.Suspended;
+    public void Approve(Guid reviewerUserId, string? note = null)
+    {
+        VerificationStatus = DriverVerificationStatus.Approved;
+        Status = AccountStatus.Active;
+        ReviewedAtUtc = DateTime.UtcNow;
+        ReviewedByUserId = reviewerUserId;
+        ReviewNote = note?.Trim();
+        SuspensionReason = null;
+    }
+
+    public void RequestDocuments(Guid reviewerUserId, string? note = null)
+    {
+        VerificationStatus = DriverVerificationStatus.NeedsDocuments;
+        ReviewedAtUtc = DateTime.UtcNow;
+        ReviewedByUserId = reviewerUserId;
+        ReviewNote = note?.Trim();
+    }
+
+    public void Reject(Guid reviewerUserId, string? note = null)
+    {
+        VerificationStatus = DriverVerificationStatus.Rejected;
+        Status = AccountStatus.Inactive;
+        IsAvailable = false;
+        ReviewedAtUtc = DateTime.UtcNow;
+        ReviewedByUserId = reviewerUserId;
+        ReviewNote = note?.Trim();
+    }
+
+    public void Suspend(string? reason = null)
+    {
+        Status = AccountStatus.Suspended;
+        IsAvailable = false;
+        SuspensionReason = reason?.Trim();
+    }
+
+    public void Reactivate()
+    {
+        if (VerificationStatus != DriverVerificationStatus.Approved)
+            return;
+
+        Status = AccountStatus.Active;
+        SuspensionReason = null;
+    }
+
     public void Ban() => Status = AccountStatus.Banned;
 
     public void ToggleAvailability(bool isAvailable)
     {
+        // Only approved and active drivers can go available
+        if (isAvailable && (VerificationStatus != DriverVerificationStatus.Approved || Status != AccountStatus.Active))
+            return;
+
         IsAvailable = isAvailable;
+    }
+
+    public void AssignZone(Guid zoneId)
+    {
+        PrimaryZoneId = zoneId;
+    }
+
+    private static DriverVerificationStatus DetermineInitialVerificationStatus(
+        string? nationalIdImageUrl, string? licenseImageUrl, string? vehicleImageUrl, string? personalPhotoUrl)
+    {
+        var hasAllDocs = !string.IsNullOrWhiteSpace(nationalIdImageUrl)
+            && !string.IsNullOrWhiteSpace(licenseImageUrl)
+            && !string.IsNullOrWhiteSpace(vehicleImageUrl)
+            && !string.IsNullOrWhiteSpace(personalPhotoUrl);
+
+        return hasAllDocs ? DriverVerificationStatus.UnderReview : DriverVerificationStatus.NeedsDocuments;
     }
 }

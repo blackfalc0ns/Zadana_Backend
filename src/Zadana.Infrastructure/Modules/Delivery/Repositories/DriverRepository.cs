@@ -1,3 +1,4 @@
+using Microsoft.EntityFrameworkCore;
 using Zadana.Application.Modules.Delivery.Interfaces;
 using Zadana.Domain.Modules.Delivery.Entities;
 using Zadana.Infrastructure.Persistence;
@@ -14,4 +15,20 @@ public class DriverRepository : IDriverRepository
     }
 
     public void Add(Driver driver) => _dbContext.Drivers.Add(driver);
+
+    public async Task<Driver?> GetByIdAsync(Guid id, CancellationToken cancellationToken = default)
+    {
+        return await _dbContext.Drivers
+            .Include(d => d.User)
+            .Include(d => d.PrimaryZone)
+            .FirstOrDefaultAsync(d => d.Id == id, cancellationToken);
+    }
+
+    public async Task<Driver?> GetByUserIdAsync(Guid userId, CancellationToken cancellationToken = default)
+    {
+        return await _dbContext.Drivers
+            .Include(d => d.User)
+            .Include(d => d.PrimaryZone)
+            .FirstOrDefaultAsync(d => d.UserId == userId, cancellationToken);
+    }
 }

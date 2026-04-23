@@ -74,6 +74,8 @@ builder.Services.AddScoped<IVendorRepository, VendorRepository>();
 builder.Services.AddScoped<IVendorReadService, VendorReadService>();
 builder.Services.AddScoped<IVendorReviewAuditService, VendorReviewAuditService>();
 builder.Services.AddScoped<IDriverRepository, DriverRepository>();
+builder.Services.AddScoped<IDriverReadService, Zadana.Infrastructure.Modules.Delivery.Services.DriverReadService>();
+builder.Services.AddScoped<IDeliveryDispatchService, Zadana.Infrastructure.Modules.Delivery.Services.DeliveryDispatchService>();
 builder.Services.AddScoped<IProductRequestRepository, ProductRequestRepository>();
 builder.Services.AddScoped<IProductRequestReadService, ProductRequestReadService>();
 builder.Services.AddScoped<ICatalogRequestReadService, CatalogRequestReadService>();
