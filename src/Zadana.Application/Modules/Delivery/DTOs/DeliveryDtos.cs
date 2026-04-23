@@ -11,6 +11,21 @@ public record DeliveryZoneDto(
     decimal RadiusKm,
     bool IsActive);
 
+public record DriverOperationalStatusDto(
+    Guid DriverId,
+    bool IsOperational,
+    bool CanReceiveOrders,
+    bool CanGoAvailable,
+    bool IsAvailable,
+    string VerificationStatus,
+    string AccountStatus,
+    DateTime? ReviewedAtUtc,
+    string? ReviewNote,
+    string? SuspensionReason,
+    Guid? PrimaryZoneId,
+    string? ZoneName,
+    string Message);
+
 public record AdminDriverKPIsDto(
     int Total,
     int OnlineNow,

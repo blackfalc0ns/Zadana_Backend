@@ -52,6 +52,33 @@ public class DriversController : ApiControllerBase
         return Ok(zones);
     }
 
+    [HttpGet("me/status")]
+    [Authorize(Policy = "DriverOnly")]
+    public async Task<ActionResult<DriverOperationalStatusDto>> GetMyStatus(
+        [FromServices] ICurrentUserService currentUserService,
+        [FromServices] IDriverRepository driverRepository,
+        CancellationToken cancellationToken = default)
+    {
+        var userId = currentUserService.UserId ?? throw new UnauthorizedException("DRIVER_NOT_AUTHENTICATED");
+        var driver = await driverRepository.GetByUserIdAsync(userId, cancellationToken)
+            ?? throw new NotFoundException("Driver", userId);
+
+        return Ok(new DriverOperationalStatusDto(
+            DriverId: driver.Id,
+            IsOperational: driver.CanReceiveOrders,
+            CanReceiveOrders: driver.CanReceiveOrders,
+            CanGoAvailable: driver.CanReceiveOrders,
+            IsAvailable: driver.IsAvailable,
+            VerificationStatus: driver.VerificationStatus.ToString(),
+            AccountStatus: driver.Status.ToString(),
+            ReviewedAtUtc: driver.ReviewedAtUtc,
+            ReviewNote: driver.ReviewNote,
+            SuspensionReason: driver.SuspensionReason,
+            PrimaryZoneId: driver.PrimaryZoneId,
+            ZoneName: driver.PrimaryZone is not null ? $"{driver.PrimaryZone.City} - {driver.PrimaryZone.Name}" : null,
+            Message: BuildOperationalStatusMessage(driver)));
+    }
+
     [HttpPut("me/zone")]
     [Authorize(Policy = "DriverOnly")]
     public async Task<IActionResult> SetZone(
@@ -278,6 +305,25 @@ public class DriversController : ApiControllerBase
             cancellationToken);
         return Ok(new DriverOrderStatusResponse(result.OrderId, result.Status, result.Message));
     }
+
+    private static string BuildOperationalStatusMessage(Domain.Modules.Delivery.Entities.Driver driver) =>
+        driver.VerificationStatus switch
+        {
+            Domain.Modules.Delivery.Enums.DriverVerificationStatus.NeedsDocuments =>
+                "Driver profile is waiting for required documents before review.",
+            Domain.Modules.Delivery.Enums.DriverVerificationStatus.UnderReview =>
+                "Driver profile is currently under admin review.",
+            Domain.Modules.Delivery.Enums.DriverVerificationStatus.Rejected =>
+                "Driver profile was rejected by admin.",
+            Domain.Modules.Delivery.Enums.DriverVerificationStatus.Approved when driver.Status == Domain.Modules.Identity.Enums.AccountStatus.Suspended =>
+                "Driver account is suspended.",
+            Domain.Modules.Delivery.Enums.DriverVerificationStatus.Approved when driver.Status == Domain.Modules.Identity.Enums.AccountStatus.Active =>
+                "Driver is approved and can receive orders.",
+            Domain.Modules.Delivery.Enums.DriverVerificationStatus.Approved =>
+                "Driver is approved but the account is not currently active.",
+            _ =>
+                "Driver operational status is unavailable."
+        };
 }
 
 public record DriverOrderStatusResponse(Guid OrderId, string Status, string Message);

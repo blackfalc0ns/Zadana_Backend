@@ -1334,6 +1334,8 @@
         },
         "/api/admin/orders/{orderId}/assign-driver": {
             "post": {
+                "summary": "Manually assign an approved driver to an order",
+                "description": "Admin manual override for delivery assignment. The selected driver must already be reviewed and approved by admin, and the driver account must be Active. Pending, under-review, rejected, suspended, or inactive drivers are rejected with `DRIVER_NOT_READY_FOR_DISPATCH`.",
                 "tags": [
                     "Admin/Orders"
                 ],
@@ -1384,6 +1386,23 @@
                             "text/json": {
                                 "schema": {
                                     "$ref": "#/components/schemas/AdminOrderDetailDto"
+                                }
+                            }
+                        }
+                    },
+                    "409": {
+                        "description": "Driver is not reviewed and approved yet, or another business rule failed.",
+                        "content": {
+                            "application/json": {
+                                "schema": {
+                                    "$ref": "#/components/schemas/BusinessRuleErrorResponse"
+                                },
+                                "example": {
+                                    "status": 409,
+                                    "title": "Business rule violation",
+                                    "detail": "Driver must be reviewed and approved by admin before assignment.",
+                                    "errorCode": "DRIVER_NOT_READY_FOR_DISPATCH",
+                                    "traceId": "00-abc123-def456"
                                 }
                             }
                         }
@@ -7490,6 +7509,8 @@
         },
         "/api/drivers/orders/{orderId}/picked-up": {
             "post": {
+                "summary": "Mark assigned order as picked up",
+                "description": "Driver-only status transition. The authenticated driver must be the assigned driver and must be reviewed and approved by admin before this action succeeds.",
                 "tags": [
                     "Driver/Orders"
                 ],
@@ -7521,6 +7542,23 @@
                             "text/json": {
                                 "schema": {
                                     "$ref": "#/components/schemas/DriverOrderStatusResponse"
+                                }
+                            }
+                        }
+                    },
+                    "409": {
+                        "description": "Driver is not approved, not assigned, or the status transition is invalid.",
+                        "content": {
+                            "application/json": {
+                                "schema": {
+                                    "$ref": "#/components/schemas/BusinessRuleErrorResponse"
+                                },
+                                "example": {
+                                    "status": 409,
+                                    "title": "Business rule violation",
+                                    "detail": "Driver must be reviewed and approved by admin before handling delivery orders.",
+                                    "errorCode": "DRIVER_NOT_READY_FOR_DISPATCH",
+                                    "traceId": "00-abc123-def456"
                                 }
                             }
                         }
@@ -7530,6 +7568,8 @@
         },
         "/api/drivers/orders/{orderId}/on-the-way": {
             "post": {
+                "summary": "Mark assigned order as on the way",
+                "description": "Driver-only status transition. The authenticated driver must be the assigned driver and must be reviewed and approved by admin before this action succeeds.",
                 "tags": [
                     "Driver/Orders"
                 ],
@@ -7561,6 +7601,23 @@
                             "text/json": {
                                 "schema": {
                                     "$ref": "#/components/schemas/DriverOrderStatusResponse"
+                                }
+                            }
+                        }
+                    },
+                    "409": {
+                        "description": "Driver is not approved, not assigned, or the status transition is invalid.",
+                        "content": {
+                            "application/json": {
+                                "schema": {
+                                    "$ref": "#/components/schemas/BusinessRuleErrorResponse"
+                                },
+                                "example": {
+                                    "status": 409,
+                                    "title": "Business rule violation",
+                                    "detail": "Driver must be reviewed and approved by admin before handling delivery orders.",
+                                    "errorCode": "DRIVER_NOT_READY_FOR_DISPATCH",
+                                    "traceId": "00-abc123-def456"
                                 }
                             }
                         }
@@ -7570,6 +7627,8 @@
         },
         "/api/drivers/orders/{orderId}/delivered": {
             "post": {
+                "summary": "Mark assigned order as delivered",
+                "description": "Driver-only status transition. The authenticated driver must be the assigned approved driver. A photo proof must already be submitted before marking the order as delivered.",
                 "tags": [
                     "Driver/Orders"
                 ],
@@ -7604,12 +7663,46 @@
                                 }
                             }
                         }
+                    },
+                    "409": {
+                        "description": "Driver is not approved, proof is missing, driver is not assigned, or the status transition is invalid.",
+                        "content": {
+                            "application/json": {
+                                "schema": {
+                                    "$ref": "#/components/schemas/BusinessRuleErrorResponse"
+                                },
+                                "examples": {
+                                    "notReady": {
+                                        "summary": "Driver not approved",
+                                        "value": {
+                                            "status": 409,
+                                            "title": "Business rule violation",
+                                            "detail": "Driver must be reviewed and approved by admin before handling delivery orders.",
+                                            "errorCode": "DRIVER_NOT_READY_FOR_DISPATCH",
+                                            "traceId": "00-abc123-def456"
+                                        }
+                                    },
+                                    "missingProof": {
+                                        "summary": "Photo proof is missing",
+                                        "value": {
+                                            "status": 409,
+                                            "title": "Business rule violation",
+                                            "detail": "Photo proof is required before marking an order as delivered.",
+                                            "errorCode": "DELIVERY_PROOF_REQUIRED",
+                                            "traceId": "00-abc123-def456"
+                                        }
+                                    }
+                                }
+                            }
+                        }
                     }
                 }
             }
         },
         "/api/drivers/orders/{orderId}/delivery-failed": {
             "post": {
+                "summary": "Mark assigned order delivery as failed",
+                "description": "Driver-only status transition. The authenticated driver must be the assigned approved driver. A failure note is required.",
                 "tags": [
                     "Driver/Orders"
                 ],
@@ -7660,6 +7753,38 @@
                             "text/json": {
                                 "schema": {
                                     "$ref": "#/components/schemas/DriverOrderStatusResponse"
+                                }
+                            }
+                        }
+                    },
+                    "409": {
+                        "description": "Driver is not approved, failure note is missing, driver is not assigned, or the status transition is invalid.",
+                        "content": {
+                            "application/json": {
+                                "schema": {
+                                    "$ref": "#/components/schemas/BusinessRuleErrorResponse"
+                                },
+                                "examples": {
+                                    "notReady": {
+                                        "summary": "Driver not approved",
+                                        "value": {
+                                            "status": 409,
+                                            "title": "Business rule violation",
+                                            "detail": "Driver must be reviewed and approved by admin before handling delivery orders.",
+                                            "errorCode": "DRIVER_NOT_READY_FOR_DISPATCH",
+                                            "traceId": "00-abc123-def456"
+                                        }
+                                    },
+                                    "missingNote": {
+                                        "summary": "Failure note is missing",
+                                        "value": {
+                                            "status": 409,
+                                            "title": "Business rule violation",
+                                            "detail": "A failure note is required before marking delivery as failed.",
+                                            "errorCode": "DELIVERY_FAILURE_NOTE_REQUIRED",
+                                            "traceId": "00-abc123-def456"
+                                        }
+                                    }
                                 }
                             }
                         }
@@ -10350,6 +10475,37 @@
                 }
             }
         },
+        "/api/drivers/me/status": {
+            "get": {
+                "summary": "Get driver operational status",
+                "description": "Canonical mobile endpoint to know whether the authenticated driver is approved, under review, rejected, suspended, or operationally ready for dispatch.",
+                "tags": [
+                    "Driver/Operations"
+                ],
+                "responses": {
+                    "200": {
+                        "description": "OK",
+                        "content": {
+                            "application/json": {
+                                "schema": {
+                                    "$ref": "#/components/schemas/DriverOperationalStatusDto"
+                                }
+                            },
+                            "text/json": {
+                                "schema": {
+                                    "$ref": "#/components/schemas/DriverOperationalStatusDto"
+                                }
+                            },
+                            "text/plain": {
+                                "schema": {
+                                    "$ref": "#/components/schemas/DriverOperationalStatusDto"
+                                }
+                            }
+                        }
+                    }
+                }
+            }
+        },
         "/api/drivers/me/zone": {
             "put": {
                 "tags": [
@@ -10400,6 +10556,8 @@
         },
         "/api/drivers/me/availability": {
             "put": {
+                "summary": "Set driver availability",
+                "description": "Driver can switch availability on only after admin review is approved and the account is Active. Pending, under-review, rejected, suspended, or inactive drivers receive `DRIVER_NOT_READY_FOR_DISPATCH` when trying to go online.",
                 "tags": [
                     "Driver/Operations"
                 ],
@@ -10439,6 +10597,23 @@
                             "text/plain": {
                                 "schema": {
                                     "$ref": "#/components/schemas/OperationMessageResponse"
+                                }
+                            }
+                        }
+                    },
+                    "409": {
+                        "description": "Driver is not reviewed and approved yet.",
+                        "content": {
+                            "application/json": {
+                                "schema": {
+                                    "$ref": "#/components/schemas/BusinessRuleErrorResponse"
+                                },
+                                "example": {
+                                    "status": 409,
+                                    "title": "Business rule violation",
+                                    "detail": "Only approved active drivers can enable availability.",
+                                    "errorCode": "DRIVER_NOT_READY_FOR_DISPATCH",
+                                    "traceId": "00-abc123-def456"
                                 }
                             }
                         }
@@ -10588,6 +10763,38 @@
                             "text/plain": {
                                 "schema": {
                                     "$ref": "#/components/schemas/OperationMessageResponse"
+                                }
+                            }
+                        }
+                    },
+                    "409": {
+                        "description": "Driver is not approved, assignment is not owned, or proof cannot be submitted in the current assignment state.",
+                        "content": {
+                            "application/json": {
+                                "schema": {
+                                    "$ref": "#/components/schemas/BusinessRuleErrorResponse"
+                                },
+                                "examples": {
+                                    "notReady": {
+                                        "summary": "Driver not approved",
+                                        "value": {
+                                            "status": 409,
+                                            "title": "Business rule violation",
+                                            "detail": "Driver must be reviewed and approved by admin before submitting delivery proof.",
+                                            "errorCode": "DRIVER_NOT_READY_FOR_DISPATCH",
+                                            "traceId": "00-abc123-def456"
+                                        }
+                                    },
+                                    "notOwned": {
+                                        "summary": "Assignment does not belong to driver",
+                                        "value": {
+                                            "status": 409,
+                                            "title": "Business rule violation",
+                                            "detail": "You can only submit proof for your assigned deliveries.",
+                                            "errorCode": "ASSIGNMENT_NOT_OWNED",
+                                            "traceId": "00-abc123-def456"
+                                        }
+                                    }
                                 }
                             }
                         }
@@ -18020,6 +18227,39 @@
                 },
                 "additionalProperties": false
             },
+            "BusinessRuleErrorResponse": {
+                "type": "object",
+                "description": "ProblemDetails-style response returned by the global exception middleware for business rule violations.",
+                "properties": {
+                    "status": {
+                        "type": "integer",
+                        "format": "int32",
+                        "example": 409
+                    },
+                    "title": {
+                        "type": "string",
+                        "example": "Business rule violation"
+                    },
+                    "detail": {
+                        "type": "string",
+                        "nullable": true
+                    },
+                    "instance": {
+                        "type": "string",
+                        "nullable": true
+                    },
+                    "errorCode": {
+                        "type": "string",
+                        "nullable": true,
+                        "example": "DRIVER_NOT_READY_FOR_DISPATCH"
+                    },
+                    "traceId": {
+                        "type": "string",
+                        "nullable": true
+                    }
+                },
+                "additionalProperties": true
+            },
             "ReviewDriverRequest": {
                 "type": "object",
                 "properties": {
@@ -18225,6 +18465,62 @@
                     },
                     "isActive": {
                         "type": "boolean"
+                    }
+                },
+                "additionalProperties": false
+            },
+            "DriverOperationalStatusDto": {
+                "type": "object",
+                "properties": {
+                    "driverId": {
+                        "type": "string",
+                        "format": "uuid"
+                    },
+                    "isOperational": {
+                        "type": "boolean"
+                    },
+                    "canReceiveOrders": {
+                        "type": "boolean"
+                    },
+                    "canGoAvailable": {
+                        "type": "boolean"
+                    },
+                    "isAvailable": {
+                        "type": "boolean"
+                    },
+                    "verificationStatus": {
+                        "type": "string",
+                        "nullable": true
+                    },
+                    "accountStatus": {
+                        "type": "string",
+                        "nullable": true
+                    },
+                    "reviewedAtUtc": {
+                        "type": "string",
+                        "format": "date-time",
+                        "nullable": true
+                    },
+                    "reviewNote": {
+                        "type": "string",
+                        "nullable": true
+                    },
+                    "suspensionReason": {
+                        "type": "string",
+                        "nullable": true
+                    },
+                    "primaryZoneId": {
+                        "type": "string",
+                        "format": "uuid",
+                        "nullable": true
+                    },
+                    "zoneName": {
+                        "type": "string",
+                        "nullable": true
+                    },
+                    "message": {
+                        "type": "string",
+                        "nullable": true
                     }
                 },
                 "additionalProperties": false

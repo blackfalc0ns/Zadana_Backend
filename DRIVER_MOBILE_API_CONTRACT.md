@@ -34,6 +34,8 @@ Important:
 - The admin approval flow exists in the backend, but it is handled by the superadmin APIs, not by the driver app.
 - A driver can log in before operational approval, but cannot enter dispatch until approved.
 - A driver can only become available after admin approval.
+- Operational access means the driver profile is both `Approved` and `Active`.
+- Before operational access, the app must not show delivery jobs, delivery CTAs, or the online toggle as usable.
 - The driver must submit photo proof before marking an order as delivered.
 - The driver must provide a failure note before marking delivery as failed.
 
@@ -92,6 +94,19 @@ Typical business error example:
 }
 ```
 
+Driver not operational example:
+
+```json
+{
+  "status": 409,
+  "title": "Business rule violation",
+  "detail": "Driver must be reviewed and approved by admin before handling delivery orders.",
+  "instance": "/api/drivers/orders/44444444-4444-4444-4444-444444444444/picked-up",
+  "errorCode": "DRIVER_NOT_READY_FOR_DISPATCH",
+  "traceId": "00-abc123-def456"
+}
+```
+
 Typical validation error example:
 
 ```json
@@ -130,14 +145,44 @@ Operational rule:
 
 - `PUT /api/drivers/me/availability` with `isAvailable = true` only succeeds when the driver is both `Approved` and `Active`
 - `GET /api/drivers/assignments/current` never exposes an active assignment until the driver is both `Approved` and `Active`
+- `GET /api/drivers/assignments/history` returns an empty list until the driver is both `Approved` and `Active`
 - proof submission and order status updates also fail with `DRIVER_NOT_READY_FOR_DISPATCH` until admin approval is completed
 
 Current implementation note:
 
-- there is not yet a dedicated driver-mobile endpoint that returns `verificationStatus` directly for the current authenticated driver
-- temporary mobile behavior can rely on the availability toggle response:
-  - success means the driver is operationally ready
-  - `DRIVER_NOT_READY_FOR_DISPATCH` means the driver is still waiting for review, rejected, or otherwise not active for dispatch
+- the canonical mobile endpoint for operational state is `GET /api/drivers/me/status`
+- mobile should use this endpoint to decide whether the driver is `NeedsDocuments`, `UnderReview`, `Approved`, `Rejected`, or blocked by account state such as `Suspended`
+- `GET /api/drivers/assignments/current` remains useful for job polling, but it is no longer the primary status source
+
+## Operational Access Gate
+
+The backend treats a driver as operational only when:
+
+```text
+driver.verificationStatus == Approved
+driver.status == Active
+```
+
+Until both conditions are true:
+
+- login can succeed
+- file upload can be used
+- profile and zone setup can continue
+- GPS updates can be accepted, but they do not make the driver eligible for dispatch
+- the online toggle cannot be enabled
+- current assignment does not expose order details
+- assignment history returns `[]`
+- proof submission is rejected
+- order status changes are rejected
+
+Mobile UI recommendation:
+
+- after registration, move the driver into a waiting/review screen
+- keep zone selection available
+- disable the online toggle
+- do not poll for jobs aggressively while `isOperational = false`
+- show a clear message such as `Waiting for admin review`
+- start normal assignment polling only after the driver becomes operational
 
 ## Required Driver Documents
 
@@ -160,14 +205,15 @@ Recommended app flow:
 2. Register the driver with the returned file URLs
 3. Save `accessToken` and `refreshToken` securely
 4. Call `GET /api/drivers/auth/me` to hydrate the session on app launch
-5. Fetch active zones
-6. Let the driver choose one active zone from a dropdown
-7. Keep the app in waiting mode until the superadmin approves the driver
-8. Once approved, allow the driver to toggle availability on
-9. Send periodic GPS updates while online or on an active assignment
-10. Fetch current assignment
-11. Submit photo proof before calling delivered
-12. Update order status through pickup, on-the-way, and delivery completion or failure
+5. Call `GET /api/drivers/me/status` to know whether the driver is operational
+6. Fetch active zones
+7. Let the driver choose one active zone from a dropdown
+8. Keep the app in waiting mode until the superadmin approves the driver
+9. Once approved, allow the driver to toggle availability on
+10. Send periodic GPS updates while online or on an active assignment
+11. Fetch current assignment
+12. Submit photo proof before calling delivered
+13. Update order status through pickup, on-the-way, and delivery completion or failure
 
 ## Auth Response Shape
 
@@ -193,6 +239,12 @@ Example shape:
   "message": null
 }
 ```
+
+Notes:
+
+- `favoritesCount` is a legacy customer-oriented field in the shared auth DTO.
+- the driver app should ignore `favoritesCount` if it appears in auth or `me` responses.
+- operational readiness is not represented by `isVerified`; use the driver workflow rules in this document.
 
 ## Endpoints
 
@@ -343,6 +395,11 @@ Success response:
 }
 ```
 
+Notes:
+
+- `favoritesCount` is not used by the driver app.
+- this endpoint validates the JWT/session only; it does not mean the driver is approved for dispatch.
+
 ### Auth: Update Current Driver Profile
 
 ```http
@@ -375,6 +432,11 @@ Success response:
   "favoritesCount": 0
 }
 ```
+
+Notes:
+
+- `favoritesCount` is not used by the driver app.
+- updating profile data does not activate the driver for dispatch.
 
 ### Auth: Forgot Password
 
@@ -543,6 +605,56 @@ Notes:
 - only an active zone can be assigned
 - v1 supports one primary zone per driver
 
+### Delivery: Get Driver Operational Status
+
+```http
+GET /api/drivers/me/status
+```
+
+Authentication:
+
+- driver only
+
+Success response:
+
+```json
+{
+  "driverId": "11111111-1111-1111-1111-111111111111",
+  "isOperational": false,
+  "canReceiveOrders": false,
+  "canGoAvailable": false,
+  "isAvailable": false,
+  "verificationStatus": "UnderReview",
+  "accountStatus": "Pending",
+  "reviewedAtUtc": null,
+  "reviewNote": null,
+  "suspensionReason": null,
+  "primaryZoneId": "22222222-2222-2222-2222-222222222222",
+  "zoneName": "Cairo - Nasr City East",
+  "message": "Driver profile is currently under admin review."
+}
+```
+
+Field meanings:
+
+- `isOperational`: true only when the driver is both `Approved` and `Active`
+- `canReceiveOrders`: whether the driver is eligible for dispatch
+- `canGoAvailable`: whether the app may enable the online toggle
+- `isAvailable`: current online/offline toggle state saved in the backend
+- `verificationStatus`: `NeedsDocuments`, `UnderReview`, `Approved`, or `Rejected`
+- `accountStatus`: backend account state such as `Pending`, `Active`, `Inactive`, `Suspended`, or `Banned`
+- `reviewNote`: latest admin review note if one exists
+- `suspensionReason`: current suspension reason if the account is suspended
+- `primaryZoneId` and `zoneName`: currently selected delivery zone
+- `message`: human-readable status message for waiting or blocked states
+
+Mobile recommendation:
+
+- call this endpoint after login and on app startup
+- use it as the single source of truth for waiting, rejected, suspended, or approved screens
+- do not infer approval state from `isVerified` in auth responses
+- keep `assignments/current` only for assignment polling
+
 ### Delivery: Set Driver Availability
 
 ```http
@@ -577,8 +689,12 @@ Common failure:
 
 ```json
 {
-  "code": "DRIVER_NOT_READY_FOR_DISPATCH",
-  "message": "Only approved active drivers can enable availability."
+  "status": 409,
+  "title": "Business rule violation",
+  "detail": "Only approved active drivers can enable availability.",
+  "instance": "/api/drivers/me/availability",
+  "errorCode": "DRIVER_NOT_READY_FOR_DISPATCH",
+  "traceId": "00-abc123-def456"
 }
 ```
 
@@ -648,6 +764,13 @@ Not approved yet response:
   "message": "Driver must be reviewed and approved by admin before receiving assignments."
 }
 ```
+
+Mobile behavior for this response:
+
+- keep the driver in the waiting/review screen
+- keep the online toggle disabled
+- do not show order cards or delivery action buttons
+- optionally show `verificationStatus` and `accountStatus` as support/debug info
 
 Active assignment response:
 
@@ -760,6 +883,30 @@ Business rules:
 - proof can only be submitted for active assignments
 - current backend allows proof submission when assignment status is `Accepted`, `PickedUp`, or `ArrivedAtCustomer`
 
+Common failures:
+
+```json
+{
+  "status": 409,
+  "title": "Business rule violation",
+  "detail": "Driver must be reviewed and approved by admin before submitting delivery proof.",
+  "instance": "/api/drivers/assignments/33333333-3333-3333-3333-333333333333/proof",
+  "errorCode": "DRIVER_NOT_READY_FOR_DISPATCH",
+  "traceId": "00-abc123-def456"
+}
+```
+
+```json
+{
+  "status": 409,
+  "title": "Business rule violation",
+  "detail": "You can only submit proof for your assigned deliveries.",
+  "instance": "/api/drivers/assignments/33333333-3333-3333-3333-333333333333/proof",
+  "errorCode": "ASSIGNMENT_NOT_OWNED",
+  "traceId": "00-abc123-def456"
+}
+```
+
 Mobile recommendation:
 
 - use `photo` as the default proof type in v1
@@ -805,6 +952,26 @@ Success response:
 }
 ```
 
+Shared business rules for all driver order status endpoints:
+
+- the driver must be reviewed and approved by admin first
+- the driver account must be `Active`
+- the order must be assigned to the authenticated driver
+- the requested transition must be one of the allowed driver transitions listed below
+
+Common not-approved failure:
+
+```json
+{
+  "status": 409,
+  "title": "Business rule violation",
+  "detail": "Driver must be reviewed and approved by admin before handling delivery orders.",
+  "instance": "/api/drivers/orders/44444444-4444-4444-4444-444444444444/picked-up",
+  "errorCode": "DRIVER_NOT_READY_FOR_DISPATCH",
+  "traceId": "00-abc123-def456"
+}
+```
+
 ### Delivery: Mark Order Delivered
 
 ```http
@@ -833,8 +1000,12 @@ Common failure:
 
 ```json
 {
-  "code": "DELIVERY_PROOF_REQUIRED",
-  "message": "Photo proof is required before marking an order as delivered."
+  "status": 409,
+  "title": "Business rule violation",
+  "detail": "Photo proof is required before marking an order as delivered.",
+  "instance": "/api/drivers/orders/44444444-4444-4444-4444-444444444444/delivered",
+  "errorCode": "DELIVERY_PROOF_REQUIRED",
+  "traceId": "00-abc123-def456"
 }
 ```
 
@@ -874,8 +1045,12 @@ Common failure:
 
 ```json
 {
-  "code": "DELIVERY_FAILURE_NOTE_REQUIRED",
-  "message": "A failure note is required before marking delivery as failed."
+  "status": 409,
+  "title": "Business rule violation",
+  "detail": "A failure note is required before marking delivery as failed.",
+  "instance": "/api/drivers/orders/44444444-4444-4444-4444-444444444444/delivery-failed",
+  "errorCode": "DELIVERY_FAILURE_NOTE_REQUIRED",
+  "traceId": "00-abc123-def456"
 }
 ```
 
@@ -910,6 +1085,7 @@ The mobile app should handle these error codes explicitly:
 
 - Build one shared auth interceptor that injects the bearer token and retries once after `refresh-token`
 - On app startup, prefer `GET /api/drivers/auth/me` to validate the stored session
+- After session validation, call `GET /api/drivers/me/status` to decide whether to show waiting, rejected, suspended, or active operational UI
 - Upload all images first, cache their returned URLs, then send those URLs to registration and proof APIs
 - After registration, always prompt the driver to choose a zone if one is not set
 - Do not show the online toggle as enabled until the account is approved
@@ -929,6 +1105,7 @@ The APIDog export was updated to include these driver mobile endpoints:
 - `/api/drivers/auth/refresh-token`
 - `/api/drivers/auth/logout`
 - `/api/drivers/auth/me`
+- `/api/drivers/me/status`
 - `/api/drivers/register`
 - `/api/drivers/zones`
 - `/api/drivers/me/zone`
