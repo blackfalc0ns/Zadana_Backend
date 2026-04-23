@@ -1,5 +1,6 @@
 using MediatR;
 using Zadana.Application.Common.Interfaces;
+using Zadana.Application.Modules.Delivery.DTOs;
 using Zadana.Application.Modules.Delivery.Interfaces;
 using Zadana.Application.Modules.Identity.DTOs;
 using Zadana.Application.Modules.Identity.Interfaces;
@@ -48,7 +49,10 @@ public class RegisterDriverCommandHandler : IRequestHandler<RegisterDriverComman
                 request.PersonalPhotoUrl);
 
             _driverRepository.Add(driver);
-            var authResponse = await _registrationWorkflow.BuildAuthResponseAsync(user, cancellationToken);
+            var authResponse = await _registrationWorkflow.BuildAuthResponseAsync(
+                user,
+                DriverOperationalStatusFactory.Create(driver),
+                cancellationToken);
             await _unitOfWork.SaveChangesAsync(cancellationToken);
 
             return authResponse;

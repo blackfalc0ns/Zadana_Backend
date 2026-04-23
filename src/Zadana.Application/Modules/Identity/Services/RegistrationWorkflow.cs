@@ -1,3 +1,4 @@
+using Zadana.Application.Modules.Delivery.DTOs;
 using Microsoft.Extensions.Localization;
 using Zadana.Application.Common.Interfaces;
 using Zadana.Application.Common.Localization;
@@ -50,6 +51,7 @@ public class RegistrationWorkflow : IRegistrationWorkflow
 
     public async Task<AuthResponseDto> BuildAuthResponseAsync(
         IdentityAccountSnapshot account,
+        DriverOperationalStatusDto? driverStatus = null,
         CancellationToken cancellationToken = default)
     {
         var tokens = await _jwtTokenService.GenerateTokenPairAsync(account, cancellationToken);
@@ -62,7 +64,7 @@ public class RegistrationWorkflow : IRegistrationWorkflow
             account.PhoneNumber,
             account.Role.ToString());
 
-        return new AuthResponseDto(tokens, userDto);
+        return new AuthResponseDto(tokens, userDto, DriverStatus: driverStatus);
     }
 
     public async Task CompensateAccountCreationFailureAsync(

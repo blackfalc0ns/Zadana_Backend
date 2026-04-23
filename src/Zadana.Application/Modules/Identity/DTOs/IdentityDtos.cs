@@ -1,3 +1,4 @@
+using Zadana.Application.Modules.Delivery.DTOs;
 using Zadana.Domain.Modules.Identity.Enums;
 
 namespace Zadana.Application.Modules.Identity.DTOs;
@@ -6,7 +7,12 @@ public record TokenPairDto(string AccessToken, string RefreshToken);
 
 public record CurrentUserDto(Guid Id, string FullName, string? Email, string? Phone, string Role, int FavoritesCount = 0);
 
-public record AuthResponseDto(TokenPairDto? Tokens, CurrentUserDto? User, bool IsVerified = true, string? Message = null);
+public record AuthResponseDto(
+    TokenPairDto? Tokens,
+    CurrentUserDto? User,
+    bool IsVerified = true,
+    string? Message = null,
+    DriverOperationalStatusDto? DriverStatus = null);
 
 public record IdentityAccountSnapshot(
     Guid Id,

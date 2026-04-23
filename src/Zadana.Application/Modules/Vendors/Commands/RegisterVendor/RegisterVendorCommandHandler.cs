@@ -91,7 +91,9 @@ public class RegisterVendorCommandHandler : IRequestHandler<RegisterVendorComman
             bankAccount.MarkAsPreferredForSetup();
             _vendorRepository.AddBankAccount(bankAccount);
 
-            var authResponse = await _registrationWorkflow.BuildAuthResponseAsync(user, cancellationToken);
+            var authResponse = await _registrationWorkflow.BuildAuthResponseAsync(
+                user,
+                cancellationToken: cancellationToken);
             await _unitOfWork.SaveChangesAsync(cancellationToken);
 
             return authResponse;

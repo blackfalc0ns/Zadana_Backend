@@ -7264,14 +7264,21 @@
         },
         "/api/drivers/auth/login": {
             "post": {
+                "summary": "Login as driver",
+                "description": "Authenticates a driver using email or phone plus password and returns JWT access/refresh tokens with the current user profile snapshot. Mobile should route from `driverStatus.gateStatus` instead of assuming every successful login may enter the home screen.",
                 "tags": [
                     "Driver/Auth"
                 ],
                 "requestBody": {
+                    "required": true,
                     "content": {
                         "application/json": {
                             "schema": {
                                 "$ref": "#/components/schemas/LoginRequest"
+                            },
+                            "example": {
+                                "identifier": "driver@example.com",
+                                "password": "StrongPassword123!"
                             }
                         },
                         "text/json": {
@@ -7288,21 +7295,76 @@
                 },
                 "responses": {
                     "200": {
-                        "description": "OK"
+                        "description": "Driver authenticated successfully.",
+                        "content": {
+                            "application/json": {
+                                "schema": {
+                                    "$ref": "#/components/schemas/AuthResponseDto"
+                                },
+                                "example": {
+                                    "tokens": {
+                                        "accessToken": "jwt-access-token",
+                                        "refreshToken": "jwt-refresh-token"
+                                    },
+                                    "user": {
+                                        "id": "11111111-1111-1111-1111-111111111111",
+                                        "fullName": "Ahmed Driver",
+                                        "email": "driver@example.com",
+                                        "phone": "+201001112233",
+                                        "role": "Driver",
+                                        "favoritesCount": 0
+                                    },
+                                    "driverStatus": {
+                                        "driverId": "11111111-1111-1111-1111-111111111111",
+                                        "gateStatus": "UnderReview",
+                                        "isOperational": false,
+                                        "canReceiveOrders": false,
+                                        "canGoAvailable": false,
+                                        "isAvailable": false,
+                                        "verificationStatus": "UnderReview",
+                                        "accountStatus": "Pending",
+                                        "reviewedAtUtc": null,
+                                        "reviewNote": null,
+                                        "suspensionReason": null,
+                                        "primaryZoneId": null,
+                                        "zoneName": null,
+                                        "message": "Driver profile is currently under admin review."
+                                    },
+                                    "isVerified": true,
+                                    "message": null
+                                }
+                            },
+                            "text/json": {
+                                "schema": {
+                                    "$ref": "#/components/schemas/AuthResponseDto"
+                                }
+                            },
+                            "text/plain": {
+                                "schema": {
+                                    "$ref": "#/components/schemas/AuthResponseDto"
+                                }
+                            }
+                        }
                     }
                 }
             }
         },
         "/api/drivers/auth/forgot-password": {
             "post": {
+                "summary": "Request password reset OTP",
+                "description": "Sends a password reset OTP through the configured channel for the provided email or phone identifier.",
                 "tags": [
                     "Driver/Auth"
                 ],
                 "requestBody": {
+                    "required": true,
                     "content": {
                         "application/json": {
                             "schema": {
                                 "$ref": "#/components/schemas/ForgotPasswordRequest"
+                            },
+                            "example": {
+                                "identifier": "driver@example.com"
                             }
                         },
                         "text/json": {
@@ -7319,21 +7381,39 @@
                 },
                 "responses": {
                     "200": {
-                        "description": "OK"
+                        "description": "OTP dispatch request accepted.",
+                        "content": {
+                            "application/json": {
+                                "schema": {
+                                    "$ref": "#/components/schemas/OperationMessageResponse"
+                                },
+                                "example": {
+                                    "message": "Password reset OTP sent successfully"
+                                }
+                            }
+                        }
                     }
                 }
             }
         },
         "/api/drivers/auth/reset-password": {
             "post": {
+                "summary": "Reset driver password",
+                "description": "Consumes the OTP code and sets a new password for the driver account.",
                 "tags": [
                     "Driver/Auth"
                 ],
                 "requestBody": {
+                    "required": true,
                     "content": {
                         "application/json": {
                             "schema": {
                                 "$ref": "#/components/schemas/ResetPasswordRequest"
+                            },
+                            "example": {
+                                "identifier": "driver@example.com",
+                                "otpCode": "481920",
+                                "newPassword": "NewStrongPassword123!"
                             }
                         },
                         "text/json": {
@@ -7350,21 +7430,37 @@
                 },
                 "responses": {
                     "200": {
-                        "description": "OK"
+                        "description": "Password reset completed successfully.",
+                        "content": {
+                            "application/json": {
+                                "schema": {
+                                    "$ref": "#/components/schemas/OperationMessageResponse"
+                                },
+                                "example": {
+                                    "message": "Password reset successful"
+                                }
+                            }
+                        }
                     }
                 }
             }
         },
         "/api/drivers/auth/refresh-token": {
             "post": {
+                "summary": "Refresh driver tokens",
+                "description": "Rotates the refresh token and returns a new access token plus a new refresh token.",
                 "tags": [
                     "Driver/Auth"
                 ],
                 "requestBody": {
+                    "required": true,
                     "content": {
                         "application/json": {
                             "schema": {
                                 "$ref": "#/components/schemas/RefreshTokenRequest"
+                            },
+                            "example": {
+                                "refreshToken": "stored-refresh-token"
                             }
                         },
                         "text/json": {
@@ -7381,21 +7477,48 @@
                 },
                 "responses": {
                     "200": {
-                        "description": "OK"
+                        "description": "Tokens refreshed successfully.",
+                        "content": {
+                            "application/json": {
+                                "schema": {
+                                    "$ref": "#/components/schemas/TokenPairDto"
+                                },
+                                "example": {
+                                    "accessToken": "new-jwt-access-token",
+                                    "refreshToken": "new-jwt-refresh-token"
+                                }
+                            },
+                            "text/json": {
+                                "schema": {
+                                    "$ref": "#/components/schemas/TokenPairDto"
+                                }
+                            },
+                            "text/plain": {
+                                "schema": {
+                                    "$ref": "#/components/schemas/TokenPairDto"
+                                }
+                            }
+                        }
                     }
                 }
             }
         },
         "/api/drivers/auth/logout": {
             "post": {
+                "summary": "Logout driver session",
+                "description": "Revokes the supplied refresh token and ends the current mobile session.",
                 "tags": [
                     "Driver/Auth"
                 ],
                 "requestBody": {
+                    "required": true,
                     "content": {
                         "application/json": {
                             "schema": {
                                 "$ref": "#/components/schemas/LogoutRequest"
+                            },
+                            "example": {
+                                "refreshToken": "stored-refresh-token"
                             }
                         },
                         "text/json": {
@@ -7411,32 +7534,67 @@
                     }
                 },
                 "responses": {
-                    "200": {
-                        "description": "OK"
+                    "204": {
+                        "description": "No Content"
                     }
                 }
             }
         },
         "/api/drivers/auth/me": {
             "get": {
+                "summary": "Get current driver session profile",
+                "description": "Returns the authenticated driver's shared profile snapshot. Use `/api/drivers/me/status` for dispatch readiness and approval state.",
                 "tags": [
                     "Driver/Auth"
                 ],
                 "responses": {
                     "200": {
-                        "description": "OK"
+                        "description": "Current driver profile.",
+                        "content": {
+                            "application/json": {
+                                "schema": {
+                                    "$ref": "#/components/schemas/CurrentUserDto"
+                                },
+                                "example": {
+                                    "id": "11111111-1111-1111-1111-111111111111",
+                                    "fullName": "Ahmed Driver",
+                                    "email": "ahmed.driver@example.com",
+                                    "phone": "+201001112233",
+                                    "role": "Driver",
+                                    "favoritesCount": 0
+                                }
+                            },
+                            "text/json": {
+                                "schema": {
+                                    "$ref": "#/components/schemas/CurrentUserDto"
+                                }
+                            },
+                            "text/plain": {
+                                "schema": {
+                                    "$ref": "#/components/schemas/CurrentUserDto"
+                                }
+                            }
+                        }
                     }
                 }
             },
             "put": {
+                "summary": "Update current driver profile",
+                "description": "Updates the shared identity profile fields for the authenticated driver account.",
                 "tags": [
                     "Driver/Auth"
                 ],
                 "requestBody": {
+                    "required": true,
                     "content": {
                         "application/json": {
                             "schema": {
                                 "$ref": "#/components/schemas/UpdateProfileRequest"
+                            },
+                            "example": {
+                                "fullName": "Ahmed Driver",
+                                "email": "ahmed.driver@example.com",
+                                "phone": "+201001112233"
                             }
                         },
                         "text/json": {
@@ -7453,7 +7611,32 @@
                 },
                 "responses": {
                     "200": {
-                        "description": "OK"
+                        "description": "Updated driver profile.",
+                        "content": {
+                            "application/json": {
+                                "schema": {
+                                    "$ref": "#/components/schemas/CurrentUserDto"
+                                },
+                                "example": {
+                                    "id": "11111111-1111-1111-1111-111111111111",
+                                    "fullName": "Ahmed Driver",
+                                    "email": "ahmed.driver@example.com",
+                                    "phone": "+201001112233",
+                                    "role": "Driver",
+                                    "favoritesCount": 0
+                                }
+                            },
+                            "text/json": {
+                                "schema": {
+                                    "$ref": "#/components/schemas/CurrentUserDto"
+                                }
+                            },
+                            "text/plain": {
+                                "schema": {
+                                    "$ref": "#/components/schemas/CurrentUserDto"
+                                }
+                            }
+                        }
                     }
                 }
             }
@@ -7461,7 +7644,7 @@
         "/api/drivers/register": {
             "post": {
                 "summary": "Register driver profile",
-                "description": "This endpoint expects document image fields as URL strings, not binary files. Mobile should upload each image first through `/api/files/upload`, then send the returned URLs here.",
+                "description": "This endpoint expects document image fields as URL strings, not binary files. Mobile should upload each image first through `/api/files/upload`, then send the returned URLs here. The response includes `driverStatus`, which should immediately decide whether the app opens the home screen or an under-review / rejected / suspended screen.",
                 "tags": [
                     "Driver/Registration"
                 ],
@@ -7502,7 +7685,56 @@
                 },
                 "responses": {
                     "200": {
-                        "description": "OK"
+                        "description": "Driver registered successfully.",
+                        "content": {
+                            "application/json": {
+                                "schema": {
+                                    "$ref": "#/components/schemas/AuthResponseDto"
+                                },
+                                "example": {
+                                    "tokens": {
+                                        "accessToken": "jwt-access-token",
+                                        "refreshToken": "jwt-refresh-token"
+                                    },
+                                    "user": {
+                                        "id": "11111111-1111-1111-1111-111111111111",
+                                        "fullName": "Ahmed Driver",
+                                        "email": "ahmed.driver@example.com",
+                                        "phone": "+201001112233",
+                                        "role": "Driver",
+                                        "favoritesCount": 0
+                                    },
+                                    "driverStatus": {
+                                        "driverId": "11111111-1111-1111-1111-111111111111",
+                                        "gateStatus": "UnderReview",
+                                        "isOperational": false,
+                                        "canReceiveOrders": false,
+                                        "canGoAvailable": false,
+                                        "isAvailable": false,
+                                        "verificationStatus": "UnderReview",
+                                        "accountStatus": "Pending",
+                                        "reviewedAtUtc": null,
+                                        "reviewNote": null,
+                                        "suspensionReason": null,
+                                        "primaryZoneId": null,
+                                        "zoneName": null,
+                                        "message": "Driver profile is currently under admin review."
+                                    },
+                                    "isVerified": true,
+                                    "message": null
+                                }
+                            },
+                            "text/json": {
+                                "schema": {
+                                    "$ref": "#/components/schemas/AuthResponseDto"
+                                }
+                            },
+                            "text/plain": {
+                                "schema": {
+                                    "$ref": "#/components/schemas/AuthResponseDto"
+                                }
+                            }
+                        }
                     }
                 }
             }
@@ -10439,6 +10671,8 @@
         },
         "/api/drivers/zones": {
             "get": {
+                "summary": "Get active delivery zones",
+                "description": "Returns the currently active delivery zones that the authenticated driver can choose from during onboarding or later zone updates.",
                 "tags": [
                     "Driver/Operations"
                 ],
@@ -10452,23 +10686,18 @@
                                     "items": {
                                         "$ref": "#/components/schemas/DeliveryZoneDto"
                                     }
-                                }
-                            },
-                            "text/json": {
-                                "schema": {
-                                    "type": "array",
-                                    "items": {
-                                        "$ref": "#/components/schemas/DeliveryZoneDto"
+                                },
+                                "example": [
+                                    {
+                                        "id": "22222222-2222-2222-2222-222222222222",
+                                        "city": "Cairo",
+                                        "name": "Nasr City East",
+                                        "centerLat": 30.0626,
+                                        "centerLng": 31.2497,
+                                        "radiusKm": 8,
+                                        "isActive": true
                                     }
-                                }
-                            },
-                            "text/plain": {
-                                "schema": {
-                                    "type": "array",
-                                    "items": {
-                                        "$ref": "#/components/schemas/DeliveryZoneDto"
-                                    }
-                                }
+                                ]
                             }
                         }
                     }
@@ -10489,6 +10718,22 @@
                             "application/json": {
                                 "schema": {
                                     "$ref": "#/components/schemas/DriverOperationalStatusDto"
+                                },
+                                "example": {
+                                    "driverId": "11111111-1111-1111-1111-111111111111",
+                                    "gateStatus": "UnderReview",
+                                    "isOperational": false,
+                                    "canReceiveOrders": false,
+                                    "canGoAvailable": false,
+                                    "isAvailable": false,
+                                    "verificationStatus": "UnderReview",
+                                    "accountStatus": "Pending",
+                                    "reviewedAtUtc": null,
+                                    "reviewNote": null,
+                                    "suspensionReason": null,
+                                    "primaryZoneId": "22222222-2222-2222-2222-222222222222",
+                                    "zoneName": "Cairo - Nasr City East",
+                                    "message": "Driver profile is currently under admin review."
                                 }
                             },
                             "text/json": {
@@ -10508,14 +10753,20 @@
         },
         "/api/drivers/me/zone": {
             "put": {
+                "summary": "Set driver primary zone",
+                "description": "Assigns one active delivery zone as the driver's current primary operating zone.",
                 "tags": [
                     "Driver/Operations"
                 ],
                 "requestBody": {
+                    "required": true,
                     "content": {
                         "application/json": {
                             "schema": {
                                 "$ref": "#/components/schemas/SetDriverZoneRequest"
+                            },
+                            "example": {
+                                "zoneId": "22222222-2222-2222-2222-222222222222"
                             }
                         },
                         "text/json": {
@@ -10537,6 +10788,9 @@
                             "application/json": {
                                 "schema": {
                                     "$ref": "#/components/schemas/OperationMessageResponse"
+                                },
+                                "example": {
+                                    "message": "Zone updated successfully"
                                 }
                             },
                             "text/json": {
@@ -10562,10 +10816,14 @@
                     "Driver/Operations"
                 ],
                 "requestBody": {
+                    "required": true,
                     "content": {
                         "application/json": {
                             "schema": {
                                 "$ref": "#/components/schemas/SetAvailabilityRequest"
+                            },
+                            "example": {
+                                "isAvailable": true
                             }
                         },
                         "text/json": {
@@ -10587,6 +10845,9 @@
                             "application/json": {
                                 "schema": {
                                     "$ref": "#/components/schemas/OperationMessageResponse"
+                                },
+                                "example": {
+                                    "message": "Availability set to True"
                                 }
                             },
                             "text/json": {
@@ -10623,14 +10884,21 @@
         },
         "/api/drivers/location": {
             "post": {
+                "summary": "Update driver GPS location",
+                "description": "Sends the latest driver coordinates. Mobile should call this periodically while online and more frequently during active assignments.",
                 "tags": [
                     "Driver/Operations"
                 ],
                 "requestBody": {
+                    "required": true,
                     "content": {
                         "application/json": {
                             "schema": {
                                 "$ref": "#/components/schemas/UpdateLocationRequest"
+                            },
+                            "example": {
+                                "latitude": 30.0444,
+                                "longitude": 31.2357
                             }
                         },
                         "text/json": {
@@ -10652,6 +10920,9 @@
                             "application/json": {
                                 "schema": {
                                     "$ref": "#/components/schemas/OperationMessageResponse"
+                                },
+                                "example": {
+                                    "message": "Location updated"
                                 }
                             },
                             "text/json": {
@@ -10683,6 +10954,39 @@
                             "application/json": {
                                 "schema": {
                                     "$ref": "#/components/schemas/DriverCurrentAssignmentResponse"
+                                },
+                                "examples": {
+                                    "noAssignment": {
+                                        "summary": "Driver has no current assignment",
+                                        "value": {
+                                            "hasAssignment": false
+                                        }
+                                    },
+                                    "notOperational": {
+                                        "summary": "Driver still under review",
+                                        "value": {
+                                            "hasAssignment": false,
+                                            "gateStatus": "UnderReview",
+                                            "isOperational": false,
+                                            "verificationStatus": "UnderReview",
+                                            "accountStatus": "Pending",
+                                            "message": "Driver profile is currently under admin review."
+                                        }
+                                    },
+                                    "activeAssignment": {
+                                        "summary": "Driver has an active assignment",
+                                        "value": {
+                                            "hasAssignment": true,
+                                            "assignment": {
+                                                "id": "33333333-3333-3333-3333-333333333333",
+                                                "orderId": "44444444-4444-4444-4444-444444444444",
+                                                "orderNumber": "ORD-10245",
+                                                "status": "Accepted",
+                                                "codAmount": 120.5,
+                                                "createdAtUtc": "2026-04-23T10:15:00Z"
+                                            }
+                                        }
+                                    }
                                 }
                             },
                             "text/json": {
@@ -10753,6 +11057,10 @@
                             "application/json": {
                                 "schema": {
                                     "$ref": "#/components/schemas/OperationMessageResponse"
+                                },
+                                "example": {
+                                    "id": "55555555-5555-5555-5555-555555555555",
+                                    "message": "Proof submitted successfully"
                                 }
                             },
                             "text/json": {
@@ -10819,23 +11127,20 @@
                                     "items": {
                                         "$ref": "#/components/schemas/AdminDriverAssignmentDto"
                                     }
-                                }
-                            },
-                            "text/json": {
-                                "schema": {
-                                    "type": "array",
-                                    "items": {
-                                        "$ref": "#/components/schemas/AdminDriverAssignmentDto"
+                                },
+                                "example": [
+                                    {
+                                        "id": "33333333-3333-3333-3333-333333333333",
+                                        "orderId": "44444444-4444-4444-4444-444444444444",
+                                        "orderNumber": "ORD-10245",
+                                        "status": "Delivered",
+                                        "acceptedAtUtc": "2026-04-23T10:18:00Z",
+                                        "deliveredAtUtc": "2026-04-23T10:52:00Z",
+                                        "failedAtUtc": null,
+                                        "failureReason": null,
+                                        "codAmount": 120.5
                                     }
-                                }
-                            },
-                            "text/plain": {
-                                "schema": {
-                                    "type": "array",
-                                    "items": {
-                                        "$ref": "#/components/schemas/AdminDriverAssignmentDto"
-                                    }
-                                }
+                                ]
                             }
                         }
                     }
@@ -15503,6 +15808,76 @@
                 },
                 "additionalProperties": false
             },
+            "TokenPairDto": {
+                "type": "object",
+                "properties": {
+                    "accessToken": {
+                        "type": "string",
+                        "nullable": true
+                    },
+                    "refreshToken": {
+                        "type": "string",
+                        "nullable": true
+                    }
+                },
+                "additionalProperties": false
+            },
+            "CurrentUserDto": {
+                "type": "object",
+                "properties": {
+                    "id": {
+                        "type": "string",
+                        "format": "uuid"
+                    },
+                    "fullName": {
+                        "type": "string",
+                        "nullable": true
+                    },
+                    "email": {
+                        "type": "string",
+                        "nullable": true
+                    },
+                    "phone": {
+                        "type": "string",
+                        "nullable": true
+                    },
+                    "role": {
+                        "type": "string",
+                        "nullable": true
+                    },
+                    "favoritesCount": {
+                        "type": "integer",
+                        "format": "int32",
+                        "description": "Legacy shared field from the common auth DTO. Driver mobile clients can ignore it."
+                    }
+                },
+                "additionalProperties": false
+            },
+            "AuthResponseDto": {
+                "type": "object",
+                "properties": {
+                    "tokens": {
+                        "$ref": "#/components/schemas/TokenPairDto",
+                        "nullable": true
+                    },
+                    "user": {
+                        "$ref": "#/components/schemas/CurrentUserDto",
+                        "nullable": true
+                    },
+                    "isVerified": {
+                        "type": "boolean"
+                    },
+                    "message": {
+                        "type": "string",
+                        "nullable": true
+                    },
+                    "driverStatus": {
+                        "$ref": "#/components/schemas/DriverOperationalStatusDto",
+                        "nullable": true
+                    }
+                },
+                "additionalProperties": false
+            },
             "LoginRequest": {
                 "type": "object",
                 "properties": {
@@ -18476,6 +18851,11 @@
                         "type": "string",
                         "format": "uuid"
                     },
+                    "gateStatus": {
+                        "type": "string",
+                        "description": "Normalized app-routing state. Expected values include `Operational`, `UnderReview`, `NeedsDocuments`, `Rejected`, `Suspended`, `Inactive`, `PendingActivation`, and `Banned`.",
+                        "nullable": true
+                    },
                     "isOperational": {
                         "type": "boolean"
                     },
@@ -19031,6 +19411,11 @@
                 "properties": {
                     "hasAssignment": {
                         "type": "boolean"
+                    },
+                    "gateStatus": {
+                        "type": "string",
+                        "description": "Normalized app-routing state when the driver is blocked from receiving assignments.",
+                        "nullable": true
                     },
                     "isOperational": {
                         "type": "boolean",

@@ -7425,6 +7425,37 @@
                 }
             }
         },
+        "/api/drivers/me/status": {
+            "get": {
+                "summary": "Get driver operational status",
+                "description": "Canonical mobile endpoint to know whether the authenticated driver is approved, under review, rejected, suspended, or operationally ready for dispatch.",
+                "tags": [
+                    "Driver App API"
+                ],
+                "responses": {
+                    "200": {
+                        "description": "OK",
+                        "content": {
+                            "application/json": {
+                                "schema": {
+                                    "$ref": "#/components/schemas/DriverOperationalStatusDto"
+                                }
+                            },
+                            "text/json": {
+                                "schema": {
+                                    "$ref": "#/components/schemas/DriverOperationalStatusDto"
+                                }
+                            },
+                            "text/plain": {
+                                "schema": {
+                                    "$ref": "#/components/schemas/DriverOperationalStatusDto"
+                                }
+                            }
+                        }
+                    }
+                }
+            }
+        },
         "/api/drivers/register": {
             "post": {
                 "tags": [
@@ -13548,6 +13579,62 @@
                         "format": "uuid"
                     },
                     "status": {
+                        "type": "string",
+                        "nullable": true
+                    },
+                    "message": {
+                        "type": "string",
+                        "nullable": true
+                    }
+                },
+                "additionalProperties": false
+            },
+            "DriverOperationalStatusDto": {
+                "type": "object",
+                "properties": {
+                    "driverId": {
+                        "type": "string",
+                        "format": "uuid"
+                    },
+                    "isOperational": {
+                        "type": "boolean"
+                    },
+                    "canReceiveOrders": {
+                        "type": "boolean"
+                    },
+                    "canGoAvailable": {
+                        "type": "boolean"
+                    },
+                    "isAvailable": {
+                        "type": "boolean"
+                    },
+                    "verificationStatus": {
+                        "type": "string",
+                        "nullable": true
+                    },
+                    "accountStatus": {
+                        "type": "string",
+                        "nullable": true
+                    },
+                    "reviewedAtUtc": {
+                        "type": "string",
+                        "format": "date-time",
+                        "nullable": true
+                    },
+                    "reviewNote": {
+                        "type": "string",
+                        "nullable": true
+                    },
+                    "suspensionReason": {
+                        "type": "string",
+                        "nullable": true
+                    },
+                    "primaryZoneId": {
+                        "type": "string",
+                        "format": "uuid",
+                        "nullable": true
+                    },
+                    "zoneName": {
                         "type": "string",
                         "nullable": true
                     },

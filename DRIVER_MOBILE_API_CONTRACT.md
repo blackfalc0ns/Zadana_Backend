@@ -165,7 +165,7 @@ driver.status == Active
 
 Until both conditions are true:
 
-- login can succeed
+- login can succeed, but the response now includes `driverStatus` so the app can route away from the home screen
 - file upload can be used
 - profile and zone setup can continue
 - GPS updates can be accepted, but they do not make the driver eligible for dispatch
@@ -183,6 +183,15 @@ Mobile UI recommendation:
 - do not poll for jobs aggressively while `isOperational = false`
 - show a clear message such as `Waiting for admin review`
 - start normal assignment polling only after the driver becomes operational
+
+Recommended screen mapping from `driverStatus.gateStatus`:
+
+- `Operational`: open the normal app home and allow dispatch-related polling
+- `UnderReview`: open the waiting-for-review screen
+- `NeedsDocuments`: open a missing-documents or blocked onboarding screen
+- `Rejected`: open the rejected-account screen
+- `Suspended`: open the suspended-account screen
+- `Inactive`, `PendingActivation`, or `Banned`: open a blocked-account screen
 
 ## Required Driver Documents
 
@@ -204,16 +213,17 @@ Recommended app flow:
 1. Upload required images or documents using the common files endpoint
 2. Register the driver with the returned file URLs
 3. Save `accessToken` and `refreshToken` securely
-4. Call `GET /api/drivers/auth/me` to hydrate the session on app launch
-5. Call `GET /api/drivers/me/status` to know whether the driver is operational
-6. Fetch active zones
-7. Let the driver choose one active zone from a dropdown
-8. Keep the app in waiting mode until the superadmin approves the driver
-9. Once approved, allow the driver to toggle availability on
-10. Send periodic GPS updates while online or on an active assignment
-11. Fetch current assignment
-12. Submit photo proof before calling delivered
-13. Update order status through pickup, on-the-way, and delivery completion or failure
+4. Read `driverStatus` from the login or registration response and route immediately to the correct screen
+5. Call `GET /api/drivers/auth/me` to hydrate the session on app launch
+6. Call `GET /api/drivers/me/status` to know whether the driver is operational on later launches
+7. Fetch active zones
+8. Let the driver choose one active zone from a dropdown
+9. Keep the app in waiting mode until the superadmin approves the driver
+10. Once approved, allow the driver to toggle availability on
+11. Send periodic GPS updates while online or on an active assignment
+12. Fetch current assignment
+13. Submit photo proof before calling delivered
+14. Update order status through pickup, on-the-way, and delivery completion or failure
 
 ## Auth Response Shape
 
@@ -235,6 +245,22 @@ Example shape:
     "role": "Driver",
     "favoritesCount": 0
   },
+  "driverStatus": {
+    "driverId": "11111111-1111-1111-1111-111111111111",
+    "gateStatus": "UnderReview",
+    "isOperational": false,
+    "canReceiveOrders": false,
+    "canGoAvailable": false,
+    "isAvailable": false,
+    "verificationStatus": "UnderReview",
+    "accountStatus": "Pending",
+    "reviewedAtUtc": null,
+    "reviewNote": null,
+    "suspensionReason": null,
+    "primaryZoneId": null,
+    "zoneName": null,
+    "message": "Driver profile is currently under admin review."
+  },
   "isVerified": true,
   "message": null
 }
@@ -244,7 +270,8 @@ Notes:
 
 - `favoritesCount` is a legacy customer-oriented field in the shared auth DTO.
 - the driver app should ignore `favoritesCount` if it appears in auth or `me` responses.
-- operational readiness is not represented by `isVerified`; use the driver workflow rules in this document.
+- for driver login and driver registration, `driverStatus` is the field the app should use for routing.
+- operational readiness is not represented by `isVerified`; use `driverStatus.gateStatus` or `GET /api/drivers/me/status`.
 
 ## Endpoints
 
@@ -311,7 +338,8 @@ Request body:
 Notes:
 
 - `identifier` can be either email or phone number
-- login is allowed for driver accounts, but dispatch actions still depend on operational approval
+- login is allowed for driver accounts, but home-screen access must be decided from `driverStatus.gateStatus`
+- if `driverStatus.gateStatus` is not `Operational`, do not open the normal app home
 
 Success response:
 
@@ -541,6 +569,7 @@ Success response:
 Notes:
 
 - this endpoint also returns tokens, so the mobile app can continue without an immediate login call
+- this response also includes `driverStatus`, so the app can route immediately to `UnderReview`, `Rejected`, `Suspended`, or the normal home
 - for later app launches, use the driver auth endpoints above
 
 ### Delivery: Get Active Zones
@@ -620,6 +649,7 @@ Success response:
 ```json
 {
   "driverId": "11111111-1111-1111-1111-111111111111",
+  "gateStatus": "UnderReview",
   "isOperational": false,
   "canReceiveOrders": false,
   "canGoAvailable": false,
@@ -637,6 +667,7 @@ Success response:
 
 Field meanings:
 
+- `gateStatus`: normalized routing state for the app such as `Operational`, `UnderReview`, `NeedsDocuments`, `Rejected`, or `Suspended`
 - `isOperational`: true only when the driver is both `Approved` and `Active`
 - `canReceiveOrders`: whether the driver is eligible for dispatch
 - `canGoAvailable`: whether the app may enable the online toggle
@@ -650,7 +681,7 @@ Field meanings:
 
 Mobile recommendation:
 
-- call this endpoint after login and on app startup
+- call this endpoint after login if you need a fresh server read, and on every app startup after restoring tokens
 - use it as the single source of truth for waiting, rejected, suspended, or approved screens
 - do not infer approval state from `isVerified` in auth responses
 - keep `assignments/current` only for assignment polling
@@ -758,10 +789,11 @@ Not approved yet response:
 ```json
 {
   "hasAssignment": false,
+  "gateStatus": "UnderReview",
   "isOperational": false,
   "verificationStatus": "UnderReview",
   "accountStatus": "Pending",
-  "message": "Driver must be reviewed and approved by admin before receiving assignments."
+  "message": "Driver profile is currently under admin review."
 }
 ```
 
@@ -770,6 +802,7 @@ Mobile behavior for this response:
 - keep the driver in the waiting/review screen
 - keep the online toggle disabled
 - do not show order cards or delivery action buttons
+- `gateStatus` can be used directly to choose the blocked screen variant
 - optionally show `verificationStatus` and `accountStatus` as support/debug info
 
 Active assignment response:

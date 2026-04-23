@@ -1,5 +1,6 @@
 using Microsoft.EntityFrameworkCore;
 using Zadana.Application.Common.Interfaces;
+using Zadana.Application.Modules.Delivery.DTOs;
 using Zadana.Application.Modules.Identity.DTOs;
 using Zadana.Application.Modules.Identity.Interfaces;
 using Zadana.Domain.Modules.Identity.Enums;
@@ -96,7 +97,21 @@ public class IdentityService : IIdentityService
 
         var favoritesCount = await _context.CustomerFavorites.CountAsync(x => x.UserId == user.Id, cancellationToken);
         var userDto = new CurrentUserDto(user.Id, user.FullName, user.Email, user.PhoneNumber, user.Role.ToString(), favoritesCount);
-        return new AuthResponseDto(tokens, userDto);
+        DriverOperationalStatusDto? driverStatus = null;
+
+        if (user.Role == UserRole.Driver)
+        {
+            var driver = await _context.Drivers
+                .Include(d => d.PrimaryZone)
+                .FirstOrDefaultAsync(d => d.UserId == user.Id, cancellationToken);
+
+            if (driver is not null)
+            {
+                driverStatus = DriverOperationalStatusFactory.Create(driver);
+            }
+        }
+
+        return new AuthResponseDto(tokens, userDto, DriverStatus: driverStatus);
     }
 
     public async Task<TokenPairDto> RefreshTokenAsync(string refreshToken, CancellationToken cancellationToken = default)

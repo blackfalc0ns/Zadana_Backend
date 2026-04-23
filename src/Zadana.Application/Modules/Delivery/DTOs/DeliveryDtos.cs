@@ -13,6 +13,7 @@ public record DeliveryZoneDto(
 
 public record DriverOperationalStatusDto(
     Guid DriverId,
+    string GateStatus,
     bool IsOperational,
     bool CanReceiveOrders,
     bool CanGoAvailable,
