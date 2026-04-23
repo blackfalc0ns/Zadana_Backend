@@ -10921,7 +10921,7 @@
         "/api/drivers/location": {
             "post": {
                 "summary": "Update driver GPS location",
-                "description": "Sends the latest driver coordinates. Mobile should call this periodically while online and more frequently during active assignments.",
+                "description": "Sends the latest driver coordinates for live tracking and dispatch ranking. The server records the official timestamp. GPS remains fresh for dispatch ranking for 5 minutes, and readings with accuracyMeters greater than 100 are treated as low-confidence with lower priority rather than hard rejection.",
                 "tags": [
                     "Driver/Operations"
                 ],
@@ -10934,7 +10934,8 @@
                             },
                             "example": {
                                 "latitude": 30.0444,
-                                "longitude": 31.2357
+                                "longitude": 31.2357,
+                                "accuracyMeters": 18.5
                             }
                         },
                         "text/json": {
@@ -11639,6 +11640,20 @@
                     },
                     "verified": {
                         "type": "boolean"
+                    },
+                    "dispatchMatchReason": {
+                        "type": "string",
+                        "nullable": true
+                    },
+                    "gpsFresh": {
+                        "type": "boolean"
+                    },
+                    "lowConfidenceGps": {
+                        "type": "boolean"
+                    },
+                    "distanceBucket": {
+                        "type": "string",
+                        "nullable": true
                     }
                 },
                 "additionalProperties": false
@@ -11952,7 +11967,8 @@
                     },
                     "dispatchReason": {
                         "type": "string",
-                        "nullable": true
+                        "nullable": true,
+                        "description": "Dispatch outcome such as same-zone-live-gps, same-zone-stale-gps, same-city-fallback, out-of-zone-low-priority, or no-eligible-driver."
                     },
                     "paymentMethodLabel": {
                         "type": "string",
@@ -12035,6 +12051,7 @@
                         "items": {
                             "type": "string"
                         },
+                        "description": "Operational scoring details for admin review, including zone match, GPS freshness, distance bucket, confidence, active orders, and reliability.",
                         "nullable": true
                     },
                     "cancellationSummary": {
@@ -12133,7 +12150,8 @@
                     },
                     "dispatchReason": {
                         "type": "string",
-                        "nullable": true
+                        "nullable": true,
+                        "description": "Dispatch outcome such as same-zone-live-gps, same-zone-stale-gps, same-city-fallback, out-of-zone-low-priority, or no-eligible-driver."
                     },
                     "paymentMethodLabel": {
                         "type": "string",
@@ -18826,6 +18844,11 @@
                     "longitude": {
                         "type": "number",
                         "format": "double"
+                    },
+                    "accuracyMeters": {
+                        "type": "number",
+                        "format": "double",
+                        "nullable": true
                     }
                 },
                 "additionalProperties": false

@@ -280,7 +280,11 @@ public record AdminDriverCandidateDto(
     string Initials,
     string AvatarTone,
     bool LowPerformance,
-    bool Verified);
+    bool Verified,
+    string DispatchMatchReason,
+    bool GpsFresh,
+    bool LowConfidenceGps,
+    string DistanceBucket);
 
 public record AdminOrderCancellationSummaryDto(
     string ReasonLabel,

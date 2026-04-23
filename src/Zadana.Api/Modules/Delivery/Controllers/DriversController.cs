@@ -114,7 +114,7 @@ public class DriversController : ApiControllerBase
             ?? throw new NotFoundException("Driver", userId);
 
         await Sender.Send(
-            new UpdateDriverLocationCommand(driver.Id, request.Latitude, request.Longitude),
+            new UpdateDriverLocationCommand(driver.Id, request.Latitude, request.Longitude, request.AccuracyMeters),
             cancellationToken);
 
         return Ok(new { message = "Location updated" });
@@ -311,5 +311,5 @@ public record DriverOrderStatusResponse(Guid OrderId, string Status, string Mess
 public record DriverDeliveryFailedRequest(string? Note);
 public record SetDriverZoneRequest(Guid ZoneId);
 public record SetAvailabilityRequest(bool IsAvailable);
-public record UpdateLocationRequest(decimal Latitude, decimal Longitude);
+public record UpdateLocationRequest(decimal Latitude, decimal Longitude, decimal? AccuracyMeters);
 public record SubmitProofRequest(string ProofType, string? ImageUrl, string? OtpCode, string? RecipientName, string? Note);

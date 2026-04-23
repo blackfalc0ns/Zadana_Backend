@@ -14,5 +14,6 @@ public class DriverLocationConfiguration : IEntityTypeConfiguration<DriverLocati
 
         builder.Property(x => x.Latitude).HasPrecision(10, 7).IsRequired();
         builder.Property(x => x.Longitude).HasPrecision(10, 7).IsRequired();
+        builder.Property(x => x.AccuracyMeters).HasPrecision(8, 2);
     }
 }

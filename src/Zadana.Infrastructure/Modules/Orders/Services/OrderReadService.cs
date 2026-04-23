@@ -10,6 +10,7 @@ using Zadana.Domain.Modules.Orders.Entities;
 using Zadana.Domain.Modules.Orders.Enums;
 using Zadana.Domain.Modules.Payments.Entities;
 using Zadana.Domain.Modules.Payments.Enums;
+using Zadana.Infrastructure.Modules.Delivery.Services;
 using Zadana.Infrastructure.Persistence;
 
 namespace Zadana.Infrastructure.Modules.Orders.Services;
@@ -768,11 +769,21 @@ public class OrderReadService : IOrderReadService
         Order order,
         CancellationToken cancellationToken)
     {
-        var regionCity = order.Vendor?.City;
+        var activeZones = await _dbContext.DeliveryZones
+            .AsNoTracking()
+            .Where(zone => zone.IsActive)
+            .ToListAsync(cancellationToken);
+
+        var dispatchContext = DeliveryDispatchScoring.BuildContext(
+            activeZones,
+            order.VendorBranch?.Latitude,
+            order.VendorBranch?.Longitude,
+            order.Vendor?.City);
 
         var drivers = await _dbContext.Drivers
             .AsNoTracking()
             .Include(driver => driver.User)
+            .Include(driver => driver.PrimaryZone)
             .Where(driver =>
                 driver.Status == AccountStatus.Active &&
                 driver.VerificationStatus == DriverVerificationStatus.Approved)
@@ -788,29 +799,96 @@ public class OrderReadService : IOrderReadService
             .Select(group => new { DriverId = group.Key, Count = group.Count() })
             .ToDictionaryAsync(item => item.DriverId, item => item.Count, cancellationToken);
 
+        var driverIds = drivers.Select(driver => driver.Id).ToList();
+
+        var latestLocations = await _dbContext.DriverLocations
+            .AsNoTracking()
+            .Where(location => driverIds.Contains(location.DriverId))
+            .GroupBy(location => location.DriverId)
+            .Select(group => group.OrderByDescending(location => location.RecordedAtUtc).First())
+            .ToDictionaryAsync(location => location.DriverId, cancellationToken);
+
+        var reliabilityData = await _dbContext.DeliveryAssignments
+            .AsNoTracking()
+            .Where(assignment =>
+                assignment.DriverId.HasValue &&
+                driverIds.Contains(assignment.DriverId.Value) &&
+                (assignment.Status == AssignmentStatus.Delivered || assignment.Status == AssignmentStatus.Failed))
+            .GroupBy(assignment => assignment.DriverId!.Value)
+            .Select(group => new
+            {
+                DriverId = group.Key,
+                Completed = group.Count(assignment => assignment.Status == AssignmentStatus.Delivered),
+                Failed = group.Count(assignment => assignment.Status == AssignmentStatus.Failed)
+            })
+            .ToDictionaryAsync(item => item.DriverId, cancellationToken);
+
+        var utcNow = DateTime.UtcNow;
+
         return drivers
-            .Select((driver, index) => new AdminDriverCandidateDto(
-                driver.Id.ToString(),
-                driver.User.FullName,
-                $"#DRV-{driver.Id.ToString("N")[..6].ToUpperInvariant()}",
-                driver.User.PhoneNumber ?? string.Empty,
-                regionCity ?? "Unknown",
-                driver.Address ?? "Coverage zone",
-                driver.IsAvailable ? "AVAILABLE" : "DELIVERING",
-                Math.Round(1.2m + (index * 0.7m), 1),
-                assignmentCounts.GetValueOrDefault(driver.Id),
-                Math.Round(Math.Max(3.1m, 4.9m - (index * 0.2m)), 1),
-                Math.Round(index * 2.5m, 1),
-                driver.IsAvailable ? "Now" : "Recently active",
-                BuildInitials(driver.User.FullName),
-                (index % 3) switch
+            .Select((driver, index) =>
+            {
+                latestLocations.TryGetValue(driver.Id, out var latestLocation);
+                assignmentCounts.TryGetValue(driver.Id, out var activeOrders);
+                reliabilityData.TryGetValue(driver.Id, out var reliability);
+
+                var totalResolvedAssignments = (reliability?.Completed ?? 0) + (reliability?.Failed ?? 0);
+                var reliabilityScore = totalResolvedAssignments > 0
+                    ? (decimal)(reliability!.Completed) / totalResolvedAssignments * 100
+                    : 50m;
+
+                var evaluation = DeliveryDispatchScoring.EvaluateCandidate(
+                    driver,
+                    latestLocation,
+                    activeOrders,
+                    reliabilityScore,
+                    dispatchContext,
+                    utcNow);
+
+                var lastActivity = latestLocation is null
+                    ? "No GPS"
+                    : evaluation.GpsFresh
+                        ? "Live now"
+                        : $"{Math.Max(1, (int)(utcNow - latestLocation.RecordedAtUtc).TotalMinutes)}m ago";
+
+                var candidateStatus = evaluation.MatchReason switch
                 {
-                    0 => "from-teal-500 to-cyan-500",
-                    1 => "from-amber-500 to-orange-500",
-                    _ => "from-rose-500 to-pink-500"
-                },
-                index > 3,
-                true))
+                    "same-zone-live-gps" => "AVAILABLE",
+                    "same-zone-stale-gps" => "STALE_GPS",
+                    "same-city-fallback" => "CITY_FALLBACK",
+                    _ => "LOW_PRIORITY"
+                };
+
+                return new AdminDriverCandidateDto(
+                    driver.Id.ToString(),
+                    driver.User.FullName,
+                    $"#DRV-{driver.Id.ToString("N")[..6].ToUpperInvariant()}",
+                    driver.User.PhoneNumber ?? string.Empty,
+                    driver.PrimaryZone?.City ?? dispatchContext.PickupCity ?? "Unknown",
+                    driver.PrimaryZone?.Name ?? driver.Address ?? "Coverage zone",
+                    candidateStatus,
+                    Math.Round(evaluation.DistanceKm, 1),
+                    activeOrders,
+                    Math.Round(evaluation.ReliabilityScore / 20m, 1),
+                    Math.Round(Math.Max(0m, 100m - evaluation.ReliabilityScore), 1),
+                    lastActivity,
+                    BuildInitials(driver.User.FullName),
+                    (index % 3) switch
+                    {
+                        0 => "from-teal-500 to-cyan-500",
+                        1 => "from-amber-500 to-orange-500",
+                        _ => "from-rose-500 to-pink-500"
+                    },
+                    evaluation.ReliabilityScore < 70m || evaluation.MatchReason == "out-of-zone-low-priority",
+                    true,
+                    evaluation.MatchReason,
+                    evaluation.GpsFresh,
+                    evaluation.LowConfidenceGps,
+                    evaluation.DistanceBucket);
+            })
+            .OrderBy(candidate => candidate.DistanceKm)
+            .ThenBy(candidate => candidate.ActiveOrders)
+            .ThenByDescending(candidate => candidate.Rating)
             .ToList();
     }
 
@@ -1106,9 +1184,15 @@ public class OrderReadService : IOrderReadService
 
         return
         [
+            $"Match reason: {matchedCandidate.DispatchMatchReason}",
+            $"GPS freshness: {(matchedCandidate.GpsFresh ? "live" : "stale")}",
+            $"Distance bucket: {matchedCandidate.DistanceBucket}",
             $"Distance: {matchedCandidate.DistanceKm:0.0} km",
             $"Active orders: {matchedCandidate.ActiveOrders}",
             $"Rating: {matchedCandidate.Rating:0.0}",
+            matchedCandidate.LowConfidenceGps
+                ? "GPS confidence: low (>100m)"
+                : "GPS confidence: normal",
             matchedCandidate.Verified ? "Verification: approved" : "Verification: pending"
         ];
     }

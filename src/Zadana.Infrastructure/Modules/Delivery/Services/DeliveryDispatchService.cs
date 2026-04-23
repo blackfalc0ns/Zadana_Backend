@@ -17,8 +17,6 @@ public class DeliveryDispatchService : IDeliveryDispatchService
     private readonly IUnitOfWork _unitOfWork;
     private readonly ILogger<DeliveryDispatchService> _logger;
 
-    private static readonly TimeSpan GpsFreshnessThreshold = TimeSpan.FromMinutes(30);
-
     public DeliveryDispatchService(
         IApplicationDbContext context,
         IUnitOfWork unitOfWork,
@@ -47,26 +45,18 @@ public class DeliveryDispatchService : IDeliveryDispatchService
             return null;
         }
 
-        // Transition to DriverAssignmentInProgress if not already
-        if (order.Status == OrderStatus.ReadyForPickup)
-        {
-            order.ChangeStatus(OrderStatus.DriverAssignmentInProgress, null, "Auto-dispatch started");
-            _context.OrderStatusHistories.Add(order.StatusHistory.Last());
-            await _unitOfWork.SaveChangesAsync(cancellationToken);
-        }
-
-        // Get pickup coordinates from vendor branch
         decimal? pickupLat = order.VendorBranch?.Latitude;
         decimal? pickupLng = order.VendorBranch?.Longitude;
-        var branchCity = order.VendorBranch is not null
-            ? await _context.DeliveryZones
-                .Where(z => z.IsActive)
-                .OrderBy(z => Math.Abs(z.CenterLat - order.VendorBranch.Latitude) + Math.Abs(z.CenterLng - order.VendorBranch.Longitude))
-                .Select(z => z.City)
-                .FirstOrDefaultAsync(cancellationToken)
-            : null;
+        var activeZones = await _context.DeliveryZones
+            .Where(zone => zone.IsActive)
+            .ToListAsync(cancellationToken);
 
-        // Find eligible drivers: Approved + Active + Available
+        var dispatchContext = DeliveryDispatchScoring.BuildContext(
+            activeZones,
+            pickupLat,
+            pickupLng,
+            order.Vendor?.City);
+
         var eligibleDrivers = await _context.Drivers
             .Include(d => d.User)
             .Include(d => d.PrimaryZone)
@@ -76,8 +66,26 @@ public class DeliveryDispatchService : IDeliveryDispatchService
                 d.IsAvailable)
             .ToListAsync(cancellationToken);
 
+        if (order.Status == OrderStatus.ReadyForPickup)
+        {
+            var note = eligibleDrivers.Count == 0
+                ? "Dispatch pending: no-eligible-driver"
+                : "Auto-dispatch started";
+
+            order.ChangeStatus(OrderStatus.DriverAssignmentInProgress, null, note);
+            _context.OrderStatusHistories.Add(order.StatusHistory.Last());
+            await _unitOfWork.SaveChangesAsync(cancellationToken);
+        }
+
         if (eligibleDrivers.Count == 0)
         {
+            if (order.Status == OrderStatus.DriverAssignmentInProgress)
+            {
+                order.ChangeStatus(OrderStatus.DriverAssignmentInProgress, null, "Dispatch pending: no-eligible-driver");
+                _context.OrderStatusHistories.Add(order.StatusHistory.Last());
+                await _unitOfWork.SaveChangesAsync(cancellationToken);
+            }
+
             _logger.LogInformation("Auto-dispatch: No eligible drivers for order {OrderId}", orderId);
             return null;
         }
@@ -85,14 +93,12 @@ public class DeliveryDispatchService : IDeliveryDispatchService
         var driverIds = eligibleDrivers.Select(d => d.Id).ToList();
         var now = DateTime.UtcNow;
 
-        // Load latest GPS for each driver
         var latestLocations = await _context.DriverLocations
             .Where(l => driverIds.Contains(l.DriverId))
             .GroupBy(l => l.DriverId)
             .Select(g => g.OrderByDescending(l => l.RecordedAtUtc).First())
             .ToDictionaryAsync(l => l.DriverId, cancellationToken);
 
-        // Load active task counts
         var activeTaskCounts = await _context.DeliveryAssignments
             .Where(a => a.DriverId != null && driverIds.Contains(a.DriverId.Value) &&
                 a.Status != Zadana.Domain.Modules.Delivery.Enums.AssignmentStatus.Delivered &&
@@ -102,7 +108,6 @@ public class DeliveryDispatchService : IDeliveryDispatchService
             .Select(g => new { DriverId = g.Key, Count = g.Count() })
             .ToDictionaryAsync(g => g.DriverId!.Value, g => g.Count, cancellationToken);
 
-        // Load reliability data (completed vs failed)
         var reliabilityData = await _context.DeliveryAssignments
             .Where(a => a.DriverId != null && driverIds.Contains(a.DriverId.Value) &&
                 (a.Status == Zadana.Domain.Modules.Delivery.Enums.AssignmentStatus.Delivered ||
@@ -116,66 +121,41 @@ public class DeliveryDispatchService : IDeliveryDispatchService
             })
             .ToDictionaryAsync(g => g.DriverId!.Value, cancellationToken);
 
-        // Score and rank drivers
         var candidates = eligibleDrivers.Select(driver =>
         {
             latestLocations.TryGetValue(driver.Id, out var location);
             activeTaskCounts.TryGetValue(driver.Id, out var activeTasks);
             reliabilityData.TryGetValue(driver.Id, out var reliability);
 
-            var gpsFresh = location is not null && (now - location.RecordedAtUtc) < GpsFreshnessThreshold;
-            var distanceKm = 999m;
-            var matchReason = "no-match";
-
-            if (gpsFresh && pickupLat.HasValue && pickupLng.HasValue && location is not null)
-            {
-                distanceKm = ApproximateDistanceKm(location.Latitude, location.Longitude, pickupLat.Value, pickupLng.Value);
-                matchReason = "gps-proximity";
-            }
-            else if (driver.PrimaryZone?.City == branchCity)
-            {
-                distanceKm = 10m; // Approximate zone-level distance
-                matchReason = gpsFresh ? "zone-match" : "zone-match-stale-gps";
-            }
-            else if (driver.PrimaryZone is not null)
-            {
-                distanceKm = 50m; // Different city fallback
-                matchReason = "city-fallback";
-            }
-
             var totalTasks = (reliability?.Completed ?? 0) + (reliability?.Failed ?? 0);
             var reliabilityScore = totalTasks > 0
                 ? (decimal)(reliability!.Completed) / totalTasks * 100
-                : 50m; // New driver gets neutral score
+                : 50m;
 
-            // Composite score: lower is better
-            var score = distanceKm * 2
-                + activeTasks * 15
-                - reliabilityScore * 0.5m
-                + (gpsFresh ? 0 : 20);
+            var evaluation = DeliveryDispatchScoring.EvaluateCandidate(
+                driver,
+                location,
+                activeTasks,
+                reliabilityScore,
+                dispatchContext,
+                now);
 
             return new
             {
                 Driver = driver,
-                Score = score,
-                DistanceKm = distanceKm,
-                ActiveTasks = activeTasks,
-                ReliabilityScore = reliabilityScore,
-                GpsFresh = gpsFresh,
-                MatchReason = matchReason
+                Evaluation = evaluation
             };
         })
-        .OrderBy(c => c.Score)
+        .OrderBy(c => c.Evaluation.CompositeScore)
         .ToList();
 
         var best = candidates.FirstOrDefault();
-        if (best is null || best.MatchReason == "no-match")
+        if (best is null)
         {
             _logger.LogInformation("Auto-dispatch: No suitable driver for order {OrderId}", orderId);
             return null;
         }
 
-        // Create or update assignment
         var assignment = await _context.DeliveryAssignments
             .FirstOrDefaultAsync(a => a.OrderId == orderId, cancellationToken);
 
@@ -188,35 +168,24 @@ public class DeliveryDispatchService : IDeliveryDispatchService
 
         assignment.OfferTo(best.Driver.Id);
         assignment.Accept();
-        order.ChangeStatus(OrderStatus.DriverAssigned, null, $"Auto-dispatched to {best.Driver.User.FullName} ({best.MatchReason})");
+        order.ChangeStatus(
+            OrderStatus.DriverAssigned,
+            null,
+            $"Auto-dispatched using {best.Evaluation.MatchReason} to {best.Driver.User.FullName}");
         _context.OrderStatusHistories.Add(order.StatusHistory.Last());
 
         await _unitOfWork.SaveChangesAsync(cancellationToken);
 
         _logger.LogInformation("Auto-dispatch: Assigned driver {DriverId} to order {OrderId} ({Reason})",
-            best.Driver.Id, orderId, best.MatchReason);
+            best.Driver.Id, orderId, best.Evaluation.MatchReason);
 
         return new DispatchDecisionDto(
             best.Driver.Id,
             best.Driver.User.FullName,
-            Math.Round(best.DistanceKm, 1),
-            best.ActiveTasks,
-            Math.Round(best.ReliabilityScore, 1),
-            best.GpsFresh,
-            best.MatchReason);
-    }
-
-    private static decimal ApproximateDistanceKm(decimal lat1, decimal lng1, decimal lat2, decimal lng2)
-    {
-        // Simple equirectangular approximation (good enough for short distances in Saudi Arabia)
-        var dLat = (double)(lat2 - lat1) * Math.PI / 180;
-        var dLng = (double)(lng2 - lng1) * Math.PI / 180;
-        var avgLat = (double)(lat1 + lat2) / 2 * Math.PI / 180;
-
-        var x = dLng * Math.Cos(avgLat);
-        var y = dLat;
-        var distKm = Math.Sqrt(x * x + y * y) * 6371;
-
-        return (decimal)Math.Round(distKm, 2);
+            Math.Round(best.Evaluation.DistanceKm, 1),
+            best.Evaluation.ActiveTaskCount,
+            Math.Round(best.Evaluation.ReliabilityScore, 1),
+            best.Evaluation.GpsFresh,
+            best.Evaluation.MatchReason);
     }
 }

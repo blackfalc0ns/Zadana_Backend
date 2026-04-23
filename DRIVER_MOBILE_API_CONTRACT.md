@@ -764,7 +764,8 @@ Request body:
 ```json
 {
   "latitude": 30.0444,
-  "longitude": 31.2357
+  "longitude": 31.2357,
+  "accuracyMeters": 18.5
 }
 ```
 
@@ -780,11 +781,22 @@ Validation rules:
 
 - latitude must be between `-90` and `90`
 - longitude must be between `-180` and `180`
+- `accuracyMeters` is optional, but if sent it must be `>= 0`
+
+Operational notes:
+
+- the server records the official location timestamp; mobile should not send `recordedAtUtc`
+- GPS is considered `fresh` for dispatch ranking when the last update is within `5 minutes`
+- if `accuracyMeters > 100`, the reading is treated as low-confidence and is used for tracking, but with lower dispatch priority
+- soft geofence is applied operationally:
+  temporary movement outside the zone does not disable availability or cancel the active assignment
+  it only lowers priority for receiving new assignments
 
 Recommended mobile behavior:
 
-- send location periodically while available
-- send location more frequently while the driver has an active assignment
+- send location every `30 seconds` while available in the foreground
+- send location every `60-90 seconds` while on trip/background if the platform permits
+- send location more frequently when the driver has an active assignment and GPS permission is granted
 
 ### Delivery: Get Current Assignment
 

@@ -22,7 +22,7 @@ public class UpdateDriverLocationCommandHandler : IRequestHandler<UpdateDriverLo
         var driver = await _context.Drivers.FindAsync([request.DriverId], cancellationToken)
             ?? throw new NotFoundException("Driver", request.DriverId);
 
-        var location = new DriverLocation(driver.Id, request.Latitude, request.Longitude);
+        var location = new DriverLocation(driver.Id, request.Latitude, request.Longitude, request.AccuracyMeters);
         _context.DriverLocations.Add(location);
         await _unitOfWork.SaveChangesAsync(cancellationToken);
 

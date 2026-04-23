@@ -8,7 +8,8 @@ namespace Zadana.Application.Modules.Delivery.Commands.UpdateDriverLocation;
 public record UpdateDriverLocationCommand(
     Guid DriverId,
     decimal Latitude,
-    decimal Longitude) : MediatR.IRequest<Unit>;
+    decimal Longitude,
+    decimal? AccuracyMeters) : MediatR.IRequest<Unit>;
 
 public class UpdateDriverLocationCommandValidator : AbstractValidator<UpdateDriverLocationCommand>
 {
@@ -21,5 +22,10 @@ public class UpdateDriverLocationCommandValidator : AbstractValidator<UpdateDriv
 
         RuleFor(x => x.Longitude)
             .InclusiveBetween(-180, 180).WithMessage(x => localizer["InvalidRange"]);
+
+        RuleFor(x => x.AccuracyMeters)
+            .GreaterThanOrEqualTo(0)
+            .When(x => x.AccuracyMeters.HasValue)
+            .WithMessage(x => localizer["InvalidRange"]);
     }
 }
