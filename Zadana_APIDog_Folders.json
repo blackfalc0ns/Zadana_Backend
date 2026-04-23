@@ -4298,10 +4298,14 @@
         },
         "/api/files/upload": {
             "post": {
+                "summary": "Upload a file and receive a public URL",
+                "description": "Mobile should upload the raw image or document here first using multipart/form-data. The returned `url` must then be sent in later JSON requests such as `/api/drivers/register` document fields and `/api/drivers/assignments/{assignmentId}/proof` `imageUrl`.",
                 "tags": [
                     "System/Files"
                 ],
                 "requestBody": {
+                    "required": true,
+                    "description": "Step 1 of the mobile image flow: upload the binary file first, then use the returned URL in the actual driver operation request.",
                     "content": {
                         "multipart/form-data": {
                             "schema": {
@@ -4330,7 +4334,17 @@
                 },
                 "responses": {
                     "200": {
-                        "description": "OK"
+                        "description": "File uploaded successfully. Save the returned URL and use it in the next JSON request.",
+                        "content": {
+                            "application/json": {
+                                "schema": {
+                                    "$ref": "#/components/schemas/UploadFileResponse"
+                                },
+                                "example": {
+                                    "url": "https://cdn.example.com/drivers/proofs/order-10245.jpg"
+                                }
+                            }
+                        }
                     }
                 }
             }
@@ -7427,14 +7441,32 @@
         },
         "/api/drivers/register": {
             "post": {
+                "summary": "Register driver profile",
+                "description": "This endpoint expects document image fields as URL strings, not binary files. Mobile should upload each image first through `/api/files/upload`, then send the returned URLs here.",
                 "tags": [
                     "Driver/Registration"
                 ],
                 "requestBody": {
+                    "required": true,
+                    "description": "Driver registration payload. For `nationalIdImageUrl`, `licenseImageUrl`, `vehicleImageUrl`, and `personalPhotoUrl`, send the URL returned earlier from `/api/files/upload`.",
                     "content": {
                         "application/json": {
                             "schema": {
                                 "$ref": "#/components/schemas/RegisterDriverRequest"
+                            },
+                            "example": {
+                                "fullName": "Ahmed Driver",
+                                "email": "ahmed.driver@example.com",
+                                "phone": "+201001112233",
+                                "password": "StrongPassword123!",
+                                "vehicleType": "Motorcycle",
+                                "nationalId": "29801011234567",
+                                "licenseNumber": "CAI-DRV-4421",
+                                "address": "Nasr City, Cairo",
+                                "nationalIdImageUrl": "https://cdn.example.com/drivers/national-id/id.jpg",
+                                "licenseImageUrl": "https://cdn.example.com/drivers/license/license.jpg",
+                                "vehicleImageUrl": "https://cdn.example.com/drivers/vehicle/bike.jpg",
+                                "personalPhotoUrl": "https://cdn.example.com/drivers/profile/photo.jpg"
                             }
                         },
                         "text/json": {
@@ -10484,6 +10516,8 @@
         },
         "/api/drivers/assignments/{assignmentId}/proof": {
             "post": {
+                "summary": "Submit delivery proof",
+                "description": "For photo proof, mobile must upload the image first via `/api/files/upload`, then send the returned URL in `imageUrl`. This endpoint stores the URL in the database as proof metadata.",
                 "tags": [
                     "Driver/Operations"
                 ],
@@ -10499,10 +10533,19 @@
                     }
                 ],
                 "requestBody": {
+                    "required": true,
+                    "description": "Proof submission payload. When `proofType` is `image` or `photo`, send `imageUrl` from the earlier `/api/files/upload` response instead of binary image data.",
                     "content": {
                         "application/json": {
                             "schema": {
                                 "$ref": "#/components/schemas/SubmitProofRequest"
+                            },
+                            "example": {
+                                "proofType": "photo",
+                                "imageUrl": "https://cdn.example.com/drivers/proofs/order-10245.jpg",
+                                "otpCode": null,
+                                "recipientName": "Mohamed Ali",
+                                "note": "Delivered to building reception"
                             }
                         },
                         "text/json": {
@@ -16169,6 +16212,16 @@
                 },
                 "additionalProperties": false
             },
+            "UploadFileResponse": {
+                "type": "object",
+                "properties": {
+                    "url": {
+                        "type": "string",
+                        "description": "Public or CDN URL of the uploaded file. Mobile should reuse this URL in later driver JSON requests."
+                    }
+                },
+                "additionalProperties": false
+            },
             "RegisterDriverRequest": {
                 "type": "object",
                 "properties": {
@@ -16206,18 +16259,22 @@
                     },
                     "nationalIdImageUrl": {
                         "type": "string",
+                        "description": "URL returned earlier from `/api/files/upload` for the driver's national ID image.",
                         "nullable": true
                     },
                     "licenseImageUrl": {
                         "type": "string",
+                        "description": "URL returned earlier from `/api/files/upload` for the driver's license image.",
                         "nullable": true
                     },
                     "vehicleImageUrl": {
                         "type": "string",
+                        "description": "URL returned earlier from `/api/files/upload` for the driver's vehicle image.",
                         "nullable": true
                     },
                     "personalPhotoUrl": {
                         "type": "string",
+                        "description": "URL returned earlier from `/api/files/upload` for the driver's personal photo.",
                         "nullable": true
                     }
                 },
@@ -16866,6 +16923,7 @@
                     },
                     "imageUrl": {
                         "type": "string",
+                        "description": "When using photo proof, send the URL returned earlier from `/api/files/upload`.",
                         "nullable": true
                     },
                     "parentCategoryId": {

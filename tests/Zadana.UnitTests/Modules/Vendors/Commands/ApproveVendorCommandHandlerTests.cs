@@ -22,7 +22,7 @@ public class ApproveVendorCommandHandlerTests
     [Fact]
     public async Task Handle_WithValidRequest_ApprovesVendor()
     {
-        var vendor = new Vendor(Guid.NewGuid(), "Ar", "En", "Retail", "CR", "test@test.com", "123");
+        var vendor = CreateApprovalReadyVendor();
         var adminId = Guid.NewGuid();
         _currentUserServiceMock.Setup(service => service.UserId).Returns(adminId);
         _vendorRepositoryMock
@@ -88,5 +88,61 @@ public class ApproveVendorCommandHandlerTests
 
         await Assert.ThrowsAsync<UnauthorizedException>(() =>
             handler.Handle(new ApproveVendorCommand(vendor.Id, 10), default));
+    }
+
+    [Fact]
+    public async Task Handle_WhenRequiredDocumentsAreNotClosed_ThrowsBusinessRuleException()
+    {
+        var vendor = new Vendor(Guid.NewGuid(), "Ar", "En", "Retail", "CR", "test@test.com", "123");
+        var adminId = Guid.NewGuid();
+
+        _currentUserServiceMock.Setup(service => service.UserId).Returns(adminId);
+        _vendorRepositoryMock
+            .Setup(repository => repository.GetByIdAsync(vendor.Id, It.IsAny<CancellationToken>()))
+            .ReturnsAsync(vendor);
+
+        var handler = new ApproveVendorCommandHandler(
+            _vendorRepositoryMock.Object,
+            _identityAccountServiceMock.Object,
+            _vendorReviewAuditServiceMock.Object,
+            _unitOfWorkMock.Object,
+            _currentUserServiceMock.Object);
+
+        var exception = await Assert.ThrowsAsync<BusinessRuleException>(() =>
+            handler.Handle(new ApproveVendorCommand(vendor.Id, 10), default));
+
+        exception.Message.Should().Contain("required documents");
+        _unitOfWorkMock.Verify(unitOfWork => unitOfWork.SaveChangesAsync(It.IsAny<CancellationToken>()), Times.Never);
+    }
+
+    private static Vendor CreateApprovalReadyVendor()
+    {
+        var vendor = new Vendor(
+            Guid.NewGuid(),
+            "Ar",
+            "En",
+            "Retail",
+            "CR-1",
+            "test@test.com",
+            "123",
+            taxId: "TAX-1",
+            licenseNumber: "LIC-1",
+            commercialRegisterDocumentUrl: "https://cdn.example.com/cr.pdf",
+            taxDocumentUrl: "https://cdn.example.com/tax.pdf",
+            licenseDocumentUrl: "https://cdn.example.com/license.pdf");
+
+        var commercialReview = new VendorDocumentReview(vendor.Id, VendorDocumentType.Commercial);
+        commercialReview.Approve(Guid.NewGuid(), "Reviewer");
+        vendor.DocumentReviews.Add(commercialReview);
+
+        var taxReview = new VendorDocumentReview(vendor.Id, VendorDocumentType.Tax);
+        taxReview.Approve(Guid.NewGuid(), "Reviewer");
+        vendor.DocumentReviews.Add(taxReview);
+
+        var licenseReview = new VendorDocumentReview(vendor.Id, VendorDocumentType.License);
+        licenseReview.Approve(Guid.NewGuid(), "Reviewer");
+        vendor.DocumentReviews.Add(licenseReview);
+
+        return vendor;
     }
 }

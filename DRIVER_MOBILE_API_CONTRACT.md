@@ -4,6 +4,8 @@ This document explains how the driver mobile app should integrate with the curre
 
 It is focused on the driver app flow only:
 
+- file upload
+- auth and session lifecycle
 - driver registration
 - zone selection
 - availability updates
@@ -30,6 +32,7 @@ The driver app can integrate these APIs today:
 Important:
 
 - The admin approval flow exists in the backend, but it is handled by the superadmin APIs, not by the driver app.
+- A driver can log in before operational approval, but cannot enter dispatch until approved.
 - A driver can only become available after admin approval.
 - The driver must submit photo proof before marking an order as delivered.
 - The driver must provide a failure note before marking delivery as failed.
@@ -43,6 +46,77 @@ All authenticated endpoints in this guide require:
 
 These APIs are protected by the `DriverOnly` policy unless noted otherwise.
 
+## Environment Setup
+
+The mobile app should keep the API base URL configurable per environment.
+
+Recommended environment variables:
+
+- `API_BASE_URL`
+- `WS_BASE_URL` if real-time features are introduced later
+
+Suggested values:
+
+- local: `https://localhost:<api-port>`
+- staging: provided by backend/devops
+- production: provided by backend/devops
+
+Important:
+
+- do not hardcode the full host inside the app
+- all paths in this document are relative to `API_BASE_URL`
+
+## Request Conventions
+
+Use these defaults in the mobile networking layer:
+
+- JSON endpoints: `Content-Type: application/json`
+- file upload endpoint: `Content-Type: multipart/form-data`
+- authenticated endpoints: `Authorization: Bearer <access_token>`
+- optional localization header: `Accept-Language: ar` or `Accept-Language: en`
+
+## Standard Error Contract
+
+The backend uses a global exception middleware and returns `ProblemDetails`-style responses.
+
+Typical business error example:
+
+```json
+{
+  "status": 409,
+  "title": "Business rule violation",
+  "detail": "Photo proof is required before marking an order as delivered.",
+  "instance": "/api/drivers/orders/44444444-4444-4444-4444-444444444444/delivered",
+  "errorCode": "DELIVERY_PROOF_REQUIRED",
+  "traceId": "00-abc123-def456"
+}
+```
+
+Typical validation error example:
+
+```json
+{
+  "status": 400,
+  "title": "Validation error",
+  "detail": "The Identifier field is required.",
+  "instance": "/api/drivers/auth/login",
+  "errors": {
+    "Identifier": [
+      "The Identifier field is required."
+    ]
+  },
+  "errorCode": "VALIDATION_ERROR",
+  "traceId": "00-abc123-def456"
+}
+```
+
+Mobile should always read:
+
+- HTTP status code
+- `errorCode`
+- `detail`
+- `errors` for validation failures
+
 ## Driver Verification Lifecycle
 
 The driver app should treat the account as moving through these states:
@@ -55,6 +129,13 @@ The driver app should treat the account as moving through these states:
 Operational rule:
 
 - `PUT /api/drivers/me/availability` with `isAvailable = true` only succeeds when the driver is both `Approved` and `Active`
+
+Current implementation note:
+
+- there is not yet a dedicated driver-mobile endpoint that returns `verificationStatus` directly for the current authenticated driver
+- temporary mobile behavior can rely on the availability toggle response:
+  - success means the driver is operationally ready
+  - `DRIVER_NOT_READY_FOR_DISPATCH` means the driver is still waiting for review, rejected, or otherwise not active for dispatch
 
 ## Required Driver Documents
 
@@ -73,16 +154,18 @@ If one or more are missing, the backend starts the driver in `NeedsDocuments`.
 
 Recommended app flow:
 
-1. Register the driver
-2. Save tokens returned by registration
-3. Fetch active zones
-4. Let the driver choose one active zone from a dropdown
-5. Keep the app in waiting mode until the superadmin approves the driver
-6. Once approved, allow the driver to toggle availability on
-7. Send periodic GPS updates while online or on an active assignment
-8. Fetch current assignment
-9. Submit photo proof before calling delivered
-10. Update order status through pickup, on-the-way, and delivery completion or failure
+1. Upload required images or documents using the common files endpoint
+2. Register the driver with the returned file URLs
+3. Save `accessToken` and `refreshToken` securely
+4. Call `GET /api/drivers/auth/me` to hydrate the session on app launch
+5. Fetch active zones
+6. Let the driver choose one active zone from a dropdown
+7. Keep the app in waiting mode until the superadmin approves the driver
+8. Once approved, allow the driver to toggle availability on
+9. Send periodic GPS updates while online or on an active assignment
+10. Fetch current assignment
+11. Submit photo proof before calling delivered
+12. Update order status through pickup, on-the-way, and delivery completion or failure
 
 ## Auth Response Shape
 
@@ -111,7 +194,246 @@ Example shape:
 
 ## Endpoints
 
-### 1. Register Driver
+### Common: Upload File
+
+```http
+POST /api/files/upload
+```
+
+Authentication:
+
+- public
+
+Content type:
+
+- `multipart/form-data`
+
+Form fields:
+
+- `file`: binary file
+- `directory`: optional target directory
+
+Suggested directories for the driver app:
+
+- `drivers/national-id`
+- `drivers/license`
+- `drivers/vehicle`
+- `drivers/profile`
+- `drivers/proofs`
+
+Example response:
+
+```json
+{
+  "url": "https://cdn.example.com/drivers/proofs/order-10245.jpg"
+}
+```
+
+Notes:
+
+- allowed file extensions currently are `.jpg`, `.jpeg`, `.png`, `.pdf`
+- registration and proof endpoints expect URL strings, not raw file binaries
+- mobile should upload first, then pass the returned `url` into driver APIs
+
+### Auth: Driver Login
+
+```http
+POST /api/drivers/auth/login
+```
+
+Authentication:
+
+- public
+
+Request body:
+
+```json
+{
+  "identifier": "driver@example.com",
+  "password": "StrongPassword123!"
+}
+```
+
+Notes:
+
+- `identifier` can be either email or phone number
+- login is allowed for driver accounts, but dispatch actions still depend on operational approval
+
+Success response:
+
+- `200 OK`
+- returns `AuthResponseDto`
+
+### Auth: Refresh Token
+
+```http
+POST /api/drivers/auth/refresh-token
+```
+
+Authentication:
+
+- public
+
+Request body:
+
+```json
+{
+  "refreshToken": "stored-refresh-token"
+}
+```
+
+Success response:
+
+```json
+{
+  "accessToken": "new-jwt-access-token",
+  "refreshToken": "new-jwt-refresh-token"
+}
+```
+
+Notes:
+
+- store the new refresh token returned by this endpoint
+- old refresh tokens are revoked during rotation
+
+### Auth: Logout
+
+```http
+POST /api/drivers/auth/logout
+```
+
+Authentication:
+
+- driver only
+
+Request body:
+
+```json
+{
+  "refreshToken": "stored-refresh-token"
+}
+```
+
+Success response:
+
+- `204 No Content`
+
+### Auth: Get Current Driver Session
+
+```http
+GET /api/drivers/auth/me
+```
+
+Authentication:
+
+- driver only
+
+Success response:
+
+```json
+{
+  "id": "11111111-1111-1111-1111-111111111111",
+  "fullName": "Ahmed Driver",
+  "email": "ahmed.driver@example.com",
+  "phone": "+201001112233",
+  "role": "Driver",
+  "favoritesCount": 0
+}
+```
+
+### Auth: Update Current Driver Profile
+
+```http
+PUT /api/drivers/auth/me
+```
+
+Authentication:
+
+- driver only
+
+Request body:
+
+```json
+{
+  "fullName": "Ahmed Driver",
+  "email": "ahmed.driver@example.com",
+  "phone": "+201001112233"
+}
+```
+
+Success response:
+
+```json
+{
+  "id": "11111111-1111-1111-1111-111111111111",
+  "fullName": "Ahmed Driver",
+  "email": "ahmed.driver@example.com",
+  "phone": "+201001112233",
+  "role": "Driver",
+  "favoritesCount": 0
+}
+```
+
+### Auth: Forgot Password
+
+```http
+POST /api/drivers/auth/forgot-password
+```
+
+Authentication:
+
+- public
+
+Request body:
+
+```json
+{
+  "identifier": "driver@example.com"
+}
+```
+
+Success response:
+
+```json
+{
+  "message": "Password reset OTP sent successfully"
+}
+```
+
+Notes:
+
+- the backend may still return success even when the identifier does not map to a user
+- OTP delivery depends on the configured SMS or email channels
+
+### Auth: Reset Password
+
+```http
+POST /api/drivers/auth/reset-password
+```
+
+Authentication:
+
+- public
+
+Request body:
+
+```json
+{
+  "identifier": "driver@example.com",
+  "otpCode": "481920",
+  "newPassword": "NewStrongPassword123!"
+}
+```
+
+Success response:
+
+```json
+{
+  "message": "Password reset successful"
+}
+```
+
+### Delivery: Register Driver
 
 ```http
 POST /api/drivers/register
@@ -150,7 +472,12 @@ Success response:
 - `200 OK`
 - returns `AuthResponseDto`
 
-### 2. Get Active Zones
+Notes:
+
+- this endpoint also returns tokens, so the mobile app can continue without an immediate login call
+- for later app launches, use the driver auth endpoints above
+
+### Delivery: Get Active Zones
 
 ```http
 GET /api/drivers/zones
@@ -181,7 +508,7 @@ Notes:
 - only active zones are returned
 - mobile should use this list to populate the driver zone dropdown
 
-### 3. Set Driver Zone
+### Delivery: Set Driver Zone
 
 ```http
 PUT /api/drivers/me/zone
@@ -212,7 +539,7 @@ Notes:
 - only an active zone can be assigned
 - v1 supports one primary zone per driver
 
-### 4. Set Driver Availability
+### Delivery: Set Driver Availability
 
 ```http
 PUT /api/drivers/me/availability
@@ -251,7 +578,7 @@ Common failure:
 }
 ```
 
-### 5. Update Driver Location
+### Delivery: Update Driver Location
 
 ```http
 POST /api/drivers/location
@@ -288,7 +615,7 @@ Recommended mobile behavior:
 - send location periodically while available
 - send location more frequently while the driver has an active assignment
 
-### 6. Get Current Assignment
+### Delivery: Get Current Assignment
 
 ```http
 GET /api/drivers/assignments/current
@@ -327,7 +654,7 @@ Notes:
 - current implementation returns the latest non-terminal assignment
 - terminal statuses are excluded from this endpoint
 
-### 7. Get Assignment History
+### Delivery: Get Assignment History
 
 ```http
 GET /api/drivers/assignments/history
@@ -359,7 +686,7 @@ Notes:
 
 - the backend currently returns the latest 50 assignments for the authenticated driver
 
-### 8. Submit Delivery Proof
+### Delivery: Submit Delivery Proof
 
 ```http
 POST /api/drivers/assignments/{assignmentId}/proof
@@ -419,7 +746,7 @@ Mobile recommendation:
 - use `photo` as the default proof type in v1
 - submit proof before calling the delivered endpoint
 
-### 9. Mark Order Picked Up
+### Delivery: Mark Order Picked Up
 
 ```http
 POST /api/drivers/orders/{orderId}/picked-up
@@ -439,7 +766,7 @@ Success response:
 }
 ```
 
-### 10. Mark Order On The Way
+### Delivery: Mark Order On The Way
 
 ```http
 POST /api/drivers/orders/{orderId}/on-the-way
@@ -459,7 +786,7 @@ Success response:
 }
 ```
 
-### 11. Mark Order Delivered
+### Delivery: Mark Order Delivered
 
 ```http
 POST /api/drivers/orders/{orderId}/delivered
@@ -492,7 +819,7 @@ Common failure:
 }
 ```
 
-### 12. Mark Order Delivery Failed
+### Delivery: Mark Order Delivery Failed
 
 ```http
 POST /api/drivers/orders/{orderId}/delivery-failed
@@ -562,6 +889,9 @@ The mobile app should handle these error codes explicitly:
 
 ## Mobile UX Recommendations
 
+- Build one shared auth interceptor that injects the bearer token and retries once after `refresh-token`
+- On app startup, prefer `GET /api/drivers/auth/me` to validate the stored session
+- Upload all images first, cache their returned URLs, then send those URLs to registration and proof APIs
 - After registration, always prompt the driver to choose a zone if one is not set
 - Do not show the online toggle as enabled until the account is approved
 - Before showing the delivered CTA, make sure photo proof was uploaded successfully
@@ -573,6 +903,13 @@ The mobile app should handle these error codes explicitly:
 
 The APIDog export was updated to include these driver mobile endpoints:
 
+- `/api/files/upload`
+- `/api/drivers/auth/login`
+- `/api/drivers/auth/forgot-password`
+- `/api/drivers/auth/reset-password`
+- `/api/drivers/auth/refresh-token`
+- `/api/drivers/auth/logout`
+- `/api/drivers/auth/me`
 - `/api/drivers/register`
 - `/api/drivers/zones`
 - `/api/drivers/me/zone`

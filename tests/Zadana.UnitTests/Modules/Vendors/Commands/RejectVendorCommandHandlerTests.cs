@@ -54,4 +54,31 @@ public class RejectVendorCommandHandlerTests
         await Assert.ThrowsAsync<NotFoundException>(() =>
             handler.Handle(new RejectVendorCommand(Guid.NewGuid(), "reason"), default));
     }
+
+    [Fact]
+    public async Task Handle_WhenVendorIsAlreadyActive_ThrowsBusinessRuleException()
+    {
+        var vendor = new Vendor(Guid.NewGuid(), "Ar", "En", "Retail", "CR", "t@t.com", "1");
+        vendor.DocumentReviews.Add(new VendorDocumentReview(vendor.Id, VendorDocumentType.Commercial));
+        vendor.DocumentReviews.Add(new VendorDocumentReview(vendor.Id, VendorDocumentType.Tax));
+        vendor.DocumentReviews.Add(new VendorDocumentReview(vendor.Id, VendorDocumentType.License));
+        vendor.Approve(10, Guid.NewGuid());
+
+        _vendorRepositoryMock
+            .Setup(repository => repository.GetByIdAsync(vendor.Id, It.IsAny<CancellationToken>()))
+            .ReturnsAsync(vendor);
+
+        var handler = new RejectVendorCommandHandler(
+            _vendorRepositoryMock.Object,
+            _vendorReviewAuditServiceMock.Object,
+            _unitOfWorkMock.Object,
+            _currentUserServiceMock.Object);
+
+        var exception = await Assert.ThrowsAsync<BusinessRuleException>(() =>
+            handler.Handle(new RejectVendorCommand(vendor.Id, "reason"), default));
+
+        exception.Message.Should().Contain("Use suspension");
+        vendor.Status.Should().Be(VendorStatus.Active);
+        _unitOfWorkMock.Verify(unitOfWork => unitOfWork.SaveChangesAsync(It.IsAny<CancellationToken>()), Times.Never);
+    }
 }

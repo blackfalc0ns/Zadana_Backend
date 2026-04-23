@@ -2,6 +2,7 @@ using MediatR;
 using Zadana.Application.Common.Interfaces;
 using Zadana.Application.Modules.Identity.Interfaces;
 using Zadana.Application.Modules.Vendors.Interfaces;
+using Zadana.Application.Modules.Vendors.Support;
 using Zadana.SharedKernel.Exceptions;
 
 namespace Zadana.Application.Modules.Vendors.Commands.ApproveVendor;
@@ -35,6 +36,13 @@ public class ApproveVendorCommandHandler : IRequestHandler<ApproveVendorCommand>
 
         var adminId = _currentUserService.UserId
             ?? throw new UnauthorizedException("USER_NOT_AUTHENTICATED");
+
+        if (!VendorReviewWorkflow.IsReadyForFinalApproval(vendor))
+        {
+            throw new BusinessRuleException(
+                "VendorApprovalRequirementsIncomplete",
+                "لا يمكن اعتماد التاجر قبل إقفال المستندات المطلوبة.|Vendor cannot be approved before the required documents are closed.");
+        }
 
         vendor.Approve(request.CommissionRate, adminId);
 

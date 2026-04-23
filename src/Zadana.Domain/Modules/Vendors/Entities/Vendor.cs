@@ -52,7 +52,6 @@ public class Vendor : BaseEntity
     public bool SmsNotificationsEnabled { get; private set; }
     public bool NewOrdersNotificationsEnabled { get; private set; } = true;
 
-    // Navigation
     public ICollection<VendorBranch> Branches { get; private set; } = [];
     public ICollection<VendorBankAccount> BankAccounts { get; private set; } = [];
     public ICollection<VendorDocumentReview> DocumentReviews { get; private set; } = [];
@@ -320,23 +319,42 @@ public class Vendor : BaseEntity
 
     public void Reject(string reason)
     {
-        if (Status != VendorStatus.PendingReview && Status != VendorStatus.Active)
-            throw new BusinessRuleException("VendorInvalidStatusForRejection", $"Status: {Status}");
+        var normalizedReason = reason?.Trim();
+        if (string.IsNullOrWhiteSpace(normalizedReason))
+            throw new BusinessRuleException("VendorRejectionReasonRequired", "يجب إدخال سبب رفض واضح.|A clear rejection reason is required.");
+
+        if (Status == VendorStatus.Active || Status == VendorStatus.Suspended)
+            throw new BusinessRuleException(
+                "VendorInvalidStatusForRejection",
+                "لا يمكن رفض تاجر معتمد أو معلق. استخدم التعليق لإيقاف الحساب التشغيلي.|Approved or suspended vendors cannot be rejected. Use suspension for operational shutdown.");
+
+        if (Status != VendorStatus.PendingReview)
+            throw new BusinessRuleException(
+                "VendorInvalidStatusForRejection",
+                $"لا يمكن رفض التاجر بينما حالته الحالية هي {Status}.|Vendor cannot be rejected while its current status is {Status}.");
 
         Status = VendorStatus.Rejected;
-        RejectionReason = reason.Trim();
+        RejectionReason = normalizedReason;
+        SuspensionReason = null;
+        SuspendedAtUtc = null;
         LastStatusChangedAtUtc = DateTime.UtcNow;
         UpdatedAtUtc = DateTime.UtcNow;
     }
 
     public void Suspend(string reason)
     {
+        var normalizedReason = reason?.Trim();
+        if (string.IsNullOrWhiteSpace(normalizedReason))
+            throw new BusinessRuleException("VendorSuspensionReasonRequired", "يجب إدخال سبب تعليق واضح.|A clear suspension reason is required.");
+
         if (Status != VendorStatus.Active)
-            throw new BusinessRuleException("VendorInvalidStatusForSuspension", $"Status: {Status}");
+            throw new BusinessRuleException(
+                "VendorInvalidStatusForSuspension",
+                $"لا يمكن تعليق الحساب بينما حالته الحالية هي {Status}.|Vendor cannot be suspended while its current status is {Status}.");
 
         Status = VendorStatus.Suspended;
-        SuspensionReason = reason.Trim();
-        RejectionReason = reason.Trim();
+        SuspensionReason = normalizedReason;
+        RejectionReason = null;
         SuspendedAtUtc = DateTime.UtcNow;
         LastStatusChangedAtUtc = DateTime.UtcNow;
         UpdatedAtUtc = DateTime.UtcNow;
@@ -394,7 +412,9 @@ public class Vendor : BaseEntity
     public void Reactivate(Guid approvedBy)
     {
         if (Status != VendorStatus.Suspended)
-            throw new BusinessRuleException("VendorInvalidStatusForReactivation", $"Status: {Status}");
+            throw new BusinessRuleException(
+                "VendorInvalidStatusForReactivation",
+                $"لا يمكن تشغيل الحساب إلا إذا كان معلقًا. الحالة الحالية هي {Status}.|Vendor can only be reactivated when it is suspended. Current status is {Status}.");
 
         Status = VendorStatus.Active;
         RejectionReason = null;
