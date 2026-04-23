@@ -7326,8 +7326,8 @@
                                         "reviewedAtUtc": null,
                                         "reviewNote": null,
                                         "suspensionReason": null,
-                                        "primaryZoneId": null,
-                                        "zoneName": null,
+                                        "primaryZoneId": "22222222-2222-2222-2222-222222222222",
+                                        "zoneName": "Cairo - Nasr City East",
                                         "message": "Driver profile is currently under admin review."
                                     },
                                     "isVerified": false,
@@ -7644,13 +7644,13 @@
         "/api/drivers/register": {
             "post": {
                 "summary": "Register driver profile",
-                "description": "This endpoint expects document image fields as URL strings, not binary files. Mobile should upload each image first through `/api/files/upload`, then send the returned URLs here. The response includes `driverStatus`, which should immediately decide whether the app opens the home screen or an under-review / rejected / suspended screen.",
+                "description": "This endpoint expects document image fields as URL strings, not binary files. Mobile should first load active zones from `/api/public/delivery-zones`, let the driver choose one, upload each image through `/api/files/upload`, then send the returned URLs here together with `primaryZoneId`. The response includes `driverStatus`, which should immediately decide whether the app opens the home screen or an under-review / rejected / suspended screen.",
                 "tags": [
                     "Driver/Registration"
                 ],
                 "requestBody": {
                     "required": true,
-                    "description": "Driver registration payload. For `nationalIdImageUrl`, `licenseImageUrl`, `vehicleImageUrl`, and `personalPhotoUrl`, send the URL returned earlier from `/api/files/upload`.",
+                    "description": "Driver registration payload. `primaryZoneId` must be an active delivery zone id returned earlier from `/api/public/delivery-zones`. For `nationalIdImageUrl`, `licenseImageUrl`, `vehicleImageUrl`, and `personalPhotoUrl`, send the URL returned earlier from `/api/files/upload`.",
                     "content": {
                         "application/json": {
                             "schema": {
@@ -7665,6 +7665,7 @@
                                 "nationalId": "29801011234567",
                                 "licenseNumber": "CAI-DRV-4421",
                                 "address": "Nasr City, Cairo",
+                                "primaryZoneId": "22222222-2222-2222-2222-222222222222",
                                 "nationalIdImageUrl": "https://cdn.example.com/drivers/national-id/id.jpg",
                                 "licenseImageUrl": "https://cdn.example.com/drivers/license/license.jpg",
                                 "vehicleImageUrl": "https://cdn.example.com/drivers/vehicle/bike.jpg",
@@ -7716,8 +7717,8 @@
                                         "reviewedAtUtc": null,
                                         "reviewNote": null,
                                         "suspensionReason": null,
-                                        "primaryZoneId": null,
-                                        "zoneName": null,
+                                        "primaryZoneId": "22222222-2222-2222-2222-222222222222",
+                                        "zoneName": "Cairo - Nasr City East",
                                         "message": "Driver profile is currently under admin review."
                                     },
                                     "isVerified": false,
@@ -10669,10 +10670,45 @@
                 }
             }
         },
+        "/api/public/delivery-zones": {
+            "get": {
+                "summary": "Get public active delivery zones",
+                "description": "Returns the active delivery zones for driver onboarding before the user has a token.",
+                "tags": [
+                    "Public/Delivery"
+                ],
+                "responses": {
+                    "200": {
+                        "description": "OK",
+                        "content": {
+                            "application/json": {
+                                "schema": {
+                                    "type": "array",
+                                    "items": {
+                                        "$ref": "#/components/schemas/DeliveryZoneDto"
+                                    }
+                                },
+                                "example": [
+                                    {
+                                        "id": "22222222-2222-2222-2222-222222222222",
+                                        "city": "Cairo",
+                                        "name": "Nasr City East",
+                                        "centerLat": 30.0626,
+                                        "centerLng": 31.2497,
+                                        "radiusKm": 8,
+                                        "isActive": true
+                                    }
+                                ]
+                            }
+                        }
+                    }
+                }
+            }
+        },
         "/api/drivers/zones": {
             "get": {
                 "summary": "Get active delivery zones",
-                "description": "Returns the currently active delivery zones that the authenticated driver can choose from during onboarding or later zone updates.",
+                "description": "Returns the currently active delivery zones for an authenticated driver who wants to change the current zone later from inside the app.",
                 "tags": [
                     "Driver/Operations"
                 ],
@@ -16862,6 +16898,11 @@
                         "type": "string",
                         "nullable": true
                     },
+                    "primaryZoneId": {
+                        "type": "string",
+                        "format": "uuid",
+                        "description": "Required active delivery zone id selected earlier from `/api/public/delivery-zones`."
+                    },
                     "nationalIdImageUrl": {
                         "type": "string",
                         "description": "URL returned earlier from `/api/files/upload` for the driver's national ID image.",
@@ -16883,6 +16924,9 @@
                         "nullable": true
                     }
                 },
+                "required": [
+                    "primaryZoneId"
+                ],
                 "additionalProperties": false
             },
             "RegisterNotificationDeviceRequest": {

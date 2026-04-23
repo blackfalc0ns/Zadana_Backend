@@ -129,9 +129,10 @@ public class Driver : BaseEntity
         IsAvailable = isAvailable;
     }
 
-    public void AssignZone(Guid zoneId)
+    public void AssignZone(Guid zoneId, DeliveryZone? zone = null)
     {
         PrimaryZoneId = zoneId;
+        PrimaryZone = zone;
     }
 
     private static DriverVerificationStatus DetermineInitialVerificationStatus(

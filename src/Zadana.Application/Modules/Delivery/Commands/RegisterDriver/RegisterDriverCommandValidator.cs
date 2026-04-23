@@ -42,6 +42,9 @@ public class RegisterDriverCommandValidator : AbstractValidator<RegisterDriverCo
             .MaximumLength(30).WithMessage(localizer["MaxLength"].Value)
             .WithName(localizer["LicenseNumber"].Value);
         RuleFor(x => x.Address).MaximumLength(300).WithMessage(localizer["MaxLength"].Value).WithName(localizer["Address"].Value);
+        RuleFor(x => x.PrimaryZoneId)
+            .NotEmpty().WithMessage(localizer["RequiredField"].Value)
+            .WithName("PrimaryZoneId");
 
         // Document URLs
         RuleFor(x => x.NationalIdImageUrl)

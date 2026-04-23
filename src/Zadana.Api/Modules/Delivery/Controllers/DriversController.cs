@@ -33,6 +33,7 @@ public class DriversController : ApiControllerBase
             request.NationalId,
             request.LicenseNumber,
             request.Address,
+            request.PrimaryZoneId,
             request.NationalIdImageUrl,
             request.LicenseImageUrl,
             request.VehicleImageUrl,
@@ -40,6 +41,16 @@ public class DriversController : ApiControllerBase
 
         var result = await Sender.Send(command);
         return Ok(result);
+    }
+
+    [HttpGet("~/api/public/delivery-zones")]
+    [AllowAnonymous]
+    public async Task<IActionResult> GetPublicZones(
+        [FromServices] IDriverReadService driverReadService,
+        CancellationToken cancellationToken = default)
+    {
+        var zones = await driverReadService.GetActiveZonesAsync(cancellationToken);
+        return Ok(zones);
     }
 
     [HttpGet("zones")]

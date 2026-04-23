@@ -11,6 +11,7 @@ public record RegisterDriverRequest(
     string? NationalId,
     string? LicenseNumber,
     string? Address,
+    Guid PrimaryZoneId,
     string? NationalIdImageUrl,
     string? LicenseImageUrl,
     string? VehicleImageUrl,

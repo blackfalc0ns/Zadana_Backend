@@ -210,14 +210,14 @@ If one or more are missing, the backend starts the driver in `NeedsDocuments`.
 
 Recommended app flow:
 
-1. Upload required images or documents using the common files endpoint
-2. Register the driver with the returned file URLs
-3. Save `accessToken` and `refreshToken` securely
-4. Read `driverStatus` from the login or registration response and route immediately to the correct screen
-5. Call `GET /api/drivers/auth/me` to hydrate the session on app launch
-6. Call `GET /api/drivers/me/status` to know whether the driver is operational on later launches
-7. Fetch active zones
-8. Let the driver choose one active zone from a dropdown
+1. Load active delivery zones using `GET /api/public/delivery-zones`
+2. Let the driver choose one active zone from a dropdown
+3. Upload required images or documents using the common files endpoint
+4. Register the driver with the returned file URLs and the selected `primaryZoneId`
+5. Save `accessToken` and `refreshToken` securely
+6. Read `driverStatus` from the login or registration response and route immediately to the correct screen
+7. Call `GET /api/drivers/auth/me` to hydrate the session on app launch
+8. Call `GET /api/drivers/me/status` to know whether the driver is operational on later launches
 9. Keep the app in waiting mode until the superadmin approves the driver
 10. Once approved, allow the driver to toggle availability on
 11. Send periodic GPS updates while online or on an active assignment
@@ -257,8 +257,8 @@ Example shape:
     "reviewedAtUtc": null,
     "reviewNote": null,
     "suspensionReason": null,
-    "primaryZoneId": null,
-    "zoneName": null,
+    "primaryZoneId": "22222222-2222-2222-2222-222222222222",
+    "zoneName": "Cairo - Nasr City East",
     "message": "Driver profile is currently under admin review."
   },
   "isVerified": false,
@@ -548,6 +548,7 @@ Request body:
   "nationalId": "29801011234567",
   "licenseNumber": "CAI-DRV-4421",
   "address": "Nasr City, Cairo",
+  "primaryZoneId": "22222222-2222-2222-2222-222222222222",
   "nationalIdImageUrl": "https://cdn.example.com/driver/national-id.jpg",
   "licenseImageUrl": "https://cdn.example.com/driver/license.jpg",
   "vehicleImageUrl": "https://cdn.example.com/driver/vehicle.jpg",
@@ -557,6 +558,8 @@ Request body:
 
 Notes:
 
+- `primaryZoneId` is required during registration
+- call `GET /api/public/delivery-zones` before registration and send one active zone id here
 - `vehicleType`, `nationalId`, `licenseNumber`, `address`, and document URLs are nullable in the current API contract
 - `vehicleType` is an enum string. Allowed values: `Car`, `Motorcycle`, `Scooter`, `Van`, `Bicycle`, `Truck`
 - send exactly one of the enum values above; do not send localized labels like Arabic vehicle names
@@ -571,17 +574,18 @@ Notes:
 
 - this endpoint also returns tokens, so the mobile app can continue without an immediate login call
 - this response also includes `driverStatus`, so the app can route immediately to `UnderReview`, `Rejected`, `Suspended`, or the normal home
+- the returned `driverStatus.primaryZoneId` and `zoneName` reflect the zone selected during registration
 - for later app launches, use the driver auth endpoints above
 
-### Delivery: Get Active Zones
+### Delivery: Get Public Active Zones
 
 ```http
-GET /api/drivers/zones
+GET /api/public/delivery-zones
 ```
 
 Authentication:
 
-- driver only
+- public
 
 Success response:
 
@@ -602,7 +606,22 @@ Success response:
 Notes:
 
 - only active zones are returned
-- mobile should use this list to populate the driver zone dropdown
+- mobile should use this list to populate the registration zone dropdown before the driver has a token
+
+### Delivery: Get Active Zones After Login
+
+```http
+GET /api/drivers/zones
+```
+
+Authentication:
+
+- driver only
+
+Notes:
+
+- returns the same active zone list after login
+- use it when the authenticated driver wants to change the current zone later from the app
 
 ### Delivery: Set Driver Zone
 
@@ -1141,6 +1160,7 @@ The APIDog export was updated to include these driver mobile endpoints:
 - `/api/drivers/auth/me`
 - `/api/drivers/me/status`
 - `/api/drivers/register`
+- `/api/public/delivery-zones`
 - `/api/drivers/zones`
 - `/api/drivers/me/zone`
 - `/api/drivers/me/availability`
