@@ -1,3 +1,5 @@
+using Zadana.Domain.Modules.Delivery.Enums;
+
 namespace Zadana.Api.Modules.Delivery.Requests;
 
 public record RegisterDriverRequest(
@@ -5,7 +7,7 @@ public record RegisterDriverRequest(
     string Email,
     string Phone,
     string Password,
-    string? VehicleType,
+    DriverVehicleType? VehicleType,
     string? NationalId,
     string? LicenseNumber,
     string? Address,

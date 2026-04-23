@@ -8,7 +8,7 @@ namespace Zadana.Domain.Modules.Delivery.Entities;
 public class Driver : BaseEntity
 {
     public Guid UserId { get; private set; }
-    public string? VehicleType { get; private set; }
+    public DriverVehicleType? VehicleType { get; private set; }
     public string? NationalId { get; private set; }
     public string? LicenseNumber { get; private set; }
     public string? Address { get; private set; }
@@ -18,6 +18,7 @@ public class Driver : BaseEntity
     public string? PersonalPhotoUrl { get; private set; }
     public AccountStatus Status { get; private set; }
     public bool IsAvailable { get; private set; }
+    public bool CanReceiveOrders => VerificationStatus == DriverVerificationStatus.Approved && Status == AccountStatus.Active;
 
     // Verification & Review
     public DriverVerificationStatus VerificationStatus { get; private set; }
@@ -43,7 +44,7 @@ public class Driver : BaseEntity
 
     public Driver(
         Guid userId,
-        string? vehicleType,
+        DriverVehicleType? vehicleType,
         string? nationalId,
         string? licenseNumber,
         string? address = null,
@@ -53,7 +54,7 @@ public class Driver : BaseEntity
         string? personalPhotoUrl = null)
     {
         UserId = userId;
-        VehicleType = vehicleType?.Trim();
+        VehicleType = vehicleType;
         NationalId = nationalId?.Trim();
         LicenseNumber = licenseNumber?.Trim();
         Address = address?.Trim();
@@ -66,9 +67,9 @@ public class Driver : BaseEntity
         VerificationStatus = DetermineInitialVerificationStatus(nationalIdImageUrl, licenseImageUrl, vehicleImageUrl, personalPhotoUrl);
     }
 
-    public void UpdateDetails(string? vehicleType, string? nationalId, string? licenseNumber)
+    public void UpdateDetails(DriverVehicleType? vehicleType, string? nationalId, string? licenseNumber)
     {
-        VehicleType = vehicleType?.Trim();
+        VehicleType = vehicleType;
         NationalId = nationalId?.Trim();
         LicenseNumber = licenseNumber?.Trim();
     }
@@ -122,7 +123,7 @@ public class Driver : BaseEntity
     public void ToggleAvailability(bool isAvailable)
     {
         // Only approved and active drivers can go available
-        if (isAvailable && (VerificationStatus != DriverVerificationStatus.Approved || Status != AccountStatus.Active))
+        if (isAvailable && !CanReceiveOrders)
             return;
 
         IsAvailable = isAvailable;

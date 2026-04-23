@@ -64,6 +64,13 @@ public class DriverUpdateOrderStatusCommandHandler : IRequestHandler<DriverUpdat
         var driver = await _driverRepository.GetByUserIdAsync(request.DriverUserId, cancellationToken)
             ?? throw new BusinessRuleException("DRIVER_NOT_FOUND", "No driver profile found for the current user");
 
+        if (!driver.CanReceiveOrders)
+        {
+            throw new BusinessRuleException(
+                "DRIVER_NOT_READY_FOR_DISPATCH",
+                "Driver must be reviewed and approved by admin before handling delivery orders.");
+        }
+
         // Now compare using the actual Driver.Id against the assignment
         var assignment = await _context.DeliveryAssignments
             .FirstOrDefaultAsync(x => x.OrderId == request.OrderId && x.DriverId == driver.Id, cancellationToken);

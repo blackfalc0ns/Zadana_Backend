@@ -4,6 +4,7 @@ using Zadana.Application.Common.Models;
 using Zadana.Application.Modules.Orders.DTOs;
 using Zadana.Application.Modules.Orders.Interfaces;
 using Zadana.Domain.Modules.Delivery.Entities;
+using Zadana.Domain.Modules.Delivery.Enums;
 using Zadana.Domain.Modules.Identity.Enums;
 using Zadana.Domain.Modules.Orders.Entities;
 using Zadana.Domain.Modules.Orders.Enums;
@@ -547,7 +548,7 @@ public class OrderReadService : IOrderReadService
             assignment.Driver.Id,
             assignment.Driver.User.FullName,
             assignment.Driver.User.PhoneNumber,
-            string.IsNullOrWhiteSpace(assignment.Driver.VehicleType) ? "Delivery Driver" : assignment.Driver.VehicleType.Trim());
+            assignment.Driver.VehicleType?.ToString() ?? "Delivery Driver");
     }
 
     private static string MapStatus(OrderStatus status) =>
@@ -772,7 +773,9 @@ public class OrderReadService : IOrderReadService
         var drivers = await _dbContext.Drivers
             .AsNoTracking()
             .Include(driver => driver.User)
-            .Where(driver => driver.Status == AccountStatus.Active)
+            .Where(driver =>
+                driver.Status == AccountStatus.Active &&
+                driver.VerificationStatus == DriverVerificationStatus.Approved)
             .OrderByDescending(driver => driver.IsAvailable)
             .ThenBy(driver => driver.User.FullName)
             .Take(12)
@@ -853,7 +856,7 @@ public class OrderReadService : IOrderReadService
             assignment?.DriverId?.ToString(),
             assignment?.Driver?.User?.FullName ?? string.Empty,
             assignment?.Driver?.User?.PhoneNumber ?? string.Empty,
-            assignment?.Driver?.VehicleType ?? "Delivery vehicle",
+            assignment?.Driver?.VehicleType?.ToString() ?? "Delivery vehicle",
             assignment?.Driver?.LicenseNumber ?? "N/A",
             address?.City ?? order.Vendor.City ?? string.Empty,
             address?.Area ?? string.Empty,

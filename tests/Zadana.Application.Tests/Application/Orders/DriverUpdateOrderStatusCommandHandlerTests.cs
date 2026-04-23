@@ -4,6 +4,7 @@ using Microsoft.EntityFrameworkCore;
 using Moq;
 using Zadana.Application.Modules.Orders.Commands.DriverUpdateOrderStatus;
 using Zadana.Domain.Modules.Delivery.Entities;
+using Zadana.Domain.Modules.Delivery.Enums;
 using Zadana.Domain.Modules.Identity.Entities;
 using Zadana.Domain.Modules.Identity.Enums;
 using Zadana.Domain.Modules.Orders.Entities;
@@ -19,6 +20,41 @@ namespace Zadana.Application.Tests.Application.Orders;
 public class DriverUpdateOrderStatusCommandHandlerTests
 {
     [Fact]
+    public async Task Handle_WhenDriverIsNotApproved_ShouldThrowBusinessRuleException()
+    {
+        await using var dbContext = CreateDbContext();
+        var customer = new User("Customer User", "driver-status.customer.pending@test.com", "01000000115", UserRole.Customer);
+        var driverUser = new User("Pending Driver", "driver-status.pending@test.com", "01000000116", UserRole.Driver);
+        var vendorId = Guid.NewGuid();
+
+        var driver = new Driver(driverUser.Id, DriverVehicleType.Car, "1234567892", "LIC-789");
+
+        var order = CreateOrder(customer.Id, vendorId, OrderStatus.DriverAssigned, "ORD-DRV-PENDING");
+        var assignment = new DeliveryAssignment(order.Id, 0);
+        assignment.OfferTo(driver.Id);
+        assignment.Accept();
+
+        dbContext.Users.AddRange(customer, driverUser);
+        dbContext.Drivers.Add(driver);
+        dbContext.Orders.Add(order);
+        dbContext.DeliveryAssignments.Add(assignment);
+        await dbContext.SaveChangesAsync();
+
+        var handler = new DriverUpdateOrderStatusCommandHandler(
+            dbContext,
+            dbContext,
+            Mock.Of<IPublisher>(),
+            new DriverRepository(dbContext));
+
+        var action = () => handler.Handle(
+            new DriverUpdateOrderStatusCommand(order.Id, driverUser.Id, OrderStatus.PickedUp, "Picked up"),
+            CancellationToken.None);
+
+        await action.Should().ThrowAsync<BusinessRuleException>()
+            .Where(exception => exception.ErrorCode == "DRIVER_NOT_READY_FOR_DISPATCH");
+    }
+
+    [Fact]
     public async Task Handle_WhenDeliveredWithoutPhotoProof_ShouldThrowBusinessRuleException()
     {
         await using var dbContext = CreateDbContext();
@@ -26,7 +62,7 @@ public class DriverUpdateOrderStatusCommandHandlerTests
         var driverUser = new User("Driver User", "driver-status.driver@test.com", "01000000112", UserRole.Driver);
         var vendorId = Guid.NewGuid();
 
-        var driver = new Driver(driverUser.Id, "Car", "1234567890", "LIC-123");
+        var driver = new Driver(driverUser.Id, DriverVehicleType.Car, "1234567890", "LIC-123");
         driver.Approve(Guid.NewGuid());
 
         var order = CreateOrder(customer.Id, vendorId, OrderStatus.OnTheWay, "ORD-DRV-DELIVERED");
@@ -63,7 +99,7 @@ public class DriverUpdateOrderStatusCommandHandlerTests
         var driverUser = new User("Driver User", "driver-status.driver2@test.com", "01000000114", UserRole.Driver);
         var vendorId = Guid.NewGuid();
 
-        var driver = new Driver(driverUser.Id, "Car", "1234567891", "LIC-456");
+        var driver = new Driver(driverUser.Id, DriverVehicleType.Car, "1234567891", "LIC-456");
         driver.Approve(Guid.NewGuid());
 
         var order = CreateOrder(customer.Id, vendorId, OrderStatus.OnTheWay, "ORD-DRV-FAILED");

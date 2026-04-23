@@ -1,5 +1,6 @@
 using MediatR;
 using Zadana.Application.Modules.Identity.DTOs;
+using Zadana.Domain.Modules.Delivery.Enums;
 
 namespace Zadana.Application.Modules.Delivery.Commands.RegisterDriver;
 
@@ -11,7 +12,7 @@ public record RegisterDriverCommand(
     string Password,
 
     // Driver Info
-    string? VehicleType,
+    DriverVehicleType? VehicleType,
     string? NationalId,
     string? LicenseNumber,
     string? Address,

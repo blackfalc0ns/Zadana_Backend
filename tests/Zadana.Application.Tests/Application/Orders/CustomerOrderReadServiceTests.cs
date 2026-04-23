@@ -1,6 +1,7 @@
 using FluentAssertions;
 using Microsoft.EntityFrameworkCore;
 using Zadana.Domain.Modules.Delivery.Entities;
+using Zadana.Domain.Modules.Delivery.Enums;
 using Zadana.Application.Modules.Orders.Interfaces;
 using Zadana.Domain.Modules.Identity.Entities;
 using Zadana.Domain.Modules.Identity.Enums;
@@ -103,7 +104,7 @@ public class CustomerOrderReadServiceTests
         await using var dbContext = CreateDbContext();
         var customer = CreateUser();
         var driverUser = new User("Driver User", "driver.orders@test.com", "01000000009", UserRole.Driver);
-        var driver = new Driver(driverUser.Id, "Motorbike", "12345678901234", "ABC-123");
+        var driver = new Driver(driverUser.Id, DriverVehicleType.Motorcycle, "12345678901234", "ABC-123");
         var order = CreateOrder(customer.Id, "ORD-TRACK-001", OrderStatus.Placed, OrderStatus.Accepted, OrderStatus.Preparing, OrderStatus.PickedUp, OrderStatus.OnTheWay);
         var assignment = new DeliveryAssignment(order.Id, 0m);
 
@@ -126,7 +127,7 @@ public class CustomerOrderReadServiceTests
         result.Driver.Should().NotBeNull();
         result.Driver!.Name.Should().Be("Driver User");
         result.Driver.PhoneNumber.Should().Be("01000000009");
-        result.Driver.Subtitle.Should().Be("Motorbike");
+        result.Driver.Subtitle.Should().Be("Motorcycle");
         result.EstimatedDelivery.Should().NotBeNull();
         result.Timeline.Should().HaveCount(5);
         result.Timeline[3].Id.Should().Be("out_for_delivery");

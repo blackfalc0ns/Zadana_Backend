@@ -28,7 +28,11 @@ public class RegisterDriverCommandValidator : AbstractValidator<RegisterDriverCo
             .WithName(localizer["Password"].Value);
 
         // Driver Details
-        RuleFor(x => x.VehicleType).MaximumLength(50).WithMessage(localizer["MaxLength"].Value).WithName(localizer["VehicleType"].Value);
+        RuleFor(x => x.VehicleType)
+            .IsInEnum()
+            .When(x => x.VehicleType.HasValue)
+            .WithMessage(localizer["InvalidEnum"].Value)
+            .WithName(localizer["VehicleType"].Value);
         RuleFor(x => x.NationalId)
             .NotEmpty().WithMessage(localizer["RequiredField"].Value)
             .MaximumLength(20).WithMessage(localizer["MaxLength"].Value)

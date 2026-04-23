@@ -107,6 +107,18 @@ public class DriversController : ApiControllerBase
         var driver = await driverRepository.GetByUserIdAsync(userId, cancellationToken)
             ?? throw new NotFoundException("Driver", userId);
 
+        if (!driver.CanReceiveOrders)
+        {
+            return Ok(new
+            {
+                hasAssignment = false,
+                isOperational = false,
+                verificationStatus = driver.VerificationStatus.ToString(),
+                accountStatus = driver.Status.ToString(),
+                message = "Driver must be reviewed and approved by admin before receiving assignments."
+            });
+        }
+
         var assignment = await context.DeliveryAssignments
             .Include(a => a.Order)
             .Where(a => a.DriverId == driver.Id &&
@@ -147,6 +159,13 @@ public class DriversController : ApiControllerBase
         var driver = await driverRepository.GetByUserIdAsync(userId, cancellationToken)
             ?? throw new NotFoundException("Driver", userId);
 
+        if (!driver.CanReceiveOrders)
+        {
+            throw new BusinessRuleException(
+                "DRIVER_NOT_READY_FOR_DISPATCH",
+                "Driver must be reviewed and approved by admin before submitting delivery proof.");
+        }
+
         var assignmentExists = await context.DeliveryAssignments
             .AnyAsync(a => a.Id == assignmentId && a.DriverId == driver.Id, cancellationToken);
 
@@ -175,6 +194,11 @@ public class DriversController : ApiControllerBase
         var userId = currentUserService.UserId ?? throw new UnauthorizedException("DRIVER_NOT_AUTHENTICATED");
         var driver = await driverRepository.GetByUserIdAsync(userId, cancellationToken)
             ?? throw new NotFoundException("Driver", userId);
+
+        if (!driver.CanReceiveOrders)
+        {
+            return Ok(Array.Empty<AdminDriverAssignmentDto>());
+        }
 
         var assignments = await context.DeliveryAssignments
             .Include(a => a.Order)

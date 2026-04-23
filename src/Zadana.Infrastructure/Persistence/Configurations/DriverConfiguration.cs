@@ -12,7 +12,7 @@ public class DriverConfiguration : IEntityTypeConfiguration<Driver>
 
         builder.HasKey(x => x.Id);
 
-        builder.Property(x => x.VehicleType).HasMaxLength(100);
+        builder.Property(x => x.VehicleType).HasConversion<string>().HasMaxLength(100);
         builder.Property(x => x.NationalId).HasMaxLength(100);
         builder.Property(x => x.LicenseNumber).HasMaxLength(100);
         builder.Property(x => x.Address).HasMaxLength(500);

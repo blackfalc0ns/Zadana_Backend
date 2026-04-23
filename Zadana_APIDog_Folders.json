@@ -9781,7 +9781,16 @@
                         "name": "vehicleType",
                         "in": "query",
                         "schema": {
-                            "type": "string"
+                            "type": "string",
+                            "description": "Filter by driver vehicle type enum.",
+                            "enum": [
+                                "Car",
+                                "Motorcycle",
+                                "Scooter",
+                                "Van",
+                                "Bicycle",
+                                "Truck"
+                            ]
                         }
                     },
                     {
@@ -10487,6 +10496,8 @@
         },
         "/api/drivers/assignments/current": {
             "get": {
+                "summary": "Get current driver assignment",
+                "description": "Returns the current non-terminal assignment only when the authenticated driver has been reviewed and approved by admin and is Active. Pending, under-review, rejected, suspended, or inactive drivers receive `hasAssignment: false` and no order details.",
                 "tags": [
                     "Driver/Operations"
                 ],
@@ -10517,7 +10528,7 @@
         "/api/drivers/assignments/{assignmentId}/proof": {
             "post": {
                 "summary": "Submit delivery proof",
-                "description": "For photo proof, mobile must upload the image first via `/api/files/upload`, then send the returned URL in `imageUrl`. This endpoint stores the URL in the database as proof metadata.",
+                "description": "For photo proof, mobile must upload the image first via `/api/files/upload`, then send the returned URL in `imageUrl`. This endpoint stores the URL in the database as proof metadata. The authenticated driver must be reviewed and approved by admin before proof submission is allowed.",
                 "tags": [
                     "Driver/Operations"
                 ],
@@ -10586,6 +10597,8 @@
         },
         "/api/drivers/assignments/history": {
             "get": {
+                "summary": "Get driver assignment history",
+                "description": "Returns recent assignments only for approved active drivers. If the driver is still pending review, under review, rejected, suspended, or inactive, the response is an empty list.",
                 "tags": [
                     "Driver/Operations"
                 ],
@@ -16243,6 +16256,15 @@
                     },
                     "vehicleType": {
                         "type": "string",
+                        "description": "Driver vehicle type enum. Allowed values: Car, Motorcycle, Scooter, Van, Bicycle, Truck. Send enum values, not localized labels.",
+                        "enum": [
+                            "Car",
+                            "Motorcycle",
+                            "Scooter",
+                            "Van",
+                            "Bicycle",
+                            "Truck"
+                        ],
                         "nullable": true
                     },
                     "nationalId": {
@@ -18298,6 +18320,15 @@
                     },
                     "vehicleType": {
                         "type": "string",
+                        "description": "Driver vehicle type enum.",
+                        "enum": [
+                            "Car",
+                            "Motorcycle",
+                            "Scooter",
+                            "Van",
+                            "Bicycle",
+                            "Truck"
+                        ],
                         "nullable": true
                     },
                     "lastSeenAt": {
@@ -18556,6 +18587,15 @@
                     },
                     "vehicleType": {
                         "type": "string",
+                        "description": "Driver vehicle type enum.",
+                        "enum": [
+                            "Car",
+                            "Motorcycle",
+                            "Scooter",
+                            "Van",
+                            "Bicycle",
+                            "Truck"
+                        ],
                         "nullable": true
                     },
                     "joinedAt": {
@@ -18696,8 +18736,29 @@
                     "hasAssignment": {
                         "type": "boolean"
                     },
+                    "isOperational": {
+                        "type": "boolean",
+                        "description": "False when the driver is not yet reviewed and approved by admin.",
+                        "nullable": true
+                    },
+                    "verificationStatus": {
+                        "type": "string",
+                        "description": "Current driver verification state when not operational.",
+                        "nullable": true
+                    },
+                    "accountStatus": {
+                        "type": "string",
+                        "description": "Current driver account state when not operational.",
+                        "nullable": true
+                    },
+                    "message": {
+                        "type": "string",
+                        "description": "Human-readable reason when no assignment is returned because the driver is not operational.",
+                        "nullable": true
+                    },
                     "assignment": {
-                        "$ref": "#/components/schemas/DriverCurrentAssignmentDto"
+                        "$ref": "#/components/schemas/DriverCurrentAssignmentDto",
+                        "nullable": true
                     }
                 },
                 "additionalProperties": false

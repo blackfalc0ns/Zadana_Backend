@@ -129,6 +129,8 @@ The driver app should treat the account as moving through these states:
 Operational rule:
 
 - `PUT /api/drivers/me/availability` with `isAvailable = true` only succeeds when the driver is both `Approved` and `Active`
+- `GET /api/drivers/assignments/current` never exposes an active assignment until the driver is both `Approved` and `Active`
+- proof submission and order status updates also fail with `DRIVER_NOT_READY_FOR_DISPATCH` until admin approval is completed
 
 Current implementation note:
 
@@ -465,6 +467,8 @@ Request body:
 Notes:
 
 - `vehicleType`, `nationalId`, `licenseNumber`, `address`, and document URLs are nullable in the current API contract
+- `vehicleType` is an enum string. Allowed values: `Car`, `Motorcycle`, `Scooter`, `Van`, `Bicycle`, `Truck`
+- send exactly one of the enum values above; do not send localized labels like Arabic vehicle names
 - mobile should still send all available data to avoid landing in `NeedsDocuments`
 
 Success response:
@@ -633,6 +637,18 @@ No active assignment response:
 }
 ```
 
+Not approved yet response:
+
+```json
+{
+  "hasAssignment": false,
+  "isOperational": false,
+  "verificationStatus": "UnderReview",
+  "accountStatus": "Pending",
+  "message": "Driver must be reviewed and approved by admin before receiving assignments."
+}
+```
+
 Active assignment response:
 
 ```json
@@ -653,6 +669,7 @@ Notes:
 
 - current implementation returns the latest non-terminal assignment
 - terminal statuses are excluded from this endpoint
+- if the driver is not approved and active, this endpoint returns `hasAssignment = false` and does not expose order details
 
 ### Delivery: Get Assignment History
 
@@ -685,6 +702,7 @@ Success response:
 Notes:
 
 - the backend currently returns the latest 50 assignments for the authenticated driver
+- if the driver is not approved and active, the backend returns an empty list
 
 ### Delivery: Submit Delivery Proof
 
@@ -737,6 +755,7 @@ Validation rules:
 
 Business rules:
 
+- the driver must be reviewed and approved by admin first
 - the assignment must belong to the authenticated driver
 - proof can only be submitted for active assignments
 - current backend allows proof submission when assignment status is `Accepted`, `PickedUp`, or `ArrivedAtCustomer`

@@ -1,8 +1,6 @@
 using MediatR;
 using Zadana.Application.Common.Interfaces;
 using Zadana.Application.Modules.Delivery.Interfaces;
-using Zadana.Domain.Modules.Delivery.Enums;
-using Zadana.Domain.Modules.Identity.Enums;
 using Zadana.SharedKernel.Exceptions;
 
 namespace Zadana.Application.Modules.Delivery.Commands.UpdateDriverAvailability;
@@ -25,8 +23,7 @@ public class UpdateDriverAvailabilityCommandHandler : IRequestHandler<UpdateDriv
         var driver = await _driverRepository.GetByUserIdAsync(request.DriverUserId, cancellationToken)
             ?? throw new NotFoundException("Driver", request.DriverUserId);
 
-        if (request.IsAvailable &&
-            (driver.VerificationStatus != DriverVerificationStatus.Approved || driver.Status != AccountStatus.Active))
+        if (request.IsAvailable && !driver.CanReceiveOrders)
         {
             throw new BusinessRuleException(
                 "DRIVER_NOT_READY_FOR_DISPATCH",

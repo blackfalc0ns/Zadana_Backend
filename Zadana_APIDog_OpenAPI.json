@@ -15259,6 +15259,15 @@
                     },
                     "vehicleType": {
                         "type": "string",
+                        "description": "Driver vehicle type enum. Allowed values: Car, Motorcycle, Scooter, Van, Bicycle, Truck. Send enum values, not localized labels.",
+                        "enum": [
+                            "Car",
+                            "Motorcycle",
+                            "Scooter",
+                            "Van",
+                            "Bicycle",
+                            "Truck"
+                        ],
                         "nullable": true
                     },
                     "nationalId": {

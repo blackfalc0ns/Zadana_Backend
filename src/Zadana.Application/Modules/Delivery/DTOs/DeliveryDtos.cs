@@ -1,3 +1,5 @@
+using Zadana.Domain.Modules.Delivery.Enums;
+
 namespace Zadana.Application.Modules.Delivery.DTOs;
 
 public record DeliveryZoneDto(
@@ -32,7 +34,7 @@ public record AdminDriverListItemDto(
     decimal AcceptanceRate,
     decimal WalletBalance,
     string Performance,
-    string? VehicleType,
+    DriverVehicleType? VehicleType,
     DateTime LastSeenAt,
     string[] Issues,
     string CollectionPaymentStatus,
@@ -57,7 +59,7 @@ public record AdminDriverDetailDto(
     string City,
     string Status,
     string VerificationStatus,
-    string? VehicleType,
+    DriverVehicleType? VehicleType,
     DateTime JoinedAt,
     DateTime LastSeenAt,
 

@@ -46,7 +46,16 @@ public class DriverReadService : IDriverReadService
             query = query.Where(d => d.VerificationStatus == verEnum);
 
         if (!string.IsNullOrWhiteSpace(vehicleType))
-            query = query.Where(d => d.VehicleType == vehicleType);
+        {
+            if (TryParseVehicleType(vehicleType, out var vehicleTypeEnum))
+            {
+                query = query.Where(d => d.VehicleType == vehicleTypeEnum);
+            }
+            else
+            {
+                query = query.Where(d => false);
+            }
+        }
 
         var drivers = await query
             .OrderByDescending(d => d.CreatedAtUtc)
@@ -303,6 +312,9 @@ public class DriverReadService : IDriverReadService
         acceptanceRate >= 90 ? "Excellent" :
         acceptanceRate >= 75 ? "Good" :
         acceptanceRate >= 55 ? "NeedsImprovement" : "Low";
+
+    private static bool TryParseVehicleType(string value, out DriverVehicleType vehicleType) =>
+        Enum.TryParse(value.Trim(), ignoreCase: true, out vehicleType);
 
     private static string[] DeriveIssues(Driver driver, decimal walletBalance)
     {

@@ -148,6 +148,13 @@ public class AdminOrdersController : ApiControllerBase
         var driver = await _dbContext.Drivers.FirstOrDefaultAsync(item => item.Id == driverId, cancellationToken)
             ?? throw new NotFoundException("Driver", driverId);
 
+        if (!driver.CanReceiveOrders)
+        {
+            throw new BusinessRuleException(
+                "DRIVER_NOT_READY_FOR_DISPATCH",
+                "Driver must be reviewed and approved by admin before assignment.");
+        }
+
         var assignment = await _dbContext.DeliveryAssignments
             .FirstOrDefaultAsync(item => item.OrderId == order.Id, cancellationToken);
 
