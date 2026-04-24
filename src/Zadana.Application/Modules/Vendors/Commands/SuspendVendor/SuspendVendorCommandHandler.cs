@@ -12,6 +12,7 @@ public class SuspendVendorCommandHandler : IRequestHandler<SuspendVendorCommand>
     private readonly IIdentityAccountService _identityAccountService;
     private readonly IRefreshTokenStore _refreshTokenStore;
     private readonly IVendorReviewAuditService _vendorReviewAuditService;
+    private readonly IVendorCommunicationService _vendorCommunicationService;
     private readonly IUnitOfWork _unitOfWork;
     private readonly ICurrentUserService _currentUserService;
 
@@ -20,6 +21,7 @@ public class SuspendVendorCommandHandler : IRequestHandler<SuspendVendorCommand>
         IIdentityAccountService identityAccountService,
         IRefreshTokenStore refreshTokenStore,
         IVendorReviewAuditService vendorReviewAuditService,
+        IVendorCommunicationService vendorCommunicationService,
         IUnitOfWork unitOfWork,
         ICurrentUserService currentUserService)
     {
@@ -27,6 +29,7 @@ public class SuspendVendorCommandHandler : IRequestHandler<SuspendVendorCommand>
         _identityAccountService = identityAccountService;
         _refreshTokenStore = refreshTokenStore;
         _vendorReviewAuditService = vendorReviewAuditService;
+        _vendorCommunicationService = vendorCommunicationService;
         _unitOfWork = unitOfWork;
         _currentUserService = currentUserService;
     }
@@ -57,5 +60,18 @@ public class SuspendVendorCommandHandler : IRequestHandler<SuspendVendorCommand>
             cancellationToken: cancellationToken);
 
         await _unitOfWork.SaveChangesAsync(cancellationToken);
+
+        await _vendorCommunicationService.SendAsync(
+            vendor,
+            new VendorCommunicationMessage(
+                "vendor_suspended",
+                "تم تعليق حساب التاجر",
+                "Vendor account suspended",
+                request.Reason,
+                request.Reason,
+                "/alerts",
+                vendor.Id,
+                SendPush: true),
+            cancellationToken);
     }
 }

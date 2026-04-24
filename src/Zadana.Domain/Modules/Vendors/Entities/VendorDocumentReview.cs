@@ -43,4 +43,14 @@ public class VendorDocumentReview : BaseEntity
         ReviewedByName = reviewedByName.Trim();
         UpdatedAtUtc = DateTime.UtcNow;
     }
+
+    public void ResetToPending()
+    {
+        Decision = VendorDocumentReviewDecision.Pending;
+        RejectionReason = null;
+        ReviewedAtUtc = null;
+        ReviewedByUserId = null;
+        ReviewedByName = null;
+        UpdatedAtUtc = DateTime.UtcNow;
+    }
 }

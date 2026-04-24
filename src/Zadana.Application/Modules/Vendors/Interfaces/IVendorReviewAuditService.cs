@@ -12,4 +12,15 @@ public interface IVendorReviewAuditService
         Guid? actorUserId = null,
         string? authorName = null,
         CancellationToken cancellationToken = default);
+
+    Task AppendActivityEntryAsync(
+        Guid vendorUserId,
+        string kind,
+        string severity,
+        string message,
+        string roleLabel,
+        string fallbackAuthorName,
+        Guid? actorUserId = null,
+        string? authorName = null,
+        CancellationToken cancellationToken = default);
 }

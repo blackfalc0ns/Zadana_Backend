@@ -21,6 +21,7 @@ public class RejectVendorDocumentReviewCommandHandler : IRequestHandler<RejectVe
     private readonly ICurrentUserService _currentUserService;
     private readonly IIdentityAccountService _identityAccountService;
     private readonly IVendorReviewAuditService _vendorReviewAuditService;
+    private readonly IVendorCommunicationService _vendorCommunicationService;
     private readonly IVendorReadService _vendorReadService;
 
     public RejectVendorDocumentReviewCommandHandler(
@@ -29,6 +30,7 @@ public class RejectVendorDocumentReviewCommandHandler : IRequestHandler<RejectVe
         ICurrentUserService currentUserService,
         IIdentityAccountService identityAccountService,
         IVendorReviewAuditService vendorReviewAuditService,
+        IVendorCommunicationService vendorCommunicationService,
         IVendorReadService vendorReadService)
     {
         _vendorRepository = vendorRepository;
@@ -36,6 +38,7 @@ public class RejectVendorDocumentReviewCommandHandler : IRequestHandler<RejectVe
         _currentUserService = currentUserService;
         _identityAccountService = identityAccountService;
         _vendorReviewAuditService = vendorReviewAuditService;
+        _vendorCommunicationService = vendorCommunicationService;
         _vendorReadService = vendorReadService;
     }
 
@@ -75,6 +78,19 @@ public class RejectVendorDocumentReviewCommandHandler : IRequestHandler<RejectVe
             "Vendor Compliance Desk",
             _currentUserService.UserId,
             reviewerName,
+            cancellationToken);
+
+        await _vendorCommunicationService.SendAsync(
+            vendor,
+            new VendorCommunicationMessage(
+                "vendor_document_rejected",
+                "مطلوب إعادة رفع مستند",
+                "Vendor document requires re-upload",
+                $"{documentType} document rejected. {request.Reason.Trim()}",
+                $"{documentType} document rejected. {request.Reason.Trim()}",
+                "/profile",
+                vendor.Id,
+                SendPush: true),
             cancellationToken);
 
         return await _vendorReadService.GetDetailAsync(request.VendorId, cancellationToken)

@@ -45,15 +45,18 @@ public class AdminUpdateVendorLegalBankingCommandHandler : IRequestHandler<Admin
 {
     private readonly IVendorRepository _vendorRepository;
     private readonly IVendorReadService _vendorReadService;
+    private readonly IVendorCommunicationService _vendorCommunicationService;
     private readonly IUnitOfWork _unitOfWork;
 
     public AdminUpdateVendorLegalBankingCommandHandler(
         IVendorRepository vendorRepository,
         IVendorReadService vendorReadService,
+        IVendorCommunicationService vendorCommunicationService,
         IUnitOfWork unitOfWork)
     {
         _vendorRepository = vendorRepository;
         _vendorReadService = vendorReadService;
+        _vendorCommunicationService = vendorCommunicationService;
         _unitOfWork = unitOfWork;
     }
 
@@ -101,6 +104,18 @@ public class AdminUpdateVendorLegalBankingCommandHandler : IRequestHandler<Admin
         }
 
         await _unitOfWork.SaveChangesAsync(cancellationToken);
+
+        await _vendorCommunicationService.SendAsync(
+            vendor,
+            new VendorCommunicationMessage(
+                "vendor_legal_banking_updated",
+                "تم تحديث البيانات القانونية والبنكية",
+                "Vendor legal and banking details updated",
+                "تم تحديث البيانات القانونية أو البنكية من لوحة الإدارة.",
+                "Your legal or banking details were updated by the admin team.",
+                "/profile",
+                vendor.Id),
+            cancellationToken);
 
         return await _vendorReadService.GetDetailAsync(request.VendorId, cancellationToken)
             ?? throw new NotFoundException("Vendor", request.VendorId);

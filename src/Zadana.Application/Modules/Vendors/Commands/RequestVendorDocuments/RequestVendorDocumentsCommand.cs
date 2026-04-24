@@ -13,17 +13,20 @@ public class RequestVendorDocumentsCommandHandler : IRequestHandler<RequestVendo
 {
     private readonly IVendorRepository _vendorRepository;
     private readonly IVendorReviewAuditService _vendorReviewAuditService;
+    private readonly IVendorCommunicationService _vendorCommunicationService;
     private readonly IVendorReadService _vendorReadService;
     private readonly ICurrentUserService _currentUserService;
 
     public RequestVendorDocumentsCommandHandler(
         IVendorRepository vendorRepository,
         IVendorReviewAuditService vendorReviewAuditService,
+        IVendorCommunicationService vendorCommunicationService,
         IVendorReadService vendorReadService,
         ICurrentUserService currentUserService)
     {
         _vendorRepository = vendorRepository;
         _vendorReviewAuditService = vendorReviewAuditService;
+        _vendorCommunicationService = vendorCommunicationService;
         _vendorReadService = vendorReadService;
         _currentUserService = currentUserService;
     }
@@ -47,6 +50,19 @@ public class RequestVendorDocumentsCommandHandler : IRequestHandler<RequestVendo
             "Vendor Compliance Desk",
             _currentUserService.UserId,
             cancellationToken: cancellationToken);
+
+        await _vendorCommunicationService.SendAsync(
+            vendor,
+            new VendorCommunicationMessage(
+                "vendor_documents_requested",
+                "مطلوب تحديث مستندات التاجر",
+                "Vendor documents require updates",
+                note,
+                note,
+                "/profile",
+                vendor.Id,
+                SendPush: true),
+            cancellationToken);
 
         return await _vendorReadService.GetDetailAsync(request.VendorId, cancellationToken)
             ?? throw new NotFoundException("Vendor", request.VendorId);

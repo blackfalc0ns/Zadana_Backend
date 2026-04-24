@@ -44,13 +44,16 @@ public class AdminUpdateVendorFinanceSettingsCommandHandler : IRequestHandler<Ad
 {
     private readonly IApplicationDbContext _context;
     private readonly IVendorReadService _vendorReadService;
+    private readonly IVendorCommunicationService _vendorCommunicationService;
 
     public AdminUpdateVendorFinanceSettingsCommandHandler(
         IApplicationDbContext context,
-        IVendorReadService vendorReadService)
+        IVendorReadService vendorReadService,
+        IVendorCommunicationService vendorCommunicationService)
     {
         _context = context;
         _vendorReadService = vendorReadService;
+        _vendorCommunicationService = vendorCommunicationService;
     }
 
     public async Task<VendorDetailDto> Handle(AdminUpdateVendorFinanceSettingsCommand request, CancellationToken cancellationToken)
@@ -80,6 +83,18 @@ public class AdminUpdateVendorFinanceSettingsCommandHandler : IRequestHandler<Ad
 
         vendor.UpdateFinanceSettings(mode, request.PayoutCycle);
         await _context.SaveChangesAsync(cancellationToken);
+
+        await _vendorCommunicationService.SendAsync(
+            vendor,
+            new VendorCommunicationMessage(
+                "vendor_finance_settings_updated",
+                "تم تحديث إعدادات الدورة المالية",
+                "Vendor finance settings updated",
+                "تم تحديث إعدادات الدورة المالية والتحويلات من لوحة الإدارة.",
+                "Your payout and finance lifecycle settings were updated by the admin team.",
+                "/finance",
+                vendor.Id),
+            cancellationToken);
 
         return await _vendorReadService.GetDetailAsync(request.VendorId, cancellationToken)
             ?? throw new NotFoundException("Vendor", request.VendorId);

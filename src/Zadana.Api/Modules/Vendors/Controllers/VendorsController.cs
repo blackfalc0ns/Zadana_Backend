@@ -12,6 +12,7 @@ using Zadana.Application.Modules.Vendors.Commands.UpdateVendorNotificationSettin
 using Zadana.Application.Modules.Vendors.Commands.UpdateVendorOperationsSettings;
 using Zadana.Application.Modules.Vendors.Commands.UpdateVendorOwner;
 using Zadana.Application.Modules.Vendors.Commands.RegisterVendor;
+using Zadana.Application.Modules.Vendors.Commands.SubmitVendorReview;
 using Zadana.Application.Modules.Vendors.Commands.UpdateVendorProfile;
 using Zadana.Application.Modules.Vendors.Commands.UpdateVendorStore;
 using Zadana.Application.Modules.Vendors.Queries.GetVendorProfile;
@@ -82,6 +83,14 @@ public class VendorsController : ApiControllerBase
     {
         var result = await Sender.Send(new GetVendorProfileQuery());
         return Ok(result);
+    }
+
+    [HttpPost("profile/submit-for-review")]
+    [Authorize(Policy = "VendorOnly")]
+    public async Task<IActionResult> SubmitForReview()
+    {
+        var result = await Sender.Send(new SubmitVendorReviewCommand());
+        return Ok(new { Data = result, Message = _localizer["VendorProfileUpdated"].Value });
     }
 
     [HttpPut("profile/store")]

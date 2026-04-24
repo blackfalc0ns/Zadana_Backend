@@ -115,6 +115,79 @@ public class VendorReadService : IVendorReadService
         return MapDetail(vendor, user, approvedByName, reviewNotifications);
     }
 
+    public async Task<VendorActivityLogPageDto?> GetActivityLogAsync(
+        Guid vendorId,
+        string? type,
+        string? severity,
+        DateTime? dateFrom,
+        DateTime? dateTo,
+        int page,
+        int pageSize,
+        CancellationToken cancellationToken = default)
+    {
+        var vendor = await _dbContext.Vendors
+            .AsNoTracking()
+            .Where(item => item.Id == vendorId)
+            .Select(item => new { item.Id, item.UserId })
+            .FirstOrDefaultAsync(cancellationToken);
+
+        if (vendor == null)
+        {
+            return null;
+        }
+
+        var safePage = Math.Max(page, 1);
+        var safePageSize = pageSize <= 0 ? 20 : pageSize;
+        var normalizedType = NormalizeActivityFilter(type);
+        var normalizedSeverity = NormalizeActivityFilter(severity);
+        var fromUtc = dateFrom?.ToUniversalTime();
+        var toUtc = dateTo?.ToUniversalTime();
+
+        var activityNotifications = await _dbContext.Notifications
+            .AsNoTracking()
+            .Where(item => item.UserId == vendor.UserId && item.Type != null && item.Type.StartsWith("vendor-activity|"))
+            .OrderByDescending(item => item.CreatedAtUtc)
+            .ToListAsync(cancellationToken);
+
+        var filtered = activityNotifications
+            .Where(item =>
+            {
+                var meta = GetActivityMeta(item.Type);
+
+                if (normalizedType != null && !string.Equals(meta.Kind, normalizedType, StringComparison.OrdinalIgnoreCase))
+                {
+                    return false;
+                }
+
+                if (normalizedSeverity != null && !string.Equals(meta.Severity, normalizedSeverity, StringComparison.OrdinalIgnoreCase))
+                {
+                    return false;
+                }
+
+                if (fromUtc.HasValue && item.CreatedAtUtc < fromUtc.Value)
+                {
+                    return false;
+                }
+
+                if (toUtc.HasValue && item.CreatedAtUtc > toUtc.Value)
+                {
+                    return false;
+                }
+
+                return true;
+            })
+            .ToList();
+
+        var totalCount = filtered.Count;
+        var items = filtered
+            .Skip((safePage - 1) * safePageSize)
+            .Take(safePageSize)
+            .Select(MapActivityLogEntry)
+            .ToList();
+
+        return new VendorActivityLogPageDto(items, totalCount, safePage, safePageSize);
+    }
+
     public async Task<VendorWorkspaceDto?> GetWorkspaceByUserIdAsync(Guid userId, CancellationToken cancellationToken = default)
     {
         var vendor = await _dbContext.Vendors
@@ -122,6 +195,7 @@ public class VendorReadService : IVendorReadService
             .Include(item => item.Branches)
                 .ThenInclude(branch => branch.OperatingHours)
             .Include(item => item.BankAccounts)
+            .Include(item => item.DocumentReviews)
             .FirstOrDefaultAsync(item => item.UserId == userId, cancellationToken);
 
         if (vendor == null)
@@ -146,7 +220,13 @@ public class VendorReadService : IVendorReadService
                 .FirstOrDefaultAsync(cancellationToken)
             : null;
 
-        return MapWorkspace(vendor, user, approvedByName);
+        var reviewNotifications = await _dbContext.Notifications
+            .AsNoTracking()
+            .Where(item => item.UserId == vendor.UserId && item.Type != null && item.Type.StartsWith("vendor-review|"))
+            .OrderByDescending(item => item.CreatedAtUtc)
+            .ToListAsync(cancellationToken);
+
+        return MapWorkspace(vendor, user, approvedByName, reviewNotifications);
     }
 
     public Task<Guid?> GetVendorIdByUserIdAsync(Guid userId, CancellationToken cancellationToken = default) =>
@@ -156,10 +236,17 @@ public class VendorReadService : IVendorReadService
             .Select(vendor => (Guid?)vendor.Id)
             .FirstOrDefaultAsync(cancellationToken);
 
-    private static VendorWorkspaceDto MapWorkspace(Vendor vendor, User user, string? approvedByName)
+    private static VendorWorkspaceDto MapWorkspace(
+        Vendor vendor,
+        User user,
+        string? approvedByName,
+        IReadOnlyList<Notification>? reviewNotifications = null)
     {
         var primaryBankAccount = GetPrimaryBankAccount(vendor);
         var primaryBranch = GetPrimaryBranch(vendor);
+        var notifications = reviewNotifications ?? [];
+        var reviewDocuments = MapReviewDocuments(vendor, MapBankAccount(primaryBankAccount), user);
+        var workspaceReview = BuildWorkspaceReview(vendor, reviewDocuments, notifications);
 
         return new VendorWorkspaceDto(
             vendor.Id,
@@ -214,8 +301,233 @@ public class VendorReadService : IVendorReadService
             vendor.Branches.Count,
             vendor.BankAccounts.Count,
             MapBankAccount(primaryBankAccount),
-            MapOperatingHours(primaryBranch));
+            MapOperatingHours(primaryBranch),
+            workspaceReview.ReviewState,
+            workspaceReview.CommercialAccessEnabled,
+            null,
+            workspaceReview.AssignedReviewerName,
+            workspaceReview.ReviewSubmittedAtUtc,
+            workspaceReview.ReviewStartedAtUtc,
+            workspaceReview.ReviewCompletedAtUtc,
+            workspaceReview.RequestedChangesAtUtc,
+            workspaceReview.LastReviewDecision,
+            workspaceReview.Summary,
+            workspaceReview.Items,
+            workspaceReview.RequiredActions,
+            workspaceReview.AuditEntries,
+            workspaceReview.MissingDocumentsCount,
+            workspaceReview.CanSubmitForReview);
     }
+
+    private static WorkspaceReviewProjection BuildWorkspaceReview(
+        Vendor vendor,
+        IReadOnlyList<VendorReviewDocumentDto> reviewDocuments,
+        IReadOnlyList<Notification> reviewNotifications)
+    {
+        var requiredDocuments = reviewDocuments.Where(item => item.IsRequired).ToList();
+        var missingRequired = requiredDocuments.Where(item => !item.IsUploaded).ToList();
+        var rejectedRequired = requiredDocuments
+            .Where(item => string.Equals(item.ReviewDecision, "rejected", StringComparison.OrdinalIgnoreCase))
+            .ToList();
+        var approvedCount = reviewDocuments.Count(item =>
+            string.Equals(item.ReviewDecision, "approved", StringComparison.OrdinalIgnoreCase));
+        var changesRequestedCount = reviewDocuments.Count(item =>
+            string.Equals(item.ReviewDecision, "rejected", StringComparison.OrdinalIgnoreCase));
+        var submittedCount = reviewDocuments.Count(item =>
+            item.IsUploaded
+            && string.Equals(item.ReviewDecision, "pending", StringComparison.OrdinalIgnoreCase));
+        var pendingVendorCount = reviewDocuments.Count(item => !item.IsUploaded);
+
+        var reviewStartedAtUtc = reviewNotifications
+            .FirstOrDefault(item => GetReviewKind(item.Type) == "start-review")
+            ?.CreatedAtUtc;
+        var reviewSubmittedAtUtc = reviewNotifications
+            .FirstOrDefault(item => GetReviewKind(item.Type) == "submitted")
+            ?.CreatedAtUtc;
+        var requestedChangesAtUtc = reviewNotifications
+            .FirstOrDefault(item => GetReviewKind(item.Type) == "request-documents")
+            ?.CreatedAtUtc
+            ?? vendor.DocumentReviews
+                .Where(item => item.Decision == VendorDocumentReviewDecision.Rejected)
+                .OrderByDescending(item => item.ReviewedAtUtc)
+                .Select(item => item.ReviewedAtUtc)
+                .FirstOrDefault();
+        var reviewCompletedAtUtc = vendor.ApprovedAtUtc
+            ?? reviewNotifications
+                .FirstOrDefault(item => GetReviewKind(item.Type) is "approved" or "rejected")
+                ?.CreatedAtUtc;
+        var assignedReviewerName = reviewNotifications
+            .FirstOrDefault(item => GetReviewKind(item.Type) is "start-review" or "document-approved" or "document-rejected")
+            ?.Title;
+
+        var requiredActions = missingRequired
+            .Select(item => new VendorWorkspaceRequiredActionDto(
+                item.Type,
+                $"Please upload the required {NormalizeDocumentLabel(item.Type)} document."))
+            .Concat(rejectedRequired.Select(item => new VendorWorkspaceRequiredActionDto(
+                item.Type,
+                string.IsNullOrWhiteSpace(item.RejectionReason)
+                    ? $"Please re-upload the {NormalizeDocumentLabel(item.Type)} document."
+                    : item.RejectionReason!)))
+            .ToList();
+
+        var canSubmitForReview = vendor.Status == VendorStatus.PendingReview
+            && !vendor.ArchivedAtUtc.HasValue
+            && missingRequired.Count == 0
+            && rejectedRequired.Count == 0
+            && !VendorReviewWorkflow.IsReadyForFinalApproval(vendor);
+
+        var reviewState = ResolveWorkspaceReviewState(
+            vendor,
+            missingRequired.Count,
+            rejectedRequired.Count,
+            reviewStartedAtUtc,
+            reviewSubmittedAtUtc);
+
+        return new WorkspaceReviewProjection(
+            reviewState,
+            vendor.Status == VendorStatus.Active && vendor.ApprovedAtUtc.HasValue,
+            assignedReviewerName,
+            reviewSubmittedAtUtc,
+            reviewStartedAtUtc,
+            reviewCompletedAtUtc,
+            requestedChangesAtUtc,
+            ResolveLastReviewDecision(vendor, rejectedRequired.Count),
+            new VendorWorkspaceReviewSummaryDto(
+                reviewDocuments.Count,
+                approvedCount,
+                pendingVendorCount,
+                submittedCount,
+                changesRequestedCount,
+                0),
+            reviewDocuments.Select(MapWorkspaceReviewItem).ToList(),
+            requiredActions,
+            reviewNotifications.Select(MapWorkspaceAuditEntry).ToList(),
+            missingRequired.Count + rejectedRequired.Count,
+            canSubmitForReview);
+    }
+
+    private static VendorWorkspaceReviewItemDto MapWorkspaceReviewItem(VendorReviewDocumentDto document)
+    {
+        var status = document.ReviewDecision.ToLowerInvariant() switch
+        {
+            "approved" => "approved",
+            "rejected" => "changes_requested",
+            _ => document.IsUploaded ? "submitted" : "pending_vendor"
+        };
+
+        return new VendorWorkspaceReviewItemDto(
+            document.Type,
+            status,
+            null,
+            document.ReviewedByName,
+            document.RejectionReason,
+            document.IsUploaded ? document.ReviewedAtUtc : null,
+            document.ReviewedAtUtc);
+    }
+
+    private static VendorWorkspaceReviewAuditEntryDto MapWorkspaceAuditEntry(Notification notification)
+    {
+        var meta = GetReviewMeta(notification.Type);
+
+        return new VendorWorkspaceReviewAuditEntryDto(
+            notification.Id.ToString(),
+            meta.Kind,
+            meta.Tone == "danger" ? "danger" : meta.Tone,
+            notification.Body,
+            meta.RoleLabel,
+            notification.Title,
+            notification.CreatedAtUtc,
+            null,
+            null);
+    }
+
+    private static string ResolveWorkspaceReviewState(
+        Vendor vendor,
+        int missingRequiredCount,
+        int rejectedRequiredCount,
+        DateTime? reviewStartedAtUtc,
+        DateTime? reviewSubmittedAtUtc)
+    {
+        if (vendor.Status == VendorStatus.Active)
+        {
+            return "Verified";
+        }
+
+        if (vendor.Status == VendorStatus.Suspended)
+        {
+            return "Suspended";
+        }
+
+        if (vendor.Status == VendorStatus.Rejected)
+        {
+            return "Rejected";
+        }
+
+        if (rejectedRequiredCount > 0 || !string.IsNullOrWhiteSpace(vendor.RejectionReason))
+        {
+            return "ChangesRequested";
+        }
+
+        if (reviewStartedAtUtc.HasValue)
+        {
+            return "UnderReview";
+        }
+
+        if (reviewSubmittedAtUtc.HasValue || missingRequiredCount == 0)
+        {
+            return "Submitted";
+        }
+
+        return "AwaitingSubmission";
+    }
+
+    private static string? ResolveLastReviewDecision(Vendor vendor, int rejectedRequiredCount)
+    {
+        if (vendor.Status == VendorStatus.Active)
+        {
+            return "approved";
+        }
+
+        if (vendor.Status == VendorStatus.Rejected)
+        {
+            return "rejected";
+        }
+
+        if (rejectedRequiredCount > 0)
+        {
+            return "changes_requested";
+        }
+
+        return null;
+    }
+
+    private static string NormalizeDocumentLabel(string type) =>
+        type.ToLowerInvariant() switch
+        {
+            "commercial" => "commercial registration",
+            "tax" => "tax certificate",
+            "license" => "municipal license",
+            "bank" => "banking",
+            "identity" => "owner identity",
+            _ => "vendor"
+        };
+
+    private sealed record WorkspaceReviewProjection(
+        string ReviewState,
+        bool CommercialAccessEnabled,
+        string? AssignedReviewerName,
+        DateTime? ReviewSubmittedAtUtc,
+        DateTime? ReviewStartedAtUtc,
+        DateTime? ReviewCompletedAtUtc,
+        DateTime? RequestedChangesAtUtc,
+        string? LastReviewDecision,
+        VendorWorkspaceReviewSummaryDto Summary,
+        IReadOnlyList<VendorWorkspaceReviewItemDto> Items,
+        IReadOnlyList<VendorWorkspaceRequiredActionDto> RequiredActions,
+        IReadOnlyList<VendorWorkspaceReviewAuditEntryDto> AuditEntries,
+        int MissingDocumentsCount,
+        bool CanSubmitForReview);
 
     private static VendorDetailDto MapDetail(
         Vendor vendor,
@@ -223,7 +535,7 @@ public class VendorReadService : IVendorReadService
         string? approvedByName,
         IReadOnlyList<Notification> reviewNotifications)
     {
-        var workspace = MapWorkspace(vendor, user, approvedByName);
+        var workspace = MapWorkspace(vendor, user, approvedByName, reviewNotifications);
         var reviewNotes = reviewNotifications
             .Select(MapReviewNote)
             .ToList();
@@ -403,6 +715,21 @@ public class VendorReadService : IVendorReadService
             kind != "note");
     }
 
+    private static VendorActivityLogEntryDto MapActivityLogEntry(Notification notification)
+    {
+        var meta = GetActivityMeta(notification.Type);
+
+        return new VendorActivityLogEntryDto(
+            notification.Id.ToString(),
+            meta.Kind,
+            meta.Severity,
+            notification.Title,
+            meta.RoleLabel,
+            notification.CreatedAtUtc,
+            notification.Body,
+            meta.Kind != "note");
+    }
+
     private static VendorBranch? GetPrimaryBranch(Vendor vendor) =>
         vendor.Branches
             .OrderByDescending(branch => branch.IsActive)
@@ -450,6 +777,17 @@ public class VendorReadService : IVendorReadService
 
     private static string GetReviewRole(string? type) => GetReviewMeta(type).RoleLabel;
 
+    private static string? NormalizeActivityFilter(string? value)
+    {
+        if (string.IsNullOrWhiteSpace(value))
+        {
+            return null;
+        }
+
+        var normalized = value.Trim().ToLowerInvariant();
+        return normalized is "all" or "*" ? null : normalized;
+    }
+
     private static (string Kind, string Tone, string RoleLabel) GetReviewMeta(string? type)
     {
         if (string.IsNullOrWhiteSpace(type))
@@ -461,6 +799,22 @@ public class VendorReadService : IVendorReadService
         if (parts.Length < 4 || !string.Equals(parts[0], "vendor-review", StringComparison.OrdinalIgnoreCase))
         {
             return ("note", "info", "Vendor Review");
+        }
+
+        return (parts[1], parts[2], parts[3]);
+    }
+
+    private static (string Kind, string Severity, string RoleLabel) GetActivityMeta(string? type)
+    {
+        if (string.IsNullOrWhiteSpace(type))
+        {
+            return ("note", "info", "Vendor Activity");
+        }
+
+        var parts = type.Split('|', 4, StringSplitOptions.TrimEntries);
+        if (parts.Length < 4 || !string.Equals(parts[0], "vendor-activity", StringComparison.OrdinalIgnoreCase))
+        {
+            return ("note", "info", "Vendor Activity");
         }
 
         return (parts[1], parts[2], parts[3]);

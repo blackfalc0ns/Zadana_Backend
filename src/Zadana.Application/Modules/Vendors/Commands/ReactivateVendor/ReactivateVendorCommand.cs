@@ -24,6 +24,7 @@ public class ReactivateVendorCommandHandler : IRequestHandler<ReactivateVendorCo
     private readonly IVendorRepository _vendorRepository;
     private readonly IIdentityAccountService _identityAccountService;
     private readonly IVendorReviewAuditService _vendorReviewAuditService;
+    private readonly IVendorCommunicationService _vendorCommunicationService;
     private readonly IUnitOfWork _unitOfWork;
     private readonly ICurrentUserService _currentUserService;
 
@@ -31,12 +32,14 @@ public class ReactivateVendorCommandHandler : IRequestHandler<ReactivateVendorCo
         IVendorRepository vendorRepository,
         IIdentityAccountService identityAccountService,
         IVendorReviewAuditService vendorReviewAuditService,
+        IVendorCommunicationService vendorCommunicationService,
         IUnitOfWork unitOfWork,
         ICurrentUserService currentUserService)
     {
         _vendorRepository = vendorRepository;
         _identityAccountService = identityAccountService;
         _vendorReviewAuditService = vendorReviewAuditService;
+        _vendorCommunicationService = vendorCommunicationService;
         _unitOfWork = unitOfWork;
         _currentUserService = currentUserService;
     }
@@ -76,5 +79,18 @@ public class ReactivateVendorCommandHandler : IRequestHandler<ReactivateVendorCo
             cancellationToken: cancellationToken);
 
         await _unitOfWork.SaveChangesAsync(cancellationToken);
+
+        await _vendorCommunicationService.SendAsync(
+            vendor,
+            new VendorCommunicationMessage(
+                "vendor_reactivated",
+                "تم إعادة تشغيل حساب التاجر",
+                "Vendor account reactivated",
+                "تمت إعادة تشغيل حسابك وإرجاعه للحالة النشطة.",
+                "Your vendor account has been reactivated and returned to active status.",
+                "/dashboard",
+                vendor.Id,
+                SendPush: true),
+            cancellationToken);
     }
 }

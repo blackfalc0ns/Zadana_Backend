@@ -9,17 +9,20 @@ public class RejectVendorCommandHandler : IRequestHandler<RejectVendorCommand>
 {
     private readonly IVendorRepository _vendorRepository;
     private readonly IVendorReviewAuditService _vendorReviewAuditService;
+    private readonly IVendorCommunicationService _vendorCommunicationService;
     private readonly IUnitOfWork _unitOfWork;
     private readonly ICurrentUserService _currentUserService;
 
     public RejectVendorCommandHandler(
         IVendorRepository vendorRepository,
         IVendorReviewAuditService vendorReviewAuditService,
+        IVendorCommunicationService vendorCommunicationService,
         IUnitOfWork unitOfWork,
         ICurrentUserService currentUserService)
     {
         _vendorRepository = vendorRepository;
         _vendorReviewAuditService = vendorReviewAuditService;
+        _vendorCommunicationService = vendorCommunicationService;
         _unitOfWork = unitOfWork;
         _currentUserService = currentUserService;
     }
@@ -42,5 +45,18 @@ public class RejectVendorCommandHandler : IRequestHandler<RejectVendorCommand>
             cancellationToken: cancellationToken);
 
         await _unitOfWork.SaveChangesAsync(cancellationToken);
+
+        await _vendorCommunicationService.SendAsync(
+            vendor,
+            new VendorCommunicationMessage(
+                "vendor_rejected",
+                "تم رفض طلب اعتماد التاجر",
+                "Vendor application rejected",
+                request.Reason,
+                request.Reason,
+                "/profile",
+                vendor.Id,
+                SendPush: true),
+            cancellationToken);
     }
 }

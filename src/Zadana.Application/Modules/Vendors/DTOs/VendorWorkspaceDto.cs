@@ -47,4 +47,51 @@ public record VendorWorkspaceDto(
     int BranchesCount,
     int BankAccountsCount,
     VendorBankAccountDto? PrimaryBankAccount,
-    IReadOnlyList<VendorOperatingHourDto> OperatingHours);
+    IReadOnlyList<VendorOperatingHourDto> OperatingHours,
+    string ReviewState,
+    bool CommercialAccessEnabled,
+    string? AssignedReviewerId,
+    string? AssignedReviewerName,
+    DateTime? ReviewSubmittedAtUtc,
+    DateTime? ReviewStartedAtUtc,
+    DateTime? ReviewCompletedAtUtc,
+    DateTime? RequestedChangesAtUtc,
+    string? LastReviewDecision,
+    VendorWorkspaceReviewSummaryDto ReviewSummary,
+    IReadOnlyList<VendorWorkspaceReviewItemDto> ReviewItems,
+    IReadOnlyList<VendorWorkspaceRequiredActionDto> RequiredActions,
+    IReadOnlyList<VendorWorkspaceReviewAuditEntryDto> ReviewAuditEntries,
+    int MissingDocumentsCount,
+    bool CanSubmitForReview);
+
+public record VendorWorkspaceReviewSummaryDto(
+    int TotalItems,
+    int ApprovedItems,
+    int PendingVendorItems,
+    int SubmittedItems,
+    int ChangesRequestedItems,
+    int WaivedItems);
+
+public record VendorWorkspaceReviewItemDto(
+    string Code,
+    string Status,
+    string? ReviewerId,
+    string? ReviewerName,
+    string? DecisionNote,
+    DateTime? LastSubmittedAtUtc,
+    DateTime? ReviewedAtUtc);
+
+public record VendorWorkspaceRequiredActionDto(
+    string Code,
+    string Message);
+
+public record VendorWorkspaceReviewAuditEntryDto(
+    string Id,
+    string Kind,
+    string Tone,
+    string Message,
+    string RoleLabel,
+    string AuthorName,
+    DateTime CreatedAtUtc,
+    string? ActorUserId,
+    string? ReviewItemCode);

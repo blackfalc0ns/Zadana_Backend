@@ -36,17 +36,20 @@ public class AdminUpdateVendorOwnerCommandHandler : IRequestHandler<AdminUpdateV
     private readonly IVendorRepository _vendorRepository;
     private readonly IVendorReadService _vendorReadService;
     private readonly IIdentityAccountService _identityAccountService;
+    private readonly IVendorCommunicationService _vendorCommunicationService;
     private readonly IUnitOfWork _unitOfWork;
 
     public AdminUpdateVendorOwnerCommandHandler(
         IVendorRepository vendorRepository,
         IVendorReadService vendorReadService,
         IIdentityAccountService identityAccountService,
+        IVendorCommunicationService vendorCommunicationService,
         IUnitOfWork unitOfWork)
     {
         _vendorRepository = vendorRepository;
         _vendorReadService = vendorReadService;
         _identityAccountService = identityAccountService;
+        _vendorCommunicationService = vendorCommunicationService;
         _unitOfWork = unitOfWork;
     }
 
@@ -70,6 +73,18 @@ public class AdminUpdateVendorOwnerCommandHandler : IRequestHandler<AdminUpdateV
         }
 
         await _unitOfWork.SaveChangesAsync(cancellationToken);
+
+        await _vendorCommunicationService.SendAsync(
+            vendor,
+            new VendorCommunicationMessage(
+                "vendor_owner_updated",
+                "تم تحديث بيانات مالك المتجر",
+                "Vendor owner details updated",
+                "تم تحديث بيانات مالك المتجر من لوحة الإدارة.",
+                "Your store owner details were updated by the admin team.",
+                "/profile",
+                vendor.Id),
+            cancellationToken);
 
         return await _vendorReadService.GetDetailAsync(request.VendorId, cancellationToken)
             ?? throw new NotFoundException("Vendor", request.VendorId);

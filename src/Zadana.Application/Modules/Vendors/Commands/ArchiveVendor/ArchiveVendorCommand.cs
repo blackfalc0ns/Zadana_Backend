@@ -26,6 +26,7 @@ public class ArchiveVendorCommandHandler : IRequestHandler<ArchiveVendorCommand>
     private readonly IIdentityAccountService _identityAccountService;
     private readonly IRefreshTokenStore _refreshTokenStore;
     private readonly IVendorReviewAuditService _vendorReviewAuditService;
+    private readonly IVendorCommunicationService _vendorCommunicationService;
     private readonly IUnitOfWork _unitOfWork;
     private readonly ICurrentUserService _currentUserService;
 
@@ -34,6 +35,7 @@ public class ArchiveVendorCommandHandler : IRequestHandler<ArchiveVendorCommand>
         IIdentityAccountService identityAccountService,
         IRefreshTokenStore refreshTokenStore,
         IVendorReviewAuditService vendorReviewAuditService,
+        IVendorCommunicationService vendorCommunicationService,
         IUnitOfWork unitOfWork,
         ICurrentUserService currentUserService)
     {
@@ -41,6 +43,7 @@ public class ArchiveVendorCommandHandler : IRequestHandler<ArchiveVendorCommand>
         _identityAccountService = identityAccountService;
         _refreshTokenStore = refreshTokenStore;
         _vendorReviewAuditService = vendorReviewAuditService;
+        _vendorCommunicationService = vendorCommunicationService;
         _unitOfWork = unitOfWork;
         _currentUserService = currentUserService;
     }
@@ -71,5 +74,18 @@ public class ArchiveVendorCommandHandler : IRequestHandler<ArchiveVendorCommand>
             cancellationToken: cancellationToken);
 
         await _unitOfWork.SaveChangesAsync(cancellationToken);
+
+        await _vendorCommunicationService.SendAsync(
+            vendor,
+            new VendorCommunicationMessage(
+                "vendor_archived",
+                "تمت أرشفة حساب التاجر",
+                "Vendor account archived",
+                request.Reason,
+                request.Reason,
+                "/alerts",
+                vendor.Id,
+                SendPush: true),
+            cancellationToken);
     }
 }

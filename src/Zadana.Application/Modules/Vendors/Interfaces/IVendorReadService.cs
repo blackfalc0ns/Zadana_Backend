@@ -15,6 +15,16 @@ public interface IVendorReadService
 
     Task<VendorDetailDto?> GetDetailAsync(Guid vendorId, CancellationToken cancellationToken = default);
 
+    Task<VendorActivityLogPageDto?> GetActivityLogAsync(
+        Guid vendorId,
+        string? type,
+        string? severity,
+        DateTime? dateFrom,
+        DateTime? dateTo,
+        int page,
+        int pageSize,
+        CancellationToken cancellationToken = default);
+
     Task<VendorWorkspaceDto?> GetWorkspaceByUserIdAsync(Guid userId, CancellationToken cancellationToken = default);
 
     Task<Guid?> GetVendorIdByUserIdAsync(Guid userId, CancellationToken cancellationToken = default);

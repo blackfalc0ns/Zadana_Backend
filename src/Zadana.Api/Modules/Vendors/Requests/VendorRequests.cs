@@ -202,7 +202,9 @@ public sealed class AdminSendVendorNotificationRequest
     public Guid? ReferenceId { get; init; }
     public string? Data { get; init; }
     public string? TargetUrl { get; init; }
+    public bool SendInbox { get; init; } = true;
     public bool SendPush { get; init; } = true;
+    public bool SendEmail { get; init; } = true;
 }
 
 public record AdminVendorNotificationResponse(
@@ -217,4 +219,8 @@ public record AdminVendorNotificationResponse(
     bool PushSkipped,
     int? PushStatusCode,
     string? ProviderNotificationId,
-    string? PushReason);
+    string? PushReason,
+    bool EmailAttempted,
+    bool EmailSent,
+    bool EmailSkipped,
+    string? EmailReason);

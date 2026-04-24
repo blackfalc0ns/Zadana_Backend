@@ -31,15 +31,18 @@ public class AdminUpdateVendorHoursCommandHandler : IRequestHandler<AdminUpdateV
 {
     private readonly IVendorRepository _vendorRepository;
     private readonly IVendorReadService _vendorReadService;
+    private readonly IVendorCommunicationService _vendorCommunicationService;
     private readonly IUnitOfWork _unitOfWork;
 
     public AdminUpdateVendorHoursCommandHandler(
         IVendorRepository vendorRepository,
         IVendorReadService vendorReadService,
+        IVendorCommunicationService vendorCommunicationService,
         IUnitOfWork unitOfWork)
     {
         _vendorRepository = vendorRepository;
         _vendorReadService = vendorReadService;
+        _vendorCommunicationService = vendorCommunicationService;
         _unitOfWork = unitOfWork;
     }
 
@@ -90,6 +93,18 @@ public class AdminUpdateVendorHoursCommandHandler : IRequestHandler<AdminUpdateV
         }
 
         await _unitOfWork.SaveChangesAsync(cancellationToken);
+
+        await _vendorCommunicationService.SendAsync(
+            vendor,
+            new VendorCommunicationMessage(
+                "vendor_hours_updated",
+                "تم تحديث ساعات تشغيل المتجر",
+                "Vendor operating hours updated",
+                "تم تحديث ساعات تشغيل المتجر من لوحة الإدارة.",
+                "Your store operating hours were updated by the admin team.",
+                "/profile",
+                vendor.Id),
+            cancellationToken);
 
         return await _vendorReadService.GetDetailAsync(request.VendorId, cancellationToken)
             ?? throw new NotFoundException("Vendor", request.VendorId);

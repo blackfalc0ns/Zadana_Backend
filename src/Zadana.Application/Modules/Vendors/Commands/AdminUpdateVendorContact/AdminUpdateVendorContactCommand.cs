@@ -28,15 +28,18 @@ public class AdminUpdateVendorContactCommandHandler : IRequestHandler<AdminUpdat
 {
     private readonly IVendorRepository _vendorRepository;
     private readonly IVendorReadService _vendorReadService;
+    private readonly IVendorCommunicationService _vendorCommunicationService;
     private readonly IUnitOfWork _unitOfWork;
 
     public AdminUpdateVendorContactCommandHandler(
         IVendorRepository vendorRepository,
         IVendorReadService vendorReadService,
+        IVendorCommunicationService vendorCommunicationService,
         IUnitOfWork unitOfWork)
     {
         _vendorRepository = vendorRepository;
         _vendorReadService = vendorReadService;
+        _vendorCommunicationService = vendorCommunicationService;
         _unitOfWork = unitOfWork;
     }
 
@@ -47,6 +50,18 @@ public class AdminUpdateVendorContactCommandHandler : IRequestHandler<AdminUpdat
 
         vendor.UpdateContact(request.Region, request.City, request.NationalAddress);
         await _unitOfWork.SaveChangesAsync(cancellationToken);
+
+        await _vendorCommunicationService.SendAsync(
+            vendor,
+            new VendorCommunicationMessage(
+                "vendor_contact_updated",
+                "تم تحديث عنوان المتجر",
+                "Vendor contact details updated",
+                "تم تحديث بيانات العنوان والتواصل من لوحة الإدارة.",
+                "Your contact and address details were updated by the admin team.",
+                "/profile",
+                vendor.Id),
+            cancellationToken);
 
         return await _vendorReadService.GetDetailAsync(request.VendorId, cancellationToken)
             ?? throw new NotFoundException("Vendor", request.VendorId);

@@ -23,16 +23,25 @@ public class UnlockVendorLoginCommandHandler : IRequestHandler<UnlockVendorLogin
 {
     private readonly IVendorRepository _vendorRepository;
     private readonly IIdentityAccountService _identityAccountService;
+    private readonly IVendorReviewAuditService _vendorReviewAuditService;
+    private readonly IVendorCommunicationService _vendorCommunicationService;
     private readonly IUnitOfWork _unitOfWork;
+    private readonly ICurrentUserService _currentUserService;
 
     public UnlockVendorLoginCommandHandler(
         IVendorRepository vendorRepository,
         IIdentityAccountService identityAccountService,
-        IUnitOfWork unitOfWork)
+        IVendorReviewAuditService vendorReviewAuditService,
+        IVendorCommunicationService vendorCommunicationService,
+        IUnitOfWork unitOfWork,
+        ICurrentUserService currentUserService)
     {
         _vendorRepository = vendorRepository;
         _identityAccountService = identityAccountService;
+        _vendorReviewAuditService = vendorReviewAuditService;
+        _vendorCommunicationService = vendorCommunicationService;
         _unitOfWork = unitOfWork;
+        _currentUserService = currentUserService;
     }
 
     public async Task Handle(UnlockVendorLoginCommand request, CancellationToken cancellationToken)
@@ -55,5 +64,28 @@ public class UnlockVendorLoginCommandHandler : IRequestHandler<UnlockVendorLogin
         }
 
         await _unitOfWork.SaveChangesAsync(cancellationToken);
+
+        await _vendorReviewAuditService.AppendActivityEntryAsync(
+            vendor.UserId,
+            "login-unlocked",
+            "success",
+            "Vendor login was unlocked and account access was restored.",
+            "Security Control",
+            "Admin",
+            _currentUserService.UserId,
+            cancellationToken: cancellationToken);
+
+        await _vendorCommunicationService.SendAsync(
+            vendor,
+            new VendorCommunicationMessage(
+                "vendor_login_unlocked",
+                "تم فتح دخول حساب التاجر",
+                "Vendor login unlocked",
+                "تم فتح دخول حسابك واستعادة الوصول.",
+                "Your login has been unlocked and account access was restored.",
+                "/dashboard",
+                vendor.Id,
+                SendPush: true),
+            cancellationToken);
     }
 }

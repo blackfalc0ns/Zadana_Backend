@@ -25,18 +25,27 @@ public class AdminResetVendorPasswordCommandHandler : IRequestHandler<AdminReset
     private readonly IVendorRepository _vendorRepository;
     private readonly IIdentityAccountService _identityAccountService;
     private readonly IRefreshTokenStore _refreshTokenStore;
+    private readonly IVendorReviewAuditService _vendorReviewAuditService;
+    private readonly IVendorCommunicationService _vendorCommunicationService;
     private readonly IUnitOfWork _unitOfWork;
+    private readonly ICurrentUserService _currentUserService;
 
     public AdminResetVendorPasswordCommandHandler(
         IVendorRepository vendorRepository,
         IIdentityAccountService identityAccountService,
         IRefreshTokenStore refreshTokenStore,
-        IUnitOfWork unitOfWork)
+        IVendorReviewAuditService vendorReviewAuditService,
+        IVendorCommunicationService vendorCommunicationService,
+        IUnitOfWork unitOfWork,
+        ICurrentUserService currentUserService)
     {
         _vendorRepository = vendorRepository;
         _identityAccountService = identityAccountService;
         _refreshTokenStore = refreshTokenStore;
+        _vendorReviewAuditService = vendorReviewAuditService;
+        _vendorCommunicationService = vendorCommunicationService;
         _unitOfWork = unitOfWork;
+        _currentUserService = currentUserService;
     }
 
     public async Task Handle(AdminResetVendorPasswordCommand request, CancellationToken cancellationToken)
@@ -52,5 +61,28 @@ public class AdminResetVendorPasswordCommandHandler : IRequestHandler<AdminReset
 
         await _refreshTokenStore.RevokeAllByUserAsync(vendor.UserId, cancellationToken);
         await _unitOfWork.SaveChangesAsync(cancellationToken);
+
+        await _vendorReviewAuditService.AppendActivityEntryAsync(
+            vendor.UserId,
+            "password-reset",
+            "warning",
+            "Vendor password was reset by an administrator and all active sessions were revoked.",
+            "Security Control",
+            "Admin",
+            _currentUserService.UserId,
+            cancellationToken: cancellationToken);
+
+        await _vendorCommunicationService.SendAsync(
+            vendor,
+            new VendorCommunicationMessage(
+                "vendor_password_reset",
+                "تمت إعادة تعيين كلمة مرور حسابك",
+                "Vendor password reset",
+                "تمت إعادة تعيين كلمة مرور حسابك بواسطة الإدارة، وتم إنهاء الجلسات المفتوحة.",
+                "Your password was reset by the admin team and active sessions were revoked.",
+                "/login",
+                vendor.Id,
+                SendPush: true),
+            cancellationToken);
     }
 }

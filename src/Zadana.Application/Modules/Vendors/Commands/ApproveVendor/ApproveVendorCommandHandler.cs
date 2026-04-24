@@ -12,6 +12,7 @@ public class ApproveVendorCommandHandler : IRequestHandler<ApproveVendorCommand>
     private readonly IVendorRepository _vendorRepository;
     private readonly IIdentityAccountService _identityAccountService;
     private readonly IVendorReviewAuditService _vendorReviewAuditService;
+    private readonly IVendorCommunicationService _vendorCommunicationService;
     private readonly IUnitOfWork _unitOfWork;
     private readonly ICurrentUserService _currentUserService;
 
@@ -19,12 +20,14 @@ public class ApproveVendorCommandHandler : IRequestHandler<ApproveVendorCommand>
         IVendorRepository vendorRepository,
         IIdentityAccountService identityAccountService,
         IVendorReviewAuditService vendorReviewAuditService,
+        IVendorCommunicationService vendorCommunicationService,
         IUnitOfWork unitOfWork,
         ICurrentUserService currentUserService)
     {
         _vendorRepository = vendorRepository;
         _identityAccountService = identityAccountService;
         _vendorReviewAuditService = vendorReviewAuditService;
+        _vendorCommunicationService = vendorCommunicationService;
         _unitOfWork = unitOfWork;
         _currentUserService = currentUserService;
     }
@@ -69,5 +72,18 @@ public class ApproveVendorCommandHandler : IRequestHandler<ApproveVendorCommand>
             cancellationToken: cancellationToken);
 
         await _unitOfWork.SaveChangesAsync(cancellationToken);
+
+        await _vendorCommunicationService.SendAsync(
+            vendor,
+            new VendorCommunicationMessage(
+                "vendor_approved",
+                "تم اعتماد حساب التاجر",
+                "Vendor account approved",
+                "تم اعتماد حسابك ويمكنك الآن تشغيل متجرك واستقبال الطلبات حسب إعدادات التشغيل.",
+                "Your vendor account has been approved. You can now operate your store and receive orders according to your operations settings.",
+                "/dashboard",
+                vendor.Id,
+                SendPush: true),
+            cancellationToken);
     }
 }
