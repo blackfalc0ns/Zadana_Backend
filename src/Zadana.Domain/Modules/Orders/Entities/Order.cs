@@ -22,6 +22,12 @@ public class Order : BaseEntity
     public decimal Subtotal { get; private set; }
     public decimal DiscountTotal { get; private set; }
     public decimal DeliveryFee { get; private set; }
+    public decimal BaseDeliveryFee { get; private set; }
+    public decimal DistanceDeliveryFee { get; private set; }
+    public decimal SurgeDeliveryFee { get; private set; }
+    public decimal? QuotedDistanceKm { get; private set; }
+    public string? DeliveryPricingMode { get; private set; }
+    public string? DeliveryPricingRuleLabel { get; private set; }
     public decimal CommissionAmount { get; private set; }
     public decimal TotalAmount { get; private set; }
     
@@ -51,6 +57,12 @@ public class Order : BaseEntity
         decimal subtotal,
         decimal discountTotal,
         decimal deliveryFee,
+        decimal baseDeliveryFee,
+        decimal distanceDeliveryFee,
+        decimal surgeDeliveryFee,
+        decimal? quotedDistanceKm,
+        string? deliveryPricingMode,
+        string? deliveryPricingRuleLabel,
         decimal commissionAmount,
         string? notes = null,
         Guid? vendorBranchId = null,
@@ -64,6 +76,12 @@ public class Order : BaseEntity
         Subtotal = subtotal;
         DiscountTotal = discountTotal;
         DeliveryFee = deliveryFee;
+        BaseDeliveryFee = baseDeliveryFee;
+        DistanceDeliveryFee = distanceDeliveryFee;
+        SurgeDeliveryFee = surgeDeliveryFee;
+        QuotedDistanceKm = quotedDistanceKm;
+        DeliveryPricingMode = string.IsNullOrWhiteSpace(deliveryPricingMode) ? null : deliveryPricingMode.Trim();
+        DeliveryPricingRuleLabel = string.IsNullOrWhiteSpace(deliveryPricingRuleLabel) ? null : deliveryPricingRuleLabel.Trim();
         CommissionAmount = commissionAmount;
         TotalAmount = Math.Max(0, subtotal - discountTotal + deliveryFee);
         Notes = notes?.Trim();

@@ -74,6 +74,45 @@ public class Driver : BaseEntity
         LicenseNumber = licenseNumber?.Trim();
     }
 
+    public void UpdateAddress(string? address)
+    {
+        Address = string.IsNullOrWhiteSpace(address) ? null : address.Trim();
+    }
+
+    public void UpdateDocuments(
+        string? nationalIdImageUrl,
+        string? licenseImageUrl,
+        string? vehicleImageUrl,
+        string? personalPhotoUrl)
+    {
+        NationalIdImageUrl = NormalizeOptional(nationalIdImageUrl);
+        LicenseImageUrl = NormalizeOptional(licenseImageUrl);
+        VehicleImageUrl = NormalizeOptional(vehicleImageUrl);
+        PersonalPhotoUrl = NormalizeOptional(personalPhotoUrl);
+    }
+
+    public void RefreshProfileReviewState(bool hasRequiredProfileData, bool sensitiveChange, string? note = null)
+    {
+        if (!sensitiveChange && VerificationStatus == DriverVerificationStatus.Approved)
+        {
+            return;
+        }
+
+        VerificationStatus = hasRequiredProfileData
+            ? DriverVerificationStatus.UnderReview
+            : DriverVerificationStatus.NeedsDocuments;
+
+        ReviewNote = NormalizeOptional(note);
+        ReviewedAtUtc = null;
+        ReviewedByUserId = null;
+        IsAvailable = false;
+
+        if (Status == AccountStatus.Inactive && VerificationStatus != DriverVerificationStatus.Rejected)
+        {
+            Status = AccountStatus.Pending;
+        }
+    }
+
     public void Approve(Guid reviewerUserId, string? note = null)
     {
         VerificationStatus = DriverVerificationStatus.Approved;
@@ -135,6 +174,12 @@ public class Driver : BaseEntity
         PrimaryZone = zone;
     }
 
+    public void ClearZone()
+    {
+        PrimaryZoneId = null;
+        PrimaryZone = null;
+    }
+
     private static DriverVerificationStatus DetermineInitialVerificationStatus(
         string? nationalIdImageUrl, string? licenseImageUrl, string? vehicleImageUrl, string? personalPhotoUrl)
     {
@@ -145,4 +190,7 @@ public class Driver : BaseEntity
 
         return hasAllDocs ? DriverVerificationStatus.UnderReview : DriverVerificationStatus.NeedsDocuments;
     }
+
+    private static string? NormalizeOptional(string? value) =>
+        string.IsNullOrWhiteSpace(value) ? null : value.Trim();
 }

@@ -18,6 +18,7 @@ public class SuspendVendorCommandHandlerTests
     private readonly Mock<IVendorRepository> _vendorRepositoryMock = new();
     private readonly Mock<IIdentityAccountService> _identityAccountServiceMock = new();
     private readonly Mock<IRefreshTokenStore> _refreshTokenStoreMock = new();
+    private readonly Mock<IVendorCommunicationService> _vendorCommunicationServiceMock = new();
     private readonly Mock<IUnitOfWork> _unitOfWorkMock = new();
 
     [Fact]
@@ -39,6 +40,7 @@ public class SuspendVendorCommandHandlerTests
             _identityAccountServiceMock.Object,
             _refreshTokenStoreMock.Object,
             _vendorReviewAuditServiceMock.Object,
+            _vendorCommunicationServiceMock.Object,
             _unitOfWorkMock.Object,
             _currentUserServiceMock.Object);
 
@@ -62,6 +64,7 @@ public class SuspendVendorCommandHandlerTests
             _identityAccountServiceMock.Object,
             _refreshTokenStoreMock.Object,
             _vendorReviewAuditServiceMock.Object,
+            _vendorCommunicationServiceMock.Object,
             _unitOfWorkMock.Object,
             _currentUserServiceMock.Object);
 
@@ -83,6 +86,7 @@ public class SuspendVendorCommandHandlerTests
             _identityAccountServiceMock.Object,
             _refreshTokenStoreMock.Object,
             _vendorReviewAuditServiceMock.Object,
+            _vendorCommunicationServiceMock.Object,
             _unitOfWorkMock.Object,
             _currentUserServiceMock.Object);
 

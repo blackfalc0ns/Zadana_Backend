@@ -108,9 +108,10 @@ public class CustomerOrderReadServiceTests
         var order = CreateOrder(customer.Id, "ORD-TRACK-001", OrderStatus.Placed, OrderStatus.Accepted, OrderStatus.Preparing, OrderStatus.PickedUp, OrderStatus.OnTheWay);
         var assignment = new DeliveryAssignment(order.Id, 0m);
 
-        assignment.OfferTo(driver.Id);
+        assignment.OfferTo(driver.Id, 1, DateTime.UtcNow.AddMinutes(5));
         assignment.Accept();
         assignment.MarkPickedUp();
+        assignment.EnsureDeliveryOtp(TimeSpan.FromHours(4));
 
         dbContext.Users.AddRange(customer, driverUser);
         dbContext.Drivers.Add(driver);
@@ -128,11 +129,43 @@ public class CustomerOrderReadServiceTests
         result.Driver!.Name.Should().Be("Driver User");
         result.Driver.PhoneNumber.Should().Be("01000000009");
         result.Driver.Subtitle.Should().Be("Motorcycle");
+        result.AssignedDriver.Should().NotBeNull();
+        result.ShowDeliveryOtp.Should().BeTrue();
+        result.DeliveryOtp.Should().Be(assignment.DeliveryOtpCode);
         result.EstimatedDelivery.Should().NotBeNull();
         result.Timeline.Should().HaveCount(5);
         result.Timeline[3].Id.Should().Be("out_for_delivery");
         result.Timeline[3].IsActive.Should().BeTrue();
         result.Timeline[0].IsCompleted.Should().BeTrue();
+    }
+
+    [Fact]
+    public async Task GetCustomerOrderTrackingAsync_ShouldExposeArrivalStateWhenDriverReachedCustomer()
+    {
+        await using var dbContext = CreateDbContext();
+        var customer = CreateUser();
+        var driverUser = new User("Driver User", "driver.arrival.customer@test.com", "01000000022", UserRole.Driver);
+        var driver = new Driver(driverUser.Id, DriverVehicleType.Motorcycle, "12345678901235", "ABC-124");
+        var order = CreateOrder(customer.Id, "ORD-TRACK-003", OrderStatus.Placed, OrderStatus.Accepted, OrderStatus.Preparing, OrderStatus.PickedUp, OrderStatus.OnTheWay);
+        var assignment = new DeliveryAssignment(order.Id, 0m);
+
+        assignment.OfferTo(driver.Id, 1, DateTime.UtcNow.AddMinutes(5));
+        assignment.Accept();
+        assignment.MarkPickedUp();
+        assignment.MarkArrivedAtCustomer();
+
+        dbContext.Users.AddRange(customer, driverUser);
+        dbContext.Drivers.Add(driver);
+        dbContext.Orders.Add(order);
+        dbContext.DeliveryAssignments.Add(assignment);
+        await dbContext.SaveChangesAsync();
+
+        var service = new OrderReadService(dbContext);
+        var result = await service.GetCustomerOrderTrackingAsync(order.Id, customer.Id);
+
+        result.Should().NotBeNull();
+        result!.DriverArrivalState.Should().Be("arrived_at_customer");
+        result.DriverArrivalUpdatedAtUtc.Should().NotBeNull();
     }
 
     [Fact]
@@ -174,7 +207,7 @@ public class CustomerOrderReadServiceTests
 
     private static Order CreateOrder(Guid userId, OrderStatus status, string orderNumber, PaymentMethodType paymentMethod = PaymentMethodType.CashOnDelivery)
     {
-        var order = new Order(orderNumber, userId, Guid.NewGuid(), Guid.NewGuid(), paymentMethod, 100m, 0m, 10m, 5m);
+        var order = new Order(orderNumber, userId, Guid.NewGuid(), Guid.NewGuid(), paymentMethod, 100m, 0m, 10m, 10m, 0m, 0m, null, null, null, 5m);
         order.Items.Add(new OrderItem(order.Id, Guid.NewGuid(), Guid.NewGuid(), "Fresh Item", 2, 50m));
 
         if (status != OrderStatus.PendingPayment)
@@ -187,7 +220,7 @@ public class CustomerOrderReadServiceTests
 
     private static Order CreateOrder(Guid userId, string orderNumber, params OrderStatus[] statuses)
     {
-        var order = new Order(orderNumber, userId, Guid.NewGuid(), Guid.NewGuid(), PaymentMethodType.CashOnDelivery, 100m, 0m, 10m, 5m);
+        var order = new Order(orderNumber, userId, Guid.NewGuid(), Guid.NewGuid(), PaymentMethodType.CashOnDelivery, 100m, 0m, 10m, 10m, 0m, 0m, null, null, null, 5m);
         order.Items.Add(new OrderItem(order.Id, Guid.NewGuid(), Guid.NewGuid(), "Fresh Item", 2, 50m));
 
         foreach (var status in statuses)

@@ -14,6 +14,7 @@ public class RejectVendorCommandHandlerTests
     private readonly Mock<ICurrentUserService> _currentUserServiceMock = new();
     private readonly Mock<IVendorReviewAuditService> _vendorReviewAuditServiceMock = new();
     private readonly Mock<IVendorRepository> _vendorRepositoryMock = new();
+    private readonly Mock<IVendorCommunicationService> _vendorCommunicationServiceMock = new();
     private readonly Mock<IUnitOfWork> _unitOfWorkMock = new();
 
     [Fact]
@@ -28,6 +29,7 @@ public class RejectVendorCommandHandlerTests
         var handler = new RejectVendorCommandHandler(
             _vendorRepositoryMock.Object,
             _vendorReviewAuditServiceMock.Object,
+            _vendorCommunicationServiceMock.Object,
             _unitOfWorkMock.Object,
             _currentUserServiceMock.Object);
 
@@ -48,6 +50,7 @@ public class RejectVendorCommandHandlerTests
         var handler = new RejectVendorCommandHandler(
             _vendorRepositoryMock.Object,
             _vendorReviewAuditServiceMock.Object,
+            _vendorCommunicationServiceMock.Object,
             _unitOfWorkMock.Object,
             _currentUserServiceMock.Object);
 
@@ -71,6 +74,7 @@ public class RejectVendorCommandHandlerTests
         var handler = new RejectVendorCommandHandler(
             _vendorRepositoryMock.Object,
             _vendorReviewAuditServiceMock.Object,
+            _vendorCommunicationServiceMock.Object,
             _unitOfWorkMock.Object,
             _currentUserServiceMock.Object);
 

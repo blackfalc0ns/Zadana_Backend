@@ -42,6 +42,10 @@ public class StartPaymobCheckoutCommandHandler : IRequestHandler<StartPaymobChec
         }
 
         var couponId = await ResolveCouponIdAsync(request.PromoCode, request.VendorId, cancellationToken);
+        var cart = await _context.Carts
+            .AsNoTracking()
+            .FirstOrDefaultAsync(x => x.UserId == request.UserId, cancellationToken)
+            ?? throw new BusinessRuleException("EMPTY_CART", "Cart not found for checkout.");
 
         var orderId = await _sender.Send(
             new PlaceOrderCommand(
@@ -52,6 +56,12 @@ public class StartPaymobCheckoutCommandHandler : IRequestHandler<StartPaymobChec
                 request.Notes,
                 request.VendorBranchId,
                 couponId,
+                cart.BaseDeliveryFee,
+                cart.DistanceDeliveryFee,
+                cart.SurgeDeliveryFee,
+                cart.QuotedDistanceKm,
+                cart.DeliveryPricingMode,
+                cart.DeliveryPricingRuleLabel,
                 false),
             cancellationToken);
 

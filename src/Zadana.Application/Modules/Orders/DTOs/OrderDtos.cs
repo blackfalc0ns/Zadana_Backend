@@ -66,8 +66,21 @@ public record VendorOrderDetailDto(
     decimal TotalAmount,
     string? Notes,
     DateTime PlacedAtUtc,
+    AssignedDriverSummaryDto? AssignedDriver,
+    string DriverArrivalState,
+    DateTime? DriverArrivalUpdatedAtUtc,
+    string? PickupOtp,
+    bool CanConfirmPickup,
+    string PickupOtpStatus,
     IReadOnlyList<OrderItemDto> Items,
     IReadOnlyList<VendorOrderTimelineItemDto> Timeline);
+
+public record AssignedDriverSummaryDto(
+    Guid Id,
+    string Name,
+    string? PhoneNumber,
+    string VehicleType,
+    string PlateNumber);
 
 public record VendorOrderTimelineItemDto(
     string Status,
@@ -124,6 +137,11 @@ public record CustomerOrderTrackingDto(
     CustomerOrderTrackingOrderDto Order,
     CustomerOrderEstimatedDeliveryDto? EstimatedDelivery,
     CustomerOrderTrackingDriverDto? Driver,
+    AssignedDriverSummaryDto? AssignedDriver,
+    string DriverArrivalState,
+    DateTime? DriverArrivalUpdatedAtUtc,
+    string? DeliveryOtp,
+    bool ShowDeliveryOtp,
     IReadOnlyList<CustomerOrderTrackingTimelineItemDto> Timeline);
 
 public record CustomerOrderTrackingOrderDto(
@@ -282,6 +300,8 @@ public record AdminDriverCandidateDto(
     bool LowPerformance,
     bool Verified,
     string DispatchMatchReason,
+    decimal CommitmentScore,
+    string? CommitmentAdjustmentReason,
     bool GpsFresh,
     bool LowConfidenceGps,
     string DistanceBucket);

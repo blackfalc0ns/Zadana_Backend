@@ -143,7 +143,7 @@ public class RetryPaymobPaymentCommandHandlerTests
 
     private static Order CreateOrder(Guid userId, Guid addressId)
     {
-        var order = new Order("ORD-RETRY-001", userId, Guid.NewGuid(), addressId, PaymentMethodType.Card, 100m, 0m, 10m, 5m);
+        var order = new Order("ORD-RETRY-001", userId, Guid.NewGuid(), addressId, PaymentMethodType.Card, 100m, 0m, 10m, 10m, 0m, 0m, null, null, null, 5m);
         order.Items.Add(new OrderItem(order.Id, Guid.NewGuid(), Guid.NewGuid(), "Retry Item", 2, 50m));
         return order;
     }

@@ -24,6 +24,12 @@ public class AuthResponseVerificationResolverTests
             SuspensionReason: null,
             PrimaryZoneId: null,
             ZoneName: null,
+            CommitmentScore: 74m,
+            DailyRejections: 2,
+            WeeklyRejections: 2,
+            EnforcementLevel: "Watch",
+            CanReceiveOffers: true,
+            RestrictionMessage: null,
             Message: "Driver profile is currently under admin review.");
 
         var result = AuthResponseVerificationResolver.Resolve(UserRole.Driver, driverStatus);
@@ -48,6 +54,12 @@ public class AuthResponseVerificationResolverTests
             SuspensionReason: null,
             PrimaryZoneId: Guid.NewGuid(),
             ZoneName: "Nasr City",
+            CommitmentScore: 100m,
+            DailyRejections: 0,
+            WeeklyRejections: 0,
+            EnforcementLevel: "Healthy",
+            CanReceiveOffers: true,
+            RestrictionMessage: null,
             Message: "Driver is operational.");
 
         var result = AuthResponseVerificationResolver.Resolve(UserRole.Driver, driverStatus);

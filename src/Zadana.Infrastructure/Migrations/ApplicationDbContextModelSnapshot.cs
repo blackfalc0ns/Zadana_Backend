@@ -1163,6 +1163,12 @@ namespace Zadana.Infrastructure.Migrations
                     b.Property<DateTime?>("AcceptedAtUtc")
                         .HasColumnType("datetime2");
 
+                    b.Property<DateTime?>("ArrivedAtCustomerAtUtc")
+                        .HasColumnType("datetime2");
+
+                    b.Property<DateTime?>("ArrivedAtVendorAtUtc")
+                        .HasColumnType("datetime2");
+
                     b.Property<decimal>("CodAmount")
                         .ValueGeneratedOnAdd()
                         .HasPrecision(18, 2)
@@ -1175,6 +1181,22 @@ namespace Zadana.Infrastructure.Migrations
                     b.Property<DateTime?>("DeliveredAtUtc")
                         .HasColumnType("datetime2");
 
+                    b.Property<string>("DeliveryOtpCode")
+                        .HasMaxLength(10)
+                        .HasColumnType("nvarchar(10)");
+
+                    b.Property<DateTime?>("DeliveryOtpExpiresAtUtc")
+                        .HasColumnType("datetime2");
+
+                    b.Property<DateTime?>("DeliveryOtpVerifiedAtUtc")
+                        .HasColumnType("datetime2");
+
+                    b.Property<Guid?>("DeliveryOtpVerifiedByDriverId")
+                        .HasColumnType("uniqueidentifier");
+
+                    b.Property<int>("DispatchAttemptNumber")
+                        .HasColumnType("int");
+
                     b.Property<Guid?>("DriverId")
                         .HasColumnType("uniqueidentifier");
 
@@ -1185,6 +1207,16 @@ namespace Zadana.Infrastructure.Migrations
                         .HasMaxLength(300)
                         .HasColumnType("nvarchar(300)");
 
+                    b.Property<DateTime?>("OfferExpiresAtUtc")
+                        .HasColumnType("datetime2");
+
+                    b.Property<DateTime?>("OfferRejectedAtUtc")
+                        .HasColumnType("datetime2");
+
+                    b.Property<string>("OfferRejectedReason")
+                        .HasMaxLength(100)
+                        .HasColumnType("nvarchar(100)");
+
                     b.Property<DateTime?>("OfferedAtUtc")
                         .HasColumnType("datetime2");
 
@@ -1193,6 +1225,19 @@ namespace Zadana.Infrastructure.Migrations
 
                     b.Property<DateTime?>("PickedUpAtUtc")
                         .HasColumnType("datetime2");
+
+                    b.Property<string>("PickupOtpCode")
+                        .HasMaxLength(10)
+                        .HasColumnType("nvarchar(10)");
+
+                    b.Property<DateTime?>("PickupOtpExpiresAtUtc")
+                        .HasColumnType("datetime2");
+
+                    b.Property<DateTime?>("PickupOtpVerifiedAtUtc")
+                        .HasColumnType("datetime2");
+
+                    b.Property<Guid?>("PickupOtpVerifiedByDriverId")
+                        .HasColumnType("uniqueidentifier");
 
                     b.Property<string>("Status")
                         .IsRequired()
@@ -1209,6 +1254,154 @@ namespace Zadana.Infrastructure.Migrations
                     b.HasIndex("OrderId");
 
                     b.ToTable("DeliveryAssignments", (string)null);
+                });
+
+            modelBuilder.Entity("Zadana.Domain.Modules.Delivery.Entities.DeliveryOfferAttempt", b =>
+                {
+                    b.Property<Guid>("Id")
+                        .ValueGeneratedOnAdd()
+                        .HasColumnType("uniqueidentifier");
+
+                    b.Property<Guid?>("AssignmentId")
+                        .HasColumnType("uniqueidentifier");
+
+                    b.Property<int>("AttemptNumber")
+                        .HasColumnType("int");
+
+                    b.Property<DateTime>("CreatedAtUtc")
+                        .HasColumnType("datetime2");
+
+                    b.Property<Guid>("DriverId")
+                        .HasColumnType("uniqueidentifier");
+
+                    b.Property<DateTime>("ExpiresAtUtc")
+                        .HasColumnType("datetime2");
+
+                    b.Property<DateTime>("OfferedAtUtc")
+                        .HasColumnType("datetime2");
+
+                    b.Property<Guid>("OrderId")
+                        .HasColumnType("uniqueidentifier");
+
+                    b.Property<string>("RejectionReason")
+                        .HasMaxLength(100)
+                        .HasColumnType("nvarchar(100)");
+
+                    b.Property<DateTime?>("RespondedAtUtc")
+                        .HasColumnType("datetime2");
+
+                    b.Property<string>("Status")
+                        .IsRequired()
+                        .HasMaxLength(50)
+                        .HasColumnType("nvarchar(50)");
+
+                    b.Property<DateTime>("UpdatedAtUtc")
+                        .HasColumnType("datetime2");
+
+                    b.HasKey("Id");
+
+                    b.HasIndex("OrderId", "AttemptNumber");
+
+                    b.HasIndex("OrderId", "DriverId", "Status");
+
+                    b.ToTable("DeliveryOfferAttempts", (string)null);
+                });
+
+            modelBuilder.Entity("Zadana.Domain.Modules.Delivery.Entities.DeliveryPricingRule", b =>
+                {
+                    b.Property<Guid>("Id")
+                        .ValueGeneratedOnAdd()
+                        .HasColumnType("uniqueidentifier");
+
+                    b.Property<decimal>("BaseFee")
+                        .HasPrecision(18, 2)
+                        .HasColumnType("decimal(18,2)");
+
+                    b.Property<string>("City")
+                        .IsRequired()
+                        .HasMaxLength(100)
+                        .HasColumnType("nvarchar(100)");
+
+                    b.Property<DateTime>("CreatedAtUtc")
+                        .HasColumnType("datetime2");
+
+                    b.Property<Guid?>("DeliveryZoneId")
+                        .HasColumnType("uniqueidentifier");
+
+                    b.Property<decimal>("IncludedKm")
+                        .HasPrecision(18, 2)
+                        .HasColumnType("decimal(18,2)");
+
+                    b.Property<bool>("IsActive")
+                        .HasColumnType("bit");
+
+                    b.Property<decimal>("MaxFee")
+                        .HasPrecision(18, 2)
+                        .HasColumnType("decimal(18,2)");
+
+                    b.Property<decimal>("MinFee")
+                        .HasPrecision(18, 2)
+                        .HasColumnType("decimal(18,2)");
+
+                    b.Property<string>("Name")
+                        .IsRequired()
+                        .HasMaxLength(150)
+                        .HasColumnType("nvarchar(150)");
+
+                    b.Property<decimal>("PerKmFee")
+                        .HasPrecision(18, 2)
+                        .HasColumnType("decimal(18,2)");
+
+                    b.Property<DateTime>("UpdatedAtUtc")
+                        .HasColumnType("datetime2");
+
+                    b.HasKey("Id");
+
+                    b.HasIndex("City", "IsActive");
+
+                    b.HasIndex("DeliveryZoneId", "IsActive");
+
+                    b.ToTable("DeliveryPricingRules", (string)null);
+                });
+
+            modelBuilder.Entity("Zadana.Domain.Modules.Delivery.Entities.DeliveryPricingSurgeWindow", b =>
+                {
+                    b.Property<Guid>("Id")
+                        .ValueGeneratedOnAdd()
+                        .HasColumnType("uniqueidentifier");
+
+                    b.Property<DateTime>("CreatedAtUtc")
+                        .HasColumnType("datetime2");
+
+                    b.Property<Guid>("DeliveryPricingRuleId")
+                        .HasColumnType("uniqueidentifier");
+
+                    b.Property<TimeSpan>("EndLocalTime")
+                        .HasColumnType("time");
+
+                    b.Property<bool>("IsActive")
+                        .HasColumnType("bit");
+
+                    b.Property<decimal>("Multiplier")
+                        .HasPrecision(8, 2)
+                        .HasColumnType("decimal(8,2)");
+
+                    b.Property<string>("Name")
+                        .IsRequired()
+                        .HasMaxLength(100)
+                        .HasColumnType("nvarchar(100)");
+
+                    b.Property<TimeSpan>("StartLocalTime")
+                        .HasColumnType("time");
+
+                    b.Property<DateTime>("UpdatedAtUtc")
+                        .HasColumnType("datetime2");
+
+                    b.HasKey("Id");
+
+                    b.HasIndex("DeliveryPricingRuleId", "IsActive");
+
+                    b.ToTable("DeliveryPricingSurgeWindows", (string)null);
                 });
 
             modelBuilder.Entity("Zadana.Domain.Modules.Delivery.Entities.DeliveryProof", b =>
@@ -2168,6 +2361,10 @@ namespace Zadana.Infrastructure.Migrations
                         .ValueGeneratedOnAdd()
                         .HasColumnType("uniqueidentifier");
 
+                    b.Property<decimal>("BaseDeliveryFee")
+                        .HasPrecision(18, 2)
+                        .HasColumnType("decimal(18,2)");
+
                     b.Property<Guid?>("CouponId")
                         .HasColumnType("uniqueidentifier");
 
@@ -2178,7 +2375,19 @@ namespace Zadana.Infrastructure.Migrations
                         .HasPrecision(18, 2)
                         .HasColumnType("decimal(18,2)");
 
+                    b.Property<string>("DeliveryPricingMode")
+                        .HasMaxLength(50)
+                        .HasColumnType("nvarchar(50)");
+
+                    b.Property<string>("DeliveryPricingRuleLabel")
+                        .HasMaxLength(150)
+                        .HasColumnType("nvarchar(150)");
+
                     b.Property<decimal>("DiscountTotal")
+                        .HasPrecision(18, 2)
+                        .HasColumnType("decimal(18,2)");
+
+                    b.Property<decimal>("DistanceDeliveryFee")
                         .HasPrecision(18, 2)
                         .HasColumnType("decimal(18,2)");
 
@@ -2186,7 +2395,15 @@ namespace Zadana.Infrastructure.Migrations
                         .HasMaxLength(200)
                         .HasColumnType("nvarchar(200)");
 
+                    b.Property<decimal?>("QuotedDistanceKm")
+                        .HasPrecision(18, 2)
+                        .HasColumnType("decimal(18,2)");
+
                     b.Property<decimal>("Subtotal")
+                        .HasPrecision(18, 2)
+                        .HasColumnType("decimal(18,2)");
+
+                    b.Property<decimal>("SurgeDeliveryFee")
                         .HasPrecision(18, 2)
                         .HasColumnType("decimal(18,2)");
 
@@ -2255,6 +2472,10 @@ namespace Zadana.Infrastructure.Migrations
                         .ValueGeneratedOnAdd()
                         .HasColumnType("uniqueidentifier");
 
+                    b.Property<decimal>("BaseDeliveryFee")
+                        .HasPrecision(18, 2)
+                        .HasColumnType("decimal(18,2)");
+
                     b.Property<DateTime?>("CancelledAtUtc")
                         .HasColumnType("datetime2");
 
@@ -2278,7 +2499,19 @@ namespace Zadana.Infrastructure.Migrations
                         .HasPrecision(18, 2)
                         .HasColumnType("decimal(18,2)");
 
+                    b.Property<string>("DeliveryPricingMode")
+                        .HasMaxLength(50)
+                        .HasColumnType("nvarchar(50)");
+
+                    b.Property<string>("DeliveryPricingRuleLabel")
+                        .HasMaxLength(150)
+                        .HasColumnType("nvarchar(150)");
+
                     b.Property<decimal>("DiscountTotal")
+                        .HasPrecision(18, 2)
+                        .HasColumnType("decimal(18,2)");
+
+                    b.Property<decimal>("DistanceDeliveryFee")
                         .HasPrecision(18, 2)
                         .HasColumnType("decimal(18,2)");
 
@@ -2304,12 +2537,20 @@ namespace Zadana.Infrastructure.Migrations
                     b.Property<DateTime>("PlacedAtUtc")
                         .HasColumnType("datetime2");
 
+                    b.Property<decimal?>("QuotedDistanceKm")
+                        .HasPrecision(18, 2)
+                        .HasColumnType("decimal(18,2)");
+
                     b.Property<string>("Status")
                         .IsRequired()
                         .HasMaxLength(50)
                         .HasColumnType("nvarchar(50)");
 
                     b.Property<decimal>("Subtotal")
+                        .HasPrecision(18, 2)
+                        .HasColumnType("decimal(18,2)");
+
+                    b.Property<decimal>("SurgeDeliveryFee")
                         .HasPrecision(18, 2)
                         .HasColumnType("decimal(18,2)");
 
@@ -3743,6 +3984,27 @@ namespace Zadana.Infrastructure.Migrations
                     b.Navigation("Order");
                 });
 
+            modelBuilder.Entity("Zadana.Domain.Modules.Delivery.Entities.DeliveryPricingRule", b =>
+                {
+                    b.HasOne("Zadana.Domain.Modules.Delivery.Entities.DeliveryZone", "DeliveryZone")
+                        .WithMany()
+                        .HasForeignKey("DeliveryZoneId")
+                        .OnDelete(DeleteBehavior.Restrict);
+
+                    b.Navigation("DeliveryZone");
+                });
+
+            modelBuilder.Entity("Zadana.Domain.Modules.Delivery.Entities.DeliveryPricingSurgeWindow", b =>
+                {
+                    b.HasOne("Zadana.Domain.Modules.Delivery.Entities.DeliveryPricingRule", "DeliveryPricingRule")
+                        .WithMany("SurgeWindows")
+                        .HasForeignKey("DeliveryPricingRuleId")
+                        .OnDelete(DeleteBehavior.Cascade)
+                        .IsRequired();
+
+                    b.Navigation("DeliveryPricingRule");
+                });
+
             modelBuilder.Entity("Zadana.Domain.Modules.Delivery.Entities.DeliveryProof", b =>
                 {
                     b.HasOne("Zadana.Domain.Modules.Delivery.Entities.DeliveryAssignment", "Assignment")
@@ -4299,6 +4561,11 @@ namespace Zadana.Infrastructure.Migrations
             modelBuilder.Entity("Zadana.Domain.Modules.Delivery.Entities.DeliveryAssignment", b =>
                 {
                     b.Navigation("Proofs");
+                });
+
+            modelBuilder.Entity("Zadana.Domain.Modules.Delivery.Entities.DeliveryPricingRule", b =>
+                {
+                    b.Navigation("SurgeWindows");
                 });
 
             modelBuilder.Entity("Zadana.Domain.Modules.Delivery.Entities.Driver", b =>

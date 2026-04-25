@@ -1,10 +1,10 @@
 using FluentAssertions;
 using MediatR;
-using Microsoft.Data.Sqlite;
 using Microsoft.EntityFrameworkCore;
 using Moq;
 using Zadana.Application.Common.Localization;
 using Zadana.Application.Modules.Checkout.Commands.PlaceCheckoutOrder;
+using Zadana.Application.Modules.Delivery.Interfaces;
 using Zadana.Application.Modules.Orders.Commands.PlaceOrder;
 using Zadana.Application.Modules.Orders.Interfaces;
 using Zadana.Application.Modules.Payments.Interfaces;
@@ -25,8 +25,7 @@ public class PlaceCheckoutOrderCommandHandlerTests
     [Fact]
     public async Task Handle_WhenCashOrderPlaced_ShouldPersistPendingVendorAcceptanceHistoryWithoutConcurrencyFailure()
     {
-        using var database = new SqliteCheckoutDatabase();
-        await using var dbContext = database.CreateContext();
+        await using var dbContext = CreateDbContext();
 
         var customer = new User("Checkout Customer", "checkout.customer@test.com", "01000000030", UserRole.Customer);
         var vendorUser = new User("Checkout Vendor", "checkout.vendor@test.com", "01000000031", UserRole.Vendor);
@@ -86,6 +85,7 @@ public class PlaceCheckoutOrderCommandHandlerTests
         var handler = new PlaceCheckoutOrderCommandHandler(
             dbContext,
             Mock.Of<IPaymobGateway>(),
+            Mock.Of<IDeliveryPricingService>(),
             sender,
             dbContext,
             publisherMock.Object);
@@ -154,36 +154,12 @@ public class PlaceCheckoutOrderCommandHandlerTests
             throw new NotSupportedException();
     }
 
-    private sealed class SqliteCheckoutDatabase : IDisposable
+    private static ApplicationDbContext CreateDbContext()
     {
-        private readonly SqliteConnection _rootConnection;
-        private readonly string _connectionString;
+        var options = new DbContextOptionsBuilder<ApplicationDbContext>()
+            .UseInMemoryDatabase(Guid.NewGuid().ToString())
+            .Options;
 
-        public SqliteCheckoutDatabase()
-        {
-            _connectionString = $"Data Source=zadana-checkout-{Guid.NewGuid():N};Mode=Memory;Cache=Shared";
-            _rootConnection = new SqliteConnection(_connectionString);
-            _rootConnection.Open();
-
-            using var context = CreateContext();
-            context.Database.EnsureCreated();
-        }
-
-        public ApplicationDbContext CreateContext()
-        {
-            var connection = new SqliteConnection(_connectionString);
-            connection.Open();
-
-            var options = new DbContextOptionsBuilder<ApplicationDbContext>()
-                .UseSqlite(connection)
-                .Options;
-
-            return new ApplicationDbContext(options, new AuditableEntityInterceptor());
-        }
-
-        public void Dispose()
-        {
-            _rootConnection.Dispose();
-        }
+        return new ApplicationDbContext(options, new AuditableEntityInterceptor());
     }
 }

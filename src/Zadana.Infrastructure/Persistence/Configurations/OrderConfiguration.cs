@@ -23,6 +23,12 @@ public class OrderConfiguration : IEntityTypeConfiguration<Order>
         builder.Property(x => x.Subtotal).HasPrecision(18, 2).IsRequired();
         builder.Property(x => x.DiscountTotal).HasPrecision(18, 2).IsRequired();
         builder.Property(x => x.DeliveryFee).HasPrecision(18, 2).IsRequired();
+        builder.Property(x => x.BaseDeliveryFee).HasPrecision(18, 2).IsRequired();
+        builder.Property(x => x.DistanceDeliveryFee).HasPrecision(18, 2).IsRequired();
+        builder.Property(x => x.SurgeDeliveryFee).HasPrecision(18, 2).IsRequired();
+        builder.Property(x => x.QuotedDistanceKm).HasPrecision(18, 2);
+        builder.Property(x => x.DeliveryPricingMode).HasMaxLength(50);
+        builder.Property(x => x.DeliveryPricingRuleLabel).HasMaxLength(150);
         builder.Property(x => x.CommissionAmount).HasPrecision(18, 2).IsRequired();
         builder.Property(x => x.TotalAmount).HasPrecision(18, 2).IsRequired();
 

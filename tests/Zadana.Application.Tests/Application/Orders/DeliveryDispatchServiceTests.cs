@@ -1,6 +1,9 @@
 using FluentAssertions;
 using Microsoft.EntityFrameworkCore;
 using Microsoft.Extensions.Logging.Abstractions;
+using Moq;
+using MediatR;
+using Zadana.Application.Common.Interfaces;
 using Zadana.Domain.Modules.Delivery.Entities;
 using Zadana.Domain.Modules.Delivery.Enums;
 using Zadana.Domain.Modules.Identity.Entities;
@@ -23,9 +26,14 @@ public class DeliveryDispatchServiceTests
     {
         await using var dbContext = CreateDbContext();
         var scenario = await SeedDispatchScenarioAsync(dbContext);
-        var service = new DeliveryDispatchService(dbContext, dbContext, NullLogger<DeliveryDispatchService>.Instance);
+        var service = new DeliveryDispatchService(
+            dbContext,
+            dbContext,
+            NullLogger<DeliveryDispatchService>.Instance,
+            Mock.Of<IPublisher>(),
+            Mock.Of<INotificationService>());
 
-        var decision = await service.TryAutoDispatchAsync(scenario.Order.Id, CancellationToken.None);
+        var decision = await service.TryAutoDispatchAsync(scenario.Order.Id, cancellationToken: CancellationToken.None);
 
         decision.Should().NotBeNull();
         decision!.DriverId.Should().Be(scenario.SameZoneFreshDriver.Id);
@@ -33,7 +41,7 @@ public class DeliveryDispatchServiceTests
 
         var assignment = await dbContext.DeliveryAssignments.SingleAsync();
         assignment.DriverId.Should().Be(scenario.SameZoneFreshDriver.Id);
-        assignment.Status.Should().Be(AssignmentStatus.Accepted);
+        assignment.Status.Should().Be(AssignmentStatus.OfferSent);
     }
 
     [Fact]
@@ -41,13 +49,71 @@ public class DeliveryDispatchServiceTests
     {
         await using var dbContext = CreateDbContext();
         var scenario = await SeedDispatchScenarioAsync(dbContext, lowConfidenceFreshDriver: true);
-        var service = new DeliveryDispatchService(dbContext, dbContext, NullLogger<DeliveryDispatchService>.Instance);
+        var service = new DeliveryDispatchService(
+            dbContext,
+            dbContext,
+            NullLogger<DeliveryDispatchService>.Instance,
+            Mock.Of<IPublisher>(),
+            Mock.Of<INotificationService>());
 
-        var decision = await service.TryAutoDispatchAsync(scenario.Order.Id, CancellationToken.None);
+        var decision = await service.TryAutoDispatchAsync(scenario.Order.Id, cancellationToken: CancellationToken.None);
 
         decision.Should().NotBeNull();
         decision!.DriverId.Should().Be(scenario.SecondSameZoneDriver.Id);
         decision.MatchReason.Should().Be("same-zone-live-gps");
+    }
+
+    [Fact]
+    public async Task AcceptOfferAsync_ShouldGeneratePickupOtpForAssignedDriver()
+    {
+        await using var dbContext = CreateDbContext();
+        var scenario = await SeedDispatchScenarioAsync(dbContext);
+        var service = new DeliveryDispatchService(
+            dbContext,
+            dbContext,
+            NullLogger<DeliveryDispatchService>.Instance,
+            Mock.Of<IPublisher>(),
+            Mock.Of<INotificationService>());
+
+        await service.TryAutoDispatchAsync(scenario.Order.Id, cancellationToken: CancellationToken.None);
+
+        var assignment = await dbContext.DeliveryAssignments.SingleAsync();
+
+        await service.AcceptOfferAsync(assignment.Id, scenario.SameZoneFreshDriver.Id, CancellationToken.None);
+
+        assignment.Status.Should().Be(AssignmentStatus.Accepted);
+        assignment.PickupOtpCode.Should().NotBeNullOrWhiteSpace();
+        assignment.PickupOtpExpiresAtUtc.Should().NotBeNull();
+    }
+
+    [Fact]
+    public async Task TryAutoDispatchAsync_ShouldExcludeSoftBlockedDriverFromCandidates()
+    {
+        await using var dbContext = CreateDbContext();
+        var scenario = await SeedDispatchScenarioAsync(dbContext);
+
+        for (var index = 0; index < 3; index++)
+        {
+            var historicalAttempt = new DeliveryOfferAttempt(Guid.NewGuid(), null, scenario.SameZoneFreshDriver.Id, index + 1, DateTime.UtcNow.AddMinutes(1));
+            historicalAttempt.MarkRejected("skip");
+            dbContext.DeliveryOfferAttempts.Add(historicalAttempt);
+        }
+
+        await dbContext.SaveChangesAsync();
+
+        var service = new DeliveryDispatchService(
+            dbContext,
+            dbContext,
+            NullLogger<DeliveryDispatchService>.Instance,
+            Mock.Of<IPublisher>(),
+            Mock.Of<INotificationService>());
+
+        var decision = await service.TryAutoDispatchAsync(scenario.Order.Id, cancellationToken: CancellationToken.None);
+
+        decision.Should().NotBeNull();
+        decision!.DriverId.Should().Be(scenario.SecondSameZoneDriver.Id);
+        var blockedDriver = await dbContext.Drivers.FindAsync(scenario.SameZoneFreshDriver.Id);
+        blockedDriver!.IsAvailable.Should().BeFalse();
     }
 
     private static async Task<DispatchScenario> SeedDispatchScenarioAsync(
@@ -108,6 +174,12 @@ public class DeliveryDispatchServiceTests
             120m,
             0m,
             15m,
+            15m,
+            0m,
+            0m,
+            null,
+            null,
+            null,
             5m,
             vendorBranchId: branch.Id);
         order.ChangeStatus(OrderStatus.Placed);

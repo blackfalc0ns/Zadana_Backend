@@ -14,12 +14,14 @@ internal sealed record DeliveryDispatchCandidateEvaluation(
     decimal DistanceKm,
     int ActiveTaskCount,
     decimal ReliabilityScore,
+    decimal CommitmentScore,
     bool GpsFresh,
     bool LowConfidenceGps,
     bool InPrimaryZone,
     bool InPickupZone,
     string MatchReason,
-    string DistanceBucket);
+    string DistanceBucket,
+    string? CommitmentAdjustmentReason);
 
 internal static class DeliveryDispatchScoring
 {
@@ -51,6 +53,7 @@ internal static class DeliveryDispatchScoring
         DriverLocation? latestLocation,
         int activeTaskCount,
         decimal reliabilityScore,
+        decimal commitmentScore,
         DeliveryDispatchContext context,
         DateTime utcNow)
     {
@@ -75,6 +78,8 @@ internal static class DeliveryDispatchScoring
         var distanceBucket = BuildDistanceBucket(distanceKm);
         var tier = ResolveTier(sameZone, sameCity, gpsFresh, lowConfidenceGps, inPrimaryZone, inPickupZone);
         var matchReason = ResolveMatchReason(tier);
+        var commitmentAdjustment = ResolveCommitmentAdjustment(commitmentScore);
+        var commitmentAdjustmentReason = ResolveCommitmentAdjustmentReason(commitmentScore);
 
         var freshnessPenalty = gpsFresh ? 0m : 80m;
         var accuracyPenalty = !gpsFresh || latestLocation?.AccuracyMeters is null
@@ -90,7 +95,8 @@ internal static class DeliveryDispatchScoring
             + (activeTaskCount * 20m)
             + freshnessPenalty
             + accuracyPenalty
-            - (reliabilityScore * 0.5m);
+            - (reliabilityScore * 0.5m)
+            + commitmentAdjustment;
 
         return new DeliveryDispatchCandidateEvaluation(
             tier,
@@ -98,12 +104,14 @@ internal static class DeliveryDispatchScoring
             Math.Round(distanceKm, 2),
             activeTaskCount,
             Math.Round(reliabilityScore, 1),
+            Math.Round(commitmentScore, 1),
             gpsFresh,
             lowConfidenceGps,
             inPrimaryZone,
             inPickupZone,
             matchReason,
-            distanceBucket);
+            distanceBucket,
+            commitmentAdjustmentReason);
     }
 
     public static bool IsPointWithinZone(DeliveryZone zone, decimal latitude, decimal longitude) =>
@@ -213,5 +221,23 @@ internal static class DeliveryDispatchScoring
             <= 7m => "short-haul",
             <= 15m => "city-range",
             _ => "long-range"
+        };
+
+    private static decimal ResolveCommitmentAdjustment(decimal commitmentScore) =>
+        commitmentScore switch
+        {
+            >= 95m => -35m,
+            >= 85m => -12m,
+            >= 70m => 0m,
+            >= 50m => 45m,
+            _ => 90m
+        };
+
+    private static string? ResolveCommitmentAdjustmentReason(decimal commitmentScore) =>
+        commitmentScore switch
+        {
+            >= 95m => "commitment-score-boost",
+            < 70m => "rejection-penalty",
+            _ => null
         };
 }

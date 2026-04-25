@@ -10,11 +10,16 @@ public record UpdateDriverAvailabilityCommand(Guid DriverUserId, bool IsAvailabl
 public class UpdateDriverAvailabilityCommandHandler : IRequestHandler<UpdateDriverAvailabilityCommand>
 {
     private readonly IDriverRepository _driverRepository;
+    private readonly IDriverCommitmentPolicyService _driverCommitmentPolicyService;
     private readonly IUnitOfWork _unitOfWork;
 
-    public UpdateDriverAvailabilityCommandHandler(IDriverRepository driverRepository, IUnitOfWork unitOfWork)
+    public UpdateDriverAvailabilityCommandHandler(
+        IDriverRepository driverRepository,
+        IDriverCommitmentPolicyService driverCommitmentPolicyService,
+        IUnitOfWork unitOfWork)
     {
         _driverRepository = driverRepository;
+        _driverCommitmentPolicyService = driverCommitmentPolicyService;
         _unitOfWork = unitOfWork;
     }
 
@@ -28,6 +33,18 @@ public class UpdateDriverAvailabilityCommandHandler : IRequestHandler<UpdateDriv
             throw new BusinessRuleException(
                 "DRIVER_NOT_READY_FOR_DISPATCH",
                 "Only approved active drivers can enable availability.");
+        }
+
+        if (request.IsAvailable)
+        {
+            var commitmentSummary = await _driverCommitmentPolicyService.GetDriverSummaryAsync(driver.Id, cancellationToken);
+            if (!commitmentSummary.CanReceiveOffers)
+            {
+                throw new BusinessRuleException(
+                    "DRIVER_SOFT_BLOCKED_BY_REJECTIONS",
+                    commitmentSummary.RestrictionMessage ??
+                    "Driver exceeded the daily or weekly offer rejection limit and cannot enable availability right now.");
+            }
         }
 
         driver.ToggleAvailability(request.IsAvailable);

@@ -6,13 +6,33 @@ namespace Zadana.Application.Modules.Delivery.DTOs;
 
 public static class DriverOperationalStatusFactory
 {
-    public static DriverOperationalStatusDto Create(Driver driver) =>
+    public static DriverOperationalStatusDto Create(
+        Driver driver,
+        DriverCommitmentSummaryDto? commitment = null)
+    {
+        commitment ??= new DriverCommitmentSummaryDto(
+            AcceptedOffers: 0,
+            RejectedOffers: 0,
+            TimedOutOffers: 0,
+            DailyRejections: 0,
+            WeeklyRejections: 0,
+            CommitmentScore: 100m,
+            EnforcementLevel: DriverCommitmentEnforcementLevel.Healthy.ToString(),
+            CanReceiveOffers: true,
+            RestrictionMessage: null,
+            LastOfferResponseAtUtc: null);
+
+        var gateMessage = ResolveMessage(driver);
+        var canReceiveOrders = driver.CanReceiveOrders;
+        var canReceiveOffers = canReceiveOrders && commitment.CanReceiveOffers;
+
+        return
         new(
             DriverId: driver.Id,
             GateStatus: ResolveGateStatus(driver),
-            IsOperational: driver.CanReceiveOrders,
-            CanReceiveOrders: driver.CanReceiveOrders,
-            CanGoAvailable: driver.CanReceiveOrders,
+            IsOperational: canReceiveOffers,
+            CanReceiveOrders: canReceiveOrders,
+            CanGoAvailable: canReceiveOffers,
             IsAvailable: driver.IsAvailable,
             VerificationStatus: driver.VerificationStatus.ToString(),
             AccountStatus: driver.Status.ToString(),
@@ -21,7 +41,14 @@ public static class DriverOperationalStatusFactory
             SuspensionReason: driver.SuspensionReason,
             PrimaryZoneId: driver.PrimaryZoneId,
             ZoneName: driver.PrimaryZone is not null ? $"{driver.PrimaryZone.City} - {driver.PrimaryZone.Name}" : null,
-            Message: ResolveMessage(driver));
+            CommitmentScore: commitment.CommitmentScore,
+            DailyRejections: commitment.DailyRejections,
+            WeeklyRejections: commitment.WeeklyRejections,
+            EnforcementLevel: commitment.EnforcementLevel,
+            CanReceiveOffers: canReceiveOffers,
+            RestrictionMessage: commitment.RestrictionMessage,
+            Message: commitment.RestrictionMessage ?? gateMessage);
+    }
 
     public static string ResolveGateStatus(Driver driver) =>
         driver.VerificationStatus switch

@@ -435,7 +435,7 @@ public class ConfirmPaymobPaymentCommandHandlerTests
         new("Payment Customer", "payment.customer@test.com", "01000000010", UserRole.Customer);
 
     private static Order CreateOrder(Guid userId) =>
-        new("ORD-PAY-001", userId, Guid.NewGuid(), Guid.NewGuid(), PaymentMethodType.Card, 100m, 0m, 10m, 5m);
+        new("ORD-PAY-001", userId, Guid.NewGuid(), Guid.NewGuid(), PaymentMethodType.Card, 100m, 0m, 10m, 10m, 0m, 0m, null, null, null, 5m);
 
     private static Payment CreatePendingCardPayment(Order order)
     {

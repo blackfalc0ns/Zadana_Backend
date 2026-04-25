@@ -55,6 +55,12 @@ public class OrderRepository : IOrderRepository
         decimal subtotal,
         decimal discountTotal,
         decimal deliveryFee,
+        decimal baseDeliveryFee,
+        decimal distanceDeliveryFee,
+        decimal surgeDeliveryFee,
+        decimal? quotedDistanceKm,
+        string? deliveryPricingMode,
+        string? deliveryPricingRuleLabel,
         decimal commissionAmount,
         IReadOnlyDictionary<Guid, int> itemQuantities,
         CancellationToken cancellationToken = default)
@@ -75,6 +81,12 @@ public class OrderRepository : IOrderRepository
                 order.Subtotal == subtotal &&
                 order.DiscountTotal == discountTotal &&
                 order.DeliveryFee == deliveryFee &&
+                order.BaseDeliveryFee == baseDeliveryFee &&
+                order.DistanceDeliveryFee == distanceDeliveryFee &&
+                order.SurgeDeliveryFee == surgeDeliveryFee &&
+                order.QuotedDistanceKm == quotedDistanceKm &&
+                order.DeliveryPricingMode == deliveryPricingMode &&
+                order.DeliveryPricingRuleLabel == deliveryPricingRuleLabel &&
                 order.CommissionAmount == commissionAmount)
             .OrderByDescending(order => order.PlacedAtUtc)
             .ToListAsync(cancellationToken);

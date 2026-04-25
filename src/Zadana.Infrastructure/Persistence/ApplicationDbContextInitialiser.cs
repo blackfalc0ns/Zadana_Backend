@@ -73,6 +73,7 @@ public class ApplicationDbContextInitialiser
         await SeedSuperAdminAsync();
         await SeedSupportUsersAsync();
         await SeedDeliveryZonesAsync();
+        await SeedDeliveryPricingRulesAsync();
         await SeedUnitsAsync();
         await SeedCategoriesAsync();
         await SeedBrandsAsync();
@@ -124,6 +125,63 @@ public class ApplicationDbContextInitialiser
 
             existingZone.Update(seed.City, seed.Name, seed.CenterLat, seed.CenterLng, seed.RadiusKm);
             existingZone.Activate();
+        }
+
+        await _context.SaveChangesAsync();
+    }
+
+    private async Task SeedDeliveryPricingRulesAsync()
+    {
+        var zones = await _context.DeliveryZones
+            .Where(zone => zone.IsActive)
+            .OrderBy(zone => zone.City)
+            .ThenBy(zone => zone.Name)
+            .ToListAsync();
+
+        foreach (var zone in zones)
+        {
+            var ruleName = $"{zone.City} - {zone.Name} Standard";
+            var rule = await _context.DeliveryPricingRules
+                .Include(item => item.SurgeWindows)
+                .FirstOrDefaultAsync(item => item.DeliveryZoneId == zone.Id);
+
+            if (rule is null)
+            {
+                rule = new DeliveryPricingRule(
+                    zone.Id,
+                    zone.City,
+                    ruleName,
+                    baseFee: 12m,
+                    includedKm: 3m,
+                    perKmFee: 2.25m,
+                    minFee: 12m,
+                    maxFee: 32m,
+                    isActive: true);
+
+                _context.DeliveryPricingRules.Add(rule);
+            }
+            else
+            {
+                rule.Update(
+                    zone.Id,
+                    zone.City,
+                    ruleName,
+                    baseFee: 12m,
+                    includedKm: 3m,
+                    perKmFee: 2.25m,
+                    minFee: 12m,
+                    maxFee: 32m,
+                    isActive: true);
+                rule.SurgeWindows.Clear();
+            }
+
+            rule.SurgeWindows.Add(new DeliveryPricingSurgeWindow(
+                rule.Id,
+                "Evening peak",
+                new TimeSpan(17, 0, 0),
+                new TimeSpan(22, 0, 0),
+                1.25m,
+                true));
         }
 
         await _context.SaveChangesAsync();
@@ -1332,7 +1390,7 @@ public class ApplicationDbContextInitialiser
         coupons.TryGetValue("FRESH10", out var freshCoupon);
         coupons.TryGetValue("TECH50", out var techCoupon);
 
-        var deliveredOrder = new Order("ORD-DEV-1001", ahmed.Id, groceryVendor.Id, ahmedHome.Id, PaymentMethodType.Card, 48.85m, 4.00m, 12m, 5.50m, "Leave at the door", groceryBranch.Id, freshCoupon?.Id);
+        var deliveredOrder = new Order("ORD-DEV-1001", ahmed.Id, groceryVendor.Id, ahmedHome.Id, PaymentMethodType.Card, 48.85m, 4.00m, 12m, 12m, 0m, 0m, 2.4m, "zone-fallback", "Riyadh - Al Olaya Standard", 5.50m, "Leave at the door", groceryBranch.Id, freshCoupon?.Id);
         deliveredOrder.Items.Add(new OrderItem(deliveredOrder.Id, milk.Id, milk.MasterProductId, milk.MasterProduct.NameEn, 2, 16.95m, 2.00m, "Liter"));
         deliveredOrder.Items.Add(new OrderItem(deliveredOrder.Id, soap.Id, soap.MasterProductId, soap.MasterProduct.NameEn, 1, 14.95m, 2.00m, "Liter"));
         var deliveredPayment = new Payment(deliveredOrder.Id, PaymentMethodType.Card, deliveredOrder.TotalAmount);
@@ -1347,7 +1405,7 @@ public class ApplicationDbContextInitialiser
         deliveredOrder.ChangeStatus(OrderStatus.OnTheWay, null, "On the way");
         deliveredOrder.ChangeStatus(OrderStatus.Delivered, null, "Delivered successfully");
 
-        var refundedOrder = new Order("ORD-DEV-1002", layla.Id, techVendor.Id, laylaWork.Id, PaymentMethodType.ApplePay, 1578.00m, 79.00m, 0m, 90m, "Office reception", techBranch.Id, techCoupon?.Id);
+        var refundedOrder = new Order("ORD-DEV-1002", layla.Id, techVendor.Id, laylaWork.Id, PaymentMethodType.ApplePay, 1578.00m, 79.00m, 0m, 0m, 0m, 0m, null, "zone-fallback", "Jeddah Standard", 90m, "Office reception", techBranch.Id, techCoupon?.Id);
         refundedOrder.Items.Add(new OrderItem(refundedOrder.Id, charger.Id, charger.MasterProductId, charger.MasterProduct.NameEn, 1, 79m, 0m, "Piece"));
         refundedOrder.Items.Add(new OrderItem(refundedOrder.Id, phone.Id, phone.MasterProductId, phone.MasterProduct.NameEn, 1, 1499m, 79m, "Piece"));
         var refundedPayment = new Payment(refundedOrder.Id, PaymentMethodType.ApplePay, refundedOrder.TotalAmount);
@@ -1360,7 +1418,7 @@ public class ApplicationDbContextInitialiser
         refund.Process();
         refundedOrder.UpdatePaymentStatus(PaymentStatus.Refunded);
 
-        var codOrder = new Order("ORD-DEV-1003", noor.Id, groceryVendor.Id, noorHome.Id, PaymentMethodType.CashOnDelivery, 29.70m, 0m, 10m, 3m, "Call on arrival", groceryBranch.Id);
+        var codOrder = new Order("ORD-DEV-1003", noor.Id, groceryVendor.Id, noorHome.Id, PaymentMethodType.CashOnDelivery, 29.70m, 0m, 10m, 10m, 0m, 0m, 1.8m, "zone-fallback", "Khobar Standard", 3m, "Call on arrival", groceryBranch.Id);
         codOrder.Items.Add(new OrderItem(codOrder.Id, milk.Id, milk.MasterProductId, milk.MasterProduct.NameEn, 1, 16.95m, 0m, "Liter"));
         codOrder.Items.Add(new OrderItem(codOrder.Id, soap.Id, soap.MasterProductId, soap.MasterProduct.NameEn, 1, 14.95m, 2.20m, "Liter"));
         var codPayment = new Payment(codOrder.Id, PaymentMethodType.CashOnDelivery, codOrder.TotalAmount);
@@ -1420,13 +1478,13 @@ public class ApplicationDbContextInitialiser
         var pendingOrder = await _context.Orders.FirstAsync(x => x.OrderNumber == "ORD-DEV-1003");
 
         var deliveredAssignment = new DeliveryAssignment(deliveredOrder.Id, 0m);
-        deliveredAssignment.OfferTo(activeDriver.Id);
+        deliveredAssignment.OfferTo(activeDriver.Id, 1, DateTime.UtcNow.AddMinutes(5));
         deliveredAssignment.Accept();
         deliveredAssignment.MarkPickedUp();
         deliveredAssignment.MarkDelivered();
 
         var searchingAssignment = new DeliveryAssignment(pendingOrder.Id, pendingOrder.TotalAmount);
-        searchingAssignment.OfferTo(activeDriver.Id);
+        searchingAssignment.OfferTo(activeDriver.Id, 1, DateTime.UtcNow.AddMinutes(5));
 
         await _context.DeliveryAssignments.AddRangeAsync(deliveredAssignment, searchingAssignment);
         await _context.SaveChangesAsync();

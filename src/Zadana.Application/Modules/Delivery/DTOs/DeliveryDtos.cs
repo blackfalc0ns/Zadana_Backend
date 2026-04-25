@@ -25,7 +25,118 @@ public record DriverOperationalStatusDto(
     string? SuspensionReason,
     Guid? PrimaryZoneId,
     string? ZoneName,
+    decimal CommitmentScore,
+    int DailyRejections,
+    int WeeklyRejections,
+    string EnforcementLevel,
+    bool CanReceiveOffers,
+    string? RestrictionMessage,
     string Message);
+
+public record DriverCommitmentSummaryDto(
+    int AcceptedOffers,
+    int RejectedOffers,
+    int TimedOutOffers,
+    int DailyRejections,
+    int WeeklyRejections,
+    decimal CommitmentScore,
+    string EnforcementLevel,
+    bool CanReceiveOffers,
+    string? RestrictionMessage,
+    DateTime? LastOfferResponseAtUtc);
+
+public record DriverHomeDto(
+    DriverOperationalStatusDto OperationalStatus,
+    string HomeState,
+    DriverIncomingOfferDto? CurrentOffer,
+    DriverCurrentAssignmentDto? CurrentAssignment,
+    DriverEarningsSummaryDto EarningsSummaryToday,
+    int UnreadAlerts,
+    DriverCommitmentSummaryDto Commitment);
+
+public record DriverIncomingOfferDto(
+    Guid AssignmentId,
+    Guid OrderId,
+    string OrderNumber,
+    string VendorName,
+    string PickupAddress,
+    decimal? PickupLatitude,
+    decimal? PickupLongitude,
+    string CustomerName,
+    string DeliveryAddress,
+    decimal? DeliveryLatitude,
+    decimal? DeliveryLongitude,
+    decimal EstimatedDistanceKm,
+    string EstimatedEta,
+    decimal Payout,
+    string VendorInitials,
+    string CustomerInitials,
+    string? PackageNote,
+    int CountdownSeconds,
+    IReadOnlyList<DriverOfferItemDto> OrderItems);
+
+public record DriverOfferItemDto(
+    string Name,
+    int Quantity,
+    string? Note);
+
+public record DriverCurrentAssignmentDto(
+    Guid AssignmentId,
+    Guid OrderId,
+    string OrderNumber,
+    string Status,
+    string VendorName,
+    string PickupAddress,
+    string DeliveryAddress,
+    decimal? PickupLatitude,
+    decimal? PickupLongitude,
+    decimal? DeliveryLatitude,
+    decimal? DeliveryLongitude,
+    decimal CodAmount,
+    DateTime CreatedAtUtc,
+    string MerchantContact,
+    string? VehicleType,
+    string? PlateNumber,
+    bool PickupOtpRequired,
+    bool DeliveryOtpRequired);
+
+public record DriverEarningsSummaryDto(
+    decimal EarningsAmount,
+    int CompletedTrips);
+
+public record DriverOfferActionResultDto(
+    Guid AssignmentId,
+    Guid OrderId,
+    string Status,
+    string Message);
+
+public record DriverOtpVerificationResultDto(
+    Guid AssignmentId,
+    Guid OrderId,
+    string OtpType,
+    string Status,
+    string Message);
+
+public record DeliveryPricingSurgeWindowDto(
+    Guid Id,
+    string Name,
+    TimeSpan StartLocalTime,
+    TimeSpan EndLocalTime,
+    decimal Multiplier,
+    bool IsActive);
+
+public record DeliveryPricingRuleDto(
+    Guid Id,
+    Guid? DeliveryZoneId,
+    string City,
+    string Name,
+    decimal BaseFee,
+    decimal IncludedKm,
+    decimal PerKmFee,
+    decimal MinFee,
+    decimal MaxFee,
+    bool IsActive,
+    IReadOnlyList<DeliveryPricingSurgeWindowDto> SurgeWindows);
 
 public record AdminDriverKPIsDto(
     int Total,
@@ -52,6 +163,11 @@ public record AdminDriverListItemDto(
     string Performance,
     DriverVehicleType? VehicleType,
     DateTime LastSeenAt,
+    decimal CommitmentScore,
+    int DailyRejections,
+    int WeeklyRejections,
+    string EnforcementLevel,
+    DateTime? LastOfferResponseAtUtc,
     string[] Issues,
     string CollectionPaymentStatus,
     string[]? Alerts);
@@ -88,6 +204,11 @@ public record AdminDriverDetailDto(
     string[] Issues,
     string CollectionPaymentStatus,
     string[]? Alerts,
+    decimal CommitmentScore,
+    int DailyRejections,
+    int WeeklyRejections,
+    string EnforcementLevel,
+    DateTime? LastOfferResponseAtUtc,
 
     // Zone
     string? ZoneName,
@@ -160,5 +281,7 @@ public record DispatchDecisionDto(
     decimal DistanceKm,
     int ActiveTaskCount,
     decimal ReliabilityScore,
+    decimal CommitmentScore,
     bool GpsIsFresh,
-    string MatchReason);
+    string MatchReason,
+    string? CommitmentAdjustmentReason);

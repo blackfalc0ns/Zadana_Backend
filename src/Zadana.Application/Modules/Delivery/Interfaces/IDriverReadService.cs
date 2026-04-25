@@ -19,6 +19,25 @@ public interface IDriverReadService
         Guid driverId,
         CancellationToken cancellationToken = default);
 
+    Task<DriverAssignmentDetailDto?> GetAssignmentDetailAsync(
+        Guid driverId,
+        Guid assignmentId,
+        CancellationToken cancellationToken = default);
+
+    Task<DriverCompletedOrdersListDto> GetCompletedOrdersAsync(
+        Guid driverId,
+        string? status = null,
+        CancellationToken cancellationToken = default);
+
+    Task<DriverCompletedOrderDetailDto?> GetCompletedOrderDetailAsync(
+        Guid driverId,
+        Guid orderId,
+        CancellationToken cancellationToken = default);
+
+    Task<DriverProfileDto?> GetDriverProfileAsync(
+        Guid userId,
+        CancellationToken cancellationToken = default);
+
     Task<DeliveryZoneDto[]> GetActiveZonesAsync(CancellationToken cancellationToken = default);
 
     Task<DeliveryZoneDto[]> GetAllZonesAsync(CancellationToken cancellationToken = default);

@@ -17,6 +17,7 @@ public class ReactivateVendorCommandHandlerTests
     private readonly Mock<IVendorReviewAuditService> _vendorReviewAuditServiceMock = new();
     private readonly Mock<IVendorRepository> _vendorRepositoryMock = new();
     private readonly Mock<IIdentityAccountService> _identityAccountServiceMock = new();
+    private readonly Mock<IVendorCommunicationService> _vendorCommunicationServiceMock = new();
     private readonly Mock<IUnitOfWork> _unitOfWorkMock = new();
 
     [Fact]
@@ -38,6 +39,7 @@ public class ReactivateVendorCommandHandlerTests
             _vendorRepositoryMock.Object,
             _identityAccountServiceMock.Object,
             _vendorReviewAuditServiceMock.Object,
+            _vendorCommunicationServiceMock.Object,
             _unitOfWorkMock.Object,
             _currentUserServiceMock.Object);
 
@@ -62,6 +64,7 @@ public class ReactivateVendorCommandHandlerTests
             _vendorRepositoryMock.Object,
             _identityAccountServiceMock.Object,
             _vendorReviewAuditServiceMock.Object,
+            _vendorCommunicationServiceMock.Object,
             _unitOfWorkMock.Object,
             _currentUserServiceMock.Object);
 

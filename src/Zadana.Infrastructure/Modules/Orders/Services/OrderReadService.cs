@@ -1,6 +1,7 @@
 using System.Globalization;
 using Microsoft.EntityFrameworkCore;
 using Zadana.Application.Common.Models;
+using Zadana.Application.Modules.Delivery.Interfaces;
 using Zadana.Application.Modules.Orders.DTOs;
 using Zadana.Application.Modules.Orders.Interfaces;
 using Zadana.Domain.Modules.Delivery.Entities;
@@ -18,10 +19,17 @@ namespace Zadana.Infrastructure.Modules.Orders.Services;
 public class OrderReadService : IOrderReadService
 {
     private readonly ApplicationDbContext _dbContext;
+    private readonly IDriverCommitmentPolicyService _driverCommitmentPolicyService;
 
-    public OrderReadService(ApplicationDbContext dbContext)
+    public OrderReadService(ApplicationDbContext dbContext, IDriverCommitmentPolicyService driverCommitmentPolicyService)
     {
         _dbContext = dbContext;
+        _driverCommitmentPolicyService = driverCommitmentPolicyService;
+    }
+
+    public OrderReadService(ApplicationDbContext dbContext)
+        : this(dbContext, new DriverCommitmentPolicyService(dbContext, dbContext))
+    {
     }
 
     public Task<OrderDto?> GetByIdAsync(Guid orderId, Guid userId, CancellationToken cancellationToken = default) =>
@@ -124,18 +132,35 @@ public class OrderReadService : IOrderReadService
             .AsNoTracking()
             .Include(x => x.Driver)
             .ThenInclude(x => x!.User)
-            .Where(x => x.OrderId == order.Id)
+            .Where(x =>
+                x.OrderId == order.Id &&
+                x.DriverId != null &&
+                x.Status != AssignmentStatus.SearchingDriver &&
+                x.Status != AssignmentStatus.OfferSent &&
+                x.Status != AssignmentStatus.Rejected)
             .OrderByDescending(x => x.CreatedAtUtc)
             .FirstOrDefaultAsync(cancellationToken);
 
         var timeline = BuildTimeline(order);
         var estimatedDelivery = BuildEstimatedDelivery(order, assignment);
         var driver = BuildDriver(assignment);
+        var assignedDriver = BuildAssignedDriverSummary(assignment);
+        var arrivalState = ResolveArrivalState(assignment);
+        var arrivalUpdatedAtUtc = ResolveArrivalUpdatedAtUtc(assignment);
+        var showDeliveryOtp = order.Status == OrderStatus.OnTheWay &&
+            assignment is not null &&
+            !assignment.DeliveryOtpVerifiedAtUtc.HasValue &&
+            !string.IsNullOrWhiteSpace(assignment.DeliveryOtpCode);
 
         return new CustomerOrderTrackingDto(
             new CustomerOrderTrackingOrderDto(order.Id, MapTrackingStatus(order.Status)),
             estimatedDelivery,
             driver,
+            assignedDriver,
+            arrivalState,
+            arrivalUpdatedAtUtc,
+            showDeliveryOtp ? assignment!.DeliveryOtpCode : null,
+            showDeliveryOtp,
             timeline);
     }
 
@@ -290,6 +315,32 @@ public class OrderReadService : IOrderReadService
             : string.Join(", ", new[] { customerAddress.AddressLine, customerAddress.Area, customerAddress.City }
                 .Where(value => !string.IsNullOrWhiteSpace(value)));
 
+        var assignment = await _dbContext.DeliveryAssignments
+            .AsNoTracking()
+            .Include(item => item.Driver)
+                .ThenInclude(driver => driver!.User)
+            .Where(item =>
+                item.OrderId == order.Id &&
+                item.DriverId != null &&
+                item.Status != AssignmentStatus.SearchingDriver &&
+                item.Status != AssignmentStatus.OfferSent &&
+                item.Status != AssignmentStatus.Rejected)
+            .OrderByDescending(item => item.CreatedAtUtc)
+            .FirstOrDefaultAsync(cancellationToken);
+
+        var assignedDriver = BuildAssignedDriverSummary(assignment);
+        var arrivalState = ResolveArrivalState(assignment);
+        var arrivalUpdatedAtUtc = ResolveArrivalUpdatedAtUtc(assignment);
+        var canConfirmPickup = order.Status == OrderStatus.DriverAssigned &&
+            assignment is not null &&
+            !assignment.PickupOtpVerifiedAtUtc.HasValue &&
+            !string.IsNullOrWhiteSpace(assignment.PickupOtpCode);
+        var pickupOtpStatus = assignment is null || string.IsNullOrWhiteSpace(assignment.PickupOtpCode)
+            ? "not_available"
+            : assignment.PickupOtpVerifiedAtUtc.HasValue
+                ? "verified"
+                : "pending";
+
         return new VendorOrderDetailDto(
             order.Id,
             order.OrderNumber,
@@ -304,6 +355,12 @@ public class OrderReadService : IOrderReadService
             order.TotalAmount,
             order.Notes,
             order.PlacedAtUtc,
+            assignedDriver,
+            arrivalState,
+            arrivalUpdatedAtUtc,
+            canConfirmPickup ? assignment!.PickupOtpCode : null,
+            canConfirmPickup,
+            pickupOtpStatus,
             order.Items.Select(item => new OrderItemDto(
                 item.Id,
                 item.VendorProductId,
@@ -551,6 +608,37 @@ public class OrderReadService : IOrderReadService
             assignment.Driver.User.PhoneNumber,
             assignment.Driver.VehicleType?.ToString() ?? "Delivery Driver");
     }
+
+    private static AssignedDriverSummaryDto? BuildAssignedDriverSummary(DeliveryAssignment? assignment)
+    {
+        if (assignment?.Driver?.User is null)
+        {
+            return null;
+        }
+
+        return new AssignedDriverSummaryDto(
+            assignment.Driver.Id,
+            assignment.Driver.User.FullName,
+            assignment.Driver.User.PhoneNumber,
+            assignment.Driver.VehicleType?.ToString() ?? "Unknown",
+            string.IsNullOrWhiteSpace(assignment.Driver.LicenseNumber) ? "N/A" : assignment.Driver.LicenseNumber);
+    }
+
+    private static string ResolveArrivalState(DeliveryAssignment? assignment) =>
+        assignment?.Status switch
+        {
+            AssignmentStatus.ArrivedAtVendor => "arrived_at_vendor",
+            AssignmentStatus.ArrivedAtCustomer => "arrived_at_customer",
+            _ => "none"
+        };
+
+    private static DateTime? ResolveArrivalUpdatedAtUtc(DeliveryAssignment? assignment) =>
+        assignment?.Status switch
+        {
+            AssignmentStatus.ArrivedAtVendor => assignment.ArrivedAtVendorAtUtc,
+            AssignmentStatus.ArrivedAtCustomer => assignment.ArrivedAtCustomerAtUtc,
+            _ => null
+        };
 
     private static string MapStatus(OrderStatus status) =>
         status switch
@@ -823,6 +911,8 @@ public class OrderReadService : IOrderReadService
             })
             .ToDictionaryAsync(item => item.DriverId, cancellationToken);
 
+        var commitmentSummaries = await _driverCommitmentPolicyService.GetDriverSummariesAsync(driverIds, cancellationToken);
+
         var utcNow = DateTime.UtcNow;
 
         return drivers
@@ -842,6 +932,9 @@ public class OrderReadService : IOrderReadService
                     latestLocation,
                     activeOrders,
                     reliabilityScore,
+                    commitmentSummaries.TryGetValue(driver.Id, out var commitmentSummary)
+                        ? commitmentSummary.CommitmentScore
+                        : 100m,
                     dispatchContext,
                     utcNow);
 
@@ -879,9 +972,13 @@ public class OrderReadService : IOrderReadService
                         1 => "from-amber-500 to-orange-500",
                         _ => "from-rose-500 to-pink-500"
                     },
-                    evaluation.ReliabilityScore < 70m || evaluation.MatchReason == "out-of-zone-low-priority",
+                    evaluation.ReliabilityScore < 70m ||
+                    evaluation.MatchReason == "out-of-zone-low-priority" ||
+                    evaluation.CommitmentScore < 70m,
                     true,
                     evaluation.MatchReason,
+                    evaluation.CommitmentScore,
+                    evaluation.CommitmentAdjustmentReason,
                     evaluation.GpsFresh,
                     evaluation.LowConfidenceGps,
                     evaluation.DistanceBucket);
@@ -1185,11 +1282,18 @@ public class OrderReadService : IOrderReadService
         return
         [
             $"Match reason: {matchedCandidate.DispatchMatchReason}",
+            $"Commitment score: {matchedCandidate.CommitmentScore:0.0}",
             $"GPS freshness: {(matchedCandidate.GpsFresh ? "live" : "stale")}",
             $"Distance bucket: {matchedCandidate.DistanceBucket}",
             $"Distance: {matchedCandidate.DistanceKm:0.0} km",
             $"Active orders: {matchedCandidate.ActiveOrders}",
             $"Rating: {matchedCandidate.Rating:0.0}",
+            matchedCandidate.CommitmentAdjustmentReason switch
+            {
+                "commitment-score-boost" => "Commitment effect: commitment-score-boost",
+                "rejection-penalty" => "Commitment effect: rejection-penalty",
+                _ => "Commitment effect: neutral"
+            },
             matchedCandidate.LowConfidenceGps
                 ? "GPS confidence: low (>100m)"
                 : "GPS confidence: normal",

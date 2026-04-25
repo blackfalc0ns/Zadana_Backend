@@ -2,6 +2,7 @@ using MediatR;
 using Zadana.Application.Common.Interfaces;
 using Zadana.Application.Modules.Checkout.DTOs;
 using Zadana.Application.Modules.Checkout.Support;
+using Zadana.Application.Modules.Delivery.Interfaces;
 using Zadana.Application.Modules.Orders.Support;
 using Zadana.Application.Modules.Payments.Interfaces;
 
@@ -13,11 +14,16 @@ public class GetCheckoutSummaryQueryHandler : IRequestHandler<GetCheckoutSummary
 {
     private readonly IApplicationDbContext _context;
     private readonly IPaymobGateway _paymobGateway;
+    private readonly IDeliveryPricingService _deliveryPricingService;
 
-    public GetCheckoutSummaryQueryHandler(IApplicationDbContext context, IPaymobGateway paymobGateway)
+    public GetCheckoutSummaryQueryHandler(
+        IApplicationDbContext context,
+        IPaymobGateway paymobGateway,
+        IDeliveryPricingService deliveryPricingService)
     {
         _context = context;
         _paymobGateway = paymobGateway;
+        _deliveryPricingService = deliveryPricingService;
     }
 
     public async Task<CheckoutSummaryDto> Handle(GetCheckoutSummaryQuery request, CancellationToken cancellationToken)
@@ -32,7 +38,9 @@ public class GetCheckoutSummaryQueryHandler : IRequestHandler<GetCheckoutSummary
         var pricing = await CheckoutSupport.BuildPricingSnapshotAsync(_context, cart, request.VendorId, cancellationToken);
         var address = await CheckoutSupport.ResolveSelectedAddressAsync(_context, request.UserId, request.AddressId, cancellationToken);
         var coupon = await CheckoutSupport.ResolveAppliedCouponAsync(_context, cart, cancellationToken);
-        var shippingCost = CheckoutSupport.ResolveShippingCost(cart);
+        var deliveryQuote = pricing.VendorBranchId.HasValue && address is not null
+            ? await _deliveryPricingService.QuoteAsync(pricing.VendorBranchId.Value, address.Id, cancellationToken)
+            : new DeliveryPriceQuote(0m, 0m, 0m, 0m, 0m, "zone-fallback", "No pricing");
         var discount = coupon == null ? 0m : CheckoutSupport.CalculateDiscountAmount(coupon, pricing.Subtotal);
 
         return new CheckoutSummaryDto(
@@ -41,6 +49,9 @@ public class GetCheckoutSummaryQueryHandler : IRequestHandler<GetCheckoutSummary
             CheckoutSupport.BuildDeliverySlots(request.DeliverySlotId),
             CheckoutSupport.BuildPaymentMethods(_paymobGateway.IsEnabled),
             CheckoutSupport.BuildPromoCodeDto(coupon, discount),
-            CheckoutSupport.BuildTotals(pricing.Subtotal, shippingCost, discount));
+            CheckoutSupport.BuildDeliveryQuoteDto(deliveryQuote),
+            CheckoutSupport.BuildShippingBreakdown(deliveryQuote),
+            deliveryQuote.PricingMode,
+            CheckoutSupport.BuildTotals(pricing.Subtotal, deliveryQuote.TotalFee, discount));
     }
 }

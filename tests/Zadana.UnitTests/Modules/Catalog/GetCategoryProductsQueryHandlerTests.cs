@@ -149,6 +149,12 @@ public class GetCategoryProductsQueryHandlerTests
             80m,
             0m,
             0m,
+            0m,
+            0m,
+            0m,
+            null,
+            null,
+            null,
             0m);
         order.ChangeStatus(OrderStatus.Delivered);
         context.Orders.Add(order);

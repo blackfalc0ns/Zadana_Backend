@@ -26,7 +26,7 @@ public class StartPaymobCheckoutCommandHandlerTests
         await using var dbContext = CreateDbContext();
         var user = new User("Paymob User", "paymob@test.com", "01000000000", UserRole.Customer);
         var address = new CustomerAddress(user.Id, "Paymob User", "01000000000", "Nasr City 10", AddressLabel.Home, city: "Cairo");
-        var order = new Order("ORD-TEST-001", user.Id, Guid.NewGuid(), address.Id, PaymentMethodType.Card, 100m, 0m, 10m, 5m);
+        var order = new Order("ORD-TEST-001", user.Id, Guid.NewGuid(), address.Id, PaymentMethodType.Card, 100m, 0m, 10m, 10m, 0m, 0m, null, null, null, 5m);
 
         dbContext.Users.Add(user);
         dbContext.CustomerAddresses.Add(address);

@@ -1,5 +1,6 @@
 using Microsoft.EntityFrameworkCore;
 using Zadana.Application.Common.Interfaces;
+using Zadana.Application.Modules.Delivery.Interfaces;
 using Zadana.Application.Modules.Checkout.DTOs;
 using Zadana.Application.Modules.Orders.Support;
 using Zadana.Domain.Modules.Catalog.Enums;
@@ -242,6 +243,23 @@ internal static class CheckoutSupport
     }
 
     public static decimal ResolveShippingCost(Cart cart) => cart.DeliveryFee;
+
+    public static CheckoutDeliveryQuoteDto BuildDeliveryQuoteDto(DeliveryPriceQuote quote) =>
+        new(
+            quote.DistanceKm,
+            quote.BaseFee,
+            quote.DistanceFee,
+            quote.SurgeFee,
+            quote.TotalFee,
+            quote.PricingMode,
+            quote.RuleLabel);
+
+    public static List<CheckoutShippingBreakdownLineDto> BuildShippingBreakdown(DeliveryPriceQuote quote) =>
+    [
+        new CheckoutShippingBreakdownLineDto("base_delivery", "Base delivery", quote.BaseFee),
+        new CheckoutShippingBreakdownLineDto("distance_surcharge", "Distance surcharge", quote.DistanceFee),
+        new CheckoutShippingBreakdownLineDto("peak_surcharge", "Peak surcharge", quote.SurgeFee)
+    ];
 
     public static CheckoutPromoCodeDto? BuildPromoCodeDto(Coupon? coupon, decimal discountAmount)
     {

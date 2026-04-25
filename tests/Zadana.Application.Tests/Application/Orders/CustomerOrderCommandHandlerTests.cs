@@ -206,7 +206,7 @@ public class CustomerOrderCommandHandlerTests
 
     private static Order CreateOrder(Guid userId, OrderStatus status, string orderNumber)
     {
-        var order = new Order(orderNumber, userId, Guid.NewGuid(), Guid.NewGuid(), PaymentMethodType.Card, 120m, 0m, 15m, 5m);
+        var order = new Order(orderNumber, userId, Guid.NewGuid(), Guid.NewGuid(), PaymentMethodType.Card, 120m, 0m, 15m, 15m, 0m, 0m, null, null, null, 5m);
         order.Items.Add(new OrderItem(order.Id, Guid.NewGuid(), Guid.NewGuid(), "Complaint Item", 1, 120m));
 
         if (status != OrderStatus.PendingPayment)

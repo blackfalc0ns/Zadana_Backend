@@ -14,7 +14,10 @@ public class DeliveryAssignmentConfiguration : IEntityTypeConfiguration<Delivery
 
         builder.Property(x => x.Status).HasConversion<string>().HasMaxLength(50).IsRequired();
         builder.Property(x => x.FailureReason).HasMaxLength(300);
+        builder.Property(x => x.OfferRejectedReason).HasMaxLength(100);
         builder.Property(x => x.CodAmount).HasPrecision(18, 2).HasDefaultValue(0);
+        builder.Property(x => x.PickupOtpCode).HasMaxLength(10);
+        builder.Property(x => x.DeliveryOtpCode).HasMaxLength(10);
 
         builder.HasOne(x => x.Order)
             .WithMany()

@@ -5,6 +5,7 @@ using Zadana.Application.Modules.Delivery.Interfaces;
 using Zadana.Domain.Modules.Delivery.Entities;
 using Zadana.Domain.Modules.Delivery.Enums;
 using Zadana.Domain.Modules.Identity.Enums;
+using Zadana.Domain.Modules.Orders.Entities;
 using Zadana.Domain.Modules.Orders.Enums;
 using Zadana.Domain.Modules.Wallets.Enums;
 
@@ -13,10 +14,14 @@ namespace Zadana.Infrastructure.Modules.Delivery.Services;
 public class DriverReadService : IDriverReadService
 {
     private readonly IApplicationDbContext _context;
+    private readonly IDriverCommitmentPolicyService _driverCommitmentPolicyService;
 
-    public DriverReadService(IApplicationDbContext context)
+    public DriverReadService(
+        IApplicationDbContext context,
+        IDriverCommitmentPolicyService driverCommitmentPolicyService)
     {
         _context = context;
+        _driverCommitmentPolicyService = driverCommitmentPolicyService;
     }
 
     public async Task<AdminDriversListDto> GetAdminDriversAsync(
@@ -93,12 +98,16 @@ public class DriverReadService : IDriverReadService
             .Where(w => w.OwnerType == WalletOwnerType.Driver && driverIds.Contains(w.OwnerId))
             .ToDictionaryAsync(w => w.OwnerId, w => w.CurrentBalance, cancellationToken);
 
+        var commitmentSummaries = await _driverCommitmentPolicyService.GetDriverSummariesAsync(driverIds, cancellationToken);
+
         var items = drivers.Select(d =>
         {
             activeTaskCounts.TryGetValue(d.Id, out var activeTasks);
             completedTaskCounts.TryGetValue(d.Id, out var completedTasks);
             latestGps.TryGetValue(d.Id, out var lastSeen);
             walletBalances.TryGetValue(d.Id, out var walletBalance);
+            commitmentSummaries.TryGetValue(d.Id, out var commitmentSummary);
+            commitmentSummary ??= new DriverCommitmentSummaryDto(0, 0, 0, 0, 0, 100m, "Healthy", true, null, null);
 
             var totalAssignments = activeTasks + completedTasks;
             var acceptanceRate = totalAssignments > 0 ? (decimal)completedTasks / totalAssignments * 100 : 0;
@@ -120,7 +129,12 @@ public class DriverReadService : IDriverReadService
                 Performance: DerivePerformance(acceptanceRate),
                 VehicleType: d.VehicleType,
                 LastSeenAt: lastSeen != default ? lastSeen : d.UpdatedAtUtc,
-                Issues: DeriveIssues(d, walletBalance),
+                CommitmentScore: commitmentSummary.CommitmentScore,
+                DailyRejections: commitmentSummary.DailyRejections,
+                WeeklyRejections: commitmentSummary.WeeklyRejections,
+                EnforcementLevel: commitmentSummary.EnforcementLevel,
+                LastOfferResponseAtUtc: commitmentSummary.LastOfferResponseAtUtc,
+                Issues: DeriveIssues(d, walletBalance, commitmentSummary),
                 CollectionPaymentStatus: walletBalance < 0 ? "critical" : walletBalance < 200 ? "warning" : "good",
                 Alerts: null);
         });
@@ -247,6 +261,8 @@ public class DriverReadService : IDriverReadService
             new AdminDriverDocumentDto("PersonalPhoto", driver.PersonalPhotoUrl, driver.PersonalPhotoUrl != null ? "valid" : "missing", null)
         };
 
+        var commitmentSummary = await _driverCommitmentPolicyService.GetDriverSummaryAsync(driverId, cancellationToken);
+
         return new AdminDriverDetailDto(
             Id: driver.Id,
             DriverDisplayId: $"DRV-#{44000 + Math.Abs(driver.Id.GetHashCode() % 10000)}",
@@ -266,9 +282,14 @@ public class DriverReadService : IDriverReadService
             AcceptanceRate: Math.Round(acceptanceRate, 0),
             WalletBalance: walletBalance,
             Performance: DerivePerformance(acceptanceRate),
-            Issues: DeriveIssues(driver, walletBalance),
+            Issues: DeriveIssues(driver, walletBalance, commitmentSummary),
             CollectionPaymentStatus: walletBalance < 0 ? "critical" : walletBalance < 200 ? "warning" : "good",
             Alerts: null,
+            CommitmentScore: commitmentSummary.CommitmentScore,
+            DailyRejections: commitmentSummary.DailyRejections,
+            WeeklyRejections: commitmentSummary.WeeklyRejections,
+            EnforcementLevel: commitmentSummary.EnforcementLevel,
+            LastOfferResponseAtUtc: commitmentSummary.LastOfferResponseAtUtc,
             ZoneName: driver.PrimaryZone != null ? $"{driver.PrimaryZone.City} - {driver.PrimaryZone.Name}" : null,
             PrimaryZoneId: driver.PrimaryZoneId,
             ReviewedAtUtc: driver.ReviewedAtUtc,
@@ -281,6 +302,214 @@ public class DriverReadService : IDriverReadService
                 walletBalance, wallet?.PendingBalance ?? 0,
                 totalEarnings, codCollected, totalSettlements, totalPayouts),
             RecentAssignments: recentAssignments);
+    }
+
+    public async Task<DriverAssignmentDetailDto?> GetAssignmentDetailAsync(
+        Guid driverId,
+        Guid assignmentId,
+        CancellationToken cancellationToken = default)
+    {
+        var assignment = await _context.DeliveryAssignments
+            .AsNoTracking()
+            .Include(a => a.Order)
+                .ThenInclude(o => o.Vendor)
+            .Include(a => a.Order)
+                .ThenInclude(o => o.VendorBranch)
+            .Include(a => a.Order)
+                .ThenInclude(o => o.Items)
+            .Include(a => a.Driver)
+            .FirstOrDefaultAsync(a => a.Id == assignmentId && a.DriverId == driverId, cancellationToken);
+
+        if (assignment is null)
+        {
+            return null;
+        }
+
+        var customerAddress = await _context.CustomerAddresses
+            .AsNoTracking()
+            .FirstOrDefaultAsync(a => a.Id == assignment.Order.CustomerAddressId, cancellationToken);
+
+        return new DriverAssignmentDetailDto(
+            assignment.Id,
+            assignment.OrderId,
+            assignment.Order.OrderNumber,
+            assignment.Status.ToString(),
+            ResolveAssignmentHomeState(assignment),
+            ResolveAllowedActions(assignment, assignment.Order.Status),
+            assignment.Order.Vendor.BusinessNameEn,
+            assignment.Order.VendorBranch?.AddressLine ?? assignment.Order.Vendor.NationalAddress ?? string.Empty,
+            assignment.Order.VendorBranch?.Latitude,
+            assignment.Order.VendorBranch?.Longitude,
+            assignment.Order.Vendor.ContactPhone,
+            customerAddress?.ContactName ?? "Customer",
+            customerAddress?.AddressLine ?? string.Empty,
+            customerAddress?.Latitude,
+            customerAddress?.Longitude,
+            customerAddress?.PhoneNumber,
+            assignment.Order.PaymentMethod.ToString(),
+            assignment.CodAmount,
+            assignment.RequiresPickupOtpVerification,
+            ResolveOtpStatus(assignment.RequiresPickupOtpVerification, assignment.IsPickupOtpVerified),
+            assignment.RequiresDeliveryOtpVerification,
+            ResolveOtpStatus(assignment.RequiresDeliveryOtpVerification, assignment.IsDeliveryOtpVerified),
+            ResolveArrivalState(assignment),
+            assignment.Order.Items
+                .Select(item => new DriverAssignmentItemDto(item.ProductName, item.Quantity, item.UnitPrice, item.LineTotal))
+                .ToArray());
+    }
+
+    public async Task<DriverCompletedOrdersListDto> GetCompletedOrdersAsync(
+        Guid driverId,
+        string? status = null,
+        CancellationToken cancellationToken = default)
+    {
+        var normalizedStatus = string.IsNullOrWhiteSpace(status) ? null : status.Trim().ToLowerInvariant();
+        var query = _context.DeliveryAssignments
+            .AsNoTracking()
+            .Include(a => a.Order)
+                .ThenInclude(o => o.Vendor)
+            .Include(a => a.Order)
+                .ThenInclude(o => o.Items)
+            .Where(a => a.DriverId == driverId &&
+                (a.Order.Status == OrderStatus.Delivered ||
+                 a.Order.Status == OrderStatus.Cancelled ||
+                 a.Order.Status == OrderStatus.DeliveryFailed));
+
+        if (normalizedStatus is not null)
+        {
+            query = normalizedStatus switch
+            {
+                "delivered" => query.Where(a => a.Order.Status == OrderStatus.Delivered),
+                "cancelled" => query.Where(a => a.Order.Status == OrderStatus.Cancelled),
+                "deliveryfailed" or "delivery_failed" => query.Where(a => a.Order.Status == OrderStatus.DeliveryFailed),
+                _ => query.Where(_ => false)
+            };
+        }
+
+        var assignments = await query
+            .OrderByDescending(a => a.DeliveredAtUtc ?? a.FailedAtUtc ?? a.Order.CancelledAtUtc ?? a.UpdatedAtUtc)
+            .ToListAsync(cancellationToken);
+
+        var addressIds = assignments.Select(a => a.Order.CustomerAddressId).Distinct().ToArray();
+        var addresses = await _context.CustomerAddresses
+            .AsNoTracking()
+            .Where(a => addressIds.Contains(a.Id))
+            .ToDictionaryAsync(a => a.Id, cancellationToken);
+
+        var items = assignments
+            .Select(assignment =>
+            {
+                addresses.TryGetValue(assignment.Order.CustomerAddressId, out var customerAddress);
+
+                return new DriverCompletedOrderListItemDto(
+                    assignment.OrderId,
+                    assignment.Order.Vendor.BusinessNameEn,
+                    customerAddress?.ContactName ?? "Customer",
+                    ResolveCompletedAtUtc(assignment),
+                    MapCompletedOrderStatus(assignment.Order.Status),
+                    assignment.Order.TotalAmount,
+                    ResolveDistanceKm(assignment.Order, customerAddress),
+                    assignment.Order.PaymentMethod.ToString(),
+                    customerAddress?.AddressLine ?? string.Empty,
+                    assignment.Order.Items
+                        .Select(item => new DriverCompletedOrderItemDto(item.ProductName, item.Quantity, item.UnitPrice, item.LineTotal))
+                        .ToArray());
+            })
+            .ToArray();
+
+        return new DriverCompletedOrdersListDto(items, items.Length);
+    }
+
+    public async Task<DriverCompletedOrderDetailDto?> GetCompletedOrderDetailAsync(
+        Guid driverId,
+        Guid orderId,
+        CancellationToken cancellationToken = default)
+    {
+        var assignment = await _context.DeliveryAssignments
+            .AsNoTracking()
+            .Include(a => a.Order)
+                .ThenInclude(o => o.Vendor)
+            .Include(a => a.Order)
+                .ThenInclude(o => o.VendorBranch)
+            .Include(a => a.Order)
+                .ThenInclude(o => o.Items)
+            .Where(a => a.DriverId == driverId && a.OrderId == orderId)
+            .OrderByDescending(a => a.CreatedAtUtc)
+            .FirstOrDefaultAsync(cancellationToken);
+
+        if (assignment is null)
+        {
+            return null;
+        }
+
+        if (assignment.Order.Status is not (OrderStatus.Delivered or OrderStatus.Cancelled or OrderStatus.DeliveryFailed))
+        {
+            return null;
+        }
+
+        var customerAddress = await _context.CustomerAddresses
+            .AsNoTracking()
+            .FirstOrDefaultAsync(a => a.Id == assignment.Order.CustomerAddressId, cancellationToken);
+
+        return new DriverCompletedOrderDetailDto(
+            assignment.OrderId,
+            assignment.Id,
+            assignment.Order.OrderNumber,
+            assignment.Order.Vendor.BusinessNameEn,
+            assignment.Order.Vendor.ContactPhone,
+            customerAddress?.ContactName ?? "Customer",
+            customerAddress?.PhoneNumber,
+            assignment.Order.VendorBranch?.AddressLine ?? assignment.Order.Vendor.NationalAddress ?? string.Empty,
+            customerAddress?.AddressLine ?? string.Empty,
+            MapCompletedOrderStatus(assignment.Order.Status),
+            assignment.Order.PaymentMethod.ToString(),
+            assignment.Order.TotalAmount,
+            assignment.Order.DeliveryFee,
+            ResolveDistanceKm(assignment.Order, customerAddress),
+            ResolveCompletedAtUtc(assignment),
+            assignment.Order.Items
+                .Select(item => new DriverCompletedOrderItemDto(item.ProductName, item.Quantity, item.UnitPrice, item.LineTotal))
+                .ToArray());
+    }
+
+    public async Task<DriverProfileDto?> GetDriverProfileAsync(Guid userId, CancellationToken cancellationToken = default)
+    {
+        var driver = await _context.Drivers
+            .AsNoTracking()
+            .Include(d => d.User)
+            .Include(d => d.PrimaryZone)
+            .FirstOrDefaultAsync(d => d.UserId == userId, cancellationToken);
+
+        if (driver is null)
+        {
+            return null;
+        }
+
+        var missingRequirements = GetMissingRequirements(driver, driver.User);
+        var completionPercent = GetCompletionPercent(missingRequirements.Count);
+
+        return new DriverProfileDto(
+            driver.User.FullName,
+            driver.User.Email ?? string.Empty,
+            driver.User.PhoneNumber ?? string.Empty,
+            driver.Address,
+            driver.VehicleType?.ToString(),
+            driver.LicenseNumber,
+            driver.NationalId,
+            driver.PersonalPhotoUrl,
+            driver.NationalIdImageUrl,
+            driver.LicenseImageUrl,
+            driver.VehicleImageUrl,
+            driver.PrimaryZoneId,
+            driver.PrimaryZone is not null ? $"{driver.PrimaryZone.City} - {driver.PrimaryZone.Name}" : null,
+            driver.VerificationStatus.ToString(),
+            driver.Status.ToString(),
+            driver.ReviewNote,
+            driver.SuspensionReason,
+            missingRequirements.Count == 0,
+            completionPercent,
+            missingRequirements,
+            missingRequirements.Count == 0);
     }
 
     public async Task<DeliveryZoneDto[]> GetActiveZonesAsync(CancellationToken cancellationToken = default)
@@ -316,7 +545,10 @@ public class DriverReadService : IDriverReadService
     private static bool TryParseVehicleType(string value, out DriverVehicleType vehicleType) =>
         DriverVehicleTypeMapper.TryParse(value, out vehicleType);
 
-    private static string[] DeriveIssues(Driver driver, decimal walletBalance)
+    private static string[] DeriveIssues(
+        Driver driver,
+        decimal walletBalance,
+        DriverCommitmentSummaryDto commitmentSummary)
     {
         var issues = new List<string>();
         if (driver.VerificationStatus is DriverVerificationStatus.NeedsDocuments or DriverVerificationStatus.UnderReview)
@@ -325,6 +557,167 @@ public class DriverReadService : IDriverReadService
             issues.Add("payment");
         if (driver.Status == AccountStatus.Suspended)
             issues.Add("legal");
+        if (!commitmentSummary.CanReceiveOffers)
+            issues.Add("dispatch");
         return issues.Count > 0 ? issues.ToArray() : ["clear"];
     }
+
+    private static string ResolveAssignmentHomeState(DeliveryAssignment assignment) =>
+        assignment.Status == AssignmentStatus.OfferSent ? "IncomingOffer" : "OnMission";
+
+    private static IReadOnlyList<string> ResolveAllowedActions(DeliveryAssignment assignment, OrderStatus orderStatus)
+    {
+        if (assignment.Status == AssignmentStatus.OfferSent)
+        {
+            return ["accept_offer", "reject_offer"];
+        }
+
+        if (assignment.Status == AssignmentStatus.Accepted)
+        {
+            return ["arrived_at_vendor"];
+        }
+
+        if (assignment.Status == AssignmentStatus.ArrivedAtVendor)
+        {
+            return assignment.RequiresPickupOtpVerification
+                ? ["verify_pickup_otp"]
+                : ["mark_picked_up"];
+        }
+
+        if (assignment.Status == AssignmentStatus.PickedUp && orderStatus != OrderStatus.OnTheWay)
+        {
+            return ["mark_on_the_way"];
+        }
+
+        if (assignment.Status == AssignmentStatus.PickedUp && orderStatus == OrderStatus.OnTheWay)
+        {
+            return ["arrived_at_customer"];
+        }
+
+        if (assignment.Status == AssignmentStatus.ArrivedAtCustomer)
+        {
+            return assignment.RequiresDeliveryOtpVerification
+                ? ["verify_delivery_otp"]
+                : ["mark_delivered"];
+        }
+
+        return Array.Empty<string>();
+    }
+
+    private static string ResolveOtpStatus(bool required, bool verified)
+    {
+        if (!required && !verified)
+        {
+            return "not_required";
+        }
+
+        return verified ? "verified" : "pending";
+    }
+
+    private static string ResolveArrivalState(DeliveryAssignment assignment)
+    {
+        if (assignment.Status == AssignmentStatus.ArrivedAtCustomer || assignment.ArrivedAtCustomerAtUtc.HasValue)
+        {
+            return "arrived_at_customer";
+        }
+
+        if (assignment.Status == AssignmentStatus.ArrivedAtVendor || assignment.ArrivedAtVendorAtUtc.HasValue)
+        {
+            return "arrived_at_vendor";
+        }
+
+        return "en_route";
+    }
+
+    private static DateTime? ResolveCompletedAtUtc(DeliveryAssignment assignment) =>
+        assignment.DeliveredAtUtc
+        ?? assignment.FailedAtUtc
+        ?? assignment.Order.CancelledAtUtc
+        ?? assignment.Order.DeliveredAtUtc;
+
+    private static string MapCompletedOrderStatus(OrderStatus status) =>
+        status switch
+        {
+            OrderStatus.Delivered => "delivered",
+            OrderStatus.Cancelled => "cancelled",
+            OrderStatus.DeliveryFailed => "deliveryFailed",
+            _ => status.ToString()
+        };
+
+    private static decimal ResolveDistanceKm(Order order, CustomerAddress? customerAddress)
+    {
+        if (order.QuotedDistanceKm.HasValue)
+        {
+            return Math.Round(order.QuotedDistanceKm.Value, 2);
+        }
+
+        if (order.VendorBranch?.Latitude is null ||
+            order.VendorBranch.Longitude is null ||
+            customerAddress?.Latitude is null ||
+            customerAddress.Longitude is null)
+        {
+            return 0m;
+        }
+
+        return Math.Round(ApproximateDistanceKm(
+            order.VendorBranch.Latitude.Value,
+            order.VendorBranch.Longitude.Value,
+            customerAddress.Latitude.Value,
+            customerAddress.Longitude.Value), 2);
+    }
+
+    private static decimal ApproximateDistanceKm(decimal lat1, decimal lng1, decimal lat2, decimal lng2)
+    {
+        var dLat = (double)(lat2 - lat1) * Math.PI / 180;
+        var dLng = (double)(lng2 - lng1) * Math.PI / 180;
+        var avgLat = (double)(lat1 + lat2) / 2 * Math.PI / 180;
+        var x = dLng * Math.Cos(avgLat);
+        var y = dLat;
+        return (decimal)(Math.Sqrt(x * x + y * y) * 6371);
+    }
+
+    private static List<string> GetMissingRequirements(Driver driver, Domain.Modules.Identity.Entities.User user)
+    {
+        var missing = new List<string>();
+
+        if (string.IsNullOrWhiteSpace(user.FullName) ||
+            string.IsNullOrWhiteSpace(user.Email) ||
+            string.IsNullOrWhiteSpace(user.PhoneNumber) ||
+            string.IsNullOrWhiteSpace(driver.Address))
+        {
+            missing.Add("missing_personal_info");
+        }
+
+        if (driver.VehicleType is null ||
+            string.IsNullOrWhiteSpace(driver.LicenseNumber) ||
+            string.IsNullOrWhiteSpace(driver.NationalId))
+        {
+            missing.Add("missing_vehicle_info");
+        }
+
+        if (string.IsNullOrWhiteSpace(driver.PersonalPhotoUrl) ||
+            string.IsNullOrWhiteSpace(driver.NationalIdImageUrl) ||
+            string.IsNullOrWhiteSpace(driver.LicenseImageUrl) ||
+            string.IsNullOrWhiteSpace(driver.VehicleImageUrl))
+        {
+            missing.Add("missing_documents");
+        }
+
+        if (!driver.PrimaryZoneId.HasValue)
+        {
+            missing.Add("missing_zone_selection");
+        }
+
+        return missing;
+    }
+
+    private static int GetCompletionPercent(int missingCount) =>
+        missingCount switch
+        {
+            <= 0 => 100,
+            1 => 75,
+            2 => 50,
+            3 => 25,
+            _ => 0
+        };
 }

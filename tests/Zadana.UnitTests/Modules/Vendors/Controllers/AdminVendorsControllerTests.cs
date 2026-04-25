@@ -18,6 +18,7 @@ using Zadana.Application.Modules.Vendors.Commands.ReactivateVendor;
 using Zadana.Application.Modules.Vendors.Commands.StartVendorReview;
 using Zadana.Application.Modules.Vendors.Commands.SuspendVendor;
 using Zadana.Application.Modules.Vendors.DTOs;
+using Zadana.Application.Modules.Vendors.Interfaces;
 using Zadana.Application.Modules.Vendors.Queries.GetAllVendors;
 using Zadana.Application.Modules.Vendors.Queries.GetVendorDetail;
 
@@ -30,6 +31,7 @@ public class AdminVendorsControllerTests
     private readonly Mock<IApplicationDbContext> _contextMock = new();
     private readonly Mock<INotificationService> _notificationServiceMock = new();
     private readonly Mock<IOneSignalPushService> _oneSignalPushServiceMock = new();
+    private readonly Mock<IVendorCommunicationService> _vendorCommunicationServiceMock = new();
     private readonly AdminVendorsController _controller;
 
     public AdminVendorsControllerTests()
@@ -41,7 +43,8 @@ public class AdminVendorsControllerTests
             _localizerMock.Object,
             _contextMock.Object,
             _notificationServiceMock.Object,
-            _oneSignalPushServiceMock.Object);
+            _oneSignalPushServiceMock.Object,
+            _vendorCommunicationServiceMock.Object);
 
         var services = new ServiceCollection();
         services.AddSingleton(_senderMock.Object);

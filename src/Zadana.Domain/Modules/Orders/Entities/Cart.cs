@@ -13,6 +13,12 @@ public class Cart : BaseEntity
     public decimal Subtotal { get; private set; }
     public decimal DiscountTotal { get; private set; }
     public decimal DeliveryFee { get; private set; }
+    public decimal BaseDeliveryFee { get; private set; }
+    public decimal DistanceDeliveryFee { get; private set; }
+    public decimal SurgeDeliveryFee { get; private set; }
+    public decimal? QuotedDistanceKm { get; private set; }
+    public string? DeliveryPricingMode { get; private set; }
+    public string? DeliveryPricingRuleLabel { get; private set; }
     public decimal Total { get; private set; }
 
     // Navigation
@@ -35,6 +41,9 @@ public class Cart : BaseEntity
         Subtotal = 0;
         DiscountTotal = 0;
         DeliveryFee = 0;
+        BaseDeliveryFee = 0;
+        DistanceDeliveryFee = 0;
+        SurgeDeliveryFee = 0;
         Total = 0;
     }
 
@@ -52,10 +61,24 @@ public class Cart : BaseEntity
         RecalculateTotal();
     }
 
-    public void UpdateTotals(decimal subtotal, decimal deliveryFee)
+    public void UpdateTotals(
+        decimal subtotal,
+        decimal deliveryFee,
+        decimal baseDeliveryFee = 0,
+        decimal distanceDeliveryFee = 0,
+        decimal surgeDeliveryFee = 0,
+        decimal? quotedDistanceKm = null,
+        string? deliveryPricingMode = null,
+        string? deliveryPricingRuleLabel = null)
     {
         Subtotal = subtotal;
         DeliveryFee = deliveryFee;
+        BaseDeliveryFee = baseDeliveryFee;
+        DistanceDeliveryFee = distanceDeliveryFee;
+        SurgeDeliveryFee = surgeDeliveryFee;
+        QuotedDistanceKm = quotedDistanceKm;
+        DeliveryPricingMode = string.IsNullOrWhiteSpace(deliveryPricingMode) ? null : deliveryPricingMode.Trim();
+        DeliveryPricingRuleLabel = string.IsNullOrWhiteSpace(deliveryPricingRuleLabel) ? null : deliveryPricingRuleLabel.Trim();
         RecalculateTotal();
     }
 

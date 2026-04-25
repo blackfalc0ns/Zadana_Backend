@@ -13,6 +13,12 @@ public record PlaceOrderCommand(
     string? Notes,
     Guid? VendorBranchId,
     Guid? CouponId,
+    decimal BaseDeliveryFee,
+    decimal DistanceDeliveryFee,
+    decimal SurgeDeliveryFee,
+    decimal? QuotedDistanceKm,
+    string? DeliveryPricingMode,
+    string? DeliveryPricingRuleLabel,
     bool ClearCartAfterPlacement = true) : MediatR.IRequest<Guid>;
 
 public class PlaceOrderCommandValidator : AbstractValidator<PlaceOrderCommand>

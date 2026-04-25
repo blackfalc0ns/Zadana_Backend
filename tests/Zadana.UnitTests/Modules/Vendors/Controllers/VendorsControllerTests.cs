@@ -99,7 +99,34 @@ public class VendorsControllerTests
     [Fact]
     public async Task GetProfile_ReturnsOkResult()
     {
-        var dto = new VendorWorkspaceDto(
+        var dto = CreateWorkspaceDto();
+
+        _senderMock.Setup(x => x.Send(It.IsAny<GetVendorProfileQuery>(), default))
+            .ReturnsAsync(dto);
+
+        var result = await _controller.GetProfile();
+
+        var okResult = result.Should().BeOfType<OkObjectResult>().Subject;
+        okResult.Value.Should().BeEquivalentTo(dto);
+    }
+
+    [Fact]
+    public async Task UpdateProfile_ReturnsOkResult_WithLocalizedMessage()
+    {
+        var request = new UpdateVendorProfileRequest("Ar", "En", "Type", "test@test.com", "123", null);
+        var dto = new VendorProfileDto(Guid.NewGuid(), "Ar", "En", "Type", "CR", null, "test@test.com", "123", null, "Active", null, null, DateTime.UtcNow);
+
+        _senderMock.Setup(x => x.Send(It.IsAny<UpdateVendorProfileCommand>(), default))
+            .ReturnsAsync(dto);
+
+        var result = await _controller.UpdateProfile(request);
+
+        var okResult = result.Should().BeOfType<OkObjectResult>().Subject;
+        okResult.Value.Should().NotBeNull();
+    }
+
+    private static VendorWorkspaceDto CreateWorkspaceDto() =>
+        new(
             Guid.NewGuid(),
             "Ar",
             "En",
@@ -146,29 +173,20 @@ public class VendorsControllerTests
             1,
             1,
             null,
-            []);
-
-        _senderMock.Setup(x => x.Send(It.IsAny<GetVendorProfileQuery>(), default))
-            .ReturnsAsync(dto);
-
-        var result = await _controller.GetProfile();
-
-        var okResult = result.Should().BeOfType<OkObjectResult>().Subject;
-        okResult.Value.Should().BeEquivalentTo(dto);
-    }
-
-    [Fact]
-    public async Task UpdateProfile_ReturnsOkResult_WithLocalizedMessage()
-    {
-        var request = new UpdateVendorProfileRequest("Ar", "En", "Type", "test@test.com", "123", null);
-        var dto = new VendorProfileDto(Guid.NewGuid(), "Ar", "En", "Type", "CR", null, "test@test.com", "123", null, "Active", null, null, DateTime.UtcNow);
-
-        _senderMock.Setup(x => x.Send(It.IsAny<UpdateVendorProfileCommand>(), default))
-            .ReturnsAsync(dto);
-
-        var result = await _controller.UpdateProfile(request);
-
-        var okResult = result.Should().BeOfType<OkObjectResult>().Subject;
-        okResult.Value.Should().NotBeNull();
-    }
+            [],
+            "UnderReview",
+            false,
+            null,
+            null,
+            null,
+            null,
+            null,
+            null,
+            null,
+            new VendorWorkspaceReviewSummaryDto(0, 0, 0, 0, 0, 0),
+            [],
+            [],
+            [],
+            0,
+            false);
 }

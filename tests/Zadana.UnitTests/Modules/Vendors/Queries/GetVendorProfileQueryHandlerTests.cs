@@ -16,7 +16,24 @@ public class GetVendorProfileQueryHandlerTests
     public async Task Handle_WithValidRequest_ReturnsWorkspaceDto()
     {
         var userId = Guid.NewGuid();
-        var expected = new VendorWorkspaceDto(
+        var expected = CreateWorkspaceDto();
+
+        _currentUserMock.Setup(currentUser => currentUser.UserId).Returns(userId);
+
+        var readService = new Mock<IVendorReadService>();
+        readService
+            .Setup(service => service.GetWorkspaceByUserIdAsync(userId, It.IsAny<CancellationToken>()))
+            .ReturnsAsync(expected);
+
+        var handler = new GetVendorProfileQueryHandler(readService.Object, _currentUserMock.Object);
+
+        var result = await handler.Handle(new GetVendorProfileQuery(), default);
+
+        result.Should().BeEquivalentTo(expected);
+    }
+
+    private static VendorWorkspaceDto CreateWorkspaceDto() =>
+        new(
             Guid.NewGuid(),
             "Business Ar",
             "Business En",
@@ -63,21 +80,22 @@ public class GetVendorProfileQueryHandlerTests
             1,
             1,
             null,
-            []);
-
-        _currentUserMock.Setup(currentUser => currentUser.UserId).Returns(userId);
-
-        var readService = new Mock<IVendorReadService>();
-        readService
-            .Setup(service => service.GetWorkspaceByUserIdAsync(userId, It.IsAny<CancellationToken>()))
-            .ReturnsAsync(expected);
-
-        var handler = new GetVendorProfileQueryHandler(readService.Object, _currentUserMock.Object);
-
-        var result = await handler.Handle(new GetVendorProfileQuery(), default);
-
-        result.Should().BeEquivalentTo(expected);
-    }
+            [],
+            "UnderReview",
+            false,
+            null,
+            null,
+            null,
+            null,
+            null,
+            null,
+            null,
+            new VendorWorkspaceReviewSummaryDto(0, 0, 0, 0, 0, 0),
+            [],
+            [],
+            [],
+            0,
+            false);
 
     [Fact]
     public async Task Handle_WithoutAuthenticatedUser_ThrowsUnauthorizedException()

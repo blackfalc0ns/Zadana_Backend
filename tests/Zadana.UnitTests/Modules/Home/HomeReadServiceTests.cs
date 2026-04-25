@@ -373,7 +373,7 @@ public class HomeReadServiceTests
             context.CustomerAddresses.Add(address);
             await context.SaveChangesAsync();
 
-            var deliveredOrder = new Order("ORD-1", customer.Id, vendor.Id, address.Id, PaymentMethodType.CashOnDelivery, 8m, 0m, 0m, 0m);
+            var deliveredOrder = new Order("ORD-1", customer.Id, vendor.Id, address.Id, PaymentMethodType.CashOnDelivery, 8m, 0m, 0m, 0m, 0m, 0m, null, null, null, 0m);
             deliveredOrder.ChangeStatus(OrderStatus.Delivered);
             context.Orders.Add(deliveredOrder);
             await context.SaveChangesAsync();

@@ -41,21 +41,26 @@ public class DriverUpdateOrderStatusCommandValidator : AbstractValidator<DriverU
 
 public class DriverUpdateOrderStatusCommandHandler : IRequestHandler<DriverUpdateOrderStatusCommand, DriverUpdateOrderStatusResultDto>
 {
+    private static readonly TimeSpan DeliveryOtpTtl = TimeSpan.FromHours(12);
+
     private readonly IApplicationDbContext _context;
     private readonly IUnitOfWork _unitOfWork;
     private readonly IPublisher _publisher;
     private readonly IDriverRepository _driverRepository;
+    private readonly INotificationService _notificationService;
 
     public DriverUpdateOrderStatusCommandHandler(
         IApplicationDbContext context,
         IUnitOfWork unitOfWork,
         IPublisher publisher,
-        IDriverRepository driverRepository)
+        IDriverRepository driverRepository,
+        INotificationService notificationService)
     {
         _context = context;
         _unitOfWork = unitOfWork;
         _publisher = publisher;
         _driverRepository = driverRepository;
+        _notificationService = notificationService;
     }
 
     public async Task<DriverUpdateOrderStatusResultDto> Handle(DriverUpdateOrderStatusCommand request, CancellationToken cancellationToken)
@@ -85,22 +90,18 @@ public class DriverUpdateOrderStatusCommandHandler : IRequestHandler<DriverUpdat
             throw new BusinessRuleException("DRIVER_NOT_ASSIGNED", "You are not assigned to this order");
         }
 
-        if (request.NewStatus == OrderStatus.Delivered)
+        if (request.NewStatus == OrderStatus.PickedUp && !assignment.IsPickupOtpVerified)
         {
-            var hasPhotoProof = await _context.DeliveryProofs
-                .AnyAsync(
-                    proof => proof.AssignmentId == assignment.Id &&
-                        (!string.IsNullOrWhiteSpace(proof.ImageUrl) ||
-                         proof.ProofType == "Image" ||
-                         proof.ProofType == "Photo"),
-                    cancellationToken);
+            throw new BusinessRuleException(
+                "PICKUP_OTP_REQUIRED",
+                "Pickup OTP must be verified before marking the order as picked up.");
+        }
 
-            if (!hasPhotoProof)
-            {
-                throw new BusinessRuleException(
-                    "DELIVERY_PROOF_REQUIRED",
-                    "Photo proof is required before marking an order as delivered.");
-            }
+        if (request.NewStatus == OrderStatus.Delivered && !assignment.IsDeliveryOtpVerified)
+        {
+            throw new BusinessRuleException(
+                "DELIVERY_OTP_REQUIRED",
+                "Delivery OTP must be verified before marking the order as delivered.");
         }
 
         if (request.NewStatus == OrderStatus.DeliveryFailed && string.IsNullOrWhiteSpace(request.Note))
@@ -116,6 +117,12 @@ public class DriverUpdateOrderStatusCommandHandler : IRequestHandler<DriverUpdat
         order.ChangeStatus(request.NewStatus, request.DriverUserId, request.Note);
         _context.OrderStatusHistories.Add(order.StatusHistory.Last());
 
+        string? deliveryOtp = null;
+        if (request.NewStatus == OrderStatus.OnTheWay)
+        {
+            deliveryOtp = assignment.EnsureDeliveryOtp(DeliveryOtpTtl);
+        }
+
         // Update assignment status to match order status
         if (request.NewStatus == OrderStatus.PickedUp)
             assignment.MarkPickedUp();
@@ -125,6 +132,20 @@ public class DriverUpdateOrderStatusCommandHandler : IRequestHandler<DriverUpdat
             assignment.Fail(request.Note ?? "Delivery failed");
 
         await _unitOfWork.SaveChangesAsync(cancellationToken);
+
+        if (!string.IsNullOrWhiteSpace(deliveryOtp))
+        {
+            await _notificationService.SendToUserAsync(
+                order.UserId,
+                "رمز التسليم جاهز",
+                "Delivery OTP is ready",
+                $"رمز تسليم طلبك رقم {order.OrderNumber} هو {deliveryOtp}. شاركه مع المندوب عند الاستلام.",
+                $"Your delivery OTP for order #{order.OrderNumber} is {deliveryOtp}. Share it with the driver on arrival.",
+                "delivery-otp",
+                order.Id,
+                $"deliveryOtp={deliveryOtp}",
+                cancellationToken);
+        }
 
         // Publish notification event
         await _publisher.Publish(
@@ -136,7 +157,7 @@ public class DriverUpdateOrderStatusCommandHandler : IRequestHandler<DriverUpdat
                 oldStatus,
                 request.NewStatus,
                 NotifyCustomer: true,
-                NotifyVendor: request.NewStatus == OrderStatus.DeliveryFailed,
+                NotifyVendor: request.NewStatus is OrderStatus.DeliveryFailed or OrderStatus.Delivered,
                 ActorRole: "driver"),
             cancellationToken);
 

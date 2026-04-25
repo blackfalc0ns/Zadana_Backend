@@ -112,7 +112,7 @@ public class VendorUpdateOrderStatusCommandHandler : IRequestHandler<VendorUpdat
 
         if (request.NewStatus == OrderStatus.ReadyForPickup)
         {
-            await _deliveryDispatchService.TryAutoDispatchAsync(order.Id, cancellationToken);
+            await _deliveryDispatchService.TryAutoDispatchAsync(order.Id, cancellationToken: cancellationToken);
         }
 
         return new VendorUpdateOrderStatusResultDto(

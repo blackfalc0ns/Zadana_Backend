@@ -41,7 +41,7 @@ public class AssignDeliveryCommandHandler : IRequestHandler<AssignDeliveryComman
             _context.DeliveryAssignments.Add(assignment);
         }
 
-        assignment.OfferTo(driver.Id);
+        assignment.OfferTo(driver.Id, assignment.DispatchAttemptNumber + 1, DateTime.UtcNow.AddMinutes(5));
         assignment.Accept();
 
         order.ChangeStatus(OrderStatus.DriverAssigned, null, "Driver assigned via dispatch");

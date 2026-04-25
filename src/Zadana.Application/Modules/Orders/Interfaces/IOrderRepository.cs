@@ -24,6 +24,12 @@ public interface IOrderRepository
         decimal subtotal,
         decimal discountTotal,
         decimal deliveryFee,
+        decimal baseDeliveryFee,
+        decimal distanceDeliveryFee,
+        decimal surgeDeliveryFee,
+        decimal? quotedDistanceKm,
+        string? deliveryPricingMode,
+        string? deliveryPricingRuleLabel,
         decimal commissionAmount,
         IReadOnlyDictionary<Guid, int> itemQuantities,
         CancellationToken cancellationToken = default);

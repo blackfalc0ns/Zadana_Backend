@@ -76,9 +76,12 @@ public class ApplicationDbContext : IdentityDbContext<User, IdentityRole<Guid>, 
     public DbSet<Driver> Drivers => Set<Driver>();
     public DbSet<DriverLocation> DriverLocations => Set<DriverLocation>();
     public DbSet<DeliveryAssignment> DeliveryAssignments => Set<DeliveryAssignment>();
+    public DbSet<DeliveryOfferAttempt> DeliveryOfferAttempts => Set<DeliveryOfferAttempt>();
     public DbSet<DeliveryProof> DeliveryProofs => Set<DeliveryProof>();
     public DbSet<CustomerAddress> CustomerAddresses => Set<CustomerAddress>();
     public DbSet<DeliveryZone> DeliveryZones => Set<DeliveryZone>();
+    public DbSet<DeliveryPricingRule> DeliveryPricingRules => Set<DeliveryPricingRule>();
+    public DbSet<DeliveryPricingSurgeWindow> DeliveryPricingSurgeWindows => Set<DeliveryPricingSurgeWindow>();
     public DbSet<DriverNote> DriverNotes => Set<DriverNote>();
     public DbSet<DriverIncident> DriverIncidents => Set<DriverIncident>();
 
@@ -88,6 +91,8 @@ public class ApplicationDbContext : IdentityDbContext<User, IdentityRole<Guid>, 
     public DbSet<Settlement> Settlements => Set<Settlement>();
     public DbSet<SettlementItem> SettlementItems => Set<SettlementItem>();
     public DbSet<Payout> Payouts => Set<Payout>();
+    public DbSet<DriverPayoutMethod> DriverPayoutMethods => Set<DriverPayoutMethod>();
+    public DbSet<DriverWithdrawalRequest> DriverWithdrawalRequests => Set<DriverWithdrawalRequest>();
 
     // Marketing & Social
     public DbSet<Coupon> Coupons => Set<Coupon>();
