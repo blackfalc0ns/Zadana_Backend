@@ -126,6 +126,14 @@ public class Driver : BaseEntity
     public void RequestDocuments(Guid reviewerUserId, string? note = null)
     {
         VerificationStatus = DriverVerificationStatus.NeedsDocuments;
+        IsAvailable = false;
+
+        // Active drivers should go back to Pending while docs are missing
+        if (Status == AccountStatus.Active)
+        {
+            Status = AccountStatus.Pending;
+        }
+
         ReviewedAtUtc = DateTime.UtcNow;
         ReviewedByUserId = reviewerUserId;
         ReviewNote = note?.Trim();
@@ -136,6 +144,7 @@ public class Driver : BaseEntity
         VerificationStatus = DriverVerificationStatus.Rejected;
         Status = AccountStatus.Inactive;
         IsAvailable = false;
+        SuspensionReason = null;
         ReviewedAtUtc = DateTime.UtcNow;
         ReviewedByUserId = reviewerUserId;
         ReviewNote = note?.Trim();

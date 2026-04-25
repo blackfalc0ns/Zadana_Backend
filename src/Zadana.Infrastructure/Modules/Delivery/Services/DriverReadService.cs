@@ -932,11 +932,16 @@ public class DriverReadService : IDriverReadService
                 new AdminDriverWorkflowActionDto("OPEN_FINANCE", "secondary", "finance"),
                 new AdminDriverWorkflowActionDto("REACTIVATE_DRIVER", "success", "overview")
             },
-            "PENDING_DOCUMENTS" or "VERIFICATION_REVIEW" => new[]
+            "PENDING_DOCUMENTS" => new[]
             {
                 new AdminDriverWorkflowActionDto("REQUEST_DOCUMENTS", "warning", "verification"),
-                new AdminDriverWorkflowActionDto("APPROVE_VERIFICATION", "success", "verification"),
                 new AdminDriverWorkflowActionDto("OPEN_SUPPORT", "secondary", "support")
+            },
+            "VERIFICATION_REVIEW" => new[]
+            {
+                new AdminDriverWorkflowActionDto("APPROVE_VERIFICATION", "success", "verification"),
+                new AdminDriverWorkflowActionDto("REQUEST_DOCUMENTS", "warning", "verification"),
+                new AdminDriverWorkflowActionDto("REJECT_VERIFICATION", "danger", "verification")
             },
             "COMPLIANCE_REVIEW" => new[]
             {
@@ -1036,12 +1041,14 @@ public class DriverReadService : IDriverReadService
             return "SUSPENDED";
         }
 
-        if (missingRequirements.Contains("missing_documents"))
+        // Driver needs to upload documents or was rejected — driver action required
+        if (driver.VerificationStatus is DriverVerificationStatus.NeedsDocuments or DriverVerificationStatus.Rejected)
         {
             return "PENDING_DOCUMENTS";
         }
 
-        if (driver.VerificationStatus is DriverVerificationStatus.UnderReview or DriverVerificationStatus.NeedsDocuments)
+        // Documents submitted, waiting for admin review — admin action required
+        if (driver.VerificationStatus == DriverVerificationStatus.UnderReview)
         {
             return "VERIFICATION_REVIEW";
         }
