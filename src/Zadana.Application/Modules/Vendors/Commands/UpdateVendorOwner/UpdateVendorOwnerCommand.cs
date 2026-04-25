@@ -36,19 +36,22 @@ public class UpdateVendorOwnerCommandHandler : IRequestHandler<UpdateVendorOwner
     private readonly IIdentityAccountService _identityAccountService;
     private readonly IUnitOfWork _unitOfWork;
     private readonly ICurrentUserService _currentUserService;
+    private readonly IVendorReviewAuditService _vendorReviewAuditService;
 
     public UpdateVendorOwnerCommandHandler(
         IVendorRepository vendorRepository,
         IVendorReadService vendorReadService,
         IIdentityAccountService identityAccountService,
         IUnitOfWork unitOfWork,
-        ICurrentUserService currentUserService)
+        ICurrentUserService currentUserService,
+        IVendorReviewAuditService vendorReviewAuditService)
     {
         _vendorRepository = vendorRepository;
         _vendorReadService = vendorReadService;
         _identityAccountService = identityAccountService;
         _unitOfWork = unitOfWork;
         _currentUserService = currentUserService;
+        _vendorReviewAuditService = vendorReviewAuditService;
     }
 
     public async Task<VendorWorkspaceDto> Handle(UpdateVendorOwnerCommand request, CancellationToken cancellationToken)
@@ -72,6 +75,17 @@ public class UpdateVendorOwnerCommandHandler : IRequestHandler<UpdateVendorOwner
         }
 
         await _unitOfWork.SaveChangesAsync(cancellationToken);
+
+        await _vendorReviewAuditService.AppendActivityEntryAsync(
+            vendor.UserId,
+            "profile-owner-updated",
+            "info",
+            "Vendor updated owner information from Vendor Portal.",
+            "Vendor Portal",
+            vendor.BusinessNameEn,
+            userId,
+            vendor.BusinessNameEn,
+            cancellationToken);
 
         return await _vendorReadService.GetWorkspaceByUserIdAsync(userId, cancellationToken)
             ?? throw new NotFoundException("Vendor", userId);

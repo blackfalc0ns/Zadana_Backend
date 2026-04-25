@@ -9,6 +9,9 @@ public record GetCheckoutSummaryResponse(
     [property: JsonPropertyName("delivery_slots")] List<CheckoutDeliverySlotResponse> DeliverySlots,
     [property: JsonPropertyName("payment_methods")] List<CheckoutPaymentMethodResponse> PaymentMethods,
     [property: JsonPropertyName("promo_code")] CheckoutPromoCodeResponse? PromoCode,
+    [property: JsonPropertyName("delivery_quote")] CheckoutDeliveryQuoteResponse DeliveryQuote,
+    [property: JsonPropertyName("shipping_breakdown")] List<CheckoutShippingBreakdownLineResponse> ShippingBreakdown,
+    [property: JsonPropertyName("pricing_mode")] string PricingMode,
     [property: JsonPropertyName("summary")] CheckoutSummaryTotalsResponse Summary);
 
 public record CheckoutCartResponse(
@@ -51,6 +54,20 @@ public record CheckoutPromoCodeResponse(
     [property: JsonPropertyName("discount_type")] string DiscountType,
     [property: JsonPropertyName("discount_value")] decimal DiscountValue,
     [property: JsonPropertyName("discount_amount")] decimal DiscountAmount);
+
+public record CheckoutDeliveryQuoteResponse(
+    [property: JsonPropertyName("distance_km")] decimal DistanceKm,
+    [property: JsonPropertyName("base_fee")] decimal BaseFee,
+    [property: JsonPropertyName("distance_fee")] decimal DistanceFee,
+    [property: JsonPropertyName("surge_fee")] decimal SurgeFee,
+    [property: JsonPropertyName("total_fee")] decimal TotalFee,
+    [property: JsonPropertyName("pricing_mode")] string PricingMode,
+    [property: JsonPropertyName("rule_label")] string RuleLabel);
+
+public record CheckoutShippingBreakdownLineResponse(
+    [property: JsonPropertyName("code")] string Code,
+    [property: JsonPropertyName("label")] string Label,
+    [property: JsonPropertyName("amount")] decimal Amount);
 
 public record CheckoutSummaryTotalsResponse(
     [property: JsonPropertyName("subtotal")] decimal Subtotal,

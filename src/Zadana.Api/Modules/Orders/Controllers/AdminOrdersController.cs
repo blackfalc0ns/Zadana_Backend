@@ -164,7 +164,7 @@ public class AdminOrdersController : ApiControllerBase
             _dbContext.DeliveryAssignments.Add(assignment);
         }
 
-        assignment.OfferTo(driver.Id);
+        assignment.OfferTo(driver.Id, assignment.DispatchAttemptNumber + 1, DateTime.UtcNow.AddMinutes(5));
         assignment.Accept();
         order.ChangeStatus(OrderStatus.DriverAssigned, GetRequiredAdminUserId(), request.InternalNotes ?? "Driver assigned by admin.");
         _dbContext.OrderStatusHistories.Add(order.StatusHistory.Last());
@@ -225,7 +225,7 @@ public class AdminOrdersController : ApiControllerBase
             await _dbContext.SaveChangesAsync(cancellationToken);
         }
 
-        await _dispatchService.TryAutoDispatchAsync(orderId, cancellationToken);
+        await _dispatchService.TryAutoDispatchAsync(orderId, resetCycle: true, cancellationToken: cancellationToken);
         return Ok(await RequireDetailAsync(orderId, cancellationToken));
     }
 

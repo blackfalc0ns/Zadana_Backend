@@ -255,6 +255,18 @@ public class OrdersController : ApiControllerBase
             dto.Driver is null
                 ? null
                 : new CustomerOrderTrackingDriverResponse(dto.Driver.Id, dto.Driver.Name, dto.Driver.PhoneNumber, dto.Driver.Subtitle),
+            dto.AssignedDriver is null
+                ? null
+                : new CustomerAssignedDriverResponse(
+                    dto.AssignedDriver.Id,
+                    dto.AssignedDriver.Name,
+                    dto.AssignedDriver.PhoneNumber,
+                    dto.AssignedDriver.VehicleType,
+                    dto.AssignedDriver.PlateNumber),
+            dto.DriverArrivalState,
+            dto.DriverArrivalUpdatedAtUtc,
+            dto.DeliveryOtp,
+            dto.ShowDeliveryOtp,
             dto.Timeline
                 .Select(item => new CustomerOrderTrackingTimelineItemResponse(
                     item.Id,

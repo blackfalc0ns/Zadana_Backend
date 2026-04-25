@@ -2,6 +2,7 @@ using Microsoft.AspNetCore.Authorization;
 using Microsoft.AspNetCore.Mvc;
 using Zadana.Api.Controllers;
 using Zadana.Application.Common.Interfaces;
+using Zadana.Application.Modules.Orders.Commands.ConfirmVendorPickupOtp;
 using Zadana.Application.Modules.Orders.Commands.VendorUpdateOrderStatus;
 using Zadana.Application.Modules.Orders.DTOs;
 using Zadana.Application.Modules.Orders.Queries.GetVendorOrderDetail;
@@ -105,6 +106,20 @@ public class VendorOrdersController : ApiControllerBase
         return Ok(MapResponse(result));
     }
 
+    [HttpPost("{orderId:guid}/confirm-pickup")]
+    public async Task<ActionResult<VendorPickupOtpConfirmationResponse>> ConfirmPickupOtp(
+        Guid orderId,
+        [FromBody] VendorPickupOtpRequest request,
+        CancellationToken cancellationToken = default)
+    {
+        var vendorId = await _currentVendorService.GetRequiredVendorIdAsync(cancellationToken);
+        var result = await Sender.Send(
+            new ConfirmVendorPickupOtpCommand(orderId, vendorId, request.OtpCode),
+            cancellationToken);
+
+        return Ok(new VendorPickupOtpConfirmationResponse(result.OrderId, result.AssignmentId, result.Status, result.Message));
+    }
+
     private static VendorOrderStatusResponse MapResponse(VendorUpdateOrderStatusResultDto dto) =>
         new(dto.OrderId, dto.Status, dto.Message);
 
@@ -137,6 +152,19 @@ public class VendorOrdersController : ApiControllerBase
             dto.TotalAmount,
             dto.Notes,
             dto.PlacedAtUtc,
+            dto.AssignedDriver is null
+                ? null
+                : new AssignedDriverSummaryResponse(
+                    dto.AssignedDriver.Id,
+                    dto.AssignedDriver.Name,
+                    dto.AssignedDriver.PhoneNumber,
+                    dto.AssignedDriver.VehicleType,
+                    dto.AssignedDriver.PlateNumber),
+            dto.DriverArrivalState,
+            dto.DriverArrivalUpdatedAtUtc,
+            dto.PickupOtp,
+            dto.CanConfirmPickup,
+            dto.PickupOtpStatus,
             dto.Items.Select(item => new VendorOrderItemResponse(
                 item.Id,
                 item.ProductName,
@@ -186,8 +214,20 @@ public record VendorOrderDetailResponse(
     decimal TotalAmount,
     string? Notes,
     DateTime PlacedAtUtc,
+    AssignedDriverSummaryResponse? AssignedDriver,
+    string DriverArrivalState,
+    DateTime? DriverArrivalUpdatedAtUtc,
+    string? PickupOtp,
+    bool CanConfirmPickup,
+    string PickupOtpStatus,
     List<VendorOrderItemResponse> Items,
     List<VendorOrderTimelineResponse> Timeline);
+public record AssignedDriverSummaryResponse(
+    Guid Id,
+    string Name,
+    string? PhoneNumber,
+    string VehicleType,
+    string PlateNumber);
 public record VendorOrderItemResponse(
     Guid Id,
     string ProductName,
@@ -200,3 +240,5 @@ public record VendorOrderTimelineResponse(
     DateTime TimestampUtc,
     bool IsCompleted,
     string? Note);
+public record VendorPickupOtpRequest(string OtpCode);
+public record VendorPickupOtpConfirmationResponse(Guid OrderId, Guid AssignmentId, string Status, string Message);

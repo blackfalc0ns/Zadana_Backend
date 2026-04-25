@@ -49,6 +49,11 @@ public record CustomerOrderTrackingResponse(
     [property: JsonPropertyName("order")] CustomerOrderTrackingOrderResponse Order,
     [property: JsonPropertyName("estimated_delivery")] CustomerOrderEstimatedDeliveryResponse? EstimatedDelivery,
     [property: JsonPropertyName("driver")] CustomerOrderTrackingDriverResponse? Driver,
+    [property: JsonPropertyName("assigned_driver")] CustomerAssignedDriverResponse? AssignedDriver,
+    [property: JsonPropertyName("driver_arrival_state")] string DriverArrivalState,
+    [property: JsonPropertyName("driver_arrival_updated_at_utc")] DateTime? DriverArrivalUpdatedAtUtc,
+    [property: JsonPropertyName("delivery_otp")] string? DeliveryOtp,
+    [property: JsonPropertyName("show_delivery_otp")] bool ShowDeliveryOtp,
     [property: JsonPropertyName("timeline")] List<CustomerOrderTrackingTimelineItemResponse> Timeline);
 
 public record CustomerOrderTrackingOrderResponse(
@@ -64,6 +69,13 @@ public record CustomerOrderTrackingDriverResponse(
     [property: JsonPropertyName("name")] string Name,
     [property: JsonPropertyName("phone_number")] string? PhoneNumber,
     [property: JsonPropertyName("subtitle")] string Subtitle);
+
+public record CustomerAssignedDriverResponse(
+    [property: JsonPropertyName("id")] Guid Id,
+    [property: JsonPropertyName("name")] string Name,
+    [property: JsonPropertyName("phone_number")] string? PhoneNumber,
+    [property: JsonPropertyName("vehicle_type")] string VehicleType,
+    [property: JsonPropertyName("plate_number")] string PlateNumber);
 
 public record CustomerOrderTrackingTimelineItemResponse(
     [property: JsonPropertyName("id")] string Id,

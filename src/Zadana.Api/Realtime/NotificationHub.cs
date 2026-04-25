@@ -12,6 +12,7 @@ public class NotificationHub : Hub
     public const string ReceiveNotificationMethod = "ReceiveNotification";
     public const string ReceiveBroadcastMethod = "ReceiveBroadcast";
     public const string ReceiveOrderStatusChangedMethod = "ReceiveOrderStatusChanged";
+    public const string ReceiveDriverArrivalStateChangedMethod = "ReceiveDriverArrivalStateChanged";
 
     private readonly ICurrentUserService _currentUserService;
 

@@ -24,6 +24,7 @@ public interface IApplicationDbContext
     DbSet<BranchOperatingHour> BranchOperatingHours { get; }
     DbSet<VendorBankAccount> VendorBankAccounts { get; }
     DbSet<VendorDocumentReview> VendorDocumentReviews { get; }
+    DbSet<VendorWorkspaceState> VendorWorkspaceStates { get; }
 
     // Catalog
     DbSet<Category> Categories { get; }

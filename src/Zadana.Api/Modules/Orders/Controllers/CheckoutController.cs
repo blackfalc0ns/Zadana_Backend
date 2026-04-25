@@ -126,6 +126,19 @@ public class CheckoutController : ApiControllerBase
                     result.PromoCode.DiscountType,
                     result.PromoCode.DiscountValue,
                     result.PromoCode.DiscountAmount),
+            new CheckoutDeliveryQuoteResponse(
+                result.DeliveryQuote.DistanceKm,
+                result.DeliveryQuote.BaseFee,
+                result.DeliveryQuote.DistanceFee,
+                result.DeliveryQuote.SurgeFee,
+                result.DeliveryQuote.TotalFee,
+                result.DeliveryQuote.PricingMode,
+                result.DeliveryQuote.RuleLabel),
+            result.ShippingBreakdown.Select(item => new CheckoutShippingBreakdownLineResponse(
+                item.Code,
+                item.Label,
+                item.Amount)).ToList(),
+            result.PricingMode,
             new CheckoutSummaryTotalsResponse(
                 result.Summary.Subtotal,
                 result.Summary.ShippingCost,
