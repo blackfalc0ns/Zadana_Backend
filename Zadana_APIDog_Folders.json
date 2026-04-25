@@ -4608,6 +4608,28 @@
                             "application/json": {
                                 "schema": {
                                     "$ref": "#/components/schemas/NotificationsResponse"
+                                },
+                                "example": {
+                                    "items": [
+                                        {
+                                            "id": "99999999-9999-9999-9999-999999999999",
+                                            "titleAr": "طلبك خرج للتوصيل",
+                                            "titleEn": "Your order is out for delivery",
+                                            "bodyAr": "شارك رمز التسليم مع المندوب عند الوصول.",
+                                            "bodyEn": "Share the delivery OTP with the driver on arrival.",
+                                            "type": "order-on-the-way",
+                                            "referenceId": "44444444-4444-4444-4444-444444444444",
+                                            "data": "{\"orderNumber\":\"ORD-10245\"}",
+                                            "dataObject": null,
+                                            "isRead": false,
+                                            "createdAtUtc": "2026-04-25T11:40:00Z"
+                                        }
+                                    ],
+                                    "page": 1,
+                                    "perPage": 20,
+                                    "total": 1,
+                                    "unreadCount": 1,
+                                    "hasMore": false
                                 }
                             },
                             "text/json": {
@@ -4637,6 +4659,9 @@
                             "application/json": {
                                 "schema": {
                                     "$ref": "#/components/schemas/UnreadCountResponse"
+                                },
+                                "example": {
+                                    "count": 3
                                 }
                             },
                             "text/json": {
@@ -4974,6 +4999,83 @@
                             "application/json": {
                                 "schema": {
                                     "$ref": "#/components/schemas/GetCheckoutSummaryResponse"
+                                },
+                                "example": {
+                                    "cart": {
+                                        "items_count": 2,
+                                        "total_quantity": 3,
+                                        "items": [
+                                            {
+                                                "id": "11111111-1111-1111-1111-111111111111",
+                                                "product_id": "22222222-2222-2222-2222-222222222222",
+                                                "name": "Olive Oil 1L",
+                                                "image_url": "https://cdn.example.com/products/olive-oil.jpg",
+                                                "unit": "piece",
+                                                "quantity": 2,
+                                                "price": 52.5,
+                                                "total_price": 105
+                                            }
+                                        ]
+                                    },
+                                    "selected_address": {
+                                        "id": "33333333-3333-3333-3333-333333333333",
+                                        "label": "Home",
+                                        "address_line": "12 Lebanon Sq, Mohandessin",
+                                        "is_default": true
+                                    },
+                                    "delivery_slots": [
+                                        {
+                                            "id": "today-6pm",
+                                            "label": "Today 6:00 PM - 7:00 PM",
+                                            "start_at": "2026-04-25T18:00:00Z",
+                                            "end_at": "2026-04-25T19:00:00Z",
+                                            "is_available": true,
+                                            "is_selected": true
+                                        }
+                                    ],
+                                    "payment_methods": [
+                                        {
+                                            "code": "cash",
+                                            "label": "Cash on delivery",
+                                            "is_available": true,
+                                            "is_default": true
+                                        }
+                                    ],
+                                    "promo_code": null,
+                                    "delivery_quote": {
+                                        "distance_km": 6.4,
+                                        "base_fee": 18,
+                                        "distance_fee": 7.5,
+                                        "surge_fee": 3,
+                                        "total_fee": 28.5,
+                                        "pricing_mode": "exact-distance",
+                                        "rule_label": "Giza Standard"
+                                    },
+                                    "shipping_breakdown": [
+                                        {
+                                            "code": "base_delivery",
+                                            "label": "Base delivery",
+                                            "amount": 18
+                                        },
+                                        {
+                                            "code": "distance_surcharge",
+                                            "label": "Distance surcharge",
+                                            "amount": 7.5
+                                        },
+                                        {
+                                            "code": "peak_surcharge",
+                                            "label": "Peak surcharge",
+                                            "amount": 3
+                                        }
+                                    ],
+                                    "pricing_mode": "exact-distance",
+                                    "summary": {
+                                        "subtotal": 105,
+                                        "shipping_cost": 28.5,
+                                        "discount": 0,
+                                        "total": 133.5,
+                                        "currency": "EGP"
+                                    }
                                 }
                             },
                             "text/json": {
@@ -5256,6 +5358,31 @@
                             "application/json": {
                                 "schema": {
                                     "$ref": "#/components/schemas/CustomerOrderDetailResponse"
+                                },
+                                "example": {
+                                    "id": "44444444-4444-4444-4444-444444444444",
+                                    "created_at": "2026-04-25T11:00:00Z",
+                                    "total_price": 133.5,
+                                    "status": "on_the_way",
+                                    "payment_status": "paid",
+                                    "payment_method": "card",
+                                    "can_retry_payment": false,
+                                    "can_delete": false,
+                                    "can_cancel": false,
+                                    "items_count": 2,
+                                    "summary": {
+                                        "subtotal": 105,
+                                        "shipping_cost": 28.5,
+                                        "total": 133.5
+                                    },
+                                    "items": [
+                                        {
+                                            "id": "11111111-1111-1111-1111-111111111111",
+                                            "name": "Olive Oil 1L",
+                                            "quantity": 2,
+                                            "price": 52.5
+                                        }
+                                    ]
                                 }
                             },
                             "text/json": {
@@ -5296,11 +5423,94 @@
                             "application/json": {
                                 "schema": {
                                     "$ref": "#/components/schemas/CustomerOrderTrackingResponse"
+                                },
+                                "example": {
+                                    "order": {
+                                        "id": "44444444-4444-4444-4444-444444444444",
+                                        "status": "on_the_way"
+                                    },
+                                    "estimated_delivery": {
+                                        "datetime": "2026-04-25T12:15:00Z",
+                                        "formatted": "Today, 3:15 PM"
+                                    },
+                                    "driver": {
+                                        "id": "55555555-5555-5555-5555-555555555555",
+                                        "name": "Ahmed Driver",
+                                        "phone_number": "01289078938",
+                                        "subtitle": "Motorcycle"
+                                    },
+                                    "assigned_driver": {
+                                        "id": "55555555-5555-5555-5555-555555555555",
+                                        "name": "Ahmed Driver",
+                                        "phone_number": "01289078938",
+                                        "vehicle_type": "Motorcycle",
+                                        "plate_number": "XYZ-1234"
+                                    },
+                                    "driver_arrival_state": "arrived_at_customer",
+                                    "driver_arrival_updated_at_utc": "2026-04-25T11:58:00Z",
+                                    "delivery_otp": "4821",
+                                    "show_delivery_otp": true,
+                                    "timeline": [
+                                        {
+                                            "id": "placed",
+                                            "title": "Order placed",
+                                            "time": "11:00 AM",
+                                            "is_active": false,
+                                            "is_completed": true
+                                        },
+                                        {
+                                            "id": "on_the_way",
+                                            "title": "Driver is on the way",
+                                            "time": "11:40 AM",
+                                            "is_active": true,
+                                            "is_completed": true
+                                        }
+                                    ]
                                 }
                             },
                             "text/json": {
                                 "schema": {
                                     "$ref": "#/components/schemas/CustomerOrderTrackingResponse"
+                                }
+                            }
+                        }
+                    }
+                }
+            }
+        },
+        "/api/orders/{orderId}/retry-payment": {
+            "post": {
+                "tags": [
+                    "Customer/Orders"
+                ],
+                "parameters": [
+                    {
+                        "name": "orderId",
+                        "in": "path",
+                        "required": true,
+                        "schema": {
+                            "type": "string",
+                            "format": "uuid"
+                        }
+                    }
+                ],
+                "responses": {
+                    "200": {
+                        "description": "OK",
+                        "content": {
+                            "application/json": {
+                                "schema": {
+                                    "$ref": "#/components/schemas/RetryOrderPaymentResponse"
+                                },
+                                "example": {
+                                    "message": "payment session created successfully",
+                                    "payment": {
+                                        "id": "aaaaaaaa-aaaa-aaaa-aaaa-aaaaaaaaaaaa",
+                                        "provider": "Paymob",
+                                        "status": "Pending",
+                                        "iframe_url": "https://accept.paymob.com/api/acceptance/iframes/123456?payment_token=xyz",
+                                        "provider_reference": "PAYMOB-10245"
+                                    }
                                 }
                             }
                         }
@@ -11184,6 +11394,853 @@
                 }
             }
         },
+        "/api/drivers/assignments/{assignmentId}": {
+            "get": {
+                "summary": "Get driver assignment detail",
+                "description": "Returns a full assignment-first operational snapshot for the authenticated driver. Mobile should use `assignmentStatus`, `driverArrivalState`, and `allowedActions` as the source of truth for the order details screen.",
+                "tags": [
+                    "Driver/Operations"
+                ],
+                "parameters": [
+                    {
+                        "name": "assignmentId",
+                        "in": "path",
+                        "required": true,
+                        "schema": {
+                            "type": "string",
+                            "format": "uuid"
+                        }
+                    }
+                ],
+                "responses": {
+                    "200": {
+                        "description": "OK",
+                        "content": {
+                            "application/json": {
+                                "schema": {
+                                    "$ref": "#/components/schemas/DriverAssignmentDetailDto"
+                                },
+                                "example": {
+                                    "assignmentId": "33333333-3333-3333-3333-333333333333",
+                                    "orderId": "44444444-4444-4444-4444-444444444444",
+                                    "orderNumber": "ORD-10245",
+                                    "assignmentStatus": "Accepted",
+                                    "homeState": "OnMission",
+                                    "allowedActions": [
+                                        "arrived_at_vendor"
+                                    ],
+                                    "vendorName": "Fresh Market",
+                                    "pickupAddress": "45 King Faisal St, Giza",
+                                    "pickupLatitude": 30.0131,
+                                    "pickupLongitude": 31.2089,
+                                    "storePhone": "+201001112223",
+                                    "customerName": "Ahmed Hassan",
+                                    "deliveryAddress": "12 Lebanon Sq, Mohandessin",
+                                    "deliveryLatitude": 30.0551,
+                                    "deliveryLongitude": 31.2106,
+                                    "customerPhone": "+201055566677",
+                                    "paymentMethod": "CashOnDelivery",
+                                    "codAmount": 185.75,
+                                    "pickupOtpRequired": true,
+                                    "pickupOtpStatus": "pending",
+                                    "deliveryOtpRequired": true,
+                                    "deliveryOtpStatus": "pending",
+                                    "driverArrivalState": "en_route",
+                                    "orderItems": [
+                                        {
+                                            "name": "Olive Oil 1L",
+                                            "quantity": 2,
+                                            "unitPrice": 52.5,
+                                            "lineTotal": 105
+                                        }
+                                    ]
+                                }
+                            }
+                        }
+                    }
+                }
+            }
+        },
+        "/api/drivers/orders/completed": {
+            "get": {
+                "summary": "Get completed driver orders",
+                "description": "Returns order-level completed history for the authenticated driver. The optional `status` filter supports `delivered`, `cancelled`, and `deliveryFailed`.",
+                "tags": [
+                    "Driver/Operations"
+                ],
+                "parameters": [
+                    {
+                        "name": "status",
+                        "in": "query",
+                        "required": false,
+                        "schema": {
+                            "type": "string"
+                        },
+                        "description": "Optional completed order status filter."
+                    }
+                ],
+                "responses": {
+                    "200": {
+                        "description": "OK",
+                        "content": {
+                            "application/json": {
+                                "schema": {
+                                    "$ref": "#/components/schemas/DriverCompletedOrdersListDto"
+                                },
+                                "example": {
+                                    "items": [
+                                        {
+                                            "id": "44444444-4444-4444-4444-444444444444",
+                                            "merchantName": "Fresh Market",
+                                            "customerName": "Ahmed Hassan",
+                                            "completedAtUtc": "2026-04-25T11:32:00Z",
+                                            "status": "delivered",
+                                            "amount": 240.75,
+                                            "distanceKm": 6.4,
+                                            "paymentMethod": "CashOnDelivery",
+                                            "deliveryAddress": "12 Lebanon Sq, Mohandessin",
+                                            "items": [
+                                                {
+                                                    "name": "Olive Oil 1L",
+                                                    "quantity": 2,
+                                                    "unitPrice": 52.5,
+                                                    "lineTotal": 105
+                                                }
+                                            ]
+                                        }
+                                    ],
+                                    "totalCount": 1
+                                }
+                            }
+                        }
+                    }
+                }
+            }
+        },
+        "/api/drivers/orders/completed/{orderId}": {
+            "get": {
+                "summary": "Get completed driver order detail",
+                "description": "Returns the final operational snapshot for one completed, cancelled, or delivery-failed order that belongs to the authenticated driver.",
+                "tags": [
+                    "Driver/Operations"
+                ],
+                "parameters": [
+                    {
+                        "name": "orderId",
+                        "in": "path",
+                        "required": true,
+                        "schema": {
+                            "type": "string",
+                            "format": "uuid"
+                        }
+                    }
+                ],
+                "responses": {
+                    "200": {
+                        "description": "OK",
+                        "content": {
+                            "application/json": {
+                                "schema": {
+                                    "$ref": "#/components/schemas/DriverCompletedOrderDetailDto"
+                                },
+                                "example": {
+                                    "id": "44444444-4444-4444-4444-444444444444",
+                                    "assignmentId": "33333333-3333-3333-3333-333333333333",
+                                    "orderNumber": "ORD-10245",
+                                    "merchantName": "Fresh Market",
+                                    "merchantPhone": "+201001112223",
+                                    "customerName": "Ahmed Hassan",
+                                    "customerPhone": "+201055566677",
+                                    "pickupAddress": "45 King Faisal St, Giza",
+                                    "deliveryAddress": "12 Lebanon Sq, Mohandessin",
+                                    "status": "delivered",
+                                    "paymentMethod": "CashOnDelivery",
+                                    "amount": 240.75,
+                                    "deliveryFee": 28.5,
+                                    "distanceKm": 6.4,
+                                    "completedAtUtc": "2026-04-25T11:32:00Z",
+                                    "items": [
+                                        {
+                                            "name": "Olive Oil 1L",
+                                            "quantity": 2,
+                                            "unitPrice": 52.5,
+                                            "lineTotal": 105
+                                        }
+                                    ]
+                                }
+                            }
+                        }
+                    }
+                }
+            }
+        },
+        "/api/drivers/me/profile": {
+            "get": {
+                "summary": "Get unified driver profile",
+                "description": "Returns the full profile snapshot for the authenticated driver, including readiness, completion percentage, missing requirements, review state, selected zone, and uploaded document URLs.",
+                "tags": [
+                    "Driver/Profile"
+                ],
+                "responses": {
+                    "200": {
+                        "description": "OK",
+                        "content": {
+                            "application/json": {
+                                "schema": {
+                                    "$ref": "#/components/schemas/DriverProfileDto"
+                                },
+                                "example": {
+                                    "fullName": "Ahmed Driver",
+                                    "email": "yahya123@gmail.com",
+                                    "phone": "01289078938",
+                                    "address": "Nasr City, Cairo",
+                                    "vehicleType": "Motorcycle",
+                                    "licenseNumber": "DL-998877",
+                                    "nationalId": "29801011234567",
+                                    "personalPhotoUrl": "https://cdn.example.com/drivers/profile/ahmed.jpg",
+                                    "nationalIdImageUrl": "https://cdn.example.com/drivers/docs/national-id.jpg",
+                                    "licenseImageUrl": "https://cdn.example.com/drivers/docs/license.jpg",
+                                    "vehicleImageUrl": "https://cdn.example.com/drivers/docs/vehicle.jpg",
+                                    "primaryZoneId": "22222222-2222-2222-2222-222222222222",
+                                    "zoneName": "Cairo - Nasr City East",
+                                    "verificationStatus": "Approved",
+                                    "accountStatus": "Active",
+                                    "reviewNote": null,
+                                    "suspensionReason": null,
+                                    "isProfileComplete": true,
+                                    "completionPercent": 100,
+                                    "missingRequirements": [],
+                                    "canSubmitForReview": true
+                                }
+                            }
+                        }
+                    }
+                }
+            }
+        },
+        "/api/drivers/me/profile/personal": {
+            "put": {
+                "summary": "Update personal driver profile",
+                "description": "Updates identity-linked personal profile data. Personal changes keep the current review state when the profile remains complete.",
+                "tags": [
+                    "Driver/Profile"
+                ],
+                "requestBody": {
+                    "required": true,
+                    "content": {
+                        "application/json": {
+                            "schema": {
+                                "$ref": "#/components/schemas/UpdateDriverPersonalProfileRequest"
+                            },
+                            "example": {
+                                "fullName": "Ahmed Driver",
+                                "email": "yahya123@gmail.com",
+                                "phone": "01289078938",
+                                "address": "Nasr City, Cairo"
+                            }
+                        }
+                    }
+                },
+                "responses": {
+                    "200": {
+                        "description": "OK",
+                        "content": {
+                            "application/json": {
+                                "schema": {
+                                    "$ref": "#/components/schemas/DriverProfileDto"
+                                }
+                            }
+                        }
+                    }
+                }
+            }
+        },
+        "/api/drivers/me/profile/vehicle": {
+            "put": {
+                "summary": "Update vehicle driver profile",
+                "description": "Updates vehicle and zone information. Sensitive changes after approval move the driver back to `UnderReview` with a re-review note.",
+                "tags": [
+                    "Driver/Profile"
+                ],
+                "requestBody": {
+                    "required": true,
+                    "content": {
+                        "application/json": {
+                            "schema": {
+                                "$ref": "#/components/schemas/UpdateDriverVehicleProfileRequest"
+                            },
+                            "example": {
+                                "vehicleType": "Motorcycle",
+                                "nationalId": "29801011234567",
+                                "licenseNumber": "DL-998877",
+                                "primaryZoneId": "22222222-2222-2222-2222-222222222222"
+                            }
+                        }
+                    }
+                },
+                "responses": {
+                    "200": {
+                        "description": "OK",
+                        "content": {
+                            "application/json": {
+                                "schema": {
+                                    "$ref": "#/components/schemas/DriverProfileDto"
+                                }
+                            }
+                        }
+                    }
+                }
+            }
+        },
+        "/api/drivers/me/profile/documents": {
+            "put": {
+                "summary": "Update driver documents",
+                "description": "Updates stored driver document image URLs. Mobile should upload files first through `/api/files/upload`, then send the returned URLs here.",
+                "tags": [
+                    "Driver/Profile"
+                ],
+                "requestBody": {
+                    "required": true,
+                    "content": {
+                        "application/json": {
+                            "schema": {
+                                "$ref": "#/components/schemas/UpdateDriverDocumentsRequest"
+                            },
+                            "example": {
+                                "personalPhotoUrl": "https://cdn.example.com/drivers/profile/ahmed.jpg",
+                                "nationalIdImageUrl": "https://cdn.example.com/drivers/docs/national-id.jpg",
+                                "licenseImageUrl": "https://cdn.example.com/drivers/docs/license.jpg",
+                                "vehicleImageUrl": "https://cdn.example.com/drivers/docs/vehicle.jpg"
+                            }
+                        }
+                    }
+                },
+                "responses": {
+                    "200": {
+                        "description": "OK",
+                        "content": {
+                            "application/json": {
+                                "schema": {
+                                    "$ref": "#/components/schemas/DriverProfileDto"
+                                }
+                            }
+                        }
+                    }
+                }
+            }
+        },
+        "/api/drivers/wallet": {
+            "get": {
+                "summary": "Get driver wallet summary",
+                "description": "Returns wallet balances, earnings aggregates, recent transactions, payout methods, and withdrawal summary for the authenticated driver.",
+                "tags": [
+                    "Driver/Wallet"
+                ],
+                "responses": {
+                    "200": {
+                        "description": "OK",
+                        "content": {
+                            "application/json": {
+                                "schema": {
+                                    "$ref": "#/components/schemas/DriverWalletSummaryDto"
+                                },
+                                "example": {
+                                    "currentBalance": 1250.5,
+                                    "availableToWithdraw": 1250.5,
+                                    "pendingBalance": 200,
+                                    "todayEarnings": 180,
+                                    "weekEarnings": 940,
+                                    "monthEarnings": 3560,
+                                    "recentTransactions": [
+                                        {
+                                            "id": "77777777-7777-7777-7777-777777777777",
+                                            "type": "DeliveryIncome",
+                                            "direction": "IN",
+                                            "amount": 85.5,
+                                            "description": "Delivery payout for ORD-10245",
+                                            "referenceType": "Order",
+                                            "referenceId": "44444444-4444-4444-4444-444444444444",
+                                            "createdAtUtc": "2026-04-25T11:40:00Z"
+                                        }
+                                    ],
+                                    "paymentMethods": [
+                                        {
+                                            "id": "88888888-8888-8888-8888-888888888888",
+                                            "type": "BankAccount",
+                                            "accountHolderName": "Ahmed Driver",
+                                            "providerName": "Banque Misr",
+                                            "maskedLabel": "****4455",
+                                            "isPrimary": true,
+                                            "isVerified": false
+                                        }
+                                    ],
+                                    "withdrawalSummary": {
+                                        "pendingCount": 1,
+                                        "pendingAmount": 300,
+                                        "totalRequests": 4
+                                    }
+                                }
+                            }
+                        }
+                    }
+                }
+            }
+        },
+        "/api/drivers/wallet/transactions": {
+            "get": {
+                "summary": "Get driver wallet transactions",
+                "tags": [
+                    "Driver/Wallet"
+                ],
+                "parameters": [
+                    {
+                        "name": "page",
+                        "in": "query",
+                        "required": false,
+                        "schema": {
+                            "type": "integer",
+                            "format": "int32",
+                            "default": 1
+                        }
+                    },
+                    {
+                        "name": "pageSize",
+                        "in": "query",
+                        "required": false,
+                        "schema": {
+                            "type": "integer",
+                            "format": "int32",
+                            "default": 20
+                        }
+                    }
+                ],
+                "responses": {
+                    "200": {
+                        "description": "OK",
+                        "content": {
+                            "application/json": {
+                                "schema": {
+                                    "$ref": "#/components/schemas/DriverWalletTransactionListDto"
+                                }
+                            }
+                        }
+                    }
+                }
+            }
+        },
+        "/api/drivers/wallet/payment-methods": {
+            "get": {
+                "summary": "Get driver payout methods",
+                "tags": [
+                    "Driver/Wallet"
+                ],
+                "responses": {
+                    "200": {
+                        "description": "OK",
+                        "content": {
+                            "application/json": {
+                                "schema": {
+                                    "type": "array",
+                                    "items": {
+                                        "$ref": "#/components/schemas/DriverPayoutMethodDto"
+                                    }
+                                }
+                            }
+                        }
+                    }
+                }
+            },
+            "post": {
+                "summary": "Create driver payout method",
+                "tags": [
+                    "Driver/Wallet"
+                ],
+                "requestBody": {
+                    "required": true,
+                    "content": {
+                        "application/json": {
+                            "schema": {
+                                "$ref": "#/components/schemas/CreateDriverPayoutMethodRequest"
+                            },
+                            "example": {
+                                "type": "BankAccount",
+                                "accountHolderName": "Ahmed Driver",
+                                "accountIdentifier": "445566778899",
+                                "providerName": "Banque Misr",
+                                "isPrimary": true
+                            }
+                        }
+                    }
+                },
+                "responses": {
+                    "200": {
+                        "description": "OK",
+                        "content": {
+                            "application/json": {
+                                "schema": {
+                                    "$ref": "#/components/schemas/DriverPayoutMethodDto"
+                                }
+                            }
+                        }
+                    }
+                }
+            }
+        },
+        "/api/drivers/wallet/payment-methods/{id}": {
+            "put": {
+                "summary": "Update driver payout method",
+                "tags": [
+                    "Driver/Wallet"
+                ],
+                "parameters": [
+                    {
+                        "name": "id",
+                        "in": "path",
+                        "required": true,
+                        "schema": {
+                            "type": "string",
+                            "format": "uuid"
+                        }
+                    }
+                ],
+                "requestBody": {
+                    "required": true,
+                    "content": {
+                        "application/json": {
+                            "schema": {
+                                "$ref": "#/components/schemas/UpdateDriverPayoutMethodRequest"
+                            },
+                            "example": {
+                                "type": "BankAccount",
+                                "accountHolderName": "Ahmed Driver",
+                                "accountIdentifier": "445566778899",
+                                "providerName": "Banque Misr"
+                            }
+                        }
+                    }
+                },
+                "responses": {
+                    "200": {
+                        "description": "OK",
+                        "content": {
+                            "application/json": {
+                                "schema": {
+                                    "$ref": "#/components/schemas/DriverPayoutMethodDto"
+                                }
+                            }
+                        }
+                    }
+                }
+            },
+            "delete": {
+                "summary": "Delete driver payout method",
+                "tags": [
+                    "Driver/Wallet"
+                ],
+                "parameters": [
+                    {
+                        "name": "id",
+                        "in": "path",
+                        "required": true,
+                        "schema": {
+                            "type": "string",
+                            "format": "uuid"
+                        }
+                    }
+                ],
+                "responses": {
+                    "204": {
+                        "description": "No Content"
+                    }
+                }
+            }
+        },
+        "/api/drivers/wallet/payment-methods/{id}/make-primary": {
+            "post": {
+                "summary": "Make payout method primary",
+                "tags": [
+                    "Driver/Wallet"
+                ],
+                "parameters": [
+                    {
+                        "name": "id",
+                        "in": "path",
+                        "required": true,
+                        "schema": {
+                            "type": "string",
+                            "format": "uuid"
+                        }
+                    }
+                ],
+                "responses": {
+                    "200": {
+                        "description": "OK",
+                        "content": {
+                            "application/json": {
+                                "schema": {
+                                    "$ref": "#/components/schemas/DriverPayoutMethodDto"
+                                }
+                            }
+                        }
+                    }
+                }
+            }
+        },
+        "/api/drivers/wallet/withdrawals": {
+            "get": {
+                "summary": "Get driver withdrawal requests",
+                "tags": [
+                    "Driver/Wallet"
+                ],
+                "parameters": [
+                    {
+                        "name": "page",
+                        "in": "query",
+                        "required": false,
+                        "schema": {
+                            "type": "integer",
+                            "format": "int32",
+                            "default": 1
+                        }
+                    },
+                    {
+                        "name": "pageSize",
+                        "in": "query",
+                        "required": false,
+                        "schema": {
+                            "type": "integer",
+                            "format": "int32",
+                            "default": 20
+                        }
+                    }
+                ],
+                "responses": {
+                    "200": {
+                        "description": "OK",
+                        "content": {
+                            "application/json": {
+                                "schema": {
+                                    "$ref": "#/components/schemas/DriverWithdrawalRequestListDto"
+                                }
+                            }
+                        }
+                    }
+                }
+            },
+            "post": {
+                "summary": "Create driver withdrawal request",
+                "description": "Creates a withdrawal request against the driver's current wallet balance and the provided payout method, or the primary method when omitted.",
+                "tags": [
+                    "Driver/Wallet"
+                ],
+                "requestBody": {
+                    "required": true,
+                    "content": {
+                        "application/json": {
+                            "schema": {
+                                "$ref": "#/components/schemas/CreateDriverWithdrawalRequest"
+                            },
+                            "example": {
+                                "paymentMethodId": "88888888-8888-8888-8888-888888888888",
+                                "amount": 300
+                            }
+                        }
+                    }
+                },
+                "responses": {
+                    "200": {
+                        "description": "OK",
+                        "content": {
+                            "application/json": {
+                                "schema": {
+                                    "$ref": "#/components/schemas/DriverWithdrawalRequestDto"
+                                }
+                            }
+                        }
+                    }
+                }
+            }
+        },
+        "/api/drivers/notifications": {
+            "get": {
+                "summary": "Get driver notifications",
+                "description": "Returns paginated driver inbox notifications. Query parameter names follow the backend contract exactly: `per_page`, `is_read`, `from_utc`, and `to_utc`.",
+                "tags": [
+                    "Driver/Notifications"
+                ],
+                "parameters": [
+                    {
+                        "name": "page",
+                        "in": "query",
+                        "required": false,
+                        "schema": {
+                            "type": "integer",
+                            "format": "int32",
+                            "default": 1
+                        }
+                    },
+                    {
+                        "name": "per_page",
+                        "in": "query",
+                        "required": false,
+                        "schema": {
+                            "type": "integer",
+                            "format": "int32",
+                            "default": 20
+                        }
+                    },
+                    {
+                        "name": "type",
+                        "in": "query",
+                        "required": false,
+                        "schema": {
+                            "type": "string"
+                        }
+                    },
+                    {
+                        "name": "is_read",
+                        "in": "query",
+                        "required": false,
+                        "schema": {
+                            "type": "boolean"
+                        }
+                    },
+                    {
+                        "name": "from_utc",
+                        "in": "query",
+                        "required": false,
+                        "schema": {
+                            "type": "string",
+                            "format": "date-time"
+                        }
+                    },
+                    {
+                        "name": "to_utc",
+                        "in": "query",
+                        "required": false,
+                        "schema": {
+                            "type": "string",
+                            "format": "date-time"
+                        }
+                    }
+                ],
+                "responses": {
+                    "200": {
+                        "description": "OK",
+                        "content": {
+                            "application/json": {
+                                "schema": {
+                                    "$ref": "#/components/schemas/DriverNotificationsResponse"
+                                },
+                                "example": {
+                                    "items": [
+                                        {
+                                            "id": "99999999-9999-9999-9999-999999999999",
+                                            "titleAr": "طلب جديد جاهز للاستلام",
+                                            "titleEn": "Order ready for pickup",
+                                            "bodyAr": "الطلب ORD-10245 أصبح جاهزًا للاستلام.",
+                                            "bodyEn": "Order ORD-10245 is ready for pickup.",
+                                            "type": "order-ready",
+                                            "referenceId": "44444444-4444-4444-4444-444444444444",
+                                            "data": "{\"orderNumber\":\"ORD-10245\"}",
+                                            "dataObject": null,
+                                            "isRead": false,
+                                            "createdAtUtc": "2026-04-25T10:00:00Z"
+                                        }
+                                    ],
+                                    "page": 1,
+                                    "perPage": 20,
+                                    "total": 1,
+                                    "unreadCount": 1,
+                                    "hasMore": false
+                                }
+                            }
+                        }
+                    }
+                }
+            }
+        },
+        "/api/drivers/notifications/unread-count": {
+            "get": {
+                "summary": "Get driver unread notifications count",
+                "tags": [
+                    "Driver/Notifications"
+                ],
+                "responses": {
+                    "200": {
+                        "description": "OK",
+                        "content": {
+                            "application/json": {
+                                "schema": {
+                                    "$ref": "#/components/schemas/DriverUnreadCountResponse"
+                                },
+                                "example": {
+                                    "count": 3
+                                }
+                            }
+                        }
+                    }
+                }
+            }
+        },
+        "/api/drivers/notifications/{id}/read": {
+            "post": {
+                "summary": "Mark driver notification as read",
+                "tags": [
+                    "Driver/Notifications"
+                ],
+                "parameters": [
+                    {
+                        "name": "id",
+                        "in": "path",
+                        "required": true,
+                        "schema": {
+                            "type": "string",
+                            "format": "uuid"
+                        }
+                    }
+                ],
+                "responses": {
+                    "200": {
+                        "description": "OK",
+                        "content": {
+                            "application/json": {
+                                "schema": {
+                                    "$ref": "#/components/schemas/OperationMessageResponse"
+                                },
+                                "example": {
+                                    "message": "notification marked as read"
+                                }
+                            }
+                        }
+                    }
+                }
+            }
+        },
+        "/api/drivers/notifications/read-all": {
+            "post": {
+                "summary": "Mark all driver notifications as read",
+                "tags": [
+                    "Driver/Notifications"
+                ],
+                "responses": {
+                    "200": {
+                        "description": "OK",
+                        "content": {
+                            "application/json": {
+                                "schema": {
+                                    "$ref": "#/components/schemas/DriverNotificationBulkReadResponse"
+                                },
+                                "example": {
+                                    "message": "all notifications marked as read",
+                                    "count": 5
+                                }
+                            }
+                        }
+                    }
+                }
+            }
+        },
         "/api/admin/orders/{orderId}/dispatch/recompute": {
             "post": {
                 "tags": [
@@ -14364,6 +15421,58 @@
                 },
                 "additionalProperties": false
             },
+            "CheckoutDeliveryQuoteResponse": {
+                "type": "object",
+                "properties": {
+                    "distance_km": {
+                        "type": "number",
+                        "format": "double"
+                    },
+                    "base_fee": {
+                        "type": "number",
+                        "format": "double"
+                    },
+                    "distance_fee": {
+                        "type": "number",
+                        "format": "double"
+                    },
+                    "surge_fee": {
+                        "type": "number",
+                        "format": "double"
+                    },
+                    "total_fee": {
+                        "type": "number",
+                        "format": "double"
+                    },
+                    "pricing_mode": {
+                        "type": "string",
+                        "nullable": true
+                    },
+                    "rule_label": {
+                        "type": "string",
+                        "nullable": true
+                    }
+                },
+                "additionalProperties": false
+            },
+            "CheckoutShippingBreakdownLineResponse": {
+                "type": "object",
+                "properties": {
+                    "code": {
+                        "type": "string",
+                        "nullable": true
+                    },
+                    "label": {
+                        "type": "string",
+                        "nullable": true
+                    },
+                    "amount": {
+                        "type": "number",
+                        "format": "double"
+                    }
+                },
+                "additionalProperties": false
+            },
             "CheckoutSummaryTotalsResponse": {
                 "type": "object",
                 "properties": {
@@ -14869,6 +15978,20 @@
                         "type": "string",
                         "nullable": true
                     },
+                    "payment_status": {
+                        "type": "string",
+                        "nullable": true
+                    },
+                    "payment_method": {
+                        "type": "string",
+                        "nullable": true
+                    },
+                    "can_retry_payment": {
+                        "type": "boolean"
+                    },
+                    "can_delete": {
+                        "type": "boolean"
+                    },
                     "can_cancel": {
                         "type": "boolean"
                     },
@@ -14885,6 +16008,19 @@
                             "$ref": "#/components/schemas/CustomerOrderProductResponse"
                         },
                         "nullable": true
+                    }
+                },
+                "additionalProperties": false
+            },
+            "RetryOrderPaymentResponse": {
+                "type": "object",
+                "properties": {
+                    "message": {
+                        "type": "string",
+                        "nullable": true
+                    },
+                    "payment": {
+                        "$ref": "#/components/schemas/CheckoutOrderPaymentResponse"
                     }
                 },
                 "additionalProperties": false
@@ -14998,6 +16134,32 @@
                 },
                 "additionalProperties": false
             },
+            "CustomerAssignedDriverResponse": {
+                "type": "object",
+                "properties": {
+                    "id": {
+                        "type": "string",
+                        "format": "uuid"
+                    },
+                    "name": {
+                        "type": "string",
+                        "nullable": true
+                    },
+                    "phone_number": {
+                        "type": "string",
+                        "nullable": true
+                    },
+                    "vehicle_type": {
+                        "type": "string",
+                        "nullable": true
+                    },
+                    "plate_number": {
+                        "type": "string",
+                        "nullable": true
+                    }
+                },
+                "additionalProperties": false
+            },
             "CustomerOrderTrackingOrderResponse": {
                 "type": "object",
                 "properties": {
@@ -15023,6 +16185,25 @@
                     },
                     "driver": {
                         "$ref": "#/components/schemas/CustomerOrderTrackingDriverResponse"
+                    },
+                    "assigned_driver": {
+                        "$ref": "#/components/schemas/CustomerAssignedDriverResponse"
+                    },
+                    "driver_arrival_state": {
+                        "type": "string",
+                        "nullable": true
+                    },
+                    "driver_arrival_updated_at_utc": {
+                        "type": "string",
+                        "format": "date-time",
+                        "nullable": true
+                    },
+                    "delivery_otp": {
+                        "type": "string",
+                        "nullable": true
+                    },
+                    "show_delivery_otp": {
+                        "type": "boolean"
                     },
                     "timeline": {
                         "type": "array",
@@ -15288,6 +16469,20 @@
                     },
                     "promo_code": {
                         "$ref": "#/components/schemas/CheckoutPromoCodeResponse"
+                    },
+                    "delivery_quote": {
+                        "$ref": "#/components/schemas/CheckoutDeliveryQuoteResponse"
+                    },
+                    "shipping_breakdown": {
+                        "type": "array",
+                        "items": {
+                            "$ref": "#/components/schemas/CheckoutShippingBreakdownLineResponse"
+                        },
+                        "nullable": true
+                    },
+                    "pricing_mode": {
+                        "type": "string",
+                        "nullable": true
                     },
                     "summary": {
                         "$ref": "#/components/schemas/CheckoutSummaryTotalsResponse"
@@ -19511,6 +20706,874 @@
                     }
                 },
                 "additionalProperties": false
+            },
+            "UpdateDriverPersonalProfileRequest": {
+                "type": "object",
+                "properties": {
+                    "fullName": {
+                        "type": "string",
+                        "nullable": true
+                    },
+                    "email": {
+                        "type": "string",
+                        "nullable": true
+                    },
+                    "phone": {
+                        "type": "string",
+                        "nullable": true
+                    },
+                    "address": {
+                        "type": "string",
+                        "nullable": true
+                    }
+                },
+                "additionalProperties": false
+            },
+            "UpdateDriverVehicleProfileRequest": {
+                "type": "object",
+                "properties": {
+                    "vehicleType": {
+                        "type": "string",
+                        "nullable": true
+                    },
+                    "nationalId": {
+                        "type": "string",
+                        "nullable": true
+                    },
+                    "licenseNumber": {
+                        "type": "string",
+                        "nullable": true
+                    },
+                    "primaryZoneId": {
+                        "type": "string",
+                        "format": "uuid",
+                        "nullable": true
+                    }
+                },
+                "additionalProperties": false
+            },
+            "UpdateDriverDocumentsRequest": {
+                "type": "object",
+                "properties": {
+                    "personalPhotoUrl": {
+                        "type": "string",
+                        "nullable": true
+                    },
+                    "nationalIdImageUrl": {
+                        "type": "string",
+                        "nullable": true
+                    },
+                    "licenseImageUrl": {
+                        "type": "string",
+                        "nullable": true
+                    },
+                    "vehicleImageUrl": {
+                        "type": "string",
+                        "nullable": true
+                    }
+                },
+                "additionalProperties": false
+            },
+            "DriverAssignmentItemDto": {
+                "type": "object",
+                "properties": {
+                    "name": {
+                        "type": "string",
+                        "nullable": true
+                    },
+                    "quantity": {
+                        "type": "integer",
+                        "format": "int32"
+                    },
+                    "unitPrice": {
+                        "type": "number",
+                        "format": "double"
+                    },
+                    "lineTotal": {
+                        "type": "number",
+                        "format": "double"
+                    }
+                },
+                "additionalProperties": false
+            },
+            "DriverAssignmentDetailDto": {
+                "type": "object",
+                "properties": {
+                    "assignmentId": {
+                        "type": "string",
+                        "format": "uuid"
+                    },
+                    "orderId": {
+                        "type": "string",
+                        "format": "uuid"
+                    },
+                    "orderNumber": {
+                        "type": "string",
+                        "nullable": true
+                    },
+                    "assignmentStatus": {
+                        "type": "string",
+                        "nullable": true
+                    },
+                    "homeState": {
+                        "type": "string",
+                        "nullable": true
+                    },
+                    "allowedActions": {
+                        "type": "array",
+                        "items": {
+                            "type": "string"
+                        },
+                        "nullable": true
+                    },
+                    "vendorName": {
+                        "type": "string",
+                        "nullable": true
+                    },
+                    "pickupAddress": {
+                        "type": "string",
+                        "nullable": true
+                    },
+                    "pickupLatitude": {
+                        "type": "number",
+                        "format": "double",
+                        "nullable": true
+                    },
+                    "pickupLongitude": {
+                        "type": "number",
+                        "format": "double",
+                        "nullable": true
+                    },
+                    "storePhone": {
+                        "type": "string",
+                        "nullable": true
+                    },
+                    "customerName": {
+                        "type": "string",
+                        "nullable": true
+                    },
+                    "deliveryAddress": {
+                        "type": "string",
+                        "nullable": true
+                    },
+                    "deliveryLatitude": {
+                        "type": "number",
+                        "format": "double",
+                        "nullable": true
+                    },
+                    "deliveryLongitude": {
+                        "type": "number",
+                        "format": "double",
+                        "nullable": true
+                    },
+                    "customerPhone": {
+                        "type": "string",
+                        "nullable": true
+                    },
+                    "paymentMethod": {
+                        "type": "string",
+                        "nullable": true
+                    },
+                    "codAmount": {
+                        "type": "number",
+                        "format": "double"
+                    },
+                    "pickupOtpRequired": {
+                        "type": "boolean"
+                    },
+                    "pickupOtpStatus": {
+                        "type": "string",
+                        "nullable": true
+                    },
+                    "deliveryOtpRequired": {
+                        "type": "boolean"
+                    },
+                    "deliveryOtpStatus": {
+                        "type": "string",
+                        "nullable": true
+                    },
+                    "driverArrivalState": {
+                        "type": "string",
+                        "nullable": true
+                    },
+                    "orderItems": {
+                        "type": "array",
+                        "items": {
+                            "$ref": "#/components/schemas/DriverAssignmentItemDto"
+                        },
+                        "nullable": true
+                    }
+                },
+                "additionalProperties": false
+            },
+            "DriverCompletedOrderItemDto": {
+                "type": "object",
+                "properties": {
+                    "name": {
+                        "type": "string",
+                        "nullable": true
+                    },
+                    "quantity": {
+                        "type": "integer",
+                        "format": "int32"
+                    },
+                    "unitPrice": {
+                        "type": "number",
+                        "format": "double"
+                    },
+                    "lineTotal": {
+                        "type": "number",
+                        "format": "double"
+                    }
+                },
+                "additionalProperties": false
+            },
+            "DriverCompletedOrderListItemDto": {
+                "type": "object",
+                "properties": {
+                    "id": {
+                        "type": "string",
+                        "format": "uuid"
+                    },
+                    "merchantName": {
+                        "type": "string",
+                        "nullable": true
+                    },
+                    "customerName": {
+                        "type": "string",
+                        "nullable": true
+                    },
+                    "completedAtUtc": {
+                        "type": "string",
+                        "format": "date-time",
+                        "nullable": true
+                    },
+                    "status": {
+                        "type": "string",
+                        "nullable": true
+                    },
+                    "amount": {
+                        "type": "number",
+                        "format": "double"
+                    },
+                    "distanceKm": {
+                        "type": "number",
+                        "format": "double"
+                    },
+                    "paymentMethod": {
+                        "type": "string",
+                        "nullable": true
+                    },
+                    "deliveryAddress": {
+                        "type": "string",
+                        "nullable": true
+                    },
+                    "items": {
+                        "type": "array",
+                        "items": {
+                            "$ref": "#/components/schemas/DriverCompletedOrderItemDto"
+                        },
+                        "nullable": true
+                    }
+                },
+                "additionalProperties": false
+            },
+            "DriverCompletedOrdersListDto": {
+                "type": "object",
+                "properties": {
+                    "items": {
+                        "type": "array",
+                        "items": {
+                            "$ref": "#/components/schemas/DriverCompletedOrderListItemDto"
+                        },
+                        "nullable": true
+                    },
+                    "totalCount": {
+                        "type": "integer",
+                        "format": "int32"
+                    }
+                },
+                "additionalProperties": false
+            },
+            "DriverCompletedOrderDetailDto": {
+                "type": "object",
+                "properties": {
+                    "id": {
+                        "type": "string",
+                        "format": "uuid"
+                    },
+                    "assignmentId": {
+                        "type": "string",
+                        "format": "uuid"
+                    },
+                    "orderNumber": {
+                        "type": "string",
+                        "nullable": true
+                    },
+                    "merchantName": {
+                        "type": "string",
+                        "nullable": true
+                    },
+                    "merchantPhone": {
+                        "type": "string",
+                        "nullable": true
+                    },
+                    "customerName": {
+                        "type": "string",
+                        "nullable": true
+                    },
+                    "customerPhone": {
+                        "type": "string",
+                        "nullable": true
+                    },
+                    "pickupAddress": {
+                        "type": "string",
+                        "nullable": true
+                    },
+                    "deliveryAddress": {
+                        "type": "string",
+                        "nullable": true
+                    },
+                    "status": {
+                        "type": "string",
+                        "nullable": true
+                    },
+                    "paymentMethod": {
+                        "type": "string",
+                        "nullable": true
+                    },
+                    "amount": {
+                        "type": "number",
+                        "format": "double"
+                    },
+                    "deliveryFee": {
+                        "type": "number",
+                        "format": "double"
+                    },
+                    "distanceKm": {
+                        "type": "number",
+                        "format": "double"
+                    },
+                    "completedAtUtc": {
+                        "type": "string",
+                        "format": "date-time",
+                        "nullable": true
+                    },
+                    "items": {
+                        "type": "array",
+                        "items": {
+                            "$ref": "#/components/schemas/DriverCompletedOrderItemDto"
+                        },
+                        "nullable": true
+                    }
+                },
+                "additionalProperties": false
+            },
+            "DriverProfileDto": {
+                "type": "object",
+                "properties": {
+                    "fullName": {
+                        "type": "string",
+                        "nullable": true
+                    },
+                    "email": {
+                        "type": "string",
+                        "nullable": true
+                    },
+                    "phone": {
+                        "type": "string",
+                        "nullable": true
+                    },
+                    "address": {
+                        "type": "string",
+                        "nullable": true
+                    },
+                    "vehicleType": {
+                        "type": "string",
+                        "nullable": true
+                    },
+                    "licenseNumber": {
+                        "type": "string",
+                        "nullable": true
+                    },
+                    "nationalId": {
+                        "type": "string",
+                        "nullable": true
+                    },
+                    "personalPhotoUrl": {
+                        "type": "string",
+                        "nullable": true
+                    },
+                    "nationalIdImageUrl": {
+                        "type": "string",
+                        "nullable": true
+                    },
+                    "licenseImageUrl": {
+                        "type": "string",
+                        "nullable": true
+                    },
+                    "vehicleImageUrl": {
+                        "type": "string",
+                        "nullable": true
+                    },
+                    "primaryZoneId": {
+                        "type": "string",
+                        "format": "uuid",
+                        "nullable": true
+                    },
+                    "zoneName": {
+                        "type": "string",
+                        "nullable": true
+                    },
+                    "verificationStatus": {
+                        "type": "string",
+                        "nullable": true
+                    },
+                    "accountStatus": {
+                        "type": "string",
+                        "nullable": true
+                    },
+                    "reviewNote": {
+                        "type": "string",
+                        "nullable": true
+                    },
+                    "suspensionReason": {
+                        "type": "string",
+                        "nullable": true
+                    },
+                    "isProfileComplete": {
+                        "type": "boolean"
+                    },
+                    "completionPercent": {
+                        "type": "integer",
+                        "format": "int32"
+                    },
+                    "missingRequirements": {
+                        "type": "array",
+                        "items": {
+                            "type": "string"
+                        },
+                        "nullable": true
+                    },
+                    "canSubmitForReview": {
+                        "type": "boolean"
+                    }
+                },
+                "additionalProperties": false
+            },
+            "DriverWalletTransactionDto": {
+                "type": "object",
+                "properties": {
+                    "id": {
+                        "type": "string",
+                        "format": "uuid"
+                    },
+                    "type": {
+                        "type": "string",
+                        "nullable": true
+                    },
+                    "direction": {
+                        "type": "string",
+                        "nullable": true
+                    },
+                    "amount": {
+                        "type": "number",
+                        "format": "double"
+                    },
+                    "description": {
+                        "type": "string",
+                        "nullable": true
+                    },
+                    "referenceType": {
+                        "type": "string",
+                        "nullable": true
+                    },
+                    "referenceId": {
+                        "type": "string",
+                        "nullable": true
+                    },
+                    "createdAtUtc": {
+                        "type": "string",
+                        "format": "date-time"
+                    }
+                },
+                "additionalProperties": false
+            },
+            "DriverPayoutMethodDto": {
+                "type": "object",
+                "properties": {
+                    "id": {
+                        "type": "string",
+                        "format": "uuid"
+                    },
+                    "type": {
+                        "type": "string",
+                        "enum": [
+                            "BankAccount",
+                            "DebitCard",
+                            "InstantTransfer"
+                        ],
+                        "nullable": true
+                    },
+                    "accountHolderName": {
+                        "type": "string",
+                        "nullable": true
+                    },
+                    "providerName": {
+                        "type": "string",
+                        "nullable": true
+                    },
+                    "maskedLabel": {
+                        "type": "string",
+                        "nullable": true
+                    },
+                    "isPrimary": {
+                        "type": "boolean"
+                    },
+                    "isVerified": {
+                        "type": "boolean"
+                    }
+                },
+                "additionalProperties": false
+            },
+            "DriverWithdrawalSummaryDto": {
+                "type": "object",
+                "properties": {
+                    "pendingCount": {
+                        "type": "integer",
+                        "format": "int32"
+                    },
+                    "pendingAmount": {
+                        "type": "number",
+                        "format": "double"
+                    },
+                    "totalRequests": {
+                        "type": "integer",
+                        "format": "int32"
+                    }
+                },
+                "additionalProperties": false
+            },
+            "DriverWalletSummaryDto": {
+                "type": "object",
+                "properties": {
+                    "currentBalance": {
+                        "type": "number",
+                        "format": "double"
+                    },
+                    "availableToWithdraw": {
+                        "type": "number",
+                        "format": "double"
+                    },
+                    "pendingBalance": {
+                        "type": "number",
+                        "format": "double"
+                    },
+                    "todayEarnings": {
+                        "type": "number",
+                        "format": "double"
+                    },
+                    "weekEarnings": {
+                        "type": "number",
+                        "format": "double"
+                    },
+                    "monthEarnings": {
+                        "type": "number",
+                        "format": "double"
+                    },
+                    "recentTransactions": {
+                        "type": "array",
+                        "items": {
+                            "$ref": "#/components/schemas/DriverWalletTransactionDto"
+                        },
+                        "nullable": true
+                    },
+                    "paymentMethods": {
+                        "type": "array",
+                        "items": {
+                            "$ref": "#/components/schemas/DriverPayoutMethodDto"
+                        },
+                        "nullable": true
+                    },
+                    "withdrawalSummary": {
+                        "$ref": "#/components/schemas/DriverWithdrawalSummaryDto"
+                    }
+                },
+                "additionalProperties": false
+            },
+            "DriverWalletTransactionListDto": {
+                "type": "object",
+                "properties": {
+                    "items": {
+                        "type": "array",
+                        "items": {
+                            "$ref": "#/components/schemas/DriverWalletTransactionDto"
+                        },
+                        "nullable": true
+                    },
+                    "page": {
+                        "type": "integer",
+                        "format": "int32"
+                    },
+                    "pageSize": {
+                        "type": "integer",
+                        "format": "int32"
+                    },
+                    "totalCount": {
+                        "type": "integer",
+                        "format": "int32"
+                    }
+                },
+                "additionalProperties": false
+            },
+            "DriverWithdrawalRequestDto": {
+                "type": "object",
+                "properties": {
+                    "id": {
+                        "type": "string",
+                        "format": "uuid"
+                    },
+                    "amount": {
+                        "type": "number",
+                        "format": "double"
+                    },
+                    "status": {
+                        "type": "string",
+                        "enum": [
+                            "Pending",
+                            "Processing",
+                            "Paid",
+                            "Failed",
+                            "Cancelled"
+                        ],
+                        "nullable": true
+                    },
+                    "transferReference": {
+                        "type": "string",
+                        "nullable": true
+                    },
+                    "failureReason": {
+                        "type": "string",
+                        "nullable": true
+                    },
+                    "createdAtUtc": {
+                        "type": "string",
+                        "format": "date-time"
+                    },
+                    "processedAtUtc": {
+                        "type": "string",
+                        "format": "date-time",
+                        "nullable": true
+                    },
+                    "paymentMethod": {
+                        "$ref": "#/components/schemas/DriverPayoutMethodDto"
+                    }
+                },
+                "additionalProperties": false
+            },
+            "DriverWithdrawalRequestListDto": {
+                "type": "object",
+                "properties": {
+                    "items": {
+                        "type": "array",
+                        "items": {
+                            "$ref": "#/components/schemas/DriverWithdrawalRequestDto"
+                        },
+                        "nullable": true
+                    },
+                    "page": {
+                        "type": "integer",
+                        "format": "int32"
+                    },
+                    "pageSize": {
+                        "type": "integer",
+                        "format": "int32"
+                    },
+                    "totalCount": {
+                        "type": "integer",
+                        "format": "int32"
+                    }
+                },
+                "additionalProperties": false
+            },
+            "CreateDriverPayoutMethodRequest": {
+                "type": "object",
+                "properties": {
+                    "type": {
+                        "type": "string",
+                        "enum": [
+                            "BankAccount",
+                            "DebitCard",
+                            "InstantTransfer"
+                        ],
+                        "nullable": true
+                    },
+                    "accountHolderName": {
+                        "type": "string",
+                        "nullable": true
+                    },
+                    "accountIdentifier": {
+                        "type": "string",
+                        "nullable": true
+                    },
+                    "providerName": {
+                        "type": "string",
+                        "nullable": true
+                    },
+                    "isPrimary": {
+                        "type": "boolean"
+                    }
+                },
+                "additionalProperties": false
+            },
+            "UpdateDriverPayoutMethodRequest": {
+                "type": "object",
+                "properties": {
+                    "type": {
+                        "type": "string",
+                        "enum": [
+                            "BankAccount",
+                            "DebitCard",
+                            "InstantTransfer"
+                        ],
+                        "nullable": true
+                    },
+                    "accountHolderName": {
+                        "type": "string",
+                        "nullable": true
+                    },
+                    "accountIdentifier": {
+                        "type": "string",
+                        "nullable": true
+                    },
+                    "providerName": {
+                        "type": "string",
+                        "nullable": true
+                    }
+                },
+                "additionalProperties": false
+            },
+            "CreateDriverWithdrawalRequest": {
+                "type": "object",
+                "properties": {
+                    "paymentMethodId": {
+                        "type": "string",
+                        "format": "uuid",
+                        "nullable": true
+                    },
+                    "amount": {
+                        "type": "number",
+                        "format": "double"
+                    }
+                },
+                "additionalProperties": false
+            },
+            "DriverNotificationResponse": {
+                "type": "object",
+                "properties": {
+                    "id": {
+                        "type": "string",
+                        "format": "uuid"
+                    },
+                    "titleAr": {
+                        "type": "string",
+                        "nullable": true
+                    },
+                    "titleEn": {
+                        "type": "string",
+                        "nullable": true
+                    },
+                    "bodyAr": {
+                        "type": "string",
+                        "nullable": true
+                    },
+                    "bodyEn": {
+                        "type": "string",
+                        "nullable": true
+                    },
+                    "type": {
+                        "type": "string",
+                        "nullable": true
+                    },
+                    "referenceId": {
+                        "type": "string",
+                        "format": "uuid",
+                        "nullable": true
+                    },
+                    "data": {
+                        "type": "string",
+                        "nullable": true
+                    },
+                    "dataObject": {
+                        "type": "object",
+                        "nullable": true,
+                        "additionalProperties": true
+                    },
+                    "isRead": {
+                        "type": "boolean"
+                    },
+                    "createdAtUtc": {
+                        "type": "string",
+                        "format": "date-time"
+                    }
+                },
+                "additionalProperties": false
+            },
+            "DriverNotificationsResponse": {
+                "type": "object",
+                "properties": {
+                    "items": {
+                        "type": "array",
+                        "items": {
+                            "$ref": "#/components/schemas/DriverNotificationResponse"
+                        },
+                        "nullable": true
+                    },
+                    "page": {
+                        "type": "integer",
+                        "format": "int32"
+                    },
+                    "perPage": {
+                        "type": "integer",
+                        "format": "int32"
+                    },
+                    "total": {
+                        "type": "integer",
+                        "format": "int32"
+                    },
+                    "unreadCount": {
+                        "type": "integer",
+                        "format": "int32"
+                    },
+                    "hasMore": {
+                        "type": "boolean"
+                    }
+                },
+                "additionalProperties": false
+            },
+            "DriverUnreadCountResponse": {
+                "type": "object",
+                "properties": {
+                    "count": {
+                        "type": "integer",
+                        "format": "int32"
+                    }
+                },
+                "additionalProperties": false
+            },
+            "DriverNotificationBulkReadResponse": {
+                "type": "object",
+                "properties": {
+                    "message": {
+                        "type": "string",
+                        "nullable": true
+                    },
+                    "count": {
+                        "type": "integer",
+                        "format": "int32"
+                    }
+                },
+                "additionalProperties": false
             }
         },
         "securitySchemes": {
@@ -19722,6 +21785,18 @@
         {
             "name": "Driver/Operations",
             "description": "APIDog folder for Driver/Operations"
+        },
+        {
+            "name": "Driver/Profile",
+            "description": "APIDog folder for Driver/Profile"
+        },
+        {
+            "name": "Driver/Wallet",
+            "description": "APIDog folder for Driver/Wallet"
+        },
+        {
+            "name": "Driver/Notifications",
+            "description": "APIDog folder for Driver/Notifications"
         }
     ]
 }

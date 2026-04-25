@@ -209,6 +209,8 @@ public record AdminDriverDetailDto(
     int WeeklyRejections,
     string EnforcementLevel,
     DateTime? LastOfferResponseAtUtc,
+    string? Address,
+    string? LicenseNumber,
 
     // Zone
     string? ZoneName,
@@ -232,7 +234,17 @@ public record AdminDriverDetailDto(
     AdminDriverFinanceSummaryDto Finance,
 
     // Assignment history
-    AdminDriverAssignmentDto[] RecentAssignments);
+    AdminDriverAssignmentDto[] RecentAssignments,
+
+    // Detail sections
+    AdminDriverOverviewSectionDto Overview,
+    AdminDriverWorkflowSectionDto Workflow,
+    AdminDriverOperationsSectionDto Operations,
+    AdminDriverPerformanceSectionDto PerformanceDetails,
+    AdminDriverSupportSectionDto Support,
+    AdminDriverComplianceSectionDto Compliance,
+    AdminDriverFinanceSectionDto FinanceDetails,
+    AdminDriverVerificationSectionDto Verification);
 
 public record AdminDriverDocumentDto(
     string DocumentType,
@@ -274,6 +286,170 @@ public record AdminDriverAssignmentDto(
     DateTime? FailedAtUtc,
     string? FailureReason,
     decimal CodAmount);
+
+public record AdminDriverOverviewSectionDto(
+    string? Address,
+    string? ZoneName,
+    string? LicenseNumber,
+    decimal CompletionRate,
+    decimal CommitmentScore,
+    string CollectionPaymentStatus);
+
+public record AdminDriverWorkflowSectionDto(
+    string State,
+    string Readiness,
+    string[] Blockers,
+    string[] Alerts,
+    AdminDriverWorkflowActionDto[] Actions,
+    AdminDriverLifecycleStageDto[] LifecycleStages);
+
+public record AdminDriverWorkflowActionDto(
+    string Id,
+    string Tone,
+    string TargetTab);
+
+public record AdminDriverLifecycleStageDto(
+    string Id,
+    string State);
+
+public record AdminDriverOperationTaskDto(
+    Guid Id,
+    string VendorName,
+    string ZoneName,
+    string Status,
+    DateTime AssignedAtUtc,
+    int? DurationMinutes,
+    string? DelayLabel,
+    decimal CodAmount);
+
+public record AdminDriverOperationsSectionDto(
+    string? ZoneName,
+    decimal? CurrentLatitude,
+    decimal? CurrentLongitude,
+    decimal? CurrentAccuracyMeters,
+    DateTime? LastLocationAtUtc,
+    int? ActiveDriversInZone,
+    decimal? AvgDeliveryMinutes,
+    int? ZoneCapacityLimit,
+    AdminDriverOperationTaskDto[] TaskAssignments);
+
+public record AdminDriverPerformanceMetricDto(
+    string Id,
+    decimal? NumericValue,
+    string DisplayValue,
+    string? DeltaValue,
+    string Tone);
+
+public record AdminDriverPerformanceBenchmarkDto(
+    string Id,
+    decimal DriverValue,
+    decimal RegionValue,
+    decimal FleetValue,
+    string Unit,
+    string InsightCode);
+
+public record AdminDriverPerformanceInsightGroupDto(
+    string Id,
+    string Tone,
+    string Icon,
+    string[] ItemCodes);
+
+public record AdminDriverPerformanceSectionDto(
+    decimal CompletionRate,
+    decimal AcceptanceRate,
+    decimal CommitmentScore,
+    int CompletedTasks,
+    int RejectedOffers,
+    int TimedOutOffers,
+    AdminDriverPerformanceMetricDto[] Metrics,
+    AdminDriverPerformanceBenchmarkDto[] Benchmarks,
+    AdminDriverPerformanceInsightGroupDto[] InsightGroups);
+
+public record AdminDriverSupportTicketDto(
+    Guid Id,
+    string Subject,
+    string Status,
+    string Priority,
+    string Reviewer,
+    DateTime UpdatedAtUtc,
+    string? LinkedOrderCode);
+
+public record AdminDriverSupportChatMessageDto(
+    string Direction,
+    string Message,
+    DateTime CreatedAtUtc);
+
+public record AdminDriverSupportFollowUpDto(
+    string Code,
+    string DueLabel,
+    string Tone);
+
+public record AdminDriverSupportSectionDto(
+    int OpenNotesCount,
+    int TicketsCount,
+    int PendingFollowUpsCount,
+    int EscalationsCount,
+    int UnresolvedCount,
+    DateTime? LastUpdateAtUtc,
+    string? ReviewerName,
+    string? ReviewerRole,
+    bool ReviewerOnline,
+    AdminDriverSupportTicketDto[] Tickets,
+    AdminDriverSupportChatMessageDto[] ChatMessages,
+    AdminDriverSupportFollowUpDto[] FollowUps);
+
+public record AdminDriverDocumentHealthDto(
+    int Valid,
+    int Expiring,
+    int Review);
+
+public record AdminDriverComplianceSectionDto(
+    int OpenCases,
+    int CriticalCases,
+    int SafetyAlerts,
+    int ExpiredDocuments,
+    int Suspensions,
+    string RiskLevel,
+    AdminDriverDocumentHealthDto DocumentHealth);
+
+public record AdminDriverFinanceEntryDto(
+    Guid Id,
+    string Reference,
+    string Type,
+    string Status,
+    decimal Amount,
+    decimal Fee,
+    string Method,
+    DateTime CreatedAtUtc);
+
+public record AdminDriverFinanceSectionDto(
+    decimal AvailableBalance,
+    decimal DueAmount,
+    decimal CodCollected,
+    decimal PendingDeductions,
+    DateTime? NextPayoutDateUtc,
+    string? PayoutMethod,
+    string StatementPeriod,
+    AdminDriverFinanceEntryDto[] Entries);
+
+public record AdminDriverVerificationChecklistItemDto(
+    string Code,
+    bool Completed,
+    string? Note,
+    bool Critical);
+
+public record AdminDriverVerificationSectionDto(
+    string ApplicationId,
+    DateTime SubmittedAtUtc,
+    string? Reviewer,
+    decimal TrustScore,
+    int ProgressPercentage,
+    string Recommendation,
+    string? RecommendationReason,
+    AdminDriverVerificationChecklistItemDto[] Checklist,
+    string DecisionNote,
+    string InternalNote,
+    string[] RejectionReasonOptions);
 
 public record DispatchDecisionDto(
     Guid DriverId,

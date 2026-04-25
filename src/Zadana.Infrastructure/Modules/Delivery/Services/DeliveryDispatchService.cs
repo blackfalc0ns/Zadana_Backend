@@ -11,7 +11,6 @@ using Zadana.Domain.Modules.Identity.Enums;
 using Zadana.Domain.Modules.Orders.Enums;
 using Zadana.Domain.Modules.Payments.Enums;
 using Zadana.Domain.Modules.Social.Entities;
-using Zadana.Infrastructure.Persistence;
 using Zadana.SharedKernel.Exceptions;
 
 namespace Zadana.Infrastructure.Modules.Delivery.Services;
@@ -43,22 +42,6 @@ public class DeliveryDispatchService : IDeliveryDispatchService
         _publisher = publisher;
         _notificationService = notificationService;
         _driverCommitmentPolicyService = driverCommitmentPolicyService;
-    }
-
-    public DeliveryDispatchService(
-        ApplicationDbContext context,
-        IUnitOfWork unitOfWork,
-        ILogger<DeliveryDispatchService> logger,
-        IPublisher publisher,
-        INotificationService notificationService)
-        : this(
-            context,
-            unitOfWork,
-            logger,
-            publisher,
-            notificationService,
-            new DriverCommitmentPolicyService(context, unitOfWork))
-    {
     }
 
     public async Task<DispatchDecisionDto?> TryAutoDispatchAsync(

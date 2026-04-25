@@ -2,6 +2,15 @@
 
 This document explains how the driver mobile app should integrate with the current Zadana backend delivery APIs.
 
+Feature-specific contracts for the newly implemented driver modules are available under:
+
+- `DRIVER_APP_CONTRACTS/README.md`
+- `DRIVER_APP_CONTRACTS/ORDER_DETAILS_CONTRACT.md`
+- `DRIVER_APP_CONTRACTS/COMPLETED_ORDERS_CONTRACT.md`
+- `DRIVER_APP_CONTRACTS/WALLET_CONTRACT.md`
+- `DRIVER_APP_CONTRACTS/PROFILE_CONTRACT.md`
+- `DRIVER_APP_CONTRACTS/NOTIFICATIONS_CONTRACT.md`
+
 It is focused on the driver app flow only:
 
 - file upload

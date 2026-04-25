@@ -21,17 +21,24 @@ namespace Zadana.Application.Tests.Application.Orders;
 
 public class DeliveryDispatchServiceTests
 {
+    private static DeliveryDispatchService CreateDispatchService(ApplicationDbContext dbContext)
+    {
+        var commitmentPolicyService = new DriverCommitmentPolicyService(dbContext, dbContext);
+        return new DeliveryDispatchService(
+            dbContext,
+            dbContext,
+            NullLogger<DeliveryDispatchService>.Instance,
+            Mock.Of<IPublisher>(),
+            Mock.Of<INotificationService>(),
+            commitmentPolicyService);
+    }
+
     [Fact]
     public async Task TryAutoDispatchAsync_ShouldPreferDriverWithFreshGpsInSameZone()
     {
         await using var dbContext = CreateDbContext();
         var scenario = await SeedDispatchScenarioAsync(dbContext);
-        var service = new DeliveryDispatchService(
-            dbContext,
-            dbContext,
-            NullLogger<DeliveryDispatchService>.Instance,
-            Mock.Of<IPublisher>(),
-            Mock.Of<INotificationService>());
+        var service = CreateDispatchService(dbContext);
 
         var decision = await service.TryAutoDispatchAsync(scenario.Order.Id, cancellationToken: CancellationToken.None);
 
@@ -49,12 +56,7 @@ public class DeliveryDispatchServiceTests
     {
         await using var dbContext = CreateDbContext();
         var scenario = await SeedDispatchScenarioAsync(dbContext, lowConfidenceFreshDriver: true);
-        var service = new DeliveryDispatchService(
-            dbContext,
-            dbContext,
-            NullLogger<DeliveryDispatchService>.Instance,
-            Mock.Of<IPublisher>(),
-            Mock.Of<INotificationService>());
+        var service = CreateDispatchService(dbContext);
 
         var decision = await service.TryAutoDispatchAsync(scenario.Order.Id, cancellationToken: CancellationToken.None);
 
@@ -68,12 +70,7 @@ public class DeliveryDispatchServiceTests
     {
         await using var dbContext = CreateDbContext();
         var scenario = await SeedDispatchScenarioAsync(dbContext);
-        var service = new DeliveryDispatchService(
-            dbContext,
-            dbContext,
-            NullLogger<DeliveryDispatchService>.Instance,
-            Mock.Of<IPublisher>(),
-            Mock.Of<INotificationService>());
+        var service = CreateDispatchService(dbContext);
 
         await service.TryAutoDispatchAsync(scenario.Order.Id, cancellationToken: CancellationToken.None);
 
@@ -101,12 +98,7 @@ public class DeliveryDispatchServiceTests
 
         await dbContext.SaveChangesAsync();
 
-        var service = new DeliveryDispatchService(
-            dbContext,
-            dbContext,
-            NullLogger<DeliveryDispatchService>.Instance,
-            Mock.Of<IPublisher>(),
-            Mock.Of<INotificationService>());
+        var service = CreateDispatchService(dbContext);
 
         var decision = await service.TryAutoDispatchAsync(scenario.Order.Id, cancellationToken: CancellationToken.None);
 

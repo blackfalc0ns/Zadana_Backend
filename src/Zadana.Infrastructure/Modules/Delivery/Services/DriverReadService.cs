@@ -8,6 +8,7 @@ using Zadana.Domain.Modules.Identity.Entities;
 using Zadana.Domain.Modules.Identity.Enums;
 using Zadana.Domain.Modules.Orders.Entities;
 using Zadana.Domain.Modules.Orders.Enums;
+using Zadana.Domain.Modules.Wallets.Entities;
 using Zadana.Domain.Modules.Wallets.Enums;
 
 namespace Zadana.Infrastructure.Modules.Delivery.Services;
@@ -181,6 +182,8 @@ public class DriverReadService : IDriverReadService
 
         if (driver is null) return null;
 
+        var missingRequirements = GetMissingRequirements(driver, driver.User);
+
         // Active/completed tasks
         var activeTasks = await _context.DeliveryAssignments
             .CountAsync(a => a.DriverId == driverId &&
@@ -191,8 +194,18 @@ public class DriverReadService : IDriverReadService
         var completedTasks = await _context.DeliveryAssignments
             .CountAsync(a => a.DriverId == driverId && a.Status == AssignmentStatus.Delivered, cancellationToken);
 
-        var totalAssignments = activeTasks + completedTasks;
+        var totalAssignments = await _context.DeliveryAssignments
+            .CountAsync(a => a.DriverId == driverId, cancellationToken);
+
+        var terminalAssignments = await _context.DeliveryAssignments
+            .CountAsync(a => a.DriverId == driverId &&
+                (a.Status == AssignmentStatus.Delivered ||
+                 a.Status == AssignmentStatus.Failed ||
+                 a.Status == AssignmentStatus.Cancelled ||
+                 a.Status == AssignmentStatus.Returned), cancellationToken);
+
         var acceptanceRate = totalAssignments > 0 ? (decimal)completedTasks / totalAssignments * 100 : 0;
+        var completionRate = terminalAssignments > 0 ? (decimal)completedTasks / terminalAssignments * 100 : 0;
 
         // Latest GPS
         var lastLocation = await _context.DriverLocations
@@ -243,26 +256,224 @@ public class DriverReadService : IDriverReadService
             .ToArrayAsync(cancellationToken);
 
         // Recent assignments
-        var recentAssignments = await _context.DeliveryAssignments
-            .Include(a => a.Order)
+        var recentAssignmentRows = await _context.DeliveryAssignments
             .Where(a => a.DriverId == driverId)
             .OrderByDescending(a => a.CreatedAtUtc)
             .Take(20)
-            .Select(a => new AdminDriverAssignmentDto(
-                a.Id, a.OrderId, a.Order.OrderNumber, a.Status.ToString(),
-                a.AcceptedAtUtc, a.DeliveredAtUtc, a.FailedAtUtc, a.FailureReason, a.CodAmount))
+            .Select(a => new
+            {
+                a.Id,
+                a.OrderId,
+                a.Order.OrderNumber,
+                Status = a.Status.ToString(),
+                a.AcceptedAtUtc,
+                a.DeliveredAtUtc,
+                a.FailedAtUtc,
+                a.FailureReason,
+                a.CodAmount,
+                VendorName = a.Order.Vendor.BusinessNameEn,
+                a.CreatedAtUtc
+            })
             .ToArrayAsync(cancellationToken);
+
+        var recentAssignments = recentAssignmentRows
+            .Select(a => new AdminDriverAssignmentDto(
+                a.Id, a.OrderId, a.OrderNumber, a.Status,
+                a.AcceptedAtUtc, a.DeliveredAtUtc, a.FailedAtUtc, a.FailureReason, a.CodAmount))
+            .ToArray();
 
         // Documents
         var documents = new[]
         {
-            new AdminDriverDocumentDto("NationalId", driver.NationalIdImageUrl, driver.NationalIdImageUrl != null ? "valid" : "missing", null),
-            new AdminDriverDocumentDto("License", driver.LicenseImageUrl, driver.LicenseImageUrl != null ? "valid" : "missing", null),
-            new AdminDriverDocumentDto("Vehicle", driver.VehicleImageUrl, driver.VehicleImageUrl != null ? "valid" : "missing", null),
-            new AdminDriverDocumentDto("PersonalPhoto", driver.PersonalPhotoUrl, driver.PersonalPhotoUrl != null ? "valid" : "missing", null)
+            new AdminDriverDocumentDto("NationalId", driver.NationalIdImageUrl, driver.NationalIdImageUrl != null ? "valid" : "review", null),
+            new AdminDriverDocumentDto("License", driver.LicenseImageUrl, driver.LicenseImageUrl != null ? "valid" : "review", null),
+            new AdminDriverDocumentDto("Vehicle", driver.VehicleImageUrl, driver.VehicleImageUrl != null ? "valid" : "review", null),
+            new AdminDriverDocumentDto("PersonalPhoto", driver.PersonalPhotoUrl, driver.PersonalPhotoUrl != null ? "valid" : "review", null)
         };
 
         var commitmentSummary = await _driverCommitmentPolicyService.GetDriverSummaryAsync(driverId, cancellationToken);
+        var allDriverIds = await _context.Drivers
+            .AsNoTracking()
+            .Select(d => d.Id)
+            .ToArrayAsync(cancellationToken);
+        var commitmentSummaries = await _driverCommitmentPolicyService.GetDriverSummariesAsync(allDriverIds, cancellationToken);
+
+        var offerStats = await _context.DeliveryOfferAttempts
+            .Where(a => a.DriverId == driverId)
+            .GroupBy(_ => 1)
+            .Select(g => new
+            {
+                Accepted = g.Count(a => a.Status == DeliveryOfferAttemptStatus.Accepted),
+                Rejected = g.Count(a => a.Status == DeliveryOfferAttemptStatus.Rejected),
+                TimedOut = g.Count(a => a.Status == DeliveryOfferAttemptStatus.TimedOut)
+            })
+            .FirstOrDefaultAsync(cancellationToken);
+
+        var latestPendingPayoutAtUtc = await _context.Payouts
+            .Where(p => p.Settlement.DriverId == driverId &&
+                (p.Status == PayoutStatus.Pending || p.Status == PayoutStatus.Processing))
+            .OrderBy(p => p.CreatedAtUtc)
+            .Select(p => (DateTime?)p.CreatedAtUtc)
+            .FirstOrDefaultAsync(cancellationToken);
+
+        var primaryPayoutMethod = await _context.DriverPayoutMethods
+            .AsNoTracking()
+            .Where(p => p.DriverId == driverId && p.IsPrimary)
+            .OrderByDescending(p => p.IsVerified)
+            .ThenByDescending(p => p.CreatedAtUtc)
+            .FirstOrDefaultAsync(cancellationToken);
+
+        var walletTransactions = wallet is null
+            ? []
+            : await _context.WalletTransactions
+                .AsNoTracking()
+                .Where(t => t.WalletId == wallet.Id)
+                .OrderByDescending(t => t.CreatedAtUtc)
+                .Take(20)
+                .ToArrayAsync(cancellationToken);
+
+        var zoneDriverIds = driver.PrimaryZoneId.HasValue
+            ? await _context.Drivers
+                .AsNoTracking()
+                .Where(d => d.PrimaryZoneId == driver.PrimaryZoneId)
+                .Select(d => d.Id)
+                .ToArrayAsync(cancellationToken)
+            : Array.Empty<Guid>();
+
+        var zoneAssignmentRows = zoneDriverIds.Length == 0
+            ? []
+            : await _context.DeliveryAssignments
+                .AsNoTracking()
+                .Where(a => a.DriverId != null && zoneDriverIds.Contains(a.DriverId.Value))
+                .GroupBy(a => a.DriverId!.Value)
+                .Select(g => new
+                {
+                    DriverId = g.Key,
+                    Total = g.Count(),
+                    Completed = g.Count(a => a.Status == AssignmentStatus.Delivered),
+                    Closed = g.Count(a => a.Status == AssignmentStatus.Delivered ||
+                        a.Status == AssignmentStatus.Failed ||
+                        a.Status == AssignmentStatus.Cancelled ||
+                        a.Status == AssignmentStatus.Returned)
+                })
+                .ToArrayAsync(cancellationToken);
+
+        var fleetAssignmentRows = await _context.DeliveryAssignments
+            .AsNoTracking()
+            .Where(a => a.DriverId != null)
+            .GroupBy(a => a.DriverId!.Value)
+            .Select(g => new
+            {
+                DriverId = g.Key,
+                Total = g.Count(),
+                Completed = g.Count(a => a.Status == AssignmentStatus.Delivered),
+                Closed = g.Count(a => a.Status == AssignmentStatus.Delivered ||
+                    a.Status == AssignmentStatus.Failed ||
+                    a.Status == AssignmentStatus.Cancelled ||
+                    a.Status == AssignmentStatus.Returned)
+            })
+            .ToArrayAsync(cancellationToken);
+
+        var activeDriversInZone = driver.PrimaryZoneId.HasValue
+            ? await _context.Drivers.CountAsync(
+                d => d.PrimaryZoneId == driver.PrimaryZoneId &&
+                     d.Status == AccountStatus.Active &&
+                     d.IsAvailable,
+                cancellationToken)
+            : (int?)null;
+
+        var avgDeliveryMinutes = await _context.DeliveryAssignments
+            .AsNoTracking()
+            .Where(a => a.DriverId == driverId &&
+                a.AcceptedAtUtc.HasValue &&
+                a.DeliveredAtUtc.HasValue)
+            .Select(a => new
+            {
+                a.AcceptedAtUtc,
+                a.DeliveredAtUtc
+            })
+            .ToArrayAsync(cancellationToken);
+
+        var averageDeliveryMinutes = avgDeliveryMinutes.Length == 0
+            ? (decimal?)null
+            : Math.Round((decimal)avgDeliveryMinutes
+                .Average(a => (a.DeliveredAtUtc!.Value - a.AcceptedAtUtc!.Value).TotalMinutes), 1);
+
+        var workflowState = ResolveAdminWorkflowState(
+            driver,
+            activeTasks,
+            wallet?.PendingBalance ?? 0,
+            incidents,
+            missingRequirements);
+
+        var workflow = BuildAdminWorkflowSection(workflowState);
+        var overview = new AdminDriverOverviewSectionDto(
+            driver.Address,
+            driver.PrimaryZone is not null ? $"{driver.PrimaryZone.City} - {driver.PrimaryZone.Name}" : null,
+            driver.LicenseNumber,
+            Math.Round(completionRate, 0),
+            commitmentSummary.CommitmentScore,
+            walletBalance < 0 ? "critical" : walletBalance < 200 ? "warning" : "good");
+        var operations = new AdminDriverOperationsSectionDto(
+            driver.PrimaryZone is not null ? $"{driver.PrimaryZone.City} - {driver.PrimaryZone.Name}" : null,
+            lastLocation?.Latitude,
+            lastLocation?.Longitude,
+            lastLocation?.AccuracyMeters,
+            lastLocation?.RecordedAtUtc,
+            activeDriversInZone,
+            averageDeliveryMinutes,
+            null,
+            recentAssignmentRows.Select(a => new AdminDriverOperationTaskDto(
+                a.Id,
+                string.IsNullOrWhiteSpace(a.VendorName) ? $"Order {a.OrderNumber}" : a.VendorName,
+                driver.PrimaryZone is not null ? $"{driver.PrimaryZone.City} - {driver.PrimaryZone.Name}" : driver.User.FullName,
+                a.Status,
+                a.AcceptedAtUtc ?? a.CreatedAtUtc,
+                ResolveDurationMinutes(a.AcceptedAtUtc, a.DeliveredAtUtc, a.FailedAtUtc),
+                a.FailureReason,
+                a.CodAmount)).ToArray());
+        var support = BuildAdminSupportSection(
+            notes,
+            incidents,
+            missingRequirements,
+            wallet?.PendingBalance ?? 0);
+        var documentHealth = BuildDocumentHealth(documents);
+        var compliance = new AdminDriverComplianceSectionDto(
+            incidents.Count(i => !string.Equals(i.Status, DriverIncidentStatus.Resolved.ToString(), StringComparison.OrdinalIgnoreCase)),
+            incidents.Count(i => string.Equals(i.Severity, DriverIncidentSeverity.Critical.ToString(), StringComparison.OrdinalIgnoreCase)),
+            incidents.Count(i => !string.Equals(i.Severity, DriverIncidentSeverity.Medium.ToString(), StringComparison.OrdinalIgnoreCase)),
+            documents.Count(d => !string.Equals(d.Status, "valid", StringComparison.OrdinalIgnoreCase)),
+            driver.Status == AccountStatus.Suspended ? 1 : 0,
+            ResolveRiskLevel(driver, incidents, wallet?.PendingBalance ?? 0, missingRequirements),
+            documentHealth);
+        var financeDetails = new AdminDriverFinanceSectionDto(
+            walletBalance,
+            wallet?.PendingBalance ?? 0,
+            codCollected,
+            Math.Max(0, wallet?.PendingBalance ?? 0),
+            latestPendingPayoutAtUtc,
+            primaryPayoutMethod?.MethodType.ToString(),
+            $"live_{totalSettlements}_settlements_{totalPayouts}_payouts",
+            walletTransactions.Select(MapFinanceEntry).ToArray());
+        var performanceDetails = BuildAdminPerformanceSection(
+            Math.Round(completionRate, 0),
+            Math.Round(acceptanceRate, 0),
+            commitmentSummary.CommitmentScore,
+            completedTasks,
+            offerStats?.Rejected ?? 0,
+            offerStats?.TimedOut ?? 0,
+            zoneAssignmentRows,
+            fleetAssignmentRows,
+            zoneDriverIds,
+            commitmentSummaries,
+            incidents,
+            wallet?.PendingBalance ?? 0);
+        var verification = BuildAdminVerificationSection(
+            driver,
+            documents,
+            missingRequirements,
+            Math.Round(completionRate, 0),
+            Math.Round(acceptanceRate, 0));
 
         return new AdminDriverDetailDto(
             Id: driver.Id,
@@ -291,6 +502,8 @@ public class DriverReadService : IDriverReadService
             WeeklyRejections: commitmentSummary.WeeklyRejections,
             EnforcementLevel: commitmentSummary.EnforcementLevel,
             LastOfferResponseAtUtc: commitmentSummary.LastOfferResponseAtUtc,
+            Address: driver.Address,
+            LicenseNumber: driver.LicenseNumber,
             ZoneName: driver.PrimaryZone != null ? $"{driver.PrimaryZone.City} - {driver.PrimaryZone.Name}" : null,
             PrimaryZoneId: driver.PrimaryZoneId,
             ReviewedAtUtc: driver.ReviewedAtUtc,
@@ -302,7 +515,15 @@ public class DriverReadService : IDriverReadService
             Finance: new AdminDriverFinanceSummaryDto(
                 walletBalance, wallet?.PendingBalance ?? 0,
                 totalEarnings, codCollected, totalSettlements, totalPayouts),
-            RecentAssignments: recentAssignments);
+            RecentAssignments: recentAssignments,
+            Overview: overview,
+            Workflow: workflow,
+            Operations: operations,
+            PerformanceDetails: performanceDetails,
+            Support: support,
+            Compliance: compliance,
+            FinanceDetails: financeDetails,
+            Verification: verification);
     }
 
     public async Task<DriverAssignmentDetailDto?> GetAssignmentDetailAsync(
@@ -674,6 +895,438 @@ public class DriverReadService : IDriverReadService
         var x = dLng * Math.Cos(avgLat);
         var y = dLat;
         return (decimal)(Math.Sqrt(x * x + y * y) * 6371);
+    }
+
+    private static AdminDriverWorkflowSectionDto BuildAdminWorkflowSection(string state)
+    {
+        var readiness = state switch
+        {
+            "READY_FOR_DISPATCH" or "ACTIVE_DELIVERY" => "READY",
+            "FINANCE_HOLD" or "READY_TO_ACTIVATE" => "LIMITED",
+            _ => "BLOCKED"
+        };
+
+        var blockers = state switch
+        {
+            "SUSPENDED" => ["suspension_active"],
+            "PENDING_DOCUMENTS" => ["missing_documents"],
+            "VERIFICATION_REVIEW" => ["verification_in_progress"],
+            "COMPLIANCE_REVIEW" => ["open_compliance_case"],
+            "FINANCE_HOLD" => ["finance_hold"],
+            _ => Array.Empty<string>()
+        };
+
+        var alerts = state switch
+        {
+            "ACTIVE_DELIVERY" => ["driver_on_active_mission"],
+            "READY_FOR_DISPATCH" => ["ready_for_dispatch"],
+            "READY_TO_ACTIVATE" => ["driver_offline_but_approved"],
+            _ => Array.Empty<string>()
+        };
+
+        var actions = state switch
+        {
+            "SUSPENDED" => new[]
+            {
+                new AdminDriverWorkflowActionDto("REVIEW_COMPLIANCE", "warning", "compliance"),
+                new AdminDriverWorkflowActionDto("OPEN_FINANCE", "secondary", "finance"),
+                new AdminDriverWorkflowActionDto("REACTIVATE_DRIVER", "success", "overview")
+            },
+            "PENDING_DOCUMENTS" or "VERIFICATION_REVIEW" => new[]
+            {
+                new AdminDriverWorkflowActionDto("REQUEST_DOCUMENTS", "warning", "verification"),
+                new AdminDriverWorkflowActionDto("APPROVE_VERIFICATION", "success", "verification"),
+                new AdminDriverWorkflowActionDto("OPEN_SUPPORT", "secondary", "support")
+            },
+            "COMPLIANCE_REVIEW" => new[]
+            {
+                new AdminDriverWorkflowActionDto("REVIEW_COMPLIANCE", "warning", "compliance"),
+                new AdminDriverWorkflowActionDto("SUSPEND_DRIVER", "danger", "overview"),
+                new AdminDriverWorkflowActionDto("OPEN_SUPPORT", "secondary", "support")
+            },
+            "FINANCE_HOLD" => new[]
+            {
+                new AdminDriverWorkflowActionDto("OPEN_FINANCE", "warning", "finance"),
+                new AdminDriverWorkflowActionDto("CLEAR_FINANCE_HOLD", "success", "finance"),
+                new AdminDriverWorkflowActionDto("OPEN_SUPPORT", "secondary", "support")
+            },
+            "ACTIVE_DELIVERY" => new[]
+            {
+                new AdminDriverWorkflowActionDto("OPEN_OPERATIONS", "primary", "operations"),
+                new AdminDriverWorkflowActionDto("OPEN_SUPPORT", "secondary", "support"),
+                new AdminDriverWorkflowActionDto("OPEN_FINANCE", "secondary", "finance")
+            },
+            "READY_FOR_DISPATCH" => new[]
+            {
+                new AdminDriverWorkflowActionDto("OPEN_OPERATIONS", "primary", "operations"),
+                new AdminDriverWorkflowActionDto("OPEN_SUPPORT", "secondary", "support"),
+                new AdminDriverWorkflowActionDto("SUSPEND_DRIVER", "danger", "overview")
+            },
+            _ => new[]
+            {
+                new AdminDriverWorkflowActionDto("MARK_READY_FOR_DISPATCH", "success", "operations"),
+                new AdminDriverWorkflowActionDto("OPEN_OPERATIONS", "primary", "operations"),
+                new AdminDriverWorkflowActionDto("OPEN_SUPPORT", "secondary", "support")
+            }
+        };
+
+        var lifecycleStages = BuildAdminLifecycleStages(state);
+        return new AdminDriverWorkflowSectionDto(state, readiness, blockers, alerts, actions, lifecycleStages);
+    }
+
+    private static AdminDriverLifecycleStageDto[] BuildAdminLifecycleStages(string state)
+    {
+        var verificationState = state switch
+        {
+            "PENDING_DOCUMENTS" => "attention",
+            "VERIFICATION_REVIEW" => "current",
+            _ => "completed"
+        };
+
+        var readinessState = state switch
+        {
+            "READY_TO_ACTIVATE" => "current",
+            "FINANCE_HOLD" => "attention",
+            "READY_FOR_DISPATCH" or "ACTIVE_DELIVERY" => "completed",
+            "SUSPENDED" => "attention",
+            "COMPLIANCE_REVIEW" => "attention",
+            _ => "upcoming"
+        };
+
+        var dispatchState = state switch
+        {
+            "READY_FOR_DISPATCH" => "current",
+            "ACTIVE_DELIVERY" => "completed",
+            _ => "upcoming"
+        };
+
+        var missionState = state switch
+        {
+            "ACTIVE_DELIVERY" => "current",
+            "READY_FOR_DISPATCH" => "upcoming",
+            _ => "upcoming"
+        };
+
+        var financeState = state switch
+        {
+            "FINANCE_HOLD" => "current",
+            "ACTIVE_DELIVERY" or "READY_FOR_DISPATCH" => "completed",
+            _ => "upcoming"
+        };
+
+        return
+        [
+            new AdminDriverLifecycleStageDto("verification", verificationState),
+            new AdminDriverLifecycleStageDto("readiness", readinessState),
+            new AdminDriverLifecycleStageDto("dispatch", dispatchState),
+            new AdminDriverLifecycleStageDto("mission", missionState),
+            new AdminDriverLifecycleStageDto("finance", financeState)
+        ];
+    }
+
+    private static string ResolveAdminWorkflowState(
+        Driver driver,
+        int activeTasks,
+        decimal pendingBalance,
+        AdminDriverIncidentDto[] incidents,
+        IReadOnlyCollection<string> missingRequirements)
+    {
+        if (driver.Status == AccountStatus.Suspended)
+        {
+            return "SUSPENDED";
+        }
+
+        if (missingRequirements.Contains("missing_documents"))
+        {
+            return "PENDING_DOCUMENTS";
+        }
+
+        if (driver.VerificationStatus is DriverVerificationStatus.UnderReview or DriverVerificationStatus.NeedsDocuments)
+        {
+            return "VERIFICATION_REVIEW";
+        }
+
+        if (incidents.Any(i => !string.Equals(i.Status, DriverIncidentStatus.Resolved.ToString(), StringComparison.OrdinalIgnoreCase)))
+        {
+            return "COMPLIANCE_REVIEW";
+        }
+
+        if (pendingBalance > 0)
+        {
+            return "FINANCE_HOLD";
+        }
+
+        if (activeTasks > 0)
+        {
+            return "ACTIVE_DELIVERY";
+        }
+
+        if (driver.IsAvailable)
+        {
+            return "READY_FOR_DISPATCH";
+        }
+
+        return "READY_TO_ACTIVATE";
+    }
+
+    private static int? ResolveDurationMinutes(DateTime? acceptedAtUtc, DateTime? deliveredAtUtc, DateTime? failedAtUtc)
+    {
+        if (!acceptedAtUtc.HasValue)
+        {
+            return null;
+        }
+
+        var end = deliveredAtUtc ?? failedAtUtc;
+        if (!end.HasValue || end <= acceptedAtUtc)
+        {
+            return null;
+        }
+
+        return Math.Max(1, (int)Math.Round((end.Value - acceptedAtUtc.Value).TotalMinutes));
+    }
+
+    private static AdminDriverSupportSectionDto BuildAdminSupportSection(
+        AdminDriverNoteDto[] notes,
+        AdminDriverIncidentDto[] incidents,
+        IReadOnlyCollection<string> missingRequirements,
+        decimal pendingBalance)
+    {
+        var followUps = new List<AdminDriverSupportFollowUpDto>();
+
+        if (missingRequirements.Contains("missing_documents"))
+        {
+            followUps.Add(new AdminDriverSupportFollowUpDto("complete_missing_documents", "today", "warning"));
+        }
+
+        if (incidents.Any(i => !string.Equals(i.Status, DriverIncidentStatus.Resolved.ToString(), StringComparison.OrdinalIgnoreCase)))
+        {
+            followUps.Add(new AdminDriverSupportFollowUpDto("review_open_incident", "today", "danger"));
+        }
+
+        if (pendingBalance > 0)
+        {
+            followUps.Add(new AdminDriverSupportFollowUpDto("clear_finance_hold", "this_week", "warning"));
+        }
+
+        return new AdminDriverSupportSectionDto(
+            notes.Length,
+            0,
+            followUps.Count,
+            incidents.Count(i => string.Equals(i.Severity, DriverIncidentSeverity.Critical.ToString(), StringComparison.OrdinalIgnoreCase)),
+            incidents.Count(i => !string.Equals(i.Status, DriverIncidentStatus.Resolved.ToString(), StringComparison.OrdinalIgnoreCase)),
+            notes.FirstOrDefault()?.CreatedAtUtc,
+            notes.FirstOrDefault()?.AuthorName ?? incidents.FirstOrDefault()?.ReviewerName,
+            "operations",
+            false,
+            [],
+            [],
+            followUps.ToArray());
+    }
+
+    private static AdminDriverDocumentHealthDto BuildDocumentHealth(AdminDriverDocumentDto[] documents) =>
+        new(
+            documents.Count(d => string.Equals(d.Status, "valid", StringComparison.OrdinalIgnoreCase)),
+            documents.Count(d => string.Equals(d.Status, "expiring", StringComparison.OrdinalIgnoreCase)),
+            documents.Count(d => !string.Equals(d.Status, "valid", StringComparison.OrdinalIgnoreCase) &&
+                                 !string.Equals(d.Status, "expiring", StringComparison.OrdinalIgnoreCase)));
+
+    private static string ResolveRiskLevel(
+        Driver driver,
+        AdminDriverIncidentDto[] incidents,
+        decimal pendingBalance,
+        IReadOnlyCollection<string> missingRequirements)
+    {
+        if (driver.Status == AccountStatus.Suspended ||
+            incidents.Any(i => string.Equals(i.Severity, DriverIncidentSeverity.Critical.ToString(), StringComparison.OrdinalIgnoreCase)))
+        {
+            return "high";
+        }
+
+        if (pendingBalance > 0 || missingRequirements.Count > 0 || incidents.Length > 0)
+        {
+            return "medium";
+        }
+
+        return "low";
+    }
+
+    private static AdminDriverFinanceEntryDto MapFinanceEntry(WalletTransaction transaction)
+    {
+        var reference = transaction.OrderId.HasValue
+            ? $"order_{transaction.OrderId.Value.ToString("N")[..8]}"
+            : transaction.ReferenceId.HasValue
+                ? $"ref_{transaction.ReferenceId.Value.ToString("N")[..8]}"
+                : $"txn_{transaction.Id.ToString("N")[..8]}";
+
+        var method = transaction.SettlementId.HasValue
+            ? "settlement"
+            : transaction.PaymentId.HasValue
+                ? "payment"
+                : "wallet";
+
+        return new AdminDriverFinanceEntryDto(
+            transaction.Id,
+            reference,
+            transaction.TxnType.ToString(),
+            "posted",
+            transaction.Direction == "OUT" ? -transaction.Amount : transaction.Amount,
+            0,
+            method,
+            transaction.CreatedAtUtc);
+    }
+
+    private static AdminDriverPerformanceSectionDto BuildAdminPerformanceSection(
+        decimal completionRate,
+        decimal acceptanceRate,
+        decimal commitmentScore,
+        int completedTasks,
+        int rejectedOffers,
+        int timedOutOffers,
+        IReadOnlyCollection<dynamic> zoneAssignmentRows,
+        IReadOnlyCollection<dynamic> fleetAssignmentRows,
+        IReadOnlyCollection<Guid> zoneDriverIds,
+        IReadOnlyDictionary<Guid, DriverCommitmentSummaryDto> commitmentSummaries,
+        AdminDriverIncidentDto[] incidents,
+        decimal pendingBalance)
+    {
+        var zoneAcceptanceAverage = zoneAssignmentRows.Any()
+            ? Convert.ToDecimal(Math.Round(zoneAssignmentRows.Average(row => row.Total > 0 ? (decimal)row.Completed / row.Total * 100 : 0m), 1))
+            : acceptanceRate;
+        var fleetAcceptanceAverage = fleetAssignmentRows.Any()
+            ? Convert.ToDecimal(Math.Round(fleetAssignmentRows.Average(row => row.Total > 0 ? (decimal)row.Completed / row.Total * 100 : 0m), 1))
+            : acceptanceRate;
+        var zoneCompletionAverage = zoneAssignmentRows.Any()
+            ? Convert.ToDecimal(Math.Round(zoneAssignmentRows.Average(row => row.Closed > 0 ? (decimal)row.Completed / row.Closed * 100 : 0m), 1))
+            : completionRate;
+        var fleetCompletionAverage = fleetAssignmentRows.Any()
+            ? Convert.ToDecimal(Math.Round(fleetAssignmentRows.Average(row => row.Closed > 0 ? (decimal)row.Completed / row.Closed * 100 : 0m), 1))
+            : completionRate;
+        var zoneCommitmentAverage = zoneDriverIds.Any()
+            ? Math.Round(commitmentSummaries
+                .Where(pair => zoneDriverIds.Contains(pair.Key))
+                .DefaultIfEmpty(new KeyValuePair<Guid, DriverCommitmentSummaryDto>(Guid.Empty, new DriverCommitmentSummaryDto(0, 0, 0, 0, 0, commitmentScore, "Healthy", true, null, null)))
+                .Average(pair => pair.Value.CommitmentScore), 1)
+            : commitmentScore;
+        var fleetCommitmentAverage = commitmentSummaries.Count > 0
+            ? Math.Round(commitmentSummaries.Average(pair => pair.Value.CommitmentScore), 1)
+            : commitmentScore;
+
+        var metrics = new[]
+        {
+            new AdminDriverPerformanceMetricDto("acceptance_rate", acceptanceRate, $"{acceptanceRate:0}%", null, acceptanceRate >= 80 ? "success" : acceptanceRate >= 60 ? "warning" : "danger"),
+            new AdminDriverPerformanceMetricDto("completion_rate", completionRate, $"{completionRate:0}%", null, completionRate >= 85 ? "success" : completionRate >= 65 ? "warning" : "danger"),
+            new AdminDriverPerformanceMetricDto("completed_tasks", completedTasks, completedTasks.ToString(), null, completedTasks > 0 ? "primary" : "neutral"),
+            new AdminDriverPerformanceMetricDto("commitment_score", commitmentScore, $"{commitmentScore:0}%", null, commitmentScore >= 80 ? "success" : commitmentScore >= 60 ? "warning" : "danger")
+        };
+
+        var benchmarks = new[]
+        {
+            new AdminDriverPerformanceBenchmarkDto("acceptance_rate", acceptanceRate, zoneAcceptanceAverage, fleetAcceptanceAverage, "%", acceptanceRate >= zoneAcceptanceAverage ? "above_zone_average" : "below_zone_average"),
+            new AdminDriverPerformanceBenchmarkDto("completion_rate", completionRate, zoneCompletionAverage, fleetCompletionAverage, "%", completionRate >= zoneCompletionAverage ? "completion_stable" : "completion_needs_attention"),
+            new AdminDriverPerformanceBenchmarkDto("commitment_score", commitmentScore, zoneCommitmentAverage, fleetCommitmentAverage, "%", commitmentScore >= zoneCommitmentAverage ? "commitment_above_region" : "commitment_below_region")
+        };
+
+        var strengths = new List<string>();
+        if (acceptanceRate >= 80) strengths.Add("strong_acceptance_rate");
+        if (completionRate >= 85) strengths.Add("strong_completion_rate");
+        if (commitmentScore >= 80) strengths.Add("strong_commitment_score");
+        if (strengths.Count == 0) strengths.Add("stable_baseline");
+
+        var watchouts = new List<string>();
+        if (rejectedOffers > 0) watchouts.Add("has_offer_rejections");
+        if (timedOutOffers > 0) watchouts.Add("has_offer_timeouts");
+        if (pendingBalance > 0) watchouts.Add("finance_hold_affects_readiness");
+        if (incidents.Any()) watchouts.Add("open_compliance_signals");
+        if (watchouts.Count == 0) watchouts.Add("no_critical_watchouts");
+
+        var recommendations = new List<string>();
+        if (acceptanceRate < 75) recommendations.Add("improve_offer_acceptance");
+        if (completionRate < 80) recommendations.Add("reduce_failed_assignments");
+        if (commitmentScore < 80) recommendations.Add("improve_commitment_discipline");
+        if (recommendations.Count == 0) recommendations.Add("maintain_current_operating_band");
+
+        var insightGroups = new[]
+        {
+            new AdminDriverPerformanceInsightGroupDto("strengths", "success", "verified", strengths.ToArray()),
+            new AdminDriverPerformanceInsightGroupDto("watchouts", "warning", "warning", watchouts.ToArray()),
+            new AdminDriverPerformanceInsightGroupDto("recommendations", "primary", "lightbulb", recommendations.ToArray())
+        };
+
+        return new AdminDriverPerformanceSectionDto(
+            completionRate,
+            acceptanceRate,
+            commitmentScore,
+            completedTasks,
+            rejectedOffers,
+            timedOutOffers,
+            metrics,
+            benchmarks,
+            insightGroups);
+    }
+
+    private static AdminDriverVerificationSectionDto BuildAdminVerificationSection(
+        Driver driver,
+        AdminDriverDocumentDto[] documents,
+        IReadOnlyCollection<string> missingRequirements,
+        decimal completionRate,
+        decimal acceptanceRate)
+    {
+        var checklist = new[]
+        {
+            new AdminDriverVerificationChecklistItemDto(
+                "personal_info",
+                !missingRequirements.Contains("missing_personal_info"),
+                missingRequirements.Contains("missing_personal_info") ? "missing_personal_info_note" : null,
+                false),
+            new AdminDriverVerificationChecklistItemDto(
+                "vehicle_info",
+                !missingRequirements.Contains("missing_vehicle_info"),
+                missingRequirements.Contains("missing_vehicle_info") ? "missing_vehicle_info_note" : null,
+                true),
+            new AdminDriverVerificationChecklistItemDto(
+                "national_id_document",
+                documents.Any(d => d.DocumentType == "NationalId" && d.Status == "valid"),
+                documents.Any(d => d.DocumentType == "NationalId" && d.Status == "valid") ? null : "missing_document_note",
+                true),
+            new AdminDriverVerificationChecklistItemDto(
+                "license_document",
+                documents.Any(d => d.DocumentType == "License" && d.Status == "valid"),
+                documents.Any(d => d.DocumentType == "License" && d.Status == "valid") ? null : "missing_document_note",
+                true),
+            new AdminDriverVerificationChecklistItemDto(
+                "vehicle_document",
+                documents.Any(d => d.DocumentType == "Vehicle" && d.Status == "valid"),
+                documents.Any(d => d.DocumentType == "Vehicle" && d.Status == "valid") ? null : "missing_document_note",
+                true),
+            new AdminDriverVerificationChecklistItemDto(
+                "zone_selection",
+                !missingRequirements.Contains("missing_zone_selection"),
+                missingRequirements.Contains("missing_zone_selection") ? "missing_zone_selection_note" : null,
+                false)
+        };
+
+        var progress = GetCompletionPercent(missingRequirements.Count);
+        var trustScore = Math.Max(25m, Math.Min(98m, Math.Round((completionRate * 0.4m) + (acceptanceRate * 0.2m) + (progress * 0.4m), 0)));
+        var recommendation = driver.VerificationStatus switch
+        {
+            DriverVerificationStatus.Approved => "accept",
+            DriverVerificationStatus.NeedsDocuments => "complete",
+            DriverVerificationStatus.Rejected => "complete",
+            _ => "conditional"
+        };
+
+        return new AdminDriverVerificationSectionDto(
+            $"APP-{Math.Abs(driver.Id.GetHashCode() % 100000):D5}",
+            driver.CreatedAtUtc,
+            driver.ReviewedByUserId.HasValue ? "operations_desk" : null,
+            trustScore,
+            progress,
+            recommendation,
+            driver.ReviewNote ?? driver.SuspensionReason,
+            checklist,
+            driver.ReviewNote ?? string.Empty,
+            driver.SuspensionReason ?? string.Empty,
+            ["missing_documents", "quality_issue", "zone_missing"]);
     }
 
     private static List<string> GetMissingRequirements(Driver driver, Domain.Modules.Identity.Entities.User user)
