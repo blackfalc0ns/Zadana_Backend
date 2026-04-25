@@ -14,6 +14,9 @@ public class Review : BaseEntity
     
     public int Rating { get; private set; }
     public string? Comment { get; private set; }
+    public string? VendorReply { get; private set; }
+    public DateTime? VendorRepliedAtUtc { get; private set; }
+    public DateTime? VendorReplyUpdatedAtUtc { get; private set; }
 
     // Navigation
     public Order Order { get; private set; } = null!;
@@ -31,5 +34,19 @@ public class Review : BaseEntity
         VendorId = vendorId;
         Rating = rating;
         Comment = comment?.Trim();
+    }
+
+    public void SetVendorReply(string reply)
+    {
+        var normalized = reply.Trim();
+        if (string.IsNullOrWhiteSpace(normalized))
+        {
+            throw new BusinessRuleException("INVALID_VENDOR_REPLY", "Reply is required.");
+        }
+
+        var now = DateTime.UtcNow;
+        VendorReply = normalized;
+        VendorReplyUpdatedAtUtc = VendorRepliedAtUtc is null ? null : now;
+        VendorRepliedAtUtc ??= now;
     }
 }

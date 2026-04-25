@@ -35,17 +35,20 @@ public class UpdateVendorBankingCommandHandler : IRequestHandler<UpdateVendorBan
     private readonly IVendorReadService _vendorReadService;
     private readonly IUnitOfWork _unitOfWork;
     private readonly ICurrentUserService _currentUserService;
+    private readonly IVendorReviewAuditService _vendorReviewAuditService;
 
     public UpdateVendorBankingCommandHandler(
         IVendorRepository vendorRepository,
         IVendorReadService vendorReadService,
         IUnitOfWork unitOfWork,
-        ICurrentUserService currentUserService)
+        ICurrentUserService currentUserService,
+        IVendorReviewAuditService vendorReviewAuditService)
     {
         _vendorRepository = vendorRepository;
         _vendorReadService = vendorReadService;
         _unitOfWork = unitOfWork;
         _currentUserService = currentUserService;
+        _vendorReviewAuditService = vendorReviewAuditService;
     }
 
     public async Task<VendorWorkspaceDto> Handle(UpdateVendorBankingCommand request, CancellationToken cancellationToken)
@@ -85,6 +88,17 @@ public class UpdateVendorBankingCommandHandler : IRequestHandler<UpdateVendorBan
         }
 
         await _unitOfWork.SaveChangesAsync(cancellationToken);
+
+        await _vendorReviewAuditService.AppendActivityEntryAsync(
+            vendor.UserId,
+            "profile-banking-updated",
+            "warning",
+            "Vendor updated banking and payout setup from Vendor Portal.",
+            "Vendor Portal",
+            vendor.BusinessNameEn,
+            userId,
+            vendor.BusinessNameEn,
+            cancellationToken);
 
         return await _vendorReadService.GetWorkspaceByUserIdAsync(userId, cancellationToken)
             ?? throw new NotFoundException("Vendor", userId);

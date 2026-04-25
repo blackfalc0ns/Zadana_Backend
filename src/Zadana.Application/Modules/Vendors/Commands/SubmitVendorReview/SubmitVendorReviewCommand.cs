@@ -70,7 +70,7 @@ public sealed class SubmitVendorReviewCommandHandler : IRequestHandler<SubmitVen
 
         await _vendorReviewAuditService.AppendEntryAsync(
             vendor.UserId,
-            "submitted",
+            "vendor-profile-submitted",
             "info",
             "Vendor submitted the profile and required documents for compliance review.",
             "Vendor Portal",

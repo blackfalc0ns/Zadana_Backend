@@ -34,17 +34,20 @@ public class UpdateVendorHoursCommandHandler : IRequestHandler<UpdateVendorHours
     private readonly IVendorReadService _vendorReadService;
     private readonly IUnitOfWork _unitOfWork;
     private readonly ICurrentUserService _currentUserService;
+    private readonly IVendorReviewAuditService _vendorReviewAuditService;
 
     public UpdateVendorHoursCommandHandler(
         IVendorRepository vendorRepository,
         IVendorReadService vendorReadService,
         IUnitOfWork unitOfWork,
-        ICurrentUserService currentUserService)
+        ICurrentUserService currentUserService,
+        IVendorReviewAuditService vendorReviewAuditService)
     {
         _vendorRepository = vendorRepository;
         _vendorReadService = vendorReadService;
         _unitOfWork = unitOfWork;
         _currentUserService = currentUserService;
+        _vendorReviewAuditService = vendorReviewAuditService;
     }
 
     public async Task<VendorWorkspaceDto> Handle(UpdateVendorHoursCommand request, CancellationToken cancellationToken)
@@ -95,6 +98,17 @@ public class UpdateVendorHoursCommandHandler : IRequestHandler<UpdateVendorHours
         }
 
         await _unitOfWork.SaveChangesAsync(cancellationToken);
+
+        await _vendorReviewAuditService.AppendActivityEntryAsync(
+            vendor.UserId,
+            "profile-hours-updated",
+            "info",
+            "Vendor updated operating hours from Vendor Portal.",
+            "Vendor Portal",
+            vendor.BusinessNameEn,
+            userId,
+            vendor.BusinessNameEn,
+            cancellationToken);
 
         return await _vendorReadService.GetWorkspaceByUserIdAsync(userId, cancellationToken)
             ?? throw new NotFoundException("Vendor", userId);

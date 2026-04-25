@@ -27,17 +27,20 @@ public class UpdateVendorOperationsSettingsCommandHandler : IRequestHandler<Upda
     private readonly IVendorReadService _vendorReadService;
     private readonly IUnitOfWork _unitOfWork;
     private readonly ICurrentUserService _currentUserService;
+    private readonly IVendorReviewAuditService _vendorReviewAuditService;
 
     public UpdateVendorOperationsSettingsCommandHandler(
         IVendorRepository vendorRepository,
         IVendorReadService vendorReadService,
         IUnitOfWork unitOfWork,
-        ICurrentUserService currentUserService)
+        ICurrentUserService currentUserService,
+        IVendorReviewAuditService vendorReviewAuditService)
     {
         _vendorRepository = vendorRepository;
         _vendorReadService = vendorReadService;
         _unitOfWork = unitOfWork;
         _currentUserService = currentUserService;
+        _vendorReviewAuditService = vendorReviewAuditService;
     }
 
     public async Task<VendorWorkspaceDto> Handle(UpdateVendorOperationsSettingsCommand request, CancellationToken cancellationToken)
@@ -48,6 +51,17 @@ public class UpdateVendorOperationsSettingsCommandHandler : IRequestHandler<Upda
 
         vendor.UpdateOperationsSettings(request.AcceptOrders, request.MinimumOrderAmount, request.PreparationTimeMinutes);
         await _unitOfWork.SaveChangesAsync(cancellationToken);
+
+        await _vendorReviewAuditService.AppendActivityEntryAsync(
+            vendor.UserId,
+            "profile-operations-updated",
+            "info",
+            "Vendor updated operational settings from Vendor Portal.",
+            "Vendor Portal",
+            vendor.BusinessNameEn,
+            userId,
+            vendor.BusinessNameEn,
+            cancellationToken);
 
         return await _vendorReadService.GetWorkspaceByUserIdAsync(userId, cancellationToken)
             ?? throw new NotFoundException("Vendor", userId);

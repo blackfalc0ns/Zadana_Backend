@@ -3,17 +3,20 @@ using System;
 using Microsoft.EntityFrameworkCore;
 using Microsoft.EntityFrameworkCore.Infrastructure;
 using Microsoft.EntityFrameworkCore.Metadata;
+using Microsoft.EntityFrameworkCore.Migrations;
 using Microsoft.EntityFrameworkCore.Storage.ValueConversion;
 using Zadana.Infrastructure.Persistence;
 
 #nullable disable
 
-namespace Zadana.Infrastructure.Migrations
+namespace Zadana.Infrastructure.Persistence.Migrations
 {
     [DbContext(typeof(ApplicationDbContext))]
-    partial class ApplicationDbContextModelSnapshot : ModelSnapshot
+    [Migration("20260424150633_AddVendorReviewReplyFields")]
+    partial class AddVendorReviewReplyFields
     {
-        protected override void BuildModel(ModelBuilder modelBuilder)
+        /// <inheritdoc />
+        protected override void BuildTargetModel(ModelBuilder modelBuilder)
         {
 #pragma warning disable 612, 618
             modelBuilder
@@ -3101,38 +3104,6 @@ namespace Zadana.Infrastructure.Migrations
                     b.ToTable("VendorDocumentReviews", (string)null);
                 });
 
-            modelBuilder.Entity("Zadana.Domain.Modules.Vendors.Entities.VendorWorkspaceState", b =>
-                {
-                    b.Property<Guid>("Id")
-                        .ValueGeneratedOnAdd()
-                        .HasColumnType("uniqueidentifier");
-
-                    b.Property<DateTime>("CreatedAtUtc")
-                        .HasColumnType("datetime2");
-
-                    b.Property<string>("Feature")
-                        .IsRequired()
-                        .HasMaxLength(80)
-                        .HasColumnType("nvarchar(80)");
-
-                    b.Property<string>("PayloadJson")
-                        .IsRequired()
-                        .HasColumnType("nvarchar(max)");
-
-                    b.Property<DateTime>("UpdatedAtUtc")
-                        .HasColumnType("datetime2");
-
-                    b.Property<Guid>("VendorId")
-                        .HasColumnType("uniqueidentifier");
-
-                    b.HasKey("Id");
-
-                    b.HasIndex("VendorId", "Feature")
-                        .IsUnique();
-
-                    b.ToTable("VendorWorkspaceStates", (string)null);
-                });
-
             modelBuilder.Entity("Zadana.Domain.Modules.Wallets.Entities.Payout", b =>
                 {
                     b.Property<Guid>("Id")
@@ -4139,17 +4110,6 @@ namespace Zadana.Infrastructure.Migrations
                 {
                     b.HasOne("Zadana.Domain.Modules.Vendors.Entities.Vendor", "Vendor")
                         .WithMany("DocumentReviews")
-                        .HasForeignKey("VendorId")
-                        .OnDelete(DeleteBehavior.Cascade)
-                        .IsRequired();
-
-                    b.Navigation("Vendor");
-                });
-
-            modelBuilder.Entity("Zadana.Domain.Modules.Vendors.Entities.VendorWorkspaceState", b =>
-                {
-                    b.HasOne("Zadana.Domain.Modules.Vendors.Entities.Vendor", "Vendor")
-                        .WithMany()
                         .HasForeignKey("VendorId")
                         .OnDelete(DeleteBehavior.Cascade)
                         .IsRequired();

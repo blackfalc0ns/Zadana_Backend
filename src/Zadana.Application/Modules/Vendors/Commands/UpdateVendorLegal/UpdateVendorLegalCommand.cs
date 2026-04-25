@@ -89,9 +89,22 @@ public class UpdateVendorLegalCommandHandler : IRequestHandler<UpdateVendorLegal
         {
             await _vendorReviewAuditService.AppendEntryAsync(
                 vendor.UserId,
-                "document-reuploaded",
+                "vendor-document-reuploaded",
                 "info",
                 $"Vendor re-uploaded document(s): {string.Join(", ", resetDocuments)}. They are back in the review queue.",
+                "Vendor Portal",
+                vendor.BusinessNameEn,
+                userId,
+                vendor.BusinessNameEn,
+                cancellationToken);
+        }
+        else
+        {
+            await _vendorReviewAuditService.AppendActivityEntryAsync(
+                vendor.UserId,
+                "profile-legal-updated",
+                "warning",
+                "Vendor updated legal and compliance information from Vendor Portal.",
                 "Vendor Portal",
                 vendor.BusinessNameEn,
                 userId,
