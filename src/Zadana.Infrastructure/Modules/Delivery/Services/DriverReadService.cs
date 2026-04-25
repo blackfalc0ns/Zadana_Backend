@@ -4,6 +4,7 @@ using Zadana.Application.Modules.Delivery.DTOs;
 using Zadana.Application.Modules.Delivery.Interfaces;
 using Zadana.Domain.Modules.Delivery.Entities;
 using Zadana.Domain.Modules.Delivery.Enums;
+using Zadana.Domain.Modules.Identity.Entities;
 using Zadana.Domain.Modules.Identity.Enums;
 using Zadana.Domain.Modules.Orders.Entities;
 using Zadana.Domain.Modules.Orders.Enums;
@@ -345,7 +346,7 @@ public class DriverReadService : IDriverReadService
             customerAddress?.AddressLine ?? string.Empty,
             customerAddress?.Latitude,
             customerAddress?.Longitude,
-            customerAddress?.PhoneNumber,
+            customerAddress?.ContactPhone,
             assignment.Order.PaymentMethod.ToString(),
             assignment.CodAmount,
             assignment.RequiresPickupOtpVerification,
@@ -458,7 +459,7 @@ public class DriverReadService : IDriverReadService
             assignment.Order.Vendor.BusinessNameEn,
             assignment.Order.Vendor.ContactPhone,
             customerAddress?.ContactName ?? "Customer",
-            customerAddress?.PhoneNumber,
+            customerAddress?.ContactPhone,
             assignment.Order.VendorBranch?.AddressLine ?? assignment.Order.Vendor.NationalAddress ?? string.Empty,
             customerAddress?.AddressLine ?? string.Empty,
             MapCompletedOrderStatus(assignment.Order.Status),
@@ -651,8 +652,7 @@ public class DriverReadService : IDriverReadService
             return Math.Round(order.QuotedDistanceKm.Value, 2);
         }
 
-        if (order.VendorBranch?.Latitude is null ||
-            order.VendorBranch.Longitude is null ||
+        if (order.VendorBranch is null ||
             customerAddress?.Latitude is null ||
             customerAddress.Longitude is null)
         {
@@ -660,8 +660,8 @@ public class DriverReadService : IDriverReadService
         }
 
         return Math.Round(ApproximateDistanceKm(
-            order.VendorBranch.Latitude.Value,
-            order.VendorBranch.Longitude.Value,
+            order.VendorBranch.Latitude,
+            order.VendorBranch.Longitude,
             customerAddress.Latitude.Value,
             customerAddress.Longitude.Value), 2);
     }

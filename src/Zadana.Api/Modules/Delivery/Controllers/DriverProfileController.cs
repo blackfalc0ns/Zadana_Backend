@@ -82,14 +82,19 @@ public class DriverProfileController : ApiControllerBase
         var driver = await driverRepository.GetByUserIdAsync(userId, cancellationToken)
             ?? throw new NotFoundException("Driver", userId);
 
-        if (!string.IsNullOrWhiteSpace(request.VehicleType) &&
-            !DriverVehicleTypeMapper.TryParse(request.VehicleType, out var vehicleType))
+        DriverVehicleType? parsedVehicleType = null;
+        if (!string.IsNullOrWhiteSpace(request.VehicleType))
         {
-            throw new BusinessRuleException("INVALID_VEHICLE_TYPE", "Unsupported driver vehicle type.");
+            if (!DriverVehicleTypeMapper.TryParse(request.VehicleType, out var resolvedVehicleType))
+            {
+                throw new BusinessRuleException("INVALID_VEHICLE_TYPE", "Unsupported driver vehicle type.");
+            }
+
+            parsedVehicleType = resolvedVehicleType;
         }
 
         driver.UpdateDetails(
-            string.IsNullOrWhiteSpace(request.VehicleType) ? null : vehicleType,
+            parsedVehicleType,
             request.NationalId,
             request.LicenseNumber);
 
