@@ -472,6 +472,7 @@ public class DriverReadService : IDriverReadService
             missingRequirements,
             Math.Round(completionRate, 0),
             Math.Round(acceptanceRate, 0));
+        var profileReadiness = DriverProfileReadinessFactory.BuildAdminReadiness(driver, driver.User);
 
         return new AdminDriverDetailDto(
             Id: driver.Id,
@@ -507,6 +508,7 @@ public class DriverReadService : IDriverReadService
             ReviewedAtUtc: driver.ReviewedAtUtc,
             ReviewNote: driver.ReviewNote,
             SuspensionReason: driver.SuspensionReason,
+            ProfileReadiness: profileReadiness,
             Documents: documents,
             Notes: notes,
             Incidents: incidents,

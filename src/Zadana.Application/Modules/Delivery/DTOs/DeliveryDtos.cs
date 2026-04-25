@@ -234,6 +234,7 @@ public record AdminDriverDetailDto(
     DateTime? ReviewedAtUtc,
     string? ReviewNote,
     string? SuspensionReason,
+    AdminDriverProfileReadinessDto ProfileReadiness,
 
     // Documents
     AdminDriverDocumentDto[] Documents,
@@ -300,6 +301,13 @@ public record AdminDriverAssignmentDto(
     DateTime? FailedAtUtc,
     string? FailureReason,
     decimal CodAmount);
+
+public record AdminDriverProfileReadinessDto(
+    bool IsProfileComplete,
+    int CompletionPercent,
+    IReadOnlyList<string> MissingRequirements,
+    bool CanSubmitForReview,
+    AdminDriverVerificationChecklistItemDto[] Checklist);
 
 public record AdminDriverOverviewSectionDto(
     string? Address,
