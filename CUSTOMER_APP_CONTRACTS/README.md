@@ -9,6 +9,7 @@ Files:
 - `ORDER_DETAILS_CONTRACT.md`
 - `NOTIFICATIONS_CONTRACT.md`
 - `PAYMENT_CONTRACT.md`
+- `SIGNALR_CONTRACT.md`
 
 General notes:
 

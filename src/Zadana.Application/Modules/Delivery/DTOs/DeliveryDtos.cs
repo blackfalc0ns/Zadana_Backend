@@ -52,7 +52,21 @@ public record DriverHomeDto(
     DriverCurrentAssignmentDto? CurrentAssignment,
     DriverEarningsSummaryDto EarningsSummaryToday,
     int UnreadAlerts,
-    DriverCommitmentSummaryDto Commitment);
+    DriverCommitmentSummaryDto Commitment,
+    DriverHomeProfileReadinessDto ProfileReadiness);
+
+public record DriverHomeProfileReadinessDto(
+    bool IsProfileComplete,
+    int CompletionPercent,
+    IReadOnlyList<string> MissingRequirements,
+    bool CanSubmitForReview,
+    IReadOnlyList<DriverHomeChecklistItemDto> Checklist);
+
+public record DriverHomeChecklistItemDto(
+    string Code,
+    bool Completed,
+    string? Note,
+    bool Critical);
 
 public record DriverIncomingOfferDto(
     Guid AssignmentId,

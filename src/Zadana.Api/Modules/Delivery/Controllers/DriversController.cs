@@ -162,6 +162,7 @@ public class DriversController : ApiControllerBase
             .CountAsync(n => n.UserId == userId && !n.IsRead, cancellationToken);
 
         var homeState = ResolveHomeState(operationalStatus, currentOffer, currentAssignment);
+        var profileReadiness = DriverProfileReadinessFactory.BuildHomeReadiness(driver, driver.User);
 
         return Ok(new DriverHomeDto(
             operationalStatus,
@@ -170,7 +171,8 @@ public class DriversController : ApiControllerBase
             currentAssignment,
             new DriverEarningsSummaryDto(Math.Round(earningsToday, 2), completedTrips),
             unreadAlerts,
-            commitment));
+            commitment,
+            profileReadiness));
     }
 
     [HttpPut("me/zone")]

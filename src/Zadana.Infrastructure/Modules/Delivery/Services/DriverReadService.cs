@@ -184,7 +184,7 @@ public class DriverReadService : IDriverReadService
 
         if (driver is null) return null;
 
-        var missingRequirements = GetMissingRequirements(driver, driver.User);
+        var missingRequirements = DriverProfileReadinessFactory.GetMissingRequirements(driver, driver.User);
 
         // Active/completed tasks
         var activeTasks = await _context.DeliveryAssignments
@@ -705,8 +705,8 @@ public class DriverReadService : IDriverReadService
             return null;
         }
 
-        var missingRequirements = GetMissingRequirements(driver, driver.User);
-        var completionPercent = GetCompletionPercent(missingRequirements.Count);
+        var missingRequirements = DriverProfileReadinessFactory.GetMissingRequirements(driver, driver.User);
+        var completionPercent = DriverProfileReadinessFactory.GetCompletionPercent(missingRequirements.Count);
 
         return new DriverProfileDto(
             driver.User.FullName,
@@ -1303,7 +1303,7 @@ public class DriverReadService : IDriverReadService
                 false)
         };
 
-        var progress = GetCompletionPercent(missingRequirements.Count);
+        var progress = DriverProfileReadinessFactory.GetCompletionPercent(missingRequirements.Count);
         var trustScore = Math.Max(25m, Math.Min(98m, Math.Round((completionRate * 0.4m) + (acceptanceRate * 0.2m) + (progress * 0.4m), 0)));
         var recommendation = driver.VerificationStatus switch
         {
@@ -1327,48 +1327,4 @@ public class DriverReadService : IDriverReadService
             ["missing_documents", "quality_issue", "zone_missing"]);
     }
 
-    private static List<string> GetMissingRequirements(Driver driver, Domain.Modules.Identity.Entities.User user)
-    {
-        var missing = new List<string>();
-
-        if (string.IsNullOrWhiteSpace(user.FullName) ||
-            string.IsNullOrWhiteSpace(user.Email) ||
-            string.IsNullOrWhiteSpace(user.PhoneNumber) ||
-            string.IsNullOrWhiteSpace(driver.Address))
-        {
-            missing.Add("missing_personal_info");
-        }
-
-        if (driver.VehicleType is null ||
-            string.IsNullOrWhiteSpace(driver.LicenseNumber) ||
-            string.IsNullOrWhiteSpace(driver.NationalId))
-        {
-            missing.Add("missing_vehicle_info");
-        }
-
-        if (string.IsNullOrWhiteSpace(driver.PersonalPhotoUrl) ||
-            string.IsNullOrWhiteSpace(driver.NationalIdImageUrl) ||
-            string.IsNullOrWhiteSpace(driver.LicenseImageUrl) ||
-            string.IsNullOrWhiteSpace(driver.VehicleImageUrl))
-        {
-            missing.Add("missing_documents");
-        }
-
-        if (!driver.PrimaryZoneId.HasValue)
-        {
-            missing.Add("missing_zone_selection");
-        }
-
-        return missing;
-    }
-
-    private static int GetCompletionPercent(int missingCount) =>
-        missingCount switch
-        {
-            <= 0 => 100,
-            1 => 75,
-            2 => 50,
-            3 => 25,
-            _ => 0
-        };
 }

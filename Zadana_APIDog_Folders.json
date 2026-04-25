@@ -10955,7 +10955,7 @@
                 "summary": "Get driver operational status",
                 "description": "Canonical mobile endpoint to know whether the authenticated driver is approved, under review, rejected, suspended, or operationally ready for dispatch.",
                 "tags": [
-                    "Driver/Operations"
+                    "Driver/Home"
                 ],
                 "responses": {
                     "200": {
@@ -10997,12 +10997,107 @@
                 }
             }
         },
+        "/api/drivers/home": {
+            "get": {
+                "summary": "Get driver home snapshot",
+                "description": "Returns the complete driver home payload used by the mobile home screen. The backend processes expired offers before building the response, so `currentOffer` can disappear when the offer has already expired server-side.",
+                "tags": [
+                    "Driver/Home"
+                ],
+                "responses": {
+                    "200": {
+                        "description": "OK",
+                        "content": {
+                            "application/json": {
+                                "schema": {
+                                    "$ref": "#/components/schemas/DriverHomeDto"
+                                },
+                                "example": {
+                                    "operationalStatus": {
+                                        "driverId": "11111111-1111-1111-1111-111111111111",
+                                        "gateStatus": "Operational",
+                                        "isOperational": true,
+                                        "canReceiveOrders": true,
+                                        "canGoAvailable": true,
+                                        "isAvailable": true,
+                                        "verificationStatus": "Approved",
+                                        "accountStatus": "Active",
+                                        "reviewedAtUtc": "2026-04-24T10:30:00Z",
+                                        "reviewNote": null,
+                                        "suspensionReason": null,
+                                        "primaryZoneId": "22222222-2222-2222-2222-222222222222",
+                                        "zoneName": "Cairo - Nasr City East",
+                                        "commitmentScore": 96.5,
+                                        "dailyRejections": 0,
+                                        "weeklyRejections": 1,
+                                        "enforcementLevel": "Healthy",
+                                        "canReceiveOffers": true,
+                                        "restrictionMessage": null,
+                                        "message": "Driver is approved and can receive orders."
+                                    },
+                                    "homeState": "WaitingForOffer",
+                                    "currentOffer": null,
+                                    "currentAssignment": null,
+                                    "earningsSummaryToday": {
+                                        "earningsAmount": 180,
+                                        "completedTrips": 3
+                                    },
+                                    "unreadAlerts": 2,
+                                    "commitment": {
+                                        "acceptedOffers": 12,
+                                        "rejectedOffers": 1,
+                                        "timedOutOffers": 0,
+                                        "dailyRejections": 0,
+                                        "weeklyRejections": 1,
+                                        "commitmentScore": 96.5,
+                                        "enforcementLevel": "Healthy",
+                                        "canReceiveOffers": true,
+                                        "restrictionMessage": null,
+                                        "lastOfferResponseAtUtc": "2026-04-25T08:40:00Z"
+                                    },
+                                    "profileReadiness": {
+                                        "isProfileComplete": true,
+                                        "completionPercent": 100,
+                                        "missingRequirements": [],
+                                        "canSubmitForReview": true,
+                                        "checklist": [
+                                            {
+                                                "code": "personal_info",
+                                                "completed": true,
+                                                "note": null,
+                                                "critical": false
+                                            },
+                                            {
+                                                "code": "vehicle_info",
+                                                "completed": true,
+                                                "note": null,
+                                                "critical": true
+                                            }
+                                        ]
+                                    }
+                                }
+                            },
+                            "text/json": {
+                                "schema": {
+                                    "$ref": "#/components/schemas/DriverHomeDto"
+                                }
+                            },
+                            "text/plain": {
+                                "schema": {
+                                    "$ref": "#/components/schemas/DriverHomeDto"
+                                }
+                            }
+                        }
+                    }
+                }
+            }
+        },
         "/api/drivers/me/zone": {
             "put": {
                 "summary": "Set driver primary zone",
                 "description": "Assigns one active delivery zone as the driver's current primary operating zone.",
                 "tags": [
-                    "Driver/Operations"
+                    "Driver/Home"
                 ],
                 "requestBody": {
                     "required": true,
@@ -11059,7 +11154,7 @@
                 "summary": "Set driver availability",
                 "description": "Driver can switch availability on only after admin review is approved and the account is Active. Pending, under-review, rejected, suspended, or inactive drivers receive `DRIVER_NOT_READY_FOR_DISPATCH` when trying to go online.",
                 "tags": [
-                    "Driver/Operations"
+                    "Driver/Home"
                 ],
                 "requestBody": {
                     "required": true,
@@ -11133,7 +11228,7 @@
                 "summary": "Update driver GPS location",
                 "description": "Sends the latest driver coordinates for live tracking and dispatch ranking. The server records the official timestamp. GPS remains fresh for dispatch ranking for 5 minutes, and readings with accuracyMeters greater than 100 are treated as low-confidence with lower priority rather than hard rejection.",
                 "tags": [
-                    "Driver/Operations"
+                    "Driver/Home"
                 ],
                 "requestBody": {
                     "required": true,
@@ -11192,7 +11287,7 @@
                 "summary": "Get current driver assignment",
                 "description": "Returns the current non-terminal assignment only when the authenticated driver has been reviewed and approved by admin and is Active. Pending, under-review, rejected, suspended, or inactive drivers receive `hasAssignment: false` and no order details.",
                 "tags": [
-                    "Driver/Operations"
+                    "Driver/Home"
                 ],
                 "responses": {
                     "200": {
@@ -11244,6 +11339,145 @@
                             "text/plain": {
                                 "schema": {
                                     "$ref": "#/components/schemas/DriverCurrentAssignmentResponse"
+                                }
+                            }
+                        }
+                    }
+                }
+            }
+        },
+        "/api/drivers/offers/{assignmentId}/accept": {
+            "post": {
+                "summary": "Accept incoming driver offer",
+                "description": "Accepts the current incoming offer shown on the home screen. Mobile must pass the `assignmentId` coming from `currentOffer.assignmentId`.",
+                "tags": [
+                    "Driver/Home"
+                ],
+                "parameters": [
+                    {
+                        "name": "assignmentId",
+                        "in": "path",
+                        "required": true,
+                        "schema": {
+                            "type": "string",
+                            "format": "uuid"
+                        }
+                    }
+                ],
+                "responses": {
+                    "200": {
+                        "description": "OK",
+                        "content": {
+                            "application/json": {
+                                "schema": {
+                                    "$ref": "#/components/schemas/DriverOfferActionResultDto"
+                                },
+                                "example": {
+                                    "assignmentId": "33333333-3333-3333-3333-333333333333",
+                                    "orderId": "44444444-4444-4444-4444-444444444444",
+                                    "status": "Accepted",
+                                    "message": "Offer accepted successfully."
+                                }
+                            },
+                            "text/json": {
+                                "schema": {
+                                    "$ref": "#/components/schemas/DriverOfferActionResultDto"
+                                }
+                            },
+                            "text/plain": {
+                                "schema": {
+                                    "$ref": "#/components/schemas/DriverOfferActionResultDto"
+                                }
+                            }
+                        }
+                    },
+                    "409": {
+                        "description": "Driver is not approved or the offer can no longer be accepted.",
+                        "content": {
+                            "application/json": {
+                                "schema": {
+                                    "$ref": "#/components/schemas/BusinessRuleErrorResponse"
+                                }
+                            }
+                        }
+                    }
+                }
+            }
+        },
+        "/api/drivers/offers/{assignmentId}/reject": {
+            "post": {
+                "summary": "Reject incoming driver offer",
+                "description": "Rejects the current incoming offer shown on the home screen. Mobile must pass the `assignmentId` coming from `currentOffer.assignmentId`. The `reason` field is optional in the current backend.",
+                "tags": [
+                    "Driver/Home"
+                ],
+                "parameters": [
+                    {
+                        "name": "assignmentId",
+                        "in": "path",
+                        "required": true,
+                        "schema": {
+                            "type": "string",
+                            "format": "uuid"
+                        }
+                    }
+                ],
+                "requestBody": {
+                    "required": false,
+                    "content": {
+                        "application/json": {
+                            "schema": {
+                                "$ref": "#/components/schemas/DriverOfferRejectRequest"
+                            },
+                            "example": {
+                                "reason": "too_far"
+                            }
+                        },
+                        "text/json": {
+                            "schema": {
+                                "$ref": "#/components/schemas/DriverOfferRejectRequest"
+                            }
+                        },
+                        "application/*+json": {
+                            "schema": {
+                                "$ref": "#/components/schemas/DriverOfferRejectRequest"
+                            }
+                        }
+                    }
+                },
+                "responses": {
+                    "200": {
+                        "description": "OK",
+                        "content": {
+                            "application/json": {
+                                "schema": {
+                                    "$ref": "#/components/schemas/DriverOfferActionResultDto"
+                                },
+                                "example": {
+                                    "assignmentId": "33333333-3333-3333-3333-333333333333",
+                                    "orderId": "44444444-4444-4444-4444-444444444444",
+                                    "status": "Rejected",
+                                    "message": "Offer rejected successfully."
+                                }
+                            },
+                            "text/json": {
+                                "schema": {
+                                    "$ref": "#/components/schemas/DriverOfferActionResultDto"
+                                }
+                            },
+                            "text/plain": {
+                                "schema": {
+                                    "$ref": "#/components/schemas/DriverOfferActionResultDto"
+                                }
+                            }
+                        }
+                    },
+                    "409": {
+                        "description": "Driver is not approved or the offer can no longer be rejected.",
+                        "content": {
+                            "application/json": {
+                                "schema": {
+                                    "$ref": "#/components/schemas/BusinessRuleErrorResponse"
                                 }
                             }
                         }
@@ -12163,8 +12397,9 @@
         "/api/drivers/notifications/unread-count": {
             "get": {
                 "summary": "Get driver unread notifications count",
+                "description": "Returns the unread notifications badge count used by the home header.",
                 "tags": [
-                    "Driver/Notifications"
+                    "Driver/Home"
                 ],
                 "responses": {
                     "200": {
@@ -20161,7 +20396,393 @@
                         "type": "string",
                         "nullable": true
                     },
+                    "commitmentScore": {
+                        "type": "number",
+                        "format": "double"
+                    },
+                    "dailyRejections": {
+                        "type": "integer",
+                        "format": "int32"
+                    },
+                    "weeklyRejections": {
+                        "type": "integer",
+                        "format": "int32"
+                    },
+                    "enforcementLevel": {
+                        "type": "string",
+                        "nullable": true
+                    },
+                    "canReceiveOffers": {
+                        "type": "boolean"
+                    },
+                    "restrictionMessage": {
+                        "type": "string",
+                        "nullable": true
+                    },
                     "message": {
+                        "type": "string",
+                        "nullable": true
+                    }
+                },
+                "additionalProperties": false
+            },
+            "DriverCommitmentSummaryDto": {
+                "type": "object",
+                "properties": {
+                    "acceptedOffers": {
+                        "type": "integer",
+                        "format": "int32"
+                    },
+                    "rejectedOffers": {
+                        "type": "integer",
+                        "format": "int32"
+                    },
+                    "timedOutOffers": {
+                        "type": "integer",
+                        "format": "int32"
+                    },
+                    "dailyRejections": {
+                        "type": "integer",
+                        "format": "int32"
+                    },
+                    "weeklyRejections": {
+                        "type": "integer",
+                        "format": "int32"
+                    },
+                    "commitmentScore": {
+                        "type": "number",
+                        "format": "double"
+                    },
+                    "enforcementLevel": {
+                        "type": "string",
+                        "nullable": true
+                    },
+                    "canReceiveOffers": {
+                        "type": "boolean"
+                    },
+                    "restrictionMessage": {
+                        "type": "string",
+                        "nullable": true
+                    },
+                    "lastOfferResponseAtUtc": {
+                        "type": "string",
+                        "format": "date-time",
+                        "nullable": true
+                    }
+                },
+                "additionalProperties": false
+            },
+            "DriverOfferItemDto": {
+                "type": "object",
+                "properties": {
+                    "name": {
+                        "type": "string",
+                        "nullable": true
+                    },
+                    "quantity": {
+                        "type": "integer",
+                        "format": "int32"
+                    },
+                    "note": {
+                        "type": "string",
+                        "nullable": true
+                    }
+                },
+                "additionalProperties": false
+            },
+            "DriverIncomingOfferDto": {
+                "type": "object",
+                "properties": {
+                    "assignmentId": {
+                        "type": "string",
+                        "format": "uuid"
+                    },
+                    "orderId": {
+                        "type": "string",
+                        "format": "uuid"
+                    },
+                    "orderNumber": {
+                        "type": "string",
+                        "nullable": true
+                    },
+                    "vendorName": {
+                        "type": "string",
+                        "nullable": true
+                    },
+                    "pickupAddress": {
+                        "type": "string",
+                        "nullable": true
+                    },
+                    "pickupLatitude": {
+                        "type": "number",
+                        "format": "double",
+                        "nullable": true
+                    },
+                    "pickupLongitude": {
+                        "type": "number",
+                        "format": "double",
+                        "nullable": true
+                    },
+                    "customerName": {
+                        "type": "string",
+                        "nullable": true
+                    },
+                    "deliveryAddress": {
+                        "type": "string",
+                        "nullable": true
+                    },
+                    "deliveryLatitude": {
+                        "type": "number",
+                        "format": "double",
+                        "nullable": true
+                    },
+                    "deliveryLongitude": {
+                        "type": "number",
+                        "format": "double",
+                        "nullable": true
+                    },
+                    "estimatedDistanceKm": {
+                        "type": "number",
+                        "format": "double"
+                    },
+                    "estimatedEta": {
+                        "type": "string",
+                        "nullable": true
+                    },
+                    "payout": {
+                        "type": "number",
+                        "format": "double"
+                    },
+                    "vendorInitials": {
+                        "type": "string",
+                        "nullable": true
+                    },
+                    "customerInitials": {
+                        "type": "string",
+                        "nullable": true
+                    },
+                    "packageNote": {
+                        "type": "string",
+                        "nullable": true
+                    },
+                    "countdownSeconds": {
+                        "type": "integer",
+                        "format": "int32"
+                    },
+                    "orderItems": {
+                        "type": "array",
+                        "items": {
+                            "$ref": "#/components/schemas/DriverOfferItemDto"
+                        },
+                        "nullable": true
+                    }
+                },
+                "additionalProperties": false
+            },
+            "DriverHomeCurrentAssignmentDto": {
+                "type": "object",
+                "properties": {
+                    "assignmentId": {
+                        "type": "string",
+                        "format": "uuid"
+                    },
+                    "orderId": {
+                        "type": "string",
+                        "format": "uuid"
+                    },
+                    "orderNumber": {
+                        "type": "string",
+                        "nullable": true
+                    },
+                    "status": {
+                        "type": "string",
+                        "nullable": true
+                    },
+                    "vendorName": {
+                        "type": "string",
+                        "nullable": true
+                    },
+                    "pickupAddress": {
+                        "type": "string",
+                        "nullable": true
+                    },
+                    "deliveryAddress": {
+                        "type": "string",
+                        "nullable": true
+                    },
+                    "pickupLatitude": {
+                        "type": "number",
+                        "format": "double",
+                        "nullable": true
+                    },
+                    "pickupLongitude": {
+                        "type": "number",
+                        "format": "double",
+                        "nullable": true
+                    },
+                    "deliveryLatitude": {
+                        "type": "number",
+                        "format": "double",
+                        "nullable": true
+                    },
+                    "deliveryLongitude": {
+                        "type": "number",
+                        "format": "double",
+                        "nullable": true
+                    },
+                    "codAmount": {
+                        "type": "number",
+                        "format": "double"
+                    },
+                    "createdAtUtc": {
+                        "type": "string",
+                        "format": "date-time"
+                    },
+                    "merchantContact": {
+                        "type": "string",
+                        "nullable": true
+                    },
+                    "vehicleType": {
+                        "type": "string",
+                        "nullable": true
+                    },
+                    "plateNumber": {
+                        "type": "string",
+                        "nullable": true
+                    },
+                    "pickupOtpRequired": {
+                        "type": "boolean"
+                    },
+                    "deliveryOtpRequired": {
+                        "type": "boolean"
+                    }
+                },
+                "additionalProperties": false
+            },
+            "DriverEarningsSummaryDto": {
+                "type": "object",
+                "properties": {
+                    "earningsAmount": {
+                        "type": "number",
+                        "format": "double"
+                    },
+                    "completedTrips": {
+                        "type": "integer",
+                        "format": "int32"
+                    }
+                },
+                "additionalProperties": false
+            },
+            "DriverHomeDto": {
+                "type": "object",
+                "properties": {
+                    "operationalStatus": {
+                        "$ref": "#/components/schemas/DriverOperationalStatusDto"
+                    },
+                    "homeState": {
+                        "type": "string",
+                        "nullable": true
+                    },
+                    "currentOffer": {
+                        "$ref": "#/components/schemas/DriverIncomingOfferDto",
+                        "nullable": true
+                    },
+                    "currentAssignment": {
+                        "$ref": "#/components/schemas/DriverHomeCurrentAssignmentDto",
+                        "nullable": true
+                    },
+                    "earningsSummaryToday": {
+                        "$ref": "#/components/schemas/DriverEarningsSummaryDto"
+                    },
+                    "unreadAlerts": {
+                        "type": "integer",
+                        "format": "int32"
+                    },
+                    "commitment": {
+                        "$ref": "#/components/schemas/DriverCommitmentSummaryDto"
+                    },
+                    "profileReadiness": {
+                        "$ref": "#/components/schemas/DriverHomeProfileReadinessDto"
+                    }
+                },
+                "additionalProperties": false
+            },
+            "DriverHomeProfileReadinessDto": {
+                "type": "object",
+                "properties": {
+                    "isProfileComplete": {
+                        "type": "boolean"
+                    },
+                    "completionPercent": {
+                        "type": "integer",
+                        "format": "int32"
+                    },
+                    "missingRequirements": {
+                        "type": "array",
+                        "items": {
+                            "type": "string"
+                        },
+                        "nullable": true
+                    },
+                    "canSubmitForReview": {
+                        "type": "boolean"
+                    },
+                    "checklist": {
+                        "type": "array",
+                        "items": {
+                            "$ref": "#/components/schemas/DriverHomeChecklistItemDto"
+                        },
+                        "nullable": true
+                    }
+                },
+                "additionalProperties": false
+            },
+            "DriverHomeChecklistItemDto": {
+                "type": "object",
+                "properties": {
+                    "code": {
+                        "type": "string",
+                        "nullable": true
+                    },
+                    "completed": {
+                        "type": "boolean"
+                    },
+                    "note": {
+                        "type": "string",
+                        "nullable": true
+                    },
+                    "critical": {
+                        "type": "boolean"
+                    }
+                },
+                "additionalProperties": false
+            },
+            "DriverOfferActionResultDto": {
+                "type": "object",
+                "properties": {
+                    "assignmentId": {
+                        "type": "string",
+                        "format": "uuid"
+                    },
+                    "orderId": {
+                        "type": "string",
+                        "format": "uuid"
+                    },
+                    "status": {
+                        "type": "string",
+                        "nullable": true
+                    },
+                    "message": {
+                        "type": "string",
+                        "nullable": true
+                    }
+                },
+                "additionalProperties": false
+            },
+            "DriverOfferRejectRequest": {
+                "type": "object",
+                "properties": {
+                    "reason": {
                         "type": "string",
                         "nullable": true
                     }
@@ -20693,6 +21314,33 @@
                     "accountStatus": {
                         "type": "string",
                         "description": "Current driver account state when not operational.",
+                        "nullable": true
+                    },
+                    "commitmentScore": {
+                        "type": "number",
+                        "format": "double",
+                        "nullable": true
+                    },
+                    "dailyRejections": {
+                        "type": "integer",
+                        "format": "int32",
+                        "nullable": true
+                    },
+                    "weeklyRejections": {
+                        "type": "integer",
+                        "format": "int32",
+                        "nullable": true
+                    },
+                    "enforcementLevel": {
+                        "type": "string",
+                        "nullable": true
+                    },
+                    "canReceiveOffers": {
+                        "type": "boolean",
+                        "nullable": true
+                    },
+                    "restrictionMessage": {
+                        "type": "string",
                         "nullable": true
                     },
                     "message": {
@@ -21781,6 +22429,10 @@
         {
             "name": "Admin/Delivery Zones",
             "description": "APIDog folder for Admin/Delivery Zones"
+        },
+        {
+            "name": "Driver/Home",
+            "description": "APIDog folder for Driver/Home"
         },
         {
             "name": "Driver/Operations",
