@@ -142,7 +142,6 @@ public class ApplicationDbContextInitialiser
         {
             var ruleName = $"{zone.City} - {zone.Name} Standard";
             var rule = await _context.DeliveryPricingRules
-                .Include(item => item.SurgeWindows)
                 .FirstOrDefaultAsync(item => item.DeliveryZoneId == zone.Id);
 
             if (rule is null)
@@ -159,6 +158,7 @@ public class ApplicationDbContextInitialiser
                     isActive: true);
 
                 _context.DeliveryPricingRules.Add(rule);
+                await _context.SaveChangesAsync();
             }
             else
             {
@@ -172,19 +172,23 @@ public class ApplicationDbContextInitialiser
                     minFee: 12m,
                     maxFee: 32m,
                     isActive: true);
-                rule.SurgeWindows.Clear();
+                await _context.SaveChangesAsync();
             }
 
-            rule.SurgeWindows.Add(new DeliveryPricingSurgeWindow(
+            await _context.DeliveryPricingSurgeWindows
+                .Where(item => item.DeliveryPricingRuleId == rule.Id)
+                .ExecuteDeleteAsync();
+
+            await _context.DeliveryPricingSurgeWindows.AddAsync(new DeliveryPricingSurgeWindow(
                 rule.Id,
                 "Evening peak",
                 new TimeSpan(17, 0, 0),
                 new TimeSpan(22, 0, 0),
                 1.25m,
                 true));
-        }
 
-        await _context.SaveChangesAsync();
+            await _context.SaveChangesAsync();
+        }
     }
 
     private async Task SeedRolesAsync()

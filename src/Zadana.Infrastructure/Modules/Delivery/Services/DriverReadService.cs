@@ -15,6 +15,8 @@ namespace Zadana.Infrastructure.Modules.Delivery.Services;
 
 public class DriverReadService : IDriverReadService
 {
+    private sealed record AssignmentStatsRow(Guid DriverId, int Total, int Completed, int Closed);
+
     private readonly IApplicationDbContext _context;
     private readonly IDriverCommitmentPolicyService _driverCommitmentPolicyService;
 
@@ -341,37 +343,33 @@ public class DriverReadService : IDriverReadService
             : Array.Empty<Guid>();
 
         var zoneAssignmentRows = zoneDriverIds.Length == 0
-            ? []
+            ? Array.Empty<AssignmentStatsRow>()
             : await _context.DeliveryAssignments
                 .AsNoTracking()
                 .Where(a => a.DriverId != null && zoneDriverIds.Contains(a.DriverId.Value))
                 .GroupBy(a => a.DriverId!.Value)
-                .Select(g => new
-                {
-                    DriverId = g.Key,
-                    Total = g.Count(),
-                    Completed = g.Count(a => a.Status == AssignmentStatus.Delivered),
-                    Closed = g.Count(a => a.Status == AssignmentStatus.Delivered ||
+                .Select(g => new AssignmentStatsRow(
+                    g.Key,
+                    g.Count(),
+                    g.Count(a => a.Status == AssignmentStatus.Delivered),
+                    g.Count(a => a.Status == AssignmentStatus.Delivered ||
                         a.Status == AssignmentStatus.Failed ||
                         a.Status == AssignmentStatus.Cancelled ||
-                        a.Status == AssignmentStatus.Returned)
-                })
+                        a.Status == AssignmentStatus.Returned)))
                 .ToArrayAsync(cancellationToken);
 
         var fleetAssignmentRows = await _context.DeliveryAssignments
             .AsNoTracking()
             .Where(a => a.DriverId != null)
             .GroupBy(a => a.DriverId!.Value)
-            .Select(g => new
-            {
-                DriverId = g.Key,
-                Total = g.Count(),
-                Completed = g.Count(a => a.Status == AssignmentStatus.Delivered),
-                Closed = g.Count(a => a.Status == AssignmentStatus.Delivered ||
+            .Select(g => new AssignmentStatsRow(
+                g.Key,
+                g.Count(),
+                g.Count(a => a.Status == AssignmentStatus.Delivered),
+                g.Count(a => a.Status == AssignmentStatus.Delivered ||
                     a.Status == AssignmentStatus.Failed ||
                     a.Status == AssignmentStatus.Cancelled ||
-                    a.Status == AssignmentStatus.Returned)
-            })
+                    a.Status == AssignmentStatus.Returned)))
             .ToArrayAsync(cancellationToken);
 
         var activeDriversInZone = driver.PrimaryZoneId.HasValue
@@ -1182,8 +1180,8 @@ public class DriverReadService : IDriverReadService
         int completedTasks,
         int rejectedOffers,
         int timedOutOffers,
-        IReadOnlyCollection<dynamic> zoneAssignmentRows,
-        IReadOnlyCollection<dynamic> fleetAssignmentRows,
+        IReadOnlyCollection<AssignmentStatsRow> zoneAssignmentRows,
+        IReadOnlyCollection<AssignmentStatsRow> fleetAssignmentRows,
         IReadOnlyCollection<Guid> zoneDriverIds,
         IReadOnlyDictionary<Guid, DriverCommitmentSummaryDto> commitmentSummaries,
         AdminDriverIncidentDto[] incidents,
