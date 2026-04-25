@@ -295,6 +295,25 @@ public class DriversController : ApiControllerBase
         });
     }
 
+    [HttpGet("assignments/{assignmentId:guid}")]
+    [Authorize(Policy = "DriverOnly")]
+    public async Task<ActionResult<DriverAssignmentDetailDto>> GetAssignmentDetail(
+        Guid assignmentId,
+        [FromServices] ICurrentUserService currentUserService,
+        [FromServices] IDriverRepository driverRepository,
+        [FromServices] IDriverReadService driverReadService,
+        CancellationToken cancellationToken = default)
+    {
+        var userId = currentUserService.UserId ?? throw new UnauthorizedException("DRIVER_NOT_AUTHENTICATED");
+        var driver = await driverRepository.GetByUserIdAsync(userId, cancellationToken)
+            ?? throw new NotFoundException("Driver", userId);
+
+        var detail = await driverReadService.GetAssignmentDetailAsync(driver.Id, assignmentId, cancellationToken)
+            ?? throw new NotFoundException("DeliveryAssignment", assignmentId);
+
+        return Ok(detail);
+    }
+
     [HttpPost("offers/{assignmentId:guid}/accept")]
     [Authorize(Policy = "DriverOnly")]
     public async Task<ActionResult<DriverOfferActionResultDto>> AcceptOffer(
@@ -431,6 +450,41 @@ public class DriversController : ApiControllerBase
             .ToArrayAsync(cancellationToken);
 
         return Ok(assignments);
+    }
+
+    [HttpGet("orders/completed")]
+    [Authorize(Policy = "DriverOnly")]
+    public async Task<ActionResult<DriverCompletedOrdersListDto>> GetCompletedOrders(
+        [FromQuery] string? status,
+        [FromServices] ICurrentUserService currentUserService,
+        [FromServices] IDriverRepository driverRepository,
+        [FromServices] IDriverReadService driverReadService,
+        CancellationToken cancellationToken = default)
+    {
+        var userId = currentUserService.UserId ?? throw new UnauthorizedException("DRIVER_NOT_AUTHENTICATED");
+        var driver = await driverRepository.GetByUserIdAsync(userId, cancellationToken)
+            ?? throw new NotFoundException("Driver", userId);
+
+        return Ok(await driverReadService.GetCompletedOrdersAsync(driver.Id, status, cancellationToken));
+    }
+
+    [HttpGet("orders/completed/{orderId:guid}")]
+    [Authorize(Policy = "DriverOnly")]
+    public async Task<ActionResult<DriverCompletedOrderDetailDto>> GetCompletedOrderDetail(
+        Guid orderId,
+        [FromServices] ICurrentUserService currentUserService,
+        [FromServices] IDriverRepository driverRepository,
+        [FromServices] IDriverReadService driverReadService,
+        CancellationToken cancellationToken = default)
+    {
+        var userId = currentUserService.UserId ?? throw new UnauthorizedException("DRIVER_NOT_AUTHENTICATED");
+        var driver = await driverRepository.GetByUserIdAsync(userId, cancellationToken)
+            ?? throw new NotFoundException("Driver", userId);
+
+        var detail = await driverReadService.GetCompletedOrderDetailAsync(driver.Id, orderId, cancellationToken)
+            ?? throw new NotFoundException("Order", orderId);
+
+        return Ok(detail);
     }
 
     // --- Order Status Endpoints ---

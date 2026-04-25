@@ -149,6 +149,41 @@ public sealed class NotificationService : INotificationService
         }
     }
 
+    public async Task SendDriverArrivalStateChangedToUserAsync(
+        Guid userId,
+        Guid orderId,
+        string orderNumber,
+        string arrivalState,
+        string driverName,
+        string? actorRole = null,
+        string? targetUrl = null,
+        CancellationToken cancellationToken = default)
+    {
+        try
+        {
+            var payload = new DriverArrivalStateChangedRealtimePayload(
+                orderId,
+                orderNumber,
+                arrivalState,
+                driverName,
+                actorRole,
+                string.IsNullOrWhiteSpace(targetUrl) ? $"/orders/{orderId}" : targetUrl,
+                DateTime.UtcNow);
+
+            await _hubContext.Clients
+                .Group(NotificationHub.GetUserGroup(userId))
+                .SendAsync(NotificationHub.ReceiveDriverArrivalStateChangedMethod, payload, cancellationToken);
+        }
+        catch (Exception ex)
+        {
+            _logger.LogError(
+                ex,
+                "Failed to send driver arrival SignalR event to user {UserId} for order {OrderId}",
+                userId,
+                orderId);
+        }
+    }
+
     public async Task BroadcastToAllCustomersAsync(
         string titleAr,
         string titleEn,

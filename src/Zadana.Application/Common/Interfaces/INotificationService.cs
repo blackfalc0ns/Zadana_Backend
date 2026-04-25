@@ -45,6 +45,16 @@ public interface INotificationService
         string? targetUrl = null,
         CancellationToken cancellationToken = default);
 
+    Task SendDriverArrivalStateChangedToUserAsync(
+        Guid userId,
+        Guid orderId,
+        string orderNumber,
+        string arrivalState,
+        string driverName,
+        string? actorRole = null,
+        string? targetUrl = null,
+        CancellationToken cancellationToken = default);
+
     /// <summary>
     /// Broadcast a notification to all connected customers via SignalR (real-time only, not persisted).
     /// </summary>

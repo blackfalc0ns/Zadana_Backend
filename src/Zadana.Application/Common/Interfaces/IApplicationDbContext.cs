@@ -61,9 +61,12 @@ public interface IApplicationDbContext
     DbSet<Driver> Drivers { get; }
     DbSet<DriverLocation> DriverLocations { get; }
     DbSet<DeliveryAssignment> DeliveryAssignments { get; }
+    DbSet<DeliveryOfferAttempt> DeliveryOfferAttempts { get; }
     DbSet<DeliveryProof> DeliveryProofs { get; }
     DbSet<CustomerAddress> CustomerAddresses { get; }
     DbSet<DeliveryZone> DeliveryZones { get; }
+    DbSet<DeliveryPricingRule> DeliveryPricingRules { get; }
+    DbSet<DeliveryPricingSurgeWindow> DeliveryPricingSurgeWindows { get; }
     DbSet<DriverNote> DriverNotes { get; }
     DbSet<DriverIncident> DriverIncidents { get; }
 
@@ -73,6 +76,8 @@ public interface IApplicationDbContext
     DbSet<Settlement> Settlements { get; }
     DbSet<SettlementItem> SettlementItems { get; }
     DbSet<Payout> Payouts { get; }
+    DbSet<DriverPayoutMethod> DriverPayoutMethods { get; }
+    DbSet<DriverWithdrawalRequest> DriverWithdrawalRequests { get; }
 
     // Marketing & Social
     DbSet<Coupon> Coupons { get; }

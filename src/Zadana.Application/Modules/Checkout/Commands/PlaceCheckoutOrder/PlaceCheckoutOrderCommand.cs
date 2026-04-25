@@ -4,6 +4,7 @@ using Microsoft.EntityFrameworkCore;
 using Zadana.Application.Common.Interfaces;
 using Zadana.Application.Modules.Checkout.DTOs;
 using Zadana.Application.Modules.Checkout.Support;
+using Zadana.Application.Modules.Delivery.Interfaces;
 using Zadana.Application.Modules.Orders.Commands.PlaceOrder;
 using Zadana.Application.Modules.Orders.Events;
 using Zadana.Application.Modules.Orders.Support;
@@ -42,6 +43,7 @@ public class PlaceCheckoutOrderCommandHandler : IRequestHandler<PlaceCheckoutOrd
 {
     private readonly IApplicationDbContext _context;
     private readonly IPaymobGateway _paymobGateway;
+    private readonly IDeliveryPricingService _deliveryPricingService;
     private readonly ISender _sender;
     private readonly IUnitOfWork _unitOfWork;
     private readonly IPublisher _publisher;
@@ -49,12 +51,14 @@ public class PlaceCheckoutOrderCommandHandler : IRequestHandler<PlaceCheckoutOrd
     public PlaceCheckoutOrderCommandHandler(
         IApplicationDbContext context,
         IPaymobGateway paymobGateway,
+        IDeliveryPricingService deliveryPricingService,
         ISender sender,
         IUnitOfWork unitOfWork,
         IPublisher publisher)
     {
         _context = context;
         _paymobGateway = paymobGateway;
+        _deliveryPricingService = deliveryPricingService;
         _sender = sender;
         _unitOfWork = unitOfWork;
         _publisher = publisher;
@@ -77,11 +81,21 @@ public class PlaceCheckoutOrderCommandHandler : IRequestHandler<PlaceCheckoutOrd
         var user = await _context.Users.FirstOrDefaultAsync(x => x.Id == request.UserId, cancellationToken)
             ?? throw new NotFoundException("User", request.UserId);
 
-        var shippingCost = CheckoutSupport.ResolveShippingCost(cart);
+        var deliveryQuote = pricing.VendorBranchId.HasValue
+            ? await _deliveryPricingService.QuoteAsync(pricing.VendorBranchId.Value, address.Id, cancellationToken)
+            : new DeliveryPriceQuote(0m, 0m, 0m, 0m, 0m, "zone-fallback", "No pricing");
         var coupon = await ResolveOrderCouponAsync(cart, request.PromoCode, pricing.VendorId, pricing.Subtotal, cancellationToken);
         var discount = coupon == null ? 0m : CheckoutSupport.CalculateDiscountAmount(coupon, pricing.Subtotal);
 
-        cart.UpdateTotals(pricing.Subtotal, shippingCost);
+        cart.UpdateTotals(
+            pricing.Subtotal,
+            deliveryQuote.TotalFee,
+            deliveryQuote.BaseFee,
+            deliveryQuote.DistanceFee,
+            deliveryQuote.SurgeFee,
+            deliveryQuote.DistanceKm,
+            deliveryQuote.PricingMode,
+            deliveryQuote.RuleLabel);
         if (coupon == null)
         {
             cart.RemoveCoupon();
@@ -104,6 +118,12 @@ public class PlaceCheckoutOrderCommandHandler : IRequestHandler<PlaceCheckoutOrd
                 request.Notes,
                 pricing.VendorBranchId,
                 coupon?.Id,
+                deliveryQuote.BaseFee,
+                deliveryQuote.DistanceFee,
+                deliveryQuote.SurgeFee,
+                deliveryQuote.DistanceKm,
+                deliveryQuote.PricingMode,
+                deliveryQuote.RuleLabel,
                 shouldClearCartAfterPlacement),
             cancellationToken);
 

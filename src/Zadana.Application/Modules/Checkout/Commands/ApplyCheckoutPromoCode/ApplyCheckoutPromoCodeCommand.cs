@@ -3,6 +3,7 @@ using MediatR;
 using Zadana.Application.Common.Interfaces;
 using Zadana.Application.Modules.Checkout.DTOs;
 using Zadana.Application.Modules.Checkout.Support;
+using Zadana.Application.Modules.Delivery.Interfaces;
 
 namespace Zadana.Application.Modules.Checkout.Commands.ApplyCheckoutPromoCode;
 
@@ -21,28 +22,44 @@ public class ApplyCheckoutPromoCodeCommandHandler : IRequestHandler<ApplyCheckou
 {
     private readonly IApplicationDbContext _context;
     private readonly IUnitOfWork _unitOfWork;
+    private readonly IDeliveryPricingService _deliveryPricingService;
 
-    public ApplyCheckoutPromoCodeCommandHandler(IApplicationDbContext context, IUnitOfWork unitOfWork)
+    public ApplyCheckoutPromoCodeCommandHandler(
+        IApplicationDbContext context,
+        IUnitOfWork unitOfWork,
+        IDeliveryPricingService deliveryPricingService)
     {
         _context = context;
         _unitOfWork = unitOfWork;
+        _deliveryPricingService = deliveryPricingService;
     }
 
     public async Task<ApplyCheckoutPromoCodeResultDto> Handle(ApplyCheckoutPromoCodeCommand request, CancellationToken cancellationToken)
     {
         var cart = await CheckoutSupport.GetRequiredCartAsync(_context, request.UserId, cancellationToken, asTracking: true);
         var pricing = await CheckoutSupport.BuildPricingSnapshotAsync(_context, cart, request.VendorId, cancellationToken);
+        var address = await CheckoutSupport.ResolveSelectedAddressAsync(_context, request.UserId, null, cancellationToken);
         var coupon = await CheckoutSupport.ResolveCouponByCodeAsync(_context, request.Code, pricing.VendorId, pricing.Subtotal, cancellationToken);
-        var shippingCost = CheckoutSupport.ResolveShippingCost(cart);
+        var deliveryQuote = pricing.VendorBranchId.HasValue && address is not null
+            ? await _deliveryPricingService.QuoteAsync(pricing.VendorBranchId.Value, address.Id, cancellationToken)
+            : new DeliveryPriceQuote(0m, 0m, 0m, 0m, 0m, "zone-fallback", "No pricing");
         var discount = CheckoutSupport.CalculateDiscountAmount(coupon, pricing.Subtotal);
 
-        cart.UpdateTotals(pricing.Subtotal, shippingCost);
+        cart.UpdateTotals(
+            pricing.Subtotal,
+            deliveryQuote.TotalFee,
+            deliveryQuote.BaseFee,
+            deliveryQuote.DistanceFee,
+            deliveryQuote.SurgeFee,
+            deliveryQuote.DistanceKm,
+            deliveryQuote.PricingMode,
+            deliveryQuote.RuleLabel);
         cart.ApplyCoupon(coupon.Id, discount);
         await _unitOfWork.SaveChangesAsync(cancellationToken);
 
         return new ApplyCheckoutPromoCodeResultDto(
             "promo code applied successfully",
             CheckoutSupport.BuildPromoCodeDto(coupon, discount)!,
-            CheckoutSupport.BuildTotals(pricing.Subtotal, shippingCost, discount));
+            CheckoutSupport.BuildTotals(pricing.Subtotal, deliveryQuote.TotalFee, discount));
     }
 }

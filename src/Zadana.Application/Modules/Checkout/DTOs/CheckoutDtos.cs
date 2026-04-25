@@ -6,6 +6,9 @@ public record CheckoutSummaryDto(
     List<CheckoutDeliverySlotDto> DeliverySlots,
     List<CheckoutPaymentMethodDto> PaymentMethods,
     CheckoutPromoCodeDto? PromoCode,
+    CheckoutDeliveryQuoteDto DeliveryQuote,
+    List<CheckoutShippingBreakdownLineDto> ShippingBreakdown,
+    string PricingMode,
     CheckoutTotalsDto Summary);
 
 public record CheckoutCartDto(
@@ -55,6 +58,20 @@ public record CheckoutTotalsDto(
     decimal Discount,
     decimal Total,
     string Currency);
+
+public record CheckoutDeliveryQuoteDto(
+    decimal DistanceKm,
+    decimal BaseFee,
+    decimal DistanceFee,
+    decimal SurgeFee,
+    decimal TotalFee,
+    string PricingMode,
+    string RuleLabel);
+
+public record CheckoutShippingBreakdownLineDto(
+    string Code,
+    string Label,
+    decimal Amount);
 
 public record ApplyCheckoutPromoCodeResultDto(
     string Message,
