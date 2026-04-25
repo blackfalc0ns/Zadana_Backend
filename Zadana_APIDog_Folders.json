@@ -10434,6 +10434,90 @@
                             "application/json": {
                                 "schema": {
                                     "$ref": "#/components/schemas/AdminDriverDetailDto"
+                                },
+                                "examples": {
+                                    "needsDocuments": {
+                                        "summary": "Driver requires documents",
+                                        "value": {
+                                            "id": "a76a3a8c-dc79-441d-8a5e-c81bb0435a2c",
+                                            "driverDisplayId": "DRV-#44210",
+                                            "firstName": "Ahmed",
+                                            "lastName": "Ali",
+                                            "phoneNumber": "+966500000000",
+                                            "email": "driver@example.com",
+                                            "city": "Riyadh",
+                                            "status": "Offline",
+                                            "verificationStatus": "NeedsDocuments",
+                                            "activeTasks": 0,
+                                            "completedTasks": 0,
+                                            "acceptanceRate": 0,
+                                            "walletBalance": 0,
+                                            "performance": "Low",
+                                            "issues": [
+                                                "missing_documents"
+                                            ],
+                                            "collectionPaymentStatus": "good",
+                                            "reviewNote": "Missing required documents",
+                                            "profileReadiness": {
+                                                "isProfileComplete": false,
+                                                "completionPercent": 75,
+                                                "missingRequirements": [
+                                                    "missing_documents"
+                                                ],
+                                                "canSubmitForReview": false,
+                                                "checklist": [
+                                                    {
+                                                        "code": "personal_info",
+                                                        "completed": true,
+                                                        "note": null,
+                                                        "critical": false
+                                                    },
+                                                    {
+                                                        "code": "personal_photo",
+                                                        "completed": false,
+                                                        "note": "missing_document_note",
+                                                        "critical": true
+                                                    }
+                                                ]
+                                            },
+                                            "documents": [],
+                                            "notes": [],
+                                            "incidents": [],
+                                            "recentAssignments": []
+                                        }
+                                    },
+                                    "operational": {
+                                        "summary": "Approved active driver",
+                                        "value": {
+                                            "id": "11111111-1111-1111-1111-111111111111",
+                                            "driverDisplayId": "DRV-#45120",
+                                            "firstName": "Sara",
+                                            "lastName": "Driver",
+                                            "phoneNumber": "+966511111111",
+                                            "email": "driver.approved@example.com",
+                                            "city": "Riyadh",
+                                            "status": "Online",
+                                            "verificationStatus": "Approved",
+                                            "activeTasks": 1,
+                                            "completedTasks": 42,
+                                            "acceptanceRate": 92,
+                                            "walletBalance": 380.75,
+                                            "performance": "Excellent",
+                                            "issues": [],
+                                            "collectionPaymentStatus": "good",
+                                            "profileReadiness": {
+                                                "isProfileComplete": true,
+                                                "completionPercent": 100,
+                                                "missingRequirements": [],
+                                                "canSubmitForReview": true,
+                                                "checklist": []
+                                            },
+                                            "documents": [],
+                                            "notes": [],
+                                            "incidents": [],
+                                            "recentAssignments": []
+                                        }
+                                    }
                                 }
                             },
                             "text/json": {
@@ -21204,6 +21288,35 @@
                         },
                         "nullable": true
                     },
+                    "commitmentScore": {
+                        "type": "number",
+                        "format": "double"
+                    },
+                    "dailyRejections": {
+                        "type": "integer",
+                        "format": "int32"
+                    },
+                    "weeklyRejections": {
+                        "type": "integer",
+                        "format": "int32"
+                    },
+                    "enforcementLevel": {
+                        "type": "string",
+                        "nullable": true
+                    },
+                    "lastOfferResponseAtUtc": {
+                        "type": "string",
+                        "format": "date-time",
+                        "nullable": true
+                    },
+                    "address": {
+                        "type": "string",
+                        "nullable": true
+                    },
+                    "licenseNumber": {
+                        "type": "string",
+                        "nullable": true
+                    },
                     "zoneName": {
                         "type": "string",
                         "nullable": true
@@ -21225,6 +21338,9 @@
                     "suspensionReason": {
                         "type": "string",
                         "nullable": true
+                    },
+                    "profileReadiness": {
+                        "$ref": "#/components/schemas/AdminDriverProfileReadinessDto"
                     },
                     "documents": {
                         "type": "array",
@@ -21256,6 +21372,96 @@
                             "$ref": "#/components/schemas/AdminDriverAssignmentDto"
                         },
                         "nullable": true
+                    },
+                    "overview": {
+                        "type": "object",
+                        "description": "Backend-first data for the admin driver overview tab. Unknown metrics are returned as null or empty values, not mocked by the frontend.",
+                        "additionalProperties": true
+                    },
+                    "workflow": {
+                        "type": "object",
+                        "description": "Operational workflow state, blockers, alerts, allowed admin actions, and lifecycle stages.",
+                        "additionalProperties": true
+                    },
+                    "operations": {
+                        "type": "object",
+                        "description": "Live operations snapshot including location, availability, zone counters, and recent task assignments.",
+                        "additionalProperties": true
+                    },
+                    "performanceDetails": {
+                        "type": "object",
+                        "description": "Performance metrics and insights derived from real assignments, offers, incidents, and wallet state only.",
+                        "additionalProperties": true
+                    },
+                    "support": {
+                        "type": "object",
+                        "description": "Support notes, incidents, and backend-derived follow-up items. Chat/ticket mocks are not returned.",
+                        "additionalProperties": true
+                    },
+                    "compliance": {
+                        "type": "object",
+                        "description": "Compliance counters and document/risk health derived from real backend state.",
+                        "additionalProperties": true
+                    },
+                    "financeDetails": {
+                        "type": "object",
+                        "description": "Wallet, ledger, settlement, and payout detail section for the finance tab.",
+                        "additionalProperties": true
+                    },
+                    "verification": {
+                        "type": "object",
+                        "description": "Review progress, checklist, recommendation, notes, and rejection reasons used by the verification tab.",
+                        "additionalProperties": true
+                    }
+                },
+                "additionalProperties": false
+            },
+            "AdminDriverProfileReadinessDto": {
+                "type": "object",
+                "properties": {
+                    "isProfileComplete": {
+                        "type": "boolean"
+                    },
+                    "completionPercent": {
+                        "type": "integer",
+                        "format": "int32"
+                    },
+                    "missingRequirements": {
+                        "type": "array",
+                        "items": {
+                            "type": "string"
+                        },
+                        "nullable": true
+                    },
+                    "canSubmitForReview": {
+                        "type": "boolean"
+                    },
+                    "checklist": {
+                        "type": "array",
+                        "items": {
+                            "$ref": "#/components/schemas/AdminDriverVerificationChecklistItemDto"
+                        },
+                        "nullable": true
+                    }
+                },
+                "additionalProperties": false
+            },
+            "AdminDriverVerificationChecklistItemDto": {
+                "type": "object",
+                "properties": {
+                    "code": {
+                        "type": "string",
+                        "nullable": true
+                    },
+                    "completed": {
+                        "type": "boolean"
+                    },
+                    "note": {
+                        "type": "string",
+                        "nullable": true
+                    },
+                    "critical": {
+                        "type": "boolean"
                     }
                 },
                 "additionalProperties": false

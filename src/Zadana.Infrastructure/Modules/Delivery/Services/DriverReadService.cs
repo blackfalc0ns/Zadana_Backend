@@ -466,13 +466,13 @@ public class DriverReadService : IDriverReadService
             commitmentSummaries,
             incidents,
             wallet?.PendingBalance ?? 0);
+        var profileReadiness = DriverProfileReadinessFactory.BuildAdminReadiness(driver, driver.User);
         var verification = BuildAdminVerificationSection(
             driver,
-            documents,
-            missingRequirements,
+            profileReadiness.Checklist,
+            profileReadiness.MissingRequirements,
             Math.Round(completionRate, 0),
             Math.Round(acceptanceRate, 0));
-        var profileReadiness = DriverProfileReadinessFactory.BuildAdminReadiness(driver, driver.User);
 
         return new AdminDriverDetailDto(
             Id: driver.Id,
@@ -1266,45 +1266,11 @@ public class DriverReadService : IDriverReadService
 
     private static AdminDriverVerificationSectionDto BuildAdminVerificationSection(
         Driver driver,
-        AdminDriverDocumentDto[] documents,
+        AdminDriverVerificationChecklistItemDto[] checklist,
         IReadOnlyCollection<string> missingRequirements,
         decimal completionRate,
         decimal acceptanceRate)
     {
-        var checklist = new[]
-        {
-            new AdminDriverVerificationChecklistItemDto(
-                "personal_info",
-                !missingRequirements.Contains("missing_personal_info"),
-                missingRequirements.Contains("missing_personal_info") ? "missing_personal_info_note" : null,
-                false),
-            new AdminDriverVerificationChecklistItemDto(
-                "vehicle_info",
-                !missingRequirements.Contains("missing_vehicle_info"),
-                missingRequirements.Contains("missing_vehicle_info") ? "missing_vehicle_info_note" : null,
-                true),
-            new AdminDriverVerificationChecklistItemDto(
-                "national_id_document",
-                documents.Any(d => d.DocumentType == "NationalId" && d.Status == "valid"),
-                documents.Any(d => d.DocumentType == "NationalId" && d.Status == "valid") ? null : "missing_document_note",
-                true),
-            new AdminDriverVerificationChecklistItemDto(
-                "license_document",
-                documents.Any(d => d.DocumentType == "License" && d.Status == "valid"),
-                documents.Any(d => d.DocumentType == "License" && d.Status == "valid") ? null : "missing_document_note",
-                true),
-            new AdminDriverVerificationChecklistItemDto(
-                "vehicle_document",
-                documents.Any(d => d.DocumentType == "Vehicle" && d.Status == "valid"),
-                documents.Any(d => d.DocumentType == "Vehicle" && d.Status == "valid") ? null : "missing_document_note",
-                true),
-            new AdminDriverVerificationChecklistItemDto(
-                "zone_selection",
-                !missingRequirements.Contains("missing_zone_selection"),
-                missingRequirements.Contains("missing_zone_selection") ? "missing_zone_selection_note" : null,
-                false)
-        };
-
         var progress = DriverProfileReadinessFactory.GetCompletionPercent(missingRequirements.Count);
         var trustScore = Math.Max(25m, Math.Min(98m, Math.Round((completionRate * 0.4m) + (acceptanceRate * 0.2m) + (progress * 0.4m), 0)));
         var recommendation = driver.VerificationStatus switch
