@@ -250,19 +250,21 @@ internal static class CheckoutSupport
         CustomerAddress? address,
         CancellationToken cancellationToken)
     {
-        if (!vendorBranchId.HasValue || address is null)
+        if (address is null)
         {
-            return BuildNoPricingQuote();
+            throw new BusinessRuleException(
+                "CUSTOMER_ADDRESS_REQUIRED",
+                "A delivery address is required to calculate shipping cost.");
         }
 
-        try
+        if (!vendorBranchId.HasValue)
         {
-            return await deliveryPricingService.QuoteAsync(vendorBranchId.Value, address.Id, cancellationToken);
+            throw new BusinessRuleException(
+                "DELIVERY_PRICING_UNAVAILABLE",
+                "Delivery pricing could not be determined because the vendor branch is unknown.");
         }
-        catch (BusinessRuleException exception) when (exception.ErrorCode == "DELIVERY_PRICING_UNAVAILABLE")
-        {
-            return BuildNoPricingQuote();
-        }
+
+        return await deliveryPricingService.QuoteAsync(vendorBranchId.Value, address.Id, cancellationToken);
     }
 
     public static DeliveryPriceQuote BuildNoPricingQuote() =>
