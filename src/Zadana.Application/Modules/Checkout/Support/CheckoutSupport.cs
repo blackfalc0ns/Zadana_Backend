@@ -244,6 +244,30 @@ internal static class CheckoutSupport
 
     public static decimal ResolveShippingCost(Cart cart) => cart.DeliveryFee;
 
+    public static async Task<DeliveryPriceQuote> QuoteDeliveryOrFallbackAsync(
+        IDeliveryPricingService deliveryPricingService,
+        Guid? vendorBranchId,
+        CustomerAddress? address,
+        CancellationToken cancellationToken)
+    {
+        if (!vendorBranchId.HasValue || address is null)
+        {
+            return BuildNoPricingQuote();
+        }
+
+        try
+        {
+            return await deliveryPricingService.QuoteAsync(vendorBranchId.Value, address.Id, cancellationToken);
+        }
+        catch (BusinessRuleException exception) when (exception.ErrorCode == "DELIVERY_PRICING_UNAVAILABLE")
+        {
+            return BuildNoPricingQuote();
+        }
+    }
+
+    public static DeliveryPriceQuote BuildNoPricingQuote() =>
+        new(0m, 0m, 0m, 0m, 0m, "zone-fallback", "No pricing");
+
     public static CheckoutDeliveryQuoteDto BuildDeliveryQuoteDto(DeliveryPriceQuote quote) =>
         new(
             quote.DistanceKm,

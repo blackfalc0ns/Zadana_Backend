@@ -89,9 +89,11 @@ public class PlaceCheckoutOrderCommandHandler : IRequestHandler<PlaceCheckoutOrd
         var user = await _context.Users.FirstOrDefaultAsync(x => x.Id == request.UserId, cancellationToken)
             ?? throw new NotFoundException("User", request.UserId);
 
-        var deliveryQuote = pricing.VendorBranchId.HasValue
-            ? await _deliveryPricingService.QuoteAsync(pricing.VendorBranchId.Value, address.Id, cancellationToken)
-            : new DeliveryPriceQuote(0m, 0m, 0m, 0m, 0m, "zone-fallback", "No pricing");
+        var deliveryQuote = await CheckoutSupport.QuoteDeliveryOrFallbackAsync(
+            _deliveryPricingService,
+            pricing.VendorBranchId,
+            address,
+            cancellationToken);
         var coupon = await ResolveOrderCouponAsync(cart, request.PromoCode, pricing.VendorId, pricing.Subtotal, cancellationToken);
         var discount = coupon == null ? 0m : CheckoutSupport.CalculateDiscountAmount(coupon, pricing.Subtotal);
 

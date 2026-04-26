@@ -38,9 +38,11 @@ public class GetCheckoutSummaryQueryHandler : IRequestHandler<GetCheckoutSummary
         var pricing = await CheckoutSupport.BuildPricingSnapshotAsync(_context, cart, request.VendorId, cancellationToken);
         var address = await CheckoutSupport.ResolveSelectedAddressAsync(_context, request.UserId, request.AddressId, cancellationToken);
         var coupon = await CheckoutSupport.ResolveAppliedCouponAsync(_context, cart, cancellationToken);
-        var deliveryQuote = pricing.VendorBranchId.HasValue && address is not null
-            ? await _deliveryPricingService.QuoteAsync(pricing.VendorBranchId.Value, address.Id, cancellationToken)
-            : new DeliveryPriceQuote(0m, 0m, 0m, 0m, 0m, "zone-fallback", "No pricing");
+        var deliveryQuote = await CheckoutSupport.QuoteDeliveryOrFallbackAsync(
+            _deliveryPricingService,
+            pricing.VendorBranchId,
+            address,
+            cancellationToken);
         var discount = coupon == null ? 0m : CheckoutSupport.CalculateDiscountAmount(coupon, pricing.Subtotal);
 
         return new CheckoutSummaryDto(

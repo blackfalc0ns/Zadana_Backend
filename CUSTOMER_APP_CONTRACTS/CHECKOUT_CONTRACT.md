@@ -116,6 +116,7 @@ Example response:
 - `pricing_mode` can currently be:
   - `exact-distance`
   - `zone-fallback`
+- If no active delivery pricing rule matches the selected/default address, checkout returns a `zone-fallback` quote with zero delivery fee instead of failing the summary response
 
 ## Rendering Guidance
 

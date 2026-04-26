@@ -29,9 +29,11 @@ public class RemoveCheckoutPromoCodeCommandHandler : IRequestHandler<RemoveCheck
         var cart = await CheckoutSupport.GetRequiredCartAsync(_context, request.UserId, cancellationToken, asTracking: true);
         var pricing = await CheckoutSupport.BuildPricingSnapshotAsync(_context, cart, request.VendorId, cancellationToken);
         var address = await CheckoutSupport.ResolveSelectedAddressAsync(_context, request.UserId, null, cancellationToken);
-        var deliveryQuote = pricing.VendorBranchId.HasValue && address is not null
-            ? await _deliveryPricingService.QuoteAsync(pricing.VendorBranchId.Value, address.Id, cancellationToken)
-            : new DeliveryPriceQuote(0m, 0m, 0m, 0m, 0m, "zone-fallback", "No pricing");
+        var deliveryQuote = await CheckoutSupport.QuoteDeliveryOrFallbackAsync(
+            _deliveryPricingService,
+            pricing.VendorBranchId,
+            address,
+            cancellationToken);
 
         cart.UpdateTotals(
             pricing.Subtotal,
