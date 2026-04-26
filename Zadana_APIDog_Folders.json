@@ -4972,6 +4972,14 @@
                         }
                     },
                     {
+                        "name": "vendorId",
+                        "in": "query",
+                        "schema": {
+                            "type": "string",
+                            "format": "uuid"
+                        }
+                    },
+                    {
                         "name": "address_id",
                         "in": "query",
                         "schema": {
@@ -4980,7 +4988,22 @@
                         }
                     },
                     {
+                        "name": "addressId",
+                        "in": "query",
+                        "schema": {
+                            "type": "string",
+                            "format": "uuid"
+                        }
+                    },
+                    {
                         "name": "delivery_slot_id",
+                        "in": "query",
+                        "schema": {
+                            "type": "string"
+                        }
+                    },
+                    {
+                        "name": "deliverySlotId",
                         "in": "query",
                         "schema": {
                             "type": "string"
@@ -5017,6 +5040,7 @@
                                             }
                                         ]
                                     },
+                                    "address_id": "33333333-3333-3333-3333-333333333333",
                                     "selected_address": {
                                         "id": "33333333-3333-3333-3333-333333333333",
                                         "label": "Home",
@@ -16768,6 +16792,11 @@
                 "properties": {
                     "cart": {
                         "$ref": "#/components/schemas/CheckoutCartResponse"
+                    },
+                    "address_id": {
+                        "type": "string",
+                        "format": "uuid",
+                        "nullable": true
                     },
                     "selected_address": {
                         "$ref": "#/components/schemas/CheckoutSelectedAddressResponse"

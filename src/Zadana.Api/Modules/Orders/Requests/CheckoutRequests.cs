@@ -5,6 +5,7 @@ namespace Zadana.Api.Modules.Orders.Requests;
 
 public record GetCheckoutSummaryResponse(
     [property: JsonPropertyName("cart")] CheckoutCartResponse Cart,
+    [property: JsonPropertyName("address_id")] Guid? AddressId,
     [property: JsonPropertyName("selected_address")] CheckoutSelectedAddressResponse? SelectedAddress,
     [property: JsonPropertyName("delivery_slots")] List<CheckoutDeliverySlotResponse> DeliverySlots,
     [property: JsonPropertyName("payment_methods")] List<CheckoutPaymentMethodResponse> PaymentMethods,

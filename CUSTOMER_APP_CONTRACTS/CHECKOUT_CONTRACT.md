@@ -22,6 +22,8 @@ Mobile should render the delivery fee from these backend values, not from local 
 ### Get Checkout Summary
 
 - `GET /api/checkout/summary?vendor_id={vendorId}&address_id={addressId}&delivery_slot_id={slotId}`
+- Mobile camelCase query aliases are also accepted: `vendorId`, `addressId`, `deliverySlotId`
+- If `address_id`/`addressId` is not sent, backend selects the customer's default address and returns its id in `address_id` and `selected_address.id`
 
 Example response:
 
@@ -43,6 +45,7 @@ Example response:
       }
     ]
   },
+  "address_id": "33333333-3333-3333-3333-333333333333",
   "selected_address": {
     "id": "33333333-3333-3333-3333-333333333333",
     "label": "Home",

@@ -31,8 +31,12 @@ public class CheckoutController : ApiControllerBase
         CancellationToken cancellationToken = default)
     {
         var userId = _currentUserService.UserId ?? throw new UnauthorizedException("USER_NOT_AUTHENTICATED");
+        var resolvedVendorId = ResolveGuidQueryAlias(vendorId, "vendorId", "INVALID_VENDOR_ID");
+        var resolvedAddressId = ResolveGuidQueryAlias(addressId, "addressId", "INVALID_ADDRESS_ID");
+        var resolvedDeliverySlotId = ResolveStringQueryAlias(deliverySlotId, "deliverySlotId");
+
         var result = await Sender.Send(
-            new GetCheckoutSummaryQuery(userId, vendorId, addressId, deliverySlotId),
+            new GetCheckoutSummaryQuery(userId, resolvedVendorId, resolvedAddressId, resolvedDeliverySlotId),
             cancellationToken);
 
         return Ok(MapSummary(result));
@@ -100,6 +104,7 @@ public class CheckoutController : ApiControllerBase
                     item.Quantity,
                     item.Price,
                     item.TotalPrice)).ToList()),
+            result.SelectedAddress?.Id,
             result.SelectedAddress == null
                 ? null
                 : new CheckoutSelectedAddressResponse(
@@ -145,6 +150,48 @@ public class CheckoutController : ApiControllerBase
                 result.Summary.Discount,
                 result.Summary.Total,
                 result.Summary.Currency));
+    }
+
+    private Guid? ResolveGuidQueryAlias(Guid? currentValue, string aliasName, string errorCode)
+    {
+        if (currentValue.HasValue)
+        {
+            return currentValue;
+        }
+
+        if (!Request.Query.TryGetValue(aliasName, out var values))
+        {
+            return null;
+        }
+
+        var value = values.Count > 0 ? values[0] : null;
+        if (string.IsNullOrWhiteSpace(value))
+        {
+            return null;
+        }
+
+        if (Guid.TryParse(value, out var parsed))
+        {
+            return parsed;
+        }
+
+        throw new BadRequestException(errorCode, $"{aliasName} must be a valid GUID.");
+    }
+
+    private string? ResolveStringQueryAlias(string? currentValue, string aliasName)
+    {
+        if (!string.IsNullOrWhiteSpace(currentValue))
+        {
+            return currentValue;
+        }
+
+        if (!Request.Query.TryGetValue(aliasName, out var values))
+        {
+            return currentValue;
+        }
+
+        var value = values.Count > 0 ? values[0] : null;
+        return string.IsNullOrWhiteSpace(value) ? currentValue : value;
     }
 
     internal static PlaceOrderResponse MapPlacedOrder(PlaceCheckoutOrderResultDto result)
