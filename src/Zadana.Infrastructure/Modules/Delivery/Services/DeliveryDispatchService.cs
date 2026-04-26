@@ -10,7 +10,6 @@ using Zadana.Domain.Modules.Delivery.Enums;
 using Zadana.Domain.Modules.Identity.Enums;
 using Zadana.Domain.Modules.Orders.Enums;
 using Zadana.Domain.Modules.Payments.Enums;
-using Zadana.Domain.Modules.Social.Entities;
 using Zadana.SharedKernel.Exceptions;
 
 namespace Zadana.Infrastructure.Modules.Delivery.Services;
@@ -452,7 +451,11 @@ public class DeliveryDispatchService : IDeliveryDispatchService
                 attemptNumber,
                 expiresAtUtc));
 
-        _context.Notifications.Add(new Notification(
+        await _unitOfWork.SaveChangesAsync(cancellationToken);
+
+        // Send real-time SignalR notification so the driver's Home screen updates instantly.
+        // SendToUserAsync persists to DB inbox AND pushes via SignalR simultaneously.
+        await _notificationService.SendToUserAsync(
             best.Driver.UserId,
             "طلب جديد للمندوب",
             "New delivery offer",
@@ -460,9 +463,8 @@ public class DeliveryDispatchService : IDeliveryDispatchService
             $"You have a new delivery offer and need to respond within a few seconds.",
             "driver-offer",
             order.Id,
-            $"assignmentId={assignment.Id}"));
-
-        await _unitOfWork.SaveChangesAsync(cancellationToken);
+            $"assignmentId={assignment.Id}",
+            cancellationToken);
 
         _logger.LogInformation(
             "Dispatch offer engine: offered order {OrderId} to driver {DriverId} attempt {Attempt} ({Reason}).",
