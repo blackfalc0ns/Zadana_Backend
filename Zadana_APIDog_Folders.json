@@ -17894,7 +17894,9 @@
                     },
                     "address_id": {
                         "type": "string",
-                        "format": "uuid"
+                        "format": "uuid",
+                        "nullable": true,
+                        "description": "Optional. When omitted, the customer's default address is used."
                     },
                     "delivery_slot_id": {
                         "type": "string",

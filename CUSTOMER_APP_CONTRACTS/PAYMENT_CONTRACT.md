@@ -36,6 +36,8 @@ Example response:
 
 - `POST /api/orders`
 
+`address_id` / `addressId` is optional. When it is omitted, backend uses the customer's default address from the account.
+
 The place-order response may also include a `payment` object when the selected payment method requires an external payment session.
 
 ## Important Notes

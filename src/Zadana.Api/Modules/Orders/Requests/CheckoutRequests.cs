@@ -95,7 +95,7 @@ public class PlaceOrderRequest
     public Guid? VendorId { get; init; }
 
     [JsonPropertyName("address_id")]
-    public Guid AddressId { get; init; }
+    public Guid? AddressId { get; init; }
 
     [JsonPropertyName("delivery_slot_id")]
     public string? DeliverySlotId { get; init; }
@@ -116,7 +116,7 @@ public class PlaceOrderRequest
     public Guid? EffectiveVendorId => VendorId ?? ReadGuid("vendorId");
 
     [JsonIgnore]
-    public Guid EffectiveAddressId => AddressId != Guid.Empty ? AddressId : ReadGuid("addressId") ?? Guid.Empty;
+    public Guid? EffectiveAddressId => NormalizeGuid(AddressId) ?? ReadGuid("addressId");
 
     [JsonIgnore]
     public string? EffectiveDeliverySlotId => DeliverySlotId ?? ReadString("deliverySlotId");
@@ -145,6 +145,9 @@ public class PlaceOrderRequest
 
         return null;
     }
+
+    private static Guid? NormalizeGuid(Guid? value) =>
+        value.HasValue && value.Value != Guid.Empty ? value : null;
 
     private string? ReadString(string propertyName)
     {

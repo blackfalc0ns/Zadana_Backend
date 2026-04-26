@@ -20,7 +20,7 @@ namespace Zadana.Application.Modules.Checkout.Commands.PlaceCheckoutOrder;
 public record PlaceCheckoutOrderCommand(
     Guid UserId,
     Guid? VendorId,
-    Guid AddressId,
+    Guid? AddressId,
     string? DeliverySlotId,
     string PaymentMethod,
     string? PromoCode,
@@ -32,7 +32,6 @@ public class PlaceCheckoutOrderCommandValidator : AbstractValidator<PlaceCheckou
     public PlaceCheckoutOrderCommandValidator()
     {
         RuleFor(x => x.UserId).NotEmpty();
-        RuleFor(x => x.AddressId).NotEmpty();
         RuleFor(x => x.PaymentMethod).NotEmpty();
         RuleFor(x => x.PromoCode).MaximumLength(100);
         RuleFor(x => x.Notes).MaximumLength(1000);
@@ -76,8 +75,17 @@ public class PlaceCheckoutOrderCommandHandler : IRequestHandler<PlaceCheckoutOrd
 
         var cart = await CheckoutSupport.GetRequiredCartAsync(_context, request.UserId, cancellationToken, asTracking: true);
         var pricing = await CheckoutSupport.BuildPricingSnapshotAsync(_context, cart, request.VendorId, cancellationToken);
-        var address = await CheckoutSupport.ResolveSelectedAddressAsync(_context, request.UserId, request.AddressId, cancellationToken)
-            ?? throw new NotFoundException("CustomerAddress", request.AddressId);
+        var address = await CheckoutSupport.ResolveSelectedAddressAsync(_context, request.UserId, request.AddressId, cancellationToken);
+        if (address is null)
+        {
+            if (request.AddressId.HasValue)
+            {
+                throw new NotFoundException("CustomerAddress", request.AddressId.Value);
+            }
+
+            throw new BusinessRuleException("CUSTOMER_ADDRESS_REQUIRED", "Customer must have a default address before placing an order.");
+        }
+
         var user = await _context.Users.FirstOrDefaultAsync(x => x.Id == request.UserId, cancellationToken)
             ?? throw new NotFoundException("User", request.UserId);
 
