@@ -40,7 +40,8 @@ public class DriversController : ApiControllerBase
             request.PrimaryZoneId,
             request.Region,
             request.City,
-            request.NationalIdImageUrl,
+            request.NationalIdFrontImageUrl,
+            request.NationalIdBackImageUrl,
             request.LicenseImageUrl,
             request.VehicleImageUrl,
             request.PersonalPhotoUrl);

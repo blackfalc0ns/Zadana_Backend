@@ -7884,7 +7884,7 @@
                 ],
                 "requestBody": {
                     "required": true,
-                    "description": "Driver registration payload. `primaryZoneId` must be an active delivery zone id returned earlier from `/api/public/delivery-zones`. For `nationalIdImageUrl`, `licenseImageUrl`, `vehicleImageUrl`, and `personalPhotoUrl`, send the URL returned earlier from `/api/files/upload`.",
+                    "description": "Driver registration payload. `primaryZoneId` must be an active delivery zone id returned earlier from `/api/public/delivery-zones`. For `nationalIdFrontImageUrl`, `nationalIdBackImageUrl`, `licenseImageUrl`, `vehicleImageUrl`, and `personalPhotoUrl`, send the URL returned earlier from `/api/files/upload`.",
                     "content": {
                         "application/json": {
                             "schema": {
@@ -7902,7 +7902,8 @@
                                 "primaryZoneId": "22222222-2222-2222-2222-222222222222",
                                 "region": "RIYADH",
                                 "city": "RIYADH",
-                                "nationalIdImageUrl": "https://cdn.example.com/drivers/national-id/id.jpg",
+                                "nationalIdFrontImageUrl": "https://cdn.example.com/drivers/national-id/front.jpg",
+                                "nationalIdBackImageUrl": "https://cdn.example.com/drivers/national-id/back.jpg",
                                 "licenseImageUrl": "https://cdn.example.com/drivers/license/license.jpg",
                                 "vehicleImageUrl": "https://cdn.example.com/drivers/vehicle/bike.jpg",
                                 "personalPhotoUrl": "https://cdn.example.com/drivers/profile/photo.jpg"
@@ -11942,7 +11943,8 @@
                                     "licenseNumber": "DL-998877",
                                     "nationalId": "29801011234567",
                                     "personalPhotoUrl": "https://cdn.example.com/drivers/profile/ahmed.jpg",
-                                    "nationalIdImageUrl": "https://cdn.example.com/drivers/docs/national-id.jpg",
+                                    "nationalIdFrontImageUrl": "https://cdn.example.com/drivers/docs/national-id-front.jpg",
+                                    "nationalIdBackImageUrl": "https://cdn.example.com/drivers/docs/national-id-back.jpg",
                                     "licenseImageUrl": "https://cdn.example.com/drivers/docs/license.jpg",
                                     "vehicleImageUrl": "https://cdn.example.com/drivers/docs/vehicle.jpg",
                                     "primaryZoneId": "22222222-2222-2222-2222-222222222222",
@@ -12054,7 +12056,8 @@
                             },
                             "example": {
                                 "personalPhotoUrl": "https://cdn.example.com/drivers/profile/ahmed.jpg",
-                                "nationalIdImageUrl": "https://cdn.example.com/drivers/docs/national-id.jpg",
+                                "nationalIdFrontImageUrl": "https://cdn.example.com/drivers/docs/national-id-front.jpg",
+                                "nationalIdBackImageUrl": "https://cdn.example.com/drivers/docs/national-id-back.jpg",
                                 "licenseImageUrl": "https://cdn.example.com/drivers/docs/license.jpg",
                                 "vehicleImageUrl": "https://cdn.example.com/drivers/docs/vehicle.jpg"
                             }
@@ -18565,9 +18568,14 @@
                         "format": "uuid",
                         "description": "Required active delivery zone id selected earlier from `/api/public/delivery-zones`."
                     },
-                    "nationalIdImageUrl": {
+                    "nationalIdFrontImageUrl": {
                         "type": "string",
-                        "description": "URL returned earlier from `/api/files/upload` for the driver's national ID image.",
+                        "description": "URL returned earlier from `/api/files/upload` for the front of the driver's national ID.",
+                        "nullable": true
+                    },
+                    "nationalIdBackImageUrl": {
+                        "type": "string",
+                        "description": "URL returned earlier from `/api/files/upload` for the back of the driver's national ID.",
                         "nullable": true
                     },
                     "licenseImageUrl": {
@@ -21743,7 +21751,11 @@
                         "type": "string",
                         "nullable": true
                     },
-                    "nationalIdImageUrl": {
+                    "nationalIdFrontImageUrl": {
+                        "type": "string",
+                        "nullable": true
+                    },
+                    "nationalIdBackImageUrl": {
                         "type": "string",
                         "nullable": true
                     },
@@ -22088,7 +22100,11 @@
                         "type": "string",
                         "nullable": true
                     },
-                    "nationalIdImageUrl": {
+                    "nationalIdFrontImageUrl": {
+                        "type": "string",
+                        "nullable": true
+                    },
+                    "nationalIdBackImageUrl": {
                         "type": "string",
                         "nullable": true
                     },

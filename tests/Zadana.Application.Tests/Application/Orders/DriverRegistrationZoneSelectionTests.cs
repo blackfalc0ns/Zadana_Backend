@@ -146,7 +146,8 @@ public class DriverRegistrationZoneSelectionTests
             primaryZoneId ?? Guid.NewGuid(),
             "RIYADH",
             "RIYADH",
-            "https://cdn.example.com/driver/national-id.jpg",
+            "https://cdn.example.com/driver/national-id-front.jpg",
+            "https://cdn.example.com/driver/national-id-back.jpg",
             "https://cdn.example.com/driver/license.jpg",
             "https://cdn.example.com/driver/vehicle.jpg",
             "https://cdn.example.com/driver/photo.jpg");

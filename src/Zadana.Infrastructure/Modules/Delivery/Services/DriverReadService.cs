@@ -287,7 +287,8 @@ public class DriverReadService : IDriverReadService
         // Documents
         var documents = new[]
         {
-            new AdminDriverDocumentDto("NationalId", driver.NationalIdImageUrl, driver.NationalIdImageUrl != null ? "valid" : "review", null),
+            new AdminDriverDocumentDto("NationalIdFront", driver.NationalIdFrontImageUrl, driver.NationalIdFrontImageUrl != null ? "valid" : "review", null),
+            new AdminDriverDocumentDto("NationalIdBack", driver.NationalIdBackImageUrl, driver.NationalIdBackImageUrl != null ? "valid" : "review", null),
             new AdminDriverDocumentDto("License", driver.LicenseImageUrl, driver.LicenseImageUrl != null ? "valid" : "review", null),
             new AdminDriverDocumentDto("Vehicle", driver.VehicleImageUrl, driver.VehicleImageUrl != null ? "valid" : "review", null),
             new AdminDriverDocumentDto("PersonalPhoto", driver.PersonalPhotoUrl, driver.PersonalPhotoUrl != null ? "valid" : "review", null)
@@ -739,7 +740,8 @@ public class DriverReadService : IDriverReadService
             driver.LicenseNumber,
             driver.NationalId,
             driver.PersonalPhotoUrl,
-            driver.NationalIdImageUrl,
+            driver.NationalIdFrontImageUrl,
+            driver.NationalIdBackImageUrl,
             driver.LicenseImageUrl,
             driver.VehicleImageUrl,
             driver.PrimaryZoneId,

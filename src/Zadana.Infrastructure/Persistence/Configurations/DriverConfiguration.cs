@@ -21,7 +21,8 @@ public class DriverConfiguration : IEntityTypeConfiguration<Driver>
         builder.Property(x => x.NationalId).HasMaxLength(100);
         builder.Property(x => x.LicenseNumber).HasMaxLength(100);
         builder.Property(x => x.Address).HasMaxLength(500);
-        builder.Property(x => x.NationalIdImageUrl).HasMaxLength(500);
+        builder.Property(x => x.NationalIdFrontImageUrl).HasMaxLength(500);
+        builder.Property(x => x.NationalIdBackImageUrl).HasMaxLength(500);
         builder.Property(x => x.LicenseImageUrl).HasMaxLength(500);
         builder.Property(x => x.VehicleImageUrl).HasMaxLength(500);
         builder.Property(x => x.PersonalPhotoUrl).HasMaxLength(500);

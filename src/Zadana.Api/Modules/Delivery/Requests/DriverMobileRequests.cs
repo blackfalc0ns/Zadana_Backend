@@ -16,7 +16,8 @@ public record UpdateDriverVehicleProfileRequest(
 
 public record UpdateDriverDocumentsRequest(
     string? PersonalPhotoUrl,
-    string? NationalIdImageUrl,
+    string? NationalIdFrontImageUrl,
+    string? NationalIdBackImageUrl,
     string? LicenseImageUrl,
     string? VehicleImageUrl);
 

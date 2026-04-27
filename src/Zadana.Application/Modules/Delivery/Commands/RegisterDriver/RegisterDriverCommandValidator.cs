@@ -55,9 +55,12 @@ public class RegisterDriverCommandValidator : AbstractValidator<RegisterDriverCo
             .WithName("City");
 
         // Document URLs
-        RuleFor(x => x.NationalIdImageUrl)
+        RuleFor(x => x.NationalIdFrontImageUrl)
             .NotEmpty().WithMessage(localizer["RequiredField"].Value)
-            .WithName(localizer["NationalIdImageUrl"].Value);
+            .WithName(localizer["NationalIdFrontImageUrl"].Value);
+        RuleFor(x => x.NationalIdBackImageUrl)
+            .NotEmpty().WithMessage(localizer["RequiredField"].Value)
+            .WithName(localizer["NationalIdBackImageUrl"].Value);
         RuleFor(x => x.LicenseImageUrl)
             .NotEmpty().WithMessage(localizer["RequiredField"].Value)
             .WithName(localizer["LicenseImageUrl"].Value);

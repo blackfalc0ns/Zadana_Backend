@@ -12,7 +12,8 @@ public class Driver : BaseEntity
     public string? NationalId { get; private set; }
     public string? LicenseNumber { get; private set; }
     public string? Address { get; private set; }
-    public string? NationalIdImageUrl { get; private set; }
+    public string? NationalIdFrontImageUrl { get; private set; }
+    public string? NationalIdBackImageUrl { get; private set; }
     public string? LicenseImageUrl { get; private set; }
     public string? VehicleImageUrl { get; private set; }
     public string? PersonalPhotoUrl { get; private set; }
@@ -52,7 +53,8 @@ public class Driver : BaseEntity
         string? nationalId,
         string? licenseNumber,
         string? address = null,
-        string? nationalIdImageUrl = null,
+        string? nationalIdFrontImageUrl = null,
+        string? nationalIdBackImageUrl = null,
         string? licenseImageUrl = null,
         string? vehicleImageUrl = null,
         string? personalPhotoUrl = null,
@@ -64,7 +66,8 @@ public class Driver : BaseEntity
         NationalId = nationalId?.Trim();
         LicenseNumber = licenseNumber?.Trim();
         Address = address?.Trim();
-        NationalIdImageUrl = nationalIdImageUrl;
+        NationalIdFrontImageUrl = nationalIdFrontImageUrl;
+        NationalIdBackImageUrl = nationalIdBackImageUrl;
         LicenseImageUrl = licenseImageUrl;
         VehicleImageUrl = vehicleImageUrl;
         PersonalPhotoUrl = personalPhotoUrl;
@@ -72,7 +75,7 @@ public class Driver : BaseEntity
         City = city?.Trim().ToUpperInvariant();
         Status = AccountStatus.Pending;
         IsAvailable = false;
-        VerificationStatus = DetermineInitialVerificationStatus(nationalIdImageUrl, licenseImageUrl, vehicleImageUrl, personalPhotoUrl);
+        VerificationStatus = DetermineInitialVerificationStatus(nationalIdFrontImageUrl, licenseImageUrl, vehicleImageUrl, personalPhotoUrl);
     }
 
     public void UpdateDetails(DriverVehicleType? vehicleType, string? nationalId, string? licenseNumber)
@@ -94,12 +97,14 @@ public class Driver : BaseEntity
     }
 
     public void UpdateDocuments(
-        string? nationalIdImageUrl,
+        string? nationalIdFrontImageUrl,
+        string? nationalIdBackImageUrl,
         string? licenseImageUrl,
         string? vehicleImageUrl,
         string? personalPhotoUrl)
     {
-        NationalIdImageUrl = NormalizeOptional(nationalIdImageUrl);
+        NationalIdFrontImageUrl = NormalizeOptional(nationalIdFrontImageUrl);
+        NationalIdBackImageUrl = NormalizeOptional(nationalIdBackImageUrl);
         LicenseImageUrl = NormalizeOptional(licenseImageUrl);
         VehicleImageUrl = NormalizeOptional(vehicleImageUrl);
         PersonalPhotoUrl = NormalizeOptional(personalPhotoUrl);

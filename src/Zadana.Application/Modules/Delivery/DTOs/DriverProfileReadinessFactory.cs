@@ -24,7 +24,8 @@ public static class DriverProfileReadinessFactory
         }
 
         if (string.IsNullOrWhiteSpace(driver.PersonalPhotoUrl) ||
-            string.IsNullOrWhiteSpace(driver.NationalIdImageUrl) ||
+            string.IsNullOrWhiteSpace(driver.NationalIdFrontImageUrl) ||
+            string.IsNullOrWhiteSpace(driver.NationalIdBackImageUrl) ||
             string.IsNullOrWhiteSpace(driver.LicenseImageUrl) ||
             string.IsNullOrWhiteSpace(driver.VehicleImageUrl))
         {
@@ -112,8 +113,8 @@ public static class DriverProfileReadinessFactory
                 true),
             createItem(
                 "national_id_document",
-                !string.IsNullOrWhiteSpace(driver.NationalIdImageUrl),
-                string.IsNullOrWhiteSpace(driver.NationalIdImageUrl) ? "missing_document_note" : null,
+                !string.IsNullOrWhiteSpace(driver.NationalIdFrontImageUrl) && !string.IsNullOrWhiteSpace(driver.NationalIdBackImageUrl),
+                string.IsNullOrWhiteSpace(driver.NationalIdFrontImageUrl) || string.IsNullOrWhiteSpace(driver.NationalIdBackImageUrl) ? "missing_document_note" : null,
                 true),
             createItem(
                 "license_document",

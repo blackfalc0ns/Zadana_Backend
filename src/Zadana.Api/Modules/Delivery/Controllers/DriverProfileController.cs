@@ -163,7 +163,8 @@ public class DriverProfileController : ApiControllerBase
             ?? throw new NotFoundException("Driver", userId);
 
         driver.UpdateDocuments(
-            request.NationalIdImageUrl,
+            request.NationalIdFrontImageUrl,
+            request.NationalIdBackImageUrl,
             request.LicenseImageUrl,
             request.VehicleImageUrl,
             request.PersonalPhotoUrl);
@@ -187,7 +188,8 @@ public class DriverProfileController : ApiControllerBase
         !string.IsNullOrWhiteSpace(driver.LicenseNumber) &&
         !string.IsNullOrWhiteSpace(driver.Address) &&
         !string.IsNullOrWhiteSpace(driver.PersonalPhotoUrl) &&
-        !string.IsNullOrWhiteSpace(driver.NationalIdImageUrl) &&
+        !string.IsNullOrWhiteSpace(driver.NationalIdFrontImageUrl) &&
+        !string.IsNullOrWhiteSpace(driver.NationalIdBackImageUrl) &&
         !string.IsNullOrWhiteSpace(driver.LicenseImageUrl) &&
         !string.IsNullOrWhiteSpace(driver.VehicleImageUrl) &&
         driver.PrimaryZoneId.HasValue;
