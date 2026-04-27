@@ -129,6 +129,7 @@ else
 }
 
 builder.Services.AddHttpContextAccessor();
+builder.Services.AddMemoryCache();
 builder.Services.AddIdentity<User, IdentityRole<Guid>>(options =>
 {
     options.Password.RequireNonAlphanumeric = false;

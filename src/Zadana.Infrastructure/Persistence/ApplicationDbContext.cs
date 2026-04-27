@@ -3,6 +3,7 @@ using Microsoft.AspNetCore.Identity.EntityFrameworkCore;
 using Microsoft.EntityFrameworkCore;
 using Zadana.Domain.Modules.Catalog.Entities;
 using Zadana.Domain.Modules.Delivery.Entities;
+using Zadana.Domain.Modules.Geography.Entities;
 using Zadana.Domain.Modules.Identity.Entities;
 using Zadana.Domain.Modules.Marketing.Entities;
 using Zadana.Domain.Modules.Orders.Entities;
@@ -103,6 +104,10 @@ public class ApplicationDbContext : IdentityDbContext<User, IdentityRole<Guid>, 
     public DbSet<FeaturedProductPlacement> FeaturedProductPlacements => Set<FeaturedProductPlacement>();
     public DbSet<Review> Reviews => Set<Review>();
     public DbSet<Notification> Notifications => Set<Notification>();
+
+    // Geography
+    public DbSet<SaudiRegion> SaudiRegions => Set<SaudiRegion>();
+    public DbSet<SaudiCity> SaudiCities => Set<SaudiCity>();
 
     protected override void OnConfiguring(DbContextOptionsBuilder optionsBuilder)
     {

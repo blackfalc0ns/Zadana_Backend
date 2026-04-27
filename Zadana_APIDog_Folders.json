@@ -12623,6 +12623,101 @@
                     }
                 }
             }
+        },
+        "/api/geography/regions": {
+            "get": {
+                "tags": [
+                    "System/Geography"
+                ],
+                "summary": "List Saudi regions",
+                "description": "Public lookup endpoint used by vendor onboarding and branch screens. Returns all Saudi regions with bilingual names and map coordinates.",
+                "operationId": "Geography_GetRegions",
+                "security": [],
+                "responses": {
+                    "200": {
+                        "description": "OK",
+                        "content": {
+                            "text/plain": {
+                                "schema": {
+                                    "type": "array",
+                                    "items": {
+                                        "$ref": "#/components/schemas/SaudiRegionLookupDto"
+                                    }
+                                }
+                            },
+                            "application/json": {
+                                "schema": {
+                                    "type": "array",
+                                    "items": {
+                                        "$ref": "#/components/schemas/SaudiRegionLookupDto"
+                                    }
+                                }
+                            },
+                            "text/json": {
+                                "schema": {
+                                    "type": "array",
+                                    "items": {
+                                        "$ref": "#/components/schemas/SaudiRegionLookupDto"
+                                    }
+                                }
+                            }
+                        }
+                    }
+                }
+            }
+        },
+        "/api/geography/regions/{regionCode}/cities": {
+            "get": {
+                "tags": [
+                    "System/Geography"
+                ],
+                "summary": "List cities for a Saudi region",
+                "description": "Public lookup endpoint used after selecting a region. Returns cities for the provided Saudi region code with bilingual names and map coordinates.",
+                "operationId": "Geography_GetCities",
+                "security": [],
+                "parameters": [
+                    {
+                        "name": "regionCode",
+                        "in": "path",
+                        "required": true,
+                        "schema": {
+                            "type": "string"
+                        },
+                        "example": "MAKKAH"
+                    }
+                ],
+                "responses": {
+                    "200": {
+                        "description": "OK",
+                        "content": {
+                            "text/plain": {
+                                "schema": {
+                                    "type": "array",
+                                    "items": {
+                                        "$ref": "#/components/schemas/SaudiCityLookupDto"
+                                    }
+                                }
+                            },
+                            "application/json": {
+                                "schema": {
+                                    "type": "array",
+                                    "items": {
+                                        "$ref": "#/components/schemas/SaudiCityLookupDto"
+                                    }
+                                }
+                            },
+                            "text/json": {
+                                "schema": {
+                                    "type": "array",
+                                    "items": {
+                                        "$ref": "#/components/schemas/SaudiCityLookupDto"
+                                    }
+                                }
+                            }
+                        }
+                    }
+                }
+            }
         }
     },
     "components": {
@@ -22459,6 +22554,86 @@
                     }
                 },
                 "additionalProperties": false
+            },
+            "SaudiRegionLookupDto": {
+                "type": "object",
+                "additionalProperties": false,
+                "properties": {
+                    "code": {
+                        "type": "string",
+                        "example": "RIYADH"
+                    },
+                    "nameAr": {
+                        "type": "string",
+                        "example": "????? ??????"
+                    },
+                    "nameEn": {
+                        "type": "string",
+                        "example": "Riyadh Region"
+                    },
+                    "latitude": {
+                        "type": "number",
+                        "format": "double",
+                        "example": 24.7136
+                    },
+                    "longitude": {
+                        "type": "number",
+                        "format": "double",
+                        "example": 46.6753
+                    },
+                    "mapZoom": {
+                        "type": "integer",
+                        "format": "int32",
+                        "example": 8
+                    },
+                    "sortOrder": {
+                        "type": "integer",
+                        "format": "int32",
+                        "example": 1
+                    }
+                }
+            },
+            "SaudiCityLookupDto": {
+                "type": "object",
+                "additionalProperties": false,
+                "properties": {
+                    "regionCode": {
+                        "type": "string",
+                        "example": "MAKKAH"
+                    },
+                    "code": {
+                        "type": "string",
+                        "example": "JEDDAH"
+                    },
+                    "nameAr": {
+                        "type": "string",
+                        "example": "???"
+                    },
+                    "nameEn": {
+                        "type": "string",
+                        "example": "Jeddah"
+                    },
+                    "latitude": {
+                        "type": "number",
+                        "format": "double",
+                        "example": 21.5433
+                    },
+                    "longitude": {
+                        "type": "number",
+                        "format": "double",
+                        "example": 39.1728
+                    },
+                    "mapZoom": {
+                        "type": "integer",
+                        "format": "int32",
+                        "example": 12
+                    },
+                    "sortOrder": {
+                        "type": "integer",
+                        "format": "int32",
+                        "example": 2
+                    }
+                }
             }
         },
         "securitySchemes": {
@@ -22586,6 +22761,10 @@
         {
             "name": "System/Files",
             "description": "APIDog folder for System/Files"
+        },
+        {
+            "name": "System/Geography",
+            "description": "APIDog folder for System/Geography public lookup endpoints"
         },
         {
             "name": "System/Health",
