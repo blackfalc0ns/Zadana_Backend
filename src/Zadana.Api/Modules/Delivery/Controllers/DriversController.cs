@@ -38,6 +38,8 @@ public class DriversController : ApiControllerBase
             request.LicenseNumber,
             request.Address,
             request.PrimaryZoneId,
+            request.Region,
+            request.City,
             request.NationalIdImageUrl,
             request.LicenseImageUrl,
             request.VehicleImageUrl,

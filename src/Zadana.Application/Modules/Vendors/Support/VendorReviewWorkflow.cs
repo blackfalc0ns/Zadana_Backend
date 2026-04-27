@@ -110,29 +110,32 @@ public static class VendorReviewWorkflow
         {
             throw new BusinessRuleException(
                 "VendorReviewArchived",
-                "لا يمكن تعديل مراجعة الامتثال لتاجر مؤرشف.|Cannot change compliance review for an archived vendor.");
+                "Cannot change compliance review for an archived vendor.");
         }
 
         if (vendor.Status == VendorStatus.Suspended || vendor.SuspendedAtUtc.HasValue)
         {
             throw new BusinessRuleException(
                 "VendorReviewSuspended",
-                "لا يمكن تعديل مراجعة الامتثال بينما حساب التاجر معلق.|Cannot change compliance review while the vendor account is suspended.");
+                "Cannot change compliance review while the vendor account is suspended.");
+        }
+
+        if (vendor.LockedAtUtc.HasValue)
+        {
+            throw new BusinessRuleException(
+                "VendorReviewLocked",
+                "Cannot change compliance review while the vendor account is locked.");
         }
 
         if (vendor.Status == VendorStatus.Active && vendor.ApprovedAtUtc.HasValue)
         {
             throw new BusinessRuleException(
                 "VendorReviewClosed",
-                "تم إغلاق مراجعة الامتثال لأن التاجر معتمد بالفعل.|Compliance review is already closed because the vendor is approved.");
+                "Compliance review is already closed because the vendor is approved.");
         }
 
-        if (vendor.Status == VendorStatus.Rejected)
-        {
-            throw new BusinessRuleException(
-                "VendorReviewRejected",
-                "تم إغلاق مراجعة الامتثال لأن التاجر مرفوض بالفعل.|Compliance review is already closed because the vendor is rejected.");
-        }
+        // Rejected vendors are allowed to update their profile and resubmit for review.
+        // SubmitVendorReviewCommand transitions them back to PendingReview via ReopenForReview().
     }
 
     public static void EnsureDocumentCanBeReviewed(Vendor vendor, VendorDocumentType type)
@@ -143,7 +146,7 @@ public static class VendorReviewWorkflow
         {
             throw new BusinessRuleException(
                 "VendorDocumentMissing",
-                "لا يمكن مراجعة هذا المستند قبل رفعه أو استكمال بياناته.|This document cannot be reviewed before it is uploaded or completed.");
+                "This document cannot be reviewed before it is uploaded or completed.");
         }
     }
 }

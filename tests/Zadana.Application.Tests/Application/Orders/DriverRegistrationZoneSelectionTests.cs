@@ -144,6 +144,8 @@ public class DriverRegistrationZoneSelectionTests
             "CAI-DRV-4421",
             "Nasr City, Cairo",
             primaryZoneId ?? Guid.NewGuid(),
+            "RIYADH",
+            "RIYADH",
             "https://cdn.example.com/driver/national-id.jpg",
             "https://cdn.example.com/driver/license.jpg",
             "https://cdn.example.com/driver/vehicle.jpg",

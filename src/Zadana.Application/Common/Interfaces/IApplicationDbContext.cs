@@ -1,6 +1,7 @@
 using Microsoft.EntityFrameworkCore;
 using Zadana.Domain.Modules.Catalog.Entities;
 using Zadana.Domain.Modules.Delivery.Entities;
+using Zadana.Domain.Modules.Geography.Entities;
 using Zadana.Domain.Modules.Identity.Entities;
 using Zadana.Domain.Modules.Marketing.Entities;
 using Zadana.Domain.Modules.Orders.Entities;
@@ -88,6 +89,10 @@ public interface IApplicationDbContext
     DbSet<FeaturedProductPlacement> FeaturedProductPlacements { get; }
     DbSet<Review> Reviews { get; }
     DbSet<Notification> Notifications { get; }
+
+    // Geography
+    DbSet<SaudiRegion> SaudiRegions { get; }
+    DbSet<SaudiCity> SaudiCities { get; }
 
     Task<int> SaveChangesAsync(CancellationToken cancellationToken = default);
 }

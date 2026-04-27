@@ -5,6 +5,7 @@ namespace Zadana.Infrastructure.Modules.Delivery.Services;
 internal sealed record DeliveryDispatchContext(
     DeliveryZone? PickupZone,
     string? PickupCity,
+    string? PickupRegion,
     decimal? PickupLatitude,
     decimal? PickupLongitude);
 
@@ -32,10 +33,12 @@ internal static class DeliveryDispatchScoring
         IReadOnlyCollection<DeliveryZone> activeZones,
         decimal? pickupLatitude,
         decimal? pickupLongitude,
-        string? fallbackCity = null)
+        string? fallbackCity = null,
+        string? fallbackRegion = null)
     {
         DeliveryZone? pickupZone = null;
         var pickupCity = fallbackCity;
+        var pickupRegion = fallbackRegion;
 
         if (pickupLatitude.HasValue && pickupLongitude.HasValue && activeZones.Count > 0)
         {
@@ -45,7 +48,7 @@ internal static class DeliveryDispatchScoring
             pickupCity ??= pickupZone?.City;
         }
 
-        return new DeliveryDispatchContext(pickupZone, pickupCity, pickupLatitude, pickupLongitude);
+        return new DeliveryDispatchContext(pickupZone, pickupCity, pickupRegion, pickupLatitude, pickupLongitude);
     }
 
     public static DeliveryDispatchCandidateEvaluation EvaluateCandidate(
@@ -64,6 +67,13 @@ internal static class DeliveryDispatchScoring
             && !string.IsNullOrWhiteSpace(context.PickupCity)
             && string.Equals(driver.PrimaryZone?.City, context.PickupCity, StringComparison.OrdinalIgnoreCase);
 
+        // Driver-level region/city match (from driver.Region/City aligned with vendor geography)
+        var sameRegionCity = !sameZone
+            && !string.IsNullOrWhiteSpace(driver.Region)
+            && !string.IsNullOrWhiteSpace(driver.City)
+            && string.Equals(driver.Region, context.PickupRegion, StringComparison.OrdinalIgnoreCase)
+            && string.Equals(driver.City, context.PickupCity, StringComparison.OrdinalIgnoreCase);
+
         var inPrimaryZone = gpsFresh
             && latestLocation is not null
             && driver.PrimaryZone is not null
@@ -76,7 +86,7 @@ internal static class DeliveryDispatchScoring
 
         var distanceKm = ResolveDistanceKm(driver, latestLocation, context, gpsFresh, lowConfidenceGps);
         var distanceBucket = BuildDistanceBucket(distanceKm);
-        var tier = ResolveTier(sameZone, sameCity, gpsFresh, lowConfidenceGps, inPrimaryZone, inPickupZone);
+        var tier = ResolveTier(sameZone, sameCity, sameRegionCity, gpsFresh, lowConfidenceGps, inPrimaryZone, inPickupZone);
         var matchReason = ResolveMatchReason(tier);
         var commitmentAdjustment = ResolveCommitmentAdjustment(commitmentScore);
         var commitmentAdjustmentReason = ResolveCommitmentAdjustmentReason(commitmentScore);
@@ -151,12 +161,14 @@ internal static class DeliveryDispatchScoring
     private static int ResolveTier(
         bool sameZone,
         bool sameCity,
+        bool sameRegionCity,
         bool gpsFresh,
         bool lowConfidenceGps,
         bool inPrimaryZone,
         bool inPickupZone) =>
         sameZone && gpsFresh && !lowConfidenceGps && (inPrimaryZone || inPickupZone) ? 1
         : sameZone ? 2
+        : sameRegionCity ? 2
         : sameCity ? 3
         : 4;
 
@@ -164,7 +176,7 @@ internal static class DeliveryDispatchScoring
         tier switch
         {
             1 => "same-zone-live-gps",
-            2 => "same-zone-stale-gps",
+            2 => "same-zone-or-region-city",
             3 => "same-city-fallback",
             _ => "out-of-zone-low-priority"
         };

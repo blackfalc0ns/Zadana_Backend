@@ -710,6 +710,26 @@ public class DriverReadService : IDriverReadService
         var missingRequirements = DriverProfileReadinessFactory.GetMissingRequirements(driver, driver.User);
         var completionPercent = DriverProfileReadinessFactory.GetCompletionPercent(missingRequirements.Count);
 
+        // Resolve geography display names
+        string? regionNameAr = null, regionNameEn = null, cityNameAr = null, cityNameEn = null;
+        if (!string.IsNullOrWhiteSpace(driver.Region))
+        {
+            var regionEntity = await _context.SaudiRegions
+                .AsNoTracking()
+                .FirstOrDefaultAsync(r => r.Code == driver.Region, cancellationToken);
+            regionNameAr = regionEntity?.NameAr;
+            regionNameEn = regionEntity?.NameEn;
+
+            if (!string.IsNullOrWhiteSpace(driver.City) && regionEntity is not null)
+            {
+                var cityEntity = await _context.SaudiCities
+                    .AsNoTracking()
+                    .FirstOrDefaultAsync(c => c.Code == driver.City && c.RegionId == regionEntity.Id, cancellationToken);
+                cityNameAr = cityEntity?.NameAr;
+                cityNameEn = cityEntity?.NameEn;
+            }
+        }
+
         return new DriverProfileDto(
             driver.User.FullName,
             driver.User.Email ?? string.Empty,
@@ -724,6 +744,12 @@ public class DriverReadService : IDriverReadService
             driver.VehicleImageUrl,
             driver.PrimaryZoneId,
             driver.PrimaryZone is not null ? $"{driver.PrimaryZone.City} - {driver.PrimaryZone.Name}" : null,
+            driver.Region,
+            driver.City,
+            regionNameAr,
+            regionNameEn,
+            cityNameAr,
+            cityNameEn,
             driver.VerificationStatus.ToString(),
             driver.Status.ToString(),
             driver.ReviewNote,

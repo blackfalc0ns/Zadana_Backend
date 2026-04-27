@@ -1,4 +1,5 @@
 using MediatR;
+using Microsoft.EntityFrameworkCore;
 using Zadana.Application.Common.Interfaces;
 using Zadana.Application.Modules.Delivery.DTOs;
 using Zadana.Application.Modules.Delivery.Interfaces;
@@ -43,6 +44,36 @@ public class RegisterDriverCommandHandler : IRequestHandler<RegisterDriverComman
             throw new BusinessRuleException("DELIVERY_ZONE_NOT_ACTIVE", "Selected delivery zone is not active.");
         }
 
+        // Validate geography (region + city)
+        Guid? regionEntityId = null;
+        if (!string.IsNullOrWhiteSpace(request.Region))
+        {
+            var normalizedRegion = request.Region.Trim().ToUpperInvariant();
+            var regionEntity = await _context.SaudiRegions
+                .AsNoTracking()
+                .FirstOrDefaultAsync(r => r.Code == normalizedRegion, cancellationToken);
+
+            if (regionEntity is null)
+            {
+                throw new BusinessRuleException("INVALID_REGION", "Selected region does not exist.");
+            }
+
+            regionEntityId = regionEntity.Id;
+
+            if (!string.IsNullOrWhiteSpace(request.City))
+            {
+                var normalizedCity = request.City.Trim().ToUpperInvariant();
+                var cityExists = await _context.SaudiCities
+                    .AsNoTracking()
+                    .AnyAsync(c => c.Code == normalizedCity && c.RegionId == regionEntity.Id, cancellationToken);
+
+                if (!cityExists)
+                {
+                    throw new BusinessRuleException("INVALID_CITY", "Selected city does not belong to the chosen region.");
+                }
+            }
+        }
+
         var user = await _registrationWorkflow.RegisterAccountAsync(
             new CreateIdentityAccountRequest(
                 request.FullName,
@@ -62,7 +93,9 @@ public class RegisterDriverCommandHandler : IRequestHandler<RegisterDriverComman
                 request.NationalIdImageUrl,
                 request.LicenseImageUrl,
                 request.VehicleImageUrl,
-                request.PersonalPhotoUrl);
+                request.PersonalPhotoUrl,
+                request.Region,
+                request.City);
             driver.AssignZone(zone.Id, zone);
 
             _driverRepository.Add(driver);

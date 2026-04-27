@@ -29,6 +29,10 @@ public class Driver : BaseEntity
     // Zone
     public Guid? PrimaryZoneId { get; private set; }
 
+    // Geography (aligned with Vendor region/city codes from SaudiRegions/SaudiCities)
+    public string? Region { get; private set; }
+    public string? City { get; private set; }
+
     // Suspension
     public string? SuspensionReason { get; private set; }
 
@@ -51,7 +55,9 @@ public class Driver : BaseEntity
         string? nationalIdImageUrl = null,
         string? licenseImageUrl = null,
         string? vehicleImageUrl = null,
-        string? personalPhotoUrl = null)
+        string? personalPhotoUrl = null,
+        string? region = null,
+        string? city = null)
     {
         UserId = userId;
         VehicleType = vehicleType;
@@ -62,6 +68,8 @@ public class Driver : BaseEntity
         LicenseImageUrl = licenseImageUrl;
         VehicleImageUrl = vehicleImageUrl;
         PersonalPhotoUrl = personalPhotoUrl;
+        Region = region?.Trim().ToUpperInvariant();
+        City = city?.Trim().ToUpperInvariant();
         Status = AccountStatus.Pending;
         IsAvailable = false;
         VerificationStatus = DetermineInitialVerificationStatus(nationalIdImageUrl, licenseImageUrl, vehicleImageUrl, personalPhotoUrl);
@@ -77,6 +85,12 @@ public class Driver : BaseEntity
     public void UpdateAddress(string? address)
     {
         Address = string.IsNullOrWhiteSpace(address) ? null : address.Trim();
+    }
+
+    public void UpdateServiceArea(string? region, string? city)
+    {
+        Region = region?.Trim().ToUpperInvariant();
+        City = city?.Trim().ToUpperInvariant();
     }
 
     public void UpdateDocuments(

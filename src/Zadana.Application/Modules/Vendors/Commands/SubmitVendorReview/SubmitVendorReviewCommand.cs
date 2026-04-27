@@ -23,17 +23,20 @@ public sealed class SubmitVendorReviewCommandHandler : IRequestHandler<SubmitVen
     private readonly IVendorReadService _vendorReadService;
     private readonly IVendorReviewAuditService _vendorReviewAuditService;
     private readonly ICurrentUserService _currentUserService;
+    private readonly IUnitOfWork _unitOfWork;
 
     public SubmitVendorReviewCommandHandler(
         IVendorRepository vendorRepository,
         IVendorReadService vendorReadService,
         IVendorReviewAuditService vendorReviewAuditService,
-        ICurrentUserService currentUserService)
+        ICurrentUserService currentUserService,
+        IUnitOfWork unitOfWork)
     {
         _vendorRepository = vendorRepository;
         _vendorReadService = vendorReadService;
         _vendorReviewAuditService = vendorReviewAuditService;
         _currentUserService = currentUserService;
+        _unitOfWork = unitOfWork;
     }
 
     public async Task<VendorWorkspaceDto> Handle(SubmitVendorReviewCommand request, CancellationToken cancellationToken)
@@ -66,6 +69,12 @@ public sealed class SubmitVendorReviewCommandHandler : IRequestHandler<SubmitVen
             throw new BusinessRuleException(
                 "VendorReviewRejectedDocumentsMustBeReuploaded",
                 $"Rejected vendor documents must be re-uploaded first: {string.Join(", ", rejectedRequired)}.");
+        }
+
+        if (vendor.Status == VendorStatus.Rejected)
+        {
+            vendor.ReopenForReview();
+            await _unitOfWork.SaveChangesAsync(cancellationToken);
         }
 
         await _vendorReviewAuditService.AppendEntryAsync(

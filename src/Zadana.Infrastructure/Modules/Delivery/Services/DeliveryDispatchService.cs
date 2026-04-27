@@ -312,7 +312,8 @@ public class DeliveryDispatchService : IDeliveryDispatchService
             activeZones,
             pickupLat,
             pickupLng,
-            order.Vendor?.City);
+            order.Vendor?.City,
+            order.Vendor?.Region);
 
         var eligibleDrivers = await _context.Drivers
             .Include(driver => driver.User)

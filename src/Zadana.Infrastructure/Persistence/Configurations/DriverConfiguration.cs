@@ -32,6 +32,12 @@ public class DriverConfiguration : IEntityTypeConfiguration<Driver>
         builder.Property(x => x.ReviewNote).HasMaxLength(500);
         builder.Property(x => x.SuspensionReason).HasMaxLength(500);
 
+        builder.Property(x => x.Region).HasMaxLength(50);
+        builder.Property(x => x.City).HasMaxLength(50);
+
+        builder.HasIndex(x => new { x.City, x.Status })
+            .HasDatabaseName("IX_Drivers_City_Status");
+
         builder.HasOne(x => x.User)
             .WithMany()
             .HasForeignKey(x => x.UserId)

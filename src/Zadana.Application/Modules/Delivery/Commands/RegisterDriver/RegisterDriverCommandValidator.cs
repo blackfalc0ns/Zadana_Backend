@@ -45,6 +45,14 @@ public class RegisterDriverCommandValidator : AbstractValidator<RegisterDriverCo
         RuleFor(x => x.PrimaryZoneId)
             .NotEmpty().WithMessage(localizer["RequiredField"].Value)
             .WithName("PrimaryZoneId");
+        RuleFor(x => x.Region)
+            .NotEmpty().WithMessage(localizer["RequiredField"].Value)
+            .MaximumLength(50).WithMessage(localizer["MaxLength"].Value)
+            .WithName("Region");
+        RuleFor(x => x.City)
+            .NotEmpty().WithMessage(localizer["RequiredField"].Value)
+            .MaximumLength(50).WithMessage(localizer["MaxLength"].Value)
+            .WithName("City");
 
         // Document URLs
         RuleFor(x => x.NationalIdImageUrl)

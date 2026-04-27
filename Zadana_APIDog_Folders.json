@@ -7878,7 +7878,7 @@
         "/api/drivers/register": {
             "post": {
                 "summary": "Register driver profile",
-                "description": "This endpoint expects document image fields as URL strings, not binary files. Mobile should first load active zones from `/api/public/delivery-zones`, let the driver choose one, upload each image through `/api/files/upload`, then send the returned URLs here together with `primaryZoneId`. The response includes `driverStatus`, which should immediately decide whether the app opens the home screen or an under-review / rejected / suspended screen.",
+                "description": "This endpoint expects document image fields as URL strings, not binary files. Mobile should first load active zones from `/api/public/delivery-zones`, let the driver choose one, then load regions from `/api/geography/regions` and cities from `/api/geography/regions/{code}/cities` to select a region and city. Upload each image through `/api/files/upload`, then send the returned URLs here together with `primaryZoneId`, `region`, and `city`. The response includes `driverStatus`, which should immediately decide whether the app opens the home screen or an under-review / rejected / suspended screen.",
                 "tags": [
                     "Driver/Registration"
                 ],
@@ -7900,6 +7900,8 @@
                                 "licenseNumber": "CAI-DRV-4421",
                                 "address": "Nasr City, Cairo",
                                 "primaryZoneId": "22222222-2222-2222-2222-222222222222",
+                                "region": "RIYADH",
+                                "city": "RIYADH",
                                 "nationalIdImageUrl": "https://cdn.example.com/drivers/national-id/id.jpg",
                                 "licenseImageUrl": "https://cdn.example.com/drivers/license/license.jpg",
                                 "vehicleImageUrl": "https://cdn.example.com/drivers/vehicle/bike.jpg",
@@ -12015,7 +12017,9 @@
                                 "vehicleType": "Motorcycle",
                                 "nationalId": "29801011234567",
                                 "licenseNumber": "DL-998877",
-                                "primaryZoneId": "22222222-2222-2222-2222-222222222222"
+                                "primaryZoneId": "22222222-2222-2222-2222-222222222222",
+                                "region": "RIYADH",
+                                "city": "RIYADH"
                             }
                         }
                     }

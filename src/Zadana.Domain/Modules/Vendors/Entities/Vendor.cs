@@ -341,6 +341,21 @@ public class Vendor : BaseEntity
         UpdatedAtUtc = DateTime.UtcNow;
     }
 
+    public void ReopenForReview()
+    {
+        if (Status != VendorStatus.Rejected)
+        {
+            throw new BusinessRuleException(
+                "VendorInvalidStatusForReopen",
+                "Only rejected vendors can reopen for review.");
+        }
+
+        Status = VendorStatus.PendingReview;
+        RejectionReason = null;
+        LastStatusChangedAtUtc = DateTime.UtcNow;
+        UpdatedAtUtc = DateTime.UtcNow;
+    }
+
     public void Suspend(string reason)
     {
         var normalizedReason = reason?.Trim();
@@ -441,6 +456,7 @@ public class Vendor : BaseEntity
 
         return normalized switch
         {
+            "per_order_direct_payout" or "perorderdirectpayout" or "per-order-direct-payout" or "order_by_order" or "orderbyorder" => VendorFinancialLifecycleMode.PerOrderDirectPayout,
             "biweekly" => VendorFinancialLifecycleMode.Biweekly,
             "monthly" => VendorFinancialLifecycleMode.Monthly,
             _ => VendorFinancialLifecycleMode.Weekly
@@ -450,6 +466,7 @@ public class Vendor : BaseEntity
     private static string MapFinancialLifecycleModeToPayoutCycle(VendorFinancialLifecycleMode mode) =>
         mode switch
         {
+            VendorFinancialLifecycleMode.PerOrderDirectPayout => "per_order_direct_payout",
             VendorFinancialLifecycleMode.Biweekly => "biweekly",
             VendorFinancialLifecycleMode.Monthly => "monthly",
             _ => "weekly"
