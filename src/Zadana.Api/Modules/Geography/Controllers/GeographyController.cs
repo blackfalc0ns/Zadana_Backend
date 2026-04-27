@@ -47,7 +47,7 @@ public class GeographyController : ApiControllerBase
     }
 
     [HttpGet("regions/{regionCode}/cities")]
-    [ResponseCache(Duration = 86400, Location = ResponseCacheLocation.Any, VaryByQueryKeys = new[] { "regionCode" })]
+    [ResponseCache(Duration = 86400, Location = ResponseCacheLocation.Any)]
     public Task<IReadOnlyList<SaudiCityLookupDto>> GetCities(string regionCode, CancellationToken cancellationToken)
     {
         var normalizedRegionCode = regionCode.Trim().ToUpperInvariant();
