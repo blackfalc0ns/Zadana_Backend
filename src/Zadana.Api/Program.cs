@@ -273,6 +273,22 @@ var shouldResetOnStartup = app.Configuration.GetValue<bool>("Seeding:ResetOnStar
 var allowRemoteSeedEndpoints = app.Environment.IsDevelopment() || app.Configuration.GetValue<bool>("Seeding:EnableRemoteEndpoints");
 var seedingManagementKey = app.Configuration["Seeding:ManagementKey"];
 
+if (!app.Environment.IsEnvironment("Testing"))
+{
+    try
+    {
+        using var scope = app.Services.CreateScope();
+        var initialiser = scope.ServiceProvider.GetRequiredService<ApplicationDbContextInitialiser>();
+        await initialiser.InitialiseAsync();
+        await initialiser.EnsureSaudiGeographySeedAsync();
+    }
+    catch (Exception ex)
+    {
+        var logger = app.Services.GetRequiredService<ILogger<Program>>();
+        logger.LogError(ex, "An error occurred during database migration.");
+    }
+}
+
 app.UseMiddleware<ExceptionHandlingMiddleware>();
 
 app.UseSwagger();
@@ -301,8 +317,6 @@ if (shouldSeedOnStartup)
     {
         using var scope = app.Services.CreateScope();
         var initialiser = scope.ServiceProvider.GetRequiredService<ApplicationDbContextInitialiser>();
-        await initialiser.InitialiseAsync();
-
         if (shouldResetOnStartup)
         {
             await initialiser.ResetAndSeedAsync();

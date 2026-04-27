@@ -14,6 +14,7 @@ using Zadana.Domain.Modules.Orders.Enums;
 using Zadana.Domain.Modules.Payments.Entities;
 using Zadana.Domain.Modules.Payments.Enums;
 using Zadana.Domain.Modules.Social.Entities;
+using Zadana.Domain.Modules.Geography.Entities;
 using Zadana.Domain.Modules.Vendors.Entities;
 using Zadana.Domain.Modules.Wallets.Entities;
 using Zadana.Domain.Modules.Wallets.Enums;
@@ -58,6 +59,89 @@ public class ApplicationDbContextInitialiser
     public async Task SeedAsync()
     {
         await TrySeedAsync();
+    }
+
+    public async Task EnsureSaudiGeographySeedAsync()
+    {
+        if (await _context.SaudiRegions.AnyAsync())
+        {
+            return;
+        }
+
+        var regions = new[]
+        {
+            new SaudiRegion(Guid.Parse("10000000-0000-0000-0000-000000000001"), "RIYADH", "منطقة الرياض", "Riyadh Region", 24.7136, 46.6753, 8, 1),
+            new SaudiRegion(Guid.Parse("10000000-0000-0000-0000-000000000002"), "MAKKAH", "منطقة مكة المكرمة", "Makkah Region", 21.4225, 39.8262, 8, 2),
+            new SaudiRegion(Guid.Parse("10000000-0000-0000-0000-000000000003"), "MADINAH", "منطقة المدينة المنورة", "Madinah Region", 24.4672, 39.6024, 8, 3),
+            new SaudiRegion(Guid.Parse("10000000-0000-0000-0000-000000000004"), "EASTERN", "المنطقة الشرقية", "Eastern Region", 26.3927, 49.9777, 7, 4),
+            new SaudiRegion(Guid.Parse("10000000-0000-0000-0000-000000000005"), "QASSIM", "منطقة القصيم", "Qassim Region", 26.3267, 43.9650, 8, 5),
+            new SaudiRegion(Guid.Parse("10000000-0000-0000-0000-000000000006"), "HAIL", "منطقة حائل", "Hail Region", 27.5114, 41.7208, 8, 6),
+            new SaudiRegion(Guid.Parse("10000000-0000-0000-0000-000000000007"), "TABUK", "منطقة تبوك", "Tabuk Region", 28.3835, 36.5662, 7, 7),
+            new SaudiRegion(Guid.Parse("10000000-0000-0000-0000-000000000008"), "NORTHERN_BORDERS", "منطقة الحدود الشمالية", "Northern Borders", 30.9753, 41.0186, 7, 8),
+            new SaudiRegion(Guid.Parse("10000000-0000-0000-0000-000000000009"), "JAWF", "منطقة الجوف", "Al Jawf Region", 29.8868, 39.3206, 8, 9),
+            new SaudiRegion(Guid.Parse("10000000-0000-0000-0000-000000000010"), "JIZAN", "منطقة جازان", "Jizan Region", 16.8893, 42.5510, 9, 10),
+            new SaudiRegion(Guid.Parse("10000000-0000-0000-0000-000000000011"), "ASIR", "منطقة عسير", "Asir Region", 18.2164, 42.5053, 8, 11),
+            new SaudiRegion(Guid.Parse("10000000-0000-0000-0000-000000000012"), "BAHA", "منطقة الباحة", "Al Baha Region", 20.0000, 41.4667, 9, 12),
+            new SaudiRegion(Guid.Parse("10000000-0000-0000-0000-000000000013"), "NAJRAN", "منطقة نجران", "Najran Region", 17.4933, 44.1322, 8, 13)
+        };
+
+        var cities = new[]
+        {
+            new SaudiCity(Guid.Parse("20000000-0000-0000-0000-000000000001"), regions[0].Id, "RIYADH", "الرياض", "Riyadh", 24.7136, 46.6753, 12, 1),
+            new SaudiCity(Guid.Parse("20000000-0000-0000-0000-000000000002"), regions[0].Id, "KHARJ", "الخرج", "Al Kharj", 24.1500, 47.3000, 12, 2),
+            new SaudiCity(Guid.Parse("20000000-0000-0000-0000-000000000003"), regions[0].Id, "DAWADMI", "الدوادمي", "Ad Dawadmi", 24.5000, 44.3833, 12, 3),
+            new SaudiCity(Guid.Parse("20000000-0000-0000-0000-000000000004"), regions[0].Id, "MAJMAAH", "المجمعة", "Al Majma'ah", 25.9000, 45.3500, 12, 4),
+            new SaudiCity(Guid.Parse("20000000-0000-0000-0000-000000000005"), regions[0].Id, "WADI_DAWASIR", "وادي الدواسر", "Wadi ad-Dawasir", 20.4500, 44.7833, 12, 5),
+            new SaudiCity(Guid.Parse("20000000-0000-0000-0000-000000000006"), regions[0].Id, "AFIF", "عفيف", "Afif", 23.9167, 42.9333, 12, 6),
+            new SaudiCity(Guid.Parse("20000000-0000-0000-0000-000000000007"), regions[0].Id, "SHAQRA", "شقراء", "Shaqra", 25.2500, 45.2500, 12, 7),
+            new SaudiCity(Guid.Parse("20000000-0000-0000-0000-000000000008"), regions[1].Id, "MAKKAH", "مكة المكرمة", "Makkah", 21.4225, 39.8262, 13, 1),
+            new SaudiCity(Guid.Parse("20000000-0000-0000-0000-000000000009"), regions[1].Id, "JEDDAH", "جدة", "Jeddah", 21.5433, 39.1728, 12, 2),
+            new SaudiCity(Guid.Parse("20000000-0000-0000-0000-000000000010"), regions[1].Id, "TAIF", "الطائف", "Taif", 21.2703, 40.4159, 12, 3),
+            new SaudiCity(Guid.Parse("20000000-0000-0000-0000-000000000011"), regions[1].Id, "RABIGH", "رابغ", "Rabigh", 22.7985, 39.0350, 12, 4),
+            new SaudiCity(Guid.Parse("20000000-0000-0000-0000-000000000012"), regions[1].Id, "QUNFUDHAH", "القنفذة", "Al Qunfudhah", 19.1269, 41.0789, 12, 5),
+            new SaudiCity(Guid.Parse("20000000-0000-0000-0000-000000000013"), regions[2].Id, "MADINAH", "المدينة المنورة", "Madinah", 24.4672, 39.6024, 13, 1),
+            new SaudiCity(Guid.Parse("20000000-0000-0000-0000-000000000014"), regions[2].Id, "YANBU", "ينبع", "Yanbu", 24.0886, 38.0633, 12, 2),
+            new SaudiCity(Guid.Parse("20000000-0000-0000-0000-000000000015"), regions[2].Id, "ULA", "العلا", "Al Ula", 26.6096, 37.9200, 12, 3),
+            new SaudiCity(Guid.Parse("20000000-0000-0000-0000-000000000016"), regions[2].Id, "BADR", "بدر", "Badr", 23.7831, 38.7885, 12, 4),
+            new SaudiCity(Guid.Parse("20000000-0000-0000-0000-000000000017"), regions[3].Id, "DAMMAM", "الدمام", "Dammam", 26.3927, 49.9777, 12, 1),
+            new SaudiCity(Guid.Parse("20000000-0000-0000-0000-000000000018"), regions[3].Id, "KHOBAR", "الخبر", "Al Khobar", 26.2172, 50.1971, 13, 2),
+            new SaudiCity(Guid.Parse("20000000-0000-0000-0000-000000000019"), regions[3].Id, "DHAHRAN", "الظهران", "Dhahran", 26.2361, 50.0393, 13, 3),
+            new SaudiCity(Guid.Parse("20000000-0000-0000-0000-000000000020"), regions[3].Id, "JUBAIL", "الجبيل", "Jubail", 27.0046, 49.6226, 12, 4),
+            new SaudiCity(Guid.Parse("20000000-0000-0000-0000-000000000021"), regions[3].Id, "QATIF", "القطيف", "Qatif", 26.5240, 50.0134, 12, 5),
+            new SaudiCity(Guid.Parse("20000000-0000-0000-0000-000000000022"), regions[3].Id, "HOFUF", "الهفوف", "Al Hofuf", 25.3809, 49.5866, 12, 6),
+            new SaudiCity(Guid.Parse("20000000-0000-0000-0000-000000000023"), regions[3].Id, "MUBARRAZ", "المبرز", "Al Mubarraz", 25.4282, 49.5614, 12, 7),
+            new SaudiCity(Guid.Parse("20000000-0000-0000-0000-000000000024"), regions[3].Id, "KHAFJI", "الخفجي", "Khafji", 28.4392, 48.4926, 12, 8),
+            new SaudiCity(Guid.Parse("20000000-0000-0000-0000-000000000025"), regions[4].Id, "BURAYDAH", "بريدة", "Buraydah", 26.3267, 43.9650, 12, 1),
+            new SaudiCity(Guid.Parse("20000000-0000-0000-0000-000000000026"), regions[4].Id, "UNAYZAH", "عنيزة", "Unayzah", 26.0842, 43.9887, 12, 2),
+            new SaudiCity(Guid.Parse("20000000-0000-0000-0000-000000000027"), regions[4].Id, "RASS", "الرس", "Ar Rass", 25.8523, 43.4946, 12, 3),
+            new SaudiCity(Guid.Parse("20000000-0000-0000-0000-000000000028"), regions[5].Id, "HAIL_CITY", "حائل", "Hail", 27.5114, 41.7208, 12, 1),
+            new SaudiCity(Guid.Parse("20000000-0000-0000-0000-000000000029"), regions[5].Id, "BAQAA", "بقعاء", "Baqa'a", 27.9000, 42.3833, 12, 2),
+            new SaudiCity(Guid.Parse("20000000-0000-0000-0000-000000000030"), regions[6].Id, "TABUK_CITY", "تبوك", "Tabuk", 28.3835, 36.5662, 12, 1),
+            new SaudiCity(Guid.Parse("20000000-0000-0000-0000-000000000031"), regions[6].Id, "WAJH", "الوجه", "Al Wajh", 26.2310, 36.4541, 12, 2),
+            new SaudiCity(Guid.Parse("20000000-0000-0000-0000-000000000032"), regions[6].Id, "DUBA", "ضباء", "Duba", 27.3491, 35.6987, 12, 3),
+            new SaudiCity(Guid.Parse("20000000-0000-0000-0000-000000000033"), regions[6].Id, "NEOM", "نيوم", "NEOM", 28.0000, 35.0000, 10, 4),
+            new SaudiCity(Guid.Parse("20000000-0000-0000-0000-000000000034"), regions[7].Id, "ARAR", "عرعر", "Arar", 30.9753, 41.0186, 12, 1),
+            new SaudiCity(Guid.Parse("20000000-0000-0000-0000-000000000035"), regions[7].Id, "RAFHA", "رفحاء", "Rafha", 29.6208, 43.4932, 12, 2),
+            new SaudiCity(Guid.Parse("20000000-0000-0000-0000-000000000036"), regions[7].Id, "TURAIF", "طريف", "Turaif", 31.6716, 38.6554, 12, 3),
+            new SaudiCity(Guid.Parse("20000000-0000-0000-0000-000000000037"), regions[8].Id, "SAKAKA", "سكاكا", "Sakaka", 29.9697, 40.2064, 12, 1),
+            new SaudiCity(Guid.Parse("20000000-0000-0000-0000-000000000038"), regions[8].Id, "DUMAT_JANDAL", "دومة الجندل", "Dumat Al-Jandal", 29.8136, 39.8618, 12, 2),
+            new SaudiCity(Guid.Parse("20000000-0000-0000-0000-000000000039"), regions[8].Id, "QURAYAT", "القريات", "Qurayat", 31.3343, 37.3428, 12, 3),
+            new SaudiCity(Guid.Parse("20000000-0000-0000-0000-000000000040"), regions[9].Id, "JIZAN_CITY", "جازان", "Jizan", 16.8893, 42.5510, 12, 1),
+            new SaudiCity(Guid.Parse("20000000-0000-0000-0000-000000000041"), regions[9].Id, "SABYA", "صبيا", "Sabya", 17.1509, 42.6231, 12, 2),
+            new SaudiCity(Guid.Parse("20000000-0000-0000-0000-000000000042"), regions[9].Id, "ABU_ARISH", "أبو عريش", "Abu Arish", 16.9618, 42.8304, 12, 3),
+            new SaudiCity(Guid.Parse("20000000-0000-0000-0000-000000000043"), regions[10].Id, "ABHA", "أبها", "Abha", 18.2164, 42.5053, 12, 1),
+            new SaudiCity(Guid.Parse("20000000-0000-0000-0000-000000000044"), regions[10].Id, "KHAMIS_MUSHAIT", "خميس مشيط", "Khamis Mushait", 18.3000, 42.7333, 12, 2),
+            new SaudiCity(Guid.Parse("20000000-0000-0000-0000-000000000045"), regions[10].Id, "BISHA", "بيشة", "Bisha", 19.9833, 42.6000, 12, 3),
+            new SaudiCity(Guid.Parse("20000000-0000-0000-0000-000000000046"), regions[10].Id, "NAMAS", "النماص", "An Namas", 19.1189, 42.1304, 12, 4),
+            new SaudiCity(Guid.Parse("20000000-0000-0000-0000-000000000047"), regions[11].Id, "BAHA_CITY", "الباحة", "Al Baha", 20.0000, 41.4667, 12, 1),
+            new SaudiCity(Guid.Parse("20000000-0000-0000-0000-000000000048"), regions[11].Id, "BALJURASHI", "بلجرشي", "Baljurashi", 19.8500, 41.6167, 12, 2),
+            new SaudiCity(Guid.Parse("20000000-0000-0000-0000-000000000049"), regions[12].Id, "NAJRAN_CITY", "نجران", "Najran", 17.4933, 44.1322, 12, 1),
+            new SaudiCity(Guid.Parse("20000000-0000-0000-0000-000000000050"), regions[12].Id, "SHARURAH", "شرورة", "Sharurah", 17.4875, 47.1128, 12, 2)
+        };
+
+        await _context.SaudiRegions.AddRangeAsync(regions);
+        await _context.SaudiCities.AddRangeAsync(cities);
+        await _context.SaveChangesAsync();
     }
 
     public async Task<DevelopmentSeedSummary> ResetAndSeedAsync()
