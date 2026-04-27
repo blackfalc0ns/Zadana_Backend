@@ -39,8 +39,6 @@ public static class DriverOperationalStatusFactory
             ReviewedAtUtc: driver.ReviewedAtUtc,
             ReviewNote: driver.ReviewNote,
             SuspensionReason: driver.SuspensionReason,
-            PrimaryZoneId: driver.PrimaryZoneId,
-            ZoneName: driver.PrimaryZone is not null ? $"{driver.PrimaryZone.City} - {driver.PrimaryZone.Name}" : null,
             CommitmentScore: commitment.CommitmentScore,
             DailyRejections: commitment.DailyRejections,
             WeeklyRejections: commitment.WeeklyRejections,

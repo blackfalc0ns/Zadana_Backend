@@ -18,7 +18,6 @@ internal sealed record DeliveryDispatchCandidateEvaluation(
     decimal CommitmentScore,
     bool GpsFresh,
     bool LowConfidenceGps,
-    bool InPrimaryZone,
     bool InPickupZone,
     string MatchReason,
     string DistanceBucket,
@@ -62,22 +61,16 @@ internal static class DeliveryDispatchScoring
     {
         var gpsFresh = latestLocation is not null && (utcNow - latestLocation.RecordedAtUtc) <= GpsFreshnessThreshold;
         var lowConfidenceGps = latestLocation?.AccuracyMeters > LowConfidenceAccuracyMeters;
-        var sameZone = context.PickupZone is not null && driver.PrimaryZoneId == context.PickupZone.Id;
-        var sameCity = !sameZone
-            && !string.IsNullOrWhiteSpace(context.PickupCity)
-            && string.Equals(driver.PrimaryZone?.City, context.PickupCity, StringComparison.OrdinalIgnoreCase);
 
-        // Driver-level region/city match (from driver.Region/City aligned with vendor geography)
-        var sameRegionCity = !sameZone
-            && !string.IsNullOrWhiteSpace(driver.Region)
+        // Driver-level region/city match (aligned with vendor geography)
+        var sameRegionCity = !string.IsNullOrWhiteSpace(driver.Region)
             && !string.IsNullOrWhiteSpace(driver.City)
             && string.Equals(driver.Region, context.PickupRegion, StringComparison.OrdinalIgnoreCase)
             && string.Equals(driver.City, context.PickupCity, StringComparison.OrdinalIgnoreCase);
 
-        var inPrimaryZone = gpsFresh
-            && latestLocation is not null
-            && driver.PrimaryZone is not null
-            && IsPointWithinZone(driver.PrimaryZone, latestLocation.Latitude, latestLocation.Longitude);
+        var sameCity = !sameRegionCity
+            && !string.IsNullOrWhiteSpace(context.PickupCity)
+            && string.Equals(driver.City, context.PickupCity, StringComparison.OrdinalIgnoreCase);
 
         var inPickupZone = gpsFresh
             && latestLocation is not null
@@ -86,7 +79,7 @@ internal static class DeliveryDispatchScoring
 
         var distanceKm = ResolveDistanceKm(driver, latestLocation, context, gpsFresh, lowConfidenceGps);
         var distanceBucket = BuildDistanceBucket(distanceKm);
-        var tier = ResolveTier(sameZone, sameCity, sameRegionCity, gpsFresh, lowConfidenceGps, inPrimaryZone, inPickupZone);
+        var tier = ResolveTier(sameRegionCity, sameCity, gpsFresh, lowConfidenceGps, inPickupZone);
         var matchReason = ResolveMatchReason(tier);
         var commitmentAdjustment = ResolveCommitmentAdjustment(commitmentScore);
         var commitmentAdjustmentReason = ResolveCommitmentAdjustmentReason(commitmentScore);
@@ -117,7 +110,6 @@ internal static class DeliveryDispatchScoring
             Math.Round(commitmentScore, 1),
             gpsFresh,
             lowConfidenceGps,
-            inPrimaryZone,
             inPickupZone,
             matchReason,
             distanceBucket,
@@ -159,15 +151,12 @@ internal static class DeliveryDispatchScoring
     }
 
     private static int ResolveTier(
-        bool sameZone,
-        bool sameCity,
         bool sameRegionCity,
+        bool sameCity,
         bool gpsFresh,
         bool lowConfidenceGps,
-        bool inPrimaryZone,
         bool inPickupZone) =>
-        sameZone && gpsFresh && !lowConfidenceGps && (inPrimaryZone || inPickupZone) ? 1
-        : sameZone ? 2
+        sameRegionCity && gpsFresh && !lowConfidenceGps && inPickupZone ? 1
         : sameRegionCity ? 2
         : sameCity ? 3
         : 4;
@@ -175,10 +164,10 @@ internal static class DeliveryDispatchScoring
     private static string ResolveMatchReason(int tier) =>
         tier switch
         {
-            1 => "same-zone-live-gps",
-            2 => "same-zone-or-region-city",
+            1 => "region-city-live-gps",
+            2 => "same-region-city",
             3 => "same-city-fallback",
-            _ => "out-of-zone-low-priority"
+            _ => "out-of-area-low-priority"
         };
 
     private static decimal ResolveDistanceKm(
@@ -201,26 +190,16 @@ internal static class DeliveryDispatchScoring
                 context.PickupLongitude.Value);
         }
 
-        if (driver.PrimaryZone is not null && context.PickupZone is not null)
-        {
-            return driver.PrimaryZoneId == context.PickupZone.Id
-                ? Math.Min(2m, context.PickupZone.RadiusKm / 2m)
-                : ApproximateDistanceKm(
-                    driver.PrimaryZone.CenterLat,
-                    driver.PrimaryZone.CenterLng,
-                    context.PickupZone.CenterLat,
-                    context.PickupZone.CenterLng);
-        }
-
-        if (driver.PrimaryZone is not null
+        // No GPS — use fallback distance if pickup zone center is available
+        if (context.PickupZone is not null
             && context.PickupLatitude.HasValue
             && context.PickupLongitude.HasValue)
         {
             return ApproximateDistanceKm(
-                driver.PrimaryZone.CenterLat,
-                driver.PrimaryZone.CenterLng,
+                context.PickupZone.CenterLat,
+                context.PickupZone.CenterLng,
                 context.PickupLatitude.Value,
-                context.PickupLongitude.Value);
+                context.PickupLongitude.Value) + 5m; // penalty for no GPS
         }
 
         return 99m;

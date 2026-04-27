@@ -102,7 +102,6 @@ public class IdentityService : IIdentityService
         if (user.Role == UserRole.Driver)
         {
             var driver = await _context.Drivers
-                .Include(d => d.PrimaryZone)
                 .FirstOrDefaultAsync(d => d.UserId == user.Id, cancellationToken);
 
             if (driver is not null)

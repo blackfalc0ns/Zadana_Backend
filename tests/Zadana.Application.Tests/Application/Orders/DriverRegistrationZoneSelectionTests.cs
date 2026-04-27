@@ -1,9 +1,7 @@
 using FluentAssertions;
-using Microsoft.AspNetCore.Mvc;
 using Microsoft.EntityFrameworkCore;
 using Microsoft.Extensions.Localization;
 using Moq;
-using Zadana.Api.Modules.Delivery.Controllers;
 using Zadana.Application.Common.Interfaces;
 using Zadana.Application.Common.Localization;
 using Zadana.Application.Modules.Delivery.Commands.RegisterDriver;
@@ -11,7 +9,6 @@ using Zadana.Application.Modules.Delivery.DTOs;
 using Zadana.Application.Modules.Delivery.Interfaces;
 using Zadana.Application.Modules.Identity.DTOs;
 using Zadana.Application.Modules.Identity.Interfaces;
-using Zadana.Domain.Modules.Delivery.Entities;
 using Zadana.Domain.Modules.Delivery.Enums;
 using Zadana.Domain.Modules.Identity.Enums;
 using Zadana.Infrastructure.Modules.Delivery.Repositories;
@@ -21,51 +18,44 @@ using Zadana.SharedKernel.Exceptions;
 
 namespace Zadana.Application.Tests.Application.Orders;
 
-public class DriverRegistrationZoneSelectionTests
+public class DriverRegistrationRegionCityTests
 {
     [Fact]
-    public async Task RegisterDriverCommandValidator_ShouldRequirePrimaryZoneId()
+    public async Task RegisterDriverCommandValidator_ShouldRequireRegion()
     {
         var validator = new RegisterDriverCommandValidator(CreateLocalizer().Object);
-        var command = CreateCommand(primaryZoneId: Guid.Empty);
+        var command = CreateCommand(region: "");
 
         var result = await validator.ValidateAsync(command);
 
         result.IsValid.Should().BeFalse();
-        result.Errors.Should().Contain(error => error.PropertyName == "PrimaryZoneId");
+        result.Errors.Should().Contain(error => error.PropertyName == "Region");
     }
 
     [Fact]
-    public async Task Handle_WhenPrimaryZoneIsInactive_ShouldThrowBusinessRuleException()
+    public async Task RegisterDriverCommandValidator_ShouldRequireCity()
+    {
+        var validator = new RegisterDriverCommandValidator(CreateLocalizer().Object);
+        var command = CreateCommand(city: "");
+
+        var result = await validator.ValidateAsync(command);
+
+        result.IsValid.Should().BeFalse();
+        result.Errors.Should().Contain(error => error.PropertyName == "City");
+    }
+
+    [Fact]
+    public async Task Handle_WhenRegionIsValid_ShouldPersistDriverWithRegionCity()
     {
         await using var dbContext = CreateDbContext();
-        var inactiveZone = new DeliveryZone("Cairo", "Inactive Zone", 30.1m, 31.2m, 8m);
-        inactiveZone.Deactivate();
-        dbContext.DeliveryZones.Add(inactiveZone);
+
+        // Seed geography
+        var region = new Domain.Modules.Geography.Entities.SaudiRegion(Guid.NewGuid(), "RIYADH", "الرياض", "Riyadh", 24.7, 46.7, 6, 1);
+        dbContext.SaudiRegions.Add(region);
         await dbContext.SaveChangesAsync();
 
-        var registrationWorkflow = new Mock<IRegistrationWorkflow>();
-        var handler = new RegisterDriverCommandHandler(
-            registrationWorkflow.Object,
-            new DriverRepository(dbContext),
-            Mock.Of<IUnitOfWork>(),
-            dbContext);
-
-        var action = () => handler.Handle(CreateCommand(inactiveZone.Id), CancellationToken.None);
-
-        await action.Should().ThrowAsync<BusinessRuleException>()
-            .Where(exception => exception.ErrorCode == "DELIVERY_ZONE_NOT_ACTIVE");
-        registrationWorkflow.Verify(
-            workflow => workflow.RegisterAccountAsync(It.IsAny<CreateIdentityAccountRequest>(), It.IsAny<CancellationToken>()),
-            Times.Never);
-    }
-
-    [Fact]
-    public async Task Handle_WhenPrimaryZoneIsValid_ShouldAssignZoneAndReturnZoneInDriverStatus()
-    {
-        await using var dbContext = CreateDbContext();
-        var zone = new DeliveryZone("Cairo", "Nasr City East", 30.0626m, 31.2497m, 8m);
-        dbContext.DeliveryZones.Add(zone);
+        var city = new Domain.Modules.Geography.Entities.SaudiCity(Guid.NewGuid(), region.Id, "RIYADH", "الرياض", "Riyadh", 24.7, 46.7, 10, 1);
+        dbContext.SaudiCities.Add(city);
         await dbContext.SaveChangesAsync();
 
         var userSnapshot = new IdentityAccountSnapshot(
@@ -104,36 +94,50 @@ public class DriverRegistrationZoneSelectionTests
             unitOfWork.Object,
             dbContext);
 
-        var result = await handler.Handle(CreateCommand(zone.Id), CancellationToken.None);
+        var result = await handler.Handle(CreateCommand(), CancellationToken.None);
 
         var persistedDriver = dbContext.Drivers.Local.Should().ContainSingle().Subject;
-        persistedDriver.PrimaryZoneId.Should().Be(zone.Id);
+        persistedDriver.Region.Should().Be("RIYADH");
+        persistedDriver.City.Should().Be("RIYADH");
         result.DriverStatus.Should().NotBeNull();
-        result.DriverStatus!.PrimaryZoneId.Should().Be(zone.Id);
-        result.DriverStatus.ZoneName.Should().Be("Cairo - Nasr City East");
     }
 
     [Fact]
-    public async Task GetPublicZones_ShouldReturnOkWithActiveZones()
+    public async Task Handle_WhenCityDoesNotBelongToRegion_ShouldThrowBusinessRuleException()
     {
-        var driverReadService = new Mock<IDriverReadService>();
-        var expected = new[]
-        {
-            new DeliveryZoneDto(Guid.NewGuid(), "Cairo", "Nasr City East", 30.0626m, 31.2497m, 8m, true)
-        };
-        driverReadService
-            .Setup(service => service.GetActiveZonesAsync(It.IsAny<CancellationToken>()))
-            .ReturnsAsync(expected);
+        await using var dbContext = CreateDbContext();
 
-        var controller = new DriversController();
+        // Seed geography — city belongs to a different region
+        var region = new Domain.Modules.Geography.Entities.SaudiRegion(Guid.NewGuid(), "RIYADH", "الرياض", "Riyadh", 24.7, 46.7, 6, 1);
+        var otherRegion = new Domain.Modules.Geography.Entities.SaudiRegion(Guid.NewGuid(), "MAKKAH", "مكة", "Makkah", 21.4, 39.8, 6, 2);
+        dbContext.SaudiRegions.AddRange(region, otherRegion);
+        await dbContext.SaveChangesAsync();
 
-        var result = await controller.GetPublicZones(driverReadService.Object, CancellationToken.None);
+        var city = new Domain.Modules.Geography.Entities.SaudiCity(Guid.NewGuid(), otherRegion.Id, "JEDDAH", "جدة", "Jeddah", 21.5, 39.2, 10, 1);
+        dbContext.SaudiCities.Add(city);
+        await dbContext.SaveChangesAsync();
 
-        var okResult = result.Should().BeOfType<OkObjectResult>().Subject;
-        okResult.Value.Should().BeEquivalentTo(expected);
+        var registrationWorkflow = new Mock<IRegistrationWorkflow>();
+        var handler = new RegisterDriverCommandHandler(
+            registrationWorkflow.Object,
+            new DriverRepository(dbContext),
+            Mock.Of<IUnitOfWork>(),
+            dbContext);
+
+        var action = () => handler.Handle(
+            CreateCommand(region: "RIYADH", city: "JEDDAH"),
+            CancellationToken.None);
+
+        await action.Should().ThrowAsync<BusinessRuleException>()
+            .Where(exception => exception.ErrorCode == "INVALID_CITY");
+        registrationWorkflow.Verify(
+            workflow => workflow.RegisterAccountAsync(It.IsAny<CreateIdentityAccountRequest>(), It.IsAny<CancellationToken>()),
+            Times.Never);
     }
 
-    private static RegisterDriverCommand CreateCommand(Guid? primaryZoneId = null) =>
+    private static RegisterDriverCommand CreateCommand(
+        string? region = null,
+        string? city = null) =>
         new(
             "Ahmed Driver",
             "ahmed.driver@example.com",
@@ -143,9 +147,8 @@ public class DriverRegistrationZoneSelectionTests
             "29801011234567",
             "CAI-DRV-4421",
             "Nasr City, Cairo",
-            primaryZoneId ?? Guid.NewGuid(),
-            "RIYADH",
-            "RIYADH",
+            region ?? "RIYADH",
+            city ?? "RIYADH",
             "https://cdn.example.com/driver/national-id-front.jpg",
             "https://cdn.example.com/driver/national-id-back.jpg",
             "https://cdn.example.com/driver/license.jpg",

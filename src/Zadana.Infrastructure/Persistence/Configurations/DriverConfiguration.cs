@@ -44,10 +44,6 @@ public class DriverConfiguration : IEntityTypeConfiguration<Driver>
             .HasForeignKey(x => x.UserId)
             .OnDelete(DeleteBehavior.Restrict);
 
-        builder.HasOne(x => x.PrimaryZone)
-            .WithMany()
-            .HasForeignKey(x => x.PrimaryZoneId)
-            .OnDelete(DeleteBehavior.SetNull);
 
         builder.HasMany(x => x.Locations)
             .WithOne(x => x.Driver)

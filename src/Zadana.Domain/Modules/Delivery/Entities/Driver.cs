@@ -27,8 +27,6 @@ public class Driver : BaseEntity
     public Guid? ReviewedByUserId { get; private set; }
     public string? ReviewNote { get; private set; }
 
-    // Zone
-    public Guid? PrimaryZoneId { get; private set; }
 
     // Geography (aligned with Vendor region/city codes from SaudiRegions/SaudiCities)
     public string? Region { get; private set; }
@@ -39,7 +37,6 @@ public class Driver : BaseEntity
 
     // Navigation
     public User User { get; private set; } = null!;
-    public DeliveryZone? PrimaryZone { get; private set; }
     public ICollection<DriverLocation> Locations { get; private set; } = [];
     public ICollection<DeliveryAssignment> Assignments { get; private set; } = [];
     public ICollection<DriverNote> Notes { get; private set; } = [];
@@ -196,17 +193,6 @@ public class Driver : BaseEntity
         IsAvailable = isAvailable;
     }
 
-    public void AssignZone(Guid zoneId, DeliveryZone? zone = null)
-    {
-        PrimaryZoneId = zoneId;
-        PrimaryZone = zone;
-    }
-
-    public void ClearZone()
-    {
-        PrimaryZoneId = null;
-        PrimaryZone = null;
-    }
 
     private static DriverVerificationStatus DetermineInitialVerificationStatus(
         string? nationalIdImageUrl, string? licenseImageUrl, string? vehicleImageUrl, string? personalPhotoUrl)

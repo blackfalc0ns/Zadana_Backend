@@ -20,7 +20,6 @@ public class DriverRepository : IDriverRepository
     {
         return await _dbContext.Drivers
             .Include(d => d.User)
-            .Include(d => d.PrimaryZone)
             .FirstOrDefaultAsync(d => d.Id == id, cancellationToken);
     }
 
@@ -28,7 +27,6 @@ public class DriverRepository : IDriverRepository
     {
         return await _dbContext.Drivers
             .Include(d => d.User)
-            .Include(d => d.PrimaryZone)
             .FirstOrDefaultAsync(d => d.UserId == userId, cancellationToken);
     }
 }

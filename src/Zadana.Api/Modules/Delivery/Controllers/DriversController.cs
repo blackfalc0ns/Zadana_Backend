@@ -4,7 +4,6 @@ using Zadana.Api.Controllers;
 using Zadana.Api.Modules.Delivery.Requests;
 using Zadana.Application.Common.Interfaces;
 using Zadana.Application.Modules.Delivery.Commands.RegisterDriver;
-using Zadana.Application.Modules.Delivery.Commands.SetDriverZone;
 using Zadana.Application.Modules.Delivery.Commands.SubmitDeliveryProof;
 using Zadana.Application.Modules.Delivery.Commands.UpdateDriverArrivalState;
 using Zadana.Application.Modules.Delivery.Commands.UpdateDriverAvailability;
@@ -37,7 +36,6 @@ public class DriversController : ApiControllerBase
             request.NationalId,
             request.LicenseNumber,
             request.Address,
-            request.PrimaryZoneId,
             request.Region,
             request.City,
             request.NationalIdFrontImageUrl,
@@ -50,25 +48,6 @@ public class DriversController : ApiControllerBase
         return Ok(result);
     }
 
-    [HttpGet("~/api/public/delivery-zones")]
-    [AllowAnonymous]
-    public async Task<IActionResult> GetPublicZones(
-        [FromServices] IDriverReadService driverReadService,
-        CancellationToken cancellationToken = default)
-    {
-        var zones = await driverReadService.GetActiveZonesAsync(cancellationToken);
-        return Ok(zones);
-    }
-
-    [HttpGet("zones")]
-    [Authorize(Policy = "DriverOnly")]
-    public async Task<IActionResult> GetZones(
-        [FromServices] IDriverReadService driverReadService,
-        CancellationToken cancellationToken = default)
-    {
-        var zones = await driverReadService.GetActiveZonesAsync(cancellationToken);
-        return Ok(zones);
-    }
 
     [HttpGet("me/status")]
     [Authorize(Policy = "DriverOnly")]
@@ -178,17 +157,6 @@ public class DriversController : ApiControllerBase
             profileReadiness));
     }
 
-    [HttpPut("me/zone")]
-    [Authorize(Policy = "DriverOnly")]
-    public async Task<IActionResult> SetZone(
-        [FromBody] SetDriverZoneRequest request,
-        [FromServices] ICurrentUserService currentUserService,
-        CancellationToken cancellationToken = default)
-    {
-        var userId = currentUserService.UserId ?? throw new UnauthorizedException("DRIVER_NOT_AUTHENTICATED");
-        await Sender.Send(new SetDriverZoneCommand(userId, request.ZoneId), cancellationToken);
-        return Ok(new { message = "Zone updated successfully" });
-    }
 
     [HttpPut("me/availability")]
     [Authorize(Policy = "DriverOnly")]
@@ -703,7 +671,6 @@ public record DriverOrderStatusResponse(Guid OrderId, string Status, string Mess
 public record DriverArrivalStateResponse(Guid OrderId, Guid AssignmentId, string ArrivalState, string Message);
 public record DriverDeliveryFailedRequest(string? Note);
 public record DriverOfferRejectRequest(string? Reason);
-public record SetDriverZoneRequest(Guid ZoneId);
 public record SetAvailabilityRequest(bool IsAvailable);
 public record UpdateLocationRequest(decimal Latitude, decimal Longitude, decimal? AccuracyMeters);
 public record SubmitProofRequest(string ProofType, string? ImageUrl, string? OtpCode, string? RecipientName, string? Note);

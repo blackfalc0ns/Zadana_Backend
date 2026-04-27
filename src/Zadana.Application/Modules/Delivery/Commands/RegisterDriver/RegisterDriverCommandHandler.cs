@@ -32,18 +32,6 @@ public class RegisterDriverCommandHandler : IRequestHandler<RegisterDriverComman
 
     public async Task<AuthResponseDto> Handle(RegisterDriverCommand request, CancellationToken cancellationToken)
     {
-        var zone = await _context.DeliveryZones.FindAsync([request.PrimaryZoneId], cancellationToken);
-
-        if (zone is null)
-        {
-            throw new NotFoundException("DeliveryZone", request.PrimaryZoneId);
-        }
-
-        if (!zone.IsActive)
-        {
-            throw new BusinessRuleException("DELIVERY_ZONE_NOT_ACTIVE", "Selected delivery zone is not active.");
-        }
-
         // Validate geography (region + city)
         Guid? regionEntityId = null;
         if (!string.IsNullOrWhiteSpace(request.Region))
@@ -97,7 +85,6 @@ public class RegisterDriverCommandHandler : IRequestHandler<RegisterDriverComman
                 request.PersonalPhotoUrl,
                 request.Region,
                 request.City);
-            driver.AssignZone(zone.Id, zone);
 
             _driverRepository.Add(driver);
             var authResponse = await _registrationWorkflow.BuildAuthResponseAsync(

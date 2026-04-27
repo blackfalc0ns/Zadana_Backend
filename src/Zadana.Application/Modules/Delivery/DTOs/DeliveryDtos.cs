@@ -23,8 +23,7 @@ public record DriverOperationalStatusDto(
     DateTime? ReviewedAtUtc,
     string? ReviewNote,
     string? SuspensionReason,
-    Guid? PrimaryZoneId,
-    string? ZoneName,
+
     decimal CommitmentScore,
     int DailyRejections,
     int WeeklyRejections,
@@ -226,9 +225,6 @@ public record AdminDriverDetailDto(
     string? Address,
     string? LicenseNumber,
 
-    // Zone
-    string? ZoneName,
-    Guid? PrimaryZoneId,
 
     // Review
     DateTime? ReviewedAtUtc,
@@ -311,7 +307,8 @@ public record AdminDriverProfileReadinessDto(
 
 public record AdminDriverOverviewSectionDto(
     string? Address,
-    string? ZoneName,
+    string? Region,
+    string? City,
     string? LicenseNumber,
     decimal CompletionRate,
     decimal CommitmentScore,
@@ -345,7 +342,8 @@ public record AdminDriverOperationTaskDto(
     decimal CodAmount);
 
 public record AdminDriverOperationsSectionDto(
-    string? ZoneName,
+    string? Region,
+    string? City,
     decimal? CurrentLatitude,
     decimal? CurrentLongitude,
     decimal? CurrentAccuracyMeters,

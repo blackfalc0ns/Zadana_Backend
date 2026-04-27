@@ -317,7 +317,6 @@ public class DeliveryDispatchService : IDeliveryDispatchService
 
         var eligibleDrivers = await _context.Drivers
             .Include(driver => driver.User)
-            .Include(driver => driver.PrimaryZone)
             .Where(driver =>
                 driver.VerificationStatus == DriverVerificationStatus.Approved &&
                 driver.Status == AccountStatus.Active &&

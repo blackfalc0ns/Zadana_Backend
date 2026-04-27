@@ -98,18 +98,6 @@ public class DriverProfileController : ApiControllerBase
             request.NationalId,
             request.LicenseNumber);
 
-        if (request.PrimaryZoneId.HasValue)
-        {
-            var zone = await context.DeliveryZones
-                .FirstOrDefaultAsync(z => z.Id == request.PrimaryZoneId.Value && z.IsActive, cancellationToken)
-                ?? throw new BusinessRuleException("INVALID_DRIVER_ZONE", "Selected delivery zone is not available.");
-
-            driver.AssignZone(zone.Id, zone);
-        }
-        else
-        {
-            driver.ClearZone();
-        }
 
         // Update geography (region/city) if provided
         if (!string.IsNullOrWhiteSpace(request.Region))
@@ -192,5 +180,6 @@ public class DriverProfileController : ApiControllerBase
         !string.IsNullOrWhiteSpace(driver.NationalIdBackImageUrl) &&
         !string.IsNullOrWhiteSpace(driver.LicenseImageUrl) &&
         !string.IsNullOrWhiteSpace(driver.VehicleImageUrl) &&
-        driver.PrimaryZoneId.HasValue;
+        !string.IsNullOrWhiteSpace(driver.Region) &&
+        !string.IsNullOrWhiteSpace(driver.City);
 }

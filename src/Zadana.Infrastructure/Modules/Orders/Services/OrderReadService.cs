@@ -871,7 +871,6 @@ public class OrderReadService : IOrderReadService
         var drivers = await _dbContext.Drivers
             .AsNoTracking()
             .Include(driver => driver.User)
-            .Include(driver => driver.PrimaryZone)
             .Where(driver =>
                 driver.Status == AccountStatus.Active &&
                 driver.VerificationStatus == DriverVerificationStatus.Approved)
@@ -946,8 +945,8 @@ public class OrderReadService : IOrderReadService
 
                 var candidateStatus = evaluation.MatchReason switch
                 {
-                    "same-zone-live-gps" => "AVAILABLE",
-                    "same-zone-stale-gps" => "STALE_GPS",
+                    "region-city-live-gps" => "AVAILABLE",
+                    "same-region-city" => "REGION_MATCH",
                     "same-city-fallback" => "CITY_FALLBACK",
                     _ => "LOW_PRIORITY"
                 };
@@ -957,8 +956,8 @@ public class OrderReadService : IOrderReadService
                     driver.User.FullName,
                     $"#DRV-{driver.Id.ToString("N")[..6].ToUpperInvariant()}",
                     driver.User.PhoneNumber ?? string.Empty,
-                    driver.PrimaryZone?.City ?? dispatchContext.PickupCity ?? "Unknown",
-                    driver.PrimaryZone?.Name ?? driver.Address ?? "Coverage zone",
+                    driver.City ?? dispatchContext.PickupCity ?? "Unknown",
+                    driver.Address ?? "Coverage area",
                     candidateStatus,
                     Math.Round(evaluation.DistanceKm, 1),
                     activeOrders,
@@ -973,7 +972,7 @@ public class OrderReadService : IOrderReadService
                         _ => "from-rose-500 to-pink-500"
                     },
                     evaluation.ReliabilityScore < 70m ||
-                    evaluation.MatchReason == "out-of-zone-low-priority" ||
+                    evaluation.MatchReason == "out-of-area-low-priority" ||
                     evaluation.CommitmentScore < 70m,
                     true,
                     evaluation.MatchReason,

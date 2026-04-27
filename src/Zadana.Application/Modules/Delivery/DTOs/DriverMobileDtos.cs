@@ -85,8 +85,6 @@ public record DriverProfileDto(
     string? NationalIdBackImageUrl,
     string? LicenseImageUrl,
     string? VehicleImageUrl,
-    Guid? PrimaryZoneId,
-    string? ZoneName,
     string? Region,
     string? City,
     string? RegionNameAr,

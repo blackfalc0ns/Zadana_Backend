@@ -35,7 +35,6 @@ public class DriverReadService : IDriverReadService
     {
         var query = _context.Drivers
             .Include(d => d.User)
-            .Include(d => d.PrimaryZone)
             .AsNoTracking()
             .AsQueryable();
 
@@ -49,7 +48,7 @@ public class DriverReadService : IDriverReadService
         }
 
         if (!string.IsNullOrWhiteSpace(city))
-            query = query.Where(d => d.PrimaryZone != null && d.PrimaryZone.City == city);
+            query = query.Where(d => d.City == city);
 
         if (!string.IsNullOrWhiteSpace(verificationStatus) && Enum.TryParse<DriverVerificationStatus>(verificationStatus, true, out var verEnum))
             query = query.Where(d => d.VerificationStatus == verEnum);
@@ -123,7 +122,7 @@ public class DriverReadService : IDriverReadService
                 LastName: string.Join(' ', d.User.FullName.Split(' ').Skip(1)),
                 PhoneNumber: d.User.PhoneNumber ?? "",
                 ImageUrl: d.PersonalPhotoUrl,
-                City: d.PrimaryZone?.City ?? "",
+                City: d.City ?? "",
                 Status: MapDriverStatus(d, activeTasks),
                 VerificationStatus: d.VerificationStatus.ToString(),
                 ActiveTasks: activeTasks,
@@ -176,7 +175,6 @@ public class DriverReadService : IDriverReadService
     {
         var driver = await _context.Drivers
             .Include(d => d.User)
-            .Include(d => d.PrimaryZone)
             .Include(d => d.Notes)
             .Include(d => d.Incidents)
             .AsNoTracking()
@@ -335,19 +333,19 @@ public class DriverReadService : IDriverReadService
                 .Take(20)
                 .ToArrayAsync(cancellationToken);
 
-        var zoneDriverIds = driver.PrimaryZoneId.HasValue
+        var regionDriverIds = !string.IsNullOrWhiteSpace(driver.City)
             ? await _context.Drivers
                 .AsNoTracking()
-                .Where(d => d.PrimaryZoneId == driver.PrimaryZoneId)
+                .Where(d => d.City == driver.City)
                 .Select(d => d.Id)
                 .ToArrayAsync(cancellationToken)
             : Array.Empty<Guid>();
 
-        var zoneAssignmentRows = zoneDriverIds.Length == 0
+        var regionAssignmentRows = regionDriverIds.Length == 0
             ? Array.Empty<AssignmentStatsRow>()
             : await _context.DeliveryAssignments
                 .AsNoTracking()
-                .Where(a => a.DriverId != null && zoneDriverIds.Contains(a.DriverId.Value))
+                .Where(a => a.DriverId != null && regionDriverIds.Contains(a.DriverId.Value))
                 .GroupBy(a => a.DriverId!.Value)
                 .Select(g => new AssignmentStatsRow(
                     g.Key,
@@ -373,9 +371,9 @@ public class DriverReadService : IDriverReadService
                     a.Status == AssignmentStatus.Returned)))
             .ToArrayAsync(cancellationToken);
 
-        var activeDriversInZone = driver.PrimaryZoneId.HasValue
+        var activeDriversInCity = !string.IsNullOrWhiteSpace(driver.City)
             ? await _context.Drivers.CountAsync(
-                d => d.PrimaryZoneId == driver.PrimaryZoneId &&
+                d => d.City == driver.City &&
                      d.Status == AccountStatus.Active &&
                      d.IsAvailable,
                 cancellationToken)
@@ -408,24 +406,26 @@ public class DriverReadService : IDriverReadService
         var workflow = BuildAdminWorkflowSection(workflowState);
         var overview = new AdminDriverOverviewSectionDto(
             driver.Address,
-            driver.PrimaryZone is not null ? $"{driver.PrimaryZone.City} - {driver.PrimaryZone.Name}" : null,
+            driver.Region,
+            driver.City,
             driver.LicenseNumber,
             Math.Round(completionRate, 0),
             commitmentSummary.CommitmentScore,
             walletBalance < 0 ? "critical" : walletBalance < 200 ? "warning" : "good");
         var operations = new AdminDriverOperationsSectionDto(
-            driver.PrimaryZone is not null ? $"{driver.PrimaryZone.City} - {driver.PrimaryZone.Name}" : null,
+            driver.Region,
+            driver.City,
             lastLocation?.Latitude,
             lastLocation?.Longitude,
             lastLocation?.AccuracyMeters,
             lastLocation?.RecordedAtUtc,
-            activeDriversInZone,
+            activeDriversInCity,
             averageDeliveryMinutes,
             null,
             recentAssignmentRows.Select(a => new AdminDriverOperationTaskDto(
                 a.Id,
                 string.IsNullOrWhiteSpace(a.VendorName) ? $"Order {a.OrderNumber}" : a.VendorName,
-                driver.PrimaryZone is not null ? $"{driver.PrimaryZone.City} - {driver.PrimaryZone.Name}" : driver.User.FullName,
+                driver.City ?? driver.User.FullName,
                 a.Status,
                 a.AcceptedAtUtc ?? a.CreatedAtUtc,
                 ResolveDurationMinutes(a.AcceptedAtUtc, a.DeliveredAtUtc, a.FailedAtUtc),
@@ -461,9 +461,9 @@ public class DriverReadService : IDriverReadService
             completedTasks,
             offerStats?.Rejected ?? 0,
             offerStats?.TimedOut ?? 0,
-            zoneAssignmentRows,
+            regionAssignmentRows,
             fleetAssignmentRows,
-            zoneDriverIds,
+            regionDriverIds,
             commitmentSummaries,
             incidents,
             wallet?.PendingBalance ?? 0);
@@ -483,7 +483,7 @@ public class DriverReadService : IDriverReadService
             PhoneNumber: driver.User.PhoneNumber ?? "",
             Email: driver.User.Email ?? "",
             ImageUrl: driver.PersonalPhotoUrl,
-            City: driver.PrimaryZone?.City ?? "",
+            City: driver.City ?? "",
             Status: MapDriverStatus(driver, activeTasks),
             VerificationStatus: driver.VerificationStatus.ToString(),
             VehicleType: driver.VehicleType,
@@ -504,8 +504,7 @@ public class DriverReadService : IDriverReadService
             LastOfferResponseAtUtc: commitmentSummary.LastOfferResponseAtUtc,
             Address: driver.Address,
             LicenseNumber: driver.LicenseNumber,
-            ZoneName: driver.PrimaryZone != null ? $"{driver.PrimaryZone.City} - {driver.PrimaryZone.Name}" : null,
-            PrimaryZoneId: driver.PrimaryZoneId,
+
             ReviewedAtUtc: driver.ReviewedAtUtc,
             ReviewNote: driver.ReviewNote,
             SuspensionReason: driver.SuspensionReason,
@@ -700,7 +699,6 @@ public class DriverReadService : IDriverReadService
         var driver = await _context.Drivers
             .AsNoTracking()
             .Include(d => d.User)
-            .Include(d => d.PrimaryZone)
             .FirstOrDefaultAsync(d => d.UserId == userId, cancellationToken);
 
         if (driver is null)
@@ -744,8 +742,6 @@ public class DriverReadService : IDriverReadService
             driver.NationalIdBackImageUrl,
             driver.LicenseImageUrl,
             driver.VehicleImageUrl,
-            driver.PrimaryZoneId,
-            driver.PrimaryZone is not null ? $"{driver.PrimaryZone.City} - {driver.PrimaryZone.Name}" : null,
             driver.Region,
             driver.City,
             regionNameAr,
@@ -1217,28 +1213,28 @@ public class DriverReadService : IDriverReadService
         int completedTasks,
         int rejectedOffers,
         int timedOutOffers,
-        IReadOnlyCollection<AssignmentStatsRow> zoneAssignmentRows,
+        IReadOnlyCollection<AssignmentStatsRow> regionAssignmentRows,
         IReadOnlyCollection<AssignmentStatsRow> fleetAssignmentRows,
-        IReadOnlyCollection<Guid> zoneDriverIds,
+        IReadOnlyCollection<Guid> regionDriverIds,
         IReadOnlyDictionary<Guid, DriverCommitmentSummaryDto> commitmentSummaries,
         AdminDriverIncidentDto[] incidents,
         decimal pendingBalance)
     {
-        var zoneAcceptanceAverage = zoneAssignmentRows.Any()
-            ? Convert.ToDecimal(Math.Round(zoneAssignmentRows.Average(row => row.Total > 0 ? (decimal)row.Completed / row.Total * 100 : 0m), 1))
+        var zoneAcceptanceAverage = regionAssignmentRows.Any()
+            ? Convert.ToDecimal(Math.Round(regionAssignmentRows.Average(row => row.Total > 0 ? (decimal)row.Completed / row.Total * 100 : 0m), 1))
             : acceptanceRate;
         var fleetAcceptanceAverage = fleetAssignmentRows.Any()
             ? Convert.ToDecimal(Math.Round(fleetAssignmentRows.Average(row => row.Total > 0 ? (decimal)row.Completed / row.Total * 100 : 0m), 1))
             : acceptanceRate;
-        var zoneCompletionAverage = zoneAssignmentRows.Any()
-            ? Convert.ToDecimal(Math.Round(zoneAssignmentRows.Average(row => row.Closed > 0 ? (decimal)row.Completed / row.Closed * 100 : 0m), 1))
+        var zoneCompletionAverage = regionAssignmentRows.Any()
+            ? Convert.ToDecimal(Math.Round(regionAssignmentRows.Average(row => row.Closed > 0 ? (decimal)row.Completed / row.Closed * 100 : 0m), 1))
             : completionRate;
         var fleetCompletionAverage = fleetAssignmentRows.Any()
             ? Convert.ToDecimal(Math.Round(fleetAssignmentRows.Average(row => row.Closed > 0 ? (decimal)row.Completed / row.Closed * 100 : 0m), 1))
             : completionRate;
-        var zoneCommitmentAverage = zoneDriverIds.Any()
+        var zoneCommitmentAverage = regionDriverIds.Any()
             ? Math.Round(commitmentSummaries
-                .Where(pair => zoneDriverIds.Contains(pair.Key))
+                .Where(pair => regionDriverIds.Contains(pair.Key))
                 .DefaultIfEmpty(new KeyValuePair<Guid, DriverCommitmentSummaryDto>(Guid.Empty, new DriverCommitmentSummaryDto(0, 0, 0, 0, 0, commitmentScore, "Healthy", true, null, null)))
                 .Average(pair => pair.Value.CommitmentScore), 1)
             : commitmentScore;

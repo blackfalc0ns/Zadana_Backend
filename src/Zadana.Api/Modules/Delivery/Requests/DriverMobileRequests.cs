@@ -10,7 +10,6 @@ public record UpdateDriverVehicleProfileRequest(
     string? VehicleType,
     string? NationalId,
     string? LicenseNumber,
-    Guid? PrimaryZoneId,
     string? Region,
     string? City);
 

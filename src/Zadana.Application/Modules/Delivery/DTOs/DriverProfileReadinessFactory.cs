@@ -32,9 +32,9 @@ public static class DriverProfileReadinessFactory
             missing.Add("missing_documents");
         }
 
-        if (!driver.PrimaryZoneId.HasValue)
+        if (string.IsNullOrWhiteSpace(driver.Region) || string.IsNullOrWhiteSpace(driver.City))
         {
-            missing.Add("missing_zone_selection");
+            missing.Add("missing_region_city");
         }
 
         return missing;
@@ -132,9 +132,9 @@ public static class DriverProfileReadinessFactory
                 string.IsNullOrWhiteSpace(driver.PersonalPhotoUrl) ? "missing_document_note" : null,
                 true),
             createItem(
-                "zone_selection",
-                !missingRequirements.Contains("missing_zone_selection"),
-                missingRequirements.Contains("missing_zone_selection") ? "missing_zone_selection_note" : null,
+                "region_city_selection",
+                !missingRequirements.Contains("missing_region_city"),
+                missingRequirements.Contains("missing_region_city") ? "missing_region_city_note" : null,
                 false)
         ];
 }

@@ -16,7 +16,6 @@ public record RegisterDriverCommand(
     string? NationalId,
     string? LicenseNumber,
     string? Address,
-    Guid PrimaryZoneId,
     string? Region,
     string? City,
     string? NationalIdFrontImageUrl,

@@ -44,7 +44,7 @@ public class DeliveryDispatchServiceTests
 
         decision.Should().NotBeNull();
         decision!.DriverId.Should().Be(scenario.SameZoneFreshDriver.Id);
-        decision.MatchReason.Should().Be("same-zone-live-gps");
+        decision.MatchReason.Should().Be("region-city-live-gps");
 
         var assignment = await dbContext.DeliveryAssignments.SingleAsync();
         assignment.DriverId.Should().Be(scenario.SameZoneFreshDriver.Id);
@@ -62,7 +62,7 @@ public class DeliveryDispatchServiceTests
 
         decision.Should().NotBeNull();
         decision!.DriverId.Should().Be(scenario.SecondSameZoneDriver.Id);
-        decision.MatchReason.Should().Be("same-zone-live-gps");
+        decision.MatchReason.Should().Be("region-city-live-gps");
     }
 
     [Fact]
@@ -142,19 +142,19 @@ public class DeliveryDispatchServiceTests
             "01000000998",
             8m);
 
-        var sameZoneFreshDriver = new Driver(sameZoneUser.Id, DriverVehicleType.Car, "1234567890", "DRV-ZONE-1");
+        var sameZoneFreshDriver = new Driver(sameZoneUser.Id, DriverVehicleType.Car, "1234567890", "DRV-ZONE-1",
+            region: "RIYADH", city: "RIYADH");
         sameZoneFreshDriver.Approve(Guid.NewGuid());
-        sameZoneFreshDriver.AssignZone(pickupZone.Id, pickupZone);
         sameZoneFreshDriver.ToggleAvailability(true);
 
-        var sameCityFallbackDriver = new Driver(secondZoneUser.Id, DriverVehicleType.Car, "1234567891", "DRV-CITY-1");
+        var sameCityFallbackDriver = new Driver(secondZoneUser.Id, DriverVehicleType.Car, "1234567891", "DRV-CITY-1",
+            region: "RIYADH", city: "RIYADH");
         sameCityFallbackDriver.Approve(Guid.NewGuid());
-        sameCityFallbackDriver.AssignZone(sameCityZone.Id, sameCityZone);
         sameCityFallbackDriver.ToggleAvailability(true);
 
-        var secondSameZoneDriver = new Driver(reserveZoneUser.Id, DriverVehicleType.Car, "1234567892", "DRV-ZONE-2");
+        var secondSameZoneDriver = new Driver(reserveZoneUser.Id, DriverVehicleType.Car, "1234567892", "DRV-ZONE-2",
+            region: "RIYADH", city: "RIYADH");
         secondSameZoneDriver.Approve(Guid.NewGuid());
-        secondSameZoneDriver.AssignZone(pickupZone.Id, pickupZone);
         secondSameZoneDriver.ToggleAvailability(true);
 
         var order = new Order(
