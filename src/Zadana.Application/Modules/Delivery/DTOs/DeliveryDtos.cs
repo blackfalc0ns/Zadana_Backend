@@ -334,7 +334,7 @@ public record AdminDriverLifecycleStageDto(
 public record AdminDriverOperationTaskDto(
     Guid Id,
     string VendorName,
-    string ZoneName,
+    string CityLabel,
     string Status,
     DateTime AssignedAtUtc,
     int? DurationMinutes,
@@ -348,9 +348,9 @@ public record AdminDriverOperationsSectionDto(
     decimal? CurrentLongitude,
     decimal? CurrentAccuracyMeters,
     DateTime? LastLocationAtUtc,
-    int? ActiveDriversInZone,
+    int? ActiveDriversInCity,
     decimal? AvgDeliveryMinutes,
-    int? ZoneCapacityLimit,
+    int? CityCapacityLimit,
     AdminDriverOperationTaskDto[] TaskAssignments);
 
 public record AdminDriverPerformanceMetricDto(
