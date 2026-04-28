@@ -117,7 +117,7 @@ public class DeliveryDispatchServiceTests
         await using var dbContext = CreateDbContext();
         var scenario = await SeedDispatchScenarioAsync(dbContext);
 
-        for (var index = 0; index < 3; index++)
+        for (var index = 0; index < 20; index++)
         {
             var historicalAttempt = new DeliveryOfferAttempt(Guid.NewGuid(), null, scenario.SameZoneFreshDriver.Id, index + 1, DateTime.UtcNow.AddMinutes(1));
             historicalAttempt.MarkRejected("skip");

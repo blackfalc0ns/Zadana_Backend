@@ -9,8 +9,8 @@ namespace Zadana.Infrastructure.Modules.Delivery.Services;
 
 public class DriverCommitmentPolicyService : IDriverCommitmentPolicyService
 {
-    private const int DailyRejectionLimit = 3;
-    private const int WeeklyRejectionLimit = 12;
+    private const int DailyRejectionLimit = 20;
+    private const int WeeklyRejectionLimit = 20;
     private const int WatchDailyThreshold = 2;
     private const int WatchWeeklyThreshold = 8;
     private const decimal RejectedPenalty = 18m;

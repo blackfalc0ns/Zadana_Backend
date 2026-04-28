@@ -25,7 +25,7 @@ public class UpdateDriverAvailabilityCommandHandlerTests
         dbContext.Users.Add(driverUser);
         dbContext.Drivers.Add(driver);
 
-        for (var index = 0; index < 3; index++)
+        for (var index = 0; index < 20; index++)
         {
             var attempt = new DeliveryOfferAttempt(Guid.NewGuid(), null, driver.Id, index + 1, DateTime.UtcNow.AddMinutes(1));
             attempt.MarkRejected("busy");

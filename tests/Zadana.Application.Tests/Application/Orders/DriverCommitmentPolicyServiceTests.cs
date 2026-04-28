@@ -45,7 +45,7 @@ public class DriverCommitmentPolicyServiceTests
         await using var dbContext = CreateDbContext();
         var driverId = Guid.NewGuid();
 
-        for (var index = 0; index < 3; index++)
+        for (var index = 0; index < 20; index++)
         {
             var attempt = new DeliveryOfferAttempt(Guid.NewGuid(), null, driverId, index + 1, DateTime.UtcNow.AddMinutes(1));
             attempt.MarkRejected("skip");
@@ -57,7 +57,7 @@ public class DriverCommitmentPolicyServiceTests
         var service = new DriverCommitmentPolicyService(dbContext, dbContext);
         var summary = await service.GetDriverSummaryAsync(driverId, CancellationToken.None);
 
-        summary.DailyRejections.Should().Be(3);
+        summary.DailyRejections.Should().Be(20);
         summary.CanReceiveOffers.Should().BeFalse();
         summary.EnforcementLevel.Should().Be(DriverCommitmentEnforcementLevel.SoftBlocked.ToString());
         summary.RestrictionMessage.Should().NotBeNullOrWhiteSpace();
@@ -72,12 +72,11 @@ public class DriverCommitmentPolicyServiceTests
         driver.ToggleAvailability(true);
         dbContext.Drivers.Add(driver);
 
-        AddHistoricalRejectedAttempt(dbContext, driver.Id, DateTime.UtcNow.AddDays(-1).Date.AddHours(10));
-        AddHistoricalRejectedAttempt(dbContext, driver.Id, DateTime.UtcNow.AddDays(-1).Date.AddHours(11));
-        AddHistoricalRejectedAttempt(dbContext, driver.Id, DateTime.UtcNow.AddDays(-1).Date.AddHours(12));
-        AddHistoricalRejectedAttempt(dbContext, driver.Id, DateTime.UtcNow.AddHours(-3));
-        AddHistoricalRejectedAttempt(dbContext, driver.Id, DateTime.UtcNow.AddHours(-2));
-        AddHistoricalRejectedAttempt(dbContext, driver.Id, DateTime.UtcNow.AddHours(-1));
+        for (var index = 0; index < 20; index++)
+        {
+            AddHistoricalRejectedAttempt(dbContext, driver.Id, DateTime.UtcNow.AddDays(-1).Date.AddHours(1).AddMinutes(index));
+            AddHistoricalRejectedAttempt(dbContext, driver.Id, DateTime.UtcNow.Date.AddHours(1).AddMinutes(index));
+        }
 
         await dbContext.SaveChangesAsync();
 
