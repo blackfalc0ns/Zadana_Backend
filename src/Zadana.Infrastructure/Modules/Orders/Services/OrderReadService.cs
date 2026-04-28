@@ -11,6 +11,7 @@ using Zadana.Domain.Modules.Orders.Entities;
 using Zadana.Domain.Modules.Orders.Enums;
 using Zadana.Domain.Modules.Payments.Entities;
 using Zadana.Domain.Modules.Payments.Enums;
+using Zadana.Domain.Modules.Vendors.Entities;
 using Zadana.Infrastructure.Modules.Delivery.Services;
 using Zadana.Infrastructure.Persistence;
 
@@ -310,7 +311,9 @@ public class OrderReadService : IOrderReadService
                 address.AddressLine,
                 address.City,
                 address.Area,
-                address.ContactPhone
+                address.ContactPhone,
+                address.Latitude,
+                address.Longitude
             })
             .FirstOrDefaultAsync(cancellationToken);
 
@@ -347,6 +350,43 @@ public class OrderReadService : IOrderReadService
                 ? "verified"
                 : "pending";
 
+        // ── Live Tracking: vendor, customer, and driver locations ──
+        GeoPointDto? vendorLocation = null;
+        if (order.VendorBranchId.HasValue)
+        {
+            var branch = await _dbContext.Set<VendorBranch>()
+                .AsNoTracking()
+                .Where(b => b.Id == order.VendorBranchId.Value)
+                .Select(b => new { b.Latitude, b.Longitude })
+                .FirstOrDefaultAsync(cancellationToken);
+            if (branch is not null)
+                vendorLocation = new GeoPointDto(branch.Latitude, branch.Longitude);
+        }
+
+        GeoPointDto? customerLocation = null;
+        if (customerAddress is { Latitude: not null, Longitude: not null })
+        {
+            customerLocation = new GeoPointDto(customerAddress.Latitude.Value, customerAddress.Longitude.Value);
+        }
+
+        DriverLiveLocationDto? driverLiveLocation = null;
+        if (assignment?.DriverId != null && IsActiveDeliveryStatus(order.Status))
+        {
+            var latestLocation = await _dbContext.DriverLocations
+                .AsNoTracking()
+                .Where(l => l.DriverId == assignment.DriverId.Value)
+                .OrderByDescending(l => l.RecordedAtUtc)
+                .FirstOrDefaultAsync(cancellationToken);
+            if (latestLocation is not null)
+            {
+                driverLiveLocation = new DriverLiveLocationDto(
+                    latestLocation.Latitude,
+                    latestLocation.Longitude,
+                    latestLocation.AccuracyMeters,
+                    latestLocation.RecordedAtUtc);
+            }
+        }
+
         return new VendorOrderDetailDto(
             order.Id,
             order.OrderNumber,
@@ -367,6 +407,9 @@ public class OrderReadService : IOrderReadService
             null, // Deprecated: pickup OTP code is never shown to vendor; vendor inputs code from driver
             canConfirmPickup,
             pickupOtpStatus,
+            vendorLocation,
+            customerLocation,
+            driverLiveLocation,
             order.Items.Select(item => new OrderItemDto(
                 item.Id,
                 item.VendorProductId,
@@ -1598,6 +1641,13 @@ public class OrderReadService : IOrderReadService
             .Select(part => char.ToUpperInvariant(part[0]));
 
         return string.Concat(parts);
+    }
+
+    private static bool IsActiveDeliveryStatus(OrderStatus status)
+    {
+        return status is OrderStatus.DriverAssigned
+            or OrderStatus.PickedUp
+            or OrderStatus.OnTheWay;
     }
 
     private enum TrackingStage

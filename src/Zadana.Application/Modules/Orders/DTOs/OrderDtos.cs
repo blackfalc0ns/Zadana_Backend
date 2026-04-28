@@ -52,6 +52,14 @@ public record VendorOrderListItemDto(
     DateTime PlacedAtUtc,
     bool IsLate);
 
+public record GeoPointDto(decimal Latitude, decimal Longitude);
+
+public record DriverLiveLocationDto(
+    decimal Latitude,
+    decimal Longitude,
+    decimal? AccuracyMeters,
+    DateTime RecordedAtUtc);
+
 public record VendorOrderDetailDto(
     Guid Id,
     string OrderNumber,
@@ -72,6 +80,9 @@ public record VendorOrderDetailDto(
     string? PickupOtp,
     bool CanConfirmPickup,
     string PickupOtpStatus,
+    GeoPointDto? VendorLocation,
+    GeoPointDto? CustomerLocation,
+    DriverLiveLocationDto? DriverLiveLocation,
     IReadOnlyList<OrderItemDto> Items,
     IReadOnlyList<VendorOrderTimelineItemDto> Timeline);
 
