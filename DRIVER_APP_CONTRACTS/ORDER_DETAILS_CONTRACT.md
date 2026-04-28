@@ -6,15 +6,15 @@
 
 ## Purpose
 
-هذا الملف يشرح كيف يقرأ تطبيق المندوب تفاصيل المهمة الحالية بشكل `assignment-first`.
+This file defines the driver app contract for the active assignment screen.
 
-الـ source of truth في شاشة الطلب الحالية يجب أن يكون:
+The source of truth on the driver task screen is:
 
 - `assignmentStatus`
 - `driverArrivalState`
 - `allowedActions`
 
-وليس local enum داخل التطبيق.
+The mobile app must not infer workflow steps from a local enum when the backend payload already states the current action set.
 
 ## Main Endpoints
 
@@ -22,7 +22,7 @@
 
 - `GET /api/drivers/assignments/{assignmentId}`
 
-يرجع snapshot تشغيلية كاملة للمهمة.
+Returns the full operational snapshot for the active driver assignment.
 
 Example response:
 
@@ -68,18 +68,18 @@ Example response:
 
 - `GET /api/drivers/assignments/current`
 
-هذا endpoint ما زال موجودًا كـ lightweight check:
+This remains a lightweight check for:
 
-- هل يوجد assignment حالية أم لا
-- gate status إن كان السائق غير تشغيلي
+- whether the driver currently has an assignment
+- whether the driver is operational or blocked
 
-لكن شاشة الـ detail نفسها يجب أن تبني على:
+The detail screen itself should still be built from:
 
 - `GET /api/drivers/assignments/{assignmentId}`
 
 ### 3. Driver Actions
 
-الـ lifecycle التشغيلي يبقى عبر endpoints منفصلة:
+Driver lifecycle actions remain separate endpoints:
 
 - `POST /api/drivers/offers/{assignmentId}/accept`
 - `POST /api/drivers/offers/{assignmentId}/reject`
@@ -91,50 +91,77 @@ Example response:
 - `POST /api/drivers/orders/{orderId}/delivery-failed`
 - `POST /api/drivers/assignments/{assignmentId}/verify-otp`
 
+Primary happy path:
+
+- driver accepts the offer
+- driver marks `arrived-at-vendor`
+- vendor confirms pickup OTP through `POST /api/vendor/orders/{orderId}/confirm-pickup`
+- driver marks `on-the-way`
+- driver marks `arrived-at-customer`
+- driver verifies delivery OTP through `POST /api/drivers/assignments/{assignmentId}/verify-otp`
+
 ## Allowed Actions
 
-القيم الحالية التي قد ترجع في `allowedActions`:
+Current values that may be returned in `allowedActions`:
 
 - `accept_offer`
 - `reject_offer`
 - `arrived_at_vendor`
-- `mark_picked_up`
 - `mark_on_the_way`
 - `arrived_at_customer`
 - `verify_delivery_otp`
-- `mark_delivered`
 
 ## Mapping Rules
 
-الموبايل يجب أن يتصرف بناءً على `allowedActions`، لا على assumptions.
+The mobile app must render the current step from `allowedActions`, not from local assumptions.
 
-أمثلة:
+Happy-path expectations:
 
-- لو `allowedActions = ["accept_offer", "reject_offer"]`
-  - اعرض offer controls فقط
-- لو `allowedActions = ["arrived_at_vendor"]`
-  - اعرض CTA الوصول للتاجر
-- لو `allowedActions = ["mark_picked_up"]`
-  - اعرض CTA الاستلام
-- لو `allowedActions = ["verify_delivery_otp"]`
-  - اعرض إدخال OTP العميل
+- `OfferSent` -> `accept_offer`, `reject_offer`
+- `Accepted` -> `arrived_at_vendor`
+- `ArrivedAtVendor` with pending pickup OTP -> no actions; wait for the vendor to confirm pickup OTP
+- `PickedUp` before `OnTheWay` -> `mark_on_the_way`
+- `PickedUp` after `OnTheWay` -> `arrived_at_customer`
+- `ArrivedAtCustomer` -> `verify_delivery_otp`
+
+Examples:
+
+- `["accept_offer", "reject_offer"]` -> show offer controls only
+- `["arrived_at_vendor"]` -> show the arrival CTA for the vendor
+- `[]` with `assignmentStatus = "ArrivedAtVendor"` -> show waiting state for vendor pickup OTP confirmation
+- `["mark_on_the_way"]` -> show the start-delivery CTA
+- `["verify_delivery_otp"]` -> show delivery OTP entry
 
 ## OTP Notes
 
-- pickup OTP verification endpoint:
-  - `POST /api/drivers/assignments/{assignmentId}/verify-otp`
-  - body:
+Pickup OTP handoff endpoint for the vendor:
+
+- `POST /api/vendor/orders/{orderId}/confirm-pickup`
+
+Request body:
 
 ```json
 {
-  "otpType": "pickup",
   "otpCode": "1234"
 }
 ```
 
-- delivery OTP verification endpoint:
-  - `POST /api/drivers/assignments/{assignmentId}/verify-otp`
-  - body:
+Successful pickup handoff response:
+
+```json
+{
+  "orderId": "22222222-2222-2222-2222-222222222222",
+  "assignmentId": "11111111-1111-1111-1111-111111111111",
+  "status": "picked_up",
+  "message": "Pickup OTP confirmed and order handed off to the driver."
+}
+```
+
+Delivery OTP verification endpoint:
+
+- `POST /api/drivers/assignments/{assignmentId}/verify-otp`
+
+Request body:
 
 ```json
 {
@@ -143,23 +170,41 @@ Example response:
 }
 ```
 
-example success response:
+Example success response:
 
 ```json
 {
   "assignmentId": "11111111-1111-1111-1111-111111111111",
   "orderId": "22222222-2222-2222-2222-222222222222",
   "otpType": "delivery",
-  "status": "verified",
-  "message": "OTP verified successfully."
+  "status": "delivered",
+  "message": "Delivery OTP verified and order marked as delivered."
 }
 ```
 
+Legacy compatibility:
+
+- `POST /api/drivers/orders/{orderId}/picked-up`
+- `POST /api/drivers/orders/{orderId}/delivered`
+
+These endpoints still exist for backward compatibility, but they are not part of the primary mobile happy path and they are not surfaced through `allowedActions`.
+
+## Realtime Refresh
+
+- hub: `/hubs/notifications`
+- event: `ReceiveOrderStatusChanged`
+- treat the event as a refresh signal only
+- when `payload['orderId']` matches the opened assignment order, refresh:
+  - `GET /api/drivers/assignments/{assignmentId}`
+  - or `GET /api/drivers/assignments/current`
+- keep polling every `10s` as backup while the assignment is active
+
 ## Important Mobile Notes
 
-- `assignmentId` هو المرجع الأساسي لشاشة المهمة
-- لا تعتمد على `orderId` وحده لإدارة accept/reject
-- `homeState` قد يكون:
+- `assignmentId` is the primary identifier for the assignment detail screen
+- do not rely on `orderId` alone for accept and reject actions
+- `homeState` can be:
   - `IncomingOffer`
   - `OnMission`
-- `pickupOtpRequired` و`deliveryOtpRequired` هما المرجع الرسمي لعرض OTP UI
+- `pickupOtpRequired` and `deliveryOtpRequired` are the official flags for OTP UI
+- the driver app should use realtime as a refresh trigger and keep `GET /api/drivers/assignments/{assignmentId}` as the final source of truth

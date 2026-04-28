@@ -90,6 +90,14 @@ public class DriverUpdateOrderStatusCommandHandler : IRequestHandler<DriverUpdat
             throw new BusinessRuleException("DRIVER_NOT_ASSIGNED", "You are not assigned to this order");
         }
 
+        if (IsAlreadyCompletedTransition(order.Status, assignment, request.NewStatus))
+        {
+            return new DriverUpdateOrderStatusResultDto(
+                order.Id,
+                request.NewStatus.ToString(),
+                "Order status updated successfully");
+        }
+
         if (request.NewStatus == OrderStatus.PickedUp && !assignment.IsPickupOtpVerified)
         {
             throw new BusinessRuleException(
@@ -186,4 +194,19 @@ public class DriverUpdateOrderStatusCommandHandler : IRequestHandler<DriverUpdat
                 $"Cannot transition from {current} to {target}");
         }
     }
+
+    private static bool IsAlreadyCompletedTransition(
+        OrderStatus orderStatus,
+        Domain.Modules.Delivery.Entities.DeliveryAssignment assignment,
+        OrderStatus requestedStatus) =>
+        requestedStatus switch
+        {
+            OrderStatus.PickedUp => orderStatus == OrderStatus.PickedUp &&
+                                    assignment.IsPickupOtpVerified &&
+                                    assignment.Status == Domain.Modules.Delivery.Enums.AssignmentStatus.PickedUp,
+            OrderStatus.Delivered => orderStatus == OrderStatus.Delivered &&
+                                     assignment.IsDeliveryOtpVerified &&
+                                     assignment.Status == Domain.Modules.Delivery.Enums.AssignmentStatus.Delivered,
+            _ => false
+        };
 }

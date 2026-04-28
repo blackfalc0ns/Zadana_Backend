@@ -2,6 +2,7 @@ using MediatR;
 using Microsoft.EntityFrameworkCore;
 using Zadana.Application.Common.Interfaces;
 using Zadana.Application.Modules.Orders.Support;
+using Zadana.Domain.Modules.Delivery.Enums;
 using Zadana.Domain.Modules.Orders.Enums;
 using Zadana.Domain.Modules.Payments.Enums;
 using Zadana.Domain.Modules.Social.Enums;
@@ -59,6 +60,8 @@ public class OrderStatusChangedHandler : INotificationHandler<OrderStatusChanged
                     notification.ActorRole),
                 cancellationToken);
         }
+
+        await SendRealtimeToAssignedDriverAsync(notification, action, targetUrl, cancellationToken);
 
         if (!notification.NotifyVendor)
         {
@@ -120,6 +123,43 @@ public class OrderStatusChangedHandler : INotificationHandler<OrderStatusChanged
             vendorType,
             notification.OrderId,
             data,
+            targetUrl,
+            cancellationToken);
+    }
+
+    private async Task SendRealtimeToAssignedDriverAsync(
+        OrderStatusChangedNotification notification,
+        string action,
+        string targetUrl,
+        CancellationToken cancellationToken)
+    {
+        var driverRecipient = await _context.DeliveryAssignments
+            .AsNoTracking()
+            .Where(assignment =>
+                assignment.OrderId == notification.OrderId &&
+                assignment.DriverId != null &&
+                assignment.Status != AssignmentStatus.SearchingDriver &&
+                assignment.Status != AssignmentStatus.OfferSent &&
+                assignment.Status != AssignmentStatus.Rejected &&
+                assignment.Status != AssignmentStatus.Cancelled)
+            .OrderByDescending(assignment => assignment.CreatedAtUtc)
+            .Select(assignment => assignment.Driver!.UserId)
+            .FirstOrDefaultAsync(cancellationToken);
+
+        if (driverRecipient == Guid.Empty)
+        {
+            return;
+        }
+
+        await _notificationService.SendOrderStatusChangedToUserAsync(
+            driverRecipient,
+            notification.OrderId,
+            notification.OrderNumber,
+            notification.VendorId,
+            notification.OldStatus.ToString(),
+            notification.NewStatus.ToString(),
+            notification.ActorRole,
+            action,
             targetUrl,
             cancellationToken);
     }

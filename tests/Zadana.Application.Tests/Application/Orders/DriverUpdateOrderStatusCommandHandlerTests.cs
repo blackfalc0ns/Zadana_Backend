@@ -4,6 +4,7 @@ using Microsoft.EntityFrameworkCore;
 using Moq;
 using Zadana.Application.Common.Interfaces;
 using Zadana.Application.Modules.Orders.Commands.DriverUpdateOrderStatus;
+using Zadana.Application.Modules.Orders.Events;
 using Zadana.Domain.Modules.Delivery.Entities;
 using Zadana.Domain.Modules.Delivery.Enums;
 using Zadana.Domain.Modules.Identity.Entities;
@@ -214,6 +215,95 @@ public class DriverUpdateOrderStatusCommandHandlerTests
         result.Status.Should().Be("Delivered");
         assignment.Status.Should().Be(AssignmentStatus.Delivered);
         assignment.DeliveredAtUtc.Should().NotBeNull();
+    }
+
+    [Fact]
+    public async Task Handle_WhenPickedUpAlreadyCompleted_ShouldReturnSuccessForLegacyEndpoint()
+    {
+        await using var dbContext = CreateDbContext();
+        var customer = new User("Customer User", "driver-status.customer.idempotent.pickup@test.com", "01000000121", UserRole.Customer);
+        var driverUser = new User("Driver User", "driver-status.driver.idempotent.pickup@test.com", "01000000122", UserRole.Driver);
+        var vendorId = Guid.NewGuid();
+
+        var driver = new Driver(driverUser.Id, DriverVehicleType.Car, "1234567897", "LIC-1001");
+        driver.Approve(Guid.NewGuid());
+
+        var order = CreateOrder(customer.Id, vendorId, OrderStatus.PickedUp, "ORD-DRV-IDEMPOTENT-PICKUP");
+        var assignment = new DeliveryAssignment(order.Id, 0);
+        assignment.OfferTo(driver.Id, 1, DateTime.UtcNow.AddMinutes(5));
+        assignment.Accept();
+        assignment.EnsurePickupOtp(TimeSpan.FromHours(4));
+        assignment.VerifyPickupOtp(driver.Id, assignment.PickupOtpCode!);
+        assignment.MarkPickedUp();
+
+        dbContext.Users.AddRange(customer, driverUser);
+        dbContext.Drivers.Add(driver);
+        dbContext.Orders.Add(order);
+        dbContext.DeliveryAssignments.Add(assignment);
+        await dbContext.SaveChangesAsync();
+
+        var publisherMock = new Mock<IPublisher>();
+        var handler = new DriverUpdateOrderStatusCommandHandler(
+            dbContext,
+            dbContext,
+            publisherMock.Object,
+            new DriverRepository(dbContext),
+            Mock.Of<INotificationService>());
+
+        var result = await handler.Handle(
+            new DriverUpdateOrderStatusCommand(order.Id, driverUser.Id, OrderStatus.PickedUp, "Picked up"),
+            CancellationToken.None);
+
+        result.Status.Should().Be("PickedUp");
+        publisherMock.Verify(
+            publisher => publisher.Publish(It.IsAny<OrderStatusChangedNotification>(), It.IsAny<CancellationToken>()),
+            Times.Never);
+    }
+
+    [Fact]
+    public async Task Handle_WhenDeliveredAlreadyCompleted_ShouldReturnSuccessForLegacyEndpoint()
+    {
+        await using var dbContext = CreateDbContext();
+        var customer = new User("Customer User", "driver-status.customer.idempotent.delivered@test.com", "01000000123", UserRole.Customer);
+        var driverUser = new User("Driver User", "driver-status.driver.idempotent.delivered@test.com", "01000000124", UserRole.Driver);
+        var vendorId = Guid.NewGuid();
+
+        var driver = new Driver(driverUser.Id, DriverVehicleType.Car, "1234567898", "LIC-1002");
+        driver.Approve(Guid.NewGuid());
+
+        var order = CreateOrder(customer.Id, vendorId, OrderStatus.Delivered, "ORD-DRV-IDEMPOTENT-DELIVERED");
+        var assignment = new DeliveryAssignment(order.Id, 0);
+        assignment.OfferTo(driver.Id, 1, DateTime.UtcNow.AddMinutes(5));
+        assignment.Accept();
+        assignment.EnsurePickupOtp(TimeSpan.FromHours(4));
+        assignment.VerifyPickupOtp(driver.Id, assignment.PickupOtpCode!);
+        assignment.MarkPickedUp();
+        assignment.EnsureDeliveryOtp(TimeSpan.FromHours(4));
+        assignment.VerifyDeliveryOtp(driver.Id, assignment.DeliveryOtpCode!);
+        assignment.MarkDelivered();
+
+        dbContext.Users.AddRange(customer, driverUser);
+        dbContext.Drivers.Add(driver);
+        dbContext.Orders.Add(order);
+        dbContext.DeliveryAssignments.Add(assignment);
+        await dbContext.SaveChangesAsync();
+
+        var publisherMock = new Mock<IPublisher>();
+        var handler = new DriverUpdateOrderStatusCommandHandler(
+            dbContext,
+            dbContext,
+            publisherMock.Object,
+            new DriverRepository(dbContext),
+            Mock.Of<INotificationService>());
+
+        var result = await handler.Handle(
+            new DriverUpdateOrderStatusCommand(order.Id, driverUser.Id, OrderStatus.Delivered, "Delivered"),
+            CancellationToken.None);
+
+        result.Status.Should().Be("Delivered");
+        publisherMock.Verify(
+            publisher => publisher.Publish(It.IsAny<OrderStatusChangedNotification>(), It.IsAny<CancellationToken>()),
+            Times.Never);
     }
 
     private static ApplicationDbContext CreateDbContext()

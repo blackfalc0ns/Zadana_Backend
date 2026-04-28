@@ -84,6 +84,13 @@ returning
 cancelled
 ```
 
+Notes:
+
+- the customer keeps receiving `ReceiveOrderStatusChanged` updates until the order reaches `delivered`
+- pickup OTP confirmation from the vendor can trigger `newStatus = out_for_delivery`
+- delivery OTP confirmation from the driver can trigger `newStatus = delivered`
+- this contract does not include live GPS or driver location streaming
+
 ## Driver Arrival State Changed
 
 Hub URL:
@@ -145,3 +152,5 @@ en_route
 arrived_at_vendor
 arrived_at_customer
 ```
+
+Arrival updates continue through the handoff and delivery flow, but they do not include live map coordinates in this contract.

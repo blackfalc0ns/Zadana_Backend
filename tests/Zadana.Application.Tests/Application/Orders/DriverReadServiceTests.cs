@@ -54,12 +54,52 @@ public class DriverReadServiceTests
         result.Should().NotBeNull();
         result!.AssignmentStatus.Should().Be(nameof(AssignmentStatus.ArrivedAtVendor));
         result.HomeState.Should().Be("OnMission");
-        result.AllowedActions.Should().ContainSingle().Which.Should().Be("mark_picked_up");
-        result.PickupOtpRequired.Should().BeFalse();
-        result.PickupOtpStatus.Should().Be("not_required");
+        result.AllowedActions.Should().BeEmpty();
+        result.PickupOtpRequired.Should().BeTrue();
+        result.PickupOtpStatus.Should().Be("pending");
         result.DriverArrivalState.Should().Be("arrived_at_vendor");
         result.CustomerPhone.Should().Be(address.ContactPhone);
         result.OrderItems.Should().ContainSingle();
+    }
+
+    [Fact]
+    public async Task GetAssignmentDetailAsync_AfterPickupHandoff_ShouldExposeOnTheWayAction()
+    {
+        await using var dbContext = CreateDbContext();
+        var customer = CreateCustomer();
+        var driverUser = new User("Driver Detail User", "driver.detail.ontheway@test.com", "01000000062", UserRole.Driver);
+        var driver = new Driver(driverUser.Id, DriverVehicleType.Motorcycle, "12345678901237", "LIC-103", "Riyadh");
+        var vendor = CreateVendor();
+        var branch = CreateBranch(vendor.Id);
+        var address = CreateCustomerAddress(customer.Id);
+        var order = CreateOrder(customer.Id, vendor.Id, branch.Id, address.Id, OrderStatus.PickedUp, "ORD-DETAIL-02");
+        var assignment = new DeliveryAssignment(order.Id, 60m);
+
+        assignment.OfferTo(driver.Id, 1, DateTime.UtcNow.AddMinutes(5));
+        assignment.Accept();
+        assignment.MarkArrivedAtVendor();
+        assignment.EnsurePickupOtp(TimeSpan.FromHours(2));
+        assignment.VerifyPickupOtp(driver.Id, assignment.PickupOtpCode!);
+        assignment.MarkPickedUp();
+
+        dbContext.Users.AddRange(customer, driverUser);
+        dbContext.Vendors.Add(vendor);
+        dbContext.VendorBranches.Add(branch);
+        dbContext.CustomerAddresses.Add(address);
+        dbContext.Drivers.Add(driver);
+        dbContext.Orders.Add(order);
+        dbContext.DeliveryAssignments.Add(assignment);
+        await dbContext.SaveChangesAsync();
+
+        var service = CreateService(dbContext);
+        var result = await service.GetAssignmentDetailAsync(driver.Id, assignment.Id);
+
+        result.Should().NotBeNull();
+        result!.AssignmentStatus.Should().Be(nameof(AssignmentStatus.PickedUp));
+        result.AllowedActions.Should().ContainSingle().Which.Should().Be("mark_on_the_way");
+        result.PickupOtpRequired.Should().BeFalse();
+        result.PickupOtpStatus.Should().Be("verified");
+        result.PickupOtpCode.Should().BeNull();
     }
 
     [Fact]

@@ -3,9 +3,13 @@ using Microsoft.EntityFrameworkCore;
 using Moq;
 using Zadana.Application.Common.Interfaces;
 using Zadana.Application.Modules.Orders.Events;
+using Zadana.Domain.Modules.Delivery.Entities;
+using Zadana.Domain.Modules.Delivery.Enums;
 using Zadana.Domain.Modules.Identity.Entities;
 using Zadana.Domain.Modules.Identity.Enums;
+using Zadana.Domain.Modules.Orders.Entities;
 using Zadana.Domain.Modules.Orders.Enums;
+using Zadana.Domain.Modules.Payments.Enums;
 using Zadana.Domain.Modules.Social.Enums;
 using Zadana.Domain.Modules.Vendors.Entities;
 using Zadana.Infrastructure.Persistence;
@@ -355,6 +359,63 @@ public class OrderStatusChangedHandlerTests
             Times.Never);
     }
 
+    [Fact]
+    public async Task Handle_WhenAssignedDriverExists_ShouldSendRealtimeRefreshSignalToDriver()
+    {
+        await using var dbContext = CreateDbContext();
+        var customer = new User("Customer User", "customer.driver.signal@test.com", "01000000140", UserRole.Customer);
+        var driverUser = new User("Driver User", "driver.signal@test.com", "01000000141", UserRole.Driver);
+        var driver = new Driver(driverUser.Id, DriverVehicleType.Car, "3234567890", "LIC-1005");
+        var vendorId = Guid.NewGuid();
+        var order = CreateOrder(customer.Id, vendorId, OrderStatus.DriverAssigned, "ORD-DRIVER-SIGNAL-001");
+        var assignment = new DeliveryAssignment(order.Id, 0m);
+
+        assignment.OfferTo(driver.Id, 1, DateTime.UtcNow.AddMinutes(5));
+        assignment.Accept();
+
+        dbContext.Users.AddRange(customer, driverUser);
+        dbContext.Drivers.Add(driver);
+        dbContext.Orders.Add(order);
+        dbContext.DeliveryAssignments.Add(assignment);
+        await dbContext.SaveChangesAsync();
+
+        var notificationServiceMock = new Mock<INotificationService>();
+        var pushServiceMock = CreatePushServiceMock();
+        var dispatcherMock = CreateDispatcherMock();
+        var handler = new OrderStatusChangedHandler(
+            notificationServiceMock.Object,
+            dbContext,
+            pushServiceMock.Object,
+            dispatcherMock.Object);
+
+        await handler.Handle(
+            new OrderStatusChangedNotification(
+                order.Id,
+                customer.Id,
+                vendorId,
+                order.OrderNumber,
+                OrderStatus.DriverAssigned,
+                OrderStatus.PickedUp,
+                NotifyCustomer: false,
+                NotifyVendor: false,
+                ActorRole: "vendor"),
+            CancellationToken.None);
+
+        notificationServiceMock.Verify(
+            service => service.SendOrderStatusChangedToUserAsync(
+                driverUser.Id,
+                order.Id,
+                order.OrderNumber,
+                vendorId,
+                nameof(OrderStatus.DriverAssigned),
+                nameof(OrderStatus.PickedUp),
+                "vendor",
+                "status_changed",
+                It.Is<string>(url => url.Contains("/orders/")),
+                It.IsAny<CancellationToken>()),
+            Times.Once);
+    }
+
     private static Mock<IOrderStatusNotificationDispatcher> CreateDispatcherMock()
     {
         var dispatcherMock = new Mock<IOrderStatusNotificationDispatcher>();
@@ -445,5 +506,18 @@ public class OrderStatusChangedHandlerTests
             newOrdersNotificationsEnabled: newOrdersNotificationsEnabled);
 
         return vendor;
+    }
+
+    private static Order CreateOrder(Guid userId, Guid vendorId, OrderStatus status, string orderNumber)
+    {
+        var order = new Order(orderNumber, userId, vendorId, Guid.NewGuid(), PaymentMethodType.Card, 120m, 0m, 15m, 15m, 0m, 0m, null, null, null, 5m);
+        order.Items.Add(new OrderItem(order.Id, Guid.NewGuid(), Guid.NewGuid(), "Signal Item", 1, 120m));
+
+        if (status != OrderStatus.PendingPayment)
+        {
+            order.ChangeStatus(status);
+        }
+
+        return order;
     }
 }

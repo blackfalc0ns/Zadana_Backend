@@ -829,9 +829,7 @@ public class DriverReadService : IDriverReadService
             // After arrival at vendor:
             // - If pickup OTP verified (vendor confirmed handoff) → driver can mark picked up
             // - Otherwise → driver waits for vendor to confirm pickup via OTP
-            return assignment.IsPickupOtpVerified
-                ? ["mark_picked_up"]
-                : []; // Driver waits for vendor confirmation
+            return [];
         }
 
         if (assignment.Status == AssignmentStatus.PickedUp && orderStatus != OrderStatus.OnTheWay)
@@ -848,7 +846,7 @@ public class DriverReadService : IDriverReadService
         {
             return assignment.RequiresDeliveryOtpVerification
                 ? ["verify_delivery_otp"]
-                : ["mark_delivered"];
+                : [];
         }
 
         return Array.Empty<string>();
