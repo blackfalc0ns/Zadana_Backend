@@ -21,15 +21,18 @@ namespace Zadana.Application.Tests.Application.Orders;
 
 public class DeliveryDispatchServiceTests
 {
-    private static DeliveryDispatchService CreateDispatchService(ApplicationDbContext dbContext)
+    private static DeliveryDispatchService CreateDispatchService(
+        ApplicationDbContext dbContext,
+        IPublisher? publisher = null,
+        INotificationService? notificationService = null)
     {
         var commitmentPolicyService = new DriverCommitmentPolicyService(dbContext, dbContext);
         return new DeliveryDispatchService(
             dbContext,
             dbContext,
             NullLogger<DeliveryDispatchService>.Instance,
-            Mock.Of<IPublisher>(),
-            Mock.Of<INotificationService>(),
+            publisher ?? Mock.Of<IPublisher>(),
+            notificationService ?? Mock.Of<INotificationService>(),
             commitmentPolicyService);
     }
 
@@ -81,6 +84,31 @@ public class DeliveryDispatchServiceTests
         assignment.Status.Should().Be(AssignmentStatus.Accepted);
         assignment.PickupOtpCode.Should().NotBeNullOrWhiteSpace();
         assignment.PickupOtpExpiresAtUtc.Should().NotBeNull();
+    }
+
+    [Fact]
+    public async Task TryAutoDispatchAsync_WhenEnteringDispatchQueue_ShouldSendRealtimeCustomerStatusUpdate()
+    {
+        await using var dbContext = CreateDbContext();
+        var scenario = await SeedDispatchScenarioAsync(dbContext);
+        var notificationServiceMock = new Mock<INotificationService>();
+        var service = CreateDispatchService(dbContext, notificationService: notificationServiceMock.Object);
+
+        await service.TryAutoDispatchAsync(scenario.Order.Id, cancellationToken: CancellationToken.None);
+
+        notificationServiceMock.Verify(
+            service => service.SendOrderStatusChangedToUserAsync(
+                scenario.Order.UserId,
+                scenario.Order.Id,
+                scenario.Order.OrderNumber,
+                scenario.Order.VendorId,
+                nameof(OrderStatus.ReadyForPickup),
+                nameof(OrderStatus.DriverAssignmentInProgress),
+                "dispatch",
+                null,
+                null,
+                It.IsAny<CancellationToken>()),
+            Times.Once);
     }
 
     [Fact]

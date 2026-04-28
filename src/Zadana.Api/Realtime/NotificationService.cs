@@ -1,6 +1,7 @@
 using Microsoft.AspNetCore.SignalR;
 using Microsoft.EntityFrameworkCore;
 using Zadana.Application.Common.Interfaces;
+using Zadana.Application.Modules.Orders.Support;
 using Zadana.Application.Modules.Social.Support;
 using Zadana.Api.Realtime.Contracts;
 using Zadana.Domain.Modules.Social.Entities;
@@ -124,12 +125,14 @@ public sealed class NotificationService : INotificationService
     {
         try
         {
+            var normalizedOldStatus = OrderTrackingStatusMapper.NormalizeCustomerTrackingStatus(oldStatus);
+            var normalizedNewStatus = OrderTrackingStatusMapper.NormalizeCustomerTrackingStatus(newStatus);
             var payload = new OrderStatusChangedRealtimePayload(
                 orderId,
                 orderNumber,
                 vendorId,
-                oldStatus,
-                newStatus,
+                normalizedOldStatus,
+                normalizedNewStatus,
                 actorRole,
                 string.IsNullOrWhiteSpace(action) ? "status_changed" : action,
                 string.IsNullOrWhiteSpace(targetUrl) ? $"/orders/{orderId}" : targetUrl,

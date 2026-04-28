@@ -4,6 +4,7 @@ using Zadana.Application.Common.Models;
 using Zadana.Application.Modules.Delivery.Interfaces;
 using Zadana.Application.Modules.Orders.DTOs;
 using Zadana.Application.Modules.Orders.Interfaces;
+using Zadana.Application.Modules.Orders.Support;
 using Zadana.Domain.Modules.Delivery.Entities;
 using Zadana.Domain.Modules.Delivery.Enums;
 using Zadana.Domain.Modules.Identity.Enums;
@@ -702,17 +703,7 @@ public class OrderReadService : IOrderReadService
         };
 
     private static string MapTrackingStatus(OrderStatus status) =>
-        status switch
-        {
-            OrderStatus.PendingPayment or OrderStatus.Placed => "pending",
-            OrderStatus.PendingVendorAcceptance or OrderStatus.Accepted or OrderStatus.Preparing or
-            OrderStatus.ReadyForPickup or OrderStatus.DriverAssignmentInProgress or
-            OrderStatus.DriverAssigned or OrderStatus.PickedUp => "processing",
-            OrderStatus.OnTheWay => "out_for_delivery",
-            OrderStatus.Delivered => "delivered",
-            OrderStatus.Refunded => "returning",
-            _ => "cancelled"
-        };
+        OrderTrackingStatusMapper.ToCustomerTrackingStatus(status);
 
     private static bool CanCancel(OrderStatus status) =>
         status is OrderStatus.PendingVendorAcceptance or

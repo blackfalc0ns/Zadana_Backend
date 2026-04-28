@@ -98,6 +98,31 @@ public class CustomerOrderReadServiceTests
         paidItem.CanCancel.Should().BeTrue();
     }
 
+    [Theory]
+    [InlineData(OrderStatus.PendingVendorAcceptance, "pending")]
+    [InlineData(OrderStatus.Accepted, "accepted")]
+    [InlineData(OrderStatus.Preparing, "preparing")]
+    [InlineData(OrderStatus.ReadyForPickup, "preparing")]
+    public async Task GetCustomerOrderTrackingAsync_ShouldExposeGranularVendorTrackingStatuses(
+        OrderStatus status,
+        string expectedStatus)
+    {
+        await using var dbContext = CreateDbContext();
+        var user = CreateUser();
+        var order = CreateOrder(user.Id, status, $"ORD-TRACK-{status}");
+
+        dbContext.Users.Add(user);
+        dbContext.Orders.Add(order);
+        await dbContext.SaveChangesAsync();
+
+        var service = new OrderReadService(dbContext);
+
+        var result = await service.GetCustomerOrderTrackingAsync(order.Id, user.Id);
+
+        result.Should().NotBeNull();
+        result!.Order.Status.Should().Be(expectedStatus);
+    }
+
     [Fact]
     public async Task GetCustomerOrderTrackingAsync_ShouldReturnDriverEtaAndTimelineForOutForDeliveryOrder()
     {

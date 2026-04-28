@@ -90,9 +90,20 @@ public class DeliveryDispatchService : IDeliveryDispatchService
 
         if (order.Status == OrderStatus.ReadyForPickup)
         {
+            var oldStatus = order.Status;
             order.ChangeStatus(OrderStatus.DriverAssignmentInProgress, null, "Auto-dispatch started");
             _context.OrderStatusHistories.Add(order.StatusHistory.Last());
             await _unitOfWork.SaveChangesAsync(cancellationToken);
+
+            await _notificationService.SendOrderStatusChangedToUserAsync(
+                order.UserId,
+                order.Id,
+                order.OrderNumber,
+                order.VendorId,
+                oldStatus.ToString(),
+                order.Status.ToString(),
+                actorRole: "dispatch",
+                cancellationToken: cancellationToken);
         }
 
         return await OfferNextDriverAsync(order, assignment, cancellationToken);
