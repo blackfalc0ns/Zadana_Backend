@@ -640,7 +640,8 @@ public class DriversController : ApiControllerBase
             assignment.Driver?.VehicleType?.ToString(),
             assignment.Driver?.LicenseNumber,
             assignment.RequiresPickupOtpVerification,
-            assignment.RequiresDeliveryOtpVerification);
+            assignment.RequiresDeliveryOtpVerification,
+            assignment.IsInHandoffWindow ? assignment.PickupOtpCode : null);
     }
 
     private static decimal ApproximateDistanceKm(decimal lat1, decimal lng1, decimal lat2, decimal lng2)

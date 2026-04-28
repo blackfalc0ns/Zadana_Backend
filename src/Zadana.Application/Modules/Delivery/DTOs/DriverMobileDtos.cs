@@ -23,6 +23,7 @@ public record DriverAssignmentDetailDto(
     string PickupOtpStatus,
     bool DeliveryOtpRequired,
     string DeliveryOtpStatus,
+    string? PickupOtpCode,
     string DriverArrivalState,
     IReadOnlyList<DriverAssignmentItemDto> OrderItems);
 

@@ -91,16 +91,16 @@ public class AdminOrdersController : ApiControllerBase
         var adminUserId = GetRequiredAdminUserId();
         var oldStatus = order.Status;
 
+        // Admin can only set pre-delivery statuses.
+        // Delivery lifecycle (OUT_FOR_DELIVERY, DELIVERED) is driven by driver actions.
+        // Cancellation has its own dedicated endpoint.
         var newStatus = request.NewStatus?.Trim().ToUpperInvariant() switch
         {
             "NEW" => OrderStatus.PendingVendorAcceptance,
             "PENDING" => OrderStatus.Accepted,
             "IN_PROGRESS" => OrderStatus.Preparing,
-            "OUT_FOR_DELIVERY" => OrderStatus.OnTheWay,
-            "DELIVERED" => OrderStatus.Delivered,
-            "COMPLETED" => OrderStatus.Refunded,
-            "CANCELLED" => OrderStatus.Cancelled,
-            _ => throw new BusinessRuleException("INVALID_STATUS", "Invalid admin order status.")
+            _ => throw new BusinessRuleException("INVALID_STATUS",
+                "Admin can only set status to NEW, PENDING, or IN_PROGRESS. Use dedicated endpoints for delivery, completion, and cancellation.")
         };
 
         order.ChangeStatus(newStatus, adminUserId, request.AdminNotes);
@@ -237,6 +237,20 @@ public class AdminOrdersController : ApiControllerBase
     {
         var order = await LoadOrderWithUserAsync(orderId, cancellationToken);
         var oldStatus = order.Status;
+
+        // Close any active delivery assignment
+        var assignment = await _dbContext.DeliveryAssignments
+            .FirstOrDefaultAsync(a => a.OrderId == orderId
+                && a.Status != Domain.Modules.Delivery.Enums.AssignmentStatus.Delivered
+                && a.Status != Domain.Modules.Delivery.Enums.AssignmentStatus.Failed
+                && a.Status != Domain.Modules.Delivery.Enums.AssignmentStatus.Cancelled
+                && a.Status != Domain.Modules.Delivery.Enums.AssignmentStatus.Returned, cancellationToken);
+
+        if (assignment is not null)
+        {
+            assignment.Cancel(request.InternalNote ?? request.Details ?? "Order cancelled by admin");
+        }
+
         order.ChangeStatus(OrderStatus.Cancelled, GetRequiredAdminUserId(), request.InternalNote ?? request.Details ?? "Cancelled by admin.");
 
         if (request.RefundType is "full" or "partial")

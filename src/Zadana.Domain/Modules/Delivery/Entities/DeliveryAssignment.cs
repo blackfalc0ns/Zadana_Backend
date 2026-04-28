@@ -93,6 +93,14 @@ public class DeliveryAssignment : BaseEntity
         PickedUpAtUtc = DateTime.UtcNow;
     }
 
+    public void Cancel(string reason)
+    {
+        Status = AssignmentStatus.Cancelled;
+        FailedAtUtc = DateTime.UtcNow;
+        FailureReason = reason;
+        InvalidateOperationalOtps();
+    }
+
     public void MarkArrivedAtVendor()
     {
         Status = AssignmentStatus.ArrivedAtVendor;
@@ -210,10 +218,21 @@ public class DeliveryAssignment : BaseEntity
         DeliveryOtpExpiresAtUtc = null;
     }
 
-    public bool RequiresPickupOtpVerification => Status == AssignmentStatus.Accepted && !PickupOtpVerifiedAtUtc.HasValue;
+    public bool RequiresPickupOtpVerification =>
+        (Status == AssignmentStatus.Accepted || Status == AssignmentStatus.ArrivedAtVendor)
+        && !PickupOtpVerifiedAtUtc.HasValue;
+
     public bool RequiresDeliveryOtpVerification => Order.Status == Domain.Modules.Orders.Enums.OrderStatus.OnTheWay && !DeliveryOtpVerifiedAtUtc.HasValue;
     public bool IsPickupOtpVerified => PickupOtpVerifiedAtUtc.HasValue;
     public bool IsDeliveryOtpVerified => DeliveryOtpVerifiedAtUtc.HasValue;
+
+    /// <summary>
+    /// True when the driver is at or heading to the vendor and pickup OTP has not been confirmed yet.
+    /// Used to determine whether pickupOtpCode should be visible to the driver.
+    /// </summary>
+    public bool IsInHandoffWindow =>
+        (Status == AssignmentStatus.Accepted || Status == AssignmentStatus.ArrivedAtVendor)
+        && !PickupOtpVerifiedAtUtc.HasValue;
 
     public void ResetForRedispatch()
     {

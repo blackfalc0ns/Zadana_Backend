@@ -75,7 +75,11 @@ public class OrderReadService : IOrderReadService
 
         query = bucket switch
         {
-            CustomerOrderBucket.Completed => query.Where(order => order.Status == OrderStatus.Delivered),
+            CustomerOrderBucket.Completed => query.Where(order =>
+                order.Status == OrderStatus.Delivered ||
+                order.Status == OrderStatus.Cancelled ||
+                order.Status == OrderStatus.VendorRejected ||
+                order.Status == OrderStatus.DeliveryFailed),
             CustomerOrderBucket.Returns => query.Where(order => order.Status == OrderStatus.Refunded),
             _ => query.Where(order =>
                 order.Status != OrderStatus.Delivered &&
@@ -333,6 +337,8 @@ public class OrderReadService : IOrderReadService
         var arrivalUpdatedAtUtc = ResolveArrivalUpdatedAtUtc(assignment);
         var canConfirmPickup = order.Status == OrderStatus.DriverAssigned &&
             assignment is not null &&
+            (assignment.Status == AssignmentStatus.Accepted ||
+             assignment.Status == AssignmentStatus.ArrivedAtVendor) &&
             !assignment.PickupOtpVerifiedAtUtc.HasValue &&
             !string.IsNullOrWhiteSpace(assignment.PickupOtpCode);
         var pickupOtpStatus = assignment is null || string.IsNullOrWhiteSpace(assignment.PickupOtpCode)
@@ -358,7 +364,7 @@ public class OrderReadService : IOrderReadService
             assignedDriver,
             arrivalState,
             arrivalUpdatedAtUtc,
-            canConfirmPickup ? assignment!.PickupOtpCode : null,
+            null, // Deprecated: pickup OTP code is never shown to vendor; vendor inputs code from driver
             canConfirmPickup,
             pickupOtpStatus,
             order.Items.Select(item => new OrderItemDto(

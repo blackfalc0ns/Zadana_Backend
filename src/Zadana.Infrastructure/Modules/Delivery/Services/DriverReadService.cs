@@ -574,6 +574,7 @@ public class DriverReadService : IDriverReadService
             ResolveOtpStatus(assignment.RequiresPickupOtpVerification, assignment.IsPickupOtpVerified),
             assignment.RequiresDeliveryOtpVerification,
             ResolveOtpStatus(assignment.RequiresDeliveryOtpVerification, assignment.IsDeliveryOtpVerified),
+            assignment.IsInHandoffWindow ? assignment.PickupOtpCode : null,
             ResolveArrivalState(assignment),
             assignment.Order.Items
                 .Select(item => new DriverAssignmentItemDto(item.ProductName, item.Quantity, item.UnitPrice, item.LineTotal))
@@ -825,9 +826,12 @@ public class DriverReadService : IDriverReadService
 
         if (assignment.Status == AssignmentStatus.ArrivedAtVendor)
         {
-            return assignment.RequiresPickupOtpVerification
-                ? ["verify_pickup_otp"]
-                : ["mark_picked_up"];
+            // After arrival at vendor:
+            // - If pickup OTP verified (vendor confirmed handoff) → driver can mark picked up
+            // - Otherwise → driver waits for vendor to confirm pickup via OTP
+            return assignment.IsPickupOtpVerified
+                ? ["mark_picked_up"]
+                : []; // Driver waits for vendor confirmation
         }
 
         if (assignment.Status == AssignmentStatus.PickedUp && orderStatus != OrderStatus.OnTheWay)

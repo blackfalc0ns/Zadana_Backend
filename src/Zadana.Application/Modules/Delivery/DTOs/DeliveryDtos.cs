@@ -111,7 +111,8 @@ public record DriverCurrentAssignmentDto(
     string? VehicleType,
     string? PlateNumber,
     bool PickupOtpRequired,
-    bool DeliveryOtpRequired);
+    bool DeliveryOtpRequired,
+    string? PickupOtpCode);
 
 public record DriverEarningsSummaryDto(
     decimal EarningsAmount,

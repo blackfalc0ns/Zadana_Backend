@@ -18,6 +18,9 @@ public class DriverRepository : IDriverRepository
 
     public async Task<Driver?> GetByIdAsync(Guid id, CancellationToken cancellationToken = default)
     {
+
+
+        
         return await _dbContext.Drivers
             .Include(d => d.User)
             .FirstOrDefaultAsync(d => d.Id == id, cancellationToken);
