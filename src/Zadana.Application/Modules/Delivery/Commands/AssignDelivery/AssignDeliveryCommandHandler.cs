@@ -47,8 +47,12 @@ public class AssignDeliveryCommandHandler : IRequestHandler<AssignDeliveryComman
         {
             assignment = new DeliveryAssignment(
                 order.Id,
-                request.CodAmount);
+                ResolveCodAmount(order));
             _context.DeliveryAssignments.Add(assignment);
+        }
+        else
+        {
+            assignment.UpdateCodAmount(ResolveCodAmount(order));
         }
 
         var oldStatus = order.Status;
@@ -80,5 +84,7 @@ public class AssignDeliveryCommandHandler : IRequestHandler<AssignDeliveryComman
 
         return assignment.Id;
     }
-}
 
+    private static decimal ResolveCodAmount(Zadana.Domain.Modules.Orders.Entities.Order order) =>
+        order.PaymentMethod == PaymentMethodType.CashOnDelivery ? order.TotalAmount : 0m;
+}

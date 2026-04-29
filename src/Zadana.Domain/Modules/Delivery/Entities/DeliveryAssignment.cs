@@ -47,6 +47,11 @@ public class DeliveryAssignment : BaseEntity
         Status = AssignmentStatus.SearchingDriver;
     }
 
+    public void UpdateCodAmount(decimal codAmount)
+    {
+        CodAmount = Math.Max(0m, codAmount);
+    }
+
     public void OfferTo(Guid driverId, int dispatchAttemptNumber, DateTime offerExpiresAtUtc)
     {
         DriverId = driverId;

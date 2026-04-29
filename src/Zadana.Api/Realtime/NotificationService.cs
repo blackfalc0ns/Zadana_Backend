@@ -194,6 +194,9 @@ public sealed class NotificationService : INotificationService
         string orderNumber,
         string vendorName,
         decimal deliveryFee,
+        decimal totalAmount,
+        decimal codAmount,
+        string paymentMethod,
         int countdownSeconds,
         CancellationToken cancellationToken = default)
     {
@@ -205,6 +208,9 @@ public sealed class NotificationService : INotificationService
                 orderNumber,
                 vendorName,
                 deliveryFee,
+                totalAmount,
+                codAmount,
+                paymentMethod,
                 countdownSeconds,
                 DateTime.UtcNow);
 

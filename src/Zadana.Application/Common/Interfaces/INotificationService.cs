@@ -66,6 +66,9 @@ public interface INotificationService
         string orderNumber,
         string vendorName,
         decimal deliveryFee,
+        decimal totalAmount,
+        decimal codAmount,
+        string paymentMethod,
         int countdownSeconds,
         CancellationToken cancellationToken = default);
 

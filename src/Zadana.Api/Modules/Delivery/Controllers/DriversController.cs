@@ -15,6 +15,7 @@ using Zadana.Application.Modules.Orders.Commands.DriverUpdateOrderStatus;
 using Zadana.Domain.Modules.Delivery.Entities;
 using Zadana.Domain.Modules.Delivery.Enums;
 using Zadana.Domain.Modules.Orders.Enums;
+using Zadana.Domain.Modules.Payments.Enums;
 using Zadana.SharedKernel.Exceptions;
 using Microsoft.EntityFrameworkCore;
 
@@ -262,7 +263,7 @@ public class DriversController : ApiControllerBase
                 assignment.OrderId,
                 orderNumber = assignment.Order.OrderNumber,
                 status = assignment.Status.ToString(),
-                assignment.CodAmount,
+                codAmount = ResolveCodAmount(assignment),
                 assignment.CreatedAtUtc
             }
         });
@@ -419,7 +420,7 @@ public class DriversController : ApiControllerBase
                 a.DeliveredAtUtc,
                 a.FailedAtUtc,
                 a.FailureReason,
-                a.CodAmount))
+                a.Order.PaymentMethod == PaymentMethodType.CashOnDelivery ? a.Order.TotalAmount : 0m))
             .ToArrayAsync(cancellationToken);
 
         return Ok(assignments);
@@ -605,6 +606,9 @@ public class DriversController : ApiControllerBase
             Math.Round(distanceKm, 2),
             BuildEta(distanceKm),
             assignment.Order.DeliveryFee,
+            assignment.Order.PaymentMethod.ToString(),
+            assignment.Order.TotalAmount,
+            ResolveCodAmount(assignment),
             BuildInitials(assignment.Order.Vendor.BusinessNameEn),
             BuildInitials(address?.ContactName ?? "Customer"),
             assignment.Order.Notes,
@@ -634,7 +638,7 @@ public class DriversController : ApiControllerBase
             assignment.Order.VendorBranch?.Longitude,
             address?.Latitude,
             address?.Longitude,
-            assignment.CodAmount,
+            ResolveCodAmount(assignment),
             assignment.CreatedAtUtc,
             assignment.Order.Vendor.ContactPhone,
             assignment.Driver?.VehicleType?.ToString(),
@@ -665,6 +669,9 @@ public class DriversController : ApiControllerBase
         var parts = value.Split(' ', StringSplitOptions.RemoveEmptyEntries | StringSplitOptions.TrimEntries);
         return string.Concat(parts.Take(2).Select(part => char.ToUpperInvariant(part[0])));
     }
+
+    private static decimal ResolveCodAmount(DeliveryAssignment assignment) =>
+        assignment.Order.PaymentMethod == PaymentMethodType.CashOnDelivery ? assignment.Order.TotalAmount : 0m;
 
 }
 

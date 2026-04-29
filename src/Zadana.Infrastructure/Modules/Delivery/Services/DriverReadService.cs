@@ -8,6 +8,7 @@ using Zadana.Domain.Modules.Identity.Entities;
 using Zadana.Domain.Modules.Identity.Enums;
 using Zadana.Domain.Modules.Orders.Entities;
 using Zadana.Domain.Modules.Orders.Enums;
+using Zadana.Domain.Modules.Payments.Enums;
 using Zadana.Domain.Modules.Wallets.Entities;
 using Zadana.Domain.Modules.Wallets.Enums;
 
@@ -569,7 +570,7 @@ public class DriverReadService : IDriverReadService
             customerAddress?.Longitude,
             customerAddress?.ContactPhone,
             assignment.Order.PaymentMethod.ToString(),
-            assignment.CodAmount,
+            ResolveCodAmount(assignment),
             assignment.RequiresPickupOtpVerification,
             ResolveOtpStatus(assignment.RequiresPickupOtpVerification, assignment.IsPickupOtpVerified),
             assignment.RequiresDeliveryOtpVerification,
@@ -630,7 +631,7 @@ public class DriverReadService : IDriverReadService
                     customerAddress?.ContactName ?? "Customer",
                     ResolveCompletedAtUtc(assignment),
                     MapCompletedOrderStatus(assignment.Order.Status),
-                    assignment.Order.TotalAmount,
+                    ResolveCodAmount(assignment),
                     ResolveDistanceKm(assignment.Order, customerAddress),
                     assignment.Order.PaymentMethod.ToString(),
                     customerAddress?.AddressLine ?? string.Empty,
@@ -686,7 +687,7 @@ public class DriverReadService : IDriverReadService
             customerAddress?.AddressLine ?? string.Empty,
             MapCompletedOrderStatus(assignment.Order.Status),
             assignment.Order.PaymentMethod.ToString(),
-            assignment.Order.TotalAmount,
+            ResolveCodAmount(assignment),
             assignment.Order.DeliveryFee,
             ResolveDistanceKm(assignment.Order, customerAddress),
             ResolveCompletedAtUtc(assignment),
@@ -891,6 +892,9 @@ public class DriverReadService : IDriverReadService
             OrderStatus.DeliveryFailed => "deliveryFailed",
             _ => status.ToString()
         };
+
+    private static decimal ResolveCodAmount(DeliveryAssignment assignment) =>
+        assignment.Order.PaymentMethod == PaymentMethodType.CashOnDelivery ? assignment.Order.TotalAmount : 0m;
 
     private static decimal ResolveDistanceKm(Order order, CustomerAddress? customerAddress)
     {

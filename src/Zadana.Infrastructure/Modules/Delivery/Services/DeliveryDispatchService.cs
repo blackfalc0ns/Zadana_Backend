@@ -532,13 +532,16 @@ public class DeliveryDispatchService : IDeliveryDispatchService
 
         if (assignment is null)
         {
-            var codAmount = order.PaymentMethod == PaymentMethodType.CashOnDelivery ? order.TotalAmount : 0m;
-            assignment = new DeliveryAssignment(order.Id, codAmount);
+            assignment = new DeliveryAssignment(order.Id, ResolveCodAmount(order));
             _context.DeliveryAssignments.Add(assignment);
         }
         else if (assignment.Status == AssignmentStatus.Accepted)
         {
             return null;
+        }
+        else
+        {
+            assignment.UpdateCodAmount(ResolveCodAmount(order));
         }
 
         var attemptNumber = unsuccessfulAttempts.Count + 1;
@@ -566,6 +569,10 @@ public class DeliveryDispatchService : IDeliveryDispatchService
             orderNumber = order.OrderNumber,
             vendorName,
             deliveryFee = order.DeliveryFee,
+            totalAmount = order.TotalAmount,
+            codAmount = assignment.CodAmount,
+            paymentMethod = order.PaymentMethod.ToString(),
+            amountToCollect = assignment.CodAmount,
             countdownSeconds = (int)OfferTtl.TotalSeconds,
             expiresAtUtc
         });
@@ -592,6 +599,9 @@ public class DeliveryDispatchService : IDeliveryDispatchService
             order.OrderNumber,
             vendorName,
             order.DeliveryFee,
+            order.TotalAmount,
+            assignment.CodAmount,
+            order.PaymentMethod.ToString(),
             (int)OfferTtl.TotalSeconds,
             cancellationToken);
 
@@ -660,6 +670,9 @@ public class DeliveryDispatchService : IDeliveryDispatchService
 
     private static SemaphoreSlim GetDispatchLock(Guid orderId) =>
         DispatchLocks.GetOrAdd(orderId, _ => new SemaphoreSlim(1, 1));
+
+    private static decimal ResolveCodAmount(Domain.Modules.Orders.Entities.Order order) =>
+        order.PaymentMethod == PaymentMethodType.CashOnDelivery ? order.TotalAmount : 0m;
 
     private async Task TrackDispatchQueueNoteAsync(
         Domain.Modules.Orders.Entities.Order order,

@@ -163,6 +163,10 @@ public class AdminOrdersController : ApiControllerBase
             assignment = new DeliveryAssignment(order.Id, order.PaymentMethod == PaymentMethodType.CashOnDelivery ? order.TotalAmount : 0);
             _dbContext.DeliveryAssignments.Add(assignment);
         }
+        else
+        {
+            assignment.UpdateCodAmount(order.PaymentMethod == PaymentMethodType.CashOnDelivery ? order.TotalAmount : 0);
+        }
 
         assignment.OfferTo(driver.Id, assignment.DispatchAttemptNumber + 1, DateTime.UtcNow.AddMinutes(5));
         assignment.Accept();
