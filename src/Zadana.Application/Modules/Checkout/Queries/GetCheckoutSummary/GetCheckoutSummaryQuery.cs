@@ -1,4 +1,5 @@
 using MediatR;
+using Microsoft.EntityFrameworkCore;
 using Zadana.Application.Common.Interfaces;
 using Zadana.Application.Modules.Checkout.DTOs;
 using Zadana.Application.Modules.Checkout.Support;
@@ -45,9 +46,19 @@ public class GetCheckoutSummaryQueryHandler : IRequestHandler<GetCheckoutSummary
             cancellationToken);
         var discount = coupon == null ? 0m : CheckoutSupport.CalculateDiscountAmount(coupon, pricing.Subtotal);
 
+        // Fetch all customer addresses for address selection in checkout
+        var allAddresses = await _context.CustomerAddresses
+            .AsNoTracking()
+            .Where(a => a.UserId == request.UserId)
+            .OrderByDescending(a => a.IsDefault)
+            .ThenByDescending(a => a.UpdatedAtUtc)
+            .ThenByDescending(a => a.CreatedAtUtc)
+            .ToListAsync(cancellationToken);
+
         return new CheckoutSummaryDto(
             new CheckoutCartDto(pricing.Items.Count, pricing.Items.Sum(x => x.Quantity), pricing.Items),
             CheckoutSupport.BuildAddressDto(address),
+            CheckoutSupport.BuildAvailableAddressesList(allAddresses),
             CheckoutSupport.BuildDeliverySlots(request.DeliverySlotId),
             CheckoutSupport.BuildPaymentMethods(_paymobGateway.IsEnabled),
             CheckoutSupport.BuildPromoCodeDto(coupon, discount),

@@ -27,7 +27,7 @@ public class SubmitDeliveryProofCommandHandler : IRequestHandler<SubmitDeliveryP
         if (assignment.Status is not (AssignmentStatus.PickedUp or AssignmentStatus.ArrivedAtCustomer or AssignmentStatus.Accepted))
         {
             throw new BusinessRuleException("INVALID_PROOF_STATE",
-                "Delivery proof can only be submitted for active assignments");
+                "لا يمكن إرسال إثبات التوصيل إلا للطلبات النشطة | Delivery proof can only be submitted for active assignments.");
         }
 
         var proof = new DeliveryProof(

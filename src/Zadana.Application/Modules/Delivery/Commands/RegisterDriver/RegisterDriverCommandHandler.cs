@@ -43,7 +43,7 @@ public class RegisterDriverCommandHandler : IRequestHandler<RegisterDriverComman
 
             if (regionEntity is null)
             {
-                throw new BusinessRuleException("INVALID_REGION", "Selected region does not exist.");
+                throw new BusinessRuleException("INVALID_REGION", "المنطقة المختارة غير موجودة | Selected region does not exist.");
             }
 
             regionEntityId = regionEntity.Id;
@@ -57,7 +57,7 @@ public class RegisterDriverCommandHandler : IRequestHandler<RegisterDriverComman
 
                 if (!cityExists)
                 {
-                    throw new BusinessRuleException("INVALID_CITY", "Selected city does not belong to the chosen region.");
+                    throw new BusinessRuleException("INVALID_CITY", "المدينة المختارة لا تتبع المنطقة المحددة | Selected city does not belong to the chosen region.");
                 }
             }
         }

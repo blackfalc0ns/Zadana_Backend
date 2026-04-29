@@ -32,7 +32,7 @@ public class UpdateDriverAvailabilityCommandHandler : IRequestHandler<UpdateDriv
         {
             throw new BusinessRuleException(
                 "DRIVER_NOT_READY_FOR_DISPATCH",
-                "Only approved active drivers can enable availability.");
+                "يجب مراجعة حسابك والموافقة عليه قبل تفعيل التوفر | Your account must be approved before you can go online.");
         }
 
         if (request.IsAvailable)
@@ -43,7 +43,7 @@ public class UpdateDriverAvailabilityCommandHandler : IRequestHandler<UpdateDriv
                 throw new BusinessRuleException(
                     "DRIVER_SOFT_BLOCKED_BY_REJECTIONS",
                     commitmentSummary.RestrictionMessage ??
-                    "Driver exceeded the daily or weekly offer rejection limit and cannot enable availability right now.");
+                    "تم تجاوز الحد المسموح به لرفض الطلبات. حاول لاحقاً | You have exceeded the offer rejection limit. Please try again later.");
             }
         }
 

@@ -254,12 +254,12 @@ public class DriverWalletController : ApiControllerBase
 
         if (payoutMethod is null)
         {
-            throw new BusinessRuleException("DRIVER_PAYOUT_METHOD_REQUIRED", "Add a primary payout method before requesting a withdrawal.");
+            throw new BusinessRuleException("DRIVER_PAYOUT_METHOD_REQUIRED", "أضف طريقة سحب أساسية قبل طلب السحب | Add a primary payout method before requesting a withdrawal.");
         }
 
         if (wallet.CurrentBalance < request.Amount)
         {
-            throw new BusinessRuleException("INSUFFICIENT_WITHDRAWABLE_BALANCE", "Withdrawal amount exceeds available balance.");
+            throw new BusinessRuleException("INSUFFICIENT_WITHDRAWABLE_BALANCE", "مبلغ السحب يتجاوز الرصيد المتاح | Withdrawal amount exceeds available balance.");
         }
 
         wallet.Hold(request.Amount);
@@ -373,7 +373,7 @@ public class DriverWalletController : ApiControllerBase
     {
         if (!Enum.TryParse<DriverPayoutMethodType>(value, true, out var methodType))
         {
-            throw new BusinessRuleException("INVALID_DRIVER_PAYOUT_METHOD_TYPE", "Unsupported payout method type.");
+            throw new BusinessRuleException("INVALID_DRIVER_PAYOUT_METHOD_TYPE", "نوع طريقة السحب غير مدعوم | Unsupported payout method type.");
         }
 
         return methodType;

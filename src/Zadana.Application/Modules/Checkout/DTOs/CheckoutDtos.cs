@@ -3,6 +3,7 @@ namespace Zadana.Application.Modules.Checkout.DTOs;
 public record CheckoutSummaryDto(
     CheckoutCartDto Cart,
     CheckoutSelectedAddressDto? SelectedAddress,
+    List<CheckoutSelectedAddressDto> AvailableAddresses,
     List<CheckoutDeliverySlotDto> DeliverySlots,
     List<CheckoutPaymentMethodDto> PaymentMethods,
     CheckoutPromoCodeDto? PromoCode,
@@ -34,7 +35,8 @@ public record CheckoutSelectedAddressDto(
 
 public record CheckoutDeliverySlotDto(
     string Id,
-    string Label,
+    string LabelAr,
+    string LabelEn,
     DateTime StartAt,
     DateTime EndAt,
     bool IsAvailable,
@@ -42,7 +44,10 @@ public record CheckoutDeliverySlotDto(
 
 public record CheckoutPaymentMethodDto(
     string Code,
-    string Label,
+    string LabelAr,
+    string LabelEn,
+    string? DescriptionAr,
+    string? DescriptionEn,
     bool IsAvailable,
     bool IsDefault);
 
@@ -70,7 +75,8 @@ public record CheckoutDeliveryQuoteDto(
 
 public record CheckoutShippingBreakdownLineDto(
     string Code,
-    string Label,
+    string LabelAr,
+    string LabelEn,
     decimal Amount);
 
 public record ApplyCheckoutPromoCodeResultDto(

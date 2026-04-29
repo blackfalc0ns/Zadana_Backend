@@ -7,6 +7,7 @@ public record GetCheckoutSummaryResponse(
     [property: JsonPropertyName("cart")] CheckoutCartResponse Cart,
     [property: JsonPropertyName("address_id")] Guid? AddressId,
     [property: JsonPropertyName("selected_address")] CheckoutSelectedAddressResponse? SelectedAddress,
+    [property: JsonPropertyName("available_addresses")] List<CheckoutSelectedAddressResponse> AvailableAddresses,
     [property: JsonPropertyName("delivery_slots")] List<CheckoutDeliverySlotResponse> DeliverySlots,
     [property: JsonPropertyName("payment_methods")] List<CheckoutPaymentMethodResponse> PaymentMethods,
     [property: JsonPropertyName("promo_code")] CheckoutPromoCodeResponse? PromoCode,
@@ -38,7 +39,8 @@ public record CheckoutSelectedAddressResponse(
 
 public record CheckoutDeliverySlotResponse(
     [property: JsonPropertyName("id")] string Id,
-    [property: JsonPropertyName("label")] string Label,
+    [property: JsonPropertyName("label_ar")] string LabelAr,
+    [property: JsonPropertyName("label_en")] string LabelEn,
     [property: JsonPropertyName("start_at")] DateTime StartAt,
     [property: JsonPropertyName("end_at")] DateTime EndAt,
     [property: JsonPropertyName("is_available")] bool IsAvailable,
@@ -46,7 +48,10 @@ public record CheckoutDeliverySlotResponse(
 
 public record CheckoutPaymentMethodResponse(
     [property: JsonPropertyName("code")] string Code,
-    [property: JsonPropertyName("label")] string Label,
+    [property: JsonPropertyName("label_ar")] string LabelAr,
+    [property: JsonPropertyName("label_en")] string LabelEn,
+    [property: JsonPropertyName("description_ar")] string? DescriptionAr,
+    [property: JsonPropertyName("description_en")] string? DescriptionEn,
     [property: JsonPropertyName("is_available")] bool IsAvailable,
     [property: JsonPropertyName("is_default")] bool IsDefault);
 
@@ -67,7 +72,8 @@ public record CheckoutDeliveryQuoteResponse(
 
 public record CheckoutShippingBreakdownLineResponse(
     [property: JsonPropertyName("code")] string Code,
-    [property: JsonPropertyName("label")] string Label,
+    [property: JsonPropertyName("label_ar")] string LabelAr,
+    [property: JsonPropertyName("label_en")] string LabelEn,
     [property: JsonPropertyName("amount")] decimal Amount);
 
 public record CheckoutSummaryTotalsResponse(

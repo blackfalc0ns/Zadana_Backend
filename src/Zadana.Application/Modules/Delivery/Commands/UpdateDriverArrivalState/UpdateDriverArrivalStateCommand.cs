@@ -53,20 +53,20 @@ public class UpdateDriverArrivalStateCommandHandler : IRequestHandler<UpdateDriv
     public async Task<DriverArrivalStateResultDto> Handle(UpdateDriverArrivalStateCommand request, CancellationToken cancellationToken)
     {
         var driver = await _driverRepository.GetByUserIdAsync(request.DriverUserId, cancellationToken)
-            ?? throw new BusinessRuleException("DRIVER_NOT_FOUND", "No driver profile found for the current user.");
+            ?? throw new BusinessRuleException("DRIVER_NOT_FOUND", "لم يتم العثور على حساب مندوب مرتبط بهذا المستخدم | No driver profile found for the current user.");
 
         if (!driver.CanReceiveOrders)
         {
             throw new BusinessRuleException(
                 "DRIVER_NOT_READY_FOR_DISPATCH",
-                "Driver must be reviewed and approved by admin before updating arrival state.");
+                "يجب مراجعة حسابك والموافقة عليه من الإدارة قبل تحديث حالة الوصول | Your account must be reviewed and approved by admin before updating arrival state.");
         }
 
         var assignment = await _context.DeliveryAssignments
             .Include(item => item.Order)
                 .ThenInclude(order => order.Vendor)
             .FirstOrDefaultAsync(item => item.OrderId == request.OrderId && item.DriverId == driver.Id, cancellationToken)
-            ?? throw new BusinessRuleException("DRIVER_NOT_ASSIGNED", "You are not assigned to this order.");
+            ?? throw new BusinessRuleException("DRIVER_NOT_ASSIGNED", "أنت غير مخصص لهذا الطلب | You are not assigned to this order.");
 
         string normalizedState;
         string message;
@@ -80,7 +80,7 @@ public class UpdateDriverArrivalStateCommandHandler : IRequestHandler<UpdateDriv
         {
             if (assignment.Status is not Domain.Modules.Delivery.Enums.AssignmentStatus.Accepted)
             {
-                throw new BusinessRuleException("INVALID_ARRIVAL_STATE_TRANSITION", "Driver can only arrive at vendor after accepting the order.");
+                throw new BusinessRuleException("INVALID_ARRIVAL_STATE_TRANSITION", "يمكنك تسجيل الوصول للمتجر فقط بعد قبول الطلب | You can only mark arrival at vendor after accepting the order.");
             }
 
             assignment.MarkArrivedAtVendor();
@@ -97,7 +97,7 @@ public class UpdateDriverArrivalStateCommandHandler : IRequestHandler<UpdateDriv
             if (assignment.Order.Status != Domain.Modules.Orders.Enums.OrderStatus.OnTheWay ||
                 assignment.Status is not (Domain.Modules.Delivery.Enums.AssignmentStatus.PickedUp or Domain.Modules.Delivery.Enums.AssignmentStatus.ArrivedAtCustomer))
             {
-                throw new BusinessRuleException("INVALID_ARRIVAL_STATE_TRANSITION", "Driver can only arrive at customer after the order is on the way.");
+                throw new BusinessRuleException("INVALID_ARRIVAL_STATE_TRANSITION", "يمكنك تسجيل الوصول للعميل فقط بعد بدء التوصيل | You can only mark arrival at customer after the order is on the way.");
             }
 
             assignment.MarkArrivedAtCustomer();

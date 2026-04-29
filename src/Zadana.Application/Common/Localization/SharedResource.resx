@@ -420,4 +420,61 @@
   <data name="BrandMustBeLinkedToSubcategory" xml:space="preserve">
     <value>Brand must be linked to a subcategory, not a main category.</value>
   </data>
+  <data name="DRIVER_NOT_FOUND" xml:space="preserve">
+    <value>No driver profile found for the current user.</value>
+  </data>
+  <data name="DRIVER_NOT_READY_FOR_DISPATCH" xml:space="preserve">
+    <value>Your account must be reviewed and approved by admin before performing this action.</value>
+  </data>
+  <data name="DRIVER_NOT_ASSIGNED" xml:space="preserve">
+    <value>You are not assigned to this order.</value>
+  </data>
+  <data name="PICKUP_OTP_REQUIRED" xml:space="preserve">
+    <value>Pickup OTP must be verified by the vendor before marking the order as picked up.</value>
+  </data>
+  <data name="DELIVERY_OTP_REQUIRED" xml:space="preserve">
+    <value>Delivery OTP must be verified by the customer before completing delivery.</value>
+  </data>
+  <data name="DELIVERY_FAILURE_NOTE_REQUIRED" xml:space="preserve">
+    <value>A note explaining the delivery failure reason is required.</value>
+  </data>
+  <data name="INVALID_ORDER_STATUS_TRANSITION" xml:space="preserve">
+    <value>This status transition is not allowed.</value>
+  </data>
+  <data name="INVALID_ARRIVAL_STATE_TRANSITION" xml:space="preserve">
+    <value>This arrival state change is not allowed at the current stage.</value>
+  </data>
+  <data name="ASSIGNMENT_NOT_OWNED" xml:space="preserve">
+    <value>You can only perform this action for your assigned deliveries.</value>
+  </data>
+  <data name="PICKUP_OTP_INVALID" xml:space="preserve">
+    <value>Incorrect pickup OTP. Please check the code and try again.</value>
+  </data>
+  <data name="DELIVERY_OTP_INVALID" xml:space="preserve">
+    <value>Incorrect delivery OTP. Please check the code and try again.</value>
+  </data>
+  <data name="INVALID_PROOF_STATE" xml:space="preserve">
+    <value>Delivery proof can only be submitted for active assignments.</value>
+  </data>
+  <data name="DRIVER_SOFT_BLOCKED_BY_REJECTIONS" xml:space="preserve">
+    <value>You have exceeded the offer rejection limit. Please try again later.</value>
+  </data>
+  <data name="DRIVER_PAYOUT_METHOD_REQUIRED" xml:space="preserve">
+    <value>Add a primary payout method before requesting a withdrawal.</value>
+  </data>
+  <data name="INSUFFICIENT_WITHDRAWABLE_BALANCE" xml:space="preserve">
+    <value>Withdrawal amount exceeds available balance.</value>
+  </data>
+  <data name="INVALID_DRIVER_PAYOUT_METHOD_TYPE" xml:space="preserve">
+    <value>Unsupported payout method type.</value>
+  </data>
+  <data name="INVALID_VEHICLE_TYPE" xml:space="preserve">
+    <value>Unsupported vehicle type.</value>
+  </data>
+  <data name="INVALID_REGION" xml:space="preserve">
+    <value>Selected region does not exist.</value>
+  </data>
+  <data name="INVALID_CITY" xml:space="preserve">
+    <value>Selected city does not belong to the chosen region.</value>
+  </data>
 </root>

@@ -421,4 +421,61 @@
   <data name="AccountEmailNotVerified" xml:space="preserve">
     <value>بريدك الإلكتروني غير موثق بعد. يرجى تأكيد الحساب باستخدام كود التحقق المرسل إلى بريدك قبل تسجيل الدخول.</value>
   </data>
+  <data name="DRIVER_NOT_FOUND" xml:space="preserve">
+    <value>لم يتم العثور على حساب مندوب مرتبط بهذا المستخدم.</value>
+  </data>
+  <data name="DRIVER_NOT_READY_FOR_DISPATCH" xml:space="preserve">
+    <value>يجب مراجعة حسابك والموافقة عليه من الإدارة قبل تنفيذ هذا الإجراء.</value>
+  </data>
+  <data name="DRIVER_NOT_ASSIGNED" xml:space="preserve">
+    <value>أنت غير مخصص لهذا الطلب.</value>
+  </data>
+  <data name="PICKUP_OTP_REQUIRED" xml:space="preserve">
+    <value>يجب تأكيد رمز الاستلام من المتجر قبل تحديث حالة الطلب.</value>
+  </data>
+  <data name="DELIVERY_OTP_REQUIRED" xml:space="preserve">
+    <value>يجب تأكيد رمز التوصيل من العميل قبل إتمام الطلب.</value>
+  </data>
+  <data name="DELIVERY_FAILURE_NOTE_REQUIRED" xml:space="preserve">
+    <value>يجب كتابة سبب فشل التوصيل قبل تسجيله.</value>
+  </data>
+  <data name="INVALID_ORDER_STATUS_TRANSITION" xml:space="preserve">
+    <value>لا يمكن تغيير حالة الطلب في الوقت الحالي.</value>
+  </data>
+  <data name="INVALID_ARRIVAL_STATE_TRANSITION" xml:space="preserve">
+    <value>لا يمكن تحديث حالة الوصول في المرحلة الحالية.</value>
+  </data>
+  <data name="ASSIGNMENT_NOT_OWNED" xml:space="preserve">
+    <value>يمكنك تنفيذ هذا الإجراء فقط للطلبات المخصصة لك.</value>
+  </data>
+  <data name="PICKUP_OTP_INVALID" xml:space="preserve">
+    <value>رمز الاستلام غير صحيح. تأكد من الرمز وحاول مرة أخرى.</value>
+  </data>
+  <data name="DELIVERY_OTP_INVALID" xml:space="preserve">
+    <value>رمز التوصيل غير صحيح. تأكد من الرمز وحاول مرة أخرى.</value>
+  </data>
+  <data name="INVALID_PROOF_STATE" xml:space="preserve">
+    <value>لا يمكن إرسال إثبات التوصيل إلا للطلبات النشطة.</value>
+  </data>
+  <data name="DRIVER_SOFT_BLOCKED_BY_REJECTIONS" xml:space="preserve">
+    <value>تم تجاوز الحد المسموح به لرفض الطلبات. حاول لاحقاً.</value>
+  </data>
+  <data name="DRIVER_PAYOUT_METHOD_REQUIRED" xml:space="preserve">
+    <value>أضف طريقة سحب أساسية قبل طلب السحب.</value>
+  </data>
+  <data name="INSUFFICIENT_WITHDRAWABLE_BALANCE" xml:space="preserve">
+    <value>مبلغ السحب يتجاوز الرصيد المتاح.</value>
+  </data>
+  <data name="INVALID_DRIVER_PAYOUT_METHOD_TYPE" xml:space="preserve">
+    <value>نوع طريقة السحب غير مدعوم.</value>
+  </data>
+  <data name="INVALID_VEHICLE_TYPE" xml:space="preserve">
+    <value>نوع المركبة غير مدعوم.</value>
+  </data>
+  <data name="INVALID_REGION" xml:space="preserve">
+    <value>المنطقة المختارة غير موجودة.</value>
+  </data>
+  <data name="INVALID_CITY" xml:space="preserve">
+    <value>المدينة المختارة لا تتبع المنطقة المحددة.</value>
+  </data>
 </root>

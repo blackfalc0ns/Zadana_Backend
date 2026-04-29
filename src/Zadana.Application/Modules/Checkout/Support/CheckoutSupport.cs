@@ -282,9 +282,9 @@ internal static class CheckoutSupport
 
     public static List<CheckoutShippingBreakdownLineDto> BuildShippingBreakdown(DeliveryPriceQuote quote) =>
     [
-        new CheckoutShippingBreakdownLineDto("base_delivery", "Base delivery", quote.BaseFee),
-        new CheckoutShippingBreakdownLineDto("distance_surcharge", "Distance surcharge", quote.DistanceFee),
-        new CheckoutShippingBreakdownLineDto("peak_surcharge", "Peak surcharge", quote.SurgeFee)
+        new CheckoutShippingBreakdownLineDto("base_delivery", "رسوم التوصيل الأساسية", "Base delivery", quote.BaseFee),
+        new CheckoutShippingBreakdownLineDto("distance_surcharge", "رسوم المسافة", "Distance surcharge", quote.DistanceFee),
+        new CheckoutShippingBreakdownLineDto("peak_surcharge", "رسوم الذروة", "Peak surcharge", quote.SurgeFee)
     ];
 
     public static CheckoutPromoCodeDto? BuildPromoCodeDto(Coupon? coupon, decimal discountAmount)
@@ -311,6 +311,7 @@ internal static class CheckoutSupport
         [
             new CheckoutDeliverySlotDto(
                 DefaultDeliverySlotId,
+                "٣٠-٤٥ دقيقة",
                 "30-45 minutes",
                 DateTime.UtcNow.AddMinutes(30),
                 DateTime.UtcNow.AddMinutes(45),
@@ -321,10 +322,10 @@ internal static class CheckoutSupport
 
     public static List<CheckoutPaymentMethodDto> BuildPaymentMethods(bool cardAvailable) =>
     [
-        new CheckoutPaymentMethodDto("card", "Credit / Debit Card", cardAvailable, cardAvailable),
-        new CheckoutPaymentMethodDto("apple_pay", "Apple Pay", false, false),
-        new CheckoutPaymentMethodDto("cash", "Cash on Delivery", true, !cardAvailable),
-        new CheckoutPaymentMethodDto("bank", "Bank Transfer", true, false)
+        new CheckoutPaymentMethodDto("card", "بطاقة ائتمان / مدى", "Credit / Debit Card", "فيزا، ماستركارد، مدى", "Visa, Mastercard, Mada", cardAvailable, cardAvailable),
+        new CheckoutPaymentMethodDto("apple_pay", "Apple Pay", "Apple Pay", "دفع سريع وآمن", "Fast and secure payment", false, false),
+        new CheckoutPaymentMethodDto("cash", "الدفع عند الاستلام", "Cash on Delivery", "ادفع كاش وقت استلام الطلب", "Pay cash when you receive the order", true, !cardAvailable),
+        new CheckoutPaymentMethodDto("bank", "تحويل بنكي", "Bank Transfer", "تحويل مباشر من البنك", "Direct transfer from bank", true, false)
     ];
 
     public static CheckoutSelectedAddressDto? BuildAddressDto(CustomerAddress? address)
@@ -340,6 +341,14 @@ internal static class CheckoutSupport
             address.AddressLine,
             address.IsDefault);
     }
+
+    public static List<CheckoutSelectedAddressDto> BuildAvailableAddressesList(
+        IEnumerable<CustomerAddress> addresses) =>
+        addresses.Select(address => new CheckoutSelectedAddressDto(
+            address.Id,
+            address.Label?.ToString().ToLowerInvariant() ?? AddressLabel.Other.ToString().ToLowerInvariant(),
+            address.AddressLine,
+            address.IsDefault)).ToList();
 
     public static string MapPaymentMethodCodeToEnumName(string paymentMethodCode) =>
         paymentMethodCode.Trim().ToLowerInvariant() switch

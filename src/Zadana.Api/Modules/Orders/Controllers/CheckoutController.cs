@@ -112,16 +112,25 @@ public class CheckoutController : ApiControllerBase
                     result.SelectedAddress.Label,
                     result.SelectedAddress.AddressLine,
                     result.SelectedAddress.IsDefault),
+            result.AvailableAddresses.Select(addr => new CheckoutSelectedAddressResponse(
+                addr.Id,
+                addr.Label,
+                addr.AddressLine,
+                addr.IsDefault)).ToList(),
             result.DeliverySlots.Select(slot => new CheckoutDeliverySlotResponse(
                 slot.Id,
-                slot.Label,
+                slot.LabelAr,
+                slot.LabelEn,
                 slot.StartAt,
                 slot.EndAt,
                 slot.IsAvailable,
                 slot.IsSelected)).ToList(),
             result.PaymentMethods.Select(method => new CheckoutPaymentMethodResponse(
                 method.Code,
-                method.Label,
+                method.LabelAr,
+                method.LabelEn,
+                method.DescriptionAr,
+                method.DescriptionEn,
                 method.IsAvailable,
                 method.IsDefault)).ToList(),
             result.PromoCode == null
@@ -141,7 +150,8 @@ public class CheckoutController : ApiControllerBase
                 result.DeliveryQuote.RuleLabel),
             result.ShippingBreakdown.Select(item => new CheckoutShippingBreakdownLineResponse(
                 item.Code,
-                item.Label,
+                item.LabelAr,
+                item.LabelEn,
                 item.Amount)).ToList(),
             result.PricingMode,
             new CheckoutSummaryTotalsResponse(

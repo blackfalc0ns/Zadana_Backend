@@ -133,7 +133,7 @@ public class ExceptionHandlingMiddleware
     {
         var message = exception switch
         {
-            BusinessRuleException => exception.Message,
+            BusinessRuleException bre => ResolveBusinessRuleMessage(bre, localizer),
             BadRequestException => exception.Message,
             NotFoundException => exception.Message,
             ExternalServiceException => exception.Message,
@@ -147,6 +147,7 @@ public class ExceptionHandlingMiddleware
             _ => localizer["ServerErrorMessage"]
         };
 
+        // Support inline AR|EN format as fallback
         if (!string.IsNullOrWhiteSpace(message) && message.Contains('|'))
         {
             var language = context.Request.Headers["Accept-Language"].ToString().ToLowerInvariant();
@@ -159,6 +160,23 @@ public class ExceptionHandlingMiddleware
         }
 
         return message;
+    }
+
+    /// <summary>
+    /// Resolves a BusinessRuleException message by first checking .resx resource files
+    /// using the ErrorCode as key. Falls back to the inline message if no resource found.
+    /// </summary>
+    private static string ResolveBusinessRuleMessage(BusinessRuleException bre, IStringLocalizer<SharedResource> localizer)
+    {
+        // Try to find a localized message using the ErrorCode as key in .resx files
+        var localized = localizer[bre.ErrorCode];
+        if (!localized.ResourceNotFound)
+        {
+            return localized.Value;
+        }
+
+        // Fallback: use the inline message (which may contain AR|EN format)
+        return bre.Message;
     }
 
     private static string? GetErrorCode(Exception exception) =>
