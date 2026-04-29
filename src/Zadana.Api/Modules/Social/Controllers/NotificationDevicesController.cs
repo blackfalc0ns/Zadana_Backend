@@ -10,6 +10,7 @@ using Zadana.SharedKernel.Exceptions;
 namespace Zadana.Api.Modules.Social.Controllers;
 
 [Route("api/notifications/devices")]
+[Route("api/drivers/notifications/devices")]
 [Tags("Mobile App API")]
 [Authorize]
 public class NotificationDevicesController : ApiControllerBase
