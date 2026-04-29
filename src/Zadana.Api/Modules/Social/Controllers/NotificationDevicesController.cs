@@ -10,8 +10,8 @@ using Zadana.SharedKernel.Exceptions;
 namespace Zadana.Api.Modules.Social.Controllers;
 
 [Route("api/notifications/devices")]
-[Tags("Customer App API")]
-[Authorize(Policy = "CustomerOnly")]
+[Tags("Mobile App API")]
+[Authorize]
 public class NotificationDevicesController : ApiControllerBase
 {
     private readonly ICurrentUserService _currentUserService;

@@ -34,6 +34,12 @@ public class DeliveryDispatchServiceTests
             publisher ?? Mock.Of<IPublisher>(),
             notificationService ?? Mock.Of<INotificationService>(),
             commitmentPolicyService,
+
+
+
+
+
+            
             Mock.Of<IOneSignalPushService>());
     }
 
