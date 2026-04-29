@@ -138,6 +138,14 @@ public class UpdateDriverArrivalStateCommandHandler : IRequestHandler<UpdateDriv
             $"/orders/{assignment.OrderId}",
             cancellationToken);
 
+        // Push full assignment detail to the driver so their order detail screen refreshes in real-time
+        await _notificationService.SendAssignmentUpdatedToDriverAsync(
+            request.DriverUserId,
+            assignment.Id,
+            assignment.OrderId,
+            cancellationToken);
+
+
         return new DriverArrivalStateResultDto(
             assignment.OrderId,
             assignment.Id,
