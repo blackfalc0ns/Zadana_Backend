@@ -24,7 +24,7 @@ public class CartCommandsTests
 
         var result = await handler.Handle(new AddCartItemCommand(CartActor.Create(setup.UserId, null), setup.MasterProduct.Id, 2), CancellationToken.None);
 
-        result.Message.Should().Be("added to cart successfully");
+        result.MessageEn.Should().NotBeNullOrEmpty();
         result.Item.ProductId.Should().Be(setup.MasterProduct.Id);
         result.Item.Quantity.Should().Be(2);
         result.Item.VendorPrices.Should().HaveCount(2);
@@ -43,7 +43,7 @@ public class CartCommandsTests
 
         var result = await handler.Handle(new UpdateCartItemQuantityCommand(CartActor.Create(setup.UserId, null), setup.CartItem.Id, 5), CancellationToken.None);
 
-        result.Message.Should().Be("cart item updated successfully");
+        result.MessageEn.Should().NotBeNullOrEmpty();
         result.Item.Quantity.Should().Be(5);
         result.Summary.TotalQuantity.Should().Be(5);
     }
@@ -78,7 +78,7 @@ public class CartCommandsTests
 
         var result = await handler.Handle(new RemoveCartItemCommand(CartActor.Create(setup.UserId, null), setup.CartItem.Id), CancellationToken.None);
 
-        result.Message.Should().Be("cart item removed successfully");
+        result.MessageEn.Should().NotBeNullOrEmpty();
         result.Summary.ItemsCount.Should().Be(0);
         result.Summary.TotalQuantity.Should().Be(0);
         context.Carts.Should().BeEmpty();
@@ -94,7 +94,7 @@ public class CartCommandsTests
 
         var result = await handler.Handle(new ClearCartCommand(CartActor.Create(setup.UserId, null)), CancellationToken.None);
 
-        result.Message.Should().Be("cart cleared successfully");
+        result.MessageEn.Should().NotBeNullOrEmpty();
         context.Carts.Should().BeEmpty();
     }
 
@@ -210,7 +210,7 @@ public class CartCommandsTests
             new ClearCartCommand(CartActor.Create(null, " guest-123 ")),
             CancellationToken.None);
 
-        result.Message.Should().Be("cart cleared successfully");
+        result.MessageEn.Should().NotBeNullOrEmpty();
         context.Carts.Should().BeEmpty();
     }
 

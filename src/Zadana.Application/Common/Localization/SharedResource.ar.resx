@@ -545,30 +545,6 @@
   <data name="INVALID_REQUEST_BODY" xml:space="preserve">
     <value>البيانات المرسلة مفقودة أو غير صالحة.</value>
   </data>
-  <data name="EMPTY_CART" xml:space="preserve">
-    <value>السلة فارغة. أضف منتجات قبل إتمام الطلب.</value>
-  </data>
-  <data name="USER_ALREADY_EXISTS" xml:space="preserve">
-    <value>يوجد حساب مسجل بهذا البريد الإلكتروني بالفعل.</value>
-  </data>
-  <data name="CREATION_FAILED" xml:space="preserve">
-    <value>فشل إنشاء الحساب. حاول مرة أخرى.</value>
-  </data>
-  <data name="VERIFICATION_FAILED" xml:space="preserve">
-    <value>فشل التحقق. حاول مرة أخرى.</value>
-  </data>
-  <data name="PASSWORD_RESET_FAILED" xml:space="preserve">
-    <value>فشل إعادة تعيين كلمة المرور. حاول مرة أخرى.</value>
-  </data>
-  <data name="USER_NOT_FOUND" xml:space="preserve">
-    <value>لم يتم العثور على حساب بهذا البريد أو رقم الهاتف.</value>
-  </data>
-  <data name="VENDOR_MISSING_CART_PRODUCT" xml:space="preserve">
-    <value>التاجر المحدد لا يوفر جميع المنتجات في سلتك.</value>
-  </data>
-  <data name="IDENTITY_OPERATION_FAILED" xml:space="preserve">
-    <value>فشلت العملية. حاول مرة أخرى لاحقاً.</value>
-  </data>
 
   <!-- ── Success Messages ──────────────────────────────────────── -->
 
@@ -668,6 +644,180 @@
   </data>
   <data name="PAYMENT_CONFIRMATION_FAILED" xml:space="preserve">
     <value>فشل تأكيد الدفع</value>
+  </data>
+
+  <!-- ── Error Messages (Missing) ──────────────────────────────── -->
+
+  <!-- Banking / Wallet -->
+  <data name="BANK_INVALID_STATUS" xml:space="preserve">
+    <value>حالة الحساب البنكي لا تسمح بهذا الإجراء.</value>
+  </data>
+  <data name="BANK_NOT_VERIFIED" xml:space="preserve">
+    <value>الحساب البنكي لم يتم التحقق منه بعد.</value>
+  </data>
+  <data name="INSUFFICIENT_FUNDS" xml:space="preserve">
+    <value>رصيد غير كافٍ لإتمام هذه العملية.</value>
+  </data>
+  <data name="INVALID_WITHDRAWAL_AMOUNT" xml:space="preserve">
+    <value>مبلغ السحب يجب أن يكون أكبر من صفر.</value>
+  </data>
+  <data name="INVALID_HOLD_RELEASE" xml:space="preserve">
+    <value>لا يمكن تحرير هذا الحجز.</value>
+  </data>
+  <data name="INVALID_HOLD_SETTLE" xml:space="preserve">
+    <value>لا يمكن تسوية هذا الحجز.</value>
+  </data>
+  <data name="PAYOUT_INVALID_STATUS" xml:space="preserve">
+    <value>لا يمكن تعديل المدفوعات في حالتها الحالية.</value>
+  </data>
+
+  <!-- Categories / Brands -->
+  <data name="BRAND_CATEGORY_MISMATCH" xml:space="preserve">
+    <value>العلامة التجارية لا تنتمي للفئة المحددة.</value>
+  </data>
+  <data name="BRAND_CATEGORY_MUST_BE_NESTED" xml:space="preserve">
+    <value>فئة العلامة التجارية يجب أن تكون فئة فرعية.</value>
+  </data>
+  <data name="BRAND_REQUEST_NOT_APPROVED" xml:space="preserve">
+    <value>طلب العلامة التجارية لم تتم الموافقة عليه بعد.</value>
+  </data>
+  <data name="CATEGORY_DEPTH_EXCEEDED" xml:space="preserve">
+    <value>تم تجاوز الحد الأقصى لعمق الفئات.</value>
+  </data>
+  <data name="CATEGORY_LEVEL_NOT_SUPPORTED" xml:space="preserve">
+    <value>مستوى الفئة هذا غير مدعوم.</value>
+  </data>
+  <data name="CATEGORY_PARENT_REQUIRED" xml:space="preserve">
+    <value>الفئة الأم مطلوبة.</value>
+  </data>
+  <data name="CATEGORY_REQUEST_NOT_APPROVED" xml:space="preserve">
+    <value>طلب الفئة لم تتم الموافقة عليه بعد.</value>
+  </data>
+  <data name="INVALID_CATEGORY_PARENT_LEVEL" xml:space="preserve">
+    <value>الفئة الأم المحددة لا تتوافق مع المستوى المطلوب.</value>
+  </data>
+  <data name="INVALID_CATEGORY_TARGET_LEVEL" xml:space="preserve">
+    <value>مستوى الفئة المستهدف غير صالح.</value>
+  </data>
+
+  <!-- Delivery / Dispatch -->
+  <data name="DELIVERY_OFFER_EXPIRED" xml:space="preserve">
+    <value>انتهت صلاحية عرض التوصيل هذا.</value>
+  </data>
+  <data name="DELIVERY_OFFER_NOT_AVAILABLE" xml:space="preserve">
+    <value>عرض التوصيل هذا لم يعد متاحاً.</value>
+  </data>
+  <data name="NO_ASSIGNED_DRIVER" xml:space="preserve">
+    <value>لم يتم العثور على مندوب مخصص لهذا الطلب.</value>
+  </data>
+
+  <!-- Identity -->
+  <data name="IDENTITY_ACTIVATE_FAILED" xml:space="preserve">
+    <value>فشل تفعيل الحساب. حاول مرة أخرى.</value>
+  </data>
+  <data name="IDENTITY_ARCHIVE_FAILED" xml:space="preserve">
+    <value>فشل أرشفة الحساب. حاول مرة أخرى.</value>
+  </data>
+  <data name="IDENTITY_COMPENSATION_FAILED" xml:space="preserve">
+    <value>فشلت معالجة التعويض.</value>
+  </data>
+  <data name="IDENTITY_LOCK_FAILED" xml:space="preserve">
+    <value>فشل قفل الحساب. حاول مرة أخرى.</value>
+  </data>
+  <data name="IDENTITY_RESET_PASSWORD_FAILED" xml:space="preserve">
+    <value>فشل إعادة تعيين كلمة المرور. حاول مرة أخرى.</value>
+  </data>
+  <data name="IDENTITY_SUSPEND_FAILED" xml:space="preserve">
+    <value>فشل تعليق الحساب. حاول مرة أخرى.</value>
+  </data>
+  <data name="IDENTITY_UNLOCK_FAILED" xml:space="preserve">
+    <value>فشل فتح قفل الحساب. حاول مرة أخرى.</value>
+  </data>
+
+  <!-- Orders -->
+  <data name="ORDER_ALREADY_PAID" xml:space="preserve">
+    <value>تم تأكيد دفع الطلب بالفعل.</value>
+  </data>
+  <data name="ORDER_CANNOT_BE_CANCELLED" xml:space="preserve">
+    <value>لا يمكن إلغاء الطلب في مرحلته الحالية.</value>
+  </data>
+  <data name="ORDER_COMPLAINT_ALREADY_EXISTS" xml:space="preserve">
+    <value>تم تقديم شكوى لهذا الطلب بالفعل.</value>
+  </data>
+
+  <!-- Catalog / Products -->
+  <data name="INVALID_DATE_RANGE" xml:space="preserve">
+    <value>تاريخ الانتهاء يجب أن يكون أكبر من أو يساوي تاريخ البداية.</value>
+  </data>
+  <data name="INVALID_DIRECTION" xml:space="preserve">
+    <value>اتجاه الترتيب غير صالح.</value>
+  </data>
+  <data name="INVALID_DISPLAY_ORDER" xml:space="preserve">
+    <value>ترتيب العرض لا يمكن أن يكون سالباً.</value>
+  </data>
+  <data name="INVALID_ID" xml:space="preserve">
+    <value>المعرّف المقدم غير صالح.</value>
+  </data>
+  <data name="INVALID_STATUS" xml:space="preserve">
+    <value>حالة غير صالحة لهذا الإجراء.</value>
+  </data>
+  <data name="INVALID_STOCK" xml:space="preserve">
+    <value>كمية المخزون لا يمكن أن تكون سالبة.</value>
+  </data>
+  <data name="INVALID_TIME_FORMAT" xml:space="preserve">
+    <value>يجب أن يكون الوقت بصيغة HH:mm أو HH:mm:ss.</value>
+  </data>
+
+  <!-- Featured / Home Sections -->
+  <data name="INVALID_FEATURED_MASTER_PRODUCT" xml:space="preserve">
+    <value>المنتج الرئيسي المحدد غير مؤهل للعرض المميز.</value>
+  </data>
+  <data name="INVALID_FEATURED_PLACEMENT" xml:space="preserve">
+    <value>إعداد العرض المميز غير صالح.</value>
+  </data>
+  <data name="INVALID_FEATURED_PLACEMENT_TYPE" xml:space="preserve">
+    <value>نوع العرض المميز غير صالح.</value>
+  </data>
+  <data name="INVALID_FEATURED_VENDOR_PRODUCT" xml:space="preserve">
+    <value>منتج التاجر المحدد غير مؤهل للعرض المميز.</value>
+  </data>
+  <data name="INVALID_HOME_CONTENT_SECTION_TYPE" xml:space="preserve">
+    <value>نوع قسم الصفحة الرئيسية غير صالح.</value>
+  </data>
+  <data name="INVALID_HOME_SECTION_CATEGORY" xml:space="preserve">
+    <value>الفئة مطلوبة لهذا القسم.</value>
+  </data>
+  <data name="INVALID_HOME_SECTION_PRODUCTS_TAKE" xml:space="preserve">
+    <value>عدد المنتجات يجب أن يكون بين 1 و 20.</value>
+  </data>
+  <data name="INVALID_HOME_SECTION_SUBCATEGORY" xml:space="preserve">
+    <value>يجب أن يشير القسم إلى فئة فرعية.</value>
+  </data>
+
+  <!-- Vendor -->
+  <data name="VENDOR_ARCHIVED" xml:space="preserve">
+    <value>لا يمكن إعادة تفعيل التجار المؤرشفين.</value>
+  </data>
+  <data name="VENDOR_LOGIN_LOCKED" xml:space="preserve">
+    <value>قم بفتح قفل تسجيل الدخول بدلاً من إعادة التفعيل.</value>
+  </data>
+  <data name="VendorAlreadyApproved" xml:space="preserve">
+    <value>التاجر موافق عليه بالفعل ولا يحتاج إلى موافقة أخرى.</value>
+  </data>
+  <data name="VendorInvalidStatusForLock" xml:space="preserve">
+    <value>لا يمكن قفل التاجر في حالته الحالية.</value>
+  </data>
+  <data name="VendorRejectionReasonRequired" xml:space="preserve">
+    <value>يجب تقديم سبب واضح للرفض.</value>
+  </data>
+  <data name="VendorSuspensionReasonRequired" xml:space="preserve">
+    <value>يجب تقديم سبب واضح للتعليق.</value>
+  </data>
+  <data name="InvalidMinimumOrderAmount" xml:space="preserve">
+    <value>الحد الأدنى لمبلغ الطلب غير صالح.</value>
+  </data>
+  <data name="InvalidPreparationTimeMinutes" xml:space="preserve">
+    <value>وقت التحضير غير صالح.</value>
   </data>
 
 </root>

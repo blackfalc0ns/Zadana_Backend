@@ -544,30 +544,6 @@
   <data name="INVALID_REQUEST_BODY" xml:space="preserve">
     <value>Request body is missing or invalid.</value>
   </data>
-  <data name="EMPTY_CART" xml:space="preserve">
-    <value>Your cart is empty. Add items before checking out.</value>
-  </data>
-  <data name="USER_ALREADY_EXISTS" xml:space="preserve">
-    <value>An account with this email already exists.</value>
-  </data>
-  <data name="CREATION_FAILED" xml:space="preserve">
-    <value>Account creation failed. Please try again.</value>
-  </data>
-  <data name="VERIFICATION_FAILED" xml:space="preserve">
-    <value>Verification failed. Please try again.</value>
-  </data>
-  <data name="PASSWORD_RESET_FAILED" xml:space="preserve">
-    <value>Password reset failed. Please try again.</value>
-  </data>
-  <data name="USER_NOT_FOUND" xml:space="preserve">
-    <value>No account found with this email or phone number.</value>
-  </data>
-  <data name="VENDOR_MISSING_CART_PRODUCT" xml:space="preserve">
-    <value>The selected vendor does not offer all products in your cart.</value>
-  </data>
-  <data name="IDENTITY_OPERATION_FAILED" xml:space="preserve">
-    <value>Operation failed. Please try again later.</value>
-  </data>
 
   <!-- ── Success Messages ──────────────────────────────────────── -->
 
@@ -667,6 +643,180 @@
   </data>
   <data name="PAYMENT_CONFIRMATION_FAILED" xml:space="preserve">
     <value>Payment confirmation failed</value>
+  </data>
+
+  <!-- ── Error Messages (Missing) ──────────────────────────────── -->
+
+  <!-- Banking / Wallet -->
+  <data name="BANK_INVALID_STATUS" xml:space="preserve">
+    <value>Bank account status does not allow this action.</value>
+  </data>
+  <data name="BANK_NOT_VERIFIED" xml:space="preserve">
+    <value>Bank account is not verified yet.</value>
+  </data>
+  <data name="INSUFFICIENT_FUNDS" xml:space="preserve">
+    <value>Insufficient funds to complete this transaction.</value>
+  </data>
+  <data name="INVALID_WITHDRAWAL_AMOUNT" xml:space="preserve">
+    <value>Withdrawal amount must be greater than zero.</value>
+  </data>
+  <data name="INVALID_HOLD_RELEASE" xml:space="preserve">
+    <value>Cannot release this hold.</value>
+  </data>
+  <data name="INVALID_HOLD_SETTLE" xml:space="preserve">
+    <value>Cannot settle this hold.</value>
+  </data>
+  <data name="PAYOUT_INVALID_STATUS" xml:space="preserve">
+    <value>Payout cannot be modified in its current status.</value>
+  </data>
+
+  <!-- Categories / Brands -->
+  <data name="BRAND_CATEGORY_MISMATCH" xml:space="preserve">
+    <value>Brand does not belong to the specified category.</value>
+  </data>
+  <data name="BRAND_CATEGORY_MUST_BE_NESTED" xml:space="preserve">
+    <value>Brand category must be a nested sub-category.</value>
+  </data>
+  <data name="BRAND_REQUEST_NOT_APPROVED" xml:space="preserve">
+    <value>Brand request has not been approved yet.</value>
+  </data>
+  <data name="CATEGORY_DEPTH_EXCEEDED" xml:space="preserve">
+    <value>Maximum category depth has been exceeded.</value>
+  </data>
+  <data name="CATEGORY_LEVEL_NOT_SUPPORTED" xml:space="preserve">
+    <value>This category level is not supported.</value>
+  </data>
+  <data name="CATEGORY_PARENT_REQUIRED" xml:space="preserve">
+    <value>A parent category is required.</value>
+  </data>
+  <data name="CATEGORY_REQUEST_NOT_APPROVED" xml:space="preserve">
+    <value>Category request has not been approved yet.</value>
+  </data>
+  <data name="INVALID_CATEGORY_PARENT_LEVEL" xml:space="preserve">
+    <value>The selected parent category does not match the requested level.</value>
+  </data>
+  <data name="INVALID_CATEGORY_TARGET_LEVEL" xml:space="preserve">
+    <value>Invalid category target level.</value>
+  </data>
+
+  <!-- Delivery / Dispatch -->
+  <data name="DELIVERY_OFFER_EXPIRED" xml:space="preserve">
+    <value>This delivery offer has expired.</value>
+  </data>
+  <data name="DELIVERY_OFFER_NOT_AVAILABLE" xml:space="preserve">
+    <value>This delivery offer is no longer available.</value>
+  </data>
+  <data name="NO_ASSIGNED_DRIVER" xml:space="preserve">
+    <value>No assigned driver was found for this order.</value>
+  </data>
+
+  <!-- Identity -->
+  <data name="IDENTITY_ACTIVATE_FAILED" xml:space="preserve">
+    <value>Failed to activate the account. Please try again.</value>
+  </data>
+  <data name="IDENTITY_ARCHIVE_FAILED" xml:space="preserve">
+    <value>Failed to archive the account. Please try again.</value>
+  </data>
+  <data name="IDENTITY_COMPENSATION_FAILED" xml:space="preserve">
+    <value>Failed to process the compensation.</value>
+  </data>
+  <data name="IDENTITY_LOCK_FAILED" xml:space="preserve">
+    <value>Failed to lock the account. Please try again.</value>
+  </data>
+  <data name="IDENTITY_RESET_PASSWORD_FAILED" xml:space="preserve">
+    <value>Failed to reset password. Please try again.</value>
+  </data>
+  <data name="IDENTITY_SUSPEND_FAILED" xml:space="preserve">
+    <value>Failed to suspend the account. Please try again.</value>
+  </data>
+  <data name="IDENTITY_UNLOCK_FAILED" xml:space="preserve">
+    <value>Failed to unlock the account. Please try again.</value>
+  </data>
+
+  <!-- Orders -->
+  <data name="ORDER_ALREADY_PAID" xml:space="preserve">
+    <value>Order payment is already confirmed.</value>
+  </data>
+  <data name="ORDER_CANNOT_BE_CANCELLED" xml:space="preserve">
+    <value>Order cannot be cancelled at the current stage.</value>
+  </data>
+  <data name="ORDER_COMPLAINT_ALREADY_EXISTS" xml:space="preserve">
+    <value>A complaint has already been submitted for this order.</value>
+  </data>
+
+  <!-- Catalog / Products -->
+  <data name="INVALID_DATE_RANGE" xml:space="preserve">
+    <value>End date must be greater than or equal to start date.</value>
+  </data>
+  <data name="INVALID_DIRECTION" xml:space="preserve">
+    <value>Invalid sort direction.</value>
+  </data>
+  <data name="INVALID_DISPLAY_ORDER" xml:space="preserve">
+    <value>Display order cannot be negative.</value>
+  </data>
+  <data name="INVALID_ID" xml:space="preserve">
+    <value>Invalid ID provided.</value>
+  </data>
+  <data name="INVALID_STATUS" xml:space="preserve">
+    <value>Invalid status for this action.</value>
+  </data>
+  <data name="INVALID_STOCK" xml:space="preserve">
+    <value>Stock quantity cannot be negative.</value>
+  </data>
+  <data name="INVALID_TIME_FORMAT" xml:space="preserve">
+    <value>Time must be in HH:mm or HH:mm:ss format.</value>
+  </data>
+
+  <!-- Featured / Home Sections -->
+  <data name="INVALID_FEATURED_MASTER_PRODUCT" xml:space="preserve">
+    <value>Selected master product is not eligible for featured placement.</value>
+  </data>
+  <data name="INVALID_FEATURED_PLACEMENT" xml:space="preserve">
+    <value>Invalid featured placement configuration.</value>
+  </data>
+  <data name="INVALID_FEATURED_PLACEMENT_TYPE" xml:space="preserve">
+    <value>Invalid featured placement type.</value>
+  </data>
+  <data name="INVALID_FEATURED_VENDOR_PRODUCT" xml:space="preserve">
+    <value>Selected vendor product is not eligible for featured placement.</value>
+  </data>
+  <data name="INVALID_HOME_CONTENT_SECTION_TYPE" xml:space="preserve">
+    <value>Invalid home content section type.</value>
+  </data>
+  <data name="INVALID_HOME_SECTION_CATEGORY" xml:space="preserve">
+    <value>Category is required for this home section.</value>
+  </data>
+  <data name="INVALID_HOME_SECTION_PRODUCTS_TAKE" xml:space="preserve">
+    <value>Products count must be between 1 and 20.</value>
+  </data>
+  <data name="INVALID_HOME_SECTION_SUBCATEGORY" xml:space="preserve">
+    <value>Home section must reference a sub-category.</value>
+  </data>
+
+  <!-- Vendor -->
+  <data name="VENDOR_ARCHIVED" xml:space="preserve">
+    <value>Archived vendors cannot be reactivated.</value>
+  </data>
+  <data name="VENDOR_LOGIN_LOCKED" xml:space="preserve">
+    <value>Unlock vendor login instead of reactivating the account.</value>
+  </data>
+  <data name="VendorAlreadyApproved" xml:space="preserve">
+    <value>Vendor is already approved and does not need another approval.</value>
+  </data>
+  <data name="VendorInvalidStatusForLock" xml:space="preserve">
+    <value>Vendor cannot be locked in its current status.</value>
+  </data>
+  <data name="VendorRejectionReasonRequired" xml:space="preserve">
+    <value>A clear rejection reason is required.</value>
+  </data>
+  <data name="VendorSuspensionReasonRequired" xml:space="preserve">
+    <value>A clear suspension reason is required.</value>
+  </data>
+  <data name="InvalidMinimumOrderAmount" xml:space="preserve">
+    <value>Minimum order amount is invalid.</value>
+  </data>
+  <data name="InvalidPreparationTimeMinutes" xml:space="preserve">
+    <value>Preparation time is invalid.</value>
   </data>
 
 </root>

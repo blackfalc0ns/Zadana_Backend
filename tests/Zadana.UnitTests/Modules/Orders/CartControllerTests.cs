@@ -65,6 +65,7 @@ public class CartControllerTests
     public async Task AddItem_ReturnsOkResult()
     {
         var dto = new CartItemMutationResponseDto(
+            "تمت إضافة المنتج إلى السلة",
             "added to cart successfully",
             new CartItemDto(Guid.NewGuid(), Guid.NewGuid(), "Milk", null, "Liter", 1, []),
             new CartSummaryDto(1, 1, null, null, null));
@@ -91,6 +92,7 @@ public class CartControllerTests
     public async Task UpdateItem_ReturnsOkResult()
     {
         var dto = new CartItemMutationResponseDto(
+            "تم تحديث المنتج في السلة",
             "cart item updated successfully",
             new CartItemDto(Guid.NewGuid(), Guid.NewGuid(), "Milk", null, "Liter", 2, []),
             new CartSummaryDto(1, 2, null, null, null));
@@ -117,6 +119,7 @@ public class CartControllerTests
     public async Task UpdateItem_PassesVendorIdToCommand_WhenProvided()
     {
         var dto = new CartItemMutationResponseDto(
+            "تم تحديث المنتج في السلة",
             "cart item updated successfully",
             new CartItemDto(Guid.NewGuid(), Guid.NewGuid(), "Milk", null, "Liter", 2, []),
             new CartSummaryDto(1, 2, 120m, 20m, 100m));
@@ -136,7 +139,7 @@ public class CartControllerTests
     [Fact]
     public async Task RemoveItem_ReturnsOkResult()
     {
-        var dto = new CartItemRemovalResponseDto("cart item removed successfully", new CartSummaryDto(0, 0, null, null, null));
+        var dto = new CartItemRemovalResponseDto("تم حذف المنتج من السلة", "cart item removed successfully", new CartSummaryDto(0, 0, null, null, null));
         _senderMock.Setup(x => x.Send(It.IsAny<RemoveCartItemCommand>(), It.IsAny<CancellationToken>()))
             .ReturnsAsync(dto);
 
@@ -149,7 +152,7 @@ public class CartControllerTests
     [Fact]
     public async Task ClearCart_ReturnsOkResult()
     {
-        var dto = new CartClearResponseDto("cart cleared successfully");
+        var dto = new CartClearResponseDto("تم تفريغ السلة بنجاح", "cart cleared successfully");
         _senderMock.Setup(x => x.Send(It.IsAny<ClearCartCommand>(), It.IsAny<CancellationToken>()))
             .ReturnsAsync(dto);
 
@@ -167,6 +170,7 @@ public class CartControllerTests
         _controller.ControllerContext.HttpContext.Request.Headers["X-Device-Id"] = "guest-device-123";
 
         var dto = new CartItemMutationResponseDto(
+            "تمت إضافة المنتج إلى السلة",
             "added to cart successfully",
             new CartItemDto(Guid.NewGuid(), Guid.NewGuid(), "Milk", null, "Liter", 1, []),
             new CartSummaryDto(1, 1, null, null, null));
@@ -189,6 +193,7 @@ public class CartControllerTests
 
         AddCartItemCommand? sentCommand = null;
         var dto = new CartItemMutationResponseDto(
+            "تمت إضافة المنتج إلى السلة",
             "added to cart successfully",
             new CartItemDto(Guid.NewGuid(), Guid.NewGuid(), "Milk", null, "Liter", 1, []),
             new CartSummaryDto(1, 1, null, null, null));
