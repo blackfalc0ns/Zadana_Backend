@@ -478,4 +478,95 @@
   <data name="INVALID_CITY" xml:space="preserve">
     <value>المدينة المختارة لا تتبع المنطقة المحددة.</value>
   </data>
+  <!-- ============ Customer / User App Errors ============ -->
+  <data name="CHECKOUT_VENDOR_UNAVAILABLE" xml:space="preserve">
+    <value>لا يوجد تاجر واحد يمكنه توفير جميع المنتجات في السلة.</value>
+  </data>
+  <data name="CUSTOMER_ADDRESS_REQUIRED" xml:space="preserve">
+    <value>يجب إضافة عنوان توصيل قبل إتمام الطلب.</value>
+  </data>
+  <data name="DELIVERY_PRICING_UNAVAILABLE" xml:space="preserve">
+    <value>تعذر حساب تكلفة التوصيل. حاول مرة أخرى.</value>
+  </data>
+  <data name="INVALID_PROMO_CODE" xml:space="preserve">
+    <value>كود الخصم غير صالح أو منتهي الصلاحية.</value>
+  </data>
+  <data name="PROMO_MIN_ORDER_NOT_MET" xml:space="preserve">
+    <value>إجمالي الطلب لا يحقق الحد الأدنى المطلوب لاستخدام كود الخصم.</value>
+  </data>
+  <data name="PROMO_CODE_NOT_APPLICABLE" xml:space="preserve">
+    <value>كود الخصم غير قابل للتطبيق على التاجر المحدد.</value>
+  </data>
+  <data name="PAYMENT_METHOD_NOT_SUPPORTED" xml:space="preserve">
+    <value>طريقة الدفع المحددة غير مدعومة.</value>
+  </data>
+  <data name="PAYMENT_UNAVAILABLE" xml:space="preserve">
+    <value>الدفع الإلكتروني غير متاح حالياً. جرب طريقة أخرى.</value>
+  </data>
+  <data name="DELIVERY_SLOT_NOT_AVAILABLE" xml:space="preserve">
+    <value>موعد التوصيل المحدد غير متاح.</value>
+  </data>
+  <data name="INVALID_QUANTITY" xml:space="preserve">
+    <value>الكمية يجب أن تكون أكبر من صفر.</value>
+  </data>
+  <data name="INVALID_PRICE" xml:space="preserve">
+    <value>السعر لا يمكن أن يكون بالسالب.</value>
+  </data>
+  <data name="INVALID_AMOUNT" xml:space="preserve">
+    <value>المبلغ غير صالح.</value>
+  </data>
+  <data name="INVALID_RATING" xml:space="preserve">
+    <value>التقييم يجب أن يكون بين 1 و 5.</value>
+  </data>
+  <data name="INVALID_VENDOR_REPLY" xml:space="preserve">
+    <value>نص الرد مطلوب.</value>
+  </data>
+  <data name="INVALID_DISCOUNT" xml:space="preserve">
+    <value>قيمة الخصم غير صالحة.</value>
+  </data>
+  <data name="INVALID_OTP" xml:space="preserve">
+    <value>كود التحقق غير صالح أو منتهي الصلاحية.</value>
+  </data>
+  <data name="EMAIL_REQUIRED" xml:space="preserve">
+    <value>البريد الإلكتروني مطلوب.</value>
+  </data>
+  <data name="OTP_COOLDOWN" xml:space="preserve">
+    <value>يرجى الانتظار قبل طلب كود تحقق جديد.</value>
+  </data>
+  <data name="IDENTITY_UPDATE_FAILED" xml:space="preserve">
+    <value>فشل تحديث الملف الشخصي. حاول مرة أخرى.</value>
+  </data>
+  <data name="ACCOUNT_EMAIL_NOT_VERIFIED" xml:space="preserve">
+    <value>بريدك الإلكتروني غير موثق بعد. يرجى التحقق من الكود المرسل إلى بريدك.</value>
+  </data>
+  <data name="INVALID_BILLING_DATA" xml:space="preserve">
+    <value>بيانات الفوترة غير مكتملة.</value>
+  </data>
+  <data name="INVALID_REQUEST_BODY" xml:space="preserve">
+    <value>البيانات المرسلة مفقودة أو غير صالحة.</value>
+  </data>
+  <data name="EMPTY_CART" xml:space="preserve">
+    <value>السلة فارغة. أضف منتجات قبل إتمام الطلب.</value>
+  </data>
+  <data name="USER_ALREADY_EXISTS" xml:space="preserve">
+    <value>يوجد حساب مسجل بهذا البريد الإلكتروني بالفعل.</value>
+  </data>
+  <data name="CREATION_FAILED" xml:space="preserve">
+    <value>فشل إنشاء الحساب. حاول مرة أخرى.</value>
+  </data>
+  <data name="VERIFICATION_FAILED" xml:space="preserve">
+    <value>فشل التحقق. حاول مرة أخرى.</value>
+  </data>
+  <data name="PASSWORD_RESET_FAILED" xml:space="preserve">
+    <value>فشل إعادة تعيين كلمة المرور. حاول مرة أخرى.</value>
+  </data>
+  <data name="USER_NOT_FOUND" xml:space="preserve">
+    <value>لم يتم العثور على حساب بهذا البريد أو رقم الهاتف.</value>
+  </data>
+  <data name="VENDOR_MISSING_CART_PRODUCT" xml:space="preserve">
+    <value>التاجر المحدد لا يوفر جميع المنتجات في سلتك.</value>
+  </data>
+  <data name="IDENTITY_OPERATION_FAILED" xml:space="preserve">
+    <value>فشلت العملية. حاول مرة أخرى لاحقاً.</value>
+  </data>
 </root>

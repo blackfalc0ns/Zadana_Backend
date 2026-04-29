@@ -133,10 +133,10 @@ public class ExceptionHandlingMiddleware
     {
         var message = exception switch
         {
-            BusinessRuleException bre => ResolveBusinessRuleMessage(bre, localizer),
-            BadRequestException => exception.Message,
-            NotFoundException => exception.Message,
-            ExternalServiceException => exception.Message,
+            BusinessRuleException bre => ResolveByErrorCode(bre.ErrorCode, bre.Message, localizer),
+            BadRequestException bad => ResolveByErrorCode(bad.ErrorCode, bad.Message, localizer),
+            NotFoundException nf => ResolveByErrorCode(nf.ErrorCode, nf.Message, localizer),
+            ExternalServiceException ext => ResolveByErrorCode(ext.ErrorCode, ext.Message, localizer),
             ForbiddenAccessException => exception.Message,
             UnauthorizedAccessException => exception.Message,
             UnauthorizedException unauthorizedException when
@@ -163,20 +163,22 @@ public class ExceptionHandlingMiddleware
     }
 
     /// <summary>
-    /// Resolves a BusinessRuleException message by first checking .resx resource files
+    /// Resolves an exception message by first checking .resx resource files
     /// using the ErrorCode as key. Falls back to the inline message if no resource found.
     /// </summary>
-    private static string ResolveBusinessRuleMessage(BusinessRuleException bre, IStringLocalizer<SharedResource> localizer)
+    private static string ResolveByErrorCode(string errorCode, string fallbackMessage, IStringLocalizer<SharedResource> localizer)
     {
-        // Try to find a localized message using the ErrorCode as key in .resx files
-        var localized = localizer[bre.ErrorCode];
-        if (!localized.ResourceNotFound)
+        if (!string.IsNullOrWhiteSpace(errorCode))
         {
-            return localized.Value;
+            var localized = localizer[errorCode];
+            if (!localized.ResourceNotFound)
+            {
+                return localized.Value;
+            }
         }
 
         // Fallback: use the inline message (which may contain AR|EN format)
-        return bre.Message;
+        return fallbackMessage;
     }
 
     private static string? GetErrorCode(Exception exception) =>

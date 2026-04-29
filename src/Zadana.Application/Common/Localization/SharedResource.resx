@@ -477,4 +477,95 @@
   <data name="INVALID_CITY" xml:space="preserve">
     <value>Selected city does not belong to the chosen region.</value>
   </data>
+  <!-- ============ Customer / User App Errors ============ -->
+  <data name="CHECKOUT_VENDOR_UNAVAILABLE" xml:space="preserve">
+    <value>No single vendor can fulfill all cart items for checkout.</value>
+  </data>
+  <data name="CUSTOMER_ADDRESS_REQUIRED" xml:space="preserve">
+    <value>A delivery address is required. Please add an address before placing an order.</value>
+  </data>
+  <data name="DELIVERY_PRICING_UNAVAILABLE" xml:space="preserve">
+    <value>Delivery pricing could not be determined. Please try again.</value>
+  </data>
+  <data name="INVALID_PROMO_CODE" xml:space="preserve">
+    <value>Promo code is invalid or expired.</value>
+  </data>
+  <data name="PROMO_MIN_ORDER_NOT_MET" xml:space="preserve">
+    <value>Order total does not meet the minimum required for this promo code.</value>
+  </data>
+  <data name="PROMO_CODE_NOT_APPLICABLE" xml:space="preserve">
+    <value>This promo code is not applicable to the selected vendor.</value>
+  </data>
+  <data name="PAYMENT_METHOD_NOT_SUPPORTED" xml:space="preserve">
+    <value>Selected payment method is not supported.</value>
+  </data>
+  <data name="PAYMENT_UNAVAILABLE" xml:space="preserve">
+    <value>Online payment is currently unavailable. Please try another method.</value>
+  </data>
+  <data name="DELIVERY_SLOT_NOT_AVAILABLE" xml:space="preserve">
+    <value>Selected delivery slot is not available.</value>
+  </data>
+  <data name="INVALID_QUANTITY" xml:space="preserve">
+    <value>Quantity must be greater than zero.</value>
+  </data>
+  <data name="INVALID_PRICE" xml:space="preserve">
+    <value>Price cannot be negative.</value>
+  </data>
+  <data name="INVALID_AMOUNT" xml:space="preserve">
+    <value>Amount is invalid.</value>
+  </data>
+  <data name="INVALID_RATING" xml:space="preserve">
+    <value>Rating must be between 1 and 5.</value>
+  </data>
+  <data name="INVALID_VENDOR_REPLY" xml:space="preserve">
+    <value>Reply text is required.</value>
+  </data>
+  <data name="INVALID_DISCOUNT" xml:space="preserve">
+    <value>Discount value is invalid.</value>
+  </data>
+  <data name="INVALID_OTP" xml:space="preserve">
+    <value>Verification code is invalid or expired.</value>
+  </data>
+  <data name="EMAIL_REQUIRED" xml:space="preserve">
+    <value>Email address is required.</value>
+  </data>
+  <data name="OTP_COOLDOWN" xml:space="preserve">
+    <value>Please wait before requesting a new verification code.</value>
+  </data>
+  <data name="IDENTITY_UPDATE_FAILED" xml:space="preserve">
+    <value>Failed to update profile. Please try again.</value>
+  </data>
+  <data name="ACCOUNT_EMAIL_NOT_VERIFIED" xml:space="preserve">
+    <value>Your email is not verified yet. Please verify using the code sent to your email.</value>
+  </data>
+  <data name="INVALID_BILLING_DATA" xml:space="preserve">
+    <value>Billing information is incomplete.</value>
+  </data>
+  <data name="INVALID_REQUEST_BODY" xml:space="preserve">
+    <value>Request body is missing or invalid.</value>
+  </data>
+  <data name="EMPTY_CART" xml:space="preserve">
+    <value>Your cart is empty. Add items before checking out.</value>
+  </data>
+  <data name="USER_ALREADY_EXISTS" xml:space="preserve">
+    <value>An account with this email already exists.</value>
+  </data>
+  <data name="CREATION_FAILED" xml:space="preserve">
+    <value>Account creation failed. Please try again.</value>
+  </data>
+  <data name="VERIFICATION_FAILED" xml:space="preserve">
+    <value>Verification failed. Please try again.</value>
+  </data>
+  <data name="PASSWORD_RESET_FAILED" xml:space="preserve">
+    <value>Password reset failed. Please try again.</value>
+  </data>
+  <data name="USER_NOT_FOUND" xml:space="preserve">
+    <value>No account found with this email or phone number.</value>
+  </data>
+  <data name="VENDOR_MISSING_CART_PRODUCT" xml:space="preserve">
+    <value>The selected vendor does not offer all products in your cart.</value>
+  </data>
+  <data name="IDENTITY_OPERATION_FAILED" xml:space="preserve">
+    <value>Operation failed. Please try again later.</value>
+  </data>
 </root>
