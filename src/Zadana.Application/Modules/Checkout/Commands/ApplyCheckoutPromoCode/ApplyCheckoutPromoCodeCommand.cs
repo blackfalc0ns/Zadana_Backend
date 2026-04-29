@@ -1,6 +1,7 @@
 using FluentValidation;
 using MediatR;
 using Zadana.Application.Common.Interfaces;
+using Zadana.Application.Common.Localization;
 using Zadana.Application.Modules.Checkout.DTOs;
 using Zadana.Application.Modules.Checkout.Support;
 using Zadana.Application.Modules.Delivery.Interfaces;
@@ -60,7 +61,8 @@ public class ApplyCheckoutPromoCodeCommandHandler : IRequestHandler<ApplyCheckou
         await _unitOfWork.SaveChangesAsync(cancellationToken);
 
         return new ApplyCheckoutPromoCodeResultDto(
-            "promo code applied successfully",
+            LocalizedMessages.GetAr(LocalizedMessages.PromoCodeApplied),
+            LocalizedMessages.GetEn(LocalizedMessages.PromoCodeApplied),
             CheckoutSupport.BuildPromoCodeDto(coupon, discount)!,
             CheckoutSupport.BuildTotals(pricing.Subtotal, deliveryQuote.TotalFee, discount));
     }

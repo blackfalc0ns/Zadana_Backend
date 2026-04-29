@@ -80,16 +80,19 @@ public record CheckoutShippingBreakdownLineDto(
     decimal Amount);
 
 public record ApplyCheckoutPromoCodeResultDto(
-    string Message,
+    string MessageAr,
+    string MessageEn,
     CheckoutPromoCodeDto PromoCode,
     CheckoutTotalsDto Summary);
 
 public record RemoveCheckoutPromoCodeResultDto(
-    string Message,
+    string MessageAr,
+    string MessageEn,
     CheckoutTotalsDto Summary);
 
 public record PlaceCheckoutOrderResultDto(
-    string Message,
+    string MessageAr,
+    string MessageEn,
     CheckoutPlacedOrderDto Order,
     CheckoutPaymentSessionDto? Payment);
 

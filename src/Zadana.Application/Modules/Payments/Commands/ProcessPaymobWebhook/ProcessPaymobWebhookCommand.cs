@@ -38,7 +38,8 @@ public class ProcessPaymobWebhookCommandHandler : IRequestHandler<ProcessPaymobW
             cancellationToken);
 
         return new PaymobWebhookProcessResultDto(
-            result.Message,
+            result.MessageAr,
+            result.MessageEn,
             result.PaymentId,
             result.PaymentStatus);
     }

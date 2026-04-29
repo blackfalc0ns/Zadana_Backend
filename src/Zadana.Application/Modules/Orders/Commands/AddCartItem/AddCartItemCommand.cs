@@ -89,7 +89,7 @@ public class AddCartItemCommandHandler : IRequestHandler<AddCartItemCommand, Car
         var cartDto = await CartProjection.BuildCartDtoAsync(_context, cart, cancellationToken, null);
         var itemDto = cartDto.Items.Single(item => item.Id == affectedItem.Id);
 
-        return new CartItemMutationResponseDto("added to cart successfully", itemDto, cartDto.Summary);
+        return new CartItemMutationResponseDto(LocalizedMessages.GetAr(LocalizedMessages.CartItemAdded), LocalizedMessages.GetEn(LocalizedMessages.CartItemAdded), itemDto, cartDto.Summary);
     }
 
     private async Task<Cart> EnsureCartForWriteAsync(CartActor actor, CancellationToken cancellationToken)

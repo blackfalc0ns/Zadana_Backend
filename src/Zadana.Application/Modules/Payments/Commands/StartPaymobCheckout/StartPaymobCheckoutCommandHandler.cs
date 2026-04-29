@@ -1,6 +1,7 @@
 using MediatR;
 using Microsoft.EntityFrameworkCore;
 using Zadana.Application.Common.Interfaces;
+using Zadana.Application.Common.Localization;
 using Zadana.Application.Modules.Orders.Commands.PlaceOrder;
 using Zadana.Application.Modules.Payments.DTOs;
 using Zadana.Application.Modules.Payments.Interfaces;
@@ -108,7 +109,8 @@ public class StartPaymobCheckoutCommandHandler : IRequestHandler<StartPaymobChec
             await _unitOfWork.SaveChangesAsync(cancellationToken);
 
             return new PaymobCheckoutResponseDto(
-                "order placed successfully",
+                LocalizedMessages.GetAr(LocalizedMessages.OrderPlacedSuccess),
+                LocalizedMessages.GetEn(LocalizedMessages.OrderPlacedSuccess),
                 new PaymobCheckoutOrderDto(
                     order.Id,
                     ToApiToken(order.Status.ToString()),

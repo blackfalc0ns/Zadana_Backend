@@ -2,6 +2,7 @@ using FluentValidation;
 using MediatR;
 using Microsoft.EntityFrameworkCore;
 using Zadana.Application.Common.Interfaces;
+using Zadana.Application.Common.Localization;
 using Zadana.Application.Modules.Delivery.Interfaces;
 using Zadana.SharedKernel.Exceptions;
 
@@ -16,7 +17,8 @@ public record DriverArrivalStateResultDto(
     Guid OrderId,
     Guid AssignmentId,
     string ArrivalState,
-    string Message);
+    string MessageAr,
+    string MessageEn);
 
 public class UpdateDriverArrivalStateCommandValidator : AbstractValidator<UpdateDriverArrivalStateCommand>
 {
@@ -69,7 +71,8 @@ public class UpdateDriverArrivalStateCommandHandler : IRequestHandler<UpdateDriv
             ?? throw new BusinessRuleException("DRIVER_NOT_ASSIGNED", "أنت غير مخصص لهذا الطلب | You are not assigned to this order.");
 
         string normalizedState;
-        string message;
+        string messageAr;
+        string messageEn;
         string titleAr;
         string titleEn;
         string bodyAr;
@@ -85,7 +88,8 @@ public class UpdateDriverArrivalStateCommandHandler : IRequestHandler<UpdateDriv
 
             assignment.MarkArrivedAtVendor();
             normalizedState = "arrived_at_vendor";
-            message = "Driver arrival at vendor recorded successfully.";
+            messageAr = LocalizedMessages.GetAr(LocalizedMessages.DriverArrivedAtVendor);
+            messageEn = LocalizedMessages.GetEn(LocalizedMessages.DriverArrivedAtVendor);
             titleAr = "المندوب وصل إلى المتجر";
             titleEn = "Driver arrived at the store";
             bodyAr = $"المندوب وصل لاستلام الطلب {assignment.Order.OrderNumber}.";
@@ -102,7 +106,8 @@ public class UpdateDriverArrivalStateCommandHandler : IRequestHandler<UpdateDriv
 
             assignment.MarkArrivedAtCustomer();
             normalizedState = "arrived_at_customer";
-            message = "Driver arrival at customer recorded successfully.";
+            messageAr = LocalizedMessages.GetAr(LocalizedMessages.DriverArrivedAtCustomer);
+            messageEn = LocalizedMessages.GetEn(LocalizedMessages.DriverArrivedAtCustomer);
             titleAr = "المندوب وصل إلى موقع التسليم";
             titleEn = "Driver arrived at delivery location";
             bodyAr = $"المندوب وصل إليك بطلب {assignment.Order.OrderNumber}. جهز رمز التسليم.";
@@ -137,6 +142,7 @@ public class UpdateDriverArrivalStateCommandHandler : IRequestHandler<UpdateDriv
             assignment.OrderId,
             assignment.Id,
             normalizedState,
-            message);
+            messageAr,
+            messageEn);
     }
 }

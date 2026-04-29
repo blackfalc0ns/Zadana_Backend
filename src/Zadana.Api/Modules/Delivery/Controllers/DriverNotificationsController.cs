@@ -3,6 +3,7 @@ using Microsoft.AspNetCore.Authorization;
 using Microsoft.AspNetCore.Mvc;
 using Zadana.Api.Controllers;
 using Zadana.Application.Common.Interfaces;
+using Zadana.Application.Common.Localization;
 using Zadana.Application.Modules.Social.Queries;
 using Zadana.SharedKernel.Exceptions;
 
@@ -57,7 +58,7 @@ public class DriverNotificationsController : ApiControllerBase
     {
         var userId = _currentUserService.UserId ?? throw new UnauthorizedException("USER_NOT_AUTHENTICATED");
         await Sender.Send(new MarkNotificationReadCommand(id, userId), cancellationToken);
-        return Ok(new { message = "notification marked as read" });
+        return Ok(new { message_ar = LocalizedMessages.GetAr(LocalizedMessages.NotificationMarkedRead), message_en = LocalizedMessages.GetEn(LocalizedMessages.NotificationMarkedRead) });
     }
 
     [HttpPost("read-all")]
@@ -65,7 +66,7 @@ public class DriverNotificationsController : ApiControllerBase
     {
         var userId = _currentUserService.UserId ?? throw new UnauthorizedException("USER_NOT_AUTHENTICATED");
         var count = await Sender.Send(new MarkAllNotificationsReadCommand(userId), cancellationToken);
-        return Ok(new { message = "all notifications marked as read", count });
+        return Ok(new { message_ar = LocalizedMessages.GetAr(LocalizedMessages.AllNotificationsMarkedRead), message_en = LocalizedMessages.GetEn(LocalizedMessages.AllNotificationsMarkedRead), count });
     }
 
     private static DriverNotificationResponse MapNotification(NotificationDto dto) =>

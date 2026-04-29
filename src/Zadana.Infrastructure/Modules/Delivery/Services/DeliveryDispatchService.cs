@@ -4,6 +4,7 @@ using MediatR;
 using System.Collections.Concurrent;
 using System.Text.Json;
 using Zadana.Application.Common.Interfaces;
+using Zadana.Application.Common.Localization;
 using Zadana.Application.Modules.Delivery.DTOs;
 using Zadana.Application.Modules.Delivery.Interfaces;
 using Zadana.Application.Modules.Orders.Events;
@@ -231,12 +232,12 @@ public class DeliveryDispatchService : IDeliveryDispatchService
 
         if (assignment.DriverId != driverId || assignment.Status != AssignmentStatus.OfferSent)
         {
-            throw new BusinessRuleException("DELIVERY_OFFER_NOT_AVAILABLE", "The delivery offer is no longer available.");
+            throw new BusinessRuleException("DELIVERY_OFFER_NOT_AVAILABLE", "عرض التوصيل لم يعد متاحاً | The delivery offer is no longer available.");
         }
 
         if (!assignment.OfferExpiresAtUtc.HasValue || assignment.OfferExpiresAtUtc.Value <= DateTime.UtcNow)
         {
-            throw new BusinessRuleException("DELIVERY_OFFER_EXPIRED", "The delivery offer has expired.");
+            throw new BusinessRuleException("DELIVERY_OFFER_EXPIRED", "انتهت صلاحية عرض التوصيل | The delivery offer has expired.");
         }
 
         assignment.Accept();
@@ -295,7 +296,8 @@ public class DeliveryDispatchService : IDeliveryDispatchService
             assignment.Id,
             assignment.OrderId,
             assignment.Status.ToString(),
-            "Offer accepted successfully.");
+            LocalizedMessages.GetAr(LocalizedMessages.OfferAccepted),
+            LocalizedMessages.GetEn(LocalizedMessages.OfferAccepted));
     }
 
     public async Task<DriverOfferActionResultDto> RejectOfferAsync(
@@ -336,7 +338,8 @@ public class DeliveryDispatchService : IDeliveryDispatchService
             assignment.Id,
             assignment.OrderId,
             AssignmentStatus.Rejected.ToString(),
-            "Offer rejected. Waiting for the next offer.");
+            LocalizedMessages.GetAr(LocalizedMessages.OfferRejected),
+            LocalizedMessages.GetEn(LocalizedMessages.OfferRejected));
     }
 
     private async Task<DispatchDecisionDto?> OfferNextDriverAsync(

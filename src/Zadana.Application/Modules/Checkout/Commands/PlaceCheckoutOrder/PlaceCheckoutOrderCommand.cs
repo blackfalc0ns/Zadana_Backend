@@ -2,6 +2,7 @@ using FluentValidation;
 using MediatR;
 using Microsoft.EntityFrameworkCore;
 using Zadana.Application.Common.Interfaces;
+using Zadana.Application.Common.Localization;
 using Zadana.Application.Modules.Checkout.DTOs;
 using Zadana.Application.Modules.Checkout.Support;
 using Zadana.Application.Modules.Delivery.Interfaces;
@@ -230,7 +231,8 @@ public class PlaceCheckoutOrderCommandHandler : IRequestHandler<PlaceCheckoutOrd
         }
 
         return new PlaceCheckoutOrderResultDto(
-            "order placed successfully",
+            LocalizedMessages.GetAr(LocalizedMessages.OrderPlacedSuccess),
+            LocalizedMessages.GetEn(LocalizedMessages.OrderPlacedSuccess),
             new CheckoutPlacedOrderDto(
                 order.Id,
                 order.PlacedAtUtc,

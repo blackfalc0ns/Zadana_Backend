@@ -3,6 +3,7 @@ using Microsoft.AspNetCore.Mvc;
 using Zadana.Api.Controllers;
 using Zadana.Api.Modules.Delivery.Requests;
 using Zadana.Application.Common.Interfaces;
+using Zadana.Application.Common.Localization;
 using Zadana.Application.Modules.Delivery.Commands.RegisterDriver;
 using Zadana.Application.Modules.Delivery.Commands.SubmitDeliveryProof;
 using Zadana.Application.Modules.Delivery.Commands.UpdateDriverArrivalState;
@@ -168,7 +169,7 @@ public class DriversController : ApiControllerBase
     {
         var userId = currentUserService.UserId ?? throw new UnauthorizedException("DRIVER_NOT_AUTHENTICATED");
         await Sender.Send(new UpdateDriverAvailabilityCommand(userId, request.IsAvailable), cancellationToken);
-        return Ok(new { message = $"Availability set to {request.IsAvailable}" });
+        return Ok(new { message_ar = request.IsAvailable ? LocalizedMessages.GetAr(LocalizedMessages.DriverAvailabilityOn) : LocalizedMessages.GetAr(LocalizedMessages.DriverAvailabilityOff), message_en = request.IsAvailable ? LocalizedMessages.GetEn(LocalizedMessages.DriverAvailabilityOn) : LocalizedMessages.GetEn(LocalizedMessages.DriverAvailabilityOff) });
     }
 
     [HttpPost("location")]
@@ -187,7 +188,7 @@ public class DriversController : ApiControllerBase
             new UpdateDriverLocationCommand(driver.Id, request.Latitude, request.Longitude, request.AccuracyMeters),
             cancellationToken);
 
-        return Ok(new { message = "Location updated" });
+        return Ok(new { message_ar = LocalizedMessages.GetAr(LocalizedMessages.DriverLocationUpdated), message_en = LocalizedMessages.GetEn(LocalizedMessages.DriverLocationUpdated) });
     }
 
     [HttpGet("assignments/current")]
@@ -370,7 +371,7 @@ public class DriversController : ApiControllerBase
                 request.OtpCode, request.RecipientName, request.Note),
             cancellationToken);
 
-        return Ok(new { id = proofId, message = "Proof submitted successfully" });
+        return Ok(new { id = proofId, message_ar = LocalizedMessages.GetAr(LocalizedMessages.DeliveryProofSubmitted), message_en = LocalizedMessages.GetEn(LocalizedMessages.DeliveryProofSubmitted) });
     }
 
     [HttpPost("assignments/{assignmentId:guid}/verify-otp")]
@@ -474,7 +475,7 @@ public class DriversController : ApiControllerBase
         var result = await Sender.Send(
             new DriverUpdateOrderStatusCommand(orderId, userId, OrderStatus.PickedUp, "Driver picked up the order"),
             cancellationToken);
-        return Ok(new DriverOrderStatusResponse(result.OrderId, result.Status, result.Message));
+        return Ok(new DriverOrderStatusResponse(result.OrderId, result.Status, result.MessageAr, result.MessageEn));
     }
 
     [HttpPost("orders/{orderId:guid}/arrived-at-vendor")]
@@ -488,7 +489,7 @@ public class DriversController : ApiControllerBase
         var result = await Sender.Send(
             new UpdateDriverArrivalStateCommand(orderId, userId, "arrived_at_vendor"),
             cancellationToken);
-        return Ok(new DriverArrivalStateResponse(result.OrderId, result.AssignmentId, result.ArrivalState, result.Message));
+        return Ok(new DriverArrivalStateResponse(result.OrderId, result.AssignmentId, result.ArrivalState, result.MessageAr, result.MessageEn));
     }
 
     [HttpPost("orders/{orderId:guid}/on-the-way")]
@@ -502,7 +503,7 @@ public class DriversController : ApiControllerBase
         var result = await Sender.Send(
             new DriverUpdateOrderStatusCommand(orderId, userId, OrderStatus.OnTheWay, "Driver is on the way"),
             cancellationToken);
-        return Ok(new DriverOrderStatusResponse(result.OrderId, result.Status, result.Message));
+        return Ok(new DriverOrderStatusResponse(result.OrderId, result.Status, result.MessageAr, result.MessageEn));
     }
 
     [HttpPost("orders/{orderId:guid}/arrived-at-customer")]
@@ -516,7 +517,7 @@ public class DriversController : ApiControllerBase
         var result = await Sender.Send(
             new UpdateDriverArrivalStateCommand(orderId, userId, "arrived_at_customer"),
             cancellationToken);
-        return Ok(new DriverArrivalStateResponse(result.OrderId, result.AssignmentId, result.ArrivalState, result.Message));
+        return Ok(new DriverArrivalStateResponse(result.OrderId, result.AssignmentId, result.ArrivalState, result.MessageAr, result.MessageEn));
     }
 
     [HttpPost("orders/{orderId:guid}/delivered")]
@@ -530,7 +531,7 @@ public class DriversController : ApiControllerBase
         var result = await Sender.Send(
             new DriverUpdateOrderStatusCommand(orderId, userId, OrderStatus.Delivered, "Order delivered successfully"),
             cancellationToken);
-        return Ok(new DriverOrderStatusResponse(result.OrderId, result.Status, result.Message));
+        return Ok(new DriverOrderStatusResponse(result.OrderId, result.Status, result.MessageAr, result.MessageEn));
     }
 
     [HttpPost("orders/{orderId:guid}/delivery-failed")]
@@ -545,7 +546,7 @@ public class DriversController : ApiControllerBase
         var result = await Sender.Send(
             new DriverUpdateOrderStatusCommand(orderId, userId, OrderStatus.DeliveryFailed, request?.Note),
             cancellationToken);
-        return Ok(new DriverOrderStatusResponse(result.OrderId, result.Status, result.Message));
+        return Ok(new DriverOrderStatusResponse(result.OrderId, result.Status, result.MessageAr, result.MessageEn));
     }
 
     private static string ResolveHomeState(
@@ -675,8 +676,8 @@ public class DriversController : ApiControllerBase
 
 }
 
-public record DriverOrderStatusResponse(Guid OrderId, string Status, string Message);
-public record DriverArrivalStateResponse(Guid OrderId, Guid AssignmentId, string ArrivalState, string Message);
+public record DriverOrderStatusResponse(Guid OrderId, string Status, string MessageAr, string MessageEn);
+public record DriverArrivalStateResponse(Guid OrderId, Guid AssignmentId, string ArrivalState, string MessageAr, string MessageEn);
 public record DriverDeliveryFailedRequest(string? Note);
 public record DriverOfferRejectRequest(string? Reason);
 public record SetAvailabilityRequest(bool IsAvailable);

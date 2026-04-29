@@ -2,6 +2,7 @@ using FluentValidation;
 using MediatR;
 using Microsoft.EntityFrameworkCore;
 using Zadana.Application.Common.Interfaces;
+using Zadana.Application.Common.Localization;
 using Zadana.Application.Modules.Orders.Events;
 using Zadana.Application.Modules.Orders.Support;
 using Zadana.Application.Modules.Payments.DTOs;
@@ -68,7 +69,7 @@ public class ConfirmPaymobPaymentCommandHandler : IRequestHandler<ConfirmPaymobP
 
         if (IsAlreadyConfirmed(failedPayment, failedOrder))
         {
-            return BuildResult(failedPayment, failedOrder, "Payment already confirmed.", true);
+            return BuildResult(failedPayment, failedOrder, LocalizedMessages.GetAr(LocalizedMessages.PaymentAlreadyConfirmed), LocalizedMessages.GetEn(LocalizedMessages.PaymentAlreadyConfirmed), true);
         }
 
         if (!notification.IsPending && failedPayment.Status != PaymentStatus.Paid && failedPayment.Status != PaymentStatus.Failed)
@@ -78,7 +79,8 @@ public class ConfirmPaymobPaymentCommandHandler : IRequestHandler<ConfirmPaymobP
         }
 
         return new PaymobPaymentConfirmationResultDto(
-            notification.IsPending ? "Payment is still pending." : "Payment confirmation failed.",
+            notification.IsPending ? LocalizedMessages.GetAr(LocalizedMessages.PaymentStillPending) : LocalizedMessages.GetAr(LocalizedMessages.PaymentConfirmationFailed),
+            notification.IsPending ? LocalizedMessages.GetEn(LocalizedMessages.PaymentStillPending) : LocalizedMessages.GetEn(LocalizedMessages.PaymentConfirmationFailed),
             failedPayment.Id,
             ToApiToken(failedPayment.Status.ToString()),
             failedOrder.UserId,
@@ -147,7 +149,8 @@ public class ConfirmPaymobPaymentCommandHandler : IRequestHandler<ConfirmPaymobP
             return BuildResult(
                 payment,
                 order,
-                alreadyConfirmed ? "Payment already confirmed." : "Payment confirmed successfully.",
+                alreadyConfirmed ? LocalizedMessages.GetAr(LocalizedMessages.PaymentAlreadyConfirmed) : LocalizedMessages.GetAr(LocalizedMessages.PaymentConfirmedSuccess),
+                alreadyConfirmed ? LocalizedMessages.GetEn(LocalizedMessages.PaymentAlreadyConfirmed) : LocalizedMessages.GetEn(LocalizedMessages.PaymentConfirmedSuccess),
                 alreadyConfirmed);
         }
 
@@ -233,7 +236,8 @@ public class ConfirmPaymobPaymentCommandHandler : IRequestHandler<ConfirmPaymobP
         return BuildResult(
             latestPayment,
             latestOrder,
-            alreadyConfirmed ? "Payment already confirmed." : "Payment confirmed successfully.",
+            alreadyConfirmed ? LocalizedMessages.GetAr(LocalizedMessages.PaymentAlreadyConfirmed) : LocalizedMessages.GetAr(LocalizedMessages.PaymentConfirmedSuccess),
+            alreadyConfirmed ? LocalizedMessages.GetEn(LocalizedMessages.PaymentAlreadyConfirmed) : LocalizedMessages.GetEn(LocalizedMessages.PaymentConfirmedSuccess),
             alreadyConfirmed);
     }
 
@@ -439,10 +443,12 @@ public class ConfirmPaymobPaymentCommandHandler : IRequestHandler<ConfirmPaymobP
     private static PaymobPaymentConfirmationResultDto BuildResult(
         Zadana.Domain.Modules.Payments.Entities.Payment payment,
         Zadana.Domain.Modules.Orders.Entities.Order order,
-        string message,
+        string messageAr,
+        string messageEn,
         bool alreadyConfirmed) =>
         new(
-            message,
+            messageAr,
+            messageEn,
             payment.Id,
             ToApiToken(payment.Status.ToString()),
             order.UserId,

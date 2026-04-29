@@ -569,4 +569,106 @@
   <data name="IDENTITY_OPERATION_FAILED" xml:space="preserve">
     <value>فشلت العملية. حاول مرة أخرى لاحقاً.</value>
   </data>
+
+  <!-- ── Success Messages ──────────────────────────────────────── -->
+
+  <!-- Checkout -->
+  <data name="ORDER_PLACED_SUCCESS" xml:space="preserve">
+    <value>تم تقديم طلبك بنجاح</value>
+  </data>
+  <data name="PROMO_CODE_APPLIED" xml:space="preserve">
+    <value>تم تطبيق كود الخصم بنجاح</value>
+  </data>
+  <data name="PROMO_CODE_REMOVED" xml:space="preserve">
+    <value>تم إزالة كود الخصم بنجاح</value>
+  </data>
+
+  <!-- Cart -->
+  <data name="CART_ITEM_ADDED" xml:space="preserve">
+    <value>تمت إضافة المنتج إلى السلة</value>
+  </data>
+  <data name="CART_ITEM_UPDATED" xml:space="preserve">
+    <value>تم تحديث المنتج في السلة</value>
+  </data>
+  <data name="CART_ITEM_REMOVED" xml:space="preserve">
+    <value>تم حذف المنتج من السلة</value>
+  </data>
+  <data name="CART_CLEARED" xml:space="preserve">
+    <value>تم تفريغ السلة بنجاح</value>
+  </data>
+
+  <!-- Driver - Availability & Location -->
+  <data name="DRIVER_AVAILABILITY_ON" xml:space="preserve">
+    <value>تم تفعيل التوفر</value>
+  </data>
+  <data name="DRIVER_AVAILABILITY_OFF" xml:space="preserve">
+    <value>تم إيقاف التوفر</value>
+  </data>
+  <data name="DRIVER_LOCATION_UPDATED" xml:space="preserve">
+    <value>تم تحديث الموقع</value>
+  </data>
+
+  <!-- Driver - Arrival -->
+  <data name="DRIVER_ARRIVED_AT_VENDOR" xml:space="preserve">
+    <value>تم تسجيل وصولك للمتجر بنجاح</value>
+  </data>
+  <data name="DRIVER_ARRIVED_AT_CUSTOMER" xml:space="preserve">
+    <value>تم تسجيل وصولك للعميل بنجاح</value>
+  </data>
+
+  <!-- Driver - Proof -->
+  <data name="DELIVERY_PROOF_SUBMITTED" xml:space="preserve">
+    <value>تم إرسال إثبات التوصيل بنجاح</value>
+  </data>
+
+  <!-- Driver - OTP -->
+  <data name="PICKUP_OTP_VERIFIED" xml:space="preserve">
+    <value>تم التحقق من رمز الاستلام وتم تسليم الطلب</value>
+  </data>
+  <data name="DELIVERY_OTP_VERIFIED" xml:space="preserve">
+    <value>تم التحقق من رمز التوصيل وتم توصيل الطلب بنجاح</value>
+  </data>
+  <data name="PICKUP_OTP_ALREADY_VERIFIED" xml:space="preserve">
+    <value>تم التحقق من رمز الاستلام بالفعل</value>
+  </data>
+  <data name="DELIVERY_OTP_ALREADY_VERIFIED" xml:space="preserve">
+    <value>تم التحقق من رمز التوصيل بالفعل</value>
+  </data>
+
+  <!-- Driver - Order Status -->
+  <data name="ORDER_STATUS_UPDATED" xml:space="preserve">
+    <value>تم تحديث حالة الطلب بنجاح</value>
+  </data>
+
+  <!-- Driver - Offer -->
+  <data name="OFFER_ACCEPTED" xml:space="preserve">
+    <value>تم قبول العرض بنجاح</value>
+  </data>
+  <data name="OFFER_REJECTED" xml:space="preserve">
+    <value>تم رفض العرض. بانتظار العرض التالي</value>
+  </data>
+
+  <!-- Notifications -->
+  <data name="NOTIFICATION_MARKED_READ" xml:space="preserve">
+    <value>تم تحديد الإشعار كمقروء</value>
+  </data>
+  <data name="ALL_NOTIFICATIONS_MARKED_READ" xml:space="preserve">
+    <value>تم تحديد جميع الإشعارات كمقروءة</value>
+  </data>
+
+  <!-- Payments -->
+  <data name="PAYMENT_CONFIRMED_SUCCESS" xml:space="preserve">
+    <value>تم تأكيد الدفع بنجاح</value>
+  </data>
+  <data name="PAYMENT_ALREADY_CONFIRMED" xml:space="preserve">
+    <value>تم تأكيد الدفع بالفعل</value>
+  </data>
+  <data name="PAYMENT_STILL_PENDING" xml:space="preserve">
+    <value>الدفع لا يزال قيد الانتظار</value>
+  </data>
+  <data name="PAYMENT_CONFIRMATION_FAILED" xml:space="preserve">
+    <value>فشل تأكيد الدفع</value>
+  </data>
+
 </root>
+

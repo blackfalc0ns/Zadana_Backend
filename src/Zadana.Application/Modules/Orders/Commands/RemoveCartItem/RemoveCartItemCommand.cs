@@ -84,6 +84,6 @@ public class RemoveCartItemCommandHandler : IRequestHandler<RemoveCartItemComman
 
         await _context.SaveChangesAsync(cancellationToken);
 
-        return new CartItemRemovalResponseDto("cart item removed successfully", summary);
+        return new CartItemRemovalResponseDto(LocalizedMessages.GetAr(LocalizedMessages.CartItemRemoved), LocalizedMessages.GetEn(LocalizedMessages.CartItemRemoved), summary);
     }
 }

@@ -87,12 +87,14 @@ public record ApplyCheckoutPromoCodeRequest(
     [property: JsonPropertyName("code")] string Code);
 
 public record ApplyCheckoutPromoCodeResponse(
-    [property: JsonPropertyName("message")] string Message,
+    [property: JsonPropertyName("message_ar")] string MessageAr,
+    [property: JsonPropertyName("message_en")] string MessageEn,
     [property: JsonPropertyName("promo_code")] CheckoutPromoCodeResponse PromoCode,
     [property: JsonPropertyName("summary")] CheckoutSummaryTotalsResponse Summary);
 
 public record RemoveCheckoutPromoCodeResponse(
-    [property: JsonPropertyName("message")] string Message,
+    [property: JsonPropertyName("message_ar")] string MessageAr,
+    [property: JsonPropertyName("message_en")] string MessageEn,
     [property: JsonPropertyName("summary")] CheckoutSummaryTotalsResponse Summary);
 
 public class PlaceOrderRequest
@@ -181,7 +183,8 @@ public class PlaceOrderRequest
 }
 
 public record PlaceOrderResponse(
-    [property: JsonPropertyName("message")] string Message,
+    [property: JsonPropertyName("message_ar")] string MessageAr,
+    [property: JsonPropertyName("message_en")] string MessageEn,
     [property: JsonPropertyName("order")] PlacedOrderSummaryResponse Order,
     [property: JsonPropertyName("payment")]
     [property: JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingNull)]

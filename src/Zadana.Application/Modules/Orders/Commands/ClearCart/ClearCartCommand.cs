@@ -62,6 +62,6 @@ public class ClearCartCommandHandler : IRequestHandler<ClearCartCommand, CartCle
             await _context.SaveChangesAsync(cancellationToken);
         }
 
-        return new CartClearResponseDto("cart cleared successfully");
+        return new CartClearResponseDto(LocalizedMessages.GetAr(LocalizedMessages.CartCleared), LocalizedMessages.GetEn(LocalizedMessages.CartCleared));
     }
 }

@@ -44,13 +44,16 @@ public record CartDto(
     CartSummaryDto Summary);
 
 public record CartItemMutationResponseDto(
-    string Message,
+    string MessageAr,
+    string MessageEn,
     CartItemDto Item,
     CartSummaryDto Summary);
 
 public record CartItemRemovalResponseDto(
-    string Message,
+    string MessageAr,
+    string MessageEn,
     CartSummaryDto Summary);
 
 public record CartClearResponseDto(
-    string Message);
+    string MessageAr,
+    string MessageEn);

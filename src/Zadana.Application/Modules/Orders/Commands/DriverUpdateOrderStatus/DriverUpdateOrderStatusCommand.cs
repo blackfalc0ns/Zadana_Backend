@@ -17,7 +17,7 @@ public record DriverUpdateOrderStatusCommand(
     OrderStatus NewStatus,
     string? Note) : IRequest<DriverUpdateOrderStatusResultDto>;
 
-public record DriverUpdateOrderStatusResultDto(Guid OrderId, string Status, string Message);
+public record DriverUpdateOrderStatusResultDto(Guid OrderId, string Status, string MessageAr, string MessageEn);
 
 public class DriverUpdateOrderStatusCommandValidator : AbstractValidator<DriverUpdateOrderStatusCommand>
 {
@@ -95,7 +95,8 @@ public class DriverUpdateOrderStatusCommandHandler : IRequestHandler<DriverUpdat
             return new DriverUpdateOrderStatusResultDto(
                 order.Id,
                 request.NewStatus.ToString(),
-                "Order status updated successfully");
+                LocalizedMessages.GetAr(LocalizedMessages.OrderStatusUpdated),
+                LocalizedMessages.GetEn(LocalizedMessages.OrderStatusUpdated));
         }
 
         if (request.NewStatus == OrderStatus.PickedUp && !assignment.IsPickupOtpVerified)
@@ -172,7 +173,8 @@ public class DriverUpdateOrderStatusCommandHandler : IRequestHandler<DriverUpdat
         return new DriverUpdateOrderStatusResultDto(
             order.Id,
             request.NewStatus.ToString(),
-            "Order status updated successfully");
+            LocalizedMessages.GetAr(LocalizedMessages.OrderStatusUpdated),
+            LocalizedMessages.GetEn(LocalizedMessages.OrderStatusUpdated));
     }
 
     private static void ValidateTransition(OrderStatus current, OrderStatus target)

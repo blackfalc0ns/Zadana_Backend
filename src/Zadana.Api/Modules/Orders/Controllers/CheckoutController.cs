@@ -57,7 +57,8 @@ public class CheckoutController : ApiControllerBase
         var result = await Sender.Send(new ApplyCheckoutPromoCodeCommand(userId, vendorId, request.Code), cancellationToken);
 
         return Ok(new ApplyCheckoutPromoCodeResponse(
-            result.Message,
+            result.MessageAr,
+            result.MessageEn,
             new CheckoutPromoCodeResponse(
                 result.PromoCode.Code,
                 result.PromoCode.DiscountType,
@@ -80,7 +81,8 @@ public class CheckoutController : ApiControllerBase
         var result = await Sender.Send(new RemoveCheckoutPromoCodeCommand(userId, vendorId), cancellationToken);
 
         return Ok(new RemoveCheckoutPromoCodeResponse(
-            result.Message,
+            result.MessageAr,
+            result.MessageEn,
             new CheckoutSummaryTotalsResponse(
                 result.Summary.Subtotal,
                 result.Summary.ShippingCost,
@@ -207,7 +209,8 @@ public class CheckoutController : ApiControllerBase
     internal static PlaceOrderResponse MapPlacedOrder(PlaceCheckoutOrderResultDto result)
     {
         return new PlaceOrderResponse(
-            result.Message,
+            result.MessageAr,
+            result.MessageEn,
             new PlacedOrderSummaryResponse(
                 result.Order.Id,
                 result.Order.CreatedAt,

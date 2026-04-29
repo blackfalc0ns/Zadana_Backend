@@ -568,4 +568,105 @@
   <data name="IDENTITY_OPERATION_FAILED" xml:space="preserve">
     <value>Operation failed. Please try again later.</value>
   </data>
+
+  <!-- ── Success Messages ──────────────────────────────────────── -->
+
+  <!-- Checkout -->
+  <data name="ORDER_PLACED_SUCCESS" xml:space="preserve">
+    <value>Your order has been placed successfully</value>
+  </data>
+  <data name="PROMO_CODE_APPLIED" xml:space="preserve">
+    <value>Promo code applied successfully</value>
+  </data>
+  <data name="PROMO_CODE_REMOVED" xml:space="preserve">
+    <value>Promo code removed successfully</value>
+  </data>
+
+  <!-- Cart -->
+  <data name="CART_ITEM_ADDED" xml:space="preserve">
+    <value>Item added to cart</value>
+  </data>
+  <data name="CART_ITEM_UPDATED" xml:space="preserve">
+    <value>Cart item updated</value>
+  </data>
+  <data name="CART_ITEM_REMOVED" xml:space="preserve">
+    <value>Item removed from cart</value>
+  </data>
+  <data name="CART_CLEARED" xml:space="preserve">
+    <value>Cart cleared successfully</value>
+  </data>
+
+  <!-- Driver - Availability & Location -->
+  <data name="DRIVER_AVAILABILITY_ON" xml:space="preserve">
+    <value>Availability turned on</value>
+  </data>
+  <data name="DRIVER_AVAILABILITY_OFF" xml:space="preserve">
+    <value>Availability turned off</value>
+  </data>
+  <data name="DRIVER_LOCATION_UPDATED" xml:space="preserve">
+    <value>Location updated</value>
+  </data>
+
+  <!-- Driver - Arrival -->
+  <data name="DRIVER_ARRIVED_AT_VENDOR" xml:space="preserve">
+    <value>Arrival at vendor recorded successfully</value>
+  </data>
+  <data name="DRIVER_ARRIVED_AT_CUSTOMER" xml:space="preserve">
+    <value>Arrival at customer recorded successfully</value>
+  </data>
+
+  <!-- Driver - Proof -->
+  <data name="DELIVERY_PROOF_SUBMITTED" xml:space="preserve">
+    <value>Proof submitted successfully</value>
+  </data>
+
+  <!-- Driver - OTP -->
+  <data name="PICKUP_OTP_VERIFIED" xml:space="preserve">
+    <value>Pickup OTP verified and order marked as picked up</value>
+  </data>
+  <data name="DELIVERY_OTP_VERIFIED" xml:space="preserve">
+    <value>Delivery OTP verified and order marked as delivered</value>
+  </data>
+  <data name="PICKUP_OTP_ALREADY_VERIFIED" xml:space="preserve">
+    <value>Pickup OTP was already verified</value>
+  </data>
+  <data name="DELIVERY_OTP_ALREADY_VERIFIED" xml:space="preserve">
+    <value>Delivery OTP was already verified</value>
+  </data>
+
+  <!-- Driver - Order Status -->
+  <data name="ORDER_STATUS_UPDATED" xml:space="preserve">
+    <value>Order status updated successfully</value>
+  </data>
+
+  <!-- Driver - Offer -->
+  <data name="OFFER_ACCEPTED" xml:space="preserve">
+    <value>Offer accepted successfully</value>
+  </data>
+  <data name="OFFER_REJECTED" xml:space="preserve">
+    <value>Offer rejected. Waiting for the next offer</value>
+  </data>
+
+  <!-- Notifications -->
+  <data name="NOTIFICATION_MARKED_READ" xml:space="preserve">
+    <value>Notification marked as read</value>
+  </data>
+  <data name="ALL_NOTIFICATIONS_MARKED_READ" xml:space="preserve">
+    <value>All notifications marked as read</value>
+  </data>
+
+  <!-- Payments -->
+  <data name="PAYMENT_CONFIRMED_SUCCESS" xml:space="preserve">
+    <value>Payment confirmed successfully</value>
+  </data>
+  <data name="PAYMENT_ALREADY_CONFIRMED" xml:space="preserve">
+    <value>Payment already confirmed</value>
+  </data>
+  <data name="PAYMENT_STILL_PENDING" xml:space="preserve">
+    <value>Payment is still pending</value>
+  </data>
+  <data name="PAYMENT_CONFIRMATION_FAILED" xml:space="preserve">
+    <value>Payment confirmation failed</value>
+  </data>
+
 </root>

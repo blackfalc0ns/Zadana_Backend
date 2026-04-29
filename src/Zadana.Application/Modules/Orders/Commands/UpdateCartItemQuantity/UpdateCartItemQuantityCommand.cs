@@ -79,6 +79,6 @@ public class UpdateCartItemQuantityCommandHandler : IRequestHandler<UpdateCartIt
         var cartDto = await CartProjection.BuildCartDtoAsync(_context, cart, cancellationToken, request.VendorId);
         var itemDto = cartDto.Items.Single(item => item.Id == cartItem.Id);
 
-        return new CartItemMutationResponseDto("cart item updated successfully", itemDto, cartDto.Summary);
+        return new CartItemMutationResponseDto(LocalizedMessages.GetAr(LocalizedMessages.CartItemUpdated), LocalizedMessages.GetEn(LocalizedMessages.CartItemUpdated), itemDto, cartDto.Summary);
     }
 }

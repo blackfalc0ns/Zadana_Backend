@@ -1,7 +1,8 @@
 namespace Zadana.Application.Modules.Payments.DTOs;
 
 public record PaymobCheckoutResponseDto(
-    string Message,
+    string MessageAr,
+    string MessageEn,
     PaymobCheckoutOrderDto Order,
     PaymobCheckoutPaymentDto Payment);
 
@@ -53,12 +54,14 @@ public record PaymobWebhookNotificationDto(
     string EventType);
 
 public record PaymobWebhookProcessResultDto(
-    string Message,
+    string MessageAr,
+    string MessageEn,
     Guid PaymentId,
     string Status);
 
 public record PaymobPaymentConfirmationResultDto(
-    string Message,
+    string MessageAr,
+    string MessageEn,
     Guid PaymentId,
     string PaymentStatus,
     Guid UserId,

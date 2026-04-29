@@ -125,14 +125,16 @@ public record DriverOfferActionResultDto(
     Guid AssignmentId,
     Guid OrderId,
     string Status,
-    string Message);
+    string MessageAr,
+    string MessageEn);
 
 public record DriverOtpVerificationResultDto(
     Guid AssignmentId,
     Guid OrderId,
     string OtpType,
     string Status,
-    string Message);
+    string MessageAr,
+    string MessageEn);
 
 public record DeliveryPricingSurgeWindowDto(
     Guid Id,

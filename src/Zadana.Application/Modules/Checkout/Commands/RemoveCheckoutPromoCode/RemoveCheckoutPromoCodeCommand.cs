@@ -1,5 +1,6 @@
 using MediatR;
 using Zadana.Application.Common.Interfaces;
+using Zadana.Application.Common.Localization;
 using Zadana.Application.Modules.Checkout.DTOs;
 using Zadana.Application.Modules.Checkout.Support;
 using Zadana.Application.Modules.Delivery.Interfaces;
@@ -48,7 +49,8 @@ public class RemoveCheckoutPromoCodeCommandHandler : IRequestHandler<RemoveCheck
         await _unitOfWork.SaveChangesAsync(cancellationToken);
 
         return new RemoveCheckoutPromoCodeResultDto(
-            "promo code removed successfully",
+            LocalizedMessages.GetAr(LocalizedMessages.PromoCodeRemoved),
+            LocalizedMessages.GetEn(LocalizedMessages.PromoCodeRemoved),
             CheckoutSupport.BuildTotals(pricing.Subtotal, deliveryQuote.TotalFee, 0m));
     }
 }

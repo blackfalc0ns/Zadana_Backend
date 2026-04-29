@@ -2,6 +2,7 @@ using FluentValidation;
 using MediatR;
 using Microsoft.EntityFrameworkCore;
 using Zadana.Application.Common.Interfaces;
+using Zadana.Application.Common.Localization;
 using Zadana.Application.Modules.Delivery.DTOs;
 using Zadana.Application.Modules.Delivery.Interfaces;
 using Zadana.Application.Modules.Orders.Events;
@@ -78,7 +79,8 @@ public class VerifyAssignmentOtpCommandHandler : IRequestHandler<VerifyAssignmen
                 assignment.OrderId,
                 otpType,
                 "picked_up",
-                "Pickup OTP was already verified and the order is already picked up.");
+                LocalizedMessages.GetAr(LocalizedMessages.PickupOtpAlreadyVerified),
+                LocalizedMessages.GetEn(LocalizedMessages.PickupOtpAlreadyVerified));
         }
 
         if (otpType == "delivery" &&
@@ -91,7 +93,8 @@ public class VerifyAssignmentOtpCommandHandler : IRequestHandler<VerifyAssignmen
                 assignment.OrderId,
                 otpType,
                 "delivered",
-                "Delivery OTP was already verified and the order is already delivered.");
+                LocalizedMessages.GetAr(LocalizedMessages.DeliveryOtpAlreadyVerified),
+                LocalizedMessages.GetEn(LocalizedMessages.DeliveryOtpAlreadyVerified));
         }
 
         if (otpType == "pickup" && assignment.Order.Status is not (OrderStatus.DriverAssigned or OrderStatus.PickedUp))
@@ -134,7 +137,8 @@ public class VerifyAssignmentOtpCommandHandler : IRequestHandler<VerifyAssignmen
 
         var oldStatus = assignment.Order.Status;
         string status;
-        string message;
+        string messageAr;
+        string messageEn;
 
         if (otpType == "pickup")
         {
@@ -150,7 +154,8 @@ public class VerifyAssignmentOtpCommandHandler : IRequestHandler<VerifyAssignmen
             }
 
             status = "picked_up";
-            message = "Pickup OTP verified and order marked as picked up.";
+            messageAr = LocalizedMessages.GetAr(LocalizedMessages.PickupOtpVerified);
+            messageEn = LocalizedMessages.GetEn(LocalizedMessages.PickupOtpVerified);
         }
         else
         {
@@ -166,7 +171,8 @@ public class VerifyAssignmentOtpCommandHandler : IRequestHandler<VerifyAssignmen
             }
 
             status = "delivered";
-            message = "Delivery OTP verified and order marked as delivered.";
+            messageAr = LocalizedMessages.GetAr(LocalizedMessages.DeliveryOtpVerified);
+            messageEn = LocalizedMessages.GetEn(LocalizedMessages.DeliveryOtpVerified);
         }
 
         await _unitOfWork.SaveChangesAsync(cancellationToken);
@@ -189,6 +195,7 @@ public class VerifyAssignmentOtpCommandHandler : IRequestHandler<VerifyAssignmen
             assignment.OrderId,
             otpType,
             status,
-            message);
+            messageAr,
+            messageEn);
     }
 }
