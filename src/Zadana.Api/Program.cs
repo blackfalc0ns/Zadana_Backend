@@ -56,7 +56,11 @@ if (!builder.Environment.IsEnvironment("Testing"))
             sqlOptions =>
             {
                 sqlOptions.MigrationsAssembly(typeof(ApplicationDbContext).Assembly.FullName);
-                sqlOptions.EnableRetryOnFailure(maxRetryCount: 3);
+                sqlOptions.EnableRetryOnFailure(
+                    maxRetryCount: 5,
+                    maxRetryDelay: TimeSpan.FromSeconds(10),
+                    errorNumbersToAdd: null);
+                sqlOptions.CommandTimeout(60);
             });
 
         if (builder.Environment.IsDevelopment())

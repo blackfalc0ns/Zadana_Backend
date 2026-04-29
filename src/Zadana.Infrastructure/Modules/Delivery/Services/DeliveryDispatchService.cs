@@ -26,6 +26,7 @@ public class DeliveryDispatchService : IDeliveryDispatchService
     private readonly IPublisher _publisher;
     private readonly INotificationService _notificationService;
     private readonly IDriverCommitmentPolicyService _driverCommitmentPolicyService;
+    private readonly IOneSignalPushService _oneSignalPushService;
 
     public DeliveryDispatchService(
         IApplicationDbContext context,
@@ -33,7 +34,8 @@ public class DeliveryDispatchService : IDeliveryDispatchService
         ILogger<DeliveryDispatchService> logger,
         IPublisher publisher,
         INotificationService notificationService,
-        IDriverCommitmentPolicyService driverCommitmentPolicyService)
+        IDriverCommitmentPolicyService driverCommitmentPolicyService,
+        IOneSignalPushService oneSignalPushService)
     {
         _context = context;
         _unitOfWork = unitOfWork;
@@ -41,6 +43,7 @@ public class DeliveryDispatchService : IDeliveryDispatchService
         _publisher = publisher;
         _notificationService = notificationService;
         _driverCommitmentPolicyService = driverCommitmentPolicyService;
+        _oneSignalPushService = oneSignalPushService;
     }
 
     public async Task<DispatchDecisionDto?> TryAutoDispatchAsync(
@@ -475,6 +478,32 @@ public class DeliveryDispatchService : IDeliveryDispatchService
             "driver-offer",
             order.Id,
             $"assignmentId={assignment.Id}",
+            cancellationToken);
+
+        // Send a dedicated ReceiveDeliveryOffer SignalR event so the mobile app can
+        // instantly display the offer countdown UI without parsing generic inbox items.
+        await _notificationService.SendDeliveryOfferToDriverAsync(
+            best.Driver.UserId,
+            assignment.Id,
+            order.Id,
+            order.OrderNumber,
+            order.Vendor?.BusinessNameAr ?? "Vendor",
+            order.DeliveryFee,
+            (int)OfferTtl.TotalSeconds,
+            cancellationToken);
+
+        // Send a push notification to wake the driver app if it's in the background.
+        await _oneSignalPushService.SendToExternalUserAsync(
+            best.Driver.UserId.ToString(),
+            "طلب جديد للمندوب",
+            "New delivery offer",
+            $"لديك طلب جديد من {order.Vendor?.BusinessNameAr ?? best.Driver.User.FullName} ويجب الرد خلال ثوانٍ قليلة.",
+            $"You have a new delivery offer and need to respond within a few seconds.",
+            "driver-offer",
+            order.Id,
+            $"assignmentId={assignment.Id}",
+            null,
+            OneSignalPushProfile.MobileHeadsUp,
             cancellationToken);
 
         _logger.LogInformation(

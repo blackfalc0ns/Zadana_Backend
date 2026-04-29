@@ -82,6 +82,7 @@ public class GetNotificationsQueryHandler : IRequestHandler<GetNotificationsQuer
             .CountAsync(x => x.UserId == request.UserId && !x.IsRead, cancellationToken);
 
         var total = await query.CountAsync(cancellationToken);
+
         var rawItems = await query
             .Skip((page - 1) * perPage)
             .Take(perPage + 1)

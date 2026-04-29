@@ -187,6 +187,41 @@ public sealed class NotificationService : INotificationService
         }
     }
 
+    public async Task SendDeliveryOfferToDriverAsync(
+        Guid driverUserId,
+        Guid assignmentId,
+        Guid orderId,
+        string orderNumber,
+        string vendorName,
+        decimal deliveryFee,
+        int countdownSeconds,
+        CancellationToken cancellationToken = default)
+    {
+        try
+        {
+            var payload = new Contracts.DeliveryOfferRealtimePayload(
+                assignmentId,
+                orderId,
+                orderNumber,
+                vendorName,
+                deliveryFee,
+                countdownSeconds,
+                DateTime.UtcNow);
+
+            await _hubContext.Clients
+                .Group(NotificationHub.GetUserGroup(driverUserId))
+                .SendAsync(NotificationHub.ReceiveDeliveryOfferMethod, payload, cancellationToken);
+        }
+        catch (Exception ex)
+        {
+            _logger.LogError(
+                ex,
+                "Failed to send delivery offer SignalR event to driver {UserId} for assignment {AssignmentId}",
+                driverUserId,
+                assignmentId);
+        }
+    }
+
     public async Task BroadcastToAllCustomersAsync(
         string titleAr,
         string titleEn,

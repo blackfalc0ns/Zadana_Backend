@@ -56,6 +56,20 @@ public interface INotificationService
         CancellationToken cancellationToken = default);
 
     /// <summary>
+    /// Send a real-time delivery offer event to a driver via SignalR so the mobile app
+    /// can instantly display the offer countdown UI.
+    /// </summary>
+    Task SendDeliveryOfferToDriverAsync(
+        Guid driverUserId,
+        Guid assignmentId,
+        Guid orderId,
+        string orderNumber,
+        string vendorName,
+        decimal deliveryFee,
+        int countdownSeconds,
+        CancellationToken cancellationToken = default);
+
+    /// <summary>
     /// Broadcast a notification to all connected customers via SignalR (real-time only, not persisted).
     /// </summary>
     Task BroadcastToAllCustomersAsync(
