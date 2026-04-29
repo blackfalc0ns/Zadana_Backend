@@ -208,6 +208,13 @@ public sealed class NotificationService : INotificationService
                 countdownSeconds,
                 DateTime.UtcNow);
 
+            _logger.LogInformation(
+                "Sending delivery offer SignalR event {Method} to user {UserId}. AssignmentId: {AssignmentId}. OrderId: {OrderId}.",
+                NotificationHub.ReceiveDeliveryOfferMethod,
+                driverUserId,
+                assignmentId,
+                orderId);
+
             await _hubContext.Clients
                 .Group(NotificationHub.GetUserGroup(driverUserId))
                 .SendAsync(NotificationHub.ReceiveDeliveryOfferMethod, payload, cancellationToken);
