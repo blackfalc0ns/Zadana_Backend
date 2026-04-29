@@ -44,22 +44,31 @@ public class DeliveryDispatchWorker : BackgroundService
 
                 foreach (var stuckOrder in stuckOrderIds)
                 {
-                    // Check if there's already an active (non-expired) offer for this order.
-                    var hasActiveOffer = await context.DeliveryAssignments
-                        .AnyAsync(a =>
-                            a.OrderId == stuckOrder.Id &&
-                            a.Status == Domain.Modules.Delivery.Enums.AssignmentStatus.OfferSent &&
-                            a.OfferExpiresAtUtc.HasValue &&
-                            a.OfferExpiresAtUtc.Value > DateTime.UtcNow,
-                            stoppingToken);
-
-                    if (!hasActiveOffer)
+                    try
                     {
-                        _logger.LogInformation(
-                            "DeliveryDispatchWorker: retrying dispatch for stuck order {OrderId}.",
-                            stuckOrder.Id);
+                        // Check if there's already an active (non-expired) offer for this order.
+                        var hasActiveOffer = await context.DeliveryAssignments
+                            .AnyAsync(a =>
+                                a.OrderId == stuckOrder.Id &&
+                                a.Status == Domain.Modules.Delivery.Enums.AssignmentStatus.OfferSent &&
+                                a.OfferExpiresAtUtc.HasValue &&
+                                a.OfferExpiresAtUtc.Value > DateTime.UtcNow,
+                                stoppingToken);
 
-                        await dispatchService.TryAutoDispatchAsync(stuckOrder.Id, cancellationToken: stoppingToken);
+                        if (!hasActiveOffer)
+                        {
+                            _logger.LogInformation(
+                                "DeliveryDispatchWorker: retrying dispatch for stuck order {OrderId}.",
+                                stuckOrder.Id);
+
+                            await dispatchService.TryAutoDispatchAsync(stuckOrder.Id, cancellationToken: stoppingToken);
+                        }
+                    }
+                    catch (Exception orderEx)
+                    {
+                        _logger.LogWarning(orderEx,
+                            "DeliveryDispatchWorker: failed to process order {OrderId}, skipping.",
+                            stuckOrder.Id);
                     }
                 }
             }
