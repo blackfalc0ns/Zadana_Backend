@@ -33,7 +33,8 @@ public class DeliveryDispatchServiceTests
             NullLogger<DeliveryDispatchService>.Instance,
             publisher ?? Mock.Of<IPublisher>(),
             notificationService ?? Mock.Of<INotificationService>(),
-            commitmentPolicyService);
+            commitmentPolicyService,
+            Mock.Of<IOneSignalPushService>());
     }
 
     [Fact]
