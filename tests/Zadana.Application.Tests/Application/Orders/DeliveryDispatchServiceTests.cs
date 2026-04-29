@@ -188,6 +188,45 @@ public class DeliveryDispatchServiceTests
     }
 
     [Fact]
+    public async Task TryAutoDispatchAsync_WhenOnlyAvailableDriverTimedOut_ShouldRetrySameDriver()
+    {
+        await using var dbContext = CreateDbContext();
+        var scenario = await SeedDispatchScenarioAsync(dbContext);
+        scenario.SameCityFallbackDriver.ToggleAvailability(false);
+        scenario.SecondSameZoneDriver.ToggleAvailability(false);
+        await dbContext.SaveChangesAsync();
+
+        var service = CreateDispatchService(dbContext);
+
+        await service.TryAutoDispatchAsync(scenario.Order.Id, cancellationToken: CancellationToken.None);
+
+        var assignment = await dbContext.DeliveryAssignments.SingleAsync();
+        var firstAttempt = await dbContext.DeliveryOfferAttempts.SingleAsync();
+        assignment.MarkOfferTimedOut();
+        firstAttempt.MarkTimedOut();
+        await dbContext.SaveChangesAsync();
+
+        var retryDecision = await service.TryAutoDispatchAsync(scenario.Order.Id, cancellationToken: CancellationToken.None);
+
+        retryDecision.Should().NotBeNull();
+        retryDecision!.DriverId.Should().Be(scenario.SameZoneFreshDriver.Id);
+
+        var assignments = await dbContext.DeliveryAssignments.ToListAsync();
+        assignments.Should().ContainSingle();
+        assignments[0].DriverId.Should().Be(scenario.SameZoneFreshDriver.Id);
+        assignments[0].Status.Should().Be(AssignmentStatus.OfferSent);
+
+        var attempts = await dbContext.DeliveryOfferAttempts
+            .OrderBy(item => item.AttemptNumber)
+            .ToListAsync();
+
+        attempts.Should().HaveCount(2);
+        attempts[0].Status.Should().Be(DeliveryOfferAttemptStatus.TimedOut);
+        attempts[1].Status.Should().Be(DeliveryOfferAttemptStatus.Offered);
+        attempts[1].DriverId.Should().Be(scenario.SameZoneFreshDriver.Id);
+    }
+
+    [Fact]
     public async Task TryAutoDispatchAsync_ShouldExcludeSoftBlockedDriverFromCandidates()
     {
         await using var dbContext = CreateDbContext();

@@ -1,6 +1,7 @@
 using Microsoft.EntityFrameworkCore;
 using Microsoft.Extensions.Logging;
 using MediatR;
+using System.Collections.Concurrent;
 using System.Text.Json;
 using Zadana.Application.Common.Interfaces;
 using Zadana.Application.Modules.Delivery.DTOs;
@@ -17,9 +18,10 @@ namespace Zadana.Infrastructure.Modules.Delivery.Services;
 
 public class DeliveryDispatchService : IDeliveryDispatchService
 {
-    private static readonly TimeSpan OfferTtl = TimeSpan.FromSeconds(25);
+    private static readonly TimeSpan OfferTtl = TimeSpan.FromSeconds(60);
     private static readonly TimeSpan PickupOtpTtl = TimeSpan.FromHours(12);
     private const int MaxAutoOfferAttempts = 3;
+    private static readonly ConcurrentDictionary<Guid, SemaphoreSlim> DispatchLocks = new();
 
     private readonly IApplicationDbContext _context;
     private readonly IUnitOfWork _unitOfWork;
@@ -54,6 +56,23 @@ public class DeliveryDispatchService : IDeliveryDispatchService
     {
         await ProcessExpiredOffersAsync(cancellationToken);
 
+        var dispatchLock = GetDispatchLock(orderId);
+        await dispatchLock.WaitAsync(cancellationToken);
+        try
+        {
+            return await TryAutoDispatchLockedAsync(orderId, resetCycle, cancellationToken);
+        }
+        finally
+        {
+            dispatchLock.Release();
+        }
+    }
+
+    private async Task<DispatchDecisionDto?> TryAutoDispatchLockedAsync(
+        Guid orderId,
+        bool resetCycle,
+        CancellationToken cancellationToken)
+    {
         var order = await _context.Orders
             .Include(item => item.Vendor)
             .Include(item => item.VendorBranch)
@@ -71,14 +90,12 @@ public class DeliveryDispatchService : IDeliveryDispatchService
             return null;
         }
 
-        var assignment = await _context.DeliveryAssignments
-            .FirstOrDefaultAsync(item => item.OrderId == orderId, cancellationToken);
+        var assignment = await LoadReusableAssignmentAsync(orderId, cancellationToken);
 
         if (resetCycle)
         {
             await ResetDispatchCycleAsync(orderId, assignment, cancellationToken);
-            assignment = await _context.DeliveryAssignments
-                .FirstOrDefaultAsync(item => item.OrderId == orderId, cancellationToken);
+            assignment = await LoadReusableAssignmentAsync(orderId, cancellationToken);
         }
 
         var now = DateTime.UtcNow;
@@ -116,45 +133,84 @@ public class DeliveryDispatchService : IDeliveryDispatchService
     public async Task ProcessExpiredOffersAsync(CancellationToken cancellationToken = default)
     {
         var now = DateTime.UtcNow;
+        var expiredOrderIds = await _context.DeliveryAssignments
+            .Where(item =>
+                item.Status == AssignmentStatus.OfferSent &&
+                item.OfferExpiresAtUtc.HasValue &&
+                item.OfferExpiresAtUtc.Value <= now)
+            .Select(item => item.OrderId)
+            .Distinct()
+            .ToListAsync(cancellationToken);
+
+        foreach (var orderId in expiredOrderIds)
+        {
+            var dispatchLock = GetDispatchLock(orderId);
+            await dispatchLock.WaitAsync(cancellationToken);
+            try
+            {
+                await ProcessExpiredOffersForOrderAsync(orderId, cancellationToken);
+            }
+            finally
+            {
+                dispatchLock.Release();
+            }
+        }
+    }
+
+    private async Task ProcessExpiredOffersForOrderAsync(Guid orderId, CancellationToken cancellationToken)
+    {
+        var now = DateTime.UtcNow;
         var expiredAssignments = await _context.DeliveryAssignments
             .Include(item => item.Order)
                 .ThenInclude(order => order.Vendor)
             .Include(item => item.Order)
                 .ThenInclude(order => order.VendorBranch)
             .Where(item =>
+                item.OrderId == orderId &&
                 item.Status == AssignmentStatus.OfferSent &&
                 item.OfferExpiresAtUtc.HasValue &&
                 item.OfferExpiresAtUtc.Value <= now)
             .ToListAsync(cancellationToken);
 
+        if (expiredAssignments.Count == 0)
+        {
+            return;
+        }
+
+        var order = expiredAssignments[0].Order;
+        var timedOutDriverIds = new HashSet<Guid>();
+
         foreach (var assignment in expiredAssignments)
         {
-            var order = assignment.Order;
-
-            // Always clean up the expired offer to free the driver,
-            // even if the order is no longer in a dispatchable status.
+            var timedOutDriverId = assignment.DriverId;
             var timedOutAttempt = await _context.DeliveryOfferAttempts
-                .Where(item => item.OrderId == order.Id && item.Status == DeliveryOfferAttemptStatus.Offered)
+                .Where(item =>
+                    item.AssignmentId == assignment.Id &&
+                    item.Status == DeliveryOfferAttemptStatus.Offered)
                 .OrderByDescending(item => item.AttemptNumber)
                 .FirstOrDefaultAsync(cancellationToken);
 
             assignment.MarkOfferTimedOut();
-            if (timedOutAttempt is not null)
-            {
-                timedOutAttempt.MarkTimedOut();
-            }
+            timedOutAttempt?.MarkTimedOut();
 
-            await _unitOfWork.SaveChangesAsync(cancellationToken);
-            if (assignment.DriverId.HasValue)
+            if (timedOutDriverId.HasValue)
             {
-                await _driverCommitmentPolicyService.ApplyOperationalEnforcementAsync([assignment.DriverId.Value], cancellationToken);
+                timedOutDriverIds.Add(timedOutDriverId.Value);
             }
+        }
 
-            // Only attempt re-dispatch if the order is still in a dispatchable status.
-            if (order.Status is OrderStatus.ReadyForPickup or OrderStatus.DriverAssignmentInProgress)
-            {
-                await OfferNextDriverAsync(order, assignment, cancellationToken);
-            }
+        await _unitOfWork.SaveChangesAsync(cancellationToken);
+
+        if (timedOutDriverIds.Count > 0)
+        {
+            await _driverCommitmentPolicyService.ApplyOperationalEnforcementAsync(timedOutDriverIds.ToArray(), cancellationToken);
+        }
+
+        // Only attempt re-dispatch if the order is still in a dispatchable status.
+        if (order.Status is OrderStatus.ReadyForPickup or OrderStatus.DriverAssignmentInProgress)
+        {
+            var reusableAssignment = await LoadReusableAssignmentAsync(orderId, cancellationToken);
+            await OfferNextDriverAsync(order, reusableAssignment, cancellationToken);
         }
     }
 
@@ -313,7 +369,14 @@ public class DeliveryDispatchService : IDeliveryDispatchService
             .Distinct()
             .ToListAsync(cancellationToken);
 
-        var excludedDriverIds = unsuccessfulAttempts
+        var rejectedDriverIds = unsuccessfulAttempts
+            .Where(item => item.Status == DeliveryOfferAttemptStatus.Rejected)
+            .Select(item => item.DriverId)
+            .Distinct()
+            .ToHashSet();
+
+        var timedOutDriverIds = unsuccessfulAttempts
+            .Where(item => item.Status == DeliveryOfferAttemptStatus.TimedOut)
             .Select(item => item.DriverId)
             .Distinct()
             .ToHashSet();
@@ -342,8 +405,26 @@ public class DeliveryDispatchService : IDeliveryDispatchService
             .ToListAsync(cancellationToken);
 
         eligibleDrivers = eligibleDrivers
-            .Where(driver => !excludedDriverIds.Contains(driver.Id))
+            .Where(driver =>
+                !rejectedDriverIds.Contains(driver.Id) &&
+                !timedOutDriverIds.Contains(driver.Id))
             .ToList();
+
+        if (eligibleDrivers.Count == 0 && timedOutDriverIds.Count > 0)
+        {
+            eligibleDrivers = await _context.Drivers
+                .Include(driver => driver.User)
+                .Where(driver =>
+                    driver.VerificationStatus == DriverVerificationStatus.Approved &&
+                    driver.Status == AccountStatus.Active &&
+                    driver.IsAvailable &&
+                    !busyDriverIds.Contains(driver.Id))
+                .ToListAsync(cancellationToken);
+
+            eligibleDrivers = eligibleDrivers
+                .Where(driver => !rejectedDriverIds.Contains(driver.Id))
+                .ToList();
+        }
 
         if (eligibleDrivers.Count == 0)
         {
@@ -444,6 +525,11 @@ public class DeliveryDispatchService : IDeliveryDispatchService
         }
 
         var assignment = existingAssignment;
+        if (assignment is null)
+        {
+            assignment = await LoadReusableAssignmentAsync(order.Id, cancellationToken);
+        }
+
         if (assignment is null)
         {
             var codAmount = order.PaymentMethod == PaymentMethodType.CashOnDelivery ? order.TotalAmount : 0m;
@@ -559,6 +645,21 @@ public class DeliveryDispatchService : IDeliveryDispatchService
         assignment?.ResetForRedispatch();
         await _unitOfWork.SaveChangesAsync(cancellationToken);
     }
+
+    private Task<DeliveryAssignment?> LoadReusableAssignmentAsync(Guid orderId, CancellationToken cancellationToken) =>
+        _context.DeliveryAssignments
+            .Where(item => item.OrderId == orderId)
+            .OrderByDescending(item => item.Status == AssignmentStatus.OfferSent)
+            .ThenByDescending(item =>
+                item.Status == AssignmentStatus.Accepted ||
+                item.Status == AssignmentStatus.ArrivedAtVendor ||
+                item.Status == AssignmentStatus.PickedUp ||
+                item.Status == AssignmentStatus.ArrivedAtCustomer)
+            .ThenByDescending(item => item.CreatedAtUtc)
+            .FirstOrDefaultAsync(cancellationToken);
+
+    private static SemaphoreSlim GetDispatchLock(Guid orderId) =>
+        DispatchLocks.GetOrAdd(orderId, _ => new SemaphoreSlim(1, 1));
 
     private async Task TrackDispatchQueueNoteAsync(
         Domain.Modules.Orders.Entities.Order order,
