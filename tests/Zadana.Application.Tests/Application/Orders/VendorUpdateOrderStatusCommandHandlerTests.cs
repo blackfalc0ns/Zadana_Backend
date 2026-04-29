@@ -139,6 +139,44 @@ public class VendorUpdateOrderStatusCommandHandlerTests
             Times.Never);
     }
 
+    [Fact]
+    public async Task Handle_WhenReadyForPickupAlreadyMatchesTarget_ShouldRetryDeliveryDispatchWithoutRepublishing()
+    {
+        await using var dbContext = CreateDbContext();
+        var customer = CreateCustomer();
+        var vendorId = Guid.NewGuid();
+        var order = CreateOrder(customer.Id, vendorId, OrderStatus.ReadyForPickup, "ORD-IDEMPOTENT-READY-001");
+
+        dbContext.Users.Add(customer);
+        dbContext.Orders.Add(order);
+        await dbContext.SaveChangesAsync();
+
+        var publisherMock = new Mock<IPublisher>();
+        var dispatcherMock = new Mock<IOrderStatusNotificationDispatcher>();
+        var deliveryDispatchServiceMock = new Mock<IDeliveryDispatchService>();
+        var handler = new VendorUpdateOrderStatusCommandHandler(
+            dbContext,
+            dbContext,
+            publisherMock.Object,
+            dispatcherMock.Object,
+            deliveryDispatchServiceMock.Object);
+
+        var result = await handler.Handle(
+            new VendorUpdateOrderStatusCommand(order.Id, vendorId, OrderStatus.ReadyForPickup, null),
+            CancellationToken.None);
+
+        result.Status.Should().Be(nameof(OrderStatus.ReadyForPickup));
+        dispatcherMock.Verify(
+            service => service.DispatchCustomerAsync(It.IsAny<OrderStatusCustomerNotificationRequest>(), It.IsAny<CancellationToken>()),
+            Times.Never);
+        publisherMock.Verify(
+            publisher => publisher.Publish(It.IsAny<OrderStatusChangedNotification>(), It.IsAny<CancellationToken>()),
+            Times.Never);
+        deliveryDispatchServiceMock.Verify(
+            service => service.TryAutoDispatchAsync(order.Id, It.IsAny<bool>(), It.IsAny<CancellationToken>()),
+            Times.Once);
+    }
+
     private static ApplicationDbContext CreateDbContext()
     {
         var options = new DbContextOptionsBuilder<ApplicationDbContext>()

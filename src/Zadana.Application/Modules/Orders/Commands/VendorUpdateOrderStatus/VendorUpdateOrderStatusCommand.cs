@@ -68,9 +68,14 @@ public class VendorUpdateOrderStatusCommandHandler : IRequestHandler<VendorUpdat
             .FirstOrDefaultAsync(x => x.Id == request.OrderId && x.VendorId == request.VendorId, cancellationToken)
             ?? throw new NotFoundException("Order", request.OrderId);
 
-        // Idempotent: if already in target status, return success without re-processing
+        // Idempotent: avoid duplicate status side effects, but still retry dispatch for ready orders.
         if (order.Status == request.NewStatus)
         {
+            if (request.NewStatus == OrderStatus.ReadyForPickup)
+            {
+                await _deliveryDispatchService.TryAutoDispatchAsync(order.Id, cancellationToken: cancellationToken);
+            }
+
             return new VendorUpdateOrderStatusResultDto(
                 order.Id,
                 request.NewStatus.ToString(),

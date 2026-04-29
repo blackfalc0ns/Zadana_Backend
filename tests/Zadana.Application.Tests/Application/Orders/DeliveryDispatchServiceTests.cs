@@ -24,7 +24,8 @@ public class DeliveryDispatchServiceTests
     private static DeliveryDispatchService CreateDispatchService(
         ApplicationDbContext dbContext,
         IPublisher? publisher = null,
-        INotificationService? notificationService = null)
+        INotificationService? notificationService = null,
+        IOneSignalPushService? oneSignalPushService = null)
     {
         var commitmentPolicyService = new DriverCommitmentPolicyService(dbContext, dbContext);
         return new DeliveryDispatchService(
@@ -34,13 +35,7 @@ public class DeliveryDispatchServiceTests
             publisher ?? Mock.Of<IPublisher>(),
             notificationService ?? Mock.Of<INotificationService>(),
             commitmentPolicyService,
-
-
-
-
-
-            
-            Mock.Of<IOneSignalPushService>());
+            oneSignalPushService ?? Mock.Of<IOneSignalPushService>());
     }
 
     [Fact]
@@ -114,6 +109,80 @@ public class DeliveryDispatchServiceTests
                 "dispatch",
                 null,
                 null,
+                It.IsAny<CancellationToken>()),
+            Times.Once);
+    }
+
+    [Fact]
+    public async Task TryAutoDispatchAsync_ShouldSendDeliveryOfferNotificationPayloadForDriverApp()
+    {
+        await using var dbContext = CreateDbContext();
+        var scenario = await SeedDispatchScenarioAsync(dbContext);
+        var notificationServiceMock = new Mock<INotificationService>();
+        var oneSignalPushServiceMock = new Mock<IOneSignalPushService>();
+        oneSignalPushServiceMock
+            .Setup(service => service.SendToExternalUserAsync(
+                It.IsAny<string>(),
+                It.IsAny<string>(),
+                It.IsAny<string>(),
+                It.IsAny<string>(),
+                It.IsAny<string>(),
+                It.IsAny<string?>(),
+                It.IsAny<Guid?>(),
+                It.IsAny<string?>(),
+                It.IsAny<string?>(),
+                It.IsAny<OneSignalPushProfile>(),
+                It.IsAny<CancellationToken>()))
+            .ReturnsAsync(new OneSignalPushDispatchResult(
+                Attempted: true,
+                Sent: true,
+                Skipped: false,
+                ProviderStatusCode: 200,
+                ProviderNotificationId: "test",
+                Reason: null));
+        var service = CreateDispatchService(
+            dbContext,
+            notificationService: notificationServiceMock.Object,
+            oneSignalPushService: oneSignalPushServiceMock.Object);
+
+        await service.TryAutoDispatchAsync(scenario.Order.Id, cancellationToken: CancellationToken.None);
+
+        var assignment = await dbContext.DeliveryAssignments.SingleAsync();
+        var expectedPayloadPart = $"\"assignmentId\":\"{assignment.Id}\"";
+
+        notificationServiceMock.Verify(
+            service => service.SendToUserAsync(
+                scenario.SameZoneFreshDriver.UserId,
+                It.IsAny<string>(),
+                It.IsAny<string>(),
+                It.IsAny<string>(),
+                It.IsAny<string>(),
+                "delivery-offer",
+                scenario.Order.Id,
+                It.Is<string?>(data =>
+                    data != null &&
+                    data.Contains("\"target\":\"driver-offer\"") &&
+                    data.Contains(expectedPayloadPart) &&
+                    data.Contains(scenario.Order.Id.ToString())),
+                It.IsAny<CancellationToken>()),
+            Times.Once);
+
+        oneSignalPushServiceMock.Verify(
+            service => service.SendToExternalUserAsync(
+                scenario.SameZoneFreshDriver.UserId.ToString(),
+                It.IsAny<string>(),
+                It.IsAny<string>(),
+                It.IsAny<string>(),
+                It.IsAny<string>(),
+                "delivery-offer",
+                scenario.Order.Id,
+                It.Is<string?>(data =>
+                    data != null &&
+                    data.Contains("\"target\":\"driver-offer\"") &&
+                    data.Contains(expectedPayloadPart) &&
+                    data.Contains(scenario.Order.Id.ToString())),
+                It.Is<string?>(targetUrl => targetUrl == null),
+                OneSignalPushProfile.MobileHeadsUp,
                 It.IsAny<CancellationToken>()),
             Times.Once);
     }

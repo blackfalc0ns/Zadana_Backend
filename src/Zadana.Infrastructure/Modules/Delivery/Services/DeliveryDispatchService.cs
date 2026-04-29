@@ -1,6 +1,7 @@
 using Microsoft.EntityFrameworkCore;
 using Microsoft.Extensions.Logging;
 using MediatR;
+using System.Text.Json;
 using Zadana.Application.Common.Interfaces;
 using Zadana.Application.Modules.Delivery.DTOs;
 using Zadana.Application.Modules.Delivery.Interfaces;
@@ -469,6 +470,20 @@ public class DeliveryDispatchService : IDeliveryDispatchService
 
         await _unitOfWork.SaveChangesAsync(cancellationToken);
 
+        var vendorName = order.Vendor?.BusinessNameAr ?? order.Vendor?.BusinessNameEn ?? "Vendor";
+        var offerPayloadJson = JsonSerializer.Serialize(new
+        {
+            target = "driver-offer",
+            legacyType = "driver-offer",
+            assignmentId = assignment.Id,
+            orderId = order.Id,
+            orderNumber = order.OrderNumber,
+            vendorName,
+            deliveryFee = order.DeliveryFee,
+            countdownSeconds = (int)OfferTtl.TotalSeconds,
+            expiresAtUtc
+        });
+
         // Send real-time SignalR notification so the driver's Home screen updates instantly.
         // SendToUserAsync persists to DB inbox AND pushes via SignalR simultaneously.
         await _notificationService.SendToUserAsync(
@@ -477,9 +492,9 @@ public class DeliveryDispatchService : IDeliveryDispatchService
             "New delivery offer",
             $"لديك طلب جديد من {order.Vendor?.BusinessNameAr ?? best.Driver.User.FullName} ويجب الرد خلال ثوانٍ قليلة.",
             $"You have a new delivery offer and need to respond within a few seconds.",
-            "driver-offer",
+            "delivery-offer",
             order.Id,
-            $"assignmentId={assignment.Id}",
+            offerPayloadJson,
             cancellationToken);
 
         // Send a dedicated ReceiveDeliveryOffer SignalR event so the mobile app can
@@ -489,7 +504,7 @@ public class DeliveryDispatchService : IDeliveryDispatchService
             assignment.Id,
             order.Id,
             order.OrderNumber,
-            order.Vendor?.BusinessNameAr ?? "Vendor",
+            vendorName,
             order.DeliveryFee,
             (int)OfferTtl.TotalSeconds,
             cancellationToken);
@@ -501,9 +516,9 @@ public class DeliveryDispatchService : IDeliveryDispatchService
             "New delivery offer",
             $"لديك طلب جديد من {order.Vendor?.BusinessNameAr ?? best.Driver.User.FullName} ويجب الرد خلال ثوانٍ قليلة.",
             $"You have a new delivery offer and need to respond within a few seconds.",
-            "driver-offer",
+            "delivery-offer",
             order.Id,
-            $"assignmentId={assignment.Id}",
+            offerPayloadJson,
             null,
             OneSignalPushProfile.MobileHeadsUp,
             cancellationToken);

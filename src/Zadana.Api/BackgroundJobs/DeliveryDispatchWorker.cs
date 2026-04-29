@@ -35,10 +35,12 @@ public class DeliveryDispatchWorker : BackgroundService
                 // 1. Process any expired offers (timeout → offer next driver).
                 await dispatchService.ProcessExpiredOffersAsync(stoppingToken);
 
-                // 2. Find orders stuck in DriverAssignmentInProgress with no active offer.
+                // 2. Find ready/in-progress orders stuck with no active offer.
                 var stuckOrderIds = await context.Orders
                     .AsNoTracking()
-                    .Where(order => order.Status == OrderStatus.DriverAssignmentInProgress)
+                    .Where(order =>
+                        order.Status == OrderStatus.ReadyForPickup ||
+                        order.Status == OrderStatus.DriverAssignmentInProgress)
                     .Select(order => new { order.Id, order.CreatedAtUtc })
                     .ToListAsync(stoppingToken);
 
