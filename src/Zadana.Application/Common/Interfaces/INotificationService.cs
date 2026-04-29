@@ -83,4 +83,14 @@ public interface INotificationService
         string? type = null,
         string? data = null,
         CancellationToken cancellationToken = default);
+
+    /// <summary>
+    /// Send a real-time assignment detail refresh to the assigned driver via SignalR.
+    /// The driver's mobile app can use this to update the order detail page without polling.
+    /// </summary>
+    Task SendAssignmentUpdatedToDriverAsync(
+        Guid driverUserId,
+        Guid assignmentId,
+        Guid orderId,
+        CancellationToken cancellationToken = default);
 }

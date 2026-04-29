@@ -271,6 +271,51 @@ public sealed class NotificationService : INotificationService
         }
     }
 
+    public async Task SendAssignmentUpdatedToDriverAsync(
+        Guid driverUserId,
+        Guid assignmentId,
+        Guid orderId,
+        CancellationToken cancellationToken = default)
+    {
+        try
+        {
+            await using var scope = _scopeFactory.CreateAsyncScope();
+            var driverReadService = scope.ServiceProvider.GetRequiredService<Application.Modules.Delivery.Interfaces.IDriverReadService>();
+            var driverRepository = scope.ServiceProvider.GetRequiredService<Application.Modules.Delivery.Interfaces.IDriverRepository>();
+
+            var driver = await driverRepository.GetByUserIdAsync(driverUserId, cancellationToken);
+            if (driver is null)
+            {
+                _logger.LogWarning("SendAssignmentUpdatedToDriverAsync: no driver found for user {UserId}", driverUserId);
+                return;
+            }
+
+            var detail = await driverReadService.GetAssignmentDetailAsync(driver.Id, assignmentId, cancellationToken);
+            if (detail is null)
+            {
+                _logger.LogWarning(
+                    "SendAssignmentUpdatedToDriverAsync: assignment {AssignmentId} not found for driver {DriverId}",
+                    assignmentId, driver.Id);
+                return;
+            }
+
+            await _hubContext.Clients
+                .Group(NotificationHub.GetUserGroup(driverUserId))
+                .SendAsync(NotificationHub.ReceiveAssignmentUpdatedMethod, detail, cancellationToken);
+
+            _logger.LogInformation(
+                "Sent ReceiveAssignmentUpdated to driver user {UserId} for assignment {AssignmentId}",
+                driverUserId, assignmentId);
+        }
+        catch (Exception ex)
+        {
+            _logger.LogError(
+                ex,
+                "Failed to send assignment update to driver user {UserId} for assignment {AssignmentId}",
+                driverUserId, assignmentId);
+        }
+    }
+
     private async Task<(Guid NotificationId, DateTime CreatedAtUtc)> PersistNotificationAsync(
         Guid userId,
         string titleAr,

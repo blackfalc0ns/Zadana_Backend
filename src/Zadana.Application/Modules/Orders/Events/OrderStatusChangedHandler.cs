@@ -133,7 +133,7 @@ public class OrderStatusChangedHandler : INotificationHandler<OrderStatusChanged
         string targetUrl,
         CancellationToken cancellationToken)
     {
-        var driverRecipient = await _context.DeliveryAssignments
+        var driverAssignment = await _context.DeliveryAssignments
             .AsNoTracking()
             .Where(assignment =>
                 assignment.OrderId == notification.OrderId &&
@@ -143,16 +143,16 @@ public class OrderStatusChangedHandler : INotificationHandler<OrderStatusChanged
                 assignment.Status != AssignmentStatus.Rejected &&
                 assignment.Status != AssignmentStatus.Cancelled)
             .OrderByDescending(assignment => assignment.CreatedAtUtc)
-            .Select(assignment => assignment.Driver!.UserId)
+            .Select(assignment => new { assignment.Id, DriverUserId = assignment.Driver!.UserId })
             .FirstOrDefaultAsync(cancellationToken);
 
-        if (driverRecipient == Guid.Empty)
+        if (driverAssignment is null)
         {
             return;
         }
 
         await _notificationService.SendOrderStatusChangedToUserAsync(
-            driverRecipient,
+            driverAssignment.DriverUserId,
             notification.OrderId,
             notification.OrderNumber,
             notification.VendorId,
@@ -161,6 +161,13 @@ public class OrderStatusChangedHandler : INotificationHandler<OrderStatusChanged
             notification.ActorRole,
             action,
             targetUrl,
+            cancellationToken);
+
+        // Push full assignment detail so the driver's order detail page refreshes in real-time
+        await _notificationService.SendAssignmentUpdatedToDriverAsync(
+            driverAssignment.DriverUserId,
+            driverAssignment.Id,
+            notification.OrderId,
             cancellationToken);
     }
 

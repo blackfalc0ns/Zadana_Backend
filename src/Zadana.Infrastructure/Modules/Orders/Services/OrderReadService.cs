@@ -153,7 +153,7 @@ public class OrderReadService : IOrderReadService
         var assignedDriver = BuildAssignedDriverSummary(assignment);
         var arrivalState = ResolveArrivalState(assignment);
         var arrivalUpdatedAtUtc = ResolveArrivalUpdatedAtUtc(assignment);
-        var showDeliveryOtp = order.Status == OrderStatus.OnTheWay &&
+        var showDeliveryOtp = (order.Status == OrderStatus.PickedUp || order.Status == OrderStatus.OnTheWay) &&
             assignment is not null &&
             !assignment.DeliveryOtpVerifiedAtUtc.HasValue &&
             !string.IsNullOrWhiteSpace(assignment.DeliveryOtpCode);

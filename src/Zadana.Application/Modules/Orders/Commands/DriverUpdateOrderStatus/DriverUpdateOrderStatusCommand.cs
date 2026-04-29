@@ -126,7 +126,7 @@ public class DriverUpdateOrderStatusCommandHandler : IRequestHandler<DriverUpdat
         _context.OrderStatusHistories.Add(order.StatusHistory.Last());
 
         string? deliveryOtp = null;
-        if (request.NewStatus == OrderStatus.OnTheWay)
+        if (request.NewStatus is OrderStatus.PickedUp or OrderStatus.OnTheWay)
         {
             deliveryOtp = assignment.EnsureDeliveryOtp(DeliveryOtpTtl);
         }
