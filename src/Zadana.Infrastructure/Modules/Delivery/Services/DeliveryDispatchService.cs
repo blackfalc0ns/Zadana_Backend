@@ -129,11 +129,9 @@ public class DeliveryDispatchService : IDeliveryDispatchService
         foreach (var assignment in expiredAssignments)
         {
             var order = assignment.Order;
-            if (order.Status is not (OrderStatus.ReadyForPickup or OrderStatus.DriverAssignmentInProgress))
-            {
-                continue;
-            }
 
+            // Always clean up the expired offer to free the driver,
+            // even if the order is no longer in a dispatchable status.
             var timedOutAttempt = await _context.DeliveryOfferAttempts
                 .Where(item => item.OrderId == order.Id && item.Status == DeliveryOfferAttemptStatus.Offered)
                 .OrderByDescending(item => item.AttemptNumber)
@@ -151,7 +149,11 @@ public class DeliveryDispatchService : IDeliveryDispatchService
                 await _driverCommitmentPolicyService.ApplyOperationalEnforcementAsync([assignment.DriverId.Value], cancellationToken);
             }
 
-            await OfferNextDriverAsync(order, assignment, cancellationToken);
+            // Only attempt re-dispatch if the order is still in a dispatchable status.
+            if (order.Status is OrderStatus.ReadyForPickup or OrderStatus.DriverAssignmentInProgress)
+            {
+                await OfferNextDriverAsync(order, assignment, cancellationToken);
+            }
         }
     }
 
