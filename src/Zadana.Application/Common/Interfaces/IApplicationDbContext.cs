@@ -53,6 +53,9 @@ public interface IApplicationDbContext
     DbSet<OrderStatusHistory> OrderStatusHistories { get; }
     DbSet<OrderComplaint> OrderComplaints { get; }
     DbSet<OrderComplaintAttachment> OrderComplaintAttachments { get; }
+    DbSet<OrderSupportCase> OrderSupportCases { get; }
+    DbSet<OrderSupportCaseAttachment> OrderSupportCaseAttachments { get; }
+    DbSet<OrderSupportCaseActivity> OrderSupportCaseActivities { get; }
 
     // Payments
     DbSet<Payment> Payments { get; }

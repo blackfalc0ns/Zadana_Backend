@@ -7,4 +7,5 @@ public static class NotificationTypes
     public const string OrderPlaced = "order_placed";
     public const string OrderCancelled = "order_cancelled";
     public const string VendorNewOrder = "vendor_new_order";
+    public const string OrderSupportCaseChanged = "order_support_case_changed";
 }

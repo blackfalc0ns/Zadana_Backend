@@ -25,6 +25,7 @@ public class AdminOrdersController : ApiControllerBase
     private readonly IApplicationDbContext _dbContext;
     private readonly ICurrentUserService _currentUserService;
     private readonly IOrderReadService _orderReadService;
+    private readonly IOrderSupportCaseWorkflowService _orderSupportCaseWorkflowService;
     private readonly IPublisher _publisher;
     private readonly IOrderStatusNotificationDispatcher _orderStatusNotificationDispatcher;
     private readonly Application.Modules.Delivery.Interfaces.IDeliveryDispatchService _dispatchService;
@@ -33,6 +34,7 @@ public class AdminOrdersController : ApiControllerBase
         IApplicationDbContext dbContext,
         ICurrentUserService currentUserService,
         IOrderReadService orderReadService,
+        IOrderSupportCaseWorkflowService orderSupportCaseWorkflowService,
         IPublisher publisher,
         IOrderStatusNotificationDispatcher orderStatusNotificationDispatcher,
         Application.Modules.Delivery.Interfaces.IDeliveryDispatchService dispatchService)
@@ -40,6 +42,7 @@ public class AdminOrdersController : ApiControllerBase
         _dbContext = dbContext;
         _currentUserService = currentUserService;
         _orderReadService = orderReadService;
+        _orderSupportCaseWorkflowService = orderSupportCaseWorkflowService;
         _publisher = publisher;
         _orderStatusNotificationDispatcher = orderStatusNotificationDispatcher;
         _dispatchService = dispatchService;
@@ -300,12 +303,41 @@ public class AdminOrdersController : ApiControllerBase
         CancellationToken cancellationToken = default)
     {
         var order = await LoadOrderAsync(orderId, cancellationToken);
+        var adminUserId = GetRequiredAdminUserId();
         var amount = decimal.TryParse(request.RefundAmount, out var parsed) && parsed > 0
             ? parsed
             : order.TotalAmount;
 
-        await EnsureRefundAsync(order, amount, request.InternalNotes ?? request.Reason, cancellationToken);
-        await _dbContext.SaveChangesAsync(cancellationToken);
+        var activeSupportCase = await LoadActiveSupportCaseAsync(orderId, cancellationToken);
+        if (activeSupportCase is not null && activeSupportCase.Type != OrderSupportCaseType.ReturnRequest)
+        {
+            throw new BusinessRuleException(
+                "ORDER_SUPPORT_CASE_ALREADY_EXISTS",
+                "An active non-return support case already exists for this order.");
+        }
+
+        activeSupportCase ??= await _orderSupportCaseWorkflowService.CreateAdminCaseAsync(
+            orderId,
+            adminUserId,
+            "return_request",
+            request.Reason,
+            BuildSupportCaseMessage("Admin refund review opened.", request.Reason, request.InternalNotes),
+            "high",
+            "finance",
+            request.InternalNotes,
+            request.CustomerMessage,
+            cancellationToken);
+
+        await _orderSupportCaseWorkflowService.ApproveAsync(
+            activeSupportCase.Id,
+            adminUserId,
+            amount,
+            request.RefundMethod,
+            request.CostBearer,
+            request.InternalNotes ?? request.Reason,
+            request.CustomerMessage,
+            cancellationToken);
+
         return Ok(await RequireDetailAsync(orderId, cancellationToken));
     }
 
@@ -315,12 +347,19 @@ public class AdminOrdersController : ApiControllerBase
         [FromBody] AdminDisputeOrderRequest request,
         CancellationToken cancellationToken = default)
     {
-        var order = await LoadOrderAsync(orderId, cancellationToken);
-        var complaint = new OrderComplaint(order.Id, $"Dispute: {request.DisputeType}. {request.Description}".Trim());
-        complaint.MarkInReview();
-        _dbContext.OrderComplaints.Add(complaint);
+        await LoadOrderAsync(orderId, cancellationToken);
+        await _orderSupportCaseWorkflowService.CreateAdminCaseAsync(
+            orderId,
+            GetRequiredAdminUserId(),
+            "complaint",
+            request.DisputeType,
+            BuildSupportCaseMessage("Admin dispute opened.", request.Description, request.InternalNotes),
+            request.Priority,
+            ResolveAdminQueue(request.RouteTo),
+            request.InternalNotes,
+            null,
+            cancellationToken);
 
-        await _dbContext.SaveChangesAsync(cancellationToken);
         return Ok(await RequireDetailAsync(orderId, cancellationToken));
     }
 
@@ -330,23 +369,38 @@ public class AdminOrdersController : ApiControllerBase
         [FromBody] AdminIssueFlagRequest request,
         CancellationToken cancellationToken = default)
     {
-        var order = await LoadOrderAsync(orderId, cancellationToken);
-        var complaint = new OrderComplaint(order.Id, $"Issue: {request.IssueType}. {request.RequiredAction}".Trim());
-        complaint.MarkInReview();
-        _dbContext.OrderComplaints.Add(complaint);
+        await LoadOrderAsync(orderId, cancellationToken);
+        await _orderSupportCaseWorkflowService.CreateAdminCaseAsync(
+            orderId,
+            GetRequiredAdminUserId(),
+            "complaint",
+            request.IssueType,
+            BuildSupportCaseMessage("Operational issue flagged.", request.RequiredAction, request.FollowUpDate),
+            request.Priority,
+            ResolveIssueQueue(request.AssignedTeam),
+            request.RequiredAction,
+            null,
+            cancellationToken);
 
-        await _dbContext.SaveChangesAsync(cancellationToken);
         return Ok(await RequireDetailAsync(orderId, cancellationToken));
     }
 
     [HttpPost("{orderId:guid}/resolve-operational-case")]
     public async Task<ActionResult<AdminOrderDetailDto>> ResolveOperationalCase(Guid orderId, CancellationToken cancellationToken = default)
     {
-        var complaint = await _dbContext.OrderComplaints
-            .Where(item => item.OrderId == orderId)
-            .OrderByDescending(item => item.CreatedAtUtc)
-            .FirstOrDefaultAsync(cancellationToken);
+        var supportCase = await LoadLatestSupportCaseAsync(orderId, cancellationToken);
+        if (supportCase is not null)
+        {
+            await _orderSupportCaseWorkflowService.ResolveAsync(
+                supportCase.Id,
+                GetRequiredAdminUserId(),
+                "Operational case resolved by admin.",
+                cancellationToken);
 
+            return Ok(await RequireDetailAsync(orderId, cancellationToken));
+        }
+
+        var complaint = await LoadLatestLegacyComplaintAsync(orderId, cancellationToken);
         if (complaint is null)
         {
             throw new NotFoundException("OperationalCase", orderId);
@@ -360,11 +414,19 @@ public class AdminOrdersController : ApiControllerBase
     [HttpPost("{orderId:guid}/close-operational-case")]
     public async Task<ActionResult<AdminOrderDetailDto>> CloseOperationalCase(Guid orderId, CancellationToken cancellationToken = default)
     {
-        var complaint = await _dbContext.OrderComplaints
-            .Where(item => item.OrderId == orderId)
-            .OrderByDescending(item => item.CreatedAtUtc)
-            .FirstOrDefaultAsync(cancellationToken);
+        var supportCase = await LoadLatestSupportCaseAsync(orderId, cancellationToken);
+        if (supportCase is not null)
+        {
+            await _orderSupportCaseWorkflowService.ResolveAsync(
+                supportCase.Id,
+                GetRequiredAdminUserId(),
+                "Operational case closed by admin.",
+                cancellationToken);
 
+            return Ok(await RequireDetailAsync(orderId, cancellationToken));
+        }
+
+        var complaint = await LoadLatestLegacyComplaintAsync(orderId, cancellationToken);
         if (complaint is null)
         {
             throw new NotFoundException("OperationalCase", orderId);
@@ -378,11 +440,19 @@ public class AdminOrdersController : ApiControllerBase
     [HttpPost("{orderId:guid}/reopen-operational-case")]
     public async Task<ActionResult<AdminOrderDetailDto>> ReopenOperationalCase(Guid orderId, CancellationToken cancellationToken = default)
     {
-        var complaint = await _dbContext.OrderComplaints
-            .Where(item => item.OrderId == orderId)
-            .OrderByDescending(item => item.CreatedAtUtc)
-            .FirstOrDefaultAsync(cancellationToken);
+        var supportCase = await LoadLatestSupportCaseAsync(orderId, cancellationToken);
+        if (supportCase is not null)
+        {
+            await _orderSupportCaseWorkflowService.ReopenAsync(
+                supportCase.Id,
+                GetRequiredAdminUserId(),
+                "Operational case reopened by admin.",
+                cancellationToken);
 
+            return Ok(await RequireDetailAsync(orderId, cancellationToken));
+        }
+
+        var complaint = await LoadLatestLegacyComplaintAsync(orderId, cancellationToken);
         if (complaint is null)
         {
             throw new NotFoundException("OperationalCase", orderId);
@@ -398,6 +468,25 @@ public class AdminOrdersController : ApiControllerBase
         return await _dbContext.Orders.FirstOrDefaultAsync(item => item.Id == orderId, cancellationToken)
             ?? throw new NotFoundException("Order", orderId);
     }
+
+    private Task<OrderSupportCase?> LoadActiveSupportCaseAsync(Guid orderId, CancellationToken cancellationToken) =>
+        _dbContext.OrderSupportCases
+            .OrderByDescending(item => item.CreatedAtUtc)
+            .FirstOrDefaultAsync(
+                item => item.OrderId == orderId &&
+                        item.Status != OrderSupportCaseStatus.Rejected &&
+                        item.Status != OrderSupportCaseStatus.Resolved,
+                cancellationToken);
+
+    private Task<OrderSupportCase?> LoadLatestSupportCaseAsync(Guid orderId, CancellationToken cancellationToken) =>
+        _dbContext.OrderSupportCases
+            .OrderByDescending(item => item.CreatedAtUtc)
+            .FirstOrDefaultAsync(item => item.OrderId == orderId, cancellationToken);
+
+    private Task<OrderComplaint?> LoadLatestLegacyComplaintAsync(Guid orderId, CancellationToken cancellationToken) =>
+        _dbContext.OrderComplaints
+            .OrderByDescending(item => item.CreatedAtUtc)
+            .FirstOrDefaultAsync(item => item.OrderId == orderId, cancellationToken);
 
     private Task<Order> LoadOrderWithUserAsync(Guid orderId, CancellationToken cancellationToken) =>
         LoadOrderAsync(orderId, cancellationToken);
@@ -421,6 +510,36 @@ public class AdminOrdersController : ApiControllerBase
         }
 
         return parsed;
+    }
+
+    private static string BuildSupportCaseMessage(string title, params string?[] segments)
+    {
+        var parts = new[] { title }
+            .Concat(segments)
+            .Where(value => !string.IsNullOrWhiteSpace(value))
+            .Select(value => value!.Trim());
+
+        return string.Join(" ", parts);
+    }
+
+    private static string? ResolveAdminQueue(string? routeTo)
+    {
+        return routeTo?.Trim().ToLowerInvariant() switch
+        {
+            "finance" => "finance",
+            "operations" => "operations",
+            _ => "support"
+        };
+    }
+
+    private static string ResolveIssueQueue(string? assignedTeam)
+    {
+        return assignedTeam?.Trim().ToLowerInvariant() switch
+        {
+            "finance" => "finance",
+            "operations" => "operations",
+            _ => "support"
+        };
     }
 
     private async Task EnsureRefundAsync(Order order, decimal amount, string? reason, CancellationToken cancellationToken)

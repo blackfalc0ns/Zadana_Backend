@@ -45,6 +45,7 @@ public class Order : BaseEntity
     public ICollection<OrderItem> Items { get; private set; } = [];
     public ICollection<OrderStatusHistory> StatusHistory { get; private set; } = [];
     public ICollection<OrderComplaint> Complaints { get; private set; } = [];
+    public ICollection<OrderSupportCase> SupportCases { get; private set; } = [];
 
     private Order() { }
 

@@ -60,7 +60,15 @@ public class DeleteCustomerOrderCommandHandler : IRequestHandler<DeleteCustomerO
             .Where(x => x.OrderId == order.Id)
             .ToListAsync(cancellationToken);
 
+        var supportCases = await _context.OrderSupportCases
+            .Include(x => x.Attachments)
+            .Include(x => x.Activities)
+            .Where(x => x.OrderId == order.Id)
+            .ToListAsync(cancellationToken);
+
         var attachments = complaints.SelectMany(x => x.Attachments).ToList();
+        var supportCaseAttachments = supportCases.SelectMany(x => x.Attachments).ToList();
+        var supportCaseActivities = supportCases.SelectMany(x => x.Activities).ToList();
         var refunds = payments.SelectMany(x => x.Refunds).ToList();
         var statusHistory = await _context.OrderStatusHistories.Where(x => x.OrderId == order.Id).ToListAsync(cancellationToken);
         var items = await _context.OrderItems.Where(x => x.OrderId == order.Id).ToListAsync(cancellationToken);
@@ -70,9 +78,24 @@ public class DeleteCustomerOrderCommandHandler : IRequestHandler<DeleteCustomerO
             _context.OrderComplaintAttachments.RemoveRange(attachments);
         }
 
+        if (supportCaseAttachments.Count > 0)
+        {
+            _context.OrderSupportCaseAttachments.RemoveRange(supportCaseAttachments);
+        }
+
+        if (supportCaseActivities.Count > 0)
+        {
+            _context.OrderSupportCaseActivities.RemoveRange(supportCaseActivities);
+        }
+
         if (complaints.Count > 0)
         {
             _context.OrderComplaints.RemoveRange(complaints);
+        }
+
+        if (supportCases.Count > 0)
+        {
+            _context.OrderSupportCases.RemoveRange(supportCases);
         }
 
         if (refunds.Count > 0)

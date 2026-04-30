@@ -14,6 +14,8 @@ public class RefundConfiguration : IEntityTypeConfiguration<Refund>
 
         builder.Property(x => x.Amount).HasPrecision(18, 2).IsRequired();
         builder.Property(x => x.Reason).HasMaxLength(300);
+        builder.Property(x => x.RefundMethod).HasMaxLength(50);
+        builder.Property(x => x.CostBearer).HasMaxLength(50);
         
         builder.Property(x => x.Status).HasConversion<string>().HasMaxLength(50).IsRequired();
     }

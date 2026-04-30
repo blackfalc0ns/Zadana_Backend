@@ -187,6 +187,43 @@ public sealed class NotificationService : INotificationService
         }
     }
 
+    public async Task SendOrderSupportCaseChangedToUserAsync(
+        Guid userId,
+        Guid caseId,
+        Guid orderId,
+        string orderNumber,
+        string type,
+        string status,
+        string action,
+        string? targetUrl = null,
+        CancellationToken cancellationToken = default)
+    {
+        try
+        {
+            var payload = new OrderSupportCaseChangedRealtimePayload(
+                caseId,
+                orderId,
+                orderNumber,
+                type,
+                status,
+                action,
+                string.IsNullOrWhiteSpace(targetUrl) ? $"/orders/{orderId}/cases/{caseId}" : targetUrl,
+                DateTime.UtcNow);
+
+            await _hubContext.Clients
+                .Group(NotificationHub.GetUserGroup(userId))
+                .SendAsync(NotificationHub.ReceiveOrderSupportCaseChangedMethod, payload, cancellationToken);
+        }
+        catch (Exception ex)
+        {
+            _logger.LogError(
+                ex,
+                "Failed to send support-case SignalR event to user {UserId} for case {CaseId}",
+                userId,
+                caseId);
+        }
+    }
+
     public async Task SendDeliveryOfferToDriverAsync(
         Guid driverUserId,
         Guid assignmentId,

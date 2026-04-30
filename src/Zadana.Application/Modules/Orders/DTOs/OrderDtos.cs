@@ -131,7 +131,8 @@ public record CustomerOrderDetailDto(
     bool CanCancel,
     int ItemsCount,
     CustomerOrderPriceSummaryDto Summary,
-    IReadOnlyList<CustomerOrderProductDto> Items);
+    IReadOnlyList<CustomerOrderProductDto> Items,
+    OrderSupportCaseSummaryDto? ActiveCase);
 
 public record CustomerOrderPriceSummaryDto(
     decimal Subtotal,
@@ -153,6 +154,7 @@ public record CustomerOrderTrackingDto(
     DateTime? DriverArrivalUpdatedAtUtc,
     string? DeliveryOtp,
     bool ShowDeliveryOtp,
+    OrderSupportCaseSummaryDto? ActiveCase,
     IReadOnlyList<CustomerOrderTrackingTimelineItemDto> Timeline);
 
 public record CustomerOrderTrackingOrderDto(
@@ -186,6 +188,88 @@ public record OrderComplaintDto(
 public record OrderComplaintAttachmentDto(
     string FileName,
     string FileUrl);
+
+public record OrderSupportCaseSummaryDto(
+    Guid Id,
+    string Type,
+    string Status,
+    string Queue,
+    string Priority,
+    string? ReasonCode,
+    string Message,
+    DateTime CreatedAt,
+    DateTime UpdatedAt);
+
+public record OrderSupportCaseDto(
+    Guid Id,
+    Guid OrderId,
+    string Type,
+    string Status,
+    string Queue,
+    string Priority,
+    string? ReasonCode,
+    string Message,
+    string? CustomerVisibleNote,
+    string? DecisionNotes,
+    DateTime CreatedAt,
+    DateTime UpdatedAt,
+    DateTime? SlaDueAtUtc,
+    decimal? RequestedRefundAmount,
+    decimal? ApprovedRefundAmount,
+    string? RefundMethod,
+    string? CostBearer,
+    IReadOnlyList<OrderSupportCaseAttachmentDto> Attachments,
+    IReadOnlyList<OrderSupportCaseActivityDto> Activities);
+
+public record OrderSupportCaseAttachmentDto(
+    string FileName,
+    string FileUrl);
+
+public record OrderSupportCaseActivityDto(
+    string Action,
+    string Title,
+    string? Note,
+    string ActorRole,
+    bool VisibleToCustomer,
+    DateTime CreatedAt);
+
+public record AdminOrderSupportCasesListDto(
+    IReadOnlyList<AdminOrderSupportCaseListItemDto> Items,
+    int PageNumber,
+    int PageSize,
+    int TotalCount,
+    int TotalPages,
+    bool HasPreviousPage,
+    bool HasNextPage);
+
+public record AdminOrderSupportCaseListItemDto(
+    Guid Id,
+    Guid OrderId,
+    string OrderDisplayId,
+    string CustomerName,
+    string CustomerEmail,
+    string MerchantName,
+    string Type,
+    string Reason,
+    decimal Amount,
+    string Status,
+    string Priority,
+    string Owner,
+    string Queue,
+    string Risk,
+    string CreatedAt,
+    string Sla,
+    string Note,
+    string PaymentMask,
+    string CustomerSummary,
+    string MerchantSummary,
+    IReadOnlyList<OrderSupportCaseAttachmentDto> Evidence,
+    IReadOnlyList<AdminOrderSupportCaseTimelineItemDto> Timeline);
+
+public record AdminOrderSupportCaseTimelineItemDto(
+    string Title,
+    string Time,
+    string Tone);
 
 public record AdminOrdersListDto(
     IReadOnlyList<AdminOrderListItemDto> Items,

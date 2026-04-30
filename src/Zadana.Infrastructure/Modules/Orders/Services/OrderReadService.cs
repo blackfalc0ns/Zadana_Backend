@@ -112,6 +112,7 @@ public class OrderReadService : IOrderReadService
         var order = await _dbContext.Orders
             .AsNoTracking()
             .Include(order => order.Items)
+            .Include(order => order.SupportCases)
             .Where(order => order.Id == orderId && order.UserId == userId)
             .FirstOrDefaultAsync(cancellationToken);
 
@@ -126,6 +127,7 @@ public class OrderReadService : IOrderReadService
         var order = await _dbContext.Orders
             .AsNoTracking()
             .Include(x => x.StatusHistory)
+            .Include(x => x.SupportCases)
             .Where(x => x.Id == orderId && x.UserId == userId)
             .FirstOrDefaultAsync(cancellationToken);
 
@@ -167,7 +169,49 @@ public class OrderReadService : IOrderReadService
             arrivalUpdatedAtUtc,
             showDeliveryOtp ? assignment!.DeliveryOtpCode : null,
             showDeliveryOtp,
+            ResolveActiveSupportCaseSummary(order.SupportCases),
             timeline);
+    }
+
+    public async Task<IReadOnlyList<OrderSupportCaseDto>> GetCustomerOrderSupportCasesAsync(
+        Guid orderId,
+        Guid userId,
+        CancellationToken cancellationToken = default)
+    {
+        var exists = await _dbContext.Orders
+            .AsNoTracking()
+            .AnyAsync(order => order.Id == orderId && order.UserId == userId, cancellationToken);
+
+        if (!exists)
+        {
+            return [];
+        }
+
+        var items = await _dbContext.OrderSupportCases
+            .AsNoTracking()
+            .Include(item => item.Attachments)
+            .Include(item => item.Activities)
+            .Where(item => item.OrderId == orderId && item.CustomerUserId == userId)
+            .OrderByDescending(item => item.CreatedAtUtc)
+            .ToListAsync(cancellationToken);
+
+        return items.Select(MapSupportCase).ToList();
+    }
+
+    public async Task<OrderSupportCaseDto?> GetCustomerOrderSupportCaseAsync(
+        Guid orderId,
+        Guid caseId,
+        Guid userId,
+        CancellationToken cancellationToken = default)
+    {
+        var supportCase = await _dbContext.OrderSupportCases
+            .AsNoTracking()
+            .Include(item => item.Attachments)
+            .Include(item => item.Activities)
+            .Where(item => item.OrderId == orderId && item.Id == caseId && item.CustomerUserId == userId)
+            .FirstOrDefaultAsync(cancellationToken);
+
+        return supportCase is null ? null : MapSupportCase(supportCase);
     }
 
     public async Task<OrderComplaintDto?> GetCustomerOrderComplaintAsync(
@@ -175,11 +219,24 @@ public class OrderReadService : IOrderReadService
         Guid userId,
         CancellationToken cancellationToken = default)
     {
+        var supportCase = await _dbContext.OrderSupportCases
+            .AsNoTracking()
+            .Include(item => item.Attachments)
+            .Where(item => item.OrderId == orderId && item.CustomerUserId == userId)
+            .OrderByDescending(item => item.CreatedAtUtc)
+            .FirstOrDefaultAsync(cancellationToken);
+
+        if (supportCase is not null)
+        {
+            return MapLegacyComplaint(supportCase);
+        }
+
         var complaint = await _dbContext.OrderComplaints
             .AsNoTracking()
-            .Include(complaint => complaint.Attachments)
-            .Where(complaint => complaint.OrderId == orderId && complaint.Order.UserId == userId)
+            .Include(item => item.Attachments)
+            .Where(item => item.OrderId == orderId && item.Order.UserId == userId)
             .FirstOrDefaultAsync(cancellationToken);
+
         return complaint is null ? null : MapComplaint(complaint);
     }
 
@@ -441,7 +498,7 @@ public class OrderReadService : IOrderReadService
             .Include(order => order.Vendor)
             .Include(order => order.VendorBranch)
             .Include(order => order.StatusHistory)
-            .Include(order => order.Complaints)
+            .Include(order => order.SupportCases)
             .Include(order => order.Items)
             .OrderByDescending(order => order.PlacedAtUtc)
             .ToListAsync(cancellationToken);
@@ -501,7 +558,7 @@ public class OrderReadService : IOrderReadService
             .Include(item => item.StatusHistory)
             .Include(item => item.Vendor)
             .Include(item => item.VendorBranch)
-            .Include(item => item.Complaints)
+            .Include(item => item.SupportCases)
             .FirstOrDefaultAsync(item => item.Id == orderId, cancellationToken);
 
         if (order is null)
@@ -522,6 +579,92 @@ public class OrderReadService : IOrderReadService
             refunds.GetValueOrDefault(order.Id),
             assignments.GetValueOrDefault(order.Id),
             driverCandidates);
+    }
+
+    public async Task<AdminOrderSupportCasesListDto> GetAdminOrderSupportCasesAsync(
+        string? search,
+        string? type,
+        string? status,
+        string? priority,
+        string? queue,
+        int page,
+        int pageSize,
+        CancellationToken cancellationToken = default)
+    {
+        var normalizedPage = page <= 0 ? 1 : page;
+        var normalizedPageSize = pageSize <= 0 ? 20 : pageSize;
+
+        var cases = await _dbContext.OrderSupportCases
+            .AsNoTracking()
+            .Include(item => item.Order)
+                .ThenInclude(order => order.User)
+            .Include(item => item.Order)
+                .ThenInclude(order => order.Vendor)
+            .Include(item => item.Attachments)
+            .Include(item => item.Activities)
+            .OrderByDescending(item => item.CreatedAtUtc)
+            .ToListAsync(cancellationToken);
+
+        var orderIds = cases.Select(item => item.OrderId).Distinct().ToList();
+        var paymentMap = await LoadPaymentMapAsync(orderIds, cancellationToken);
+        var refundMap = await LoadRefundMapAsync(orderIds, cancellationToken);
+
+        var projected = cases
+            .Select(item => BuildAdminSupportCaseListItem(
+                item,
+                paymentMap.GetValueOrDefault(item.OrderId),
+                refundMap.GetValueOrDefault(item.OrderId)))
+            .Where(item => MatchesAdminSupportCaseFilters(item, search, type, status, priority, queue))
+            .ToList();
+
+        var totalCount = projected.Count;
+        var totalPages = Math.Max(1, (int)Math.Ceiling(totalCount / (double)normalizedPageSize));
+        var safePage = Math.Min(normalizedPage, totalPages);
+        var paged = projected
+            .Skip((safePage - 1) * normalizedPageSize)
+            .Take(normalizedPageSize)
+            .ToList();
+
+        return new AdminOrderSupportCasesListDto(
+            paged,
+            safePage,
+            normalizedPageSize,
+            totalCount,
+            totalPages,
+            safePage > 1,
+            safePage < totalPages);
+    }
+
+    public async Task<AdminOrderSupportCaseListItemDto?> GetAdminOrderSupportCaseDetailAsync(
+        Guid caseId,
+        CancellationToken cancellationToken = default)
+    {
+        var supportCase = await _dbContext.OrderSupportCases
+            .AsNoTracking()
+            .Include(item => item.Order)
+                .ThenInclude(order => order.User)
+            .Include(item => item.Order)
+                .ThenInclude(order => order.Vendor)
+            .Include(item => item.Attachments)
+            .Include(item => item.Activities)
+            .FirstOrDefaultAsync(item => item.Id == caseId, cancellationToken);
+
+        if (supportCase is null)
+        {
+            return null;
+        }
+
+        var payment = await _dbContext.Payments
+            .AsNoTracking()
+            .OrderByDescending(item => item.CreatedAtUtc)
+            .FirstOrDefaultAsync(item => item.OrderId == supportCase.OrderId, cancellationToken);
+
+        var refunds = await _dbContext.Refunds
+            .AsNoTracking()
+            .Where(item => item.Payment.OrderId == supportCase.OrderId)
+            .ToListAsync(cancellationToken);
+
+        return BuildAdminSupportCaseListItem(supportCase, payment, refunds);
     }
 
     private static CustomerOrderListItemDto MapListItem(Order order) =>
@@ -566,7 +709,8 @@ public class OrderReadService : IOrderReadService
                     item.ProductName,
                     item.Quantity,
                     item.UnitPrice))
-                .ToList());
+                .ToList(),
+            ResolveActiveSupportCaseSummary(order.SupportCases));
 
     private static OrderComplaintDto MapComplaint(OrderComplaint complaint) =>
         new(
@@ -579,6 +723,74 @@ public class OrderReadService : IOrderReadService
                     attachment.FileUrl))
                 .ToList(),
             complaint.CreatedAtUtc);
+
+    private static OrderComplaintDto MapLegacyComplaint(OrderSupportCase supportCase) =>
+        new(
+            supportCase.Id,
+            MapSupportCaseStatus(supportCase.Status),
+            supportCase.Message,
+            supportCase.Attachments
+                .Select(attachment => new OrderComplaintAttachmentDto(
+                    attachment.FileName,
+                    attachment.FileUrl))
+                .ToList(),
+            supportCase.CreatedAtUtc);
+
+    private static OrderSupportCaseDto MapSupportCase(OrderSupportCase supportCase) =>
+        new(
+            supportCase.Id,
+            supportCase.OrderId,
+            MapSupportCaseType(supportCase.Type),
+            MapSupportCaseStatus(supportCase.Status),
+            MapSupportCaseQueue(supportCase.Queue),
+            MapSupportCasePriority(supportCase.Priority),
+            supportCase.ReasonCode,
+            supportCase.Message,
+            supportCase.CustomerVisibleNote,
+            supportCase.DecisionNotes,
+            supportCase.CreatedAtUtc,
+            supportCase.UpdatedAtUtc,
+            supportCase.SlaDueAtUtc,
+            supportCase.RequestedRefundAmount,
+            supportCase.ApprovedRefundAmount,
+            supportCase.RefundMethod,
+            supportCase.CostBearer,
+            supportCase.Attachments
+                .Select(attachment => new OrderSupportCaseAttachmentDto(
+                    attachment.FileName,
+                    attachment.FileUrl))
+                .ToList(),
+            supportCase.Activities
+                .OrderByDescending(activity => activity.CreatedAtUtc)
+                .Select(activity => new OrderSupportCaseActivityDto(
+                    activity.Action,
+                    activity.Title,
+                    activity.Note,
+                    activity.ActorRole,
+                    activity.VisibleToCustomer,
+                    activity.CreatedAtUtc))
+                .ToList());
+
+    private static OrderSupportCaseSummaryDto? ResolveActiveSupportCaseSummary(IEnumerable<OrderSupportCase> supportCases)
+    {
+        var supportCase = supportCases
+            .OrderByDescending(item => item.CreatedAtUtc)
+            .FirstOrDefault(item => item.Status != OrderSupportCaseStatus.Rejected && item.Status != OrderSupportCaseStatus.Resolved)
+            ?? supportCases.OrderByDescending(item => item.CreatedAtUtc).FirstOrDefault();
+
+        return supportCase is null
+            ? null
+            : new OrderSupportCaseSummaryDto(
+                supportCase.Id,
+                MapSupportCaseType(supportCase.Type),
+                MapSupportCaseStatus(supportCase.Status),
+                MapSupportCaseQueue(supportCase.Queue),
+                MapSupportCasePriority(supportCase.Priority),
+                supportCase.ReasonCode,
+                supportCase.Message,
+                supportCase.CreatedAtUtc,
+                supportCase.UpdatedAtUtc);
+    }
 
     private static List<CustomerOrderTrackingTimelineItemDto> BuildTimeline(Order order)
     {
@@ -791,6 +1003,27 @@ public class OrderReadService : IOrderReadService
             OrderComplaintStatus.Resolved => "resolved",
             _ => "submitted"
         };
+
+    private static string MapSupportCaseType(OrderSupportCaseType type) =>
+        type switch
+        {
+            OrderSupportCaseType.ReturnRequest => "return_request",
+            _ => "complaint"
+        };
+
+    private static string MapSupportCaseStatus(OrderSupportCaseStatus status) =>
+        status switch
+        {
+            OrderSupportCaseStatus.InReview => "in_review",
+            OrderSupportCaseStatus.AwaitingCustomerEvidence => "awaiting_customer_evidence",
+            _ => status.ToString().ToLowerInvariant()
+        };
+
+    private static string MapSupportCaseQueue(OrderSupportCaseQueue queue) =>
+        queue.ToString().ToLowerInvariant();
+
+    private static string MapSupportCasePriority(OrderSupportCasePriority priority) =>
+        priority.ToString().ToLowerInvariant();
 
     private static bool IsCurrentStage(OrderStatus status, TrackingStage stage) =>
         stage switch
@@ -1112,7 +1345,7 @@ public class OrderReadService : IOrderReadService
             address?.ContactPhone ?? order.User.PhoneNumber ?? string.Empty,
             order.User.Email ?? string.Empty,
             BuildCustomerAddress(address),
-            order.Vendor.BusinessNameAr,
+            order.Vendor?.BusinessNameAr ?? string.Empty,
             order.VendorBranch?.Name ?? "Main branch",
             merchantLocation,
             assignment?.DriverId?.ToString(),
@@ -1120,7 +1353,7 @@ public class OrderReadService : IOrderReadService
             assignment?.Driver?.User?.PhoneNumber ?? string.Empty,
             assignment?.Driver?.VehicleType?.ToString() ?? "Delivery vehicle",
             assignment?.Driver?.LicenseNumber ?? "N/A",
-            address?.City ?? order.Vendor.City ?? string.Empty,
+            address?.City ?? order.Vendor?.City ?? string.Empty,
             address?.Area ?? string.Empty,
             CalculateSlaScore(order, assignment),
             placedAtLocal.ToString("yyyy-MM-dd"),
@@ -1241,10 +1474,186 @@ public class OrderReadService : IOrderReadService
             "ACTIVE" => list.Status != "CANCELLED" && list.Status != "COMPLETED",
             "LATE" => list.IsLate,
             "PAYMENT_ISSUES" => list.PaymentStatus is "FAILED" or "PENDING" or "COD_PENDING",
-            "REFUNDS" => list.PaymentStatus is "REFUNDED" or "PARTIALLY_REFUNDED",
+            "REFUNDS" => list.PaymentStatus is "REFUNDED" or "PARTIALLY_REFUNDED" || list.OperationalCase?.Type == "REFUND",
             _ => true
         };
     }
+
+    private static bool MatchesAdminSupportCaseFilters(
+        AdminOrderSupportCaseListItemDto item,
+        string? search,
+        string? type,
+        string? status,
+        string? priority,
+        string? queue)
+    {
+        if (!string.IsNullOrWhiteSpace(search))
+        {
+            var normalizedSearch = search.Trim().ToLowerInvariant();
+            var matchesSearch =
+                item.Id.ToString().ToLowerInvariant().Contains(normalizedSearch) ||
+                item.OrderId.ToString().ToLowerInvariant().Contains(normalizedSearch) ||
+                item.CustomerName.ToLowerInvariant().Contains(normalizedSearch) ||
+                item.CustomerEmail.ToLowerInvariant().Contains(normalizedSearch) ||
+                item.MerchantName.ToLowerInvariant().Contains(normalizedSearch) ||
+                item.Type.ToLowerInvariant().Contains(normalizedSearch) ||
+                item.Reason.ToLowerInvariant().Contains(normalizedSearch);
+
+            if (!matchesSearch)
+            {
+                return false;
+            }
+        }
+
+        if (!string.IsNullOrWhiteSpace(type) &&
+            !string.Equals(type, "ALL", StringComparison.OrdinalIgnoreCase) &&
+            !string.Equals(item.Type, type, StringComparison.OrdinalIgnoreCase))
+        {
+            return false;
+        }
+
+        if (!string.IsNullOrWhiteSpace(status) &&
+            !string.Equals(status, "ALL", StringComparison.OrdinalIgnoreCase) &&
+            !string.Equals(item.Status, status, StringComparison.OrdinalIgnoreCase))
+        {
+            return false;
+        }
+
+        if (!string.IsNullOrWhiteSpace(priority) &&
+            !string.Equals(priority, "ALL", StringComparison.OrdinalIgnoreCase) &&
+            !string.Equals(item.Priority, priority, StringComparison.OrdinalIgnoreCase))
+        {
+            return false;
+        }
+
+        if (!string.IsNullOrWhiteSpace(queue) &&
+            !string.Equals(queue, "ALL", StringComparison.OrdinalIgnoreCase) &&
+            !string.Equals(item.Queue, queue, StringComparison.OrdinalIgnoreCase))
+        {
+            return false;
+        }
+
+        return true;
+    }
+
+    private static AdminOrderSupportCaseListItemDto BuildAdminSupportCaseListItem(
+        OrderSupportCase supportCase,
+        Payment? payment,
+        IReadOnlyList<Refund>? refunds)
+    {
+        var order = supportCase.Order;
+        var amount = supportCase.ApprovedRefundAmount
+            ?? supportCase.RequestedRefundAmount
+            ?? refunds?.OrderByDescending(item => item.CreatedAtUtc).FirstOrDefault()?.Amount
+            ?? order.TotalAmount;
+
+        var createdAt = supportCase.CreatedAtUtc.ToLocalTime().ToString("g", CultureInfo.InvariantCulture);
+        var sla = supportCase.SlaDueAtUtc.HasValue
+            ? supportCase.SlaDueAtUtc.Value.ToLocalTime().ToString("g", CultureInfo.InvariantCulture)
+            : "No SLA";
+
+        return new AdminOrderSupportCaseListItemDto(
+            supportCase.Id,
+            order.Id,
+            order.Id.ToString(),
+            order.User.FullName,
+            order.User.Email ?? string.Empty,
+            order.Vendor.BusinessNameAr,
+            MapSupportCaseType(supportCase.Type),
+            supportCase.ReasonCode ?? supportCase.Message,
+            amount,
+            MapAdminSupportCaseStatus(supportCase.Status),
+            MapSupportCasePriority(supportCase.Priority),
+            supportCase.AssignedAdminId.HasValue ? "Assigned admin" : ResolveQueueLabel(supportCase.Queue),
+            MapSupportCaseQueue(supportCase.Queue),
+            MapRiskLevel(supportCase.Priority),
+            createdAt,
+            sla,
+            supportCase.CustomerVisibleNote ?? supportCase.DecisionNotes ?? supportCase.Message,
+            BuildPaymentMask(payment, order),
+            BuildCustomerSummary(order, supportCase),
+            BuildMerchantSummary(order, supportCase),
+            supportCase.Attachments
+                .Select(attachment => new OrderSupportCaseAttachmentDto(
+                    attachment.FileName,
+                    attachment.FileUrl))
+                .ToList(),
+            supportCase.Activities
+                .OrderByDescending(activity => activity.CreatedAtUtc)
+                .Take(6)
+                .Select(activity => new AdminOrderSupportCaseTimelineItemDto(
+                    activity.Title,
+                    activity.CreatedAtUtc.ToLocalTime().ToString("g", CultureInfo.InvariantCulture),
+                    ResolveTimelineTone(activity.Action, supportCase.Status)))
+                .ToList());
+    }
+
+    private static string MapAdminSupportCaseStatus(OrderSupportCaseStatus status) =>
+        status switch
+        {
+            OrderSupportCaseStatus.Submitted => "open",
+            OrderSupportCaseStatus.InReview => "review",
+            OrderSupportCaseStatus.AwaitingCustomerEvidence => "merchant",
+            OrderSupportCaseStatus.Approved => "review",
+            _ => "resolved"
+        };
+
+    private static string MapRiskLevel(OrderSupportCasePriority priority) =>
+        priority switch
+        {
+            OrderSupportCasePriority.Critical => "high",
+            OrderSupportCasePriority.High => "high",
+            OrderSupportCasePriority.Medium => "medium",
+            _ => "low"
+        };
+
+    private static string BuildPaymentMask(Payment? payment, Order order)
+    {
+        if (!string.IsNullOrWhiteSpace(payment?.ProviderTransactionId))
+        {
+            var suffix = payment.ProviderTransactionId.Length <= 4
+                ? payment.ProviderTransactionId
+                : payment.ProviderTransactionId[^4..];
+            return $"**** {suffix}";
+        }
+
+        return order.PaymentMethod.ToString().ToUpperInvariant();
+    }
+
+    private static string BuildCustomerSummary(Order order, OrderSupportCase supportCase) =>
+        $"Customer {order.User.FullName} opened a {MapSupportCaseType(supportCase.Type).Replace('_', ' ')} case for order {order.OrderNumber}.";
+
+    private static string BuildMerchantSummary(Order order, OrderSupportCase supportCase) =>
+        $"Merchant {order.Vendor.BusinessNameAr} is currently routed through the {ResolveQueueLabel(supportCase.Queue)} queue.";
+
+    private static string ResolveTimelineTone(string action, OrderSupportCaseStatus status)
+    {
+        if (action is "approved" or "resolved")
+        {
+            return "warning";
+        }
+
+        return status == OrderSupportCaseStatus.AwaitingCustomerEvidence ? "muted" : "primary";
+    }
+
+    private static string ResolveOperationalCaseType(OrderSupportCase supportCase)
+    {
+        var reason = supportCase.ReasonCode?.ToLowerInvariant();
+        if (reason is "delivery_delay" or "prep_delay")
+        {
+            return "ISSUE";
+        }
+
+        return "DISPUTE";
+    }
+
+    private static string ResolveQueueLabel(OrderSupportCaseQueue queue) =>
+        queue switch
+        {
+            OrderSupportCaseQueue.Finance => "Finance",
+            OrderSupportCaseQueue.Operations => "Operations",
+            _ => "Support"
+        };
 
     private static string MapAdminStatus(OrderStatus status) =>
         status switch
@@ -1533,49 +1942,46 @@ public class OrderReadService : IOrderReadService
 
     private static AdminOrderOperationalCaseDto? BuildOperationalCase(Order order, IReadOnlyList<Refund>? refunds)
     {
+        var supportCase = order.SupportCases
+            .OrderByDescending(item => item.CreatedAtUtc)
+            .FirstOrDefault();
+
+        if (supportCase is not null)
+        {
+            var status = supportCase.Status switch
+            {
+                OrderSupportCaseStatus.Submitted => "OPEN",
+                OrderSupportCaseStatus.InReview => "OPEN",
+                OrderSupportCaseStatus.AwaitingCustomerEvidence => "OPEN",
+                OrderSupportCaseStatus.Approved => "RESOLVED",
+                _ => "CLOSED"
+            };
+
+            return new AdminOrderOperationalCaseDto(
+                supportCase.Type == OrderSupportCaseType.ReturnRequest ? "REFUND" : ResolveOperationalCaseType(supportCase),
+                status,
+                supportCase.CustomerVisibleNote ?? supportCase.Message,
+                ResolveQueueLabel(supportCase.Queue),
+                supportCase.CreatedAtUtc.ToLocalTime().ToString("g", CultureInfo.InvariantCulture),
+                supportCase.UpdatedAtUtc.ToLocalTime().ToString("g", CultureInfo.InvariantCulture));
+        }
+
         var latestRefund = refunds?
             .OrderByDescending(item => item.CreatedAtUtc)
             .FirstOrDefault();
 
-        if (latestRefund is not null)
-        {
-            return new AdminOrderOperationalCaseDto(
-                "REFUND",
-                latestRefund.Status == PaymentStatus.Refunded ? "RESOLVED" : "OPEN",
-                latestRefund.Amount >= order.TotalAmount ? "Full refund review" : "Partial refund review",
-                "Finance",
-                latestRefund.CreatedAtUtc.ToLocalTime().ToString("g", CultureInfo.InvariantCulture),
-                latestRefund.UpdatedAtUtc.ToLocalTime().ToString("g", CultureInfo.InvariantCulture));
-        }
-
-        var complaint = order.Complaints
-            .OrderByDescending(item => item.CreatedAtUtc)
-            .FirstOrDefault();
-
-        if (complaint is null)
+        if (latestRefund is null)
         {
             return null;
         }
 
-        var type = complaint.Message.Contains("issue", StringComparison.OrdinalIgnoreCase)
-            ? "ISSUE"
-            : "DISPUTE";
-
-        var status = complaint.Status switch
-        {
-            OrderComplaintStatus.Submitted => "OPEN",
-            OrderComplaintStatus.InReview => "OPEN",
-            OrderComplaintStatus.Resolved when order.Status is OrderStatus.Cancelled or OrderStatus.Refunded or OrderStatus.Delivered => "CLOSED",
-            _ => "RESOLVED"
-        };
-
         return new AdminOrderOperationalCaseDto(
-            type,
-            status,
-            complaint.Message,
-            type == "ISSUE" ? "Operations" : "Support",
-            complaint.CreatedAtUtc.ToLocalTime().ToString("g", CultureInfo.InvariantCulture),
-            complaint.UpdatedAtUtc.ToLocalTime().ToString("g", CultureInfo.InvariantCulture));
+            "REFUND",
+            latestRefund.Status == PaymentStatus.Refunded ? "RESOLVED" : "OPEN",
+            latestRefund.Amount >= order.TotalAmount ? "Full refund review" : "Partial refund review",
+            "Finance",
+            latestRefund.CreatedAtUtc.ToLocalTime().ToString("g", CultureInfo.InvariantCulture),
+            latestRefund.UpdatedAtUtc.ToLocalTime().ToString("g", CultureInfo.InvariantCulture));
     }
 
     private static IReadOnlyList<AdminOrderTimelineItemDto> BuildAdminTimeline(

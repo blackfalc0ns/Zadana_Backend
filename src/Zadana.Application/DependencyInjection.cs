@@ -5,6 +5,7 @@ using Zadana.Application.Common.Behaviors;
 using Zadana.Application.Common.Interfaces;
 using Zadana.Application.Common.Localization;
 using Zadana.Application.Common.Services;
+using Zadana.Application.Modules.Orders.Interfaces;
 using Zadana.Application.Modules.Orders.Services;
 using Zadana.Application.Modules.Vendors.Interfaces;
 using Zadana.Application.Modules.Vendors.Services;
@@ -30,6 +31,7 @@ public static class DependencyInjection
         services.AddScoped<Zadana.Application.Modules.Identity.Interfaces.IRegistrationWorkflow, Zadana.Application.Modules.Identity.Services.RegistrationWorkflow>();
         services.AddScoped<ICurrentVendorService, CurrentVendorService>();
         services.AddScoped<IOrderStatusNotificationDispatcher, OrderStatusNotificationDispatcher>();
+        services.AddScoped<IOrderSupportCaseWorkflowService, OrderSupportCaseWorkflowService>();
         services.AddScoped<IVendorCommunicationService, VendorCommunicationService>();
 
         return services;

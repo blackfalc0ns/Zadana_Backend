@@ -3,10 +3,12 @@ using MediatR;
 using Microsoft.EntityFrameworkCore;
 using Microsoft.Extensions.Localization;
 using Moq;
+using Zadana.Application.Common.Interfaces;
 using Zadana.Application.Common.Localization;
 using Zadana.Application.Modules.Orders.Commands.CancelCustomerOrder;
 using Zadana.Application.Modules.Orders.Commands.CreateOrderComplaint;
 using Zadana.Application.Modules.Orders.Commands.DeleteCustomerOrder;
+using Zadana.Application.Modules.Orders.Services;
 using Zadana.Domain.Modules.Identity.Entities;
 using Zadana.Domain.Modules.Identity.Enums;
 using Zadana.Domain.Modules.Orders.Entities;
@@ -145,7 +147,7 @@ public class CustomerOrderCommandHandlerTests
         dbContext.Orders.Add(order);
         await dbContext.SaveChangesAsync();
 
-        var handler = new CreateOrderComplaintCommandHandler(dbContext, dbContext);
+        var handler = CreateComplaintHandler(dbContext);
 
         var result = await handler.Handle(
             new CreateOrderComplaintCommand(
@@ -156,8 +158,8 @@ public class CustomerOrderCommandHandlerTests
             CancellationToken.None);
 
         result.Status.Should().Be("submitted");
-        dbContext.OrderComplaints.Should().ContainSingle();
-        dbContext.OrderComplaintAttachments.Should().ContainSingle();
+        dbContext.OrderSupportCases.Should().ContainSingle();
+        dbContext.OrderSupportCaseAttachments.Should().ContainSingle();
     }
 
     [Fact]
@@ -169,10 +171,17 @@ public class CustomerOrderCommandHandlerTests
 
         dbContext.Users.Add(user);
         dbContext.Orders.Add(order);
-        dbContext.OrderComplaints.Add(new OrderComplaint(order.Id, "Existing complaint"));
+        dbContext.OrderSupportCases.Add(new OrderSupportCase(
+            order.Id,
+            user.Id,
+            OrderSupportCaseType.Complaint,
+            OrderSupportCasePriority.Medium,
+            OrderSupportCaseQueue.Support,
+            null,
+            "Existing complaint"));
         await dbContext.SaveChangesAsync();
 
-        var handler = new CreateOrderComplaintCommandHandler(dbContext, dbContext);
+        var handler = CreateComplaintHandler(dbContext);
 
         var act = () => handler.Handle(
             new CreateOrderComplaintCommand(order.Id, user.Id, "Another complaint", []),
@@ -180,7 +189,60 @@ public class CustomerOrderCommandHandlerTests
 
         await act.Should()
             .ThrowAsync<BusinessRuleException>()
-            .Where(x => x.ErrorCode == "ORDER_COMPLAINT_ALREADY_EXISTS");
+            .Where(x => x.ErrorCode == "ORDER_SUPPORT_CASE_ALREADY_EXISTS");
+    }
+
+    private static CreateOrderComplaintCommandHandler CreateComplaintHandler(ApplicationDbContext dbContext)
+    {
+        var notificationService = new Mock<INotificationService>();
+        notificationService
+            .Setup(x => x.SendToUserAsync(
+                It.IsAny<Guid>(),
+                It.IsAny<string>(),
+                It.IsAny<string>(),
+                It.IsAny<string>(),
+                It.IsAny<string>(),
+                It.IsAny<string?>(),
+                It.IsAny<Guid?>(),
+                It.IsAny<string?>(),
+                It.IsAny<CancellationToken>()))
+            .Returns(Task.CompletedTask);
+        notificationService
+            .Setup(x => x.SendOrderSupportCaseChangedToUserAsync(
+                It.IsAny<Guid>(),
+                It.IsAny<Guid>(),
+                It.IsAny<Guid>(),
+                It.IsAny<string>(),
+                It.IsAny<string>(),
+                It.IsAny<string>(),
+                It.IsAny<string>(),
+                It.IsAny<string?>(),
+                It.IsAny<CancellationToken>()))
+            .Returns(Task.CompletedTask);
+
+        var pushService = new Mock<IOneSignalPushService>();
+        pushService
+            .Setup(x => x.SendToExternalUserAsync(
+                It.IsAny<string>(),
+                It.IsAny<string>(),
+                It.IsAny<string>(),
+                It.IsAny<string>(),
+                It.IsAny<string>(),
+                It.IsAny<string?>(),
+                It.IsAny<Guid?>(),
+                It.IsAny<string?>(),
+                It.IsAny<string?>(),
+                It.IsAny<OneSignalPushProfile>(),
+                It.IsAny<CancellationToken>()))
+            .ReturnsAsync(new OneSignalPushDispatchResult(true, false, true, null, null, "test"));
+
+        var workflowService = new OrderSupportCaseWorkflowService(
+            dbContext,
+            dbContext,
+            notificationService.Object,
+            pushService.Object);
+
+        return new CreateOrderComplaintCommandHandler(workflowService);
     }
 
     private static ApplicationDbContext CreateDbContext()

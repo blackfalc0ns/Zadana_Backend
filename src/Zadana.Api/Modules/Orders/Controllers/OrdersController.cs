@@ -4,6 +4,7 @@ using Zadana.Api.Controllers;
 using Zadana.Api.Modules.Orders.Requests;
 using Zadana.Application.Common.Interfaces;
 using Zadana.Application.Modules.Checkout.Commands.PlaceCheckoutOrder;
+using Zadana.Application.Modules.Files.Commands.UploadFile;
 using Zadana.Application.Modules.Orders.Commands.CancelCustomerOrder;
 using Zadana.Application.Modules.Orders.Commands.CreateOrderComplaint;
 using Zadana.Application.Modules.Orders.Commands.DeleteCustomerOrder;
@@ -26,10 +27,17 @@ public class OrdersController : ApiControllerBase
 {
     private const string DeviceIdHeader = "X-Device-Id";
     private readonly ICurrentUserService _currentUserService;
+    private readonly IOrderReadService _orderReadService;
+    private readonly IOrderSupportCaseWorkflowService _orderSupportCaseWorkflowService;
 
-    public OrdersController(ICurrentUserService currentUserService)
+    public OrdersController(
+        ICurrentUserService currentUserService,
+        IOrderReadService orderReadService,
+        IOrderSupportCaseWorkflowService orderSupportCaseWorkflowService)
     {
         _currentUserService = currentUserService;
+        _orderReadService = orderReadService;
+        _orderSupportCaseWorkflowService = orderSupportCaseWorkflowService;
     }
 
     [HttpGet("active")]
@@ -178,6 +186,78 @@ public class OrdersController : ApiControllerBase
         return Ok(new GetOrderComplaintResponse(MapComplaint(result)));
     }
 
+    [HttpPost("{orderId:guid}/cases")]
+    public async Task<ActionResult<CreateOrderSupportCaseResponse>> CreateSupportCase(
+        Guid orderId,
+        [FromBody] CreateOrderSupportCaseRequest? request,
+        CancellationToken cancellationToken = default)
+    {
+        if (request is null)
+        {
+            throw new BadRequestException("INVALID_REQUEST_BODY", "Request body is required.");
+        }
+
+        var userId = _currentUserService.UserId ?? throw new UnauthorizedException("USER_NOT_AUTHENTICATED");
+        var supportCase = await _orderSupportCaseWorkflowService.CreateCustomerCaseAsync(
+            orderId,
+            userId,
+            request.Type,
+            request.ReasonCode,
+            request.Message,
+            request.Attachments?.Select(item => new OrderSupportCaseAttachmentInput(item.FileName, item.FileUrl)).ToList(),
+            cancellationToken);
+
+        var result = await _orderReadService.GetCustomerOrderSupportCaseAsync(orderId, supportCase.Id, userId, cancellationToken)
+            ?? throw new NotFoundException("OrderSupportCase", supportCase.Id);
+
+        return Ok(new CreateOrderSupportCaseResponse("support case submitted successfully", MapSupportCase(result)));
+    }
+
+    [HttpGet("{orderId:guid}/cases")]
+    public async Task<ActionResult<GetOrderSupportCasesResponse>> GetSupportCases(
+        Guid orderId,
+        CancellationToken cancellationToken = default)
+    {
+        var userId = _currentUserService.UserId ?? throw new UnauthorizedException("USER_NOT_AUTHENTICATED");
+        var result = await _orderReadService.GetCustomerOrderSupportCasesAsync(orderId, userId, cancellationToken);
+        return Ok(new GetOrderSupportCasesResponse(result.Select(MapSupportCase).ToList()));
+    }
+
+    [HttpGet("{orderId:guid}/cases/{caseId:guid}")]
+    public async Task<ActionResult<GetOrderSupportCaseResponse>> GetSupportCase(
+        Guid orderId,
+        Guid caseId,
+        CancellationToken cancellationToken = default)
+    {
+        var userId = _currentUserService.UserId ?? throw new UnauthorizedException("USER_NOT_AUTHENTICATED");
+        var result = await _orderReadService.GetCustomerOrderSupportCaseAsync(orderId, caseId, userId, cancellationToken)
+            ?? throw new NotFoundException("OrderSupportCase", caseId);
+
+        return Ok(new GetOrderSupportCaseResponse(MapSupportCase(result)));
+    }
+
+    [HttpPost("{orderId:guid}/cases/attachments")]
+    public async Task<ActionResult<OrderSupportCaseAttachmentUploadResponse>> UploadSupportCaseAttachment(
+        Guid orderId,
+        IFormFile file,
+        CancellationToken cancellationToken = default)
+    {
+        if (file is null || file.Length == 0)
+        {
+            throw new BadRequestException("INVALID_FILE", "File is empty.");
+        }
+
+        var userId = _currentUserService.UserId ?? throw new UnauthorizedException("USER_NOT_AUTHENTICATED");
+        var order = await _orderReadService.GetCustomerOrderDetailAsync(orderId, userId, cancellationToken)
+            ?? throw new NotFoundException("Order", orderId);
+
+        await using var stream = file.OpenReadStream();
+        var fileDto = new FileUploadDto(file.FileName, file.ContentType, stream);
+        var fileUrl = await Sender.Send(new UploadFileCommand($"orders/support-cases/{order.Id:D}", fileDto), cancellationToken);
+
+        return Ok(new OrderSupportCaseAttachmentUploadResponse(file.FileName, fileUrl));
+    }
+
     [HttpPost]
     public async Task<ActionResult<PlaceOrderResponse>> PlaceOrder(
         [FromBody] PlaceOrderRequest? request,
@@ -244,7 +324,8 @@ public class OrdersController : ApiControllerBase
                 dto.Summary.Subtotal,
                 dto.Summary.ShippingCost,
                 dto.Summary.Total),
-            dto.Items.Select(MapOrderProduct).ToList());
+            dto.Items.Select(MapOrderProduct).ToList(),
+            MapSupportCaseSummary(dto.ActiveCase));
 
     private static CustomerOrderTrackingResponse MapOrderTracking(CustomerOrderTrackingDto dto) =>
         new(
@@ -267,6 +348,7 @@ public class OrdersController : ApiControllerBase
             dto.DriverArrivalUpdatedAtUtc,
             dto.DeliveryOtp,
             dto.ShowDeliveryOtp,
+            MapSupportCaseSummary(dto.ActiveCase),
             dto.Timeline
                 .Select(item => new CustomerOrderTrackingTimelineItemResponse(
                     item.Id,
@@ -283,6 +365,52 @@ public class OrdersController : ApiControllerBase
             dto.Message,
             dto.Attachments.Select(x => new OrderComplaintAttachmentResponse(x.FileName, x.FileUrl)).ToList(),
             dto.CreatedAt);
+
+    private static OrderSupportCaseSummaryResponse? MapSupportCaseSummary(OrderSupportCaseSummaryDto? dto) =>
+        dto is null
+            ? null
+            : new OrderSupportCaseSummaryResponse(
+                dto.Id,
+                dto.Type,
+                dto.Status,
+                dto.Queue,
+                dto.Priority,
+                dto.ReasonCode,
+                dto.Message,
+                dto.CreatedAt,
+                dto.UpdatedAt);
+
+    private static OrderSupportCaseResponse MapSupportCase(OrderSupportCaseDto dto) =>
+        new(
+            dto.Id,
+            dto.OrderId,
+            dto.Type,
+            dto.Status,
+            dto.Queue,
+            dto.Priority,
+            dto.ReasonCode,
+            dto.Message,
+            dto.CustomerVisibleNote,
+            dto.DecisionNotes,
+            dto.CreatedAt,
+            dto.UpdatedAt,
+            dto.SlaDueAtUtc,
+            dto.RequestedRefundAmount,
+            dto.ApprovedRefundAmount,
+            dto.RefundMethod,
+            dto.CostBearer,
+            dto.Attachments
+                .Select(item => new OrderSupportCaseAttachmentResponse(item.FileName, item.FileUrl))
+                .ToList(),
+            dto.Activities
+                .Select(item => new OrderSupportCaseActivityResponse(
+                    item.Action,
+                    item.Title,
+                    item.Note,
+                    item.ActorRole,
+                    item.VisibleToCustomer,
+                    item.CreatedAt))
+                .ToList());
 
     private string? ResolveDeviceIdHeader()
     {
