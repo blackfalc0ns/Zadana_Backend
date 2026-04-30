@@ -7,6 +7,7 @@ using Zadana.Domain.Modules.Identity.Entities;
 using Zadana.Domain.Modules.Identity.Enums;
 using Zadana.Infrastructure.Persistence;
 using Zadana.Infrastructure.Persistence.Interceptors;
+using Zadana.SharedKernel.Exceptions;
 
 namespace Zadana.Application.Tests.Application.Orders;
 
@@ -34,6 +35,29 @@ public class UpdateDriverLocationCommandHandlerTests
         location.AccuracyMeters.Should().Be(14.5m);
         location.Latitude.Should().Be(24.7136m);
         location.Longitude.Should().Be(46.6753m);
+    }
+
+    [Fact]
+    public async Task Handle_ShouldRejectLocationUpdates_WhenDriverIsBlocked()
+    {
+        await using var dbContext = CreateDbContext();
+        var driverUser = new User("Blocked Geo Driver", "blocked.geo.driver@test.com", "01000000992", UserRole.Driver);
+        var driver = new Driver(driverUser.Id, DriverVehicleType.Car, "1234567891", "DRV-GEO-2");
+        driver.Approve(Guid.NewGuid());
+        driver.BlockLocationUpdates(Guid.NewGuid(), "ops hold");
+
+        dbContext.Users.Add(driverUser);
+        dbContext.Drivers.Add(driver);
+        await dbContext.SaveChangesAsync();
+
+        var handler = new UpdateDriverLocationCommandHandler(dbContext, dbContext);
+
+        var act = () => handler.Handle(
+            new UpdateDriverLocationCommand(driver.Id, 24.7136m, 46.6753m, 10m),
+            CancellationToken.None);
+
+        await act.Should().ThrowAsync<BusinessRuleException>();
+        (await dbContext.DriverLocations.CountAsync()).Should().Be(0);
     }
 
     private static ApplicationDbContext CreateDbContext()

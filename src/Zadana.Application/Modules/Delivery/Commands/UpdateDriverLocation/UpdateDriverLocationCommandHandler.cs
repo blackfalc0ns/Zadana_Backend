@@ -22,6 +22,13 @@ public class UpdateDriverLocationCommandHandler : IRequestHandler<UpdateDriverLo
         var driver = await _context.Drivers.FindAsync([request.DriverId], cancellationToken)
             ?? throw new NotFoundException("Driver", request.DriverId);
 
+        if (driver.IsLocationUpdatesBlocked)
+        {
+            throw new BusinessRuleException(
+                "DRIVER_LOCATION_UPDATES_BLOCKED",
+                "تم إيقاف تحديثات الموقع لهذا السائق من الإدارة | Location updates are currently blocked for this driver.");
+        }
+
         var location = new DriverLocation(driver.Id, request.Latitude, request.Longitude, request.AccuracyMeters);
         _context.DriverLocations.Add(location);
         await _unitOfWork.SaveChangesAsync(cancellationToken);

@@ -4,9 +4,11 @@ using Zadana.Api.Controllers;
 using Zadana.Application.Common.Interfaces;
 using Zadana.Application.Modules.Delivery.Commands.AddDriverIncident;
 using Zadana.Application.Modules.Delivery.Commands.AddDriverNote;
+using Zadana.Application.Modules.Delivery.Commands.BlockDriverLocationUpdates;
 using Zadana.Application.Modules.Delivery.Commands.ReactivateDriver;
 using Zadana.Application.Modules.Delivery.Commands.ReviewDriver;
 using Zadana.Application.Modules.Delivery.Commands.SuspendDriver;
+using Zadana.Application.Modules.Delivery.Commands.UnblockDriverLocationUpdates;
 using Zadana.Application.Modules.Delivery.DTOs;
 using Zadana.Application.Modules.Delivery.Interfaces;
 using Zadana.SharedKernel.Exceptions;
@@ -87,6 +89,32 @@ public class AdminDriversController : ApiControllerBase
         return Ok(new { message = "Driver reactivated successfully" });
     }
 
+    [HttpPost("{id:guid}/location-updates/block")]
+    public async Task<IActionResult> BlockLocationUpdates(
+        Guid id,
+        [FromBody] BlockDriverLocationUpdatesRequest? request,
+        [FromServices] ICurrentUserService currentUserService,
+        CancellationToken cancellationToken = default)
+    {
+        var userId = currentUserService.UserId
+            ?? throw new UnauthorizedException("ADMIN_NOT_AUTHENTICATED");
+
+        await Sender.Send(
+            new BlockDriverLocationUpdatesCommand(id, userId, request?.Reason),
+            cancellationToken);
+
+        return Ok(new { message = "Driver location updates blocked successfully" });
+    }
+
+    [HttpPost("{id:guid}/location-updates/unblock")]
+    public async Task<IActionResult> UnblockLocationUpdates(
+        Guid id,
+        CancellationToken cancellationToken = default)
+    {
+        await Sender.Send(new UnblockDriverLocationUpdatesCommand(id), cancellationToken);
+        return Ok(new { message = "Driver location updates unblocked successfully" });
+    }
+
     [HttpPost("{id:guid}/notes")]
     public async Task<IActionResult> AddNote(
         Guid id,
@@ -121,6 +149,7 @@ public class AdminDriversController : ApiControllerBase
 
 public record ReviewDriverRequest(string Action, string? Note);
 public record SuspendDriverRequest(string? Reason);
+public record BlockDriverLocationUpdatesRequest(string? Reason);
 public record AddDriverNoteRequest(string Message);
 public record AddDriverIncidentRequest(
     string IncidentType, string Severity, string Summary,

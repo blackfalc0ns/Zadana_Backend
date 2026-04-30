@@ -32,6 +32,7 @@ public class DriverConfiguration : IEntityTypeConfiguration<Driver>
 
         builder.Property(x => x.ReviewNote).HasMaxLength(500);
         builder.Property(x => x.SuspensionReason).HasMaxLength(500);
+        builder.Property(x => x.LocationUpdatesBlockReason).HasMaxLength(500);
 
         builder.Property(x => x.Region).HasMaxLength(50);
         builder.Property(x => x.City).HasMaxLength(50);

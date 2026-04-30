@@ -34,6 +34,10 @@ public class Driver : BaseEntity
 
     // Suspension
     public string? SuspensionReason { get; private set; }
+    public bool IsLocationUpdatesBlocked { get; private set; }
+    public string? LocationUpdatesBlockReason { get; private set; }
+    public DateTime? LocationUpdatesBlockedAtUtc { get; private set; }
+    public Guid? LocationUpdatesBlockedByUserId { get; private set; }
 
     // Navigation
     public User User { get; private set; } = null!;
@@ -191,6 +195,22 @@ public class Driver : BaseEntity
             return;
 
         IsAvailable = isAvailable;
+    }
+
+    public void BlockLocationUpdates(Guid adminUserId, string? reason = null)
+    {
+        IsLocationUpdatesBlocked = true;
+        LocationUpdatesBlockReason = NormalizeOptional(reason);
+        LocationUpdatesBlockedAtUtc = DateTime.UtcNow;
+        LocationUpdatesBlockedByUserId = adminUserId;
+    }
+
+    public void UnblockLocationUpdates()
+    {
+        IsLocationUpdatesBlocked = false;
+        LocationUpdatesBlockReason = null;
+        LocationUpdatesBlockedAtUtc = null;
+        LocationUpdatesBlockedByUserId = null;
     }
 
 

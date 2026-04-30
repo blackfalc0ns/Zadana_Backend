@@ -167,6 +167,28 @@ public class DriverReadServiceTests
         result.CanSubmitForReview.Should().BeFalse();
     }
 
+    [Fact]
+    public async Task GetAdminDriverDetailAsync_ShouldExposeLocationAccessState()
+    {
+        await using var dbContext = CreateDbContext();
+        var driverUser = new User("Driver Ops User", "driver.ops@test.com", "01000000071", UserRole.Driver);
+        var driver = new Driver(driverUser.Id, DriverVehicleType.Car, "12345678901239", "LIC-109", "Riyadh");
+        driver.Approve(Guid.NewGuid());
+        driver.BlockLocationUpdates(Guid.NewGuid(), "manual ops hold");
+
+        dbContext.Users.Add(driverUser);
+        dbContext.Drivers.Add(driver);
+        await dbContext.SaveChangesAsync();
+
+        var service = CreateService(dbContext);
+        var result = await service.GetAdminDriverDetailAsync(driver.Id);
+
+        result.Should().NotBeNull();
+        result!.Operations.LocationUpdatesBlocked.Should().BeTrue();
+        result.Operations.LocationBlockReason.Should().Be("manual ops hold");
+        result.Operations.LocationBlockedAtUtc.Should().NotBeNull();
+    }
+
     private static DriverReadService CreateService(ApplicationDbContext dbContext)
     {
         var commitmentPolicy = new Mock<IDriverCommitmentPolicyService>();

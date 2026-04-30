@@ -1509,6 +1509,9 @@ namespace Zadana.Infrastructure.Migrations
                     b.Property<bool>("IsAvailable")
                         .HasColumnType("bit");
 
+                    b.Property<bool>("IsLocationUpdatesBlocked")
+                        .HasColumnType("bit");
+
                     b.Property<string>("LicenseImageUrl")
                         .HasMaxLength(500)
                         .HasColumnType("nvarchar(500)");
@@ -1516,6 +1519,16 @@ namespace Zadana.Infrastructure.Migrations
                     b.Property<string>("LicenseNumber")
                         .HasMaxLength(100)
                         .HasColumnType("nvarchar(100)");
+
+                    b.Property<DateTime?>("LocationUpdatesBlockedAtUtc")
+                        .HasColumnType("datetime2");
+
+                    b.Property<Guid?>("LocationUpdatesBlockedByUserId")
+                        .HasColumnType("uniqueidentifier");
+
+                    b.Property<string>("LocationUpdatesBlockReason")
+                        .HasMaxLength(500)
+                        .HasColumnType("nvarchar(500)");
 
                     b.Property<string>("NationalId")
                         .HasMaxLength(100)
