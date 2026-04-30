@@ -3,6 +3,7 @@ using MediatR;
 using Microsoft.EntityFrameworkCore;
 using Moq;
 using Zadana.Application.Common.Interfaces;
+using Zadana.Application.Modules.Delivery.Interfaces;
 using Zadana.Application.Modules.Orders.Commands.DriverUpdateOrderStatus;
 using Zadana.Application.Modules.Orders.Events;
 using Zadana.Domain.Modules.Delivery.Entities;
@@ -47,6 +48,7 @@ public class DriverUpdateOrderStatusCommandHandlerTests
             dbContext,
             Mock.Of<IPublisher>(),
             new DriverRepository(dbContext),
+            Mock.Of<IDriverReadService>(),
             Mock.Of<INotificationService>());
 
         var action = () => handler.Handle(
@@ -85,6 +87,7 @@ public class DriverUpdateOrderStatusCommandHandlerTests
             dbContext,
             Mock.Of<IPublisher>(),
             new DriverRepository(dbContext),
+            Mock.Of<IDriverReadService>(),
             Mock.Of<INotificationService>());
 
         var action = () => handler.Handle(
@@ -126,6 +129,7 @@ public class DriverUpdateOrderStatusCommandHandlerTests
             dbContext,
             Mock.Of<IPublisher>(),
             new DriverRepository(dbContext),
+            Mock.Of<IDriverReadService>(),
             Mock.Of<INotificationService>());
 
         var action = () => handler.Handle(
@@ -164,6 +168,7 @@ public class DriverUpdateOrderStatusCommandHandlerTests
             dbContext,
             Mock.Of<IPublisher>(),
             new DriverRepository(dbContext),
+            Mock.Of<IDriverReadService>(),
             Mock.Of<INotificationService>());
 
         var action = () => handler.Handle(
@@ -206,6 +211,7 @@ public class DriverUpdateOrderStatusCommandHandlerTests
             dbContext,
             Mock.Of<IPublisher>(),
             new DriverRepository(dbContext),
+            Mock.Of<IDriverReadService>(),
             Mock.Of<INotificationService>());
 
         var result = await handler.Handle(
@@ -248,6 +254,7 @@ public class DriverUpdateOrderStatusCommandHandlerTests
             dbContext,
             publisherMock.Object,
             new DriverRepository(dbContext),
+            Mock.Of<IDriverReadService>(),
             Mock.Of<INotificationService>());
 
         var result = await handler.Handle(
@@ -294,6 +301,7 @@ public class DriverUpdateOrderStatusCommandHandlerTests
             dbContext,
             publisherMock.Object,
             new DriverRepository(dbContext),
+            Mock.Of<IDriverReadService>(),
             Mock.Of<INotificationService>());
 
         var result = await handler.Handle(

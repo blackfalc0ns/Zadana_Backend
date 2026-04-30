@@ -3,6 +3,7 @@ using Microsoft.EntityFrameworkCore;
 using Moq;
 using Zadana.Application.Common.Interfaces;
 using Zadana.Application.Modules.Delivery.Commands.UpdateDriverArrivalState;
+using Zadana.Application.Modules.Delivery.Interfaces;
 using Zadana.Domain.Modules.Delivery.Entities;
 using Zadana.Domain.Modules.Delivery.Enums;
 using Zadana.Domain.Modules.Identity.Entities;
@@ -50,6 +51,7 @@ public class DriverArrivalStateCommandHandlerTests
             dbContext,
             dbContext,
             new DriverRepository(dbContext),
+            Mock.Of<IDriverReadService>(),
             notificationService.Object);
 
         var result = await handler.Handle(
@@ -106,6 +108,7 @@ public class DriverArrivalStateCommandHandlerTests
             dbContext,
             dbContext,
             new DriverRepository(dbContext),
+            Mock.Of<IDriverReadService>(),
             notificationService.Object);
 
         var result = await handler.Handle(

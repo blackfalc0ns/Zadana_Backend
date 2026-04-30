@@ -3,6 +3,7 @@ using MediatR;
 using Microsoft.EntityFrameworkCore;
 using Moq;
 using Zadana.Application.Modules.Delivery.Commands.VerifyAssignmentOtp;
+using Zadana.Application.Modules.Delivery.Interfaces;
 using Zadana.Application.Modules.Orders.Commands.ConfirmVendorPickupOtp;
 using Zadana.Application.Modules.Orders.Events;
 using Zadana.Domain.Modules.Delivery.Entities;
@@ -102,6 +103,7 @@ public class OtpWorkflowCommandHandlerTests
             dbContext,
             dbContext,
             new DriverRepository(dbContext),
+            Mock.Of<IDriverReadService>(),
             publisherMock.Object);
 
         var result = await handler.Handle(
