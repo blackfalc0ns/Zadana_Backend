@@ -1551,10 +1551,26 @@ public class OrderReadService : IOrderReadService
         }
 
         if (!string.IsNullOrWhiteSpace(status) &&
-            !string.Equals(status, "ALL", StringComparison.OrdinalIgnoreCase) &&
-            !string.Equals(item.Status, status, StringComparison.OrdinalIgnoreCase))
+            !string.Equals(status, "ALL", StringComparison.OrdinalIgnoreCase))
         {
-            return false;
+            var normalizedStatus = status.Trim().ToLowerInvariant();
+            var matchesStatus =
+                string.Equals(item.CaseStatus, normalizedStatus, StringComparison.OrdinalIgnoreCase) ||
+                string.Equals(item.Status, normalizedStatus, StringComparison.OrdinalIgnoreCase) ||
+                normalizedStatus switch
+                {
+                    "active" => !string.Equals(item.CaseStatus, "resolved", StringComparison.OrdinalIgnoreCase)
+                        && !string.Equals(item.CaseStatus, "rejected", StringComparison.OrdinalIgnoreCase),
+                    "review" => string.Equals(item.CaseStatus, "in_review", StringComparison.OrdinalIgnoreCase),
+                    "merchant" => string.Equals(item.CaseStatus, "awaiting_customer_evidence", StringComparison.OrdinalIgnoreCase),
+                    "open" => string.Equals(item.CaseStatus, "submitted", StringComparison.OrdinalIgnoreCase),
+                    _ => false
+                };
+
+            if (!matchesStatus)
+            {
+                return false;
+            }
         }
 
         if (!string.IsNullOrWhiteSpace(priority) &&
@@ -1600,6 +1616,7 @@ public class OrderReadService : IOrderReadService
             MapSupportCaseType(supportCase.Type),
             supportCase.ReasonCode ?? supportCase.Message,
             amount,
+            MapSupportCaseStatus(supportCase.Status),
             MapAdminSupportCaseStatus(supportCase.Status),
             MapSupportCasePriority(supportCase.Priority),
             supportCase.AssignedAdminId.HasValue ? "Assigned admin" : ResolveQueueLabel(supportCase.Queue),
@@ -1690,6 +1707,8 @@ public class OrderReadService : IOrderReadService
         {
             OrderSupportCaseQueue.Finance => "Finance",
             OrderSupportCaseQueue.Operations => "Operations",
+            OrderSupportCaseQueue.Risk => "Risk",
+            OrderSupportCaseQueue.Legal => "Legal",
             _ => "Support"
         };
 

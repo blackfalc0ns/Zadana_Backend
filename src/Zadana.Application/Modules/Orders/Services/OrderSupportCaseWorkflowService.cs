@@ -142,6 +142,38 @@ public sealed class OrderSupportCaseWorkflowService : IOrderSupportCaseWorkflowS
         return supportCase;
     }
 
+    public async Task<OrderSupportCase> EscalateAsync(
+        Guid caseId,
+        Guid actorUserId,
+        string? queue,
+        string? priority,
+        string? note,
+        string? customerVisibleNote,
+        DateTime? slaDueAtUtc,
+        CancellationToken cancellationToken = default)
+    {
+        var supportCase = await LoadCaseForWriteAsync(caseId, cancellationToken);
+        var resolvedQueue = ParseQueue(queue) ?? supportCase.Queue;
+        var resolvedPriority = ParsePriority(priority) ?? supportCase.Priority;
+
+        supportCase.Escalate(
+            actorUserId,
+            resolvedQueue,
+            resolvedPriority,
+            note,
+            customerVisibleNote,
+            slaDueAtUtc);
+
+        await _unitOfWork.SaveChangesAsync(cancellationToken);
+
+        if (!string.IsNullOrWhiteSpace(customerVisibleNote))
+        {
+            await NotifyCustomerAsync(supportCase.Order, supportCase, "escalated", cancellationToken);
+        }
+
+        return supportCase;
+    }
+
     public async Task<OrderSupportCase> ApproveAsync(
         Guid caseId,
         Guid actorUserId,
@@ -476,6 +508,8 @@ public sealed class OrderSupportCaseWorkflowService : IOrderSupportCaseWorkflowS
             "support" => OrderSupportCaseQueue.Support,
             "finance" => OrderSupportCaseQueue.Finance,
             "operations" => OrderSupportCaseQueue.Operations,
+            "risk" => OrderSupportCaseQueue.Risk,
+            "legal" => OrderSupportCaseQueue.Legal,
             _ => null
         };
     }

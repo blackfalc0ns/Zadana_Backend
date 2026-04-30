@@ -252,6 +252,7 @@ public record AdminOrderSupportCaseListItemDto(
     string Type,
     string Reason,
     decimal Amount,
+    string CaseStatus,
     string Status,
     string Priority,
     string Owner,

@@ -104,6 +104,39 @@ public class OrderSupportCase : BaseEntity
             visibleToCustomer: true);
     }
 
+    public void Escalate(
+        Guid actorUserId,
+        OrderSupportCaseQueue queue,
+        OrderSupportCasePriority priority,
+        string? note,
+        string? customerVisibleNote,
+        DateTime? slaDueAtUtc = null)
+    {
+        EnsureNotClosed("CASE_ESCALATION_NOT_ALLOWED");
+
+        Queue = queue;
+        Priority = priority;
+        SlaDueAtUtc = slaDueAtUtc ?? SlaDueAtUtc;
+        AssignedAdminId ??= actorUserId;
+        AssignedAtUtc = DateTime.UtcNow;
+
+        if (Status == OrderSupportCaseStatus.Submitted || Status == OrderSupportCaseStatus.AwaitingCustomerEvidence)
+        {
+            Status = OrderSupportCaseStatus.InReview;
+        }
+
+        DecisionNotes = string.IsNullOrWhiteSpace(note) ? DecisionNotes : note.Trim();
+        CustomerVisibleNote = string.IsNullOrWhiteSpace(customerVisibleNote) ? CustomerVisibleNote : customerVisibleNote.Trim();
+
+        AddActivity(
+            "escalated",
+            $"Case escalated to {queue}",
+            customerVisibleNote ?? note,
+            actorUserId,
+            "admin",
+            visibleToCustomer: !string.IsNullOrWhiteSpace(customerVisibleNote));
+    }
+
     public void Reopen(Guid actorUserId, string? note)
     {
         Status = OrderSupportCaseStatus.InReview;

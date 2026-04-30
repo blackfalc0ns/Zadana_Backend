@@ -42,6 +42,16 @@ public interface IOrderSupportCaseWorkflowService
         DateTime? slaDueAtUtc,
         CancellationToken cancellationToken = default);
 
+    Task<OrderSupportCase> EscalateAsync(
+        Guid caseId,
+        Guid actorUserId,
+        string? queue,
+        string? priority,
+        string? note,
+        string? customerVisibleNote,
+        DateTime? slaDueAtUtc,
+        CancellationToken cancellationToken = default);
+
     Task<OrderSupportCase> ApproveAsync(
         Guid caseId,
         Guid actorUserId,

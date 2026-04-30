@@ -28,5 +28,7 @@ public enum OrderSupportCaseQueue
 {
     Support,
     Finance,
-    Operations
+    Operations,
+    Risk,
+    Legal
 }

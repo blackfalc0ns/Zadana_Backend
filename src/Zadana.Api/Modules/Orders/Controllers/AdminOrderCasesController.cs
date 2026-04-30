@@ -105,6 +105,30 @@ public class AdminOrderCasesController : ApiControllerBase
         return Ok(await RequireCaseAsync(caseId, cancellationToken));
     }
 
+    [HttpPost("{caseId:guid}/escalate")]
+    public async Task<ActionResult<AdminOrderSupportCaseListItemDto>> Escalate(
+        Guid caseId,
+        [FromBody] AdminOrderSupportCaseEscalateRequest? request,
+        CancellationToken cancellationToken = default)
+    {
+        if (request is null)
+        {
+            throw new BadRequestException("INVALID_REQUEST_BODY", "Request body is required.");
+        }
+
+        await _orderSupportCaseWorkflowService.EscalateAsync(
+            caseId,
+            GetRequiredAdminUserId(),
+            request.Queue,
+            request.Priority,
+            request.Note,
+            request.CustomerVisibleNote,
+            request.SlaDueAtUtc,
+            cancellationToken);
+
+        return Ok(await RequireCaseAsync(caseId, cancellationToken));
+    }
+
     [HttpPost("{caseId:guid}/approve")]
     public async Task<ActionResult<AdminOrderSupportCaseListItemDto>> Approve(
         Guid caseId,
@@ -210,6 +234,13 @@ public sealed record AdminOrderSupportCaseAssignRequest(
     DateTime? SlaDueAtUtc);
 
 public sealed record AdminOrderSupportCaseRequestEvidenceRequest(
+    string? Note,
+    string? CustomerVisibleNote,
+    DateTime? SlaDueAtUtc);
+
+public sealed record AdminOrderSupportCaseEscalateRequest(
+    string? Queue,
+    string? Priority,
     string? Note,
     string? CustomerVisibleNote,
     DateTime? SlaDueAtUtc);
