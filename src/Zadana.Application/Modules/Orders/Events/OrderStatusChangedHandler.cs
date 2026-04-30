@@ -1,5 +1,6 @@
 using MediatR;
 using Microsoft.EntityFrameworkCore;
+using Microsoft.Extensions.Logging;
 using Zadana.Application.Common.Interfaces;
 using Zadana.Application.Modules.Orders.Support;
 using Zadana.Domain.Modules.Delivery.Enums;
@@ -18,17 +19,20 @@ public class OrderStatusChangedHandler : INotificationHandler<OrderStatusChanged
     private readonly IApplicationDbContext _context;
     private readonly IOneSignalPushService _oneSignalPushService;
     private readonly IOrderStatusNotificationDispatcher _orderStatusNotificationDispatcher;
+    private readonly ILogger<OrderStatusChangedHandler> _logger;
 
     public OrderStatusChangedHandler(
         INotificationService notificationService,
         IApplicationDbContext context,
         IOneSignalPushService oneSignalPushService,
-        IOrderStatusNotificationDispatcher orderStatusNotificationDispatcher)
+        IOrderStatusNotificationDispatcher orderStatusNotificationDispatcher,
+        ILogger<OrderStatusChangedHandler> logger)
     {
         _notificationService = notificationService;
         _context = context;
         _oneSignalPushService = oneSignalPushService;
         _orderStatusNotificationDispatcher = orderStatusNotificationDispatcher;
+        _logger = logger;
     }
 
     public async Task Handle(OrderStatusChangedNotification notification, CancellationToken cancellationToken)
@@ -133,6 +137,10 @@ public class OrderStatusChangedHandler : INotificationHandler<OrderStatusChanged
         string targetUrl,
         CancellationToken cancellationToken)
     {
+        _logger.LogInformation(
+            "[DriverRealtime] Looking for active assignment for order {OrderId} (status change: {OldStatus} -> {NewStatus}, actor: {Actor})",
+            notification.OrderId, notification.OldStatus, notification.NewStatus, notification.ActorRole);
+
         var driverAssignment = await _context.DeliveryAssignments
             .AsNoTracking()
             .Where(assignment =>
@@ -143,13 +151,20 @@ public class OrderStatusChangedHandler : INotificationHandler<OrderStatusChanged
                 assignment.Status != AssignmentStatus.Rejected &&
                 assignment.Status != AssignmentStatus.Cancelled)
             .OrderByDescending(assignment => assignment.CreatedAtUtc)
-            .Select(assignment => new { assignment.Id, DriverUserId = assignment.Driver!.UserId })
+            .Select(assignment => new { assignment.Id, assignment.Status, DriverUserId = assignment.Driver!.UserId })
             .FirstOrDefaultAsync(cancellationToken);
 
         if (driverAssignment is null)
         {
+            _logger.LogWarning(
+                "[DriverRealtime] NO active assignment found for order {OrderId}. ReceiveAssignmentUpdated will NOT be sent.",
+                notification.OrderId);
             return;
         }
+
+        _logger.LogInformation(
+            "[DriverRealtime] Found assignment {AssignmentId} (status={AssignmentStatus}) for driver user {DriverUserId}. Sending ReceiveOrderStatusChanged + ReceiveAssignmentUpdated.",
+            driverAssignment.Id, driverAssignment.Status, driverAssignment.DriverUserId);
 
         await _notificationService.SendOrderStatusChangedToUserAsync(
             driverAssignment.DriverUserId,
@@ -169,6 +184,10 @@ public class OrderStatusChangedHandler : INotificationHandler<OrderStatusChanged
             driverAssignment.Id,
             notification.OrderId,
             cancellationToken);
+
+        _logger.LogInformation(
+            "[DriverRealtime] Successfully dispatched ReceiveAssignmentUpdated to driver user {DriverUserId} for assignment {AssignmentId}.",
+            driverAssignment.DriverUserId, driverAssignment.Id);
     }
 
     private async Task HandleDirectPerOrderPayoutAsync(
