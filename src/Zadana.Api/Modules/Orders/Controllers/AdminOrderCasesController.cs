@@ -123,6 +123,8 @@ public class AdminOrderCasesController : ApiControllerBase
             request.Priority,
             request.Note,
             request.CustomerVisibleNote,
+            request.NotifyEscalatedTeam,
+            request.NotifyCurrentReviewer,
             request.SlaDueAtUtc,
             cancellationToken);
 
@@ -243,6 +245,8 @@ public sealed record AdminOrderSupportCaseEscalateRequest(
     string? Priority,
     string? Note,
     string? CustomerVisibleNote,
+    bool NotifyEscalatedTeam,
+    bool NotifyCurrentReviewer,
     DateTime? SlaDueAtUtc);
 
 public sealed record AdminOrderSupportCaseApproveRequest(

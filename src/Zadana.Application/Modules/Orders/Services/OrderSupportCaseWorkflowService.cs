@@ -2,6 +2,7 @@ using Microsoft.EntityFrameworkCore;
 using Zadana.Application.Common.Interfaces;
 using Zadana.Application.Modules.Orders.Interfaces;
 using Zadana.Application.Modules.Orders.Support;
+using Zadana.Domain.Modules.Identity.Enums;
 using Zadana.Domain.Modules.Orders.Entities;
 using Zadana.Domain.Modules.Orders.Enums;
 using Zadana.Domain.Modules.Payments.Entities;
@@ -65,6 +66,14 @@ public sealed class OrderSupportCaseWorkflowService : IOrderSupportCaseWorkflowS
         _context.OrderSupportCases.Add(supportCase);
         await _unitOfWork.SaveChangesAsync(cancellationToken);
 
+        await NotifyAdminRecipientsAsync(
+            order,
+            supportCase,
+            "created",
+            actorUserId: customerUserId,
+            notifyEscalatedTeam: true,
+            notifyCurrentReviewer: false,
+            cancellationToken);
         await NotifyCustomerAsync(order, supportCase, "created", cancellationToken);
         return supportCase;
     }
@@ -123,6 +132,12 @@ public sealed class OrderSupportCaseWorkflowService : IOrderSupportCaseWorkflowS
         var supportCase = await LoadCaseForWriteAsync(caseId, cancellationToken);
         supportCase.Assign(actorUserId, assignedAdminId, note, ParsePriority(priority) ?? supportCase.Priority, slaDueAtUtc);
         await _unitOfWork.SaveChangesAsync(cancellationToken);
+
+        if (supportCase.AssignedAdminId.HasValue && supportCase.AssignedAdminId.Value != actorUserId)
+        {
+            await NotifySpecificAdminAsync(supportCase.Order, supportCase, supportCase.AssignedAdminId.Value, "assigned", cancellationToken);
+        }
+
         return supportCase;
     }
 
@@ -149,6 +164,8 @@ public sealed class OrderSupportCaseWorkflowService : IOrderSupportCaseWorkflowS
         string? priority,
         string? note,
         string? customerVisibleNote,
+        bool notifyEscalatedTeam,
+        bool notifyCurrentReviewer,
         DateTime? slaDueAtUtc,
         CancellationToken cancellationToken = default)
     {
@@ -165,6 +182,14 @@ public sealed class OrderSupportCaseWorkflowService : IOrderSupportCaseWorkflowS
             slaDueAtUtc);
 
         await _unitOfWork.SaveChangesAsync(cancellationToken);
+        await NotifyAdminRecipientsAsync(
+            supportCase.Order,
+            supportCase,
+            "escalated",
+            actorUserId,
+            notifyEscalatedTeam,
+            notifyCurrentReviewer,
+            cancellationToken);
 
         if (!string.IsNullOrWhiteSpace(customerVisibleNote))
         {
@@ -402,6 +427,98 @@ public sealed class OrderSupportCaseWorkflowService : IOrderSupportCaseWorkflowS
                 composed.Data,
                 composed.TargetUrl)
             .DispatchAsync(_oneSignalPushService, cancellationToken);
+    }
+
+    private async Task NotifyAdminRecipientsAsync(
+        Order order,
+        OrderSupportCase supportCase,
+        string action,
+        Guid actorUserId,
+        bool notifyEscalatedTeam,
+        bool notifyCurrentReviewer,
+        CancellationToken cancellationToken)
+    {
+        var recipients = new HashSet<Guid>();
+
+        if (notifyCurrentReviewer && supportCase.AssignedAdminId.HasValue && supportCase.AssignedAdminId.Value != actorUserId)
+        {
+            recipients.Add(supportCase.AssignedAdminId.Value);
+        }
+
+        if (notifyEscalatedTeam)
+        {
+            var adminRecipients = await _context.Users
+                .AsNoTracking()
+                .Where(user =>
+                    user.Id != actorUserId &&
+                    user.AccountStatus == AccountStatus.Active &&
+                    (user.Role == UserRole.Admin || user.Role == UserRole.SuperAdmin))
+                .Select(user => user.Id)
+                .ToListAsync(cancellationToken);
+
+            foreach (var recipient in adminRecipients)
+            {
+                recipients.Add(recipient);
+            }
+        }
+
+        if (recipients.Count == 0)
+        {
+            return;
+        }
+
+        var composed = OrderSupportCaseNotificationComposer.ComposeAdmin(
+            order.Id,
+            supportCase.Id,
+            order.OrderNumber,
+            supportCase.Type,
+            supportCase.Status,
+            supportCase.Queue,
+            supportCase.Priority,
+            action);
+
+        foreach (var recipientId in recipients)
+        {
+            await _notificationService.SendToUserAsync(
+                recipientId,
+                composed.TitleAr,
+                composed.TitleEn,
+                composed.BodyAr,
+                composed.BodyEn,
+                composed.NotificationType,
+                supportCase.Id,
+                composed.Data,
+                cancellationToken);
+        }
+    }
+
+    private async Task NotifySpecificAdminAsync(
+        Order order,
+        OrderSupportCase supportCase,
+        Guid adminUserId,
+        string action,
+        CancellationToken cancellationToken)
+    {
+        var composed = OrderSupportCaseNotificationComposer.ComposeAdmin(
+            order.Id,
+            supportCase.Id,
+            order.OrderNumber,
+            supportCase.Type,
+            supportCase.Status,
+            supportCase.Queue,
+            supportCase.Priority,
+            action);
+
+        await _notificationService.SendToUserAsync(
+            adminUserId,
+            composed.TitleAr,
+            composed.TitleEn,
+            composed.BodyAr,
+            composed.BodyEn,
+            composed.NotificationType,
+            supportCase.Id,
+            composed.Data,
+            cancellationToken);
     }
 
     private static decimal? ResolveApprovalAmount(OrderSupportCase supportCase, decimal? requestedAmount)

@@ -49,6 +49,8 @@ public interface IOrderSupportCaseWorkflowService
         string? priority,
         string? note,
         string? customerVisibleNote,
+        bool notifyEscalatedTeam,
+        bool notifyCurrentReviewer,
         DateTime? slaDueAtUtc,
         CancellationToken cancellationToken = default);
 
