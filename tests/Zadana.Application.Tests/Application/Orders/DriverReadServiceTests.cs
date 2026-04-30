@@ -100,6 +100,7 @@ public class DriverReadServiceTests
         result.PickupOtpRequired.Should().BeFalse();
         result.PickupOtpStatus.Should().Be("verified");
         result.PickupOtpCode.Should().BeNull();
+        result.DriverArrivalState.Should().Be("en_route");
     }
 
     [Fact]

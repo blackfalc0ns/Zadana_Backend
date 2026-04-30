@@ -865,12 +865,29 @@ public class DriverReadService : IDriverReadService
 
     private static string ResolveArrivalState(DeliveryAssignment assignment)
     {
-        if (assignment.Status == AssignmentStatus.ArrivedAtCustomer || assignment.ArrivedAtCustomerAtUtc.HasValue)
+        if (assignment.Status == AssignmentStatus.ArrivedAtCustomer)
         {
             return "arrived_at_customer";
         }
 
-        if (assignment.Status == AssignmentStatus.ArrivedAtVendor || assignment.ArrivedAtVendorAtUtc.HasValue)
+        if (assignment.Status == AssignmentStatus.ArrivedAtVendor)
+        {
+            return "arrived_at_vendor";
+        }
+
+        if (assignment.Status == AssignmentStatus.PickedUp)
+        {
+            return "en_route";
+        }
+
+        if (assignment.ArrivedAtCustomerAtUtc.HasValue)
+        {
+            return "arrived_at_customer";
+        }
+
+        // Historical vendor-arrival timestamps should not keep the driver stuck in the
+        // handoff step after pickup has already been confirmed.
+        if (assignment.ArrivedAtVendorAtUtc.HasValue && !assignment.PickedUpAtUtc.HasValue)
         {
             return "arrived_at_vendor";
         }

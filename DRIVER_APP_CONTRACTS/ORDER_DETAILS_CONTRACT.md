@@ -16,6 +16,13 @@ The source of truth on the driver task screen is:
 
 The mobile app must not infer workflow steps from a local enum when the backend payload already states the current action set.
 
+Important handoff rule:
+
+- after vendor pickup confirmation, `assignmentStatus` becomes `PickedUp`
+- `allowedActions` becomes `["mark_on_the_way"]`
+- `driverArrivalState` returns to `en_route`
+- the driver must not remain on the merchant pickup OTP screen after that refresh
+
 ## Main Endpoints
 
 ### 1. Get Assignment Detail
@@ -192,9 +199,10 @@ These endpoints still exist for backward compatibility, but they are not part of
 ## Realtime Refresh
 
 - hub: `/hubs/notifications`
-- event: `ReceiveOrderStatusChanged`
-- treat the event as a refresh signal only
-- when `payload['orderId']` matches the opened assignment order, refresh:
+- primary event: `ReceiveAssignmentUpdated`
+- use its payload as the new screen state immediately when `assignmentId` matches the opened assignment
+- fallback event: `ReceiveOrderStatusChanged`
+- if only the fallback event arrives, treat it as a refresh signal and call:
   - `GET /api/drivers/assignments/{assignmentId}`
   - or `GET /api/drivers/assignments/current`
 - keep polling every `10s` as backup while the assignment is active

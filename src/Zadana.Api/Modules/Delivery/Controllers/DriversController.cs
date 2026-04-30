@@ -475,7 +475,7 @@ public class DriversController : ApiControllerBase
         var result = await Sender.Send(
             new DriverUpdateOrderStatusCommand(orderId, userId, OrderStatus.PickedUp, "Driver picked up the order"),
             cancellationToken);
-        return Ok(new DriverOrderStatusResponse(result.OrderId, result.Status, result.MessageAr, result.MessageEn));
+        return Ok(new DriverOrderStatusResponse(result.OrderId, result.Status, result.MessageAr, result.MessageEn, result.UpdatedAssignment));
     }
 
     [HttpPost("orders/{orderId:guid}/arrived-at-vendor")]
@@ -489,7 +489,13 @@ public class DriversController : ApiControllerBase
         var result = await Sender.Send(
             new UpdateDriverArrivalStateCommand(orderId, userId, "arrived_at_vendor"),
             cancellationToken);
-        return Ok(new DriverArrivalStateResponse(result.OrderId, result.AssignmentId, result.ArrivalState, result.MessageAr, result.MessageEn));
+        return Ok(new DriverArrivalStateResponse(
+            result.OrderId,
+            result.AssignmentId,
+            result.ArrivalState,
+            result.MessageAr,
+            result.MessageEn,
+            result.UpdatedAssignment));
     }
 
     [HttpPost("orders/{orderId:guid}/on-the-way")]
@@ -503,7 +509,7 @@ public class DriversController : ApiControllerBase
         var result = await Sender.Send(
             new DriverUpdateOrderStatusCommand(orderId, userId, OrderStatus.OnTheWay, "Driver is on the way"),
             cancellationToken);
-        return Ok(new DriverOrderStatusResponse(result.OrderId, result.Status, result.MessageAr, result.MessageEn));
+        return Ok(new DriverOrderStatusResponse(result.OrderId, result.Status, result.MessageAr, result.MessageEn, result.UpdatedAssignment));
     }
 
     [HttpPost("orders/{orderId:guid}/arrived-at-customer")]
@@ -517,7 +523,13 @@ public class DriversController : ApiControllerBase
         var result = await Sender.Send(
             new UpdateDriverArrivalStateCommand(orderId, userId, "arrived_at_customer"),
             cancellationToken);
-        return Ok(new DriverArrivalStateResponse(result.OrderId, result.AssignmentId, result.ArrivalState, result.MessageAr, result.MessageEn));
+        return Ok(new DriverArrivalStateResponse(
+            result.OrderId,
+            result.AssignmentId,
+            result.ArrivalState,
+            result.MessageAr,
+            result.MessageEn,
+            result.UpdatedAssignment));
     }
 
     [HttpPost("orders/{orderId:guid}/delivered")]
@@ -531,7 +543,7 @@ public class DriversController : ApiControllerBase
         var result = await Sender.Send(
             new DriverUpdateOrderStatusCommand(orderId, userId, OrderStatus.Delivered, "Order delivered successfully"),
             cancellationToken);
-        return Ok(new DriverOrderStatusResponse(result.OrderId, result.Status, result.MessageAr, result.MessageEn));
+        return Ok(new DriverOrderStatusResponse(result.OrderId, result.Status, result.MessageAr, result.MessageEn, result.UpdatedAssignment));
     }
 
     [HttpPost("orders/{orderId:guid}/delivery-failed")]
@@ -546,7 +558,7 @@ public class DriversController : ApiControllerBase
         var result = await Sender.Send(
             new DriverUpdateOrderStatusCommand(orderId, userId, OrderStatus.DeliveryFailed, request?.Note),
             cancellationToken);
-        return Ok(new DriverOrderStatusResponse(result.OrderId, result.Status, result.MessageAr, result.MessageEn));
+        return Ok(new DriverOrderStatusResponse(result.OrderId, result.Status, result.MessageAr, result.MessageEn, result.UpdatedAssignment));
     }
 
     private static string ResolveHomeState(
@@ -676,8 +688,20 @@ public class DriversController : ApiControllerBase
 
 }
 
-public record DriverOrderStatusResponse(Guid OrderId, string Status, string MessageAr, string MessageEn);
-public record DriverArrivalStateResponse(Guid OrderId, Guid AssignmentId, string ArrivalState, string MessageAr, string MessageEn);
+public record DriverOrderStatusResponse(
+    Guid OrderId,
+    string Status,
+    string MessageAr,
+    string MessageEn,
+    DriverAssignmentDetailDto? UpdatedAssignment = null);
+
+public record DriverArrivalStateResponse(
+    Guid OrderId,
+    Guid AssignmentId,
+    string ArrivalState,
+    string MessageAr,
+    string MessageEn,
+    DriverAssignmentDetailDto? UpdatedAssignment = null);
 public record DriverDeliveryFailedRequest(string? Note);
 public record DriverOfferRejectRequest(string? Reason);
 public record SetAvailabilityRequest(bool IsAvailable);

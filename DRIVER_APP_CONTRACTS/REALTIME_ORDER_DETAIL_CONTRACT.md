@@ -117,7 +117,7 @@ This is the exact same object returned by `GET /api/drivers/assignments/{assignm
   "orderNumber": "ORD-20260430-001",
   "assignmentStatus": "PickedUp",
   "homeState": "OnMission",
-  "allowedActions": ["on_the_way"],
+  "allowedActions": ["mark_on_the_way"],
   "vendorName": "مطعم الشرقية",
   "pickupAddress": "الرياض، حي النزهة، شارع الملك فهد",
   "pickupLatitude": 24.7136,
@@ -135,7 +135,7 @@ This is the exact same object returned by `GET /api/drivers/assignments/{assignm
   "deliveryOtpRequired": true,
   "deliveryOtpStatus": "pending",
   "pickupOtpCode": null,
-  "driverArrivalState": "arrived_at_vendor",
+  "driverArrivalState": "en_route",
   "orderItems": [
     {
       "name": "شاورما لحم",
@@ -159,13 +159,13 @@ This is the exact same object returned by `GET /api/drivers/assignments/{assignm
 |---|---|---|
 | `assignmentStatus` | string | Current assignment status: `Accepted`, `ArrivedAtVendor`, `PickedUp`, `ArrivedAtCustomer`, `Delivered`, `Failed` |
 | `homeState` | string | Overall state: `OnMission`, `WaitingForOffer`, `Offline`, etc. |
-| `allowedActions` | string[] | Actions the driver can take right now: `arrived_at_vendor`, `verify_pickup_otp`, `picked_up`, `on_the_way`, `arrived_at_customer`, `verify_delivery_otp`, `delivered` |
+| `allowedActions` | string[] | Actions the driver can take right now: `accept_offer`, `reject_offer`, `arrived_at_vendor`, `mark_on_the_way`, `arrived_at_customer`, `verify_delivery_otp` |
 | `pickupOtpRequired` | bool | Whether this assignment requires pickup OTP |
 | `pickupOtpStatus` | string | `pending`, `verified`, `not_required` |
 | `pickupOtpCode` | string? | The 4-digit pickup OTP code — only visible when driver is in the handoff window (ArrivedAtVendor status). `null` otherwise |
 | `deliveryOtpRequired` | bool | Whether delivery OTP is required |
 | `deliveryOtpStatus` | string | `pending`, `verified`, `not_required` |
-| `driverArrivalState` | string | `none`, `arrived_at_vendor`, `arrived_at_customer` |
+| `driverArrivalState` | string | `en_route`, `arrived_at_vendor`, `arrived_at_customer` |
 | `codAmount` | decimal | Cash to collect from customer. `0` for non-COD orders |
 
 ---
@@ -201,7 +201,7 @@ The exact same `DriverAssignmentDetailDto` object documented above.
   "orderNumber": "ORD-20260430-001",
   "assignmentStatus": "PickedUp",
   "homeState": "OnMission",
-  "allowedActions": ["on_the_way"],
+  "allowedActions": ["mark_on_the_way"],
   ...
 }
 ```
@@ -236,7 +236,8 @@ if (response.updatedAssignment != null) {
   setState(() {
     currentAssignment = response.updatedAssignment!;
     // The OTP input disappears because pickupOtpStatus is now "verified"
-    // allowedActions changes to show next available action
+    // allowedActions changes to ["mark_on_the_way"]
+    // driverArrivalState returns to "en_route" so the handoff step closes
     // assignmentStatus updates to "PickedUp"
   });
 }
