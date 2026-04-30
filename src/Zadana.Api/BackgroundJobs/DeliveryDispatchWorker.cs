@@ -48,6 +48,22 @@ public class DeliveryDispatchWorker : BackgroundService
                 {
                     try
                     {
+                        // Check if there's already an accepted/active assignment for this order.
+                        // If a driver already accepted, the order is NOT stuck — skip it.
+                        var hasAcceptedAssignment = await context.DeliveryAssignments
+                            .AnyAsync(a =>
+                                a.OrderId == stuckOrder.Id &&
+                                (a.Status == Domain.Modules.Delivery.Enums.AssignmentStatus.Accepted ||
+                                 a.Status == Domain.Modules.Delivery.Enums.AssignmentStatus.ArrivedAtVendor ||
+                                 a.Status == Domain.Modules.Delivery.Enums.AssignmentStatus.PickedUp ||
+                                 a.Status == Domain.Modules.Delivery.Enums.AssignmentStatus.ArrivedAtCustomer),
+                                stoppingToken);
+
+                        if (hasAcceptedAssignment)
+                        {
+                            continue;
+                        }
+
                         // Check if there's already an active (non-expired) offer for this order.
                         var hasActiveOffer = await context.DeliveryAssignments
                             .AnyAsync(a =>
