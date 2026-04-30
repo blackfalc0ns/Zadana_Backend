@@ -134,7 +134,8 @@ public record DriverOtpVerificationResultDto(
     string OtpType,
     string Status,
     string MessageAr,
-    string MessageEn);
+    string MessageEn,
+    DriverAssignmentDetailDto? UpdatedAssignment = null);
 
 public record DeliveryPricingSurgeWindowDto(
     Guid Id,

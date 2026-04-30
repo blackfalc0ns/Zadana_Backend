@@ -15,6 +15,7 @@ It covers:
 - event names
 - payload for each event
 - order realtime updates
+- support case realtime updates
 - driver arrival realtime updates
 
 Important scope note:
@@ -34,6 +35,7 @@ This is the main hub for customer mobile realtime:
 
 - inbox notification delivery
 - direct order status changes
+- direct support case changes
 - direct driver arrival state changes
 - customer broadcast messages
 
@@ -119,6 +121,7 @@ Exact event names implemented in backend:
 
 - `ReceiveNotification`
 - `ReceiveOrderStatusChanged`
+- `ReceiveOrderSupportCaseChanged`
 - `ReceiveDriverArrivalStateChanged`
 - `ReceiveBroadcast`
 
@@ -227,6 +230,50 @@ Mobile guidance:
 - if `payload.orderId == currentlyOpenedOrderId`, update the screen immediately
 - do not wait for manual refresh
 - this event is more direct than inbox notifications and should drive live order UI
+
+## Event: `ReceiveOrderSupportCaseChanged`
+
+Purpose:
+
+- direct realtime update when a complaint or return request changes
+- should update the open support-case, order details, or tracking screen immediately
+
+Backend source:
+
+- `NotificationService.SendOrderSupportCaseChangedToUserAsync(...)`
+
+Payload shape:
+
+```json
+{
+  "caseId": "aaaaaaaa-aaaa-aaaa-aaaa-aaaaaaaaaaaa",
+  "orderId": "22222222-2222-2222-2222-222222222222",
+  "orderNumber": "12345",
+  "type": "complaint",
+  "status": "in_review",
+  "action": "request_evidence",
+  "targetUrl": "/orders/22222222-2222-2222-2222-222222222222/cases/aaaaaaaa-aaaa-aaaa-aaaa-aaaaaaaaaaaa",
+  "changedAtUtc": "2026-04-30T10:05:00Z"
+}
+```
+
+Fields:
+
+- `caseId`: target support case
+- `orderId`: parent order
+- `orderNumber`: customer-facing order number
+- `type`: `complaint` or `return_request`
+- `status`: current support-case status
+- `action`: latest workflow action such as `created`, `request_evidence`, `approved`, `rejected`, or `resolved`
+- `targetUrl`: backend navigation hint
+- `changedAtUtc`: event time
+
+Mobile guidance:
+
+- if the support-case details screen is open, refresh the case details immediately
+- if the order details or tracking screen is open, refresh the order endpoint to get the latest `active_case`
+- use this event as the direct realtime source for support-case UI, not inbox polling
+- still handle `ReceiveNotification` to keep the notification center and unread badge correct
 
 ## Event: `ReceiveDriverArrivalStateChanged`
 
@@ -391,6 +438,7 @@ For customer mobile, the recommended listeners are:
 
 - `ReceiveNotification`
 - `ReceiveOrderStatusChanged`
+- `ReceiveOrderSupportCaseChanged`
 - `ReceiveDriverArrivalStateChanged`
 - `ReceiveBroadcast`
 
@@ -405,9 +453,10 @@ Recommended optional invokes on presence hub:
 Use this rule in mobile:
 
 1. `ReceiveOrderStatusChanged` is the direct source for live order status changes.
-2. `ReceiveDriverArrivalStateChanged` is the direct source for live driver-arrival changes.
-3. `ReceiveNotification` updates inbox and badge state.
-4. `ReceiveBroadcast` handles app-wide customer broadcasts.
+2. `ReceiveOrderSupportCaseChanged` is the direct source for live complaint and return-request changes.
+3. `ReceiveDriverArrivalStateChanged` is the direct source for live driver-arrival changes.
+4. `ReceiveNotification` updates inbox and badge state.
+5. `ReceiveBroadcast` handles app-wide customer broadcasts.
 
 ## Flutter-style Pseudo Flow
 
@@ -417,6 +466,7 @@ Use this rule in mobile:
 3. Listen to:
    - ReceiveNotification
    - ReceiveOrderStatusChanged
+   - ReceiveOrderSupportCaseChanged
    - ReceiveDriverArrivalStateChanged
    - ReceiveBroadcast
 4. Connect to /hubs/customer-presence
@@ -433,5 +483,6 @@ Use this rule in mobile:
 - `src/Zadana.Api/Realtime/CustomerPresenceHub.cs`
 - `src/Zadana.Api/Realtime/CustomerPresenceService.cs`
 - `src/Zadana.Api/Realtime/Contracts/OrderStatusChangedRealtimePayload.cs`
+- `src/Zadana.Api/Realtime/Contracts/OrderSupportCaseChangedRealtimePayload.cs`
 - `src/Zadana.Api/Realtime/Contracts/DriverArrivalStateChangedRealtimePayload.cs`
 - `src/Zadana.Api/Realtime/Contracts/CustomerPresenceUpdatedDto.cs`

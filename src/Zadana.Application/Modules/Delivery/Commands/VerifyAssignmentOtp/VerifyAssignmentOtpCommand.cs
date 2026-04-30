@@ -36,17 +36,20 @@ public class VerifyAssignmentOtpCommandHandler : IRequestHandler<VerifyAssignmen
     private readonly IApplicationDbContext _context;
     private readonly IUnitOfWork _unitOfWork;
     private readonly IDriverRepository _driverRepository;
+    private readonly IDriverReadService _driverReadService;
     private readonly IPublisher _publisher;
 
     public VerifyAssignmentOtpCommandHandler(
         IApplicationDbContext context,
         IUnitOfWork unitOfWork,
         IDriverRepository driverRepository,
+        IDriverReadService driverReadService,
         IPublisher publisher)
     {
         _context = context;
         _unitOfWork = unitOfWork;
         _driverRepository = driverRepository;
+        _driverReadService = driverReadService;
         _publisher = publisher;
     }
 
@@ -190,12 +193,17 @@ public class VerifyAssignmentOtpCommandHandler : IRequestHandler<VerifyAssignmen
                 ActorRole: "driver"),
             cancellationToken);
 
+        // Fetch the full updated assignment detail so mobile can refresh UI immediately
+        var updatedDetail = await _driverReadService.GetAssignmentDetailAsync(
+            driver.Id, assignment.Id, cancellationToken);
+
         return new DriverOtpVerificationResultDto(
             assignment.Id,
             assignment.OrderId,
             otpType,
             status,
             messageAr,
-            messageEn);
+            messageEn,
+            updatedDetail);
     }
 }

@@ -1766,6 +1766,484 @@
                 }
             }
         },
+        "/api/admin/order-cases": {
+            "get": {
+                "tags": [
+                    "Admin/Order Cases"
+                ],
+                "parameters": [
+                    {
+                        "name": "search",
+                        "in": "query",
+                        "schema": {
+                            "type": "string"
+                        }
+                    },
+                    {
+                        "name": "type",
+                        "in": "query",
+                        "schema": {
+                            "type": "string"
+                        }
+                    },
+                    {
+                        "name": "status",
+                        "in": "query",
+                        "schema": {
+                            "type": "string"
+                        }
+                    },
+                    {
+                        "name": "priority",
+                        "in": "query",
+                        "schema": {
+                            "type": "string"
+                        }
+                    },
+                    {
+                        "name": "queue",
+                        "in": "query",
+                        "schema": {
+                            "type": "string"
+                        }
+                    },
+                    {
+                        "name": "page",
+                        "in": "query",
+                        "schema": {
+                            "type": "integer",
+                            "format": "int32",
+                            "default": 1
+                        }
+                    },
+                    {
+                        "name": "pageSize",
+                        "in": "query",
+                        "schema": {
+                            "type": "integer",
+                            "format": "int32",
+                            "default": 20
+                        }
+                    }
+                ],
+                "responses": {
+                    "200": {
+                        "description": "OK",
+                        "content": {
+                            "text/plain": {
+                                "schema": {
+                                    "$ref": "#/components/schemas/AdminOrderSupportCasesListDto"
+                                }
+                            },
+                            "application/json": {
+                                "schema": {
+                                    "$ref": "#/components/schemas/AdminOrderSupportCasesListDto"
+                                }
+                            },
+                            "text/json": {
+                                "schema": {
+                                    "$ref": "#/components/schemas/AdminOrderSupportCasesListDto"
+                                }
+                            }
+                        }
+                    }
+                }
+            }
+        },
+        "/api/admin/order-cases/{caseId}": {
+            "get": {
+                "tags": [
+                    "Admin/Order Cases"
+                ],
+                "parameters": [
+                    {
+                        "name": "caseId",
+                        "in": "path",
+                        "required": true,
+                        "schema": {
+                            "type": "string",
+                            "format": "uuid"
+                        }
+                    }
+                ],
+                "responses": {
+                    "200": {
+                        "description": "OK",
+                        "content": {
+                            "text/plain": {
+                                "schema": {
+                                    "$ref": "#/components/schemas/AdminOrderSupportCaseListItemDto"
+                                }
+                            },
+                            "application/json": {
+                                "schema": {
+                                    "$ref": "#/components/schemas/AdminOrderSupportCaseListItemDto"
+                                }
+                            },
+                            "text/json": {
+                                "schema": {
+                                    "$ref": "#/components/schemas/AdminOrderSupportCaseListItemDto"
+                                }
+                            }
+                        }
+                    }
+                }
+            }
+        },
+        "/api/admin/order-cases/{caseId}/assign": {
+            "post": {
+                "tags": [
+                    "Admin/Order Cases"
+                ],
+                "parameters": [
+                    {
+                        "name": "caseId",
+                        "in": "path",
+                        "required": true,
+                        "schema": {
+                            "type": "string",
+                            "format": "uuid"
+                        }
+                    }
+                ],
+                "requestBody": {
+                    "content": {
+                        "application/json": {
+                            "schema": {
+                                "$ref": "#/components/schemas/AdminOrderSupportCaseAssignRequest"
+                            }
+                        },
+                        "text/json": {
+                            "schema": {
+                                "$ref": "#/components/schemas/AdminOrderSupportCaseAssignRequest"
+                            }
+                        },
+                        "application/*+json": {
+                            "schema": {
+                                "$ref": "#/components/schemas/AdminOrderSupportCaseAssignRequest"
+                            }
+                        }
+                    }
+                },
+                "responses": {
+                    "200": {
+                        "description": "OK",
+                        "content": {
+                            "text/plain": {
+                                "schema": {
+                                    "$ref": "#/components/schemas/AdminOrderSupportCaseListItemDto"
+                                }
+                            },
+                            "application/json": {
+                                "schema": {
+                                    "$ref": "#/components/schemas/AdminOrderSupportCaseListItemDto"
+                                }
+                            },
+                            "text/json": {
+                                "schema": {
+                                    "$ref": "#/components/schemas/AdminOrderSupportCaseListItemDto"
+                                }
+                            }
+                        }
+                    }
+                }
+            }
+        },
+        "/api/admin/order-cases/{caseId}/request-evidence": {
+            "post": {
+                "tags": [
+                    "Admin/Order Cases"
+                ],
+                "parameters": [
+                    {
+                        "name": "caseId",
+                        "in": "path",
+                        "required": true,
+                        "schema": {
+                            "type": "string",
+                            "format": "uuid"
+                        }
+                    }
+                ],
+                "requestBody": {
+                    "content": {
+                        "application/json": {
+                            "schema": {
+                                "$ref": "#/components/schemas/AdminOrderSupportCaseRequestEvidenceRequest"
+                            }
+                        },
+                        "text/json": {
+                            "schema": {
+                                "$ref": "#/components/schemas/AdminOrderSupportCaseRequestEvidenceRequest"
+                            }
+                        },
+                        "application/*+json": {
+                            "schema": {
+                                "$ref": "#/components/schemas/AdminOrderSupportCaseRequestEvidenceRequest"
+                            }
+                        }
+                    }
+                },
+                "responses": {
+                    "200": {
+                        "description": "OK",
+                        "content": {
+                            "text/plain": {
+                                "schema": {
+                                    "$ref": "#/components/schemas/AdminOrderSupportCaseListItemDto"
+                                }
+                            },
+                            "application/json": {
+                                "schema": {
+                                    "$ref": "#/components/schemas/AdminOrderSupportCaseListItemDto"
+                                }
+                            },
+                            "text/json": {
+                                "schema": {
+                                    "$ref": "#/components/schemas/AdminOrderSupportCaseListItemDto"
+                                }
+                            }
+                        }
+                    }
+                }
+            }
+        },
+        "/api/admin/order-cases/{caseId}/approve": {
+            "post": {
+                "tags": [
+                    "Admin/Order Cases"
+                ],
+                "parameters": [
+                    {
+                        "name": "caseId",
+                        "in": "path",
+                        "required": true,
+                        "schema": {
+                            "type": "string",
+                            "format": "uuid"
+                        }
+                    }
+                ],
+                "requestBody": {
+                    "content": {
+                        "application/json": {
+                            "schema": {
+                                "$ref": "#/components/schemas/AdminOrderSupportCaseApproveRequest"
+                            }
+                        },
+                        "text/json": {
+                            "schema": {
+                                "$ref": "#/components/schemas/AdminOrderSupportCaseApproveRequest"
+                            }
+                        },
+                        "application/*+json": {
+                            "schema": {
+                                "$ref": "#/components/schemas/AdminOrderSupportCaseApproveRequest"
+                            }
+                        }
+                    }
+                },
+                "responses": {
+                    "200": {
+                        "description": "OK",
+                        "content": {
+                            "text/plain": {
+                                "schema": {
+                                    "$ref": "#/components/schemas/AdminOrderSupportCaseListItemDto"
+                                }
+                            },
+                            "application/json": {
+                                "schema": {
+                                    "$ref": "#/components/schemas/AdminOrderSupportCaseListItemDto"
+                                }
+                            },
+                            "text/json": {
+                                "schema": {
+                                    "$ref": "#/components/schemas/AdminOrderSupportCaseListItemDto"
+                                }
+                            }
+                        }
+                    }
+                }
+            }
+        },
+        "/api/admin/order-cases/{caseId}/reject": {
+            "post": {
+                "tags": [
+                    "Admin/Order Cases"
+                ],
+                "parameters": [
+                    {
+                        "name": "caseId",
+                        "in": "path",
+                        "required": true,
+                        "schema": {
+                            "type": "string",
+                            "format": "uuid"
+                        }
+                    }
+                ],
+                "requestBody": {
+                    "content": {
+                        "application/json": {
+                            "schema": {
+                                "$ref": "#/components/schemas/AdminOrderSupportCaseRejectRequest"
+                            }
+                        },
+                        "text/json": {
+                            "schema": {
+                                "$ref": "#/components/schemas/AdminOrderSupportCaseRejectRequest"
+                            }
+                        },
+                        "application/*+json": {
+                            "schema": {
+                                "$ref": "#/components/schemas/AdminOrderSupportCaseRejectRequest"
+                            }
+                        }
+                    }
+                },
+                "responses": {
+                    "200": {
+                        "description": "OK",
+                        "content": {
+                            "text/plain": {
+                                "schema": {
+                                    "$ref": "#/components/schemas/AdminOrderSupportCaseListItemDto"
+                                }
+                            },
+                            "application/json": {
+                                "schema": {
+                                    "$ref": "#/components/schemas/AdminOrderSupportCaseListItemDto"
+                                }
+                            },
+                            "text/json": {
+                                "schema": {
+                                    "$ref": "#/components/schemas/AdminOrderSupportCaseListItemDto"
+                                }
+                            }
+                        }
+                    }
+                }
+            }
+        },
+        "/api/admin/order-cases/{caseId}/resolve": {
+            "post": {
+                "tags": [
+                    "Admin/Order Cases"
+                ],
+                "parameters": [
+                    {
+                        "name": "caseId",
+                        "in": "path",
+                        "required": true,
+                        "schema": {
+                            "type": "string",
+                            "format": "uuid"
+                        }
+                    }
+                ],
+                "requestBody": {
+                    "content": {
+                        "application/json": {
+                            "schema": {
+                                "$ref": "#/components/schemas/AdminOrderSupportCaseResolveRequest"
+                            }
+                        },
+                        "text/json": {
+                            "schema": {
+                                "$ref": "#/components/schemas/AdminOrderSupportCaseResolveRequest"
+                            }
+                        },
+                        "application/*+json": {
+                            "schema": {
+                                "$ref": "#/components/schemas/AdminOrderSupportCaseResolveRequest"
+                            }
+                        }
+                    }
+                },
+                "responses": {
+                    "200": {
+                        "description": "OK",
+                        "content": {
+                            "text/plain": {
+                                "schema": {
+                                    "$ref": "#/components/schemas/AdminOrderSupportCaseListItemDto"
+                                }
+                            },
+                            "application/json": {
+                                "schema": {
+                                    "$ref": "#/components/schemas/AdminOrderSupportCaseListItemDto"
+                                }
+                            },
+                            "text/json": {
+                                "schema": {
+                                    "$ref": "#/components/schemas/AdminOrderSupportCaseListItemDto"
+                                }
+                            }
+                        }
+                    }
+                }
+            }
+        },
+        "/api/admin/order-cases/{caseId}/note": {
+            "post": {
+                "tags": [
+                    "Admin/Order Cases"
+                ],
+                "parameters": [
+                    {
+                        "name": "caseId",
+                        "in": "path",
+                        "required": true,
+                        "schema": {
+                            "type": "string",
+                            "format": "uuid"
+                        }
+                    }
+                ],
+                "requestBody": {
+                    "content": {
+                        "application/json": {
+                            "schema": {
+                                "$ref": "#/components/schemas/AdminOrderSupportCaseNoteRequest"
+                            }
+                        },
+                        "text/json": {
+                            "schema": {
+                                "$ref": "#/components/schemas/AdminOrderSupportCaseNoteRequest"
+                            }
+                        },
+                        "application/*+json": {
+                            "schema": {
+                                "$ref": "#/components/schemas/AdminOrderSupportCaseNoteRequest"
+                            }
+                        }
+                    }
+                },
+                "responses": {
+                    "200": {
+                        "description": "OK",
+                        "content": {
+                            "text/plain": {
+                                "schema": {
+                                    "$ref": "#/components/schemas/AdminOrderSupportCaseListItemDto"
+                                }
+                            },
+                            "application/json": {
+                                "schema": {
+                                    "$ref": "#/components/schemas/AdminOrderSupportCaseListItemDto"
+                                }
+                            },
+                            "text/json": {
+                                "schema": {
+                                    "$ref": "#/components/schemas/AdminOrderSupportCaseListItemDto"
+                                }
+                            }
+                        }
+                    }
+                }
+            }
+        },
         "/api/admin/auth/login": {
             "post": {
                 "tags": [
@@ -5691,6 +6169,214 @@
                             "text/json": {
                                 "schema": {
                                     "$ref": "#/components/schemas/GetOrderComplaintResponse"
+                                }
+                            }
+                        }
+                    }
+                }
+            }
+        },
+        "/api/orders/{orderId}/cases": {
+            "post": {
+                "tags": [
+                    "Customer/Orders"
+                ],
+                "parameters": [
+                    {
+                        "name": "orderId",
+                        "in": "path",
+                        "required": true,
+                        "schema": {
+                            "type": "string",
+                            "format": "uuid"
+                        }
+                    }
+                ],
+                "requestBody": {
+                    "content": {
+                        "application/json": {
+                            "schema": {
+                                "$ref": "#/components/schemas/CreateOrderSupportCaseRequest"
+                            }
+                        },
+                        "text/json": {
+                            "schema": {
+                                "$ref": "#/components/schemas/CreateOrderSupportCaseRequest"
+                            }
+                        },
+                        "application/*+json": {
+                            "schema": {
+                                "$ref": "#/components/schemas/CreateOrderSupportCaseRequest"
+                            }
+                        }
+                    }
+                },
+                "responses": {
+                    "200": {
+                        "description": "OK",
+                        "content": {
+                            "text/plain": {
+                                "schema": {
+                                    "$ref": "#/components/schemas/CreateOrderSupportCaseResponse"
+                                }
+                            },
+                            "application/json": {
+                                "schema": {
+                                    "$ref": "#/components/schemas/CreateOrderSupportCaseResponse"
+                                }
+                            },
+                            "text/json": {
+                                "schema": {
+                                    "$ref": "#/components/schemas/CreateOrderSupportCaseResponse"
+                                }
+                            }
+                        }
+                    }
+                }
+            },
+            "get": {
+                "tags": [
+                    "Customer/Orders"
+                ],
+                "parameters": [
+                    {
+                        "name": "orderId",
+                        "in": "path",
+                        "required": true,
+                        "schema": {
+                            "type": "string",
+                            "format": "uuid"
+                        }
+                    }
+                ],
+                "responses": {
+                    "200": {
+                        "description": "OK",
+                        "content": {
+                            "text/plain": {
+                                "schema": {
+                                    "$ref": "#/components/schemas/GetOrderSupportCasesResponse"
+                                }
+                            },
+                            "application/json": {
+                                "schema": {
+                                    "$ref": "#/components/schemas/GetOrderSupportCasesResponse"
+                                }
+                            },
+                            "text/json": {
+                                "schema": {
+                                    "$ref": "#/components/schemas/GetOrderSupportCasesResponse"
+                                }
+                            }
+                        }
+                    }
+                }
+            }
+        },
+        "/api/orders/{orderId}/cases/{caseId}": {
+            "get": {
+                "tags": [
+                    "Customer/Orders"
+                ],
+                "parameters": [
+                    {
+                        "name": "orderId",
+                        "in": "path",
+                        "required": true,
+                        "schema": {
+                            "type": "string",
+                            "format": "uuid"
+                        }
+                    },
+                    {
+                        "name": "caseId",
+                        "in": "path",
+                        "required": true,
+                        "schema": {
+                            "type": "string",
+                            "format": "uuid"
+                        }
+                    }
+                ],
+                "responses": {
+                    "200": {
+                        "description": "OK",
+                        "content": {
+                            "text/plain": {
+                                "schema": {
+                                    "$ref": "#/components/schemas/GetOrderSupportCaseResponse"
+                                }
+                            },
+                            "application/json": {
+                                "schema": {
+                                    "$ref": "#/components/schemas/GetOrderSupportCaseResponse"
+                                }
+                            },
+                            "text/json": {
+                                "schema": {
+                                    "$ref": "#/components/schemas/GetOrderSupportCaseResponse"
+                                }
+                            }
+                        }
+                    }
+                }
+            }
+        },
+        "/api/orders/{orderId}/cases/attachments": {
+            "post": {
+                "summary": "Upload a support case attachment for an authenticated customer order",
+                "tags": [
+                    "Customer/Orders"
+                ],
+                "parameters": [
+                    {
+                        "name": "orderId",
+                        "in": "path",
+                        "required": true,
+                        "schema": {
+                            "type": "string",
+                            "format": "uuid"
+                        }
+                    }
+                ],
+                "requestBody": {
+                    "required": true,
+                    "content": {
+                        "multipart/form-data": {
+                            "schema": {
+                                "type": "object",
+                                "properties": {
+                                    "file": {
+                                        "type": "string",
+                                        "format": "binary"
+                                    }
+                                }
+                            },
+                            "encoding": {
+                                "file": {
+                                    "style": "form"
+                                }
+                            }
+                        }
+                    }
+                },
+                "responses": {
+                    "200": {
+                        "description": "OK",
+                        "content": {
+                            "text/plain": {
+                                "schema": {
+                                    "$ref": "#/components/schemas/OrderSupportCaseAttachmentUploadResponse"
+                                }
+                            },
+                            "application/json": {
+                                "schema": {
+                                    "$ref": "#/components/schemas/OrderSupportCaseAttachmentUploadResponse"
+                                }
+                            },
+                            "text/json": {
+                                "schema": {
+                                    "$ref": "#/components/schemas/OrderSupportCaseAttachmentUploadResponse"
                                 }
                             }
                         }
@@ -13832,6 +14518,266 @@
                 },
                 "additionalProperties": false
             },
+            "AdminOrderSupportCaseAssignRequest": {
+                "type": "object",
+                "properties": {
+                    "assignedAdminId": {
+                        "type": "string",
+                        "format": "uuid",
+                        "nullable": true
+                    },
+                    "note": {
+                        "type": "string",
+                        "nullable": true
+                    },
+                    "priority": {
+                        "type": "string",
+                        "nullable": true
+                    },
+                    "slaDueAtUtc": {
+                        "type": "string",
+                        "format": "date-time",
+                        "nullable": true
+                    }
+                },
+                "additionalProperties": false
+            },
+            "AdminOrderSupportCaseApproveRequest": {
+                "type": "object",
+                "properties": {
+                    "refundAmount": {
+                        "type": "number",
+                        "format": "double",
+                        "nullable": true
+                    },
+                    "refundMethod": {
+                        "type": "string",
+                        "nullable": true
+                    },
+                    "costBearer": {
+                        "type": "string",
+                        "nullable": true
+                    },
+                    "decisionNotes": {
+                        "type": "string",
+                        "nullable": true
+                    },
+                    "customerVisibleNote": {
+                        "type": "string",
+                        "nullable": true
+                    }
+                },
+                "additionalProperties": false
+            },
+            "AdminOrderSupportCaseListItemDto": {
+                "type": "object",
+                "properties": {
+                    "id": {
+                        "type": "string",
+                        "format": "uuid"
+                    },
+                    "orderId": {
+                        "type": "string",
+                        "format": "uuid"
+                    },
+                    "orderDisplayId": {
+                        "type": "string",
+                        "nullable": true
+                    },
+                    "customerName": {
+                        "type": "string",
+                        "nullable": true
+                    },
+                    "customerEmail": {
+                        "type": "string",
+                        "nullable": true
+                    },
+                    "merchantName": {
+                        "type": "string",
+                        "nullable": true
+                    },
+                    "type": {
+                        "type": "string",
+                        "nullable": true
+                    },
+                    "reason": {
+                        "type": "string",
+                        "nullable": true
+                    },
+                    "amount": {
+                        "type": "number",
+                        "format": "double"
+                    },
+                    "status": {
+                        "type": "string",
+                        "nullable": true
+                    },
+                    "priority": {
+                        "type": "string",
+                        "nullable": true
+                    },
+                    "owner": {
+                        "type": "string",
+                        "nullable": true
+                    },
+                    "queue": {
+                        "type": "string",
+                        "nullable": true
+                    },
+                    "risk": {
+                        "type": "string",
+                        "nullable": true
+                    },
+                    "createdAt": {
+                        "type": "string",
+                        "nullable": true
+                    },
+                    "sla": {
+                        "type": "string",
+                        "nullable": true
+                    },
+                    "note": {
+                        "type": "string",
+                        "nullable": true
+                    },
+                    "paymentMask": {
+                        "type": "string",
+                        "nullable": true
+                    },
+                    "customerSummary": {
+                        "type": "string",
+                        "nullable": true
+                    },
+                    "merchantSummary": {
+                        "type": "string",
+                        "nullable": true
+                    },
+                    "evidence": {
+                        "type": "array",
+                        "items": {
+                            "$ref": "#/components/schemas/OrderSupportCaseAttachmentResponse"
+                        },
+                        "nullable": true
+                    },
+                    "timeline": {
+                        "type": "array",
+                        "items": {
+                            "$ref": "#/components/schemas/AdminOrderSupportCaseTimelineItemDto"
+                        },
+                        "nullable": true
+                    }
+                },
+                "additionalProperties": false
+            },
+            "AdminOrderSupportCaseNoteRequest": {
+                "type": "object",
+                "properties": {
+                    "note": {
+                        "type": "string",
+                        "nullable": true
+                    },
+                    "visibleToCustomer": {
+                        "type": "boolean"
+                    }
+                },
+                "additionalProperties": false
+            },
+            "AdminOrderSupportCasesListDto": {
+                "type": "object",
+                "properties": {
+                    "items": {
+                        "type": "array",
+                        "items": {
+                            "$ref": "#/components/schemas/AdminOrderSupportCaseListItemDto"
+                        },
+                        "nullable": true
+                    },
+                    "pageNumber": {
+                        "type": "integer",
+                        "format": "int32"
+                    },
+                    "pageSize": {
+                        "type": "integer",
+                        "format": "int32"
+                    },
+                    "totalCount": {
+                        "type": "integer",
+                        "format": "int32"
+                    },
+                    "totalPages": {
+                        "type": "integer",
+                        "format": "int32"
+                    },
+                    "hasPreviousPage": {
+                        "type": "boolean"
+                    },
+                    "hasNextPage": {
+                        "type": "boolean"
+                    }
+                },
+                "additionalProperties": false
+            },
+            "AdminOrderSupportCaseRejectRequest": {
+                "type": "object",
+                "properties": {
+                    "decisionNotes": {
+                        "type": "string",
+                        "nullable": true
+                    },
+                    "customerVisibleNote": {
+                        "type": "string",
+                        "nullable": true
+                    }
+                },
+                "additionalProperties": false
+            },
+            "AdminOrderSupportCaseRequestEvidenceRequest": {
+                "type": "object",
+                "properties": {
+                    "note": {
+                        "type": "string",
+                        "nullable": true
+                    },
+                    "customerVisibleNote": {
+                        "type": "string",
+                        "nullable": true
+                    },
+                    "slaDueAtUtc": {
+                        "type": "string",
+                        "format": "date-time",
+                        "nullable": true
+                    }
+                },
+                "additionalProperties": false
+            },
+            "AdminOrderSupportCaseResolveRequest": {
+                "type": "object",
+                "properties": {
+                    "note": {
+                        "type": "string",
+                        "nullable": true
+                    }
+                },
+                "additionalProperties": false
+            },
+            "AdminOrderSupportCaseTimelineItemDto": {
+                "type": "object",
+                "properties": {
+                    "title": {
+                        "type": "string",
+                        "nullable": true
+                    },
+                    "time": {
+                        "type": "string",
+                        "nullable": true
+                    },
+                    "tone": {
+                        "type": "string",
+                        "nullable": true
+                    }
+                },
+                "additionalProperties": false
+            },
             "AdminRefundOrderRequest": {
                 "type": "object",
                 "properties": {
@@ -16260,6 +17206,44 @@
                 },
                 "additionalProperties": false
             },
+            "CreateOrderSupportCaseRequest": {
+                "type": "object",
+                "properties": {
+                    "type": {
+                        "type": "string",
+                        "nullable": true
+                    },
+                    "reason_code": {
+                        "type": "string",
+                        "nullable": true
+                    },
+                    "message": {
+                        "type": "string",
+                        "nullable": true
+                    },
+                    "attachments": {
+                        "type": "array",
+                        "items": {
+                            "$ref": "#/components/schemas/CreateOrderComplaintAttachmentRequest"
+                        },
+                        "nullable": true
+                    }
+                },
+                "additionalProperties": false
+            },
+            "CreateOrderSupportCaseResponse": {
+                "type": "object",
+                "properties": {
+                    "message": {
+                        "type": "string",
+                        "nullable": true
+                    },
+                    "case": {
+                        "$ref": "#/components/schemas/OrderSupportCaseResponse"
+                    }
+                },
+                "additionalProperties": false
+            },
             "CreateProductImageInfo": {
                 "type": "object",
                 "properties": {
@@ -16453,6 +17437,9 @@
                             "$ref": "#/components/schemas/CustomerOrderProductResponse"
                         },
                         "nullable": true
+                    },
+                    "active_case": {
+                        "$ref": "#/components/schemas/OrderSupportCaseSummaryResponse"
                     }
                 },
                 "additionalProperties": false
@@ -16649,6 +17636,9 @@
                     },
                     "show_delivery_otp": {
                         "type": "boolean"
+                    },
+                    "active_case": {
+                        "$ref": "#/components/schemas/OrderSupportCaseSummaryResponse"
                     },
                     "timeline": {
                         "type": "array",
@@ -16945,6 +17935,28 @@
                 "properties": {
                     "complaint": {
                         "$ref": "#/components/schemas/OrderComplaintResponse"
+                    }
+                },
+                "additionalProperties": false
+            },
+            "GetOrderSupportCaseResponse": {
+                "type": "object",
+                "properties": {
+                    "case": {
+                        "$ref": "#/components/schemas/OrderSupportCaseResponse"
+                    }
+                },
+                "additionalProperties": false
+            },
+            "GetOrderSupportCasesResponse": {
+                "type": "object",
+                "properties": {
+                    "items": {
+                        "type": "array",
+                        "items": {
+                            "$ref": "#/components/schemas/OrderSupportCaseResponse"
+                        },
+                        "nullable": true
                     }
                 },
                 "additionalProperties": false
@@ -17980,6 +18992,196 @@
                         "nullable": true
                     },
                     "created_at": {
+                        "type": "string",
+                        "format": "date-time"
+                    }
+                },
+                "additionalProperties": false
+            },
+            "OrderSupportCaseActivityResponse": {
+                "type": "object",
+                "properties": {
+                    "action": {
+                        "type": "string",
+                        "nullable": true
+                    },
+                    "title": {
+                        "type": "string",
+                        "nullable": true
+                    },
+                    "note": {
+                        "type": "string",
+                        "nullable": true
+                    },
+                    "actor_role": {
+                        "type": "string",
+                        "nullable": true
+                    },
+                    "visible_to_customer": {
+                        "type": "boolean"
+                    },
+                    "created_at": {
+                        "type": "string",
+                        "format": "date-time"
+                    }
+                },
+                "additionalProperties": false
+            },
+            "OrderSupportCaseAttachmentResponse": {
+                "type": "object",
+                "properties": {
+                    "file_name": {
+                        "type": "string",
+                        "nullable": true
+                    },
+                    "file_url": {
+                        "type": "string",
+                        "nullable": true
+                    }
+                },
+                "additionalProperties": false
+            },
+            "OrderSupportCaseAttachmentUploadResponse": {
+                "type": "object",
+                "properties": {
+                    "file_name": {
+                        "type": "string",
+                        "nullable": true
+                    },
+                    "url": {
+                        "type": "string",
+                        "nullable": true
+                    }
+                },
+                "additionalProperties": false
+            },
+            "OrderSupportCaseResponse": {
+                "type": "object",
+                "properties": {
+                    "id": {
+                        "type": "string",
+                        "format": "uuid"
+                    },
+                    "order_id": {
+                        "type": "string",
+                        "format": "uuid"
+                    },
+                    "type": {
+                        "type": "string",
+                        "nullable": true
+                    },
+                    "status": {
+                        "type": "string",
+                        "nullable": true
+                    },
+                    "queue": {
+                        "type": "string",
+                        "nullable": true
+                    },
+                    "priority": {
+                        "type": "string",
+                        "nullable": true
+                    },
+                    "reason_code": {
+                        "type": "string",
+                        "nullable": true
+                    },
+                    "message": {
+                        "type": "string",
+                        "nullable": true
+                    },
+                    "customer_visible_note": {
+                        "type": "string",
+                        "nullable": true
+                    },
+                    "decision_notes": {
+                        "type": "string",
+                        "nullable": true
+                    },
+                    "created_at": {
+                        "type": "string",
+                        "format": "date-time"
+                    },
+                    "updated_at": {
+                        "type": "string",
+                        "format": "date-time"
+                    },
+                    "sla_due_at_utc": {
+                        "type": "string",
+                        "format": "date-time",
+                        "nullable": true
+                    },
+                    "requested_refund_amount": {
+                        "type": "number",
+                        "format": "double",
+                        "nullable": true
+                    },
+                    "approved_refund_amount": {
+                        "type": "number",
+                        "format": "double",
+                        "nullable": true
+                    },
+                    "refund_method": {
+                        "type": "string",
+                        "nullable": true
+                    },
+                    "cost_bearer": {
+                        "type": "string",
+                        "nullable": true
+                    },
+                    "attachments": {
+                        "type": "array",
+                        "items": {
+                            "$ref": "#/components/schemas/OrderSupportCaseAttachmentResponse"
+                        },
+                        "nullable": true
+                    },
+                    "activities": {
+                        "type": "array",
+                        "items": {
+                            "$ref": "#/components/schemas/OrderSupportCaseActivityResponse"
+                        },
+                        "nullable": true
+                    }
+                },
+                "additionalProperties": false
+            },
+            "OrderSupportCaseSummaryResponse": {
+                "type": "object",
+                "properties": {
+                    "id": {
+                        "type": "string",
+                        "format": "uuid"
+                    },
+                    "type": {
+                        "type": "string",
+                        "nullable": true
+                    },
+                    "status": {
+                        "type": "string",
+                        "nullable": true
+                    },
+                    "queue": {
+                        "type": "string",
+                        "nullable": true
+                    },
+                    "priority": {
+                        "type": "string",
+                        "nullable": true
+                    },
+                    "reason_code": {
+                        "type": "string",
+                        "nullable": true
+                    },
+                    "message": {
+                        "type": "string",
+                        "nullable": true
+                    },
+                    "created_at": {
+                        "type": "string",
+                        "format": "date-time"
+                    },
+                    "updated_at": {
                         "type": "string",
                         "format": "date-time"
                     }

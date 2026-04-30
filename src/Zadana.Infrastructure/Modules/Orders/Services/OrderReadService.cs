@@ -408,7 +408,7 @@ public class OrderReadService : IOrderReadService
                 ? "verified"
                 : "pending";
 
-        // ── Live Tracking: vendor, customer, and driver locations ──
+        // â”€â”€ Live Tracking: vendor, customer, and driver locations â”€â”€
         GeoPointDto? vendorLocation = null;
         if (order.VendorBranchId.HasValue)
         {
@@ -492,59 +492,97 @@ public class OrderReadService : IOrderReadService
         var normalizedPage = page <= 0 ? 1 : page;
         var normalizedPageSize = pageSize <= 0 ? 10 : pageSize;
 
-        var orders = await _dbContext.Orders
+        // â”€â”€ 1. Build IQueryable with server-side filters â”€â”€
+        var query = _dbContext.Orders
             .AsNoTracking()
             .Include(order => order.User)
             .Include(order => order.Vendor)
             .Include(order => order.VendorBranch)
-            .Include(order => order.StatusHistory)
             .Include(order => order.SupportCases)
-            .Include(order => order.Items)
-            .OrderByDescending(order => order.PlacedAtUtc)
-            .ToListAsync(cancellationToken);
+            .AsQueryable();
 
-        var orderIds = orders.Select(order => order.Id).ToList();
-        var addressMap = await LoadAddressMapAsync(orderIds, cancellationToken);
-        var paymentMap = await LoadPaymentMapAsync(orderIds, cancellationToken);
-        var refundMap = await LoadRefundMapAsync(orderIds, cancellationToken);
-        var assignmentMap = await LoadAssignmentMapAsync(orderIds, cancellationToken);
+        if (!string.IsNullOrWhiteSpace(search))
+        {
+            var s = search.Trim().ToLower();
+            query = query.Where(order =>
+                order.OrderNumber.ToLower().Contains(s) ||
+                order.User.FullName.ToLower().Contains(s) ||
+                (order.User.PhoneNumber != null && order.User.PhoneNumber.ToLower().Contains(s)) ||
+                order.Vendor.BusinessNameAr.ToLower().Contains(s) ||
+                order.Vendor.BusinessNameEn.ToLower().Contains(s));
+        }
 
-        var projected = orders
-            .Select(order => BuildAdminOrderProjection(
-                order,
-                addressMap.GetValueOrDefault(order.Id),
-                paymentMap.GetValueOrDefault(order.Id),
-                refundMap.GetValueOrDefault(order.Id),
-                assignmentMap.GetValueOrDefault(order.Id)))
-            .ToList();
+        if (!string.IsNullOrWhiteSpace(status) && !string.Equals(status, "ALL", StringComparison.OrdinalIgnoreCase))
+        {
+            if (Enum.TryParse<OrderStatus>(status, true, out var ps))
+                query = query.Where(order => order.Status == ps);
+        }
 
-        var filtered = projected
-            .Where(item => MatchesAdminOrderFilters(item, search, status, paymentStatus, fulfillmentStatus, queueView))
-            .ToList();
+        if (!string.IsNullOrWhiteSpace(paymentStatus) && !string.Equals(paymentStatus, "ALL", StringComparison.OrdinalIgnoreCase))
+        {
+            if (Enum.TryParse<PaymentStatus>(paymentStatus, true, out var pps))
+                query = query.Where(order => order.PaymentStatus == pps);
+        }
 
-        var totalCount = filtered.Count;
+        if (!string.IsNullOrWhiteSpace(queueView) && !string.Equals(queueView, "ALL", StringComparison.OrdinalIgnoreCase))
+        {
+            var cutoff = DateTime.UtcNow.AddMinutes(-45);
+            query = queueView.ToUpperInvariant() switch
+            {
+                "ACTIVE" => query.Where(o => o.Status != OrderStatus.Cancelled && o.Status != OrderStatus.Delivered),
+                "LATE" => query.Where(o => o.PlacedAtUtc < cutoff && o.Status != OrderStatus.Cancelled && o.Status != OrderStatus.Delivered),
+                "PAYMENT_ISSUES" => query.Where(o => o.PaymentStatus == PaymentStatus.Failed || o.PaymentStatus == PaymentStatus.Pending || o.PaymentStatus == PaymentStatus.PendingCollection),
+                "REFUNDS" => query.Where(o => o.PaymentStatus == PaymentStatus.Refunded || o.PaymentStatus == PaymentStatus.PartiallyRefunded),
+                _ => query
+            };
+        }
+
+        // â”€â”€ 2. Count + KPI summary â”€â”€
+        var totalCount = await query.CountAsync(cancellationToken);
+
+        var allOrders = _dbContext.Orders.AsNoTracking();
+        var cutoffKpi = DateTime.UtcNow.AddMinutes(-45);
+        var kpi = await allOrders
+            .GroupBy(o => 1)
+            .Select(g => new
+            {
+                Total = g.Count(),
+                Active = g.Count(o => o.Status != OrderStatus.Cancelled && o.Status != OrderStatus.Delivered),
+                Late = g.Count(o => o.PlacedAtUtc < cutoffKpi && o.Status != OrderStatus.Cancelled && o.Status != OrderStatus.Delivered),
+                PayIssues = g.Count(o => o.PaymentStatus == PaymentStatus.Failed || o.PaymentStatus == PaymentStatus.Pending || o.PaymentStatus == PaymentStatus.PendingCollection),
+                Refunds = g.Count(o => o.PaymentStatus == PaymentStatus.Refunded || o.PaymentStatus == PaymentStatus.PartiallyRefunded)
+            })
+            .FirstOrDefaultAsync(cancellationToken);
+
+        var summary = new AdminOrdersSummaryDto(kpi?.Total ?? 0, kpi?.Active ?? 0, kpi?.Late ?? 0, kpi?.PayIssues ?? 0, kpi?.Refunds ?? 0);
+
+        // â”€â”€ 3. Paginate in SQL â”€â”€
         var totalPages = Math.Max(1, (int)Math.Ceiling(totalCount / (double)normalizedPageSize));
         var safePage = Math.Min(normalizedPage, totalPages);
-        var paged = filtered
+
+        var pagedOrders = await query
+            .OrderByDescending(order => order.PlacedAtUtc)
             .Skip((safePage - 1) * normalizedPageSize)
             .Take(normalizedPageSize)
-            .Select(item => item.ListItem)
+            .ToListAsync(cancellationToken);
+
+        if (pagedOrders.Count == 0)
+        {
+            return new AdminOrdersListDto([], safePage, normalizedPageSize, totalCount, totalPages, safePage > 1, safePage < totalPages, summary);
+        }
+
+        // â”€â”€ 4. Load related data only for the page â”€â”€
+        var ids = pagedOrders.Select(o => o.Id).ToList();
+        var addressMap = await LoadAddressMapAsync(ids, cancellationToken);
+        var paymentMap = await LoadPaymentMapAsync(ids, cancellationToken);
+        var refundMap = await LoadRefundMapAsync(ids, cancellationToken);
+        var assignmentMap = await LoadAssignmentMapAsync(ids, cancellationToken);
+
+        var items = pagedOrders
+            .Select(order => BuildAdminOrderProjection(order, addressMap.GetValueOrDefault(order.Id), paymentMap.GetValueOrDefault(order.Id), refundMap.GetValueOrDefault(order.Id), assignmentMap.GetValueOrDefault(order.Id)).ListItem)
             .ToList();
 
-        return new AdminOrdersListDto(
-            paged,
-            safePage,
-            normalizedPageSize,
-            totalCount,
-            totalPages,
-            safePage > 1,
-            safePage < totalPages,
-            new AdminOrdersSummaryDto(
-                filtered.Count,
-                filtered.Count(item => item.ListItem.Status != "CANCELLED" && item.ListItem.Status != "COMPLETED"),
-                filtered.Count(item => item.ListItem.IsLate),
-                filtered.Count(item => item.ListItem.PaymentStatus is "FAILED" or "PENDING" or "COD_PENDING"),
-                filtered.Count(item => item.ListItem.PaymentStatus is "REFUNDED" or "PARTIALLY_REFUNDED")));
+        return new AdminOrdersListDto(items, safePage, normalizedPageSize, totalCount, totalPages, safePage > 1, safePage < totalPages, summary);
     }
 
     public async Task<AdminOrderDetailDto?> GetAdminOrderDetailAsync(

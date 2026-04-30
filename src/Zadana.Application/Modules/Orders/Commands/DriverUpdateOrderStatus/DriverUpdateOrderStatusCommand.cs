@@ -17,7 +17,12 @@ public record DriverUpdateOrderStatusCommand(
     OrderStatus NewStatus,
     string? Note) : IRequest<DriverUpdateOrderStatusResultDto>;
 
-public record DriverUpdateOrderStatusResultDto(Guid OrderId, string Status, string MessageAr, string MessageEn);
+public record DriverUpdateOrderStatusResultDto(
+    Guid OrderId,
+    string Status,
+    string MessageAr,
+    string MessageEn,
+    Delivery.DTOs.DriverAssignmentDetailDto? UpdatedAssignment = null);
 
 public class DriverUpdateOrderStatusCommandValidator : AbstractValidator<DriverUpdateOrderStatusCommand>
 {
@@ -47,6 +52,7 @@ public class DriverUpdateOrderStatusCommandHandler : IRequestHandler<DriverUpdat
     private readonly IUnitOfWork _unitOfWork;
     private readonly IPublisher _publisher;
     private readonly IDriverRepository _driverRepository;
+    private readonly IDriverReadService _driverReadService;
     private readonly INotificationService _notificationService;
 
     public DriverUpdateOrderStatusCommandHandler(
@@ -54,12 +60,14 @@ public class DriverUpdateOrderStatusCommandHandler : IRequestHandler<DriverUpdat
         IUnitOfWork unitOfWork,
         IPublisher publisher,
         IDriverRepository driverRepository,
+        IDriverReadService driverReadService,
         INotificationService notificationService)
     {
         _context = context;
         _unitOfWork = unitOfWork;
         _publisher = publisher;
         _driverRepository = driverRepository;
+        _driverReadService = driverReadService;
         _notificationService = notificationService;
     }
 
@@ -170,11 +178,16 @@ public class DriverUpdateOrderStatusCommandHandler : IRequestHandler<DriverUpdat
                 ActorRole: "driver"),
             cancellationToken);
 
+        // Fetch the full updated assignment detail so mobile can refresh UI immediately
+        var updatedDetail = await _driverReadService.GetAssignmentDetailAsync(
+            driver.Id, assignment.Id, cancellationToken);
+
         return new DriverUpdateOrderStatusResultDto(
             order.Id,
             request.NewStatus.ToString(),
             LocalizedMessages.GetAr(LocalizedMessages.OrderStatusUpdated),
-            LocalizedMessages.GetEn(LocalizedMessages.OrderStatusUpdated));
+            LocalizedMessages.GetEn(LocalizedMessages.OrderStatusUpdated),
+            updatedDetail);
     }
 
     private static void ValidateTransition(OrderStatus current, OrderStatus target)

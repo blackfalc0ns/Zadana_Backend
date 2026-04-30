@@ -18,7 +18,8 @@ public record DriverArrivalStateResultDto(
     Guid AssignmentId,
     string ArrivalState,
     string MessageAr,
-    string MessageEn);
+    string MessageEn,
+    DTOs.DriverAssignmentDetailDto? UpdatedAssignment = null);
 
 public class UpdateDriverArrivalStateCommandValidator : AbstractValidator<UpdateDriverArrivalStateCommand>
 {
@@ -38,17 +39,20 @@ public class UpdateDriverArrivalStateCommandHandler : IRequestHandler<UpdateDriv
     private readonly IApplicationDbContext _context;
     private readonly IUnitOfWork _unitOfWork;
     private readonly IDriverRepository _driverRepository;
+    private readonly IDriverReadService _driverReadService;
     private readonly INotificationService _notificationService;
 
     public UpdateDriverArrivalStateCommandHandler(
         IApplicationDbContext context,
         IUnitOfWork unitOfWork,
         IDriverRepository driverRepository,
+        IDriverReadService driverReadService,
         INotificationService notificationService)
     {
         _context = context;
         _unitOfWork = unitOfWork;
         _driverRepository = driverRepository;
+        _driverReadService = driverReadService;
         _notificationService = notificationService;
     }
 
@@ -146,11 +150,16 @@ public class UpdateDriverArrivalStateCommandHandler : IRequestHandler<UpdateDriv
             cancellationToken);
 
 
+        // Fetch the full updated assignment detail so mobile can refresh UI immediately
+        var updatedDetail = await _driverReadService.GetAssignmentDetailAsync(
+            driver.Id, assignment.Id, cancellationToken);
+
         return new DriverArrivalStateResultDto(
             assignment.OrderId,
             assignment.Id,
             normalizedState,
             messageAr,
-            messageEn);
+            messageEn,
+            updatedDetail);
     }
 }
