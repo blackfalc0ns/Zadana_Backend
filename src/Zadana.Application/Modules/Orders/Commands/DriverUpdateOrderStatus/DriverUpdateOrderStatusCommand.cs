@@ -7,6 +7,7 @@ using Zadana.Application.Common.Localization;
 using Zadana.Application.Modules.Delivery.Interfaces;
 using Zadana.Application.Modules.Orders.Events;
 using Zadana.Domain.Modules.Orders.Enums;
+using Zadana.Domain.Modules.Payments.Enums;
 using Zadana.SharedKernel.Exceptions;
 
 namespace Zadana.Application.Modules.Orders.Commands.DriverUpdateOrderStatus;
@@ -144,7 +145,21 @@ public class DriverUpdateOrderStatusCommandHandler : IRequestHandler<DriverUpdat
         if (request.NewStatus == OrderStatus.PickedUp)
             assignment.MarkPickedUp();
         else if (request.NewStatus == OrderStatus.Delivered)
+        {
             assignment.MarkDelivered();
+
+            // COD: mark payment as Paid when driver delivers and collects cash
+            if (order.PaymentMethod == PaymentMethodType.CashOnDelivery)
+            {
+                order.UpdatePaymentStatus(PaymentStatus.Paid);
+
+                var codPayment = await _context.Payments
+                    .OrderByDescending(p => p.CreatedAtUtc)
+                    .FirstOrDefaultAsync(p => p.OrderId == order.Id, cancellationToken);
+
+                codPayment?.MarkAsPaid();
+            }
+        }
         else if (request.NewStatus == OrderStatus.DeliveryFailed)
             assignment.Fail(request.Note ?? "Delivery failed");
 

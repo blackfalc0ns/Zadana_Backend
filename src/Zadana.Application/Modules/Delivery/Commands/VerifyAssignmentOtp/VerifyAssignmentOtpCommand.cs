@@ -8,6 +8,7 @@ using Zadana.Application.Modules.Delivery.Interfaces;
 using Zadana.Application.Modules.Orders.Events;
 using Zadana.Domain.Modules.Delivery.Enums;
 using Zadana.Domain.Modules.Orders.Enums;
+using Zadana.Domain.Modules.Payments.Enums;
 using Zadana.SharedKernel.Exceptions;
 
 namespace Zadana.Application.Modules.Delivery.Commands.VerifyAssignmentOtp;
@@ -171,6 +172,19 @@ public class VerifyAssignmentOtpCommandHandler : IRequestHandler<VerifyAssignmen
             if (assignment.Status != AssignmentStatus.Delivered)
             {
                 assignment.MarkDelivered();
+            }
+
+            // COD: mark payment as Paid when driver delivers and collects cash
+            if (assignment.Order.PaymentMethod == PaymentMethodType.CashOnDelivery
+                && assignment.Order.PaymentStatus != PaymentStatus.Paid)
+            {
+                assignment.Order.UpdatePaymentStatus(PaymentStatus.Paid);
+
+                var codPayment = await _context.Payments
+                    .OrderByDescending(p => p.CreatedAtUtc)
+                    .FirstOrDefaultAsync(p => p.OrderId == assignment.Order.Id, cancellationToken);
+
+                codPayment?.MarkAsPaid();
             }
 
             status = "delivered";
