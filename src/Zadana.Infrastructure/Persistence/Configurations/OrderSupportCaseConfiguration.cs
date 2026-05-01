@@ -25,6 +25,12 @@ public class OrderSupportCaseConfiguration : IEntityTypeConfiguration<OrderSuppo
         builder.Property(x => x.RefundMethod).HasMaxLength(50);
         builder.Property(x => x.CostBearer).HasMaxLength(50);
 
+        // Multi-stakeholder support
+        builder.Property(x => x.InitiatorRole).HasMaxLength(20).HasDefaultValue("customer").IsRequired();
+        builder.Property(x => x.VendorResponse).HasMaxLength(2000);
+        builder.Property(x => x.DriverResponse).HasMaxLength(2000);
+        builder.Property(x => x.ResolutionCode).HasMaxLength(100);
+
         builder.HasIndex(x => new { x.OrderId, x.Status });
 
         builder.HasMany(x => x.Attachments)

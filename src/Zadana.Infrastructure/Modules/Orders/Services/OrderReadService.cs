@@ -614,13 +614,28 @@ public class OrderReadService : IOrderReadService
         var assignments = await LoadAssignmentMapAsync([order.Id], cancellationToken);
         var driverCandidates = await LoadDriverCandidatesAsync(order, cancellationToken);
 
+        // Load driver live location if driver is assigned
+        var assignment = assignments.GetValueOrDefault(order.Id);
+        DriverLiveLocationDto? driverLiveLocation = null;
+        if (assignment?.DriverId is not null)
+        {
+            var latestLocation = await _dbContext.DriverLocations
+                .AsNoTracking()
+                .Where(loc => loc.DriverId == assignment.DriverId.Value)
+                .OrderByDescending(loc => loc.RecordedAtUtc)
+                .Select(loc => new DriverLiveLocationDto(loc.Latitude, loc.Longitude, loc.AccuracyMeters, loc.RecordedAtUtc))
+                .FirstOrDefaultAsync(cancellationToken);
+            driverLiveLocation = latestLocation;
+        }
+
         return BuildAdminOrderDetail(
             order,
             address.GetValueOrDefault(order.Id),
             payment.GetValueOrDefault(order.Id),
             refunds.GetValueOrDefault(order.Id),
-            assignments.GetValueOrDefault(order.Id),
-            driverCandidates);
+            assignment,
+            driverCandidates,
+            driverLiveLocation);
     }
 
     public async Task<AdminOrderSupportCasesListDto> GetAdminOrderSupportCasesAsync(
@@ -629,6 +644,7 @@ public class OrderReadService : IOrderReadService
         string? status,
         string? priority,
         string? queue,
+        string? initiatorRole,
         int page,
         int pageSize,
         CancellationToken cancellationToken = default)
@@ -656,7 +672,7 @@ public class OrderReadService : IOrderReadService
                 item,
                 paymentMap.GetValueOrDefault(item.OrderId),
                 refundMap.GetValueOrDefault(item.OrderId)))
-            .Where(item => MatchesAdminSupportCaseFilters(item, search, type, status, priority, queue))
+            .Where(item => MatchesAdminSupportCaseFilters(item, search, type, status, priority, queue, initiatorRole))
             .ToList();
 
         var totalCount = projected.Count;
@@ -1149,7 +1165,7 @@ public class OrderReadService : IOrderReadService
         bool IsActive,
         bool IsCompleted);
 
-    private sealed record AdminAddressSnapshot(string AddressLine, string City, string Area, string ContactPhone);
+    private sealed record AdminAddressSnapshot(string AddressLine, string City, string Area, string ContactPhone, decimal? Latitude, decimal? Longitude);
 
     private sealed record AdminOrderProjection(AdminOrderListItemDto ListItem);
 
@@ -1171,7 +1187,9 @@ public class OrderReadService : IOrderReadService
                         address.AddressLine,
                         address.City ?? string.Empty,
                         address.Area ?? string.Empty,
-                        address.ContactPhone ?? string.Empty)
+                        address.ContactPhone ?? string.Empty,
+                        address.Latitude,
+                        address.Longitude)
                 })
             .ToDictionaryAsync(item => item.Id, item => item.Address, cancellationToken);
     }
@@ -1368,7 +1386,8 @@ public class OrderReadService : IOrderReadService
         Payment? payment,
         IReadOnlyList<Refund>? refunds,
         DeliveryAssignment? assignment,
-        IReadOnlyList<AdminDriverCandidateDto> driverCandidates)
+        IReadOnlyList<AdminDriverCandidateDto> driverCandidates,
+        DriverLiveLocationDto? driverLiveLocation = null)
     {
         var baseItem = BuildAdminOrderListItem(order, address, payment, refunds, assignment);
         var operationalCase = BuildOperationalCase(order, refunds);
@@ -1417,6 +1436,11 @@ public class OrderReadService : IOrderReadService
             order.DeliveryFee,
             Math.Max(0, order.TotalAmount - order.Subtotal - order.DeliveryFee),
             order.TotalAmount,
+            address?.Latitude is not null && address?.Longitude is not null
+                ? new GeoPointDto(address.Latitude.Value, address.Longitude.Value) : null,
+            order.VendorBranch is not null
+                ? new GeoPointDto(order.VendorBranch.Latitude, order.VendorBranch.Longitude) : null,
+            driverLiveLocation,
             order.Items.Select(item => new AdminOrderItemDto(
                 item.ProductName,
                 "General",
@@ -1527,7 +1551,8 @@ public class OrderReadService : IOrderReadService
         string? type,
         string? status,
         string? priority,
-        string? queue)
+        string? queue,
+        string? initiatorRole)
     {
         if (!string.IsNullOrWhiteSpace(search))
         {
@@ -1591,6 +1616,13 @@ public class OrderReadService : IOrderReadService
             return false;
         }
 
+        if (!string.IsNullOrWhiteSpace(initiatorRole) &&
+            !string.Equals(initiatorRole, "ALL", StringComparison.OrdinalIgnoreCase) &&
+            !string.Equals(item.InitiatorRole, initiatorRole, StringComparison.OrdinalIgnoreCase))
+        {
+            return false;
+        }
+
         return true;
     }
 
@@ -1644,7 +1676,10 @@ public class OrderReadService : IOrderReadService
                     activity.Title,
                     activity.CreatedAtUtc.ToLocalTime().ToString("g", CultureInfo.InvariantCulture),
                     ResolveTimelineTone(activity.Action, supportCase.Status)))
-                .ToList());
+                .ToList(),
+            supportCase.InitiatorRole,
+            supportCase.VendorResponse,
+            supportCase.DriverResponse);
     }
 
     private static string MapAdminSupportCaseStatus(OrderSupportCaseStatus status) =>

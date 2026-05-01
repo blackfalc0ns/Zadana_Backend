@@ -48,6 +48,42 @@ public class AdminOrdersController : ApiControllerBase
         _dispatchService = dispatchService;
     }
 
+    [HttpGet("filter-options")]
+    public ActionResult<AdminOrderFilterOptionsResponse> GetFilterOptions()
+    {
+        var orderStatuses = Enum.GetValues<OrderStatus>()
+            .Select(s => new FilterOptionItem(s.ToString(), MapOrderStatusLabel(s)))
+            .ToList();
+
+        var paymentStatuses = Enum.GetValues<Domain.Modules.Payments.Enums.PaymentStatus>()
+            .Select(s => new FilterOptionItem(s.ToString(), MapPaymentStatusLabel(s)))
+            .ToList();
+
+        var fulfillmentStatuses = new List<FilterOptionItem>
+        {
+            new("QUEUED", "Queued"),
+            new("PREPARING", "Preparing"),
+            new("READY_FOR_PICKUP", "Ready for Pickup"),
+            new("DRIVER_ASSIGNED", "Driver Assigned"),
+            new("PICKED_UP", "Picked Up"),
+            new("ON_ROUTE", "On Route"),
+            new("DELIVERED", "Delivered"),
+            new("FAILED", "Failed"),
+            new("CANCELLED", "Cancelled")
+        };
+
+        var queueViews = new List<FilterOptionItem>
+        {
+            new("ALL", "All Orders"),
+            new("ACTIVE", "Active"),
+            new("LATE", "Late"),
+            new("PAYMENT_ISSUES", "Payment Issues"),
+            new("REFUNDS", "Refunds")
+        };
+
+        return Ok(new AdminOrderFilterOptionsResponse(orderStatuses, paymentStatuses, fulfillmentStatuses, queueViews));
+    }
+
     [HttpGet]
     public async Task<ActionResult<AdminOrdersListDto>> GetOrders(
         [FromQuery] string? search,
@@ -561,6 +597,41 @@ public class AdminOrdersController : ApiControllerBase
         _dbContext.Refunds.Add(refund);
         order.UpdatePaymentStatus(PaymentStatus.Refunded);
     }
+
+    private static string MapOrderStatusLabel(OrderStatus status) => status switch
+    {
+        OrderStatus.PendingPayment => "Pending Payment",
+        OrderStatus.Placed => "Placed",
+        OrderStatus.PendingVendorAcceptance => "Pending Vendor Acceptance",
+        OrderStatus.VendorRejected => "Vendor Rejected",
+        OrderStatus.Accepted => "Accepted",
+        OrderStatus.Preparing => "Preparing",
+        OrderStatus.ReadyForPickup => "Ready for Pickup",
+        OrderStatus.DriverAssignmentInProgress => "Driver Assignment In Progress",
+        OrderStatus.DriverAssigned => "Driver Assigned",
+        OrderStatus.PickedUp => "Picked Up",
+        OrderStatus.OnTheWay => "On the Way",
+        OrderStatus.Delivered => "Delivered",
+        OrderStatus.DeliveryFailed => "Delivery Failed",
+        OrderStatus.Cancelled => "Cancelled",
+        OrderStatus.Refunded => "Refunded",
+        _ => status.ToString()
+    };
+
+    private static string MapPaymentStatusLabel(Domain.Modules.Payments.Enums.PaymentStatus status) => status switch
+    {
+        Domain.Modules.Payments.Enums.PaymentStatus.Initiated => "Initiated",
+        Domain.Modules.Payments.Enums.PaymentStatus.Pending => "Pending",
+        Domain.Modules.Payments.Enums.PaymentStatus.Paid => "Paid",
+        Domain.Modules.Payments.Enums.PaymentStatus.Failed => "Failed",
+        Domain.Modules.Payments.Enums.PaymentStatus.Cancelled => "Cancelled",
+        Domain.Modules.Payments.Enums.PaymentStatus.Refunded => "Refunded",
+        Domain.Modules.Payments.Enums.PaymentStatus.PartiallyRefunded => "Partially Refunded",
+        Domain.Modules.Payments.Enums.PaymentStatus.PendingCollection => "COD Pending",
+        Domain.Modules.Payments.Enums.PaymentStatus.Collected => "Collected",
+        Domain.Modules.Payments.Enums.PaymentStatus.Settled => "Settled",
+        _ => status.ToString()
+    };
 }
 
 public record AdminOrderStatusUpdateRequest(
@@ -626,3 +697,11 @@ public record AdminIssueFlagRequest(
     bool ShowInOperationsCenter,
     bool NotifyAssignedTeam,
     bool HighRiskAlert);
+
+public record FilterOptionItem(string Value, string Label);
+
+public record AdminOrderFilterOptionsResponse(
+    List<FilterOptionItem> OrderStatuses,
+    List<FilterOptionItem> PaymentStatuses,
+    List<FilterOptionItem> FulfillmentStatuses,
+    List<FilterOptionItem> QueueViews);

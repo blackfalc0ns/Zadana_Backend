@@ -39,13 +39,38 @@ public sealed class OrderSupportCaseWorkflowService : IOrderSupportCaseWorkflowS
         IReadOnlyList<OrderSupportCaseAttachmentInput>? attachments,
         CancellationToken cancellationToken = default)
     {
-        var order = await _context.Orders
-            .FirstOrDefaultAsync(x => x.Id == orderId && x.UserId == customerUserId, cancellationToken)
-            ?? throw new NotFoundException("Order", orderId);
-
         var supportCaseType = ParseType(type);
-        ValidateCustomerCreateEligibility(order, supportCaseType);
+        var isDriverInitiated = supportCaseType is OrderSupportCaseType.DriverReport or OrderSupportCaseType.DriverDispute;
+
+        Order order;
+        if (isDriverInitiated)
+        {
+            // Driver-initiated: verify driver has an assignment for this order
+            order = await _context.Orders
+                .FirstOrDefaultAsync(x => x.Id == orderId, cancellationToken)
+                ?? throw new NotFoundException("Order", orderId);
+
+            var hasAssignment = await _context.DeliveryAssignments
+                .AnyAsync(a => a.Order.Id == orderId && a.Driver.UserId == customerUserId, cancellationToken);
+
+            if (!hasAssignment)
+            {
+                throw new BusinessRuleException("NOT_ASSIGNED_TO_ORDER", "You can only report issues for orders assigned to you.");
+            }
+        }
+        else
+        {
+            // Customer-initiated: verify order ownership
+            order = await _context.Orders
+                .FirstOrDefaultAsync(x => x.Id == orderId && x.UserId == customerUserId, cancellationToken)
+                ?? throw new NotFoundException("Order", orderId);
+
+            ValidateCustomerCreateEligibility(order, supportCaseType);
+        }
+
         await EnsureNoActiveCaseAsync(order.Id, cancellationToken);
+
+        var initiatorRole = isDriverInitiated ? "driver" : "customer";
 
         var supportCase = new OrderSupportCase(
             order.Id,
@@ -56,7 +81,8 @@ public sealed class OrderSupportCaseWorkflowService : IOrderSupportCaseWorkflowS
             reasonCode,
             message,
             ResolveSlaDueAt(supportCaseType, null),
-            supportCaseType == OrderSupportCaseType.ReturnRequest ? order.TotalAmount : null);
+            supportCaseType == OrderSupportCaseType.ReturnRequest ? order.TotalAmount : null,
+            initiatorRole);
 
         foreach (var attachment in attachments ?? [])
         {
@@ -74,7 +100,12 @@ public sealed class OrderSupportCaseWorkflowService : IOrderSupportCaseWorkflowS
             notifyEscalatedTeam: true,
             notifyCurrentReviewer: false,
             cancellationToken);
-        await NotifyCustomerAsync(order, supportCase, "created", cancellationToken);
+
+        if (!isDriverInitiated)
+        {
+            await NotifyCustomerAsync(order, supportCase, "created", cancellationToken);
+        }
+
         return supportCase;
     }
 
@@ -281,6 +312,28 @@ public sealed class OrderSupportCaseWorkflowService : IOrderSupportCaseWorkflowS
         {
             await NotifyCustomerAsync(supportCase.Order, supportCase, "note_added", cancellationToken);
         }
+
+        return supportCase;
+    }
+
+    public async Task<OrderSupportCase> AddVendorResponseAsync(
+        Guid caseId,
+        Guid vendorUserId,
+        string response,
+        CancellationToken cancellationToken = default)
+    {
+        var supportCase = await LoadCaseForWriteAsync(caseId, cancellationToken);
+        supportCase.AddVendorResponse(vendorUserId, response);
+        await _unitOfWork.SaveChangesAsync(cancellationToken);
+
+        await NotifyAdminRecipientsAsync(
+            supportCase.Order,
+            supportCase,
+            "vendor_responded",
+            actorUserId: vendorUserId,
+            notifyEscalatedTeam: false,
+            notifyCurrentReviewer: true,
+            cancellationToken);
 
         return supportCase;
     }
@@ -537,8 +590,10 @@ public sealed class OrderSupportCaseWorkflowService : IOrderSupportCaseWorkflowS
         value.Trim().ToLowerInvariant() switch
         {
             "return_request" or "return" or "refund" => OrderSupportCaseType.ReturnRequest,
-            "complaint" or "issue" or "dispute" => OrderSupportCaseType.Complaint,
-            _ => throw new BusinessRuleException("INVALID_SUPPORT_CASE_TYPE", "Support case type must be complaint or return_request.")
+            "complaint" or "issue" => OrderSupportCaseType.Complaint,
+            "driver_report" => OrderSupportCaseType.DriverReport,
+            "driver_dispute" or "dispute" => OrderSupportCaseType.DriverDispute,
+            _ => throw new BusinessRuleException("INVALID_SUPPORT_CASE_TYPE", "Support case type is not recognized.")
         };
 
     private static OrderSupportCasePriority ResolvePriority(OrderSupportCaseType type, string? reasonCode, string? explicitPriority)
@@ -589,6 +644,11 @@ public sealed class OrderSupportCaseWorkflowService : IOrderSupportCaseWorkflowS
             return OrderSupportCaseQueue.Operations;
         }
 
+        if (type is OrderSupportCaseType.DriverReport or OrderSupportCaseType.DriverDispute)
+        {
+            return normalizedReason == "payout_dispute" ? OrderSupportCaseQueue.Finance : OrderSupportCaseQueue.DriverOps;
+        }
+
         return OrderSupportCaseQueue.Support;
     }
 
@@ -627,10 +687,44 @@ public sealed class OrderSupportCaseWorkflowService : IOrderSupportCaseWorkflowS
             "operations" => OrderSupportCaseQueue.Operations,
             "risk" => OrderSupportCaseQueue.Risk,
             "legal" => OrderSupportCaseQueue.Legal,
+            "driver_ops" or "driverops" => OrderSupportCaseQueue.DriverOps,
             _ => null
         };
     }
 
     private static string? NormalizeToken(string? value) =>
         string.IsNullOrWhiteSpace(value) ? null : value.Trim().ToLowerInvariant();
+
+    public async Task<OrderSupportCase> AddCustomerReplyAsync(
+        Guid caseId,
+        Guid orderId,
+        Guid customerUserId,
+        string message,
+        IReadOnlyList<OrderSupportCaseAttachmentInput>? attachments,
+        CancellationToken cancellationToken = default)
+    {
+        var supportCase = await _context.OrderSupportCases
+            .Include(item => item.Order)
+                .ThenInclude(order => order.User)
+            .Include(item => item.Order)
+                .ThenInclude(order => order.Vendor)
+            .Include(item => item.Activities)
+            .Include(item => item.Attachments)
+            .FirstOrDefaultAsync(item => item.Id == caseId && item.OrderId == orderId, cancellationToken)
+            ?? throw new NotFoundException("OrderSupportCase", caseId);
+
+        if (supportCase.Order.UserId != customerUserId)
+        {
+            throw new ForbiddenAccessException("You are not the owner of this order.");
+        }
+
+        var attachmentTuples = attachments?
+            .Select(a => (a.FileName, a.FileUrl))
+            .ToList();
+
+        supportCase.AddCustomerReply(customerUserId, message, attachmentTuples);
+
+        await _context.SaveChangesAsync(cancellationToken);
+        return supportCase;
+    }
 }

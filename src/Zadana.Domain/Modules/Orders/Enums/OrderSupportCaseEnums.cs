@@ -3,7 +3,9 @@ namespace Zadana.Domain.Modules.Orders.Enums;
 public enum OrderSupportCaseType
 {
     Complaint,
-    ReturnRequest
+    ReturnRequest,
+    DriverReport,
+    DriverDispute
 }
 
 public enum OrderSupportCaseStatus
@@ -30,5 +32,6 @@ public enum OrderSupportCaseQueue
     Finance,
     Operations,
     Risk,
-    Legal
+    Legal,
+    DriverOps
 }

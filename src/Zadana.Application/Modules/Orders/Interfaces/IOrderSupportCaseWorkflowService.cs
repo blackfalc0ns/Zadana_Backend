@@ -89,6 +89,20 @@ public interface IOrderSupportCaseWorkflowService
         string note,
         bool visibleToCustomer,
         CancellationToken cancellationToken = default);
+
+    Task<OrderSupportCase> AddVendorResponseAsync(
+        Guid caseId,
+        Guid vendorUserId,
+        string response,
+        CancellationToken cancellationToken = default);
+
+    Task<OrderSupportCase> AddCustomerReplyAsync(
+        Guid caseId,
+        Guid orderId,
+        Guid customerUserId,
+        string message,
+        IReadOnlyList<OrderSupportCaseAttachmentInput>? attachments,
+        CancellationToken cancellationToken = default);
 }
 
 public sealed record OrderSupportCaseAttachmentInput(string FileName, string FileUrl);

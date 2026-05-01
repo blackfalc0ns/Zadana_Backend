@@ -25,6 +25,14 @@ public class OrderSupportCase : BaseEntity
     public string? CostBearer { get; private set; }
     public DateTime? ClosedAtUtc { get; private set; }
 
+    // Multi-stakeholder support
+    public string InitiatorRole { get; private set; } = "customer";
+    public string? VendorResponse { get; private set; }
+    public DateTime? VendorRespondedAtUtc { get; private set; }
+    public string? DriverResponse { get; private set; }
+    public DateTime? DriverRespondedAtUtc { get; private set; }
+    public string? ResolutionCode { get; private set; }
+
     public Order Order { get; private set; } = null!;
     public ICollection<OrderSupportCaseAttachment> Attachments { get; private set; } = [];
     public ICollection<OrderSupportCaseActivity> Activities { get; private set; } = [];
@@ -42,7 +50,8 @@ public class OrderSupportCase : BaseEntity
         string? reasonCode,
         string message,
         DateTime? slaDueAtUtc = null,
-        decimal? requestedRefundAmount = null)
+        decimal? requestedRefundAmount = null,
+        string initiatorRole = "customer")
     {
         OrderId = orderId;
         CustomerUserId = customerUserId;
@@ -54,13 +63,22 @@ public class OrderSupportCase : BaseEntity
         Message = message.Trim();
         SlaDueAtUtc = slaDueAtUtc;
         RequestedRefundAmount = NormalizeAmount(requestedRefundAmount);
+        InitiatorRole = string.IsNullOrWhiteSpace(initiatorRole) ? "customer" : initiatorRole.Trim().ToLowerInvariant();
+
+        var submittedTitle = type switch
+        {
+            OrderSupportCaseType.ReturnRequest => "Return request submitted",
+            OrderSupportCaseType.DriverReport => "Driver issue reported",
+            OrderSupportCaseType.DriverDispute => "Driver dispute submitted",
+            _ => "Complaint submitted"
+        };
 
         AddActivity(
             "submitted",
-            type == OrderSupportCaseType.ReturnRequest ? "Return request submitted" : "Complaint submitted",
+            submittedTitle,
             Message,
             customerUserId,
-            "customer",
+            InitiatorRole,
             visibleToCustomer: true);
     }
 
@@ -234,6 +252,43 @@ public class OrderSupportCase : BaseEntity
             actorUserId,
             "admin",
             visibleToCustomer);
+    }
+
+    public void AddVendorResponse(Guid vendorUserId, string response)
+    {
+        EnsureNotClosed("VENDOR_RESPONSE_NOT_ALLOWED");
+
+        VendorResponse = response.Trim();
+        VendorRespondedAtUtc = DateTime.UtcNow;
+
+        AddActivity(
+            "vendor_response",
+            "Vendor responded",
+            response,
+            vendorUserId,
+            "vendor",
+            visibleToCustomer: true);
+    }
+
+    public void AddDriverResponse(Guid driverUserId, string response)
+    {
+        EnsureNotClosed("DRIVER_RESPONSE_NOT_ALLOWED");
+
+        DriverResponse = response.Trim();
+        DriverRespondedAtUtc = DateTime.UtcNow;
+
+        AddActivity(
+            "driver_response",
+            "Driver responded",
+            response,
+            driverUserId,
+            "driver",
+            visibleToCustomer: false);
+    }
+
+    public void SetResolutionCode(string code)
+    {
+        ResolutionCode = string.IsNullOrWhiteSpace(code) ? null : code.Trim();
     }
 
     public void AddAttachment(string fileName, string fileUrl, Guid? uploadedByUserId = null)

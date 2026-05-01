@@ -265,7 +265,10 @@ public record AdminOrderSupportCaseListItemDto(
     string CustomerSummary,
     string MerchantSummary,
     IReadOnlyList<OrderSupportCaseAttachmentDto> Evidence,
-    IReadOnlyList<AdminOrderSupportCaseTimelineItemDto> Timeline);
+    IReadOnlyList<AdminOrderSupportCaseTimelineItemDto> Timeline,
+    string InitiatorRole,
+    string? VendorResponse,
+    string? DriverResponse);
 
 public record AdminOrderSupportCaseTimelineItemDto(
     string Title,
@@ -348,6 +351,9 @@ public record AdminOrderDetailDto(
     decimal DeliveryFee,
     decimal Tax,
     decimal Total,
+    GeoPointDto? CustomerGeo,
+    GeoPointDto? MerchantGeo,
+    DriverLiveLocationDto? DriverLiveLocation,
     IReadOnlyList<AdminOrderItemDto> Items,
     IReadOnlyList<AdminOrderTimelineItemDto> Timeline,
     IReadOnlyList<AdminOrderActivityDto> Activities,

@@ -55,6 +55,8 @@ internal static class OrderSupportCaseNotificationComposer
         type switch
         {
             OrderSupportCaseType.ReturnRequest => "return_request",
+            OrderSupportCaseType.DriverReport => "driver_report",
+            OrderSupportCaseType.DriverDispute => "driver_dispute",
             _ => "complaint"
         };
 

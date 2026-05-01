@@ -258,6 +258,63 @@ public class OrdersController : ApiControllerBase
         return Ok(new OrderSupportCaseAttachmentUploadResponse(file.FileName, fileUrl));
     }
 
+    [HttpGet("{orderId:guid}/refund-status")]
+    public async Task<ActionResult<CustomerRefundStatusResponse>> GetRefundStatus(
+        Guid orderId,
+        CancellationToken cancellationToken = default)
+    {
+        var userId = _currentUserService.UserId ?? throw new UnauthorizedException("USER_NOT_AUTHENTICATED");
+        var cases = await _orderReadService.GetCustomerOrderSupportCasesAsync(orderId, userId, cancellationToken);
+        var activeCase = cases.FirstOrDefault(c =>
+            c.Status != "resolved" && c.Status != "rejected");
+
+        if (activeCase is null)
+        {
+            return Ok(new CustomerRefundStatusResponse(
+                orderId, false, null, null, null, null, null, null, null, null, null));
+        }
+
+        return Ok(new CustomerRefundStatusResponse(
+            orderId,
+            true,
+            activeCase.Status,
+            activeCase.Type,
+            activeCase.RequestedRefundAmount,
+            activeCase.ApprovedRefundAmount,
+            activeCase.RefundMethod,
+            activeCase.ApprovedRefundAmount.HasValue ? "approved" : "pending",
+            activeCase.CustomerVisibleNote,
+            activeCase.CreatedAt,
+            activeCase.UpdatedAt));
+    }
+
+    [HttpPost("{orderId:guid}/cases/{caseId:guid}/reply")]
+    public async Task<ActionResult<CustomerReplyResponse>> ReplyToCase(
+        Guid orderId,
+        Guid caseId,
+        [FromBody] CustomerReplyRequest? request,
+        CancellationToken cancellationToken = default)
+    {
+        if (request is null || string.IsNullOrWhiteSpace(request.Message))
+        {
+            throw new BadRequestException("INVALID_REQUEST_BODY", "Message is required.");
+        }
+
+        var userId = _currentUserService.UserId ?? throw new UnauthorizedException("USER_NOT_AUTHENTICATED");
+        var supportCase = await _orderSupportCaseWorkflowService.AddCustomerReplyAsync(
+            caseId,
+            orderId,
+            userId,
+            request.Message,
+            request.Attachments?.Select(item => new OrderSupportCaseAttachmentInput(item.FileName, item.FileUrl)).ToList(),
+            cancellationToken);
+
+        var result = await _orderReadService.GetCustomerOrderSupportCaseAsync(orderId, supportCase.Id, userId, cancellationToken)
+            ?? throw new NotFoundException("OrderSupportCase", supportCase.Id);
+
+        return Ok(new CustomerReplyResponse("Reply submitted successfully", MapSupportCase(result)));
+    }
+
     [HttpPost]
     public async Task<ActionResult<PlaceOrderResponse>> PlaceOrder(
         [FromBody] PlaceOrderRequest? request,

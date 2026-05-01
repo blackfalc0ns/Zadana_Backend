@@ -71,6 +71,7 @@ public interface IOrderReadService
         string? status,
         string? priority,
         string? queue,
+        string? initiatorRole,
         int page,
         int pageSize,
         CancellationToken cancellationToken = default);

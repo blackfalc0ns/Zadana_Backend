@@ -204,3 +204,24 @@ public record OrderSupportCaseActivityResponse(
 public record OrderSupportCaseAttachmentUploadResponse(
     [property: JsonPropertyName("file_name")] string FileName,
     [property: JsonPropertyName("url")] string Url);
+
+public record CustomerRefundStatusResponse(
+    [property: JsonPropertyName("order_id")] Guid OrderId,
+    [property: JsonPropertyName("has_active_case")] bool HasActiveCase,
+    [property: JsonPropertyName("case_status")] string? CaseStatus,
+    [property: JsonPropertyName("case_type")] string? CaseType,
+    [property: JsonPropertyName("requested_amount")] decimal? RequestedAmount,
+    [property: JsonPropertyName("approved_amount")] decimal? ApprovedAmount,
+    [property: JsonPropertyName("refund_method")] string? RefundMethod,
+    [property: JsonPropertyName("refund_status")] string? RefundStatus,
+    [property: JsonPropertyName("customer_note")] string? CustomerNote,
+    [property: JsonPropertyName("created_at")] DateTime? CreatedAt,
+    [property: JsonPropertyName("updated_at")] DateTime? UpdatedAt);
+
+public record CustomerReplyRequest(
+    [property: JsonPropertyName("message")] string Message,
+    [property: JsonPropertyName("attachments")] List<CreateOrderComplaintAttachmentRequest>? Attachments);
+
+public record CustomerReplyResponse(
+    [property: JsonPropertyName("message")] string Message,
+    [property: JsonPropertyName("case")] OrderSupportCaseResponse Case);
