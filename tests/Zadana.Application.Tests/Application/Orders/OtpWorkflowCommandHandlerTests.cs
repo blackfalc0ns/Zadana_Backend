@@ -73,6 +73,67 @@ public class OtpWorkflowCommandHandlerTests
     }
 
     [Fact]
+    public async Task ConfirmVendorPickupOtp_ShouldIgnoreHistoricalCancelledAssignments()
+    {
+        await using var dbContext = CreateDbContext();
+        var customer = new User("Customer User", "otp.customer.pickup.history@test.com", "01000000136", UserRole.Customer);
+        var vendorUser = new User("Vendor User", "otp.vendor.pickup.history@test.com", "01000000137", UserRole.Vendor);
+        var staleDriverUser = new User("Stale Driver User", "otp.driver.stale@test.com", "01000000138", UserRole.Driver);
+        var currentDriverUser = new User("Current Driver User", "otp.driver.current@test.com", "01000000139", UserRole.Driver);
+        var vendor = CreateVendor(vendorUser.Id);
+        var staleDriver = new Driver(staleDriverUser.Id, DriverVehicleType.Car, "1234567801", "LIC-2001");
+        var currentDriver = new Driver(currentDriverUser.Id, DriverVehicleType.Car, "1234567802", "LIC-2002");
+        staleDriver.Approve(Guid.NewGuid());
+        currentDriver.Approve(Guid.NewGuid());
+
+        var order = CreateOrder(customer.Id, vendor.Id, OrderStatus.DriverAssigned, "ORD-OTP-PICKUP-002");
+
+        var staleAssignment = new DeliveryAssignment(order.Id, 0m);
+        staleAssignment.OfferTo(staleDriver.Id, 1, DateTime.UtcNow.AddMinutes(5));
+        staleAssignment.Accept();
+        staleAssignment.MarkArrivedAtVendor();
+        staleAssignment.EnsurePickupOtp(TimeSpan.FromHours(4));
+        staleAssignment.Cancel("redispatched-to-another-driver");
+
+        var currentAssignment = new DeliveryAssignment(order.Id, 0m);
+        currentAssignment.OfferTo(currentDriver.Id, 2, DateTime.UtcNow.AddMinutes(5));
+        currentAssignment.Accept();
+        currentAssignment.MarkArrivedAtVendor();
+        currentAssignment.EnsurePickupOtp(TimeSpan.FromHours(4));
+
+        dbContext.Users.AddRange(customer, vendorUser, staleDriverUser, currentDriverUser);
+        dbContext.Vendors.Add(vendor);
+        dbContext.Drivers.AddRange(staleDriver, currentDriver);
+        dbContext.Orders.Add(order);
+        dbContext.DeliveryAssignments.AddRange(staleAssignment, currentAssignment);
+        await dbContext.SaveChangesAsync();
+
+        var publisherMock = new Mock<IPublisher>();
+        var handler = new ConfirmVendorPickupOtpCommandHandler(dbContext, dbContext, publisherMock.Object);
+
+        var result = await handler.Handle(
+            new ConfirmVendorPickupOtpCommand(order.Id, vendor.Id, currentAssignment.PickupOtpCode!),
+            CancellationToken.None);
+
+        result.AssignmentId.Should().Be(currentAssignment.Id);
+        result.Status.Should().Be("picked_up");
+        order.Status.Should().Be(OrderStatus.PickedUp);
+        currentAssignment.Status.Should().Be(AssignmentStatus.PickedUp);
+        currentAssignment.IsPickupOtpVerified.Should().BeTrue();
+        staleAssignment.Status.Should().Be(AssignmentStatus.Cancelled);
+        staleAssignment.IsPickupOtpVerified.Should().BeFalse();
+
+        publisherMock.Verify(
+            publisher => publisher.Publish(
+                It.Is<OrderStatusChangedNotification>(notification =>
+                    notification.OrderId == order.Id &&
+                    notification.NewStatus == OrderStatus.PickedUp &&
+                    notification.ActorRole == "vendor"),
+                It.IsAny<CancellationToken>()),
+            Times.Once);
+    }
+
+    [Fact]
     public async Task VerifyAssignmentOtp_WhenDeliveryOtpIsVerified_ShouldMarkDeliveredAndPublishStatusChange()
     {
         await using var dbContext = CreateDbContext();

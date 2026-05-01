@@ -53,7 +53,15 @@ public class ConfirmVendorPickupOtpCommandHandler : IRequestHandler<ConfirmVendo
             ?? throw new NotFoundException("Order", request.OrderId);
 
         var assignment = await _context.DeliveryAssignments
-            .FirstOrDefaultAsync(item => item.OrderId == order.Id && item.DriverId != null, cancellationToken)
+            .Where(item =>
+                item.OrderId == order.Id &&
+                item.DriverId != null &&
+                (item.Status == AssignmentStatus.Accepted ||
+                 item.Status == AssignmentStatus.ArrivedAtVendor ||
+                 item.Status == AssignmentStatus.PickedUp ||
+                 item.Status == AssignmentStatus.ArrivedAtCustomer))
+            .OrderByDescending(item => item.CreatedAtUtc)
+            .FirstOrDefaultAsync(cancellationToken)
             ?? throw new BusinessRuleException("NO_ASSIGNED_DRIVER", "No assigned driver was found for this order.");
 
         if (!assignment.DriverId.HasValue)
