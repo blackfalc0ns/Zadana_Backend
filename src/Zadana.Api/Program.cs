@@ -12,6 +12,8 @@ using Zadana.Api.Middleware;
 using Zadana.Api.Realtime;
 using Zadana.Application;
 using Zadana.Application.Common.Interfaces;
+using Zadana.Application.Common.Settings;
+using Zadana.Application.Modules.Wallets.Services;
 using Zadana.Application.Modules.Catalog.Interfaces;
 using Zadana.Application.Modules.Delivery.Interfaces;
 using Zadana.Application.Modules.Home.Interfaces;
@@ -88,6 +90,8 @@ builder.Services.AddScoped<ICatalogRequestReadService, CatalogRequestReadService
 builder.Services.AddScoped<IHomeReadService, HomeReadService>();
 builder.Services.AddScoped<IOrderRepository, OrderRepository>();
 builder.Services.AddScoped<IOrderReadService, OrderReadService>();
+builder.Services.AddScoped<OrderRevenueDistributionService>();
+builder.Services.AddScoped<VendorPayoutWalletService>();
 builder.Services.AddSingleton<CustomerPresenceService>();
 builder.Services.AddSingleton<ICustomerPresenceService>(provider => provider.GetRequiredService<CustomerPresenceService>());
 builder.Services.AddSingleton<NotificationService>();
@@ -100,6 +104,10 @@ builder.Services.AddHostedService<DeliveryDispatchWorker>();
 builder.Services.AddHostedService<AdminBrandBulkOperationWorker>();
 builder.Services.AddHostedService<AdminMasterProductBulkOperationWorker>();
 builder.Services.AddHostedService<VendorProductBulkOperationWorker>();
+builder.Services.AddHostedService<VendorSettlementCycleWorker>();
+
+builder.Services.AddOptions<FinancialSettingsOptions>()
+    .Bind(builder.Configuration.GetSection(FinancialSettingsOptions.SectionName));
 
 builder.Services.AddOptions<Zadana.Infrastructure.Settings.ImageKitSettings>()
     .Bind(builder.Configuration.GetSection(Zadana.Infrastructure.Settings.ImageKitSettings.SectionName))

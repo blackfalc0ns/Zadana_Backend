@@ -35,6 +35,7 @@ public class VendorOrderCasesController : ApiControllerBase
     public async Task<ActionResult<VendorOrderCasesListResponse>> GetCases(
         [FromQuery] string? status,
         [FromQuery] string? type,
+        [FromQuery] string? search,
         [FromQuery] int page = 1,
         [FromQuery] int pageSize = 20,
         CancellationToken cancellationToken = default)
@@ -46,15 +47,13 @@ public class VendorOrderCasesController : ApiControllerBase
         var query = _dbContext.OrderSupportCases
             .AsNoTracking()
             .Include(c => c.Order)
-            .Where(c => c.Order.VendorId == vendorId)
-            .OrderByDescending(c => c.CreatedAtUtc);
+            .Where(c => c.Order.VendorId == vendorId);
 
         if (!string.IsNullOrWhiteSpace(status))
         {
             if (Enum.TryParse<OrderSupportCaseStatus>(status, ignoreCase: true, out var parsedStatus))
             {
-                query = (IOrderedQueryable<Domain.Modules.Orders.Entities.OrderSupportCase>)
-                    query.Where(c => c.Status == parsedStatus);
+                query = query.Where(c => c.Status == parsedStatus);
             }
         }
 
@@ -62,13 +61,31 @@ public class VendorOrderCasesController : ApiControllerBase
         {
             if (Enum.TryParse<OrderSupportCaseType>(type, ignoreCase: true, out var parsedType))
             {
-                query = (IOrderedQueryable<Domain.Modules.Orders.Entities.OrderSupportCase>)
-                    query.Where(c => c.Type == parsedType);
+                query = query.Where(c => c.Type == parsedType);
+            }
+        }
+
+        if (!string.IsNullOrWhiteSpace(search))
+        {
+            var trimmedSearch = search.Trim();
+
+            if (Guid.TryParse(trimmedSearch, out var caseId))
+            {
+                query = query.Where(c => c.Id == caseId);
+            }
+            else
+            {
+                var pattern = $"%{trimmedSearch}%";
+                query = query.Where(c =>
+                    EF.Functions.Like(c.Order.OrderNumber, pattern) ||
+                    (c.ReasonCode != null && EF.Functions.Like(c.ReasonCode, pattern)) ||
+                    EF.Functions.Like(c.Message, pattern));
             }
         }
 
         var total = await query.CountAsync(cancellationToken);
         var cases = await query
+            .OrderByDescending(c => c.CreatedAtUtc)
             .Skip((page - 1) * pageSize)
             .Take(pageSize)
             .Select(c => new VendorOrderCaseListItemResponse(

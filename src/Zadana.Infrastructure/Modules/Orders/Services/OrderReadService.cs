@@ -645,6 +645,7 @@ public class OrderReadService : IOrderReadService
         string? priority,
         string? queue,
         string? initiatorRole,
+        Guid? vendorId,
         int page,
         int pageSize,
         CancellationToken cancellationToken = default)
@@ -652,7 +653,7 @@ public class OrderReadService : IOrderReadService
         var normalizedPage = page <= 0 ? 1 : page;
         var normalizedPageSize = pageSize <= 0 ? 20 : pageSize;
 
-        var cases = await _dbContext.OrderSupportCases
+        var casesQuery = _dbContext.OrderSupportCases
             .AsNoTracking()
             .Include(item => item.Order)
                 .ThenInclude(order => order.User)
@@ -660,6 +661,14 @@ public class OrderReadService : IOrderReadService
                 .ThenInclude(order => order.Vendor)
             .Include(item => item.Attachments)
             .Include(item => item.Activities)
+            .AsQueryable();
+
+        if (vendorId.HasValue)
+        {
+            casesQuery = casesQuery.Where(item => item.Order.VendorId == vendorId.Value);
+        }
+
+        var cases = await casesQuery
             .OrderByDescending(item => item.CreatedAtUtc)
             .ToListAsync(cancellationToken);
 

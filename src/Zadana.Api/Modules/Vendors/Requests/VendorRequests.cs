@@ -179,6 +179,8 @@ public record AdminCreateVendorSettlementRequest(
     decimal CommissionAmount,
     decimal NetAmount);
 
+public record AdminCompleteVendorPayoutRequest(string? TransferReference);
+
 public record AdminUpdateVendorFinanceSettingsRequest(
     string FinancialLifecycleMode,
     string? PayoutCycle);

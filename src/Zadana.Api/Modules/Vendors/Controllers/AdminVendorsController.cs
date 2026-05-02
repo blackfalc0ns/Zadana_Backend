@@ -36,6 +36,7 @@ using Zadana.Application.Modules.Vendors.Queries.GetVendorAnalytics;
 using Zadana.Application.Modules.Vendors.Queries.GetVendorActivityLog;
 using Zadana.Application.Modules.Vendors.Queries.GetVendorDetail;
 using Zadana.Application.Modules.Wallets.Commands.CreateSettlement;
+using Zadana.Application.Modules.Wallets.Commands.CompleteVendorPayout;
 using Zadana.Application.Modules.Wallets.Commands.EscalateVendorPayout;
 using Zadana.Application.Modules.Wallets.Commands.RetryVendorPayout;
 using Zadana.Application.Modules.Wallets.Commands.SuspendVendorPayout;
@@ -305,6 +306,16 @@ public class AdminVendorsController : ApiControllerBase
     {
         await Sender.Send(new RetryVendorPayoutCommand(vendorId, payoutId));
         return Ok(new { Message = "Vendor payout moved back to processing." });
+    }
+
+    [HttpPost("{vendorId:guid}/payouts/{payoutId:guid}/complete")]
+    public async Task<IActionResult> CompleteVendorPayout(
+        Guid vendorId,
+        Guid payoutId,
+        [FromBody] AdminCompleteVendorPayoutRequest? request)
+    {
+        await Sender.Send(new CompleteVendorPayoutCommand(vendorId, payoutId, request?.TransferReference));
+        return Ok(new { Message = "Vendor payout completed successfully." });
     }
 
     [HttpPost("{vendorId:guid}/payouts/{payoutId:guid}/suspend")]

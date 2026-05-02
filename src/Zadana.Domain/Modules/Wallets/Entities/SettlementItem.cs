@@ -7,6 +7,7 @@ public class SettlementItem
     public Guid Id { get; private set; } = Guid.NewGuid();
     public Guid SettlementId { get; private set; }
     public Guid OrderId { get; private set; }
+    public Guid? WalletTransactionId { get; private set; }
     
     public decimal VendorAmount { get; private set; }
     public decimal DriverAmount { get; private set; }
@@ -25,7 +26,8 @@ public class SettlementItem
         decimal vendorAmount, 
         decimal driverAmount, 
         decimal platformCommission, 
-        decimal codCollectedAmount)
+        decimal codCollectedAmount,
+        Guid? walletTransactionId = null)
     {
         SettlementId = settlementId;
         OrderId = orderId;
@@ -33,5 +35,6 @@ public class SettlementItem
         DriverAmount = driverAmount;
         PlatformCommission = platformCommission;
         CodCollectedAmount = codCollectedAmount;
+        WalletTransactionId = walletTransactionId;
     }
 }

@@ -4,6 +4,7 @@ using Microsoft.EntityFrameworkCore;
 using Microsoft.Extensions.Localization;
 using Zadana.Application.Common.Interfaces;
 using Zadana.Application.Common.Localization;
+using Zadana.Application.Modules.Wallets.Services;
 using Zadana.Domain.Modules.Wallets.Enums;
 using Zadana.SharedKernel.Exceptions;
 
@@ -23,10 +24,14 @@ public class EscalateVendorPayoutCommandValidator : AbstractValidator<EscalateVe
 public class EscalateVendorPayoutCommandHandler : IRequestHandler<EscalateVendorPayoutCommand, Guid>
 {
     private readonly IApplicationDbContext _context;
+    private readonly VendorPayoutWalletService _vendorPayoutWalletService;
 
-    public EscalateVendorPayoutCommandHandler(IApplicationDbContext context)
+    public EscalateVendorPayoutCommandHandler(
+        IApplicationDbContext context,
+        VendorPayoutWalletService vendorPayoutWalletService)
     {
         _context = context;
+        _vendorPayoutWalletService = vendorPayoutWalletService;
     }
 
     public async Task<Guid> Handle(EscalateVendorPayoutCommand request, CancellationToken cancellationToken)
@@ -52,6 +57,14 @@ public class EscalateVendorPayoutCommandHandler : IRequestHandler<EscalateVendor
         {
             payout.Settlement.MarkAsFailed();
         }
+
+        await _vendorPayoutWalletService.ReleaseHoldAsync(
+            request.VendorId,
+            payout.SettlementId,
+            payout.Amount,
+            "PayoutFailedRelease",
+            $"Hold released after payout failure {payout.Id}",
+            cancellationToken);
 
         await _context.SaveChangesAsync(cancellationToken);
 

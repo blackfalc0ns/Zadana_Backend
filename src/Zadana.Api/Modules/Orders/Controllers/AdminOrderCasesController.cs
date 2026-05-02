@@ -35,6 +35,7 @@ public class AdminOrderCasesController : ApiControllerBase
         [FromQuery] string? priority,
         [FromQuery] string? queue,
         [FromQuery] string? initiatorRole,
+        [FromQuery] Guid? vendorId,
         [FromQuery] int page = 1,
         [FromQuery] int pageSize = 20,
         CancellationToken cancellationToken = default)
@@ -46,6 +47,7 @@ public class AdminOrderCasesController : ApiControllerBase
             priority,
             queue,
             initiatorRole,
+            vendorId,
             page,
             pageSize,
             cancellationToken);

@@ -10,5 +10,6 @@ public enum WalletTxnType
     Payout,
     CashCollected,
     Settlement,
-    Refund
+    Refund,
+    OrderRevenue
 }

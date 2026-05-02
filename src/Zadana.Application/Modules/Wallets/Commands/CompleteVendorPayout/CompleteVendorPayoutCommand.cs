@@ -8,25 +8,28 @@ using Zadana.Application.Modules.Wallets.Services;
 using Zadana.Domain.Modules.Wallets.Enums;
 using Zadana.SharedKernel.Exceptions;
 
-namespace Zadana.Application.Modules.Wallets.Commands.SuspendVendorPayout;
+namespace Zadana.Application.Modules.Wallets.Commands.CompleteVendorPayout;
 
-public record SuspendVendorPayoutCommand(Guid VendorId, Guid PayoutId) : IRequest<Guid>;
+public record CompleteVendorPayoutCommand(Guid VendorId, Guid PayoutId, string? TransferReference) : IRequest<Guid>;
 
-public class SuspendVendorPayoutCommandValidator : AbstractValidator<SuspendVendorPayoutCommand>
+public class CompleteVendorPayoutCommandValidator : AbstractValidator<CompleteVendorPayoutCommand>
 {
-    public SuspendVendorPayoutCommandValidator(IStringLocalizer<SharedResource> localizer)
+    public CompleteVendorPayoutCommandValidator(IStringLocalizer<SharedResource> localizer)
     {
         RuleFor(x => x.VendorId).NotEmpty().WithMessage(x => localizer["RequiredField"]);
         RuleFor(x => x.PayoutId).NotEmpty().WithMessage(x => localizer["RequiredField"]);
+        RuleFor(x => x.TransferReference)
+            .MaximumLength(200)
+            .WithMessage(x => localizer["MaxLength"]);
     }
 }
 
-public class SuspendVendorPayoutCommandHandler : IRequestHandler<SuspendVendorPayoutCommand, Guid>
+public class CompleteVendorPayoutCommandHandler : IRequestHandler<CompleteVendorPayoutCommand, Guid>
 {
     private readonly IApplicationDbContext _context;
     private readonly VendorPayoutWalletService _vendorPayoutWalletService;
 
-    public SuspendVendorPayoutCommandHandler(
+    public CompleteVendorPayoutCommandHandler(
         IApplicationDbContext context,
         VendorPayoutWalletService vendorPayoutWalletService)
     {
@@ -34,7 +37,7 @@ public class SuspendVendorPayoutCommandHandler : IRequestHandler<SuspendVendorPa
         _vendorPayoutWalletService = vendorPayoutWalletService;
     }
 
-    public async Task<Guid> Handle(SuspendVendorPayoutCommand request, CancellationToken cancellationToken)
+    public async Task<Guid> Handle(CompleteVendorPayoutCommand request, CancellationToken cancellationToken)
     {
         var payout = await _context.Payouts
             .Include(item => item.Settlement)
@@ -49,25 +52,28 @@ public class SuspendVendorPayoutCommandHandler : IRequestHandler<SuspendVendorPa
 
         if (payout.Status == PayoutStatus.Paid)
         {
-            throw new BusinessRuleException("PAYOUT_INVALID_STATUS", "Paid payouts cannot be suspended.");
+            return payout.Id;
         }
 
-        payout.Cancel();
-        if (payout.Settlement.Status != SettlementStatus.Settled)
+        if (payout.Status is PayoutStatus.Cancelled or PayoutStatus.Failed)
         {
-            payout.Settlement.MarkAsFailed();
+            throw new BusinessRuleException("PAYOUT_INVALID_STATUS", $"Cannot complete payout from status {payout.Status}.");
         }
 
-        await _vendorPayoutWalletService.ReleaseHoldAsync(
+        payout.MarkAsPaid(string.IsNullOrWhiteSpace(request.TransferReference)
+            ? $"MANUAL-{payout.Id.ToString("N")[..8].ToUpperInvariant()}"
+            : request.TransferReference.Trim());
+        payout.Settlement.MarkAsSettled();
+
+        await _vendorPayoutWalletService.SettleHoldAsync(
             request.VendorId,
             payout.SettlementId,
+            payout.Id,
             payout.Amount,
-            "PayoutSuspendedRelease",
-            $"Hold released after payout suspension {payout.Id}",
+            $"Vendor payout completed {payout.Id}",
             cancellationToken);
 
         await _context.SaveChangesAsync(cancellationToken);
-
         return payout.Id;
     }
 }
