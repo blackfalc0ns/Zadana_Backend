@@ -34,7 +34,7 @@ public class OrderRevenueDistributionService
     /// Distributes revenue for an eligible delivered order across Vendor, Driver, and Platform wallets.
     /// Idempotent: skips if already distributed.
     /// </summary>
-    public async Task DistributeAsync(Guid orderId, CancellationToken cancellationToken = default)
+    public virtual async Task DistributeAsync(Guid orderId, CancellationToken cancellationToken = default)
     {
         // 1. Load order
         var order = await _context.Orders

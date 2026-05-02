@@ -39,6 +39,7 @@ public interface IOrderSupportCaseWorkflowService
         Guid actorUserId,
         string? note,
         string? customerVisibleNote,
+        string? targetRole,
         DateTime? slaDueAtUtc,
         CancellationToken cancellationToken = default);
 
@@ -94,6 +95,21 @@ public interface IOrderSupportCaseWorkflowService
         Guid caseId,
         Guid vendorUserId,
         string response,
+        CancellationToken cancellationToken = default);
+
+    Task<OrderSupportCase> AddDriverResponseAsync(
+        Guid caseId,
+        Guid orderId,
+        Guid driverUserId,
+        string response,
+        IReadOnlyList<OrderSupportCaseAttachmentInput>? attachments,
+        CancellationToken cancellationToken = default);
+
+    Task<OrderSupportCase> AddAdminPublicMessageAsync(
+        Guid caseId,
+        Guid actorUserId,
+        string message,
+        string audience,
         CancellationToken cancellationToken = default);
 
     Task<OrderSupportCase> AddCustomerReplyAsync(

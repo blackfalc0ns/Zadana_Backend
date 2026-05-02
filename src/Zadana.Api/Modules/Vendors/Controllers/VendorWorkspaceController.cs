@@ -928,6 +928,7 @@ public class VendorWorkspaceController : ApiControllerBase
             nextPayoutDate.ToString("yyyy-MM-dd"),
             primaryBank is null ? "Bank transfer" : $"Bank Transfer - {primaryBank.BankName}",
             holdAmount,
+            vendorFinancialMode.ToString(),
             [
                 new VendorFinanceKpiResponse("net-sales", "VENDOR_FINANCE.KPIS.NET_SALES", netSales, 0, "up", "primary"),
                 new VendorFinanceKpiResponse("vendor-payouts", "VENDOR_FINANCE.KPIS.PAYOUTS", payoutsPaid, 0, "up", "success"),
@@ -1539,6 +1540,7 @@ public record VendorFinanceSnapshotResponse(
     string NextPayoutDate,
     string PayoutMethod,
     decimal HoldAmount,
+    string FinancialLifecycleModeStr,
     List<VendorFinanceKpiResponse> Kpis,
     List<VendorFinanceTrendPointResponse> Trend,
     List<VendorSettlementResponse> Settlements,

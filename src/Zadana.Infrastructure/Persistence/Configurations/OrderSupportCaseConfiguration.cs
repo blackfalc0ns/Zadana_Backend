@@ -30,6 +30,7 @@ public class OrderSupportCaseConfiguration : IEntityTypeConfiguration<OrderSuppo
         builder.Property(x => x.VendorResponse).HasMaxLength(2000);
         builder.Property(x => x.DriverResponse).HasMaxLength(2000);
         builder.Property(x => x.ResolutionCode).HasMaxLength(100);
+        builder.Property(x => x.AwaitingResponseFromRole).HasMaxLength(20);
 
         builder.HasIndex(x => new { x.OrderId, x.Status });
 

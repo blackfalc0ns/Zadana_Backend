@@ -32,6 +32,7 @@ public class OrderSupportCase : BaseEntity
     public string? DriverResponse { get; private set; }
     public DateTime? DriverRespondedAtUtc { get; private set; }
     public string? ResolutionCode { get; private set; }
+    public string? AwaitingResponseFromRole { get; private set; }
 
     public Order Order { get; private set; } = null!;
     public ICollection<OrderSupportCaseAttachment> Attachments { get; private set; } = [];
@@ -79,7 +80,9 @@ public class OrderSupportCase : BaseEntity
             Message,
             customerUserId,
             InitiatorRole,
-            visibleToCustomer: true);
+            visibleToCustomer: InitiatorRole == "customer",
+            messageType: "case_opened",
+            audience: ResolveAudienceForRole(InitiatorRole));
     }
 
     public bool IsClosed => Status is OrderSupportCaseStatus.Rejected or OrderSupportCaseStatus.Resolved;
@@ -101,25 +104,36 @@ public class OrderSupportCase : BaseEntity
             note,
             actorUserId,
             "admin",
-            visibleToCustomer: false);
+            visibleToCustomer: false,
+            messageType: "assignment",
+            audience: "internal_admin_only",
+            isInternalOnly: true);
     }
 
     public void RequestCustomerEvidence(Guid actorUserId, string? note, string? customerVisibleNote, DateTime? slaDueAtUtc = null)
+    {
+        RequestEvidenceFrom(actorUserId, "customer", note, customerVisibleNote, slaDueAtUtc);
+    }
+
+    public void RequestEvidenceFrom(Guid actorUserId, string targetRole, string? note, string? publicNote, DateTime? slaDueAtUtc = null)
     {
         EnsureNotClosed("CASE_EVIDENCE_REQUEST_NOT_ALLOWED");
 
         Status = OrderSupportCaseStatus.AwaitingCustomerEvidence;
         DecisionNotes = string.IsNullOrWhiteSpace(note) ? DecisionNotes : note.Trim();
-        CustomerVisibleNote = string.IsNullOrWhiteSpace(customerVisibleNote) ? CustomerVisibleNote : customerVisibleNote.Trim();
+        CustomerVisibleNote = string.IsNullOrWhiteSpace(publicNote) ? CustomerVisibleNote : publicNote.Trim();
         SlaDueAtUtc = slaDueAtUtc ?? SlaDueAtUtc;
+        AwaitingResponseFromRole = NormalizeRole(targetRole) ?? "customer";
 
         AddActivity(
             "request_evidence",
-            "Additional evidence requested",
-            customerVisibleNote ?? note,
+            $"Additional information requested from {AwaitingResponseFromRole}",
+            publicNote ?? note,
             actorUserId,
             "admin",
-            visibleToCustomer: true);
+            visibleToCustomer: string.Equals(AwaitingResponseFromRole, "customer", StringComparison.OrdinalIgnoreCase),
+            messageType: "request_evidence",
+            audience: ResolveAudienceForTarget(AwaitingResponseFromRole));
     }
 
     public void Escalate(
@@ -152,7 +166,10 @@ public class OrderSupportCase : BaseEntity
             customerVisibleNote ?? note,
             actorUserId,
             "admin",
-            visibleToCustomer: !string.IsNullOrWhiteSpace(customerVisibleNote));
+            visibleToCustomer: !string.IsNullOrWhiteSpace(customerVisibleNote),
+            messageType: "escalation",
+            audience: string.IsNullOrWhiteSpace(customerVisibleNote) ? "internal_admin_only" : "customer,vendor",
+            isInternalOnly: string.IsNullOrWhiteSpace(customerVisibleNote));
     }
 
     public void Reopen(Guid actorUserId, string? note)
@@ -166,7 +183,10 @@ public class OrderSupportCase : BaseEntity
             note,
             actorUserId,
             "admin",
-            visibleToCustomer: false);
+            visibleToCustomer: false,
+            messageType: "reopened",
+            audience: "internal_admin_only",
+            isInternalOnly: true);
     }
 
     public void Approve(
@@ -185,6 +205,7 @@ public class OrderSupportCase : BaseEntity
         CostBearer = NormalizeText(costBearer);
         DecisionNotes = NormalizeText(decisionNotes);
         CustomerVisibleNote = NormalizeText(customerVisibleNote);
+        AwaitingResponseFromRole = null;
 
         AddActivity(
             "approved",
@@ -192,7 +213,9 @@ public class OrderSupportCase : BaseEntity
             customerVisibleNote ?? decisionNotes,
             actorUserId,
             "admin",
-            visibleToCustomer: true);
+            visibleToCustomer: true,
+            messageType: "decision",
+            audience: "all_external");
     }
 
     public void Reject(Guid actorUserId, string? decisionNotes, string? customerVisibleNote)
@@ -203,6 +226,7 @@ public class OrderSupportCase : BaseEntity
         DecisionNotes = NormalizeText(decisionNotes);
         CustomerVisibleNote = NormalizeText(customerVisibleNote);
         ClosedAtUtc = DateTime.UtcNow;
+        AwaitingResponseFromRole = null;
 
         AddActivity(
             "rejected",
@@ -210,7 +234,9 @@ public class OrderSupportCase : BaseEntity
             customerVisibleNote ?? decisionNotes,
             actorUserId,
             "admin",
-            visibleToCustomer: true);
+            visibleToCustomer: true,
+            messageType: "decision",
+            audience: "all_external");
     }
 
     public void Resolve(Guid actorUserId, string? note)
@@ -222,6 +248,7 @@ public class OrderSupportCase : BaseEntity
 
         Status = OrderSupportCaseStatus.Resolved;
         ClosedAtUtc = DateTime.UtcNow;
+        AwaitingResponseFromRole = null;
 
         AddActivity(
             "resolved",
@@ -229,7 +256,9 @@ public class OrderSupportCase : BaseEntity
             note,
             actorUserId,
             "admin",
-            visibleToCustomer: true);
+            visibleToCustomer: true,
+            messageType: "decision",
+            audience: "all_external");
     }
 
     public void AddInternalNote(Guid actorUserId, string note, bool visibleToCustomer)
@@ -251,39 +280,40 @@ public class OrderSupportCase : BaseEntity
             note,
             actorUserId,
             "admin",
-            visibleToCustomer);
+            visibleToCustomer,
+            visibleToCustomer ? "public_note" : "internal_note",
+            visibleToCustomer ? "customer,vendor" : "internal_admin_only",
+            isInternalOnly: !visibleToCustomer);
+    }
+
+    public void AddAdminPublicMessage(Guid actorUserId, string message, string audience)
+    {
+        EnsureNotClosed("CASE_MESSAGE_NOT_ALLOWED");
+
+        if (Status == OrderSupportCaseStatus.Submitted)
+        {
+            Status = OrderSupportCaseStatus.InReview;
+        }
+
+        AddActivity(
+            "admin_message",
+            "Admin shared an update",
+            message,
+            actorUserId,
+            "admin",
+            visibleToCustomer: AudienceIncludes(audience, "customer"),
+            messageType: "public_message",
+            audience: NormalizeAudienceForStorage(audience));
     }
 
     public void AddVendorResponse(Guid vendorUserId, string response)
     {
-        EnsureNotClosed("VENDOR_RESPONSE_NOT_ALLOWED");
-
-        VendorResponse = response.Trim();
-        VendorRespondedAtUtc = DateTime.UtcNow;
-
-        AddActivity(
-            "vendor_response",
-            "Vendor responded",
-            response,
-            vendorUserId,
-            "vendor",
-            visibleToCustomer: true);
+        AddParticipantMessage(vendorUserId, "vendor", response, "customer,vendor");
     }
 
     public void AddDriverResponse(Guid driverUserId, string response)
     {
-        EnsureNotClosed("DRIVER_RESPONSE_NOT_ALLOWED");
-
-        DriverResponse = response.Trim();
-        DriverRespondedAtUtc = DateTime.UtcNow;
-
-        AddActivity(
-            "driver_response",
-            "Driver responded",
-            response,
-            driverUserId,
-            "driver",
-            visibleToCustomer: false);
+        AddParticipantMessage(driverUserId, "driver", response, "driver");
     }
 
     public void SetResolutionCode(string code)
@@ -298,26 +328,22 @@ public class OrderSupportCase : BaseEntity
 
     public void AddCustomerReply(Guid actorUserId, string note, IReadOnlyList<(string FileName, string FileUrl)>? attachments = null)
     {
-        if (Status != OrderSupportCaseStatus.AwaitingCustomerEvidence)
-        {
-            throw new BusinessRuleException("CASE_REPLY_NOT_ALLOWED", "Customer evidence can only be added while the case is awaiting evidence.");
-        }
+        AddParticipantMessage(actorUserId, "customer", note, "customer,vendor", attachments);
+    }
 
-        Status = OrderSupportCaseStatus.InReview;
-        CustomerVisibleNote = note.Trim();
-
-        foreach (var attachment in attachments ?? [])
-        {
-            AddAttachment(attachment.FileName, attachment.FileUrl, actorUserId);
-        }
-
-        AddActivity(
-            "customer_reply",
-            "Customer submitted additional evidence",
-            note,
+    public void MergeIntoActiveCase(
+        Guid actorUserId,
+        string actorRole,
+        string message,
+        IReadOnlyList<(string FileName, string FileUrl)>? attachments = null)
+    {
+        AddParticipantMessage(
             actorUserId,
-            "customer",
-            visibleToCustomer: true);
+            actorRole,
+            message,
+            ResolveAudienceForRole(actorRole),
+            attachments,
+            messageType: "case_followup");
     }
 
     private void EnsureNotClosed(string errorCode)
@@ -334,7 +360,10 @@ public class OrderSupportCase : BaseEntity
         string? note,
         Guid? actorUserId,
         string actorRole,
-        bool visibleToCustomer)
+        bool visibleToCustomer,
+        string messageType,
+        string audience,
+        bool isInternalOnly = false)
     {
         Activities.Add(new OrderSupportCaseActivity(
             Id,
@@ -343,8 +372,130 @@ public class OrderSupportCase : BaseEntity
             note,
             actorUserId,
             actorRole,
-            visibleToCustomer));
+            visibleToCustomer,
+            messageType,
+            audience,
+            isInternalOnly));
     }
+
+    private void AddParticipantMessage(
+        Guid actorUserId,
+        string actorRole,
+        string message,
+        string audience,
+        IReadOnlyList<(string FileName, string FileUrl)>? attachments = null,
+        string messageType = "participant_message")
+    {
+        EnsureNotClosed($"{actorRole.ToUpperInvariant()}_RESPONSE_NOT_ALLOWED");
+
+        var normalizedRole = NormalizeRole(actorRole)
+            ?? throw new BusinessRuleException("INVALID_SUPPORT_CASE_ROLE", "Role is not recognized.");
+        var normalizedMessage = message.Trim();
+
+        if (string.IsNullOrWhiteSpace(normalizedMessage))
+        {
+            throw new BusinessRuleException("EMPTY_SUPPORT_CASE_MESSAGE", "Message is required.");
+        }
+
+        if (Status == OrderSupportCaseStatus.AwaitingCustomerEvidence &&
+            (string.IsNullOrWhiteSpace(AwaitingResponseFromRole) ||
+             string.Equals(AwaitingResponseFromRole, normalizedRole, StringComparison.OrdinalIgnoreCase)))
+        {
+            Status = OrderSupportCaseStatus.InReview;
+            AwaitingResponseFromRole = null;
+        }
+        else if (Status == OrderSupportCaseStatus.Submitted)
+        {
+            Status = OrderSupportCaseStatus.InReview;
+        }
+
+        foreach (var attachment in attachments ?? [])
+        {
+            AddAttachment(attachment.FileName, attachment.FileUrl, actorUserId);
+        }
+
+        switch (normalizedRole)
+        {
+            case "customer":
+                CustomerVisibleNote = normalizedMessage;
+                break;
+            case "vendor":
+                VendorResponse = normalizedMessage;
+                VendorRespondedAtUtc = DateTime.UtcNow;
+                break;
+            case "driver":
+                DriverResponse = normalizedMessage;
+                DriverRespondedAtUtc = DateTime.UtcNow;
+                break;
+        }
+
+        AddActivity(
+            $"{normalizedRole}_response",
+            $"{ToDisplayRole(normalizedRole)} responded",
+            normalizedMessage,
+            actorUserId,
+            normalizedRole,
+            visibleToCustomer: AudienceIncludes(audience, "customer"),
+            messageType: messageType,
+            audience: NormalizeAudienceForStorage(audience));
+    }
+
+    private static string ResolveAudienceForRole(string actorRole) =>
+        NormalizeRole(actorRole) switch
+        {
+            "customer" => "customer,vendor",
+            "vendor" => "customer,vendor",
+            "driver" => "driver",
+            "admin" => "customer,vendor",
+            _ => "all_external"
+        };
+
+    private static string ResolveAudienceForTarget(string targetRole) =>
+        NormalizeRole(targetRole) switch
+        {
+            "customer" => "customer",
+            "vendor" => "vendor",
+            "driver" => "driver",
+            _ => "customer"
+        };
+
+    private static string NormalizeAudienceForStorage(string audience)
+    {
+        var normalized = audience
+            .Split(',', StringSplitOptions.RemoveEmptyEntries | StringSplitOptions.TrimEntries)
+            .Select(NormalizeRole)
+            .Where(token => !string.IsNullOrWhiteSpace(token))
+            .Distinct(StringComparer.OrdinalIgnoreCase)
+            .ToList();
+
+        return normalized.Count == 0 ? "all_external" : string.Join(',', normalized);
+    }
+
+    private static bool AudienceIncludes(string audience, string role)
+    {
+        var normalizedAudience = NormalizeAudienceForStorage(audience);
+        if (string.Equals(normalizedAudience, "all_external", StringComparison.OrdinalIgnoreCase))
+        {
+            return true;
+        }
+
+        return normalizedAudience
+            .Split(',', StringSplitOptions.RemoveEmptyEntries | StringSplitOptions.TrimEntries)
+            .Any(token => string.Equals(token, role, StringComparison.OrdinalIgnoreCase));
+    }
+
+    private static string ToDisplayRole(string role) =>
+        NormalizeRole(role) switch
+        {
+            "customer" => "Customer",
+            "vendor" => "Vendor",
+            "driver" => "Driver",
+            "admin" => "Admin",
+            _ => "Participant"
+        };
+
+    private static string? NormalizeRole(string? value) =>
+        string.IsNullOrWhiteSpace(value) ? null : value.Trim().ToLowerInvariant();
 
     private static string? NormalizeText(string? value) =>
         string.IsNullOrWhiteSpace(value) ? null : value.Trim();

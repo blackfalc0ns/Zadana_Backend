@@ -33,11 +33,21 @@ public class OrderStatusChangedHandlerTests
         var notificationServiceMock = new Mock<INotificationService>();
         var pushServiceMock = CreatePushServiceMock();
         var dispatcherMock = CreateDispatcherMock();
+        var revenueDistributionServiceMock = new Mock<Zadana.Application.Modules.Wallets.Services.OrderRevenueDistributionService>(
+            dbContext,
+            Microsoft.Extensions.Options.Options.Create(new Zadana.Application.Common.Settings.FinancialSettingsOptions()),
+            null,
+            new Mock<Microsoft.Extensions.Logging.ILogger<Zadana.Application.Modules.Wallets.Services.OrderRevenueDistributionService>>().Object);
+        
+        var loggerMock = new Mock<Microsoft.Extensions.Logging.ILogger<OrderStatusChangedHandler>>();
+        
         var handler = new OrderStatusChangedHandler(
             notificationServiceMock.Object,
             dbContext,
             pushServiceMock.Object,
-            dispatcherMock.Object);
+            dispatcherMock.Object,
+            revenueDistributionServiceMock.Object,
+            loggerMock.Object);
 
         await handler.Handle(
             new OrderStatusChangedNotification(
@@ -112,11 +122,21 @@ public class OrderStatusChangedHandlerTests
         var notificationServiceMock = new Mock<INotificationService>();
         var pushServiceMock = CreatePushServiceMock();
         var dispatcherMock = CreateDispatcherMock();
+        var revenueDistributionServiceMock = new Mock<Zadana.Application.Modules.Wallets.Services.OrderRevenueDistributionService>(
+            dbContext,
+            Microsoft.Extensions.Options.Options.Create(new Zadana.Application.Common.Settings.FinancialSettingsOptions()),
+            null,
+            new Mock<Microsoft.Extensions.Logging.ILogger<Zadana.Application.Modules.Wallets.Services.OrderRevenueDistributionService>>().Object);
+        
+        var loggerMock = new Mock<Microsoft.Extensions.Logging.ILogger<OrderStatusChangedHandler>>();
+        
         var handler = new OrderStatusChangedHandler(
             notificationServiceMock.Object,
             dbContext,
             pushServiceMock.Object,
-            dispatcherMock.Object);
+            dispatcherMock.Object,
+            revenueDistributionServiceMock.Object,
+            loggerMock.Object);
 
         await handler.Handle(
             new OrderStatusChangedNotification(
@@ -191,11 +211,21 @@ public class OrderStatusChangedHandlerTests
         var notificationServiceMock = new Mock<INotificationService>();
         var pushServiceMock = CreatePushServiceMock();
         var dispatcherMock = CreateDispatcherMock();
+        var revenueDistributionServiceMock = new Mock<Zadana.Application.Modules.Wallets.Services.OrderRevenueDistributionService>(
+            dbContext,
+            Microsoft.Extensions.Options.Options.Create(new Zadana.Application.Common.Settings.FinancialSettingsOptions()),
+            null,
+            new Mock<Microsoft.Extensions.Logging.ILogger<Zadana.Application.Modules.Wallets.Services.OrderRevenueDistributionService>>().Object);
+        
+        var loggerMock = new Mock<Microsoft.Extensions.Logging.ILogger<OrderStatusChangedHandler>>();
+        
         var handler = new OrderStatusChangedHandler(
             notificationServiceMock.Object,
             dbContext,
             pushServiceMock.Object,
-            dispatcherMock.Object);
+            dispatcherMock.Object,
+            revenueDistributionServiceMock.Object,
+            loggerMock.Object);
 
         await handler.Handle(
             new OrderStatusChangedNotification(
@@ -263,11 +293,21 @@ public class OrderStatusChangedHandlerTests
         var notificationServiceMock = new Mock<INotificationService>();
         var pushServiceMock = CreatePushServiceMock();
         var dispatcherMock = CreateDispatcherMock();
+        var revenueDistributionServiceMock = new Mock<Zadana.Application.Modules.Wallets.Services.OrderRevenueDistributionService>(
+            dbContext,
+            Microsoft.Extensions.Options.Options.Create(new Zadana.Application.Common.Settings.FinancialSettingsOptions()),
+            null,
+            new Mock<Microsoft.Extensions.Logging.ILogger<Zadana.Application.Modules.Wallets.Services.OrderRevenueDistributionService>>().Object);
+        
+        var loggerMock = new Mock<Microsoft.Extensions.Logging.ILogger<OrderStatusChangedHandler>>();
+        
         var handler = new OrderStatusChangedHandler(
             notificationServiceMock.Object,
             dbContext,
             pushServiceMock.Object,
-            dispatcherMock.Object);
+            dispatcherMock.Object,
+            revenueDistributionServiceMock.Object,
+            loggerMock.Object);
         var customerId = Guid.NewGuid();
         var vendorId = Guid.NewGuid();
         var orderId = Guid.NewGuid();
@@ -334,11 +374,21 @@ public class OrderStatusChangedHandlerTests
         var notificationServiceMock = new Mock<INotificationService>();
         var pushServiceMock = CreatePushServiceMock();
         var dispatcherMock = CreateDispatcherMock();
+        var revenueDistributionServiceMock = new Mock<Zadana.Application.Modules.Wallets.Services.OrderRevenueDistributionService>(
+            dbContext,
+            Microsoft.Extensions.Options.Options.Create(new Zadana.Application.Common.Settings.FinancialSettingsOptions()),
+            null,
+            new Mock<Microsoft.Extensions.Logging.ILogger<Zadana.Application.Modules.Wallets.Services.OrderRevenueDistributionService>>().Object);
+        
+        var loggerMock = new Mock<Microsoft.Extensions.Logging.ILogger<OrderStatusChangedHandler>>();
+        
         var handler = new OrderStatusChangedHandler(
             notificationServiceMock.Object,
             dbContext,
             pushServiceMock.Object,
-            dispatcherMock.Object);
+            dispatcherMock.Object,
+            revenueDistributionServiceMock.Object,
+            loggerMock.Object);
 
         await handler.Handle(
             new OrderStatusChangedNotification(
@@ -382,11 +432,21 @@ public class OrderStatusChangedHandlerTests
         var notificationServiceMock = new Mock<INotificationService>();
         var pushServiceMock = CreatePushServiceMock();
         var dispatcherMock = CreateDispatcherMock();
+        var revenueDistributionServiceMock = new Mock<Zadana.Application.Modules.Wallets.Services.OrderRevenueDistributionService>(
+            dbContext,
+            Microsoft.Extensions.Options.Options.Create(new Zadana.Application.Common.Settings.FinancialSettingsOptions()),
+            null,
+            new Mock<Microsoft.Extensions.Logging.ILogger<Zadana.Application.Modules.Wallets.Services.OrderRevenueDistributionService>>().Object);
+        
+        var loggerMock = new Mock<Microsoft.Extensions.Logging.ILogger<OrderStatusChangedHandler>>();
+        
         var handler = new OrderStatusChangedHandler(
             notificationServiceMock.Object,
             dbContext,
             pushServiceMock.Object,
-            dispatcherMock.Object);
+            dispatcherMock.Object,
+            revenueDistributionServiceMock.Object,
+            loggerMock.Object);
 
         await handler.Handle(
             new OrderStatusChangedNotification(

@@ -315,6 +315,14 @@ public class OrdersController : ApiControllerBase
         return Ok(new CustomerReplyResponse("Reply submitted successfully", MapSupportCase(result)));
     }
 
+    [HttpPost("{orderId:guid}/cases/{caseId:guid}/messages")]
+    public Task<ActionResult<CustomerReplyResponse>> SendMessageToCase(
+        Guid orderId,
+        Guid caseId,
+        [FromBody] CustomerReplyRequest? request,
+        CancellationToken cancellationToken = default) =>
+        ReplyToCase(orderId, caseId, request, cancellationToken);
+
     [HttpPost]
     public async Task<ActionResult<PlaceOrderResponse>> PlaceOrder(
         [FromBody] PlaceOrderRequest? request,
@@ -456,6 +464,16 @@ public class OrdersController : ApiControllerBase
             dto.ApprovedRefundAmount,
             dto.RefundMethod,
             dto.CostBearer,
+            dto.InitiatorRole,
+            dto.WaitingOnRole,
+            dto.Participants
+                .Select(item => new OrderSupportCaseParticipantResponse(
+                    item.Role,
+                    item.IsInitiator,
+                    item.IsAwaitingResponse,
+                    item.HasMessages))
+                .ToList(),
+            dto.AllowedActions.ToList(),
             dto.Attachments
                 .Select(item => new OrderSupportCaseAttachmentResponse(item.FileName, item.FileUrl))
                 .ToList(),
@@ -466,7 +484,25 @@ public class OrdersController : ApiControllerBase
                     item.Note,
                     item.ActorRole,
                     item.VisibleToCustomer,
+                    item.MessageType,
+                    item.VisibleTo.ToList(),
+                    item.IsInternalOnly,
                     item.CreatedAt))
+                .ToList(),
+            dto.Messages
+                .Select(item => new OrderSupportCaseMessageResponse(
+                    item.Id,
+                    item.Action,
+                    item.MessageType,
+                    item.Title,
+                    item.Body,
+                    item.AuthorRole,
+                    item.VisibleTo.ToList(),
+                    item.IsInternalOnly,
+                    item.CreatedAt,
+                    item.Attachments
+                        .Select(attachment => new OrderSupportCaseAttachmentResponse(attachment.FileName, attachment.FileUrl))
+                        .ToList()))
                 .ToList());
 
     private string? ResolveDeviceIdHeader()

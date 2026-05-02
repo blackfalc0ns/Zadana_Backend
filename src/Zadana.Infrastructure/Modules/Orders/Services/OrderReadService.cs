@@ -822,6 +822,10 @@ public class OrderReadService : IOrderReadService
             supportCase.ApprovedRefundAmount,
             supportCase.RefundMethod,
             supportCase.CostBearer,
+            supportCase.InitiatorRole,
+            supportCase.AwaitingResponseFromRole,
+            BuildParticipants(supportCase),
+            BuildAllowedActions("customer", supportCase),
             supportCase.Attachments
                 .Select(attachment => new OrderSupportCaseAttachmentDto(
                     attachment.FileName,
@@ -829,13 +833,32 @@ public class OrderReadService : IOrderReadService
                 .ToList(),
             supportCase.Activities
                 .OrderByDescending(activity => activity.CreatedAtUtc)
+                .Where(activity => activity.IsVisibleToRole("customer"))
                 .Select(activity => new OrderSupportCaseActivityDto(
                     activity.Action,
                     activity.Title,
                     activity.Note,
                     activity.ActorRole,
                     activity.VisibleToCustomer,
+                    activity.MessageType,
+                    activity.GetVisibleRoles(),
+                    activity.IsInternalOnly,
                     activity.CreatedAtUtc))
+                .ToList(),
+            supportCase.Activities
+                .OrderByDescending(activity => activity.CreatedAtUtc)
+                .Where(activity => activity.IsVisibleToRole("customer"))
+                .Select(activity => new OrderSupportCaseMessageDto(
+                    activity.Id,
+                    activity.Action,
+                    activity.MessageType,
+                    activity.Title,
+                    activity.Note,
+                    activity.ActorRole,
+                    activity.GetVisibleRoles(),
+                    activity.IsInternalOnly,
+                    activity.CreatedAtUtc,
+                    []))
                 .ToList());
 
     private static OrderSupportCaseSummaryDto? ResolveActiveSupportCaseSummary(IEnumerable<OrderSupportCase> supportCases)
@@ -1635,6 +1658,47 @@ public class OrderReadService : IOrderReadService
         return true;
     }
 
+    private static IReadOnlyList<OrderSupportCaseParticipantDto> BuildParticipants(OrderSupportCase supportCase)
+    {
+        var roles = new HashSet<string>(StringComparer.OrdinalIgnoreCase)
+        {
+            "customer",
+            "vendor"
+        };
+
+        if (supportCase.Type is OrderSupportCaseType.DriverReport or OrderSupportCaseType.DriverDispute ||
+            supportCase.Activities.Any(activity => string.Equals(activity.ActorRole, "driver", StringComparison.OrdinalIgnoreCase)) ||
+            !string.IsNullOrWhiteSpace(supportCase.DriverResponse))
+        {
+            roles.Add("driver");
+        }
+
+        return roles
+            .Select(role => new OrderSupportCaseParticipantDto(
+                role,
+                string.Equals(supportCase.InitiatorRole, role, StringComparison.OrdinalIgnoreCase),
+                string.Equals(supportCase.AwaitingResponseFromRole, role, StringComparison.OrdinalIgnoreCase),
+                supportCase.Activities.Any(activity => string.Equals(activity.ActorRole, role, StringComparison.OrdinalIgnoreCase))))
+            .ToList();
+    }
+
+    private static IReadOnlyList<string> BuildAllowedActions(string viewerRole, OrderSupportCase supportCase)
+    {
+        if (supportCase.Status is OrderSupportCaseStatus.Rejected or OrderSupportCaseStatus.Resolved)
+        {
+            return viewerRole == "admin" ? ["reopen"] : [];
+        }
+
+        return viewerRole switch
+        {
+            "admin" => ["assign", "note", "message", "request_evidence", "escalate", "approve", "reject", "resolve"],
+            "vendor" => ["message"],
+            "driver" => ["message"],
+            "customer" => ["message"],
+            _ => []
+        };
+    }
+
     private static AdminOrderSupportCaseListItemDto BuildAdminSupportCaseListItem(
         OrderSupportCase supportCase,
         Payment? payment,
@@ -1687,6 +1751,23 @@ public class OrderReadService : IOrderReadService
                     ResolveTimelineTone(activity.Action, supportCase.Status)))
                 .ToList(),
             supportCase.InitiatorRole,
+            supportCase.AwaitingResponseFromRole,
+            BuildParticipants(supportCase),
+            BuildAllowedActions("admin", supportCase),
+            supportCase.Activities
+                .OrderByDescending(activity => activity.CreatedAtUtc)
+                .Select(activity => new OrderSupportCaseMessageDto(
+                    activity.Id,
+                    activity.Action,
+                    activity.MessageType,
+                    activity.Title,
+                    activity.Note,
+                    activity.ActorRole,
+                    activity.GetVisibleRoles(),
+                    activity.IsInternalOnly,
+                    activity.CreatedAtUtc,
+                    []))
+                .ToList(),
             supportCase.VendorResponse,
             supportCase.DriverResponse);
     }

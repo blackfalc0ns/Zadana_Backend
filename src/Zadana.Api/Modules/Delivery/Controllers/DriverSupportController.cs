@@ -223,6 +223,43 @@ public class DriverSupportController : ApiControllerBase
             activities));
     }
 
+    [HttpPost("orders/{orderId:guid}/cases/{caseId:guid}/messages")]
+    public async Task<ActionResult<DriverSupportCaseResponse>> SendMessage(
+        Guid orderId,
+        Guid caseId,
+        [FromBody] DriverReportIssueRequest? request,
+        CancellationToken cancellationToken = default)
+    {
+        if (request is null || string.IsNullOrWhiteSpace(request.Message))
+        {
+            throw new BadRequestException("INVALID_REQUEST_BODY", "Message is required.");
+        }
+
+        var (_, userId) = await ResolveDriverAsync(cancellationToken);
+
+        var supportCase = await _workflowService.AddDriverResponseAsync(
+            caseId,
+            orderId,
+            userId,
+            request.Message,
+            request.Attachments?.Select(a => new OrderSupportCaseAttachmentInput(a.FileName, a.FileUrl)).ToList(),
+            cancellationToken);
+
+        var order = await _dbContext.Orders.FirstOrDefaultAsync(o => o.Id == orderId, cancellationToken)
+            ?? throw new NotFoundException("Order", orderId);
+
+        return Ok(new DriverSupportCaseResponse(
+            supportCase.Id,
+            supportCase.OrderId,
+            order.OrderNumber,
+            supportCase.Type.ToString(),
+            supportCase.Status.ToString(),
+            supportCase.Priority.ToString(),
+            supportCase.ReasonCode,
+            supportCase.Message,
+            supportCase.CreatedAtUtc));
+    }
+
     private async Task<(Guid DriverId, Guid UserId)> ResolveDriverAsync(CancellationToken cancellationToken)
     {
         var userId = _currentUserService.UserId

@@ -47,6 +47,8 @@ public sealed class OrderSupportCaseWorkflowService : IOrderSupportCaseWorkflowS
         {
             // Driver-initiated: verify driver has an assignment for this order
             order = await _context.Orders
+                .Include(x => x.User)
+                .Include(x => x.Vendor)
                 .FirstOrDefaultAsync(x => x.Id == orderId, cancellationToken)
                 ?? throw new NotFoundException("Order", orderId);
 
@@ -62,15 +64,43 @@ public sealed class OrderSupportCaseWorkflowService : IOrderSupportCaseWorkflowS
         {
             // Customer-initiated: verify order ownership
             order = await _context.Orders
+                .Include(x => x.User)
+                .Include(x => x.Vendor)
                 .FirstOrDefaultAsync(x => x.Id == orderId && x.UserId == customerUserId, cancellationToken)
                 ?? throw new NotFoundException("Order", orderId);
 
             ValidateCustomerCreateEligibility(order, supportCaseType);
         }
 
-        await EnsureNoActiveCaseAsync(order.Id, cancellationToken);
-
         var initiatorRole = isDriverInitiated ? "driver" : "customer";
+        var activeCase = await LoadActiveCaseAsync(order.Id, cancellationToken);
+
+        if (activeCase is not null)
+        {
+            activeCase.MergeIntoActiveCase(
+                customerUserId,
+                initiatorRole,
+                message,
+                attachments?.Select(item => (item.FileName, item.FileUrl)).ToList());
+
+            await _unitOfWork.SaveChangesAsync(cancellationToken);
+
+            await NotifyAdminRecipientsAsync(
+                order,
+                activeCase,
+                "updated",
+                actorUserId: customerUserId,
+                notifyEscalatedTeam: true,
+                notifyCurrentReviewer: true,
+                cancellationToken);
+
+            if (!isDriverInitiated)
+            {
+                await NotifyVendorAsync(order, activeCase, "customer_updated", cancellationToken);
+            }
+
+            return activeCase;
+        }
 
         var supportCase = new OrderSupportCase(
             order.Id,
@@ -104,6 +134,11 @@ public sealed class OrderSupportCaseWorkflowService : IOrderSupportCaseWorkflowS
         if (!isDriverInitiated)
         {
             await NotifyCustomerAsync(order, supportCase, "created", cancellationToken);
+            await NotifyVendorAsync(order, supportCase, "customer_created", cancellationToken);
+        }
+        else
+        {
+            await NotifyDriverAsync(order, supportCase, customerUserId, "created", cancellationToken);
         }
 
         return supportCase;
@@ -122,11 +157,31 @@ public sealed class OrderSupportCaseWorkflowService : IOrderSupportCaseWorkflowS
         CancellationToken cancellationToken = default)
     {
         var order = await _context.Orders
+            .Include(x => x.User)
+            .Include(x => x.Vendor)
             .FirstOrDefaultAsync(x => x.Id == orderId, cancellationToken)
             ?? throw new NotFoundException("Order", orderId);
 
         var supportCaseType = ParseType(type);
-        await EnsureNoActiveCaseAsync(order.Id, cancellationToken);
+        var activeCase = await LoadActiveCaseAsync(order.Id, cancellationToken);
+
+        if (activeCase is not null)
+        {
+            activeCase.AddAdminPublicMessage(adminUserId, message, "customer,vendor");
+
+            if (!string.IsNullOrWhiteSpace(internalNote))
+            {
+                activeCase.AddInternalNote(adminUserId, internalNote, visibleToCustomer: false);
+            }
+
+            if (!string.IsNullOrWhiteSpace(customerVisibleNote))
+            {
+                activeCase.AddAdminPublicMessage(adminUserId, customerVisibleNote, "customer,vendor");
+            }
+
+            await _unitOfWork.SaveChangesAsync(cancellationToken);
+            return activeCase;
+        }
 
         var supportCase = new OrderSupportCase(
             order.Id,
@@ -177,14 +232,36 @@ public sealed class OrderSupportCaseWorkflowService : IOrderSupportCaseWorkflowS
         Guid actorUserId,
         string? note,
         string? customerVisibleNote,
+        string? targetRole,
         DateTime? slaDueAtUtc,
         CancellationToken cancellationToken = default)
     {
         var supportCase = await LoadCaseForWriteAsync(caseId, cancellationToken);
-        supportCase.RequestCustomerEvidence(actorUserId, note, customerVisibleNote, slaDueAtUtc);
+        var normalizedTargetRole = NormalizeToken(targetRole) switch
+        {
+            "merchant" => "vendor",
+            "customer" => "customer",
+            "vendor" => "vendor",
+            "driver" => "driver",
+            _ => "customer"
+        };
+
+        supportCase.RequestEvidenceFrom(actorUserId, normalizedTargetRole, note, customerVisibleNote, slaDueAtUtc);
         await _unitOfWork.SaveChangesAsync(cancellationToken);
 
-        await NotifyCustomerAsync(supportCase.Order, supportCase, "request_evidence", cancellationToken);
+        switch (normalizedTargetRole)
+        {
+            case "vendor":
+                await NotifyVendorAsync(supportCase.Order, supportCase, "request_evidence", cancellationToken);
+                break;
+            case "driver":
+                await NotifyActiveDriverAsync(supportCase.Order, supportCase, "request_evidence", cancellationToken);
+                break;
+            default:
+                await NotifyCustomerAsync(supportCase.Order, supportCase, "request_evidence", cancellationToken);
+                break;
+        }
+
         return supportCase;
     }
 
@@ -253,6 +330,8 @@ public sealed class OrderSupportCaseWorkflowService : IOrderSupportCaseWorkflowS
         await _unitOfWork.SaveChangesAsync(cancellationToken);
 
         await NotifyCustomerAsync(supportCase.Order, supportCase, "approved", cancellationToken);
+        await NotifyVendorAsync(supportCase.Order, supportCase, "approved", cancellationToken);
+        await NotifyActiveDriverAsync(supportCase.Order, supportCase, "approved", cancellationToken);
         return supportCase;
     }
 
@@ -268,6 +347,8 @@ public sealed class OrderSupportCaseWorkflowService : IOrderSupportCaseWorkflowS
         await _unitOfWork.SaveChangesAsync(cancellationToken);
 
         await NotifyCustomerAsync(supportCase.Order, supportCase, "rejected", cancellationToken);
+        await NotifyVendorAsync(supportCase.Order, supportCase, "rejected", cancellationToken);
+        await NotifyActiveDriverAsync(supportCase.Order, supportCase, "rejected", cancellationToken);
         return supportCase;
     }
 
@@ -282,6 +363,8 @@ public sealed class OrderSupportCaseWorkflowService : IOrderSupportCaseWorkflowS
         await _unitOfWork.SaveChangesAsync(cancellationToken);
 
         await NotifyCustomerAsync(supportCase.Order, supportCase, "resolved", cancellationToken);
+        await NotifyVendorAsync(supportCase.Order, supportCase, "resolved", cancellationToken);
+        await NotifyActiveDriverAsync(supportCase.Order, supportCase, "resolved", cancellationToken);
         return supportCase;
     }
 
@@ -311,6 +394,7 @@ public sealed class OrderSupportCaseWorkflowService : IOrderSupportCaseWorkflowS
         if (visibleToCustomer)
         {
             await NotifyCustomerAsync(supportCase.Order, supportCase, "note_added", cancellationToken);
+            await NotifyVendorAsync(supportCase.Order, supportCase, "note_added", cancellationToken);
         }
 
         return supportCase;
@@ -335,6 +419,86 @@ public sealed class OrderSupportCaseWorkflowService : IOrderSupportCaseWorkflowS
             notifyCurrentReviewer: true,
             cancellationToken);
 
+        await NotifyCustomerAsync(supportCase.Order, supportCase, "vendor_responded", cancellationToken);
+
+        return supportCase;
+    }
+
+    public async Task<OrderSupportCase> AddDriverResponseAsync(
+        Guid caseId,
+        Guid orderId,
+        Guid driverUserId,
+        string response,
+        IReadOnlyList<OrderSupportCaseAttachmentInput>? attachments,
+        CancellationToken cancellationToken = default)
+    {
+        var supportCase = await _context.OrderSupportCases
+            .Include(item => item.Order)
+                .ThenInclude(order => order.User)
+            .Include(item => item.Order)
+                .ThenInclude(order => order.Vendor)
+            .Include(item => item.Activities)
+            .Include(item => item.Attachments)
+            .FirstOrDefaultAsync(item => item.Id == caseId && item.OrderId == orderId, cancellationToken)
+            ?? throw new NotFoundException("OrderSupportCase", caseId);
+
+        var assignedDriverUserIds = await _context.DeliveryAssignments
+            .Where(item => item.OrderId == orderId && item.Driver != null)
+            .Select(item => item.Driver!.UserId)
+            .Distinct()
+            .ToListAsync(cancellationToken);
+
+        if (!assignedDriverUserIds.Contains(driverUserId))
+        {
+            throw new ForbiddenAccessException("You are not assigned to this order.");
+        }
+
+        supportCase.MergeIntoActiveCase(
+            driverUserId,
+            "driver",
+            response,
+            attachments?.Select(item => (item.FileName, item.FileUrl)).ToList());
+
+        await _unitOfWork.SaveChangesAsync(cancellationToken);
+
+        await NotifyAdminRecipientsAsync(
+            supportCase.Order,
+            supportCase,
+            "driver_responded",
+            actorUserId: driverUserId,
+            notifyEscalatedTeam: false,
+            notifyCurrentReviewer: true,
+            cancellationToken);
+
+        return supportCase;
+    }
+
+    public async Task<OrderSupportCase> AddAdminPublicMessageAsync(
+        Guid caseId,
+        Guid actorUserId,
+        string message,
+        string audience,
+        CancellationToken cancellationToken = default)
+    {
+        var supportCase = await LoadCaseForWriteAsync(caseId, cancellationToken);
+        supportCase.AddAdminPublicMessage(actorUserId, message, audience);
+        await _unitOfWork.SaveChangesAsync(cancellationToken);
+
+        if (AudienceIncludes(audience, "customer"))
+        {
+            await NotifyCustomerAsync(supportCase.Order, supportCase, "admin_message", cancellationToken);
+        }
+
+        if (AudienceIncludes(audience, "vendor"))
+        {
+            await NotifyVendorAsync(supportCase.Order, supportCase, "admin_message", cancellationToken);
+        }
+
+        if (AudienceIncludes(audience, "driver"))
+        {
+            await NotifyActiveDriverAsync(supportCase.Order, supportCase, "admin_message", cancellationToken);
+        }
+
         return supportCase;
     }
 
@@ -342,21 +506,27 @@ public sealed class OrderSupportCaseWorkflowService : IOrderSupportCaseWorkflowS
     {
         return await _context.OrderSupportCases
             .Include(x => x.Order)
+                .ThenInclude(order => order.User)
+            .Include(x => x.Order)
+                .ThenInclude(order => order.Vendor)
             .Include(x => x.Attachments)
             .Include(x => x.Activities)
             .FirstOrDefaultAsync(x => x.Id == caseId, cancellationToken)
             ?? throw new NotFoundException("OrderSupportCase", caseId);
     }
 
-    private async Task EnsureNoActiveCaseAsync(Guid orderId, CancellationToken cancellationToken)
+    private async Task<OrderSupportCase?> LoadActiveCaseAsync(Guid orderId, CancellationToken cancellationToken)
     {
-        var hasActiveCase = await _context.OrderSupportCases
-            .AnyAsync(x => x.OrderId == orderId && x.Status != OrderSupportCaseStatus.Rejected && x.Status != OrderSupportCaseStatus.Resolved, cancellationToken);
-
-        if (hasActiveCase)
-        {
-            throw new BusinessRuleException("ORDER_SUPPORT_CASE_ALREADY_EXISTS", "An active support case already exists for this order.");
-        }
+        return await _context.OrderSupportCases
+            .Include(x => x.Order)
+                .ThenInclude(order => order.User)
+            .Include(x => x.Order)
+                .ThenInclude(order => order.Vendor)
+            .Include(x => x.Attachments)
+            .Include(x => x.Activities)
+            .Where(x => x.OrderId == orderId && x.Status != OrderSupportCaseStatus.Rejected && x.Status != OrderSupportCaseStatus.Resolved)
+            .OrderByDescending(x => x.UpdatedAtUtc)
+            .FirstOrDefaultAsync(cancellationToken);
     }
 
     private static void ValidateCustomerCreateEligibility(Order order, OrderSupportCaseType supportCaseType)
@@ -480,6 +650,74 @@ public sealed class OrderSupportCaseWorkflowService : IOrderSupportCaseWorkflowS
                 composed.Data,
                 composed.TargetUrl)
             .DispatchAsync(_oneSignalPushService, cancellationToken);
+    }
+
+    private async Task NotifyVendorAsync(
+        Order order,
+        OrderSupportCase supportCase,
+        string action,
+        CancellationToken cancellationToken)
+    {
+        if (order.Vendor?.UserId is not Guid vendorUserId || vendorUserId == Guid.Empty)
+        {
+            return;
+        }
+
+        await _notificationService.SendToUserAsync(
+            vendorUserId,
+            "تحديث في نزاع طلب",
+            "Order dispute updated",
+            $"تم تحديث حالة النزاع للطلب #{order.OrderNumber}.",
+            $"The dispute for order #{order.OrderNumber} has been updated.",
+            "order_support_case",
+            supportCase.Id,
+            $$"""{"action":"{{action}}","orderId":"{{order.Id}}","caseId":"{{supportCase.Id}}"}""",
+            cancellationToken);
+    }
+
+    private async Task NotifyActiveDriverAsync(
+        Order order,
+        OrderSupportCase supportCase,
+        string action,
+        CancellationToken cancellationToken)
+    {
+        var driverUserId = await _context.DeliveryAssignments
+            .AsNoTracking()
+            .Where(item => item.OrderId == order.Id && item.Driver != null)
+            .OrderByDescending(item => item.CreatedAtUtc)
+            .Select(item => item.Driver!.UserId)
+            .FirstOrDefaultAsync(cancellationToken);
+
+        if (driverUserId == Guid.Empty)
+        {
+            return;
+        }
+
+        await NotifyDriverAsync(order, supportCase, driverUserId, action, cancellationToken);
+    }
+
+    private async Task NotifyDriverAsync(
+        Order order,
+        OrderSupportCase supportCase,
+        Guid driverUserId,
+        string action,
+        CancellationToken cancellationToken)
+    {
+        if (driverUserId == Guid.Empty)
+        {
+            return;
+        }
+
+        await _notificationService.SendToUserAsync(
+            driverUserId,
+            "تحديث في بلاغ الطلب",
+            "Order case updated",
+            $"هناك تحديث جديد على الحالة المرتبطة بالطلب #{order.OrderNumber}.",
+            $"There is a new update on the case for order #{order.OrderNumber}.",
+            "order_support_case",
+            supportCase.Id,
+            $$"""{"action":"{{action}}","orderId":"{{order.Id}}","caseId":"{{supportCase.Id}}"}""",
+            cancellationToken);
     }
 
     private async Task NotifyAdminRecipientsAsync(
@@ -695,6 +933,19 @@ public sealed class OrderSupportCaseWorkflowService : IOrderSupportCaseWorkflowS
     private static string? NormalizeToken(string? value) =>
         string.IsNullOrWhiteSpace(value) ? null : value.Trim().ToLowerInvariant();
 
+    private static bool AudienceIncludes(string audience, string role)
+    {
+        var normalizedAudience = NormalizeToken(audience) ?? "all_external";
+        if (normalizedAudience == "all_external")
+        {
+            return true;
+        }
+
+        return normalizedAudience
+            .Split(',', StringSplitOptions.RemoveEmptyEntries | StringSplitOptions.TrimEntries)
+            .Any(token => string.Equals(token, role, StringComparison.OrdinalIgnoreCase));
+    }
+
     public async Task<OrderSupportCase> AddCustomerReplyAsync(
         Guid caseId,
         Guid orderId,
@@ -725,6 +976,18 @@ public sealed class OrderSupportCaseWorkflowService : IOrderSupportCaseWorkflowS
         supportCase.AddCustomerReply(customerUserId, message, attachmentTuples);
 
         await _context.SaveChangesAsync(cancellationToken);
+
+        await NotifyAdminRecipientsAsync(
+            supportCase.Order,
+            supportCase,
+            "customer_replied",
+            actorUserId: customerUserId,
+            notifyEscalatedTeam: false,
+            notifyCurrentReviewer: true,
+            cancellationToken);
+
+        await NotifyVendorAsync(supportCase.Order, supportCase, "customer_replied", cancellationToken);
+
         return supportCase;
     }
 }

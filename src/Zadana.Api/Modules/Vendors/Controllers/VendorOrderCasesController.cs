@@ -101,6 +101,7 @@ public class VendorOrderCasesController : ApiControllerBase
                 c.VendorRespondedAtUtc,
                 c.CustomerVisibleNote,
                 c.InitiatorRole,
+                c.AwaitingResponseFromRole,
                 c.CreatedAtUtc,
                 c.UpdatedAtUtc))
             .ToListAsync(cancellationToken);
@@ -119,7 +120,7 @@ public class VendorOrderCasesController : ApiControllerBase
             .AsNoTracking()
             .Include(c => c.Order)
             .Include(c => c.Attachments)
-            .Include(c => c.Activities.Where(a => a.VisibleToCustomer))
+            .Include(c => c.Activities)
             .Where(c => c.Id == caseId && c.Order.VendorId == vendorId)
             .FirstOrDefaultAsync(cancellationToken)
             ?? throw new NotFoundException("OrderSupportCase", caseId);
@@ -130,8 +131,11 @@ public class VendorOrderCasesController : ApiControllerBase
 
         var activities = supportCase.Activities
             .OrderByDescending(a => a.CreatedAtUtc)
+            .Where(a => a.IsVisibleToRole("vendor"))
             .Select(a => new VendorOrderCaseActivityResponse(
+                a.Id,
                 a.Action,
+                a.MessageType,
                 a.Title,
                 a.Note,
                 a.ActorRole,
@@ -153,6 +157,7 @@ public class VendorOrderCasesController : ApiControllerBase
             supportCase.CustomerVisibleNote,
             supportCase.DecisionNotes,
             supportCase.InitiatorRole,
+            supportCase.AwaitingResponseFromRole,
             supportCase.RequestedRefundAmount,
             supportCase.ApprovedRefundAmount,
             supportCase.RefundMethod,
@@ -160,8 +165,25 @@ public class VendorOrderCasesController : ApiControllerBase
             supportCase.CreatedAtUtc,
             supportCase.UpdatedAtUtc,
             supportCase.ClosedAtUtc,
+            BuildParticipants(supportCase),
+            supportCase.Status is OrderSupportCaseStatus.Rejected or OrderSupportCaseStatus.Resolved ? [] : ["message"],
             attachments,
-            activities));
+            activities,
+            supportCase.Activities
+                .OrderByDescending(activity => activity.CreatedAtUtc)
+                .Where(activity => activity.IsVisibleToRole("vendor"))
+                .Select(activity => new VendorOrderCaseMessageResponse(
+                activity.Id,
+                activity.Action,
+                activity.MessageType,
+                activity.Title,
+                activity.Note,
+                activity.ActorRole,
+                activity.GetVisibleRoles().ToList(),
+                activity.IsInternalOnly,
+                activity.CreatedAtUtc,
+                []))
+                .ToList()));
     }
 
     [HttpPost("{caseId:guid}/respond")]
@@ -201,6 +223,31 @@ public class VendorOrderCasesController : ApiControllerBase
             supportCase.VendorRespondedAtUtc!.Value,
             supportCase.Status.ToString()));
     }
+
+    [HttpPost("{caseId:guid}/messages")]
+    public Task<ActionResult<VendorOrderCaseRespondResponse>> SendMessage(
+        Guid caseId,
+        [FromBody] VendorOrderCaseRespondRequest? request,
+        CancellationToken cancellationToken = default) =>
+        Respond(caseId, request, cancellationToken);
+
+    private static List<VendorOrderCaseParticipantResponse> BuildParticipants(Zadana.Domain.Modules.Orders.Entities.OrderSupportCase supportCase)
+    {
+        var participants = new List<VendorOrderCaseParticipantResponse>
+        {
+            new("customer", supportCase.InitiatorRole == "customer", supportCase.AwaitingResponseFromRole == "customer"),
+            new("vendor", supportCase.InitiatorRole == "vendor", supportCase.AwaitingResponseFromRole == "vendor")
+        };
+
+        if (supportCase.Type is OrderSupportCaseType.DriverReport or OrderSupportCaseType.DriverDispute ||
+            supportCase.Activities.Any(activity => activity.ActorRole == "driver") ||
+            !string.IsNullOrWhiteSpace(supportCase.DriverResponse))
+        {
+            participants.Add(new("driver", supportCase.InitiatorRole == "driver", supportCase.AwaitingResponseFromRole == "driver"));
+        }
+
+        return participants;
+    }
 }
 
 // Request DTOs
@@ -226,6 +273,7 @@ public sealed record VendorOrderCaseListItemResponse(
     DateTime? VendorRespondedAt,
     string? CustomerVisibleNote,
     string InitiatorRole,
+    string? WaitingOnRole,
     DateTime CreatedAt,
     DateTime UpdatedAt);
 
@@ -244,6 +292,7 @@ public sealed record VendorOrderCaseDetailResponse(
     string? CustomerVisibleNote,
     string? DecisionNotes,
     string InitiatorRole,
+    string? WaitingOnRole,
     decimal? RequestedRefundAmount,
     decimal? ApprovedRefundAmount,
     string? RefundMethod,
@@ -251,9 +300,14 @@ public sealed record VendorOrderCaseDetailResponse(
     DateTime CreatedAt,
     DateTime UpdatedAt,
     DateTime? ClosedAt,
+    List<VendorOrderCaseParticipantResponse> Participants,
+    List<string> AllowedActions,
     List<VendorOrderCaseAttachmentResponse> Attachments,
-    List<VendorOrderCaseActivityResponse> Activities);
+    List<VendorOrderCaseActivityResponse> Activities,
+    List<VendorOrderCaseMessageResponse> Messages);
 
 public sealed record VendorOrderCaseAttachmentResponse(string FileName, string FileUrl);
-public sealed record VendorOrderCaseActivityResponse(string Action, string Title, string? Note, string ActorRole, DateTime CreatedAt);
+public sealed record VendorOrderCaseActivityResponse(Guid Id, string Action, string MessageType, string Title, string? Note, string ActorRole, DateTime CreatedAt);
+public sealed record VendorOrderCaseMessageResponse(Guid Id, string Action, string MessageType, string Title, string? Body, string AuthorRole, List<string> VisibleTo, bool IsInternalOnly, DateTime CreatedAt, List<VendorOrderCaseAttachmentResponse> Attachments);
+public sealed record VendorOrderCaseParticipantResponse(string Role, bool IsInitiator, bool IsAwaitingResponse);
 public sealed record VendorOrderCaseRespondResponse(Guid CaseId, string Response, DateTime RespondedAt, string CaseStatus);

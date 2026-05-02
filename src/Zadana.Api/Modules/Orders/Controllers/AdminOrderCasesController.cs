@@ -103,6 +103,7 @@ public class AdminOrderCasesController : ApiControllerBase
             GetRequiredAdminUserId(),
             request.Note,
             request.CustomerVisibleNote,
+            request.TargetRole,
             request.SlaDueAtUtc,
             cancellationToken);
 
@@ -221,6 +222,27 @@ public class AdminOrderCasesController : ApiControllerBase
         return Ok(await RequireCaseAsync(caseId, cancellationToken));
     }
 
+    [HttpPost("{caseId:guid}/messages")]
+    public async Task<ActionResult<AdminOrderSupportCaseListItemDto>> AddMessage(
+        Guid caseId,
+        [FromBody] AdminOrderSupportCaseMessageRequest? request,
+        CancellationToken cancellationToken = default)
+    {
+        if (request is null || string.IsNullOrWhiteSpace(request.Message))
+        {
+            throw new BadRequestException("INVALID_REQUEST_BODY", "Message is required.");
+        }
+
+        await _orderSupportCaseWorkflowService.AddAdminPublicMessageAsync(
+            caseId,
+            GetRequiredAdminUserId(),
+            request.Message,
+            request.Audience,
+            cancellationToken);
+
+        return Ok(await RequireCaseAsync(caseId, cancellationToken));
+    }
+
     private Guid GetRequiredAdminUserId()
     {
         return _currentUserService.UserId ?? throw new UnauthorizedException("USER_NOT_AUTHENTICATED");
@@ -242,6 +264,7 @@ public sealed record AdminOrderSupportCaseAssignRequest(
 public sealed record AdminOrderSupportCaseRequestEvidenceRequest(
     string? Note,
     string? CustomerVisibleNote,
+    string? TargetRole,
     DateTime? SlaDueAtUtc);
 
 public sealed record AdminOrderSupportCaseEscalateRequest(
@@ -269,3 +292,7 @@ public sealed record AdminOrderSupportCaseResolveRequest(string? Note);
 public sealed record AdminOrderSupportCaseNoteRequest(
     string Note,
     bool VisibleToCustomer);
+
+public sealed record AdminOrderSupportCaseMessageRequest(
+    string Message,
+    string Audience = "customer,vendor");

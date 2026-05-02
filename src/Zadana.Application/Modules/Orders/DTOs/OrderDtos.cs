@@ -218,8 +218,13 @@ public record OrderSupportCaseDto(
     decimal? ApprovedRefundAmount,
     string? RefundMethod,
     string? CostBearer,
+    string InitiatorRole,
+    string? WaitingOnRole,
+    IReadOnlyList<OrderSupportCaseParticipantDto> Participants,
+    IReadOnlyList<string> AllowedActions,
     IReadOnlyList<OrderSupportCaseAttachmentDto> Attachments,
-    IReadOnlyList<OrderSupportCaseActivityDto> Activities);
+    IReadOnlyList<OrderSupportCaseActivityDto> Activities,
+    IReadOnlyList<OrderSupportCaseMessageDto> Messages);
 
 public record OrderSupportCaseAttachmentDto(
     string FileName,
@@ -231,7 +236,28 @@ public record OrderSupportCaseActivityDto(
     string? Note,
     string ActorRole,
     bool VisibleToCustomer,
+    string MessageType,
+    IReadOnlyList<string> VisibleTo,
+    bool IsInternalOnly,
     DateTime CreatedAt);
+
+public record OrderSupportCaseMessageDto(
+    Guid Id,
+    string Action,
+    string MessageType,
+    string Title,
+    string? Body,
+    string AuthorRole,
+    IReadOnlyList<string> VisibleTo,
+    bool IsInternalOnly,
+    DateTime CreatedAt,
+    IReadOnlyList<OrderSupportCaseAttachmentDto> Attachments);
+
+public record OrderSupportCaseParticipantDto(
+    string Role,
+    bool IsInitiator,
+    bool IsAwaitingResponse,
+    bool HasMessages);
 
 public record AdminOrderSupportCasesListDto(
     IReadOnlyList<AdminOrderSupportCaseListItemDto> Items,
@@ -267,6 +293,10 @@ public record AdminOrderSupportCaseListItemDto(
     IReadOnlyList<OrderSupportCaseAttachmentDto> Evidence,
     IReadOnlyList<AdminOrderSupportCaseTimelineItemDto> Timeline,
     string InitiatorRole,
+    string? WaitingOnRole,
+    IReadOnlyList<OrderSupportCaseParticipantDto> Participants,
+    IReadOnlyList<string> AllowedActions,
+    IReadOnlyList<OrderSupportCaseMessageDto> Messages,
     string? VendorResponse,
     string? DriverResponse);
 

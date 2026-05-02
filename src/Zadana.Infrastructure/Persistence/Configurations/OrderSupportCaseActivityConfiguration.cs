@@ -16,5 +16,7 @@ public class OrderSupportCaseActivityConfiguration : IEntityTypeConfiguration<Or
         builder.Property(x => x.Title).HasMaxLength(200).IsRequired();
         builder.Property(x => x.Note).HasMaxLength(2000);
         builder.Property(x => x.ActorRole).HasMaxLength(50).IsRequired();
+        builder.Property(x => x.MessageType).HasMaxLength(50).HasDefaultValue("system").IsRequired();
+        builder.Property(x => x.Audience).HasMaxLength(100).HasDefaultValue("all_external").IsRequired();
     }
 }
