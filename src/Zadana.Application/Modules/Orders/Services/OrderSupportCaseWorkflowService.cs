@@ -52,8 +52,11 @@ public sealed class OrderSupportCaseWorkflowService : IOrderSupportCaseWorkflowS
                 .FirstOrDefaultAsync(x => x.Id == orderId, cancellationToken)
                 ?? throw new NotFoundException("Order", orderId);
 
+            var driverId = await ResolveDriverIdByUserIdAsync(customerUserId, cancellationToken);
+
             var hasAssignment = await _context.DeliveryAssignments
-                .AnyAsync(a => a.Order.Id == orderId && a.Driver.UserId == customerUserId, cancellationToken);
+                .AsNoTracking()
+                .AnyAsync(a => a.OrderId == orderId && a.DriverId == driverId, cancellationToken);
 
             if (!hasAssignment)
             {
@@ -442,13 +445,16 @@ public sealed class OrderSupportCaseWorkflowService : IOrderSupportCaseWorkflowS
             .FirstOrDefaultAsync(item => item.Id == caseId && item.OrderId == orderId, cancellationToken)
             ?? throw new NotFoundException("OrderSupportCase", caseId);
 
+        var driverId = await ResolveDriverIdByUserIdAsync(driverUserId, cancellationToken);
+
         var assignedDriverUserIds = await _context.DeliveryAssignments
-            .Where(item => item.OrderId == orderId && item.Driver != null)
-            .Select(item => item.Driver!.UserId)
+            .AsNoTracking()
+            .Where(item => item.OrderId == orderId && item.DriverId == driverId)
+            .Select(item => item.DriverId)
             .Distinct()
             .ToListAsync(cancellationToken);
 
-        if (!assignedDriverUserIds.Contains(driverUserId))
+        if (!assignedDriverUserIds.Contains(driverId))
         {
             throw new ForbiddenAccessException("You are not assigned to this order.");
         }
@@ -681,11 +687,22 @@ public sealed class OrderSupportCaseWorkflowService : IOrderSupportCaseWorkflowS
         string action,
         CancellationToken cancellationToken)
     {
-        var driverUserId = await _context.DeliveryAssignments
+        var driverId = await _context.DeliveryAssignments
             .AsNoTracking()
-            .Where(item => item.OrderId == order.Id && item.Driver != null)
+            .Where(item => item.OrderId == order.Id && item.DriverId != null)
             .OrderByDescending(item => item.CreatedAtUtc)
-            .Select(item => item.Driver!.UserId)
+            .Select(item => item.DriverId)
+            .FirstOrDefaultAsync(cancellationToken);
+
+        if (driverId == null || driverId == Guid.Empty)
+        {
+            return;
+        }
+
+        var driverUserId = await _context.Drivers
+            .AsNoTracking()
+            .Where(item => item.Id == driverId.Value)
+            .Select(item => item.UserId)
             .FirstOrDefaultAsync(cancellationToken);
 
         if (driverUserId == Guid.Empty)
@@ -694,6 +711,22 @@ public sealed class OrderSupportCaseWorkflowService : IOrderSupportCaseWorkflowS
         }
 
         await NotifyDriverAsync(order, supportCase, driverUserId, action, cancellationToken);
+    }
+
+    private async Task<Guid> ResolveDriverIdByUserIdAsync(Guid driverUserId, CancellationToken cancellationToken)
+    {
+        var driverId = await _context.Drivers
+            .AsNoTracking()
+            .Where(item => item.UserId == driverUserId)
+            .Select(item => item.Id)
+            .FirstOrDefaultAsync(cancellationToken);
+
+        if (driverId == Guid.Empty)
+        {
+            throw new NotFoundException("Driver", driverUserId);
+        }
+
+        return driverId;
     }
 
     private async Task NotifyDriverAsync(
