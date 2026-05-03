@@ -2,6 +2,7 @@ using Microsoft.AspNetCore.Authorization;
 using Microsoft.AspNetCore.Mvc;
 using Microsoft.EntityFrameworkCore;
 using Zadana.Api.Controllers;
+using Zadana.Api.Modules.Delivery.Requests;
 using Zadana.Application.Common.Interfaces;
 using Zadana.Application.Modules.Delivery.Interfaces;
 using Zadana.Application.Modules.Orders.Interfaces;
@@ -259,6 +260,20 @@ public class DriverSupportController : ApiControllerBase
             supportCase.Message,
             supportCase.CreatedAtUtc));
     }
+    [HttpGet("reasons/{type}")]
+    [AllowAnonymous] // Allow anonymous if reasons should be available before login, otherwise keep Authorize
+    public ActionResult<IReadOnlyList<DriverSupportReasonResponse>> GetSupportReasons(string type)
+    {
+        var reasons = Zadana.Application.Modules.Orders.Support.OrderSupportCaseReasonCatalog.GetReasonsByType(type);
+        
+        var response = reasons.Select(r => new DriverSupportReasonResponse(
+            r.Code,
+            r.LabelAr,
+            r.LabelEn,
+            r.RequiresNote)).ToList();
+            
+        return Ok(response);
+    }
 
     private async Task<(Guid DriverId, Guid UserId)> ResolveDriverAsync(CancellationToken cancellationToken)
     {
@@ -271,68 +286,3 @@ public class DriverSupportController : ApiControllerBase
         return (driver.Id, userId);
     }
 }
-
-// Request DTOs
-public sealed record DriverReportIssueRequest(
-    string? ReasonCode,
-    string Message,
-    List<DriverSupportAttachmentInput>? Attachments);
-
-public sealed record DriverDisputeRequest(
-    string? ReasonCode,
-    string Message);
-
-public sealed record DriverSupportAttachmentInput(string FileName, string FileUrl);
-
-// Response DTOs
-public sealed record DriverSupportCaseResponse(
-    Guid Id,
-    Guid OrderId,
-    string OrderNumber,
-    string Type,
-    string Status,
-    string Priority,
-    string? ReasonCode,
-    string Message,
-    DateTime CreatedAt);
-
-public sealed record DriverSupportCasesListResponse(
-    List<DriverSupportCaseListItemResponse> Items,
-    int Page,
-    int PageSize,
-    int Total);
-
-public sealed record DriverSupportCaseListItemResponse(
-    Guid Id,
-    Guid OrderId,
-    string OrderNumber,
-    string Type,
-    string Status,
-    string Priority,
-    string? ReasonCode,
-    string Message,
-    string? AdminNote,
-    DateTime CreatedAt,
-    DateTime UpdatedAt,
-    DateTime? ClosedAt);
-
-public sealed record DriverSupportCaseDetailResponse(
-    Guid Id,
-    Guid OrderId,
-    string OrderNumber,
-    string Type,
-    string Status,
-    string Priority,
-    string Queue,
-    string? ReasonCode,
-    string Message,
-    string? AdminNote,
-    string? DecisionNotes,
-    DateTime CreatedAt,
-    DateTime UpdatedAt,
-    DateTime? ClosedAt,
-    List<DriverSupportCaseAttachmentResponse> Attachments,
-    List<DriverSupportCaseActivityResponse> Activities);
-
-public sealed record DriverSupportCaseAttachmentResponse(string FileName, string FileUrl);
-public sealed record DriverSupportCaseActivityResponse(string Action, string Title, string? Note, string ActorRole, DateTime CreatedAt);

@@ -103,6 +103,20 @@ public class OrdersController : ApiControllerBase
         return Ok(reasons);
     }
 
+    [HttpGet("support-reasons/{type}")]
+    public ActionResult<IReadOnlyList<CustomerOrderSupportReasonResponse>> GetSupportReasons(string type)
+    {
+        var reasons = OrderSupportCaseReasonCatalog.GetReasonsByType(type)
+            .Select(item => new CustomerOrderSupportReasonResponse(
+                item.Code,
+                item.LabelAr,
+                item.LabelEn,
+                item.RequiresNote))
+            .ToList();
+
+        return Ok(reasons);
+    }
+
     [HttpPost("{orderId:guid}/cancel")]
     public async Task<ActionResult<CancelCustomerOrderResponse>> CancelOrder(
         Guid orderId,

@@ -114,3 +114,9 @@ public record DeleteCustomerOrderResponse(
     [property: JsonPropertyName("message")] string Message,
     [property: JsonPropertyName("order_id")] Guid OrderId,
     [property: JsonPropertyName("deleted")] bool Deleted);
+
+public record CustomerOrderSupportReasonResponse(
+    [property: JsonPropertyName("code")] string Code,
+    [property: JsonPropertyName("label_ar")] string LabelAr,
+    [property: JsonPropertyName("label_en")] string LabelEn,
+    [property: JsonPropertyName("requires_note")] bool RequiresNote);
