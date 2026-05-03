@@ -9,6 +9,7 @@ using Zadana.Domain.Modules.Payments.Entities;
 using Zadana.Domain.Modules.Social.Entities;
 using Zadana.Domain.Modules.Vendors.Entities;
 using Zadana.Domain.Modules.Wallets.Entities;
+using Zadana.Domain.Modules.Finances.Entities;
 
 namespace Zadana.Application.Common.Interfaces;
 
@@ -82,6 +83,9 @@ public interface IApplicationDbContext
     DbSet<Payout> Payouts { get; }
     DbSet<DriverPayoutMethod> DriverPayoutMethods { get; }
     DbSet<DriverWithdrawalRequest> DriverWithdrawalRequests { get; }
+
+    // Finances
+    DbSet<ZoneFinanceSettings> ZoneFinanceSettings { get; }
 
     // Marketing & Social
     DbSet<Coupon> Coupons { get; }
