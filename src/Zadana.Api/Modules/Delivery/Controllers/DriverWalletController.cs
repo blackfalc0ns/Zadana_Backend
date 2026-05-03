@@ -116,14 +116,15 @@ public class DriverWalletController : ApiControllerBase
 
     [HttpPost("payment-methods")]
     public async Task<ActionResult<DriverPayoutMethodDto>> CreatePaymentMethod(
-        [FromBody] CreateDriverPayoutMethodRequest request,
+        [FromBody] CreateDriverPayoutMethodRequest? request,
         [FromServices] ICurrentUserService currentUserService,
         [FromServices] IDriverRepository driverRepository,
         [FromServices] IApplicationDbContext context,
         CancellationToken cancellationToken = default)
     {
+        EnsurePayoutMethodRequest(request);
         var driver = await GetDriverAsync(currentUserService, driverRepository, cancellationToken);
-        var methodType = ParseMethodType(request.Type);
+        var methodType = ParseMethodType(request!.Type);
         var existingMethods = await context.DriverPayoutMethods
             .Where(m => m.DriverId == driver.Id)
             .ToListAsync(cancellationToken);
@@ -154,19 +155,20 @@ public class DriverWalletController : ApiControllerBase
     [HttpPut("payment-methods/{id:guid}")]
     public async Task<ActionResult<DriverPayoutMethodDto>> UpdatePaymentMethod(
         Guid id,
-        [FromBody] UpdateDriverPayoutMethodRequest request,
+        [FromBody] UpdateDriverPayoutMethodRequest? request,
         [FromServices] ICurrentUserService currentUserService,
         [FromServices] IDriverRepository driverRepository,
         [FromServices] IApplicationDbContext context,
         CancellationToken cancellationToken = default)
     {
+        EnsurePayoutMethodRequest(request);
         var driver = await GetDriverAsync(currentUserService, driverRepository, cancellationToken);
         var payoutMethod = await context.DriverPayoutMethods
             .FirstOrDefaultAsync(m => m.Id == id && m.DriverId == driver.Id, cancellationToken)
             ?? throw new NotFoundException("DriverPayoutMethod", id);
 
         payoutMethod.UpdateDetails(
-            ParseMethodType(request.Type),
+            ParseMethodType(request!.Type),
             request.AccountHolderName,
             request.AccountIdentifier,
             request.ProviderName);
@@ -188,6 +190,16 @@ public class DriverWalletController : ApiControllerBase
         var payoutMethod = await context.DriverPayoutMethods
             .FirstOrDefaultAsync(m => m.Id == id && m.DriverId == driver.Id, cancellationToken)
             ?? throw new NotFoundException("DriverPayoutMethod", id);
+
+        var hasWithdrawalHistory = await context.DriverWithdrawalRequests
+            .AnyAsync(w => w.DriverPayoutMethodId == id, cancellationToken);
+
+        if (hasWithdrawalHistory)
+        {
+            throw new BusinessRuleException(
+                "DRIVER_PAYOUT_METHOD_IN_USE",
+                "لا يمكن حذف طريقة السحب لأنها مرتبطة بطلبات سحب سابقة أو حالية | This payout method cannot be deleted because it is linked to withdrawal requests.");
+        }
 
         var isPrimary = payoutMethod.IsPrimary;
         context.DriverPayoutMethods.Remove(payoutMethod);
@@ -235,22 +247,40 @@ public class DriverWalletController : ApiControllerBase
 
     [HttpPost("withdrawals")]
     public async Task<ActionResult<DriverWithdrawalRequestDto>> CreateWithdrawal(
-        [FromBody] CreateDriverWithdrawalRequest request,
+        [FromBody] CreateDriverWithdrawalRequest? request,
         [FromServices] ICurrentUserService currentUserService,
         [FromServices] IDriverRepository driverRepository,
         [FromServices] IApplicationDbContext context,
         CancellationToken cancellationToken = default)
     {
+        if (request is null)
+        {
+            throw new BadRequestException("INVALID_REQUEST_BODY", "Request body is required.");
+        }
+
         var driver = await GetDriverAsync(currentUserService, driverRepository, cancellationToken);
         var wallet = await GetOrCreateWalletAsync(context, driver.Id, cancellationToken);
 
-        var payoutMethod = request.PaymentMethodId.HasValue
-            ? await context.DriverPayoutMethods.FirstOrDefaultAsync(
+        DriverPayoutMethod? payoutMethod;
+        if (request.PaymentMethodId.HasValue)
+        {
+            payoutMethod = await context.DriverPayoutMethods.FirstOrDefaultAsync(
                 m => m.Id == request.PaymentMethodId.Value && m.DriverId == driver.Id,
-                cancellationToken)
-            : await context.DriverPayoutMethods.FirstOrDefaultAsync(
+                cancellationToken);
+
+            if (payoutMethod is null)
+            {
+                throw new BusinessRuleException(
+                    "DRIVER_PAYOUT_METHOD_NOT_FOUND",
+                    "طريقة السحب المحددة غير موجودة لهذا المندوب | The selected payout method was not found for this driver.");
+            }
+        }
+        else
+        {
+            payoutMethod = await context.DriverPayoutMethods.FirstOrDefaultAsync(
                 m => m.DriverId == driver.Id && m.IsPrimary,
                 cancellationToken);
+        }
 
         if (payoutMethod is null)
         {
@@ -377,6 +407,38 @@ public class DriverWalletController : ApiControllerBase
         }
 
         return methodType;
+    }
+
+    private static void EnsurePayoutMethodRequest(CreateDriverPayoutMethodRequest? request)
+    {
+        if (request is null)
+        {
+            throw new BadRequestException("INVALID_REQUEST_BODY", "Request body is required.");
+        }
+
+        EnsureRequiredString(request.Type, "INVALID_DRIVER_PAYOUT_METHOD_TYPE", "Payout method type is required.");
+        EnsureRequiredString(request.AccountHolderName, "INVALID_ACCOUNT_HOLDER_NAME", "Account holder name is required.");
+        EnsureRequiredString(request.AccountIdentifier, "INVALID_ACCOUNT_IDENTIFIER", "Account identifier is required.");
+    }
+
+    private static void EnsurePayoutMethodRequest(UpdateDriverPayoutMethodRequest? request)
+    {
+        if (request is null)
+        {
+            throw new BadRequestException("INVALID_REQUEST_BODY", "Request body is required.");
+        }
+
+        EnsureRequiredString(request.Type, "INVALID_DRIVER_PAYOUT_METHOD_TYPE", "Payout method type is required.");
+        EnsureRequiredString(request.AccountHolderName, "INVALID_ACCOUNT_HOLDER_NAME", "Account holder name is required.");
+        EnsureRequiredString(request.AccountIdentifier, "INVALID_ACCOUNT_IDENTIFIER", "Account identifier is required.");
+    }
+
+    private static void EnsureRequiredString(string? value, string errorCode, string message)
+    {
+        if (string.IsNullOrWhiteSpace(value))
+        {
+            throw new BadRequestException(errorCode, message);
+        }
     }
 
     private static Expression<Func<WalletTransaction, DriverWalletTransactionDto>> MapTransaction() =>

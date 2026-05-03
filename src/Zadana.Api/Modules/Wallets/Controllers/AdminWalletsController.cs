@@ -319,7 +319,15 @@ public class AdminWalletsController : ApiControllerBase
         {
             wallet.ReleaseHold(withdrawal.Amount);
             withdrawal.MarkFailed(request.FailureReason ?? "Rejected by admin");
-            // Add a txn to show the release? Technically it just moves back to current balance, we can log it if we want.
+            context.WalletTransactions.Add(new WalletTransaction(
+                wallet.Id,
+                WalletTxnType.Release,
+                withdrawal.Amount,
+                "IN",
+                description: "Withdrawal rejected and balance released",
+                referenceType: "DriverWithdrawal",
+                referenceId: withdrawal.Id
+            ));
         }
 
         await context.SaveChangesAsync(cancellationToken);
