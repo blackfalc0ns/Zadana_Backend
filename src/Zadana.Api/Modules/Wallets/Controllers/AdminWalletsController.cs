@@ -47,7 +47,18 @@ public class AdminWalletsController : ApiControllerBase
 
         var vendors = await context.Vendors.AsNoTracking()
             .Where(v => vendorIds.Contains(v.Id))
-            .ToDictionaryAsync(v => v.Id, v => new { Name = v.CommercialName ?? "Unknown Vendor", Phone = v.ManagerPhone ?? "" }, cancellationToken);
+            .ToDictionaryAsync(
+                v => v.Id,
+                v => new
+                {
+                    Name = !string.IsNullOrWhiteSpace(v.BusinessNameAr)
+                        ? v.BusinessNameAr
+                        : !string.IsNullOrWhiteSpace(v.BusinessNameEn)
+                            ? v.BusinessNameEn
+                            : "Unknown Vendor",
+                    Phone = v.ContactPhone
+                },
+                cancellationToken);
 
         var drivers = await context.Drivers.AsNoTracking()
             .Include(d => d.User)
@@ -78,7 +89,7 @@ public class AdminWalletsController : ApiControllerBase
                 ownerPhone,
                 w.CurrentBalance,
                 w.PendingBalance,
-                DateTime.UtcNow // Wallets don't currently have CreatedAtUtc in DB, so just mocking
+                w.CreatedAtUtc
             );
         }).ToList();
 
@@ -103,8 +114,14 @@ public class AdminWalletsController : ApiControllerBase
         if (wallet.OwnerType == WalletOwnerType.Vendor)
         {
             var vendor = await context.Vendors.AsNoTracking().FirstOrDefaultAsync(v => v.Id == wallet.OwnerId, cancellationToken);
-            ownerName = vendor?.CommercialName ?? "Unknown Vendor";
-            ownerPhone = vendor?.ManagerPhone ?? "";
+            ownerName = vendor is null
+                ? "Unknown Vendor"
+                : !string.IsNullOrWhiteSpace(vendor.BusinessNameAr)
+                    ? vendor.BusinessNameAr
+                    : !string.IsNullOrWhiteSpace(vendor.BusinessNameEn)
+                        ? vendor.BusinessNameEn
+                        : "Unknown Vendor";
+            ownerPhone = vendor?.ContactPhone ?? string.Empty;
         }
         else if (wallet.OwnerType == WalletOwnerType.Driver)
         {
@@ -121,7 +138,7 @@ public class AdminWalletsController : ApiControllerBase
             ownerPhone,
             wallet.CurrentBalance,
             wallet.PendingBalance,
-            DateTime.UtcNow
+            wallet.CreatedAtUtc
         ));
     }
 
@@ -213,27 +230,36 @@ public class AdminWalletsController : ApiControllerBase
         pageSize = Math.Clamp(pageSize, 1, 100);
 
         var query = context.DriverWithdrawalRequests.AsNoTracking()
-            .Include(w => w.Driver)
-            .ThenInclude(d => d.User)
             .Include(w => w.DriverPayoutMethod)
             .AsQueryable();
 
-        if (!string.IsNullOrWhiteSpace(status) && Enum.TryParse<Domain.Modules.Delivery.Enums.DriverWithdrawalStatus>(status, true, out var parsedStatus))
+        if (!string.IsNullOrWhiteSpace(status) && Enum.TryParse<Zadana.Domain.Modules.Wallets.Enums.DriverWithdrawalStatus>(status, true, out var parsedStatus))
         {
             query = query.Where(w => w.Status == parsedStatus);
         }
 
         var totalCount = await query.CountAsync(cancellationToken);
         
-        var items = await query
+        var withdrawals = await query
             .OrderByDescending(w => w.CreatedAtUtc)
             .Skip((page - 1) * pageSize)
             .Take(pageSize)
-            .Select(w => new AdminDriverWithdrawalRequestDto(
+            .ToListAsync(cancellationToken);
+
+        var driverIds = withdrawals.Select(w => w.DriverId).Distinct().ToList();
+        var drivers = await context.Drivers.AsNoTracking()
+            .Include(d => d.User)
+            .Where(d => driverIds.Contains(d.Id))
+            .ToDictionaryAsync(d => d.Id, d => new { Name = d.User.FullName, Phone = d.User.PhoneNumber ?? "" }, cancellationToken);
+
+        var items = withdrawals.Select(w =>
+        {
+            var driverInfo = drivers.GetValueOrDefault(w.DriverId);
+            return new AdminDriverWithdrawalRequestDto(
                 w.Id,
                 w.DriverId,
-                w.Driver.User.FullName,
-                w.Driver.User.PhoneNumber ?? "",
+                driverInfo?.Name ?? "Unknown",
+                driverInfo?.Phone ?? "",
                 w.Amount,
                 w.Status.ToString(),
                 w.TransferReference,
@@ -244,11 +270,11 @@ public class AdminWalletsController : ApiControllerBase
                     w.DriverPayoutMethod.Id,
                     w.DriverPayoutMethod.MethodType.ToString(),
                     w.DriverPayoutMethod.AccountHolderName,
-                    w.DriverPayoutMethod.ProviderName,
+                    w.DriverPayoutMethod.ProviderName ?? string.Empty,
                     w.DriverPayoutMethod.MaskedLabel
                 )
-            ))
-            .ToListAsync(cancellationToken);
+            );
+        }).ToList();
 
         return Ok(new AdminWithdrawalRequestListDto(items, page, pageSize, totalCount));
     }
@@ -264,8 +290,8 @@ public class AdminWalletsController : ApiControllerBase
             .FirstOrDefaultAsync(w => w.Id == id, cancellationToken)
             ?? throw new NotFoundException("DriverWithdrawalRequest", id);
 
-        if (withdrawal.Status != Domain.Modules.Delivery.Enums.DriverWithdrawalStatus.Pending && 
-            withdrawal.Status != Domain.Modules.Delivery.Enums.DriverWithdrawalStatus.Processing)
+        if (withdrawal.Status != Zadana.Domain.Modules.Wallets.Enums.DriverWithdrawalStatus.Pending && 
+            withdrawal.Status != Zadana.Domain.Modules.Wallets.Enums.DriverWithdrawalStatus.Processing)
         {
             throw new BusinessRuleException("INVALID_STATUS", "Only pending or processing withdrawals can be processed.");
         }
@@ -276,7 +302,7 @@ public class AdminWalletsController : ApiControllerBase
         if (request.IsApproved)
         {
             wallet.SettleHold(withdrawal.Amount);
-            withdrawal.MarkAsProcessed(request.TransferReference);
+            withdrawal.MarkPaid(request.TransferReference);
             
             var txn = new WalletTransaction(
                 wallet.Id,
@@ -292,7 +318,7 @@ public class AdminWalletsController : ApiControllerBase
         else
         {
             wallet.ReleaseHold(withdrawal.Amount);
-            withdrawal.MarkAsFailed(request.FailureReason ?? "Rejected by admin");
+            withdrawal.MarkFailed(request.FailureReason ?? "Rejected by admin");
             // Add a txn to show the release? Technically it just moves back to current balance, we can log it if we want.
         }
 
