@@ -143,10 +143,27 @@ public class CartControllerTests
         _senderMock.Setup(x => x.Send(It.IsAny<RemoveCartItemCommand>(), It.IsAny<CancellationToken>()))
             .ReturnsAsync(dto);
 
-        var result = await _controller.RemoveItem(Guid.NewGuid(), CancellationToken.None);
+        var result = await _controller.RemoveItem(Guid.NewGuid(), null, CancellationToken.None);
 
         var okResult = result.Result.Should().BeOfType<OkObjectResult>().Subject;
         okResult.Value.Should().BeEquivalentTo(dto);
+    }
+
+    [Fact]
+    public async Task RemoveItem_PassesVendorIdToCommand_WhenProvided()
+    {
+        var dto = new CartItemRemovalResponseDto("تم حذف المنتج من السلة", "cart item removed successfully", new CartSummaryDto(1, 1, 35m, 5m, 30m));
+        RemoveCartItemCommand? sentCommand = null;
+
+        _senderMock.Setup(x => x.Send(It.IsAny<RemoveCartItemCommand>(), It.IsAny<CancellationToken>()))
+            .Callback<IRequest<CartItemRemovalResponseDto>, CancellationToken>((command, _) => sentCommand = (RemoveCartItemCommand)command)
+            .ReturnsAsync(dto);
+
+        var vendorId = Guid.NewGuid();
+        await _controller.RemoveItem(Guid.NewGuid(), vendorId, CancellationToken.None);
+
+        sentCommand.Should().NotBeNull();
+        sentCommand!.VendorId.Should().Be(vendorId);
     }
 
     [Fact]

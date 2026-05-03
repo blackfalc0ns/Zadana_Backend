@@ -85,6 +85,25 @@ public class CartCommandsTests
     }
 
     [Fact]
+    public async Task RemoveCartItem_RecalculatesTotals_WhenVendorIsSelected()
+    {
+        await using var context = TestDbContextFactory.Create();
+        var setup = await SeedCartWithTwoItemsAsync(context);
+
+        var handler = new RemoveCartItemCommandHandler(context, NullLogger<RemoveCartItemCommandHandler>.Instance);
+
+        var result = await handler.Handle(
+            new RemoveCartItemCommand(CartActor.Create(setup.UserId, null), setup.FirstCartItem.Id, setup.VendorId),
+            CancellationToken.None);
+
+        result.Summary.ItemsCount.Should().Be(1);
+        result.Summary.TotalQuantity.Should().Be(1);
+        result.Summary.Subtotal.Should().Be(35m);
+        result.Summary.DiscountAmount.Should().Be(5m);
+        result.Summary.TotalAmount.Should().Be(30m);
+    }
+
+    [Fact]
     public async Task ClearCart_RemovesExistingCart()
     {
         await using var context = TestDbContextFactory.Create();
@@ -255,6 +274,37 @@ public class CartCommandsTests
         return new CartSetup(productSetup.UserId, productSetup.MasterProduct, cartItem, productSetup.FirstVendorId);
     }
 
+    private static async Task<MultiItemCartSetup> SeedCartWithTwoItemsAsync(Infrastructure.Persistence.ApplicationDbContext context)
+    {
+        var firstProductSetup = await SeedAvailableProductAsync(context);
+
+        var secondCategory = new Category("juice-ar", "Juice", null, null, 2);
+        var secondBrand = new Brand("brand2-ar", "Juhayna", "juhayna.png");
+        var secondUnit = new UnitOfMeasure("liter2-ar", "Liter", "L");
+        context.Categories.Add(secondCategory);
+        context.Brands.Add(secondBrand);
+        context.UnitsOfMeasure.Add(secondUnit);
+        await context.SaveChangesAsync();
+
+        var secondProduct = new MasterProduct("juice-ar", "Orange Juice 1L", "juice", secondCategory.Id, secondBrand.Id, secondUnit.Id);
+        secondProduct.Publish();
+        context.MasterProducts.Add(secondProduct);
+        await context.SaveChangesAsync();
+
+        context.VendorProducts.Add(new VendorProduct(firstProductSetup.FirstVendorId, secondProduct.Id, 30m, 7, 35m));
+        await context.SaveChangesAsync();
+
+        var cart = new Cart(firstProductSetup.UserId);
+        var firstCartItem = new CartItem(cart.Id, firstProductSetup.MasterProduct.Id, firstProductSetup.MasterProduct.NameEn, 2);
+        var secondCartItem = new CartItem(cart.Id, secondProduct.Id, secondProduct.NameEn, 1);
+        cart.Items.Add(firstCartItem);
+        cart.Items.Add(secondCartItem);
+        context.Carts.Add(cart);
+        await context.SaveChangesAsync();
+
+        return new MultiItemCartSetup(firstProductSetup.UserId, firstProductSetup.FirstVendorId, firstCartItem, secondCartItem);
+    }
+
     private static async Task<GuestCartSetup> SeedGuestCartWithItemAsync(Infrastructure.Persistence.ApplicationDbContext context)
     {
         var productSetup = await SeedAvailableProductAsync(context);
@@ -287,4 +337,6 @@ public class CartCommandsTests
     private sealed record CartSetup(Guid UserId, MasterProduct MasterProduct, CartItem CartItem, Guid FirstVendorId);
 
     private sealed record GuestCartSetup(string GuestId, MasterProduct MasterProduct, CartItem CartItem, Guid FirstVendorId);
+
+    private sealed record MultiItemCartSetup(Guid UserId, Guid VendorId, CartItem FirstCartItem, CartItem SecondCartItem);
 }

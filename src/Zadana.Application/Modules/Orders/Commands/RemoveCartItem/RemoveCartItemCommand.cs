@@ -13,7 +13,8 @@ namespace Zadana.Application.Modules.Orders.Commands.RemoveCartItem;
 
 public record RemoveCartItemCommand(
     CartActor Actor,
-    Guid CartItemId) : IRequest<CartItemRemovalResponseDto>;
+    Guid CartItemId,
+    Guid? VendorId = null) : IRequest<CartItemRemovalResponseDto>;
 
 public class RemoveCartItemCommandValidator : AbstractValidator<RemoveCartItemCommand>
 {
@@ -78,7 +79,7 @@ public class RemoveCartItemCommandHandler : IRequestHandler<RemoveCartItemComman
         }
         else
         {
-            var cartDto = await CartProjection.BuildCartDtoAsync(_context, cart, cancellationToken);
+            var cartDto = await CartProjection.BuildCartDtoAsync(_context, cart, cancellationToken, request.VendorId);
             summary = cartDto.Summary;
         }
 

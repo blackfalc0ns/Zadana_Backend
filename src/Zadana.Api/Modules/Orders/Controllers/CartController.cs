@@ -102,9 +102,10 @@ public class CartController : ApiControllerBase
     [HttpDelete("items/{itemId:guid}")]
     public async Task<ActionResult<CartItemRemovalResponseDto>> RemoveItem(
         Guid itemId,
+        [FromQuery(Name = "vendor_id")] Guid? vendorId = null,
         CancellationToken cancellationToken = default)
     {
-        var result = await Sender.Send(new RemoveCartItemCommand(GetRequiredCartActor(), itemId), cancellationToken);
+        var result = await Sender.Send(new RemoveCartItemCommand(GetRequiredCartActor(), itemId, vendorId), cancellationToken);
         return Ok(result);
     }
 
