@@ -64,6 +64,7 @@ public static class LocalizedMessages
     public const string DeliveryOtpVerified = "DELIVERY_OTP_VERIFIED";
     public const string PickupOtpAlreadyVerified = "PICKUP_OTP_ALREADY_VERIFIED";
     public const string DeliveryOtpAlreadyVerified = "DELIVERY_OTP_ALREADY_VERIFIED";
+    public const string OtpResentSuccessfully = "OTP_RESENT_SUCCESSFULLY";
 
     // Driver - Order Status
     public const string OrderStatusUpdated = "ORDER_STATUS_UPDATED";

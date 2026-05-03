@@ -5,6 +5,7 @@ using Zadana.Api.Modules.Delivery.Requests;
 using Zadana.Application.Common.Interfaces;
 using Zadana.Application.Common.Localization;
 using Zadana.Application.Modules.Delivery.Commands.RegisterDriver;
+using Zadana.Application.Modules.Delivery.Commands.ResendAssignmentOtp;
 using Zadana.Application.Modules.Delivery.Commands.SubmitDeliveryProof;
 using Zadana.Application.Modules.Delivery.Commands.UpdateDriverArrivalState;
 using Zadana.Application.Modules.Delivery.Commands.UpdateDriverAvailability;
@@ -390,6 +391,27 @@ public class DriversController : ApiControllerBase
         return Ok(result);
     }
 
+    [HttpPost("assignments/{assignmentId:guid}/resend-otp")]
+    [Authorize(Policy = "DriverOnly")]
+    public async Task<IActionResult> ResendOtp(
+        Guid assignmentId,
+        [FromBody] DriverResendOtpRequest request,
+        [FromServices] ICurrentUserService currentUserService,
+        CancellationToken cancellationToken = default)
+    {
+        var userId = currentUserService.UserId ?? throw new UnauthorizedException("DRIVER_NOT_AUTHENTICATED");
+        
+        await Sender.Send(
+            new ResendAssignmentOtpCommand(assignmentId, userId, request.OtpType),
+            cancellationToken);
+
+        return Ok(new 
+        { 
+            message_ar = "تم إرسال رمز التحقق بنجاح", 
+            message_en = "OTP resent successfully" 
+        });
+    }
+
     [HttpGet("assignments/history")]
     [Authorize(Policy = "DriverOnly")]
     public async Task<IActionResult> GetAssignmentHistory(
@@ -708,3 +730,4 @@ public record SetAvailabilityRequest(bool IsAvailable);
 public record UpdateLocationRequest(decimal Latitude, decimal Longitude, decimal? AccuracyMeters);
 public record SubmitProofRequest(string ProofType, string? ImageUrl, string? OtpCode, string? RecipientName, string? Note);
 public record DriverOtpVerificationRequest(string OtpType, string OtpCode);
+public record DriverResendOtpRequest(string OtpType);
