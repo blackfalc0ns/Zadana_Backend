@@ -395,12 +395,22 @@ public class DriversController : ApiControllerBase
     [Authorize(Policy = "DriverOnly")]
     public async Task<IActionResult> ResendOtp(
         Guid assignmentId,
-        [FromBody] DriverResendOtpRequest request,
+        [FromBody] DriverResendOtpRequest? request,
         [FromServices] ICurrentUserService currentUserService,
         CancellationToken cancellationToken = default)
     {
         var userId = currentUserService.UserId ?? throw new UnauthorizedException("DRIVER_NOT_AUTHENTICATED");
         
+        if (request is null)
+        {
+            throw new BadRequestException("INVALID_REQUEST_BODY", "Request body is required.");
+        }
+
+        if (string.IsNullOrWhiteSpace(request.OtpType))
+        {
+            throw new BadRequestException("INVALID_OTP_TYPE", "OTP type is required.");
+        }
+
         await Sender.Send(
             new ResendAssignmentOtpCommand(assignmentId, userId, request.OtpType),
             cancellationToken);
@@ -408,7 +418,7 @@ public class DriversController : ApiControllerBase
         return Ok(new 
         { 
             message_ar = "تم إرسال رمز التحقق بنجاح", 
-            message_en = "OTP resent successfully" 
+            message_en = LocalizedMessages.GetEn(LocalizedMessages.OtpResentSuccessfully) 
         });
     }
 
@@ -730,4 +740,4 @@ public record SetAvailabilityRequest(bool IsAvailable);
 public record UpdateLocationRequest(decimal Latitude, decimal Longitude, decimal? AccuracyMeters);
 public record SubmitProofRequest(string ProofType, string? ImageUrl, string? OtpCode, string? RecipientName, string? Note);
 public record DriverOtpVerificationRequest(string OtpType, string OtpCode);
-public record DriverResendOtpRequest(string OtpType);
+public record DriverResendOtpRequest(string? OtpType);

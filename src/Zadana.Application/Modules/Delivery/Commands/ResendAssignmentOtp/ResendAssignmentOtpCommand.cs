@@ -20,9 +20,14 @@ public class ResendAssignmentOtpCommandValidator : AbstractValidator<ResendAssig
         RuleFor(x => x.AssignmentId).NotEmpty();
         RuleFor(x => x.DriverUserId).NotEmpty();
         RuleFor(x => x.OtpType)
-            .Must(type => type.Equals("pickup", StringComparison.OrdinalIgnoreCase) || type.Equals("delivery", StringComparison.OrdinalIgnoreCase))
+            .NotEmpty()
+            .Must(BeSupportedOtpType)
             .WithMessage("OTP type must be pickup or delivery.");
     }
+
+    private static bool BeSupportedOtpType(string? type) =>
+        string.Equals(type, "pickup", StringComparison.OrdinalIgnoreCase)
+        || string.Equals(type, "delivery", StringComparison.OrdinalIgnoreCase);
 }
 
 public class ResendAssignmentOtpCommandHandler : IRequestHandler<ResendAssignmentOtpCommand>
