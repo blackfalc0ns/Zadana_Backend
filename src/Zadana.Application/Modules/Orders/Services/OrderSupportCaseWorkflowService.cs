@@ -86,6 +86,7 @@ public sealed class OrderSupportCaseWorkflowService : IOrderSupportCaseWorkflowS
                 message,
                 attachments?.Select(item => (item.FileName, item.FileUrl)).ToList());
 
+            StagePendingCaseArtifacts(activeCase);
             await _unitOfWork.SaveChangesAsync(cancellationToken);
 
             await NotifyAdminRecipientsAsync(
@@ -182,6 +183,7 @@ public sealed class OrderSupportCaseWorkflowService : IOrderSupportCaseWorkflowS
                 activeCase.AddAdminPublicMessage(adminUserId, customerVisibleNote, "customer,vendor");
             }
 
+            StagePendingCaseArtifacts(activeCase);
             await _unitOfWork.SaveChangesAsync(cancellationToken);
             return activeCase;
         }
@@ -220,6 +222,7 @@ public sealed class OrderSupportCaseWorkflowService : IOrderSupportCaseWorkflowS
     {
         var supportCase = await LoadCaseForWriteAsync(caseId, cancellationToken);
         supportCase.Assign(actorUserId, assignedAdminId, note, ParsePriority(priority) ?? supportCase.Priority, slaDueAtUtc);
+        StagePendingCaseArtifacts(supportCase);
         await _unitOfWork.SaveChangesAsync(cancellationToken);
 
         if (supportCase.AssignedAdminId.HasValue && supportCase.AssignedAdminId.Value != actorUserId)
@@ -250,6 +253,7 @@ public sealed class OrderSupportCaseWorkflowService : IOrderSupportCaseWorkflowS
         };
 
         supportCase.RequestEvidenceFrom(actorUserId, normalizedTargetRole, note, customerVisibleNote, slaDueAtUtc);
+        StagePendingCaseArtifacts(supportCase);
         await _unitOfWork.SaveChangesAsync(cancellationToken);
 
         switch (normalizedTargetRole)
@@ -292,6 +296,7 @@ public sealed class OrderSupportCaseWorkflowService : IOrderSupportCaseWorkflowS
             customerVisibleNote,
             slaDueAtUtc);
 
+        StagePendingCaseArtifacts(supportCase);
         await _unitOfWork.SaveChangesAsync(cancellationToken);
         await NotifyAdminRecipientsAsync(
             supportCase.Order,
@@ -330,6 +335,7 @@ public sealed class OrderSupportCaseWorkflowService : IOrderSupportCaseWorkflowS
             await EnsureRefundDecisionAsync(supportCase, approvedAmount, refundMethod, costBearer, decisionNotes, actorUserId, cancellationToken);
         }
 
+        StagePendingCaseArtifacts(supportCase);
         await _unitOfWork.SaveChangesAsync(cancellationToken);
 
         await NotifyCustomerAsync(supportCase.Order, supportCase, "approved", cancellationToken);
@@ -347,6 +353,7 @@ public sealed class OrderSupportCaseWorkflowService : IOrderSupportCaseWorkflowS
     {
         var supportCase = await LoadCaseForWriteAsync(caseId, cancellationToken);
         supportCase.Reject(actorUserId, decisionNotes, customerVisibleNote);
+        StagePendingCaseArtifacts(supportCase);
         await _unitOfWork.SaveChangesAsync(cancellationToken);
 
         await NotifyCustomerAsync(supportCase.Order, supportCase, "rejected", cancellationToken);
@@ -363,6 +370,7 @@ public sealed class OrderSupportCaseWorkflowService : IOrderSupportCaseWorkflowS
     {
         var supportCase = await LoadCaseForWriteAsync(caseId, cancellationToken);
         supportCase.Resolve(actorUserId, note);
+        StagePendingCaseArtifacts(supportCase);
         await _unitOfWork.SaveChangesAsync(cancellationToken);
 
         await NotifyCustomerAsync(supportCase.Order, supportCase, "resolved", cancellationToken);
@@ -379,6 +387,7 @@ public sealed class OrderSupportCaseWorkflowService : IOrderSupportCaseWorkflowS
     {
         var supportCase = await LoadCaseForWriteAsync(caseId, cancellationToken);
         supportCase.Reopen(actorUserId, note);
+        StagePendingCaseArtifacts(supportCase);
         await _unitOfWork.SaveChangesAsync(cancellationToken);
         return supportCase;
     }
@@ -392,6 +401,7 @@ public sealed class OrderSupportCaseWorkflowService : IOrderSupportCaseWorkflowS
     {
         var supportCase = await LoadCaseForWriteAsync(caseId, cancellationToken);
         supportCase.AddInternalNote(actorUserId, note, visibleToCustomer);
+        StagePendingCaseArtifacts(supportCase);
         await _unitOfWork.SaveChangesAsync(cancellationToken);
 
         if (visibleToCustomer)
@@ -411,6 +421,7 @@ public sealed class OrderSupportCaseWorkflowService : IOrderSupportCaseWorkflowS
     {
         var supportCase = await LoadCaseForWriteAsync(caseId, cancellationToken);
         supportCase.AddVendorResponse(vendorUserId, response);
+        StagePendingCaseArtifacts(supportCase);
         await _unitOfWork.SaveChangesAsync(cancellationToken);
 
         await NotifyAdminRecipientsAsync(
@@ -465,6 +476,7 @@ public sealed class OrderSupportCaseWorkflowService : IOrderSupportCaseWorkflowS
             response,
             attachments?.Select(item => (item.FileName, item.FileUrl)).ToList());
 
+        StagePendingCaseArtifacts(supportCase);
         await _unitOfWork.SaveChangesAsync(cancellationToken);
 
         await NotifyAdminRecipientsAsync(
@@ -488,6 +500,7 @@ public sealed class OrderSupportCaseWorkflowService : IOrderSupportCaseWorkflowS
     {
         var supportCase = await LoadCaseForWriteAsync(caseId, cancellationToken);
         supportCase.AddAdminPublicMessage(actorUserId, message, audience);
+        StagePendingCaseArtifacts(supportCase);
         await _unitOfWork.SaveChangesAsync(cancellationToken);
 
         if (AudienceIncludes(audience, "customer"))
@@ -1008,6 +1021,7 @@ public sealed class OrderSupportCaseWorkflowService : IOrderSupportCaseWorkflowS
 
         supportCase.AddCustomerReply(customerUserId, message, attachmentTuples);
 
+        StagePendingCaseArtifacts(supportCase);
         await _context.SaveChangesAsync(cancellationToken);
 
         await NotifyAdminRecipientsAsync(
@@ -1022,5 +1036,31 @@ public sealed class OrderSupportCaseWorkflowService : IOrderSupportCaseWorkflowS
         await NotifyVendorAsync(supportCase.Order, supportCase, "customer_replied", cancellationToken);
 
         return supportCase;
+    }
+
+    private void StagePendingCaseArtifacts(OrderSupportCase supportCase)
+    {
+        if (_context is not DbContext dbContext)
+        {
+            return;
+        }
+
+        foreach (var activity in supportCase.Activities.Where(item => item.CreatedAtUtc == default))
+        {
+            var entry = dbContext.Entry(activity);
+            if (entry.State != EntityState.Added)
+            {
+                entry.State = EntityState.Added;
+            }
+        }
+
+        foreach (var attachment in supportCase.Attachments.Where(item => item.CreatedAtUtc == default))
+        {
+            var entry = dbContext.Entry(attachment);
+            if (entry.State != EntityState.Added)
+            {
+                entry.State = EntityState.Added;
+            }
+        }
     }
 }

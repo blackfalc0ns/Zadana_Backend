@@ -10678,6 +10678,55 @@
                 }
             }
         },
+        "/api/drivers/support/reasons/{type}": {
+            "get": {
+                "tags": [
+                    "Driver"
+                ],
+                "parameters": [
+                    {
+                        "name": "type",
+                        "in": "path",
+                        "required": true,
+                        "schema": {
+                            "type": "string"
+                        },
+                        "description": "Use `report` or `driver_report` for issue reasons, and `dispute` or `driver_dispute` for dispute reasons."
+                    }
+                ],
+                "responses": {
+                    "200": {
+                        "description": "OK",
+                        "content": {
+                            "text/plain": {
+                                "schema": {
+                                    "type": "array",
+                                    "items": {
+                                        "$ref": "#/components/schemas/DriverSupportReasonResponse"
+                                    }
+                                }
+                            },
+                            "application/json": {
+                                "schema": {
+                                    "type": "array",
+                                    "items": {
+                                        "$ref": "#/components/schemas/DriverSupportReasonResponse"
+                                    }
+                                }
+                            },
+                            "text/json": {
+                                "schema": {
+                                    "type": "array",
+                                    "items": {
+                                        "$ref": "#/components/schemas/DriverSupportReasonResponse"
+                                    }
+                                }
+                            }
+                        }
+                    }
+                }
+            }
+        },
         "/api/drivers/support/cases": {
             "get": {
                 "tags": [
@@ -19609,6 +19658,27 @@
                     "message": {
                         "type": "string",
                         "nullable": true
+                    }
+                },
+                "additionalProperties": false
+            },
+            "DriverSupportReasonResponse": {
+                "type": "object",
+                "properties": {
+                    "code": {
+                        "type": "string",
+                        "nullable": true
+                    },
+                    "labelAr": {
+                        "type": "string",
+                        "nullable": true
+                    },
+                    "labelEn": {
+                        "type": "string",
+                        "nullable": true
+                    },
+                    "requiresNote": {
+                        "type": "boolean"
                     }
                 },
                 "additionalProperties": false
