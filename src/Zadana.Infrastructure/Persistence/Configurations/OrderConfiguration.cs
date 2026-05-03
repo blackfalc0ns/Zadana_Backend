@@ -30,6 +30,8 @@ public class OrderConfiguration : IEntityTypeConfiguration<Order>
         builder.Property(x => x.DeliveryPricingMode).HasMaxLength(50);
         builder.Property(x => x.DeliveryPricingRuleLabel).HasMaxLength(150);
         builder.Property(x => x.CommissionAmount).HasPrecision(18, 2).IsRequired();
+        builder.Property(x => x.VatAmount).HasPrecision(18, 2).IsRequired().HasDefaultValue(0);
+        builder.Property(x => x.CodFee).HasPrecision(18, 2).IsRequired().HasDefaultValue(0);
         builder.Property(x => x.TotalAmount).HasPrecision(18, 2).IsRequired();
 
         builder.Property(x => x.Notes).HasMaxLength(1000);

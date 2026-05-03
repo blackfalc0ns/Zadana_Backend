@@ -11,6 +11,7 @@ using Zadana.Domain.Modules.Payments.Entities;
 using Zadana.Domain.Modules.Social.Entities;
 using Zadana.Domain.Modules.Vendors.Entities;
 using Zadana.Domain.Modules.Wallets.Entities;
+using Zadana.Domain.Modules.Finances.Entities;
 using Zadana.Application.Common.Interfaces;
 using Zadana.Infrastructure.Persistence.Interceptors;
 
@@ -97,6 +98,9 @@ public class ApplicationDbContext : IdentityDbContext<User, IdentityRole<Guid>, 
     public DbSet<Payout> Payouts => Set<Payout>();
     public DbSet<DriverPayoutMethod> DriverPayoutMethods => Set<DriverPayoutMethod>();
     public DbSet<DriverWithdrawalRequest> DriverWithdrawalRequests => Set<DriverWithdrawalRequest>();
+
+    // Finances
+    public DbSet<ZoneFinanceSettings> ZoneFinanceSettings => Set<ZoneFinanceSettings>();
 
     // Marketing & Social
     public DbSet<Coupon> Coupons => Set<Coupon>();

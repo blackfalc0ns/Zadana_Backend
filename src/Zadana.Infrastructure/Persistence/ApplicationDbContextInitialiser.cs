@@ -1478,7 +1478,7 @@ public class ApplicationDbContextInitialiser
         coupons.TryGetValue("FRESH10", out var freshCoupon);
         coupons.TryGetValue("TECH50", out var techCoupon);
 
-        var deliveredOrder = new Order("ORD-DEV-1001", ahmed.Id, groceryVendor.Id, ahmedHome.Id, PaymentMethodType.Card, 48.85m, 4.00m, 12m, 12m, 0m, 0m, 2.4m, "zone-fallback", "Riyadh - Al Olaya Standard", 5.50m, "Leave at the door", groceryBranch.Id, freshCoupon?.Id);
+        var deliveredOrder = new Order("ORD-DEV-1001", ahmed.Id, groceryVendor.Id, ahmedHome.Id, PaymentMethodType.Card, 48.85m, 4.00m, 12m, 12m, 0m, 0m, 2.4m, "zone-fallback", "Riyadh - Al Olaya Standard", 5.50m, 0m, 0m, "Leave at the door", groceryBranch.Id, freshCoupon?.Id);
         deliveredOrder.Items.Add(new OrderItem(deliveredOrder.Id, milk.Id, milk.MasterProductId, milk.MasterProduct.NameEn, 2, 16.95m, 2.00m, "Liter"));
         deliveredOrder.Items.Add(new OrderItem(deliveredOrder.Id, soap.Id, soap.MasterProductId, soap.MasterProduct.NameEn, 1, 14.95m, 2.00m, "Liter"));
         var deliveredPayment = new Payment(deliveredOrder.Id, PaymentMethodType.Card, deliveredOrder.TotalAmount);
@@ -1493,7 +1493,7 @@ public class ApplicationDbContextInitialiser
         deliveredOrder.ChangeStatus(OrderStatus.OnTheWay, null, "On the way");
         deliveredOrder.ChangeStatus(OrderStatus.Delivered, null, "Delivered successfully");
 
-        var refundedOrder = new Order("ORD-DEV-1002", layla.Id, techVendor.Id, laylaWork.Id, PaymentMethodType.ApplePay, 1578.00m, 79.00m, 0m, 0m, 0m, 0m, null, "zone-fallback", "Jeddah Standard", 90m, "Office reception", techBranch.Id, techCoupon?.Id);
+        var refundedOrder = new Order("ORD-DEV-1002", layla.Id, techVendor.Id, laylaWork.Id, PaymentMethodType.ApplePay, 1578.00m, 79.00m, 0m, 0m, 0m, 0m, null, "zone-fallback", "Jeddah Standard", 90m, 0m, 0m, "Office reception", techBranch.Id, techCoupon?.Id);
         refundedOrder.Items.Add(new OrderItem(refundedOrder.Id, charger.Id, charger.MasterProductId, charger.MasterProduct.NameEn, 1, 79m, 0m, "Piece"));
         refundedOrder.Items.Add(new OrderItem(refundedOrder.Id, phone.Id, phone.MasterProductId, phone.MasterProduct.NameEn, 1, 1499m, 79m, "Piece"));
         var refundedPayment = new Payment(refundedOrder.Id, PaymentMethodType.ApplePay, refundedOrder.TotalAmount);
@@ -1506,7 +1506,7 @@ public class ApplicationDbContextInitialiser
         refund.Process();
         refundedOrder.UpdatePaymentStatus(PaymentStatus.Refunded);
 
-        var codOrder = new Order("ORD-DEV-1003", noor.Id, groceryVendor.Id, noorHome.Id, PaymentMethodType.CashOnDelivery, 29.70m, 0m, 10m, 10m, 0m, 0m, 1.8m, "zone-fallback", "Khobar Standard", 3m, "Call on arrival", groceryBranch.Id);
+        var codOrder = new Order("ORD-DEV-1003", noor.Id, groceryVendor.Id, noorHome.Id, PaymentMethodType.CashOnDelivery, 29.70m, 0m, 10m, 10m, 0m, 0m, 1.8m, "zone-fallback", "Khobar Standard", 3m, 0m, 0m, "Call on arrival", groceryBranch.Id);
         codOrder.Items.Add(new OrderItem(codOrder.Id, milk.Id, milk.MasterProductId, milk.MasterProduct.NameEn, 1, 16.95m, 0m, "Liter"));
         codOrder.Items.Add(new OrderItem(codOrder.Id, soap.Id, soap.MasterProductId, soap.MasterProduct.NameEn, 1, 14.95m, 2.20m, "Liter"));
         var codPayment = new Payment(codOrder.Id, PaymentMethodType.CashOnDelivery, codOrder.TotalAmount);

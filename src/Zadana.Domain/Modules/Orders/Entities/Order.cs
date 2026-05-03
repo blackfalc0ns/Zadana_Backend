@@ -29,6 +29,8 @@ public class Order : BaseEntity
     public string? DeliveryPricingMode { get; private set; }
     public string? DeliveryPricingRuleLabel { get; private set; }
     public decimal CommissionAmount { get; private set; }
+    public decimal VatAmount { get; private set; }
+    public decimal CodFee { get; private set; }
     public decimal TotalAmount { get; private set; }
     
     public string? Notes { get; private set; }
@@ -65,6 +67,8 @@ public class Order : BaseEntity
         string? deliveryPricingMode,
         string? deliveryPricingRuleLabel,
         decimal commissionAmount,
+        decimal vatAmount = 0,
+        decimal codFee = 0,
         string? notes = null,
         Guid? vendorBranchId = null,
         Guid? couponId = null)
@@ -84,7 +88,9 @@ public class Order : BaseEntity
         DeliveryPricingMode = string.IsNullOrWhiteSpace(deliveryPricingMode) ? null : deliveryPricingMode.Trim();
         DeliveryPricingRuleLabel = string.IsNullOrWhiteSpace(deliveryPricingRuleLabel) ? null : deliveryPricingRuleLabel.Trim();
         CommissionAmount = commissionAmount;
-        TotalAmount = Math.Max(0, subtotal - discountTotal + deliveryFee);
+        VatAmount = vatAmount;
+        CodFee = codFee;
+        TotalAmount = Math.Max(0, subtotal - discountTotal + deliveryFee + vatAmount + codFee);
         Notes = notes?.Trim();
         VendorBranchId = vendorBranchId;
         CouponId = couponId;
