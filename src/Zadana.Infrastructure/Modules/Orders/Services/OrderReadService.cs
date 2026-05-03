@@ -655,12 +655,6 @@ public class OrderReadService : IOrderReadService
 
         var casesQuery = _dbContext.OrderSupportCases
             .AsNoTracking()
-            .Include(item => item.Order)
-                .ThenInclude(order => order.User)
-            .Include(item => item.Order)
-                .ThenInclude(order => order.Vendor)
-            .Include(item => item.Attachments)
-            .Include(item => item.Activities)
             .AsQueryable();
 
         if (vendorId.HasValue)
@@ -668,28 +662,57 @@ public class OrderReadService : IOrderReadService
             casesQuery = casesQuery.Where(item => item.Order.VendorId == vendorId.Value);
         }
 
-        var cases = await casesQuery
+        casesQuery = ApplyAdminSupportCaseFilters(casesQuery, search, type, status, priority, queue, initiatorRole);
+
+        var totalCount = await casesQuery.CountAsync(cancellationToken);
+        var totalPages = totalCount == 0
+            ? 1
+            : Math.Max(1, (int)Math.Ceiling(totalCount / (double)normalizedPageSize));
+        var safePage = Math.Min(normalizedPage, totalPages);
+
+        var caseIds = await casesQuery
             .OrderByDescending(item => item.CreatedAtUtc)
+            .Select(item => item.Id)
+            .Skip((safePage - 1) * normalizedPageSize)
+            .Take(normalizedPageSize)
             .ToListAsync(cancellationToken);
 
-        var orderIds = cases.Select(item => item.OrderId).Distinct().ToList();
+        if (caseIds.Count == 0)
+        {
+            return new AdminOrderSupportCasesListDto(
+                [],
+                safePage,
+                normalizedPageSize,
+                totalCount,
+                totalPages,
+                safePage > 1,
+                safePage < totalPages);
+        }
+
+        var cases = await _dbContext.OrderSupportCases
+            .AsNoTracking()
+            .Where(item => caseIds.Contains(item.Id))
+            .Include(item => item.Order)
+                .ThenInclude(order => order.User)
+            .Include(item => item.Order)
+                .ThenInclude(order => order.Vendor)
+            .Include(item => item.Attachments)
+            .Include(item => item.Activities)
+            .ToListAsync(cancellationToken);
+
+        var orderedCases = caseIds
+            .Join(cases, id => id, supportCase => supportCase.Id, (_, supportCase) => supportCase)
+            .ToList();
+
+        var orderIds = orderedCases.Select(item => item.OrderId).Distinct().ToList();
         var paymentMap = await LoadPaymentMapAsync(orderIds, cancellationToken);
         var refundMap = await LoadRefundMapAsync(orderIds, cancellationToken);
 
-        var projected = cases
+        var paged = orderedCases
             .Select(item => BuildAdminSupportCaseListItem(
                 item,
                 paymentMap.GetValueOrDefault(item.OrderId),
                 refundMap.GetValueOrDefault(item.OrderId)))
-            .Where(item => MatchesAdminSupportCaseFilters(item, search, type, status, priority, queue, initiatorRole))
-            .ToList();
-
-        var totalCount = projected.Count;
-        var totalPages = Math.Max(1, (int)Math.Ceiling(totalCount / (double)normalizedPageSize));
-        var safePage = Math.Min(normalizedPage, totalPages);
-        var paged = projected
-            .Skip((safePage - 1) * normalizedPageSize)
-            .Take(normalizedPageSize)
             .ToList();
 
         return new AdminOrderSupportCasesListDto(
@@ -700,6 +723,93 @@ public class OrderReadService : IOrderReadService
             totalPages,
             safePage > 1,
             safePage < totalPages);
+    }
+
+    private static IQueryable<OrderSupportCase> ApplyAdminSupportCaseFilters(
+        IQueryable<OrderSupportCase> query,
+        string? search,
+        string? type,
+        string? status,
+        string? priority,
+        string? queue,
+        string? initiatorRole)
+    {
+        if (!string.IsNullOrWhiteSpace(search))
+        {
+            var normalizedSearch = search.Trim();
+            var pattern = $"%{normalizedSearch}%";
+
+            if (Guid.TryParse(normalizedSearch, out var parsedId))
+            {
+                query = query.Where(item => item.Id == parsedId || item.OrderId == parsedId);
+            }
+            else
+            {
+                query = query.Where(item =>
+                    EF.Functions.Like(item.Order.User.FullName, pattern) ||
+                    (item.Order.User.Email != null && EF.Functions.Like(item.Order.User.Email, pattern)) ||
+                    EF.Functions.Like(item.Order.Vendor.BusinessNameAr, pattern) ||
+                    (item.Order.Vendor.BusinessNameEn != null && EF.Functions.Like(item.Order.Vendor.BusinessNameEn, pattern)) ||
+                    (item.ReasonCode != null && EF.Functions.Like(item.ReasonCode, pattern)) ||
+                    EF.Functions.Like(item.Message, pattern));
+            }
+        }
+
+        if (!string.IsNullOrWhiteSpace(type) &&
+            !string.Equals(type, "ALL", StringComparison.OrdinalIgnoreCase))
+        {
+            var normalizedType = type.Trim().ToLowerInvariant();
+            query = normalizedType switch
+            {
+                "return_request" => query.Where(item => item.Type == OrderSupportCaseType.ReturnRequest),
+                "complaint" => query.Where(item => item.Type != OrderSupportCaseType.ReturnRequest),
+                _ => query
+            };
+        }
+
+        if (!string.IsNullOrWhiteSpace(status) &&
+            !string.Equals(status, "ALL", StringComparison.OrdinalIgnoreCase))
+        {
+            var normalizedStatus = status.Trim().ToLowerInvariant();
+            query = normalizedStatus switch
+            {
+                "active" => query.Where(item =>
+                    item.Status != OrderSupportCaseStatus.Resolved &&
+                    item.Status != OrderSupportCaseStatus.Rejected),
+                "review" or "in_review" => query.Where(item => item.Status == OrderSupportCaseStatus.InReview),
+                "merchant" or "awaiting_customer_evidence" => query.Where(item => item.Status == OrderSupportCaseStatus.AwaitingCustomerEvidence),
+                "open" or "submitted" => query.Where(item => item.Status == OrderSupportCaseStatus.Submitted),
+                "approved" => query.Where(item => item.Status == OrderSupportCaseStatus.Approved),
+                "rejected" => query.Where(item => item.Status == OrderSupportCaseStatus.Rejected),
+                "resolved" => query.Where(item => item.Status == OrderSupportCaseStatus.Resolved),
+                _ => query
+            };
+        }
+
+        if (!string.IsNullOrWhiteSpace(priority) &&
+            !string.Equals(priority, "ALL", StringComparison.OrdinalIgnoreCase) &&
+            Enum.TryParse<OrderSupportCasePriority>(priority.Trim(), true, out var parsedPriority))
+        {
+            query = query.Where(item => item.Priority == parsedPriority);
+        }
+
+        if (!string.IsNullOrWhiteSpace(queue) &&
+            !string.Equals(queue, "ALL", StringComparison.OrdinalIgnoreCase) &&
+            Enum.TryParse<OrderSupportCaseQueue>(queue.Trim(), true, out var parsedQueue))
+        {
+            query = query.Where(item => item.Queue == parsedQueue);
+        }
+
+        if (!string.IsNullOrWhiteSpace(initiatorRole) &&
+            !string.Equals(initiatorRole, "ALL", StringComparison.OrdinalIgnoreCase))
+        {
+            var normalizedRole = initiatorRole.Trim().ToLowerInvariant();
+            query = query.Where(item =>
+                item.InitiatorRole != null &&
+                item.InitiatorRole.ToLower() == normalizedRole);
+        }
+
+        return query;
     }
 
     public async Task<AdminOrderSupportCaseListItemDto?> GetAdminOrderSupportCaseDetailAsync(

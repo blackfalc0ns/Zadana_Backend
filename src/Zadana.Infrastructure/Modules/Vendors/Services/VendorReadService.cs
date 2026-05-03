@@ -143,45 +143,41 @@ public class VendorReadService : IVendorReadService
         var fromUtc = dateFrom?.ToUniversalTime();
         var toUtc = dateTo?.ToUniversalTime();
 
-        var activityNotifications = await _dbContext.Notifications
+        var activityNotificationsQuery = _dbContext.Notifications
             .AsNoTracking()
             .Where(item => item.UserId == vendor.UserId && item.Type != null && item.Type.StartsWith("vendor-activity|"))
+            .AsQueryable();
+
+        if (normalizedType != null)
+        {
+            activityNotificationsQuery = activityNotificationsQuery.Where(item =>
+                item.Type != null && item.Type.StartsWith($"vendor-activity|{normalizedType}|"));
+        }
+
+        if (normalizedSeverity != null)
+        {
+            activityNotificationsQuery = activityNotificationsQuery.Where(item =>
+                item.Type != null && EF.Functions.Like(item.Type, $"vendor-activity|%|{normalizedSeverity}|%"));
+        }
+
+        if (fromUtc.HasValue)
+        {
+            activityNotificationsQuery = activityNotificationsQuery.Where(item => item.CreatedAtUtc >= fromUtc.Value);
+        }
+
+        if (toUtc.HasValue)
+        {
+            activityNotificationsQuery = activityNotificationsQuery.Where(item => item.CreatedAtUtc <= toUtc.Value);
+        }
+
+        var totalCount = await activityNotificationsQuery.CountAsync(cancellationToken);
+        var notifications = await activityNotificationsQuery
             .OrderByDescending(item => item.CreatedAtUtc)
-            .ToListAsync(cancellationToken);
-
-        var filtered = activityNotifications
-            .Where(item =>
-            {
-                var meta = GetActivityMeta(item.Type);
-
-                if (normalizedType != null && !string.Equals(meta.Kind, normalizedType, StringComparison.OrdinalIgnoreCase))
-                {
-                    return false;
-                }
-
-                if (normalizedSeverity != null && !string.Equals(meta.Severity, normalizedSeverity, StringComparison.OrdinalIgnoreCase))
-                {
-                    return false;
-                }
-
-                if (fromUtc.HasValue && item.CreatedAtUtc < fromUtc.Value)
-                {
-                    return false;
-                }
-
-                if (toUtc.HasValue && item.CreatedAtUtc > toUtc.Value)
-                {
-                    return false;
-                }
-
-                return true;
-            })
-            .ToList();
-
-        var totalCount = filtered.Count;
-        var items = filtered
             .Skip((safePage - 1) * safePageSize)
             .Take(safePageSize)
+            .ToListAsync(cancellationToken);
+
+        var items = notifications
             .Select(MapActivityLogEntry)
             .ToList();
 

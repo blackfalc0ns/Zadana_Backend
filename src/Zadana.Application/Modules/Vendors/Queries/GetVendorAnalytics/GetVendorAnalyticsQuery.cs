@@ -45,28 +45,27 @@ public class GetVendorAnalyticsQueryHandler : IRequestHandler<GetVendorAnalytics
                 order.PlacedAtUtc >= fromUtc &&
                 order.PlacedAtUtc <= toUtc);
 
-        var orderRows = await ordersQuery
-            .Select(order => new AnalyticsOrderRow(order.PlacedAtUtc, order.Status, order.TotalAmount))
-            .ToListAsync(cancellationToken);
-
-        var totalOrders = orderRows.Count;
-        var completedOrders = orderRows.Count(order => order.Status == OrderStatus.Delivered);
-        var cancelledOrders = orderRows.Count(order => CancellationStatuses.Contains(order.Status));
-        var totalRevenue = orderRows
+        var totalOrders = await ordersQuery.CountAsync(cancellationToken);
+        var completedOrders = await ordersQuery
+            .CountAsync(order => order.Status == OrderStatus.Delivered, cancellationToken);
+        var cancelledOrders = await ordersQuery
+            .CountAsync(order => CancellationStatuses.Contains(order.Status), cancellationToken);
+        var totalRevenue = await ordersQuery
             .Where(order => !RevenueExcludedStatuses.Contains(order.Status))
-            .Sum(order => order.TotalAmount);
+            .SumAsync(order => (decimal?)order.TotalAmount, cancellationToken)
+            ?? 0m;
 
-        var groupedTrend = orderRows
+        var groupedTrend = await ordersQuery
             .GroupBy(order => order.PlacedAtUtc.Date)
-            .ToDictionary(
-                group => group.Key,
-                group => new
-                {
-                    OrdersCount = group.Count(),
-                    Revenue = group
-                        .Where(order => !RevenueExcludedStatuses.Contains(order.Status))
-                        .Sum(order => order.TotalAmount)
-                });
+            .Select(group => new
+            {
+                Date = group.Key,
+                OrdersCount = group.Count(),
+                Revenue = group
+                    .Where(order => !RevenueExcludedStatuses.Contains(order.Status))
+                    .Sum(order => (decimal?)order.TotalAmount) ?? 0m
+            })
+            .ToDictionaryAsync(item => item.Date, item => new { item.OrdersCount, item.Revenue }, cancellationToken);
 
         var salesTrend = Enumerable.Range(0, rangeDays)
             .Select(offset =>
@@ -81,32 +80,48 @@ public class GetVendorAnalyticsQueryHandler : IRequestHandler<GetVendorAnalytics
             })
             .ToList();
 
-        var statusBreakdown = orderRows
-            .GroupBy(order => MapOrderStatusBucket(order.Status))
-            .Select(group =>
+        var statusBreakdown = (await ordersQuery
+            .GroupBy(order => order.Status == OrderStatus.Delivered
+                ? "completed"
+                : CancellationStatuses.Contains(order.Status)
+                    ? "cancelled"
+                    : order.Status == OrderStatus.DeliveryFailed || order.Status == OrderStatus.Refunded
+                        ? "failed"
+                        : order.Status == OrderStatus.Placed || order.Status == OrderStatus.PendingVendorAcceptance
+                            ? "awaiting_action"
+                            : "in_progress")
+            .Select(group => new
             {
-                var count = group.Count();
-                return new AdminVendorAnalyticsStatusBreakdownDto(
-                    group.Key,
-                    count,
-                    totalOrders > 0 ? Math.Round((decimal)count * 100m / totalOrders, 1) : 0m);
+                Status = group.Key,
+                Count = group.Count()
             })
             .OrderByDescending(item => item.Count)
+            .ToListAsync(cancellationToken))
+            .Select(item => new AdminVendorAnalyticsStatusBreakdownDto(
+                item.Status,
+                item.Count,
+                totalOrders > 0 ? Math.Round((decimal)item.Count * 100m / totalOrders, 1) : 0m))
             .ToList();
 
-        var productRows = await _context.VendorProducts
+        var productsQuery = _context.VendorProducts
             .AsNoTracking()
-            .Where(product => product.VendorId == request.VendorId)
-            .Select(product => new AnalyticsProductRow(product.Status, product.IsAvailable, product.StockQuantity))
-            .ToListAsync(cancellationToken);
+            .Where(product => product.VendorId == request.VendorId);
 
         var productHealth = new AdminVendorAnalyticsProductHealthDto(
-            productRows.Count(product => product.Status == VendorProductStatus.Active && product.IsAvailable && product.StockQuantity > 5),
-            productRows.Count(product => product.Status == VendorProductStatus.Active && product.IsAvailable && product.StockQuantity > 0 && product.StockQuantity <= 5),
-            productRows.Count(product => product.Status == VendorProductStatus.OutOfStock || product.StockQuantity <= 0),
-            productRows.Count(product => product.Status == VendorProductStatus.Inactive || product.Status == VendorProductStatus.Suspended));
+            await productsQuery.CountAsync(
+                product => product.Status == VendorProductStatus.Active && product.IsAvailable && product.StockQuantity > 5,
+                cancellationToken),
+            await productsQuery.CountAsync(
+                product => product.Status == VendorProductStatus.Active && product.IsAvailable && product.StockQuantity > 0 && product.StockQuantity <= 5,
+                cancellationToken),
+            await productsQuery.CountAsync(
+                product => product.Status == VendorProductStatus.OutOfStock || product.StockQuantity <= 0,
+                cancellationToken),
+            await productsQuery.CountAsync(
+                product => product.Status == VendorProductStatus.Inactive || product.Status == VendorProductStatus.Suspended,
+                cancellationToken));
 
-        var topProductRows = await _context.OrderItems
+        var topProducts = await _context.OrderItems
             .AsNoTracking()
             .Where(item =>
                 item.Order.VendorId == request.VendorId &&
@@ -114,15 +129,6 @@ public class GetVendorAnalyticsQueryHandler : IRequestHandler<GetVendorAnalytics
                 item.Order.PlacedAtUtc <= toUtc &&
                 item.Order.Status != OrderStatus.PendingPayment &&
                 !CancellationStatuses.Contains(item.Order.Status))
-            .Select(item => new AnalyticsTopProductRow(
-                item.VendorProductId,
-                item.ProductName,
-                item.Quantity,
-                item.LineTotal,
-                item.OrderId))
-            .ToListAsync(cancellationToken);
-
-        var topProducts = topProductRows
             .GroupBy(item => new { item.VendorProductId, item.ProductName })
             .Select(group => new AdminVendorAnalyticsTopProductDto(
                 group.Key.VendorProductId,
@@ -133,7 +139,7 @@ public class GetVendorAnalyticsQueryHandler : IRequestHandler<GetVendorAnalytics
             .OrderByDescending(item => item.Revenue)
             .ThenByDescending(item => item.UnitsSold)
             .Take(5)
-            .ToList();
+            .ToListAsync(cancellationToken);
 
         var summary = new AdminVendorAnalyticsSummaryDto(
             totalRevenue,
@@ -160,18 +166,6 @@ public class GetVendorAnalyticsQueryHandler : IRequestHandler<GetVendorAnalytics
         _ => ("30d", 30)
     };
 
-    private static string MapOrderStatusBucket(OrderStatus status) => status switch
-    {
-        OrderStatus.Delivered => "completed",
-        OrderStatus.Cancelled or OrderStatus.VendorRejected => "cancelled",
-        OrderStatus.DeliveryFailed or OrderStatus.Refunded => "failed",
-        OrderStatus.Placed or OrderStatus.PendingVendorAcceptance => "awaiting_action",
-        _ => "in_progress"
-    };
-
-    private sealed record AnalyticsOrderRow(DateTime PlacedAtUtc, OrderStatus Status, decimal TotalAmount);
-    private sealed record AnalyticsProductRow(VendorProductStatus Status, bool IsAvailable, int StockQuantity);
-    private sealed record AnalyticsTopProductRow(Guid VendorProductId, string ProductName, int Quantity, decimal LineTotal, Guid OrderId);
 }
 
 public record AdminVendorAnalyticsDto(
