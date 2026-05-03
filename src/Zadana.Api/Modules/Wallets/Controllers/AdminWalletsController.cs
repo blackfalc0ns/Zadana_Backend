@@ -1,0 +1,303 @@
+using Microsoft.AspNetCore.Authorization;
+using Microsoft.AspNetCore.Mvc;
+using Microsoft.EntityFrameworkCore;
+using Zadana.Api.Controllers;
+using Zadana.Application.Common.Interfaces;
+using Zadana.Application.Modules.Wallets.DTOs;
+using Zadana.Domain.Modules.Wallets.Entities;
+using Zadana.Domain.Modules.Wallets.Enums;
+using Zadana.SharedKernel.Exceptions;
+
+namespace Zadana.Api.Modules.Wallets.Controllers;
+
+[Route("api/admin/wallets")]
+[Tags("Admin Wallet Management API")]
+[Authorize(Policy = "AdminOnly")]
+public class AdminWalletsController : ApiControllerBase
+{
+    [HttpGet]
+    public async Task<ActionResult<AdminWalletListDto>> GetWallets(
+        [FromServices] IApplicationDbContext context,
+        [FromQuery] string? ownerType,
+        [FromQuery] int page = 1,
+        [FromQuery] int pageSize = 20,
+        CancellationToken cancellationToken = default)
+    {
+        page = Math.Max(page, 1);
+        pageSize = Math.Clamp(pageSize, 1, 100);
+
+        var query = context.Wallets.AsNoTracking().AsQueryable();
+
+        if (!string.IsNullOrWhiteSpace(ownerType) && Enum.TryParse<WalletOwnerType>(ownerType, true, out var type))
+        {
+            query = query.Where(w => w.OwnerType == type);
+        }
+
+        var totalCount = await query.CountAsync(cancellationToken);
+        
+        var wallets = await query
+            .OrderByDescending(w => w.CurrentBalance)
+            .Skip((page - 1) * pageSize)
+            .Take(pageSize)
+            .ToListAsync(cancellationToken);
+
+        // Fetch owner details efficiently
+        var vendorIds = wallets.Where(w => w.OwnerType == WalletOwnerType.Vendor).Select(w => w.OwnerId).ToList();
+        var driverIds = wallets.Where(w => w.OwnerType == WalletOwnerType.Driver).Select(w => w.OwnerId).ToList();
+
+        var vendors = await context.Vendors.AsNoTracking()
+            .Where(v => vendorIds.Contains(v.Id))
+            .ToDictionaryAsync(v => v.Id, v => new { Name = v.CommercialName ?? "Unknown Vendor", Phone = v.ManagerPhone ?? "" }, cancellationToken);
+
+        var drivers = await context.Drivers.AsNoTracking()
+            .Include(d => d.User)
+            .Where(d => driverIds.Contains(d.Id))
+            .ToDictionaryAsync(d => d.Id, d => new { Name = d.User.FullName, Phone = d.User.PhoneNumber ?? "" }, cancellationToken);
+
+        var items = wallets.Select(w =>
+        {
+            string ownerName = "Unknown";
+            string ownerPhone = "";
+            
+            if (w.OwnerType == WalletOwnerType.Vendor && vendors.TryGetValue(w.OwnerId, out var vendor))
+            {
+                ownerName = vendor.Name;
+                ownerPhone = vendor.Phone;
+            }
+            else if (w.OwnerType == WalletOwnerType.Driver && drivers.TryGetValue(w.OwnerId, out var driver))
+            {
+                ownerName = driver.Name;
+                ownerPhone = driver.Phone;
+            }
+
+            return new AdminWalletSummaryDto(
+                w.Id,
+                w.OwnerType.ToString(),
+                w.OwnerId,
+                ownerName,
+                ownerPhone,
+                w.CurrentBalance,
+                w.PendingBalance,
+                DateTime.UtcNow // Wallets don't currently have CreatedAtUtc in DB, so just mocking
+            );
+        }).ToList();
+
+        var totalPlatformBalance = await context.Wallets.SumAsync(w => (decimal?)w.CurrentBalance, cancellationToken) ?? 0m;
+        var totalPendingWithdrawals = await context.Wallets.SumAsync(w => (decimal?)w.PendingBalance, cancellationToken) ?? 0m;
+
+        return Ok(new AdminWalletListDto(items, page, pageSize, totalCount, totalPlatformBalance, totalPendingWithdrawals));
+    }
+
+    [HttpGet("{id:guid}")]
+    public async Task<ActionResult<AdminWalletSummaryDto>> GetWallet(
+        Guid id,
+        [FromServices] IApplicationDbContext context,
+        CancellationToken cancellationToken = default)
+    {
+        var wallet = await context.Wallets.AsNoTracking().FirstOrDefaultAsync(w => w.Id == id, cancellationToken)
+            ?? throw new NotFoundException("Wallet", id);
+
+        string ownerName = "Unknown";
+        string ownerPhone = "";
+
+        if (wallet.OwnerType == WalletOwnerType.Vendor)
+        {
+            var vendor = await context.Vendors.AsNoTracking().FirstOrDefaultAsync(v => v.Id == wallet.OwnerId, cancellationToken);
+            ownerName = vendor?.CommercialName ?? "Unknown Vendor";
+            ownerPhone = vendor?.ManagerPhone ?? "";
+        }
+        else if (wallet.OwnerType == WalletOwnerType.Driver)
+        {
+            var driver = await context.Drivers.AsNoTracking().Include(d => d.User).FirstOrDefaultAsync(d => d.Id == wallet.OwnerId, cancellationToken);
+            ownerName = driver?.User.FullName ?? "Unknown Driver";
+            ownerPhone = driver?.User.PhoneNumber ?? "";
+        }
+
+        return Ok(new AdminWalletSummaryDto(
+            wallet.Id,
+            wallet.OwnerType.ToString(),
+            wallet.OwnerId,
+            ownerName,
+            ownerPhone,
+            wallet.CurrentBalance,
+            wallet.PendingBalance,
+            DateTime.UtcNow
+        ));
+    }
+
+    [HttpGet("{id:guid}/transactions")]
+    public async Task<ActionResult<AdminWalletTransactionListDto>> GetTransactions(
+        Guid id,
+        [FromServices] IApplicationDbContext context,
+        [FromQuery] int page = 1,
+        [FromQuery] int pageSize = 20,
+        CancellationToken cancellationToken = default)
+    {
+        page = Math.Max(page, 1);
+        pageSize = Math.Clamp(pageSize, 1, 100);
+
+        var query = context.WalletTransactions.AsNoTracking().Where(t => t.WalletId == id);
+        var totalCount = await query.CountAsync(cancellationToken);
+        
+        var items = await query
+            .OrderByDescending(t => t.CreatedAtUtc)
+            .Skip((page - 1) * pageSize)
+            .Take(pageSize)
+            .Select(t => new AdminWalletTransactionDto(
+                t.Id,
+                t.TxnType.ToString(),
+                t.Direction,
+                t.Amount,
+                t.Description,
+                t.ReferenceType,
+                t.ReferenceId.HasValue ? t.ReferenceId.Value.ToString() : null,
+                t.CreatedAtUtc
+            ))
+            .ToListAsync(cancellationToken);
+
+        return Ok(new AdminWalletTransactionListDto(items, page, pageSize, totalCount));
+    }
+
+    [HttpPost("{id:guid}/adjustments")]
+    public async Task<ActionResult<AdminWalletTransactionDto>> CreateAdjustment(
+        Guid id,
+        [FromBody] AdminCreateAdjustmentRequest request,
+        [FromServices] IApplicationDbContext context,
+        CancellationToken cancellationToken = default)
+    {
+        var wallet = await context.Wallets.FirstOrDefaultAsync(w => w.Id == id, cancellationToken)
+            ?? throw new NotFoundException("Wallet", id);
+
+        if (request.Direction == "IN")
+        {
+            wallet.Credit(request.Amount);
+        }
+        else
+        {
+            wallet.Debit(request.Amount);
+        }
+
+        var txn = new WalletTransaction(
+            wallet.Id,
+            WalletTxnType.Adjustment,
+            request.Amount,
+            request.Direction,
+            description: request.Description,
+            referenceType: "AdminAdjustment"
+        );
+
+        context.WalletTransactions.Add(txn);
+        await context.SaveChangesAsync(cancellationToken);
+
+        return Ok(new AdminWalletTransactionDto(
+            txn.Id,
+            txn.TxnType.ToString(),
+            txn.Direction,
+            txn.Amount,
+            txn.Description,
+            txn.ReferenceType,
+            txn.ReferenceId.HasValue ? txn.ReferenceId.Value.ToString() : null,
+            txn.CreatedAtUtc
+        ));
+    }
+
+    [HttpGet("withdrawals")]
+    public async Task<ActionResult<AdminWithdrawalRequestListDto>> GetWithdrawals(
+        [FromServices] IApplicationDbContext context,
+        [FromQuery] string? status,
+        [FromQuery] int page = 1,
+        [FromQuery] int pageSize = 20,
+        CancellationToken cancellationToken = default)
+    {
+        page = Math.Max(page, 1);
+        pageSize = Math.Clamp(pageSize, 1, 100);
+
+        var query = context.DriverWithdrawalRequests.AsNoTracking()
+            .Include(w => w.Driver)
+            .ThenInclude(d => d.User)
+            .Include(w => w.DriverPayoutMethod)
+            .AsQueryable();
+
+        if (!string.IsNullOrWhiteSpace(status) && Enum.TryParse<Domain.Modules.Delivery.Enums.DriverWithdrawalStatus>(status, true, out var parsedStatus))
+        {
+            query = query.Where(w => w.Status == parsedStatus);
+        }
+
+        var totalCount = await query.CountAsync(cancellationToken);
+        
+        var items = await query
+            .OrderByDescending(w => w.CreatedAtUtc)
+            .Skip((page - 1) * pageSize)
+            .Take(pageSize)
+            .Select(w => new AdminDriverWithdrawalRequestDto(
+                w.Id,
+                w.DriverId,
+                w.Driver.User.FullName,
+                w.Driver.User.PhoneNumber ?? "",
+                w.Amount,
+                w.Status.ToString(),
+                w.TransferReference,
+                w.FailureReason,
+                w.CreatedAtUtc,
+                w.ProcessedAtUtc,
+                new AdminDriverPayoutMethodDto(
+                    w.DriverPayoutMethod.Id,
+                    w.DriverPayoutMethod.MethodType.ToString(),
+                    w.DriverPayoutMethod.AccountHolderName,
+                    w.DriverPayoutMethod.ProviderName,
+                    w.DriverPayoutMethod.MaskedLabel
+                )
+            ))
+            .ToListAsync(cancellationToken);
+
+        return Ok(new AdminWithdrawalRequestListDto(items, page, pageSize, totalCount));
+    }
+
+    [HttpPost("withdrawals/{id:guid}/process")]
+    public async Task<IActionResult> ProcessWithdrawal(
+        Guid id,
+        [FromBody] AdminProcessWithdrawalRequest request,
+        [FromServices] IApplicationDbContext context,
+        CancellationToken cancellationToken = default)
+    {
+        var withdrawal = await context.DriverWithdrawalRequests
+            .FirstOrDefaultAsync(w => w.Id == id, cancellationToken)
+            ?? throw new NotFoundException("DriverWithdrawalRequest", id);
+
+        if (withdrawal.Status != Domain.Modules.Delivery.Enums.DriverWithdrawalStatus.Pending && 
+            withdrawal.Status != Domain.Modules.Delivery.Enums.DriverWithdrawalStatus.Processing)
+        {
+            throw new BusinessRuleException("INVALID_STATUS", "Only pending or processing withdrawals can be processed.");
+        }
+
+        var wallet = await context.Wallets.FirstOrDefaultAsync(w => w.Id == withdrawal.WalletId, cancellationToken)
+            ?? throw new NotFoundException("Wallet", withdrawal.WalletId);
+
+        if (request.IsApproved)
+        {
+            wallet.SettleHold(withdrawal.Amount);
+            withdrawal.MarkAsProcessed(request.TransferReference);
+            
+            var txn = new WalletTransaction(
+                wallet.Id,
+                WalletTxnType.Payout,
+                withdrawal.Amount,
+                "OUT",
+                description: "Withdrawal processed",
+                referenceType: "DriverWithdrawal",
+                referenceId: withdrawal.Id
+            );
+            context.WalletTransactions.Add(txn);
+        }
+        else
+        {
+            wallet.ReleaseHold(withdrawal.Amount);
+            withdrawal.MarkAsFailed(request.FailureReason ?? "Rejected by admin");
+            // Add a txn to show the release? Technically it just moves back to current balance, we can log it if we want.
+        }
+
+        await context.SaveChangesAsync(cancellationToken);
+
+        return NoContent();
+    }
+}

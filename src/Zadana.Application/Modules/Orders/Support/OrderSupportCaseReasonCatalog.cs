@@ -39,10 +39,10 @@ public static class OrderSupportCaseReasonCatalog
 
     public static IReadOnlyList<OrderSupportCaseReasonOption> GetReasonsByType(string type)
     {
-        return type.ToLowerInvariant() switch
+        return type.Trim().ToLowerInvariant() switch
         {
-            "driver_report" => DriverReportOptions,
-            "driver_dispute" => DriverDisputeOptions,
+            "driver_report" or "report" => DriverReportOptions,
+            "driver_dispute" or "dispute" => DriverDisputeOptions,
             "complaint" => CustomerComplaintOptions,
             "return" or "return_request" => CustomerReturnOptions,
             _ => []

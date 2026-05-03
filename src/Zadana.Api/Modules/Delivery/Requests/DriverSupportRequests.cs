@@ -26,6 +26,12 @@ public sealed record DriverSupportCaseResponse(
     [property: JsonPropertyName("message")] string Message,
     [property: JsonPropertyName("created_at")] DateTime CreatedAt);
 
+public sealed record DriverSupportReasonResponse(
+    [property: JsonPropertyName("code")] string Code,
+    [property: JsonPropertyName("label_ar")] string LabelAr,
+    [property: JsonPropertyName("label_en")] string LabelEn,
+    [property: JsonPropertyName("requires_note")] bool RequiresNote);
+
 public sealed record DriverSupportCasesListResponse(
     [property: JsonPropertyName("items")] List<DriverSupportCaseListItemResponse> Items,
     [property: JsonPropertyName("page")] int Page,
