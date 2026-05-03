@@ -6,6 +6,8 @@ using Zadana.Api.Modules.Delivery.Requests;
 using Zadana.Application.Common.Interfaces;
 using Zadana.Application.Modules.Delivery.Interfaces;
 using Zadana.Application.Modules.Orders.Interfaces;
+using Zadana.Application.Modules.Orders.Support;
+using Zadana.Domain.Modules.Orders.Entities;
 using Zadana.Domain.Modules.Orders.Enums;
 using Zadana.SharedKernel.Exceptions;
 
@@ -74,10 +76,18 @@ public class DriverSupportController : ApiControllerBase
             supportCase.Id,
             supportCase.OrderId,
             order.OrderNumber,
-            supportCase.Type.ToString(),
-            supportCase.Status.ToString(),
-            supportCase.Priority.ToString(),
+            ToApiType(supportCase.Type),
+            GetTypeLabelAr(supportCase.Type),
+            GetTypeLabelEn(supportCase.Type),
+            ToApiStatus(supportCase.Status),
+            GetStatusLabelAr(supportCase.Status),
+            GetStatusLabelEn(supportCase.Status),
+            ToApiPriority(supportCase.Priority),
+            GetPriorityLabelAr(supportCase.Priority),
+            GetPriorityLabelEn(supportCase.Priority),
             supportCase.ReasonCode,
+            GetReasonLabelAr(supportCase.Type, supportCase.ReasonCode),
+            GetReasonLabelEn(supportCase.Type, supportCase.ReasonCode),
             supportCase.Message,
             supportCase.CreatedAtUtc));
     }
@@ -122,10 +132,18 @@ public class DriverSupportController : ApiControllerBase
             supportCase.Id,
             supportCase.OrderId,
             order.OrderNumber,
-            supportCase.Type.ToString(),
-            supportCase.Status.ToString(),
-            supportCase.Priority.ToString(),
+            ToApiType(supportCase.Type),
+            GetTypeLabelAr(supportCase.Type),
+            GetTypeLabelEn(supportCase.Type),
+            ToApiStatus(supportCase.Status),
+            GetStatusLabelAr(supportCase.Status),
+            GetStatusLabelEn(supportCase.Status),
+            ToApiPriority(supportCase.Priority),
+            GetPriorityLabelAr(supportCase.Priority),
+            GetPriorityLabelEn(supportCase.Priority),
             supportCase.ReasonCode,
+            GetReasonLabelAr(supportCase.Type, supportCase.ReasonCode),
+            GetReasonLabelEn(supportCase.Type, supportCase.ReasonCode),
             supportCase.Message,
             supportCase.CreatedAtUtc));
     }
@@ -154,22 +172,33 @@ public class DriverSupportController : ApiControllerBase
         var cases = await query
             .Skip((page - 1) * pageSize)
             .Take(pageSize)
+            .ToListAsync(cancellationToken);
+
+        var items = cases
             .Select(c => new DriverSupportCaseListItemResponse(
                 c.Id,
                 c.OrderId,
                 c.Order.OrderNumber,
-                c.Type.ToString(),
-                c.Status.ToString(),
-                c.Priority.ToString(),
+                ToApiType(c.Type),
+                GetTypeLabelAr(c.Type),
+                GetTypeLabelEn(c.Type),
+                ToApiStatus(c.Status),
+                GetStatusLabelAr(c.Status),
+                GetStatusLabelEn(c.Status),
+                ToApiPriority(c.Priority),
+                GetPriorityLabelAr(c.Priority),
+                GetPriorityLabelEn(c.Priority),
                 c.ReasonCode,
+                GetReasonLabelAr(c.Type, c.ReasonCode),
+                GetReasonLabelEn(c.Type, c.ReasonCode),
                 c.Message,
                 c.CustomerVisibleNote,
                 c.CreatedAtUtc,
                 c.UpdatedAtUtc,
                 c.ClosedAtUtc))
-            .ToListAsync(cancellationToken);
+            .ToList();
 
-        return Ok(new DriverSupportCasesListResponse(cases, page, pageSize, total));
+        return Ok(new DriverSupportCasesListResponse(items, page, pageSize, total));
     }
 
     /// <summary>
@@ -194,10 +223,16 @@ public class DriverSupportController : ApiControllerBase
         var activities = supportCase.Activities
             .OrderByDescending(a => a.CreatedAtUtc)
             .Select(a => new DriverSupportCaseActivityResponse(
-                a.Action,
+                ToApiAction(a.Action),
+                GetActionLabelAr(a.Action),
+                GetActionLabelEn(a.Action),
                 a.Title,
+                GetActivityTitleAr(a),
+                GetActivityTitleEn(a),
                 a.Note,
-                a.ActorRole,
+                NormalizeRole(a.ActorRole),
+                GetRoleLabelAr(a.ActorRole),
+                GetRoleLabelEn(a.ActorRole),
                 a.CreatedAtUtc))
             .ToList();
 
@@ -209,11 +244,21 @@ public class DriverSupportController : ApiControllerBase
             supportCase.Id,
             supportCase.OrderId,
             supportCase.Order.OrderNumber,
-            supportCase.Type.ToString(),
-            supportCase.Status.ToString(),
-            supportCase.Priority.ToString(),
-            supportCase.Queue.ToString(),
+            ToApiType(supportCase.Type),
+            GetTypeLabelAr(supportCase.Type),
+            GetTypeLabelEn(supportCase.Type),
+            ToApiStatus(supportCase.Status),
+            GetStatusLabelAr(supportCase.Status),
+            GetStatusLabelEn(supportCase.Status),
+            ToApiPriority(supportCase.Priority),
+            GetPriorityLabelAr(supportCase.Priority),
+            GetPriorityLabelEn(supportCase.Priority),
+            ToApiQueue(supportCase.Queue),
+            GetQueueLabelAr(supportCase.Queue),
+            GetQueueLabelEn(supportCase.Queue),
             supportCase.ReasonCode,
+            GetReasonLabelAr(supportCase.Type, supportCase.ReasonCode),
+            GetReasonLabelEn(supportCase.Type, supportCase.ReasonCode),
             supportCase.Message,
             supportCase.CustomerVisibleNote,
             supportCase.DecisionNotes,
@@ -253,25 +298,34 @@ public class DriverSupportController : ApiControllerBase
             supportCase.Id,
             supportCase.OrderId,
             order.OrderNumber,
-            supportCase.Type.ToString(),
-            supportCase.Status.ToString(),
-            supportCase.Priority.ToString(),
+            ToApiType(supportCase.Type),
+            GetTypeLabelAr(supportCase.Type),
+            GetTypeLabelEn(supportCase.Type),
+            ToApiStatus(supportCase.Status),
+            GetStatusLabelAr(supportCase.Status),
+            GetStatusLabelEn(supportCase.Status),
+            ToApiPriority(supportCase.Priority),
+            GetPriorityLabelAr(supportCase.Priority),
+            GetPriorityLabelEn(supportCase.Priority),
             supportCase.ReasonCode,
+            GetReasonLabelAr(supportCase.Type, supportCase.ReasonCode),
+            GetReasonLabelEn(supportCase.Type, supportCase.ReasonCode),
             supportCase.Message,
             supportCase.CreatedAtUtc));
     }
+
     [HttpGet("reasons/{type}")]
-    [AllowAnonymous] // Allow anonymous if reasons should be available before login, otherwise keep Authorize
+    [AllowAnonymous]
     public ActionResult<IReadOnlyList<DriverSupportReasonResponse>> GetSupportReasons(string type)
     {
-        var reasons = Zadana.Application.Modules.Orders.Support.OrderSupportCaseReasonCatalog.GetReasonsByType(type);
-        
+        var reasons = OrderSupportCaseReasonCatalog.GetReasonsByType(type);
+
         var response = reasons.Select(r => new DriverSupportReasonResponse(
             r.Code,
             r.LabelAr,
             r.LabelEn,
             r.RequiresNote)).ToList();
-            
+
         return Ok(response);
     }
 
@@ -285,4 +339,216 @@ public class DriverSupportController : ApiControllerBase
 
         return (driver.Id, userId);
     }
+
+    private static string ToApiType(OrderSupportCaseType type) =>
+        type switch
+        {
+            OrderSupportCaseType.ReturnRequest => "return_request",
+            OrderSupportCaseType.DriverReport => "driver_report",
+            OrderSupportCaseType.DriverDispute => "driver_dispute",
+            _ => "complaint"
+        };
+
+    private static string ToApiStatus(OrderSupportCaseStatus status) =>
+        status switch
+        {
+            OrderSupportCaseStatus.InReview => "in_review",
+            OrderSupportCaseStatus.AwaitingCustomerEvidence => "awaiting_customer_evidence",
+            _ => status.ToString().ToLowerInvariant()
+        };
+
+    private static string ToApiPriority(OrderSupportCasePriority priority) =>
+        priority.ToString().ToLowerInvariant();
+
+    private static string ToApiQueue(OrderSupportCaseQueue queue) =>
+        queue switch
+        {
+            OrderSupportCaseQueue.DriverOps => "driver_ops",
+            _ => queue.ToString().ToLowerInvariant()
+        };
+
+    private static string ToApiAction(string action) =>
+        string.IsNullOrWhiteSpace(action) ? "unknown" : action.Trim().ToLowerInvariant();
+
+    private static string NormalizeRole(string role) =>
+        string.IsNullOrWhiteSpace(role) ? "unknown" : role.Trim().ToLowerInvariant();
+
+    private static string GetTypeLabelAr(OrderSupportCaseType type) => type switch
+    {
+        OrderSupportCaseType.DriverReport => "بلاغ تشغيلي",
+        OrderSupportCaseType.DriverDispute => "نزاع مالي",
+        OrderSupportCaseType.ReturnRequest => "طلب استرجاع",
+        _ => "شكوى"
+    };
+
+    private static string GetTypeLabelEn(OrderSupportCaseType type) => type switch
+    {
+        OrderSupportCaseType.DriverReport => "Operational report",
+        OrderSupportCaseType.DriverDispute => "Financial dispute",
+        OrderSupportCaseType.ReturnRequest => "Return request",
+        _ => "Complaint"
+    };
+
+    private static string GetStatusLabelAr(OrderSupportCaseStatus status) => status switch
+    {
+        OrderSupportCaseStatus.Submitted => "تم الاستلام",
+        OrderSupportCaseStatus.InReview => "قيد المراجعة",
+        OrderSupportCaseStatus.AwaitingCustomerEvidence => "بانتظار معلومات إضافية",
+        OrderSupportCaseStatus.Approved => "تمت الموافقة",
+        OrderSupportCaseStatus.Rejected => "تم الرفض",
+        _ => "تم الحل"
+    };
+
+    private static string GetStatusLabelEn(OrderSupportCaseStatus status) => status switch
+    {
+        OrderSupportCaseStatus.Submitted => "Submitted",
+        OrderSupportCaseStatus.InReview => "In review",
+        OrderSupportCaseStatus.AwaitingCustomerEvidence => "Awaiting more evidence",
+        OrderSupportCaseStatus.Approved => "Approved",
+        OrderSupportCaseStatus.Rejected => "Rejected",
+        _ => "Resolved"
+    };
+
+    private static string GetPriorityLabelAr(OrderSupportCasePriority priority) => priority switch
+    {
+        OrderSupportCasePriority.Low => "منخفضة",
+        OrderSupportCasePriority.Medium => "متوسطة",
+        OrderSupportCasePriority.High => "مرتفعة",
+        _ => "حرجة"
+    };
+
+    private static string GetPriorityLabelEn(OrderSupportCasePriority priority) => priority switch
+    {
+        OrderSupportCasePriority.Low => "Low",
+        OrderSupportCasePriority.Medium => "Medium",
+        OrderSupportCasePriority.High => "High",
+        _ => "Critical"
+    };
+
+    private static string GetQueueLabelAr(OrderSupportCaseQueue queue) => queue switch
+    {
+        OrderSupportCaseQueue.Support => "الدعم",
+        OrderSupportCaseQueue.Finance => "المالية",
+        OrderSupportCaseQueue.Operations => "العمليات",
+        OrderSupportCaseQueue.Risk => "المخاطر",
+        OrderSupportCaseQueue.Legal => "الشؤون القانونية",
+        _ => "عمليات المندوبين"
+    };
+
+    private static string GetQueueLabelEn(OrderSupportCaseQueue queue) => queue switch
+    {
+        OrderSupportCaseQueue.Support => "Support",
+        OrderSupportCaseQueue.Finance => "Finance",
+        OrderSupportCaseQueue.Operations => "Operations",
+        OrderSupportCaseQueue.Risk => "Risk",
+        OrderSupportCaseQueue.Legal => "Legal",
+        _ => "Driver operations"
+    };
+
+    private static string? GetReasonLabelAr(OrderSupportCaseType type, string? reasonCode) =>
+        FindReason(type, reasonCode)?.LabelAr;
+
+    private static string? GetReasonLabelEn(OrderSupportCaseType type, string? reasonCode) =>
+        FindReason(type, reasonCode)?.LabelEn;
+
+    private static OrderSupportCaseReasonOption? FindReason(OrderSupportCaseType type, string? reasonCode) =>
+        OrderSupportCaseReasonCatalog.FindReason(ToApiType(type), reasonCode);
+
+    private static string GetRoleLabelAr(string role) => NormalizeRole(role) switch
+    {
+        "admin" => "الإدارة",
+        "vendor" => "التاجر",
+        "customer" => "العميل",
+        "driver" => "المندوب",
+        _ => "النظام"
+    };
+
+    private static string GetRoleLabelEn(string role) => NormalizeRole(role) switch
+    {
+        "admin" => "Admin",
+        "vendor" => "Vendor",
+        "customer" => "Customer",
+        "driver" => "Driver",
+        _ => "System"
+    };
+
+    private static string GetActionLabelAr(string action) => ToApiAction(action) switch
+    {
+        "submitted" => "تم فتح القضية",
+        "driver_response" => "رد المندوب",
+        "vendor_response" => "رد التاجر",
+        "customer_response" => "رد العميل",
+        "request_evidence" => "طلب معلومات إضافية",
+        "assigned" => "تم الإسناد",
+        "escalated" => "تم التصعيد",
+        "approved" => "تمت الموافقة",
+        "rejected" => "تم الرفض",
+        "resolved" => "تم الحل",
+        "reopened" => "أعيد فتح القضية",
+        "admin_message" => "تحديث من الإدارة",
+        "internal_note" => "ملاحظة داخلية",
+        "customer_note" => "ملاحظة للعميل",
+        _ => "تحديث على القضية"
+    };
+
+    private static string GetActionLabelEn(string action) => ToApiAction(action) switch
+    {
+        "submitted" => "Case opened",
+        "driver_response" => "Driver replied",
+        "vendor_response" => "Vendor replied",
+        "customer_response" => "Customer replied",
+        "request_evidence" => "Evidence requested",
+        "assigned" => "Assigned",
+        "escalated" => "Escalated",
+        "approved" => "Approved",
+        "rejected" => "Rejected",
+        "resolved" => "Resolved",
+        "reopened" => "Reopened",
+        "admin_message" => "Admin update",
+        "internal_note" => "Internal note",
+        "customer_note" => "Customer note",
+        _ => "Case updated"
+    };
+
+    private static string GetActivityTitleAr(OrderSupportCaseActivity activity) => ToApiAction(activity.Action) switch
+    {
+        "submitted" => activity.ActorRole.Equals("driver", StringComparison.OrdinalIgnoreCase)
+            ? "تم إنشاء بلاغ من المندوب"
+            : "تم إنشاء قضية جديدة",
+        "driver_response" => "أرسل المندوب ردًا جديدًا",
+        "vendor_response" => "أرسل التاجر ردًا جديدًا",
+        "customer_response" => "أرسل العميل ردًا جديدًا",
+        "request_evidence" => "طلبت الإدارة معلومات إضافية",
+        "assigned" => "تم إسناد القضية للمراجعة",
+        "escalated" => "تم تصعيد القضية إلى فريق مختص",
+        "approved" => "تمت الموافقة على القضية",
+        "rejected" => "تم رفض القضية",
+        "resolved" => "تم إغلاق القضية بعد الحل",
+        "reopened" => "أعيد فتح القضية",
+        "admin_message" => "أرسلت الإدارة تحديثًا جديدًا",
+        "internal_note" => "أضيفت ملاحظة داخلية",
+        "customer_note" => "أضيفت ملاحظة ظاهرة للأطراف",
+        _ => activity.Title
+    };
+
+    private static string GetActivityTitleEn(OrderSupportCaseActivity activity) => ToApiAction(activity.Action) switch
+    {
+        "submitted" => activity.ActorRole.Equals("driver", StringComparison.OrdinalIgnoreCase)
+            ? "Driver created a new report"
+            : "A new case was created",
+        "driver_response" => "Driver sent a new reply",
+        "vendor_response" => "Vendor sent a new reply",
+        "customer_response" => "Customer sent a new reply",
+        "request_evidence" => "Admin requested more information",
+        "assigned" => "Case assigned for review",
+        "escalated" => "Case escalated to a specialized queue",
+        "approved" => "Case approved",
+        "rejected" => "Case rejected",
+        "resolved" => "Case resolved and closed",
+        "reopened" => "Case reopened",
+        "admin_message" => "Admin shared a new update",
+        "internal_note" => "Internal note added",
+        "customer_note" => "Public note added",
+        _ => activity.Title
+    };
 }

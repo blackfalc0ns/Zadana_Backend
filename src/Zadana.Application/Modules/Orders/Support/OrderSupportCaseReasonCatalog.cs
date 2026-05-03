@@ -5,9 +5,9 @@ public static class OrderSupportCaseReasonCatalog
     private static readonly IReadOnlyList<OrderSupportCaseReasonOption> DriverReportOptions =
     [
         new("wrong_address", "العنوان خاطئ", "Wrong address", false),
-        new("customer_unavailable", "العميل غير متوفر", "Customer unavailable", false),
+        new("customer_unavailable", "العميل غير متاح", "Customer unavailable", false),
         new("damaged_package", "الشحنة تالفة", "Damaged package", true),
-        new("vehicle_issue", "عطل في المركبة", "Vehicle issue", true),
+        new("vehicle_issue", "مشكلة في المركبة", "Vehicle issue", true),
         new("other", "أخرى", "Other", true)
     ];
 
@@ -39,13 +39,36 @@ public static class OrderSupportCaseReasonCatalog
 
     public static IReadOnlyList<OrderSupportCaseReasonOption> GetReasonsByType(string type)
     {
-        return type.Trim().ToLowerInvariant() switch
+        return NormalizeType(type) switch
         {
-            "driver_report" or "report" => DriverReportOptions,
-            "driver_dispute" or "dispute" => DriverDisputeOptions,
+            "driver_report" => DriverReportOptions,
+            "driver_dispute" => DriverDisputeOptions,
             "complaint" => CustomerComplaintOptions,
-            "return" or "return_request" => CustomerReturnOptions,
+            "return_request" => CustomerReturnOptions,
             _ => []
+        };
+    }
+
+    public static OrderSupportCaseReasonOption? FindReason(string type, string? reasonCode)
+    {
+        if (string.IsNullOrWhiteSpace(reasonCode))
+        {
+            return null;
+        }
+
+        return GetReasonsByType(type)
+            .FirstOrDefault(item => string.Equals(item.Code, reasonCode.Trim(), StringComparison.OrdinalIgnoreCase));
+    }
+
+    public static string NormalizeType(string? type)
+    {
+        return type?.Trim().ToLowerInvariant() switch
+        {
+            "report" or "driver_report" => "driver_report",
+            "dispute" or "driver_dispute" => "driver_dispute",
+            "complaint" => "complaint",
+            "return" or "return_request" => "return_request",
+            _ => string.Empty
         };
     }
 }
