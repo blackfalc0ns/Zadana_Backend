@@ -19,6 +19,11 @@ public sealed class AccessAuthorizationConvention : IApplicationModelConvention
                     ["GetCurrentUser"] = [PermissionKeys.Admin.AccountView],
                     ["UpdateCurrentUser"] = [PermissionKeys.Admin.AccountEdit]
                 }),
+            ["AdminAccess"] = new(
+                [PermissionKeys.Admin.UsersAccessView],
+                create: [PermissionKeys.Admin.UsersAccessCreate],
+                edit: [PermissionKeys.Admin.UsersAccessEdit]),
+            ["AdminDashboard"] = new([PermissionKeys.Admin.DashboardView]),
             ["AdminBrands"] = CreateCatalogAdminRule(),
             ["AdminBrandRequests"] = CreateCatalogAdminRule(),
             ["AdminCatalogRequestCenter"] = CreateCatalogAdminRule(),
@@ -93,6 +98,10 @@ public sealed class AccessAuthorizationConvention : IApplicationModelConvention
                     ["GetCurrentUser"] = [PermissionKeys.Vendor.AccountView],
                     ["UpdateCurrentUser"] = [PermissionKeys.Vendor.AccountEdit]
                 }),
+            ["VendorAccess"] = new(
+                [PermissionKeys.Vendor.BranchTeamView],
+                create: [PermissionKeys.Vendor.BranchTeamCreate],
+                edit: [PermissionKeys.Vendor.BranchTeamEdit]),
             ["VendorCatalog"] = new(
                 [PermissionKeys.Vendor.CatalogView],
                 create: [PermissionKeys.Vendor.CatalogCreate],
@@ -215,14 +224,24 @@ public sealed class AccessAuthorizationConvention : IApplicationModelConvention
 
     public void Apply(ApplicationModel application)
     {
+        var missingMappings = new List<string>();
+
         foreach (var controller in application.Controllers)
         {
-            if (!Rules.TryGetValue(controller.ControllerName, out var rule))
+            var controllerRequiresAuthorization = controller.Attributes.OfType<AuthorizeAttribute>().Any();
+            var actionRequiresAuthorization = controller.Actions.Any(action =>
+                action.Attributes.OfType<AuthorizeAttribute>().Any());
+
+            if (!controllerRequiresAuthorization && !actionRequiresAuthorization)
             {
                 continue;
             }
 
-            var controllerRequiresAuthorization = controller.Attributes.OfType<AuthorizeAttribute>().Any();
+            if (!Rules.TryGetValue(controller.ControllerName, out var rule))
+            {
+                missingMappings.Add(controller.ControllerName);
+                continue;
+            }
 
             foreach (var action in controller.Actions)
             {
@@ -244,6 +263,12 @@ public sealed class AccessAuthorizationConvention : IApplicationModelConvention
 
                 action.Filters.Add(new RequireAccessAttribute(permissions));
             }
+        }
+
+        if (missingMappings.Count > 0)
+        {
+            throw new InvalidOperationException(
+                $"Missing access-control mappings for authorized controllers: {string.Join(", ", missingMappings.Distinct(StringComparer.Ordinal).OrderBy(x => x, StringComparer.Ordinal))}");
         }
     }
 

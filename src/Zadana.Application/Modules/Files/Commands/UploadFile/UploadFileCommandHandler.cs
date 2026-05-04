@@ -9,6 +9,18 @@ namespace Zadana.Application.Modules.Files.Commands.UploadFile;
 
 public class UploadFileCommandHandler : IRequestHandler<UploadFileCommand, string>
 {
+    private const long MaxImageBytes = 5 * 1024 * 1024;
+    private const long MaxPdfBytes = 10 * 1024 * 1024;
+
+    private static readonly IReadOnlyDictionary<string, FileValidationRule> AllowedFileTypes =
+        new Dictionary<string, FileValidationRule>(StringComparer.OrdinalIgnoreCase)
+        {
+            [".jpg"] = new(["image/jpeg", "application/octet-stream"], MaxImageBytes, [[0xFF, 0xD8, 0xFF]]),
+            [".jpeg"] = new(["image/jpeg", "application/octet-stream"], MaxImageBytes, [[0xFF, 0xD8, 0xFF]]),
+            [".png"] = new(["image/png", "application/octet-stream"], MaxImageBytes, [[0x89, 0x50, 0x4E, 0x47]]),
+            [".pdf"] = new(["application/pdf", "application/octet-stream"], MaxPdfBytes, [[0x25, 0x50, 0x44, 0x46]])
+        };
+
     private readonly IFileStorageService _fileStorageService;
     private readonly IApplicationDbContext _context;
     private readonly ICurrentUserService _currentUserService;
@@ -44,16 +56,56 @@ public class UploadFileCommandHandler : IRequestHandler<UploadFileCommand, strin
         }
 
         var extension = Path.GetExtension(request.File.FileName).ToLowerInvariant();
-        var allowedExtensions = new[] { ".jpg", ".jpeg", ".png", ".pdf" };
-
-        if (!allowedExtensions.Contains(extension))
+        if (!AllowedFileTypes.TryGetValue(extension, out var validationRule))
         {
             throw new BadRequestException(
                 "INVALID_FILE_EXTENSION",
-                _localizer["INVALID_FILE_EXTENSION", string.Join(", ", allowedExtensions)]);
+                _localizer["INVALID_FILE_EXTENSION", string.Join(", ", AllowedFileTypes.Keys)]);
         }
 
-        var fileUrl = await _fileStorageService.UploadAsync(request.File, request.Directory, cancellationToken);
+        if (!string.IsNullOrWhiteSpace(request.File.ContentType) &&
+            !validationRule.AllowedContentTypes.Contains(request.File.ContentType.Trim(), StringComparer.OrdinalIgnoreCase))
+        {
+            throw new BadRequestException("INVALID_FILE_CONTENT_TYPE", "The uploaded file content type is not allowed.");
+        }
+
+        if (request.File.ContentStream.CanSeek && request.File.ContentStream.Length > validationRule.MaxBytes)
+        {
+            throw new BadRequestException("FILE_TOO_LARGE", $"The uploaded file exceeds the allowed size limit of {validationRule.MaxBytes / (1024 * 1024)} MB.");
+        }
+
+        await EnsureFileSignatureAsync(request.File, validationRule, cancellationToken);
+
+        var sanitizedFile = request.File with { FileName = Path.GetFileName(request.File.FileName) };
+        var fileUrl = await _fileStorageService.UploadAsync(sanitizedFile, request.Directory, cancellationToken);
         return fileUrl;
     }
+
+    private static async Task EnsureFileSignatureAsync(FileUploadDto file, FileValidationRule rule, CancellationToken cancellationToken)
+    {
+        if (!file.ContentStream.CanSeek)
+        {
+            return;
+        }
+
+        file.ContentStream.Position = 0;
+        var maxSignatureLength = rule.Signatures.Max(signature => signature.Length);
+        var buffer = new byte[maxSignatureLength];
+        var bytesRead = await file.ContentStream.ReadAsync(buffer.AsMemory(0, maxSignatureLength), cancellationToken);
+        file.ContentStream.Position = 0;
+
+        var matchesSignature = rule.Signatures.Any(signature =>
+            bytesRead >= signature.Length &&
+            buffer.AsSpan(0, signature.Length).SequenceEqual(signature));
+
+        if (!matchesSignature)
+        {
+            throw new BadRequestException("INVALID_FILE_SIGNATURE", "The uploaded file content does not match the declared file type.");
+        }
+    }
+
+    private sealed record FileValidationRule(
+        string[] AllowedContentTypes,
+        long MaxBytes,
+        byte[][] Signatures);
 }

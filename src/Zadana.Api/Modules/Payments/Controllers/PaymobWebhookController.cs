@@ -1,22 +1,35 @@
 using System.Text;
 using Microsoft.AspNetCore.Authorization;
 using Microsoft.AspNetCore.Mvc;
+using Microsoft.AspNetCore.RateLimiting;
 using Zadana.Api.Controllers;
+using Zadana.Api.Security;
+using Zadana.Application.Common.Localization;
 using Zadana.Application.Modules.Payments.Commands.ConfirmPaymobPayment;
 using Zadana.Application.Modules.Payments.Commands.ProcessPaymobWebhook;
+using Zadana.Application.Modules.Payments.Interfaces;
+using Zadana.SharedKernel.Exceptions;
 
 namespace Zadana.Api.Modules.Payments.Controllers;
 
 [Route("api/payments/paymob")]
 [Tags("Payments")]
-public class PaymobWebhookController : ApiControllerBase
+public class PaymobWebhookController(
+    IPaymobGateway paymobGateway,
+    IWebHostEnvironment environment) : ApiControllerBase
 {
     private const string DeviceIdHeader = "X-Device-Id";
 
     [AllowAnonymous]
     [HttpPost("webhook")]
+    [EnableRateLimiting(RateLimitPolicyNames.PaymentCallbacks)]
     public async Task<IActionResult> ReceiveWebhook(CancellationToken cancellationToken = default)
     {
+        if (!paymobGateway.IsWebhookTrusted() && !environment.IsDevelopment())
+        {
+            throw new BusinessRuleException("PAYMOB_WEBHOOK_SECURITY_NOT_CONFIGURED", "Paymob webhook HMAC validation must be configured outside development.");
+        }
+
         Request.EnableBuffering();
         using var reader = new StreamReader(Request.Body, Encoding.UTF8, leaveOpen: true);
         var payload = await reader.ReadToEndAsync(cancellationToken);
@@ -28,6 +41,7 @@ public class PaymobWebhookController : ApiControllerBase
 
     [AllowAnonymous]
     [HttpGet("return")]
+    [EnableRateLimiting(RateLimitPolicyNames.PaymentCallbacks)]
     public async Task<ActionResult<ConfirmPaymobPaymentResponse>> ConfirmPaymentReturn(
         [FromQuery] PaymobReturnRequest? request,
         CancellationToken cancellationToken = default)
@@ -35,7 +49,6 @@ public class PaymobWebhookController : ApiControllerBase
         var paymentId = Guid.TryParse(request?.MerchantOrderId, out var parsedPaymentId)
             ? parsedPaymentId
             : request?.PaymentId;
-        var inferredSuccess = InferReturnSuccess(request, paymentId);
 
         var result = await Sender.Send(
             new ConfirmPaymobPaymentCommand(
@@ -43,8 +56,8 @@ public class PaymobWebhookController : ApiControllerBase
                 null,
                 request?.ProviderReference,
                 request?.ProviderTransactionId,
-                inferredSuccess,
-                request?.IsPending,
+                null,
+                true,
                 ResolveDeviceIdHeader()),
             cancellationToken);
 
@@ -65,26 +78,6 @@ public class PaymobWebhookController : ApiControllerBase
         return string.IsNullOrWhiteSpace(deviceId) ? null : deviceId.Trim();
     }
 
-    private static bool? InferReturnSuccess(PaymobReturnRequest? request, Guid? paymentId)
-    {
-        if (request?.IsSuccess.HasValue == true)
-        {
-            return request.IsSuccess.Value;
-        }
-
-        if (request?.IsPending == true)
-        {
-            return false;
-        }
-
-        var hasPaymobIdentifiers =
-            paymentId.HasValue ||
-            !string.IsNullOrWhiteSpace(request?.MerchantOrderId) ||
-            !string.IsNullOrWhiteSpace(request?.ProviderReference) ||
-            !string.IsNullOrWhiteSpace(request?.ProviderTransactionId);
-
-        return hasPaymobIdentifiers ? true : null;
-    }
 }
 
 public record ConfirmPaymobPaymentResponse(

@@ -57,6 +57,7 @@ public class User : IdentityUser<Guid>
         AccountStatus = AccountStatus.Active;
         PresenceState = PresenceState.Offline;
         IsLoginLocked = false;
+        LockoutEnabled = true;
         EmailConfirmed = false;
         PhoneNumberConfirmed = false;
         ProfilePhotoUrl = profilePhotoUrl;

@@ -1,7 +1,9 @@
 using Microsoft.AspNetCore.Authorization;
 using Microsoft.AspNetCore.Mvc;
+using Microsoft.AspNetCore.RateLimiting;
 using Zadana.Api.Controllers;
 using Zadana.Api.Modules.Delivery.Requests;
+using Zadana.Api.Security;
 using Zadana.Application.Common.Interfaces;
 using Zadana.Application.Common.Localization;
 using Zadana.Application.Modules.Delivery.Commands.RegisterDriver;
@@ -27,6 +29,7 @@ namespace Zadana.Api.Modules.Delivery.Controllers;
 [Tags("Driver App API")]
 public class DriversController : ApiControllerBase
 {
+    [EnableRateLimiting(RateLimitPolicyNames.Auth)]
     [HttpPost("register")]
     public async Task<IActionResult> RegisterDriver([FromBody] RegisterDriverRequest request)
     {

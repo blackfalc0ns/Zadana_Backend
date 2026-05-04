@@ -1,5 +1,7 @@
 using Microsoft.AspNetCore.Authorization;
 using Microsoft.AspNetCore.Mvc;
+using Microsoft.AspNetCore.RateLimiting;
+using Zadana.Api.Security;
 using Zadana.Api.Modules.Identity.Requests;
 using Zadana.Application.Common.Localization;
 using Zadana.Domain.Modules.Identity.Enums;
@@ -16,10 +18,12 @@ public class AdminAuthController : IdentityAuthControllerBase
     {
     }
 
+    [EnableRateLimiting(RateLimitPolicyNames.Auth)]
     [HttpPost("login")]
     public Task<IActionResult> Login([FromBody] LoginRequest request) =>
         LoginAsync(request, UserRole.Admin, UserRole.SuperAdmin);
 
+    [EnableRateLimiting(RateLimitPolicyNames.Auth)]
     [HttpPost("refresh-token")]
     public Task<IActionResult> RefreshToken([FromBody] RefreshTokenRequest request) =>
         RefreshTokenAsync(request);

@@ -38,6 +38,8 @@ public class PaymobGateway : IPaymobGateway
         _settings.IframeId > 0 &&
         _settings.IntegrationId > 0;
 
+    public bool IsWebhookTrusted() => !string.IsNullOrWhiteSpace(_settings.HmacSecret);
+
     public async Task<PaymobCheckoutSessionDto> CreateCheckoutSessionAsync(
         PaymobCheckoutSessionRequest request,
         CancellationToken cancellationToken = default)

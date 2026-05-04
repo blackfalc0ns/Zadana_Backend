@@ -45,6 +45,14 @@ public sealed class RequireAccessFilter : IAsyncAuthorizationFilter
             _currentUserService.UserId.Value,
             context.HttpContext.RequestAborted);
 
+        var tokenPermissionVersion = context.HttpContext.User.FindFirst("permission_version")?.Value;
+        if (!int.TryParse(tokenPermissionVersion, out var claimPermissionVersion) ||
+            claimPermissionVersion != access.PermissionVersion)
+        {
+            context.Result = new ChallengeResult();
+            return;
+        }
+
         var grantedPermissions = access.Permissions.ToHashSet(StringComparer.OrdinalIgnoreCase);
         var isAuthorized = _requireAll
             ? _permissions.All(grantedPermissions.Contains)

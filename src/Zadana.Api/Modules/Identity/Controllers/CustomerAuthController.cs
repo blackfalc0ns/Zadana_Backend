@@ -1,6 +1,8 @@
 using Microsoft.AspNetCore.Authorization;
 using Microsoft.AspNetCore.Mvc;
+using Microsoft.AspNetCore.RateLimiting;
 using Microsoft.Extensions.Localization;
+using Zadana.Api.Security;
 using Zadana.Api.Modules.Identity.Requests;
 using Zadana.Application.Common.Localization;
 using Zadana.Application.Modules.Identity.Commands.RegisterCustomer;
@@ -17,6 +19,7 @@ public class CustomerAuthController : IdentityAuthControllerBase
     {
     }
 
+    [EnableRateLimiting(RateLimitPolicyNames.Auth)]
     [HttpPost("register")]
     public async Task<IActionResult> Register([FromBody] RegisterCustomerRequest request)
     {
@@ -40,18 +43,22 @@ public class CustomerAuthController : IdentityAuthControllerBase
         return Ok(result);
     }
 
+    [EnableRateLimiting(RateLimitPolicyNames.Auth)]
     [HttpPost("login")]
     public Task<IActionResult> Login([FromBody] LoginRequest request) =>
         LoginAsync(request, UserRole.Customer);
 
+    [EnableRateLimiting(RateLimitPolicyNames.Auth)]
     [HttpPost("refresh-token")]
     public Task<IActionResult> RefreshToken([FromBody] RefreshTokenRequest request) =>
         RefreshTokenAsync(request);
 
+    [EnableRateLimiting(RateLimitPolicyNames.Auth)]
     [HttpPost("forgot-password")]
     public Task<IActionResult> ForgotPassword([FromBody] ForgotPasswordRequest request) =>
         ForgotPasswordAsync(request);
 
+    [EnableRateLimiting(RateLimitPolicyNames.Auth)]
     [HttpPost("reset-password")]
     public Task<IActionResult> ResetPassword([FromBody] ResetPasswordRequest request) =>
         ResetPasswordAsync(request);

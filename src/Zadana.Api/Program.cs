@@ -1,7 +1,9 @@
 using System.Text;
 using System.Text.Json.Serialization;
+using System.Threading.RateLimiting;
 using Microsoft.AspNetCore.Authentication.JwtBearer;
 using Microsoft.AspNetCore.Identity;
+using Microsoft.AspNetCore.RateLimiting;
 using Microsoft.AspNetCore.SignalR;
 using Microsoft.EntityFrameworkCore;
 using Microsoft.IdentityModel.Tokens;
@@ -11,6 +13,7 @@ using Zadana.Api.Configuration;
 using Zadana.Api.BackgroundJobs;
 using Zadana.Api.Middleware;
 using Zadana.Api.Realtime;
+using Zadana.Api.Security;
 using Zadana.Application;
 using Zadana.Application.Common.Interfaces;
 using Zadana.Application.Common.Settings;
@@ -148,9 +151,59 @@ builder.Services.AddIdentity<User, IdentityRole<Guid>>(options =>
 {
     options.Password.RequireNonAlphanumeric = false;
     options.Password.RequiredLength = 8;
+    options.Lockout.AllowedForNewUsers = true;
+    options.Lockout.MaxFailedAccessAttempts = 5;
+    options.Lockout.DefaultLockoutTimeSpan = TimeSpan.FromMinutes(15);
 })
 .AddEntityFrameworkStores<ApplicationDbContext>()
 .AddDefaultTokenProviders();
+
+builder.Services.AddRateLimiter(options =>
+{
+    options.OnRejected = async (context, cancellationToken) =>
+    {
+        context.HttpContext.Response.StatusCode = StatusCodes.Status429TooManyRequests;
+        context.HttpContext.Response.ContentType = "application/json";
+        await context.HttpContext.Response.WriteAsJsonAsync(new
+        {
+            code = "RATE_LIMIT_EXCEEDED",
+            message = "Too many requests. Please try again later."
+        }, cancellationToken);
+    };
+
+    options.AddPolicy(RateLimitPolicyNames.Auth, httpContext =>
+        RateLimitPartition.GetFixedWindowLimiter(
+            ResolveRateLimitKey(httpContext),
+            _ => new FixedWindowRateLimiterOptions
+            {
+                PermitLimit = 12,
+                Window = TimeSpan.FromMinutes(1),
+                QueueLimit = 0,
+                AutoReplenishment = true
+            }));
+
+    options.AddPolicy(RateLimitPolicyNames.FileUploads, httpContext =>
+        RateLimitPartition.GetFixedWindowLimiter(
+            ResolveRateLimitKey(httpContext),
+            _ => new FixedWindowRateLimiterOptions
+            {
+                PermitLimit = 20,
+                Window = TimeSpan.FromMinutes(10),
+                QueueLimit = 0,
+                AutoReplenishment = true
+            }));
+
+    options.AddPolicy(RateLimitPolicyNames.PaymentCallbacks, httpContext =>
+        RateLimitPartition.GetFixedWindowLimiter(
+            ResolveRateLimitKey(httpContext),
+            _ => new FixedWindowRateLimiterOptions
+            {
+                PermitLimit = 120,
+                Window = TimeSpan.FromMinutes(1),
+                QueueLimit = 0,
+                AutoReplenishment = true
+            }));
+});
 
 builder.Services.ConfigureApplicationCookie(options =>
 {
@@ -287,7 +340,7 @@ builder.Services.AddHealthChecks();
 var app = builder.Build();
 var shouldSeedOnStartup = app.Environment.IsDevelopment() || app.Configuration.GetValue<bool>("Seeding:EnableOnStartup");
 var shouldResetOnStartup = app.Configuration.GetValue<bool>("Seeding:ResetOnStartup");
-var allowRemoteSeedEndpoints = app.Environment.IsDevelopment() || app.Configuration.GetValue<bool>("Seeding:EnableRemoteEndpoints");
+var allowRemoteSeedEndpoints = app.Environment.IsDevelopment() || app.Configuration.GetValue<bool>("Seeding:EnableRemoteEndpointsOnNonDevelopment");
 var seedingManagementKey = app.Configuration["Seeding:ManagementKey"];
 
 if (!app.Environment.IsEnvironment("Testing"))
@@ -322,6 +375,7 @@ var localizationOptions = new RequestLocalizationOptions()
 
 app.UseRequestLocalization(localizationOptions);
 app.UseCors("Frontend");
+app.UseRateLimiter();
 app.UseAuthentication();
 app.UseAuthorization();
 app.MapControllers();
@@ -474,6 +528,30 @@ static bool IsAllowedDevelopmentOrigin(string? origin, string[]? configuredOrigi
     return uri.Host.Equals("localhost", StringComparison.OrdinalIgnoreCase) ||
            uri.Host.Equals("127.0.0.1", StringComparison.OrdinalIgnoreCase) ||
            uri.Host.Equals("::1", StringComparison.OrdinalIgnoreCase);
+}
+
+static string ResolveRateLimitKey(HttpContext context)
+{
+    if (context.User.Identity?.IsAuthenticated == true)
+    {
+        var userId = context.User.FindFirst(System.Security.Claims.ClaimTypes.NameIdentifier)?.Value;
+        if (!string.IsNullOrWhiteSpace(userId))
+        {
+            return $"user:{userId}";
+        }
+    }
+
+    var forwardedFor = context.Request.Headers["X-Forwarded-For"].ToString();
+    if (!string.IsNullOrWhiteSpace(forwardedFor))
+    {
+        var firstAddress = forwardedFor.Split(',', StringSplitOptions.RemoveEmptyEntries | StringSplitOptions.TrimEntries).FirstOrDefault();
+        if (!string.IsNullOrWhiteSpace(firstAddress))
+        {
+            return $"ip:{firstAddress}";
+        }
+    }
+
+    return $"ip:{context.Connection.RemoteIpAddress}";
 }
 
 public partial class Program { }

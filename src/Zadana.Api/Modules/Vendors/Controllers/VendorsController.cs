@@ -1,7 +1,9 @@
 using Microsoft.AspNetCore.Authorization;
 using Microsoft.AspNetCore.Mvc;
+using Microsoft.AspNetCore.RateLimiting;
 using Microsoft.Extensions.Localization;
 using Zadana.Api.Controllers;
+using Zadana.Api.Security;
 using Zadana.Api.Modules.Vendors.Requests;
 using Zadana.Application.Common.Localization;
 using Zadana.Application.Modules.Vendors.Commands.UpdateVendorBanking;
@@ -30,6 +32,7 @@ public class VendorsController : ApiControllerBase
         _localizer = localizer;
     }
 
+    [EnableRateLimiting(RateLimitPolicyNames.Auth)]
     [HttpPost("register")]
     public async Task<IActionResult> RegisterVendor([FromBody] RegisterVendorRequest request)
     {

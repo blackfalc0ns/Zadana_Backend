@@ -1,10 +1,13 @@
 using System.Net.Http.Headers;
 using System.Net.Http.Json;
 using System.Text.Json;
+using Microsoft.EntityFrameworkCore;
+using Microsoft.Extensions.DependencyInjection;
 using Microsoft.Extensions.Logging;
 using Microsoft.Extensions.Options;
 using Zadana.Application.Common.Interfaces;
 using Zadana.Application.Modules.Social.Support;
+using Zadana.Infrastructure.Persistence;
 using Zadana.Infrastructure.Settings;
 
 namespace Zadana.Infrastructure.Services;
@@ -18,14 +21,17 @@ public sealed class OneSignalPushService : IOneSignalPushService
     private readonly HttpClient _httpClient;
     private readonly OneSignalSettings _settings;
     private readonly ILogger<OneSignalPushService> _logger;
+    private readonly IServiceScopeFactory _scopeFactory;
     public OneSignalPushService(
         HttpClient httpClient,
         IOptions<OneSignalSettings> settings,
-        ILogger<OneSignalPushService> logger)
+        ILogger<OneSignalPushService> logger,
+        IServiceScopeFactory scopeFactory)
     {
         _httpClient = httpClient;
         _settings = settings.Value;
         _logger = logger;
+        _scopeFactory = scopeFactory;
     }
 
     public Task<OneSignalPushDispatchResult> SendToExternalUserAsync(
@@ -119,41 +125,47 @@ public sealed class OneSignalPushService : IOneSignalPushService
         var resolvedTargetUrl = ShouldIncludeWebUrl(profile) ? ResolveTargetUrl(targetUrl) : null;
         var notificationEventId = Guid.NewGuid();
 
+        var recipientsByLocale = await ResolveRecipientsByLocaleAsync(normalizedExternalUserIds, cancellationToken);
         var results = new List<OneSignalPushDispatchResult>();
 
-        foreach (var batch in normalizedExternalUserIds.Chunk(MaxExternalIdsPerRequest))
+        foreach (var localeBatch in recipientsByLocale)
         {
-            var preparedPayload = BuildPayload(
-                batch,
-                sanitized,
-                referenceId,
-                resolvedTargetUrl,
-                profile,
-                notificationEventId,
-                Guid.NewGuid());
-
-            try
+            foreach (var batch in localeBatch.ExternalUserIds.Chunk(MaxExternalIdsPerRequest))
             {
-                var payloadJson = System.Text.Json.JsonSerializer.Serialize(preparedPayload.Payload);
-                _logger.LogWarning(
-                    "[PUSH-DIAG] OneSignal prepared payload. ExternalUserCount: {ExternalUserCount}. ExternalIdBatch: {ExternalIdBatch}. Profile: {Profile}. Type: {Type}. ReferenceId: {ReferenceId}. NotificationEventId: {NotificationEventId}. Channel: {Channel}. DataKeys: {DataKeys}. PayloadJson: {PayloadJson}",
-                    preparedPayload.ExternalUserCount,
-                    preparedPayload.ExternalIdBatch,
-                    preparedPayload.Profile,
-                    preparedPayload.Type,
-                    preparedPayload.ReferenceId,
-                    preparedPayload.NotificationEventId,
-                    preparedPayload.Channel,
-                    preparedPayload.DataKeys,
-                    payloadJson);
-            }
-            catch
-            {
-                // Diagnostic logging should never break the push flow.
-            }
+                var preparedPayload = BuildPayload(
+                    batch,
+                    sanitized,
+                    referenceId,
+                    resolvedTargetUrl,
+                    profile,
+                    notificationEventId,
+                    Guid.NewGuid(),
+                    localeBatch.Locale);
 
-            var result = await SendPayloadAsync(preparedPayload, cancellationToken);
-            results.Add(result);
+                try
+                {
+                    var payloadJson = System.Text.Json.JsonSerializer.Serialize(preparedPayload.Payload);
+                    _logger.LogWarning(
+                        "[PUSH-DIAG] OneSignal prepared payload. ExternalUserCount: {ExternalUserCount}. ExternalIdBatch: {ExternalIdBatch}. Profile: {Profile}. Type: {Type}. ReferenceId: {ReferenceId}. NotificationEventId: {NotificationEventId}. PreferredLocale: {PreferredLocale}. Channel: {Channel}. DataKeys: {DataKeys}. PayloadJson: {PayloadJson}",
+                        preparedPayload.ExternalUserCount,
+                        preparedPayload.ExternalIdBatch,
+                        preparedPayload.Profile,
+                        preparedPayload.Type,
+                        preparedPayload.ReferenceId,
+                        preparedPayload.NotificationEventId,
+                        preparedPayload.PreferredLocale,
+                        preparedPayload.Channel,
+                        preparedPayload.DataKeys,
+                        payloadJson);
+                }
+                catch
+                {
+                    // Diagnostic logging should never break the push flow.
+                }
+
+                var result = await SendPayloadAsync(preparedPayload, cancellationToken);
+                results.Add(result);
+            }
         }
 
         return results;
@@ -179,13 +191,14 @@ public sealed class OneSignalPushService : IOneSignalPushService
             if (!response.IsSuccessStatusCode)
             {
                 _logger.LogWarning(
-                    "[PUSH-DIAG] OneSignal push provider response failed. ExternalUserCount: {ExternalUserCount}. ExternalIdBatch: {ExternalIdBatch}. Profile: {Profile}. Type: {Type}. ReferenceId: {ReferenceId}. NotificationEventId: {NotificationEventId}. Channel: {Channel}. DataKeys: {DataKeys}. StatusCode: {StatusCode}. ProviderNotificationId: {ProviderNotificationId}. ResponseBody: {ResponseBody}",
+                    "[PUSH-DIAG] OneSignal push provider response failed. ExternalUserCount: {ExternalUserCount}. ExternalIdBatch: {ExternalIdBatch}. Profile: {Profile}. Type: {Type}. ReferenceId: {ReferenceId}. NotificationEventId: {NotificationEventId}. PreferredLocale: {PreferredLocale}. Channel: {Channel}. DataKeys: {DataKeys}. StatusCode: {StatusCode}. ProviderNotificationId: {ProviderNotificationId}. ResponseBody: {ResponseBody}",
                     preparedPayload.ExternalUserCount,
                     preparedPayload.ExternalIdBatch,
                     preparedPayload.Profile,
                     preparedPayload.Type,
                     preparedPayload.ReferenceId,
                     preparedPayload.NotificationEventId,
+                    preparedPayload.PreferredLocale,
                     preparedPayload.Channel,
                     preparedPayload.DataKeys,
                     statusCode,
@@ -205,13 +218,14 @@ public sealed class OneSignalPushService : IOneSignalPushService
             }
 
             _logger.LogInformation(
-                "[PUSH-DIAG] OneSignal push provider response succeeded. ExternalUserCount: {ExternalUserCount}. ExternalIdBatch: {ExternalIdBatch}. Profile: {Profile}. Type: {Type}. ReferenceId: {ReferenceId}. NotificationEventId: {NotificationEventId}. Channel: {Channel}. DataKeys: {DataKeys}. StatusCode: {StatusCode}. ProviderNotificationId: {ProviderNotificationId}. ResponseBody: {ResponseBody}",
+                "[PUSH-DIAG] OneSignal push provider response succeeded. ExternalUserCount: {ExternalUserCount}. ExternalIdBatch: {ExternalIdBatch}. Profile: {Profile}. Type: {Type}. ReferenceId: {ReferenceId}. NotificationEventId: {NotificationEventId}. PreferredLocale: {PreferredLocale}. Channel: {Channel}. DataKeys: {DataKeys}. StatusCode: {StatusCode}. ProviderNotificationId: {ProviderNotificationId}. ResponseBody: {ResponseBody}",
                 preparedPayload.ExternalUserCount,
                 preparedPayload.ExternalIdBatch,
                 preparedPayload.Profile,
                 preparedPayload.Type,
                 preparedPayload.ReferenceId,
                 preparedPayload.NotificationEventId,
+                preparedPayload.PreferredLocale,
                 preparedPayload.Channel,
                 preparedPayload.DataKeys,
                 statusCode,
@@ -230,13 +244,14 @@ public sealed class OneSignalPushService : IOneSignalPushService
         {
             _logger.LogError(
                 ex,
-                "[PUSH-DIAG] OneSignal push send threw an exception. ExternalUserCount: {ExternalUserCount}. ExternalIdBatch: {ExternalIdBatch}. Profile: {Profile}. Type: {Type}. ReferenceId: {ReferenceId}. NotificationEventId: {NotificationEventId}. Channel: {Channel}. DataKeys: {DataKeys}",
+                "[PUSH-DIAG] OneSignal push send threw an exception. ExternalUserCount: {ExternalUserCount}. ExternalIdBatch: {ExternalIdBatch}. Profile: {Profile}. Type: {Type}. ReferenceId: {ReferenceId}. NotificationEventId: {NotificationEventId}. PreferredLocale: {PreferredLocale}. Channel: {Channel}. DataKeys: {DataKeys}",
                 preparedPayload.ExternalUserCount,
                 preparedPayload.ExternalIdBatch,
                 preparedPayload.Profile,
                 preparedPayload.Type,
                 preparedPayload.ReferenceId,
                 preparedPayload.NotificationEventId,
+                preparedPayload.PreferredLocale,
                 preparedPayload.Channel,
                 preparedPayload.DataKeys);
 
@@ -257,7 +272,8 @@ public sealed class OneSignalPushService : IOneSignalPushService
         string? targetUrl,
         OneSignalPushProfile profile,
         Guid notificationEventId,
-        Guid requestIdempotencyKey)
+        Guid requestIdempotencyKey,
+        string? preferredLocale)
     {
         var payload = new Dictionary<string, object?>
         {
@@ -269,8 +285,8 @@ public sealed class OneSignalPushService : IOneSignalPushService
             {
                 ["external_id"] = externalUserIds.ToArray()
             },
-            ["headings"] = BuildLocalizedContent(sanitized.TitleAr, sanitized.TitleEn, "Vendor notification"),
-            ["contents"] = BuildLocalizedContent(sanitized.BodyAr, sanitized.BodyEn, "You have a new vendor notification."),
+            ["headings"] = BuildLocalizedContent(sanitized.TitleAr, sanitized.TitleEn, "Vendor notification", preferredLocale),
+            ["contents"] = BuildLocalizedContent(sanitized.BodyAr, sanitized.BodyEn, "You have a new vendor notification.", preferredLocale),
             ["data"] = BuildAdditionalData(sanitized, referenceId, notificationEventId)
         };
 
@@ -289,12 +305,33 @@ public sealed class OneSignalPushService : IOneSignalPushService
             referenceId,
             notificationEventId,
             sanitized.Type,
+            preferredLocale,
             ResolveChannel(payload),
             ResolveDataKeys(payload));
     }
 
-    private static Dictionary<string, string> BuildLocalizedContent(string? arabic, string? english, string fallback)
+    private static Dictionary<string, string> BuildLocalizedContent(
+        string? arabic,
+        string? english,
+        string fallback,
+        string? preferredLocale)
     {
+        var normalizedPreferredLocale = NormalizeLocale(preferredLocale);
+        if (normalizedPreferredLocale is not null)
+        {
+            var selected = normalizedPreferredLocale == "ar"
+                ? FirstNonEmpty(arabic, english, fallback)
+                : FirstNonEmpty(english, arabic, fallback);
+
+            // Duplicate the chosen text across both keys so the app gets the same
+            // content regardless of the underlying device OS locale.
+            return new Dictionary<string, string>
+            {
+                ["ar"] = selected,
+                ["en"] = selected
+            };
+        }
+
         var content = new Dictionary<string, string>();
 
         if (!string.IsNullOrWhiteSpace(english))
@@ -314,6 +351,94 @@ public sealed class OneSignalPushService : IOneSignalPushService
 
         return content;
     }
+
+    private async Task<IReadOnlyList<LocalizedRecipientBatch>> ResolveRecipientsByLocaleAsync(
+        IReadOnlyCollection<string> externalUserIds,
+        CancellationToken cancellationToken)
+    {
+        var parsedUserIds = externalUserIds
+            .Select(externalUserId =>
+            {
+                var parsed = Guid.TryParse(externalUserId, out var userId);
+                return new
+                {
+                    ExternalUserId = externalUserId,
+                    Parsed = parsed,
+                    UserId = parsed ? userId : Guid.Empty
+                };
+            })
+            .ToArray();
+
+        var guidUserIds = parsedUserIds
+            .Where(x => x.Parsed)
+            .Select(x => x.UserId)
+            .Distinct()
+            .ToArray();
+
+        if (guidUserIds.Length == 0)
+        {
+            return [new LocalizedRecipientBatch(null, externalUserIds.ToArray())];
+        }
+
+        await using var scope = _scopeFactory.CreateAsyncScope();
+        var dbContext = scope.ServiceProvider.GetRequiredService<ApplicationDbContext>();
+
+        var deviceLocales = await dbContext.UserPushDevices
+            .AsNoTracking()
+            .Where(device => guidUserIds.Contains(device.UserId) && device.IsActive && device.NotificationsEnabled)
+            .Select(device => new
+            {
+                device.UserId,
+                device.Locale,
+                device.LastSeenAtUtc,
+                device.LastRegisteredAtUtc
+            })
+            .ToListAsync(cancellationToken);
+
+        var preferredLocaleByUserId = deviceLocales
+            .GroupBy(device => device.UserId)
+            .ToDictionary(
+                group => group.Key,
+                group => group
+                    .OrderByDescending(device => device.LastSeenAtUtc)
+                    .ThenByDescending(device => device.LastRegisteredAtUtc)
+                    .Select(device => NormalizeLocale(device.Locale))
+                    .FirstOrDefault(locale => locale is not null));
+
+        return parsedUserIds
+            .GroupBy(item =>
+                item.Parsed && preferredLocaleByUserId.TryGetValue(item.UserId, out var locale)
+                    ? locale
+                    : null)
+            .Select(group => new LocalizedRecipientBatch(
+                group.Key,
+                group.Select(item => item.ExternalUserId).ToArray()))
+            .ToArray();
+    }
+
+    private static string? NormalizeLocale(string? locale)
+    {
+        if (string.IsNullOrWhiteSpace(locale))
+        {
+            return null;
+        }
+
+        var normalized = locale.Trim().Replace('_', '-');
+        if (normalized.StartsWith("ar", StringComparison.OrdinalIgnoreCase))
+        {
+            return "ar";
+        }
+
+        if (normalized.StartsWith("en", StringComparison.OrdinalIgnoreCase))
+        {
+            return "en";
+        }
+
+        return null;
+    }
+
+    private static string FirstNonEmpty(params string?[] values) =>
+        values.FirstOrDefault(value => !string.IsNullOrWhiteSpace(value)) ?? string.Empty;
 
     private void ApplyProfile(Dictionary<string, object?> payload, OneSignalPushProfile profile)
     {
@@ -558,6 +683,11 @@ public sealed class OneSignalPushService : IOneSignalPushService
         Guid? ReferenceId,
         Guid NotificationEventId,
         string? Type,
+        string? PreferredLocale,
         string Channel,
         string DataKeys);
+
+    private sealed record LocalizedRecipientBatch(
+        string? Locale,
+        string[] ExternalUserIds);
 }

@@ -39,7 +39,7 @@ public class UserPushDevice : BaseEntity
         DeviceId = string.IsNullOrWhiteSpace(deviceId) ? null : deviceId.Trim();
         DeviceName = string.IsNullOrWhiteSpace(deviceName) ? null : deviceName.Trim();
         AppVersion = string.IsNullOrWhiteSpace(appVersion) ? null : appVersion.Trim();
-        Locale = string.IsNullOrWhiteSpace(locale) ? null : locale.Trim();
+        Locale = NormalizeLocale(locale);
         NotificationsEnabled = notificationsEnabled;
         IsActive = true;
         LastRegisteredAtUtc = DateTime.UtcNow;
@@ -62,7 +62,7 @@ public class UserPushDevice : BaseEntity
         DeviceId = string.IsNullOrWhiteSpace(deviceId) ? null : deviceId.Trim();
         DeviceName = string.IsNullOrWhiteSpace(deviceName) ? null : deviceName.Trim();
         AppVersion = string.IsNullOrWhiteSpace(appVersion) ? null : appVersion.Trim();
-        Locale = string.IsNullOrWhiteSpace(locale) ? null : locale.Trim();
+        Locale = NormalizeLocale(locale);
         NotificationsEnabled = notificationsEnabled;
         IsActive = true;
         LastRegisteredAtUtc = DateTime.UtcNow;
@@ -88,5 +88,26 @@ public class UserPushDevice : BaseEntity
         IsActive = false;
         LastSeenAtUtc = DateTime.UtcNow;
         UpdatedAtUtc = DateTime.UtcNow;
+    }
+
+    private static string? NormalizeLocale(string? locale)
+    {
+        if (string.IsNullOrWhiteSpace(locale))
+        {
+            return null;
+        }
+
+        var normalized = locale.Trim().Replace('_', '-');
+        if (normalized.StartsWith("ar", StringComparison.OrdinalIgnoreCase))
+        {
+            return "ar";
+        }
+
+        if (normalized.StartsWith("en", StringComparison.OrdinalIgnoreCase))
+        {
+            return "en";
+        }
+
+        return null;
     }
 }

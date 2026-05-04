@@ -44,12 +44,19 @@ public class LocalFileStorageService : IFileStorageService
         Directory.CreateDirectory(_webRootPath);
 
         var uploadPath = Path.Combine(_webRootPath, directory);
-        if (!Directory.Exists(uploadPath))
+        var normalizedUploadPath = Path.GetFullPath(uploadPath);
+        var normalizedWebRootPath = Path.GetFullPath(_webRootPath);
+        if (!normalizedUploadPath.StartsWith(normalizedWebRootPath, StringComparison.OrdinalIgnoreCase))
         {
-            Directory.CreateDirectory(uploadPath);
+            throw new InvalidOperationException("Upload directory resolves outside the web root.");
         }
 
-        var fullPath = Path.Combine(uploadPath, uniqueFileName);
+        if (!Directory.Exists(uploadPath))
+        {
+            Directory.CreateDirectory(normalizedUploadPath);
+        }
+
+        var fullPath = Path.Combine(normalizedUploadPath, uniqueFileName);
 
         using (var fileStream = new FileStream(fullPath, FileMode.Create))
         {

@@ -112,12 +112,20 @@ public class CreateHomeBannerCommandHandler : IRequestHandler<CreateHomeBannerCo
 public class UpdateHomeBannerCommandHandler : IRequestHandler<UpdateHomeBannerCommand, HomeBannerAdminDto>
 {
     private readonly IApplicationDbContext _context;
-    public UpdateHomeBannerCommandHandler(IApplicationDbContext context) => _context = context;
+    private readonly IPublisher _publisher;
+
+    public UpdateHomeBannerCommandHandler(IApplicationDbContext context, IPublisher publisher)
+    {
+        _context = context;
+        _publisher = publisher;
+    }
 
     public async Task<HomeBannerAdminDto> Handle(UpdateHomeBannerCommand request, CancellationToken cancellationToken)
     {
         var entity = await _context.HomeBanners.FirstOrDefaultAsync(x => x.Id == request.Id, cancellationToken)
             ?? throw new NotFoundException(nameof(HomeBanner), request.Id);
+
+        var wasActive = entity.IsActive;
 
         entity.UpdateContent(
             request.TagAr, request.TagEn, request.TitleAr, request.TitleEn, request.ImageUrl,
@@ -127,6 +135,14 @@ public class UpdateHomeBannerCommandHandler : IRequestHandler<UpdateHomeBannerCo
         if (request.IsActive) entity.Activate(); else entity.Deactivate();
 
         await _context.SaveChangesAsync(cancellationToken);
+
+        if (!wasActive && entity.IsActive)
+        {
+            await _publisher.Publish(
+                new BannerActivatedNotification(entity.Id, entity.TitleAr, entity.TitleEn, entity.ImageUrl),
+                cancellationToken);
+        }
+
         return MarketingMappings.ToDto(entity);
     }
 }

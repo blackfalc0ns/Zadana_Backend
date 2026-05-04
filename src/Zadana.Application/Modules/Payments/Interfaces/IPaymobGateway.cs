@@ -11,4 +11,6 @@ public interface IPaymobGateway
         CancellationToken cancellationToken = default);
 
     PaymobWebhookNotificationDto ParseWebhookNotification(string rawPayload);
+
+    bool IsWebhookTrusted();
 }

@@ -107,6 +107,18 @@ public static class PermissionKeys
         public const string SettingsEdit = "vendor_settings.edit";
         public const string NotificationsView = "vendor_notifications.view";
         public const string NotificationsEdit = "vendor_notifications.edit";
+        public const string OffersView = "vendor_offers.view";
+        public const string OffersEdit = "vendor_offers.edit";
+        public const string ReviewsView = "vendor_reviews.view";
+        public const string ReviewsEdit = "vendor_reviews.edit";
+        public const string DisputesView = "vendor_disputes.view";
+        public const string DisputesEdit = "vendor_disputes.edit";
+        public const string AlertsView = "vendor_alerts.view";
+        public const string AlertsEdit = "vendor_alerts.edit";
+        public const string StaffView = "vendor_staff.view";
+        public const string StaffEdit = "vendor_staff.edit";
+        public const string ProfileView = "vendor_profile.view";
+        public const string ProfileEdit = "vendor_profile.edit";
 
         public static readonly string[] Owner =
         [
@@ -117,7 +129,13 @@ public static class PermissionKeys
             FinanceView, FinanceExport,
             SupportView, SupportEdit,
             SettingsView, SettingsEdit,
-            NotificationsView, NotificationsEdit
+            NotificationsView, NotificationsEdit,
+            OffersView, OffersEdit,
+            ReviewsView, ReviewsEdit,
+            DisputesView, DisputesEdit,
+            AlertsView, AlertsEdit,
+            StaffView, StaffEdit,
+            ProfileView, ProfileEdit
         ];
 
         public static readonly string[] BranchManager =
@@ -129,7 +147,13 @@ public static class PermissionKeys
             FinanceView,
             SupportView, SupportEdit,
             SettingsView, SettingsEdit,
-            NotificationsView, NotificationsEdit
+            NotificationsView, NotificationsEdit,
+            OffersView, OffersEdit,
+            ReviewsView, ReviewsEdit,
+            DisputesView, DisputesEdit,
+            AlertsView, AlertsEdit,
+            StaffView,
+            ProfileView, ProfileEdit
         ];
 
         public static readonly string[] BranchStaff =
@@ -139,7 +163,12 @@ public static class PermissionKeys
             CatalogView, CatalogEdit,
             SupportView,
             SettingsView,
-            NotificationsView, NotificationsEdit
+            NotificationsView, NotificationsEdit,
+            OffersView,
+            ReviewsView,
+            DisputesView,
+            AlertsView,
+            ProfileView, ProfileEdit
         ];
     }
 

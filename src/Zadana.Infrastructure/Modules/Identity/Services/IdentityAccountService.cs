@@ -92,10 +92,21 @@ public class IdentityAccountService : IIdentityAccountService
             return new CredentialValidationResult(CredentialValidationStatus.UserNotFound);
         }
 
+        if (await _userManager.IsLockedOutAsync(user))
+        {
+            return new CredentialValidationResult(CredentialValidationStatus.InvalidPassword);
+        }
+
         var isValidPassword = await _userManager.CheckPasswordAsync(user, password);
         if (!isValidPassword)
         {
+            await _userManager.AccessFailedAsync(user);
             return new CredentialValidationResult(CredentialValidationStatus.InvalidPassword);
+        }
+
+        if (user.AccessFailedCount > 0)
+        {
+            await _userManager.ResetAccessFailedCountAsync(user);
         }
 
         return new CredentialValidationResult(CredentialValidationStatus.Succeeded, Map(user));
