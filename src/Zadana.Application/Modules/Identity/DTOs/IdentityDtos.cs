@@ -5,7 +5,26 @@ namespace Zadana.Application.Modules.Identity.DTOs;
 
 public record TokenPairDto(string AccessToken, string RefreshToken);
 
-public record CurrentUserDto(Guid Id, string FullName, string? Email, string? Phone, string Role, int FavoritesCount = 0);
+public record AccessScopeDto(
+    string PanelScope,
+    string ScopeType,
+    Guid? ScopeEntityId,
+    string RoleCode,
+    string RoleName);
+
+public record EffectiveAccessDto(
+    int PermissionVersion,
+    string[] Permissions,
+    AccessScopeDto? ActiveScope = null);
+
+public record CurrentUserDto(
+    Guid Id,
+    string FullName,
+    string? Email,
+    string? Phone,
+    string Role,
+    int FavoritesCount = 0,
+    EffectiveAccessDto? Access = null);
 
 public record AuthResponseDto(
     TokenPairDto? Tokens,
@@ -20,6 +39,7 @@ public record IdentityAccountSnapshot(
     string? Email,
     string? PhoneNumber,
     UserRole Role,
+    int PermissionVersion,
     AccountStatus AccountStatus,
     bool IsLoginLocked,
     DateTime? LockedAtUtc,

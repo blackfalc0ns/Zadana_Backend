@@ -13,17 +13,20 @@ public class RegistrationWorkflow : IRegistrationWorkflow
     private static readonly TimeSpan RefreshTokenLifetime = TimeSpan.FromDays(7);
 
     private readonly IIdentityAccountService _identityAccountService;
+    private readonly IAccessControlService _accessControlService;
     private readonly IRefreshTokenStore _refreshTokenStore;
     private readonly IJwtTokenService _jwtTokenService;
     private readonly IStringLocalizer<SharedResource> _localizer;
 
     public RegistrationWorkflow(
         IIdentityAccountService identityAccountService,
+        IAccessControlService accessControlService,
         IRefreshTokenStore refreshTokenStore,
         IJwtTokenService jwtTokenService,
         IStringLocalizer<SharedResource> localizer)
     {
         _identityAccountService = identityAccountService;
+        _accessControlService = accessControlService;
         _refreshTokenStore = refreshTokenStore;
         _jwtTokenService = jwtTokenService;
         _localizer = localizer;
@@ -62,7 +65,8 @@ public class RegistrationWorkflow : IRegistrationWorkflow
             account.FullName,
             account.Email,
             account.PhoneNumber,
-            account.Role.ToString());
+            account.Role.ToString(),
+            Access: await _accessControlService.GetEffectiveAccessAsync(account.Id, cancellationToken));
 
         var isVerified = AuthResponseVerificationResolver.Resolve(account.Role, driverStatus);
 

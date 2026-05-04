@@ -1,0 +1,344 @@
+using Microsoft.AspNetCore.Authorization;
+using Microsoft.AspNetCore.Mvc.ActionConstraints;
+using Microsoft.AspNetCore.Mvc.ApplicationModels;
+using Zadana.Domain.Modules.Identity.Constants;
+
+namespace Zadana.Api.Authorization;
+
+public sealed class AccessAuthorizationConvention : IApplicationModelConvention
+{
+    private static readonly IReadOnlyDictionary<string, ControllerAccessRule> Rules =
+        new Dictionary<string, ControllerAccessRule>(StringComparer.Ordinal)
+        {
+            ["AdminAuth"] = new(
+                [PermissionKeys.Admin.AccountView],
+                edit: [PermissionKeys.Admin.AccountEdit],
+                overrides: new Dictionary<string, string[]>(StringComparer.Ordinal)
+                {
+                    ["Logout"] = [PermissionKeys.Admin.AccountEdit],
+                    ["GetCurrentUser"] = [PermissionKeys.Admin.AccountView],
+                    ["UpdateCurrentUser"] = [PermissionKeys.Admin.AccountEdit]
+                }),
+            ["AdminBrands"] = CreateCatalogAdminRule(),
+            ["AdminBrandRequests"] = CreateCatalogAdminRule(),
+            ["AdminCatalogRequestCenter"] = CreateCatalogAdminRule(),
+            ["AdminCategories"] = CreateCatalogAdminRule(),
+            ["AdminCategoryRequests"] = CreateCatalogAdminRule(),
+            ["AdminMasterProducts"] = CreateCatalogAdminRule(),
+            ["AdminProductRequests"] = CreateCatalogAdminRule(),
+            ["AdminUnits"] = CreateCatalogAdminRule(),
+            ["AdminDeliveryPricing"] = new(
+                [PermissionKeys.Admin.DeliverySettingsView],
+                edit: [PermissionKeys.Admin.DeliverySettingsEdit]),
+            ["AdminDeliveryZones"] = new(
+                [PermissionKeys.Admin.DeliverySettingsView],
+                create: [PermissionKeys.Admin.DeliverySettingsEdit],
+                edit: [PermissionKeys.Admin.DeliverySettingsEdit]),
+            ["AdminDrivers"] = new(
+                [PermissionKeys.Admin.DriversView],
+                edit: [PermissionKeys.Admin.DriversEdit],
+                approve: [PermissionKeys.Admin.DriversApprove]),
+            ["AdminFinances"] = new(
+                [PermissionKeys.Admin.FinancesView],
+                edit: [PermissionKeys.Admin.FinancesEdit],
+                approve: [PermissionKeys.Admin.FinancesApprove]),
+            ["AdminCustomers"] = new(
+                [PermissionKeys.Admin.CustomersView],
+                edit: [PermissionKeys.Admin.CustomersEdit]),
+            ["AdminMarketingBanners"] = new(
+                [PermissionKeys.Admin.MarketingView],
+                create: [PermissionKeys.Admin.MarketingEdit],
+                edit: [PermissionKeys.Admin.MarketingEdit]),
+            ["AdminMarketingFeaturedProducts"] = new(
+                [PermissionKeys.Admin.MarketingView],
+                create: [PermissionKeys.Admin.MarketingEdit],
+                edit: [PermissionKeys.Admin.MarketingEdit]),
+            ["AdminMarketingHomeContentSections"] = new(
+                [PermissionKeys.Admin.MarketingView],
+                edit: [PermissionKeys.Admin.MarketingEdit]),
+            ["AdminMarketingHomeSections"] = new(
+                [PermissionKeys.Admin.MarketingView],
+                create: [PermissionKeys.Admin.MarketingEdit],
+                edit: [PermissionKeys.Admin.MarketingEdit]),
+            ["AdminOrderCases"] = new(
+                [PermissionKeys.Admin.DisputesView],
+                create: [PermissionKeys.Admin.DisputesEdit],
+                edit: [PermissionKeys.Admin.DisputesEdit],
+                approve: [PermissionKeys.Admin.DisputesApprove]),
+            ["AdminOrders"] = new(
+                [PermissionKeys.Admin.OrdersView],
+                edit: [PermissionKeys.Admin.OrdersEdit],
+                approve: [PermissionKeys.Admin.OrdersApprove]),
+            ["AdminNotifications"] = new(
+                [PermissionKeys.Admin.NotificationsView],
+                edit: [PermissionKeys.Admin.NotificationsEdit]),
+            ["AdminVendors"] = new(
+                [PermissionKeys.Admin.VendorsView],
+                create: [PermissionKeys.Admin.VendorsEdit],
+                edit: [PermissionKeys.Admin.VendorsEdit],
+                approve: [PermissionKeys.Admin.VendorsApprove]),
+            ["AdminVendorWorkspaceState"] = new(
+                [PermissionKeys.Admin.VendorsView],
+                edit: [PermissionKeys.Admin.VendorsEdit]),
+            ["AdminWallets"] = new(
+                [PermissionKeys.Admin.WalletsView],
+                edit: [PermissionKeys.Admin.WalletsEdit],
+                approve: [PermissionKeys.Admin.WalletsApprove]),
+            ["VendorAuth"] = new(
+                [PermissionKeys.Vendor.AccountView],
+                edit: [PermissionKeys.Vendor.AccountEdit],
+                overrides: new Dictionary<string, string[]>(StringComparer.Ordinal)
+                {
+                    ["Logout"] = [PermissionKeys.Vendor.AccountEdit],
+                    ["GetCurrentUser"] = [PermissionKeys.Vendor.AccountView],
+                    ["UpdateCurrentUser"] = [PermissionKeys.Vendor.AccountEdit]
+                }),
+            ["VendorCatalog"] = new(
+                [PermissionKeys.Vendor.CatalogView],
+                create: [PermissionKeys.Vendor.CatalogCreate],
+                edit: [PermissionKeys.Vendor.CatalogEdit],
+                approve: [PermissionKeys.Vendor.CatalogApprove]),
+            ["VendorProducts"] = new(
+                [PermissionKeys.Vendor.CatalogView],
+                create: [PermissionKeys.Vendor.CatalogCreate],
+                edit: [PermissionKeys.Vendor.CatalogEdit],
+                approve: [PermissionKeys.Vendor.CatalogApprove]),
+            ["VendorBrandRequests"] = new(
+                [PermissionKeys.Vendor.CatalogView],
+                create: [PermissionKeys.Vendor.CatalogCreate]),
+            ["VendorCategoryRequests"] = new(
+                [PermissionKeys.Vendor.CatalogView],
+                create: [PermissionKeys.Vendor.CatalogCreate]),
+            ["VendorProductRequests"] = new(
+                [PermissionKeys.Vendor.CatalogView],
+                create: [PermissionKeys.Vendor.CatalogCreate],
+                edit: [PermissionKeys.Vendor.CatalogEdit]),
+            ["VendorOrders"] = new(
+                [PermissionKeys.Vendor.OrdersView],
+                edit: [PermissionKeys.Vendor.OrdersEdit],
+                approve: [PermissionKeys.Vendor.OrdersApprove]),
+            ["VendorOrderCases"] = new(
+                [PermissionKeys.Vendor.SupportView],
+                create: [PermissionKeys.Vendor.SupportEdit],
+                edit: [PermissionKeys.Vendor.SupportEdit]),
+            ["VendorWorkspace"] = new([PermissionKeys.Vendor.DashboardView]),
+            ["VendorWorkspaceState"] = new(
+                [PermissionKeys.Vendor.SettingsView],
+                edit: [PermissionKeys.Vendor.SettingsEdit]),
+            ["Vendors"] = new(
+                [PermissionKeys.Vendor.SettingsView],
+                create: [PermissionKeys.Vendor.SettingsEdit],
+                edit: [PermissionKeys.Vendor.SettingsEdit]),
+            ["VendorNotifications"] = new(
+                [PermissionKeys.Vendor.NotificationsView],
+                edit: [PermissionKeys.Vendor.NotificationsEdit]),
+            ["DriverAuth"] = new(
+                [PermissionKeys.Driver.AccountView],
+                edit: [PermissionKeys.Driver.AccountEdit],
+                overrides: new Dictionary<string, string[]>(StringComparer.Ordinal)
+                {
+                    ["Logout"] = [PermissionKeys.Driver.AccountEdit],
+                    ["GetCurrentUser"] = [PermissionKeys.Driver.AccountView],
+                    ["UpdateCurrentUser"] = [PermissionKeys.Driver.AccountEdit]
+                }),
+            ["Drivers"] = new(
+                [PermissionKeys.Driver.DeliveriesView],
+                edit: [PermissionKeys.Driver.DeliveriesEdit],
+                approve: [PermissionKeys.Driver.DeliveriesApprove],
+                overrides: new Dictionary<string, string[]>(StringComparer.Ordinal)
+                {
+                    ["GetMyStatus"] = [PermissionKeys.Driver.AccountView],
+                    ["GetHome"] = [PermissionKeys.Driver.DashboardView],
+                    ["SetAvailability"] = [PermissionKeys.Driver.AvailabilityEdit],
+                    ["UpdateLocation"] = [PermissionKeys.Driver.LocationEdit]
+                }),
+            ["DriverProfile"] = new(
+                [PermissionKeys.Driver.ProfileView],
+                edit: [PermissionKeys.Driver.ProfileEdit]),
+            ["DriverWallet"] = new(
+                [PermissionKeys.Driver.WalletView],
+                create: [PermissionKeys.Driver.WalletEdit],
+                edit: [PermissionKeys.Driver.WalletEdit]),
+            ["DriverSupport"] = new(
+                [PermissionKeys.Driver.SupportView],
+                create: [PermissionKeys.Driver.SupportEdit],
+                edit: [PermissionKeys.Driver.SupportEdit]),
+            ["DriverNotifications"] = new(
+                [PermissionKeys.Driver.NotificationsView],
+                edit: [PermissionKeys.Driver.NotificationsEdit]),
+            ["CustomerAuth"] = new(
+                [PermissionKeys.Customer.AccountView],
+                edit: [PermissionKeys.Customer.AccountEdit],
+                overrides: new Dictionary<string, string[]>(StringComparer.Ordinal)
+                {
+                    ["Logout"] = [PermissionKeys.Customer.AccountEdit],
+                    ["GetCurrentUser"] = [PermissionKeys.Customer.AccountView],
+                    ["UpdateCurrentUser"] = [PermissionKeys.Customer.AccountEdit]
+                }),
+            ["CustomerAddresses"] = new(
+                [PermissionKeys.Customer.AddressesView],
+                create: [PermissionKeys.Customer.AddressesEdit],
+                edit: [PermissionKeys.Customer.AddressesEdit]),
+            ["Checkout"] = new(
+                [PermissionKeys.Customer.CheckoutView],
+                create: [PermissionKeys.Customer.CheckoutEdit],
+                edit: [PermissionKeys.Customer.CheckoutEdit]),
+            ["Orders"] = new(
+                [PermissionKeys.Customer.OrdersView],
+                create: [PermissionKeys.Customer.OrdersCreate],
+                edit: [PermissionKeys.Customer.OrdersEdit]),
+            ["Notifications"] = new(
+                [PermissionKeys.Customer.NotificationsView],
+                edit: [PermissionKeys.Customer.NotificationsEdit]),
+            ["NotificationDevices"] = new(
+                [
+                    PermissionKeys.Admin.NotificationsView,
+                    PermissionKeys.Vendor.NotificationsView,
+                    PermissionKeys.Driver.NotificationsView,
+                    PermissionKeys.Customer.NotificationsView
+                ],
+                create:
+                [
+                    PermissionKeys.Admin.NotificationsEdit,
+                    PermissionKeys.Vendor.NotificationsEdit,
+                    PermissionKeys.Driver.NotificationsEdit,
+                    PermissionKeys.Customer.NotificationsEdit
+                ],
+                edit:
+                [
+                    PermissionKeys.Admin.NotificationsEdit,
+                    PermissionKeys.Vendor.NotificationsEdit,
+                    PermissionKeys.Driver.NotificationsEdit,
+                    PermissionKeys.Customer.NotificationsEdit
+                ])
+        };
+
+    public void Apply(ApplicationModel application)
+    {
+        foreach (var controller in application.Controllers)
+        {
+            if (!Rules.TryGetValue(controller.ControllerName, out var rule))
+            {
+                continue;
+            }
+
+            var controllerRequiresAuthorization = controller.Attributes.OfType<AuthorizeAttribute>().Any();
+
+            foreach (var action in controller.Actions)
+            {
+                if (action.Attributes.OfType<AllowAnonymousAttribute>().Any())
+                {
+                    continue;
+                }
+
+                if (!(controllerRequiresAuthorization || action.Attributes.OfType<AuthorizeAttribute>().Any()))
+                {
+                    continue;
+                }
+
+                var permissions = ResolvePermissions(rule, action);
+                if (permissions.Length == 0)
+                {
+                    continue;
+                }
+
+                action.Filters.Add(new RequireAccessAttribute(permissions));
+            }
+        }
+    }
+
+    private static string[] ResolvePermissions(ControllerAccessRule rule, ActionModel action)
+    {
+        if (rule.Overrides.TryGetValue(action.ActionName, out var overridePermissions))
+        {
+            return overridePermissions;
+        }
+
+        var actionDescriptor = $"{action.ActionName} {GetRouteTemplate(action)}";
+        if (ContainsAny(actionDescriptor, "search"))
+        {
+            return rule.Read;
+        }
+
+        var methods = GetHttpMethods(action);
+        if (methods.Count == 0 || methods.All(method => HttpMethods.IsGet(method) || HttpMethods.IsHead(method)))
+        {
+            return rule.Read;
+        }
+
+        if (ContainsAny(actionDescriptor, "approve", "reject", "review", "activate", "deactivate", "process", "confirm", "verify", "suspend", "reactivate", "archive", "lock", "unlock", "escalate", "resolve", "mark"))
+        {
+            return rule.Approve;
+        }
+
+        if (methods.Any(HttpMethods.IsDelete) || methods.Any(HttpMethods.IsPut) || methods.Any(HttpMethods.IsPatch))
+        {
+            return rule.Edit;
+        }
+
+        if (methods.Any(HttpMethods.IsPost))
+        {
+            if (ContainsAny(actionDescriptor, "create", "add", "register", "upload", "place", "submit", "apply", "reply", "message", "bulk"))
+            {
+                return rule.Create;
+            }
+
+            return rule.Edit.Length > 0 ? rule.Edit : rule.Create;
+        }
+
+        return rule.Read;
+    }
+
+    private static HashSet<string> GetHttpMethods(ActionModel action)
+    {
+        return action.Selectors
+            .SelectMany(selector => selector.ActionConstraints ?? [])
+            .OfType<HttpMethodActionConstraint>()
+            .SelectMany(constraint => constraint.HttpMethods)
+            .ToHashSet(StringComparer.OrdinalIgnoreCase);
+    }
+
+    private static string GetRouteTemplate(ActionModel action)
+    {
+        return string.Join(' ', action.Selectors
+            .Select(selector => selector.AttributeRouteModel?.Template)
+            .Where(template => !string.IsNullOrWhiteSpace(template)));
+    }
+
+    private static bool ContainsAny(string source, params string[] keywords)
+    {
+        return keywords.Any(keyword => source.Contains(keyword, StringComparison.OrdinalIgnoreCase));
+    }
+
+    private static ControllerAccessRule CreateCatalogAdminRule()
+    {
+        return new ControllerAccessRule(
+            [PermissionKeys.Admin.CatalogView],
+            create: [PermissionKeys.Admin.CatalogCreate],
+            edit: [PermissionKeys.Admin.CatalogEdit],
+            approve: [PermissionKeys.Admin.CatalogApprove]);
+    }
+
+    private sealed class ControllerAccessRule
+    {
+        public ControllerAccessRule(
+            string[] read,
+            string[]? create = null,
+            string[]? edit = null,
+            string[]? approve = null,
+            Dictionary<string, string[]>? overrides = null)
+        {
+            Read = read;
+            Create = create ?? read;
+            Edit = edit ?? Create;
+            Approve = approve ?? Edit;
+            Overrides = overrides ?? new Dictionary<string, string[]>(StringComparer.Ordinal);
+        }
+
+        public string[] Read { get; }
+        public string[] Create { get; }
+        public string[] Edit { get; }
+        public string[] Approve { get; }
+        public Dictionary<string, string[]> Overrides { get; }
+    }
+}

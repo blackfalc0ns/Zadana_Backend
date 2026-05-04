@@ -4,8 +4,6 @@ using Microsoft.Extensions.Localization;
 using Zadana.Api.Modules.Identity.Requests;
 using Zadana.Application.Common.Localization;
 using Zadana.Application.Modules.Identity.Commands.RegisterCustomer;
-using Zadana.Application.Modules.Identity.Commands.ResendOtp;
-using Zadana.Application.Modules.Identity.Commands.VerifyOtp;
 using Zadana.Domain.Modules.Identity.Enums;
 
 namespace Zadana.Api.Modules.Identity.Controllers;
@@ -39,20 +37,6 @@ public class CustomerAuthController : IdentityAuthControllerBase
             request.Longitude);
 
         var result = await Sender.Send(command);
-        return Ok(result);
-    }
-
-    [HttpPost("verify-otp")]
-    public async Task<IActionResult> VerifyOtp([FromBody] VerifyOtpRequest request)
-    {
-        var result = await Sender.Send(new VerifyOtpCommand(request.Identifier, request.OtpCode));
-        return Ok(result);
-    }
-
-    [HttpPost("resend-otp")]
-    public async Task<IActionResult> ResendOtp([FromBody] ResendOtpRequest request)
-    {
-        var result = await Sender.Send(new ResendOtpCommand(request.Identifier));
         return Ok(result);
     }
 

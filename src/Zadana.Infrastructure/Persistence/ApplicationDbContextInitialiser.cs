@@ -5,6 +5,7 @@ using Microsoft.EntityFrameworkCore;
 using Zadana.Domain.Modules.Catalog.Entities;
 using Zadana.Domain.Modules.Delivery.Entities;
 using Zadana.Domain.Modules.Delivery.Enums;
+using Zadana.Domain.Modules.Identity.Constants;
 using Zadana.Domain.Modules.Identity.Entities;
 using Zadana.Domain.Modules.Identity.Enums;
 using Zadana.Domain.Modules.Marketing.Entities;
@@ -154,6 +155,7 @@ public class ApplicationDbContextInitialiser
     private async Task TrySeedAsync()
     {
         await SeedRolesAsync();
+        await SeedAccessControlDefinitionsAsync();
         await SeedSuperAdminAsync();
         await SeedSupportUsersAsync();
         await SeedDeliveryZonesAsync();
@@ -174,6 +176,7 @@ public class ApplicationDbContextInitialiser
         await SeedCustomerExperienceAsync();
         await SeedDriverAssignmentsAsync();
         await SeedWalletsAndSettlementsAsync();
+        await SeedUserAccessScopesAsync();
     }
 
     private async Task SeedDeliveryZonesAsync()
@@ -284,6 +287,268 @@ public class ApplicationDbContextInitialiser
                 await _roleManager.CreateAsync(new IdentityRole<Guid>(role.ToString()));
             }
         }
+    }
+
+    private async Task SeedAccessControlDefinitionsAsync()
+    {
+        var permissions = new[]
+        {
+            new PermissionSeed(PermissionKeys.Admin.AccountView, "Admin Account View", "admin_account", "view", PanelScope.SuperAdminPanel, "View the signed-in admin account."),
+            new PermissionSeed(PermissionKeys.Admin.AccountEdit, "Admin Account Edit", "admin_account", "edit", PanelScope.SuperAdminPanel, "Update the signed-in admin account."),
+            new PermissionSeed(PermissionKeys.Admin.DashboardView, "Dashboard View", "dashboard", "view", PanelScope.SuperAdminPanel, "Read dashboard snapshots."),
+            new PermissionSeed(PermissionKeys.Admin.DashboardExport, "Dashboard Export", "dashboard", "export", PanelScope.SuperAdminPanel, "Export dashboard data."),
+            new PermissionSeed(PermissionKeys.Admin.VendorsView, "Vendors View", "vendors", "view", PanelScope.SuperAdminPanel, "View vendors."),
+            new PermissionSeed(PermissionKeys.Admin.VendorsEdit, "Vendors Edit", "vendors", "edit", PanelScope.SuperAdminPanel, "Edit vendor records."),
+            new PermissionSeed(PermissionKeys.Admin.VendorsApprove, "Vendors Approve", "vendors", "approve", PanelScope.SuperAdminPanel, "Approve vendor changes.", true),
+            new PermissionSeed(PermissionKeys.Admin.CatalogView, "Catalog View", "catalog", "view", PanelScope.SuperAdminPanel, "View catalog assets."),
+            new PermissionSeed(PermissionKeys.Admin.CatalogCreate, "Catalog Create", "catalog", "create", PanelScope.SuperAdminPanel, "Create catalog assets."),
+            new PermissionSeed(PermissionKeys.Admin.CatalogEdit, "Catalog Edit", "catalog", "edit", PanelScope.SuperAdminPanel, "Edit catalog assets."),
+            new PermissionSeed(PermissionKeys.Admin.CatalogApprove, "Catalog Approve", "catalog", "approve", PanelScope.SuperAdminPanel, "Approve catalog moderation actions.", true),
+            new PermissionSeed(PermissionKeys.Admin.OrdersView, "Orders View", "orders", "view", PanelScope.SuperAdminPanel, "View orders."),
+            new PermissionSeed(PermissionKeys.Admin.OrdersEdit, "Orders Edit", "orders", "edit", PanelScope.SuperAdminPanel, "Edit order states."),
+            new PermissionSeed(PermissionKeys.Admin.OrdersApprove, "Orders Approve", "orders", "approve", PanelScope.SuperAdminPanel, "Approve sensitive order actions.", true),
+            new PermissionSeed(PermissionKeys.Admin.CustomersView, "Customers View", "customers", "view", PanelScope.SuperAdminPanel, "View customers."),
+            new PermissionSeed(PermissionKeys.Admin.CustomersEdit, "Customers Edit", "customers", "edit", PanelScope.SuperAdminPanel, "Manage customer actions."),
+            new PermissionSeed(PermissionKeys.Admin.DriversView, "Drivers View", "drivers", "view", PanelScope.SuperAdminPanel, "View drivers."),
+            new PermissionSeed(PermissionKeys.Admin.DriversEdit, "Drivers Edit", "drivers", "edit", PanelScope.SuperAdminPanel, "Edit driver operations."),
+            new PermissionSeed(PermissionKeys.Admin.DriversApprove, "Drivers Approve", "drivers", "approve", PanelScope.SuperAdminPanel, "Approve driver lifecycle changes.", true),
+            new PermissionSeed(PermissionKeys.Admin.DisputesView, "Disputes View", "disputes", "view", PanelScope.SuperAdminPanel, "View disputes."),
+            new PermissionSeed(PermissionKeys.Admin.DisputesEdit, "Disputes Edit", "disputes", "edit", PanelScope.SuperAdminPanel, "Edit dispute workflows."),
+            new PermissionSeed(PermissionKeys.Admin.DisputesApprove, "Disputes Approve", "disputes", "approve", PanelScope.SuperAdminPanel, "Approve dispute outcomes.", true),
+            new PermissionSeed(PermissionKeys.Admin.FinancesView, "Finances View", "finances", "view", PanelScope.SuperAdminPanel, "View finance data."),
+            new PermissionSeed(PermissionKeys.Admin.FinancesEdit, "Finances Edit", "finances", "edit", PanelScope.SuperAdminPanel, "Edit finance records.", true),
+            new PermissionSeed(PermissionKeys.Admin.FinancesApprove, "Finances Approve", "finances", "approve", PanelScope.SuperAdminPanel, "Approve finance operations.", true),
+            new PermissionSeed(PermissionKeys.Admin.WalletsView, "Wallets View", "wallets", "view", PanelScope.SuperAdminPanel, "View wallet records."),
+            new PermissionSeed(PermissionKeys.Admin.WalletsEdit, "Wallets Edit", "wallets", "edit", PanelScope.SuperAdminPanel, "Edit wallet records.", true),
+            new PermissionSeed(PermissionKeys.Admin.WalletsApprove, "Wallets Approve", "wallets", "approve", PanelScope.SuperAdminPanel, "Approve wallet operations.", true),
+            new PermissionSeed(PermissionKeys.Admin.UsersAccessView, "Users Access View", "users_access", "view", PanelScope.SuperAdminPanel, "View access records."),
+            new PermissionSeed(PermissionKeys.Admin.UsersAccessCreate, "Users Access Create", "users_access", "create", PanelScope.SuperAdminPanel, "Create identities and roles.", true),
+            new PermissionSeed(PermissionKeys.Admin.UsersAccessEdit, "Users Access Edit", "users_access", "edit", PanelScope.SuperAdminPanel, "Edit identities and roles.", true),
+            new PermissionSeed(PermissionKeys.Admin.UsersAccessApprove, "Users Access Approve", "users_access", "approve", PanelScope.SuperAdminPanel, "Approve access operations.", true),
+            new PermissionSeed(PermissionKeys.Admin.EmailCenterView, "Email Center View", "email_center", "view", PanelScope.SuperAdminPanel, "View outbound communication center."),
+            new PermissionSeed(PermissionKeys.Admin.EmailCenterEdit, "Email Center Edit", "email_center", "edit", PanelScope.SuperAdminPanel, "Edit communication flows."),
+            new PermissionSeed(PermissionKeys.Admin.MarketingView, "Marketing View", "marketing", "view", PanelScope.SuperAdminPanel, "View marketing assets."),
+            new PermissionSeed(PermissionKeys.Admin.MarketingEdit, "Marketing Edit", "marketing", "edit", PanelScope.SuperAdminPanel, "Edit marketing assets."),
+            new PermissionSeed(PermissionKeys.Admin.NotificationsView, "Admin Notifications View", "admin_notifications", "view", PanelScope.SuperAdminPanel, "View admin notifications."),
+            new PermissionSeed(PermissionKeys.Admin.NotificationsEdit, "Admin Notifications Edit", "admin_notifications", "edit", PanelScope.SuperAdminPanel, "Update admin notifications."),
+            new PermissionSeed(PermissionKeys.Admin.DeliverySettingsView, "Delivery Settings View", "delivery_settings", "view", PanelScope.SuperAdminPanel, "View delivery settings."),
+            new PermissionSeed(PermissionKeys.Admin.DeliverySettingsEdit, "Delivery Settings Edit", "delivery_settings", "edit", PanelScope.SuperAdminPanel, "Edit delivery settings.", true),
+            new PermissionSeed(PermissionKeys.Admin.SystemManageSettings, "System Settings Manage", "system", "manage_settings", PanelScope.SuperAdminPanel, "Manage critical system settings.", true),
+            new PermissionSeed(PermissionKeys.Vendor.AccountView, "Vendor Account View", "vendor_account", "view", PanelScope.VendorPanel, "View the signed-in vendor account."),
+            new PermissionSeed(PermissionKeys.Vendor.AccountEdit, "Vendor Account Edit", "vendor_account", "edit", PanelScope.VendorPanel, "Update the signed-in vendor account."),
+            new PermissionSeed(PermissionKeys.Vendor.DashboardView, "Vendor Dashboard View", "vendor_dashboard", "view", PanelScope.VendorPanel, "View vendor dashboard."),
+            new PermissionSeed(PermissionKeys.Vendor.OrdersView, "Vendor Orders View", "vendor_orders", "view", PanelScope.VendorPanel, "View vendor orders."),
+            new PermissionSeed(PermissionKeys.Vendor.OrdersEdit, "Vendor Orders Edit", "vendor_orders", "edit", PanelScope.VendorPanel, "Edit vendor orders."),
+            new PermissionSeed(PermissionKeys.Vendor.OrdersApprove, "Vendor Orders Approve", "vendor_orders", "approve", PanelScope.VendorPanel, "Approve vendor order actions."),
+            new PermissionSeed(PermissionKeys.Vendor.CatalogView, "Vendor Catalog View", "vendor_catalog", "view", PanelScope.VendorPanel, "View vendor catalog."),
+            new PermissionSeed(PermissionKeys.Vendor.CatalogCreate, "Vendor Catalog Create", "vendor_catalog", "create", PanelScope.VendorPanel, "Create vendor catalog items."),
+            new PermissionSeed(PermissionKeys.Vendor.CatalogEdit, "Vendor Catalog Edit", "vendor_catalog", "edit", PanelScope.VendorPanel, "Edit vendor catalog items."),
+            new PermissionSeed(PermissionKeys.Vendor.CatalogApprove, "Vendor Catalog Approve", "vendor_catalog", "approve", PanelScope.VendorPanel, "Approve vendor catalog submissions."),
+            new PermissionSeed(PermissionKeys.Vendor.BranchTeamView, "Vendor Branch Team View", "vendor_branch_team", "view", PanelScope.VendorPanel, "View vendor branches and staff."),
+            new PermissionSeed(PermissionKeys.Vendor.BranchTeamCreate, "Vendor Branch Team Create", "vendor_branch_team", "create", PanelScope.VendorPanel, "Create vendor branch or staff records.", true),
+            new PermissionSeed(PermissionKeys.Vendor.BranchTeamEdit, "Vendor Branch Team Edit", "vendor_branch_team", "edit", PanelScope.VendorPanel, "Edit vendor branch or staff records.", true),
+            new PermissionSeed(PermissionKeys.Vendor.BranchTeamApprove, "Vendor Branch Team Approve", "vendor_branch_team", "approve", PanelScope.VendorPanel, "Approve branch or staff access changes.", true),
+            new PermissionSeed(PermissionKeys.Vendor.FinanceView, "Vendor Finance View", "vendor_finance", "view", PanelScope.VendorPanel, "View vendor finance data."),
+            new PermissionSeed(PermissionKeys.Vendor.FinanceExport, "Vendor Finance Export", "vendor_finance", "export", PanelScope.VendorPanel, "Export vendor finance data."),
+            new PermissionSeed(PermissionKeys.Vendor.SupportView, "Vendor Support View", "vendor_support", "view", PanelScope.VendorPanel, "View vendor support center."),
+            new PermissionSeed(PermissionKeys.Vendor.SupportEdit, "Vendor Support Edit", "vendor_support", "edit", PanelScope.VendorPanel, "Edit vendor support cases."),
+            new PermissionSeed(PermissionKeys.Vendor.SettingsView, "Vendor Settings View", "vendor_settings", "view", PanelScope.VendorPanel, "View vendor settings."),
+            new PermissionSeed(PermissionKeys.Vendor.SettingsEdit, "Vendor Settings Edit", "vendor_settings", "edit", PanelScope.VendorPanel, "Edit vendor settings."),
+            new PermissionSeed(PermissionKeys.Vendor.NotificationsView, "Vendor Notifications View", "vendor_notifications", "view", PanelScope.VendorPanel, "View vendor notifications."),
+            new PermissionSeed(PermissionKeys.Vendor.NotificationsEdit, "Vendor Notifications Edit", "vendor_notifications", "edit", PanelScope.VendorPanel, "Update vendor notifications."),
+            new PermissionSeed(PermissionKeys.Driver.AccountView, "Driver Account View", "driver_account", "view", PanelScope.DriverApp, "View the signed-in driver account."),
+            new PermissionSeed(PermissionKeys.Driver.AccountEdit, "Driver Account Edit", "driver_account", "edit", PanelScope.DriverApp, "Update the signed-in driver account."),
+            new PermissionSeed(PermissionKeys.Driver.DashboardView, "Driver Dashboard View", "driver_dashboard", "view", PanelScope.DriverApp, "View driver dashboard."),
+            new PermissionSeed(PermissionKeys.Driver.ProfileView, "Driver Profile View", "driver_profile", "view", PanelScope.DriverApp, "View driver profile."),
+            new PermissionSeed(PermissionKeys.Driver.ProfileEdit, "Driver Profile Edit", "driver_profile", "edit", PanelScope.DriverApp, "Edit driver profile."),
+            new PermissionSeed(PermissionKeys.Driver.DeliveriesView, "Driver Deliveries View", "driver_deliveries", "view", PanelScope.DriverApp, "View driver deliveries."),
+            new PermissionSeed(PermissionKeys.Driver.DeliveriesEdit, "Driver Deliveries Edit", "driver_deliveries", "edit", PanelScope.DriverApp, "Edit driver deliveries."),
+            new PermissionSeed(PermissionKeys.Driver.DeliveriesApprove, "Driver Deliveries Approve", "driver_deliveries", "approve", PanelScope.DriverApp, "Approve delivery handoff actions."),
+            new PermissionSeed(PermissionKeys.Driver.AvailabilityEdit, "Driver Availability Edit", "driver_availability", "edit", PanelScope.DriverApp, "Manage driver availability."),
+            new PermissionSeed(PermissionKeys.Driver.LocationEdit, "Driver Location Edit", "driver_location", "edit", PanelScope.DriverApp, "Update driver location."),
+            new PermissionSeed(PermissionKeys.Driver.WalletView, "Driver Wallet View", "driver_wallet", "view", PanelScope.DriverApp, "View driver wallet."),
+            new PermissionSeed(PermissionKeys.Driver.WalletEdit, "Driver Wallet Edit", "driver_wallet", "edit", PanelScope.DriverApp, "Manage driver wallet actions."),
+            new PermissionSeed(PermissionKeys.Driver.SupportView, "Driver Support View", "driver_support", "view", PanelScope.DriverApp, "View driver support cases."),
+            new PermissionSeed(PermissionKeys.Driver.SupportEdit, "Driver Support Edit", "driver_support", "edit", PanelScope.DriverApp, "Update driver support cases."),
+            new PermissionSeed(PermissionKeys.Driver.NotificationsView, "Driver Notifications View", "driver_notifications", "view", PanelScope.DriverApp, "View driver notifications."),
+            new PermissionSeed(PermissionKeys.Driver.NotificationsEdit, "Driver Notifications Edit", "driver_notifications", "edit", PanelScope.DriverApp, "Update driver notifications."),
+            new PermissionSeed(PermissionKeys.Customer.AccountView, "Customer Account View", "customer_account", "view", PanelScope.CustomerApp, "View the signed-in customer account."),
+            new PermissionSeed(PermissionKeys.Customer.AccountEdit, "Customer Account Edit", "customer_account", "edit", PanelScope.CustomerApp, "Update the signed-in customer account."),
+            new PermissionSeed(PermissionKeys.Customer.ProfileView, "Customer Profile View", "customer_profile", "view", PanelScope.CustomerApp, "View customer profile."),
+            new PermissionSeed(PermissionKeys.Customer.ProfileEdit, "Customer Profile Edit", "customer_profile", "edit", PanelScope.CustomerApp, "Edit customer profile."),
+            new PermissionSeed(PermissionKeys.Customer.AddressesView, "Customer Addresses View", "customer_addresses", "view", PanelScope.CustomerApp, "View customer addresses."),
+            new PermissionSeed(PermissionKeys.Customer.AddressesEdit, "Customer Addresses Edit", "customer_addresses", "edit", PanelScope.CustomerApp, "Manage customer addresses."),
+            new PermissionSeed(PermissionKeys.Customer.OrdersView, "Customer Orders View", "customer_orders", "view", PanelScope.CustomerApp, "View customer orders."),
+            new PermissionSeed(PermissionKeys.Customer.OrdersCreate, "Customer Orders Create", "customer_orders", "create", PanelScope.CustomerApp, "Create customer orders."),
+            new PermissionSeed(PermissionKeys.Customer.OrdersEdit, "Customer Orders Edit", "customer_orders", "edit", PanelScope.CustomerApp, "Manage customer orders."),
+            new PermissionSeed(PermissionKeys.Customer.CheckoutView, "Customer Checkout View", "customer_checkout", "view", PanelScope.CustomerApp, "View checkout summary."),
+            new PermissionSeed(PermissionKeys.Customer.CheckoutEdit, "Customer Checkout Edit", "customer_checkout", "edit", PanelScope.CustomerApp, "Manage checkout."),
+            new PermissionSeed(PermissionKeys.Customer.NotificationsView, "Customer Notifications View", "customer_notifications", "view", PanelScope.CustomerApp, "View customer notifications."),
+            new PermissionSeed(PermissionKeys.Customer.NotificationsEdit, "Customer Notifications Edit", "customer_notifications", "edit", PanelScope.CustomerApp, "Update customer notifications.")
+        };
+
+        foreach (var seed in permissions)
+        {
+            var existing = await _context.PermissionDefinitions.FirstOrDefaultAsync(x => x.Key == seed.Key);
+            if (existing is null)
+            {
+                _context.PermissionDefinitions.Add(new PermissionDefinition(
+                    seed.Key,
+                    seed.Name,
+                    seed.Domain,
+                    seed.Action,
+                    seed.PanelScope,
+                    seed.Description,
+                    seed.IsSensitive));
+                continue;
+            }
+
+            existing.Update(seed.Name, seed.Domain, seed.Action, seed.PanelScope, seed.Description, seed.IsSensitive);
+        }
+
+        await _context.SaveChangesAsync();
+
+        var roles = new[]
+        {
+            new RoleSeed("super_admin_all", "Super Admin", UserRole.SuperAdmin, PanelScope.SuperAdminPanel, PermissionKeys.Admin.All),
+            new RoleSeed("admin_operations", "Operations Admin", UserRole.Admin, PanelScope.SuperAdminPanel, PermissionKeys.Admin.Operations),
+            new RoleSeed("vendor_owner", "Vendor Owner", UserRole.Vendor, PanelScope.VendorPanel, PermissionKeys.Vendor.Owner),
+            new RoleSeed("vendor_branch_manager", "Vendor Branch Manager", UserRole.VendorStaff, PanelScope.VendorPanel, PermissionKeys.Vendor.BranchManager),
+            new RoleSeed("vendor_branch_staff", "Vendor Branch Staff", UserRole.VendorStaff, PanelScope.VendorPanel, PermissionKeys.Vendor.BranchStaff),
+            new RoleSeed("driver_account", "Driver Account", UserRole.Driver, PanelScope.DriverApp, PermissionKeys.Driver.All),
+            new RoleSeed("customer_account", "Customer Account", UserRole.Customer, PanelScope.CustomerApp, PermissionKeys.Customer.All)
+        };
+
+        foreach (var seed in roles)
+        {
+            var existing = await _context.RoleDefinitions
+                .Include(x => x.RolePermissions)
+                .FirstOrDefaultAsync(x => x.Code == seed.Code);
+
+            if (existing is null)
+            {
+                existing = new RoleDefinition(seed.Code, seed.Name, seed.IdentityRole, seed.PanelScope, description: $"{seed.Name} system role.");
+                _context.RoleDefinitions.Add(existing);
+                await _context.SaveChangesAsync();
+            }
+            else
+            {
+                existing.Update(seed.Name, seed.IdentityRole, seed.PanelScope, isSystem: true, isActive: true, description: $"{seed.Name} system role.");
+                await _context.SaveChangesAsync();
+            }
+
+            var permissionIds = await _context.PermissionDefinitions
+                .Where(x => seed.PermissionKeys.Contains(x.Key))
+                .Select(x => x.Id)
+                .ToListAsync();
+
+            var existingPermissionIds = existing.RolePermissions.Select(x => x.PermissionDefinitionId).ToHashSet();
+
+            var obsolete = existing.RolePermissions
+                .Where(x => !permissionIds.Contains(x.PermissionDefinitionId))
+                .ToList();
+
+            if (obsolete.Any())
+            {
+                _context.RolePermissions.RemoveRange(obsolete);
+            }
+
+            foreach (var permissionId in permissionIds.Where(id => !existingPermissionIds.Contains(id)))
+            {
+                _context.RolePermissions.Add(new RolePermission(existing.Id, permissionId));
+            }
+
+            await _context.SaveChangesAsync();
+        }
+    }
+
+    private async Task SeedUserAccessScopesAsync()
+    {
+        var roleLookup = await _context.RoleDefinitions
+            .Where(x => x.IsActive)
+            .ToDictionaryAsync(x => x.Code);
+
+        var adminUsers = await _context.Users
+            .Where(x => x.Role == UserRole.SuperAdmin || x.Role == UserRole.Admin)
+            .ToListAsync();
+
+        foreach (var user in adminUsers)
+        {
+            var roleCode = user.Role == UserRole.SuperAdmin ? "super_admin_all" : "admin_operations";
+            await EnsureUserAccessScopeAsync(user, roleLookup[roleCode].Id, PanelScope.SuperAdminPanel, AccessScopeType.Global, null);
+        }
+
+        var vendorUsers = await _context.Vendors
+            .AsNoTracking()
+            .Select(x => new { x.UserId, VendorId = x.Id })
+            .ToListAsync();
+
+        foreach (var vendor in vendorUsers)
+        {
+            var user = await _context.Users.FirstOrDefaultAsync(x => x.Id == vendor.UserId);
+            if (user is null)
+            {
+                continue;
+            }
+
+            await EnsureUserAccessScopeAsync(user, roleLookup["vendor_owner"].Id, PanelScope.VendorPanel, AccessScopeType.VendorCompany, vendor.VendorId);
+        }
+
+        var drivers = await _context.Drivers
+            .AsNoTracking()
+            .Select(x => new { x.UserId, DriverId = x.Id })
+            .ToListAsync();
+
+        foreach (var driver in drivers)
+        {
+            var user = await _context.Users.FirstOrDefaultAsync(x => x.Id == driver.UserId);
+            if (user is null)
+            {
+                continue;
+            }
+
+            await EnsureUserAccessScopeAsync(user, roleLookup["driver_account"].Id, PanelScope.DriverApp, AccessScopeType.DriverSelf, driver.DriverId);
+        }
+
+        var customers = await _context.Users
+            .Where(x => x.Role == UserRole.Customer)
+            .ToListAsync();
+
+        foreach (var customer in customers)
+        {
+            await EnsureUserAccessScopeAsync(customer, roleLookup["customer_account"].Id, PanelScope.CustomerApp, AccessScopeType.CustomerSelf, customer.Id);
+        }
+    }
+
+    private async Task EnsureUserAccessScopeAsync(
+        User user,
+        Guid roleDefinitionId,
+        PanelScope panelScope,
+        AccessScopeType scopeType,
+        Guid? scopeEntityId)
+    {
+        var existing = await _context.UserAccessScopes
+            .FirstOrDefaultAsync(x => x.UserId == user.Id && x.IsActive);
+
+        if (existing is null)
+        {
+            _context.UserAccessScopes.Add(new UserAccessScope(user.Id, roleDefinitionId, panelScope, scopeType, scopeEntityId));
+            user.IncrementPermissionVersion();
+            await _context.SaveChangesAsync();
+            return;
+        }
+
+        if (existing.RoleDefinitionId == roleDefinitionId &&
+            existing.PanelScope == panelScope &&
+            existing.ScopeType == scopeType &&
+            existing.ScopeEntityId == scopeEntityId)
+        {
+            return;
+        }
+
+        existing.Update(roleDefinitionId, panelScope, scopeType, scopeEntityId, null);
+        user.IncrementPermissionVersion();
+        await _context.SaveChangesAsync();
     }
 
     private async Task SeedSuperAdminAsync()
@@ -2016,6 +2281,22 @@ internal sealed record SeedOperatingHour(
     string OpenTime,
     string CloseTime,
     bool IsOpen);
+
+internal sealed record PermissionSeed(
+    string Key,
+    string Name,
+    string Domain,
+    string Action,
+    PanelScope PanelScope,
+    string Description,
+    bool IsSensitive = false);
+
+internal sealed record RoleSeed(
+    string Code,
+    string Name,
+    UserRole IdentityRole,
+    PanelScope PanelScope,
+    IReadOnlyCollection<string> PermissionKeys);
 
 internal sealed record SeededMasterProduct(
     Guid Id,

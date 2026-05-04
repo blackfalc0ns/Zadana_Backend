@@ -30,6 +30,7 @@ public static class DependencyInjection
         // Repositories
         services.AddScoped<IIdentityAccountService, IdentityAccountService>();
         services.AddScoped<IRefreshTokenStore, RefreshTokenRepository>();
+        services.AddScoped<IAccessControlService, AccessControlService>();
 
         // Services
         services.AddTransient<IJwtTokenService, JwtTokenService>();

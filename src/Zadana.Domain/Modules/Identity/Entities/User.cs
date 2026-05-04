@@ -8,6 +8,7 @@ public class User : IdentityUser<Guid>
 {
     public string FullName { get; private set; } = null!;
     public UserRole Role { get; private set; }
+    public int PermissionVersion { get; private set; }
     public AccountStatus AccountStatus { get; private set; }
     public bool IsLoginLocked { get; private set; }
     public DateTime? LockedAtUtc { get; private set; }
@@ -52,6 +53,7 @@ public class User : IdentityUser<Guid>
         UserName = Email;
         PhoneNumber = phone.Trim();
         Role = role;
+        PermissionVersion = 1;
         AccountStatus = AccountStatus.Active;
         PresenceState = PresenceState.Offline;
         IsLoginLocked = false;
@@ -73,6 +75,11 @@ public class User : IdentityUser<Guid>
 
     public void VerifyEmail() => EmailConfirmed = true;
     public void VerifyPhone() => PhoneNumberConfirmed = true;
+    public void IncrementPermissionVersion()
+    {
+        PermissionVersion++;
+        UpdatedAtUtc = DateTime.UtcNow;
+    }
 
     public void RecordLogin() => LastLoginAtUtc = DateTime.UtcNow;
     public void RecordActivity() => LastLoginAtUtc = DateTime.UtcNow;

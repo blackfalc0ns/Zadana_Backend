@@ -26,6 +26,7 @@ public class JwtTokenService : IJwtTokenService
             new Claim(ClaimTypes.NameIdentifier, user.Id.ToString()),
             new Claim(JwtRegisteredClaimNames.Jti, Guid.NewGuid().ToString()),
             new Claim(ClaimTypes.Role, user.Role.ToString()),
+            new Claim("permission_version", user.PermissionVersion.ToString()),
             new Claim(ClaimTypes.Name, user.FullName)
         };
 

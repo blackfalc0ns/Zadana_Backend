@@ -18,6 +18,9 @@ public class UserConfiguration : IEntityTypeConfiguration<User>
             .HasMaxLength(20)
             .HasConversion<string>();
 
+        builder.Property(u => u.PermissionVersion)
+            .HasDefaultValue(1);
+
         builder.Property(u => u.AccountStatus)
             .IsRequired()
             .HasMaxLength(20)
@@ -51,6 +54,16 @@ public class UserConfiguration : IEntityTypeConfiguration<User>
         builder.HasMany(u => u.RefreshTokens)
             .WithOne(r => r.User)
             .HasForeignKey(r => r.UserId)
+            .OnDelete(DeleteBehavior.Cascade);
+
+        builder.HasMany<UserAccessScope>()
+            .WithOne(scope => scope.User)
+            .HasForeignKey(scope => scope.UserId)
+            .OnDelete(DeleteBehavior.Cascade);
+
+        builder.HasMany<UserPermissionOverride>()
+            .WithOne(overrideEntry => overrideEntry.User)
+            .HasForeignKey(overrideEntry => overrideEntry.UserId)
             .OnDelete(DeleteBehavior.Cascade);
 
     }

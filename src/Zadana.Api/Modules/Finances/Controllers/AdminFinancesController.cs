@@ -10,7 +10,7 @@ namespace Zadana.Api.Modules.Finances.Controllers;
 
 [ApiController]
 [Route("api/admin/finances")]
-// [Authorize(Roles = "SuperAdmin")] // Uncomment when auth is ready
+[Authorize(Policy = "AdminOnly")]
 public class AdminFinancesController(IMediator mediator) : ControllerBase
 {
     [HttpGet("dashboard/snapshot")]

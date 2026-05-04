@@ -405,6 +405,7 @@ public class IdentityAccountService : IIdentityAccountService
             user.Email,
             user.PhoneNumber,
             user.Role,
+            user.PermissionVersion,
             user.AccountStatus,
             user.IsLoginLocked,
             user.LockedAtUtc,

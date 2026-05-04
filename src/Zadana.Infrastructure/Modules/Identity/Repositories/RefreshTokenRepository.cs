@@ -79,6 +79,7 @@ public class RefreshTokenRepository : IRefreshTokenStore
                     refreshToken.User.Email,
                     refreshToken.User.PhoneNumber,
                     refreshToken.User.Role,
+                    refreshToken.User.PermissionVersion,
                     refreshToken.User.AccountStatus,
                     refreshToken.User.IsLoginLocked,
                     refreshToken.User.LockedAtUtc,

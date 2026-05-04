@@ -15,7 +15,6 @@ public class RegisterCustomerCommandHandler : IRequestHandler<RegisterCustomerCo
     private readonly IIdentityAccountService _identityAccountService;
     private readonly IRegistrationWorkflow _registrationWorkflow;
     private readonly IUnitOfWork _unitOfWork;
-    private readonly IOtpService _otpService;
     private readonly IApplicationDbContext _context;
     private readonly IStringLocalizer<SharedResource> _localizer;
 
@@ -23,14 +22,12 @@ public class RegisterCustomerCommandHandler : IRequestHandler<RegisterCustomerCo
         IIdentityAccountService identityAccountService,
         IRegistrationWorkflow registrationWorkflow,
         IUnitOfWork unitOfWork,
-        IOtpService otpService,
         IApplicationDbContext context,
         IStringLocalizer<SharedResource> localizer)
     {
         _identityAccountService = identityAccountService;
         _registrationWorkflow = registrationWorkflow;
         _unitOfWork = unitOfWork;
-        _otpService = otpService;
         _context = context;
         _localizer = localizer;
     }
@@ -66,18 +63,6 @@ public class RegisterCustomerCommandHandler : IRequestHandler<RegisterCustomerCo
         var user = createResult.Account;
         try
         {
-            var otpResult = await _identityAccountService.GenerateRegistrationOtpAsync(user.Id, cancellationToken);
-            if (otpResult.Status == OtpDispatchStatus.Failed)
-            {
-                var errors = string.Join(", ", otpResult.Errors ?? []);
-                throw new BusinessRuleException("IDENTITY_OPERATION_FAILED", $"{_localizer["IDENTITY_OPERATION_FAILED"]}: {errors}");
-            }
-
-            if (otpResult.Status == OtpDispatchStatus.Succeeded && !string.IsNullOrWhiteSpace(user.Email) && !string.IsNullOrWhiteSpace(otpResult.OtpCode))
-            {
-                await _otpService.SendOtpEmailAsync(user.Email, otpResult.OtpCode, cancellationToken);
-            }
-
             AddressLabel? parsedLabel = null;
             if (!string.IsNullOrWhiteSpace(request.Label) && Enum.TryParse<AddressLabel>(request.Label, true, out var l))
             {
@@ -102,9 +87,7 @@ public class RegisterCustomerCommandHandler : IRequestHandler<RegisterCustomerCo
 
             _context.CustomerAddresses.Add(address);
             await _unitOfWork.SaveChangesAsync(cancellationToken);
-
-            var userDto = new CurrentUserDto(user.Id, user.FullName, user.Email, user.PhoneNumber, user.Role.ToString());
-            return new AuthResponseDto(null, userDto, false, _localizer["OtpSentToEmail"]);
+            return await _registrationWorkflow.BuildAuthResponseAsync(user, cancellationToken: cancellationToken);
         }
         catch
         {

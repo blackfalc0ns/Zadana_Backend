@@ -17,6 +17,7 @@ public class IdentityService : IIdentityService
     private readonly IUnitOfWork _unitOfWork;
     private readonly IJwtTokenService _jwtTokenService;
     private readonly ICurrentUserService _currentUserService;
+    private readonly IAccessControlService _accessControlService;
     private readonly IApplicationDbContext _context;
     private readonly IStringLocalizer<SharedResource> _localizer;
 
@@ -26,6 +27,7 @@ public class IdentityService : IIdentityService
         IUnitOfWork unitOfWork,
         IJwtTokenService jwtTokenService,
         ICurrentUserService currentUserService,
+        IAccessControlService accessControlService,
         IApplicationDbContext context,
         IStringLocalizer<SharedResource> localizer)
     {
@@ -34,6 +36,7 @@ public class IdentityService : IIdentityService
         _unitOfWork = unitOfWork;
         _jwtTokenService = jwtTokenService;
         _currentUserService = currentUserService;
+        _accessControlService = accessControlService;
         _context = context;
         _localizer = localizer;
     }
@@ -73,11 +76,6 @@ public class IdentityService : IIdentityService
             throw new UnauthorizedException(_localizer["AccountLoginDenied", user.AccountStatus]);
         }
 
-        if (RequiresVerifiedCustomerEmail(user))
-        {
-            throw new BusinessRuleException("ACCOUNT_EMAIL_NOT_VERIFIED", _localizer["AccountEmailNotVerified"]);
-        }
-
         var tokens = await _jwtTokenService.GenerateTokenPairAsync(user, cancellationToken);
 
         _refreshTokenStore.Add(new NewRefreshToken(
@@ -96,7 +94,8 @@ public class IdentityService : IIdentityService
         await _unitOfWork.SaveChangesAsync(cancellationToken);
 
         var favoritesCount = await _context.CustomerFavorites.CountAsync(x => x.UserId == user.Id, cancellationToken);
-        var userDto = new CurrentUserDto(user.Id, user.FullName, user.Email, user.PhoneNumber, user.Role.ToString(), favoritesCount);
+        var access = await _accessControlService.GetEffectiveAccessAsync(user.Id, cancellationToken);
+        var userDto = new CurrentUserDto(user.Id, user.FullName, user.Email, user.PhoneNumber, user.Role.ToString(), favoritesCount, access);
         DriverOperationalStatusDto? driverStatus = null;
 
         if (user.Role == UserRole.Driver)
@@ -132,11 +131,6 @@ public class IdentityService : IIdentityService
         if (tokenEntity.User.IsLoginLocked)
         {
             throw new UnauthorizedException(_localizer["UserAccountNotActive"]);
-        }
-
-        if (RequiresVerifiedCustomerEmail(tokenEntity.User))
-        {
-            throw new BusinessRuleException("ACCOUNT_EMAIL_NOT_VERIFIED", _localizer["AccountEmailNotVerified"]);
         }
 
         var newTokens = await _jwtTokenService.GenerateTokenPairAsync(tokenEntity.User, cancellationToken);
@@ -186,11 +180,7 @@ public class IdentityService : IIdentityService
         await _unitOfWork.SaveChangesAsync(cancellationToken);
 
         var favoritesCount = await _context.CustomerFavorites.CountAsync(x => x.UserId == user.Id, cancellationToken);
-        return new CurrentUserDto(user.Id, user.FullName, user.Email, user.PhoneNumber, user.Role.ToString(), favoritesCount);
+        var access = await _accessControlService.GetEffectiveAccessAsync(user.Id, cancellationToken);
+        return new CurrentUserDto(user.Id, user.FullName, user.Email, user.PhoneNumber, user.Role.ToString(), favoritesCount, access);
     }
-
-    private static bool RequiresVerifiedCustomerEmail(IdentityAccountSnapshot user) =>
-        user.Role == UserRole.Customer &&
-        !string.IsNullOrWhiteSpace(user.Email) &&
-        !user.EmailConfirmed;
 }
