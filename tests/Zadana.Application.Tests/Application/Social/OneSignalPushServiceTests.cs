@@ -2,6 +2,7 @@ using System.Net;
 using System.Text;
 using System.Text.Json;
 using FluentAssertions;
+using Microsoft.Extensions.DependencyInjection;
 using Microsoft.Extensions.Logging;
 using Microsoft.Extensions.Logging.Abstractions;
 using Microsoft.Extensions.Options;
@@ -392,7 +393,22 @@ public class OneSignalPushServiceTests
                 OrderUpdatesExistingAndroidChannelId = "zadana_order_updates_realtime_v2",
                 OrderUpdatesPriority = 10
             }),
-            logger ?? NullLogger<OneSignalPushService>.Instance);
+            logger ?? NullLogger<OneSignalPushService>.Instance,
+            new NoOpServiceScopeFactory());
+    }
+
+    private sealed class NoOpServiceScopeFactory : IServiceScopeFactory
+    {
+        public IServiceScope CreateScope() => new NoOpServiceScope();
+    }
+
+    private sealed class NoOpServiceScope : IServiceScope
+    {
+        public IServiceProvider ServiceProvider { get; } = new ServiceCollection().BuildServiceProvider();
+
+        public void Dispose()
+        {
+        }
     }
 
     private sealed class RecordingHttpMessageHandler : HttpMessageHandler

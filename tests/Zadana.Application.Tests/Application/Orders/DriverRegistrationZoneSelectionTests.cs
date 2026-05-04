@@ -64,6 +64,7 @@ public class DriverRegistrationRegionCityTests
             "ahmed.driver@example.com",
             "+201001112233",
             UserRole.Driver,
+            0,
             AccountStatus.Pending,
             false,
             null,
