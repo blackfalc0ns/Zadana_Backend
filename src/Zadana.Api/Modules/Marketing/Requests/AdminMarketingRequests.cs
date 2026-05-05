@@ -68,6 +68,33 @@ public record UpdateHomeSectionRequest(
 public record UpdateHomeContentSectionSettingRequest(
     bool IsEnabled);
 
+public record CreateCouponRequest(
+    string Code,
+    string Title,
+    string DiscountType,
+    decimal DiscountValue,
+    decimal? MinOrderAmount,
+    decimal? MaxDiscountAmount,
+    DateTime? StartsAtUtc,
+    DateTime? EndsAtUtc,
+    int? UsageLimit,
+    int? PerUserLimit,
+    IReadOnlyCollection<Guid>? VendorIds);
+
+public record UpdateCouponRequest(
+    string Code,
+    string Title,
+    string DiscountType,
+    decimal DiscountValue,
+    decimal? MinOrderAmount,
+    decimal? MaxDiscountAmount,
+    DateTime? StartsAtUtc,
+    DateTime? EndsAtUtc,
+    int? UsageLimit,
+    int? PerUserLimit,
+    bool IsActive,
+    IReadOnlyCollection<Guid>? VendorIds);
+
 public record HomeSectionThemeOptionResponse(
     string Key,
     string LabelAr,

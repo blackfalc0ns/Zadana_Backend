@@ -57,6 +57,34 @@ public class Coupon : BaseEntity
     }
 
     public void UpdateStatus(bool isActive) => IsActive = isActive;
+
+    public void UpdateDetails(
+        string code,
+        string title,
+        CouponDiscountType discountType,
+        decimal discountValue,
+        decimal? minOrderAmount = null,
+        decimal? maxDiscountAmount = null,
+        DateTime? startsAtUtc = null,
+        DateTime? endsAtUtc = null,
+        int? usageLimit = null,
+        int? perUserLimit = null)
+    {
+        if (discountValue <= 0) throw new BusinessRuleException("INVALID_DISCOUNT", "Discount value must be greater than zero.");
+        if (discountType == CouponDiscountType.Percentage && discountValue > 100)
+            throw new BusinessRuleException("INVALID_DISCOUNT", "Percentage discount cannot exceed 100.");
+
+        Code = code.Trim().ToUpperInvariant();
+        Title = title.Trim();
+        DiscountType = discountType;
+        DiscountValue = discountValue;
+        MinOrderAmount = minOrderAmount;
+        MaxDiscountAmount = maxDiscountAmount;
+        StartsAtUtc = startsAtUtc;
+        EndsAtUtc = endsAtUtc;
+        UsageLimit = usageLimit;
+        PerUserLimit = perUserLimit;
+    }
     
     public bool IsValid()
     {

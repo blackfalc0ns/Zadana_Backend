@@ -57,3 +57,26 @@ public record HomeSectionThemeOptionDto(
 public record HomeContentSectionSettingDto(
     string SectionType,
     bool IsEnabled);
+
+public record CouponVendorAdminDto(
+    Guid VendorId,
+    string VendorNameAr,
+    string VendorNameEn);
+
+public record CouponAdminDto(
+    Guid Id,
+    string Code,
+    string Title,
+    string DiscountType,
+    decimal DiscountValue,
+    decimal? MinOrderAmount,
+    decimal? MaxDiscountAmount,
+    DateTime? StartsAtUtc,
+    DateTime? EndsAtUtc,
+    int? UsageLimit,
+    int? PerUserLimit,
+    bool IsActive,
+    int AssignedVendorsCount,
+    IReadOnlyList<CouponVendorAdminDto> ApplicableVendors,
+    DateTime CreatedAtUtc,
+    DateTime UpdatedAtUtc);

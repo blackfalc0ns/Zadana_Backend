@@ -1,7 +1,14 @@
 using FluentValidation;
+using MediatR;
+using Microsoft.EntityFrameworkCore;
 using Microsoft.Extensions.Localization;
+using Zadana.Application.Common.Interfaces;
 using Zadana.Application.Common.Localization;
+using Zadana.Application.Modules.Marketing.Commands.Coupons;
+using Zadana.Application.Modules.Marketing.DTOs;
+using Zadana.Domain.Modules.Marketing.Entities;
 using Zadana.Domain.Modules.Marketing.Enums;
+using Zadana.SharedKernel.Exceptions;
 
 namespace Zadana.Application.Modules.Marketing.Commands.CreateCoupon;
 
@@ -15,7 +22,8 @@ public record CreateCouponCommand(
     DateTime? StartsAtUtc,
     DateTime? EndsAtUtc,
     int? UsageLimit,
-    int? PerUserLimit) : MediatR.IRequest<Guid>;
+    int? PerUserLimit,
+    IReadOnlyCollection<Guid>? VendorIds) : IRequest<CouponAdminDto>;
 
 public class CreateCouponCommandValidator : AbstractValidator<CreateCouponCommand>
 {
@@ -52,5 +60,69 @@ public class CreateCouponCommandValidator : AbstractValidator<CreateCouponComman
         RuleFor(x => x.PerUserLimit)
             .GreaterThan(0).When(x => x.PerUserLimit.HasValue)
             .WithMessage(x => localizer["GreaterThanZero"]);
+    }
+}
+
+public class CreateCouponCommandHandler : IRequestHandler<CreateCouponCommand, CouponAdminDto>
+{
+    private readonly IApplicationDbContext _context;
+
+    public CreateCouponCommandHandler(IApplicationDbContext context)
+    {
+        _context = context;
+    }
+
+    public async Task<CouponAdminDto> Handle(CreateCouponCommand request, CancellationToken cancellationToken)
+    {
+        var code = request.Code.Trim().ToUpperInvariant();
+        var exists = await _context.Coupons.AnyAsync(x => x.Code == code, cancellationToken);
+        if (exists)
+        {
+            throw new BusinessRuleException("DUPLICATE_COUPON_CODE", "Coupon code already exists.");
+        }
+
+        var discountType = Enum.Parse<CouponDiscountType>(request.DiscountType, ignoreCase: true);
+
+        var entity = new Coupon(
+            code,
+            request.Title,
+            discountType,
+            request.DiscountValue,
+            request.MinOrderAmount,
+            request.MaxDiscountAmount,
+            request.StartsAtUtc,
+            request.EndsAtUtc,
+            request.UsageLimit,
+            request.PerUserLimit);
+
+        _context.Coupons.Add(entity);
+
+        var vendorIds = request.VendorIds?
+            .Where(id => id != Guid.Empty)
+            .Distinct()
+            .ToArray() ?? [];
+
+        if (vendorIds.Length > 0)
+        {
+            var existingVendorIds = await _context.Vendors
+                .Where(x => vendorIds.Contains(x.Id))
+                .Select(x => x.Id)
+                .ToListAsync(cancellationToken);
+
+            var missingVendorId = vendorIds.FirstOrDefault(id => !existingVendorIds.Contains(id));
+            if (missingVendorId != Guid.Empty)
+            {
+                throw new NotFoundException("Vendor", missingVendorId);
+            }
+
+            foreach (var vendorId in existingVendorIds)
+            {
+                _context.CouponVendors.Add(new CouponVendor(entity.Id, vendorId));
+            }
+        }
+
+        await _context.SaveChangesAsync(cancellationToken);
+
+        return await MarketingCouponMappings.ToCouponDto(_context, entity.Id, cancellationToken);
     }
 }
