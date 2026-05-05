@@ -54,6 +54,10 @@ public sealed class AccessAuthorizationConvention : IApplicationModelConvention
                 [PermissionKeys.Admin.MarketingView],
                 create: [PermissionKeys.Admin.MarketingEdit],
                 edit: [PermissionKeys.Admin.MarketingEdit]),
+            ["AdminMarketingCoupons"] = new(
+                [PermissionKeys.Admin.MarketingView],
+                create: [PermissionKeys.Admin.MarketingEdit],
+                edit: [PermissionKeys.Admin.MarketingEdit]),
             ["AdminMarketingFeaturedProducts"] = new(
                 [PermissionKeys.Admin.MarketingView],
                 create: [PermissionKeys.Admin.MarketingEdit],
@@ -126,6 +130,10 @@ public sealed class AccessAuthorizationConvention : IApplicationModelConvention
                 [PermissionKeys.Vendor.OrdersView],
                 edit: [PermissionKeys.Vendor.OrdersEdit],
                 approve: [PermissionKeys.Vendor.OrdersApprove]),
+            ["VendorCoupons"] = new(
+                [PermissionKeys.Vendor.OffersView],
+                create: [PermissionKeys.Vendor.OffersEdit],
+                edit: [PermissionKeys.Vendor.OffersEdit]),
             ["VendorOrderCases"] = new(
                 [PermissionKeys.Vendor.SupportView],
                 create: [PermissionKeys.Vendor.SupportEdit],

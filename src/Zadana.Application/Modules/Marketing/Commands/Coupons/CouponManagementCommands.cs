@@ -198,7 +198,7 @@ internal static class MarketingCouponMappings
         var projection = await context.Coupons
             .AsNoTracking()
             .Where(x => x.Id == couponId)
-            .Select(x => new CouponAdminDto(
+            .Select(x => new CouponDetailsProjection(
                 x.Id,
                 x.Code,
                 x.Title,
@@ -212,17 +212,59 @@ internal static class MarketingCouponMappings
                 x.PerUserLimit,
                 x.IsActive,
                 x.ApplicableVendors.Count,
-                x.ApplicableVendors
-                    .Select(v => new CouponVendorAdminDto(
-                        v.VendorId,
-                        v.Vendor.BusinessNameAr,
-                        v.Vendor.BusinessNameEn))
-                    .OrderBy(v => v.VendorNameAr)
-                    .ToList(),
                 x.CreatedAtUtc,
                 x.UpdatedAtUtc))
             .FirstOrDefaultAsync(cancellationToken);
 
-        return projection ?? throw new NotFoundException(nameof(Coupon), couponId);
+        if (projection is null)
+        {
+            throw new NotFoundException(nameof(Coupon), couponId);
+        }
+
+        var applicableVendors = await context.CouponVendors
+            .AsNoTracking()
+            .Where(x => x.CouponId == couponId)
+            .OrderBy(x => x.Vendor.BusinessNameAr)
+            .ThenBy(x => x.Vendor.BusinessNameEn)
+            .Select(x => new CouponVendorAdminDto(
+                x.VendorId,
+                x.Vendor.BusinessNameAr,
+                x.Vendor.BusinessNameEn))
+            .ToListAsync(cancellationToken);
+
+        return new CouponAdminDto(
+            projection.Id,
+            projection.Code,
+            projection.Title,
+            projection.DiscountType,
+            projection.DiscountValue,
+            projection.MinOrderAmount,
+            projection.MaxDiscountAmount,
+            projection.StartsAtUtc,
+            projection.EndsAtUtc,
+            projection.UsageLimit,
+            projection.PerUserLimit,
+            projection.IsActive,
+            projection.AssignedVendorsCount,
+            applicableVendors,
+            projection.CreatedAtUtc,
+            projection.UpdatedAtUtc);
     }
 }
+
+internal sealed record CouponDetailsProjection(
+    Guid Id,
+    string Code,
+    string Title,
+    string DiscountType,
+    decimal DiscountValue,
+    decimal? MinOrderAmount,
+    decimal? MaxDiscountAmount,
+    DateTime? StartsAtUtc,
+    DateTime? EndsAtUtc,
+    int? UsageLimit,
+    int? PerUserLimit,
+    bool IsActive,
+    int AssignedVendorsCount,
+    DateTime CreatedAtUtc,
+    DateTime UpdatedAtUtc);

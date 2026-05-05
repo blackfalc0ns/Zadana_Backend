@@ -21,10 +21,10 @@ public class GetCouponsQueryHandler : IRequestHandler<GetCouponsQuery, List<Coup
 
     public async Task<List<CouponAdminDto>> Handle(GetCouponsQuery request, CancellationToken cancellationToken)
     {
-        return await _context.Coupons
+        var coupons = await _context.Coupons
             .AsNoTracking()
             .OrderBy(x => x.Code)
-            .Select(x => new CouponAdminDto(
+            .Select(x => new CouponSummaryProjection(
                 x.Id,
                 x.Code,
                 x.Title,
@@ -38,16 +38,58 @@ public class GetCouponsQueryHandler : IRequestHandler<GetCouponsQuery, List<Coup
                 x.PerUserLimit,
                 x.IsActive,
                 x.ApplicableVendors.Count,
-                x.ApplicableVendors
-                    .Select(v => new CouponVendorAdminDto(
-                        v.VendorId,
-                        v.Vendor.BusinessNameAr,
-                        v.Vendor.BusinessNameEn))
-                    .OrderBy(v => v.VendorNameAr)
-                    .ToList(),
                 x.CreatedAtUtc,
                 x.UpdatedAtUtc))
             .ToListAsync(cancellationToken);
+
+        if (coupons.Count == 0)
+        {
+            return [];
+        }
+
+        var couponIds = coupons.Select(x => x.Id).ToArray();
+        var vendorsByCouponId = await _context.CouponVendors
+            .AsNoTracking()
+            .Where(x => couponIds.Contains(x.CouponId))
+            .Select(x => new
+            {
+                x.CouponId,
+                Vendor = new CouponVendorAdminDto(
+                    x.VendorId,
+                    x.Vendor.BusinessNameAr,
+                    x.Vendor.BusinessNameEn)
+            })
+            .ToListAsync(cancellationToken);
+
+        var vendorLookup = vendorsByCouponId
+            .GroupBy(x => x.CouponId)
+            .ToDictionary(
+                group => group.Key,
+                group => (IReadOnlyList<CouponVendorAdminDto>)group
+                    .Select(x => x.Vendor)
+                    .OrderBy(x => x.VendorNameAr)
+                    .ThenBy(x => x.VendorNameEn)
+                    .ToList());
+
+        return coupons
+            .Select(x => new CouponAdminDto(
+                x.Id,
+                x.Code,
+                x.Title,
+                x.DiscountType,
+                x.DiscountValue,
+                x.MinOrderAmount,
+                x.MaxDiscountAmount,
+                x.StartsAtUtc,
+                x.EndsAtUtc,
+                x.UsageLimit,
+                x.PerUserLimit,
+                x.IsActive,
+                x.AssignedVendorsCount,
+                vendorLookup.GetValueOrDefault(x.Id, Array.Empty<CouponVendorAdminDto>()),
+                x.CreatedAtUtc,
+                x.UpdatedAtUtc))
+            .ToList();
     }
 }
 
@@ -65,3 +107,20 @@ public class GetCouponByIdQueryHandler : IRequestHandler<GetCouponByIdQuery, Cou
         return MarketingCouponMappings.ToCouponDto(_context, request.Id, cancellationToken);
     }
 }
+
+internal sealed record CouponSummaryProjection(
+    Guid Id,
+    string Code,
+    string Title,
+    string DiscountType,
+    decimal DiscountValue,
+    decimal? MinOrderAmount,
+    decimal? MaxDiscountAmount,
+    DateTime? StartsAtUtc,
+    DateTime? EndsAtUtc,
+    int? UsageLimit,
+    int? PerUserLimit,
+    bool IsActive,
+    int AssignedVendorsCount,
+    DateTime CreatedAtUtc,
+    DateTime UpdatedAtUtc);
