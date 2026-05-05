@@ -57,25 +57,14 @@ public class CheckoutController : ApiControllerBase
         }
 
         var userId = _currentUserService.UserId ?? throw new UnauthorizedException("USER_NOT_AUTHENTICATED");
+        var resolvedVendorId = ResolveGuidQueryAlias(vendorId, "vendorId", "INVALID_VENDOR_ID");
         var resolvedPaymentMethod = ResolveStringQueryAlias(paymentMethod, "paymentMethod");
-        var result = await Sender.Send(new ApplyCheckoutPromoCodeCommand(userId, vendorId, request.Code, resolvedPaymentMethod), cancellationToken);
+        var result = await Sender.Send(new ApplyCheckoutPromoCodeCommand(userId, resolvedVendorId, request.Code, resolvedPaymentMethod), cancellationToken);
+        var checkout = await Sender.Send(
+            new GetCheckoutSummaryQuery(userId, resolvedVendorId, null, null, resolvedPaymentMethod),
+            cancellationToken);
 
-        return Ok(new ApplyCheckoutPromoCodeResponse(
-            result.MessageAr,
-            result.MessageEn,
-            new CheckoutPromoCodeResponse(
-                result.PromoCode.Code,
-                result.PromoCode.DiscountType,
-                result.PromoCode.DiscountValue,
-                result.PromoCode.DiscountAmount),
-            new CheckoutSummaryTotalsResponse(
-                result.Summary.Subtotal,
-                result.Summary.ShippingCost,
-                result.Summary.Discount,
-                result.Summary.VatAmount,
-                result.Summary.CodFee,
-                result.Summary.Total,
-                result.Summary.Currency)));
+        return Ok(MapApplyPromoCodeResponse(result.MessageAr, result.MessageEn, checkout));
     }
 
     [HttpDelete("promo-code")]
@@ -85,20 +74,14 @@ public class CheckoutController : ApiControllerBase
         CancellationToken cancellationToken = default)
     {
         var userId = _currentUserService.UserId ?? throw new UnauthorizedException("USER_NOT_AUTHENTICATED");
+        var resolvedVendorId = ResolveGuidQueryAlias(vendorId, "vendorId", "INVALID_VENDOR_ID");
         var resolvedPaymentMethod = ResolveStringQueryAlias(paymentMethod, "paymentMethod");
-        var result = await Sender.Send(new RemoveCheckoutPromoCodeCommand(userId, vendorId, resolvedPaymentMethod), cancellationToken);
+        var result = await Sender.Send(new RemoveCheckoutPromoCodeCommand(userId, resolvedVendorId, resolvedPaymentMethod), cancellationToken);
+        var checkout = await Sender.Send(
+            new GetCheckoutSummaryQuery(userId, resolvedVendorId, null, null, resolvedPaymentMethod),
+            cancellationToken);
 
-        return Ok(new RemoveCheckoutPromoCodeResponse(
-            result.MessageAr,
-            result.MessageEn,
-            new CheckoutSummaryTotalsResponse(
-                result.Summary.Subtotal,
-                result.Summary.ShippingCost,
-                result.Summary.Discount,
-                result.Summary.VatAmount,
-                result.Summary.CodFee,
-                result.Summary.Total,
-                result.Summary.Currency)));
+        return Ok(MapRemovePromoCodeResponse(result.MessageAr, result.MessageEn, checkout));
     }
 
     private static GetCheckoutSummaryResponse MapSummary(CheckoutSummaryDto result)
@@ -174,6 +157,52 @@ public class CheckoutController : ApiControllerBase
                 result.Summary.CodFee,
                 result.Summary.Total,
                 result.Summary.Currency));
+    }
+
+    private static ApplyCheckoutPromoCodeResponse MapApplyPromoCodeResponse(
+        string messageAr,
+        string messageEn,
+        CheckoutSummaryDto result)
+    {
+        var summary = MapSummary(result);
+
+        return new ApplyCheckoutPromoCodeResponse(
+            messageAr,
+            messageEn,
+            summary.Cart,
+            summary.AddressId,
+            summary.SelectedAddress,
+            summary.AvailableAddresses,
+            summary.DeliverySlots,
+            summary.PaymentMethods,
+            summary.PromoCode,
+            summary.DeliveryQuote,
+            summary.ShippingBreakdown,
+            summary.PricingMode,
+            summary.Summary);
+    }
+
+    private static RemoveCheckoutPromoCodeResponse MapRemovePromoCodeResponse(
+        string messageAr,
+        string messageEn,
+        CheckoutSummaryDto result)
+    {
+        var summary = MapSummary(result);
+
+        return new RemoveCheckoutPromoCodeResponse(
+            messageAr,
+            messageEn,
+            summary.Cart,
+            summary.AddressId,
+            summary.SelectedAddress,
+            summary.AvailableAddresses,
+            summary.DeliverySlots,
+            summary.PaymentMethods,
+            summary.PromoCode,
+            summary.DeliveryQuote,
+            summary.ShippingBreakdown,
+            summary.PricingMode,
+            summary.Summary);
     }
 
     private Guid? ResolveGuidQueryAlias(Guid? currentValue, string aliasName, string errorCode)

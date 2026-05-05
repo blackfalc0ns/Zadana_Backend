@@ -91,12 +91,31 @@ public record ApplyCheckoutPromoCodeRequest(
 public record ApplyCheckoutPromoCodeResponse(
     [property: JsonPropertyName("message_ar")] string MessageAr,
     [property: JsonPropertyName("message_en")] string MessageEn,
-    [property: JsonPropertyName("promo_code")] CheckoutPromoCodeResponse PromoCode,
+    [property: JsonPropertyName("cart")] CheckoutCartResponse Cart,
+    [property: JsonPropertyName("address_id")] Guid? AddressId,
+    [property: JsonPropertyName("selected_address")] CheckoutSelectedAddressResponse? SelectedAddress,
+    [property: JsonPropertyName("available_addresses")] List<CheckoutSelectedAddressResponse> AvailableAddresses,
+    [property: JsonPropertyName("delivery_slots")] List<CheckoutDeliverySlotResponse> DeliverySlots,
+    [property: JsonPropertyName("payment_methods")] List<CheckoutPaymentMethodResponse> PaymentMethods,
+    [property: JsonPropertyName("promo_code")] CheckoutPromoCodeResponse? PromoCode,
+    [property: JsonPropertyName("delivery_quote")] CheckoutDeliveryQuoteResponse DeliveryQuote,
+    [property: JsonPropertyName("shipping_breakdown")] List<CheckoutShippingBreakdownLineResponse> ShippingBreakdown,
+    [property: JsonPropertyName("pricing_mode")] string PricingMode,
     [property: JsonPropertyName("summary")] CheckoutSummaryTotalsResponse Summary);
 
 public record RemoveCheckoutPromoCodeResponse(
     [property: JsonPropertyName("message_ar")] string MessageAr,
     [property: JsonPropertyName("message_en")] string MessageEn,
+    [property: JsonPropertyName("cart")] CheckoutCartResponse Cart,
+    [property: JsonPropertyName("address_id")] Guid? AddressId,
+    [property: JsonPropertyName("selected_address")] CheckoutSelectedAddressResponse? SelectedAddress,
+    [property: JsonPropertyName("available_addresses")] List<CheckoutSelectedAddressResponse> AvailableAddresses,
+    [property: JsonPropertyName("delivery_slots")] List<CheckoutDeliverySlotResponse> DeliverySlots,
+    [property: JsonPropertyName("payment_methods")] List<CheckoutPaymentMethodResponse> PaymentMethods,
+    [property: JsonPropertyName("promo_code")] CheckoutPromoCodeResponse? PromoCode,
+    [property: JsonPropertyName("delivery_quote")] CheckoutDeliveryQuoteResponse DeliveryQuote,
+    [property: JsonPropertyName("shipping_breakdown")] List<CheckoutShippingBreakdownLineResponse> ShippingBreakdown,
+    [property: JsonPropertyName("pricing_mode")] string PricingMode,
     [property: JsonPropertyName("summary")] CheckoutSummaryTotalsResponse Summary);
 
 public class PlaceOrderRequest
