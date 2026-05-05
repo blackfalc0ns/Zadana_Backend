@@ -80,6 +80,13 @@ public sealed class OrderSupportCaseWorkflowService : IOrderSupportCaseWorkflowS
 
         if (activeCase is not null)
         {
+            if (!CanMergeCustomerInitiatedCase(activeCase, supportCaseType, initiatorRole))
+            {
+                throw new BusinessRuleException(
+                    "ORDER_SUPPORT_CASE_ALREADY_EXISTS",
+                    "An active support case already exists for this order.");
+            }
+
             activeCase.MergeIntoActiveCase(
                 customerUserId,
                 initiatorRole,
@@ -171,6 +178,13 @@ public sealed class OrderSupportCaseWorkflowService : IOrderSupportCaseWorkflowS
 
         if (activeCase is not null)
         {
+            if (!CanMergeAdminInitiatedCase(activeCase, supportCaseType))
+            {
+                throw new BusinessRuleException(
+                    "ORDER_SUPPORT_CASE_ALREADY_EXISTS",
+                    "An active support case already exists for this order.");
+            }
+
             activeCase.AddAdminPublicMessage(adminUserId, message, "customer,vendor");
 
             if (!string.IsNullOrWhiteSpace(internalNote))
@@ -564,6 +578,22 @@ public sealed class OrderSupportCaseWorkflowService : IOrderSupportCaseWorkflowS
         {
             throw new BusinessRuleException("ORDER_RETURN_NOT_ALLOWED", "Return requests can only be created for delivered orders.");
         }
+    }
+
+    private static bool CanMergeCustomerInitiatedCase(
+        OrderSupportCase activeCase,
+        OrderSupportCaseType requestedType,
+        string initiatorRole)
+    {
+        return activeCase.Type == requestedType &&
+               string.Equals(activeCase.InitiatorRole, NormalizeToken(initiatorRole), StringComparison.OrdinalIgnoreCase);
+    }
+
+    private static bool CanMergeAdminInitiatedCase(
+        OrderSupportCase activeCase,
+        OrderSupportCaseType requestedType)
+    {
+        return activeCase.Type == requestedType;
     }
 
     private async Task EnsureRefundDecisionAsync(

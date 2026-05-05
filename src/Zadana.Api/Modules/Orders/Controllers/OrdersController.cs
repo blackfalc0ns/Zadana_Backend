@@ -280,6 +280,7 @@ public class OrdersController : ApiControllerBase
         var userId = _currentUserService.UserId ?? throw new UnauthorizedException("USER_NOT_AUTHENTICATED");
         var cases = await _orderReadService.GetCustomerOrderSupportCasesAsync(orderId, userId, cancellationToken);
         var activeCase = cases.FirstOrDefault(c =>
+            c.Type == "return_request" &&
             c.Status != "resolved" && c.Status != "rejected");
 
         if (activeCase is null)
