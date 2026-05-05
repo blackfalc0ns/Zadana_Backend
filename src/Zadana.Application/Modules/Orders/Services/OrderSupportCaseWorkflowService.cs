@@ -10,6 +10,7 @@ using Zadana.Domain.Modules.Orders.Entities;
 using Zadana.Domain.Modules.Orders.Enums;
 using Zadana.Domain.Modules.Payments.Entities;
 using Zadana.Domain.Modules.Payments.Enums;
+using Zadana.Domain.Modules.Social.Enums;
 using Zadana.SharedKernel.Exceptions;
 
 namespace Zadana.Application.Modules.Orders.Services;
@@ -113,7 +114,7 @@ public sealed class OrderSupportCaseWorkflowService : IOrderSupportCaseWorkflowS
 
             if (!isDriverInitiated)
             {
-                await NotifyVendorAsync(order, activeCase, "customer_updated", cancellationToken);
+                await NotifyVendorSupportCaseAsync(order, activeCase, "customer_updated", cancellationToken);
             }
 
             return activeCase;
@@ -151,7 +152,7 @@ public sealed class OrderSupportCaseWorkflowService : IOrderSupportCaseWorkflowS
         if (!isDriverInitiated)
         {
             await NotifyCustomerAsync(order, supportCase, "created", cancellationToken);
-            await NotifyVendorAsync(order, supportCase, "customer_created", cancellationToken);
+            await NotifyVendorSupportCaseAsync(order, supportCase, "customer_created", cancellationToken);
         }
         else
         {
@@ -279,7 +280,7 @@ public sealed class OrderSupportCaseWorkflowService : IOrderSupportCaseWorkflowS
         switch (normalizedTargetRole)
         {
             case "vendor":
-                await NotifyVendorAsync(supportCase.Order, supportCase, "request_evidence", cancellationToken);
+                await NotifyVendorSupportCaseAsync(supportCase.Order, supportCase, "request_evidence", cancellationToken);
                 break;
             case "driver":
                 await NotifyActiveDriverAsync(supportCase.Order, supportCase, "request_evidence", cancellationToken);
@@ -399,7 +400,7 @@ public sealed class OrderSupportCaseWorkflowService : IOrderSupportCaseWorkflowS
             await NotifyCustomerAsync(supportCase.Order, supportCase, "approved", cancellationToken);
         }
 
-        await NotifyVendorAsync(supportCase.Order, supportCase, "approved", cancellationToken);
+        await NotifyVendorSupportCaseAsync(supportCase.Order, supportCase, "approved", cancellationToken);
         await NotifyActiveDriverAsync(supportCase.Order, supportCase, "approved", cancellationToken);
         return supportCase;
     }
@@ -417,7 +418,7 @@ public sealed class OrderSupportCaseWorkflowService : IOrderSupportCaseWorkflowS
         await _unitOfWork.SaveChangesAsync(cancellationToken);
 
         await NotifyCustomerAsync(supportCase.Order, supportCase, "rejected", cancellationToken);
-        await NotifyVendorAsync(supportCase.Order, supportCase, "rejected", cancellationToken);
+        await NotifyVendorSupportCaseAsync(supportCase.Order, supportCase, "rejected", cancellationToken);
         await NotifyActiveDriverAsync(supportCase.Order, supportCase, "rejected", cancellationToken);
         return supportCase;
     }
@@ -434,7 +435,7 @@ public sealed class OrderSupportCaseWorkflowService : IOrderSupportCaseWorkflowS
         await _unitOfWork.SaveChangesAsync(cancellationToken);
 
         await NotifyCustomerAsync(supportCase.Order, supportCase, "resolved", cancellationToken);
-        await NotifyVendorAsync(supportCase.Order, supportCase, "resolved", cancellationToken);
+        await NotifyVendorSupportCaseAsync(supportCase.Order, supportCase, "resolved", cancellationToken);
         await NotifyActiveDriverAsync(supportCase.Order, supportCase, "resolved", cancellationToken);
         return supportCase;
     }
@@ -467,7 +468,7 @@ public sealed class OrderSupportCaseWorkflowService : IOrderSupportCaseWorkflowS
         if (visibleToCustomer)
         {
             await NotifyCustomerAsync(supportCase.Order, supportCase, "note_added", cancellationToken);
-            await NotifyVendorAsync(supportCase.Order, supportCase, "note_added", cancellationToken);
+            await NotifyVendorSupportCaseAsync(supportCase.Order, supportCase, "note_added", cancellationToken);
         }
 
         return supportCase;
@@ -570,7 +571,7 @@ public sealed class OrderSupportCaseWorkflowService : IOrderSupportCaseWorkflowS
 
         if (AudienceIncludes(audience, "vendor"))
         {
-            await NotifyVendorAsync(supportCase.Order, supportCase, "admin_message", cancellationToken);
+            await NotifyVendorSupportCaseAsync(supportCase.Order, supportCase, "admin_message", cancellationToken);
         }
 
         if (AudienceIncludes(audience, "driver"))
@@ -808,6 +809,50 @@ public sealed class OrderSupportCaseWorkflowService : IOrderSupportCaseWorkflowS
                 bodyAr,
                 bodyEn,
                 "order_support_case",
+                supportCase.Id,
+                data,
+                targetUrl)
+            .DispatchAsync(_oneSignalPushService, cancellationToken);
+    }
+
+    private async Task NotifyVendorSupportCaseAsync(
+        Order order,
+        OrderSupportCase supportCase,
+        string action,
+        CancellationToken cancellationToken)
+    {
+        if (order.Vendor?.UserId is not Guid vendorUserId || vendorUserId == Guid.Empty)
+        {
+            return;
+        }
+
+        const string titleAr = "تحديث في نزاع طلب";
+        const string titleEn = "Order support case updated";
+        var bodyAr = $"تم تحديث حالة النزاع الخاصة بالطلب #{order.OrderNumber}.";
+        var bodyEn = $"The support case for order #{order.OrderNumber} has been updated.";
+        var targetUrl = $"/disputes/{supportCase.Id}";
+        var data = $$"""
+{"action":"{{action}}","orderId":"{{order.Id}}","orderNumber":"{{order.OrderNumber}}","caseId":"{{supportCase.Id}}","type":"{{OrderSupportCaseNotificationComposer.ToApiValue(supportCase.Type)}}","status":"{{OrderSupportCaseNotificationComposer.ToApiValue(supportCase.Status)}}","targetUrl":"{{targetUrl}}"}
+""";
+
+        await _notificationService.SendToUserAsync(
+            vendorUserId,
+            titleAr,
+            titleEn,
+            bodyAr,
+            bodyEn,
+            NotificationTypes.OrderSupportCaseChanged,
+            supportCase.Id,
+            data,
+            cancellationToken);
+
+        await OneSignalMobilePushRequest.CreateHeadsUp(
+                vendorUserId.ToString(),
+                titleAr,
+                titleEn,
+                bodyAr,
+                bodyEn,
+                NotificationTypes.OrderSupportCaseChanged,
                 supportCase.Id,
                 data,
                 targetUrl)

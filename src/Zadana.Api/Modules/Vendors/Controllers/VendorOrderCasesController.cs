@@ -88,10 +88,50 @@ public class VendorOrderCasesController : ApiControllerBase
             .OrderByDescending(c => c.CreatedAtUtc)
             .Skip((page - 1) * pageSize)
             .Take(pageSize)
+            .Select(c => new
+            {
+                c.Id,
+                c.OrderId,
+                OrderNumber = c.Order.OrderNumber,
+                Type = c.Type,
+                Status = c.Status,
+                Priority = c.Priority,
+                c.ReasonCode,
+                c.Message,
+                c.VendorResponse,
+                c.VendorRespondedAtUtc,
+                c.CustomerVisibleNote,
+                c.InitiatorRole,
+                c.AwaitingResponseFromRole,
+                c.RequestedRefundAmount,
+                c.ApprovedRefundAmount,
+                c.CompensationType,
+                c.CompensationCouponId,
+                c.CreatedAtUtc,
+                c.UpdatedAtUtc
+            })
+            .ToListAsync(cancellationToken);
+
+        var couponIds = cases
+            .Where(item => item.CompensationCouponId.HasValue)
+            .Select(item => item.CompensationCouponId!.Value)
+            .Distinct()
+            .ToList();
+
+        var redeemedCouponIds = couponIds.Count == 0
+            ? new HashSet<Guid>()
+            : await _dbContext.Orders
+                .AsNoTracking()
+                .Where(order => order.CouponId.HasValue && couponIds.Contains(order.CouponId.Value))
+                .Select(order => order.CouponId!.Value)
+                .Distinct()
+                .ToHashSetAsync(cancellationToken);
+
+        var items = cases
             .Select(c => new VendorOrderCaseListItemResponse(
                 c.Id,
                 c.OrderId,
-                c.Order.OrderNumber,
+                c.OrderNumber,
                 c.Type.ToString(),
                 c.Status.ToString(),
                 c.Priority.ToString(),
@@ -102,11 +142,19 @@ public class VendorOrderCasesController : ApiControllerBase
                 c.CustomerVisibleNote,
                 c.InitiatorRole,
                 c.AwaitingResponseFromRole,
+                c.RequestedRefundAmount,
+                c.ApprovedRefundAmount,
+                MapCompensationType(c.CompensationType),
+                ResolveSettlementStatus(
+                    c.Status,
+                    c.Type,
+                    c.CompensationType,
+                    c.CompensationCouponId.HasValue && redeemedCouponIds.Contains(c.CompensationCouponId.Value)),
                 c.CreatedAtUtc,
                 c.UpdatedAtUtc))
-            .ToListAsync(cancellationToken);
+            .ToList();
 
-        return Ok(new VendorOrderCasesListResponse(cases, page, pageSize, total));
+        return Ok(new VendorOrderCasesListResponse(items, page, pageSize, total));
     }
 
     [HttpGet("{caseId:guid}")]
@@ -335,6 +383,10 @@ public sealed record VendorOrderCaseListItemResponse(
     string? CustomerVisibleNote,
     string InitiatorRole,
     string? WaitingOnRole,
+    decimal? RequestedRefundAmount,
+    decimal? ApprovedRefundAmount,
+    string? CompensationType,
+    string? SettlementStatus,
     DateTime CreatedAt,
     DateTime UpdatedAt);
 
