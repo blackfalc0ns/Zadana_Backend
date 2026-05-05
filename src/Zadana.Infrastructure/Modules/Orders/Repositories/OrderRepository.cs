@@ -62,6 +62,8 @@ public class OrderRepository : IOrderRepository
         string? deliveryPricingMode,
         string? deliveryPricingRuleLabel,
         decimal commissionAmount,
+        decimal vatAmount,
+        decimal codFee,
         IReadOnlyDictionary<Guid, int> itemQuantities,
         CancellationToken cancellationToken = default)
     {
@@ -87,7 +89,9 @@ public class OrderRepository : IOrderRepository
                 order.QuotedDistanceKm == quotedDistanceKm &&
                 order.DeliveryPricingMode == deliveryPricingMode &&
                 order.DeliveryPricingRuleLabel == deliveryPricingRuleLabel &&
-                order.CommissionAmount == commissionAmount)
+                order.CommissionAmount == commissionAmount &&
+                order.VatAmount == vatAmount &&
+                order.CodFee == codFee)
             .OrderByDescending(order => order.PlacedAtUtc)
             .ToListAsync(cancellationToken);
 

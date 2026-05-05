@@ -9,7 +9,12 @@ using Zadana.Application.Modules.Payments.Interfaces;
 
 namespace Zadana.Application.Modules.Checkout.Queries.GetCheckoutSummary;
 
-public record GetCheckoutSummaryQuery(Guid UserId, Guid? VendorId, Guid? AddressId, string? DeliverySlotId) : IRequest<CheckoutSummaryDto>;
+public record GetCheckoutSummaryQuery(
+    Guid UserId,
+    Guid? VendorId,
+    Guid? AddressId,
+    string? DeliverySlotId,
+    string? PaymentMethod) : IRequest<CheckoutSummaryDto>;
 
 public class GetCheckoutSummaryQueryHandler : IRequestHandler<GetCheckoutSummaryQuery, CheckoutSummaryDto>
 {
@@ -45,6 +50,14 @@ public class GetCheckoutSummaryQueryHandler : IRequestHandler<GetCheckoutSummary
             address,
             cancellationToken);
         var discount = coupon == null ? 0m : CheckoutSupport.CalculateDiscountAmount(coupon, pricing.Subtotal);
+        var financeBreakdown = await CheckoutSupport.ResolveFinanceBreakdownAsync(
+            _context,
+            address,
+            pricing.Subtotal,
+            deliveryQuote.TotalFee,
+            discount,
+            request.PaymentMethod,
+            cancellationToken);
 
         // Fetch all customer addresses for address selection in checkout
         var allAddresses = await _context.CustomerAddresses
@@ -63,8 +76,8 @@ public class GetCheckoutSummaryQueryHandler : IRequestHandler<GetCheckoutSummary
             CheckoutSupport.BuildPaymentMethods(_paymobGateway.IsEnabled),
             CheckoutSupport.BuildPromoCodeDto(coupon, discount),
             CheckoutSupport.BuildDeliveryQuoteDto(deliveryQuote),
-            CheckoutSupport.BuildShippingBreakdown(deliveryQuote),
+            CheckoutSupport.BuildShippingBreakdown(deliveryQuote, financeBreakdown),
             deliveryQuote.PricingMode,
-            CheckoutSupport.BuildTotals(pricing.Subtotal, deliveryQuote.TotalFee, discount));
+            financeBreakdown.Totals);
     }
 }

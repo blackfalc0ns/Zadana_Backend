@@ -80,6 +80,8 @@ public record CheckoutSummaryTotalsResponse(
     [property: JsonPropertyName("subtotal")] decimal Subtotal,
     [property: JsonPropertyName("shipping_cost")] decimal ShippingCost,
     [property: JsonPropertyName("discount")] decimal Discount,
+    [property: JsonPropertyName("vat_amount")] decimal VatAmount,
+    [property: JsonPropertyName("cod_fee")] decimal CodFee,
     [property: JsonPropertyName("total")] decimal Total,
     [property: JsonPropertyName("currency")] string Currency);
 

@@ -45,6 +45,8 @@ public class PlaceOrderCommandHandlerTests
                 It.IsAny<string?>(),
                 It.IsAny<string?>(),
                 It.IsAny<decimal>(),
+                It.IsAny<decimal>(),
+                It.IsAny<decimal>(),
                 It.IsAny<IReadOnlyDictionary<Guid, int>>(),
                 It.IsAny<CancellationToken>()))
             .ReturnsAsync((Order?)null);
@@ -92,6 +94,8 @@ public class PlaceOrderCommandHandlerTests
                 It.IsAny<decimal?>(),
                 It.IsAny<string?>(),
                 It.IsAny<string?>(),
+                It.IsAny<decimal>(),
+                It.IsAny<decimal>(),
                 It.IsAny<decimal>(),
                 It.IsAny<IReadOnlyDictionary<Guid, int>>(),
                 It.IsAny<CancellationToken>()))
@@ -160,6 +164,8 @@ public class PlaceOrderCommandHandlerTests
                 null,
                 null,
                 6m,
+                0m,
+                0m,
                 It.IsAny<IReadOnlyDictionary<Guid, int>>(),
                 It.IsAny<CancellationToken>()))
             .ReturnsAsync(existingOrder);
@@ -167,7 +173,7 @@ public class PlaceOrderCommandHandlerTests
         var handler = CreateHandler();
 
         var result = await handler.Handle(
-            new PlaceOrderCommand(userId, vendorId, addressId, "Card", null, null, null, 20m, 0m, 0m, null, null, null, false),
+            new PlaceOrderCommand(userId, vendorId, addressId, "Card", null, null, null, 20m, 0m, 0m, null, null, null, 0m, 0m, false),
             CancellationToken.None);
 
         result.Should().Be(existingOrder.Id);

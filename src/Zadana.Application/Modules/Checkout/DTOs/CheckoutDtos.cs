@@ -61,6 +61,8 @@ public record CheckoutTotalsDto(
     decimal Subtotal,
     decimal ShippingCost,
     decimal Discount,
+    decimal VatAmount,
+    decimal CodFee,
     decimal Total,
     string Currency);
 

@@ -8,7 +8,11 @@ using Zadana.Application.Modules.Delivery.Interfaces;
 
 namespace Zadana.Application.Modules.Checkout.Commands.ApplyCheckoutPromoCode;
 
-public record ApplyCheckoutPromoCodeCommand(Guid UserId, Guid? VendorId, string Code) : IRequest<ApplyCheckoutPromoCodeResultDto>;
+public record ApplyCheckoutPromoCodeCommand(
+    Guid UserId,
+    Guid? VendorId,
+    string Code,
+    string? PaymentMethod = null) : IRequest<ApplyCheckoutPromoCodeResultDto>;
 
 public class ApplyCheckoutPromoCodeCommandValidator : AbstractValidator<ApplyCheckoutPromoCodeCommand>
 {
@@ -47,6 +51,14 @@ public class ApplyCheckoutPromoCodeCommandHandler : IRequestHandler<ApplyCheckou
             address,
             cancellationToken);
         var discount = CheckoutSupport.CalculateDiscountAmount(coupon, pricing.Subtotal);
+        var financeBreakdown = await CheckoutSupport.ResolveFinanceBreakdownAsync(
+            _context,
+            address,
+            pricing.Subtotal,
+            deliveryQuote.TotalFee,
+            discount,
+            request.PaymentMethod,
+            cancellationToken);
 
         cart.UpdateTotals(
             pricing.Subtotal,
@@ -64,6 +76,6 @@ public class ApplyCheckoutPromoCodeCommandHandler : IRequestHandler<ApplyCheckou
             LocalizedMessages.GetAr(LocalizedMessages.PromoCodeApplied),
             LocalizedMessages.GetEn(LocalizedMessages.PromoCodeApplied),
             CheckoutSupport.BuildPromoCodeDto(coupon, discount)!,
-            CheckoutSupport.BuildTotals(pricing.Subtotal, deliveryQuote.TotalFee, discount));
+            financeBreakdown.Totals);
     }
 }

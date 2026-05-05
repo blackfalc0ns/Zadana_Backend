@@ -68,7 +68,8 @@ public class PlaceCheckoutOrderCommandHandler : IRequestHandler<PlaceCheckoutOrd
     {
         ValidateDeliverySlot(request.DeliverySlotId);
 
-        var paymentMethodCode = request.PaymentMethod.Trim().ToLowerInvariant();
+        var paymentMethodCode = CheckoutSupport.NormalizePaymentMethodCode(request.PaymentMethod)
+            ?? throw new BusinessRuleException("PAYMENT_METHOD_NOT_SUPPORTED", "Selected payment method is not supported.");
         if (paymentMethodCode == "apple_pay")
         {
             throw new BusinessRuleException("PAYMENT_METHOD_NOT_SUPPORTED", "Apple Pay is not available yet.");
@@ -97,6 +98,14 @@ public class PlaceCheckoutOrderCommandHandler : IRequestHandler<PlaceCheckoutOrd
             cancellationToken);
         var coupon = await ResolveOrderCouponAsync(cart, request.PromoCode, pricing.VendorId, pricing.Subtotal, cancellationToken);
         var discount = coupon == null ? 0m : CheckoutSupport.CalculateDiscountAmount(coupon, pricing.Subtotal);
+        var financeBreakdown = await CheckoutSupport.ResolveFinanceBreakdownAsync(
+            _context,
+            address,
+            pricing.Subtotal,
+            deliveryQuote.TotalFee,
+            discount,
+            paymentMethodCode,
+            cancellationToken);
 
         cart.UpdateTotals(
             pricing.Subtotal,
@@ -135,6 +144,8 @@ public class PlaceCheckoutOrderCommandHandler : IRequestHandler<PlaceCheckoutOrd
                 deliveryQuote.DistanceKm,
                 deliveryQuote.PricingMode,
                 deliveryQuote.RuleLabel,
+                financeBreakdown.VatAmount,
+                financeBreakdown.CodFee,
                 shouldClearCartAfterPlacement),
             cancellationToken);
 

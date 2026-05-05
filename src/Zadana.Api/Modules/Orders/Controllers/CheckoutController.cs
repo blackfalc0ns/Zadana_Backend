@@ -28,15 +28,17 @@ public class CheckoutController : ApiControllerBase
         [FromQuery(Name = "vendor_id")] Guid? vendorId = null,
         [FromQuery(Name = "address_id")] Guid? addressId = null,
         [FromQuery(Name = "delivery_slot_id")] string? deliverySlotId = null,
+        [FromQuery(Name = "payment_method")] string? paymentMethod = null,
         CancellationToken cancellationToken = default)
     {
         var userId = _currentUserService.UserId ?? throw new UnauthorizedException("USER_NOT_AUTHENTICATED");
         var resolvedVendorId = ResolveGuidQueryAlias(vendorId, "vendorId", "INVALID_VENDOR_ID");
         var resolvedAddressId = ResolveGuidQueryAlias(addressId, "addressId", "INVALID_ADDRESS_ID");
         var resolvedDeliverySlotId = ResolveStringQueryAlias(deliverySlotId, "deliverySlotId");
+        var resolvedPaymentMethod = ResolveStringQueryAlias(paymentMethod, "paymentMethod");
 
         var result = await Sender.Send(
-            new GetCheckoutSummaryQuery(userId, resolvedVendorId, resolvedAddressId, resolvedDeliverySlotId),
+            new GetCheckoutSummaryQuery(userId, resolvedVendorId, resolvedAddressId, resolvedDeliverySlotId, resolvedPaymentMethod),
             cancellationToken);
 
         return Ok(MapSummary(result));
@@ -46,6 +48,7 @@ public class CheckoutController : ApiControllerBase
     public async Task<ActionResult<ApplyCheckoutPromoCodeResponse>> ApplyPromoCode(
         [FromBody] ApplyCheckoutPromoCodeRequest? request,
         [FromQuery(Name = "vendor_id")] Guid? vendorId = null,
+        [FromQuery(Name = "payment_method")] string? paymentMethod = null,
         CancellationToken cancellationToken = default)
     {
         if (request is null)
@@ -54,7 +57,8 @@ public class CheckoutController : ApiControllerBase
         }
 
         var userId = _currentUserService.UserId ?? throw new UnauthorizedException("USER_NOT_AUTHENTICATED");
-        var result = await Sender.Send(new ApplyCheckoutPromoCodeCommand(userId, vendorId, request.Code), cancellationToken);
+        var resolvedPaymentMethod = ResolveStringQueryAlias(paymentMethod, "paymentMethod");
+        var result = await Sender.Send(new ApplyCheckoutPromoCodeCommand(userId, vendorId, request.Code, resolvedPaymentMethod), cancellationToken);
 
         return Ok(new ApplyCheckoutPromoCodeResponse(
             result.MessageAr,
@@ -68,6 +72,8 @@ public class CheckoutController : ApiControllerBase
                 result.Summary.Subtotal,
                 result.Summary.ShippingCost,
                 result.Summary.Discount,
+                result.Summary.VatAmount,
+                result.Summary.CodFee,
                 result.Summary.Total,
                 result.Summary.Currency)));
     }
@@ -75,10 +81,12 @@ public class CheckoutController : ApiControllerBase
     [HttpDelete("promo-code")]
     public async Task<ActionResult<RemoveCheckoutPromoCodeResponse>> RemovePromoCode(
         [FromQuery(Name = "vendor_id")] Guid? vendorId = null,
+        [FromQuery(Name = "payment_method")] string? paymentMethod = null,
         CancellationToken cancellationToken = default)
     {
         var userId = _currentUserService.UserId ?? throw new UnauthorizedException("USER_NOT_AUTHENTICATED");
-        var result = await Sender.Send(new RemoveCheckoutPromoCodeCommand(userId, vendorId), cancellationToken);
+        var resolvedPaymentMethod = ResolveStringQueryAlias(paymentMethod, "paymentMethod");
+        var result = await Sender.Send(new RemoveCheckoutPromoCodeCommand(userId, vendorId, resolvedPaymentMethod), cancellationToken);
 
         return Ok(new RemoveCheckoutPromoCodeResponse(
             result.MessageAr,
@@ -87,6 +95,8 @@ public class CheckoutController : ApiControllerBase
                 result.Summary.Subtotal,
                 result.Summary.ShippingCost,
                 result.Summary.Discount,
+                result.Summary.VatAmount,
+                result.Summary.CodFee,
                 result.Summary.Total,
                 result.Summary.Currency)));
     }
@@ -160,6 +170,8 @@ public class CheckoutController : ApiControllerBase
                 result.Summary.Subtotal,
                 result.Summary.ShippingCost,
                 result.Summary.Discount,
+                result.Summary.VatAmount,
+                result.Summary.CodFee,
                 result.Summary.Total,
                 result.Summary.Currency));
     }

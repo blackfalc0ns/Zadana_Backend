@@ -31,6 +31,8 @@ public interface IOrderRepository
         string? deliveryPricingMode,
         string? deliveryPricingRuleLabel,
         decimal commissionAmount,
+        decimal vatAmount,
+        decimal codFee,
         IReadOnlyDictionary<Guid, int> itemQuantities,
         CancellationToken cancellationToken = default);
     void AddCart(Cart cart);

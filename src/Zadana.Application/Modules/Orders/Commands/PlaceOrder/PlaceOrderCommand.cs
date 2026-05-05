@@ -19,6 +19,8 @@ public record PlaceOrderCommand(
     decimal? QuotedDistanceKm,
     string? DeliveryPricingMode,
     string? DeliveryPricingRuleLabel,
+    decimal VatAmount = 0m,
+    decimal CodFee = 0m,
     bool ClearCartAfterPlacement = true) : MediatR.IRequest<Guid>;
 
 public class PlaceOrderCommandValidator : AbstractValidator<PlaceOrderCommand>

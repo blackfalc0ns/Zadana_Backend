@@ -8,6 +8,16 @@
 
 This contract explains the current checkout summary behavior after the delivery pricing upgrade.
 
+For the latest implemented pricing additions related to:
+
+- `payment_method` aware totals
+- `vat_amount`
+- `cod_fee`
+
+see:
+
+- `CHECKOUT_PRICING_VAT_COD_HANDOFF.md`
+
 The backend now returns:
 
 - `delivery_quote`

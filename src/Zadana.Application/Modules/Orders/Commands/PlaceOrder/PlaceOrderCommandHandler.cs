@@ -82,6 +82,8 @@ public class PlaceOrderCommandHandler : IRequestHandler<PlaceOrderCommand, Guid>
             request.DeliveryPricingMode,
             request.DeliveryPricingRuleLabel,
             commissionAmount,
+            request.VatAmount,
+            request.CodFee,
             itemQuantities,
             cancellationToken);
 
@@ -114,6 +116,8 @@ public class PlaceOrderCommandHandler : IRequestHandler<PlaceOrderCommand, Guid>
             deliveryPricingMode: request.DeliveryPricingMode,
             deliveryPricingRuleLabel: request.DeliveryPricingRuleLabel,
             commissionAmount: commissionAmount,
+            vatAmount: request.VatAmount,
+            codFee: request.CodFee,
             notes: request.Notes,
             vendorBranchId: request.VendorBranchId,
             couponId: request.CouponId

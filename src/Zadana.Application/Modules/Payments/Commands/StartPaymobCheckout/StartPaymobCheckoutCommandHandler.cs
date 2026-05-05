@@ -2,6 +2,7 @@ using MediatR;
 using Microsoft.EntityFrameworkCore;
 using Zadana.Application.Common.Interfaces;
 using Zadana.Application.Common.Localization;
+using Zadana.Application.Modules.Checkout.Support;
 using Zadana.Application.Modules.Orders.Commands.PlaceOrder;
 using Zadana.Application.Modules.Payments.DTOs;
 using Zadana.Application.Modules.Payments.Interfaces;
@@ -47,6 +48,18 @@ public class StartPaymobCheckoutCommandHandler : IRequestHandler<StartPaymobChec
             .AsNoTracking()
             .FirstOrDefaultAsync(x => x.UserId == request.UserId, cancellationToken)
             ?? throw new BusinessRuleException("EMPTY_CART", "Cart not found for checkout.");
+        var address = await _context.CustomerAddresses
+            .AsNoTracking()
+            .FirstOrDefaultAsync(x => x.Id == request.CustomerAddressId && x.UserId == request.UserId, cancellationToken)
+            ?? throw new NotFoundException("CustomerAddress", request.CustomerAddressId);
+        var financeBreakdown = await CheckoutSupport.ResolveFinanceBreakdownAsync(
+            _context,
+            address,
+            cart.Subtotal,
+            cart.DeliveryFee,
+            cart.DiscountTotal,
+            request.PaymentMethodId,
+            cancellationToken);
 
         var orderId = await _sender.Send(
             new PlaceOrderCommand(
@@ -63,6 +76,8 @@ public class StartPaymobCheckoutCommandHandler : IRequestHandler<StartPaymobChec
                 cart.QuotedDistanceKm,
                 cart.DeliveryPricingMode,
                 cart.DeliveryPricingRuleLabel,
+                financeBreakdown.VatAmount,
+                financeBreakdown.CodFee,
                 false),
             cancellationToken);
 
@@ -76,11 +91,6 @@ public class StartPaymobCheckoutCommandHandler : IRequestHandler<StartPaymobChec
             .AsNoTracking()
             .FirstOrDefaultAsync(x => x.Id == request.UserId, cancellationToken)
             ?? throw new NotFoundException("User", request.UserId);
-
-        var address = await _context.CustomerAddresses
-            .AsNoTracking()
-            .FirstOrDefaultAsync(x => x.Id == request.CustomerAddressId && x.UserId == request.UserId, cancellationToken)
-            ?? throw new NotFoundException("CustomerAddress", request.CustomerAddressId);
 
         var payment = new Payment(order.Id, PaymentMethodType.Card, order.TotalAmount);
         _context.Payments.Add(payment);

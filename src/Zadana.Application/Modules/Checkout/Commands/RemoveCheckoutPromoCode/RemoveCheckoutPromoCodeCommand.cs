@@ -7,7 +7,10 @@ using Zadana.Application.Modules.Delivery.Interfaces;
 
 namespace Zadana.Application.Modules.Checkout.Commands.RemoveCheckoutPromoCode;
 
-public record RemoveCheckoutPromoCodeCommand(Guid UserId, Guid? VendorId) : IRequest<RemoveCheckoutPromoCodeResultDto>;
+public record RemoveCheckoutPromoCodeCommand(
+    Guid UserId,
+    Guid? VendorId,
+    string? PaymentMethod = null) : IRequest<RemoveCheckoutPromoCodeResultDto>;
 
 public class RemoveCheckoutPromoCodeCommandHandler : IRequestHandler<RemoveCheckoutPromoCodeCommand, RemoveCheckoutPromoCodeResultDto>
 {
@@ -35,6 +38,14 @@ public class RemoveCheckoutPromoCodeCommandHandler : IRequestHandler<RemoveCheck
             pricing.VendorBranchId,
             address,
             cancellationToken);
+        var financeBreakdown = await CheckoutSupport.ResolveFinanceBreakdownAsync(
+            _context,
+            address,
+            pricing.Subtotal,
+            deliveryQuote.TotalFee,
+            0m,
+            request.PaymentMethod,
+            cancellationToken);
 
         cart.UpdateTotals(
             pricing.Subtotal,
@@ -51,6 +62,6 @@ public class RemoveCheckoutPromoCodeCommandHandler : IRequestHandler<RemoveCheck
         return new RemoveCheckoutPromoCodeResultDto(
             LocalizedMessages.GetAr(LocalizedMessages.PromoCodeRemoved),
             LocalizedMessages.GetEn(LocalizedMessages.PromoCodeRemoved),
-            CheckoutSupport.BuildTotals(pricing.Subtotal, deliveryQuote.TotalFee, 0m));
+            financeBreakdown.Totals);
     }
 }

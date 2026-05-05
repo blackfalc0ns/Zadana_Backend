@@ -1,9 +1,10 @@
 using Microsoft.EntityFrameworkCore;
 using Zadana.Application.Common.Interfaces;
-using Zadana.Application.Modules.Delivery.Interfaces;
 using Zadana.Application.Modules.Checkout.DTOs;
+using Zadana.Application.Modules.Delivery.Interfaces;
 using Zadana.Application.Modules.Orders.Support;
 using Zadana.Domain.Modules.Catalog.Enums;
+using Zadana.Domain.Modules.Delivery.Entities;
 using Zadana.Domain.Modules.Identity.Entities;
 using Zadana.Domain.Modules.Identity.Enums;
 using Zadana.Domain.Modules.Marketing.Entities;
@@ -280,12 +281,57 @@ internal static class CheckoutSupport
             quote.PricingMode,
             quote.RuleLabel);
 
-    public static List<CheckoutShippingBreakdownLineDto> BuildShippingBreakdown(DeliveryPriceQuote quote) =>
-    [
-        new CheckoutShippingBreakdownLineDto("base_delivery", "رسوم التوصيل الأساسية", "Base delivery", quote.BaseFee),
-        new CheckoutShippingBreakdownLineDto("distance_surcharge", "رسوم المسافة", "Distance surcharge", quote.DistanceFee),
-        new CheckoutShippingBreakdownLineDto("peak_surcharge", "رسوم الذروة", "Peak surcharge", quote.SurgeFee)
-    ];
+    public static async Task<CheckoutFinanceBreakdown> ResolveFinanceBreakdownAsync(
+        IApplicationDbContext context,
+        CustomerAddress? address,
+        decimal subtotal,
+        decimal shippingCost,
+        decimal discount,
+        string? paymentMethodCode,
+        CancellationToken cancellationToken)
+    {
+        var settings = await ResolveZoneFinanceSettingsAsync(context, address, cancellationToken);
+        var normalizedPaymentMethod = NormalizePaymentMethodCode(paymentMethodCode);
+        var taxableBase = Math.Max(0m, subtotal + shippingCost - discount);
+
+        var vatAmount = settings.IsVatActive && settings.VatPercent > 0m
+            ? decimal.Round(taxableBase * settings.VatPercent / 100m, 2, MidpointRounding.AwayFromZero)
+            : 0m;
+
+        var codFee = normalizedPaymentMethod == "cash" && settings.IsCodFeeActive
+            ? CalculateCodFee(settings, taxableBase)
+            : 0m;
+
+        return new CheckoutFinanceBreakdown(
+            taxableBase,
+            vatAmount,
+            codFee,
+            BuildTotals(subtotal, shippingCost, discount, vatAmount, codFee));
+    }
+
+    public static List<CheckoutShippingBreakdownLineDto> BuildShippingBreakdown(
+        DeliveryPriceQuote quote,
+        CheckoutFinanceBreakdown financeBreakdown)
+    {
+        var lines = new List<CheckoutShippingBreakdownLineDto>
+        {
+            new("base_delivery", "رسوم التوصيل الأساسية", "Base delivery", quote.BaseFee),
+            new("distance_surcharge", "رسوم المسافة", "Distance surcharge", quote.DistanceFee),
+            new("peak_surcharge", "رسوم الذروة", "Peak surcharge", quote.SurgeFee)
+        };
+
+        if (financeBreakdown.VatAmount > 0m)
+        {
+            lines.Add(new CheckoutShippingBreakdownLineDto("vat", "ضريبة القيمة المضافة", "VAT", financeBreakdown.VatAmount));
+        }
+
+        if (financeBreakdown.CodFee > 0m)
+        {
+            lines.Add(new CheckoutShippingBreakdownLineDto("cod_fee", "رسوم الدفع عند الاستلام", "Cash on delivery fee", financeBreakdown.CodFee));
+        }
+
+        return lines;
+    }
 
     public static CheckoutPromoCodeDto? BuildPromoCodeDto(Coupon? coupon, decimal discountAmount)
     {
@@ -302,7 +348,22 @@ internal static class CheckoutSupport
     }
 
     public static CheckoutTotalsDto BuildTotals(decimal subtotal, decimal shippingCost, decimal discount) =>
-        new(subtotal, shippingCost, discount, Math.Max(0m, subtotal + shippingCost - discount), Currency);
+        BuildTotals(subtotal, shippingCost, discount, 0m, 0m);
+
+    public static CheckoutTotalsDto BuildTotals(
+        decimal subtotal,
+        decimal shippingCost,
+        decimal discount,
+        decimal vatAmount,
+        decimal codFee) =>
+        new(
+            subtotal,
+            shippingCost,
+            discount,
+            vatAmount,
+            codFee,
+            Math.Max(0m, subtotal + shippingCost - discount + vatAmount + codFee),
+            Currency);
 
     public static List<CheckoutDeliverySlotDto> BuildDeliverySlots(string? selectedSlotId)
     {
@@ -350,8 +411,19 @@ internal static class CheckoutSupport
             address.AddressLine,
             address.IsDefault)).ToList();
 
+    public static string? NormalizePaymentMethodCode(string? paymentMethodCode) =>
+        paymentMethodCode?.Trim().ToLowerInvariant() switch
+        {
+            null or "" => null,
+            "card" or "credit_card" or "creditcard" or "debit_card" or "debitcard" => "card",
+            "cash" or "cash_on_delivery" or "cashondelivery" or "cod" => "cash",
+            "bank" or "bank_transfer" or "banktransfer" => "bank",
+            "apple_pay" or "applepay" => "apple_pay",
+            _ => throw new BusinessRuleException("PAYMENT_METHOD_NOT_SUPPORTED", "Selected payment method is not supported.")
+        };
+
     public static string MapPaymentMethodCodeToEnumName(string paymentMethodCode) =>
-        paymentMethodCode.Trim().ToLowerInvariant() switch
+        NormalizePaymentMethodCode(paymentMethodCode) switch
         {
             "card" => "Card",
             "cash" => "CashOnDelivery",
@@ -397,11 +469,102 @@ internal static class CheckoutSupport
         return string.IsNullOrWhiteSpace(value) ? null : value;
     }
 
+    private static decimal CalculateCodFee(ZoneFinanceSettingsSnapshot settings, decimal taxableBase)
+    {
+        var codFee = string.Equals(settings.CodFeeType, "percent", StringComparison.OrdinalIgnoreCase)
+            ? taxableBase * settings.CodPercent / 100m
+            : settings.CodFlatFee;
+
+        return Math.Max(0m, decimal.Round(codFee, 2, MidpointRounding.AwayFromZero));
+    }
+
+    private static async Task<ZoneFinanceSettingsSnapshot> ResolveZoneFinanceSettingsAsync(
+        IApplicationDbContext context,
+        CustomerAddress? address,
+        CancellationToken cancellationToken)
+    {
+        var zones = await context.DeliveryZones
+            .AsNoTracking()
+            .Where(zone => zone.IsActive)
+            .ToListAsync(cancellationToken);
+
+        DeliveryZone? selectedZone = null;
+
+        if (address?.Latitude.HasValue == true && address.Longitude.HasValue && zones.Count > 0)
+        {
+            selectedZone = zones
+                .Where(zone => IsPointWithinZone(zone, address.Latitude.Value, address.Longitude.Value))
+                .OrderBy(zone => ApproximateDistanceKm(zone.CenterLat, zone.CenterLng, address.Latitude.Value, address.Longitude.Value))
+                .FirstOrDefault();
+
+            selectedZone ??= zones
+                .Where(zone => string.IsNullOrWhiteSpace(address.City) || string.Equals(zone.City, address.City, StringComparison.OrdinalIgnoreCase))
+                .OrderBy(zone => ApproximateDistanceKm(zone.CenterLat, zone.CenterLng, address.Latitude.Value, address.Longitude.Value))
+                .FirstOrDefault();
+        }
+
+        selectedZone ??= zones.FirstOrDefault(zone =>
+            !string.IsNullOrWhiteSpace(address?.City) &&
+            string.Equals(zone.City, address.City, StringComparison.OrdinalIgnoreCase));
+
+        if (selectedZone is null)
+        {
+            return ZoneFinanceSettingsSnapshot.Default;
+        }
+
+        var settings = await context.ZoneFinanceSettings
+            .AsNoTracking()
+            .FirstOrDefaultAsync(item => item.DeliveryZoneId == selectedZone.Id, cancellationToken);
+
+        return settings is null
+            ? ZoneFinanceSettingsSnapshot.Default
+            : new ZoneFinanceSettingsSnapshot(
+                settings.VatPercent,
+                settings.CodFeeType,
+                settings.CodFlatFee,
+                settings.CodPercent,
+                settings.IsVatActive,
+                settings.IsCodFeeActive);
+    }
+
+    private static bool IsPointWithinZone(DeliveryZone zone, decimal latitude, decimal longitude) =>
+        ApproximateDistanceKm(zone.CenterLat, zone.CenterLng, latitude, longitude) <= zone.RadiusKm;
+
+    private static decimal ApproximateDistanceKm(decimal lat1, decimal lng1, decimal lat2, decimal lng2)
+    {
+        var dLat = (double)(lat2 - lat1) * Math.PI / 180;
+        var dLng = (double)(lng2 - lng1) * Math.PI / 180;
+        var avgLat = (double)(lat1 + lat2) / 2 * Math.PI / 180;
+
+        var x = dLng * Math.Cos(avgLat);
+        var y = dLat;
+        var distanceKm = Math.Sqrt(x * x + y * y) * 6371;
+
+        return (decimal)distanceKm;
+    }
+
     internal sealed record CheckoutPricingSnapshot(
         Guid VendorId,
         Guid? VendorBranchId,
         List<CheckoutCartItemDto> Items,
         decimal Subtotal);
+
+    internal sealed record CheckoutFinanceBreakdown(
+        decimal TaxableBase,
+        decimal VatAmount,
+        decimal CodFee,
+        CheckoutTotalsDto Totals);
+
+    private sealed record ZoneFinanceSettingsSnapshot(
+        decimal VatPercent,
+        string CodFeeType,
+        decimal CodFlatFee,
+        decimal CodPercent,
+        bool IsVatActive,
+        bool IsCodFeeActive)
+    {
+        public static ZoneFinanceSettingsSnapshot Default { get; } = new(15m, "flat", 10m, 0m, true, true);
+    }
 
     private sealed record VendorOfferSnapshot(
         Guid Id,
