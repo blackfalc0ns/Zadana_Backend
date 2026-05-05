@@ -73,8 +73,9 @@ public class ExceptionHandlingMiddleware
             var validationProblem = new ValidationProblemDetails(validationException.Errors)
             {
                 Status = (int)HttpStatusCode.BadRequest,
-                Title = localizer["ValidationErrorTitle"],
-                Detail = validationException.Errors.SelectMany(e => e.Value).FirstOrDefault() ?? localizer["ValidationErrorTitle"],
+                Title = GetLocalizedResource("ValidationErrorTitle", context, localizer),
+                Detail = validationException.Errors.SelectMany(e => e.Value).FirstOrDefault()
+                    ?? GetLocalizedResource("ValidationErrorTitle", context, localizer),
                 Instance = context.Request.Path
             };
 
@@ -86,7 +87,7 @@ public class ExceptionHandlingMiddleware
         var problemDetails = new ProblemDetails
         {
             Status = GetStatusCode(exception),
-            Title = GetTitle(exception, localizer),
+            Title = GetTitle(exception, context, localizer),
             Detail = ResolveDetail(exception, context, localizer),
             Instance = context.Request.Path
         };
@@ -115,18 +116,18 @@ public class ExceptionHandlingMiddleware
             _ => (int)HttpStatusCode.InternalServerError
         };
 
-    private static string GetTitle(Exception exception, IStringLocalizer<SharedResource> localizer) =>
+    private static string GetTitle(Exception exception, HttpContext context, IStringLocalizer<SharedResource> localizer) =>
         exception switch
         {
-            ValidationException => localizer["ValidationErrorTitle"],
-            BadRequestException => localizer["ValidationErrorTitle"],
-            BusinessRuleException => localizer["BusinessRuleViolationTitle"],
-            ExternalServiceException => localizer["ExternalServiceErrorTitle"],
-            UnauthorizedException => localizer["UnauthorizedTitle"],
-            UnauthorizedAccessException => localizer["UnauthorizedTitle"],
-            ForbiddenAccessException => localizer["UnauthorizedTitle"],
-            NotFoundException => localizer["ResourceNotFoundTitle"],
-            _ => localizer["ServerErrorTitle"]
+            ValidationException => GetLocalizedResource("ValidationErrorTitle", context, localizer),
+            BadRequestException => GetLocalizedResource("ValidationErrorTitle", context, localizer),
+            BusinessRuleException => GetLocalizedResource("BusinessRuleViolationTitle", context, localizer),
+            ExternalServiceException => GetLocalizedResource("ExternalServiceErrorTitle", context, localizer),
+            UnauthorizedException => GetLocalizedResource("UnauthorizedTitle", context, localizer),
+            UnauthorizedAccessException => GetLocalizedResource("UnauthorizedTitle", context, localizer),
+            ForbiddenAccessException => GetLocalizedResource("UnauthorizedTitle", context, localizer),
+            NotFoundException => GetLocalizedResource("ResourceNotFoundTitle", context, localizer),
+            _ => GetLocalizedResource("ServerErrorTitle", context, localizer)
         };
 
     private static string ResolveDetail(Exception exception, HttpContext context, IStringLocalizer<SharedResource> localizer)
@@ -142,20 +143,18 @@ public class ExceptionHandlingMiddleware
             UnauthorizedException unauthorizedException when
                 string.IsNullOrWhiteSpace(unauthorizedException.Message) ||
                 unauthorizedException.Message == "Exception of type 'Zadana.SharedKernel.Exceptions.UnauthorizedException' was thrown."
-                => localizer["USER_NOT_AUTHENTICATED"],
+                => GetLocalizedResource("USER_NOT_AUTHENTICATED", context, localizer),
             UnauthorizedException => exception.Message,
-            _ => localizer["ServerErrorMessage"]
+            _ => GetLocalizedResource("ServerErrorMessage", context, localizer)
         };
 
         // Support inline AR|EN format as fallback
         if (!string.IsNullOrWhiteSpace(message) && message.Contains('|'))
         {
-            var language = context.Request.Headers["Accept-Language"].ToString().ToLowerInvariant();
-            var isArabic = language.Contains("ar");
             var parts = message.Split('|', StringSplitOptions.RemoveEmptyEntries | StringSplitOptions.TrimEntries);
             if (parts.Length >= 2)
             {
-                message = isArabic ? parts[0] : parts[1];
+                message = PrefersEnglish(context) ? parts[1] : parts[0];
             }
         }
 
@@ -191,4 +190,24 @@ public class ExceptionHandlingMiddleware
             ForbiddenAccessException forbiddenAccessException => forbiddenAccessException.ErrorCode,
             _ => null
         };
+
+    private static string GetLocalizedResource(string key, HttpContext context, IStringLocalizer<SharedResource> localizer)
+    {
+        var value = PrefersEnglish(context)
+            ? LocalizedMessages.GetEn(key)
+            : LocalizedMessages.GetAr(key);
+
+        if (!string.Equals(value, key, StringComparison.Ordinal))
+        {
+            return value;
+        }
+
+        return localizer[key];
+    }
+
+    private static bool PrefersEnglish(HttpContext context)
+    {
+        var language = context.Request.Headers["Accept-Language"].ToString().ToLowerInvariant();
+        return language.Contains("en");
+    }
 }
