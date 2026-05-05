@@ -3,17 +3,20 @@ using System;
 using Microsoft.EntityFrameworkCore;
 using Microsoft.EntityFrameworkCore.Infrastructure;
 using Microsoft.EntityFrameworkCore.Metadata;
+using Microsoft.EntityFrameworkCore.Migrations;
 using Microsoft.EntityFrameworkCore.Storage.ValueConversion;
 using Zadana.Infrastructure.Persistence;
 
 #nullable disable
 
-namespace Zadana.Infrastructure.Migrations
+namespace Zadana.Infrastructure.Persistence.Migrations
 {
     [DbContext(typeof(ApplicationDbContext))]
-    partial class ApplicationDbContextModelSnapshot : ModelSnapshot
+    [Migration("20260505144903_AddSupportCompensationCoupons")]
+    partial class AddSupportCompensationCoupons
     {
-        protected override void BuildModel(ModelBuilder modelBuilder)
+        /// <inheritdoc />
+        protected override void BuildTargetModel(ModelBuilder modelBuilder)
         {
 #pragma warning disable 612, 618
             modelBuilder
@@ -4232,71 +4235,6 @@ namespace Zadana.Infrastructure.Migrations
                     b.HasIndex("SettlementId");
 
                     b.ToTable("SettlementItems", (string)null);
-                });
-
-            modelBuilder.Entity("Zadana.Domain.Modules.Wallets.Entities.VendorRecovery", b =>
-                {
-                    b.Property<Guid>("Id")
-                        .ValueGeneratedOnAdd()
-                        .HasColumnType("uniqueidentifier");
-
-                    b.Property<DateTime>("CreatedAtUtc")
-                        .HasColumnType("datetime2");
-
-                    b.Property<string>("Notes")
-                        .HasMaxLength(1000)
-                        .HasColumnType("nvarchar(1000)");
-
-                    b.Property<Guid>("OrderId")
-                        .HasColumnType("uniqueidentifier");
-
-                    b.Property<Guid>("OrderSupportCaseId")
-                        .HasColumnType("uniqueidentifier");
-
-                    b.Property<decimal>("OutstandingAmount")
-                        .HasPrecision(18, 2)
-                        .HasColumnType("decimal(18,2)");
-
-                    b.Property<Guid?>("PayoutId")
-                        .HasColumnType("uniqueidentifier");
-
-                    b.Property<decimal>("RecoveredAmount")
-                        .HasPrecision(18, 2)
-                        .HasColumnType("decimal(18,2)");
-
-                    b.Property<Guid?>("SettlementId")
-                        .HasColumnType("uniqueidentifier");
-
-                    b.Property<string>("Source")
-                        .HasMaxLength(50)
-                        .HasColumnType("nvarchar(50)");
-
-                    b.Property<string>("Status")
-                        .IsRequired()
-                        .HasMaxLength(50)
-                        .HasColumnType("nvarchar(50)");
-
-                    b.Property<decimal>("TargetAmount")
-                        .HasPrecision(18, 2)
-                        .HasColumnType("decimal(18,2)");
-
-                    b.Property<DateTime>("UpdatedAtUtc")
-                        .HasColumnType("datetime2");
-
-                    b.Property<Guid>("VendorId")
-                        .HasColumnType("uniqueidentifier");
-
-                    b.Property<Guid?>("WalletTransactionId")
-                        .HasColumnType("uniqueidentifier");
-
-                    b.HasKey("Id");
-
-                    b.HasIndex("OrderSupportCaseId")
-                        .IsUnique();
-
-                    b.HasIndex("VendorId", "Status");
-
-                    b.ToTable("VendorRecoveries", (string)null);
                 });
 
             modelBuilder.Entity("Zadana.Domain.Modules.Wallets.Entities.Wallet", b =>

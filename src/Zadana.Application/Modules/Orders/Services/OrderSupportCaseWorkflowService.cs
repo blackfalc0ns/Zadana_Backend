@@ -2,7 +2,10 @@ using Microsoft.EntityFrameworkCore;
 using Zadana.Application.Common.Interfaces;
 using Zadana.Application.Modules.Orders.Interfaces;
 using Zadana.Application.Modules.Orders.Support;
+using Zadana.Application.Modules.Wallets.Services;
 using Zadana.Domain.Modules.Identity.Enums;
+using Zadana.Domain.Modules.Marketing.Entities;
+using Zadana.Domain.Modules.Marketing.Enums;
 using Zadana.Domain.Modules.Orders.Entities;
 using Zadana.Domain.Modules.Orders.Enums;
 using Zadana.Domain.Modules.Payments.Entities;
@@ -17,17 +20,20 @@ public sealed class OrderSupportCaseWorkflowService : IOrderSupportCaseWorkflowS
     private readonly IUnitOfWork _unitOfWork;
     private readonly INotificationService _notificationService;
     private readonly IOneSignalPushService _oneSignalPushService;
+    private readonly VendorRecoveryService? _vendorRecoveryService;
 
     public OrderSupportCaseWorkflowService(
         IApplicationDbContext context,
         IUnitOfWork unitOfWork,
         INotificationService notificationService,
-        IOneSignalPushService oneSignalPushService)
+        IOneSignalPushService oneSignalPushService,
+        VendorRecoveryService? vendorRecoveryService = null)
     {
         _context = context;
         _unitOfWork = unitOfWork;
         _notificationService = notificationService;
         _oneSignalPushService = oneSignalPushService;
+        _vendorRecoveryService = vendorRecoveryService;
     }
 
     public async Task<OrderSupportCase> CreateCustomerCaseAsync(
@@ -341,18 +347,58 @@ public sealed class OrderSupportCaseWorkflowService : IOrderSupportCaseWorkflowS
     {
         var supportCase = await LoadCaseForWriteAsync(caseId, cancellationToken);
         var approvedAmount = ResolveApprovalAmount(supportCase, refundAmount);
+        var compensationDecision = supportCase.Type == OrderSupportCaseType.ReturnRequest
+            ? await ResolveCompensationDecisionAsync(supportCase, approvedAmount, refundMethod, cancellationToken)
+            : null;
 
-        supportCase.Approve(actorUserId, approvedAmount, refundMethod, costBearer, decisionNotes, customerVisibleNote);
+        supportCase.Approve(
+            actorUserId,
+            approvedAmount,
+            compensationDecision?.RefundMethod ?? refundMethod,
+            compensationDecision?.CompensationType,
+            compensationDecision?.Coupon?.Id,
+            costBearer,
+            decisionNotes,
+            customerVisibleNote);
 
         if (supportCase.Type == OrderSupportCaseType.ReturnRequest)
         {
-            await EnsureRefundDecisionAsync(supportCase, approvedAmount, refundMethod, costBearer, decisionNotes, actorUserId, cancellationToken);
+            await EnsureRefundDecisionAsync(
+                supportCase,
+                approvedAmount,
+                compensationDecision!,
+                costBearer,
+                decisionNotes,
+                actorUserId,
+                cancellationToken);
+
+            if (_vendorRecoveryService is not null && approvedAmount.HasValue)
+            {
+                await _vendorRecoveryService.StageRecoveryForApprovedCaseAsync(
+                    supportCase,
+                    approvedAmount.Value,
+                    costBearer,
+                    cancellationToken);
+            }
         }
 
         StagePendingCaseArtifacts(supportCase);
         await _unitOfWork.SaveChangesAsync(cancellationToken);
 
-        await NotifyCustomerAsync(supportCase.Order, supportCase, "approved", cancellationToken);
+        if (compensationDecision?.Coupon is not null)
+        {
+            await NotifyCustomerCouponCompensationAsync(
+                supportCase.Order,
+                supportCase,
+                compensationDecision.Coupon,
+                approvedAmount!.Value,
+                cancellationToken);
+        }
+        else
+        {
+            await NotifyCustomerAsync(supportCase.Order, supportCase, "approved", cancellationToken);
+        }
+
         await NotifyVendorAsync(supportCase.Order, supportCase, "approved", cancellationToken);
         await NotifyActiveDriverAsync(supportCase.Order, supportCase, "approved", cancellationToken);
         return supportCase;
@@ -599,7 +645,7 @@ public sealed class OrderSupportCaseWorkflowService : IOrderSupportCaseWorkflowS
     private async Task EnsureRefundDecisionAsync(
         OrderSupportCase supportCase,
         decimal? approvedAmount,
-        string? refundMethod,
+        SupportCaseCompensationDecision compensationDecision,
         string? costBearer,
         string? decisionNotes,
         Guid actorUserId,
@@ -611,6 +657,23 @@ public sealed class OrderSupportCaseWorkflowService : IOrderSupportCaseWorkflowS
         }
 
         var order = supportCase.Order;
+        var boundedAmount = Math.Min(approvedAmount.Value, order.TotalAmount);
+
+        if (compensationDecision.CompensationType == OrderSupportCaseCompensationType.CouponCompensation)
+        {
+            order.UpdatePaymentStatus(boundedAmount >= order.TotalAmount
+                ? PaymentStatus.Refunded
+                : PaymentStatus.PartiallyRefunded);
+
+            if (order.Status != OrderStatus.Refunded)
+            {
+                order.ChangeStatus(OrderStatus.Refunded, actorUserId, decisionNotes ?? "Support case approved with compensation coupon.");
+                _context.OrderStatusHistories.Add(order.StatusHistory.Last());
+            }
+
+            return;
+        }
+
         var payment = await _context.Payments
             .OrderByDescending(item => item.CreatedAtUtc)
             .FirstOrDefaultAsync(item => item.OrderId == order.Id, cancellationToken);
@@ -620,23 +683,20 @@ public sealed class OrderSupportCaseWorkflowService : IOrderSupportCaseWorkflowS
             payment = new Payment(order.Id, order.PaymentMethod, order.TotalAmount);
             payment.MarkAsPaid();
             _context.Payments.Add(payment);
-            await _context.SaveChangesAsync(cancellationToken);
         }
 
         var refund = await _context.Refunds
             .OrderByDescending(item => item.CreatedAtUtc)
             .FirstOrDefaultAsync(item => item.OrderSupportCaseId == supportCase.Id, cancellationToken);
 
-        var boundedAmount = Math.Min(approvedAmount.Value, order.TotalAmount);
-
         if (refund is null)
         {
-            refund = new Refund(payment.Id, boundedAmount, decisionNotes, refundMethod, costBearer, supportCase.Id);
+            refund = new Refund(payment.Id, boundedAmount, decisionNotes, compensationDecision.RefundMethod, costBearer, supportCase.Id);
             _context.Refunds.Add(refund);
         }
         else
         {
-            refund.UpdateDecision(boundedAmount, decisionNotes, refundMethod, costBearer, supportCase.Id);
+            refund.UpdateDecision(boundedAmount, decisionNotes, compensationDecision.RefundMethod, costBearer, supportCase.Id);
         }
 
         refund.Process();
@@ -698,6 +758,59 @@ public sealed class OrderSupportCaseWorkflowService : IOrderSupportCaseWorkflowS
                 supportCase.Id,
                 composed.Data,
                 composed.TargetUrl)
+            .DispatchAsync(_oneSignalPushService, cancellationToken);
+    }
+
+    private async Task NotifyCustomerCouponCompensationAsync(
+        Order order,
+        OrderSupportCase supportCase,
+        Coupon coupon,
+        decimal approvedAmount,
+        CancellationToken cancellationToken)
+    {
+        var targetUrl = OrderSupportCaseNotificationComposer.ResolveTargetUrl(order.Id, supportCase.Id);
+        var expiresAt = coupon.EndsAtUtc?.ToString("yyyy-MM-dd") ?? DateTime.UtcNow.AddDays(30).ToString("yyyy-MM-dd");
+        var data = $$"""
+{"orderId":"{{order.Id}}","caseId":"{{supportCase.Id}}","orderNumber":"{{order.OrderNumber}}","type":"{{OrderSupportCaseNotificationComposer.ToApiValue(supportCase.Type)}}","status":"{{OrderSupportCaseNotificationComposer.ToApiValue(supportCase.Status)}}","action":"approved","targetUrl":"{{targetUrl}}","compensationType":"coupon_compensation","couponCode":"{{coupon.Code}}","couponValue":{{approvedAmount}},"couponExpiresAt":"{{coupon.EndsAtUtc?.ToString("O")}}"}
+""";
+
+        const string titleAr = "تمت الموافقة على الاسترجاع ككوبون";
+        const string titleEn = "Return approved as coupon";
+        var bodyAr = $"تمت الموافقة على طلبك، وتم إصدار كوبون تعويض بقيمة {approvedAmount:0.00} برمز {coupon.Code} صالح حتى {expiresAt}.";
+        var bodyEn = $"Your request was approved. A compensation coupon worth {approvedAmount:0.00} was issued with code {coupon.Code}, valid until {expiresAt}.";
+
+        await _notificationService.SendToUserAsync(
+            order.UserId,
+            titleAr,
+            titleEn,
+            bodyAr,
+            bodyEn,
+            "order_support_case",
+            supportCase.Id,
+            data,
+            cancellationToken);
+
+        await _notificationService.SendOrderSupportCaseChangedToUserAsync(
+            order.UserId,
+            supportCase.Id,
+            order.Id,
+            order.OrderNumber,
+            OrderSupportCaseNotificationComposer.ToApiValue(supportCase.Type),
+            OrderSupportCaseNotificationComposer.ToApiValue(supportCase.Status),
+            "approved",
+            targetUrl,
+            cancellationToken);
+
+        await OneSignalMobilePushRequest.CreateHeadsUp(
+                order.UserId.ToString(),
+                titleAr,
+                titleEn,
+                bodyAr,
+                bodyEn,
+                "order_support_case",
+                supportCase.Id,
+                data,
+                targetUrl)
             .DispatchAsync(_oneSignalPushService, cancellationToken);
     }
 
@@ -900,6 +1013,104 @@ public sealed class OrderSupportCaseWorkflowService : IOrderSupportCaseWorkflowS
             ?? supportCase.Order.TotalAmount;
     }
 
+    private async Task<SupportCaseCompensationDecision> ResolveCompensationDecisionAsync(
+        OrderSupportCase supportCase,
+        decimal? approvedAmount,
+        string? refundMethod,
+        CancellationToken cancellationToken)
+    {
+        if (!approvedAmount.HasValue || approvedAmount.Value <= 0)
+        {
+            throw new BusinessRuleException("RETURN_REFUND_AMOUNT_REQUIRED", "Return requests require a refund amount when approved.");
+        }
+
+        return supportCase.Order.PaymentMethod == PaymentMethodType.CashOnDelivery
+            ? await ResolveCodCompensationDecisionAsync(supportCase, approvedAmount.Value, refundMethod, cancellationToken)
+            : ResolveOnlineCompensationDecision(refundMethod);
+    }
+
+    private async Task<SupportCaseCompensationDecision> ResolveCodCompensationDecisionAsync(
+        OrderSupportCase supportCase,
+        decimal approvedAmount,
+        string? refundMethod,
+        CancellationToken cancellationToken)
+    {
+        var normalizedMethod = NormalizeToken(refundMethod) ?? "coupon";
+        if (normalizedMethod != "coupon")
+        {
+            throw new BusinessRuleException("INVALID_RETURN_COMPENSATION_METHOD", "Cash on delivery return requests can only be approved as coupon compensation.");
+        }
+
+        var coupon = await CreateCompensationCouponAsync(supportCase, approvedAmount, cancellationToken);
+        return new SupportCaseCompensationDecision("coupon", OrderSupportCaseCompensationType.CouponCompensation, coupon);
+    }
+
+    private static SupportCaseCompensationDecision ResolveOnlineCompensationDecision(string? refundMethod)
+    {
+        var normalizedMethod = NormalizeToken(refundMethod) ?? "same_method";
+        if (normalizedMethod != "same_method")
+        {
+            throw new BusinessRuleException("INVALID_RETURN_COMPENSATION_METHOD", "Online-paid return requests can only be approved to the original payment method.");
+        }
+
+        return new SupportCaseCompensationDecision("same_method", OrderSupportCaseCompensationType.CashRefund, null);
+    }
+
+    private async Task<Coupon> CreateCompensationCouponAsync(
+        OrderSupportCase supportCase,
+        decimal approvedAmount,
+        CancellationToken cancellationToken)
+    {
+        if (supportCase.CompensationCouponId.HasValue)
+        {
+            var existingCoupon = await _context.Coupons
+                .FirstOrDefaultAsync(item => item.Id == supportCase.CompensationCouponId.Value, cancellationToken);
+
+            if (existingCoupon is not null)
+            {
+                return existingCoupon;
+            }
+        }
+
+        var code = await GenerateUniqueCompensationCouponCodeAsync(cancellationToken);
+        var coupon = new Coupon(
+            code,
+            $"Support compensation for order {supportCase.Order.OrderNumber}",
+            CouponDiscountType.Fixed,
+            approvedAmount,
+            minOrderAmount: null,
+            maxDiscountAmount: approvedAmount,
+            startsAtUtc: DateTime.UtcNow,
+            endsAtUtc: DateTime.UtcNow.AddDays(30),
+            usageLimit: 1,
+            perUserLimit: 1,
+            assignedUserId: supportCase.Order.UserId,
+            sourceType: CouponSourceType.SupportCompensation,
+            orderSupportCaseId: supportCase.Id);
+
+        _context.Coupons.Add(coupon);
+        return coupon;
+    }
+
+    private async Task<string> GenerateUniqueCompensationCouponCodeAsync(CancellationToken cancellationToken)
+    {
+        for (var attempt = 0; attempt < 10; attempt++)
+        {
+            var suffix = Guid.NewGuid().ToString("N")[..8].ToUpperInvariant();
+            var code = $"RET-{suffix}";
+            var exists = await _context.Coupons
+                .AsNoTracking()
+                .AnyAsync(item => item.Code == code, cancellationToken);
+
+            if (!exists)
+            {
+                return code;
+            }
+        }
+
+        throw new BusinessRuleException("COUPON_CODE_GENERATION_FAILED", "Unable to generate a unique compensation coupon code.");
+    }
+
     private static OrderSupportCaseType ParseType(string value) =>
         value.Trim().ToLowerInvariant() switch
         {
@@ -1093,4 +1304,9 @@ public sealed class OrderSupportCaseWorkflowService : IOrderSupportCaseWorkflowS
             }
         }
     }
+
+    private sealed record SupportCaseCompensationDecision(
+        string RefundMethod,
+        OrderSupportCaseCompensationType CompensationType,
+        Coupon? Coupon);
 }

@@ -22,6 +22,8 @@ public class OrderSupportCase : BaseEntity
     public decimal? RequestedRefundAmount { get; private set; }
     public decimal? ApprovedRefundAmount { get; private set; }
     public string? RefundMethod { get; private set; }
+    public OrderSupportCaseCompensationType? CompensationType { get; private set; }
+    public Guid? CompensationCouponId { get; private set; }
     public string? CostBearer { get; private set; }
     public DateTime? ClosedAtUtc { get; private set; }
 
@@ -193,6 +195,8 @@ public class OrderSupportCase : BaseEntity
         Guid actorUserId,
         decimal? approvedRefundAmount,
         string? refundMethod,
+        OrderSupportCaseCompensationType? compensationType,
+        Guid? compensationCouponId,
         string? costBearer,
         string? decisionNotes,
         string? customerVisibleNote)
@@ -202,6 +206,8 @@ public class OrderSupportCase : BaseEntity
         Status = OrderSupportCaseStatus.Approved;
         ApprovedRefundAmount = NormalizeAmount(approvedRefundAmount);
         RefundMethod = NormalizeText(refundMethod);
+        CompensationType = compensationType;
+        CompensationCouponId = compensationCouponId;
         CostBearer = NormalizeText(costBearer);
         DecisionNotes = NormalizeText(decisionNotes);
         CustomerVisibleNote = NormalizeText(customerVisibleNote);

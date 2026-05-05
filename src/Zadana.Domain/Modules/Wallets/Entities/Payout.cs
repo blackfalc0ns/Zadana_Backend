@@ -39,6 +39,26 @@ public class Payout : BaseEntity
         ProcessedAtUtc = DateTime.UtcNow;
     }
 
+    public void ReduceAmount(decimal amount)
+    {
+        if (amount <= 0)
+        {
+            return;
+        }
+
+        if (Status == PayoutStatus.Paid)
+        {
+            throw new BusinessRuleException("PAYOUT_ALREADY_PAID", "Paid payouts cannot be reduced.");
+        }
+
+        if (Amount < amount)
+        {
+            throw new BusinessRuleException("PAYOUT_RECOVERY_EXCEEDS_AMOUNT", "Recovery amount exceeds payout amount.");
+        }
+
+        Amount -= amount;
+    }
+
     public void MarkAsFailed() => Status = PayoutStatus.Failed;
     public void Cancel() => Status = PayoutStatus.Cancelled;
 }

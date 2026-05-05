@@ -9,11 +9,14 @@ using Zadana.Application.Modules.Orders.Commands.CancelCustomerOrder;
 using Zadana.Application.Modules.Orders.Commands.CreateOrderComplaint;
 using Zadana.Application.Modules.Orders.Commands.DeleteCustomerOrder;
 using Zadana.Application.Modules.Orders.Services;
+using Zadana.Application.Modules.Wallets.Services;
 using Zadana.Domain.Modules.Identity.Entities;
 using Zadana.Domain.Modules.Identity.Enums;
+using Zadana.Domain.Modules.Marketing.Enums;
 using Zadana.Domain.Modules.Orders.Entities;
 using Zadana.Domain.Modules.Orders.Enums;
 using Zadana.Domain.Modules.Payments.Enums;
+using Zadana.Domain.Modules.Vendors.Entities;
 using Zadana.Infrastructure.Persistence;
 using Zadana.Infrastructure.Persistence.Interceptors;
 using Zadana.SharedKernel.Exceptions;
@@ -141,9 +144,11 @@ public class CustomerOrderCommandHandlerTests
     {
         await using var dbContext = CreateDbContext();
         var user = CreateUser();
-        var order = CreateOrder(user.Id, OrderStatus.Delivered, "ORD-COMPLAINT-001");
+        var vendor = CreateVendor();
+        var order = CreateOrder(user.Id, OrderStatus.Delivered, "ORD-COMPLAINT-001", vendorId: vendor.Id);
 
         dbContext.Users.Add(user);
+        dbContext.Vendors.Add(vendor);
         dbContext.Orders.Add(order);
         await dbContext.SaveChangesAsync();
 
@@ -163,13 +168,15 @@ public class CustomerOrderCommandHandlerTests
     }
 
     [Fact]
-    public async Task CreateOrderComplaint_ShouldRejectDuplicateComplaint()
+    public async Task CreateOrderComplaint_ShouldMergeDuplicateComplaintForSameCustomer()
     {
         await using var dbContext = CreateDbContext();
         var user = CreateUser();
-        var order = CreateOrder(user.Id, OrderStatus.Delivered, "ORD-COMPLAINT-002");
+        var vendor = CreateVendor();
+        var order = CreateOrder(user.Id, OrderStatus.Delivered, "ORD-COMPLAINT-002", vendorId: vendor.Id);
 
         dbContext.Users.Add(user);
+        dbContext.Vendors.Add(vendor);
         dbContext.Orders.Add(order);
         dbContext.OrderSupportCases.Add(new OrderSupportCase(
             order.Id,
@@ -183,16 +190,255 @@ public class CustomerOrderCommandHandlerTests
 
         var handler = CreateComplaintHandler(dbContext);
 
-        var act = () => handler.Handle(
+        var result = await handler.Handle(
             new CreateOrderComplaintCommand(order.Id, user.Id, "Another complaint", []),
+            CancellationToken.None);
+
+        dbContext.OrderSupportCases.Should().ContainSingle();
+        dbContext.OrderSupportCases.Single().Activities.Should().HaveCountGreaterThan(1);
+    }
+
+    [Fact]
+    public async Task ApproveReturnRequest_ForCashOnDelivery_ShouldCreateCustomerSpecificCouponAndNoRefund()
+    {
+        await using var dbContext = CreateDbContext();
+        var user = CreateUser();
+        var vendor = CreateVendor();
+        var order = CreateOrder(user.Id, OrderStatus.Delivered, "ORD-RETURN-COD-001", PaymentMethodType.CashOnDelivery, vendor.Id);
+        var supportCase = CreateReturnRequest(order, user.Id, 85m);
+
+        dbContext.Users.Add(user);
+        dbContext.Vendors.Add(vendor);
+        dbContext.Orders.Add(order);
+        dbContext.OrderSupportCases.Add(supportCase);
+        dbContext.Payments.Add(new Zadana.Domain.Modules.Payments.Entities.Payment(order.Id, PaymentMethodType.Card, order.TotalAmount));
+        await dbContext.SaveChangesAsync();
+
+        var workflowService = CreateWorkflowService(dbContext);
+
+        var result = await workflowService.ApproveAsync(
+            supportCase.Id,
+            Guid.NewGuid(),
+            80m,
+            "coupon",
+            "platform",
+            "Approved as compensation coupon",
+            "We issued a coupon for your approved amount.",
+            CancellationToken.None);
+
+        result.CompensationType.Should().Be(OrderSupportCaseCompensationType.CouponCompensation);
+        result.CompensationCouponId.Should().NotBeNull();
+        result.RefundMethod.Should().Be("coupon");
+
+        dbContext.Refunds.Should().BeEmpty();
+
+        var coupon = await dbContext.Coupons.SingleAsync();
+        coupon.AssignedUserId.Should().Be(user.Id);
+        coupon.SourceType.Should().Be(CouponSourceType.SupportCompensation);
+        coupon.OrderSupportCaseId.Should().Be(supportCase.Id);
+        coupon.UsageLimit.Should().Be(1);
+        coupon.PerUserLimit.Should().Be(1);
+        coupon.DiscountValue.Should().Be(80m);
+        coupon.EndsAtUtc.Should().NotBeNull();
+        coupon.EndsAtUtc.Should().BeAfter(DateTime.UtcNow.AddDays(29));
+
+        order.PaymentStatus.Should().Be(PaymentStatus.PartiallyRefunded);
+        order.Status.Should().Be(OrderStatus.Refunded);
+    }
+
+    [Fact]
+    public async Task ApproveReturnRequest_ForOnlinePayment_ShouldCreateRefundAndNoCoupon()
+    {
+        await using var dbContext = CreateDbContext();
+        var user = CreateUser();
+        var vendor = CreateVendor();
+        var order = CreateOrder(user.Id, OrderStatus.Delivered, "ORD-RETURN-ONLINE-001", PaymentMethodType.Card, vendor.Id);
+        var supportCase = CreateReturnRequest(order, user.Id, 120m);
+
+        dbContext.Users.Add(user);
+        dbContext.Vendors.Add(vendor);
+        dbContext.Orders.Add(order);
+        dbContext.OrderSupportCases.Add(supportCase);
+        await dbContext.SaveChangesAsync();
+
+        var workflowService = CreateWorkflowService(dbContext);
+
+        var result = await workflowService.ApproveAsync(
+            supportCase.Id,
+            Guid.NewGuid(),
+            120m,
+            "same_method",
+            "vendor",
+            "Approved as cash refund",
+            "Your refund has been approved.",
+            CancellationToken.None);
+
+        result.CompensationType.Should().Be(OrderSupportCaseCompensationType.CashRefund);
+        result.CompensationCouponId.Should().BeNull();
+        result.RefundMethod.Should().Be("same_method");
+
+        dbContext.Coupons.Should().BeEmpty();
+        dbContext.Refunds.Should().ContainSingle();
+
+        var refund = await dbContext.Refunds.SingleAsync();
+        refund.Amount.Should().Be(120m);
+        refund.RefundMethod.Should().Be("same_method");
+        refund.OrderSupportCaseId.Should().Be(supportCase.Id);
+
+        order.PaymentStatus.Should().Be(PaymentStatus.PartiallyRefunded);
+        order.Status.Should().Be(OrderStatus.Refunded);
+    }
+
+    [Fact]
+    public async Task ApproveReturnRequest_WhenVendorBearsCost_ShouldRecoverFromVendorWallet()
+    {
+        await using var dbContext = CreateDbContext();
+        var user = CreateUser();
+        var vendor = CreateVendor();
+        var order = CreateOrder(user.Id, OrderStatus.Delivered, "ORD-RETURN-VENDOR-001", PaymentMethodType.Card, vendor.Id);
+        var supportCase = CreateReturnRequest(order, user.Id, 70m);
+        var vendorWallet = new Zadana.Domain.Modules.Wallets.Entities.Wallet(
+            Zadana.Domain.Modules.Wallets.Enums.WalletOwnerType.Vendor,
+            vendor.Id);
+        vendorWallet.Credit(100m);
+
+        dbContext.Users.Add(user);
+        dbContext.Vendors.Add(vendor);
+        dbContext.Orders.Add(order);
+        dbContext.OrderSupportCases.Add(supportCase);
+        dbContext.Wallets.Add(vendorWallet);
+        await dbContext.SaveChangesAsync();
+
+        var workflowService = CreateWorkflowService(dbContext);
+
+        var result = await workflowService.ApproveAsync(
+            supportCase.Id,
+            Guid.NewGuid(),
+            70m,
+            "same_method",
+            "vendor",
+            "Approved and charge vendor.",
+            "Your refund has been approved.",
+            CancellationToken.None);
+
+        result.Status.Should().Be(OrderSupportCaseStatus.Approved);
+        var recovery = await dbContext.VendorRecoveries.SingleAsync();
+        recovery.TargetAmount.Should().Be(70m);
+        recovery.RecoveredAmount.Should().Be(70m);
+        recovery.OutstandingAmount.Should().Be(0m);
+        recovery.Status.Should().Be(Zadana.Domain.Modules.Wallets.Enums.VendorRecoveryStatus.Recovered);
+        vendorWallet.CurrentBalance.Should().Be(30m);
+    }
+
+    [Fact]
+    public async Task ApproveReturnRequest_WhenVendorWalletIsInsufficient_ShouldLeaveOutstandingRecovery()
+    {
+        await using var dbContext = CreateDbContext();
+        var user = CreateUser();
+        var vendor = CreateVendor();
+        var order = CreateOrder(user.Id, OrderStatus.Delivered, "ORD-RETURN-VENDOR-002", PaymentMethodType.Card, vendor.Id);
+        var supportCase = CreateReturnRequest(order, user.Id, 90m);
+        var vendorWallet = new Zadana.Domain.Modules.Wallets.Entities.Wallet(
+            Zadana.Domain.Modules.Wallets.Enums.WalletOwnerType.Vendor,
+            vendor.Id);
+        vendorWallet.Credit(25m);
+
+        dbContext.Users.Add(user);
+        dbContext.Vendors.Add(vendor);
+        dbContext.Orders.Add(order);
+        dbContext.OrderSupportCases.Add(supportCase);
+        dbContext.Wallets.Add(vendorWallet);
+        await dbContext.SaveChangesAsync();
+
+        var workflowService = CreateWorkflowService(dbContext);
+
+        await workflowService.ApproveAsync(
+            supportCase.Id,
+            Guid.NewGuid(),
+            90m,
+            "same_method",
+            "vendor",
+            "Approved and charge vendor.",
+            "Your refund has been approved.",
+            CancellationToken.None);
+
+        var recovery = await dbContext.VendorRecoveries.SingleAsync();
+        recovery.RecoveredAmount.Should().Be(25m);
+        recovery.OutstandingAmount.Should().Be(65m);
+        recovery.Status.Should().Be(Zadana.Domain.Modules.Wallets.Enums.VendorRecoveryStatus.PartiallyRecovered);
+        vendorWallet.CurrentBalance.Should().Be(0m);
+    }
+
+    [Fact]
+    public async Task ApproveReturnRequest_ForCashOnDelivery_ShouldRejectSameMethodRefund()
+    {
+        await using var dbContext = CreateDbContext();
+        var user = CreateUser();
+        var vendor = CreateVendor();
+        var order = CreateOrder(user.Id, OrderStatus.Delivered, "ORD-RETURN-COD-002", PaymentMethodType.CashOnDelivery, vendor.Id);
+        var supportCase = CreateReturnRequest(order, user.Id, 50m);
+
+        dbContext.Users.Add(user);
+        dbContext.Vendors.Add(vendor);
+        dbContext.Orders.Add(order);
+        dbContext.OrderSupportCases.Add(supportCase);
+        await dbContext.SaveChangesAsync();
+
+        var workflowService = CreateWorkflowService(dbContext);
+
+        var act = () => workflowService.ApproveAsync(
+            supportCase.Id,
+            Guid.NewGuid(),
+            50m,
+            "same_method",
+            "platform",
+            null,
+            null,
             CancellationToken.None);
 
         await act.Should()
             .ThrowAsync<BusinessRuleException>()
-            .Where(x => x.ErrorCode == "ORDER_SUPPORT_CASE_ALREADY_EXISTS");
+            .Where(x => x.ErrorCode == "INVALID_RETURN_COMPENSATION_METHOD");
+    }
+
+    [Fact]
+    public async Task ApproveReturnRequest_ForOnlinePayment_ShouldRejectCouponCompensation()
+    {
+        await using var dbContext = CreateDbContext();
+        var user = CreateUser();
+        var vendor = CreateVendor();
+        var order = CreateOrder(user.Id, OrderStatus.Delivered, "ORD-RETURN-ONLINE-002", PaymentMethodType.Card, vendor.Id);
+        var supportCase = CreateReturnRequest(order, user.Id, 50m);
+
+        dbContext.Users.Add(user);
+        dbContext.Vendors.Add(vendor);
+        dbContext.Orders.Add(order);
+        dbContext.OrderSupportCases.Add(supportCase);
+        await dbContext.SaveChangesAsync();
+
+        var workflowService = CreateWorkflowService(dbContext);
+
+        var act = () => workflowService.ApproveAsync(
+            supportCase.Id,
+            Guid.NewGuid(),
+            50m,
+            "coupon",
+            "platform",
+            null,
+            null,
+            CancellationToken.None);
+
+        await act.Should()
+            .ThrowAsync<BusinessRuleException>()
+            .Where(x => x.ErrorCode == "INVALID_RETURN_COMPENSATION_METHOD");
     }
 
     private static CreateOrderComplaintCommandHandler CreateComplaintHandler(ApplicationDbContext dbContext)
+    {
+        return new CreateOrderComplaintCommandHandler(CreateWorkflowService(dbContext));
+    }
+
+    private static OrderSupportCaseWorkflowService CreateWorkflowService(ApplicationDbContext dbContext)
     {
         var notificationService = new Mock<INotificationService>();
         notificationService
@@ -236,13 +482,19 @@ public class CustomerOrderCommandHandlerTests
                 It.IsAny<CancellationToken>()))
             .ReturnsAsync(new OneSignalPushDispatchResult(true, false, true, null, null, "test"));
 
+        var vendorPayoutWalletService = new VendorPayoutWalletService(
+            dbContext,
+            new Mock<Microsoft.Extensions.Logging.ILogger<VendorPayoutWalletService>>().Object);
+        var vendorRecoveryService = new VendorRecoveryService(dbContext, vendorPayoutWalletService);
+
         var workflowService = new OrderSupportCaseWorkflowService(
             dbContext,
             dbContext,
             notificationService.Object,
-            pushService.Object);
+            pushService.Object,
+            vendorRecoveryService);
 
-        return new CreateOrderComplaintCommandHandler(workflowService);
+        return workflowService;
     }
 
     private static ApplicationDbContext CreateDbContext()
@@ -266,9 +518,14 @@ public class CustomerOrderCommandHandlerTests
         return localizer;
     }
 
-    private static Order CreateOrder(Guid userId, OrderStatus status, string orderNumber)
+    private static Order CreateOrder(
+        Guid userId,
+        OrderStatus status,
+        string orderNumber,
+        PaymentMethodType paymentMethod = PaymentMethodType.Card,
+        Guid? vendorId = null)
     {
-        var order = new Order(orderNumber, userId, Guid.NewGuid(), Guid.NewGuid(), PaymentMethodType.Card, 120m, 0m, 15m, 15m, 0m, 0m, null, null, null, 5m);
+        var order = new Order(orderNumber, userId, vendorId ?? Guid.NewGuid(), Guid.NewGuid(), paymentMethod, 120m, 0m, 15m, 15m, 0m, 0m, null, null, null, 5m);
         order.Items.Add(new OrderItem(order.Id, Guid.NewGuid(), Guid.NewGuid(), "Complaint Item", 1, 120m));
 
         if (status != OrderStatus.PendingPayment)
@@ -278,4 +535,26 @@ public class CustomerOrderCommandHandlerTests
 
         return order;
     }
+
+    private static Vendor CreateVendor() =>
+        new(
+            Guid.NewGuid(),
+            "متجر الاختبار",
+            "Test Vendor",
+            "grocery",
+            $"CR-{Guid.NewGuid():N}"[..12],
+            "vendor@test.com",
+            "01000000009");
+
+    private static OrderSupportCase CreateReturnRequest(Order order, Guid userId, decimal requestedAmount) =>
+        new(
+            order.Id,
+            userId,
+            OrderSupportCaseType.ReturnRequest,
+            OrderSupportCasePriority.High,
+            OrderSupportCaseQueue.Finance,
+            "quality_issue",
+            "Customer requested a return.",
+            DateTime.UtcNow.AddHours(12),
+            requestedAmount);
 }

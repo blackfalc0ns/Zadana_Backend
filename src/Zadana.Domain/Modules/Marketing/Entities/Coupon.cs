@@ -19,6 +19,9 @@ public class Coupon : BaseEntity
     
     public int? UsageLimit { get; private set; }
     public int? PerUserLimit { get; private set; }
+    public Guid? AssignedUserId { get; private set; }
+    public CouponSourceType SourceType { get; private set; }
+    public Guid? OrderSupportCaseId { get; private set; }
     
     public bool IsActive { get; private set; }
 
@@ -37,7 +40,10 @@ public class Coupon : BaseEntity
         DateTime? startsAtUtc = null,
         DateTime? endsAtUtc = null,
         int? usageLimit = null,
-        int? perUserLimit = null)
+        int? perUserLimit = null,
+        Guid? assignedUserId = null,
+        CouponSourceType sourceType = CouponSourceType.Marketing,
+        Guid? orderSupportCaseId = null)
     {
         if (discountValue <= 0) throw new BusinessRuleException("INVALID_DISCOUNT", "Discount value must be greater than zero.");
         if (discountType == CouponDiscountType.Percentage && discountValue > 100) 
@@ -53,6 +59,9 @@ public class Coupon : BaseEntity
         EndsAtUtc = endsAtUtc;
         UsageLimit = usageLimit;
         PerUserLimit = perUserLimit;
+        AssignedUserId = assignedUserId;
+        SourceType = sourceType;
+        OrderSupportCaseId = orderSupportCaseId;
         IsActive = true;
     }
 
@@ -93,4 +102,7 @@ public class Coupon : BaseEntity
         if (EndsAtUtc.HasValue && DateTime.UtcNow > EndsAtUtc.Value) return false;
         return true;
     }
+
+    public bool IsAssignedTo(Guid userId) =>
+        !AssignedUserId.HasValue || AssignedUserId.Value == userId;
 }

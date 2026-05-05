@@ -13,6 +13,8 @@ using Zadana.Domain.Modules.Orders.Enums;
 using Zadana.Domain.Modules.Payments.Entities;
 using Zadana.Domain.Modules.Payments.Enums;
 using Zadana.Domain.Modules.Vendors.Entities;
+using Zadana.Domain.Modules.Wallets.Entities;
+using Zadana.Domain.Modules.Wallets.Enums;
 using Zadana.Infrastructure.Modules.Delivery.Services;
 using Zadana.Infrastructure.Persistence;
 
@@ -199,7 +201,14 @@ public class OrderReadService : IOrderReadService
             .OrderByDescending(item => item.CreatedAtUtc)
             .ToListAsync(cancellationToken);
 
-        return items.Select(MapSupportCase).ToList();
+        var couponSupportMap = await LoadCouponSupportMapAsync(
+            items.Where(item => item.CompensationCouponId.HasValue)
+                .Select(item => item.CompensationCouponId!.Value)
+                .Distinct()
+                .ToList(),
+            cancellationToken);
+
+        return items.Select(item => MapSupportCase(item, couponSupportMap)).ToList();
     }
 
     public async Task<OrderSupportCaseDto?> GetCustomerOrderSupportCaseAsync(
@@ -215,7 +224,16 @@ public class OrderReadService : IOrderReadService
             .Where(item => item.OrderId == orderId && item.Id == caseId && item.CustomerUserId == userId)
             .FirstOrDefaultAsync(cancellationToken);
 
-        return supportCase is null ? null : MapSupportCase(supportCase);
+        if (supportCase is null)
+        {
+            return null;
+        }
+
+        var couponSupportMap = await LoadCouponSupportMapAsync(
+            supportCase.CompensationCouponId.HasValue ? [supportCase.CompensationCouponId.Value] : [],
+            cancellationToken);
+
+        return MapSupportCase(supportCase, couponSupportMap);
     }
 
     public async Task<OrderComplaintDto?> GetCustomerOrderComplaintAsync(
@@ -714,12 +732,21 @@ public class OrderReadService : IOrderReadService
         var orderIds = orderedCases.Select(item => item.OrderId).Distinct().ToList();
         var paymentMap = await LoadPaymentMapAsync(orderIds, cancellationToken);
         var refundMap = await LoadRefundMapAsync(orderIds, cancellationToken);
+        var recoveryMap = await LoadVendorRecoveryMapAsync(caseIds, cancellationToken);
+        var couponSupportMap = await LoadCouponSupportMapAsync(
+            orderedCases.Where(item => item.CompensationCouponId.HasValue)
+                .Select(item => item.CompensationCouponId!.Value)
+                .Distinct()
+                .ToList(),
+            cancellationToken);
 
         var paged = orderedCases
             .Select(item => BuildAdminSupportCaseListItem(
                 item,
                 paymentMap.GetValueOrDefault(item.OrderId),
-                refundMap.GetValueOrDefault(item.OrderId)))
+                refundMap.GetValueOrDefault(item.OrderId),
+                recoveryMap.GetValueOrDefault(item.Id),
+                couponSupportMap))
             .ToList();
 
         return new AdminOrderSupportCasesListDto(
@@ -850,7 +877,15 @@ public class OrderReadService : IOrderReadService
             .Where(item => item.Payment.OrderId == supportCase.OrderId)
             .ToListAsync(cancellationToken);
 
-        return BuildAdminSupportCaseListItem(supportCase, payment, refunds);
+        var recovery = await _dbContext.VendorRecoveries
+            .AsNoTracking()
+            .FirstOrDefaultAsync(item => item.OrderSupportCaseId == supportCase.Id, cancellationToken);
+
+        var couponSupportMap = await LoadCouponSupportMapAsync(
+            supportCase.CompensationCouponId.HasValue ? [supportCase.CompensationCouponId.Value] : [],
+            cancellationToken);
+
+        return BuildAdminSupportCaseListItem(supportCase, payment, refunds, recovery, couponSupportMap);
     }
 
     private static CustomerOrderListItemDto MapListItem(Order order) =>
@@ -922,7 +957,9 @@ public class OrderReadService : IOrderReadService
                 .ToList(),
             supportCase.CreatedAtUtc);
 
-    private static OrderSupportCaseDto MapSupportCase(OrderSupportCase supportCase) =>
+    private static OrderSupportCaseDto MapSupportCase(
+        OrderSupportCase supportCase,
+        IReadOnlyDictionary<Guid, CouponSupportSnapshot> couponSupportMap) =>
         new(
             supportCase.Id,
             supportCase.OrderId,
@@ -940,6 +977,11 @@ public class OrderReadService : IOrderReadService
             supportCase.RequestedRefundAmount,
             supportCase.ApprovedRefundAmount,
             supportCase.RefundMethod,
+            MapSupportCaseCompensationType(supportCase.CompensationType),
+            MapSupportCaseSettlementStatus(supportCase, couponSupportMap),
+            ResolveCouponCode(supportCase.CompensationCouponId, couponSupportMap),
+            ResolveCouponExpiry(supportCase.CompensationCouponId, couponSupportMap),
+            ResolveCouponRedeemed(supportCase.CompensationCouponId, couponSupportMap),
             supportCase.CostBearer,
             supportCase.InitiatorRole,
             supportCase.AwaitingResponseFromRole,
@@ -1235,6 +1277,61 @@ public class OrderReadService : IOrderReadService
 
     private static string MapSupportCasePriority(OrderSupportCasePriority priority) =>
         priority.ToString().ToLowerInvariant();
+
+    private static string? MapSupportCaseCompensationType(OrderSupportCaseCompensationType? compensationType) =>
+        compensationType switch
+        {
+            OrderSupportCaseCompensationType.CashRefund => "cash_refund",
+            OrderSupportCaseCompensationType.CouponCompensation => "coupon_compensation",
+            _ => null
+        };
+
+    private static string? MapSupportCaseSettlementStatus(
+        OrderSupportCase supportCase,
+        IReadOnlyDictionary<Guid, CouponSupportSnapshot> couponSupportMap)
+    {
+        if (supportCase.Type != OrderSupportCaseType.ReturnRequest)
+        {
+            return null;
+        }
+
+        return supportCase.Status switch
+        {
+            OrderSupportCaseStatus.Submitted or
+            OrderSupportCaseStatus.InReview or
+            OrderSupportCaseStatus.AwaitingCustomerEvidence => "pending_review",
+            OrderSupportCaseStatus.Rejected => "rejected",
+            OrderSupportCaseStatus.Approved or
+            OrderSupportCaseStatus.Resolved => supportCase.CompensationType switch
+            {
+                OrderSupportCaseCompensationType.CashRefund => "cash_refunded",
+                OrderSupportCaseCompensationType.CouponCompensation when ResolveCouponRedeemed(supportCase.CompensationCouponId, couponSupportMap) => "coupon_redeemed",
+                OrderSupportCaseCompensationType.CouponCompensation => "coupon_issued",
+                _ => supportCase.ApprovedRefundAmount.HasValue ? "approved" : null
+            },
+            _ => null
+        };
+    }
+
+    private static string? MapVendorRecoveryStatus(VendorRecoveryStatus? status) =>
+        status switch
+        {
+            VendorRecoveryStatus.Pending => "pending",
+            VendorRecoveryStatus.PartiallyRecovered => "partial",
+            VendorRecoveryStatus.Recovered => "recovered",
+            _ => null
+        };
+
+    private static string MapPaymentMethod(PaymentMethodType paymentMethod) =>
+        paymentMethod switch
+        {
+            PaymentMethodType.Card => "card",
+            PaymentMethodType.BankTransfer => "bank",
+            PaymentMethodType.Wallet => "wallet",
+            PaymentMethodType.ApplePay => "apple_pay",
+            PaymentMethodType.Mada => "mada",
+            _ => "cash"
+        };
 
     private static bool IsCurrentStage(OrderStatus status, TrackingStage stage) =>
         stage switch
@@ -1824,7 +1921,9 @@ public class OrderReadService : IOrderReadService
     private static AdminOrderSupportCaseListItemDto BuildAdminSupportCaseListItem(
         OrderSupportCase supportCase,
         Payment? payment,
-        IReadOnlyList<Refund>? refunds)
+        IReadOnlyList<Refund>? refunds,
+        VendorRecovery? recovery,
+        IReadOnlyDictionary<Guid, CouponSupportSnapshot> couponSupportMap)
     {
         var order = supportCase.Order;
         var amount = supportCase.ApprovedRefundAmount
@@ -1856,9 +1955,18 @@ public class OrderReadService : IOrderReadService
             createdAt,
             sla,
             supportCase.CustomerVisibleNote ?? supportCase.DecisionNotes ?? supportCase.Message,
+            MapPaymentMethod(order.PaymentMethod),
             BuildPaymentMask(payment, order),
             BuildCustomerSummary(order, supportCase),
             BuildMerchantSummary(order, supportCase),
+            MapSupportCaseCompensationType(supportCase.CompensationType),
+            MapSupportCaseSettlementStatus(supportCase, couponSupportMap),
+            MapVendorRecoveryStatus(recovery?.Status),
+            recovery?.RecoveredAmount ?? 0m,
+            recovery?.OutstandingAmount ?? 0m,
+            ResolveCouponCode(supportCase.CompensationCouponId, couponSupportMap),
+            ResolveCouponExpiry(supportCase.CompensationCouponId, couponSupportMap),
+            ResolveCouponRedeemed(supportCase.CompensationCouponId, couponSupportMap),
             supportCase.Attachments
                 .Select(attachment => new OrderSupportCaseAttachmentDto(
                     attachment.FileName,
@@ -1926,11 +2034,84 @@ public class OrderReadService : IOrderReadService
         return order.PaymentMethod.ToString().ToUpperInvariant();
     }
 
+    private static string? ResolveCouponCode(
+        Guid? couponId,
+        IReadOnlyDictionary<Guid, CouponSupportSnapshot> couponSupportMap) =>
+        couponId.HasValue && couponSupportMap.TryGetValue(couponId.Value, out var coupon)
+            ? coupon.Code
+            : null;
+
+    private static DateTime? ResolveCouponExpiry(
+        Guid? couponId,
+        IReadOnlyDictionary<Guid, CouponSupportSnapshot> couponSupportMap) =>
+        couponId.HasValue && couponSupportMap.TryGetValue(couponId.Value, out var coupon)
+            ? coupon.ExpiresAtUtc
+            : null;
+
+    private static bool ResolveCouponRedeemed(
+        Guid? couponId,
+        IReadOnlyDictionary<Guid, CouponSupportSnapshot> couponSupportMap) =>
+        couponId.HasValue &&
+        couponSupportMap.TryGetValue(couponId.Value, out var coupon) &&
+        coupon.IsRedeemed;
+
     private static string BuildCustomerSummary(Order order, OrderSupportCase supportCase) =>
         $"Customer {order.User.FullName} opened a {MapSupportCaseType(supportCase.Type).Replace('_', ' ')} case for order {order.OrderNumber}.";
 
     private static string BuildMerchantSummary(Order order, OrderSupportCase supportCase) =>
         $"Merchant {order.Vendor.BusinessNameAr} is currently routed through the {ResolveQueueLabel(supportCase.Queue)} queue.";
+
+    private async Task<Dictionary<Guid, CouponSupportSnapshot>> LoadCouponSupportMapAsync(
+        IReadOnlyCollection<Guid> couponIds,
+        CancellationToken cancellationToken)
+    {
+        if (couponIds.Count == 0)
+        {
+            return [];
+        }
+
+        var coupons = await _dbContext.Coupons
+            .AsNoTracking()
+            .Where(coupon => couponIds.Contains(coupon.Id))
+            .Select(coupon => new
+            {
+                coupon.Id,
+                coupon.Code,
+                coupon.EndsAtUtc
+            })
+            .ToListAsync(cancellationToken);
+
+        var redeemedCouponIds = await _dbContext.Orders
+            .AsNoTracking()
+            .Where(order => order.CouponId.HasValue && couponIds.Contains(order.CouponId.Value))
+            .Select(order => order.CouponId!.Value)
+            .Distinct()
+            .ToListAsync(cancellationToken);
+
+        var redeemedLookup = redeemedCouponIds.ToHashSet();
+
+        return coupons.ToDictionary(
+            coupon => coupon.Id,
+            coupon => new CouponSupportSnapshot(
+                coupon.Code,
+                coupon.EndsAtUtc,
+                redeemedLookup.Contains(coupon.Id)));
+    }
+
+    private async Task<Dictionary<Guid, VendorRecovery>> LoadVendorRecoveryMapAsync(
+        IReadOnlyCollection<Guid> caseIds,
+        CancellationToken cancellationToken)
+    {
+        if (caseIds.Count == 0)
+        {
+            return [];
+        }
+
+        return await _dbContext.VendorRecoveries
+            .AsNoTracking()
+            .Where(item => caseIds.Contains(item.OrderSupportCaseId))
+            .ToDictionaryAsync(item => item.OrderSupportCaseId, cancellationToken);
+    }
 
     private static string ResolveTimelineTone(string action, OrderSupportCaseStatus status)
     {
@@ -1941,6 +2122,11 @@ public class OrderReadService : IOrderReadService
 
         return status == OrderSupportCaseStatus.AwaitingCustomerEvidence ? "muted" : "primary";
     }
+
+    private sealed record CouponSupportSnapshot(
+        string Code,
+        DateTime? ExpiresAtUtc,
+        bool IsRedeemed);
 
     private static string ResolveOperationalCaseType(OrderSupportCase supportCase)
     {

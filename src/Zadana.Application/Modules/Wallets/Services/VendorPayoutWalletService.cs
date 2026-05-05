@@ -185,6 +185,50 @@ public class VendorPayoutWalletService
             description: description));
     }
 
+    public async Task<Guid?> RecoverFromHoldAsync(
+        Guid vendorId,
+        Guid settlementId,
+        Guid recoveryId,
+        decimal amount,
+        string description,
+        CancellationToken cancellationToken)
+    {
+        if (amount <= 0)
+        {
+            return null;
+        }
+
+        var wallet = await GetVendorWalletAsync(vendorId, cancellationToken);
+        if (wallet is null)
+        {
+            return null;
+        }
+
+        var holdRecorded = await HasSettlementTxnAsync(
+            wallet.Id,
+            settlementId,
+            WalletTxnType.Hold,
+            cancellationToken);
+
+        if (!holdRecorded || wallet.PendingBalance < amount)
+        {
+            return null;
+        }
+
+        wallet.SettleHold(amount);
+        var txn = new WalletTransaction(
+            wallet.Id,
+            WalletTxnType.Debit,
+            amount,
+            "OUT",
+            settlementId: settlementId,
+            referenceType: "VendorRecovery",
+            referenceId: recoveryId,
+            description: description);
+        _context.WalletTransactions.Add(txn);
+        return txn.Id;
+    }
+
     private Task<Wallet?> GetVendorWalletAsync(Guid vendorId, CancellationToken cancellationToken) =>
         _context.Wallets.FirstOrDefaultAsync(
             wallet => wallet.OwnerType == WalletOwnerType.Vendor && wallet.OwnerId == vendorId,

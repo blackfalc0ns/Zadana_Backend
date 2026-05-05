@@ -5,9 +5,12 @@ using Zadana.Domain.Modules.Delivery.Enums;
 using Zadana.Application.Modules.Orders.Interfaces;
 using Zadana.Domain.Modules.Identity.Entities;
 using Zadana.Domain.Modules.Identity.Enums;
+using Zadana.Domain.Modules.Marketing.Entities;
+using Zadana.Domain.Modules.Marketing.Enums;
 using Zadana.Domain.Modules.Orders.Entities;
 using Zadana.Domain.Modules.Orders.Enums;
 using Zadana.Domain.Modules.Payments.Enums;
+using Zadana.Domain.Modules.Vendors.Entities;
 using Zadana.Infrastructure.Modules.Orders.Services;
 using Zadana.Infrastructure.Persistence;
 using Zadana.Infrastructure.Persistence.Interceptors;
@@ -218,6 +221,143 @@ public class CustomerOrderReadServiceTests
         result.Timeline[^1].Time.Should().NotBeNullOrWhiteSpace();
     }
 
+    [Fact]
+    public async Task GetCustomerOrderSupportCaseAsync_ShouldExposeCouponSettlementOutcomeForApprovedCodReturn()
+    {
+        await using var dbContext = CreateDbContext();
+        var user = CreateUser();
+        var vendor = CreateVendor();
+        var order = CreateOrder(user.Id, OrderStatus.Delivered, "ORD-CASE-COD", PaymentMethodType.CashOnDelivery, vendor.Id);
+        var supportCase = new OrderSupportCase(
+            order.Id,
+            user.Id,
+            OrderSupportCaseType.ReturnRequest,
+            OrderSupportCasePriority.High,
+            OrderSupportCaseQueue.Finance,
+            "quality_issue",
+            "Customer requested compensation.",
+            DateTime.UtcNow.AddHours(6),
+            95m);
+        var coupon = CreateSupportCoupon(user.Id, supportCase.Id, 80m);
+
+        supportCase.Approve(
+            Guid.NewGuid(),
+            80m,
+            "coupon",
+            OrderSupportCaseCompensationType.CouponCompensation,
+            coupon.Id,
+            "platform",
+            "Approved as coupon compensation.",
+            "A coupon was issued for your approved amount.");
+
+        dbContext.Users.Add(user);
+        dbContext.Vendors.Add(vendor);
+        dbContext.Orders.Add(order);
+        dbContext.OrderSupportCases.Add(supportCase);
+        dbContext.Coupons.Add(coupon);
+        await dbContext.SaveChangesAsync();
+
+        var service = new OrderReadService(dbContext);
+        var result = await service.GetCustomerOrderSupportCaseAsync(order.Id, supportCase.Id, user.Id);
+
+        result.Should().NotBeNull();
+        result!.CompensationType.Should().Be("coupon_compensation");
+        result.SettlementStatus.Should().Be("coupon_issued");
+        result.CouponCode.Should().Be(coupon.Code);
+        result.CouponRedeemed.Should().BeFalse();
+    }
+
+    [Fact]
+    public async Task GetAdminOrderSupportCaseDetailAsync_ShouldExposeRedeemedCouponSettlementOutcome()
+    {
+        await using var dbContext = CreateDbContext();
+        var user = CreateUser();
+        var vendor = CreateVendor();
+        var coupon = CreateSupportCoupon(user.Id, Guid.NewGuid(), 60m);
+        var order = CreateOrder(user.Id, OrderStatus.Delivered, "ORD-CASE-ADMIN-COD", PaymentMethodType.CashOnDelivery, vendor.Id);
+        var supportCase = new OrderSupportCase(
+            order.Id,
+            user.Id,
+            OrderSupportCaseType.ReturnRequest,
+            OrderSupportCasePriority.High,
+            OrderSupportCaseQueue.Finance,
+            "quality_issue",
+            "Customer requested compensation.",
+            DateTime.UtcNow.AddHours(6),
+            60m);
+
+        supportCase.Approve(
+            Guid.NewGuid(),
+            60m,
+            "coupon",
+            OrderSupportCaseCompensationType.CouponCompensation,
+            coupon.Id,
+            "platform",
+            "Approved as coupon compensation.",
+            "A coupon was issued for your approved amount.");
+
+        var redeemedOrder = CreateOrder(user.Id, OrderStatus.Delivered, "ORD-COUPON-REDEEMED", PaymentMethodType.CashOnDelivery, vendor.Id, coupon.Id);
+
+        dbContext.Users.Add(user);
+        dbContext.Vendors.Add(vendor);
+        dbContext.Orders.AddRange(order, redeemedOrder);
+        dbContext.OrderSupportCases.Add(supportCase);
+        dbContext.Coupons.Add(coupon);
+        await dbContext.SaveChangesAsync();
+
+        var service = new OrderReadService(dbContext);
+        var result = await service.GetAdminOrderSupportCaseDetailAsync(supportCase.Id);
+
+        result.Should().NotBeNull();
+        result!.CompensationType.Should().Be("coupon_compensation");
+        result.SettlementStatus.Should().Be("coupon_redeemed");
+        result.CouponCode.Should().Be(coupon.Code);
+        result.CouponRedeemed.Should().BeTrue();
+    }
+
+    [Fact]
+    public async Task GetCustomerOrderSupportCaseAsync_ShouldExposeCashRefundSettlementOutcomeForApprovedOnlineReturn()
+    {
+        await using var dbContext = CreateDbContext();
+        var user = CreateUser();
+        var vendor = CreateVendor();
+        var order = CreateOrder(user.Id, OrderStatus.Delivered, "ORD-CASE-CARD", PaymentMethodType.Card, vendor.Id);
+        var supportCase = new OrderSupportCase(
+            order.Id,
+            user.Id,
+            OrderSupportCaseType.ReturnRequest,
+            OrderSupportCasePriority.High,
+            OrderSupportCaseQueue.Finance,
+            "quality_issue",
+            "Customer requested a refund.",
+            DateTime.UtcNow.AddHours(6),
+            120m);
+
+        supportCase.Approve(
+            Guid.NewGuid(),
+            120m,
+            "same_method",
+            OrderSupportCaseCompensationType.CashRefund,
+            null,
+            "vendor",
+            "Approved as cash refund.",
+            "Your refund has been approved.");
+
+        dbContext.Users.Add(user);
+        dbContext.Vendors.Add(vendor);
+        dbContext.Orders.Add(order);
+        dbContext.OrderSupportCases.Add(supportCase);
+        await dbContext.SaveChangesAsync();
+
+        var service = new OrderReadService(dbContext);
+        var result = await service.GetCustomerOrderSupportCaseAsync(order.Id, supportCase.Id, user.Id);
+
+        result.Should().NotBeNull();
+        result!.CompensationType.Should().Be("cash_refund");
+        result.SettlementStatus.Should().Be("cash_refunded");
+        result.CouponCode.Should().BeNull();
+    }
+
     private static ApplicationDbContext CreateDbContext()
     {
         var options = new DbContextOptionsBuilder<ApplicationDbContext>()
@@ -230,9 +370,15 @@ public class CustomerOrderReadServiceTests
     private static User CreateUser() =>
         new("Customer User", "customer.orders@test.com", "01000000000", UserRole.Customer);
 
-    private static Order CreateOrder(Guid userId, OrderStatus status, string orderNumber, PaymentMethodType paymentMethod = PaymentMethodType.CashOnDelivery)
+    private static Order CreateOrder(
+        Guid userId,
+        OrderStatus status,
+        string orderNumber,
+        PaymentMethodType paymentMethod = PaymentMethodType.CashOnDelivery,
+        Guid? vendorId = null,
+        Guid? couponId = null)
     {
-        var order = new Order(orderNumber, userId, Guid.NewGuid(), Guid.NewGuid(), paymentMethod, 100m, 0m, 10m, 10m, 0m, 0m, null, null, null, 5m);
+        var order = new Order(orderNumber, userId, vendorId ?? Guid.NewGuid(), Guid.NewGuid(), paymentMethod, 100m, 0m, 10m, 10m, 0m, 0m, null, null, null, 5m, couponId: couponId);
         order.Items.Add(new OrderItem(order.Id, Guid.NewGuid(), Guid.NewGuid(), "Fresh Item", 2, 50m));
 
         if (status != OrderStatus.PendingPayment)
@@ -258,4 +404,30 @@ public class CustomerOrderReadServiceTests
 
         return order;
     }
+
+    private static Vendor CreateVendor() =>
+        new(
+            Guid.NewGuid(),
+            "متجر القراءة",
+            "Read Test Vendor",
+            "grocery",
+            $"CR-{Guid.NewGuid():N}"[..12],
+            "vendor.read@test.com",
+            "01000000011");
+
+    private static Coupon CreateSupportCoupon(Guid userId, Guid supportCaseId, decimal amount) =>
+        new(
+            $"RET-{Guid.NewGuid():N}"[..12].ToUpperInvariant(),
+            "Support compensation",
+            CouponDiscountType.Fixed,
+            amount,
+            minOrderAmount: null,
+            maxDiscountAmount: amount,
+            startsAtUtc: DateTime.UtcNow.AddMinutes(-5),
+            endsAtUtc: DateTime.UtcNow.AddDays(30),
+            usageLimit: 1,
+            perUserLimit: 1,
+            assignedUserId: userId,
+            sourceType: CouponSourceType.SupportCompensation,
+            orderSupportCaseId: supportCaseId);
 }

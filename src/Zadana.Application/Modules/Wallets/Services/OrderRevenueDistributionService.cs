@@ -16,18 +16,21 @@ public class OrderRevenueDistributionService
     private readonly IApplicationDbContext _context;
     private readonly FinancialSettingsOptions _settings;
     private readonly VendorPayoutWalletService _vendorPayoutWalletService;
+    private readonly VendorRecoveryService? _vendorRecoveryService;
     private readonly ILogger<OrderRevenueDistributionService> _logger;
 
     public OrderRevenueDistributionService(
         IApplicationDbContext context,
         IOptions<FinancialSettingsOptions> settings,
         VendorPayoutWalletService vendorPayoutWalletService,
-        ILogger<OrderRevenueDistributionService> logger)
+        ILogger<OrderRevenueDistributionService> logger,
+        VendorRecoveryService? vendorRecoveryService = null)
     {
         _context = context;
         _settings = settings.Value;
         _vendorPayoutWalletService = vendorPayoutWalletService;
         _logger = logger;
+        _vendorRecoveryService = vendorRecoveryService;
     }
 
     /// <summary>
@@ -118,6 +121,21 @@ public class OrderRevenueDistributionService
         var driverNet = driverGross - driverCommission;
 
         var platformNet = vendorCommission + driverCommission;
+
+        if (_vendorRecoveryService is not null && vendorNet > 0m)
+        {
+            var recoveredFromOutstanding = await _vendorRecoveryService.ApplyOutstandingRecoveriesAsync(
+                vendor.Id,
+                orderId,
+                vendorNet,
+                cancellationToken);
+
+            if (recoveredFromOutstanding > 0m)
+            {
+                vendorNet -= recoveredFromOutstanding;
+                platformNet += recoveredFromOutstanding;
+            }
+        }
 
         _logger.LogInformation(
             "[RevenueDistribution] Order {OrderId}: VendorNet={VendorNet}, DriverNet={DriverNet}, PlatformNet={PlatformNet}",

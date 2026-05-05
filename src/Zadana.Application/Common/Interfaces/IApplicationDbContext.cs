@@ -86,6 +86,7 @@ public interface IApplicationDbContext
     DbSet<Settlement> Settlements { get; }
     DbSet<SettlementItem> SettlementItems { get; }
     DbSet<Payout> Payouts { get; }
+    DbSet<VendorRecovery> VendorRecoveries { get; }
     DbSet<DriverPayoutMethod> DriverPayoutMethods { get; }
     DbSet<DriverWithdrawalRequest> DriverWithdrawalRequests { get; }
 

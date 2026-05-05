@@ -142,6 +142,25 @@ public class VendorOrderCasesController : ApiControllerBase
                 a.CreatedAtUtc))
             .ToList();
 
+        var coupon = supportCase.CompensationCouponId.HasValue
+            ? await _dbContext.Coupons
+                .AsNoTracking()
+                .Where(item => item.Id == supportCase.CompensationCouponId.Value)
+                .Select(item => new
+                {
+                    item.Code,
+                    item.EndsAtUtc
+                })
+                .FirstOrDefaultAsync(cancellationToken)
+            : null;
+
+        var couponRedeemed = supportCase.CompensationCouponId.HasValue &&
+            await _dbContext.Orders
+                .AsNoTracking()
+                .AnyAsync(
+                    order => order.CouponId == supportCase.CompensationCouponId.Value,
+                    cancellationToken);
+
         return Ok(new VendorOrderCaseDetailResponse(
             supportCase.Id,
             supportCase.OrderId,
@@ -161,6 +180,11 @@ public class VendorOrderCasesController : ApiControllerBase
             supportCase.RequestedRefundAmount,
             supportCase.ApprovedRefundAmount,
             supportCase.RefundMethod,
+            MapCompensationType(supportCase.CompensationType),
+            ResolveSettlementStatus(supportCase.Status, supportCase.Type, supportCase.CompensationType, couponRedeemed),
+            coupon?.Code,
+            coupon?.EndsAtUtc,
+            couponRedeemed,
             supportCase.CostBearer,
             supportCase.CreatedAtUtc,
             supportCase.UpdatedAtUtc,
@@ -248,6 +272,43 @@ public class VendorOrderCasesController : ApiControllerBase
 
         return participants;
     }
+
+    private static string? ResolveSettlementStatus(
+        OrderSupportCaseStatus caseStatus,
+        OrderSupportCaseType caseType,
+        OrderSupportCaseCompensationType? compensationType,
+        bool couponRedeemed)
+    {
+        if (caseType != OrderSupportCaseType.ReturnRequest)
+        {
+            return null;
+        }
+
+        return caseStatus switch
+        {
+            OrderSupportCaseStatus.Submitted or
+            OrderSupportCaseStatus.InReview or
+            OrderSupportCaseStatus.AwaitingCustomerEvidence => "pending_review",
+            OrderSupportCaseStatus.Rejected => "rejected",
+            OrderSupportCaseStatus.Approved or
+            OrderSupportCaseStatus.Resolved => compensationType switch
+            {
+                OrderSupportCaseCompensationType.CashRefund => "cash_refunded",
+                OrderSupportCaseCompensationType.CouponCompensation when couponRedeemed => "coupon_redeemed",
+                OrderSupportCaseCompensationType.CouponCompensation => "coupon_issued",
+                _ => "approved"
+            },
+            _ => null
+        };
+    }
+
+    private static string? MapCompensationType(OrderSupportCaseCompensationType? compensationType) =>
+        compensationType switch
+        {
+            OrderSupportCaseCompensationType.CashRefund => "cash_refund",
+            OrderSupportCaseCompensationType.CouponCompensation => "coupon_compensation",
+            _ => null
+        };
 }
 
 // Request DTOs
@@ -296,6 +357,11 @@ public sealed record VendorOrderCaseDetailResponse(
     decimal? RequestedRefundAmount,
     decimal? ApprovedRefundAmount,
     string? RefundMethod,
+    string? CompensationType,
+    string? SettlementStatus,
+    string? CouponCode,
+    DateTime? CouponExpiresAtUtc,
+    bool CouponRedeemed,
     string? CostBearer,
     DateTime CreatedAt,
     DateTime UpdatedAt,

@@ -96,7 +96,7 @@ public class PlaceCheckoutOrderCommandHandler : IRequestHandler<PlaceCheckoutOrd
             pricing.VendorBranchId,
             address,
             cancellationToken);
-        var coupon = await ResolveOrderCouponAsync(cart, request.PromoCode, pricing.VendorId, pricing.Subtotal, cancellationToken);
+        var coupon = await ResolveOrderCouponAsync(request.UserId, cart, request.PromoCode, pricing.VendorId, pricing.Subtotal, cancellationToken);
         var discount = coupon == null ? 0m : CheckoutSupport.CalculateDiscountAmount(coupon, pricing.Subtotal);
         var financeBreakdown = await CheckoutSupport.ResolveFinanceBreakdownAsync(
             _context,
@@ -255,6 +255,7 @@ public class PlaceCheckoutOrderCommandHandler : IRequestHandler<PlaceCheckoutOrd
     }
 
     private async Task<Zadana.Domain.Modules.Marketing.Entities.Coupon?> ResolveOrderCouponAsync(
+        Guid userId,
         Zadana.Domain.Modules.Orders.Entities.Cart cart,
         string? promoCode,
         Guid vendorId,
@@ -263,10 +264,10 @@ public class PlaceCheckoutOrderCommandHandler : IRequestHandler<PlaceCheckoutOrd
     {
         if (!string.IsNullOrWhiteSpace(promoCode))
         {
-            return await CheckoutSupport.ResolveCouponByCodeAsync(_context, promoCode, vendorId, subtotal, cancellationToken);
+            return await CheckoutSupport.ResolveCouponByCodeAsync(_context, userId, promoCode, vendorId, subtotal, cancellationToken);
         }
 
-        return await CheckoutSupport.ResolveAppliedCouponAsync(_context, cart, cancellationToken);
+        return await CheckoutSupport.ResolveAppliedCouponAsync(_context, userId, cart, cancellationToken);
     }
 
     private static void ValidateDeliverySlot(string? deliverySlotId)

@@ -101,6 +101,7 @@ public class ApplicationDbContext : IdentityDbContext<User, IdentityRole<Guid>, 
     public DbSet<Settlement> Settlements => Set<Settlement>();
     public DbSet<SettlementItem> SettlementItems => Set<SettlementItem>();
     public DbSet<Payout> Payouts => Set<Payout>();
+    public DbSet<VendorRecovery> VendorRecoveries => Set<VendorRecovery>();
     public DbSet<DriverPayoutMethod> DriverPayoutMethods => Set<DriverPayoutMethod>();
     public DbSet<DriverWithdrawalRequest> DriverWithdrawalRequests => Set<DriverWithdrawalRequest>();
 

@@ -44,7 +44,7 @@ public class ApplyCheckoutPromoCodeCommandHandler : IRequestHandler<ApplyCheckou
         var cart = await CheckoutSupport.GetRequiredCartAsync(_context, request.UserId, cancellationToken, asTracking: true);
         var pricing = await CheckoutSupport.BuildPricingSnapshotAsync(_context, cart, request.VendorId, cancellationToken);
         var address = await CheckoutSupport.ResolveSelectedAddressAsync(_context, request.UserId, null, cancellationToken);
-        var coupon = await CheckoutSupport.ResolveCouponByCodeAsync(_context, request.Code, pricing.VendorId, pricing.Subtotal, cancellationToken);
+        var coupon = await CheckoutSupport.ResolveCouponByCodeAsync(_context, request.UserId, request.Code, pricing.VendorId, pricing.Subtotal, cancellationToken);
         var deliveryQuote = await CheckoutSupport.QuoteDeliveryOrFallbackAsync(
             _deliveryPricingService,
             pricing.VendorBranchId,

@@ -47,6 +47,22 @@ public class Settlement : BaseEntity
         NetAmount = gross - commission;
     }
 
+    public void ApplyVendorRecovery(decimal amount)
+    {
+        if (amount <= 0)
+        {
+            return;
+        }
+
+        if (NetAmount < amount)
+        {
+            throw new InvalidOperationException("Settlement net amount cannot absorb this recovery.");
+        }
+
+        CommissionAmount += amount;
+        NetAmount -= amount;
+    }
+
     public void MarkAsProcessing() => Status = SettlementStatus.Processing;
 
     public void MarkAsSettled()

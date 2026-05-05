@@ -286,7 +286,7 @@ public class OrdersController : ApiControllerBase
         if (activeCase is null)
         {
             return Ok(new CustomerRefundStatusResponse(
-                orderId, false, null, null, null, null, null, null, null, null, null));
+                orderId, false, null, null, null, null, null, null, null, null, null, false, null, null, null, null));
         }
 
         return Ok(new CustomerRefundStatusResponse(
@@ -297,6 +297,11 @@ public class OrdersController : ApiControllerBase
             activeCase.RequestedRefundAmount,
             activeCase.ApprovedRefundAmount,
             activeCase.RefundMethod,
+            activeCase.CompensationType,
+            activeCase.SettlementStatus,
+            activeCase.CouponCode,
+            activeCase.CouponExpiresAtUtc,
+            activeCase.CouponRedeemed,
             activeCase.ApprovedRefundAmount.HasValue ? "approved" : "pending",
             activeCase.CustomerVisibleNote,
             activeCase.CreatedAt,
@@ -478,6 +483,11 @@ public class OrdersController : ApiControllerBase
             dto.RequestedRefundAmount,
             dto.ApprovedRefundAmount,
             dto.RefundMethod,
+            dto.CompensationType,
+            dto.SettlementStatus,
+            dto.CouponCode,
+            dto.CouponExpiresAtUtc,
+            dto.CouponRedeemed,
             dto.CostBearer,
             dto.InitiatorRole,
             dto.WaitingOnRole,

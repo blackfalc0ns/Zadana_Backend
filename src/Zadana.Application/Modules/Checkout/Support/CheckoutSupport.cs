@@ -173,6 +173,7 @@ internal static class CheckoutSupport
 
     public static async Task<Coupon?> ResolveAppliedCouponAsync(
         IApplicationDbContext context,
+        Guid userId,
         Cart cart,
         CancellationToken cancellationToken)
     {
@@ -181,13 +182,22 @@ internal static class CheckoutSupport
             return null;
         }
 
-        return await context.Coupons
+        var coupon = await context.Coupons
             .AsNoTracking()
             .FirstOrDefaultAsync(x => x.Id == cart.CouponId.Value, cancellationToken);
+
+        if (coupon is null)
+        {
+            return null;
+        }
+
+        await EnsureCouponEligibilityAsync(context, coupon, userId, null, cart.Subtotal, cancellationToken);
+        return coupon;
     }
 
     public static async Task<Coupon> ResolveCouponByCodeAsync(
         IApplicationDbContext context,
+        Guid userId,
         string code,
         Guid vendorId,
         decimal subtotal,
@@ -198,30 +208,7 @@ internal static class CheckoutSupport
             .FirstOrDefaultAsync(x => x.Code == code.Trim().ToUpperInvariant(), cancellationToken)
             ?? throw new BusinessRuleException("INVALID_PROMO_CODE", "Promo code is invalid.");
 
-        if (!coupon.IsValid())
-        {
-            throw new BusinessRuleException("INVALID_PROMO_CODE", "Promo code is invalid or inactive.");
-        }
-
-        if (coupon.MinOrderAmount.HasValue && subtotal < coupon.MinOrderAmount.Value)
-        {
-            throw new BusinessRuleException("PROMO_MIN_ORDER_NOT_MET", "Promo code minimum order amount is not met.");
-        }
-
-        var hasRestrictions = await context.CouponVendors
-            .AsNoTracking()
-            .AnyAsync(x => x.CouponId == coupon.Id, cancellationToken);
-
-        if (hasRestrictions)
-        {
-            var isApplicable = await context.CouponVendors
-                .AsNoTracking()
-                .AnyAsync(x => x.CouponId == coupon.Id && x.VendorId == vendorId, cancellationToken);
-            if (!isApplicable)
-            {
-                throw new BusinessRuleException("PROMO_CODE_NOT_APPLICABLE", "Promo code is not applicable to the selected vendor.");
-            }
-        }
+        await EnsureCouponEligibilityAsync(context, coupon, userId, vendorId, subtotal, cancellationToken);
 
         return coupon;
     }
@@ -586,4 +573,72 @@ internal static class CheckoutSupport
         bool CoversAllProducts,
         decimal Total,
         List<VendorOfferSnapshot> Offers);
+
+    private static async Task EnsureCouponEligibilityAsync(
+        IApplicationDbContext context,
+        Coupon coupon,
+        Guid userId,
+        Guid? vendorId,
+        decimal subtotal,
+        CancellationToken cancellationToken)
+    {
+        if (!coupon.IsValid())
+        {
+            throw new BusinessRuleException("INVALID_PROMO_CODE", "Promo code is invalid or inactive.");
+        }
+
+        if (!coupon.IsAssignedTo(userId))
+        {
+            throw new BusinessRuleException("PROMO_CODE_NOT_APPLICABLE", "Promo code is not assigned to the current customer.");
+        }
+
+        if (coupon.MinOrderAmount.HasValue && subtotal < coupon.MinOrderAmount.Value)
+        {
+            throw new BusinessRuleException("PROMO_MIN_ORDER_NOT_MET", "Promo code minimum order amount is not met.");
+        }
+
+        if (coupon.UsageLimit.HasValue)
+        {
+            var usageCount = await context.Orders
+                .AsNoTracking()
+                .CountAsync(order => order.CouponId == coupon.Id, cancellationToken);
+
+            if (usageCount >= coupon.UsageLimit.Value)
+            {
+                throw new BusinessRuleException("PROMO_CODE_USAGE_LIMIT_REACHED", "Promo code usage limit has been reached.");
+            }
+        }
+
+        if (coupon.PerUserLimit.HasValue)
+        {
+            var perUserUsageCount = await context.Orders
+                .AsNoTracking()
+                .CountAsync(order => order.CouponId == coupon.Id && order.UserId == userId, cancellationToken);
+
+            if (perUserUsageCount >= coupon.PerUserLimit.Value)
+            {
+                throw new BusinessRuleException("PROMO_CODE_USER_LIMIT_REACHED", "Promo code has already been used by this customer.");
+            }
+        }
+
+        var hasRestrictions = await context.CouponVendors
+            .AsNoTracking()
+            .AnyAsync(x => x.CouponId == coupon.Id, cancellationToken);
+
+        if (hasRestrictions)
+        {
+            if (!vendorId.HasValue)
+            {
+                throw new BusinessRuleException("PROMO_CODE_NOT_APPLICABLE", "Promo code is not applicable without a selected vendor.");
+            }
+
+            var isApplicable = await context.CouponVendors
+                .AsNoTracking()
+                .AnyAsync(x => x.CouponId == coupon.Id && x.VendorId == vendorId.Value, cancellationToken);
+            if (!isApplicable)
+            {
+                throw new BusinessRuleException("PROMO_CODE_NOT_APPLICABLE", "Promo code is not applicable to the selected vendor.");
+            }
+        }
+    }
 }

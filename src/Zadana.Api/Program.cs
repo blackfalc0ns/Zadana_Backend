@@ -96,6 +96,7 @@ builder.Services.AddScoped<IOrderRepository, OrderRepository>();
 builder.Services.AddScoped<IOrderReadService, OrderReadService>();
 builder.Services.AddScoped<OrderRevenueDistributionService>();
 builder.Services.AddScoped<VendorPayoutWalletService>();
+builder.Services.AddScoped<VendorRecoveryService>();
 builder.Services.AddSingleton<CustomerPresenceService>();
 builder.Services.AddSingleton<ICustomerPresenceService>(provider => provider.GetRequiredService<CustomerPresenceService>());
 builder.Services.AddSingleton<NotificationService>();

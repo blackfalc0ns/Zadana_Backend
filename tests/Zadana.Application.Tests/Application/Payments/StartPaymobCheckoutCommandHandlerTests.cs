@@ -27,9 +27,11 @@ public class StartPaymobCheckoutCommandHandlerTests
         var user = new User("Paymob User", "paymob@test.com", "01000000000", UserRole.Customer);
         var address = new CustomerAddress(user.Id, "Paymob User", "01000000000", "Nasr City 10", AddressLabel.Home, city: "Cairo");
         var order = new Order("ORD-TEST-001", user.Id, Guid.NewGuid(), address.Id, PaymentMethodType.Card, 100m, 0m, 10m, 10m, 0m, 0m, null, null, null, 5m);
+        var cart = CreateCart(user.Id, 100m, 10m);
 
         dbContext.Users.Add(user);
         dbContext.CustomerAddresses.Add(address);
+        dbContext.Carts.Add(cart);
         dbContext.Orders.Add(order);
         await dbContext.SaveChangesAsync();
 
@@ -80,8 +82,15 @@ public class StartPaymobCheckoutCommandHandlerTests
     public async Task Handle_WhenPromoCodeDoesNotApplyToVendor_ShouldThrowBusinessRuleException()
     {
         await using var dbContext = CreateDbContext();
+        var user = new User("Promo User", "promo@test.com", "01000000002", UserRole.Customer);
+        var vendorId = Guid.NewGuid();
+        var address = new CustomerAddress(user.Id, "Promo User", "01000000002", "Heliopolis 20", AddressLabel.Home, city: "Cairo");
+        var cart = CreateCart(user.Id, 100m, 10m);
         var coupon = new Coupon("SAVE10", "Save 10", CouponDiscountType.Fixed, 10m);
         dbContext.Coupons.Add(coupon);
+        dbContext.Users.Add(user);
+        dbContext.CustomerAddresses.Add(address);
+        dbContext.Carts.Add(cart);
         dbContext.CouponVendors.Add(new Zadana.Domain.Modules.Marketing.Entities.CouponVendor(coupon.Id, Guid.NewGuid()));
         await dbContext.SaveChangesAsync();
 
@@ -92,7 +101,44 @@ public class StartPaymobCheckoutCommandHandlerTests
             dbContext);
 
         var act = () => handler.Handle(
-            new StartPaymobCheckoutCommand(Guid.NewGuid(), Guid.NewGuid(), Guid.NewGuid(), "card", null, null, "SAVE10"),
+            new StartPaymobCheckoutCommand(user.Id, vendorId, address.Id, "card", null, null, "SAVE10"),
+            CancellationToken.None);
+
+        await act.Should()
+            .ThrowAsync<BusinessRuleException>()
+            .Where(x => x.ErrorCode == "PROMO_CODE_NOT_APPLICABLE");
+    }
+
+    [Fact]
+    public async Task Handle_WhenPromoCodeIsAssignedToAnotherCustomer_ShouldThrowBusinessRuleException()
+    {
+        await using var dbContext = CreateDbContext();
+        var ownerUser = new User("Coupon Owner", "owner@test.com", "01000000003", UserRole.Customer);
+        var currentUser = new User("Different User", "different@test.com", "01000000004", UserRole.Customer);
+        var vendorId = Guid.NewGuid();
+        var address = new CustomerAddress(currentUser.Id, "Different User", "01000000004", "Maadi 25", AddressLabel.Home, city: "Cairo");
+        var cart = CreateCart(currentUser.Id, 100m, 10m);
+        var coupon = new Coupon(
+            "PRIVATE10",
+            "Private 10",
+            CouponDiscountType.Fixed,
+            10m,
+            assignedUserId: ownerUser.Id);
+
+        dbContext.Users.AddRange(ownerUser, currentUser);
+        dbContext.CustomerAddresses.Add(address);
+        dbContext.Carts.Add(cart);
+        dbContext.Coupons.Add(coupon);
+        await dbContext.SaveChangesAsync();
+
+        var handler = new StartPaymobCheckoutCommandHandler(
+            dbContext,
+            Mock.Of<IPaymobGateway>(x => x.IsEnabled == true),
+            Mock.Of<ISender>(),
+            dbContext);
+
+        var act = () => handler.Handle(
+            new StartPaymobCheckoutCommand(currentUser.Id, vendorId, address.Id, "card", null, null, "PRIVATE10"),
             CancellationToken.None);
 
         await act.Should()
@@ -107,5 +153,12 @@ public class StartPaymobCheckoutCommandHandlerTests
             .Options;
 
         return new ApplicationDbContext(options, new AuditableEntityInterceptor());
+    }
+
+    private static Cart CreateCart(Guid userId, decimal subtotal, decimal deliveryFee)
+    {
+        var cart = new Cart(userId);
+        cart.UpdateTotals(subtotal, deliveryFee, deliveryFee);
+        return cart;
     }
 }

@@ -43,7 +43,7 @@ public class StartPaymobCheckoutCommandHandler : IRequestHandler<StartPaymobChec
             throw new BusinessRuleException("PAYMENT_METHOD_NOT_SUPPORTED", "Only card payments are supported in this checkout flow.");
         }
 
-        var couponId = await ResolveCouponIdAsync(request.PromoCode, request.VendorId, cancellationToken);
+        var couponId = await ResolveCouponIdAsync(request.UserId, request.PromoCode, request.VendorId, cancellationToken);
         var cart = await _context.Carts
             .AsNoTracking()
             .FirstOrDefaultAsync(x => x.UserId == request.UserId, cancellationToken)
@@ -141,38 +141,25 @@ public class StartPaymobCheckoutCommandHandler : IRequestHandler<StartPaymobChec
         }
     }
 
-    private async Task<Guid?> ResolveCouponIdAsync(string? promoCode, Guid vendorId, CancellationToken cancellationToken)
+    private async Task<Guid?> ResolveCouponIdAsync(Guid userId, string? promoCode, Guid vendorId, CancellationToken cancellationToken)
     {
         if (string.IsNullOrWhiteSpace(promoCode))
         {
             return null;
         }
 
-        var normalizedCode = promoCode.Trim().ToUpperInvariant();
-        var coupon = await _context.Coupons
+        var cart = await _context.Carts
             .AsNoTracking()
-            .FirstOrDefaultAsync(x => x.Code == normalizedCode, cancellationToken);
+            .FirstOrDefaultAsync(x => x.UserId == userId, cancellationToken)
+            ?? throw new BusinessRuleException("EMPTY_CART", "Cart not found for checkout.");
 
-        if (coupon == null || !coupon.IsValid())
-        {
-            throw new BusinessRuleException("INVALID_PROMO_CODE", "Promo code is invalid or inactive.");
-        }
-
-        var hasVendorRestrictions = await _context.CouponVendors
-            .AsNoTracking()
-            .AnyAsync(x => x.CouponId == coupon.Id, cancellationToken);
-
-        if (hasVendorRestrictions)
-        {
-            var isApplicable = await _context.CouponVendors
-                .AsNoTracking()
-                .AnyAsync(x => x.CouponId == coupon.Id && x.VendorId == vendorId, cancellationToken);
-
-            if (!isApplicable)
-            {
-                throw new BusinessRuleException("PROMO_CODE_NOT_APPLICABLE", "Promo code is not applicable to the selected vendor.");
-            }
-        }
+        var coupon = await CheckoutSupport.ResolveCouponByCodeAsync(
+            _context,
+            userId,
+            promoCode,
+            vendorId,
+            cart.Subtotal,
+            cancellationToken);
 
         return coupon.Id;
     }

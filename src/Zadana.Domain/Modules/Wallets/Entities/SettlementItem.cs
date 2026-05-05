@@ -37,4 +37,20 @@ public class SettlementItem
         CodCollectedAmount = codCollectedAmount;
         WalletTransactionId = walletTransactionId;
     }
+
+    public void ApplyVendorRecovery(decimal amount)
+    {
+        if (amount <= 0)
+        {
+            return;
+        }
+
+        if (VendorAmount < amount)
+        {
+            throw new InvalidOperationException("Settlement item vendor amount cannot absorb this recovery.");
+        }
+
+        VendorAmount -= amount;
+        PlatformCommission += amount;
+    }
 }

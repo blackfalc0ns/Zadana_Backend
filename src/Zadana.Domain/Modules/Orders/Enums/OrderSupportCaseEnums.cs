@@ -35,3 +35,9 @@ public enum OrderSupportCaseQueue
     Legal,
     DriverOps
 }
+
+public enum OrderSupportCaseCompensationType
+{
+    CashRefund,
+    CouponCompensation
+}
