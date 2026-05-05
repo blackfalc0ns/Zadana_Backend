@@ -34,22 +34,61 @@ public class UpdateCouponCommandValidator : AbstractValidator<UpdateCouponComman
 {
     public UpdateCouponCommandValidator(IStringLocalizer<SharedResource> localizer)
     {
-        RuleFor(x => x.Id).NotEmpty().WithMessage(x => localizer["RequiredField"]);
-        RuleFor(x => x.Code).NotEmpty().MaximumLength(100);
-        RuleFor(x => x.Title).NotEmpty().MaximumLength(200);
+        var couponIdName = localizer["CouponIdField"];
+        var couponCodeName = localizer["CouponCodeField"];
+        var couponTitleName = localizer["CouponTitleField"];
+        var discountTypeName = localizer["CouponDiscountTypeField"];
+        var discountValueName = localizer["CouponDiscountValueField"];
+        var endDateName = localizer["CouponEndDateField"];
+        var usageLimitName = localizer["CouponUsageLimitField"];
+        var perUserLimitName = localizer["CouponPerUserLimitField"];
+
+        RuleFor(x => x.Id)
+            .NotEmpty().WithMessage(x => localizer["RequiredField"])
+            .WithName(couponIdName);
+
+        RuleFor(x => x.Code)
+            .NotEmpty().WithMessage(x => localizer["RequiredField"])
+            .MaximumLength(100).WithMessage(x => localizer["MaxLength"])
+            .WithName(couponCodeName);
+
+        RuleFor(x => x.Title)
+            .NotEmpty().WithMessage(x => localizer["RequiredField"])
+            .MaximumLength(200).WithMessage(x => localizer["MaxLength"])
+            .WithName(couponTitleName);
+
         RuleFor(x => x.DiscountType)
             .NotEmpty()
+            .WithMessage(x => localizer["RequiredField"])
             .IsEnumName(typeof(CouponDiscountType), caseSensitive: false)
-            .WithMessage(x => localizer["InvalidEnum"]);
-        RuleFor(x => x.DiscountValue).GreaterThan(0).WithMessage(x => localizer["GreaterThanZero"]);
+            .WithMessage(x => localizer["InvalidEnum"])
+            .WithName(discountTypeName);
+
+        RuleFor(x => x.DiscountValue)
+            .GreaterThan(0).WithMessage(x => localizer["GreaterThanZero"])
+            .WithName(discountValueName);
+
         RuleFor(x => x.DiscountValue)
             .LessThanOrEqualTo(100)
             .When(x => x.DiscountType.Equals("Percentage", StringComparison.OrdinalIgnoreCase))
-            .WithMessage(x => localizer["PercentageTooHigh"]);
+            .WithMessage(x => localizer["PercentageTooHigh"])
+            .WithName(discountValueName);
+
         RuleFor(x => x.EndsAtUtc)
             .GreaterThan(x => x.StartsAtUtc)
             .When(x => x.StartsAtUtc.HasValue && x.EndsAtUtc.HasValue)
-            .WithMessage(x => localizer["InvalidDateRange"]);
+            .WithMessage(x => localizer["InvalidDateRange"])
+            .WithName(endDateName);
+
+        RuleFor(x => x.UsageLimit)
+            .GreaterThan(0).When(x => x.UsageLimit.HasValue)
+            .WithMessage(x => localizer["GreaterThanZero"])
+            .WithName(usageLimitName);
+
+        RuleFor(x => x.PerUserLimit)
+            .GreaterThan(0).When(x => x.PerUserLimit.HasValue)
+            .WithMessage(x => localizer["GreaterThanZero"])
+            .WithName(perUserLimitName);
     }
 }
 

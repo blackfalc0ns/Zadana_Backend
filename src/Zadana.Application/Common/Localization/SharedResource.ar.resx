@@ -820,5 +820,36 @@
     <value>وقت التحضير غير صالح.</value>
   </data>
 
+  <!-- Coupons -->
+  <data name="CouponIdField" xml:space="preserve">
+    <value>الكوبون</value>
+  </data>
+  <data name="CouponCodeField" xml:space="preserve">
+    <value>كود الكوبون</value>
+  </data>
+  <data name="CouponTitleField" xml:space="preserve">
+    <value>عنوان الكوبون</value>
+  </data>
+  <data name="CouponDiscountTypeField" xml:space="preserve">
+    <value>نوع الخصم</value>
+  </data>
+  <data name="CouponDiscountValueField" xml:space="preserve">
+    <value>قيمة الخصم</value>
+  </data>
+  <data name="CouponEndDateField" xml:space="preserve">
+    <value>تاريخ انتهاء الكوبون</value>
+  </data>
+  <data name="CouponUsageLimitField" xml:space="preserve">
+    <value>الحد الكلي للاستخدام</value>
+  </data>
+  <data name="CouponPerUserLimitField" xml:space="preserve">
+    <value>الحد لكل عميل</value>
+  </data>
+  <data name="DUPLICATE_COUPON_CODE" xml:space="preserve">
+    <value>كود الكوبون مستخدم بالفعل.</value>
+  </data>
+  <data name="COUPON_NOT_FOUND" xml:space="preserve">
+    <value>الكوبون غير موجود.</value>
+  </data>
 </root>
 

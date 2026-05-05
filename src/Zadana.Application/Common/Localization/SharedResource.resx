@@ -819,4 +819,36 @@
     <value>Preparation time is invalid.</value>
   </data>
 
+  <!-- Coupons -->
+  <data name="CouponIdField" xml:space="preserve">
+    <value>Coupon</value>
+  </data>
+  <data name="CouponCodeField" xml:space="preserve">
+    <value>Coupon code</value>
+  </data>
+  <data name="CouponTitleField" xml:space="preserve">
+    <value>Coupon title</value>
+  </data>
+  <data name="CouponDiscountTypeField" xml:space="preserve">
+    <value>Discount type</value>
+  </data>
+  <data name="CouponDiscountValueField" xml:space="preserve">
+    <value>Discount value</value>
+  </data>
+  <data name="CouponEndDateField" xml:space="preserve">
+    <value>End date</value>
+  </data>
+  <data name="CouponUsageLimitField" xml:space="preserve">
+    <value>Total usage limit</value>
+  </data>
+  <data name="CouponPerUserLimitField" xml:space="preserve">
+    <value>Per-user usage limit</value>
+  </data>
+  <data name="DUPLICATE_COUPON_CODE" xml:space="preserve">
+    <value>This coupon code is already in use.</value>
+  </data>
+  <data name="COUPON_NOT_FOUND" xml:space="preserve">
+    <value>Coupon not found.</value>
+  </data>
+
 </root>
