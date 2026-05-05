@@ -68,8 +68,10 @@ internal static class CartProjection
                     .FirstOrDefault()))
             .ToListAsync(cancellationToken);
 
-        var scopedOffers = selectedVendorId.HasValue
-            ? visibleOffers.Where(offer => offer.VendorId == selectedVendorId.Value)
+        var effectiveVendorId = ResolveEffectiveVendorId(selectedVendorId, masterProductIds, visibleOffers);
+
+        var scopedOffers = effectiveVendorId.HasValue
+            ? visibleOffers.Where(offer => offer.VendorId == effectiveVendorId.Value)
             : visibleOffers;
 
         var offersByProductId = scopedOffers
@@ -89,7 +91,7 @@ internal static class CartProjection
             {
                 masterProducts.TryGetValue(item.MasterProductId, out var product);
                 offersByProductId.TryGetValue(item.MasterProductId, out var offers);
-                var isAvailable = !selectedVendorId.HasValue || (offers?.Count > 0);
+                var isAvailable = !effectiveVendorId.HasValue || (offers?.Count > 0);
                 var availabilityStatus = isAvailable
                     ? null
                     : "unavailable_at_selected_vendor";
@@ -122,7 +124,7 @@ internal static class CartProjection
         var checkoutBlockReason = default(string);
         var canCheckout = false;
 
-        if (selectedVendorId.HasValue)
+        if (effectiveVendorId.HasValue)
         {
             var subtotalValue = 0m;
             var discountAmountValue = 0m;
@@ -158,7 +160,7 @@ internal static class CartProjection
         }
 
         var unavailableItemsCount = items.Count(item => !item.IsAvailable);
-        if (selectedVendorId.HasValue)
+        if (effectiveVendorId.HasValue)
         {
             canCheckout = unavailableItemsCount == 0 && totalAmount.HasValue;
             checkoutBlockReason = canCheckout
@@ -181,6 +183,36 @@ internal static class CartProjection
                 checkoutBlockReason,
                 unavailableItemsCount > 0,
                 unavailableItemsCount));
+    }
+
+    private static Guid? ResolveEffectiveVendorId(
+        Guid? selectedVendorId,
+        IReadOnlyCollection<Guid> masterProductIds,
+        IReadOnlyCollection<VisibleCartOfferSnapshot> visibleOffers)
+    {
+        if (selectedVendorId.HasValue)
+        {
+            return selectedVendorId;
+        }
+
+        if (masterProductIds.Count == 0 || visibleOffers.Count == 0)
+        {
+            return null;
+        }
+
+        var vendorsCoveringAllProducts = visibleOffers
+            .GroupBy(offer => offer.VendorId)
+            .Where(group => group
+                .Select(offer => offer.MasterProductId)
+                .Distinct()
+                .Count() == masterProductIds.Count)
+            .Select(group => group.Key)
+            .Take(2)
+            .ToArray();
+
+        return vendorsCoveringAllProducts.Length == 1
+            ? vendorsCoveringAllProducts[0]
+            : null;
     }
 
     public static Task<bool> HasVisibleOfferAsync(
