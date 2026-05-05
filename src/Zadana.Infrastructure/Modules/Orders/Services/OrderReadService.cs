@@ -646,6 +646,7 @@ public class OrderReadService : IOrderReadService
         string? queue,
         string? initiatorRole,
         Guid? vendorId,
+        Guid? driverId,
         int page,
         int pageSize,
         CancellationToken cancellationToken = default)
@@ -660,6 +661,12 @@ public class OrderReadService : IOrderReadService
         if (vendorId.HasValue)
         {
             casesQuery = casesQuery.Where(item => item.Order.VendorId == vendorId.Value);
+        }
+
+        if (driverId.HasValue)
+        {
+            casesQuery = casesQuery.Where(item =>
+                _dbContext.DeliveryAssignments.Any(assignment => assignment.OrderId == item.OrderId && assignment.DriverId == driverId.Value));
         }
 
         casesQuery = ApplyAdminSupportCaseFilters(casesQuery, search, type, status, priority, queue, initiatorRole);
@@ -762,7 +769,9 @@ public class OrderReadService : IOrderReadService
             query = normalizedType switch
             {
                 "return_request" => query.Where(item => item.Type == OrderSupportCaseType.ReturnRequest),
-                "complaint" => query.Where(item => item.Type != OrderSupportCaseType.ReturnRequest),
+                "complaint" => query.Where(item => item.Type == OrderSupportCaseType.Complaint),
+                "driver_report" => query.Where(item => item.Type == OrderSupportCaseType.DriverReport),
+                "driver_dispute" => query.Where(item => item.Type == OrderSupportCaseType.DriverDispute),
                 _ => query
             };
         }
@@ -1208,6 +1217,8 @@ public class OrderReadService : IOrderReadService
         type switch
         {
             OrderSupportCaseType.ReturnRequest => "return_request",
+            OrderSupportCaseType.DriverReport => "driver_report",
+            OrderSupportCaseType.DriverDispute => "driver_dispute",
             _ => "complaint"
         };
 
@@ -1801,6 +1812,7 @@ public class OrderReadService : IOrderReadService
 
         return viewerRole switch
         {
+            "admin" when supportCase.Status == OrderSupportCaseStatus.Approved => ["note", "message", "resolve"],
             "admin" => ["assign", "note", "message", "request_evidence", "escalate", "approve", "reject", "resolve"],
             "vendor" => ["message"],
             "driver" => ["message"],
@@ -2254,6 +2266,7 @@ public class OrderReadService : IOrderReadService
             };
 
             return new AdminOrderOperationalCaseDto(
+                supportCase.Id.ToString(),
                 supportCase.Type == OrderSupportCaseType.ReturnRequest ? "REFUND" : ResolveOperationalCaseType(supportCase),
                 status,
                 supportCase.CustomerVisibleNote ?? supportCase.Message,
@@ -2272,6 +2285,7 @@ public class OrderReadService : IOrderReadService
         }
 
         return new AdminOrderOperationalCaseDto(
+            latestRefund.OrderSupportCaseId?.ToString(),
             "REFUND",
             latestRefund.Status == PaymentStatus.Refunded ? "RESOLVED" : "OPEN",
             latestRefund.Amount >= order.TotalAmount ? L("مراجعة استرداد كامل", "Full refund review") : L("مراجعة استرداد جزئي", "Partial refund review"),

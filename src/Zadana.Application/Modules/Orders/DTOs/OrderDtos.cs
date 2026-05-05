@@ -448,6 +448,7 @@ public record AdminOrderCancellationSummaryDto(
     string CustomerMessage);
 
 public record AdminOrderOperationalCaseDto(
+    string? CaseId,
     string Type,
     string Status,
     string Title,

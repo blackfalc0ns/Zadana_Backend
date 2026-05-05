@@ -73,6 +73,7 @@ public interface IOrderReadService
         string? queue,
         string? initiatorRole,
         Guid? vendorId,
+        Guid? driverId,
         int page,
         int pageSize,
         CancellationToken cancellationToken = default);

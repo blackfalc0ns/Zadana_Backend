@@ -36,6 +36,7 @@ public class AdminOrderCasesController : ApiControllerBase
         [FromQuery] string? queue,
         [FromQuery] string? initiatorRole,
         [FromQuery] Guid? vendorId,
+        [FromQuery] Guid? driverId,
         [FromQuery] int page = 1,
         [FromQuery] int pageSize = 20,
         CancellationToken cancellationToken = default)
@@ -48,6 +49,7 @@ public class AdminOrderCasesController : ApiControllerBase
             queue,
             initiatorRole,
             vendorId,
+            driverId,
             page,
             pageSize,
             cancellationToken);
@@ -196,6 +198,21 @@ public class AdminOrderCasesController : ApiControllerBase
         return Ok(await RequireCaseAsync(caseId, cancellationToken));
     }
 
+    [HttpPost("{caseId:guid}/reopen")]
+    public async Task<ActionResult<AdminOrderSupportCaseListItemDto>> Reopen(
+        Guid caseId,
+        [FromBody] AdminOrderSupportCaseReopenRequest? request,
+        CancellationToken cancellationToken = default)
+    {
+        await _orderSupportCaseWorkflowService.ReopenAsync(
+            caseId,
+            GetRequiredAdminUserId(),
+            request?.Note,
+            cancellationToken);
+
+        return Ok(await RequireCaseAsync(caseId, cancellationToken));
+    }
+
     [HttpPost("{caseId:guid}/note")]
     public async Task<ActionResult<AdminOrderSupportCaseListItemDto>> AddNote(
         Guid caseId,
@@ -288,6 +305,8 @@ public sealed record AdminOrderSupportCaseRejectRequest(
     string? CustomerVisibleNote);
 
 public sealed record AdminOrderSupportCaseResolveRequest(string? Note);
+
+public sealed record AdminOrderSupportCaseReopenRequest(string? Note);
 
 public sealed record AdminOrderSupportCaseNoteRequest(
     string Note,
