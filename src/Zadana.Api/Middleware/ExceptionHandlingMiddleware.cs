@@ -134,10 +134,10 @@ public class ExceptionHandlingMiddleware
     {
         var message = exception switch
         {
-            BusinessRuleException bre => ResolveByErrorCode(bre.ErrorCode, bre.Message, localizer),
-            BadRequestException bad => ResolveByErrorCode(bad.ErrorCode, bad.Message, localizer),
-            NotFoundException nf => ResolveByErrorCode(nf.ErrorCode, nf.Message, localizer),
-            ExternalServiceException ext => ResolveByErrorCode(ext.ErrorCode, ext.Message, localizer),
+            BusinessRuleException bre => ResolveByErrorCode(bre.ErrorCode, bre.Message, context, localizer),
+            BadRequestException bad => ResolveByErrorCode(bad.ErrorCode, bad.Message, context, localizer),
+            NotFoundException nf => ResolveByErrorCode(nf.ErrorCode, nf.Message, context, localizer),
+            ExternalServiceException ext => ResolveByErrorCode(ext.ErrorCode, ext.Message, context, localizer),
             ForbiddenAccessException => exception.Message,
             UnauthorizedAccessException => exception.Message,
             UnauthorizedException unauthorizedException when
@@ -165,14 +165,18 @@ public class ExceptionHandlingMiddleware
     /// Resolves an exception message by first checking .resx resource files
     /// using the ErrorCode as key. Falls back to the inline message if no resource found.
     /// </summary>
-    private static string ResolveByErrorCode(string errorCode, string fallbackMessage, IStringLocalizer<SharedResource> localizer)
+    private static string ResolveByErrorCode(
+        string errorCode,
+        string fallbackMessage,
+        HttpContext context,
+        IStringLocalizer<SharedResource> localizer)
     {
         if (!string.IsNullOrWhiteSpace(errorCode))
         {
-            var localized = localizer[errorCode];
-            if (!localized.ResourceNotFound)
+            var localized = GetLocalizedResource(errorCode, context, localizer);
+            if (!string.Equals(localized, errorCode, StringComparison.Ordinal))
             {
-                return localized.Value;
+                return localized;
             }
         }
 
