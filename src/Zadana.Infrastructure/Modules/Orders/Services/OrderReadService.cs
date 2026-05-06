@@ -964,10 +964,15 @@ public class OrderReadService : IOrderReadService
             supportCase.Id,
             supportCase.OrderId,
             MapSupportCaseType(supportCase.Type),
+            ResolveSupportCaseTypeLabel(supportCase.Type),
             MapSupportCaseStatus(supportCase.Status),
+            ResolveSupportCaseStatusLabel(supportCase.Status),
             MapSupportCaseQueue(supportCase.Queue),
+            ResolveQueueLabel(supportCase.Queue),
             MapSupportCasePriority(supportCase.Priority),
+            ResolveSupportCasePriorityLabel(supportCase.Priority),
             supportCase.ReasonCode,
+            ResolveSupportCaseReasonLabel(supportCase.Type, supportCase.ReasonCode),
             supportCase.Message,
             supportCase.CustomerVisibleNote,
             supportCase.DecisionNotes,
@@ -998,7 +1003,9 @@ public class OrderReadService : IOrderReadService
                 .Select(activity => new OrderSupportCaseActivityDto(
                     activity.Action,
                     activity.Title,
+                    ResolveLocalizedActivityTitle(activity),
                     activity.Note,
+                    ResolveLocalizedActivityBody(supportCase, activity),
                     activity.ActorRole,
                     activity.VisibleToCustomer,
                     activity.MessageType,
@@ -1014,7 +1021,9 @@ public class OrderReadService : IOrderReadService
                     activity.Action,
                     activity.MessageType,
                     activity.Title,
+                    ResolveLocalizedActivityTitle(activity),
                     activity.Note,
+                    ResolveLocalizedActivityBody(supportCase, activity),
                     activity.ActorRole,
                     activity.GetVisibleRoles(),
                     activity.IsInternalOnly,
@@ -1034,10 +1043,15 @@ public class OrderReadService : IOrderReadService
             : new OrderSupportCaseSummaryDto(
                 supportCase.Id,
                 MapSupportCaseType(supportCase.Type),
+                ResolveSupportCaseTypeLabel(supportCase.Type),
                 MapSupportCaseStatus(supportCase.Status),
+                ResolveSupportCaseStatusLabel(supportCase.Status),
                 MapSupportCaseQueue(supportCase.Queue),
+                ResolveQueueLabel(supportCase.Queue),
                 MapSupportCasePriority(supportCase.Priority),
+                ResolveSupportCasePriorityLabel(supportCase.Priority),
                 supportCase.ReasonCode,
+                ResolveSupportCaseReasonLabel(supportCase.Type, supportCase.ReasonCode),
                 supportCase.Message,
                 supportCase.CreatedAtUtc,
                 supportCase.UpdatedAtUtc);
@@ -1277,6 +1291,115 @@ public class OrderReadService : IOrderReadService
 
     private static string MapSupportCasePriority(OrderSupportCasePriority priority) =>
         priority.ToString().ToLowerInvariant();
+
+    private static string ResolveSupportCaseTypeLabel(OrderSupportCaseType type) =>
+        type switch
+        {
+            OrderSupportCaseType.ReturnRequest => L("طلب استرجاع", "Return request"),
+            OrderSupportCaseType.DriverReport => L("بلاغ تشغيلي", "Operational report"),
+            OrderSupportCaseType.DriverDispute => L("نزاع مالي", "Financial dispute"),
+            _ => L("شكوى", "Complaint")
+        };
+
+    private static string ResolveSupportCaseStatusLabel(OrderSupportCaseStatus status) =>
+        status switch
+        {
+            OrderSupportCaseStatus.Submitted => L("تم الاستلام", "Submitted"),
+            OrderSupportCaseStatus.InReview => L("قيد المراجعة", "In review"),
+            OrderSupportCaseStatus.AwaitingCustomerEvidence => L("بانتظار معلومات إضافية", "Awaiting more evidence"),
+            OrderSupportCaseStatus.Approved => L("تمت الموافقة", "Approved"),
+            OrderSupportCaseStatus.Rejected => L("تم الرفض", "Rejected"),
+            _ => L("تم الحل", "Resolved")
+        };
+
+    private static string ResolveAdminSupportCaseStatusLabel(OrderSupportCaseStatus status) =>
+        status switch
+        {
+            OrderSupportCaseStatus.Submitted => L("مفتوحة", "Open"),
+            OrderSupportCaseStatus.InReview => L("قيد المراجعة", "Under review"),
+            OrderSupportCaseStatus.AwaitingCustomerEvidence => L("بانتظار العميل", "Awaiting customer"),
+            OrderSupportCaseStatus.Approved => L("معتمدة", "Approved"),
+            OrderSupportCaseStatus.Rejected => L("مرفوضة", "Rejected"),
+            _ => L("مغلقة", "Resolved")
+        };
+
+    private static string ResolveSupportCasePriorityLabel(OrderSupportCasePriority priority) =>
+        priority switch
+        {
+            OrderSupportCasePriority.Low => L("منخفضة", "Low"),
+            OrderSupportCasePriority.Medium => L("متوسطة", "Medium"),
+            OrderSupportCasePriority.High => L("مرتفعة", "High"),
+            _ => L("حرجة", "Critical")
+        };
+
+    private static string? ResolveSupportCaseReasonLabel(OrderSupportCaseType type, string? reasonCode)
+    {
+        var reason = OrderSupportCaseReasonCatalog.FindReason(MapSupportCaseType(type), reasonCode);
+        return reason is null ? null : L(reason.LabelAr, reason.LabelEn);
+    }
+
+    private static string? ResolveLocalizedActivityTitle(OrderSupportCaseActivity activity)
+    {
+        return NormalizeSupportCaseAction(activity.Action) switch
+        {
+            "submitted" => L("تم فتح الحالة", "Case opened"),
+            "driver_response" => L("رد المندوب", "Driver replied"),
+            "vendor_response" => L("رد التاجر", "Vendor replied"),
+            "customer_response" => L("رد العميل", "Customer replied"),
+            "request_evidence" => L("طلب معلومات إضافية", "More evidence requested"),
+            "assigned" => L("تم الإسناد", "Case assigned"),
+            "escalated" => L("تم التصعيد", "Case escalated"),
+            "approved" => L("تمت الموافقة", "Case approved"),
+            "rejected" => L("تم الرفض", "Case rejected"),
+            "resolved" => L("تم الحل", "Case resolved"),
+            "reopened" => L("أعيد فتح الحالة", "Case reopened"),
+            "admin_message" => L("رسالة من الإدارة", "Admin update"),
+            "internal_note" => L("ملاحظة داخلية", "Internal note"),
+            "customer_note" => L("ملاحظة عامة", "Public note"),
+            _ => activity.Title
+        };
+    }
+
+    private static string? ResolveLocalizedActivityBody(OrderSupportCase supportCase, OrderSupportCaseActivity activity)
+    {
+        var orderNumber = supportCase.Order?.OrderNumber ?? supportCase.OrderId.ToString();
+        return NormalizeSupportCaseAction(activity.Action) switch
+        {
+            "submitted" => supportCase.Type == OrderSupportCaseType.ReturnRequest
+                ? L(
+                    $"تم استلام طلب الاسترجاع للطلب رقم {orderNumber} وهو الآن قيد المراجعة.",
+                    $"We received the return request for order #{orderNumber} and it is now under review.")
+                : L(
+                    $"تم استلام الحالة المرتبطة بالطلب رقم {orderNumber} وهي الآن قيد المراجعة.",
+                    $"We received the support case for order #{orderNumber} and it is now under review."),
+            "request_evidence" => L(
+                $"نحتاج إلى معلومات أو أدلة إضافية لمتابعة مراجعة الحالة الخاصة بالطلب رقم {orderNumber}.",
+                $"We need additional information or evidence to continue reviewing the case for order #{orderNumber}."),
+            "approved" => supportCase.Type == OrderSupportCaseType.ReturnRequest
+                ? L(
+                    "تمت الموافقة على طلب الاسترجاع وسيتم إشعارك عند بدء المعالجة المالية.",
+                    "Your return request has been approved. You will be notified when the financial processing begins.")
+                : L(
+                    $"تمت الموافقة على الحالة الخاصة بالطلب رقم {orderNumber}.",
+                    $"The support case linked to order #{orderNumber} has been approved."),
+            "rejected" => L(
+                $"تم رفض الحالة الخاصة بالطلب رقم {orderNumber}.",
+                $"The support case linked to order #{orderNumber} has been rejected."),
+            "resolved" => L(
+                $"تم إغلاق الحالة الخاصة بالطلب رقم {orderNumber} بعد معالجتها.",
+                $"The support case linked to order #{orderNumber} has been resolved and closed."),
+            "reopened" => L(
+                $"أعيد فتح الحالة الخاصة بالطلب رقم {orderNumber} لمراجعتها مرة أخرى.",
+                $"The support case linked to order #{orderNumber} was reopened for another review."),
+            "escalated" => L(
+                $"تم تصعيد الحالة الخاصة بالطلب رقم {orderNumber} إلى فريق مختص.",
+                $"The support case linked to order #{orderNumber} was escalated to a specialized team."),
+            _ => activity.Note
+        };
+    }
+
+    private static string NormalizeSupportCaseAction(string? action) =>
+        string.IsNullOrWhiteSpace(action) ? string.Empty : action.Trim().ToLowerInvariant();
 
     private static string? MapSupportCaseCompensationType(OrderSupportCaseCompensationType? compensationType) =>
         compensationType switch
@@ -1944,13 +2067,19 @@ public class OrderReadService : IOrderReadService
             order.User.Email ?? string.Empty,
             order.Vendor.BusinessNameAr,
             MapSupportCaseType(supportCase.Type),
-            supportCase.ReasonCode ?? supportCase.Message,
+            ResolveSupportCaseTypeLabel(supportCase.Type),
+            supportCase.ReasonCode,
+            ResolveSupportCaseReasonLabel(supportCase.Type, supportCase.ReasonCode) ?? supportCase.Message,
             amount,
             MapSupportCaseStatus(supportCase.Status),
+            ResolveSupportCaseStatusLabel(supportCase.Status),
             MapAdminSupportCaseStatus(supportCase.Status),
+            ResolveAdminSupportCaseStatusLabel(supportCase.Status),
             MapSupportCasePriority(supportCase.Priority),
+            ResolveSupportCasePriorityLabel(supportCase.Priority),
             supportCase.AssignedAdminId.HasValue ? "Assigned admin" : ResolveQueueLabel(supportCase.Queue),
             MapSupportCaseQueue(supportCase.Queue),
+            ResolveQueueLabel(supportCase.Queue),
             MapRiskLevel(supportCase.Priority),
             createdAt,
             sla,
@@ -1991,7 +2120,9 @@ public class OrderReadService : IOrderReadService
                     activity.Action,
                     activity.MessageType,
                     activity.Title,
+                    ResolveLocalizedActivityTitle(activity),
                     activity.Note,
+                    ResolveLocalizedActivityBody(supportCase, activity),
                     activity.ActorRole,
                     activity.GetVisibleRoles(),
                     activity.IsInternalOnly,
