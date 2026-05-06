@@ -72,7 +72,8 @@ public class SuspendDriverCommandHandler : IRequestHandler<SuspendDriverCommand>
                 NotificationTypes.DriverAccountUpdated,
                 driver.Id,
                 data,
-                category: NotificationCategories.Account),
+                category: NotificationCategories.Account,
+                targetApplication: OneSignalApplicationTarget.Driver),
             cancellationToken);
     }
 }

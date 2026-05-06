@@ -660,7 +660,8 @@ public class DeliveryDispatchService : IDeliveryDispatchService
                 NotificationTypes.DriverDeliveryOffer,
                 order.Id,
                 offerPayloadJson,
-                category: NotificationCategories.Dispatch),
+                category: NotificationCategories.Dispatch,
+                targetApplication: OneSignalApplicationTarget.Driver),
             cancellationToken);
 
         _logger.LogInformation(

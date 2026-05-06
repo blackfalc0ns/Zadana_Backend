@@ -72,7 +72,8 @@ public class ReactivateDriverCommandHandler : IRequestHandler<ReactivateDriverCo
                 NotificationTypes.DriverAccountUpdated,
                 driver.Id,
                 data,
-                category: NotificationCategories.Account),
+                category: NotificationCategories.Account,
+                targetApplication: OneSignalApplicationTarget.Driver),
             cancellationToken);
     }
 }

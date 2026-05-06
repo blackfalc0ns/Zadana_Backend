@@ -432,7 +432,8 @@ public class AdminWalletsController : ApiControllerBase
                     NotificationTypes.DriverWalletUpdated,
                     withdrawal.Id,
                     data,
-                    category: NotificationCategories.Wallet),
+                    category: NotificationCategories.Wallet,
+                    targetApplication: OneSignalApplicationTarget.Driver),
                 cancellationToken);
         }
 

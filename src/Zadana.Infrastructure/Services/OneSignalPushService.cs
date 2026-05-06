@@ -51,7 +51,8 @@ public sealed class OneSignalPushService : IOneSignalPushService
             request.Profile,
             request.Category,
             requireRegisteredDevices: true,
-            cancellationToken);
+            cancellationToken,
+            request.TargetApplication);
 
         return results[0];
     }
@@ -151,7 +152,8 @@ public sealed class OneSignalPushService : IOneSignalPushService
         OneSignalPushProfile profile,
         string? category,
         bool requireRegisteredDevices,
-        CancellationToken cancellationToken)
+        CancellationToken cancellationToken,
+        OneSignalApplicationTarget? targetApplication = null)
     {
         var normalizedExternalUserIds = externalUserIds
             .Where(id => !string.IsNullOrWhiteSpace(id))
@@ -169,7 +171,11 @@ public sealed class OneSignalPushService : IOneSignalPushService
             return [CreateSkippedResult("OneSignal is disabled in configuration.", normalizedExternalUserIds.Length)];
         }
 
-        if (string.IsNullOrWhiteSpace(_settings.AppId) || string.IsNullOrWhiteSpace(_settings.RestApiKey))
+        var appConfiguration = targetApplication.HasValue
+            ? ResolveAppConfiguration(targetApplication.Value)
+            : ResolveAppConfiguration(profile, category);
+
+        if (string.IsNullOrWhiteSpace(appConfiguration.AppId) || string.IsNullOrWhiteSpace(appConfiguration.RestApiKey))
         {
             return [CreateSkippedResult("OneSignal AppId or RestApiKey is not configured.", normalizedExternalUserIds.Length)];
         }
@@ -207,6 +213,8 @@ public sealed class OneSignalPushService : IOneSignalPushService
                     sanitized,
                     referenceId,
                     resolvedTargetUrl,
+                    appConfiguration.AppId,
+                    appConfiguration.RestApiKey,
                     profile,
                     notificationEventId,
                     Guid.NewGuid(),
@@ -249,7 +257,7 @@ public sealed class OneSignalPushService : IOneSignalPushService
         {
             Content = JsonContent.Create(preparedPayload.Payload)
         };
-        request.Headers.Authorization = new AuthenticationHeaderValue("Key", _settings.RestApiKey);
+        request.Headers.Authorization = new AuthenticationHeaderValue("Key", preparedPayload.RestApiKey);
 
         try
         {
@@ -340,6 +348,8 @@ public sealed class OneSignalPushService : IOneSignalPushService
         SanitizedNotificationPayload sanitized,
         Guid? referenceId,
         string? targetUrl,
+        string appId,
+        string restApiKey,
         OneSignalPushProfile profile,
         Guid notificationEventId,
         Guid requestIdempotencyKey,
@@ -347,7 +357,7 @@ public sealed class OneSignalPushService : IOneSignalPushService
     {
         var payload = new Dictionary<string, object?>
         {
-            ["app_id"] = _settings.AppId,
+            ["app_id"] = appId,
             ["idempotency_key"] = requestIdempotencyKey,
             ["collapse_id"] = notificationEventId.ToString(),
             ["target_channel"] = "push",
@@ -371,6 +381,7 @@ public sealed class OneSignalPushService : IOneSignalPushService
             payload,
             externalUserIds.Count,
             string.Join(",", externalUserIds),
+            restApiKey,
             profile,
             referenceId,
             notificationEventId,
@@ -555,6 +566,26 @@ public sealed class OneSignalPushService : IOneSignalPushService
         }
 
         return null;
+    }
+
+    private (string AppId, string RestApiKey) ResolveAppConfiguration(
+        OneSignalApplicationTarget targetApplication) =>
+        targetApplication == OneSignalApplicationTarget.Driver
+            ? (
+                string.IsNullOrWhiteSpace(_settings.DriverAppId) ? _settings.AppId : _settings.DriverAppId,
+                string.IsNullOrWhiteSpace(_settings.DriverRestApiKey) ? _settings.RestApiKey : _settings.DriverRestApiKey)
+            : (_settings.AppId, _settings.RestApiKey);
+
+    private (string AppId, string RestApiKey) ResolveAppConfiguration(
+        OneSignalPushProfile profile,
+        string? category)
+    {
+        var normalizedCategory = NormalizeCategory(category);
+        var targetApplication = normalizedCategory is "dispatch" or "assignment" or "support" or "wallet" or "account"
+            ? OneSignalApplicationTarget.Driver
+            : OneSignalApplicationTarget.Customer;
+
+        return ResolveAppConfiguration(targetApplication);
     }
 
     private static string FirstNonEmpty(params string?[] values) =>
@@ -807,6 +838,7 @@ public sealed class OneSignalPushService : IOneSignalPushService
         Dictionary<string, object?> Payload,
         int ExternalUserCount,
         string ExternalIdBatch,
+        string RestApiKey,
         OneSignalPushProfile Profile,
         Guid? ReferenceId,
         Guid NotificationEventId,

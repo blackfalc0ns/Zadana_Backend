@@ -314,7 +314,8 @@ public class DriverCommitmentPolicyService : IDriverCommitmentPolicyService
                 NotificationTypes.DriverCommitmentEnforcement,
                 driver.Id,
                 data,
-                category: NotificationCategories.Account),
+                category: NotificationCategories.Account,
+                targetApplication: OneSignalApplicationTarget.Driver),
             cancellationToken);
     }
 

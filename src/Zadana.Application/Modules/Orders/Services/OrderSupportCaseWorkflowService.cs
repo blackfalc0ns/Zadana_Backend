@@ -1091,7 +1091,8 @@ public sealed class OrderSupportCaseWorkflowService : IOrderSupportCaseWorkflowS
                 NotificationTypes.OrderSupportCaseChanged,
                 referenceId,
                 data,
-                category: NotificationCategories.Support)
+                category: NotificationCategories.Support,
+                targetApplication: OneSignalApplicationTarget.Driver)
             : OneSignalMobilePushRequest.CreateStandard(
                 driverUserId.ToString(),
                 titleAr,
@@ -1101,7 +1102,8 @@ public sealed class OrderSupportCaseWorkflowService : IOrderSupportCaseWorkflowS
                 NotificationTypes.OrderSupportCaseChanged,
                 referenceId,
                 data,
-                category: NotificationCategories.Support);
+                category: NotificationCategories.Support,
+                targetApplication: OneSignalApplicationTarget.Driver);
 
         return new DriverSupportNotificationEnvelope(request, pushRequest);
     }

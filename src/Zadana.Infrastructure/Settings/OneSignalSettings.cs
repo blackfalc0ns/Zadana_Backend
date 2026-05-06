@@ -7,6 +7,8 @@ public sealed class OneSignalSettings
     public bool Enabled { get; set; }
     public string AppId { get; set; } = string.Empty;
     public string RestApiKey { get; set; } = string.Empty;
+    public string DriverAppId { get; set; } = string.Empty;
+    public string DriverRestApiKey { get; set; } = string.Empty;
     public string BaseUrl { get; set; } = "https://api.onesignal.com";
     public string DefaultWebUrl { get; set; } = string.Empty;
     public string MobileHeadsUpAndroidChannelId { get; set; } = "zadana_heads_up_notifications";

@@ -71,7 +71,8 @@ public class UnblockDriverLocationUpdatesCommandHandler : IRequestHandler<Unbloc
                 NotificationTypes.DriverAccountUpdated,
                 driver.Id,
                 data,
-                category: NotificationCategories.Account),
+                category: NotificationCategories.Account,
+                targetApplication: OneSignalApplicationTarget.Driver),
             cancellationToken);
     }
 }

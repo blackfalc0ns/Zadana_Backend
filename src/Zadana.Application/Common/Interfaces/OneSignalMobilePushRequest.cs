@@ -11,6 +11,7 @@ public sealed record OneSignalMobilePushRequest(
     string? Data,
     string? TargetUrl,
     string? Category,
+    OneSignalApplicationTarget TargetApplication,
     OneSignalPushProfile Profile)
 {
     public static OneSignalMobilePushRequest CreateHeadsUp(
@@ -23,7 +24,8 @@ public sealed record OneSignalMobilePushRequest(
         Guid? referenceId = null,
         string? data = null,
         string? targetUrl = null,
-        string? category = null) =>
+        string? category = null,
+        OneSignalApplicationTarget targetApplication = OneSignalApplicationTarget.Customer) =>
         new(
             externalUserId,
             titleAr,
@@ -35,6 +37,7 @@ public sealed record OneSignalMobilePushRequest(
             data,
             targetUrl,
             category,
+            targetApplication,
             OneSignalPushProfile.MobileHeadsUp);
 
     public static OneSignalMobilePushRequest CreateStandard(
@@ -47,7 +50,8 @@ public sealed record OneSignalMobilePushRequest(
         Guid? referenceId = null,
         string? data = null,
         string? targetUrl = null,
-        string? category = null) =>
+        string? category = null,
+        OneSignalApplicationTarget targetApplication = OneSignalApplicationTarget.Customer) =>
         new(
             externalUserId,
             titleAr,
@@ -59,23 +63,17 @@ public sealed record OneSignalMobilePushRequest(
             data,
             targetUrl,
             category,
+            targetApplication,
             OneSignalPushProfile.MobileStandard);
 
     public Task<OneSignalPushDispatchResult> DispatchAsync(
         IOneSignalPushService oneSignalPushService,
         CancellationToken cancellationToken = default) =>
-        string.IsNullOrWhiteSpace(Category)
-            ? oneSignalPushService.SendToExternalUserAsync(
-                ExternalUserId,
-                TitleAr,
-                TitleEn,
-                BodyAr,
-                BodyEn,
-                Type,
-                ReferenceId,
-                Data,
-                TargetUrl,
-                Profile,
-                cancellationToken)
-            : oneSignalPushService.SendMobileNotificationAsync(this, cancellationToken);
+        oneSignalPushService.SendMobileNotificationAsync(this, cancellationToken);
+}
+
+public enum OneSignalApplicationTarget
+{
+    Customer = 0,
+    Driver = 1
 }

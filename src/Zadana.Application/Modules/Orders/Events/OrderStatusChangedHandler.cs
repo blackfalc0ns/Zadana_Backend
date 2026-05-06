@@ -329,7 +329,8 @@ public class OrderStatusChangedHandler : INotificationHandler<OrderStatusChanged
                 NotificationTypes.DriverAssignmentUpdated,
                 notification.OrderId,
                 data,
-                category: NotificationCategories.Assignment)
+                category: NotificationCategories.Assignment,
+                targetApplication: OneSignalApplicationTarget.Driver)
             : OneSignalMobilePushRequest.CreateStandard(
                 driverUserId.ToString(),
                 titleAr,
@@ -339,7 +340,8 @@ public class OrderStatusChangedHandler : INotificationHandler<OrderStatusChanged
                 NotificationTypes.DriverAssignmentUpdated,
                 notification.OrderId,
                 data,
-                category: NotificationCategories.Assignment);
+                category: NotificationCategories.Assignment,
+                targetApplication: OneSignalApplicationTarget.Driver);
 
         return new DriverAssignmentNotificationEnvelope(request, pushRequest);
     }
