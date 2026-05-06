@@ -500,10 +500,13 @@ public class OrdersController : ApiControllerBase
             dto.CouponRedeemed,
             dto.CostBearer,
             dto.InitiatorRole,
+            dto.InitiatorRoleLabel,
             dto.WaitingOnRole,
+            dto.WaitingOnRoleLabel,
             dto.Participants
                 .Select(item => new OrderSupportCaseParticipantResponse(
                     item.Role,
+                    item.RoleLabel,
                     item.IsInitiator,
                     item.IsAwaitingResponse,
                     item.HasMessages))
@@ -520,8 +523,10 @@ public class OrdersController : ApiControllerBase
                     item.Note,
                     item.LocalizedNote,
                     item.ActorRole,
+                    item.ActorRoleLabel,
                     item.VisibleToCustomer,
                     item.MessageType,
+                    item.MessageTypeLabel,
                     item.VisibleTo.ToList(),
                     item.IsInternalOnly,
                     item.CreatedAt))
@@ -536,7 +541,9 @@ public class OrdersController : ApiControllerBase
                     item.Body,
                     item.LocalizedBody,
                     item.AuthorRole,
+                    item.AuthorRoleLabel,
                     item.VisibleTo.ToList(),
+                    item.MessageTypeLabel,
                     item.IsInternalOnly,
                     item.CreatedAt,
                     item.Attachments

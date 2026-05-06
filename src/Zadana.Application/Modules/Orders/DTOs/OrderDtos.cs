@@ -234,7 +234,9 @@ public record OrderSupportCaseDto(
     bool CouponRedeemed,
     string? CostBearer,
     string InitiatorRole,
+    string InitiatorRoleLabel,
     string? WaitingOnRole,
+    string? WaitingOnRoleLabel,
     IReadOnlyList<OrderSupportCaseParticipantDto> Participants,
     IReadOnlyList<string> AllowedActions,
     IReadOnlyList<OrderSupportCaseAttachmentDto> Attachments,
@@ -252,8 +254,10 @@ public record OrderSupportCaseActivityDto(
     string? Note,
     string? LocalizedNote,
     string ActorRole,
+    string ActorRoleLabel,
     bool VisibleToCustomer,
     string MessageType,
+    string MessageTypeLabel,
     IReadOnlyList<string> VisibleTo,
     bool IsInternalOnly,
     DateTime CreatedAt);
@@ -267,13 +271,16 @@ public record OrderSupportCaseMessageDto(
     string? Body,
     string? LocalizedBody,
     string AuthorRole,
+    string AuthorRoleLabel,
     IReadOnlyList<string> VisibleTo,
+    string MessageTypeLabel,
     bool IsInternalOnly,
     DateTime CreatedAt,
     IReadOnlyList<OrderSupportCaseAttachmentDto> Attachments);
 
 public record OrderSupportCaseParticipantDto(
     string Role,
+    string RoleLabel,
     bool IsInitiator,
     bool IsAwaitingResponse,
     bool HasMessages);
@@ -327,7 +334,9 @@ public record AdminOrderSupportCaseListItemDto(
     IReadOnlyList<OrderSupportCaseAttachmentDto> Evidence,
     IReadOnlyList<AdminOrderSupportCaseTimelineItemDto> Timeline,
     string InitiatorRole,
+    string InitiatorRoleLabel,
     string? WaitingOnRole,
+    string? WaitingOnRoleLabel,
     IReadOnlyList<OrderSupportCaseParticipantDto> Participants,
     IReadOnlyList<string> AllowedActions,
     IReadOnlyList<OrderSupportCaseMessageDto> Messages,

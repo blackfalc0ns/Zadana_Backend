@@ -89,7 +89,9 @@ public record OrderSupportCaseResponse(
     [property: JsonPropertyName("coupon_redeemed")] bool CouponRedeemed,
     [property: JsonPropertyName("cost_bearer")] string? CostBearer,
     [property: JsonPropertyName("initiator_role")] string InitiatorRole,
+    [property: JsonPropertyName("initiator_role_label")] string InitiatorRoleLabel,
     [property: JsonPropertyName("waiting_on_role")] string? WaitingOnRole,
+    [property: JsonPropertyName("waiting_on_role_label")] string? WaitingOnRoleLabel,
     [property: JsonPropertyName("participants")] List<OrderSupportCaseParticipantResponse> Participants,
     [property: JsonPropertyName("allowed_actions")] List<string> AllowedActions,
     [property: JsonPropertyName("attachments")] List<OrderSupportCaseAttachmentResponse> Attachments,
@@ -107,8 +109,10 @@ public record OrderSupportCaseActivityResponse(
     [property: JsonPropertyName("note")] string? Note,
     [property: JsonPropertyName("localized_note")] string? LocalizedNote,
     [property: JsonPropertyName("actor_role")] string ActorRole,
+    [property: JsonPropertyName("actor_role_label")] string ActorRoleLabel,
     [property: JsonPropertyName("visible_to_customer")] bool VisibleToCustomer,
     [property: JsonPropertyName("message_type")] string MessageType,
+    [property: JsonPropertyName("message_type_label")] string MessageTypeLabel,
     [property: JsonPropertyName("visible_to")] List<string> VisibleTo,
     [property: JsonPropertyName("is_internal_only")] bool IsInternalOnly,
     [property: JsonPropertyName("created_at")] DateTime CreatedAt);
@@ -122,13 +126,16 @@ public record OrderSupportCaseMessageResponse(
     [property: JsonPropertyName("body")] string? Body,
     [property: JsonPropertyName("localized_body")] string? LocalizedBody,
     [property: JsonPropertyName("author_role")] string AuthorRole,
+    [property: JsonPropertyName("author_role_label")] string AuthorRoleLabel,
     [property: JsonPropertyName("visible_to")] List<string> VisibleTo,
+    [property: JsonPropertyName("message_type_label")] string MessageTypeLabel,
     [property: JsonPropertyName("is_internal_only")] bool IsInternalOnly,
     [property: JsonPropertyName("created_at")] DateTime CreatedAt,
     [property: JsonPropertyName("attachments")] List<OrderSupportCaseAttachmentResponse> Attachments);
 
 public record OrderSupportCaseParticipantResponse(
     [property: JsonPropertyName("role")] string Role,
+    [property: JsonPropertyName("role_label")] string RoleLabel,
     [property: JsonPropertyName("is_initiator")] bool IsInitiator,
     [property: JsonPropertyName("is_awaiting_response")] bool IsAwaitingResponse,
     [property: JsonPropertyName("has_messages")] bool HasMessages);

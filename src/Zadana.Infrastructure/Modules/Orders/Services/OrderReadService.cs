@@ -965,8 +965,8 @@ public class OrderReadService : IOrderReadService
             supportCase.OrderId,
             MapSupportCaseType(supportCase.Type),
             ResolveSupportCaseTypeLabel(supportCase.Type),
-            MapSupportCaseStatus(supportCase.Status),
-            ResolveSupportCaseStatusLabel(supportCase.Status),
+            MapSupportCaseStatus(ResolveDisplaySupportCaseStatus(supportCase, couponSupportMap)),
+            ResolveSupportCaseStatusLabel(ResolveDisplaySupportCaseStatus(supportCase, couponSupportMap)),
             MapSupportCaseQueue(supportCase.Queue),
             ResolveQueueLabel(supportCase.Queue),
             MapSupportCasePriority(supportCase.Priority),
@@ -989,7 +989,9 @@ public class OrderReadService : IOrderReadService
             ResolveCouponRedeemed(supportCase.CompensationCouponId, couponSupportMap),
             supportCase.CostBearer,
             supportCase.InitiatorRole,
+            ResolveRoleLabel(supportCase.InitiatorRole),
             supportCase.AwaitingResponseFromRole,
+            ResolveRoleLabel(supportCase.AwaitingResponseFromRole),
             BuildParticipants(supportCase),
             BuildAllowedActions("customer", supportCase),
             supportCase.Attachments
@@ -1007,8 +1009,10 @@ public class OrderReadService : IOrderReadService
                     activity.Note,
                     ResolveLocalizedActivityBody(supportCase, activity),
                     activity.ActorRole,
+                    ResolveRoleLabel(activity.ActorRole),
                     activity.VisibleToCustomer,
                     activity.MessageType,
+                    ResolveMessageTypeLabel(activity.MessageType),
                     activity.GetVisibleRoles(),
                     activity.IsInternalOnly,
                     activity.CreatedAtUtc))
@@ -1025,7 +1029,9 @@ public class OrderReadService : IOrderReadService
                     activity.Note,
                     ResolveLocalizedActivityBody(supportCase, activity),
                     activity.ActorRole,
+                    ResolveRoleLabel(activity.ActorRole),
                     activity.GetVisibleRoles(),
+                    ResolveMessageTypeLabel(activity.MessageType),
                     activity.IsInternalOnly,
                     activity.CreatedAtUtc,
                     []))
@@ -2017,6 +2023,7 @@ public class OrderReadService : IOrderReadService
         return roles
             .Select(role => new OrderSupportCaseParticipantDto(
                 role,
+                ResolveRoleLabel(role),
                 string.Equals(supportCase.InitiatorRole, role, StringComparison.OrdinalIgnoreCase),
                 string.Equals(supportCase.AwaitingResponseFromRole, role, StringComparison.OrdinalIgnoreCase),
                 supportCase.Activities.Any(activity => string.Equals(activity.ActorRole, role, StringComparison.OrdinalIgnoreCase))))
@@ -2071,10 +2078,10 @@ public class OrderReadService : IOrderReadService
             supportCase.ReasonCode,
             ResolveSupportCaseReasonLabel(supportCase.Type, supportCase.ReasonCode) ?? supportCase.Message,
             amount,
-            MapSupportCaseStatus(supportCase.Status),
-            ResolveSupportCaseStatusLabel(supportCase.Status),
-            MapAdminSupportCaseStatus(supportCase.Status),
-            ResolveAdminSupportCaseStatusLabel(supportCase.Status),
+            MapSupportCaseStatus(ResolveDisplaySupportCaseStatus(supportCase, couponSupportMap)),
+            ResolveSupportCaseStatusLabel(ResolveDisplaySupportCaseStatus(supportCase, couponSupportMap)),
+            MapAdminSupportCaseStatus(ResolveDisplaySupportCaseStatus(supportCase, couponSupportMap)),
+            ResolveAdminSupportCaseStatusLabel(ResolveDisplaySupportCaseStatus(supportCase, couponSupportMap)),
             MapSupportCasePriority(supportCase.Priority),
             ResolveSupportCasePriorityLabel(supportCase.Priority),
             supportCase.AssignedAdminId.HasValue ? "Assigned admin" : ResolveQueueLabel(supportCase.Queue),
@@ -2105,12 +2112,14 @@ public class OrderReadService : IOrderReadService
                 .OrderByDescending(activity => activity.CreatedAtUtc)
                 .Take(6)
                 .Select(activity => new AdminOrderSupportCaseTimelineItemDto(
-                    activity.Title,
+                    ResolveLocalizedActivityTitle(activity) ?? activity.Title,
                     activity.CreatedAtUtc.ToLocalTime().ToString("g", CultureInfo.InvariantCulture),
                     ResolveTimelineTone(activity.Action, supportCase.Status)))
                 .ToList(),
             supportCase.InitiatorRole,
+            ResolveRoleLabel(supportCase.InitiatorRole),
             supportCase.AwaitingResponseFromRole,
+            ResolveRoleLabel(supportCase.AwaitingResponseFromRole),
             BuildParticipants(supportCase),
             BuildAllowedActions("admin", supportCase),
             supportCase.Activities
@@ -2124,7 +2133,9 @@ public class OrderReadService : IOrderReadService
                     activity.Note,
                     ResolveLocalizedActivityBody(supportCase, activity),
                     activity.ActorRole,
+                    ResolveRoleLabel(activity.ActorRole),
                     activity.GetVisibleRoles(),
+                    ResolveMessageTypeLabel(activity.MessageType),
                     activity.IsInternalOnly,
                     activity.CreatedAtUtc,
                     []))
@@ -2142,6 +2153,21 @@ public class OrderReadService : IOrderReadService
             OrderSupportCaseStatus.Approved => "review",
             _ => "resolved"
         };
+
+    private static OrderSupportCaseStatus ResolveDisplaySupportCaseStatus(
+        OrderSupportCase supportCase,
+        IReadOnlyDictionary<Guid, CouponSupportSnapshot> couponSupportMap)
+    {
+        if (supportCase.Status != OrderSupportCaseStatus.Approved)
+        {
+            return supportCase.Status;
+        }
+
+        var settlementStatus = MapSupportCaseSettlementStatus(supportCase, couponSupportMap);
+        return settlementStatus is "cash_refunded" or "coupon_redeemed"
+            ? OrderSupportCaseStatus.Resolved
+            : supportCase.Status;
+    }
 
     private static string MapRiskLevel(OrderSupportCasePriority priority) =>
         priority switch
@@ -2187,10 +2213,14 @@ public class OrderReadService : IOrderReadService
         coupon.IsRedeemed;
 
     private static string BuildCustomerSummary(Order order, OrderSupportCase supportCase) =>
-        $"Customer {order.User.FullName} opened a {MapSupportCaseType(supportCase.Type).Replace('_', ' ')} case for order {order.OrderNumber}.";
+        L(
+            $"العميل {order.User.FullName} فتح {ResolveSupportCaseTypeLabel(supportCase.Type)} للطلب رقم {order.OrderNumber}.",
+            $"Customer {order.User.FullName} opened a {ResolveSupportCaseTypeLabel(supportCase.Type).ToLowerInvariant()} for order {order.OrderNumber}.");
 
     private static string BuildMerchantSummary(Order order, OrderSupportCase supportCase) =>
-        $"Merchant {order.Vendor.BusinessNameAr} is currently routed through the {ResolveQueueLabel(supportCase.Queue)} queue.";
+        L(
+            $"التاجر {order.Vendor.BusinessNameAr} يتم التعامل مع الحالة الخاصة به حاليًا عبر مسار {ResolveQueueLabel(supportCase.Queue)}.",
+            $"Merchant {order.Vendor.BusinessNameAr} is currently handled through the {ResolveQueueLabel(supportCase.Queue)} queue.");
 
     private async Task<Dictionary<Guid, CouponSupportSnapshot>> LoadCouponSupportMapAsync(
         IReadOnlyCollection<Guid> couponIds,
@@ -2253,6 +2283,28 @@ public class OrderReadService : IOrderReadService
 
         return status == OrderSupportCaseStatus.AwaitingCustomerEvidence ? "muted" : "primary";
     }
+
+    private static string ResolveRoleLabel(string? role) =>
+        NormalizeSupportCaseAction(role) switch
+        {
+            "admin" => L("الإدارة", "Admin"),
+            "vendor" => L("التاجر", "Vendor"),
+            "driver" => L("المندوب", "Driver"),
+            "customer" => L("العميل", "Customer"),
+            _ => L("النظام", "System")
+        };
+
+    private static string ResolveMessageTypeLabel(string? messageType) =>
+        NormalizeSupportCaseAction(messageType) switch
+        {
+            "decision" => L("قرار", "Decision"),
+            "case_opened" => L("فتح الحالة", "Case opened"),
+            "public_message" => L("رسالة عامة", "Public message"),
+            "internal_note" => L("ملاحظة داخلية", "Internal note"),
+            "customer_note" => L("ملاحظة للعميل", "Customer note"),
+            "request_evidence" => L("طلب معلومات إضافية", "Evidence request"),
+            _ => L("تحديث", "Update")
+        };
 
     private sealed record CouponSupportSnapshot(
         string Code,
