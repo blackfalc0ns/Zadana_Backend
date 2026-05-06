@@ -1228,8 +1228,7 @@ public class OrderReadService : IOrderReadService
             OrderStatus.Accepted or OrderStatus.Preparing or OrderStatus.ReadyForPickup or
             OrderStatus.DriverAssignmentInProgress or OrderStatus.DriverAssigned or
             OrderStatus.PickedUp or OrderStatus.OnTheWay => "processing",
-            OrderStatus.Delivered => "delivered",
-            OrderStatus.Refunded => "returning",
+            OrderStatus.Delivered or OrderStatus.Refunded => "delivered",
             _ => "cancelled"
         };
 

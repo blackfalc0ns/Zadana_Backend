@@ -12,8 +12,7 @@ public static class OrderTrackingStatusMapper
             OrderStatus.Preparing or OrderStatus.ReadyForPickup or
             OrderStatus.DriverAssignmentInProgress or OrderStatus.DriverAssigned => "preparing",
             OrderStatus.PickedUp or OrderStatus.OnTheWay => "out_for_delivery",
-            OrderStatus.Delivered => "delivered",
-            OrderStatus.Refunded => "returning",
+            OrderStatus.Delivered or OrderStatus.Refunded => "delivered",
             _ => "cancelled"
         };
 
@@ -42,8 +41,8 @@ public static class OrderTrackingStatusMapper
             "on_the_way" => "out_for_delivery",
             "out_for_delivery" => "out_for_delivery",
             "delivered" => "delivered",
-            "returning" => "returning",
-            "refunded" => "returning",
+            "returning" => "delivered",
+            "refunded" => "delivered",
             "cancelled" => "cancelled",
             "canceled" => "cancelled",
             "vendor_rejected" => "cancelled",
