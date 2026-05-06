@@ -70,5 +70,5 @@ public class AdminNotificationsController : ApiControllerBase
 
     private static NotificationResponse MapNotification(NotificationDto dto) =>
         new(dto.Id, dto.TitleAr, dto.TitleEn, dto.BodyAr, dto.BodyEn,
-            dto.Type, dto.ReferenceId, dto.Data, dto.DataObject, dto.IsRead, dto.CreatedAtUtc);
+            dto.Type, dto.Category, dto.Priority, dto.ReferenceId, dto.Data, dto.DataObject, dto.IsRead, dto.CreatedAtUtc);
 }

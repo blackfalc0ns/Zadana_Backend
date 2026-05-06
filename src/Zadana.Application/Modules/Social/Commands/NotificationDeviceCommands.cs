@@ -16,6 +16,11 @@ public record NotificationDeviceDto(
     string? AppVersion,
     string? Locale,
     bool NotificationsEnabled,
+    bool DispatchPushEnabled,
+    bool AssignmentPushEnabled,
+    bool SupportPushEnabled,
+    bool WalletPushEnabled,
+    bool AccountPushEnabled,
     bool IsActive,
     DateTime LastRegisteredAtUtc,
     DateTime LastSeenAtUtc);
@@ -28,7 +33,12 @@ public record RegisterNotificationDeviceCommand(
     string? DeviceName,
     string? AppVersion,
     string? Locale,
-    bool NotificationsEnabled = true) : IRequest<NotificationDeviceDto>;
+    bool NotificationsEnabled = true,
+    bool DispatchPushEnabled = true,
+    bool AssignmentPushEnabled = true,
+    bool SupportPushEnabled = true,
+    bool WalletPushEnabled = true,
+    bool AccountPushEnabled = true) : IRequest<NotificationDeviceDto>;
 
 public class RegisterNotificationDeviceCommandHandler : IRequestHandler<RegisterNotificationDeviceCommand, NotificationDeviceDto>
 {
@@ -67,7 +77,12 @@ public class RegisterNotificationDeviceCommandHandler : IRequestHandler<Register
                 request.DeviceName,
                 request.AppVersion,
                 request.Locale,
-                request.NotificationsEnabled);
+                request.NotificationsEnabled,
+                request.DispatchPushEnabled,
+                request.AssignmentPushEnabled,
+                request.SupportPushEnabled,
+                request.WalletPushEnabled,
+                request.AccountPushEnabled);
 
             _context.UserPushDevices.Add(device);
         }
@@ -81,7 +96,12 @@ public class RegisterNotificationDeviceCommandHandler : IRequestHandler<Register
                 request.DeviceName,
                 request.AppVersion,
                 request.Locale,
-                request.NotificationsEnabled);
+                request.NotificationsEnabled,
+                request.DispatchPushEnabled,
+                request.AssignmentPushEnabled,
+                request.SupportPushEnabled,
+                request.WalletPushEnabled,
+                request.AccountPushEnabled);
         }
 
         await _context.SaveChangesAsync(cancellationToken);
@@ -89,7 +109,7 @@ public class RegisterNotificationDeviceCommandHandler : IRequestHandler<Register
         return Map(device);
     }
 
-    private static NotificationDeviceDto Map(UserPushDevice device) =>
+    internal static NotificationDeviceDto Map(UserPushDevice device) =>
         new(
             device.Id,
             device.DeviceToken,
@@ -99,6 +119,11 @@ public class RegisterNotificationDeviceCommandHandler : IRequestHandler<Register
             device.AppVersion,
             device.Locale,
             device.NotificationsEnabled,
+            device.DispatchPushEnabled,
+            device.AssignmentPushEnabled,
+            device.SupportPushEnabled,
+            device.WalletPushEnabled,
+            device.AccountPushEnabled,
             device.IsActive,
             device.LastRegisteredAtUtc,
             device.LastSeenAtUtc);
@@ -108,7 +133,12 @@ public record UpdateNotificationDevicePreferencesCommand(
     Guid UserId,
     string? DeviceId,
     string? DeviceToken,
-    bool NotificationsEnabled) : IRequest<NotificationDeviceDto>;
+    bool NotificationsEnabled,
+    bool? DispatchPushEnabled = null,
+    bool? AssignmentPushEnabled = null,
+    bool? SupportPushEnabled = null,
+    bool? WalletPushEnabled = null,
+    bool? AccountPushEnabled = null) : IRequest<NotificationDeviceDto>;
 
 public class UpdateNotificationDevicePreferencesCommandHandler : IRequestHandler<UpdateNotificationDevicePreferencesCommand, NotificationDeviceDto>
 {
@@ -124,20 +154,15 @@ public class UpdateNotificationDevicePreferencesCommandHandler : IRequestHandler
             request.DeviceId,
             request.DeviceToken,
             cancellationToken);
-        device.UpdateNotificationsEnabled(request.NotificationsEnabled);
+        device.UpdatePushPreferences(
+            request.NotificationsEnabled,
+            request.DispatchPushEnabled,
+            request.AssignmentPushEnabled,
+            request.SupportPushEnabled,
+            request.WalletPushEnabled,
+            request.AccountPushEnabled);
         await _context.SaveChangesAsync(cancellationToken);
-        return new NotificationDeviceDto(
-            device.Id,
-            device.DeviceToken,
-            device.Platform.ToString().ToLowerInvariant(),
-            device.DeviceId,
-            device.DeviceName,
-            device.AppVersion,
-            device.Locale,
-            device.NotificationsEnabled,
-            device.IsActive,
-            device.LastRegisteredAtUtc,
-            device.LastSeenAtUtc);
+        return RegisterNotificationDeviceCommandHandler.Map(device);
     }
 }
 

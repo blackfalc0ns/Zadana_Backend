@@ -33,6 +33,21 @@ public class UserPushDeviceConfiguration : IEntityTypeConfiguration<UserPushDevi
         builder.Property(x => x.Locale)
             .HasMaxLength(20);
 
+        builder.Property(x => x.DispatchPushEnabled)
+            .HasDefaultValue(true);
+
+        builder.Property(x => x.AssignmentPushEnabled)
+            .HasDefaultValue(true);
+
+        builder.Property(x => x.SupportPushEnabled)
+            .HasDefaultValue(true);
+
+        builder.Property(x => x.WalletPushEnabled)
+            .HasDefaultValue(true);
+
+        builder.Property(x => x.AccountPushEnabled)
+            .HasDefaultValue(true);
+
         builder.HasIndex(x => x.DeviceToken).IsUnique();
         builder.HasIndex(x => new { x.UserId, x.IsActive });
         builder.HasIndex(x => new { x.UserId, x.DeviceId });

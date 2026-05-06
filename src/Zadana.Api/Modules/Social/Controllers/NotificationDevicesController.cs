@@ -44,7 +44,12 @@ public class NotificationDevicesController : ApiControllerBase
             request.DeviceName,
             request.AppVersion,
             request.Locale,
-            request.NotificationsEnabled), cancellationToken);
+            request.NotificationsEnabled,
+            request.DispatchPushEnabled,
+            request.AssignmentPushEnabled,
+            request.SupportPushEnabled,
+            request.WalletPushEnabled,
+            request.AccountPushEnabled), cancellationToken);
 
         return Ok(Map(device));
     }
@@ -59,7 +64,12 @@ public class NotificationDevicesController : ApiControllerBase
             userId,
             request.DeviceId,
             request.DeviceToken,
-            request.NotificationsEnabled), cancellationToken);
+            request.NotificationsEnabled,
+            request.DispatchPushEnabled,
+            request.AssignmentPushEnabled,
+            request.SupportPushEnabled,
+            request.WalletPushEnabled,
+            request.AccountPushEnabled), cancellationToken);
 
         return Ok(Map(device));
     }
@@ -87,6 +97,11 @@ public class NotificationDevicesController : ApiControllerBase
             dto.AppVersion,
             dto.Locale,
             dto.NotificationsEnabled,
+            dto.DispatchPushEnabled,
+            dto.AssignmentPushEnabled,
+            dto.SupportPushEnabled,
+            dto.WalletPushEnabled,
+            dto.AccountPushEnabled,
             dto.IsActive,
             dto.LastRegisteredAtUtc,
             dto.LastSeenAtUtc);
@@ -103,6 +118,11 @@ public record NotificationDeviceResponse(
     string? AppVersion,
     string? Locale,
     bool NotificationsEnabled,
+    bool DispatchPushEnabled,
+    bool AssignmentPushEnabled,
+    bool SupportPushEnabled,
+    bool WalletPushEnabled,
+    bool AccountPushEnabled,
     bool IsActive,
     DateTime LastRegisteredAtUtc,
     DateTime LastSeenAtUtc);

@@ -34,6 +34,28 @@ public sealed class OneSignalPushService : IOneSignalPushService
         _scopeFactory = scopeFactory;
     }
 
+    public async Task<OneSignalPushDispatchResult> SendMobileNotificationAsync(
+        OneSignalMobilePushRequest request,
+        CancellationToken cancellationToken = default)
+    {
+        var results = await SendToExternalUsersCoreAsync(
+            [request.ExternalUserId],
+            request.TitleAr,
+            request.TitleEn,
+            request.BodyAr,
+            request.BodyEn,
+            request.Type,
+            request.ReferenceId,
+            request.Data,
+            request.TargetUrl,
+            request.Profile,
+            request.Category,
+            requireRegisteredDevices: true,
+            cancellationToken);
+
+        return results[0];
+    }
+
     public Task<OneSignalPushDispatchResult> SendToExternalUserAsync(
         string externalUserId,
         string titleAr,
@@ -71,7 +93,7 @@ public sealed class OneSignalPushService : IOneSignalPushService
         OneSignalPushProfile profile,
         CancellationToken cancellationToken = default)
     {
-        var results = await SendToExternalUsersAsync(
+        var results = await SendToExternalUsersCoreAsync(
             [externalUserId],
             titleAr,
             titleEn,
@@ -82,12 +104,14 @@ public sealed class OneSignalPushService : IOneSignalPushService
             data,
             targetUrl,
             profile,
+            category: null,
+            requireRegisteredDevices: false,
             cancellationToken);
 
         return results[0];
     }
 
-    public async Task<IReadOnlyList<OneSignalPushDispatchResult>> SendToExternalUsersAsync(
+    public Task<IReadOnlyList<OneSignalPushDispatchResult>> SendToExternalUsersAsync(
         IReadOnlyCollection<string> externalUserIds,
         string titleAr,
         string titleEn,
@@ -98,7 +122,36 @@ public sealed class OneSignalPushService : IOneSignalPushService
         string? data = null,
         string? targetUrl = null,
         OneSignalPushProfile profile = OneSignalPushProfile.Default,
-        CancellationToken cancellationToken = default)
+        CancellationToken cancellationToken = default) =>
+        SendToExternalUsersCoreAsync(
+            externalUserIds,
+            titleAr,
+            titleEn,
+            bodyAr,
+            bodyEn,
+            type,
+            referenceId,
+            data,
+            targetUrl,
+            profile,
+            category: null,
+            requireRegisteredDevices: false,
+            cancellationToken);
+
+    private async Task<IReadOnlyList<OneSignalPushDispatchResult>> SendToExternalUsersCoreAsync(
+        IReadOnlyCollection<string> externalUserIds,
+        string titleAr,
+        string titleEn,
+        string bodyAr,
+        string bodyEn,
+        string? type,
+        Guid? referenceId,
+        string? data,
+        string? targetUrl,
+        OneSignalPushProfile profile,
+        string? category,
+        bool requireRegisteredDevices,
+        CancellationToken cancellationToken)
     {
         var normalizedExternalUserIds = externalUserIds
             .Where(id => !string.IsNullOrWhiteSpace(id))
@@ -125,7 +178,24 @@ public sealed class OneSignalPushService : IOneSignalPushService
         var resolvedTargetUrl = ShouldIncludeWebUrl(profile) ? ResolveTargetUrl(targetUrl) : null;
         var notificationEventId = Guid.NewGuid();
 
-        var recipientsByLocale = await ResolveRecipientsByLocaleAsync(normalizedExternalUserIds, cancellationToken);
+        var recipientsByLocale = await ResolveRecipientsByLocaleAsync(
+            normalizedExternalUserIds,
+            category,
+            requireRegisteredDevices,
+            cancellationToken);
+
+        if (recipientsByLocale.Count == 0)
+        {
+            return
+            [
+                CreateSkippedResult(
+                    requireRegisteredDevices
+                        ? "No active push-enabled devices matched the selected notification category."
+                        : "No eligible OneSignal recipients were found.",
+                    normalizedExternalUserIds.Length)
+            ];
+        }
+
         var results = new List<OneSignalPushDispatchResult>();
 
         foreach (var localeBatch in recipientsByLocale)
@@ -354,6 +424,8 @@ public sealed class OneSignalPushService : IOneSignalPushService
 
     private async Task<IReadOnlyList<LocalizedRecipientBatch>> ResolveRecipientsByLocaleAsync(
         IReadOnlyCollection<string> externalUserIds,
+        string? category,
+        bool requireRegisteredDevices,
         CancellationToken cancellationToken)
     {
         var parsedUserIds = externalUserIds
@@ -377,15 +449,24 @@ public sealed class OneSignalPushService : IOneSignalPushService
 
         if (guidUserIds.Length == 0)
         {
+            if (requireRegisteredDevices)
+            {
+                return Array.Empty<LocalizedRecipientBatch>();
+            }
+
             return [new LocalizedRecipientBatch(null, externalUserIds.ToArray())];
         }
 
         await using var scope = _scopeFactory.CreateAsyncScope();
         var dbContext = scope.ServiceProvider.GetRequiredService<ApplicationDbContext>();
 
-        var deviceLocales = await dbContext.UserPushDevices
+        var devicesQuery = dbContext.UserPushDevices
             .AsNoTracking()
-            .Where(device => guidUserIds.Contains(device.UserId) && device.IsActive && device.NotificationsEnabled)
+            .Where(device => guidUserIds.Contains(device.UserId) && device.IsActive && device.NotificationsEnabled);
+
+        devicesQuery = ApplyCategoryFilter(devicesQuery, category);
+
+        var deviceLocales = await devicesQuery
             .Select(device => new
             {
                 device.UserId,
@@ -405,6 +486,25 @@ public sealed class OneSignalPushService : IOneSignalPushService
                     .Select(device => NormalizeLocale(device.Locale))
                     .FirstOrDefault(locale => locale is not null));
 
+        var optedInUserIds = deviceLocales
+            .Select(device => device.UserId)
+            .Distinct()
+            .ToHashSet();
+
+        if (requireRegisteredDevices)
+        {
+            return parsedUserIds
+                .Where(item => item.Parsed && optedInUserIds.Contains(item.UserId))
+                .GroupBy(item =>
+                    preferredLocaleByUserId.TryGetValue(item.UserId, out var locale)
+                        ? locale
+                        : null)
+                .Select(group => new LocalizedRecipientBatch(
+                    group.Key,
+                    group.Select(item => item.ExternalUserId).ToArray()))
+                .ToArray();
+        }
+
         return parsedUserIds
             .GroupBy(item =>
                 item.Parsed && preferredLocaleByUserId.TryGetValue(item.UserId, out var locale)
@@ -415,6 +515,26 @@ public sealed class OneSignalPushService : IOneSignalPushService
                 group.Select(item => item.ExternalUserId).ToArray()))
             .ToArray();
     }
+
+    private static IQueryable<Domain.Modules.Identity.Entities.UserPushDevice> ApplyCategoryFilter(
+        IQueryable<Domain.Modules.Identity.Entities.UserPushDevice> query,
+        string? category)
+    {
+        var normalizedCategory = NormalizeCategory(category);
+
+        return normalizedCategory switch
+        {
+            "dispatch" => query.Where(device => device.DispatchPushEnabled),
+            "assignment" => query.Where(device => device.AssignmentPushEnabled),
+            "support" => query.Where(device => device.SupportPushEnabled),
+            "wallet" => query.Where(device => device.WalletPushEnabled),
+            "account" => query.Where(device => device.AccountPushEnabled),
+            _ => query
+        };
+    }
+
+    private static string? NormalizeCategory(string? category) =>
+        string.IsNullOrWhiteSpace(category) ? null : category.Trim().ToLowerInvariant();
 
     private static string? NormalizeLocale(string? locale)
     {
@@ -461,6 +581,14 @@ public sealed class OneSignalPushService : IOneSignalPushService
                     _settings.MobileHeadsUpExistingAndroidChannelId,
                     _settings.MobileHeadsUpAndroidChannelId,
                     _settings.MobileHeadsUpPriority);
+                return;
+
+            case OneSignalPushProfile.MobileStandard:
+                ApplyMobileProfile(
+                    payload,
+                    _settings.MobileStandardExistingAndroidChannelId,
+                    _settings.MobileStandardAndroidChannelId,
+                    _settings.MobileStandardPriority);
                 return;
 
             default:

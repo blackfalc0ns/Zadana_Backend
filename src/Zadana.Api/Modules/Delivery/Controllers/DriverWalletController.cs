@@ -5,8 +5,11 @@ using Microsoft.EntityFrameworkCore;
 using Zadana.Api.Controllers;
 using Zadana.Api.Modules.Delivery.Requests;
 using Zadana.Application.Common.Interfaces;
+using Zadana.Application.Modules.Delivery.Support;
 using Zadana.Application.Modules.Delivery.Interfaces;
 using Zadana.Application.Modules.Wallets.DTOs;
+using Zadana.Application.Modules.Wallets.Interfaces;
+using Zadana.Domain.Modules.Social.Enums;
 using Zadana.Domain.Modules.Wallets.Entities;
 using Zadana.Domain.Modules.Wallets.Enums;
 using Zadana.SharedKernel.Exceptions;
@@ -21,49 +24,11 @@ public class DriverWalletController : ApiControllerBase
     [HttpGet]
     public async Task<ActionResult<DriverWalletSummaryDto>> GetWallet(
         [FromServices] ICurrentUserService currentUserService,
-        [FromServices] IDriverRepository driverRepository,
-        [FromServices] IApplicationDbContext context,
+        [FromServices] IDriverWalletReadService driverWalletReadService,
         CancellationToken cancellationToken = default)
     {
-        var driver = await GetDriverAsync(currentUserService, driverRepository, cancellationToken);
-        var wallet = await GetOrCreateWalletAsync(context, driver.Id, cancellationToken);
-
-        var todayStart = DateTime.UtcNow.Date;
-        var weekStart = DateTime.UtcNow.AddDays(-7);
-        var monthStart = DateTime.UtcNow.AddDays(-30);
-
-        var todayEarnings = await SumIncomingAsync(context, wallet.Id, todayStart, cancellationToken);
-        var weekEarnings = await SumIncomingAsync(context, wallet.Id, weekStart, cancellationToken);
-        var monthEarnings = await SumIncomingAsync(context, wallet.Id, monthStart, cancellationToken);
-
-        var recentTransactions = await context.WalletTransactions
-            .AsNoTracking()
-            .Where(t => t.WalletId == wallet.Id)
-            .OrderByDescending(t => t.CreatedAtUtc)
-            .Take(10)
-            .Select(MapTransaction())
-            .ToListAsync(cancellationToken);
-
-        var paymentMethods = await context.DriverPayoutMethods
-            .AsNoTracking()
-            .Where(m => m.DriverId == driver.Id)
-            .OrderByDescending(m => m.IsPrimary)
-            .ThenByDescending(m => m.CreatedAtUtc)
-            .Select(MapPayoutMethod())
-            .ToListAsync(cancellationToken);
-
-        var withdrawalSummary = await BuildWithdrawalSummaryAsync(context, driver.Id, cancellationToken);
-
-        return Ok(new DriverWalletSummaryDto(
-            wallet.CurrentBalance,
-            wallet.CurrentBalance,
-            wallet.PendingBalance,
-            todayEarnings,
-            weekEarnings,
-            monthEarnings,
-            recentTransactions,
-            paymentMethods,
-            withdrawalSummary));
+        var userId = currentUserService.UserId ?? throw new UnauthorizedException("DRIVER_NOT_AUTHENTICATED");
+        return Ok(await driverWalletReadService.GetWalletSummaryAsync(userId, cancellationToken));
     }
 
     [HttpGet("transactions")]
@@ -251,6 +216,7 @@ public class DriverWalletController : ApiControllerBase
         [FromServices] ICurrentUserService currentUserService,
         [FromServices] IDriverRepository driverRepository,
         [FromServices] IApplicationDbContext context,
+        [FromServices] INotificationService notificationService,
         CancellationToken cancellationToken = default)
     {
         if (request is null)
@@ -303,6 +269,32 @@ public class DriverWalletController : ApiControllerBase
         var withdrawal = new DriverWithdrawalRequest(driver.Id, wallet.Id, payoutMethod.Id, request.Amount);
         context.DriverWithdrawalRequests.Add(withdrawal);
         await context.SaveChangesAsync(cancellationToken);
+
+        var data = DriverNotificationDataBuilder.Build(
+            screen: "wallet",
+            @event: "wallet.withdrawal_submitted",
+            withdrawalId: withdrawal.Id,
+            extra: new
+            {
+                amount = withdrawal.Amount,
+                status = withdrawal.Status.ToString()
+            });
+
+        await notificationService.SendToUserAsync(
+            driver.UserId,
+            new NotificationDispatchRequest(
+                "تم استلام طلب السحب",
+                "Withdrawal request submitted",
+                $"تم استلام طلب سحب بقيمة {withdrawal.Amount:0.##}.",
+                $"Your withdrawal request for {withdrawal.Amount:0.##} was submitted.",
+                NotificationTypes.DriverWalletUpdated,
+                NotificationCategories.Wallet,
+                NotificationPriorities.Normal,
+                withdrawal.Id,
+                data),
+            cancellationToken);
+
+        await notificationService.SendDriverWalletUpdatedAsync(driver.UserId, cancellationToken);
 
         return Ok(MapWithdrawalDto(withdrawal, payoutMethod));
     }

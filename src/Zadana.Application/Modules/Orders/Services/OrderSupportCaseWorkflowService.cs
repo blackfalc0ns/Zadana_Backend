@@ -1,5 +1,6 @@
 using Microsoft.EntityFrameworkCore;
 using Zadana.Application.Common.Interfaces;
+using Zadana.Application.Modules.Delivery.Support;
 using Zadana.Application.Modules.Orders.Interfaces;
 using Zadana.Application.Modules.Orders.Support;
 using Zadana.Application.Modules.Wallets.Services;
@@ -153,10 +154,7 @@ public sealed class OrderSupportCaseWorkflowService : IOrderSupportCaseWorkflowS
         {
             await NotifyCustomerAsync(order, supportCase, "created", cancellationToken);
             await NotifyVendorSupportCaseAsync(order, supportCase, "customer_created", cancellationToken);
-        }
-        else
-        {
-            await NotifyDriverAsync(order, supportCase, customerUserId, "created", cancellationToken);
+            await NotifyActiveDriverAsync(order, supportCase, "created", cancellationToken);
         }
 
         return supportCase;
@@ -229,6 +227,7 @@ public sealed class OrderSupportCaseWorkflowService : IOrderSupportCaseWorkflowS
         }
 
         await _unitOfWork.SaveChangesAsync(cancellationToken);
+        await NotifyActiveDriverAsync(order, supportCase, "created", cancellationToken);
         return supportCase;
     }
 
@@ -942,16 +941,179 @@ public sealed class OrderSupportCaseWorkflowService : IOrderSupportCaseWorkflowS
             return;
         }
 
+        var envelope = TryComposeDriverSupportNotification(order, supportCase, action, driverUserId);
+        if (envelope is null)
+        {
+            return;
+        }
+
         await _notificationService.SendToUserAsync(
             driverUserId,
-            "تحديث في بلاغ الطلب",
-            "Order case updated",
-            $"هناك تحديث جديد على الحالة المرتبطة بالطلب #{order.OrderNumber}.",
-            $"There is a new update on the case for order #{order.OrderNumber}.",
-            "order_support_case",
-            supportCase.Id,
-            $$"""{"action":"{{action}}","orderId":"{{order.Id}}","caseId":"{{supportCase.Id}}"}""",
+            envelope.Request,
             cancellationToken);
+
+        await _notificationService.SendOrderSupportCaseChangedToUserAsync(
+            driverUserId,
+            supportCase.Id,
+            order.Id,
+            order.OrderNumber,
+            OrderSupportCaseNotificationComposer.ToApiValue(supportCase.Type),
+            OrderSupportCaseNotificationComposer.ToApiValue(supportCase.Status),
+            action,
+            $"/orders/{order.Id}/cases/{supportCase.Id}",
+            cancellationToken);
+
+        await envelope.PushRequest.DispatchAsync(_oneSignalPushService, cancellationToken);
+    }
+
+    private static DriverSupportNotificationEnvelope? TryComposeDriverSupportNotification(
+        Order order,
+        OrderSupportCase supportCase,
+        string action,
+        Guid driverUserId)
+    {
+        var normalizedAction = NormalizeToken(action);
+        var type = OrderSupportCaseNotificationComposer.ToApiValue(supportCase.Type);
+        var status = OrderSupportCaseNotificationComposer.ToApiValue(supportCase.Status);
+        var data = DriverNotificationDataBuilder.Build(
+            "support_case_detail",
+            $"support.{normalizedAction}",
+            orderId: order.Id,
+            supportCaseId: supportCase.Id,
+            extra: new
+            {
+                orderNumber = order.OrderNumber,
+                type,
+                status
+            });
+
+        return normalizedAction switch
+        {
+            "created" => BuildDriverSupportNotification(
+                driverUserId,
+                "?? ??? ???? ??? ?????",
+                "Support case created",
+                $"?? ??? ???? ??? ????? ????? ??? #{order.OrderNumber}.",
+                $"A support case was created for order #{order.OrderNumber}.",
+                NotificationPriorities.Normal,
+                OneSignalPushRequestKind.Standard,
+                supportCase.Id,
+                data),
+
+            "request_evidence" => BuildDriverSupportNotification(
+                driverUserId,
+                "????? ??? ????? ??????? ??????",
+                "More information required",
+                $"????? ???? ????? ??? #{order.OrderNumber} ??? ?? ?? ??????? ?????? ???.",
+                $"Order case #{order.OrderNumber} needs a response or additional evidence from you.",
+                NotificationPriorities.High,
+                OneSignalPushRequestKind.HeadsUp,
+                supportCase.Id,
+                data),
+
+            "admin_message" => BuildDriverSupportNotification(
+                driverUserId,
+                "????? ????? ?? ???? ?????",
+                "New support message",
+                $"???? ????? ????? ????? ???? ????? ??? #{order.OrderNumber}.",
+                $"There is a new support message about order #{order.OrderNumber}.",
+                NotificationPriorities.High,
+                OneSignalPushRequestKind.HeadsUp,
+                supportCase.Id,
+                data),
+
+            "approved" => BuildDriverSupportNotification(
+                driverUserId,
+                "?? ?????? ???? ??????",
+                "Support case approved",
+                $"?? ?????? ?????? ????? ????? ????? ??? #{order.OrderNumber}.",
+                $"The support case decision for order #{order.OrderNumber} was approved.",
+                NotificationPriorities.High,
+                OneSignalPushRequestKind.Standard,
+                supportCase.Id,
+                data),
+
+            "rejected" => BuildDriverSupportNotification(
+                driverUserId,
+                "?? ??? ??????",
+                "Support case rejected",
+                $"?? ??? ???? ????? ??? #{order.OrderNumber}.",
+                $"The support case for order #{order.OrderNumber} was rejected.",
+                NotificationPriorities.High,
+                OneSignalPushRequestKind.Standard,
+                supportCase.Id,
+                data),
+
+            "resolved" => BuildDriverSupportNotification(
+                driverUserId,
+                "?? ????? ??????",
+                "Support case resolved",
+                $"?? ????? ???? ????? ??? #{order.OrderNumber}.",
+                $"The support case for order #{order.OrderNumber} was resolved.",
+                NotificationPriorities.Normal,
+                OneSignalPushRequestKind.Standard,
+                supportCase.Id,
+                data),
+
+            _ => null
+        };
+    }
+
+    private static DriverSupportNotificationEnvelope BuildDriverSupportNotification(
+        Guid driverUserId,
+        string titleAr,
+        string titleEn,
+        string bodyAr,
+        string bodyEn,
+        string priority,
+        OneSignalPushRequestKind pushKind,
+        Guid referenceId,
+        string data)
+    {
+        var request = new NotificationDispatchRequest(
+            titleAr,
+            titleEn,
+            bodyAr,
+            bodyEn,
+            NotificationTypes.OrderSupportCaseChanged,
+            NotificationCategories.Support,
+            priority,
+            referenceId,
+            data);
+
+        var pushRequest = pushKind == OneSignalPushRequestKind.HeadsUp
+            ? OneSignalMobilePushRequest.CreateHeadsUp(
+                driverUserId.ToString(),
+                titleAr,
+                titleEn,
+                bodyAr,
+                bodyEn,
+                NotificationTypes.OrderSupportCaseChanged,
+                referenceId,
+                data,
+                category: NotificationCategories.Support)
+            : OneSignalMobilePushRequest.CreateStandard(
+                driverUserId.ToString(),
+                titleAr,
+                titleEn,
+                bodyAr,
+                bodyEn,
+                NotificationTypes.OrderSupportCaseChanged,
+                referenceId,
+                data,
+                category: NotificationCategories.Support);
+
+        return new DriverSupportNotificationEnvelope(request, pushRequest);
+    }
+
+    private sealed record DriverSupportNotificationEnvelope(
+        NotificationDispatchRequest Request,
+        OneSignalMobilePushRequest PushRequest);
+
+    private enum OneSignalPushRequestKind
+    {
+        Standard,
+        HeadsUp
     }
 
     private async Task NotifyAdminRecipientsAsync(

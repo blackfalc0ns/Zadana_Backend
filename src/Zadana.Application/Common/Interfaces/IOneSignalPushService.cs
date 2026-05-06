@@ -2,6 +2,10 @@ namespace Zadana.Application.Common.Interfaces;
 
 public interface IOneSignalPushService
 {
+    Task<OneSignalPushDispatchResult> SendMobileNotificationAsync(
+        OneSignalMobilePushRequest request,
+        CancellationToken cancellationToken = default);
+
     Task<OneSignalPushDispatchResult> SendToExternalUserAsync(
         string externalUserId,
         string titleAr,
@@ -45,7 +49,8 @@ public enum OneSignalPushProfile
 {
     Default = 0,
     MobileHeadsUp = 1,
-    MobileOrderUpdates = 2
+    MobileOrderUpdates = 2,
+    MobileStandard = 3
 }
 
 public sealed record OneSignalPushDispatchResult(

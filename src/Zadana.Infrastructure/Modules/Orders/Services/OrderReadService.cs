@@ -1,6 +1,7 @@
 using System.Globalization;
 using Microsoft.EntityFrameworkCore;
 using Zadana.Application.Common.Models;
+using Zadana.Application.Modules.Delivery.DTOs;
 using Zadana.Application.Modules.Delivery.Interfaces;
 using Zadana.Application.Modules.Orders.DTOs;
 using Zadana.Application.Modules.Orders.Interfaces;
@@ -36,8 +37,40 @@ public class OrderReadService : IOrderReadService
         CultureInfo.CurrentUICulture.TwoLetterISOLanguageName == "ar" ? ar : en;
 
     public OrderReadService(ApplicationDbContext dbContext)
-        : this(dbContext, new DriverCommitmentPolicyService(dbContext, dbContext))
+        : this(dbContext, NoOpDriverCommitmentPolicyService.Instance)
     {
+    }
+
+    private sealed class NoOpDriverCommitmentPolicyService : IDriverCommitmentPolicyService
+    {
+        public static NoOpDriverCommitmentPolicyService Instance { get; } = new();
+
+        public Task<DriverCommitmentSummaryDto> GetDriverSummaryAsync(Guid driverId, CancellationToken cancellationToken = default) =>
+            Task.FromResult(
+                new DriverCommitmentSummaryDto(
+                    0,
+                    0,
+                    0,
+                    0,
+                    0,
+                    100m,
+                    DriverCommitmentEnforcementLevel.Healthy.ToString(),
+                    true,
+                    null,
+                    null));
+
+        public Task<IReadOnlyDictionary<Guid, DriverCommitmentSummaryDto>> GetDriverSummariesAsync(
+            IReadOnlyCollection<Guid> driverIds,
+            CancellationToken cancellationToken = default)
+        {
+            IReadOnlyDictionary<Guid, DriverCommitmentSummaryDto> result = new Dictionary<Guid, DriverCommitmentSummaryDto>();
+            return Task.FromResult(result);
+        }
+
+        public Task ApplyOperationalEnforcementAsync(
+            IReadOnlyCollection<Guid> driverIds,
+            CancellationToken cancellationToken = default) =>
+            Task.CompletedTask;
     }
 
     public Task<OrderDto?> GetByIdAsync(Guid orderId, Guid userId, CancellationToken cancellationToken = default) =>

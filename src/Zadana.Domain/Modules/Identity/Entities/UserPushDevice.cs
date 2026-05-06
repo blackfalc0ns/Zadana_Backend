@@ -13,6 +13,11 @@ public class UserPushDevice : BaseEntity
     public string? AppVersion { get; private set; }
     public string? Locale { get; private set; }
     public bool NotificationsEnabled { get; private set; }
+    public bool DispatchPushEnabled { get; private set; }
+    public bool AssignmentPushEnabled { get; private set; }
+    public bool SupportPushEnabled { get; private set; }
+    public bool WalletPushEnabled { get; private set; }
+    public bool AccountPushEnabled { get; private set; }
     public bool IsActive { get; private set; }
     public DateTime LastRegisteredAtUtc { get; private set; }
     public DateTime LastSeenAtUtc { get; private set; }
@@ -31,7 +36,12 @@ public class UserPushDevice : BaseEntity
         string? deviceName,
         string? appVersion,
         string? locale,
-        bool notificationsEnabled)
+        bool notificationsEnabled,
+        bool dispatchPushEnabled = true,
+        bool assignmentPushEnabled = true,
+        bool supportPushEnabled = true,
+        bool walletPushEnabled = true,
+        bool accountPushEnabled = true)
     {
         UserId = userId;
         DeviceToken = deviceToken.Trim();
@@ -41,6 +51,11 @@ public class UserPushDevice : BaseEntity
         AppVersion = string.IsNullOrWhiteSpace(appVersion) ? null : appVersion.Trim();
         Locale = NormalizeLocale(locale);
         NotificationsEnabled = notificationsEnabled;
+        DispatchPushEnabled = dispatchPushEnabled;
+        AssignmentPushEnabled = assignmentPushEnabled;
+        SupportPushEnabled = supportPushEnabled;
+        WalletPushEnabled = walletPushEnabled;
+        AccountPushEnabled = accountPushEnabled;
         IsActive = true;
         LastRegisteredAtUtc = DateTime.UtcNow;
         LastSeenAtUtc = DateTime.UtcNow;
@@ -54,7 +69,12 @@ public class UserPushDevice : BaseEntity
         string? deviceName,
         string? appVersion,
         string? locale,
-        bool notificationsEnabled)
+        bool notificationsEnabled,
+        bool dispatchPushEnabled = true,
+        bool assignmentPushEnabled = true,
+        bool supportPushEnabled = true,
+        bool walletPushEnabled = true,
+        bool accountPushEnabled = true)
     {
         UserId = userId;
         DeviceToken = deviceToken.Trim();
@@ -64,6 +84,11 @@ public class UserPushDevice : BaseEntity
         AppVersion = string.IsNullOrWhiteSpace(appVersion) ? null : appVersion.Trim();
         Locale = NormalizeLocale(locale);
         NotificationsEnabled = notificationsEnabled;
+        DispatchPushEnabled = dispatchPushEnabled;
+        AssignmentPushEnabled = assignmentPushEnabled;
+        SupportPushEnabled = supportPushEnabled;
+        WalletPushEnabled = walletPushEnabled;
+        AccountPushEnabled = accountPushEnabled;
         IsActive = true;
         LastRegisteredAtUtc = DateTime.UtcNow;
         LastSeenAtUtc = DateTime.UtcNow;
@@ -72,10 +97,39 @@ public class UserPushDevice : BaseEntity
 
     public void UpdateNotificationsEnabled(bool notificationsEnabled)
     {
+        UpdatePushPreferences(notificationsEnabled);
+    }
+
+    public void UpdatePushPreferences(
+        bool notificationsEnabled,
+        bool? dispatchPushEnabled = null,
+        bool? assignmentPushEnabled = null,
+        bool? supportPushEnabled = null,
+        bool? walletPushEnabled = null,
+        bool? accountPushEnabled = null)
+    {
         NotificationsEnabled = notificationsEnabled;
+        DispatchPushEnabled = dispatchPushEnabled ?? DispatchPushEnabled;
+        AssignmentPushEnabled = assignmentPushEnabled ?? AssignmentPushEnabled;
+        SupportPushEnabled = supportPushEnabled ?? SupportPushEnabled;
+        WalletPushEnabled = walletPushEnabled ?? WalletPushEnabled;
+        AccountPushEnabled = accountPushEnabled ?? AccountPushEnabled;
         LastSeenAtUtc = DateTime.UtcNow;
         UpdatedAtUtc = DateTime.UtcNow;
     }
+
+    public bool IsPushAllowedForCategory(string? category) =>
+        NotificationsEnabled &&
+        IsActive &&
+        category?.Trim().ToLowerInvariant() switch
+        {
+            "dispatch" => DispatchPushEnabled,
+            "assignment" => AssignmentPushEnabled,
+            "support" => SupportPushEnabled,
+            "wallet" => WalletPushEnabled,
+            "account" => AccountPushEnabled,
+            _ => true
+        };
 
     public void Touch()
     {

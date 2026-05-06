@@ -75,92 +75,11 @@ public class DriversController : ApiControllerBase
     [Authorize(Policy = "DriverOnly")]
     public async Task<ActionResult<DriverHomeDto>> GetHome(
         [FromServices] ICurrentUserService currentUserService,
-        [FromServices] IDriverRepository driverRepository,
-        [FromServices] IApplicationDbContext context,
-        [FromServices] IDeliveryDispatchService dispatchService,
-        [FromServices] IDriverCommitmentPolicyService driverCommitmentPolicyService,
+        [FromServices] IDriverHomeReadService driverHomeReadService,
         CancellationToken cancellationToken = default)
     {
-        await dispatchService.ProcessExpiredOffersAsync(cancellationToken);
-
         var userId = currentUserService.UserId ?? throw new UnauthorizedException("DRIVER_NOT_AUTHENTICATED");
-        var driver = await driverRepository.GetByUserIdAsync(userId, cancellationToken)
-            ?? throw new NotFoundException("Driver", userId);
-
-        var commitment = await driverCommitmentPolicyService.GetDriverSummaryAsync(driver.Id, cancellationToken);
-        var operationalStatus = DriverOperationalStatusFactory.Create(driver, commitment);
-
-        var currentOfferEntity = await context.DeliveryAssignments
-            .Include(a => a.Order)
-                .ThenInclude(o => o.Vendor)
-            .Include(a => a.Order)
-                .ThenInclude(o => o.VendorBranch)
-            .Include(a => a.Order)
-                .ThenInclude(o => o.Items)
-            .Where(a =>
-                a.DriverId == driver.Id &&
-                a.Status == AssignmentStatus.OfferSent &&
-                a.OfferExpiresAtUtc.HasValue)
-            .OrderByDescending(a => a.OfferedAtUtc)
-            .FirstOrDefaultAsync(cancellationToken);
-
-        var currentAssignmentEntity = await context.DeliveryAssignments
-            .Include(a => a.Order)
-                .ThenInclude(o => o.Vendor)
-            .Include(a => a.Order)
-                .ThenInclude(o => o.VendorBranch)
-            .Include(a => a.Driver)
-            .Where(a =>
-                a.DriverId == driver.Id &&
-                (a.Status == AssignmentStatus.Accepted ||
-                 a.Status == AssignmentStatus.PickedUp ||
-                 a.Status == AssignmentStatus.ArrivedAtVendor ||
-                 a.Status == AssignmentStatus.ArrivedAtCustomer))
-            .OrderByDescending(a => a.CreatedAtUtc)
-            .FirstOrDefaultAsync(cancellationToken);
-
-        var currentOffer = currentOfferEntity is null
-            ? null
-            : await BuildIncomingOfferDtoAsync(context, currentOfferEntity, cancellationToken);
-
-        var currentAssignment = currentAssignmentEntity is null
-            ? null
-            : await BuildCurrentAssignmentDtoAsync(context, currentAssignmentEntity, cancellationToken);
-
-        var wallet = await context.Wallets
-            .FirstOrDefaultAsync(w => w.OwnerType == Domain.Modules.Wallets.Enums.WalletOwnerType.Driver && w.OwnerId == driver.Id, cancellationToken);
-
-        var earningsToday = wallet is null
-            ? 0m
-            : await context.WalletTransactions
-                .Where(t =>
-                    t.WalletId == wallet.Id &&
-                    t.Direction == "IN" &&
-                    t.CreatedAtUtc.Date == DateTime.UtcNow.Date)
-                .SumAsync(t => (decimal?)t.Amount, cancellationToken) ?? 0m;
-
-        var completedTrips = await context.DeliveryAssignments
-            .CountAsync(a =>
-                a.DriverId == driver.Id &&
-                a.Status == AssignmentStatus.Delivered &&
-                a.DeliveredAtUtc.HasValue &&
-                a.DeliveredAtUtc.Value.Date == DateTime.UtcNow.Date, cancellationToken);
-
-        var unreadAlerts = await context.Notifications
-            .CountAsync(n => n.UserId == userId && !n.IsRead, cancellationToken);
-
-        var homeState = ResolveHomeState(operationalStatus, currentOffer, currentAssignment);
-        var profileReadiness = DriverProfileReadinessFactory.BuildHomeReadiness(driver, driver.User);
-
-        return Ok(new DriverHomeDto(
-            operationalStatus,
-            homeState,
-            currentOffer,
-            currentAssignment,
-            new DriverEarningsSummaryDto(Math.Round(earningsToday, 2), completedTrips),
-            unreadAlerts,
-            commitment,
-            profileReadiness));
+        return Ok(await driverHomeReadService.GetHomeAsync(userId, processExpiredOffers: true, cancellationToken));
     }
 
 
@@ -596,128 +515,6 @@ public class DriversController : ApiControllerBase
         return Ok(new DriverOrderStatusResponse(result.OrderId, result.Status, result.MessageAr, result.MessageEn, result.UpdatedAssignment));
     }
 
-    private static string ResolveHomeState(
-        DriverOperationalStatusDto operationalStatus,
-        DriverIncomingOfferDto? currentOffer,
-        DriverCurrentAssignmentDto? currentAssignment)
-    {
-        if (currentAssignment is not null)
-        {
-            return "OnMission";
-        }
-
-        if (!operationalStatus.IsOperational)
-        {
-            return operationalStatus.GateStatus;
-        }
-
-        if (currentOffer is not null)
-        {
-            return "IncomingOffer";
-        }
-
-        return operationalStatus.IsAvailable ? "WaitingForOffer" : "Offline";
-    }
-
-    private static async Task<DriverIncomingOfferDto> BuildIncomingOfferDtoAsync(
-        IApplicationDbContext context,
-        DeliveryAssignment assignment,
-        CancellationToken cancellationToken)
-    {
-        var address = await context.CustomerAddresses
-            .FirstOrDefaultAsync(a => a.Id == assignment.Order.CustomerAddressId, cancellationToken);
-
-        var distanceKm = address?.Latitude.HasValue == true && address.Longitude.HasValue
-            ? ApproximateDistanceKm(
-                assignment.Order.VendorBranch?.Latitude ?? 0m,
-                assignment.Order.VendorBranch?.Longitude ?? 0m,
-                address.Latitude!.Value,
-                address.Longitude!.Value)
-            : 0m;
-
-        var countdownSeconds = assignment.OfferExpiresAtUtc.HasValue
-            ? Math.Max(0, (int)(assignment.OfferExpiresAtUtc.Value - DateTime.UtcNow).TotalSeconds)
-            : 0;
-
-        return new DriverIncomingOfferDto(
-            assignment.Id,
-            assignment.OrderId,
-            assignment.Order.OrderNumber,
-            assignment.Order.Vendor.BusinessNameEn,
-            assignment.Order.VendorBranch?.AddressLine ?? assignment.Order.Vendor.NationalAddress ?? string.Empty,
-            assignment.Order.VendorBranch?.Latitude,
-            assignment.Order.VendorBranch?.Longitude,
-            address?.ContactName ?? "Customer",
-            address?.AddressLine ?? string.Empty,
-            address?.Latitude,
-            address?.Longitude,
-            Math.Round(distanceKm, 2),
-            BuildEta(distanceKm),
-            assignment.Order.DeliveryFee,
-            assignment.Order.PaymentMethod.ToString(),
-            assignment.Order.TotalAmount,
-            ResolveCodAmount(assignment),
-            BuildInitials(assignment.Order.Vendor.BusinessNameEn),
-            BuildInitials(address?.ContactName ?? "Customer"),
-            assignment.Order.Notes,
-            countdownSeconds,
-            assignment.Order.Items
-                .Select(item => new DriverOfferItemDto(item.ProductName, item.Quantity, assignment.Order.Notes))
-                .ToArray());
-    }
-
-    private static async Task<DriverCurrentAssignmentDto> BuildCurrentAssignmentDtoAsync(
-        IApplicationDbContext context,
-        DeliveryAssignment assignment,
-        CancellationToken cancellationToken)
-    {
-        var address = await context.CustomerAddresses
-            .FirstOrDefaultAsync(a => a.Id == assignment.Order.CustomerAddressId, cancellationToken);
-
-        return new DriverCurrentAssignmentDto(
-            assignment.Id,
-            assignment.OrderId,
-            assignment.Order.OrderNumber,
-            assignment.Status.ToString(),
-            assignment.Order.Vendor.BusinessNameEn,
-            assignment.Order.VendorBranch?.AddressLine ?? assignment.Order.Vendor.NationalAddress ?? string.Empty,
-            address?.AddressLine ?? string.Empty,
-            assignment.Order.VendorBranch?.Latitude,
-            assignment.Order.VendorBranch?.Longitude,
-            address?.Latitude,
-            address?.Longitude,
-            ResolveCodAmount(assignment),
-            assignment.CreatedAtUtc,
-            assignment.Order.Vendor.ContactPhone,
-            assignment.Driver?.VehicleType?.ToString(),
-            assignment.Driver?.LicenseNumber,
-            assignment.RequiresPickupOtpVerification,
-            assignment.RequiresDeliveryOtpVerification,
-            assignment.IsInHandoffWindow ? assignment.PickupOtpCode : null);
-    }
-
-    private static decimal ApproximateDistanceKm(decimal lat1, decimal lng1, decimal lat2, decimal lng2)
-    {
-        var dLat = (double)(lat2 - lat1) * Math.PI / 180;
-        var dLng = (double)(lng2 - lng1) * Math.PI / 180;
-        var avgLat = (double)(lat1 + lat2) / 2 * Math.PI / 180;
-        var x = dLng * Math.Cos(avgLat);
-        var y = dLat;
-        return (decimal)(Math.Sqrt(x * x + y * y) * 6371);
-    }
-
-    private static string BuildEta(decimal distanceKm)
-    {
-        var minutes = Math.Max(8, (int)Math.Round((double)distanceKm * 4));
-        return $"{minutes}-{minutes + 5} min";
-    }
-
-    private static string BuildInitials(string value)
-    {
-        var parts = value.Split(' ', StringSplitOptions.RemoveEmptyEntries | StringSplitOptions.TrimEntries);
-        return string.Concat(parts.Take(2).Select(part => char.ToUpperInvariant(part[0])));
-    }
-
     private static decimal ResolveCodAmount(DeliveryAssignment assignment) =>
         assignment.Order.PaymentMethod == PaymentMethodType.CashOnDelivery ? assignment.Order.TotalAmount : 0m;
 
@@ -737,6 +534,7 @@ public record DriverArrivalStateResponse(
     string MessageAr,
     string MessageEn,
     DriverAssignmentDetailDto? UpdatedAssignment = null);
+
 public record DriverDeliveryFailedRequest(string? Note);
 public record DriverOfferRejectRequest(string? Reason);
 public record SetAvailabilityRequest(bool IsAvailable);

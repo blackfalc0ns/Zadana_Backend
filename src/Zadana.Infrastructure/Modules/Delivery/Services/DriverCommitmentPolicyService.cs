@@ -2,8 +2,10 @@ using Microsoft.EntityFrameworkCore;
 using Zadana.Application.Common.Interfaces;
 using Zadana.Application.Modules.Delivery.DTOs;
 using Zadana.Application.Modules.Delivery.Interfaces;
+using Zadana.Application.Modules.Delivery.Support;
 using Zadana.Domain.Modules.Delivery.Entities;
 using Zadana.Domain.Modules.Delivery.Enums;
+using Zadana.Domain.Modules.Social.Enums;
 
 namespace Zadana.Infrastructure.Modules.Delivery.Services;
 
@@ -22,11 +24,30 @@ public class DriverCommitmentPolicyService : IDriverCommitmentPolicyService
 
     private readonly IApplicationDbContext _context;
     private readonly IUnitOfWork _unitOfWork;
+    private readonly INotificationService _notificationService;
+    private readonly IOneSignalPushService _oneSignalPushService;
 
-    public DriverCommitmentPolicyService(IApplicationDbContext context, IUnitOfWork unitOfWork)
+    public DriverCommitmentPolicyService(
+        IApplicationDbContext context,
+        IUnitOfWork unitOfWork)
+        : this(
+            context,
+            unitOfWork,
+            NoOpNotificationService.Instance,
+            NoOpOneSignalPushService.Instance)
+    {
+    }
+
+    public DriverCommitmentPolicyService(
+        IApplicationDbContext context,
+        IUnitOfWork unitOfWork,
+        INotificationService notificationService,
+        IOneSignalPushService oneSignalPushService)
     {
         _context = context;
         _unitOfWork = unitOfWork;
+        _notificationService = notificationService;
+        _oneSignalPushService = oneSignalPushService;
     }
 
     public async Task<DriverCommitmentSummaryDto> GetDriverSummaryAsync(
@@ -160,18 +181,26 @@ public class DriverCommitmentPolicyService : IDriverCommitmentPolicyService
             .ToListAsync(cancellationToken);
 
         var hasChanges = false;
+        var notifications = new List<(Driver Driver, DriverCommitmentSummaryDto Summary, bool ForcedOffline, bool SuspensionCandidateTriggered)>();
 
         foreach (var driver in drivers)
         {
+            var forcedOffline = false;
             if (driver.IsAvailable)
             {
                 driver.ToggleAvailability(false);
                 hasChanges = true;
+                forcedOffline = true;
             }
 
             if (!summaries.TryGetValue(driver.Id, out var summary) ||
                 summary.EnforcementLevel != DriverCommitmentEnforcementLevel.SuspensionCandidate.ToString())
             {
+                if (forcedOffline && summaries.TryGetValue(driver.Id, out var softBlockedSummary))
+                {
+                    notifications.Add((driver, softBlockedSummary, true, false));
+                }
+
                 continue;
             }
 
@@ -181,6 +210,11 @@ public class DriverCommitmentPolicyService : IDriverCommitmentPolicyService
 
             if (alreadyTracked)
             {
+                if (forcedOffline)
+                {
+                    notifications.Add((driver, summary, true, false));
+                }
+
                 continue;
             }
 
@@ -191,12 +225,97 @@ public class DriverCommitmentPolicyService : IDriverCommitmentPolicyService
                 "Driver repeatedly exceeded offer rejection or timeout thresholds within the rolling 7-day window."));
 
             hasChanges = true;
+            notifications.Add((driver, summary, forcedOffline, true));
+        }
+
+        if (!hasChanges)
+        {
+            foreach (var notification in notifications)
+            {
+                await SendCommitmentNotificationAsync(notification.Driver, notification.Summary, notification.ForcedOffline, notification.SuspensionCandidateTriggered, cancellationToken);
+            }
+
+            return;
         }
 
         if (hasChanges)
         {
             await _unitOfWork.SaveChangesAsync(cancellationToken);
         }
+
+        foreach (var notification in notifications)
+        {
+            await SendCommitmentNotificationAsync(notification.Driver, notification.Summary, notification.ForcedOffline, notification.SuspensionCandidateTriggered, cancellationToken);
+        }
+    }
+
+    private async Task SendCommitmentNotificationAsync(
+        Driver driver,
+        DriverCommitmentSummaryDto summary,
+        bool forcedOffline,
+        bool suspensionCandidateTriggered,
+        CancellationToken cancellationToken)
+    {
+        var eventName = suspensionCandidateTriggered
+            ? "performance.suspension_candidate"
+            : summary.EnforcementLevel == DriverCommitmentEnforcementLevel.SoftBlocked.ToString()
+                ? "performance.soft_blocked"
+                : "performance.forced_offline";
+
+        var titleAr = suspensionCandidateTriggered
+            ? "يتطلب الحساب مراجعة تشغيلية"
+            : "تم إيقاف استقبال العروض مؤقتًا";
+        var titleEn = suspensionCandidateTriggered
+            ? "Operational review required"
+            : "Offer reception paused";
+        var bodyAr = suspensionCandidateTriggered
+            ? "تكررت حالات رفض أو انتهاء مهلة العروض، وتم تحويل الحساب للمراجعة."
+            : "تم إيقاف استقبال العروض الجديدة مؤقتًا بسبب التزام العروض.";
+        var bodyEn = suspensionCandidateTriggered
+            ? "Repeated rejections or offer timeouts moved your account to operational review."
+            : "New offers were paused temporarily because of recent offer compliance.";
+
+        var data = DriverNotificationDataBuilder.Build(
+            screen: "account_status",
+            @event: eventName,
+            driverId: driver.Id,
+            extra: new
+            {
+                enforcementLevel = summary.EnforcementLevel,
+                commitmentScore = summary.CommitmentScore,
+                dailyRejections = summary.DailyRejections,
+                weeklyRejections = summary.WeeklyRejections,
+                forcedOffline
+            });
+
+        await _notificationService.SendToUserAsync(
+            driver.UserId,
+            new NotificationDispatchRequest(
+                titleAr,
+                titleEn,
+                bodyAr,
+                bodyEn,
+                NotificationTypes.DriverCommitmentEnforcement,
+                NotificationCategories.Account,
+                NotificationPriorities.High,
+                driver.Id,
+                data),
+            cancellationToken);
+
+        await _notificationService.SendDriverHomeUpdatedAsync(driver.UserId, cancellationToken);
+
+        await _oneSignalPushService.SendMobileNotificationAsync(
+            OneSignalMobilePushRequest.CreateStandard(
+                driver.UserId.ToString(),
+                titleAr,
+                titleEn,
+                bodyAr,
+                bodyEn,
+                NotificationTypes.DriverCommitmentEnforcement,
+                driver.Id,
+                data,
+                category: NotificationCategories.Account),
+            cancellationToken);
     }
 
     private static DriverCommitmentSummaryDto CreateDefaultSummary() =>
@@ -246,4 +365,181 @@ public class DriverCommitmentPolicyService : IDriverCommitmentPolicyService
                 "Driver repeatedly exceeded offer rejection limits and now requires admin review before resuming normal dispatch priority.",
             _ => null
         };
+
+    private sealed class NoOpNotificationService : INotificationService
+    {
+        public static readonly NoOpNotificationService Instance = new();
+
+        public Task PersistToUserAsync(
+            Guid userId,
+            NotificationDispatchRequest request,
+            CancellationToken cancellationToken = default) =>
+            Task.CompletedTask;
+
+        public Task PersistToUserAsync(
+            Guid userId,
+            string titleAr,
+            string titleEn,
+            string bodyAr,
+            string bodyEn,
+            string? type = null,
+            Guid? referenceId = null,
+            string? data = null,
+            CancellationToken cancellationToken = default) =>
+            Task.CompletedTask;
+
+        public Task SendToUserAsync(
+            Guid userId,
+            NotificationDispatchRequest request,
+            CancellationToken cancellationToken = default) =>
+            Task.CompletedTask;
+
+        public Task SendToUserAsync(
+            Guid userId,
+            string titleAr,
+            string titleEn,
+            string bodyAr,
+            string bodyEn,
+            string? type = null,
+            Guid? referenceId = null,
+            string? data = null,
+            CancellationToken cancellationToken = default) =>
+            Task.CompletedTask;
+
+        public Task SendOrderStatusChangedToUserAsync(
+            Guid userId,
+            Guid orderId,
+            string orderNumber,
+            Guid vendorId,
+            string oldStatus,
+            string newStatus,
+            string? actorRole = null,
+            string? action = null,
+            string? targetUrl = null,
+            CancellationToken cancellationToken = default) =>
+            Task.CompletedTask;
+
+        public Task SendDriverArrivalStateChangedToUserAsync(
+            Guid userId,
+            Guid orderId,
+            string orderNumber,
+            string arrivalState,
+            string driverName,
+            string? actorRole = null,
+            string? targetUrl = null,
+            CancellationToken cancellationToken = default) =>
+            Task.CompletedTask;
+
+        public Task SendOrderSupportCaseChangedToUserAsync(
+            Guid userId,
+            Guid caseId,
+            Guid orderId,
+            string orderNumber,
+            string type,
+            string status,
+            string action,
+            string? targetUrl = null,
+            CancellationToken cancellationToken = default) =>
+            Task.CompletedTask;
+
+        public Task SendDeliveryOfferToDriverAsync(
+            Guid driverUserId,
+            Guid assignmentId,
+            Guid orderId,
+            string orderNumber,
+            string vendorName,
+            decimal deliveryFee,
+            decimal totalAmount,
+            decimal codAmount,
+            string paymentMethod,
+            int countdownSeconds,
+            CancellationToken cancellationToken = default) =>
+            Task.CompletedTask;
+
+        public Task BroadcastToAllCustomersAsync(
+            string titleAr,
+            string titleEn,
+            string bodyAr,
+            string bodyEn,
+            string? type = null,
+            string? data = null,
+            CancellationToken cancellationToken = default) =>
+            Task.CompletedTask;
+
+        public Task SendAssignmentUpdatedToDriverAsync(
+            Guid driverUserId,
+            Guid assignmentId,
+            Guid orderId,
+            CancellationToken cancellationToken = default) =>
+            Task.CompletedTask;
+
+        public Task SendDriverHomeUpdatedAsync(
+            Guid driverUserId,
+            CancellationToken cancellationToken = default) =>
+            Task.CompletedTask;
+
+        public Task SendDriverWalletUpdatedAsync(
+            Guid driverUserId,
+            CancellationToken cancellationToken = default) =>
+            Task.CompletedTask;
+    }
+
+    private sealed class NoOpOneSignalPushService : IOneSignalPushService
+    {
+        private static readonly OneSignalPushDispatchResult SkippedResult = new(
+            Attempted: false,
+            Sent: false,
+            Skipped: true,
+            ProviderStatusCode: null,
+            ProviderNotificationId: null,
+            Reason: "noop");
+
+        public static readonly NoOpOneSignalPushService Instance = new();
+
+        public Task<OneSignalPushDispatchResult> SendMobileNotificationAsync(
+            OneSignalMobilePushRequest request,
+            CancellationToken cancellationToken = default) =>
+            Task.FromResult(SkippedResult);
+
+        public Task<OneSignalPushDispatchResult> SendToExternalUserAsync(
+            string externalUserId,
+            string titleAr,
+            string titleEn,
+            string bodyAr,
+            string bodyEn,
+            string? type = null,
+            Guid? referenceId = null,
+            string? data = null,
+            string? targetUrl = null,
+            CancellationToken cancellationToken = default) =>
+            Task.FromResult(SkippedResult);
+
+        public Task<OneSignalPushDispatchResult> SendToExternalUserAsync(
+            string externalUserId,
+            string titleAr,
+            string titleEn,
+            string bodyAr,
+            string bodyEn,
+            string? type,
+            Guid? referenceId,
+            string? data,
+            string? targetUrl,
+            OneSignalPushProfile profile,
+            CancellationToken cancellationToken = default) =>
+            Task.FromResult(SkippedResult);
+
+        public Task<IReadOnlyList<OneSignalPushDispatchResult>> SendToExternalUsersAsync(
+            IReadOnlyCollection<string> externalUserIds,
+            string titleAr,
+            string titleEn,
+            string bodyAr,
+            string bodyEn,
+            string? type = null,
+            Guid? referenceId = null,
+            string? data = null,
+            string? targetUrl = null,
+            OneSignalPushProfile profile = OneSignalPushProfile.Default,
+            CancellationToken cancellationToken = default) =>
+            Task.FromResult<IReadOnlyList<OneSignalPushDispatchResult>>([]);
+    }
 }

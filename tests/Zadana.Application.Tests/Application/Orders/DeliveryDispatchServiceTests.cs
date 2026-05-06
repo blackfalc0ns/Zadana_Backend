@@ -11,6 +11,7 @@ using Zadana.Domain.Modules.Identity.Enums;
 using Zadana.Domain.Modules.Orders.Entities;
 using Zadana.Domain.Modules.Orders.Enums;
 using Zadana.Domain.Modules.Payments.Enums;
+using Zadana.Domain.Modules.Social.Enums;
 using Zadana.Domain.Modules.Vendors.Entities;
 using Zadana.Domain.Modules.Vendors.Enums;
 using Zadana.Infrastructure.Modules.Delivery.Services;
@@ -121,17 +122,8 @@ public class DeliveryDispatchServiceTests
         var notificationServiceMock = new Mock<INotificationService>();
         var oneSignalPushServiceMock = new Mock<IOneSignalPushService>();
         oneSignalPushServiceMock
-            .Setup(service => service.SendToExternalUserAsync(
-                It.IsAny<string>(),
-                It.IsAny<string>(),
-                It.IsAny<string>(),
-                It.IsAny<string>(),
-                It.IsAny<string>(),
-                It.IsAny<string?>(),
-                It.IsAny<Guid?>(),
-                It.IsAny<string?>(),
-                It.IsAny<string?>(),
-                It.IsAny<OneSignalPushProfile>(),
+            .Setup(service => service.SendMobileNotificationAsync(
+                It.IsAny<OneSignalMobilePushRequest>(),
                 It.IsAny<CancellationToken>()))
             .ReturnsAsync(new OneSignalPushDispatchResult(
                 Attempted: true,
@@ -153,36 +145,31 @@ public class DeliveryDispatchServiceTests
         notificationServiceMock.Verify(
             service => service.SendToUserAsync(
                 scenario.SameZoneFreshDriver.UserId,
-                It.IsAny<string>(),
-                It.IsAny<string>(),
-                It.IsAny<string>(),
-                It.IsAny<string>(),
-                "delivery-offer",
-                scenario.Order.Id,
-                It.Is<string?>(data =>
-                    data != null &&
-                    data.Contains("\"target\":\"driver-offer\"") &&
-                    data.Contains(expectedPayloadPart) &&
-                    data.Contains(scenario.Order.Id.ToString())),
+                It.Is<NotificationDispatchRequest>(request =>
+                    request.Type == NotificationTypes.DriverDeliveryOffer &&
+                    request.Category == NotificationCategories.Dispatch &&
+                    request.Priority == NotificationPriorities.Critical &&
+                    request.ReferenceId == scenario.Order.Id &&
+                    request.Data != null &&
+                    request.Data.Contains("\"target\":\"driver-offer\"") &&
+                    request.Data.Contains(expectedPayloadPart) &&
+                    request.Data.Contains(scenario.Order.Id.ToString())),
                 It.IsAny<CancellationToken>()),
             Times.Once);
 
         oneSignalPushServiceMock.Verify(
-            service => service.SendToExternalUserAsync(
-                scenario.SameZoneFreshDriver.UserId.ToString(),
-                It.IsAny<string>(),
-                It.IsAny<string>(),
-                It.IsAny<string>(),
-                It.IsAny<string>(),
-                "delivery-offer",
-                scenario.Order.Id,
-                It.Is<string?>(data =>
-                    data != null &&
-                    data.Contains("\"target\":\"driver-offer\"") &&
-                    data.Contains(expectedPayloadPart) &&
-                    data.Contains(scenario.Order.Id.ToString())),
-                It.Is<string?>(targetUrl => targetUrl == null),
-                OneSignalPushProfile.MobileHeadsUp,
+            service => service.SendMobileNotificationAsync(
+                It.Is<OneSignalMobilePushRequest>(request =>
+                    request.ExternalUserId == scenario.SameZoneFreshDriver.UserId.ToString() &&
+                    request.Type == NotificationTypes.DriverDeliveryOffer &&
+                    request.ReferenceId == scenario.Order.Id &&
+                    request.Category == NotificationCategories.Dispatch &&
+                    request.Profile == OneSignalPushProfile.MobileHeadsUp &&
+                    request.TargetUrl == null &&
+                    request.Data != null &&
+                    request.Data.Contains("\"target\":\"driver-offer\"") &&
+                    request.Data.Contains(expectedPayloadPart) &&
+                    request.Data.Contains(scenario.Order.Id.ToString())),
                 It.IsAny<CancellationToken>()),
             Times.Once);
     }

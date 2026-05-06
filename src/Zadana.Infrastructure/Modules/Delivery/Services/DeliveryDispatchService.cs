@@ -7,12 +7,14 @@ using Zadana.Application.Common.Interfaces;
 using Zadana.Application.Common.Localization;
 using Zadana.Application.Modules.Delivery.DTOs;
 using Zadana.Application.Modules.Delivery.Interfaces;
+using Zadana.Application.Modules.Delivery.Support;
 using Zadana.Application.Modules.Orders.Events;
 using Zadana.Domain.Modules.Delivery.Entities;
 using Zadana.Domain.Modules.Delivery.Enums;
 using Zadana.Domain.Modules.Identity.Enums;
 using Zadana.Domain.Modules.Orders.Enums;
 using Zadana.Domain.Modules.Payments.Enums;
+using Zadana.Domain.Modules.Social.Enums;
 using Zadana.SharedKernel.Exceptions;
 
 namespace Zadana.Infrastructure.Modules.Delivery.Services;
@@ -166,6 +168,7 @@ public class DeliveryDispatchService : IDeliveryDispatchService
                 .ThenInclude(order => order.Vendor)
             .Include(item => item.Order)
                 .ThenInclude(order => order.VendorBranch)
+            .Include(item => item.Driver)
             .Where(item =>
                 item.OrderId == orderId &&
                 item.Status == AssignmentStatus.OfferSent &&
@@ -201,6 +204,38 @@ public class DeliveryDispatchService : IDeliveryDispatchService
         }
 
         await _unitOfWork.SaveChangesAsync(cancellationToken);
+
+        foreach (var assignment in expiredAssignments)
+        {
+            if (assignment.Driver?.UserId is not Guid driverUserId || driverUserId == Guid.Empty)
+            {
+                continue;
+            }
+
+            var data = DriverNotificationDataBuilder.Build(
+                screen: "home",
+                @event: "dispatch.offer_expired",
+                orderId: assignment.OrderId,
+                assignmentId: assignment.Id,
+                extra: new
+                {
+                    orderNumber = assignment.Order.OrderNumber
+                });
+
+            await _notificationService.PersistToUserAsync(
+                driverUserId,
+                new NotificationDispatchRequest(
+                    "انتهت مهلة عرض التوصيل",
+                    "Delivery offer expired",
+                    $"انتهت مهلة الرد على طلب التوصيل رقم #{assignment.Order.OrderNumber}.",
+                    $"The response window for delivery order #{assignment.Order.OrderNumber} has expired.",
+                    NotificationTypes.DriverDeliveryOffer,
+                    NotificationCategories.Dispatch,
+                    NotificationPriorities.Normal,
+                    assignment.OrderId,
+                    data),
+                cancellationToken);
+        }
 
         if (timedOutDriverIds.Count > 0)
         {
@@ -270,7 +305,7 @@ public class DeliveryDispatchService : IDeliveryDispatchService
                 assignment.Order.Status,
                 NotifyCustomer: true,
                 NotifyVendor: false,
-                ActorRole: "dispatch"),
+                ActorRole: "driver"),
             cancellationToken);
 
         if (assignment.Order.Vendor is not null)
@@ -563,34 +598,40 @@ public class DeliveryDispatchService : IDeliveryDispatchService
         await _unitOfWork.SaveChangesAsync(cancellationToken);
 
         var vendorName = order.Vendor?.BusinessNameAr ?? order.Vendor?.BusinessNameEn ?? "Vendor";
-        var offerPayloadJson = JsonSerializer.Serialize(new
-        {
-            target = "driver-offer",
-            legacyType = "driver-offer",
-            assignmentId = assignment.Id,
-            orderId = order.Id,
-            orderNumber = order.OrderNumber,
-            vendorName,
-            deliveryFee = order.DeliveryFee,
-            totalAmount = order.TotalAmount,
-            codAmount = assignment.CodAmount,
-            paymentMethod = order.PaymentMethod.ToString(),
-            amountToCollect = assignment.CodAmount,
-            countdownSeconds = (int)OfferTtl.TotalSeconds,
-            expiresAtUtc
-        });
+        var offerPayloadJson = DriverNotificationDataBuilder.Build(
+            screen: "home",
+            @event: "dispatch.offer_new",
+            orderId: order.Id,
+            assignmentId: assignment.Id,
+            extra: new
+            {
+                target = "driver-offer",
+                legacyType = "driver-offer",
+                orderNumber = order.OrderNumber,
+                vendorName,
+                deliveryFee = order.DeliveryFee,
+                totalAmount = order.TotalAmount,
+                codAmount = assignment.CodAmount,
+                paymentMethod = order.PaymentMethod.ToString(),
+                amountToCollect = assignment.CodAmount,
+                countdownSeconds = (int)OfferTtl.TotalSeconds,
+                expiresAtUtc
+            });
 
         // Send real-time SignalR notification so the driver's Home screen updates instantly.
         // SendToUserAsync persists to DB inbox AND pushes via SignalR simultaneously.
         await _notificationService.SendToUserAsync(
             best.Driver.UserId,
-            "طلب جديد للمندوب",
-            "New delivery offer",
-            $"لديك طلب جديد من {order.Vendor?.BusinessNameAr ?? best.Driver.User.FullName} ويجب الرد خلال ثوانٍ قليلة.",
-            $"You have a new delivery offer and need to respond within a few seconds.",
-            "delivery-offer",
-            order.Id,
-            offerPayloadJson,
+            new NotificationDispatchRequest(
+                "??? ???? ???????",
+                "New delivery offer",
+                $"???? ??? ????? ???? ?? {order.Vendor?.BusinessNameAr ?? best.Driver.User.FullName} ???? ???? ???? ????? ?????.",
+                "You have a new delivery offer and need to respond within a few seconds.",
+                NotificationTypes.DriverDeliveryOffer,
+                NotificationCategories.Dispatch,
+                NotificationPriorities.Critical,
+                order.Id,
+                offerPayloadJson),
             cancellationToken);
 
         // Send a dedicated ReceiveDeliveryOffer SignalR event so the mobile app can
@@ -609,17 +650,17 @@ public class DeliveryDispatchService : IDeliveryDispatchService
             cancellationToken);
 
         // Send a push notification to wake the driver app if it's in the background.
-        await _oneSignalPushService.SendToExternalUserAsync(
-            best.Driver.UserId.ToString(),
-            "طلب جديد للمندوب",
-            "New delivery offer",
-            $"لديك طلب جديد من {order.Vendor?.BusinessNameAr ?? best.Driver.User.FullName} ويجب الرد خلال ثوانٍ قليلة.",
-            $"You have a new delivery offer and need to respond within a few seconds.",
-            "delivery-offer",
-            order.Id,
-            offerPayloadJson,
-            null,
-            OneSignalPushProfile.MobileHeadsUp,
+        await _oneSignalPushService.SendMobileNotificationAsync(
+            OneSignalMobilePushRequest.CreateHeadsUp(
+                best.Driver.UserId.ToString(),
+                "??? ???? ???????",
+                "New delivery offer",
+                $"???? ??? ????? ???? ?? {order.Vendor?.BusinessNameAr ?? best.Driver.User.FullName} ???? ???? ???? ????? ?????.",
+                "You have a new delivery offer and need to respond within a few seconds.",
+                NotificationTypes.DriverDeliveryOffer,
+                order.Id,
+                offerPayloadJson,
+                category: NotificationCategories.Dispatch),
             cancellationToken);
 
         _logger.LogInformation(

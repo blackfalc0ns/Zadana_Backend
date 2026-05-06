@@ -28,6 +28,11 @@ public class GetNotificationDevicesQueryHandler : IRequestHandler<GetNotificatio
                 x.AppVersion,
                 x.Locale,
                 x.NotificationsEnabled,
+                x.DispatchPushEnabled,
+                x.AssignmentPushEnabled,
+                x.SupportPushEnabled,
+                x.WalletPushEnabled,
+                x.AccountPushEnabled,
                 x.IsActive,
                 x.LastRegisteredAtUtc,
                 x.LastSeenAtUtc))

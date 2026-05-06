@@ -71,7 +71,7 @@ public class NotificationsController : ApiControllerBase
 
     private static NotificationResponse MapNotification(NotificationDto dto) =>
         new(dto.Id, dto.TitleAr, dto.TitleEn, dto.BodyAr, dto.BodyEn,
-            dto.Type, dto.ReferenceId, dto.Data, dto.DataObject, dto.IsRead, dto.CreatedAtUtc);
+            dto.Type, dto.Category, dto.Priority, dto.ReferenceId, dto.Data, dto.DataObject, dto.IsRead, dto.CreatedAtUtc);
 }
 
 // Response DTOs
@@ -90,6 +90,8 @@ public record NotificationResponse(
     string BodyAr,
     string BodyEn,
     string? Type,
+    string? Category,
+    string? Priority,
     Guid? ReferenceId,
     string? Data,
     JsonElement? DataObject,

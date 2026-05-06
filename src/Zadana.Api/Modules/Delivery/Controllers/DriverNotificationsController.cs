@@ -26,6 +26,8 @@ public class DriverNotificationsController : ApiControllerBase
         [FromQuery(Name = "page")] int page = 1,
         [FromQuery(Name = "per_page")] int perPage = 20,
         [FromQuery(Name = "type")] string? type = null,
+        [FromQuery(Name = "category")] string? category = null,
+        [FromQuery(Name = "priority")] string? priority = null,
         [FromQuery(Name = "is_read")] bool? isRead = null,
         [FromQuery(Name = "from_utc")] DateTime? fromUtc = null,
         [FromQuery(Name = "to_utc")] DateTime? toUtc = null,
@@ -33,7 +35,7 @@ public class DriverNotificationsController : ApiControllerBase
     {
         var userId = _currentUserService.UserId ?? throw new UnauthorizedException("USER_NOT_AUTHENTICATED");
         var result = await Sender.Send(
-            new GetNotificationsQuery(userId, page, perPage, type, isRead, fromUtc, toUtc),
+            new GetNotificationsQuery(userId, page, perPage, type, isRead, fromUtc, toUtc, category, priority),
             cancellationToken);
 
         return Ok(new DriverNotificationsResponse(
@@ -71,7 +73,7 @@ public class DriverNotificationsController : ApiControllerBase
 
     private static DriverNotificationResponse MapNotification(NotificationDto dto) =>
         new(dto.Id, dto.TitleAr, dto.TitleEn, dto.BodyAr, dto.BodyEn,
-            dto.Type, dto.ReferenceId, dto.Data, dto.DataObject, dto.IsRead, dto.CreatedAtUtc);
+            dto.Type, dto.Category, dto.Priority, dto.ReferenceId, dto.Data, dto.DataObject, dto.IsRead, dto.CreatedAtUtc);
 }
 
 public record DriverNotificationsResponse(
@@ -89,6 +91,8 @@ public record DriverNotificationResponse(
     string BodyAr,
     string BodyEn,
     string? Type,
+    string? Category,
+    string? Priority,
     Guid? ReferenceId,
     string? Data,
     JsonElement? DataObject,

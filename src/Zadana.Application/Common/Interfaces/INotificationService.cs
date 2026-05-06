@@ -2,6 +2,11 @@ namespace Zadana.Application.Common.Interfaces;
 
 public interface INotificationService
 {
+    Task PersistToUserAsync(
+        Guid userId,
+        NotificationDispatchRequest request,
+        CancellationToken cancellationToken = default);
+
     /// <summary>
     /// Persist a notification to the user's inbox without sending any real-time SignalR events.
     /// </summary>
@@ -14,6 +19,11 @@ public interface INotificationService
         string? type = null,
         Guid? referenceId = null,
         string? data = null,
+        CancellationToken cancellationToken = default);
+
+    Task SendToUserAsync(
+        Guid userId,
+        NotificationDispatchRequest request,
         CancellationToken cancellationToken = default);
 
     /// <summary>
@@ -103,5 +113,13 @@ public interface INotificationService
         Guid driverUserId,
         Guid assignmentId,
         Guid orderId,
+        CancellationToken cancellationToken = default);
+
+    Task SendDriverHomeUpdatedAsync(
+        Guid driverUserId,
+        CancellationToken cancellationToken = default);
+
+    Task SendDriverWalletUpdatedAsync(
+        Guid driverUserId,
         CancellationToken cancellationToken = default);
 }

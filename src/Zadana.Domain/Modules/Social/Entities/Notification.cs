@@ -11,6 +11,8 @@ public class Notification : BaseEntity
     public string BodyAr { get; private set; } = null!;
     public string BodyEn { get; private set; } = null!;
     public string? Type { get; private set; }
+    public string? Category { get; private set; }
+    public string? Priority { get; private set; }
     public Guid? ReferenceId { get; private set; }
     public string? Data { get; private set; }
     public bool IsRead { get; private set; }
@@ -31,6 +33,8 @@ public class Notification : BaseEntity
         string bodyAr,
         string bodyEn,
         string? type = null,
+        string? category = null,
+        string? priority = null,
         Guid? referenceId = null,
         string? data = null)
     {
@@ -40,6 +44,8 @@ public class Notification : BaseEntity
         BodyAr = bodyAr.Trim();
         BodyEn = bodyEn.Trim();
         Type = type?.Trim();
+        Category = category?.Trim();
+        Priority = priority?.Trim();
         ReferenceId = referenceId;
         Data = data;
         IsRead = false;

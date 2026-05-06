@@ -1,6 +1,8 @@
 using MediatR;
 using Zadana.Application.Common.Interfaces;
 using Zadana.Application.Modules.Delivery.Interfaces;
+using Zadana.Application.Modules.Delivery.Support;
+using Zadana.Domain.Modules.Social.Enums;
 using Zadana.SharedKernel.Exceptions;
 
 namespace Zadana.Application.Modules.Delivery.Commands.UnblockDriverLocationUpdates;
@@ -11,13 +13,19 @@ public class UnblockDriverLocationUpdatesCommandHandler : IRequestHandler<Unbloc
 {
     private readonly IDriverRepository _driverRepository;
     private readonly IUnitOfWork _unitOfWork;
+    private readonly INotificationService _notificationService;
+    private readonly IOneSignalPushService _oneSignalPushService;
 
     public UnblockDriverLocationUpdatesCommandHandler(
         IDriverRepository driverRepository,
-        IUnitOfWork unitOfWork)
+        IUnitOfWork unitOfWork,
+        INotificationService notificationService,
+        IOneSignalPushService oneSignalPushService)
     {
         _driverRepository = driverRepository;
         _unitOfWork = unitOfWork;
+        _notificationService = notificationService;
+        _oneSignalPushService = oneSignalPushService;
     }
 
     public async Task Handle(UnblockDriverLocationUpdatesCommand request, CancellationToken cancellationToken)
@@ -27,5 +35,43 @@ public class UnblockDriverLocationUpdatesCommandHandler : IRequestHandler<Unbloc
 
         driver.UnblockLocationUpdates();
         await _unitOfWork.SaveChangesAsync(cancellationToken);
+
+        var data = DriverNotificationDataBuilder.Build(
+            screen: "account_status",
+            @event: "account.location_unblocked",
+            driverId: driver.Id,
+            extra: new
+            {
+                locationUpdatesBlocked = driver.IsLocationUpdatesBlocked
+            });
+
+        await _notificationService.SendToUserAsync(
+            driver.UserId,
+            new NotificationDispatchRequest(
+                "تمت إعادة تفعيل تحديثات الموقع",
+                "Location updates restored",
+                "تمت إعادة تفعيل تحديثات موقعك ويمكنك المتابعة بشكل طبيعي.",
+                "Your location updates were restored and everything is back to normal.",
+                NotificationTypes.DriverAccountUpdated,
+                NotificationCategories.Account,
+                NotificationPriorities.High,
+                driver.Id,
+                data),
+            cancellationToken);
+
+        await _notificationService.SendDriverHomeUpdatedAsync(driver.UserId, cancellationToken);
+
+        await _oneSignalPushService.SendMobileNotificationAsync(
+            OneSignalMobilePushRequest.CreateStandard(
+                driver.UserId.ToString(),
+                "تمت إعادة تفعيل تحديثات الموقع",
+                "Location updates restored",
+                "تمت إعادة تفعيل تحديثات موقعك ويمكنك المتابعة بشكل طبيعي.",
+                "Your location updates were restored and everything is back to normal.",
+                NotificationTypes.DriverAccountUpdated,
+                driver.Id,
+                data,
+                category: NotificationCategories.Account),
+            cancellationToken);
     }
 }

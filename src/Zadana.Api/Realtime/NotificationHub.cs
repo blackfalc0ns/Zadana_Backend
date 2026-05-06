@@ -16,6 +16,8 @@ public class NotificationHub : Hub
     public const string ReceiveDriverArrivalStateChangedMethod = "ReceiveDriverArrivalStateChanged";
     public const string ReceiveDeliveryOfferMethod = "ReceiveDeliveryOffer";
     public const string ReceiveAssignmentUpdatedMethod = "ReceiveAssignmentUpdated";
+    public const string ReceiveDriverHomeUpdatedMethod = "ReceiveDriverHomeUpdated";
+    public const string ReceiveDriverWalletUpdatedMethod = "ReceiveDriverWalletUpdated";
 
     private readonly ILogger<NotificationHub> _logger;
 

@@ -3,7 +3,9 @@ using Microsoft.AspNetCore.Mvc;
 using Microsoft.EntityFrameworkCore;
 using Zadana.Api.Controllers;
 using Zadana.Application.Common.Interfaces;
+using Zadana.Application.Modules.Delivery.Support;
 using Zadana.Application.Modules.Wallets.DTOs;
+using Zadana.Domain.Modules.Social.Enums;
 using Zadana.Domain.Modules.Wallets.Entities;
 using Zadana.Domain.Modules.Wallets.Enums;
 using Zadana.SharedKernel.Exceptions;
@@ -180,6 +182,7 @@ public class AdminWalletsController : ApiControllerBase
         Guid id,
         [FromBody] AdminCreateAdjustmentRequest request,
         [FromServices] IApplicationDbContext context,
+        [FromServices] INotificationService notificationService,
         CancellationToken cancellationToken = default)
     {
         var wallet = await context.Wallets.FirstOrDefaultAsync(w => w.Id == id, cancellationToken)
@@ -205,6 +208,45 @@ public class AdminWalletsController : ApiControllerBase
 
         context.WalletTransactions.Add(txn);
         await context.SaveChangesAsync(cancellationToken);
+
+        if (wallet.OwnerType == WalletOwnerType.Driver)
+        {
+            var driverUserId = await context.Drivers
+                .AsNoTracking()
+                .Where(driver => driver.Id == wallet.OwnerId)
+                .Select(driver => driver.UserId)
+                .FirstOrDefaultAsync(cancellationToken);
+
+            if (driverUserId != Guid.Empty)
+            {
+                var data = DriverNotificationDataBuilder.Build(
+                    screen: "wallet",
+                    @event: "wallet.admin_adjustment",
+                    extra: new
+                    {
+                        walletId = wallet.Id,
+                        amount = txn.Amount,
+                        direction = txn.Direction,
+                        transactionId = txn.Id
+                    });
+
+                await notificationService.SendToUserAsync(
+                    driverUserId,
+                    new NotificationDispatchRequest(
+                        "تم تعديل رصيد المحفظة",
+                        "Wallet balance adjusted",
+                        "تم تعديل رصيد محفظتك من قبل الإدارة.",
+                        "Your wallet balance was adjusted by the team.",
+                        NotificationTypes.DriverWalletUpdated,
+                        NotificationCategories.Wallet,
+                        NotificationPriorities.Normal,
+                        txn.Id,
+                        data),
+                    cancellationToken);
+
+                await notificationService.SendDriverWalletUpdatedAsync(driverUserId, cancellationToken);
+            }
+        }
 
         return Ok(new AdminWalletTransactionDto(
             txn.Id,
@@ -284,6 +326,8 @@ public class AdminWalletsController : ApiControllerBase
         Guid id,
         [FromBody] AdminProcessWithdrawalRequest request,
         [FromServices] IApplicationDbContext context,
+        [FromServices] INotificationService notificationService,
+        [FromServices] IOneSignalPushService oneSignalPushService,
         CancellationToken cancellationToken = default)
     {
         var withdrawal = await context.DriverWithdrawalRequests
@@ -331,6 +375,66 @@ public class AdminWalletsController : ApiControllerBase
         }
 
         await context.SaveChangesAsync(cancellationToken);
+
+        var driverUserId = await context.Drivers
+            .AsNoTracking()
+            .Where(driver => driver.Id == withdrawal.DriverId)
+            .Select(driver => driver.UserId)
+            .FirstOrDefaultAsync(cancellationToken);
+
+        if (driverUserId != Guid.Empty)
+        {
+            var eventName = request.IsApproved ? "wallet.withdrawal_paid" : "wallet.withdrawal_rejected";
+            var titleAr = request.IsApproved ? "تم تحويل مبلغ السحب" : "تم رفض طلب السحب";
+            var titleEn = request.IsApproved ? "Withdrawal paid" : "Withdrawal rejected";
+            var bodyAr = request.IsApproved
+                ? $"تمت معالجة طلب السحب رقم #{withdrawal.Id} بنجاح."
+                : $"تم رفض طلب السحب رقم #{withdrawal.Id}.";
+            var bodyEn = request.IsApproved
+                ? $"Your withdrawal request #{withdrawal.Id} was paid successfully."
+                : $"Your withdrawal request #{withdrawal.Id} was rejected.";
+
+            var data = DriverNotificationDataBuilder.Build(
+                screen: "wallet",
+                @event: eventName,
+                withdrawalId: withdrawal.Id,
+                extra: new
+                {
+                    amount = withdrawal.Amount,
+                    status = withdrawal.Status.ToString(),
+                    transferReference = withdrawal.TransferReference,
+                    failureReason = withdrawal.FailureReason
+                });
+
+            await notificationService.SendToUserAsync(
+                driverUserId,
+                new NotificationDispatchRequest(
+                    titleAr,
+                    titleEn,
+                    bodyAr,
+                    bodyEn,
+                    NotificationTypes.DriverWalletUpdated,
+                    NotificationCategories.Wallet,
+                    NotificationPriorities.High,
+                    withdrawal.Id,
+                    data),
+                cancellationToken);
+
+            await notificationService.SendDriverWalletUpdatedAsync(driverUserId, cancellationToken);
+
+            await oneSignalPushService.SendMobileNotificationAsync(
+                OneSignalMobilePushRequest.CreateStandard(
+                    driverUserId.ToString(),
+                    titleAr,
+                    titleEn,
+                    bodyAr,
+                    bodyEn,
+                    NotificationTypes.DriverWalletUpdated,
+                    withdrawal.Id,
+                    data,
+                    category: NotificationCategories.Wallet),
+                cancellationToken);
+        }
 
         return NoContent();
     }

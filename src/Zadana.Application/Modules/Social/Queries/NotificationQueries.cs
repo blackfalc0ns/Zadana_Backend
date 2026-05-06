@@ -14,6 +14,8 @@ public record NotificationDto(
     string BodyAr,
     string BodyEn,
     string? Type,
+    string? Category,
+    string? Priority,
     Guid? ReferenceId,
     string? Data,
     JsonElement? DataObject,
@@ -36,7 +38,9 @@ public record GetNotificationsQuery(
     string? Type = null,
     bool? IsRead = null,
     DateTime? CreatedFromUtc = null,
-    DateTime? CreatedToUtc = null) : IRequest<NotificationListDto>;
+    DateTime? CreatedToUtc = null,
+    string? Category = null,
+    string? Priority = null) : IRequest<NotificationListDto>;
 
 public class GetNotificationsQueryHandler : IRequestHandler<GetNotificationsQuery, NotificationListDto>
 {
@@ -57,6 +61,18 @@ public class GetNotificationsQueryHandler : IRequestHandler<GetNotificationsQuer
         {
             var type = request.Type.Trim();
             query = query.Where(x => x.Type == type);
+        }
+
+        if (!string.IsNullOrWhiteSpace(request.Category))
+        {
+            var category = request.Category.Trim();
+            query = query.Where(x => x.Category == category);
+        }
+
+        if (!string.IsNullOrWhiteSpace(request.Priority))
+        {
+            var priority = request.Priority.Trim();
+            query = query.Where(x => x.Priority == priority);
         }
 
         if (request.IsRead.HasValue)
@@ -93,6 +109,8 @@ public class GetNotificationsQueryHandler : IRequestHandler<GetNotificationsQuer
                 x.BodyAr,
                 x.BodyEn,
                 x.Type,
+                x.Category,
+                x.Priority,
                 x.ReferenceId,
                 x.Data,
                 null,

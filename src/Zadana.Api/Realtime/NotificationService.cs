@@ -1,8 +1,10 @@
 using Microsoft.AspNetCore.SignalR;
 using Microsoft.EntityFrameworkCore;
 using Zadana.Application.Common.Interfaces;
+using Zadana.Application.Modules.Delivery.Interfaces;
 using Zadana.Application.Modules.Orders.Support;
 using Zadana.Application.Modules.Social.Support;
+using Zadana.Application.Modules.Wallets.Interfaces;
 using Zadana.Api.Realtime.Contracts;
 using Zadana.Domain.Modules.Social.Entities;
 using Zadana.Infrastructure.Persistence;
@@ -27,30 +29,14 @@ public sealed class NotificationService : INotificationService
 
     public async Task PersistToUserAsync(
         Guid userId,
-        string titleAr,
-        string titleEn,
-        string bodyAr,
-        string bodyEn,
-        string? type = null,
-        Guid? referenceId = null,
-        string? data = null,
+        NotificationDispatchRequest request,
         CancellationToken cancellationToken = default)
     {
-        var sanitized = NotificationPayloadHelper.Sanitize(titleAr, titleEn, bodyAr, bodyEn, type, data);
-
-        await PersistNotificationAsync(
-            userId,
-            sanitized.TitleAr,
-            sanitized.TitleEn,
-            sanitized.BodyAr,
-            sanitized.BodyEn,
-            sanitized.Type,
-            referenceId,
-            sanitized.Data,
-            cancellationToken);
+        var sanitized = SanitizeRequest(request);
+        await PersistNotificationAsync(userId, sanitized, cancellationToken);
     }
 
-    public async Task SendToUserAsync(
+    public Task PersistToUserAsync(
         Guid userId,
         string titleAr,
         string titleEn,
@@ -59,9 +45,25 @@ public sealed class NotificationService : INotificationService
         string? type = null,
         Guid? referenceId = null,
         string? data = null,
+        CancellationToken cancellationToken = default) =>
+        PersistToUserAsync(
+            userId,
+            new NotificationDispatchRequest(
+                titleAr,
+                titleEn,
+                bodyAr,
+                bodyEn,
+                type,
+                ReferenceId: referenceId,
+                Data: data),
+            cancellationToken);
+
+    public async Task SendToUserAsync(
+        Guid userId,
+        NotificationDispatchRequest request,
         CancellationToken cancellationToken = default)
     {
-        var sanitized = NotificationPayloadHelper.Sanitize(titleAr, titleEn, bodyAr, bodyEn, type, data);
+        var sanitized = SanitizeRequest(request);
 
         Guid notificationId;
         DateTime createdAtUtc;
@@ -69,13 +71,7 @@ public sealed class NotificationService : INotificationService
         {
             (notificationId, createdAtUtc) = await PersistNotificationAsync(
                 userId,
-                sanitized.TitleAr,
-                sanitized.TitleEn,
-                sanitized.BodyAr,
-                sanitized.BodyEn,
-                sanitized.Type,
-                referenceId,
-                sanitized.Data,
+                sanitized,
                 cancellationToken);
         }
         catch (Exception ex)
@@ -85,7 +81,6 @@ public sealed class NotificationService : INotificationService
             createdAtUtc = DateTime.UtcNow;
         }
 
-        // Send real-time via SignalR after the inbox record is persisted.
         try
         {
             var payload = new NotificationPayload(
@@ -95,7 +90,9 @@ public sealed class NotificationService : INotificationService
                 sanitized.BodyAr,
                 sanitized.BodyEn,
                 sanitized.Type,
-                referenceId,
+                sanitized.Category,
+                sanitized.Priority,
+                sanitized.ReferenceId,
                 sanitized.Data,
                 sanitized.DataObject,
                 false,
@@ -110,6 +107,28 @@ public sealed class NotificationService : INotificationService
             _logger.LogError(ex, "Failed to send SignalR notification to user {UserId}", userId);
         }
     }
+
+    public Task SendToUserAsync(
+        Guid userId,
+        string titleAr,
+        string titleEn,
+        string bodyAr,
+        string bodyEn,
+        string? type = null,
+        Guid? referenceId = null,
+        string? data = null,
+        CancellationToken cancellationToken = default) =>
+        SendToUserAsync(
+            userId,
+            new NotificationDispatchRequest(
+                titleAr,
+                titleEn,
+                bodyAr,
+                bodyEn,
+                type,
+                ReferenceId: referenceId,
+                Data: data),
+            cancellationToken);
 
     public async Task SendOrderStatusChangedToUserAsync(
         Guid userId,
@@ -293,6 +312,8 @@ public sealed class NotificationService : INotificationService
                 sanitized.BodyEn,
                 sanitized.Type,
                 null,
+                null,
+                null,
                 sanitized.Data,
                 sanitized.DataObject,
                 false,
@@ -353,15 +374,55 @@ public sealed class NotificationService : INotificationService
         }
     }
 
+    public async Task SendDriverHomeUpdatedAsync(
+        Guid driverUserId,
+        CancellationToken cancellationToken = default)
+    {
+        try
+        {
+            await using var scope = _scopeFactory.CreateAsyncScope();
+            var driverHomeReadService = scope.ServiceProvider.GetRequiredService<IDriverHomeReadService>();
+            var home = await driverHomeReadService.GetHomeAsync(driverUserId, processExpiredOffers: false, cancellationToken);
+
+            await _hubContext.Clients
+                .Group(NotificationHub.GetUserGroup(driverUserId))
+                .SendAsync(NotificationHub.ReceiveDriverHomeUpdatedMethod, home, cancellationToken);
+        }
+        catch (Exception ex)
+        {
+            _logger.LogError(
+                ex,
+                "Failed to send driver home update to driver user {UserId}",
+                driverUserId);
+        }
+    }
+
+    public async Task SendDriverWalletUpdatedAsync(
+        Guid driverUserId,
+        CancellationToken cancellationToken = default)
+    {
+        try
+        {
+            await using var scope = _scopeFactory.CreateAsyncScope();
+            var driverWalletReadService = scope.ServiceProvider.GetRequiredService<IDriverWalletReadService>();
+            var wallet = await driverWalletReadService.GetRealtimePayloadAsync(driverUserId, cancellationToken);
+
+            await _hubContext.Clients
+                .Group(NotificationHub.GetUserGroup(driverUserId))
+                .SendAsync(NotificationHub.ReceiveDriverWalletUpdatedMethod, wallet, cancellationToken);
+        }
+        catch (Exception ex)
+        {
+            _logger.LogError(
+                ex,
+                "Failed to send driver wallet update to driver user {UserId}",
+                driverUserId);
+        }
+    }
+
     private async Task<(Guid NotificationId, DateTime CreatedAtUtc)> PersistNotificationAsync(
         Guid userId,
-        string titleAr,
-        string titleEn,
-        string bodyAr,
-        string bodyEn,
-        string? type,
-        Guid? referenceId,
-        string? data,
+        SanitizedNotificationDispatchRequest request,
         CancellationToken cancellationToken)
     {
         await using var scope = _scopeFactory.CreateAsyncScope();
@@ -369,19 +430,47 @@ public sealed class NotificationService : INotificationService
 
         var notification = new Notification(
             userId,
-            titleAr,
-            titleEn,
-            bodyAr,
-            bodyEn,
-            type,
-            referenceId,
-            data);
+            request.TitleAr,
+            request.TitleEn,
+            request.BodyAr,
+            request.BodyEn,
+            request.Type,
+            request.Category,
+            request.Priority,
+            request.ReferenceId,
+            request.Data);
 
         dbContext.Notifications.Add(notification);
         await dbContext.SaveChangesAsync(cancellationToken);
 
         return (notification.Id, notification.CreatedAtUtc);
     }
+
+    private static SanitizedNotificationDispatchRequest SanitizeRequest(NotificationDispatchRequest request)
+    {
+        var sanitized = NotificationPayloadHelper.Sanitize(
+            request.TitleAr,
+            request.TitleEn,
+            request.BodyAr,
+            request.BodyEn,
+            request.Type,
+            request.Data);
+
+        return new SanitizedNotificationDispatchRequest(
+            sanitized.TitleAr,
+            sanitized.TitleEn,
+            sanitized.BodyAr,
+            sanitized.BodyEn,
+            sanitized.Type,
+            NormalizeToken(request.Category),
+            NormalizeToken(request.Priority),
+            request.ReferenceId,
+            sanitized.Data,
+            sanitized.DataObject);
+    }
+
+    private static string? NormalizeToken(string? value) =>
+        string.IsNullOrWhiteSpace(value) ? null : value.Trim();
 }
 
 public sealed record NotificationPayload(
@@ -391,8 +480,22 @@ public sealed record NotificationPayload(
     string BodyAr,
     string BodyEn,
     string? Type,
+    string? Category,
+    string? Priority,
     Guid? ReferenceId,
     string? Data,
     System.Text.Json.JsonElement? DataObject,
     bool IsRead,
     DateTime CreatedAtUtc);
+
+internal sealed record SanitizedNotificationDispatchRequest(
+    string TitleAr,
+    string TitleEn,
+    string BodyAr,
+    string BodyEn,
+    string? Type,
+    string? Category,
+    string? Priority,
+    Guid? ReferenceId,
+    string? Data,
+    System.Text.Json.JsonElement? DataObject);

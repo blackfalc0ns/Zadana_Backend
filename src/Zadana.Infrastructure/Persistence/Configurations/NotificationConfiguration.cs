@@ -17,6 +17,8 @@ public class NotificationConfiguration : IEntityTypeConfiguration<Notification>
         builder.Property(x => x.BodyAr).HasMaxLength(1000).IsRequired();
         builder.Property(x => x.BodyEn).HasMaxLength(1000).IsRequired();
         builder.Property(x => x.Type).HasMaxLength(100);
+        builder.Property(x => x.Category).HasMaxLength(50);
+        builder.Property(x => x.Priority).HasMaxLength(20);
         builder.Property(x => x.Data).HasMaxLength(4000);
 
         // Ignore computed properties (legacy compatibility)
@@ -26,6 +28,8 @@ public class NotificationConfiguration : IEntityTypeConfiguration<Notification>
         builder.HasIndex(x => new { x.UserId, x.CreatedAtUtc });
         builder.HasIndex(x => new { x.UserId, x.IsRead, x.CreatedAtUtc });
         builder.HasIndex(x => new { x.UserId, x.Type, x.CreatedAtUtc });
+        builder.HasIndex(x => new { x.UserId, x.Category, x.CreatedAtUtc });
+        builder.HasIndex(x => new { x.UserId, x.Priority, x.CreatedAtUtc });
 
         builder.HasOne(x => x.User)
             .WithMany()

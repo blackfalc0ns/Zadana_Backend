@@ -2,6 +2,7 @@ using MediatR;
 using Microsoft.EntityFrameworkCore;
 using Microsoft.Extensions.Logging;
 using Zadana.Application.Common.Interfaces;
+using Zadana.Application.Modules.Delivery.Support;
 using Zadana.Application.Modules.Orders.Support;
 using Zadana.Application.Modules.Wallets.Services;
 using Zadana.Domain.Modules.Delivery.Enums;
@@ -170,6 +171,12 @@ public class OrderStatusChangedHandler : INotificationHandler<OrderStatusChanged
             "[DriverRealtime] Found assignment {AssignmentId} (status={AssignmentStatus}) for driver user {DriverUserId}. Sending ReceiveOrderStatusChanged + ReceiveAssignmentUpdated.",
             driverAssignment.Id, driverAssignment.Status, driverAssignment.DriverUserId);
 
+        await SendDriverAssignmentInboxAndPushAsync(
+            notification,
+            driverAssignment.Id,
+            driverAssignment.DriverUserId,
+            cancellationToken);
+
         await _notificationService.SendOrderStatusChangedToUserAsync(
             driverAssignment.DriverUserId,
             notification.OrderId,
@@ -189,12 +196,164 @@ public class OrderStatusChangedHandler : INotificationHandler<OrderStatusChanged
             notification.OrderId,
             cancellationToken);
 
+        await _notificationService.SendDriverHomeUpdatedAsync(
+            driverAssignment.DriverUserId,
+            cancellationToken);
+
         _logger.LogInformation(
             "[DriverRealtime] Successfully dispatched ReceiveAssignmentUpdated to driver user {DriverUserId} for assignment {AssignmentId}.",
             driverAssignment.DriverUserId, driverAssignment.Id);
     }
 
+    private async Task SendDriverAssignmentInboxAndPushAsync(
+        OrderStatusChangedNotification notification,
+        Guid assignmentId,
+        Guid driverUserId,
+        CancellationToken cancellationToken)
+    {
+        if (string.Equals(notification.ActorRole, "driver", StringComparison.OrdinalIgnoreCase))
+        {
+            return;
+        }
 
+        var envelope = TryComposeDriverAssignmentNotification(notification, assignmentId, driverUserId);
+        if (envelope is null)
+        {
+            return;
+        }
+
+        await _notificationService.SendToUserAsync(
+            driverUserId,
+            envelope.Request,
+            cancellationToken);
+
+        await envelope.PushRequest.DispatchAsync(_oneSignalPushService, cancellationToken);
+    }
+
+    private static DriverAssignmentNotificationEnvelope? TryComposeDriverAssignmentNotification(
+        OrderStatusChangedNotification notification,
+        Guid assignmentId,
+        Guid driverUserId)
+    {
+        var screen = "assignment_detail";
+
+        return notification.NewStatus switch
+            {
+                OrderStatus.DriverAssigned => CreateDriverAssignmentNotification(
+                    notification,
+                    assignmentId,
+                    driverUserId,
+                    screen,
+                    "assignment.driver_assigned",
+                "تم تعيين طلب جديد لك",
+                "A delivery was assigned to you",
+                $"تم تعيين الطلب رقم #{notification.OrderNumber} لك. افتح تفاصيل المهمة لبدء التنفيذ.",
+                $"Order #{notification.OrderNumber} was assigned to you. Open the assignment to get started.",
+                NotificationPriorities.High,
+                OneSignalPushRequestKind.Standard),
+
+                OrderStatus.ReadyForPickup => CreateDriverAssignmentNotification(
+                    notification,
+                    assignmentId,
+                    driverUserId,
+                    screen,
+                    "assignment.pickup_ready",
+                "الطلب جاهز للاستلام",
+                "Order ready for pickup",
+                $"الطلب رقم #{notification.OrderNumber} أصبح جاهزًا للاستلام من التاجر.",
+                $"Order #{notification.OrderNumber} is now ready for pickup.",
+                NotificationPriorities.High,
+                OneSignalPushRequestKind.Standard),
+
+                OrderStatus.Cancelled => CreateDriverAssignmentNotification(
+                    notification,
+                    assignmentId,
+                    driverUserId,
+                    screen,
+                    "assignment.active_order_cancelled",
+                "تم إلغاء الطلب الحالي",
+                "Active order cancelled",
+                $"تم إلغاء الطلب رقم #{notification.OrderNumber}.",
+                $"Order #{notification.OrderNumber} was cancelled.",
+                NotificationPriorities.Critical,
+                OneSignalPushRequestKind.HeadsUp),
+
+            _ => null
+        };
+    }
+
+    private static DriverAssignmentNotificationEnvelope CreateDriverAssignmentNotification(
+        OrderStatusChangedNotification notification,
+        Guid assignmentId,
+        Guid driverUserId,
+        string screen,
+        string eventName,
+        string titleAr,
+        string titleEn,
+        string bodyAr,
+        string bodyEn,
+        string priority,
+        OneSignalPushRequestKind pushKind)
+    {
+        var data = DriverNotificationDataBuilder.Build(
+            screen,
+            eventName,
+            orderId: notification.OrderId,
+            assignmentId: assignmentId,
+            extra: new
+            {
+                orderNumber = notification.OrderNumber,
+                oldStatus = notification.OldStatus.ToString(),
+                newStatus = notification.NewStatus.ToString(),
+                actorRole = notification.ActorRole
+            });
+
+        var request = new NotificationDispatchRequest(
+            titleAr,
+            titleEn,
+            bodyAr,
+            bodyEn,
+            NotificationTypes.DriverAssignmentUpdated,
+            NotificationCategories.Assignment,
+            priority,
+            notification.OrderId,
+            data);
+
+        var pushRequest = pushKind == OneSignalPushRequestKind.HeadsUp
+            ? OneSignalMobilePushRequest.CreateHeadsUp(
+                driverUserId.ToString(),
+                titleAr,
+                titleEn,
+                bodyAr,
+                bodyEn,
+                NotificationTypes.DriverAssignmentUpdated,
+                notification.OrderId,
+                data,
+                category: NotificationCategories.Assignment)
+            : OneSignalMobilePushRequest.CreateStandard(
+                driverUserId.ToString(),
+                titleAr,
+                titleEn,
+                bodyAr,
+                bodyEn,
+                NotificationTypes.DriverAssignmentUpdated,
+                notification.OrderId,
+                data,
+                category: NotificationCategories.Assignment);
+
+        return new DriverAssignmentNotificationEnvelope(request, pushRequest);
+    }
+
+
+    private sealed record DriverAssignmentNotificationEnvelope(
+        NotificationDispatchRequest Request,
+        OneSignalMobilePushRequest PushRequest);
+
+    private enum OneSignalPushRequestKind
+    {
+        Standard,
+        HeadsUp
+    }
 
     private static (string TitleAr, string TitleEn, string BodyAr, string BodyEn, string Type) GetVendorNotificationContent(
         OrderStatus status,
