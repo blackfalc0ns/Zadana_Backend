@@ -91,6 +91,7 @@ public class DriverWalletControllerTests
     {
         await using var context = TestDbContextFactory.Create();
         var controller = new DriverWalletController();
+        var notificationService = Mock.Of<INotificationService>();
         var driver = new Driver(Guid.NewGuid(), null, null, null);
         var currentUserService = Mock.Of<ICurrentUserService>(service => service.UserId == driver.UserId);
         var driverRepository = CreateDriverRepository(driver);
@@ -105,6 +106,7 @@ public class DriverWalletControllerTests
             currentUserService,
             driverRepository.Object,
             context,
+            notificationService,
             CancellationToken.None);
 
         await act.Should().ThrowAsync<BusinessRuleException>()
@@ -128,6 +130,8 @@ public class AdminWalletsControllerTests
     {
         await using var context = TestDbContextFactory.Create();
         var controller = new AdminWalletsController();
+        var notificationService = Mock.Of<INotificationService>();
+        var oneSignalPushService = Mock.Of<IOneSignalPushService>();
 
         var driverId = Guid.NewGuid();
         var wallet = new Wallet(WalletOwnerType.Driver, driverId);
@@ -155,6 +159,8 @@ public class AdminWalletsControllerTests
             withdrawal.Id,
             new AdminProcessWithdrawalRequest(false, null, "Rejected"),
             context,
+            notificationService,
+            oneSignalPushService,
             CancellationToken.None);
 
         result.Should().BeOfType<NoContentResult>();
