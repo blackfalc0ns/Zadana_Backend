@@ -6,6 +6,10 @@ public interface IOneSignalPushService
         OneSignalMobilePushRequest request,
         CancellationToken cancellationToken = default);
 
+    Task<OneSignalPushDispatchResult> SendMobileNotificationDirectAsync(
+        OneSignalMobilePushRequest request,
+        CancellationToken cancellationToken = default);
+
     Task<OneSignalPushDispatchResult> SendToExternalUserAsync(
         string externalUserId,
         string titleAr,

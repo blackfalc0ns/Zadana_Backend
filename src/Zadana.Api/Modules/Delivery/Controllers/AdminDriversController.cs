@@ -1,5 +1,8 @@
-using Microsoft.AspNetCore.Authorization;
+﻿using Microsoft.AspNetCore.Authorization;
 using Microsoft.AspNetCore.Mvc;
+using Microsoft.EntityFrameworkCore;
+using Microsoft.Extensions.Logging;
+using System.Text.Json;
 using Zadana.Api.Controllers;
 using Zadana.Application.Common.Interfaces;
 using Zadana.Application.Modules.Delivery.Commands.AddDriverIncident;
@@ -17,14 +20,27 @@ namespace Zadana.Api.Modules.Delivery.Controllers;
 
 [Route("api/admin/drivers")]
 [Authorize(Policy = "AdminOnly")]
-[Tags("Admin – Driver Management")]
+[Tags("Admin - Driver Management")]
 public class AdminDriversController : ApiControllerBase
 {
     private readonly IDriverReadService _driverReadService;
+    private readonly IApplicationDbContext _context;
+    private readonly INotificationService _notificationService;
+    private readonly IOneSignalPushService _oneSignalPushService;
+    private readonly ILogger<AdminDriversController> _logger;
 
-    public AdminDriversController(IDriverReadService driverReadService)
+    public AdminDriversController(
+        IDriverReadService driverReadService,
+        IApplicationDbContext context,
+        INotificationService notificationService,
+        IOneSignalPushService oneSignalPushService,
+        ILogger<AdminDriversController> logger)
     {
         _driverReadService = driverReadService;
+        _context = context;
+        _notificationService = notificationService;
+        _oneSignalPushService = oneSignalPushService;
+        _logger = logger;
     }
 
     [HttpGet]
@@ -54,6 +70,152 @@ public class AdminDriversController : ApiControllerBase
         var result = await _driverReadService.GetAdminDriverDetailAsync(id, cancellationToken);
         if (result is null) return NotFound();
         return Ok(result);
+    }
+
+    [HttpPost("{id:guid}/notifications/test")]
+    public async Task<ActionResult<AdminDriverNotificationResponse>> SendDriverNotification(
+        Guid id,
+        [FromBody] AdminSendDriverNotificationRequest? request,
+        CancellationToken cancellationToken = default)
+    {
+        var driver = await _context.Drivers
+            .AsNoTracking()
+            .Where(item => item.Id == id)
+            .Select(item => new { item.Id, item.UserId })
+            .FirstOrDefaultAsync(cancellationToken)
+            ?? throw new NotFoundException("Driver", id);
+
+        request ??= new AdminSendDriverNotificationRequest();
+
+        var titleAr = string.IsNullOrWhiteSpace(request.TitleAr) ? "إشعار تجريبي للمندوب" : request.TitleAr.Trim();
+        var titleEn = string.IsNullOrWhiteSpace(request.TitleEn) ? "Driver test notification" : request.TitleEn.Trim();
+        var bodyAr = string.IsNullOrWhiteSpace(request.BodyAr)
+            ? "هذا إشعار تجريبي من واجهة الأدمن للتأكد من وصول إشعارات تطبيق المندوب."
+            : request.BodyAr.Trim();
+        var bodyEn = string.IsNullOrWhiteSpace(request.BodyEn)
+            ? "This is a test notification sent from the admin API to verify driver mobile delivery."
+            : request.BodyEn.Trim();
+        var type = string.IsNullOrWhiteSpace(request.Type) ? "driver_test" : request.Type.Trim();
+        var targetUrl = string.IsNullOrWhiteSpace(request.TargetUrl) ? "/notifications" : request.TargetUrl.Trim();
+        var data = string.IsNullOrWhiteSpace(request.Data)
+            ? JsonSerializer.Serialize(new
+            {
+                source = "admin_driver_notifications_test_api",
+                driverId = driver.Id,
+                userId = driver.UserId,
+                generatedAtUtc = DateTime.UtcNow,
+                targetUrl
+            })
+            : request.Data;
+
+        await _notificationService.SendToUserAsync(
+            driver.UserId,
+            titleAr,
+            titleEn,
+            bodyAr,
+            bodyEn,
+            type,
+            request.ReferenceId,
+            data,
+            cancellationToken);
+
+        var pushRequest = OneSignalMobilePushRequest.CreateHeadsUp(
+            driver.UserId.ToString(),
+            titleAr,
+            titleEn,
+            bodyAr,
+            bodyEn,
+            type,
+            request.ReferenceId,
+            data,
+            targetUrl,
+            targetApplication: OneSignalApplicationTarget.Driver);
+
+        if (request.SendPush)
+        {
+            LogPushDispatchStart(driver.Id, driver.UserId, pushRequest);
+        }
+
+        var pushResult = request.SendPush
+            ? await pushRequest.DispatchAsync(_oneSignalPushService, cancellationToken)
+            : new OneSignalPushDispatchResult(
+                Attempted: false,
+                Sent: false,
+                Skipped: true,
+                ProviderStatusCode: null,
+                ProviderNotificationId: null,
+                Reason: "Push dispatch was disabled for this admin request.");
+
+        if (request.SendPush
+            && pushResult.Skipped
+            && string.Equals(pushResult.Reason, "No active push-enabled devices matched the selected notification category.", StringComparison.Ordinal))
+        {
+            _logger.LogWarning(
+                "[PUSH-DIAG] Admin driver test notification is falling back to direct OneSignal delivery without UserPushDevices registration. DriverId: {DriverId}. UserId: {UserId}. ExternalId: {ExternalId}",
+                driver.Id,
+                driver.UserId,
+                pushRequest.ExternalUserId);
+
+            pushResult = await _oneSignalPushService.SendMobileNotificationDirectAsync(pushRequest, cancellationToken);
+        }
+
+        if (request.SendPush)
+        {
+            LogPushDispatchResult(driver.Id, driver.UserId, pushRequest, pushResult);
+        }
+
+        return Ok(new AdminDriverNotificationResponse(
+            Message: "Driver notification queued successfully.",
+            DriverId: driver.Id,
+            UserId: driver.UserId,
+            ExternalId: driver.UserId.ToString(),
+            Type: type,
+            InboxRequested: true,
+            PushAttempted: pushResult.Attempted,
+            PushSent: pushResult.Sent,
+            PushSkipped: pushResult.Skipped,
+            PushStatusCode: pushResult.ProviderStatusCode,
+            ProviderNotificationId: pushResult.ProviderNotificationId,
+            PushReason: pushResult.Reason));
+    }
+
+    private void LogPushDispatchStart(
+        Guid driverId,
+        Guid userId,
+        OneSignalMobilePushRequest pushRequest)
+    {
+        _logger.LogWarning(
+            "[PUSH-DIAG] About to send admin driver OneSignal push. DriverId: {DriverId}. UserId: {UserId}. ExternalId: {ExternalId}. Type: {NotificationType}. ReferenceId: {ReferenceId}. TitleEn: {TitleEn}. BodyEn: {BodyEn}. Profile: {Profile}. TargetUrl: {TargetUrl}. TargetApplication: {TargetApplication}",
+            driverId,
+            userId,
+            pushRequest.ExternalUserId,
+            pushRequest.Type,
+            pushRequest.ReferenceId,
+            pushRequest.TitleEn,
+            pushRequest.BodyEn,
+            pushRequest.Profile,
+            pushRequest.TargetUrl,
+            pushRequest.TargetApplication);
+    }
+
+    private void LogPushDispatchResult(
+        Guid driverId,
+        Guid userId,
+        OneSignalMobilePushRequest pushRequest,
+        OneSignalPushDispatchResult pushResult)
+    {
+        _logger.LogWarning(
+            "[PUSH-DIAG] Admin driver OneSignal push result. DriverId: {DriverId}. UserId: {UserId}. ExternalId: {ExternalId}. Type: {NotificationType}. Attempted: {Attempted}. Sent: {Sent}. Skipped: {Skipped}. StatusCode: {StatusCode}. ProviderNotificationId: {ProviderNotificationId}. Reason: {Reason}",
+            driverId,
+            userId,
+            pushRequest.ExternalUserId,
+            pushRequest.Type,
+            pushResult.Attempted,
+            pushResult.Sent,
+            pushResult.Skipped,
+            pushResult.ProviderStatusCode,
+            pushResult.ProviderNotificationId,
+            pushResult.Reason);
     }
 
     [HttpPost("{id:guid}/review")]
@@ -154,3 +316,27 @@ public record AddDriverNoteRequest(string Message);
 public record AddDriverIncidentRequest(
     string IncidentType, string Severity, string Summary,
     Guid? LinkedOrderId, string? ReviewerName);
+public record AdminSendDriverNotificationRequest(
+    string? TitleAr = null,
+    string? TitleEn = null,
+    string? BodyAr = null,
+    string? BodyEn = null,
+    string? Type = null,
+    Guid? ReferenceId = null,
+    string? Data = null,
+    string? TargetUrl = null,
+    bool SendPush = true);
+public record AdminDriverNotificationResponse(
+    string Message,
+    Guid DriverId,
+    Guid UserId,
+    string ExternalId,
+    string Type,
+    bool InboxRequested,
+    bool PushAttempted,
+    bool PushSent,
+    bool PushSkipped,
+    int? PushStatusCode,
+    string? ProviderNotificationId,
+    string? PushReason);
+

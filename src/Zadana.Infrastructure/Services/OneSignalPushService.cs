@@ -57,6 +57,29 @@ public sealed class OneSignalPushService : IOneSignalPushService
         return results[0];
     }
 
+    public async Task<OneSignalPushDispatchResult> SendMobileNotificationDirectAsync(
+        OneSignalMobilePushRequest request,
+        CancellationToken cancellationToken = default)
+    {
+        var results = await SendToExternalUsersCoreAsync(
+            [request.ExternalUserId],
+            request.TitleAr,
+            request.TitleEn,
+            request.BodyAr,
+            request.BodyEn,
+            request.Type,
+            request.ReferenceId,
+            request.Data,
+            request.TargetUrl,
+            request.Profile,
+            request.Category,
+            requireRegisteredDevices: false,
+            cancellationToken,
+            request.TargetApplication);
+
+        return results[0];
+    }
+
     public Task<OneSignalPushDispatchResult> SendToExternalUserAsync(
         string externalUserId,
         string titleAr,
@@ -224,7 +247,10 @@ public sealed class OneSignalPushService : IOneSignalPushService
                 {
                     var payloadJson = System.Text.Json.JsonSerializer.Serialize(preparedPayload.Payload);
                     _logger.LogWarning(
-                        "[PUSH-DIAG] OneSignal prepared payload. ExternalUserCount: {ExternalUserCount}. ExternalIdBatch: {ExternalIdBatch}. Profile: {Profile}. Type: {Type}. ReferenceId: {ReferenceId}. NotificationEventId: {NotificationEventId}. PreferredLocale: {PreferredLocale}. Channel: {Channel}. DataKeys: {DataKeys}. PayloadJson: {PayloadJson}",
+                        "[PUSH-DIAG] OneSignal prepared payload. AppId: {AppId}. RestApiKeyLength: {RestApiKeyLength}. RestApiKeySuffix: {RestApiKeySuffix}. ExternalUserCount: {ExternalUserCount}. ExternalIdBatch: {ExternalIdBatch}. Profile: {Profile}. Type: {Type}. ReferenceId: {ReferenceId}. NotificationEventId: {NotificationEventId}. PreferredLocale: {PreferredLocale}. Channel: {Channel}. DataKeys: {DataKeys}. PayloadJson: {PayloadJson}",
+                        preparedPayload.AppId,
+                        preparedPayload.RestApiKey?.Length ?? 0,
+                        MaskSecretSuffix(preparedPayload.RestApiKey),
                         preparedPayload.ExternalUserCount,
                         preparedPayload.ExternalIdBatch,
                         preparedPayload.Profile,
@@ -257,7 +283,9 @@ public sealed class OneSignalPushService : IOneSignalPushService
         {
             Content = JsonContent.Create(preparedPayload.Payload)
         };
-        request.Headers.Authorization = new AuthenticationHeaderValue("Key", preparedPayload.RestApiKey);
+        request.Headers.TryAddWithoutValidation(
+            "Authorization",
+            $"key {preparedPayload.RestApiKey.Trim()}");
 
         try
         {
@@ -379,6 +407,7 @@ public sealed class OneSignalPushService : IOneSignalPushService
 
         return new PreparedOneSignalPayload(
             payload,
+            appId,
             externalUserIds.Count,
             string.Join(",", externalUserIds),
             restApiKey,
@@ -569,12 +598,21 @@ public sealed class OneSignalPushService : IOneSignalPushService
     }
 
     private (string AppId, string RestApiKey) ResolveAppConfiguration(
-        OneSignalApplicationTarget targetApplication) =>
-        targetApplication == OneSignalApplicationTarget.Driver
-            ? (
-                string.IsNullOrWhiteSpace(_settings.DriverAppId) ? _settings.AppId : _settings.DriverAppId,
-                string.IsNullOrWhiteSpace(_settings.DriverRestApiKey) ? _settings.RestApiKey : _settings.DriverRestApiKey)
-            : (_settings.AppId, _settings.RestApiKey);
+        OneSignalApplicationTarget targetApplication)
+    {
+        var customerAppId = ResolveSettingValue("OneSignal__AppId", _settings.AppId);
+        var customerRestApiKey = ResolveSettingValue("OneSignal__RestApiKey", _settings.RestApiKey);
+        var driverAppId = FirstNonEmpty(
+            ResolveSettingValue("OneSignal__DriverAppId", _settings.DriverAppId),
+            customerAppId);
+        var driverRestApiKey = FirstNonEmpty(
+            ResolveSettingValue("OneSignal__DriverRestApiKey", _settings.DriverRestApiKey),
+            customerRestApiKey);
+
+        return targetApplication == OneSignalApplicationTarget.Driver
+            ? (driverAppId, driverRestApiKey)
+            : (customerAppId, customerRestApiKey);
+    }
 
     private (string AppId, string RestApiKey) ResolveAppConfiguration(
         OneSignalPushProfile profile,
@@ -590,6 +628,13 @@ public sealed class OneSignalPushService : IOneSignalPushService
 
     private static string FirstNonEmpty(params string?[] values) =>
         values.FirstOrDefault(value => !string.IsNullOrWhiteSpace(value)) ?? string.Empty;
+
+    private static string ResolveSettingValue(string environmentVariableName, string configuredValue) =>
+        FirstNonEmpty(
+            configuredValue,
+            Environment.GetEnvironmentVariable(environmentVariableName, EnvironmentVariableTarget.User),
+            Environment.GetEnvironmentVariable(environmentVariableName),
+            Environment.GetEnvironmentVariable(environmentVariableName, EnvironmentVariableTarget.Machine));
 
     private void ApplyProfile(Dictionary<string, object?> payload, OneSignalPushProfile profile)
     {
@@ -836,6 +881,7 @@ public sealed class OneSignalPushService : IOneSignalPushService
 
     private sealed record PreparedOneSignalPayload(
         Dictionary<string, object?> Payload,
+        string AppId,
         int ExternalUserCount,
         string ExternalIdBatch,
         string RestApiKey,
@@ -850,4 +896,15 @@ public sealed class OneSignalPushService : IOneSignalPushService
     private sealed record LocalizedRecipientBatch(
         string? Locale,
         string[] ExternalUserIds);
+
+    private static string MaskSecretSuffix(string? secret)
+    {
+        if (string.IsNullOrWhiteSpace(secret))
+        {
+            return "none";
+        }
+
+        var trimmed = secret.Trim();
+        return trimmed.Length <= 6 ? trimmed : trimmed[^6..];
+    }
 }

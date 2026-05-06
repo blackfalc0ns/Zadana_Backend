@@ -18,12 +18,16 @@ public static class NotificationPayloadHelper
         string? data)
     {
         var normalizedData = NormalizeData(data);
+        var normalizedTitleAr = NormalizeText(titleAr, TitleMaxLength);
+        var normalizedTitleEn = NormalizeText(titleEn, TitleMaxLength);
+        var normalizedBodyAr = NormalizeText(bodyAr, BodyMaxLength);
+        var normalizedBodyEn = NormalizeText(bodyEn, BodyMaxLength);
 
         return new SanitizedNotificationPayload(
-            NormalizeText(titleAr, TitleMaxLength),
-            NormalizeText(titleEn, TitleMaxLength),
-            NormalizeText(bodyAr, BodyMaxLength),
-            NormalizeText(bodyEn, BodyMaxLength),
+            ResolveLocalizedText(normalizedTitleAr, normalizedTitleEn),
+            ResolveLocalizedText(normalizedTitleEn, normalizedTitleAr),
+            ResolveLocalizedText(normalizedBodyAr, normalizedBodyEn),
+            ResolveLocalizedText(normalizedBodyEn, normalizedBodyAr),
             NormalizeOptionalText(type, 100),
             normalizedData,
             TryParseData(normalizedData));
@@ -56,6 +60,42 @@ public static class NotificationPayloadHelper
         }
 
         return normalized[..maxLength].TrimEnd();
+    }
+
+    private static string ResolveLocalizedText(string primary, string fallback)
+    {
+        var normalizedPrimary = primary.Trim();
+        var normalizedFallback = fallback.Trim();
+
+        if (LooksCorrupted(normalizedPrimary) && !string.IsNullOrWhiteSpace(normalizedFallback))
+        {
+            return normalizedFallback;
+        }
+
+        if (string.IsNullOrWhiteSpace(normalizedPrimary))
+        {
+            return normalizedFallback;
+        }
+
+        return normalizedPrimary;
+    }
+
+    private static bool LooksCorrupted(string value)
+    {
+        if (string.IsNullOrWhiteSpace(value))
+        {
+            return true;
+        }
+
+        if (value.Contains("Ø", StringComparison.Ordinal) ||
+            value.Contains("Ù", StringComparison.Ordinal) ||
+            value.Contains("â", StringComparison.Ordinal))
+        {
+            return true;
+        }
+
+        var questionMarkCount = value.Count(ch => ch == '?');
+        return questionMarkCount >= 3 || questionMarkCount >= Math.Max(3, value.Length / 4);
     }
 
     private static string? NormalizeOptionalText(string? value, int maxLength)

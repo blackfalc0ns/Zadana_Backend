@@ -991,9 +991,9 @@ public sealed class OrderSupportCaseWorkflowService : IOrderSupportCaseWorkflowS
         {
             "created" => BuildDriverSupportNotification(
                 driverUserId,
-                "?? ??? ???? ??? ?????",
+                "تم إنشاء بلاغ على الطلب",
                 "Support case created",
-                $"?? ??? ???? ??? ????? ????? ??? #{order.OrderNumber}.",
+                $"تم إنشاء بلاغ على الطلب رقم #{order.OrderNumber}.",
                 $"A support case was created for order #{order.OrderNumber}.",
                 NotificationPriorities.Normal,
                 OneSignalPushRequestKind.Standard,
@@ -1002,9 +1002,9 @@ public sealed class OrderSupportCaseWorkflowService : IOrderSupportCaseWorkflowS
 
             "request_evidence" => BuildDriverSupportNotification(
                 driverUserId,
-                "????? ??? ????? ??????? ??????",
+                "مطلوب تقديم معلومات إضافية",
                 "More information required",
-                $"????? ???? ????? ??? #{order.OrderNumber} ??? ?? ?? ??????? ?????? ???.",
+                $"تحتاج قضية الطلب رقم #{order.OrderNumber} إلى رد أو معلومات إضافية منك.",
                 $"Order case #{order.OrderNumber} needs a response or additional evidence from you.",
                 NotificationPriorities.High,
                 OneSignalPushRequestKind.HeadsUp,
@@ -1013,9 +1013,9 @@ public sealed class OrderSupportCaseWorkflowService : IOrderSupportCaseWorkflowS
 
             "admin_message" => BuildDriverSupportNotification(
                 driverUserId,
-                "????? ????? ?? ???? ?????",
+                "رسالة جديدة بخصوص الطلب",
                 "New support message",
-                $"???? ????? ????? ????? ???? ????? ??? #{order.OrderNumber}.",
+                $"توجد رسالة دعم جديدة بخصوص الطلب رقم #{order.OrderNumber}.",
                 $"There is a new support message about order #{order.OrderNumber}.",
                 NotificationPriorities.High,
                 OneSignalPushRequestKind.HeadsUp,
@@ -1024,9 +1024,9 @@ public sealed class OrderSupportCaseWorkflowService : IOrderSupportCaseWorkflowS
 
             "approved" => BuildDriverSupportNotification(
                 driverUserId,
-                "?? ?????? ???? ??????",
+                "تمت الموافقة على البلاغ",
                 "Support case approved",
-                $"?? ?????? ?????? ????? ????? ????? ??? #{order.OrderNumber}.",
+                $"تمت الموافقة على قرار البلاغ الخاص بالطلب رقم #{order.OrderNumber}.",
                 $"The support case decision for order #{order.OrderNumber} was approved.",
                 NotificationPriorities.High,
                 OneSignalPushRequestKind.Standard,
@@ -1035,9 +1035,9 @@ public sealed class OrderSupportCaseWorkflowService : IOrderSupportCaseWorkflowS
 
             "rejected" => BuildDriverSupportNotification(
                 driverUserId,
-                "?? ??? ??????",
+                "تم رفض البلاغ",
                 "Support case rejected",
-                $"?? ??? ???? ????? ??? #{order.OrderNumber}.",
+                $"تم رفض البلاغ الخاص بالطلب رقم #{order.OrderNumber}.",
                 $"The support case for order #{order.OrderNumber} was rejected.",
                 NotificationPriorities.High,
                 OneSignalPushRequestKind.Standard,
@@ -1046,9 +1046,9 @@ public sealed class OrderSupportCaseWorkflowService : IOrderSupportCaseWorkflowS
 
             "resolved" => BuildDriverSupportNotification(
                 driverUserId,
-                "?? ????? ??????",
+                "تم إغلاق البلاغ",
                 "Support case resolved",
-                $"?? ????? ???? ????? ??? #{order.OrderNumber}.",
+                $"تم إغلاق البلاغ الخاص بالطلب رقم #{order.OrderNumber}.",
                 $"The support case for order #{order.OrderNumber} was resolved.",
                 NotificationPriorities.Normal,
                 OneSignalPushRequestKind.Standard,

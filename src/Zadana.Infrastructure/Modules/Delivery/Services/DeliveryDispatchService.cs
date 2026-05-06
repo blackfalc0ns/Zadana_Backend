@@ -653,9 +653,9 @@ public class DeliveryDispatchService : IDeliveryDispatchService
         await _oneSignalPushService.SendMobileNotificationAsync(
             OneSignalMobilePushRequest.CreateHeadsUp(
                 best.Driver.UserId.ToString(),
-                "??? ???? ???????",
+                "عرض توصيل جديد",
                 "New delivery offer",
-                $"???? ??? ????? ???? ?? {order.Vendor?.BusinessNameAr ?? best.Driver.User.FullName} ???? ???? ???? ????? ?????.",
+                $"لديك عرض توصيل جديد من {order.Vendor?.BusinessNameAr ?? best.Driver.User.FullName} ويجب الرد عليه خلال ثوانٍ قليلة.",
                 "You have a new delivery offer and need to respond within a few seconds.",
                 NotificationTypes.DriverDeliveryOffer,
                 order.Id,

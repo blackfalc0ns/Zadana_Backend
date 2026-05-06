@@ -502,6 +502,11 @@ public class DriverCommitmentPolicyService : IDriverCommitmentPolicyService
             CancellationToken cancellationToken = default) =>
             Task.FromResult(SkippedResult);
 
+        public Task<OneSignalPushDispatchResult> SendMobileNotificationDirectAsync(
+            OneSignalMobilePushRequest request,
+            CancellationToken cancellationToken = default) =>
+            Task.FromResult(SkippedResult);
+
         public Task<OneSignalPushDispatchResult> SendToExternalUserAsync(
             string externalUserId,
             string titleAr,
