@@ -1,6 +1,8 @@
 using Microsoft.AspNetCore.Authorization;
 using Microsoft.AspNetCore.Mvc;
 using Microsoft.EntityFrameworkCore;
+using System.Globalization;
+using System.Text.RegularExpressions;
 using Zadana.Api.Controllers;
 using Zadana.Application.Common.Interfaces;
 using Zadana.Application.Modules.Orders.Interfaces;
@@ -163,6 +165,7 @@ public class VendorOrderCasesController : ApiControllerBase
         CancellationToken cancellationToken = default)
     {
         var vendorId = await _currentVendorService.GetRequiredVendorIdAsync(cancellationToken);
+        var isArabic = CultureInfo.CurrentUICulture.TwoLetterISOLanguageName.Equals("ar", StringComparison.OrdinalIgnoreCase);
 
         var supportCase = await _dbContext.OrderSupportCases
             .AsNoTracking()
@@ -185,7 +188,7 @@ public class VendorOrderCasesController : ApiControllerBase
                 a.Action,
                 a.MessageType,
                 a.Title,
-                a.Note,
+                LocalizeVendorActivityNote(a.Action, a.MessageType, a.Note, supportCase, isArabic),
                 a.ActorRole,
                 a.CreatedAtUtc))
             .ToList();
@@ -221,8 +224,8 @@ public class VendorOrderCasesController : ApiControllerBase
             supportCase.Message,
             supportCase.VendorResponse,
             supportCase.VendorRespondedAtUtc,
-            supportCase.CustomerVisibleNote,
-            supportCase.DecisionNotes,
+            LocalizeVendorCustomerVisibleNote(supportCase, couponRedeemed, isArabic),
+            LocalizeVendorDecisionNotes(supportCase, couponRedeemed, isArabic),
             supportCase.InitiatorRole,
             supportCase.AwaitingResponseFromRole,
             supportCase.RequestedRefundAmount,
@@ -249,7 +252,7 @@ public class VendorOrderCasesController : ApiControllerBase
                 activity.Action,
                 activity.MessageType,
                 activity.Title,
-                activity.Note,
+                LocalizeVendorActivityNote(activity.Action, activity.MessageType, activity.Note, supportCase, isArabic),
                 activity.ActorRole,
                 activity.GetVisibleRoles().ToList(),
                 activity.IsInternalOnly,
@@ -357,6 +360,86 @@ public class VendorOrderCasesController : ApiControllerBase
             OrderSupportCaseCompensationType.CouponCompensation => "coupon_compensation",
             _ => null
         };
+
+    private static string? LocalizeVendorCustomerVisibleNote(
+        Zadana.Domain.Modules.Orders.Entities.OrderSupportCase supportCase,
+        bool couponRedeemed,
+        bool isArabic)
+    {
+        if (isArabic || !ContainsArabic(supportCase.CustomerVisibleNote))
+        {
+            return supportCase.CustomerVisibleNote;
+        }
+
+        return supportCase.Status switch
+        {
+            OrderSupportCaseStatus.Approved => "Your return request has been approved. You will be notified when the financial processing begins.",
+            OrderSupportCaseStatus.Rejected => "Your return request was rejected after review.",
+            OrderSupportCaseStatus.Resolved when supportCase.CompensationType == OrderSupportCaseCompensationType.CashRefund
+                => "Your refund has been completed and the case is now closed.",
+            OrderSupportCaseStatus.Resolved when supportCase.CompensationType == OrderSupportCaseCompensationType.CouponCompensation && couponRedeemed
+                => "Your compensation coupon was redeemed and the case is now closed.",
+            OrderSupportCaseStatus.Resolved when supportCase.CompensationType == OrderSupportCaseCompensationType.CouponCompensation
+                => "A compensation coupon was issued and the case is now closed.",
+            OrderSupportCaseStatus.AwaitingCustomerEvidence => "More information is required to continue reviewing this case.",
+            _ => "Your support case has been updated."
+        };
+    }
+
+    private static string? LocalizeVendorDecisionNotes(
+        Zadana.Domain.Modules.Orders.Entities.OrderSupportCase supportCase,
+        bool couponRedeemed,
+        bool isArabic)
+    {
+        if (isArabic || !ContainsArabic(supportCase.DecisionNotes))
+        {
+            return supportCase.DecisionNotes;
+        }
+
+        return supportCase.Status switch
+        {
+            OrderSupportCaseStatus.Approved when supportCase.Type == OrderSupportCaseType.ReturnRequest
+                => "The request matches platform policy and was approved after evidence review.",
+            OrderSupportCaseStatus.Rejected => "The request did not meet the approval criteria after evidence review.",
+            OrderSupportCaseStatus.Resolved when supportCase.CompensationType == OrderSupportCaseCompensationType.CashRefund
+                => "The case was closed after completing the customer refund.",
+            OrderSupportCaseStatus.Resolved when supportCase.CompensationType == OrderSupportCaseCompensationType.CouponCompensation && couponRedeemed
+                => "The case was closed after the compensation coupon was redeemed.",
+            OrderSupportCaseStatus.Resolved when supportCase.CompensationType == OrderSupportCaseCompensationType.CouponCompensation
+                => "The case was closed after issuing the compensation coupon.",
+            OrderSupportCaseStatus.AwaitingCustomerEvidence => "Additional evidence is required before a final decision can be made.",
+            _ => "The support team reviewed this case and recorded an internal decision."
+        };
+    }
+
+    private static string? LocalizeVendorActivityNote(
+        string action,
+        string messageType,
+        string? note,
+        Zadana.Domain.Modules.Orders.Entities.OrderSupportCase supportCase,
+        bool isArabic)
+    {
+        if (isArabic || !ContainsArabic(note))
+        {
+            return note;
+        }
+
+        return (action.Trim().ToLowerInvariant(), messageType.Trim().ToLowerInvariant()) switch
+        {
+            ("approved", _) => LocalizeVendorCustomerVisibleNote(supportCase, couponRedeemed: false, isArabic: false),
+            ("rejected", _) => "The case was rejected after review.",
+            ("resolved", _) => "The case was resolved and closed.",
+            ("request_evidence", _) => "Additional information was requested to continue the review.",
+            ("escalated", _) => "The case was escalated for further review.",
+            ("admin_message", _) => "Support shared an update on this case.",
+            (_, "decision") => "A final decision was recorded for this case.",
+            (_, "public_note") => "A public note was added to this case.",
+            _ => note
+        };
+    }
+
+    private static bool ContainsArabic(string? value) =>
+        !string.IsNullOrWhiteSpace(value) && Regex.IsMatch(value, @"[\u0600-\u06FF]");
 }
 
 // Request DTOs

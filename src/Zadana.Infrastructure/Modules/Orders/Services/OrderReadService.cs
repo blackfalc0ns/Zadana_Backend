@@ -964,7 +964,7 @@ public class OrderReadService : IOrderReadService
             supportCase.Id,
             supportCase.OrderId,
             MapSupportCaseType(supportCase.Type),
-            ResolveSupportCaseTypeLabel(supportCase.Type),
+            ResolveDisplaySupportCaseTypeLabel(supportCase, couponSupportMap),
             MapSupportCaseStatus(ResolveDisplaySupportCaseStatus(supportCase, couponSupportMap)),
             ResolveSupportCaseStatusLabel(ResolveDisplaySupportCaseStatus(supportCase, couponSupportMap)),
             MapSupportCaseQueue(supportCase.Queue),
@@ -990,9 +990,9 @@ public class OrderReadService : IOrderReadService
             supportCase.CostBearer,
             supportCase.InitiatorRole,
             ResolveRoleLabel(supportCase.InitiatorRole),
-            supportCase.AwaitingResponseFromRole,
-            ResolveRoleLabel(supportCase.AwaitingResponseFromRole),
-            BuildParticipants(supportCase),
+            ResolveDisplayAwaitingResponseRole(supportCase, couponSupportMap),
+            ResolveDisplayAwaitingResponseRoleLabel(supportCase, couponSupportMap),
+            BuildParticipants(supportCase, couponSupportMap),
             BuildAllowedActions("customer", supportCase),
             supportCase.Attachments
                 .Select(attachment => new OrderSupportCaseAttachmentDto(
@@ -2005,8 +2005,11 @@ public class OrderReadService : IOrderReadService
         return true;
     }
 
-    private static IReadOnlyList<OrderSupportCaseParticipantDto> BuildParticipants(OrderSupportCase supportCase)
+    private static IReadOnlyList<OrderSupportCaseParticipantDto> BuildParticipants(
+        OrderSupportCase supportCase,
+        IReadOnlyDictionary<Guid, CouponSupportSnapshot> couponSupportMap)
     {
+        var waitingOnRole = ResolveDisplayAwaitingResponseRole(supportCase, couponSupportMap);
         var roles = new HashSet<string>(StringComparer.OrdinalIgnoreCase)
         {
             "customer",
@@ -2025,7 +2028,7 @@ public class OrderReadService : IOrderReadService
                 role,
                 ResolveRoleLabel(role),
                 string.Equals(supportCase.InitiatorRole, role, StringComparison.OrdinalIgnoreCase),
-                string.Equals(supportCase.AwaitingResponseFromRole, role, StringComparison.OrdinalIgnoreCase),
+                string.Equals(waitingOnRole, role, StringComparison.OrdinalIgnoreCase),
                 supportCase.Activities.Any(activity => string.Equals(activity.ActorRole, role, StringComparison.OrdinalIgnoreCase))))
             .ToList();
     }
@@ -2074,7 +2077,7 @@ public class OrderReadService : IOrderReadService
             order.User.Email ?? string.Empty,
             order.Vendor.BusinessNameAr,
             MapSupportCaseType(supportCase.Type),
-            ResolveSupportCaseTypeLabel(supportCase.Type),
+            ResolveDisplaySupportCaseTypeLabel(supportCase, couponSupportMap),
             supportCase.ReasonCode,
             ResolveSupportCaseReasonLabel(supportCase.Type, supportCase.ReasonCode) ?? supportCase.Message,
             amount,
@@ -2118,9 +2121,9 @@ public class OrderReadService : IOrderReadService
                 .ToList(),
             supportCase.InitiatorRole,
             ResolveRoleLabel(supportCase.InitiatorRole),
-            supportCase.AwaitingResponseFromRole,
-            ResolveRoleLabel(supportCase.AwaitingResponseFromRole),
-            BuildParticipants(supportCase),
+            ResolveDisplayAwaitingResponseRole(supportCase, couponSupportMap),
+            ResolveDisplayAwaitingResponseRoleLabel(supportCase, couponSupportMap),
+            BuildParticipants(supportCase, couponSupportMap),
             BuildAllowedActions("admin", supportCase),
             supportCase.Activities
                 .OrderByDescending(activity => activity.CreatedAtUtc)
@@ -2167,6 +2170,38 @@ public class OrderReadService : IOrderReadService
         return settlementStatus is "cash_refunded" or "coupon_redeemed"
             ? OrderSupportCaseStatus.Resolved
             : supportCase.Status;
+    }
+
+    private static string? ResolveDisplayAwaitingResponseRole(
+        OrderSupportCase supportCase,
+        IReadOnlyDictionary<Guid, CouponSupportSnapshot> couponSupportMap) =>
+        ResolveDisplaySupportCaseStatus(supportCase, couponSupportMap) == OrderSupportCaseStatus.Resolved
+            ? null
+            : supportCase.AwaitingResponseFromRole;
+
+    private static string ResolveDisplayAwaitingResponseRoleLabel(
+        OrderSupportCase supportCase,
+        IReadOnlyDictionary<Guid, CouponSupportSnapshot> couponSupportMap) =>
+        ResolveDisplaySupportCaseStatus(supportCase, couponSupportMap) == OrderSupportCaseStatus.Resolved
+            ? L("لا يوجد انتظار", "No pending party")
+            : ResolveRoleLabel(supportCase.AwaitingResponseFromRole);
+
+    private static string ResolveDisplaySupportCaseTypeLabel(
+        OrderSupportCase supportCase,
+        IReadOnlyDictionary<Guid, CouponSupportSnapshot> couponSupportMap)
+    {
+        if (ResolveDisplaySupportCaseStatus(supportCase, couponSupportMap) != OrderSupportCaseStatus.Resolved)
+        {
+            return ResolveSupportCaseTypeLabel(supportCase.Type);
+        }
+
+        return supportCase.Type switch
+        {
+            OrderSupportCaseType.ReturnRequest => L("طلب إرجاع مغلق", "Closed return request"),
+            OrderSupportCaseType.DriverReport => L("بلاغ مندوب مغلق", "Closed driver report"),
+            OrderSupportCaseType.DriverDispute => L("نزاع مندوب مغلق", "Closed driver dispute"),
+            _ => L("شكوى مغلقة", "Closed complaint")
+        };
     }
 
     private static string MapRiskLevel(OrderSupportCasePriority priority) =>
