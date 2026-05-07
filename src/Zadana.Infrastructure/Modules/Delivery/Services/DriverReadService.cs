@@ -1335,15 +1335,20 @@ public class DriverReadService : IDriverReadService
         var fleetCompletionAverage = fleetAssignmentRows.Any()
             ? Convert.ToDecimal(Math.Round(fleetAssignmentRows.Average(row => row.Closed > 0 ? (decimal)row.Completed / row.Closed * 100 : 0m), 1))
             : completionRate;
-        var zoneCommitmentAverage = regionDriverIds.Any()
-            ? Math.Round(commitmentSummaries
+        var zoneCommitmentValues = regionDriverIds.Any()
+            ? commitmentSummaries
                 .Where(pair => regionDriverIds.Contains(pair.Key))
-                .DefaultIfEmpty(new KeyValuePair<Guid, DriverCommitmentSummaryDto>(Guid.Empty, new DriverCommitmentSummaryDto(0, 0, 0, 0, 0, commitmentScore, "Healthy", true, null, null)))
-                .Average(pair => pair.Value.CommitmentScore), 1)
-            : commitmentScore;
-        var fleetCommitmentAverage = commitmentSummaries.Count > 0
-            ? Math.Round(commitmentSummaries.Average(pair => pair.Value.CommitmentScore), 1)
-            : commitmentScore;
+                .Select(pair => pair.Value.CommitmentScore)
+                .DefaultIfEmpty(commitmentScore)
+            : [commitmentScore];
+        var zoneCommitmentAverage = Math.Round(zoneCommitmentValues.Average(), 1);
+
+        var fleetCommitmentValues = commitmentSummaries.Count > 0
+            ? commitmentSummaries
+                .Select(pair => pair.Value.CommitmentScore)
+                .DefaultIfEmpty(commitmentScore)
+            : [commitmentScore];
+        var fleetCommitmentAverage = Math.Round(fleetCommitmentValues.Average(), 1);
 
         var metrics = new[]
         {

@@ -1,4 +1,6 @@
 using MediatR;
+using Microsoft.EntityFrameworkCore;
+using Microsoft.Extensions.Logging;
 using Zadana.Application.Common.Interfaces;
 using Zadana.Application.Modules.Delivery.DTOs;
 using Zadana.Application.Modules.Delivery.Interfaces;
@@ -20,6 +22,7 @@ public class ApproveDriverDocumentReviewCommandHandler : IRequestHandler<Approve
     private readonly IIdentityAccountService _identityAccountService;
     private readonly INotificationService _notificationService;
     private readonly IOneSignalPushService _oneSignalPushService;
+    private readonly ILogger<ApproveDriverDocumentReviewCommandHandler> _logger;
 
     public ApproveDriverDocumentReviewCommandHandler(
         IDriverRepository driverRepository,
@@ -27,7 +30,8 @@ public class ApproveDriverDocumentReviewCommandHandler : IRequestHandler<Approve
         ICurrentUserService currentUserService,
         IIdentityAccountService identityAccountService,
         INotificationService notificationService,
-        IOneSignalPushService oneSignalPushService)
+        IOneSignalPushService oneSignalPushService,
+        ILogger<ApproveDriverDocumentReviewCommandHandler> logger)
     {
         _driverRepository = driverRepository;
         _dbContext = dbContext;
@@ -35,9 +39,18 @@ public class ApproveDriverDocumentReviewCommandHandler : IRequestHandler<Approve
         _identityAccountService = identityAccountService;
         _notificationService = notificationService;
         _oneSignalPushService = oneSignalPushService;
+        _logger = logger;
     }
 
     public async Task Handle(ApproveDriverDocumentReviewCommand request, CancellationToken cancellationToken)
+    {
+        await ApplyApprovalAsync(request, cancellationToken, allowRetry: true);
+    }
+
+    private async Task ApplyApprovalAsync(
+        ApproveDriverDocumentReviewCommand request,
+        CancellationToken cancellationToken,
+        bool allowRetry)
     {
         var driver = await _driverRepository.GetByIdWithReviewsAsync(request.DriverId, cancellationToken)
             ?? throw new NotFoundException("Driver", request.DriverId);
@@ -45,19 +58,44 @@ public class ApproveDriverDocumentReviewCommandHandler : IRequestHandler<Approve
         var documentType = ParseDocumentType(request.DocumentId);
         if (!CanReview(driver, documentType))
         {
-            throw new BusinessRuleException("DRIVER_DOCUMENT_NOT_REVIEWABLE", "Driver document is not uploaded or is incomplete.");
+            throw new BusinessRuleException("DRIVER_DOCUMENT_NOT_REVIEWABLE", "The selected driver document is missing or incomplete.");
+        }
+
+        if (IsExpired(driver, documentType))
+        {
+            throw new BusinessRuleException("DRIVER_DOCUMENT_EXPIRED", "This document is expired and cannot be approved until the driver uploads a renewed version.");
         }
 
         var reviewerName = await ResolveReviewerNameAsync(cancellationToken);
-        driver.GetOrCreateDocumentReview(documentType).Approve(_currentUserService.UserId, reviewerName);
+        var existingReview = driver.DocumentReviews.FirstOrDefault(item => item.Type == documentType);
+        var documentReview = existingReview ?? driver.GetOrCreateDocumentReview(documentType);
+        if (existingReview is null)
+        {
+            _dbContext.DriverDocumentReviews?.Add(documentReview);
+        }
 
-        if (DriverProfileReadinessFactory.GetMissingRequirements(driver, driver.User).Count == 0 &&
+        documentReview.Approve(_currentUserService.UserId, reviewerName);
+
+        if (driver.User is not null &&
+            DriverProfileReadinessFactory.GetMissingRequirements(driver, driver.User).Count == 0 &&
             DriverProfileReadinessFactory.AreRequiredDocumentsApproved(driver))
         {
             driver.RefreshProfileReviewState(true, sensitiveChange: true, note: "Documents approved and pending final account approval");
         }
 
-        await _dbContext.SaveChangesAsync(cancellationToken);
+        DetachDriverUserIfTracked(driver);
+
+        try
+        {
+            await _dbContext.SaveChangesAsync(cancellationToken);
+        }
+        catch (DbUpdateConcurrencyException ex) when (allowRetry && _dbContext is DbContext efContext)
+        {
+            _logger.LogWarning(ex, "Driver document approval hit a concurrency conflict for driver {DriverId}. Retrying once.", request.DriverId);
+            efContext.ChangeTracker.Clear();
+            await ApplyApprovalAsync(request, cancellationToken, allowRetry: false);
+            return;
+        }
 
         var documentNameAr = GetDocumentNameAr(documentType);
         var documentNameEn = GetDocumentNameEn(documentType);
@@ -73,36 +111,7 @@ public class ApproveDriverDocumentReviewCommandHandler : IRequestHandler<Approve
                 accountStatus = driver.Status.ToString()
             });
 
-        await _notificationService.SendToUserAsync(
-            driver.UserId,
-            new NotificationDispatchRequest(
-                $"تمت الموافقة على {documentNameAr}",
-                $"{documentNameEn} approved",
-                $"تمت مراجعة {documentNameAr} والموافقة عليه. يمكنك متابعة حالة حسابك من التطبيق.",
-                $"Your {documentNameEn.ToLowerInvariant()} was reviewed and approved. You can track your account status in the app.",
-                NotificationTypes.DriverAccountUpdated,
-                NotificationCategories.Account,
-                NotificationPriorities.High,
-                driver.Id,
-                data),
-            cancellationToken);
-
-        await _notificationService.SendDriverHomeUpdatedAsync(driver.UserId, cancellationToken);
-
-        await _oneSignalPushService.SendMobileNotificationAsync(
-            OneSignalMobilePushRequest.CreateStandard(
-                driver.UserId.ToString(),
-                $"تمت الموافقة على {documentNameAr}",
-                $"{documentNameEn} approved",
-                $"تمت مراجعة {documentNameAr} والموافقة عليه. يمكنك متابعة حالة حسابك من التطبيق.",
-                $"Your {documentNameEn.ToLowerInvariant()} was reviewed and approved. You can track your account status in the app.",
-                NotificationTypes.DriverAccountUpdated,
-                driver.Id,
-                data,
-                targetUrl: "/account-status",
-                category: NotificationCategories.Account,
-                targetApplication: OneSignalApplicationTarget.Driver),
-            cancellationToken);
+        await NotifyDriverAsync(driver, documentNameAr, documentNameEn, data, cancellationToken);
     }
 
     private static DriverDocumentType ParseDocumentType(string documentId) =>
@@ -119,6 +128,33 @@ public class ApproveDriverDocumentReviewCommandHandler : IRequestHandler<Approve
             _ => false
         };
 
+    private static bool IsExpired(Domain.Modules.Delivery.Entities.Driver driver, DriverDocumentType type)
+    {
+        var expiryDate = type switch
+        {
+            DriverDocumentType.NationalId => driver.NationalIdExpiryDate,
+            DriverDocumentType.DriverLicense => driver.DriverLicenseExpiryDate,
+            DriverDocumentType.VehicleLicense => driver.VehicleLicenseExpiryDate,
+            _ => null
+        };
+
+        return expiryDate.HasValue && expiryDate.Value.Date < DateTime.UtcNow.Date;
+    }
+
+    private void DetachDriverUserIfTracked(Domain.Modules.Delivery.Entities.Driver driver)
+    {
+        if (_dbContext is not DbContext efContext || driver.User is null)
+        {
+            return;
+        }
+
+        var userEntry = efContext.Entry(driver.User);
+        if (userEntry.State != EntityState.Detached)
+        {
+            userEntry.State = EntityState.Detached;
+        }
+    }
+
     private async Task<string> ResolveReviewerNameAsync(CancellationToken cancellationToken)
     {
         if (!_currentUserService.UserId.HasValue)
@@ -130,10 +166,75 @@ public class ApproveDriverDocumentReviewCommandHandler : IRequestHandler<Approve
         return string.IsNullOrWhiteSpace(actor?.FullName) ? "Driver Compliance Desk" : actor.FullName;
     }
 
+    private async Task NotifyDriverAsync(
+        Domain.Modules.Delivery.Entities.Driver driver,
+        string documentNameAr,
+        string documentNameEn,
+        string data,
+        CancellationToken cancellationToken)
+    {
+        var titleAr = $"تمت الموافقة على {documentNameAr}";
+        var titleEn = $"{documentNameEn} approved";
+        var bodyAr = $"تمت مراجعة {documentNameAr} والموافقة عليه. يمكنك متابعة حالة حسابك من التطبيق.";
+        var bodyEn = $"Your {documentNameEn.ToLowerInvariant()} was reviewed and approved. You can track your account status in the app.";
+
+        try
+        {
+            await _notificationService.SendToUserAsync(
+                driver.UserId,
+                new NotificationDispatchRequest(
+                    titleAr,
+                    titleEn,
+                    bodyAr,
+                    bodyEn,
+                    NotificationTypes.DriverAccountUpdated,
+                    NotificationCategories.Account,
+                    NotificationPriorities.High,
+                    driver.Id,
+                    data),
+                cancellationToken);
+        }
+        catch (Exception ex)
+        {
+            _logger.LogWarning(ex, "Driver document approval inbox notification failed for driver {DriverId}", driver.Id);
+        }
+
+        try
+        {
+            await _notificationService.SendDriverHomeUpdatedAsync(driver.UserId, cancellationToken);
+        }
+        catch (Exception ex)
+        {
+            _logger.LogWarning(ex, "Driver home refresh notification failed after approving document for driver {DriverId}", driver.Id);
+        }
+
+        try
+        {
+            await _oneSignalPushService.SendMobileNotificationAsync(
+                OneSignalMobilePushRequest.CreateStandard(
+                    driver.UserId.ToString(),
+                    titleAr,
+                    titleEn,
+                    bodyAr,
+                    bodyEn,
+                    NotificationTypes.DriverAccountUpdated,
+                    driver.Id,
+                    data,
+                    targetUrl: "/account-status",
+                    category: NotificationCategories.Account,
+                    targetApplication: OneSignalApplicationTarget.Driver),
+                cancellationToken);
+        }
+        catch (Exception ex)
+        {
+            _logger.LogWarning(ex, "Driver document approval push notification failed for driver {DriverId}", driver.Id);
+        }
+    }
+
     private static string GetDocumentNameAr(DriverDocumentType type) =>
         type switch
         {
-            DriverDocumentType.NationalId => "البطاقة الشخصية",
+            DriverDocumentType.NationalId => "الهوية الوطنية",
             DriverDocumentType.DriverLicense => "رخصة القيادة",
             DriverDocumentType.VehicleLicense => "رخصة المركبة",
             _ => "المستند"

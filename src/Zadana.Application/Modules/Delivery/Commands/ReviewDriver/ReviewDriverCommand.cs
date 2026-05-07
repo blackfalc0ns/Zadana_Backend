@@ -1,11 +1,13 @@
 using FluentValidation;
 using MediatR;
+using Microsoft.EntityFrameworkCore;
 using Microsoft.Extensions.Localization;
+using Microsoft.Extensions.Logging;
 using Zadana.Application.Common.Interfaces;
 using Zadana.Application.Common.Localization;
+using Zadana.Application.Modules.Delivery.DTOs;
 using Zadana.Application.Modules.Delivery.Interfaces;
 using Zadana.Application.Modules.Delivery.Support;
-using Zadana.Application.Modules.Delivery.DTOs;
 using Zadana.Domain.Modules.Social.Enums;
 using Zadana.SharedKernel.Exceptions;
 
@@ -13,7 +15,7 @@ namespace Zadana.Application.Modules.Delivery.Commands.ReviewDriver;
 
 public record ReviewDriverCommand(
     Guid DriverId,
-    string Action, // "approve" | "request-docs" | "reject"
+    string Action,
     string? Note,
     Guid ReviewerUserId) : IRequest;
 
@@ -38,20 +40,31 @@ public class ReviewDriverCommandHandler : IRequestHandler<ReviewDriverCommand>
     private readonly IUnitOfWork _unitOfWork;
     private readonly INotificationService _notificationService;
     private readonly IOneSignalPushService _oneSignalPushService;
+    private readonly ILogger<ReviewDriverCommandHandler> _logger;
 
     public ReviewDriverCommandHandler(
         IDriverRepository driverRepository,
         IUnitOfWork unitOfWork,
         INotificationService notificationService,
-        IOneSignalPushService oneSignalPushService)
+        IOneSignalPushService oneSignalPushService,
+        ILogger<ReviewDriverCommandHandler> logger)
     {
         _driverRepository = driverRepository;
         _unitOfWork = unitOfWork;
         _notificationService = notificationService;
         _oneSignalPushService = oneSignalPushService;
+        _logger = logger;
     }
 
     public async Task Handle(ReviewDriverCommand request, CancellationToken cancellationToken)
+    {
+        await ApplyReviewAsync(request, cancellationToken, allowRetry: true);
+    }
+
+    private async Task ApplyReviewAsync(
+        ReviewDriverCommand request,
+        CancellationToken cancellationToken,
+        bool allowRetry)
     {
         var driver = await _driverRepository.GetByIdWithReviewsAsync(request.DriverId, cancellationToken)
             ?? throw new NotFoundException("Driver", request.DriverId);
@@ -74,7 +87,19 @@ public class ReviewDriverCommandHandler : IRequestHandler<ReviewDriverCommand>
                 break;
         }
 
-        await _unitOfWork.SaveChangesAsync(cancellationToken);
+        DetachDriverUserIfTracked(driver);
+
+        try
+        {
+            await _unitOfWork.SaveChangesAsync(cancellationToken);
+        }
+        catch (DbUpdateConcurrencyException ex) when (allowRetry && _unitOfWork is DbContext efContext)
+        {
+            _logger.LogWarning(ex, "Driver review hit a concurrency conflict for driver {DriverId}. Retrying once.", request.DriverId);
+            efContext.ChangeTracker.Clear();
+            await ApplyReviewAsync(request, cancellationToken, allowRetry: false);
+            return;
+        }
 
         var (eventName, titleAr, titleEn, bodyAr, bodyEn) = request.Action.ToLowerInvariant() switch
         {
@@ -109,34 +134,82 @@ public class ReviewDriverCommandHandler : IRequestHandler<ReviewDriverCommand>
                 note = request.Note
             });
 
-        await _notificationService.SendToUserAsync(
-            driver.UserId,
-            new NotificationDispatchRequest(
-                titleAr,
-                titleEn,
-                bodyAr,
-                bodyEn,
-                NotificationTypes.DriverAccountUpdated,
-                NotificationCategories.Account,
-                NotificationPriorities.High,
-                driver.Id,
-                data),
-            cancellationToken);
+        await NotifyDriverAsync(driver.UserId, driver.Id, titleAr, titleEn, bodyAr, bodyEn, data, cancellationToken);
+    }
 
-        await _notificationService.SendDriverHomeUpdatedAsync(driver.UserId, cancellationToken);
+    private async Task NotifyDriverAsync(
+        Guid driverUserId,
+        Guid driverId,
+        string titleAr,
+        string titleEn,
+        string bodyAr,
+        string bodyEn,
+        string data,
+        CancellationToken cancellationToken)
+    {
+        try
+        {
+            await _notificationService.SendToUserAsync(
+                driverUserId,
+                new NotificationDispatchRequest(
+                    titleAr,
+                    titleEn,
+                    bodyAr,
+                    bodyEn,
+                    NotificationTypes.DriverAccountUpdated,
+                    NotificationCategories.Account,
+                    NotificationPriorities.High,
+                    driverId,
+                    data),
+                cancellationToken);
+        }
+        catch (Exception ex)
+        {
+            _logger.LogWarning(ex, "Driver review inbox notification failed for driver {DriverId}", driverId);
+        }
 
-        await _oneSignalPushService.SendMobileNotificationAsync(
-            OneSignalMobilePushRequest.CreateStandard(
-                driver.UserId.ToString(),
-                titleAr,
-                titleEn,
-                bodyAr,
-                bodyEn,
-                NotificationTypes.DriverAccountUpdated,
-                driver.Id,
-                data,
-                category: NotificationCategories.Account,
-                targetApplication: OneSignalApplicationTarget.Driver),
-            cancellationToken);
+        try
+        {
+            await _notificationService.SendDriverHomeUpdatedAsync(driverUserId, cancellationToken);
+        }
+        catch (Exception ex)
+        {
+            _logger.LogWarning(ex, "Driver home refresh notification failed after review action for driver {DriverId}", driverId);
+        }
+
+        try
+        {
+            await _oneSignalPushService.SendMobileNotificationAsync(
+                OneSignalMobilePushRequest.CreateStandard(
+                    driverUserId.ToString(),
+                    titleAr,
+                    titleEn,
+                    bodyAr,
+                    bodyEn,
+                    NotificationTypes.DriverAccountUpdated,
+                    driverId,
+                    data,
+                    category: NotificationCategories.Account,
+                    targetApplication: OneSignalApplicationTarget.Driver),
+                cancellationToken);
+        }
+        catch (Exception ex)
+        {
+            _logger.LogWarning(ex, "Driver review push notification failed for driver {DriverId}", driverId);
+        }
+    }
+
+    private void DetachDriverUserIfTracked(Domain.Modules.Delivery.Entities.Driver driver)
+    {
+        if (_unitOfWork is not DbContext efContext || driver.User is null)
+        {
+            return;
+        }
+
+        var userEntry = efContext.Entry(driver.User);
+        if (userEntry.State != EntityState.Detached)
+        {
+            userEntry.State = EntityState.Detached;
+        }
     }
 }

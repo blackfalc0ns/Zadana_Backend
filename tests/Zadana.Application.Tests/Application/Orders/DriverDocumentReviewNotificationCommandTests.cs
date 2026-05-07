@@ -1,4 +1,5 @@
 using FluentAssertions;
+using Microsoft.Extensions.Logging.Abstractions;
 using Moq;
 using Zadana.Application.Common.Interfaces;
 using Zadana.Application.Modules.Delivery.Commands.ApproveDriverDocumentReview;
@@ -42,7 +43,8 @@ public class DriverDocumentReviewNotificationCommandTests
             _currentUserServiceMock.Object,
             _identityAccountServiceMock.Object,
             _notificationServiceMock.Object,
-            _oneSignalPushServiceMock.Object);
+            _oneSignalPushServiceMock.Object,
+            NullLogger<ApproveDriverDocumentReviewCommandHandler>.Instance);
 
         await handler.Handle(
             new ApproveDriverDocumentReviewCommand(driver.Id, DriverDocumentType.DriverLicense.ToString()),
@@ -94,7 +96,8 @@ public class DriverDocumentReviewNotificationCommandTests
             _currentUserServiceMock.Object,
             _identityAccountServiceMock.Object,
             _notificationServiceMock.Object,
-            _oneSignalPushServiceMock.Object);
+            _oneSignalPushServiceMock.Object,
+            NullLogger<RejectDriverDocumentReviewCommandHandler>.Instance);
 
         await handler.Handle(
             new RejectDriverDocumentReviewCommand(
@@ -134,6 +137,55 @@ public class DriverDocumentReviewNotificationCommandTests
             item.Type == DriverDocumentType.VehicleLicense &&
             item.Decision == DriverDocumentReviewDecision.Rejected &&
             item.RejectionReason == "Expiry date image is unclear");
+    }
+
+    [Fact]
+    public async Task ApproveDocument_ShouldPersistApprovalEvenWhenNotificationsFail()
+    {
+        var reviewerId = Guid.NewGuid();
+        var driver = CreateDriver();
+        ConfigureActor(reviewerId);
+        _driverRepositoryMock
+            .Setup(repository => repository.GetByIdWithReviewsAsync(driver.Id, It.IsAny<CancellationToken>()))
+            .ReturnsAsync(driver);
+        _dbContextMock
+            .Setup(context => context.SaveChangesAsync(It.IsAny<CancellationToken>()))
+            .ReturnsAsync(1);
+        _notificationServiceMock
+            .Setup(service => service.SendToUserAsync(
+                It.IsAny<Guid>(),
+                It.IsAny<NotificationDispatchRequest>(),
+                It.IsAny<CancellationToken>()))
+            .ThrowsAsync(new InvalidOperationException("Inbox notification failed"));
+        _notificationServiceMock
+            .Setup(service => service.SendDriverHomeUpdatedAsync(
+                It.IsAny<Guid>(),
+                It.IsAny<CancellationToken>()))
+            .ThrowsAsync(new InvalidOperationException("Home update failed"));
+        _oneSignalPushServiceMock
+            .Setup(service => service.SendMobileNotificationAsync(
+                It.IsAny<OneSignalMobilePushRequest>(),
+                It.IsAny<CancellationToken>()))
+            .ThrowsAsync(new InvalidOperationException("Push failed"));
+
+        var handler = new ApproveDriverDocumentReviewCommandHandler(
+            _driverRepositoryMock.Object,
+            _dbContextMock.Object,
+            _currentUserServiceMock.Object,
+            _identityAccountServiceMock.Object,
+            _notificationServiceMock.Object,
+            _oneSignalPushServiceMock.Object,
+            NullLogger<ApproveDriverDocumentReviewCommandHandler>.Instance);
+
+        var act = () => handler.Handle(
+            new ApproveDriverDocumentReviewCommand(driver.Id, DriverDocumentType.DriverLicense.ToString()),
+            CancellationToken.None);
+
+        await act.Should().NotThrowAsync();
+
+        driver.DocumentReviews.Should().ContainSingle(item =>
+            item.Type == DriverDocumentType.DriverLicense &&
+            item.Decision == DriverDocumentReviewDecision.Approved);
     }
 
     private void ConfigureActor(Guid reviewerId)

@@ -231,7 +231,7 @@ public class AdminDriversController : ApiControllerBase
             ?? throw new UnauthorizedException("ADMIN_NOT_AUTHENTICATED");
 
         await Sender.Send(new ReviewDriverCommand(id, request.Action, request.Note, userId), cancellationToken);
-        return Ok(new { message = "Driver review action applied successfully" });
+        return Ok(new { message = "Driver review action applied successfully", messageAr = "تم تنفيذ إجراء مراجعة المندوب بنجاح" });
     }
 
     [HttpPost("{id:guid}/documents/{documentId}/approve")]
@@ -241,7 +241,7 @@ public class AdminDriversController : ApiControllerBase
         CancellationToken cancellationToken = default)
     {
         await Sender.Send(new ApproveDriverDocumentReviewCommand(id, documentId), cancellationToken);
-        return Ok(new { message = "Driver document approved successfully" });
+        return Ok(new { message = "Driver document approved successfully", messageAr = "تمت الموافقة على مستند المندوب بنجاح" });
     }
 
     [HttpPost("{id:guid}/documents/{documentId}/reject")]
@@ -252,7 +252,7 @@ public class AdminDriversController : ApiControllerBase
         CancellationToken cancellationToken = default)
     {
         await Sender.Send(new RejectDriverDocumentReviewCommand(id, documentId, request.Reason), cancellationToken);
-        return Ok(new { message = "Driver document rejected successfully" });
+        return Ok(new { message = "Driver document rejected successfully", messageAr = "تم رفض مستند المندوب بنجاح" });
     }
 
     [HttpPost("{id:guid}/suspend")]
