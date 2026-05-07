@@ -43,6 +43,17 @@ public sealed class AccessAuthorizationConvention : IApplicationModelConvention
                 [PermissionKeys.Admin.DriversView],
                 edit: [PermissionKeys.Admin.DriversEdit],
                 approve: [PermissionKeys.Admin.DriversApprove]),
+            ["AdminEmailCenter"] = new(
+                [PermissionKeys.Admin.EmailCenterView],
+                edit: [PermissionKeys.Admin.EmailCenterEdit],
+                overrides: new Dictionary<string, string[]>(StringComparer.Ordinal)
+                {
+                    ["GetOverview"] = [PermissionKeys.Admin.EmailCenterView],
+                    ["GetDispatches"] = [PermissionKeys.Admin.EmailCenterView],
+                    ["ResolveRecipients"] = [PermissionKeys.Admin.EmailCenterView],
+                    ["UpdateRule"] = [PermissionKeys.Admin.EmailCenterEdit],
+                    ["TestSend"] = [PermissionKeys.Admin.EmailCenterEdit]
+                }),
             ["AdminFinances"] = new(
                 [PermissionKeys.Admin.FinancesView],
                 edit: [PermissionKeys.Admin.FinancesEdit],

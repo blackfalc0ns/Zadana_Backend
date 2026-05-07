@@ -2,9 +2,8 @@ using System.ComponentModel.DataAnnotations;
 using Microsoft.Extensions.Logging;
 using Microsoft.Extensions.Options;
 using System.Net.Http.Json;
+using System.Text.Json;
 using Zadana.Application.Common.Interfaces;
-using Zadana.SharedKernel.Exceptions;
-
 namespace Zadana.Infrastructure.Email;
 
 public class ResendEmailSettings
@@ -32,41 +31,76 @@ public class ResendEmailService : IEmailService
         _logger = logger;
     }
 
-    public async Task SendEmailAsync(string to, string subject, string body, CancellationToken cancellationToken = default)
+    public async Task<EmailSendResult> SendEmailAsync(SendEmailRequest emailRequest, CancellationToken cancellationToken = default)
     {
         try
         {
-            var from = string.IsNullOrWhiteSpace(_settings.FromName) 
-                ? _settings.FromEmail 
-                : $"{_settings.FromName} <{_settings.FromEmail}>";
+            var fromName = ExtractDisplayName(emailRequest.From) ?? _settings.FromName;
+            var from = string.IsNullOrWhiteSpace(fromName)
+                ? _settings.FromEmail
+                : $"{fromName} <{_settings.FromEmail}>";
 
             var requestBody = new
             {
                 from = from,
-                to = new[] { to },
-                subject = subject,
-                html = body
+                to = emailRequest.To,
+                cc = emailRequest.Cc,
+                bcc = emailRequest.Bcc,
+                reply_to = string.IsNullOrWhiteSpace(emailRequest.ReplyTo) ? null : emailRequest.ReplyTo.Trim(),
+                subject = emailRequest.Subject,
+                html = emailRequest.HtmlBody,
+                headers = emailRequest.Metadata is { Count: > 0 }
+                    ? emailRequest.Metadata.ToDictionary(
+                        item => $"X-Zadana-{item.Key}",
+                        item => item.Value,
+                        StringComparer.OrdinalIgnoreCase)
+                    : null
             };
 
-            var request = new HttpRequestMessage(HttpMethod.Post, "https://api.resend.com/emails");
-            request.Headers.Authorization = new System.Net.Http.Headers.AuthenticationHeaderValue("Bearer", _settings.ApiKey);
-            request.Content = JsonContent.Create(requestBody);
+            var httpRequest = new HttpRequestMessage(HttpMethod.Post, "https://api.resend.com/emails");
+            httpRequest.Headers.Authorization = new System.Net.Http.Headers.AuthenticationHeaderValue("Bearer", _settings.ApiKey);
+            httpRequest.Content = JsonContent.Create(requestBody);
 
-            var response = await _httpClient.SendAsync(request, cancellationToken);
+            var response = await _httpClient.SendAsync(httpRequest, cancellationToken);
 
             if (!response.IsSuccessStatusCode)
             {
                 var errorContent = await response.Content.ReadAsStringAsync(cancellationToken);
                 _logger.LogError("Resend API failed with status {Status}. Error: {Error}", response.StatusCode, errorContent);
-                throw new ExternalServiceException("RESEND_API_ERROR", $"Resend email delivery failed. Provider response: {errorContent}");
+                return new EmailSendResult("resend", false, null, errorContent);
             }
 
-            _logger.LogInformation("Email sent successfully to {Email}", to);
+            string? providerMessageId = null;
+            await using (var stream = await response.Content.ReadAsStreamAsync(cancellationToken))
+            {
+                var payload = await JsonSerializer.DeserializeAsync<ResendEmailResponse>(stream, cancellationToken: cancellationToken);
+                providerMessageId = payload?.Id;
+            }
+
+            _logger.LogInformation("Email sent successfully to {Recipients}", string.Join(", ", emailRequest.To));
+            return new EmailSendResult("resend", true, providerMessageId, null);
         }
         catch (Exception ex)
         {
-            _logger.LogError(ex, "Exception while sending email via Resend to {Email}", to);
-            throw;
+            _logger.LogError(ex, "Exception while sending email via Resend to {Recipients}", string.Join(", ", emailRequest.To));
+            return new EmailSendResult("resend", false, null, ex.Message);
         }
+    }
+
+    private static string? ExtractDisplayName(string? from)
+    {
+        if (string.IsNullOrWhiteSpace(from))
+        {
+            return null;
+        }
+
+        var normalized = from.Trim();
+        var markerIndex = normalized.IndexOf('<');
+        return markerIndex > 0 ? normalized[..markerIndex].Trim().Trim('"') : null;
+    }
+
+    private sealed class ResendEmailResponse
+    {
+        public string? Id { get; set; }
     }
 }

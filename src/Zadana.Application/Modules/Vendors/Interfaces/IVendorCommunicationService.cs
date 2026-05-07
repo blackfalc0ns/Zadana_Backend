@@ -21,7 +21,9 @@ public sealed record VendorCommunicationMessage(
     bool SendInbox = true,
     bool SendPush = false,
     bool SendEmail = true,
-    string? Data = null);
+    string? Data = null,
+    string? EmailEventKey = null,
+    IReadOnlyDictionary<string, string>? TemplateVariables = null);
 
 public sealed record VendorCommunicationDispatchResult(
     bool InboxRequested,

@@ -19,6 +19,11 @@ public static class FileUploadSecurityPolicy
             [NormalizeDirectory("uploads/vendors/commercial-register")] = Create("uploads/vendors/commercial-register", allowAnonymous: true),
             [NormalizeDirectory("uploads/vendors/tax-certificates")] = Create("uploads/vendors/tax-certificates", allowAnonymous: true),
             [NormalizeDirectory("uploads/vendors/licenses")] = Create("uploads/vendors/licenses", allowAnonymous: true),
+            [NormalizeDirectory("drivers/national-id")] = Create("drivers/national-id", allowAnonymous: true),
+            [NormalizeDirectory("drivers/license")] = Create("drivers/license", allowAnonymous: true),
+            [NormalizeDirectory("drivers/vehicle")] = Create("drivers/vehicle", allowAnonymous: true),
+            [NormalizeDirectory("drivers/profile")] = Create("drivers/profile", allowAnonymous: true),
+            [NormalizeDirectory("drivers/proofs")] = Create("drivers/proofs", allowAnonymous: false, UserRole.Driver),
             [NormalizeDirectory("uploads/catalog/brand-requests")] = Create("uploads/catalog/brand-requests", allowAnonymous: false, UserRole.Vendor, UserRole.VendorStaff),
             [NormalizeDirectory("uploads/catalog/category-requests")] = Create("uploads/catalog/category-requests", allowAnonymous: false, UserRole.Vendor, UserRole.VendorStaff)
         };

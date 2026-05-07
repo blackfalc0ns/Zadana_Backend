@@ -57,9 +57,9 @@ public class ZadanaWebFactory : WebApplicationFactory<Program>
 
     private class MockEmailService : IEmailService
     {
-        public Task SendEmailAsync(string to, string subject, string body, CancellationToken cancellationToken = default)
+        public Task<EmailSendResult> SendEmailAsync(SendEmailRequest request, CancellationToken cancellationToken = default)
         {
-            return Task.CompletedTask;
+            return Task.FromResult(new EmailSendResult("mock", true, Guid.NewGuid().ToString("N"), null));
         }
     }
 

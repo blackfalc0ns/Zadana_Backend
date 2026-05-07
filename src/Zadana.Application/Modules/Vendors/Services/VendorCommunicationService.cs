@@ -1,6 +1,7 @@
 using System.Text.Json;
 using Microsoft.Extensions.Logging;
 using Zadana.Application.Common.Interfaces;
+using Zadana.Application.Modules.EmailCenter.Interfaces;
 using Zadana.Application.Modules.Vendors.Interfaces;
 using Zadana.Domain.Modules.Vendors.Entities;
 
@@ -10,18 +11,18 @@ public sealed class VendorCommunicationService : IVendorCommunicationService
 {
     private readonly INotificationService _notificationService;
     private readonly IOneSignalPushService _oneSignalPushService;
-    private readonly IEmailService _emailService;
+    private readonly IEmailCenterService _emailCenterService;
     private readonly ILogger<VendorCommunicationService> _logger;
 
     public VendorCommunicationService(
         INotificationService notificationService,
         IOneSignalPushService oneSignalPushService,
-        IEmailService emailService,
+        IEmailCenterService emailCenterService,
         ILogger<VendorCommunicationService> logger)
     {
         _notificationService = notificationService;
         _oneSignalPushService = oneSignalPushService;
-        _emailService = emailService;
+        _emailCenterService = emailCenterService;
         _logger = logger;
     }
 
@@ -97,33 +98,17 @@ public sealed class VendorCommunicationService : IVendorCommunicationService
             return (false, false, true, "Vendor email notifications are disabled.");
         }
 
-        var to = ResolveVendorEmail(vendor);
-        if (string.IsNullOrWhiteSpace(to))
-        {
-            return (false, false, true, "Vendor has no email address for lifecycle communication.");
-        }
-
         try
         {
-            await _emailService.SendEmailAsync(
-                to,
-                message.TitleEn,
-                BuildEmailBody(vendor, message),
-                cancellationToken);
-
-            return (true, true, false, null);
+            var result = await _emailCenterService.DispatchVendorEmailAsync(vendor, message, cancellationToken);
+            return (result.Attempted, result.Sent, result.Skipped, result.Reason);
         }
         catch (Exception ex)
         {
-            _logger.LogError(ex, "Failed to send vendor lifecycle email to {Email} for vendor {VendorId}", to, vendor.Id);
+            _logger.LogError(ex, "Failed to send vendor lifecycle email for vendor {VendorId}", vendor.Id);
             return (true, false, false, ex.Message);
         }
     }
-
-    private static string ResolveVendorEmail(Vendor vendor) =>
-        !string.IsNullOrWhiteSpace(vendor.OwnerEmail)
-            ? vendor.OwnerEmail!
-            : vendor.ContactEmail;
 
     private static string BuildData(Vendor vendor, VendorCommunicationMessage message)
     {
@@ -140,30 +125,5 @@ public sealed class VendorCommunicationService : IVendorCommunicationService
             source = "vendor_lifecycle",
             generatedAtUtc = DateTime.UtcNow
         });
-    }
-
-    private static string BuildEmailBody(Vendor vendor, VendorCommunicationMessage message)
-    {
-        var vendorName = string.IsNullOrWhiteSpace(vendor.BusinessNameEn)
-            ? vendor.BusinessNameAr
-            : vendor.BusinessNameEn;
-
-        return $"""
-            <div style="font-family:Arial,sans-serif;line-height:1.7;color:#0f172a">
-              <h2 style="margin:0 0 12px;color:#0f766e">{message.TitleEn}</h2>
-              <p>Hello {vendorName},</p>
-              <p>{message.BodyEn}</p>
-              <hr style="border:none;border-top:1px solid #e2e8f0;margin:20px 0" />
-              <div dir="rtl" style="font-family:Tahoma,Arial,sans-serif">
-                <h3 style="margin:0 0 8px;color:#0f766e">{message.TitleAr}</h3>
-                <p>{message.BodyAr}</p>
-              </div>
-              <p style="margin-top:20px">
-                <a href="{message.TargetUrl}" style="display:inline-block;background:#0f766e;color:#fff;text-decoration:none;padding:10px 16px;border-radius:12px">
-                  Open vendor panel
-                </a>
-              </p>
-            </div>
-            """;
     }
 }

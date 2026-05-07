@@ -1,33 +1,41 @@
 using FluentAssertions;
-using Moq;
 using Microsoft.Extensions.Localization;
-using Zadana.Application.Common.Interfaces;
+using Moq;
 using Zadana.Application.Common.Localization;
+using Zadana.Application.Common.Interfaces;
 using Zadana.Application.Modules.Identity.Commands.ForgotPassword;
-using Zadana.Domain.Modules.Identity.Entities;
-using Zadana.Domain.Modules.Identity.Interfaces;
+using Zadana.Application.Modules.Identity.DTOs;
+using Zadana.Application.Modules.Identity.Interfaces;
+using Zadana.Domain.Modules.Identity.Enums;
 
 namespace Zadana.Application.Tests.Application.Identity;
 
-/// <summary>
-/// Unit tests for ForgotPasswordCommandHandler.
-/// </summary>
 public class ForgotPasswordCommandHandlerTests
 {
-    private readonly Mock<IUserRepository> _userRepositoryMock = new();
-    private readonly Mock<IUnitOfWork> _unitOfWorkMock = new();
+    private readonly Mock<IIdentityAccountService> _identityAccountServiceMock = new();
     private readonly Mock<IOtpService> _otpServiceMock = new();
-    private readonly Mock<IEmailService> _emailServiceMock = new();
     private readonly Mock<IStringLocalizer<SharedResource>> _localizerMock = new();
 
     private ForgotPasswordCommandHandler CreateHandler() =>
         new(
-            _userRepositoryMock.Object,
-            _unitOfWorkMock.Object,
+            _identityAccountServiceMock.Object,
             _otpServiceMock.Object,
-            _emailServiceMock.Object,
-            _localizerMock.Object
-        );
+            _localizerMock.Object);
+
+    private static IdentityAccountSnapshot BuildAccount(string? email, string? phoneNumber) =>
+        new(
+            Guid.NewGuid(),
+            "Test User",
+            email,
+            phoneNumber,
+            UserRole.Customer,
+            1,
+            AccountStatus.Active,
+            false,
+            null,
+            null,
+            true,
+            true);
 
     private void SetupLocalizer()
     {
@@ -37,83 +45,82 @@ public class ForgotPasswordCommandHandlerTests
             .Returns((string key, object[] args) => new LocalizedString(key, string.Format(key, args)));
     }
 
-    // ─── User Not Found (silent return) ────────────────────────────────────
-
     [Fact]
     public async Task Handle_WhenUserNotFound_ShouldReturnSilently()
     {
-        // Arrange — prevents email enumeration
         SetupLocalizer();
-        _userRepositoryMock
-            .Setup(r => r.GetByIdentifierAsync(It.IsAny<string>(), It.IsAny<CancellationToken>()))
-            .ReturnsAsync((User?)null);
+        _identityAccountServiceMock
+            .Setup(service => service.GeneratePasswordResetOtpAsync("unknown@test.com", It.IsAny<CancellationToken>()))
+            .ReturnsAsync(new OtpDispatchResult(OtpDispatchStatus.UserNotFound));
 
-        var command = new ForgotPasswordCommand("unknown@test.com");
         var handler = CreateHandler();
 
-        // Act — should not throw
-        await handler.Handle(command, CancellationToken.None);
+        await handler.Handle(new ForgotPasswordCommand("unknown@test.com"), CancellationToken.None);
 
-        // Assert — OTP and email should NOT be sent
         _otpServiceMock.Verify(
-            o => o.SendOtpSmsAsync(It.IsAny<string>(), It.IsAny<string>(), It.IsAny<CancellationToken>()),
+            service => service.SendOtpSmsAsync(It.IsAny<string>(), It.IsAny<string>(), It.IsAny<CancellationToken>()),
             Times.Never);
-        _emailServiceMock.Verify(
-            e => e.SendEmailAsync(It.IsAny<string>(), It.IsAny<string>(), It.IsAny<string>(), It.IsAny<CancellationToken>()),
+        _otpServiceMock.Verify(
+            service => service.SendOtpEmailAsync(It.IsAny<string>(), It.IsAny<string>(), It.IsAny<CancellationToken>()),
             Times.Never);
     }
 
-    // ─── User Found → Send OTP via SMS ─────────────────────────────────────
-
     [Fact]
-    public async Task Handle_WhenUserFound_ShouldSendOtpViaSmsAndSave()
+    public async Task Handle_WhenUserHasPhone_ShouldSendSmsAndNotEmail()
     {
-        // Arrange
         SetupLocalizer();
-        var user = new User("Test", "test@zadana.com", "01011111111", "hash",
-            Zadana.Domain.Modules.Identity.Enums.UserRole.Customer);
+        var account = BuildAccount(null, "01011111111");
 
-        _userRepositoryMock
-            .Setup(r => r.GetByIdentifierAsync("01011111111", It.IsAny<CancellationToken>()))
-            .ReturnsAsync(user);
+        _identityAccountServiceMock
+            .Setup(service => service.GeneratePasswordResetOtpAsync("01011111111", It.IsAny<CancellationToken>()))
+            .ReturnsAsync(new OtpDispatchResult(OtpDispatchStatus.Succeeded, account, "123456"));
 
-        var command = new ForgotPasswordCommand("01011111111");
         var handler = CreateHandler();
 
-        // Act
-        await handler.Handle(command, CancellationToken.None);
+        await handler.Handle(new ForgotPasswordCommand("01011111111"), CancellationToken.None);
 
-        // Assert
         _otpServiceMock.Verify(
-            o => o.SendOtpSmsAsync(user.Phone, It.IsAny<string>(), It.IsAny<CancellationToken>()),
+            service => service.SendOtpSmsAsync("01011111111", "123456", It.IsAny<CancellationToken>()),
             Times.Once);
-        _userRepositoryMock.Verify(r => r.Update(user), Times.Once);
-        _unitOfWorkMock.Verify(u => u.SaveChangesAsync(It.IsAny<CancellationToken>()), Times.Once);
+        _otpServiceMock.Verify(
+            service => service.SendOtpEmailAsync(It.IsAny<string>(), It.IsAny<string>(), It.IsAny<CancellationToken>()),
+            Times.Never);
     }
 
-    // ─── User with Email → Send both SMS and Email ─────────────────────────
-
     [Fact]
-    public async Task Handle_WhenUserHasEmail_ShouldSendEmailToo()
+    public async Task Handle_WhenUserHasEmailAndPhone_ShouldSendBothChannels()
     {
-        // Arrange
         SetupLocalizer();
-        var user = new User("Test", "user@zadana.com", "01022222222", "hash",
-            Zadana.Domain.Modules.Identity.Enums.UserRole.Customer);
+        var account = BuildAccount("user@zadana.com", "01022222222");
 
-        _userRepositoryMock
-            .Setup(r => r.GetByIdentifierAsync("user@zadana.com", It.IsAny<CancellationToken>()))
-            .ReturnsAsync(user);
+        _identityAccountServiceMock
+            .Setup(service => service.GeneratePasswordResetOtpAsync("user@zadana.com", It.IsAny<CancellationToken>()))
+            .ReturnsAsync(new OtpDispatchResult(OtpDispatchStatus.Succeeded, account, "654321"));
 
-        var command = new ForgotPasswordCommand("user@zadana.com");
         var handler = CreateHandler();
 
-        // Act
-        await handler.Handle(command, CancellationToken.None);
+        await handler.Handle(new ForgotPasswordCommand("user@zadana.com"), CancellationToken.None);
 
-        // Assert
-        _emailServiceMock.Verify(
-            e => e.SendEmailAsync(user.Email!, It.IsAny<string>(), It.IsAny<string>(), It.IsAny<CancellationToken>()),
+        _otpServiceMock.Verify(
+            service => service.SendOtpSmsAsync("01022222222", "654321", It.IsAny<CancellationToken>()),
             Times.Once);
+        _otpServiceMock.Verify(
+            service => service.SendOtpEmailAsync("user@zadana.com", "654321", It.IsAny<CancellationToken>()),
+            Times.Once);
+    }
+
+    [Fact]
+    public async Task Handle_WhenOtpGenerationFails_ShouldThrow()
+    {
+        SetupLocalizer();
+        _identityAccountServiceMock
+            .Setup(service => service.GeneratePasswordResetOtpAsync("blocked@test.com", It.IsAny<CancellationToken>()))
+            .ReturnsAsync(new OtpDispatchResult(OtpDispatchStatus.Failed, Errors: ["provider_error"]));
+
+        var handler = CreateHandler();
+
+        var action = () => handler.Handle(new ForgotPasswordCommand("blocked@test.com"), CancellationToken.None);
+
+        await action.Should().ThrowAsync<Exception>();
     }
 }

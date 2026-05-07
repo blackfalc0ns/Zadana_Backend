@@ -2,6 +2,7 @@ using Microsoft.Extensions.Logging;
 using Zadana.Application.Common.Interfaces;
 using Microsoft.Extensions.Localization;
 using Zadana.Application.Common.Localization;
+using Zadana.SharedKernel.Exceptions;
 
 namespace Zadana.Infrastructure.Services;
 
@@ -36,7 +37,20 @@ public class ResendOtpService : IOtpService
             };
             var body = await _templateService.RenderTemplateAsync("OtpEmail", placeholders);
 
-            await _emailService.SendEmailAsync(emailAddress, subject, body, cancellationToken);
+            var result = await _emailService.SendEmailAsync(
+                new SendEmailRequest(
+                    [emailAddress],
+                    subject,
+                    body),
+                cancellationToken);
+
+            if (!result.Success)
+            {
+                throw new ExternalServiceException(
+                    "RESEND_OTP_EMAIL_FAILED",
+                    result.FailureReason ?? "OTP email delivery failed.");
+            }
+
             _logger.LogInformation("Email OTP sent successfully to {Email}", emailAddress);
         }
         catch (Exception ex)

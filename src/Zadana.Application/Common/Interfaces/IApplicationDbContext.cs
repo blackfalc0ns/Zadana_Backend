@@ -98,6 +98,9 @@ public interface IApplicationDbContext
     DbSet<CouponVendor> CouponVendors { get; }
     DbSet<HomeBanner> HomeBanners { get; }
     DbSet<HomeContentSectionSetting> HomeContentSectionSettings { get; }
+    DbSet<EmailSenderProfileConfig> EmailSenderProfileConfigs { get; }
+    DbSet<EmailWorkflowRuleConfig> EmailWorkflowRuleConfigs { get; }
+    DbSet<EmailDispatchLog> EmailDispatchLogs { get; }
     DbSet<HomeSection> HomeSections { get; }
     DbSet<FeaturedProductPlacement> FeaturedProductPlacements { get; }
     DbSet<Review> Reviews { get; }

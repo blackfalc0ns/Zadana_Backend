@@ -113,6 +113,9 @@ public class ApplicationDbContext : IdentityDbContext<User, IdentityRole<Guid>, 
     public DbSet<CouponVendor> CouponVendors => Set<CouponVendor>();
     public DbSet<HomeBanner> HomeBanners => Set<HomeBanner>();
     public DbSet<HomeContentSectionSetting> HomeContentSectionSettings => Set<HomeContentSectionSetting>();
+    public DbSet<EmailSenderProfileConfig> EmailSenderProfileConfigs => Set<EmailSenderProfileConfig>();
+    public DbSet<EmailWorkflowRuleConfig> EmailWorkflowRuleConfigs => Set<EmailWorkflowRuleConfig>();
+    public DbSet<EmailDispatchLog> EmailDispatchLogs => Set<EmailDispatchLog>();
     public DbSet<HomeSection> HomeSections => Set<HomeSection>();
     public DbSet<FeaturedProductPlacement> FeaturedProductPlacements => Set<FeaturedProductPlacement>();
     public DbSet<Review> Reviews => Set<Review>();
