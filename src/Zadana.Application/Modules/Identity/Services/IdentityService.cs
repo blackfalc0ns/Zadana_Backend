@@ -3,6 +3,7 @@ using Zadana.Application.Common.Interfaces;
 using Zadana.Application.Modules.Delivery.DTOs;
 using Zadana.Application.Modules.Identity.DTOs;
 using Zadana.Application.Modules.Identity.Interfaces;
+using Zadana.Domain.Modules.Identity.Entities;
 using Zadana.Domain.Modules.Identity.Enums;
 using Zadana.SharedKernel.Exceptions;
 using Microsoft.Extensions.Localization;
@@ -76,6 +77,8 @@ public class IdentityService : IIdentityService
             throw new UnauthorizedException(_localizer["AccountLoginDenied", user.AccountStatus]);
         }
 
+        user = await EnsureDriverAccessScopeAsync(user, cancellationToken);
+
         var tokens = await _jwtTokenService.GenerateTokenPairAsync(user, cancellationToken);
 
         _refreshTokenStore.Add(new NewRefreshToken(
@@ -133,10 +136,14 @@ public class IdentityService : IIdentityService
             throw new UnauthorizedException(_localizer["UserAccountNotActive"]);
         }
 
-        var newTokens = await _jwtTokenService.GenerateTokenPairAsync(tokenEntity.User, cancellationToken);
+        var refreshedUser = tokenEntity.User.Role == UserRole.Driver
+            ? await EnsureDriverAccessScopeAsync(tokenEntity.User, cancellationToken)
+            : tokenEntity.User;
+
+        var newTokens = await _jwtTokenService.GenerateTokenPairAsync(refreshedUser, cancellationToken);
         await _refreshTokenStore.RevokeAsync(refreshToken, cancellationToken);
         _refreshTokenStore.Add(new NewRefreshToken(
-            tokenEntity.UserId,
+            refreshedUser.Id,
             newTokens.RefreshToken,
             DateTime.UtcNow.AddDays(7)
         ));
@@ -182,5 +189,94 @@ public class IdentityService : IIdentityService
         var favoritesCount = await _context.CustomerFavorites.CountAsync(x => x.UserId == user.Id, cancellationToken);
         var access = await _accessControlService.GetEffectiveAccessAsync(user.Id, cancellationToken);
         return new CurrentUserDto(user.Id, user.FullName, user.Email, user.PhoneNumber, user.Role.ToString(), favoritesCount, access);
+    }
+
+    private async Task<IdentityAccountSnapshot> EnsureDriverAccessScopeAsync(
+        IdentityAccountSnapshot account,
+        CancellationToken cancellationToken)
+    {
+        if (account.Role != UserRole.Driver)
+        {
+            return account;
+        }
+
+        var driverProjection = await _context.Drivers
+            .AsNoTracking()
+            .Where(driver => driver.UserId == account.Id)
+            .Select(driver => new { driver.Id })
+            .FirstOrDefaultAsync(cancellationToken);
+
+        if (driverProjection is null)
+        {
+            return account;
+        }
+
+        var driverRole = await _context.RoleDefinitions
+            .AsNoTracking()
+            .Where(role => role.Code == "driver_account" && role.IsActive)
+            .Select(role => new { role.Id })
+            .FirstOrDefaultAsync(cancellationToken);
+
+        if (driverRole is null)
+        {
+            return account;
+        }
+
+        var existingScope = await _context.UserAccessScopes
+            .FirstOrDefaultAsync(scope => scope.UserId == account.Id && scope.IsActive, cancellationToken);
+
+        var changed = false;
+
+        if (existingScope is null)
+        {
+            _context.UserAccessScopes.Add(new UserAccessScope(
+                account.Id,
+                driverRole.Id,
+                PanelScope.DriverApp,
+                AccessScopeType.DriverSelf,
+                driverProjection.Id));
+            changed = true;
+        }
+        else if (existingScope.RoleDefinitionId != driverRole.Id ||
+                 existingScope.PanelScope != PanelScope.DriverApp ||
+                 existingScope.ScopeType != AccessScopeType.DriverSelf ||
+                 existingScope.ScopeEntityId != driverProjection.Id)
+        {
+            existingScope.Update(
+                driverRole.Id,
+                PanelScope.DriverApp,
+                AccessScopeType.DriverSelf,
+                driverProjection.Id,
+                null);
+            changed = true;
+        }
+
+        if (!changed)
+        {
+            return account;
+        }
+
+        var userEntity = await _context.Users.FirstOrDefaultAsync(user => user.Id == account.Id, cancellationToken);
+        if (userEntity is null)
+        {
+            return account;
+        }
+
+        userEntity.IncrementPermissionVersion();
+        await _unitOfWork.SaveChangesAsync(cancellationToken);
+
+        return new IdentityAccountSnapshot(
+            userEntity.Id,
+            userEntity.FullName,
+            userEntity.Email,
+            userEntity.PhoneNumber,
+            userEntity.Role,
+            userEntity.PermissionVersion,
+            userEntity.AccountStatus,
+            userEntity.IsLoginLocked,
+            userEntity.LockedAtUtc,
+            userEntity.ArchivedAtUtc,
+            userEntity.EmailConfirmed,
+            userEntity.PhoneNumberConfirmed);
     }
 }

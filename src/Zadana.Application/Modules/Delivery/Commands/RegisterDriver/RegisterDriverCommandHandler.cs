@@ -5,6 +5,7 @@ using Zadana.Application.Modules.Delivery.DTOs;
 using Zadana.Application.Modules.Delivery.Interfaces;
 using Zadana.Application.Modules.Identity.DTOs;
 using Zadana.Application.Modules.Identity.Interfaces;
+using Zadana.Domain.Modules.Identity.Entities;
 using Zadana.Domain.Modules.Identity.Enums;
 using Zadana.Domain.Modules.Delivery.Entities;
 using Zadana.SharedKernel.Exceptions;
@@ -91,6 +92,10 @@ public class RegisterDriverCommandHandler : IRequestHandler<RegisterDriverComman
                 request.City);
 
             _driverRepository.Add(driver);
+            await _unitOfWork.SaveChangesAsync(cancellationToken);
+
+            user = await EnsureDriverAccessScopeAsync(user, driver.Id, cancellationToken);
+
             var authResponse = await _registrationWorkflow.BuildAuthResponseAsync(
                 user,
                 DriverOperationalStatusFactory.Create(driver),
@@ -104,5 +109,70 @@ public class RegisterDriverCommandHandler : IRequestHandler<RegisterDriverComman
             await _registrationWorkflow.CompensateAccountCreationFailureAsync(user.Id, cancellationToken);
             throw;
         }
+    }
+
+    private async Task<IdentityAccountSnapshot> EnsureDriverAccessScopeAsync(
+        IdentityAccountSnapshot account,
+        Guid driverId,
+        CancellationToken cancellationToken)
+    {
+        var driverRole = await _context.RoleDefinitions
+            .AsNoTracking()
+            .Where(role => role.Code == "driver_account" && role.IsActive)
+            .Select(role => new { role.Id })
+            .FirstOrDefaultAsync(cancellationToken);
+
+        if (driverRole is null)
+        {
+            return account;
+        }
+
+        var existingScope = await _context.UserAccessScopes
+            .FirstOrDefaultAsync(scope => scope.UserId == account.Id && scope.IsActive, cancellationToken);
+
+        var userEntity = await _context.Users.FirstOrDefaultAsync(user => user.Id == account.Id, cancellationToken)
+            ?? throw new NotFoundException("User", account.Id);
+
+        if (existingScope is null)
+        {
+            _context.UserAccessScopes.Add(new UserAccessScope(
+                account.Id,
+                driverRole.Id,
+                PanelScope.DriverApp,
+                AccessScopeType.DriverSelf,
+                driverId));
+
+            userEntity.IncrementPermissionVersion();
+            await _unitOfWork.SaveChangesAsync(cancellationToken);
+        }
+        else if (existingScope.RoleDefinitionId != driverRole.Id ||
+                 existingScope.PanelScope != PanelScope.DriverApp ||
+                 existingScope.ScopeType != AccessScopeType.DriverSelf ||
+                 existingScope.ScopeEntityId != driverId)
+        {
+            existingScope.Update(
+                driverRole.Id,
+                PanelScope.DriverApp,
+                AccessScopeType.DriverSelf,
+                driverId,
+                null);
+
+            userEntity.IncrementPermissionVersion();
+            await _unitOfWork.SaveChangesAsync(cancellationToken);
+        }
+
+        return new IdentityAccountSnapshot(
+            userEntity.Id,
+            userEntity.FullName,
+            userEntity.Email,
+            userEntity.PhoneNumber,
+            userEntity.Role,
+            userEntity.PermissionVersion,
+            userEntity.AccountStatus,
+            userEntity.IsLoginLocked,
+            userEntity.LockedAtUtc,
+            userEntity.ArchivedAtUtc,
+            userEntity.EmailConfirmed,
+            userEntity.PhoneNumberConfirmed);
     }
 }
