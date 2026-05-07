@@ -94,6 +94,7 @@ public class ApplicationDbContext : IdentityDbContext<User, IdentityRole<Guid>, 
     public DbSet<DeliveryPricingSurgeWindow> DeliveryPricingSurgeWindows => Set<DeliveryPricingSurgeWindow>();
     public DbSet<DriverNote> DriverNotes => Set<DriverNote>();
     public DbSet<DriverIncident> DriverIncidents => Set<DriverIncident>();
+    public DbSet<DriverDocumentReview> DriverDocumentReviews => Set<DriverDocumentReview>();
 
     // Wallets & Settlements
     public DbSet<Wallet> Wallets => Set<Wallet>();

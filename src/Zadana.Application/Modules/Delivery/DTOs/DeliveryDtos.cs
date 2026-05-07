@@ -231,6 +231,10 @@ public record AdminDriverDetailDto(
     DateTime? LastOfferResponseAtUtc,
     string? Address,
     string? LicenseNumber,
+    DateTime? NationalIdExpiryDate,
+    DateTime? DriverLicenseExpiryDate,
+    string? VehicleLicenseNumber,
+    DateTime? VehicleLicenseExpiryDate,
 
 
     // Review
@@ -267,8 +271,15 @@ public record AdminDriverDetailDto(
 public record AdminDriverDocumentDto(
     string DocumentType,
     string? ImageUrl,
+    string? SecondaryImageUrl,
+    string? Number,
+    DateTime? ExpiryDateUtc,
     string Status,
-    string? ExpiryInfo);
+    string? ExpiryInfo,
+    string? ReviewDecision,
+    string? RejectionReason,
+    DateTime? ReviewedAtUtc,
+    string? ReviewedByName);
 
 public record AdminDriverNoteDto(
     Guid Id,

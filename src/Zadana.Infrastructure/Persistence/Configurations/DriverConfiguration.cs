@@ -20,6 +20,7 @@ public class DriverConfiguration : IEntityTypeConfiguration<Driver>
             .HasMaxLength(100);
         builder.Property(x => x.NationalId).HasMaxLength(100);
         builder.Property(x => x.LicenseNumber).HasMaxLength(100);
+        builder.Property(x => x.VehicleLicenseNumber).HasMaxLength(100);
         builder.Property(x => x.Address).HasMaxLength(500);
         builder.Property(x => x.NationalIdFrontImageUrl).HasMaxLength(500);
         builder.Property(x => x.NationalIdBackImageUrl).HasMaxLength(500);
@@ -62,6 +63,11 @@ public class DriverConfiguration : IEntityTypeConfiguration<Driver>
             .OnDelete(DeleteBehavior.Cascade);
 
         builder.HasMany(x => x.Incidents)
+            .WithOne(x => x.Driver)
+            .HasForeignKey(x => x.DriverId)
+            .OnDelete(DeleteBehavior.Cascade);
+
+        builder.HasMany(x => x.DocumentReviews)
             .WithOne(x => x.Driver)
             .HasForeignKey(x => x.DriverId)
             .OnDelete(DeleteBehavior.Cascade);

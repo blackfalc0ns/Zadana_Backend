@@ -69,9 +69,14 @@ public class DriverOperationalStatusFactoryTests
             DriverVehicleType.Motorcycle,
             "29801011234567",
             "CAI-DRV-4421",
-            "Nasr City, Cairo",
-            "https://cdn.example.com/drivers/id.jpg",
-            "https://cdn.example.com/drivers/license.jpg",
-            "https://cdn.example.com/drivers/vehicle.jpg",
-            "https://cdn.example.com/drivers/photo.jpg");
+            nationalIdExpiryDate: DateTime.UtcNow.Date.AddYears(1),
+            driverLicenseExpiryDate: DateTime.UtcNow.Date.AddYears(1),
+            vehicleLicenseNumber: "VEH-4421",
+            vehicleLicenseExpiryDate: DateTime.UtcNow.Date.AddYears(1),
+            address: "Nasr City, Cairo",
+            nationalIdFrontImageUrl: "https://cdn.example.com/drivers/id-front.jpg",
+            nationalIdBackImageUrl: "https://cdn.example.com/drivers/id-back.jpg",
+            licenseImageUrl: "https://cdn.example.com/drivers/license.jpg",
+            vehicleImageUrl: "https://cdn.example.com/drivers/vehicle.jpg",
+            personalPhotoUrl: "https://cdn.example.com/drivers/photo.jpg");
 }

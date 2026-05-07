@@ -79,6 +79,7 @@ public interface IApplicationDbContext
     DbSet<DeliveryPricingSurgeWindow> DeliveryPricingSurgeWindows { get; }
     DbSet<DriverNote> DriverNotes { get; }
     DbSet<DriverIncident> DriverIncidents { get; }
+    DbSet<DriverDocumentReview> DriverDocumentReviews { get; }
 
     // Wallets & Settlements
     DbSet<Wallet> Wallets { get; }

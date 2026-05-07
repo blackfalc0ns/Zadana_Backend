@@ -32,4 +32,20 @@ public class DriverRepository : IDriverRepository
             .Include(d => d.User)
             .FirstOrDefaultAsync(d => d.UserId == userId, cancellationToken);
     }
+
+    public async Task<Driver?> GetByIdWithReviewsAsync(Guid id, CancellationToken cancellationToken = default)
+    {
+        return await _dbContext.Drivers
+            .Include(d => d.User)
+            .Include(d => d.DocumentReviews)
+            .FirstOrDefaultAsync(d => d.Id == id, cancellationToken);
+    }
+
+    public async Task<Driver?> GetByUserIdWithReviewsAsync(Guid userId, CancellationToken cancellationToken = default)
+    {
+        return await _dbContext.Drivers
+            .Include(d => d.User)
+            .Include(d => d.DocumentReviews)
+            .FirstOrDefaultAsync(d => d.UserId == userId, cancellationToken);
+    }
 }

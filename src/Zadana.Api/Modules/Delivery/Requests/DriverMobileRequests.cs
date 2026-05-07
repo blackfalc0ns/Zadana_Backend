@@ -12,6 +12,10 @@ public record UpdateDriverVehicleProfileRequest(
     string? VehicleType,
     string? NationalId,
     string? LicenseNumber,
+    DateTime? NationalIdExpiryDate,
+    DateTime? DriverLicenseExpiryDate,
+    string? VehicleLicenseNumber,
+    DateTime? VehicleLicenseExpiryDate,
     string? Region,
     string? City);
 

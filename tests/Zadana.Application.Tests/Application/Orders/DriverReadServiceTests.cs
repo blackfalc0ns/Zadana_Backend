@@ -25,7 +25,7 @@ public class DriverReadServiceTests
         await using var dbContext = CreateDbContext();
         var customer = CreateCustomer();
         var driverUser = new User("Driver Detail User", "driver.detail@test.com", "01000000055", UserRole.Driver);
-        var driver = new Driver(driverUser.Id, DriverVehicleType.Motorcycle, "12345678901234", "LIC-100", "Riyadh")
+        var driver = new Driver(driverUser.Id, DriverVehicleType.Motorcycle, "12345678901234", "LIC-100", address: "Riyadh")
         {
         };
         var vendor = CreateVendor();
@@ -68,7 +68,7 @@ public class DriverReadServiceTests
         await using var dbContext = CreateDbContext();
         var customer = CreateCustomer();
         var driverUser = new User("Driver Detail User", "driver.detail.ontheway@test.com", "01000000062", UserRole.Driver);
-        var driver = new Driver(driverUser.Id, DriverVehicleType.Motorcycle, "12345678901237", "LIC-103", "Riyadh");
+        var driver = new Driver(driverUser.Id, DriverVehicleType.Motorcycle, "12345678901237", "LIC-103", address: "Riyadh");
         var vendor = CreateVendor();
         var branch = CreateBranch(vendor.Id);
         var address = CreateCustomerAddress(customer.Id);
@@ -109,7 +109,7 @@ public class DriverReadServiceTests
         await using var dbContext = CreateDbContext();
         var customer = CreateCustomer();
         var driverUser = new User("Driver Completed User", "driver.completed@test.com", "01000000056", UserRole.Driver);
-        var driver = new Driver(driverUser.Id, DriverVehicleType.Car, "12345678901235", "LIC-101", "Riyadh");
+        var driver = new Driver(driverUser.Id, DriverVehicleType.Car, "12345678901235", "LIC-101", address: "Riyadh");
         var vendor = CreateVendor();
         var branch = CreateBranch(vendor.Id);
         var address = CreateCustomerAddress(customer.Id);
@@ -160,10 +160,11 @@ public class DriverReadServiceTests
 
         result.Should().NotBeNull();
         result!.IsProfileComplete.Should().BeFalse();
-        result.CompletionPercent.Should().Be(25);
+        result.CompletionPercent.Should().Be(0);
         result.MissingRequirements.Should().Contain("missing_personal_info");
+        result.MissingRequirements.Should().Contain("missing_vehicle_info");
         result.MissingRequirements.Should().Contain("missing_documents");
-        result.MissingRequirements.Should().Contain("missing_zone_selection");
+        result.MissingRequirements.Should().Contain("missing_region_city");
         result.CanSubmitForReview.Should().BeFalse();
     }
 
@@ -172,7 +173,7 @@ public class DriverReadServiceTests
     {
         await using var dbContext = CreateDbContext();
         var driverUser = new User("Driver Ops User", "driver.ops@test.com", "01000000071", UserRole.Driver);
-        var driver = new Driver(driverUser.Id, DriverVehicleType.Car, "12345678901239", "LIC-109", "Riyadh");
+        var driver = new Driver(driverUser.Id, DriverVehicleType.Car, "12345678901239", "LIC-109", address: "Riyadh");
         driver.Approve(Guid.NewGuid());
         driver.BlockLocationUpdates(Guid.NewGuid(), "manual ops hold");
 

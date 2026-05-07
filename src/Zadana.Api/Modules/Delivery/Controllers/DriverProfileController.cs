@@ -55,7 +55,7 @@ public class DriverProfileController : ApiControllerBase
                 string.Join(", ", updateResult.Errors ?? Array.Empty<string>()));
         }
 
-        var driver = await driverRepository.GetByUserIdAsync(userId, cancellationToken)
+        var driver = await driverRepository.GetByUserIdWithReviewsAsync(userId, cancellationToken)
             ?? throw new NotFoundException("Driver", userId);
 
         driver.UpdateAddress(request.Address);
@@ -79,7 +79,7 @@ public class DriverProfileController : ApiControllerBase
         CancellationToken cancellationToken = default)
     {
         var userId = currentUserService.UserId ?? throw new UnauthorizedException("DRIVER_NOT_AUTHENTICATED");
-        var driver = await driverRepository.GetByUserIdAsync(userId, cancellationToken)
+        var driver = await driverRepository.GetByUserIdWithReviewsAsync(userId, cancellationToken)
             ?? throw new NotFoundException("Driver", userId);
 
         DriverVehicleType? parsedVehicleType = null;
@@ -96,7 +96,15 @@ public class DriverProfileController : ApiControllerBase
         driver.UpdateDetails(
             parsedVehicleType,
             request.NationalId,
-            request.LicenseNumber);
+            request.LicenseNumber,
+            request.NationalIdExpiryDate,
+            request.DriverLicenseExpiryDate,
+            request.VehicleLicenseNumber,
+            request.VehicleLicenseExpiryDate);
+
+        ResetDocumentReviewIfReady(driver, DriverDocumentType.NationalId);
+        ResetDocumentReviewIfReady(driver, DriverDocumentType.DriverLicense);
+        ResetDocumentReviewIfReady(driver, DriverDocumentType.VehicleLicense);
 
 
         // Update geography (region/city) if provided
@@ -147,7 +155,7 @@ public class DriverProfileController : ApiControllerBase
         CancellationToken cancellationToken = default)
     {
         var userId = currentUserService.UserId ?? throw new UnauthorizedException("DRIVER_NOT_AUTHENTICATED");
-        var driver = await driverRepository.GetByUserIdAsync(userId, cancellationToken)
+        var driver = await driverRepository.GetByUserIdWithReviewsAsync(userId, cancellationToken)
             ?? throw new NotFoundException("Driver", userId);
 
         driver.UpdateDocuments(
@@ -156,6 +164,10 @@ public class DriverProfileController : ApiControllerBase
             request.LicenseImageUrl,
             request.VehicleImageUrl,
             request.PersonalPhotoUrl);
+
+        ResetDocumentReviewIfReady(driver, DriverDocumentType.NationalId);
+        ResetDocumentReviewIfReady(driver, DriverDocumentType.DriverLicense);
+        ResetDocumentReviewIfReady(driver, DriverDocumentType.VehicleLicense);
 
         driver.RefreshProfileReviewState(
             HasRequiredProfileData(driver),
@@ -174,12 +186,33 @@ public class DriverProfileController : ApiControllerBase
         driver.VehicleType is not null &&
         !string.IsNullOrWhiteSpace(driver.NationalId) &&
         !string.IsNullOrWhiteSpace(driver.LicenseNumber) &&
+        !string.IsNullOrWhiteSpace(driver.VehicleLicenseNumber) &&
         !string.IsNullOrWhiteSpace(driver.Address) &&
         !string.IsNullOrWhiteSpace(driver.PersonalPhotoUrl) &&
         !string.IsNullOrWhiteSpace(driver.NationalIdFrontImageUrl) &&
         !string.IsNullOrWhiteSpace(driver.NationalIdBackImageUrl) &&
         !string.IsNullOrWhiteSpace(driver.LicenseImageUrl) &&
         !string.IsNullOrWhiteSpace(driver.VehicleImageUrl) &&
+        driver.NationalIdExpiryDate.HasValue &&
+        driver.DriverLicenseExpiryDate.HasValue &&
+        driver.VehicleLicenseExpiryDate.HasValue &&
         !string.IsNullOrWhiteSpace(driver.Region) &&
-        !string.IsNullOrWhiteSpace(driver.City);
+        !string.IsNullOrWhiteSpace(driver.City) &&
+        !DriverProfileReadinessFactory.HasExpiredRequiredDocuments(driver);
+
+    private static void ResetDocumentReviewIfReady(Domain.Modules.Delivery.Entities.Driver driver, DriverDocumentType type)
+    {
+        var hasPacket = type switch
+        {
+            DriverDocumentType.NationalId => DriverProfileReadinessFactory.HasNationalIdPacket(driver),
+            DriverDocumentType.DriverLicense => DriverProfileReadinessFactory.HasDriverLicensePacket(driver),
+            DriverDocumentType.VehicleLicense => DriverProfileReadinessFactory.HasVehicleLicensePacket(driver),
+            _ => false
+        };
+
+        if (hasPacket)
+        {
+            driver.ResetDocumentReviewToPending(type);
+        }
+    }
 }

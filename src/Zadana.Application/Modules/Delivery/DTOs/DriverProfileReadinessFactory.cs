@@ -1,4 +1,5 @@
 using Zadana.Domain.Modules.Delivery.Entities;
+using Zadana.Domain.Modules.Delivery.Enums;
 
 namespace Zadana.Application.Modules.Delivery.DTOs;
 
@@ -18,18 +19,27 @@ public static class DriverProfileReadinessFactory
 
         if (driver.VehicleType is null ||
             string.IsNullOrWhiteSpace(driver.LicenseNumber) ||
-            string.IsNullOrWhiteSpace(driver.NationalId))
+            string.IsNullOrWhiteSpace(driver.NationalId) ||
+            string.IsNullOrWhiteSpace(driver.VehicleLicenseNumber))
         {
             missing.Add("missing_vehicle_info");
         }
 
-        if (string.IsNullOrWhiteSpace(driver.PersonalPhotoUrl) ||
-            string.IsNullOrWhiteSpace(driver.NationalIdFrontImageUrl) ||
-            string.IsNullOrWhiteSpace(driver.NationalIdBackImageUrl) ||
-            string.IsNullOrWhiteSpace(driver.LicenseImageUrl) ||
-            string.IsNullOrWhiteSpace(driver.VehicleImageUrl))
+        if (!HasNationalIdPacket(driver) ||
+            !HasDriverLicensePacket(driver) ||
+            !HasVehicleLicensePacket(driver))
         {
             missing.Add("missing_documents");
+        }
+
+        if (HasExpiredRequiredDocuments(driver))
+        {
+            missing.Add("expired_documents");
+        }
+
+        if (HasRejectedRequiredDocuments(driver))
+        {
+            missing.Add("rejected_documents");
         }
 
         if (string.IsNullOrWhiteSpace(driver.Region) || string.IsNullOrWhiteSpace(driver.City))
@@ -113,18 +123,18 @@ public static class DriverProfileReadinessFactory
                 true),
             createItem(
                 "national_id_document",
-                !string.IsNullOrWhiteSpace(driver.NationalIdFrontImageUrl) && !string.IsNullOrWhiteSpace(driver.NationalIdBackImageUrl),
-                string.IsNullOrWhiteSpace(driver.NationalIdFrontImageUrl) || string.IsNullOrWhiteSpace(driver.NationalIdBackImageUrl) ? "missing_document_note" : null,
+                IsNationalIdReady(driver),
+                ResolveDocumentChecklistNote(driver, DriverDocumentType.NationalId),
                 true),
             createItem(
                 "license_document",
-                !string.IsNullOrWhiteSpace(driver.LicenseImageUrl),
-                string.IsNullOrWhiteSpace(driver.LicenseImageUrl) ? "missing_document_note" : null,
+                IsDriverLicenseReady(driver),
+                ResolveDocumentChecklistNote(driver, DriverDocumentType.DriverLicense),
                 true),
             createItem(
                 "vehicle_document",
-                !string.IsNullOrWhiteSpace(driver.VehicleImageUrl),
-                string.IsNullOrWhiteSpace(driver.VehicleImageUrl) ? "missing_document_note" : null,
+                IsVehicleLicenseReady(driver),
+                ResolveDocumentChecklistNote(driver, DriverDocumentType.VehicleLicense),
                 true),
             createItem(
                 "personal_photo",
@@ -137,4 +147,97 @@ public static class DriverProfileReadinessFactory
                 missingRequirements.Contains("missing_region_city") ? "missing_region_city_note" : null,
                 false)
         ];
+
+    public static bool HasNationalIdPacket(Driver driver) =>
+        !string.IsNullOrWhiteSpace(driver.NationalIdFrontImageUrl) &&
+        !string.IsNullOrWhiteSpace(driver.NationalIdBackImageUrl) &&
+        driver.NationalIdExpiryDate.HasValue;
+
+    public static bool HasDriverLicensePacket(Driver driver) =>
+        !string.IsNullOrWhiteSpace(driver.LicenseImageUrl) &&
+        driver.DriverLicenseExpiryDate.HasValue;
+
+    public static bool HasVehicleLicensePacket(Driver driver) =>
+        !string.IsNullOrWhiteSpace(driver.VehicleImageUrl) &&
+        driver.VehicleLicenseExpiryDate.HasValue;
+
+    public static bool HasExpiredRequiredDocuments(Driver driver)
+    {
+        var today = DateTime.UtcNow.Date;
+        return (driver.NationalIdExpiryDate.HasValue && driver.NationalIdExpiryDate.Value.Date < today)
+            || (driver.DriverLicenseExpiryDate.HasValue && driver.DriverLicenseExpiryDate.Value.Date < today)
+            || (driver.VehicleLicenseExpiryDate.HasValue && driver.VehicleLicenseExpiryDate.Value.Date < today);
+    }
+
+    public static bool HasRejectedRequiredDocuments(Driver driver) =>
+        GetReviewDecision(driver, DriverDocumentType.NationalId) == DriverDocumentReviewDecision.Rejected
+        || GetReviewDecision(driver, DriverDocumentType.DriverLicense) == DriverDocumentReviewDecision.Rejected
+        || GetReviewDecision(driver, DriverDocumentType.VehicleLicense) == DriverDocumentReviewDecision.Rejected;
+
+    public static bool AreRequiredDocumentsApproved(Driver driver) =>
+        IsReviewApproved(driver, DriverDocumentType.NationalId)
+        && IsReviewApproved(driver, DriverDocumentType.DriverLicense)
+        && IsReviewApproved(driver, DriverDocumentType.VehicleLicense);
+
+    public static bool IsNationalIdReady(Driver driver) =>
+        HasNationalIdPacket(driver)
+        && !IsExpired(driver.NationalIdExpiryDate)
+        && IsReviewApproved(driver, DriverDocumentType.NationalId);
+
+    public static bool IsDriverLicenseReady(Driver driver) =>
+        HasDriverLicensePacket(driver)
+        && !IsExpired(driver.DriverLicenseExpiryDate)
+        && IsReviewApproved(driver, DriverDocumentType.DriverLicense);
+
+    public static bool IsVehicleLicenseReady(Driver driver) =>
+        HasVehicleLicensePacket(driver)
+        && !IsExpired(driver.VehicleLicenseExpiryDate)
+        && IsReviewApproved(driver, DriverDocumentType.VehicleLicense);
+
+    public static DriverDocumentReviewDecision? GetReviewDecision(Driver driver, DriverDocumentType type) =>
+        driver.DocumentReviews.FirstOrDefault(item => item.Type == type)?.Decision;
+
+    public static string? ResolveDocumentChecklistNote(Driver driver, DriverDocumentType type)
+    {
+        if (!HasPacket(driver, type))
+        {
+            return "missing_document_note";
+        }
+
+        if (IsExpired(GetExpiryDate(driver, type)))
+        {
+            return "expired_document_note";
+        }
+
+        return GetReviewDecision(driver, type) switch
+        {
+            DriverDocumentReviewDecision.Rejected => "rejected_document_note",
+            DriverDocumentReviewDecision.Pending or null => "pending_document_review_note",
+            _ => null
+        };
+    }
+
+    private static bool IsReviewApproved(Driver driver, DriverDocumentType type) =>
+        GetReviewDecision(driver, type) == DriverDocumentReviewDecision.Approved;
+
+    private static bool HasPacket(Driver driver, DriverDocumentType type) =>
+        type switch
+        {
+            DriverDocumentType.NationalId => HasNationalIdPacket(driver),
+            DriverDocumentType.DriverLicense => HasDriverLicensePacket(driver),
+            DriverDocumentType.VehicleLicense => HasVehicleLicensePacket(driver),
+            _ => false
+        };
+
+    private static DateTime? GetExpiryDate(Driver driver, DriverDocumentType type) =>
+        type switch
+        {
+            DriverDocumentType.NationalId => driver.NationalIdExpiryDate,
+            DriverDocumentType.DriverLicense => driver.DriverLicenseExpiryDate,
+            DriverDocumentType.VehicleLicense => driver.VehicleLicenseExpiryDate,
+            _ => null
+        };
+
+    private static bool IsExpired(DateTime? value) =>
+        value.HasValue && value.Value.Date < DateTime.UtcNow.Date;
 }

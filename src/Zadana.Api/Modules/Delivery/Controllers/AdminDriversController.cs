@@ -7,8 +7,10 @@ using Zadana.Api.Controllers;
 using Zadana.Application.Common.Interfaces;
 using Zadana.Application.Modules.Delivery.Commands.AddDriverIncident;
 using Zadana.Application.Modules.Delivery.Commands.AddDriverNote;
+using Zadana.Application.Modules.Delivery.Commands.ApproveDriverDocumentReview;
 using Zadana.Application.Modules.Delivery.Commands.BlockDriverLocationUpdates;
 using Zadana.Application.Modules.Delivery.Commands.ReactivateDriver;
+using Zadana.Application.Modules.Delivery.Commands.RejectDriverDocumentReview;
 using Zadana.Application.Modules.Delivery.Commands.ReviewDriver;
 using Zadana.Application.Modules.Delivery.Commands.SuspendDriver;
 using Zadana.Application.Modules.Delivery.Commands.UnblockDriverLocationUpdates;
@@ -232,6 +234,27 @@ public class AdminDriversController : ApiControllerBase
         return Ok(new { message = "Driver review action applied successfully" });
     }
 
+    [HttpPost("{id:guid}/documents/{documentId}/approve")]
+    public async Task<IActionResult> ApproveDriverDocument(
+        Guid id,
+        string documentId,
+        CancellationToken cancellationToken = default)
+    {
+        await Sender.Send(new ApproveDriverDocumentReviewCommand(id, documentId), cancellationToken);
+        return Ok(new { message = "Driver document approved successfully" });
+    }
+
+    [HttpPost("{id:guid}/documents/{documentId}/reject")]
+    public async Task<IActionResult> RejectDriverDocument(
+        Guid id,
+        string documentId,
+        [FromBody] RejectDriverDocumentRequest request,
+        CancellationToken cancellationToken = default)
+    {
+        await Sender.Send(new RejectDriverDocumentReviewCommand(id, documentId, request.Reason), cancellationToken);
+        return Ok(new { message = "Driver document rejected successfully" });
+    }
+
     [HttpPost("{id:guid}/suspend")]
     public async Task<IActionResult> SuspendDriver(
         Guid id,
@@ -310,6 +333,7 @@ public class AdminDriversController : ApiControllerBase
 }
 
 public record ReviewDriverRequest(string Action, string? Note);
+public record RejectDriverDocumentRequest(string Reason);
 public record SuspendDriverRequest(string? Reason);
 public record BlockDriverLocationUpdatesRequest(string? Reason);
 public record AddDriverNoteRequest(string Message);

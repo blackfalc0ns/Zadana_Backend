@@ -1610,11 +1610,39 @@ public class ApplicationDbContextInitialiser
 
         var reviewerUser = await _userManager.FindByEmailAsync("ops.admin@zadana.local");
 
-        var activeDriver = new Driver(activeDriverUser.Id, DriverVehicleType.Motorcycle, "29801011234567", "DRV-1001", "Riyadh", ImageCatalog.DriverNationalId, ImageCatalog.DriverLicense, ImageCatalog.DriverVehicle, ImageCatalog.DriverProfile);
+        var activeDriver = new Driver(
+            activeDriverUser.Id,
+            DriverVehicleType.Motorcycle,
+            "29801011234567",
+            "DRV-1001",
+            DateTime.UtcNow.Date.AddYears(1),
+            DateTime.UtcNow.Date.AddYears(1),
+            "VEH-1001",
+            DateTime.UtcNow.Date.AddYears(1),
+            "Riyadh",
+            ImageCatalog.DriverNationalId,
+            null,
+            ImageCatalog.DriverLicense,
+            ImageCatalog.DriverVehicle,
+            ImageCatalog.DriverProfile);
         activeDriver.Approve(reviewerUser?.Id ?? activeDriverUser.Id);
         activeDriver.ToggleAvailability(true);
 
-        var pendingDriver = new Driver(pendingDriverUser.Id, DriverVehicleType.Car, "29801011234568", "DRV-1002", "Jeddah", ImageCatalog.DriverNationalId, ImageCatalog.DriverLicense, ImageCatalog.DriverVehicle, ImageCatalog.DriverProfile);
+        var pendingDriver = new Driver(
+            pendingDriverUser.Id,
+            DriverVehicleType.Car,
+            "29801011234568",
+            "DRV-1002",
+            DateTime.UtcNow.Date.AddYears(1),
+            DateTime.UtcNow.Date.AddYears(1),
+            "VEH-1002",
+            DateTime.UtcNow.Date.AddYears(1),
+            "Jeddah",
+            ImageCatalog.DriverNationalId,
+            null,
+            ImageCatalog.DriverLicense,
+            ImageCatalog.DriverVehicle,
+            ImageCatalog.DriverProfile);
 
         await _context.Drivers.AddRangeAsync(activeDriver, pendingDriver);
         await _context.SaveChangesAsync();

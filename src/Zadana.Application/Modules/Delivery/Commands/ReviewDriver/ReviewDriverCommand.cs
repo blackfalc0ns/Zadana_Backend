@@ -5,6 +5,7 @@ using Zadana.Application.Common.Interfaces;
 using Zadana.Application.Common.Localization;
 using Zadana.Application.Modules.Delivery.Interfaces;
 using Zadana.Application.Modules.Delivery.Support;
+using Zadana.Application.Modules.Delivery.DTOs;
 using Zadana.Domain.Modules.Social.Enums;
 using Zadana.SharedKernel.Exceptions;
 
@@ -52,12 +53,17 @@ public class ReviewDriverCommandHandler : IRequestHandler<ReviewDriverCommand>
 
     public async Task Handle(ReviewDriverCommand request, CancellationToken cancellationToken)
     {
-        var driver = await _driverRepository.GetByIdAsync(request.DriverId, cancellationToken)
+        var driver = await _driverRepository.GetByIdWithReviewsAsync(request.DriverId, cancellationToken)
             ?? throw new NotFoundException("Driver", request.DriverId);
 
         switch (request.Action.ToLowerInvariant())
         {
             case "approve":
+                var missingRequirements = DriverProfileReadinessFactory.GetMissingRequirements(driver, driver.User);
+                if (missingRequirements.Count > 0 || !DriverProfileReadinessFactory.AreRequiredDocumentsApproved(driver))
+                {
+                    throw new BusinessRuleException("DRIVER_DOCUMENTS_NOT_APPROVED", "All required driver documents must be approved before final account approval.");
+                }
                 driver.Approve(request.ReviewerUserId, request.Note);
                 break;
             case "request-docs":

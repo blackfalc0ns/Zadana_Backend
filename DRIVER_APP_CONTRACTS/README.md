@@ -10,6 +10,7 @@ This folder is prepared for the mobile developer and documents the driver app AP
 - `WALLET_CONTRACT.md`
 - `PROFILE_CONTRACT.md`
 - `NOTIFICATIONS_CONTRACT.md`
+- `DOCUMENTS_COMPLIANCE_EXPANSION_HANDOFF_AR.md`
 
 ## Shared Notes
 

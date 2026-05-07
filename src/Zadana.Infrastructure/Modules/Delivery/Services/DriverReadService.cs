@@ -178,6 +178,7 @@ public class DriverReadService : IDriverReadService
             .Include(d => d.User)
             .Include(d => d.Notes)
             .Include(d => d.Incidents)
+            .Include(d => d.DocumentReviews)
             .AsNoTracking()
             .FirstOrDefaultAsync(d => d.Id == driverId, cancellationToken);
 
@@ -284,14 +285,7 @@ public class DriverReadService : IDriverReadService
             .ToArray();
 
         // Documents
-        var documents = new[]
-        {
-            new AdminDriverDocumentDto("NationalIdFront", driver.NationalIdFrontImageUrl, driver.NationalIdFrontImageUrl != null ? "valid" : "review", null),
-            new AdminDriverDocumentDto("NationalIdBack", driver.NationalIdBackImageUrl, driver.NationalIdBackImageUrl != null ? "valid" : "review", null),
-            new AdminDriverDocumentDto("License", driver.LicenseImageUrl, driver.LicenseImageUrl != null ? "valid" : "review", null),
-            new AdminDriverDocumentDto("Vehicle", driver.VehicleImageUrl, driver.VehicleImageUrl != null ? "valid" : "review", null),
-            new AdminDriverDocumentDto("PersonalPhoto", driver.PersonalPhotoUrl, driver.PersonalPhotoUrl != null ? "valid" : "review", null)
-        };
+        var documents = BuildAdminDriverDocuments(driver);
 
         var commitmentSummary = await _driverCommitmentPolicyService.GetDriverSummaryAsync(driverId, cancellationToken);
         var allDriverIds = await _context.Drivers
@@ -508,6 +502,10 @@ public class DriverReadService : IDriverReadService
             LastOfferResponseAtUtc: commitmentSummary.LastOfferResponseAtUtc,
             Address: driver.Address,
             LicenseNumber: driver.LicenseNumber,
+            NationalIdExpiryDate: driver.NationalIdExpiryDate,
+            DriverLicenseExpiryDate: driver.DriverLicenseExpiryDate,
+            VehicleLicenseNumber: driver.VehicleLicenseNumber,
+            VehicleLicenseExpiryDate: driver.VehicleLicenseExpiryDate,
 
             ReviewedAtUtc: driver.ReviewedAtUtc,
             ReviewNote: driver.ReviewNote,
@@ -704,6 +702,7 @@ public class DriverReadService : IDriverReadService
         var driver = await _context.Drivers
             .AsNoTracking()
             .Include(d => d.User)
+            .Include(d => d.DocumentReviews)
             .FirstOrDefaultAsync(d => d.UserId == userId, cancellationToken);
 
         if (driver is null)
@@ -741,12 +740,17 @@ public class DriverReadService : IDriverReadService
             driver.Address,
             driver.VehicleType?.ToString(),
             driver.LicenseNumber,
+            driver.NationalIdExpiryDate,
+            driver.DriverLicenseExpiryDate,
+            driver.VehicleLicenseNumber,
+            driver.VehicleLicenseExpiryDate,
             driver.NationalId,
             driver.PersonalPhotoUrl,
             driver.NationalIdFrontImageUrl,
             driver.NationalIdBackImageUrl,
             driver.LicenseImageUrl,
             driver.VehicleImageUrl,
+            BuildDriverProfileDocuments(driver),
             driver.Region,
             driver.City,
             regionNameAr,
@@ -1180,6 +1184,79 @@ public class DriverReadService : IDriverReadService
             followUps.ToArray());
     }
 
+    private static AdminDriverDocumentDto[] BuildAdminDriverDocuments(Driver driver)
+    {
+        var nationalIdReview = driver.DocumentReviews.FirstOrDefault(item => item.Type == DriverDocumentType.NationalId);
+        var driverLicenseReview = driver.DocumentReviews.FirstOrDefault(item => item.Type == DriverDocumentType.DriverLicense);
+        var vehicleLicenseReview = driver.DocumentReviews.FirstOrDefault(item => item.Type == DriverDocumentType.VehicleLicense);
+
+        return
+        [
+            new AdminDriverDocumentDto(
+                "NationalId",
+                driver.NationalIdFrontImageUrl,
+                driver.NationalIdBackImageUrl,
+                driver.NationalId,
+                driver.NationalIdExpiryDate,
+                ResolveDriverDocumentStatus(DriverProfileReadinessFactory.HasNationalIdPacket(driver), driver.NationalIdExpiryDate, nationalIdReview),
+                BuildExpiryInfo(driver.NationalIdExpiryDate),
+                nationalIdReview?.Decision.ToString(),
+                nationalIdReview?.RejectionReason,
+                nationalIdReview?.ReviewedAtUtc,
+                nationalIdReview?.ReviewedByName),
+            new AdminDriverDocumentDto(
+                "DriverLicense",
+                driver.LicenseImageUrl,
+                null,
+                driver.LicenseNumber,
+                driver.DriverLicenseExpiryDate,
+                ResolveDriverDocumentStatus(DriverProfileReadinessFactory.HasDriverLicensePacket(driver), driver.DriverLicenseExpiryDate, driverLicenseReview),
+                BuildExpiryInfo(driver.DriverLicenseExpiryDate),
+                driverLicenseReview?.Decision.ToString(),
+                driverLicenseReview?.RejectionReason,
+                driverLicenseReview?.ReviewedAtUtc,
+                driverLicenseReview?.ReviewedByName),
+            new AdminDriverDocumentDto(
+                "VehicleLicense",
+                driver.VehicleImageUrl,
+                null,
+                driver.VehicleLicenseNumber,
+                driver.VehicleLicenseExpiryDate,
+                ResolveDriverDocumentStatus(DriverProfileReadinessFactory.HasVehicleLicensePacket(driver), driver.VehicleLicenseExpiryDate, vehicleLicenseReview),
+                BuildExpiryInfo(driver.VehicleLicenseExpiryDate),
+                vehicleLicenseReview?.Decision.ToString(),
+                vehicleLicenseReview?.RejectionReason,
+                vehicleLicenseReview?.ReviewedAtUtc,
+                vehicleLicenseReview?.ReviewedByName)
+        ];
+    }
+
+    private static DriverProfileDocumentDto[] BuildDriverProfileDocuments(Driver driver) =>
+    [
+        BuildDriverProfileDocumentDto(driver, DriverDocumentType.NationalId),
+        BuildDriverProfileDocumentDto(driver, DriverDocumentType.DriverLicense),
+        BuildDriverProfileDocumentDto(driver, DriverDocumentType.VehicleLicense)
+    ];
+
+    private static DriverProfileDocumentDto BuildDriverProfileDocumentDto(Driver driver, DriverDocumentType type)
+    {
+        var review = driver.DocumentReviews.FirstOrDefault(item => item.Type == type);
+        var status = type switch
+        {
+            DriverDocumentType.NationalId => ResolveDriverDocumentStatus(DriverProfileReadinessFactory.HasNationalIdPacket(driver), driver.NationalIdExpiryDate, review),
+            DriverDocumentType.DriverLicense => ResolveDriverDocumentStatus(DriverProfileReadinessFactory.HasDriverLicensePacket(driver), driver.DriverLicenseExpiryDate, review),
+            DriverDocumentType.VehicleLicense => ResolveDriverDocumentStatus(DriverProfileReadinessFactory.HasVehicleLicensePacket(driver), driver.VehicleLicenseExpiryDate, review),
+            _ => "review"
+        };
+
+        return new DriverProfileDocumentDto(
+            type.ToString(),
+            status,
+            review?.RejectionReason,
+            review?.ReviewedAtUtc,
+            review?.ReviewedByName);
+    }
+
     private static AdminDriverDocumentHealthDto BuildDocumentHealth(AdminDriverDocumentDto[] documents) =>
         new(
             documents.Count(d => string.Equals(d.Status, "valid", StringComparison.OrdinalIgnoreCase)),
@@ -1351,5 +1428,33 @@ public class DriverReadService : IDriverReadService
             driver.SuspensionReason ?? string.Empty,
             ["missing_documents", "quality_issue", "zone_missing"]);
     }
+
+    private static string ResolveDriverDocumentStatus(bool hasPacket, DateTime? expiryDate, DriverDocumentReview? review)
+    {
+        if (!hasPacket)
+        {
+            return "review";
+        }
+
+        if (review?.Decision == DriverDocumentReviewDecision.Rejected)
+        {
+            return "rejected";
+        }
+
+        if (expiryDate.HasValue && expiryDate.Value.Date < DateTime.UtcNow.Date)
+        {
+            return "expiring";
+        }
+
+        if (review?.Decision == DriverDocumentReviewDecision.Approved)
+        {
+            return "valid";
+        }
+
+        return "review";
+    }
+
+    private static string? BuildExpiryInfo(DateTime? expiryDate) =>
+        expiryDate.HasValue ? expiryDate.Value.ToString("yyyy-MM-dd") : null;
 
 }

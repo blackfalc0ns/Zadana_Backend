@@ -10,7 +10,11 @@ public class Driver : BaseEntity
     public Guid UserId { get; private set; }
     public DriverVehicleType? VehicleType { get; private set; }
     public string? NationalId { get; private set; }
+    public DateTime? NationalIdExpiryDate { get; private set; }
     public string? LicenseNumber { get; private set; }
+    public DateTime? DriverLicenseExpiryDate { get; private set; }
+    public string? VehicleLicenseNumber { get; private set; }
+    public DateTime? VehicleLicenseExpiryDate { get; private set; }
     public string? Address { get; private set; }
     public string? NationalIdFrontImageUrl { get; private set; }
     public string? NationalIdBackImageUrl { get; private set; }
@@ -45,6 +49,7 @@ public class Driver : BaseEntity
     public ICollection<DeliveryAssignment> Assignments { get; private set; } = [];
     public ICollection<DriverNote> Notes { get; private set; } = [];
     public ICollection<DriverIncident> Incidents { get; private set; } = [];
+    public ICollection<DriverDocumentReview> DocumentReviews { get; private set; } = [];
 
     private Driver() { }
 
@@ -53,6 +58,10 @@ public class Driver : BaseEntity
         DriverVehicleType? vehicleType,
         string? nationalId,
         string? licenseNumber,
+        DateTime? nationalIdExpiryDate = null,
+        DateTime? driverLicenseExpiryDate = null,
+        string? vehicleLicenseNumber = null,
+        DateTime? vehicleLicenseExpiryDate = null,
         string? address = null,
         string? nationalIdFrontImageUrl = null,
         string? nationalIdBackImageUrl = null,
@@ -65,7 +74,11 @@ public class Driver : BaseEntity
         UserId = userId;
         VehicleType = vehicleType;
         NationalId = nationalId?.Trim();
+        NationalIdExpiryDate = nationalIdExpiryDate?.Date;
         LicenseNumber = licenseNumber?.Trim();
+        DriverLicenseExpiryDate = driverLicenseExpiryDate?.Date;
+        VehicleLicenseNumber = vehicleLicenseNumber?.Trim();
+        VehicleLicenseExpiryDate = vehicleLicenseExpiryDate?.Date;
         Address = address?.Trim();
         NationalIdFrontImageUrl = nationalIdFrontImageUrl;
         NationalIdBackImageUrl = nationalIdBackImageUrl;
@@ -79,11 +92,22 @@ public class Driver : BaseEntity
         VerificationStatus = DetermineInitialVerificationStatus(nationalIdFrontImageUrl, licenseImageUrl, vehicleImageUrl, personalPhotoUrl);
     }
 
-    public void UpdateDetails(DriverVehicleType? vehicleType, string? nationalId, string? licenseNumber)
+    public void UpdateDetails(
+        DriverVehicleType? vehicleType,
+        string? nationalId,
+        string? licenseNumber,
+        DateTime? nationalIdExpiryDate,
+        DateTime? driverLicenseExpiryDate,
+        string? vehicleLicenseNumber,
+        DateTime? vehicleLicenseExpiryDate)
     {
         VehicleType = vehicleType;
         NationalId = nationalId?.Trim();
         LicenseNumber = licenseNumber?.Trim();
+        NationalIdExpiryDate = nationalIdExpiryDate?.Date;
+        DriverLicenseExpiryDate = driverLicenseExpiryDate?.Date;
+        VehicleLicenseNumber = NormalizeOptional(vehicleLicenseNumber);
+        VehicleLicenseExpiryDate = vehicleLicenseExpiryDate?.Date;
     }
 
     public void UpdateAddress(string? address)
@@ -109,6 +133,25 @@ public class Driver : BaseEntity
         LicenseImageUrl = NormalizeOptional(licenseImageUrl);
         VehicleImageUrl = NormalizeOptional(vehicleImageUrl);
         PersonalPhotoUrl = NormalizeOptional(personalPhotoUrl);
+    }
+
+    public DriverDocumentReview GetOrCreateDocumentReview(DriverDocumentType type)
+    {
+        var review = DocumentReviews.FirstOrDefault(item => item.Type == type);
+        if (review is not null)
+        {
+            return review;
+        }
+
+        review = new DriverDocumentReview(Id, type);
+        DocumentReviews.Add(review);
+        return review;
+    }
+
+    public void ResetDocumentReviewToPending(DriverDocumentType type)
+    {
+        var review = DocumentReviews.FirstOrDefault(item => item.Type == type);
+        review?.ResetToPending();
     }
 
     public void RefreshProfileReviewState(bool hasRequiredProfileData, bool sensitiveChange, string? note = null)

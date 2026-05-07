@@ -7,4 +7,6 @@ public interface IDriverRepository
     void Add(Driver driver);
     Task<Driver?> GetByIdAsync(Guid id, CancellationToken cancellationToken = default);
     Task<Driver?> GetByUserIdAsync(Guid userId, CancellationToken cancellationToken = default);
+    Task<Driver?> GetByIdWithReviewsAsync(Guid id, CancellationToken cancellationToken = default);
+    Task<Driver?> GetByUserIdWithReviewsAsync(Guid userId, CancellationToken cancellationToken = default);
 }

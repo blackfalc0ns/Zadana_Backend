@@ -80,12 +80,17 @@ public record DriverProfileDto(
     string? Address,
     string? VehicleType,
     string? LicenseNumber,
+    DateTime? NationalIdExpiryDate,
+    DateTime? DriverLicenseExpiryDate,
+    string? VehicleLicenseNumber,
+    DateTime? VehicleLicenseExpiryDate,
     string? NationalId,
     string? PersonalPhotoUrl,
     string? NationalIdFrontImageUrl,
     string? NationalIdBackImageUrl,
     string? LicenseImageUrl,
     string? VehicleImageUrl,
+    IReadOnlyList<DriverProfileDocumentDto> Documents,
     string? Region,
     string? City,
     string? RegionNameAr,
@@ -100,3 +105,10 @@ public record DriverProfileDto(
     int CompletionPercent,
     IReadOnlyList<string> MissingRequirements,
     bool CanSubmitForReview);
+
+public record DriverProfileDocumentDto(
+    string DocumentType,
+    string Status,
+    string? RejectionReason,
+    DateTime? ReviewedAtUtc,
+    string? ReviewedByName);

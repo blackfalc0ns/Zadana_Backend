@@ -41,6 +41,10 @@ public class RegisterDriverCommandValidator : AbstractValidator<RegisterDriverCo
             .NotEmpty().WithMessage(localizer["RequiredField"].Value)
             .MaximumLength(30).WithMessage(localizer["MaxLength"].Value)
             .WithName(localizer["LicenseNumber"].Value);
+        RuleFor(x => x.VehicleLicenseNumber)
+            .NotEmpty().WithMessage(localizer["RequiredField"].Value)
+            .MaximumLength(30).WithMessage(localizer["MaxLength"].Value)
+            .WithName("VehicleLicenseNumber");
         RuleFor(x => x.Address).MaximumLength(300).WithMessage(localizer["MaxLength"].Value).WithName(localizer["Address"].Value);
         RuleFor(x => x.Region)
             .NotEmpty().WithMessage(localizer["RequiredField"].Value)
@@ -50,6 +54,15 @@ public class RegisterDriverCommandValidator : AbstractValidator<RegisterDriverCo
             .NotEmpty().WithMessage(localizer["RequiredField"].Value)
             .MaximumLength(50).WithMessage(localizer["MaxLength"].Value)
             .WithName("City");
+        RuleFor(x => x.NationalIdExpiryDate)
+            .NotEmpty().WithMessage(localizer["RequiredField"].Value)
+            .WithName("NationalIdExpiryDate");
+        RuleFor(x => x.DriverLicenseExpiryDate)
+            .NotEmpty().WithMessage(localizer["RequiredField"].Value)
+            .WithName("DriverLicenseExpiryDate");
+        RuleFor(x => x.VehicleLicenseExpiryDate)
+            .NotEmpty().WithMessage(localizer["RequiredField"].Value)
+            .WithName("VehicleLicenseExpiryDate");
 
         // Document URLs
         RuleFor(x => x.NationalIdFrontImageUrl)
