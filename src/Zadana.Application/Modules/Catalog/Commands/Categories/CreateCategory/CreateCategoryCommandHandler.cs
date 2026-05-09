@@ -1,4 +1,5 @@
 using MediatR;
+using Zadana.Application.Common.Caching;
 using Zadana.Application.Common.Interfaces;
 using Zadana.Application.Modules.Catalog.DTOs;
 using Zadana.Domain.Modules.Catalog.Entities;
@@ -9,10 +10,12 @@ namespace Zadana.Application.Modules.Catalog.Commands.Categories.CreateCategory;
 public class CreateCategoryCommandHandler : IRequestHandler<CreateCategoryCommand, CategoryDto>
 {
     private readonly IApplicationDbContext _context;
+    private readonly ICacheInvalidator _cacheInvalidator;
 
-    public CreateCategoryCommandHandler(IApplicationDbContext context)
+    public CreateCategoryCommandHandler(IApplicationDbContext context, ICacheInvalidator cacheInvalidator)
     {
         _context = context;
+        _cacheInvalidator = cacheInvalidator;
     }
 
     public async Task<CategoryDto> Handle(CreateCategoryCommand request, CancellationToken cancellationToken)
@@ -33,6 +36,7 @@ public class CreateCategoryCommandHandler : IRequestHandler<CreateCategoryComman
 
         _context.Categories.Add(category);
         await _context.SaveChangesAsync(cancellationToken);
+        await _cacheInvalidator.RemoveByTagsAsync(CacheInvalidationProfiles.CatalogReadModels, cancellationToken);
 
         return new CategoryDto(
             category.Id,

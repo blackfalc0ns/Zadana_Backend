@@ -1,5 +1,6 @@
 using MediatR;
 using Microsoft.EntityFrameworkCore;
+using Zadana.Application.Common.Caching;
 using Zadana.Application.Common.Interfaces;
 using Zadana.Domain.Modules.Catalog.Entities;
 using Zadana.SharedKernel.Exceptions;
@@ -9,10 +10,12 @@ namespace Zadana.Application.Modules.Catalog.Commands.Brands.UpdateBrand;
 public class UpdateBrandCommandHandler : IRequestHandler<UpdateBrandCommand>
 {
     private readonly IApplicationDbContext _context;
+    private readonly ICacheInvalidator _cacheInvalidator;
 
-    public UpdateBrandCommandHandler(IApplicationDbContext context)
+    public UpdateBrandCommandHandler(IApplicationDbContext context, ICacheInvalidator cacheInvalidator)
     {
         _context = context;
+        _cacheInvalidator = cacheInvalidator;
     }
 
     public async Task Handle(UpdateBrandCommand request, CancellationToken cancellationToken)
@@ -28,7 +31,7 @@ public class UpdateBrandCommandHandler : IRequestHandler<UpdateBrandCommand>
         if (category == null)
             throw new NotFoundException(nameof(Category), request.CategoryId);
 
-        brand.Update(request.NameAr, request.NameEn, request.LogoUrl, request.CategoryId);
+        brand.Update(request.NameAr, request.NameEn, request.LogoUrl, request.CoverImageUrl, request.CategoryId);
 
         if (request.IsActive && !brand.IsActive)
             brand.Activate();
@@ -36,5 +39,6 @@ public class UpdateBrandCommandHandler : IRequestHandler<UpdateBrandCommand>
             brand.Deactivate();
 
         await _context.SaveChangesAsync(cancellationToken);
+        await _cacheInvalidator.RemoveByTagsAsync(CacheInvalidationProfiles.CatalogReadModels, cancellationToken);
     }
 }

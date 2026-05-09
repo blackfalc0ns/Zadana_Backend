@@ -1,6 +1,7 @@
 using MediatR;
 using Microsoft.EntityFrameworkCore;
 using Microsoft.Extensions.Localization;
+using Zadana.Application.Common.Caching;
 using Zadana.Application.Common.Interfaces;
 using Zadana.Application.Common.Localization;
 using Zadana.SharedKernel.Exceptions;
@@ -10,13 +11,16 @@ namespace Zadana.Application.Modules.Catalog.Commands.DeleteMasterProduct;
 public class DeleteMasterProductCommandHandler : IRequestHandler<DeleteMasterProductCommand>
 {
     private readonly IApplicationDbContext _context;
+    private readonly ICacheInvalidator _cacheInvalidator;
     private readonly IStringLocalizer<SharedResource> _localizer;
 
     public DeleteMasterProductCommandHandler(
         IApplicationDbContext context,
+        ICacheInvalidator cacheInvalidator,
         IStringLocalizer<SharedResource> localizer)
     {
         _context = context;
+        _cacheInvalidator = cacheInvalidator;
         _localizer = localizer;
     }
 
@@ -32,5 +36,6 @@ public class DeleteMasterProductCommandHandler : IRequestHandler<DeleteMasterPro
 
         _context.MasterProducts.Remove(product);
         await _context.SaveChangesAsync(cancellationToken);
+        await _cacheInvalidator.RemoveByTagsAsync(CacheInvalidationProfiles.CatalogReadModels, cancellationToken);
     }
 }

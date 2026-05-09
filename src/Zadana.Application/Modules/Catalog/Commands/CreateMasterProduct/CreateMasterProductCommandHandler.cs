@@ -1,4 +1,5 @@
 using MediatR;
+using Zadana.Application.Common.Caching;
 using Zadana.Application.Common.Interfaces;
 using Zadana.Domain.Modules.Catalog.Entities;
 using Zadana.Domain.Modules.Catalog.Enums;
@@ -9,10 +10,12 @@ namespace Zadana.Application.Modules.Catalog.Commands.CreateMasterProduct;
 public class CreateMasterProductCommandHandler : IRequestHandler<CreateMasterProductCommand, Guid>
 {
     private readonly IApplicationDbContext _context;
+    private readonly ICacheInvalidator _cacheInvalidator;
 
-    public CreateMasterProductCommandHandler(IApplicationDbContext context)
+    public CreateMasterProductCommandHandler(IApplicationDbContext context, ICacheInvalidator cacheInvalidator)
     {
         _context = context;
+        _cacheInvalidator = cacheInvalidator;
     }
 
     public async Task<Guid> Handle(CreateMasterProductCommand request, CancellationToken cancellationToken)
@@ -57,6 +60,7 @@ public class CreateMasterProductCommandHandler : IRequestHandler<CreateMasterPro
 
         _context.MasterProducts.Add(masterProduct);
         await _context.SaveChangesAsync(cancellationToken);
+        await _cacheInvalidator.RemoveByTagsAsync(CacheInvalidationProfiles.CatalogReadModels, cancellationToken);
 
         return masterProduct.Id;
     }

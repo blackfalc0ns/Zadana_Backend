@@ -1,6 +1,7 @@
 using MediatR;
 using Microsoft.EntityFrameworkCore;
 using Microsoft.Extensions.Localization;
+using Zadana.Application.Common.Caching;
 using Zadana.Application.Common.Extensions;
 using Zadana.Application.Common.Interfaces;
 using Zadana.Application.Common.Localization;
@@ -16,17 +17,20 @@ namespace Zadana.Application.Modules.Catalog.Commands.ProductRequests.ReviewRequ
 public class ReviewProductRequestCommandHandler : IRequestHandler<ReviewProductRequestCommand, Guid?>
 {
     private readonly IApplicationDbContext _context;
+    private readonly ICacheInvalidator _cacheInvalidator;
     private readonly ICurrentUserService _currentUserService;
     private readonly IIdentityAccountService _identityAccountService;
     private readonly IStringLocalizer<SharedResource> _localizer;
 
     public ReviewProductRequestCommandHandler(
         IApplicationDbContext context,
+        ICacheInvalidator cacheInvalidator,
         ICurrentUserService currentUserService,
         IIdentityAccountService identityAccountService,
         IStringLocalizer<SharedResource> localizer)
     {
         _context = context;
+        _cacheInvalidator = cacheInvalidator;
         _currentUserService = currentUserService;
         _identityAccountService = identityAccountService;
         _localizer = localizer;
@@ -117,6 +121,7 @@ public class ReviewProductRequestCommandHandler : IRequestHandler<ReviewProductR
                 "catalog_request_product"));
 
             await _context.SaveChangesAsync(cancellationToken);
+            await _cacheInvalidator.RemoveByTagsAsync(CacheInvalidationProfiles.CatalogReadModels, cancellationToken);
             return masterProduct.Id;
         }
 

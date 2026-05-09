@@ -1,5 +1,6 @@
 using MediatR;
 using Microsoft.EntityFrameworkCore;
+using Zadana.Application.Common.Caching;
 using Zadana.Application.Common.Interfaces;
 using Zadana.SharedKernel.Exceptions;
 
@@ -8,10 +9,12 @@ namespace Zadana.Application.Modules.Catalog.Commands.Categories.DeleteCategory;
 public class DeleteCategoryCommandHandler : IRequestHandler<DeleteCategoryCommand>
 {
     private readonly IApplicationDbContext _context;
+    private readonly ICacheInvalidator _cacheInvalidator;
 
-    public DeleteCategoryCommandHandler(IApplicationDbContext context)
+    public DeleteCategoryCommandHandler(IApplicationDbContext context, ICacheInvalidator cacheInvalidator)
     {
         _context = context;
+        _cacheInvalidator = cacheInvalidator;
     }
 
     public async Task Handle(DeleteCategoryCommand request, CancellationToken cancellationToken)
@@ -34,5 +37,6 @@ public class DeleteCategoryCommandHandler : IRequestHandler<DeleteCategoryComman
 
         _context.Categories.Remove(category);
         await _context.SaveChangesAsync(cancellationToken);
+        await _cacheInvalidator.RemoveByTagsAsync(CacheInvalidationProfiles.CatalogReadModels, cancellationToken);
     }
 }

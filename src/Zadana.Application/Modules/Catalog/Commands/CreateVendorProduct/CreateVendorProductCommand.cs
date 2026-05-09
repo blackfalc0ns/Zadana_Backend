@@ -10,6 +10,7 @@ public record CreateVendorProductCommand(
     decimal SellingPrice,
     decimal? CompareAtPrice,
     decimal? CostPrice,
+    decimal? TradePrice,
     int StockQty,
     int MinOrderQty,
     int? MaxOrderQty,
@@ -30,7 +31,17 @@ public class CreateVendorProductCommandValidator : AbstractValidator<CreateVendo
             .GreaterThan(0).When(x => x.CompareAtPrice.HasValue).WithMessage(x => localizer["GreaterThanZero"]);
 
         RuleFor(x => x.CostPrice)
-            .GreaterThan(0).When(x => x.CostPrice.HasValue).WithMessage(x => localizer["GreaterThanZero"]);
+            .GreaterThanOrEqualTo(0).When(x => x.CostPrice.HasValue).WithMessage(x => localizer["MinValue"]);
+
+        RuleFor(x => x.TradePrice)
+            .NotNull().WithMessage("Trade price is required.");
+
+        RuleFor(x => x.TradePrice)
+            .GreaterThan(0).When(x => x.TradePrice.HasValue).WithMessage(x => localizer["GreaterThanZero"]);
+
+        RuleFor(x => x)
+            .Must(x => !x.TradePrice.HasValue || x.TradePrice.Value <= x.SellingPrice)
+            .WithMessage("Trade price must be less than or equal to selling price.");
 
         RuleFor(x => x.StockQty)
             .GreaterThanOrEqualTo(0).WithMessage(x => localizer["MinValue"]);

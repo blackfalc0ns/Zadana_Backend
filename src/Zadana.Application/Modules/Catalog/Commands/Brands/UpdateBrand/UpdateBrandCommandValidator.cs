@@ -26,6 +26,10 @@ public class UpdateBrandCommandValidator : AbstractValidator<UpdateBrandCommand>
             .MaximumLength(1000).WithMessage(localizer["MaxLength"].Value)
             .WithName("LogoUrl");
 
+        RuleFor(x => x.CoverImageUrl)
+            .MaximumLength(1000).WithMessage(localizer["MaxLength"].Value)
+            .WithName("CoverImageUrl");
+
         RuleFor(x => x.CategoryId)
             .NotEmpty().WithMessage(localizer["RequiredField"].Value)
             .MustAsync(async (categoryId, cancellationToken) =>
