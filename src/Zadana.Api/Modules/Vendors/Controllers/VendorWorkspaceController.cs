@@ -311,6 +311,7 @@ public class VendorWorkspaceController : ApiControllerBase
                 .Select(txn => new
                 {
                     txn.Id,
+                    txn.OrderId,
                     txn.TxnType,
                     txn.Direction,
                     txn.Amount,
@@ -916,6 +917,7 @@ public class VendorWorkspaceController : ApiControllerBase
                 .Select(txn => new
                 {
                     txn.Id,
+                    txn.OrderId,
                     txn.TxnType,
                     txn.Direction,
                     txn.Amount,
@@ -941,7 +943,7 @@ public class VendorWorkspaceController : ApiControllerBase
         var trend = BuildFinanceTrend(normalizedPeriod, from, to, deliveredOrders, payouts);
         var ledger = vendorWalletTransactions
             .OrderByDescending(txn => txn.CreatedAtUtc)
-            .Select(txn => MapFinanceLedgerEntry(txn.Id, txn.TxnType, txn.Direction, txn.Amount, txn.CreatedAtUtc, txn.Description, txn.ReferenceType, txn.ReferenceId))
+            .Select(txn => MapFinanceLedgerEntry(txn.Id, txn.OrderId, txn.TxnType, txn.Direction, txn.Amount, txn.CreatedAtUtc, txn.Description, txn.ReferenceType, txn.ReferenceId))
             .ToList();
 
         var nextPayoutDate = ResolveNextPayoutDate(vendorFinancialMode, settlements);
@@ -973,11 +975,13 @@ public class VendorWorkspaceController : ApiControllerBase
 
     [HttpGet("finance/ledger")]
     public async Task<ActionResult<VendorFinanceLedgerPageResponse>> GetFinanceLedger(
+        [FromQuery] string period = "month",
         [FromQuery] int page = 1,
         [FromQuery] int pageSize = 20,
         CancellationToken cancellationToken = default)
     {
         var vendorId = await _currentVendorService.GetRequiredVendorIdAsync(cancellationToken);
+        var (_, from, to) = ResolveFinancePeriod(period);
         page = Math.Max(1, page);
         pageSize = Math.Clamp(pageSize, 1, 100);
 
@@ -992,7 +996,10 @@ public class VendorWorkspaceController : ApiControllerBase
 
         var query = _dbContext.WalletTransactions
             .AsNoTracking()
-            .Where(txn => txn.WalletId == vendorWallet.Id)
+            .Where(txn =>
+                txn.WalletId == vendorWallet.Id &&
+                txn.CreatedAtUtc >= from &&
+                txn.CreatedAtUtc < to)
             .OrderByDescending(txn => txn.CreatedAtUtc);
 
         var total = await query.CountAsync(cancellationToken);
@@ -1002,6 +1009,7 @@ public class VendorWorkspaceController : ApiControllerBase
             .Select(txn => new
             {
                 txn.Id,
+                txn.OrderId,
                 txn.TxnType,
                 txn.Direction,
                 txn.Amount,
@@ -1013,7 +1021,7 @@ public class VendorWorkspaceController : ApiControllerBase
             .ToListAsync(cancellationToken);
 
         var items = transactions
-            .Select(txn => MapFinanceLedgerEntry(txn.Id, txn.TxnType, txn.Direction, txn.Amount, txn.CreatedAtUtc, txn.Description, txn.ReferenceType, txn.ReferenceId))
+            .Select(txn => MapFinanceLedgerEntry(txn.Id, txn.OrderId, txn.TxnType, txn.Direction, txn.Amount, txn.CreatedAtUtc, txn.Description, txn.ReferenceType, txn.ReferenceId))
             .ToList();
 
         return Ok(new VendorFinanceLedgerPageResponse(items, page, pageSize, total, (int)Math.Ceiling(total / (double)pageSize)));
@@ -1204,6 +1212,7 @@ public class VendorWorkspaceController : ApiControllerBase
 
     private static VendorLedgerEntryResponse MapFinanceLedgerEntry(
         Guid id,
+        Guid? orderId,
         WalletTxnType txnType,
         string direction,
         decimal amount,
@@ -1220,7 +1229,7 @@ public class VendorWorkspaceController : ApiControllerBase
             _ => "fee"
         };
 
-        var (titleAr, titleEn) = ResolveFinanceLedgerTitles(txnType, description);
+        var (titleAr, titleEn) = ResolveLocalizedFinanceLedgerTitles(txnType, description, referenceType, orderId);
         var reference = !string.IsNullOrWhiteSpace(referenceType)
             ? referenceType.Trim()
             : referenceId?.ToString() ?? id.ToString();
@@ -1257,6 +1266,25 @@ public class VendorWorkspaceController : ApiControllerBase
             WalletTxnType.CashCollected => ("تحصيل نقدي", "Cash collected"),
             _ => ("تسوية مالية", "Wallet adjustment")
         };
+    }
+
+    private static (string TitleAr, string TitleEn) ResolveLocalizedFinanceLedgerTitles(
+        WalletTxnType txnType,
+        string? description,
+        string? referenceType,
+        Guid? orderId)
+    {
+        if (string.Equals(referenceType, "OrderRevenue", StringComparison.OrdinalIgnoreCase))
+        {
+            return ("تمت إضافة ربح الطلب", "Order revenue added");
+        }
+
+        if (string.Equals(referenceType, "VendorRecovery", StringComparison.OrdinalIgnoreCase))
+        {
+            return ("تم خصم استرداد التاجر", "Vendor recovery deducted");
+        }
+
+        return ResolveFinanceLedgerTitles(txnType, description);
     }
 
     private static decimal CalculateDelta(decimal current, decimal previous)

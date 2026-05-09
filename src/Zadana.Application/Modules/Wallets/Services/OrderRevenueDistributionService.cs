@@ -46,6 +46,7 @@ public class OrderRevenueDistributionService
             .Select(o => new
             {
                 o.Id,
+                o.OrderNumber,
                 o.VendorId,
                 o.Status,
                 o.PaymentMethod,
@@ -151,7 +152,7 @@ public class OrderRevenueDistributionService
                 vendorWallet.Id, WalletTxnType.OrderRevenue, vendorNet, "IN",
                 orderId: orderId,
                 referenceType: "OrderRevenue",
-                description: $"Revenue from order {orderId}");
+                description: $"Revenue from order {order.OrderNumber}");
             _context.WalletTransactions.Add(vendorTxn);
         }
 
