@@ -1,6 +1,7 @@
 using System.Globalization;
 using FluentAssertions;
 using Microsoft.EntityFrameworkCore;
+using Zadana.Application.Common.Caching;
 using Zadana.Application.Common.Interfaces;
 using Zadana.Application.Modules.Home.DTOs;
 using Zadana.Domain.Modules.Catalog.Entities;
@@ -104,6 +105,48 @@ public class HomeReadServiceTests
         result.Items[0].Title.Should().Be("خصومات على المنتجات اليومية");
         result.Items[0].Subtitle.Should().Be("توصيل سريع وأسعار أفضل");
         result.Items[0].ActionLabel.Should().Be("تسوق الآن");
+    }
+
+    [Fact]
+    public async Task GetBannersAsync_WithArabicCulture_LocalizesBannerItemsAfterCacheFactory()
+    {
+        using var scope = new CultureScope("ar");
+        await using var context = TestDbContextFactory.Create();
+
+        const string arabicTag = "\u0639\u0631\u0648\u0636";
+        const string arabicTitle = "\u062e\u0635\u0648\u0645\u0627\u062a \u064a\u0648\u0645\u064a\u0629";
+        const string arabicSubtitle = "\u062a\u0648\u0635\u064a\u0644 \u0633\u0631\u064a\u0639";
+        const string arabicActionLabel = "\u062a\u0633\u0648\u0642 \u0627\u0644\u0622\u0646";
+
+        context.HomeBanners.Add(new HomeBanner(
+            arabicTag,
+            "Deals",
+            arabicTitle,
+            "Daily discounts",
+            "/a.jpg",
+            subtitleAr: arabicSubtitle,
+            subtitleEn: "Fast delivery",
+            actionLabelAr: arabicActionLabel,
+            actionLabelEn: "Shop now",
+            displayOrder: 1,
+            startsAtUtc: DateTime.UtcNow.AddDays(-1),
+            endsAtUtc: DateTime.UtcNow.AddDays(2)));
+
+        await context.SaveChangesAsync();
+
+        var service = CreateService(
+            context,
+            new FakeCurrentUserService(null, false),
+            new CultureResettingAppCache("en"));
+
+        var result = await service.GetBannersAsync(10);
+
+        result.Title.Should().Be("\u0644\u0627\u0641\u062a\u0627\u062a");
+        result.Items.Should().ContainSingle();
+        result.Items[0].Tag.Should().Be(arabicTag);
+        result.Items[0].Title.Should().Be(arabicTitle);
+        result.Items[0].Subtitle.Should().Be(arabicSubtitle);
+        result.Items[0].ActionLabel.Should().Be(arabicActionLabel);
     }
 
     [Fact]
@@ -306,11 +349,12 @@ public class HomeReadServiceTests
 
     private static HomeReadService CreateService(
         ApplicationDbContext context,
-        ICurrentUserService currentUserService) =>
+        ICurrentUserService currentUserService,
+        IAppCache? cache = null) =>
         new(
             context,
             currentUserService,
-            TestServiceFactory.CreateAppCache(),
+            cache ?? TestServiceFactory.CreateAppCache(),
             TestServiceFactory.CreateCatalogReadCacheService(context, currentUserService),
             TestServiceFactory.CreateCachingOptions());
 
@@ -482,6 +526,34 @@ public class HomeReadServiceTests
         {
             CultureInfo.CurrentCulture = _originalCulture;
             CultureInfo.CurrentUICulture = _originalUiCulture;
+        }
+    }
+
+    private sealed class CultureResettingAppCache(string factoryCultureName) : IAppCache
+    {
+        public async Task<T> GetOrCreateAsync<T>(
+            string key,
+            Func<CancellationToken, Task<T>> factory,
+            AppCacheEntryOptions options,
+            IEnumerable<string>? tags = null,
+            CancellationToken cancellationToken = default)
+        {
+            var originalCulture = CultureInfo.CurrentCulture;
+            var originalUiCulture = CultureInfo.CurrentUICulture;
+
+            try
+            {
+                var factoryCulture = new CultureInfo(factoryCultureName);
+                CultureInfo.CurrentCulture = factoryCulture;
+                CultureInfo.CurrentUICulture = factoryCulture;
+
+                return await factory(cancellationToken);
+            }
+            finally
+            {
+                CultureInfo.CurrentCulture = originalCulture;
+                CultureInfo.CurrentUICulture = originalUiCulture;
+            }
         }
     }
 }

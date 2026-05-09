@@ -2,6 +2,31 @@ using Zadana.Domain.Modules.Marketing.Enums;
 
 namespace Zadana.Infrastructure.Caching;
 
+public sealed record HomeBannerSnapshot(
+    Guid Id,
+    string TagAr,
+    string TagEn,
+    string TitleAr,
+    string TitleEn,
+    string? SubtitleAr,
+    string? SubtitleEn,
+    string? ActionLabelAr,
+    string? ActionLabelEn,
+    string ImageUrl);
+
+public sealed record HomeCategorySnapshot(
+    Guid Id,
+    string NameAr,
+    string NameEn,
+    string? ImageUrl);
+
+public sealed record HomeBrandSnapshot(
+    Guid Id,
+    string NameAr,
+    string NameEn,
+    string? LogoUrl,
+    int ProductCount);
+
 public sealed record HomeCatalogProductSnapshot(
     Guid Id,
     Guid VendorProductId,

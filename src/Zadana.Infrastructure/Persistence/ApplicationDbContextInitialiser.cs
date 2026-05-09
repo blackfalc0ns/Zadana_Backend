@@ -49,6 +49,7 @@ public class ApplicationDbContextInitialiser
             if (_context.Database.IsSqlServer())
             {
                 await _context.Database.MigrateAsync();
+                await RepairSeededHomeBannersAsync();
             }
         }
         catch (Exception)
@@ -1326,50 +1327,7 @@ public class ApplicationDbContextInitialiser
 
     private async Task SeedHomeBannersAsync()
     {
-        var now = DateTime.UtcNow;
-        var seeds = new List<HomeBannerSeed>
-        {
-            new(
-                TagAr: "عروض اليوم",
-                TagEn: "Today's deals",
-                TitleAr: "خصومات قوية على منتجاتك اليومية",
-                TitleEn: "Strong discounts on your daily essentials",
-                ImageUrl: ImageCatalog.BannerDeals,
-                SubtitleAr: "توصيل سريع وأسعار أفضل من المعتاد",
-                SubtitleEn: "Fast delivery and better-than-usual prices",
-                ActionLabelAr: "تسوق الآن",
-                ActionLabelEn: "Shop now",
-                DisplayOrder: 1,
-                StartsAtUtc: now.AddDays(-7),
-                EndsAtUtc: now.AddMonths(2)),
-            new(
-                TagAr: "منتجات مميزة",
-                TagEn: "Featured picks",
-                TitleAr: "اختيارات موصى بها من أفضل المتاجر",
-                TitleEn: "Recommended picks from top stores",
-                ImageUrl: ImageCatalog.BannerStores,
-                SubtitleAr: "تشكيلة منتقاة بعناية لتسهيل قرار الشراء",
-                SubtitleEn: "A curated selection to make buying easier",
-                ActionLabelAr: "اكتشف المزيد",
-                ActionLabelEn: "Explore more",
-                DisplayOrder: 2,
-                StartsAtUtc: now.AddDays(-3),
-                EndsAtUtc: now.AddMonths(1)),
-            new(
-                TagAr: "الأكثر مبيعاً",
-                TagEn: "Best sellers",
-                TitleAr: "الأصناف الأكثر طلباً هذا الأسبوع",
-                TitleEn: "The most ordered items this week",
-                ImageUrl: ImageCatalog.BannerBestSelling,
-                SubtitleAr: "منتجات يحبها العملاء ويكررون طلبها",
-                SubtitleEn: "Products customers love and reorder",
-                ActionLabelAr: "شاهد القائمة",
-                ActionLabelEn: "See list",
-                DisplayOrder: 3,
-                StartsAtUtc: now.AddDays(-1),
-                EndsAtUtc: now.AddMonths(1))
-        };
-
+        var seeds = CreateHomeBannerSeeds(DateTime.UtcNow);
         var existingBanners = await _context.HomeBanners.ToListAsync();
         if (existingBanners.Count == 0)
         {
@@ -1378,6 +1336,24 @@ public class ApplicationDbContextInitialiser
             return;
         }
 
+        await RepairSeededHomeBannersAsync(existingBanners, seeds);
+    }
+
+    private async Task RepairSeededHomeBannersAsync()
+    {
+        var existingBanners = await _context.HomeBanners.ToListAsync();
+        if (existingBanners.Count == 0)
+        {
+            return;
+        }
+
+        await RepairSeededHomeBannersAsync(existingBanners, CreateHomeBannerSeeds(DateTime.UtcNow));
+    }
+
+    private async Task RepairSeededHomeBannersAsync(
+        IReadOnlyList<HomeBanner> existingBanners,
+        IReadOnlyList<HomeBannerSeed> seeds)
+    {
         var changed = false;
         foreach (var seed in seeds)
         {
@@ -1411,6 +1387,49 @@ public class ApplicationDbContextInitialiser
             await _context.SaveChangesAsync();
         }
     }
+
+    private static IReadOnlyList<HomeBannerSeed> CreateHomeBannerSeeds(DateTime now) =>
+    [
+        new(
+            TagAr: "عروض اليوم",
+            TagEn: "Today's deals",
+            TitleAr: "خصومات قوية على منتجاتك اليومية",
+            TitleEn: "Strong discounts on your daily essentials",
+            ImageUrl: ImageCatalog.BannerDeals,
+            SubtitleAr: "توصيل سريع وأسعار أفضل من المعتاد",
+            SubtitleEn: "Fast delivery and better-than-usual prices",
+            ActionLabelAr: "تسوق الآن",
+            ActionLabelEn: "Shop now",
+            DisplayOrder: 1,
+            StartsAtUtc: now.AddDays(-7),
+            EndsAtUtc: now.AddMonths(2)),
+        new(
+            TagAr: "منتجات مميزة",
+            TagEn: "Featured picks",
+            TitleAr: "اختيارات موصى بها من أفضل المتاجر",
+            TitleEn: "Recommended picks from top stores",
+            ImageUrl: ImageCatalog.BannerStores,
+            SubtitleAr: "تشكيلة منتقاة بعناية لتسهيل قرار الشراء",
+            SubtitleEn: "A curated selection to make buying easier",
+            ActionLabelAr: "اكتشف المزيد",
+            ActionLabelEn: "Explore more",
+            DisplayOrder: 2,
+            StartsAtUtc: now.AddDays(-3),
+            EndsAtUtc: now.AddMonths(1)),
+        new(
+            TagAr: "الأكثر مبيعاً",
+            TagEn: "Best sellers",
+            TitleAr: "الأصناف الأكثر طلباً هذا الأسبوع",
+            TitleEn: "The most ordered items this week",
+            ImageUrl: ImageCatalog.BannerBestSelling,
+            SubtitleAr: "منتجات يحبها العملاء ويكررون طلبها",
+            SubtitleEn: "Products customers love and reorder",
+            ActionLabelAr: "شاهد القائمة",
+            ActionLabelEn: "See list",
+            DisplayOrder: 3,
+            StartsAtUtc: now.AddDays(-1),
+            EndsAtUtc: now.AddMonths(1))
+    ];
 
     private static HomeBanner CreateHomeBanner(HomeBannerSeed seed) =>
         new(
