@@ -1,6 +1,7 @@
 using MediatR;
 using Zadana.Application.Common.Interfaces;
 using Zadana.Application.Modules.Delivery.Interfaces;
+using Zadana.Application.Modules.Delivery.Support;
 using Zadana.SharedKernel.Exceptions;
 
 namespace Zadana.Application.Modules.Delivery.Commands.UpdateDriverAvailability;
@@ -12,21 +13,37 @@ public class UpdateDriverAvailabilityCommandHandler : IRequestHandler<UpdateDriv
     private readonly IDriverRepository _driverRepository;
     private readonly IDriverCommitmentPolicyService _driverCommitmentPolicyService;
     private readonly IUnitOfWork _unitOfWork;
+    private readonly INotificationService _notificationService;
+    private readonly IOneSignalPushService _oneSignalPushService;
 
     public UpdateDriverAvailabilityCommandHandler(
         IDriverRepository driverRepository,
         IDriverCommitmentPolicyService driverCommitmentPolicyService,
-        IUnitOfWork unitOfWork)
+        IUnitOfWork unitOfWork,
+        INotificationService notificationService,
+        IOneSignalPushService oneSignalPushService)
     {
         _driverRepository = driverRepository;
         _driverCommitmentPolicyService = driverCommitmentPolicyService;
         _unitOfWork = unitOfWork;
+        _notificationService = notificationService;
+        _oneSignalPushService = oneSignalPushService;
     }
 
     public async Task Handle(UpdateDriverAvailabilityCommand request, CancellationToken cancellationToken)
     {
         var driver = await _driverRepository.GetByUserIdAsync(request.DriverUserId, cancellationToken)
             ?? throw new NotFoundException("Driver", request.DriverUserId);
+
+        if (driver.ApplyDocumentExpiryLock())
+        {
+            await _unitOfWork.SaveChangesAsync(cancellationToken);
+            await DriverExpiryLockNotificationDispatcher.NotifyAsync(
+                driver,
+                _notificationService,
+                _oneSignalPushService,
+                cancellationToken);
+        }
 
         if (request.IsAvailable && !driver.CanReceiveOrders)
         {

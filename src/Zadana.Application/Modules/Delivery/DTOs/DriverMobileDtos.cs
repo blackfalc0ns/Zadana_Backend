@@ -101,10 +101,18 @@ public record DriverProfileDto(
     string AccountStatus,
     string? ReviewNote,
     string? SuspensionReason,
+    DriverRejectionPolicyDto RejectionPolicy,
     bool IsProfileComplete,
     int CompletionPercent,
     IReadOnlyList<string> MissingRequirements,
     bool CanSubmitForReview);
+
+public record DriverRejectionPolicyDto(
+    int DailyRejections,
+    int DailyLimit,
+    int RemainingBeforeFreeze,
+    bool IsFrozen,
+    string? RestrictionMessage);
 
 public record DriverProfileDocumentDto(
     string DocumentType,

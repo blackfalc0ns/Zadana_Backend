@@ -1,6 +1,7 @@
 using FluentAssertions;
 using Microsoft.EntityFrameworkCore;
 using Moq;
+using Zadana.Application.Common.Interfaces;
 using Zadana.Application.Modules.Delivery.DTOs;
 using Zadana.Application.Modules.Delivery.Interfaces;
 using Zadana.Domain.Modules.Delivery.Entities;
@@ -166,6 +167,43 @@ public class DriverReadServiceTests
         result.MissingRequirements.Should().Contain("missing_documents");
         result.MissingRequirements.Should().Contain("missing_region_city");
         result.CanSubmitForReview.Should().BeFalse();
+        result.RejectionPolicy.DailyRejections.Should().Be(0);
+        result.RejectionPolicy.DailyLimit.Should().Be(3);
+        result.RejectionPolicy.RemainingBeforeFreeze.Should().Be(3);
+        result.RejectionPolicy.IsFrozen.Should().BeFalse();
+    }
+
+    [Fact]
+    public async Task GetDriverProfileAsync_ShouldExposeDailyRejectionsAndRemainingBeforeFreeze()
+    {
+        await using var dbContext = CreateDbContext();
+        var user = new User("Driver Rejection Profile User", "driver.rejection.profile@test.com", "01000000073", UserRole.Driver);
+        var driver = new Driver(user.Id, DriverVehicleType.Car, "12345678901241", "LIC-111", address: "Riyadh");
+
+        dbContext.Users.Add(user);
+        dbContext.Drivers.Add(driver);
+
+        for (var index = 0; index < 2; index++)
+        {
+            var attempt = new DeliveryOfferAttempt(Guid.NewGuid(), null, driver.Id, index + 1, DateTime.UtcNow.AddMinutes(5));
+            attempt.MarkRejected("skip");
+            dbContext.DeliveryOfferAttempts.Add(attempt);
+        }
+
+        await dbContext.SaveChangesAsync();
+
+        var service = new DriverReadService(
+            dbContext,
+            new DriverCommitmentPolicyService(dbContext, dbContext),
+            Mock.Of<INotificationService>(),
+            Mock.Of<IOneSignalPushService>());
+        var result = await service.GetDriverProfileAsync(user.Id);
+
+        result.Should().NotBeNull();
+        result!.RejectionPolicy.DailyRejections.Should().Be(2);
+        result.RejectionPolicy.DailyLimit.Should().Be(3);
+        result.RejectionPolicy.RemainingBeforeFreeze.Should().Be(1);
+        result.RejectionPolicy.IsFrozen.Should().BeFalse();
     }
 
     [Fact]
@@ -190,6 +228,46 @@ public class DriverReadServiceTests
         result.Operations.LocationBlockedAtUtc.Should().NotBeNull();
     }
 
+    [Fact]
+    public async Task GetDriverProfileAsync_WhenRequiredDocumentExpired_ShouldLockDriverAccount()
+    {
+        await using var dbContext = CreateDbContext();
+        var user = new User("Expired Driver Profile User", "expired.driver.profile@test.com", "01000000072", UserRole.Driver);
+        var driver = new Driver(
+            user.Id,
+            DriverVehicleType.Car,
+            "12345678901240",
+            "LIC-110",
+            nationalIdExpiryDate: DateTime.UtcNow.Date.AddDays(-1),
+            driverLicenseExpiryDate: DateTime.UtcNow.Date.AddYears(1),
+            vehicleLicenseNumber: "VEH-110",
+            vehicleLicenseExpiryDate: DateTime.UtcNow.Date.AddYears(1),
+            address: "Riyadh",
+            nationalIdFrontImageUrl: "https://cdn.example.com/drivers/id-front.jpg",
+            nationalIdBackImageUrl: "https://cdn.example.com/drivers/id-back.jpg",
+            licenseImageUrl: "https://cdn.example.com/drivers/license.jpg",
+            vehicleImageUrl: "https://cdn.example.com/drivers/vehicle.jpg",
+            personalPhotoUrl: "https://cdn.example.com/drivers/photo.jpg",
+            region: "RIYADH",
+            city: "RIYADH");
+        driver.Approve(Guid.NewGuid());
+
+        dbContext.Users.Add(user);
+        dbContext.Drivers.Add(driver);
+        await dbContext.SaveChangesAsync();
+
+        var service = CreateService(dbContext);
+        var result = await service.GetDriverProfileAsync(user.Id);
+
+        result.Should().NotBeNull();
+        result!.AccountStatus.Should().Be(nameof(AccountStatus.Inactive));
+        result.VerificationStatus.Should().Be(nameof(DriverVerificationStatus.NeedsDocuments));
+        result.MissingRequirements.Should().Contain("expired_documents");
+
+        driver.Status.Should().Be(AccountStatus.Inactive);
+        driver.VerificationStatus.Should().Be(DriverVerificationStatus.NeedsDocuments);
+    }
+
     private static DriverReadService CreateService(ApplicationDbContext dbContext)
     {
         var commitmentPolicy = new Mock<IDriverCommitmentPolicyService>();
@@ -201,7 +279,11 @@ public class DriverReadServiceTests
             .Setup(x => x.GetDriverSummariesAsync(It.IsAny<IReadOnlyCollection<Guid>>(), It.IsAny<CancellationToken>()))
             .ReturnsAsync(new Dictionary<Guid, DriverCommitmentSummaryDto>());
 
-        return new DriverReadService(dbContext, commitmentPolicy.Object);
+        return new DriverReadService(
+            dbContext,
+            commitmentPolicy.Object,
+            Mock.Of<INotificationService>(),
+            Mock.Of<IOneSignalPushService>());
     }
 
     private static ApplicationDbContext CreateDbContext()

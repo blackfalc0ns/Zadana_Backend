@@ -11,7 +11,7 @@ namespace Zadana.Infrastructure.Modules.Delivery.Services;
 
 public class DriverCommitmentPolicyService : IDriverCommitmentPolicyService
 {
-    private const int DailyRejectionLimit = 20;
+    private const int DailyRejectionLimit = 3;
     private const int WeeklyRejectionLimit = 20;
     private const int WatchDailyThreshold = 2;
     private const int WatchWeeklyThreshold = 8;
@@ -147,6 +147,8 @@ public class DriverCommitmentPolicyService : IDriverCommitmentPolicyService
 
         return result;
     }
+
+    public static int GetDailyRejectionLimit() => DailyRejectionLimit;
 
     public async Task ApplyOperationalEnforcementAsync(
         IReadOnlyCollection<Guid> driverIds,
@@ -361,7 +363,7 @@ public class DriverCommitmentPolicyService : IDriverCommitmentPolicyService
         enforcementLevel switch
         {
             DriverCommitmentEnforcementLevel.SoftBlocked =>
-                "Driver exceeded the daily or weekly offer rejection limit and is temporarily blocked from receiving new offers.",
+                "Driver reached the daily offer rejection limit and the account is temporarily frozen from receiving new offers.",
             DriverCommitmentEnforcementLevel.SuspensionCandidate =>
                 "Driver repeatedly exceeded offer rejection limits and now requires admin review before resuming normal dispatch priority.",
             _ => null

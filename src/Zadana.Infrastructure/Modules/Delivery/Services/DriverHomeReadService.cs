@@ -2,6 +2,7 @@ using Microsoft.EntityFrameworkCore;
 using Zadana.Application.Common.Interfaces;
 using Zadana.Application.Modules.Delivery.DTOs;
 using Zadana.Application.Modules.Delivery.Interfaces;
+using Zadana.Application.Modules.Delivery.Support;
 using Zadana.Domain.Modules.Delivery.Entities;
 using Zadana.Domain.Modules.Delivery.Enums;
 using Zadana.Domain.Modules.Payments.Enums;
@@ -16,17 +17,23 @@ public sealed class DriverHomeReadService : IDriverHomeReadService
     private readonly IDriverRepository _driverRepository;
     private readonly IDeliveryDispatchService _dispatchService;
     private readonly IDriverCommitmentPolicyService _driverCommitmentPolicyService;
+    private readonly INotificationService _notificationService;
+    private readonly IOneSignalPushService _oneSignalPushService;
 
     public DriverHomeReadService(
         IApplicationDbContext context,
         IDriverRepository driverRepository,
         IDeliveryDispatchService dispatchService,
-        IDriverCommitmentPolicyService driverCommitmentPolicyService)
+        IDriverCommitmentPolicyService driverCommitmentPolicyService,
+        INotificationService notificationService,
+        IOneSignalPushService oneSignalPushService)
     {
         _context = context;
         _driverRepository = driverRepository;
         _dispatchService = dispatchService;
         _driverCommitmentPolicyService = driverCommitmentPolicyService;
+        _notificationService = notificationService;
+        _oneSignalPushService = oneSignalPushService;
     }
 
     public async Task<DriverHomeDto> GetHomeAsync(
@@ -41,6 +48,16 @@ public sealed class DriverHomeReadService : IDriverHomeReadService
 
         var driver = await _driverRepository.GetByUserIdAsync(driverUserId, cancellationToken)
             ?? throw new NotFoundException("Driver", driverUserId);
+
+        if (driver.ApplyDocumentExpiryLock())
+        {
+            await _context.SaveChangesAsync(cancellationToken);
+            await DriverExpiryLockNotificationDispatcher.NotifyAsync(
+                driver,
+                _notificationService,
+                _oneSignalPushService,
+                cancellationToken);
+        }
 
         var commitment = await _driverCommitmentPolicyService.GetDriverSummaryAsync(driver.Id, cancellationToken);
         var operationalStatus = DriverOperationalStatusFactory.Create(driver, commitment);

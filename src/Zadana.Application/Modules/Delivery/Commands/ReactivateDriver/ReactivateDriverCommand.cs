@@ -33,6 +33,14 @@ public class ReactivateDriverCommandHandler : IRequestHandler<ReactivateDriverCo
         var driver = await _driverRepository.GetByIdAsync(request.DriverId, cancellationToken)
             ?? throw new NotFoundException("Driver", request.DriverId);
 
+        if (driver.ApplyDocumentExpiryLock())
+        {
+            await _unitOfWork.SaveChangesAsync(cancellationToken);
+            throw new BusinessRuleException(
+                "DRIVER_DOCUMENTS_EXPIRED",
+                "Cannot reactivate driver account while required documents are expired.");
+        }
+
         driver.Reactivate();
         await _unitOfWork.SaveChangesAsync(cancellationToken);
 

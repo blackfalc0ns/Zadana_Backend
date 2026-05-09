@@ -59,6 +59,11 @@ public class VerifyAssignmentOtpCommandHandler : IRequestHandler<VerifyAssignmen
         var driver = await _driverRepository.GetByUserIdAsync(request.DriverUserId, cancellationToken)
             ?? throw new BusinessRuleException("DRIVER_NOT_FOUND", "لم يتم العثور على حساب مندوب مرتبط بهذا المستخدم | No driver profile found for the current user.");
 
+        if (driver.ApplyDocumentExpiryLock())
+        {
+            await _unitOfWork.SaveChangesAsync(cancellationToken);
+        }
+
         if (!driver.CanReceiveOrders)
         {
             throw new BusinessRuleException(

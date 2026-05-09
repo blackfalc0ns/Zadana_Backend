@@ -162,12 +162,7 @@ public static class DriverProfileReadinessFactory
         driver.VehicleLicenseExpiryDate.HasValue;
 
     public static bool HasExpiredRequiredDocuments(Driver driver)
-    {
-        var today = DateTime.UtcNow.Date;
-        return (driver.NationalIdExpiryDate.HasValue && driver.NationalIdExpiryDate.Value.Date < today)
-            || (driver.DriverLicenseExpiryDate.HasValue && driver.DriverLicenseExpiryDate.Value.Date < today)
-            || (driver.VehicleLicenseExpiryDate.HasValue && driver.VehicleLicenseExpiryDate.Value.Date < today);
-    }
+        => driver.HasExpiredRequiredDocuments();
 
     public static bool HasRejectedRequiredDocuments(Driver driver) =>
         GetReviewDecision(driver, DriverDocumentType.NationalId) == DriverDocumentReviewDecision.Rejected

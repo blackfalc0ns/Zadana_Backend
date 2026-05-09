@@ -63,6 +63,28 @@ public class DriverOperationalStatusFactoryTests
         result.CanGoAvailable.Should().BeTrue();
     }
 
+    [Fact]
+    public void Create_WhenRequiredDocumentExpired_ShouldReturnExpiredDocumentsGate()
+    {
+        var driver = CreateDriver();
+        driver.Approve(Guid.NewGuid(), "Approved");
+        driver.UpdateDetails(
+            DriverVehicleType.Motorcycle,
+            "29801011234567",
+            "CAI-DRV-4421",
+            DateTime.UtcNow.Date.AddDays(-1),
+            DateTime.UtcNow.Date.AddYears(1),
+            "VEH-4421",
+            DateTime.UtcNow.Date.AddYears(1));
+
+        var result = DriverOperationalStatusFactory.Create(driver);
+
+        result.GateStatus.Should().Be("ExpiredDocuments");
+        result.IsOperational.Should().BeFalse();
+        result.CanReceiveOrders.Should().BeFalse();
+        result.Message.Should().Contain("expired documents");
+    }
+
     private static Driver CreateDriver() =>
         new(
             Guid.NewGuid(),

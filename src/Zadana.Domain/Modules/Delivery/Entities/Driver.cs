@@ -23,7 +23,10 @@ public class Driver : BaseEntity
     public string? PersonalPhotoUrl { get; private set; }
     public AccountStatus Status { get; private set; }
     public bool IsAvailable { get; private set; }
-    public bool CanReceiveOrders => VerificationStatus == DriverVerificationStatus.Approved && Status == AccountStatus.Active;
+    public bool CanReceiveOrders =>
+        VerificationStatus == DriverVerificationStatus.Approved &&
+        Status == AccountStatus.Active &&
+        !HasExpiredRequiredDocuments();
 
     // Verification & Review
     public DriverVerificationStatus VerificationStatus { get; private set; }
@@ -222,7 +225,7 @@ public class Driver : BaseEntity
 
     public void Reactivate()
     {
-        if (VerificationStatus != DriverVerificationStatus.Approved)
+        if (VerificationStatus != DriverVerificationStatus.Approved || HasExpiredRequiredDocuments())
             return;
 
         Status = AccountStatus.Active;
@@ -254,6 +257,54 @@ public class Driver : BaseEntity
         LocationUpdatesBlockReason = null;
         LocationUpdatesBlockedAtUtc = null;
         LocationUpdatesBlockedByUserId = null;
+    }
+
+    public bool HasExpiredRequiredDocuments()
+    {
+        var today = DateTime.UtcNow.Date;
+        return (NationalIdExpiryDate.HasValue && NationalIdExpiryDate.Value.Date < today)
+            || (DriverLicenseExpiryDate.HasValue && DriverLicenseExpiryDate.Value.Date < today)
+            || (VehicleLicenseExpiryDate.HasValue && VehicleLicenseExpiryDate.Value.Date < today);
+    }
+
+    public bool ApplyDocumentExpiryLock(string? note = null)
+    {
+        if (!HasExpiredRequiredDocuments())
+        {
+            return false;
+        }
+
+        var changed = false;
+        var normalizedNote = NormalizeOptional(note) ?? "expired_required_documents";
+
+        if (VerificationStatus != DriverVerificationStatus.NeedsDocuments)
+        {
+            VerificationStatus = DriverVerificationStatus.NeedsDocuments;
+            changed = true;
+        }
+
+        if (IsAvailable)
+        {
+            IsAvailable = false;
+            changed = true;
+        }
+
+        if (!string.Equals(ReviewNote, normalizedNote, StringComparison.Ordinal))
+        {
+            ReviewNote = normalizedNote;
+            changed = true;
+        }
+
+        if (Status is not AccountStatus.Suspended and not AccountStatus.Banned)
+        {
+            if (Status != AccountStatus.Inactive)
+            {
+                Status = AccountStatus.Inactive;
+                changed = true;
+            }
+        }
+
+        return changed;
     }
 
 

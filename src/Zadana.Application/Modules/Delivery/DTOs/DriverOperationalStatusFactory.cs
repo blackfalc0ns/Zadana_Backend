@@ -49,7 +49,9 @@ public static class DriverOperationalStatusFactory
     }
 
     public static string ResolveGateStatus(Driver driver) =>
-        driver.VerificationStatus switch
+        driver.HasExpiredRequiredDocuments()
+            ? "ExpiredDocuments"
+            : driver.VerificationStatus switch
         {
             DriverVerificationStatus.NeedsDocuments => "NeedsDocuments",
             DriverVerificationStatus.UnderReview => "UnderReview",
@@ -68,6 +70,7 @@ public static class DriverOperationalStatusFactory
             "NeedsDocuments" => "Driver profile is waiting for required documents before review.",
             "UnderReview" => "Driver profile is currently under admin review.",
             "Rejected" => "Driver profile was rejected by admin.",
+            "ExpiredDocuments" => "Driver account is closed until expired documents are renewed.",
             "Suspended" => "Driver account is suspended.",
             "Banned" => "Driver account is banned.",
             "Operational" => "Driver is approved and can receive orders.",

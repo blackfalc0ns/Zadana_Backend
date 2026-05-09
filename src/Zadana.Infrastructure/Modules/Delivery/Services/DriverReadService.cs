@@ -2,6 +2,7 @@ using Microsoft.EntityFrameworkCore;
 using Zadana.Application.Common.Interfaces;
 using Zadana.Application.Modules.Delivery.DTOs;
 using Zadana.Application.Modules.Delivery.Interfaces;
+using Zadana.Application.Modules.Delivery.Support;
 using Zadana.Domain.Modules.Delivery.Entities;
 using Zadana.Domain.Modules.Delivery.Enums;
 using Zadana.Domain.Modules.Identity.Entities;
@@ -20,13 +21,19 @@ public class DriverReadService : IDriverReadService
 
     private readonly IApplicationDbContext _context;
     private readonly IDriverCommitmentPolicyService _driverCommitmentPolicyService;
+    private readonly INotificationService _notificationService;
+    private readonly IOneSignalPushService _oneSignalPushService;
 
     public DriverReadService(
         IApplicationDbContext context,
-        IDriverCommitmentPolicyService driverCommitmentPolicyService)
+        IDriverCommitmentPolicyService driverCommitmentPolicyService,
+        INotificationService notificationService,
+        IOneSignalPushService oneSignalPushService)
     {
         _context = context;
         _driverCommitmentPolicyService = driverCommitmentPolicyService;
+        _notificationService = notificationService;
+        _oneSignalPushService = oneSignalPushService;
     }
 
     public async Task<AdminDriversListDto> GetAdminDriversAsync(
@@ -36,7 +43,6 @@ public class DriverReadService : IDriverReadService
     {
         var query = _context.Drivers
             .Include(d => d.User)
-            .AsNoTracking()
             .AsQueryable();
 
         if (!string.IsNullOrWhiteSpace(search))
@@ -69,6 +75,17 @@ public class DriverReadService : IDriverReadService
         var drivers = await query
             .OrderByDescending(d => d.CreatedAtUtc)
             .ToListAsync(cancellationToken);
+
+        var hasExpiryLocks = false;
+        foreach (var driver in drivers)
+        {
+            hasExpiryLocks |= driver.ApplyDocumentExpiryLock();
+        }
+
+        if (hasExpiryLocks)
+        {
+            await _context.SaveChangesAsync(cancellationToken);
+        }
 
         var driverIds = drivers.Select(d => d.Id).ToList();
 
@@ -179,10 +196,19 @@ public class DriverReadService : IDriverReadService
             .Include(d => d.Notes)
             .Include(d => d.Incidents)
             .Include(d => d.DocumentReviews)
-            .AsNoTracking()
             .FirstOrDefaultAsync(d => d.Id == driverId, cancellationToken);
 
         if (driver is null) return null;
+
+        if (driver.ApplyDocumentExpiryLock())
+        {
+            await _context.SaveChangesAsync(cancellationToken);
+            await DriverExpiryLockNotificationDispatcher.NotifyAsync(
+                driver,
+                _notificationService,
+                _oneSignalPushService,
+                cancellationToken);
+        }
 
         var missingRequirements = DriverProfileReadinessFactory.GetMissingRequirements(driver, driver.User);
 
@@ -700,7 +726,6 @@ public class DriverReadService : IDriverReadService
     public async Task<DriverProfileDto?> GetDriverProfileAsync(Guid userId, CancellationToken cancellationToken = default)
     {
         var driver = await _context.Drivers
-            .AsNoTracking()
             .Include(d => d.User)
             .Include(d => d.DocumentReviews)
             .FirstOrDefaultAsync(d => d.UserId == userId, cancellationToken);
@@ -710,8 +735,20 @@ public class DriverReadService : IDriverReadService
             return null;
         }
 
+        if (driver.ApplyDocumentExpiryLock())
+        {
+            await _context.SaveChangesAsync(cancellationToken);
+            await DriverExpiryLockNotificationDispatcher.NotifyAsync(
+                driver,
+                _notificationService,
+                _oneSignalPushService,
+                cancellationToken);
+        }
+
         var missingRequirements = DriverProfileReadinessFactory.GetMissingRequirements(driver, driver.User);
         var completionPercent = DriverProfileReadinessFactory.GetCompletionPercent(missingRequirements.Count);
+        var commitmentSummary = await _driverCommitmentPolicyService.GetDriverSummaryAsync(driver.Id, cancellationToken);
+        var dailyLimit = DriverCommitmentPolicyService.GetDailyRejectionLimit();
 
         // Resolve geography display names
         string? regionNameAr = null, regionNameEn = null, cityNameAr = null, cityNameEn = null;
@@ -761,6 +798,12 @@ public class DriverReadService : IDriverReadService
             driver.Status.ToString(),
             driver.ReviewNote,
             driver.SuspensionReason,
+            new DriverRejectionPolicyDto(
+                commitmentSummary.DailyRejections,
+                dailyLimit,
+                Math.Max(0, dailyLimit - commitmentSummary.DailyRejections),
+                !commitmentSummary.CanReceiveOffers,
+                commitmentSummary.RestrictionMessage),
             missingRequirements.Count == 0,
             completionPercent,
             missingRequirements,
@@ -786,7 +829,9 @@ public class DriverReadService : IDriverReadService
 
     private static string MapDriverStatus(Driver d, int activeTasks)
     {
+        if (d.HasExpiredRequiredDocuments()) return "Inactive";
         if (d.Status == AccountStatus.Suspended) return "Suspended";
+        if (d.Status == AccountStatus.Inactive) return "Inactive";
         if (activeTasks > 0) return "OnMission";
         if (!d.IsAvailable) return "Offline";
         return "Online";
@@ -808,6 +853,8 @@ public class DriverReadService : IDriverReadService
         var issues = new List<string>();
         if (driver.VerificationStatus is DriverVerificationStatus.NeedsDocuments or DriverVerificationStatus.UnderReview)
             issues.Add("warning");
+        if (driver.HasExpiredRequiredDocuments())
+            issues.Add("compliance");
         if (walletBalance < 0)
             issues.Add("payment");
         if (driver.Status == AccountStatus.Suspended)
@@ -1093,6 +1140,11 @@ public class DriverReadService : IDriverReadService
         if (driver.Status == AccountStatus.Suspended)
         {
             return "SUSPENDED";
+        }
+
+        if (driver.HasExpiredRequiredDocuments())
+        {
+            return "PENDING_DOCUMENTS";
         }
 
         // Driver needs to upload documents or was rejected — driver action required
