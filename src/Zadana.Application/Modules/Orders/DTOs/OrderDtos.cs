@@ -121,6 +121,7 @@ public record CustomerOrderListItemDto(
 
 public record CustomerOrderDetailDto(
     Guid Id,
+    string OrderNumber,
     DateTime CreatedAt,
     decimal TotalPrice,
     string Status,

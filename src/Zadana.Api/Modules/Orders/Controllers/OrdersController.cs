@@ -396,6 +396,7 @@ public class OrdersController : ApiControllerBase
     private static CustomerOrderDetailResponse MapOrderDetail(CustomerOrderDetailDto dto) =>
         new(
             dto.Id,
+            dto.OrderNumber,
             dto.CreatedAt,
             dto.TotalPrice,
             dto.Status,

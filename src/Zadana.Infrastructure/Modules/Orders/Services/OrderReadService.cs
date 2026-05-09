@@ -944,6 +944,7 @@ public class OrderReadService : IOrderReadService
     private static CustomerOrderDetailDto MapDetail(Order order) =>
         new(
             order.Id,
+            order.OrderNumber,
             order.PlacedAtUtc,
             order.TotalAmount,
             MapStatus(order.Status),

@@ -29,6 +29,7 @@ public record CustomerOrderProductResponse(
 
 public record CustomerOrderDetailResponse(
     [property: JsonPropertyName("id")] Guid Id,
+    [property: JsonPropertyName("order_number")] string OrderNumber,
     [property: JsonPropertyName("created_at")] DateTime CreatedAt,
     [property: JsonPropertyName("total_price")] decimal TotalPrice,
     [property: JsonPropertyName("status")] string Status,
