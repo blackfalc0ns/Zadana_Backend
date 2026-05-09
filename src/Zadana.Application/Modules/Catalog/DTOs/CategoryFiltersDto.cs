@@ -4,17 +4,23 @@ namespace Zadana.Application.Modules.Catalog.DTOs;
 
 public record CatalogFilterNamedItemDto(
     [property: JsonPropertyName("id")] Guid Id,
-    [property: JsonPropertyName("name")] string Name);
+    [property: JsonPropertyName("name")] string Name,
+    [property: JsonPropertyName("name_ar")] string? NameAr = null,
+    [property: JsonPropertyName("name_en")] string? NameEn = null);
 
 public record CatalogFilterPartItemDto(
     [property: JsonPropertyName("id")] Guid Id,
     [property: JsonPropertyName("name")] string Name,
-    [property: JsonPropertyName("product_type_id")] Guid? ProductTypeId);
+    [property: JsonPropertyName("product_type_id")] Guid? ProductTypeId,
+    [property: JsonPropertyName("name_ar")] string? NameAr = null,
+    [property: JsonPropertyName("name_en")] string? NameEn = null);
 
 public record CatalogFilterBrandItemDto(
     [property: JsonPropertyName("id")] Guid Id,
     [property: JsonPropertyName("name")] string Name,
-    [property: JsonPropertyName("logo_url")] string? LogoUrl);
+    [property: JsonPropertyName("logo_url")] string? LogoUrl,
+    [property: JsonPropertyName("name_ar")] string? NameAr = null,
+    [property: JsonPropertyName("name_en")] string? NameEn = null);
 
 public record CatalogFilterPriceRangeDto(
     [property: JsonPropertyName("min")] decimal Min,

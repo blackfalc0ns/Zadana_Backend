@@ -5,7 +5,7 @@ namespace Zadana.Application.Modules.Catalog.Queries;
 
 internal static class CatalogQueryCacheKeys
 {
-    private const string Version = "v1";
+    private const string Version = "v2";
 
     public static string CustomerBrands() =>
         AppCacheKeys.Build("catalog", "brands", "customer", Version, AppCacheKeys.CurrentCulture);

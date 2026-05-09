@@ -139,10 +139,16 @@ public class GetCategoryProductsQueryHandler : IRequestHandler<GetCategoryProduc
                     product.MasterProductId,
                     product.CreatedAtUtc,
                     product.CategoryId,
+                    NormalizeText(product.NameAr),
+                    NormalizeText(product.NameEn),
                     PickLocalized(product.NameAr, product.NameEn),
+                    NormalizeText(product.StoreAr),
+                    NormalizeText(product.StoreEn),
                     PickLocalized(product.StoreAr, product.StoreEn),
                     product.SellingPrice,
                     product.CompareAtPrice,
+                    NormalizeText(product.UnitAr),
+                    NormalizeText(product.UnitEn),
                     PickLocalizedNullable(product.UnitAr, product.UnitEn),
                     product.ImageUrl,
                     salesCount,
@@ -245,7 +251,13 @@ public class GetCategoryProductsQueryHandler : IRequestHandler<GetCategoryProduc
             FormatDiscount(product),
             isFavorite,
             product.Unit,
-            isDiscounted);
+            isDiscounted,
+            product.NameAr,
+            product.NameEn,
+            product.StoreAr,
+            product.StoreEn,
+            product.UnitAr,
+            product.UnitEn);
     }
 
     private static decimal CalculateDiscountRate(CategoryProductSource product)
@@ -283,6 +295,9 @@ public class GetCategoryProductsQueryHandler : IRequestHandler<GetCategoryProduc
         var value = PickLocalized(arabic, english);
         return string.IsNullOrWhiteSpace(value) ? null : value;
     }
+
+    private static string? NormalizeText(string? value) =>
+        string.IsNullOrWhiteSpace(value) ? null : value.Trim();
 
     private static CategoryScope? ResolveScope(Guid categoryId, IReadOnlyCollection<CategoryScopeRow> categories)
     {
@@ -352,10 +367,16 @@ public class GetCategoryProductsQueryHandler : IRequestHandler<GetCategoryProduc
         Guid Id,
         DateTime CreatedAtUtc,
         Guid CategoryId,
+        string? NameAr,
+        string? NameEn,
         string Name,
+        string? StoreAr,
+        string? StoreEn,
         string Store,
         decimal SellingPrice,
         decimal? CompareAtPrice,
+        string? UnitAr,
+        string? UnitEn,
         string? Unit,
         string? ImageUrl,
         int SalesCount,

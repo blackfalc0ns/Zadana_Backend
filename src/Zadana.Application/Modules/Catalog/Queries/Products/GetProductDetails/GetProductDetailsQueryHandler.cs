@@ -100,7 +100,9 @@ public class GetProductDetailsQueryHandler : IRequestHandler<GetProductDetailsQu
                 offer.StoreLogoUrl,
                 offer.Price,
                 offer.IsDiscounted ? offer.OldPrice : null,
-                offer.IsDiscounted))
+                offer.IsDiscounted,
+                offer.StoreAr,
+                offer.StoreEn))
             .ToList();
 
         var similarOfferRows = visibleOffers
@@ -133,7 +135,13 @@ public class GetProductDetailsQueryHandler : IRequestHandler<GetProductDetailsQu
                     FormatDiscount(offer.Price, offer.OldPrice),
                     false,
                     offer.Unit,
-                    offer.IsDiscounted);
+                    offer.IsDiscounted,
+                    offer.NameAr,
+                    offer.NameEn,
+                    offer.StoreAr,
+                    offer.StoreEn,
+                    offer.UnitAr,
+                    offer.UnitEn);
             })
             .ToList();
 
@@ -157,7 +165,15 @@ public class GetProductDetailsQueryHandler : IRequestHandler<GetProductDetailsQu
             defaultOffer.IsDiscounted,
             defaultOffer.Description,
             vendorPrices,
-            similarProducts);
+            similarProducts,
+            defaultOffer.NameAr,
+            defaultOffer.NameEn,
+            defaultOffer.StoreAr,
+            defaultOffer.StoreEn,
+            defaultOffer.UnitAr,
+            defaultOffer.UnitEn,
+            defaultOffer.DescriptionAr,
+            defaultOffer.DescriptionEn);
     }
 
     private async Task<List<VisibleOfferRow>> LoadVisibleOffersAsync(CancellationToken cancellationToken)
@@ -206,12 +222,20 @@ public class GetProductDetailsQueryHandler : IRequestHandler<GetProductDetailsQu
             offer.VendorId,
             offer.CategoryId,
             offer.CreatedAtUtc,
+            NormalizeText(offer.NameAr),
+            NormalizeText(offer.NameEn),
             PickLocalized(offer.NameAr, offer.NameEn),
+            NormalizeText(offer.StoreAr),
+            NormalizeText(offer.StoreEn),
             PickLocalized(offer.StoreAr, offer.StoreEn),
             offer.StoreLogoUrl,
             offer.SellingPrice,
             offer.CompareAtPrice,
+            NormalizeText(offer.UnitAr),
+            NormalizeText(offer.UnitEn),
             PickLocalizedNullable(offer.UnitAr, offer.UnitEn),
+            NormalizeText(offer.DescriptionAr),
+            NormalizeText(offer.DescriptionEn),
             PickLocalizedNullable(offer.DescriptionAr, offer.DescriptionEn),
             offer.Images.Where(url => !string.IsNullOrWhiteSpace(url)).ToList()))
         .ToList();
@@ -246,6 +270,9 @@ public class GetProductDetailsQueryHandler : IRequestHandler<GetProductDetailsQu
         return string.IsNullOrWhiteSpace(value) ? null : value;
     }
 
+    private static string? NormalizeText(string? value) =>
+        string.IsNullOrWhiteSpace(value) ? null : value.Trim();
+
     private sealed record RawVisibleOfferRow(
         Guid VendorProductId,
         Guid MasterProductId,
@@ -271,12 +298,20 @@ public class GetProductDetailsQueryHandler : IRequestHandler<GetProductDetailsQu
         Guid VendorId,
         Guid CategoryId,
         DateTime CreatedAtUtc,
+        string? NameAr,
+        string? NameEn,
         string Name,
+        string? StoreAr,
+        string? StoreEn,
         string Store,
         string? StoreLogoUrl,
         decimal Price,
         decimal? OldPrice,
+        string? UnitAr,
+        string? UnitEn,
         string? Unit,
+        string? DescriptionAr,
+        string? DescriptionEn,
         string? Description,
         List<string> Images)
     {

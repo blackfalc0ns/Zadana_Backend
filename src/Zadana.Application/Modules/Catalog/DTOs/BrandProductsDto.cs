@@ -22,7 +22,13 @@ public record BrandProductItemDto(
     [property: JsonPropertyName("discount")] string? Discount,
     [property: JsonPropertyName("is_favorite")] bool IsFavorite,
     [property: JsonPropertyName("unit")] string? Unit,
-    [property: JsonPropertyName("is_discounted")] bool IsDiscounted);
+    [property: JsonPropertyName("is_discounted")] bool IsDiscounted,
+    [property: JsonPropertyName("name_ar")] string? NameAr = null,
+    [property: JsonPropertyName("name_en")] string? NameEn = null,
+    [property: JsonPropertyName("store_ar")] string? StoreAr = null,
+    [property: JsonPropertyName("store_en")] string? StoreEn = null,
+    [property: JsonPropertyName("unit_ar")] string? UnitAr = null,
+    [property: JsonPropertyName("unit_en")] string? UnitEn = null);
 
 public record BrandProductsDto(
     [property: JsonPropertyName("applied_filters")] BrandProductsAppliedFiltersDto AppliedFilters,

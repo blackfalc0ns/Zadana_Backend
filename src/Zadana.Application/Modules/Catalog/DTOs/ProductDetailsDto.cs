@@ -8,7 +8,9 @@ public record ProductDetailsVendorPriceDto(
     [property: JsonPropertyName("logo_url")] string? LogoUrl,
     [property: JsonPropertyName("price")] decimal Price,
     [property: JsonPropertyName("old_price")] decimal? OldPrice,
-    [property: JsonPropertyName("is_discounted")] bool IsDiscounted);
+    [property: JsonPropertyName("is_discounted")] bool IsDiscounted,
+    [property: JsonPropertyName("name_ar")] string? NameAr = null,
+    [property: JsonPropertyName("name_en")] string? NameEn = null);
 
 public record ProductDetailsSimilarProductDto(
     [property: JsonPropertyName("id")] Guid Id,
@@ -22,7 +24,13 @@ public record ProductDetailsSimilarProductDto(
     [property: JsonPropertyName("discount")] string? Discount,
     [property: JsonPropertyName("is_favorite")] bool IsFavorite,
     [property: JsonPropertyName("unit")] string? Unit,
-    [property: JsonPropertyName("is_discounted")] bool IsDiscounted);
+    [property: JsonPropertyName("is_discounted")] bool IsDiscounted,
+    [property: JsonPropertyName("name_ar")] string? NameAr = null,
+    [property: JsonPropertyName("name_en")] string? NameEn = null,
+    [property: JsonPropertyName("store_ar")] string? StoreAr = null,
+    [property: JsonPropertyName("store_en")] string? StoreEn = null,
+    [property: JsonPropertyName("unit_ar")] string? UnitAr = null,
+    [property: JsonPropertyName("unit_en")] string? UnitEn = null);
 
 public record ProductDetailsDto(
     [property: JsonPropertyName("id")] Guid Id,
@@ -42,4 +50,12 @@ public record ProductDetailsDto(
     [property: JsonPropertyName("is_discounted")] bool IsDiscounted,
     [property: JsonPropertyName("description")] string? Description,
     [property: JsonPropertyName("vendor_prices")] IReadOnlyList<ProductDetailsVendorPriceDto> VendorPrices,
-    [property: JsonPropertyName("similar_products")] IReadOnlyList<ProductDetailsSimilarProductDto> SimilarProducts);
+    [property: JsonPropertyName("similar_products")] IReadOnlyList<ProductDetailsSimilarProductDto> SimilarProducts,
+    [property: JsonPropertyName("name_ar")] string? NameAr = null,
+    [property: JsonPropertyName("name_en")] string? NameEn = null,
+    [property: JsonPropertyName("store_ar")] string? StoreAr = null,
+    [property: JsonPropertyName("store_en")] string? StoreEn = null,
+    [property: JsonPropertyName("unit_ar")] string? UnitAr = null,
+    [property: JsonPropertyName("unit_en")] string? UnitEn = null,
+    [property: JsonPropertyName("description_ar")] string? DescriptionAr = null,
+    [property: JsonPropertyName("description_en")] string? DescriptionEn = null);

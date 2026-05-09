@@ -39,6 +39,11 @@ public class GetBrandByIdQueryHandler : IRequestHandler<GetBrandByIdQuery, Brand
             BrandCatalogQueryHelpers.PickLocalized(brand.NameAr, brand.NameEn),
             brand.LogoUrl,
             brand.CoverImageUrl,
-            brand.ProductCount);
+            brand.ProductCount,
+            NormalizeText(brand.NameAr),
+            NormalizeText(brand.NameEn));
     }
+
+    private static string? NormalizeText(string? value) =>
+        string.IsNullOrWhiteSpace(value) ? null : value.Trim();
 }

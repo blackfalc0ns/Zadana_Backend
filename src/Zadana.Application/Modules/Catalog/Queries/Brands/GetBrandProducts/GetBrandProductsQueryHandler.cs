@@ -136,10 +136,16 @@ public class GetBrandProductsQueryHandler : IRequestHandler<GetBrandProductsQuer
                 return new BrandProductSource(
                     product.MasterProductId,
                     product.CreatedAtUtc,
+                    NormalizeText(product.NameAr),
+                    NormalizeText(product.NameEn),
                     BrandCatalogQueryHelpers.PickLocalized(product.NameAr, product.NameEn),
+                    NormalizeText(product.StoreAr),
+                    NormalizeText(product.StoreEn),
                     BrandCatalogQueryHelpers.PickLocalized(product.StoreAr, product.StoreEn),
                     product.SellingPrice,
                     product.CompareAtPrice,
+                    NormalizeText(product.UnitAr),
+                    NormalizeText(product.UnitEn),
                     BrandCatalogQueryHelpers.PickLocalizedNullable(product.UnitAr, product.UnitEn),
                     product.ImageUrl,
                     salesCount,
@@ -225,8 +231,17 @@ public class GetBrandProductsQueryHandler : IRequestHandler<GetBrandProductsQuer
             FormatDiscount(product),
             isFavorite,
             product.Unit,
-            isDiscounted);
+            isDiscounted,
+            product.NameAr,
+            product.NameEn,
+            product.StoreAr,
+            product.StoreEn,
+            product.UnitAr,
+            product.UnitEn);
     }
+
+    private static string? NormalizeText(string? value) =>
+        string.IsNullOrWhiteSpace(value) ? null : value.Trim();
 
     private static decimal CalculateDiscountRate(BrandProductSource product)
     {
@@ -299,10 +314,16 @@ public class GetBrandProductsQueryHandler : IRequestHandler<GetBrandProductsQuer
     private sealed record BrandProductSource(
         Guid Id,
         DateTime CreatedAtUtc,
+        string? NameAr,
+        string? NameEn,
         string Name,
+        string? StoreAr,
+        string? StoreEn,
         string Store,
         decimal SellingPrice,
         decimal? CompareAtPrice,
+        string? UnitAr,
+        string? UnitEn,
         string? Unit,
         string? ImageUrl,
         int SalesCount,

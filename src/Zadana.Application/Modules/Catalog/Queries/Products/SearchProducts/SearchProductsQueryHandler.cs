@@ -126,10 +126,16 @@ public class SearchProductsQueryHandler : IRequestHandler<SearchProductsQuery, S
                 return new SearchProductSource(
                     product.MasterProductId,
                     product.CreatedAtUtc,
+                    NormalizeText(product.NameAr),
+                    NormalizeText(product.NameEn),
                     PickLocalized(product.NameAr, product.NameEn),
+                    NormalizeText(product.StoreAr),
+                    NormalizeText(product.StoreEn),
                     PickLocalized(product.StoreAr, product.StoreEn),
                     product.SellingPrice,
                     product.CompareAtPrice,
+                    NormalizeText(product.UnitAr),
+                    NormalizeText(product.UnitEn),
                     PickLocalizedNullable(product.UnitAr, product.UnitEn),
                     product.ImageUrl,
                     salesCount,
@@ -220,7 +226,13 @@ public class SearchProductsQueryHandler : IRequestHandler<SearchProductsQuery, S
             FormatDiscount(product),
             isFavorite,
             product.Unit,
-            isDiscounted);
+            isDiscounted,
+            product.NameAr,
+            product.NameEn,
+            product.StoreAr,
+            product.StoreEn,
+            product.UnitAr,
+            product.UnitEn);
     }
 
     private static decimal CalculateDiscountRate(SearchProductSource product)
@@ -259,6 +271,9 @@ public class SearchProductsQueryHandler : IRequestHandler<SearchProductsQuery, S
         return string.IsNullOrWhiteSpace(value) ? null : value;
     }
 
+    private static string? NormalizeText(string? value) =>
+        string.IsNullOrWhiteSpace(value) ? null : value.Trim();
+
     private sealed record RawSearchProduct(
         Guid Id,
         Guid MasterProductId,
@@ -277,10 +292,16 @@ public class SearchProductsQueryHandler : IRequestHandler<SearchProductsQuery, S
     private sealed record SearchProductSource(
         Guid Id,
         DateTime CreatedAtUtc,
+        string? NameAr,
+        string? NameEn,
         string Name,
+        string? StoreAr,
+        string? StoreEn,
         string Store,
         decimal SellingPrice,
         decimal? CompareAtPrice,
+        string? UnitAr,
+        string? UnitEn,
         string? Unit,
         string? ImageUrl,
         int SalesCount,
