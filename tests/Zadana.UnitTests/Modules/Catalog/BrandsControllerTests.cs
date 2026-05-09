@@ -39,7 +39,7 @@ public class BrandsControllerTests
     {
         List<BrandCustomerDto> dto =
         [
-            new BrandCustomerDto(Guid.NewGuid(), "Almarai", "almarai.png", 12)
+            new BrandCustomerDto(Guid.NewGuid(), "Almarai", "almarai.png", "almarai-cover.png", 12)
         ];
 
         _senderMock.Setup(x => x.Send(It.IsAny<GetCustomerBrandsQuery>(), It.IsAny<CancellationToken>()))

@@ -11,8 +11,9 @@ namespace Zadana.Application.Tests.Application.Catalog;
 public class CreateCategoryCommandHandlerTests
 {
     private readonly Mock<IApplicationDbContext> _dbContextMock = new();
+    private readonly Mock<ICacheInvalidator> _cacheInvalidatorMock = new();
 
-    private CreateCategoryCommandHandler CreateHandler() => new(_dbContextMock.Object);
+    private CreateCategoryCommandHandler CreateHandler() => new(_dbContextMock.Object, _cacheInvalidatorMock.Object);
 
     [Fact]
     public async Task Handle_WithValidData_ShouldAddCategoryAndReturnDto()

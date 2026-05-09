@@ -10,6 +10,8 @@ public class VendorProductBulkOperationItem : BaseEntity
     public int RowNumber { get; private set; }
     public Guid MasterProductId { get; private set; }
     public Guid? VendorBranchId { get; private set; }
+    public decimal? CostPrice { get; private set; }
+    public decimal? TradePrice { get; private set; }
     public decimal SellingPrice { get; private set; }
     public decimal? CompareAtPrice { get; private set; }
     public int StockQty { get; private set; }
@@ -29,6 +31,8 @@ public class VendorProductBulkOperationItem : BaseEntity
     public VendorProductBulkOperationItem(
         int rowNumber,
         Guid masterProductId,
+        decimal? costPrice,
+        decimal? tradePrice,
         decimal sellingPrice,
         decimal? compareAtPrice,
         int stockQty,
@@ -39,6 +43,8 @@ public class VendorProductBulkOperationItem : BaseEntity
     {
         RowNumber = rowNumber;
         MasterProductId = masterProductId;
+        CostPrice = costPrice;
+        TradePrice = tradePrice;
         SellingPrice = sellingPrice;
         CompareAtPrice = compareAtPrice;
         StockQty = stockQty;

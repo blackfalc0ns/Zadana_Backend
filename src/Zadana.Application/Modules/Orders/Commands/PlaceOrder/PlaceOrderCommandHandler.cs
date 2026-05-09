@@ -56,10 +56,22 @@ public class PlaceOrderCommandHandler : IRequestHandler<PlaceOrderCommand, Guid>
             {
                 throw new BusinessRuleException("INSUFFICIENT_STOCK", _localizer["INSUFFICIENT_STOCK"]);
             }
+
+            if (!vendorProduct.TradePrice.HasValue)
+            {
+                throw new BusinessRuleException("INCOMPLETE_VENDOR_PRICING", "Vendor product pricing is incomplete.");
+            }
         }
 
         var subtotal = cart.Items.Sum(item => vendorProducts[item.MasterProductId].SellingPrice * item.Quantity);
-        var commissionAmount = subtotal * 0.05m;
+        var vendorCommissionRate = vendorProducts.Values.FirstOrDefault()?.Vendor?.CommissionRate ?? 0m;
+        var commissionAmount = cart.Items.Sum(item =>
+        {
+            var vendorProduct = vendorProducts[item.MasterProductId];
+            var tradePrice = vendorProduct.TradePrice!.Value;
+            var profitPerUnit = Math.Max(vendorProduct.SellingPrice - tradePrice, 0m);
+            return Math.Round((profitPerUnit * item.Quantity) * vendorCommissionRate / 100m, 2);
+        });
         var itemQuantities = cart.Items
             .GroupBy(item => item.MasterProductId)
             .ToDictionary(group => group.Key, group => group.Sum(item => item.Quantity));
@@ -134,7 +146,9 @@ public class PlaceOrderCommandHandler : IRequestHandler<PlaceOrderCommand, Guid>
                 masterProductId: item.MasterProductId,
                 productName: item.ProductName,
                 quantity: item.Quantity,
-                unitPrice: vendorProduct.SellingPrice
+                unitPrice: vendorProduct.SellingPrice,
+                tradeUnitPrice: vendorProduct.TradePrice,
+                vendorProfitPerUnit: Math.Max(vendorProduct.SellingPrice - vendorProduct.TradePrice!.Value, 0m)
             );
 
             _orderRepository.AddOrderItem(orderItem);

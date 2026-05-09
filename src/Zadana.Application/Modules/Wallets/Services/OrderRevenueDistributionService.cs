@@ -82,14 +82,13 @@ public class OrderRevenueDistributionService
             return;
         }
 
-        // 4. Load vendor commission rate
+        // 4. Load vendor financial mode
         var vendor = await _context.Vendors
             .AsNoTracking()
             .Where(v => v.Id == order.VendorId)
             .Select(v => new
             {
                 v.Id,
-                v.CommissionRate,
                 v.FinancialLifecycleMode
             })
             .FirstOrDefaultAsync(cancellationToken);
@@ -109,11 +108,10 @@ public class OrderRevenueDistributionService
             .FirstOrDefaultAsync(cancellationToken);
 
         // 6. Calculate revenue split
-        var vendorCommissionRate = vendor.CommissionRate ?? 0m;
         var driverCommissionRate = _settings.DriverCommissionRatePercent;
 
         var vendorGross = order.TotalAmount - order.DeliveryFee;
-        var vendorCommission = Math.Round(vendorGross * vendorCommissionRate / 100m, 2);
+        var vendorCommission = Math.Max(order.CommissionAmount, 0m);
         var vendorNet = vendorGross - vendorCommission;
 
         var driverGross = order.DeliveryFee;

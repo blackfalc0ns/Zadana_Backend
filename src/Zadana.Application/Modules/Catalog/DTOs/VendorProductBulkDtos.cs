@@ -6,6 +6,8 @@ public record VendorProductBulkOperationItemDto(
     Guid MasterProductId,
     string? ProductNameAr,
     string? ProductNameEn,
+    decimal? CostPrice,
+    decimal? TradePrice,
     decimal SellingPrice,
     decimal? CompareAtPrice,
     int StockQty,

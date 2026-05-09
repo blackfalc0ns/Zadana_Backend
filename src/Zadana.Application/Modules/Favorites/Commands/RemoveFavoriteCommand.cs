@@ -1,6 +1,7 @@
 using MediatR;
 using Microsoft.EntityFrameworkCore;
 using Microsoft.Extensions.Localization;
+using Zadana.Application.Common.Caching;
 using Zadana.Application.Common.Interfaces;
 using Zadana.Application.Common.Localization;
 using Zadana.Application.Modules.Favorites.DTOs;
@@ -13,13 +14,16 @@ public record RemoveFavoriteCommand(Guid? UserId, string? GuestId, Guid ProductI
 public class RemoveFavoriteCommandHandler : IRequestHandler<RemoveFavoriteCommand, RemoveFavoriteResponse>
 {
     private readonly IApplicationDbContext _context;
+    private readonly ICacheInvalidator _cacheInvalidator;
     private readonly IStringLocalizer<SharedResource> _localizer;
 
     public RemoveFavoriteCommandHandler(
         IApplicationDbContext context,
+        ICacheInvalidator cacheInvalidator,
         IStringLocalizer<SharedResource> localizer)
     {
         _context = context;
+        _cacheInvalidator = cacheInvalidator;
         _localizer = localizer;
     }
 
@@ -42,6 +46,7 @@ public class RemoveFavoriteCommandHandler : IRequestHandler<RemoveFavoriteComman
         {
             _context.CustomerFavorites.Remove(existing);
             await _context.SaveChangesAsync(cancellationToken);
+            await _cacheInvalidator.RemoveByTagAsync(AppCacheKeys.FavoriteScopeTag(request.UserId, guestId), cancellationToken);
         }
 
         var count = await CountFavoritesAsync(request.UserId, guestId, cancellationToken);

@@ -72,6 +72,7 @@ public class SearchBrandsQueryHandler : IRequestHandler<SearchBrandsQuery, Catal
                 brand.NameAr,
                 brand.NameEn,
                 brand.LogoUrl,
+                brand.CoverImageUrl,
                 brand.CategoryId,
                 brand.Category != null ? brand.Category.NameAr : null,
                 brand.Category != null ? brand.Category.NameEn : null,

@@ -24,6 +24,23 @@ public class UpdateVendorProductCommandValidator : AbstractValidator<UpdateVendo
             .GreaterThanOrEqualTo(0).When(v => v.CompareAtPrice.HasValue).WithMessage(localizer["MinValue"].Value)
             .WithName("CompareAtPrice");
 
+        RuleFor(v => v.CostPrice)
+            .GreaterThanOrEqualTo(0).When(v => v.CostPrice.HasValue).WithMessage(localizer["MinValue"].Value)
+            .WithName("CostPrice");
+
+        RuleFor(v => v.TradePrice)
+            .NotNull().WithMessage("Trade price is required.")
+            .WithName("TradePrice");
+
+        RuleFor(v => v.TradePrice)
+            .GreaterThan(0).When(v => v.TradePrice.HasValue).WithMessage(localizer["GreaterThanZero"].Value)
+            .WithName("TradePrice");
+
+        RuleFor(v => v)
+            .Must(v => !v.TradePrice.HasValue || v.TradePrice.Value <= v.SellingPrice)
+            .WithMessage("Trade price must be less than or equal to selling price.")
+            .WithName("TradePrice");
+
         RuleFor(v => v.StockQty)
             .GreaterThanOrEqualTo(0).WithMessage(localizer["MinValue"].Value)
             .WithName("StockQty");

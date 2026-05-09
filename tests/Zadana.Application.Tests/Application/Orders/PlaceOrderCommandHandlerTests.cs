@@ -137,7 +137,7 @@ public class PlaceOrderCommandHandlerTests
         var cart = new Cart(userId);
         cart.Items.Add(new CartItem(cart.Id, masterProduct.Id, masterProduct.NameEn, 2));
         cart.UpdateTotals(120m, 20m);
-        var vendorProduct = new VendorProduct(vendorId, masterProduct.Id, 60m, 10);
+        var vendorProduct = new VendorProduct(vendorId, masterProduct.Id, 60m, 10, tradePrice: 60m);
 
         _orderRepositoryMock
             .Setup(repository => repository.GetCartForCheckoutAsync(userId, It.IsAny<CancellationToken>()))
@@ -163,7 +163,7 @@ public class PlaceOrderCommandHandlerTests
                 null,
                 null,
                 null,
-                6m,
+                0m,
                 0m,
                 0m,
                 It.IsAny<IReadOnlyDictionary<Guid, int>>(),
@@ -180,5 +180,35 @@ public class PlaceOrderCommandHandlerTests
         _orderRepositoryMock.Verify(repository => repository.AddOrder(It.IsAny<Order>()), Times.Never);
         _orderRepositoryMock.Verify(repository => repository.AddOrderItem(It.IsAny<OrderItem>()), Times.Never);
         _unitOfWorkMock.Verify(unitOfWork => unitOfWork.SaveChangesAsync(It.IsAny<CancellationToken>()), Times.Never);
+    }
+
+    [Fact]
+    public async Task Handle_WhenTradePriceMissing_ShouldThrowBusinessRuleException()
+    {
+        var userId = Guid.NewGuid();
+        var vendorId = Guid.NewGuid();
+        var masterProduct = new MasterProduct("Name Ar", "Name En", "name-en", Guid.NewGuid());
+        var cart = new Cart(userId);
+        cart.Items.Add(new CartItem(cart.Id, masterProduct.Id, masterProduct.NameEn, 1));
+
+        _orderRepositoryMock
+            .Setup(repository => repository.GetCartForCheckoutAsync(userId, It.IsAny<CancellationToken>()))
+            .ReturnsAsync(cart);
+        _orderRepositoryMock
+            .Setup(repository => repository.GetVendorProductsForCheckoutAsync(vendorId, It.IsAny<IReadOnlyCollection<Guid>>(), It.IsAny<CancellationToken>()))
+            .ReturnsAsync(new Dictionary<Guid, VendorProduct>
+            {
+                [masterProduct.Id] = new VendorProduct(vendorId, masterProduct.Id, 40m, 5)
+            });
+
+        var handler = CreateHandler();
+
+        var act = () => handler.Handle(
+            new PlaceOrderCommand(userId, vendorId, Guid.NewGuid(), "CashOnDelivery", null, null, null, 0m, 0m, 0m, null, null, null),
+            CancellationToken.None);
+
+        await act.Should()
+            .ThrowAsync<BusinessRuleException>()
+            .Where(e => e.ErrorCode == "INCOMPLETE_VENDOR_PRICING");
     }
 }

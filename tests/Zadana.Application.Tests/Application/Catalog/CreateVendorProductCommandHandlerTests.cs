@@ -16,9 +16,10 @@ namespace Zadana.Application.Tests.Application.Catalog;
 public class CreateVendorProductCommandHandlerTests
 {
     private readonly Mock<IApplicationDbContext> _dbContextMock = new();
+    private readonly Mock<ICacheInvalidator> _cacheInvalidatorMock = new();
 
     private CreateVendorProductCommandHandler CreateHandler() =>
-        new(_dbContextMock.Object, TestLocalizer.Create<SharedResource>());
+        new(_dbContextMock.Object, _cacheInvalidatorMock.Object, TestLocalizer.Create<SharedResource>());
 
     private static Vendor CreateVendor(VendorStatus status)
     {
@@ -45,7 +46,7 @@ public class CreateVendorProductCommandHandlerTests
 
         _dbContextMock.Setup(c => c.Vendors).Returns(mockVendorSet.Object);
 
-        var command = new CreateVendorProductCommand(Guid.NewGuid(), Guid.NewGuid(), 100m, null, null, 10, 1, null, null, null);
+        var command = new CreateVendorProductCommand(Guid.NewGuid(), Guid.NewGuid(), 100m, null, null, null, 10, 1, null, null, null);
         var handler = CreateHandler();
 
         var act = () => handler.Handle(command, CancellationToken.None);
@@ -68,7 +69,7 @@ public class CreateVendorProductCommandHandlerTests
 
         _dbContextMock.Setup(c => c.Vendors).Returns(mockVendorSet.Object);
 
-        var command = new CreateVendorProductCommand(vendor.Id, Guid.NewGuid(), 100m, null, null, 10, 1, null, null, null);
+        var command = new CreateVendorProductCommand(vendor.Id, Guid.NewGuid(), 100m, null, null, null, 10, 1, null, null, null);
         var handler = CreateHandler();
 
         var act = () => handler.Handle(command, CancellationToken.None);
@@ -101,7 +102,7 @@ public class CreateVendorProductCommandHandlerTests
         mockMasterProductSet.As<IQueryable<MasterProduct>>().Setup(m => m.GetEnumerator()).Returns(masterProducts.GetEnumerator());
         _dbContextMock.Setup(c => c.MasterProducts).Returns(mockMasterProductSet.Object);
 
-        var command = new CreateVendorProductCommand(vendor.Id, Guid.NewGuid(), 100m, null, null, 10, 1, null, null, null);
+        var command = new CreateVendorProductCommand(vendor.Id, Guid.NewGuid(), 100m, null, null, null, 10, 1, null, null, null);
         var handler = CreateHandler();
 
         var act = () => handler.Handle(command, CancellationToken.None);

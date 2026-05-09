@@ -5,6 +5,7 @@ public record BrandDto(
     string NameAr,
     string NameEn,
     string? LogoUrl,
+    string? CoverImageUrl,
     Guid? CategoryId,
     string? CategoryNameAr,
     string? CategoryNameEn,

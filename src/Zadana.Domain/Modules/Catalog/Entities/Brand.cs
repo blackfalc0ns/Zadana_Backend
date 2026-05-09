@@ -7,6 +7,7 @@ public class Brand : BaseEntity
     public string NameAr { get; private set; } = null!;
     public string NameEn { get; private set; } = null!;
     public string? LogoUrl { get; private set; }
+    public string? CoverImageUrl { get; private set; }
     public Guid? CategoryId { get; private set; }
     public bool IsActive { get; private set; }
 
@@ -16,20 +17,22 @@ public class Brand : BaseEntity
 
     private Brand() { }
 
-    public Brand(string nameAr, string nameEn, string? logoUrl = null, Guid? categoryId = null)
+    public Brand(string nameAr, string nameEn, string? logoUrl = null, string? coverImageUrl = null, Guid? categoryId = null)
     {
         NameAr = nameAr.Trim();
         NameEn = nameEn.Trim();
         LogoUrl = logoUrl?.Trim();
+        CoverImageUrl = coverImageUrl?.Trim();
         CategoryId = categoryId;
         IsActive = true;
     }
 
-    public void Update(string nameAr, string nameEn, string? logoUrl, Guid? categoryId)
+    public void Update(string nameAr, string nameEn, string? logoUrl, string? coverImageUrl, Guid? categoryId)
     {
         NameAr = nameAr.Trim();
         NameEn = nameEn.Trim();
         LogoUrl = logoUrl?.Trim();
+        CoverImageUrl = coverImageUrl?.Trim();
         CategoryId = categoryId;
     }
 

@@ -28,6 +28,7 @@ public class GetBrandByIdQueryHandler : IRequestHandler<GetBrandByIdQuery, Brand
                 item.NameAr,
                 item.NameEn,
                 item.LogoUrl,
+                item.CoverImageUrl,
                 ProductCount = item.MasterProducts.Count(product => product.Status == ProductStatus.Active)
             })
             .FirstOrDefaultAsync(cancellationToken)
@@ -37,6 +38,7 @@ public class GetBrandByIdQueryHandler : IRequestHandler<GetBrandByIdQuery, Brand
             brand.Id,
             BrandCatalogQueryHelpers.PickLocalized(brand.NameAr, brand.NameEn),
             brand.LogoUrl,
+            brand.CoverImageUrl,
             brand.ProductCount);
     }
 }

@@ -7,6 +7,8 @@ public record UpdateVendorProductCommand(
     Guid VendorId,
     decimal SellingPrice,
     decimal? CompareAtPrice,
+    decimal? CostPrice,
+    decimal? TradePrice,
     int StockQty,
     string? CustomNameAr,
     string? CustomNameEn,

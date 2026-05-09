@@ -17,6 +17,12 @@ public class VendorProductConfiguration : IEntityTypeConfiguration<VendorProduct
             .IsRequired()
             .HasPrecision(18, 2);
 
+        builder.Property(vp => vp.CostPrice)
+            .HasPrecision(18, 2);
+
+        builder.Property(vp => vp.TradePrice)
+            .HasPrecision(18, 2);
+
         builder.Property(vp => vp.CompareAtPrice)
             .HasPrecision(18, 2);
 

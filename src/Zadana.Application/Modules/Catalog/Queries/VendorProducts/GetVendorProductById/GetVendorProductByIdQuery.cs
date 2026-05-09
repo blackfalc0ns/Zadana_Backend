@@ -27,6 +27,7 @@ public class GetVendorProductByIdQueryHandler : IRequestHandler<GetVendorProduct
                 .ThenInclude(mp => mp.Brand)
             .Include(x => x.MasterProduct)
                 .ThenInclude(mp => mp.UnitOfMeasure)
+            .Include(x => x.Vendor)
             .FirstOrDefaultAsync(x => x.Id == request.ProductId && x.VendorId == request.VendorId, cancellationToken);
 
         if (vp == null)
@@ -36,8 +37,11 @@ public class GetVendorProductByIdQueryHandler : IRequestHandler<GetVendorProduct
             vp.Id,
             vp.VendorId,
             vp.MasterProductId,
+            vp.CostPrice,
+            vp.TradePrice,
             vp.SellingPrice,
             vp.CompareAtPrice,
+            vp.Vendor.CommissionRate,
             vp.StockQuantity,
             vp.IsAvailable,
             vp.Status.ToString(),

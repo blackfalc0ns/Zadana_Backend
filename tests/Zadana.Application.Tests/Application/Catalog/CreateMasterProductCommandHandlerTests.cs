@@ -11,8 +11,9 @@ namespace Zadana.Application.Tests.Application.Catalog;
 public class CreateMasterProductCommandHandlerTests
 {
     private readonly Mock<IApplicationDbContext> _dbContextMock = new();
+    private readonly Mock<ICacheInvalidator> _cacheInvalidatorMock = new();
 
-    private CreateMasterProductCommandHandler CreateHandler() => new(_dbContextMock.Object);
+    private CreateMasterProductCommandHandler CreateHandler() => new(_dbContextMock.Object, _cacheInvalidatorMock.Object);
 
     [Fact]
     public async Task Handle_WhenCategoryNotFound_ShouldThrowNotFoundException()

@@ -755,16 +755,16 @@ public class ApplicationDbContextInitialiser
 
         var brands = new List<Brand>
         {
-            new("المراعي", "Almarai", "https://cdn.simpleicons.org/tesco/00539f", dairy?.Id),
-            new("نادك", "Nadec", "https://cdn.simpleicons.org/carrefour/004f9f", dairy?.Id),
-            new("نادا", "Nada", "https://cdn.simpleicons.org/walmart/0071ce", beverages?.Id),
-            new("بيبسي", "Pepsi", "https://cdn.simpleicons.org/pepsi/2151a1", beverages?.Id),
-            new("ليز", "Lay's", "https://cdn.simpleicons.org/fritolay/ffcc00", snacks?.Id),
-            new("سامسونج", "Samsung", "https://cdn.simpleicons.org/samsung/1428a0", phones?.Id),
-            new("آبل", "Apple", "https://cdn.simpleicons.org/apple/000000", phones?.Id),
-            new("أنكر", "Anker", "https://cdn.simpleicons.org/anker/00a7e1", accessories?.Id),
-            new("برايل", "Pril", "https://cdn.simpleicons.org/homeassistant/41bdf5", householdCare?.Id),
-            new("فاين", "Fine", "https://cdn.simpleicons.org/cloudflare/ff6633", householdCare?.Id)
+            new("المراعي", "Almarai", "https://cdn.simpleicons.org/tesco/00539f", null, dairy?.Id),
+            new("نادك", "Nadec", "https://cdn.simpleicons.org/carrefour/004f9f", null, dairy?.Id),
+            new("نادا", "Nada", "https://cdn.simpleicons.org/walmart/0071ce", null, beverages?.Id),
+            new("بيبسي", "Pepsi", "https://cdn.simpleicons.org/pepsi/2151a1", null, beverages?.Id),
+            new("ليز", "Lay's", "https://cdn.simpleicons.org/fritolay/ffcc00", null, snacks?.Id),
+            new("سامسونج", "Samsung", "https://cdn.simpleicons.org/samsung/1428a0", null, phones?.Id),
+            new("آبل", "Apple", "https://cdn.simpleicons.org/apple/000000", null, phones?.Id),
+            new("أنكر", "Anker", "https://cdn.simpleicons.org/anker/00a7e1", null, accessories?.Id),
+            new("برايل", "Pril", "https://cdn.simpleicons.org/homeassistant/41bdf5", null, householdCare?.Id),
+            new("فاين", "Fine", "https://cdn.simpleicons.org/cloudflare/ff6633", null, householdCare?.Id)
         };
 
         await _context.Brands.AddRangeAsync(brands);
@@ -1440,7 +1440,7 @@ public class ApplicationDbContextInitialiser
                 continue;
             }
 
-            var entity = new VendorProduct(vendor.Id, product.Id, offer.SellingPrice, offer.Quantity, offer.CompareAtPrice, branch.Id);
+            var entity = new VendorProduct(vendor.Id, product.Id, offer.SellingPrice, offer.Quantity, offer.CompareAtPrice, null, offer.SellingPrice, branch.Id);
             if (offer.Quantity == 0)
             {
                 entity.UpdateStock(0);
@@ -1784,8 +1784,8 @@ public class ApplicationDbContextInitialiser
         coupons.TryGetValue("TECH50", out var techCoupon);
 
         var deliveredOrder = new Order("ORD-DEV-1001", ahmed.Id, groceryVendor.Id, ahmedHome.Id, PaymentMethodType.Card, 48.85m, 4.00m, 12m, 12m, 0m, 0m, 2.4m, "zone-fallback", "Riyadh - Al Olaya Standard", 5.50m, 0m, 0m, "Leave at the door", groceryBranch.Id, freshCoupon?.Id);
-        deliveredOrder.Items.Add(new OrderItem(deliveredOrder.Id, milk.Id, milk.MasterProductId, milk.MasterProduct.NameEn, 2, 16.95m, 2.00m, "Liter"));
-        deliveredOrder.Items.Add(new OrderItem(deliveredOrder.Id, soap.Id, soap.MasterProductId, soap.MasterProduct.NameEn, 1, 14.95m, 2.00m, "Liter"));
+        deliveredOrder.Items.Add(new OrderItem(deliveredOrder.Id, milk.Id, milk.MasterProductId, milk.MasterProduct.NameEn, 2, 16.95m, 16.95m, 0m, 2.00m, "Liter"));
+        deliveredOrder.Items.Add(new OrderItem(deliveredOrder.Id, soap.Id, soap.MasterProductId, soap.MasterProduct.NameEn, 1, 14.95m, 14.95m, 0m, 2.00m, "Liter"));
         var deliveredPayment = new Payment(deliveredOrder.Id, PaymentMethodType.Card, deliveredOrder.TotalAmount);
         deliveredPayment.MarkAsPending("MockGateway", "PAY-DEV-1001");
         deliveredPayment.MarkAsPaid();
@@ -1799,8 +1799,8 @@ public class ApplicationDbContextInitialiser
         deliveredOrder.ChangeStatus(OrderStatus.Delivered, null, "Delivered successfully");
 
         var refundedOrder = new Order("ORD-DEV-1002", layla.Id, techVendor.Id, laylaWork.Id, PaymentMethodType.ApplePay, 1578.00m, 79.00m, 0m, 0m, 0m, 0m, null, "zone-fallback", "Jeddah Standard", 90m, 0m, 0m, "Office reception", techBranch.Id, techCoupon?.Id);
-        refundedOrder.Items.Add(new OrderItem(refundedOrder.Id, charger.Id, charger.MasterProductId, charger.MasterProduct.NameEn, 1, 79m, 0m, "Piece"));
-        refundedOrder.Items.Add(new OrderItem(refundedOrder.Id, phone.Id, phone.MasterProductId, phone.MasterProduct.NameEn, 1, 1499m, 79m, "Piece"));
+        refundedOrder.Items.Add(new OrderItem(refundedOrder.Id, charger.Id, charger.MasterProductId, charger.MasterProduct.NameEn, 1, 79m, 79m, 0m, 0m, "Piece"));
+        refundedOrder.Items.Add(new OrderItem(refundedOrder.Id, phone.Id, phone.MasterProductId, phone.MasterProduct.NameEn, 1, 1499m, 1499m, 0m, 79m, "Piece"));
         var refundedPayment = new Payment(refundedOrder.Id, PaymentMethodType.ApplePay, refundedOrder.TotalAmount);
         refundedPayment.MarkAsPending("MockGateway", "PAY-DEV-1002");
         refundedPayment.MarkAsPaid();
@@ -1812,8 +1812,8 @@ public class ApplicationDbContextInitialiser
         refundedOrder.UpdatePaymentStatus(PaymentStatus.Refunded);
 
         var codOrder = new Order("ORD-DEV-1003", noor.Id, groceryVendor.Id, noorHome.Id, PaymentMethodType.CashOnDelivery, 29.70m, 0m, 10m, 10m, 0m, 0m, 1.8m, "zone-fallback", "Khobar Standard", 3m, 0m, 0m, "Call on arrival", groceryBranch.Id);
-        codOrder.Items.Add(new OrderItem(codOrder.Id, milk.Id, milk.MasterProductId, milk.MasterProduct.NameEn, 1, 16.95m, 0m, "Liter"));
-        codOrder.Items.Add(new OrderItem(codOrder.Id, soap.Id, soap.MasterProductId, soap.MasterProduct.NameEn, 1, 14.95m, 2.20m, "Liter"));
+        codOrder.Items.Add(new OrderItem(codOrder.Id, milk.Id, milk.MasterProductId, milk.MasterProduct.NameEn, 1, 16.95m, 16.95m, 0m, 0m, "Liter"));
+        codOrder.Items.Add(new OrderItem(codOrder.Id, soap.Id, soap.MasterProductId, soap.MasterProduct.NameEn, 1, 14.95m, 14.95m, 0m, 2.20m, "Liter"));
         var codPayment = new Payment(codOrder.Id, PaymentMethodType.CashOnDelivery, codOrder.TotalAmount);
         codPayment.MarkAsPending("CashOnDelivery", "PAY-DEV-1003");
         codOrder.ChangeStatus(OrderStatus.Placed, null, "Order placed");
@@ -2413,3 +2413,4 @@ internal static class ImageCatalog
     public const string DriverVehicle = "https://images.unsplash.com/photo-1558981806-ec527fa84c39?auto=format&fit=crop&w=800&q=80";
     public const string DriverProfile = "https://images.unsplash.com/photo-1500648767791-00dcc994a43e?auto=format&fit=crop&w=800&q=80";
 }
+

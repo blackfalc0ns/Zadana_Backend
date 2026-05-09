@@ -1,6 +1,9 @@
 using MediatR;
 using Microsoft.EntityFrameworkCore;
+using Microsoft.Extensions.Options;
+using Zadana.Application.Common.Caching;
 using Zadana.Application.Common.Interfaces;
+using Zadana.Application.Common.Settings;
 using Zadana.Application.Modules.Dashboard.DTOs;
 using Zadana.Domain.Modules.Catalog.Enums;
 using Zadana.Domain.Modules.Delivery.Enums;
@@ -12,16 +15,34 @@ using Zadana.Domain.Modules.Wallets.Enums;
 
 namespace Zadana.Application.Modules.Dashboard.Queries.GetAdminDashboardOverview;
 
-internal sealed class GetAdminDashboardOverviewQueryHandler(IApplicationDbContext dbContext)
+internal sealed class GetAdminDashboardOverviewQueryHandler(
+    IApplicationDbContext dbContext,
+    IAppCache cache,
+    IOptions<CachingSettings> cachingOptions)
     : IRequestHandler<GetAdminDashboardOverviewQuery, AdminDashboardOverviewDto>
 {
-    public async Task<AdminDashboardOverviewDto> Handle(GetAdminDashboardOverviewQuery request, CancellationToken cancellationToken)
+    private readonly CacheDurationSettings _durations = cachingOptions.Value.Durations;
+
+    public Task<AdminDashboardOverviewDto> Handle(GetAdminDashboardOverviewQuery request, CancellationToken cancellationToken)
     {
         var period = NormalizePeriod(request.Period);
-        var now = DateTime.UtcNow;
-        var start = ResolveStart(period, now);
+        var normalizedRegion = NormalizeRegion(request.Region);
 
-        var vendors = await dbContext.Vendors
+        return cache.GetOrCreateAsync(
+            AppCacheKeys.Build(
+                "dashboard",
+                "admin-overview",
+                "v1",
+                period,
+                AppCacheKeys.NormalizeToken(normalizedRegion),
+                AppCacheKeys.GuidToken(request.VendorId),
+                AppCacheKeys.CurrentCulture),
+            async _ =>
+            {
+                var now = DateTime.UtcNow;
+                var start = ResolveStart(period, now);
+
+                var vendors = await dbContext.Vendors
             .Select(v => new VendorRow(
                 v.Id,
                 v.BusinessNameAr,
@@ -35,13 +56,12 @@ internal sealed class GetAdminDashboardOverviewQueryHandler(IApplicationDbContex
                 v.CreatedAtUtc))
             .ToListAsync(cancellationToken);
 
-        var vendorIndex = vendors.ToDictionary(v => v.Id);
-        var selectedVendor = request.VendorId.HasValue && vendorIndex.TryGetValue(request.VendorId.Value, out var vendor)
-            ? vendor
-            : null;
-        var normalizedRegion = NormalizeRegion(request.Region);
+                var vendorIndex = vendors.ToDictionary(v => v.Id);
+                var selectedVendor = request.VendorId.HasValue && vendorIndex.TryGetValue(request.VendorId.Value, out var vendor)
+                    ? vendor
+                    : null;
 
-        var orders = await dbContext.Orders
+                var orders = await dbContext.Orders
             .Where(o => o.PlacedAtUtc >= start)
             .Select(o => new OrderRow(
                 o.Id,
@@ -57,7 +77,7 @@ internal sealed class GetAdminDashboardOverviewQueryHandler(IApplicationDbContex
                 o.PlacedAtUtc))
             .ToListAsync(cancellationToken);
 
-        var drivers = await dbContext.Drivers
+                var drivers = await dbContext.Drivers
             .Select(d => new DriverRow(
                 d.Id,
                 d.UserId,
@@ -71,7 +91,7 @@ internal sealed class GetAdminDashboardOverviewQueryHandler(IApplicationDbContex
                 d.CreatedAtUtc))
             .ToListAsync(cancellationToken);
 
-        var supportCases = await dbContext.OrderSupportCases
+                var supportCases = await dbContext.OrderSupportCases
             .Where(c => c.CreatedAtUtc >= start || (c.ClosedAtUtc.HasValue && c.ClosedAtUtc >= start))
             .Select(c => new SupportCaseRow(
                 c.Id,
@@ -87,33 +107,34 @@ internal sealed class GetAdminDashboardOverviewQueryHandler(IApplicationDbContex
                 c.ClosedAtUtc))
             .ToListAsync(cancellationToken);
 
-        var productsCount = await dbContext.MasterProducts.CountAsync(cancellationToken);
-        var brandsCount = await dbContext.Brands.CountAsync(cancellationToken);
-        var categoriesCount = await dbContext.Categories.CountAsync(cancellationToken);
-        var vendorBranchesCount = await dbContext.VendorBranches.CountAsync(cancellationToken);
-        var activeCouponsCount = await dbContext.Coupons.CountAsync(c => c.IsActive, cancellationToken);
-        var activeBannersCount = await dbContext.HomeBanners.CountAsync(cancellationToken);
-        var featuredPlacementsCount = await dbContext.FeaturedProductPlacements.CountAsync(cancellationToken);
-        var permissionDefinitionsCount = await dbContext.PermissionDefinitions.CountAsync(cancellationToken);
-        var rolesCount = await dbContext.RoleDefinitions.CountAsync(cancellationToken);
-        var userAccessScopesCount = await dbContext.UserAccessScopes.CountAsync(cancellationToken);
-        var userPermissionOverridesCount = await dbContext.UserPermissionOverrides.CountAsync(cancellationToken);
-        var walletsCount = await dbContext.Wallets.CountAsync(cancellationToken);
+                var productsCount = await dbContext.MasterProducts.CountAsync(cancellationToken);
+                var brandsCount = await dbContext.Brands.CountAsync(cancellationToken);
+                var categoriesCount = await dbContext.Categories.CountAsync(cancellationToken);
+                var vendorBranchesCount = await dbContext.VendorBranches.CountAsync(cancellationToken);
+                var activeCouponsCount = await dbContext.Coupons.CountAsync(c => c.IsActive, cancellationToken);
+                var activeBannersCount = await dbContext.HomeBanners.CountAsync(cancellationToken);
+                var featuredPlacementsCount = await dbContext.FeaturedProductPlacements.CountAsync(cancellationToken);
+                var permissionDefinitionsCount = await dbContext.PermissionDefinitions.CountAsync(cancellationToken);
+                var rolesCount = await dbContext.RoleDefinitions.CountAsync(cancellationToken);
+                var userAccessScopesCount = await dbContext.UserAccessScopes.CountAsync(cancellationToken);
+                var userPermissionOverridesCount = await dbContext.UserPermissionOverrides.CountAsync(cancellationToken);
+                var walletsCount = await dbContext.Wallets.CountAsync(cancellationToken);
 
-        var users = await dbContext.Users
-            .Select(u => new UserRow(
-                u.Id,
-                u.FullName,
-                u.Role,
-                u.AccountStatus,
-                u.IsLoginLocked,
-                u.PermissionVersion,
-                u.CreatedAtUtc,
-                u.LastLoginAtUtc,
-                u.LastSeenAtUtc))
-            .ToListAsync(cancellationToken);
+                var adminUsers = await dbContext.Users
+                    .Where(u => u.Role == UserRole.Admin || u.Role == UserRole.SuperAdmin)
+                    .Select(u => new UserRow(
+                        u.Id,
+                        u.FullName,
+                        u.Role,
+                        u.AccountStatus,
+                        u.IsLoginLocked,
+                        u.PermissionVersion,
+                        u.CreatedAtUtc,
+                        u.LastLoginAtUtc,
+                        u.LastSeenAtUtc))
+                    .ToListAsync(cancellationToken);
 
-        var reviews = await dbContext.Reviews
+                var reviews = await dbContext.Reviews
             .Where(r => r.CreatedAtUtc >= start || r.VendorRepliedAtUtc >= start)
             .Select(r => new ReviewRow(
                 r.Id,
@@ -123,7 +144,7 @@ internal sealed class GetAdminDashboardOverviewQueryHandler(IApplicationDbContex
                 r.CreatedAtUtc))
             .ToListAsync(cancellationToken);
 
-        var vendorProducts = await dbContext.VendorProducts
+                var vendorProducts = await dbContext.VendorProducts
             .Select(vp => new VendorProductRow(
                 vp.Id,
                 vp.VendorId,
@@ -133,42 +154,48 @@ internal sealed class GetAdminDashboardOverviewQueryHandler(IApplicationDbContex
                 vp.CreatedAtUtc))
             .ToListAsync(cancellationToken);
 
-        var activeUsersCount = users.Count(u => u.LastLoginAtUtc.HasValue && u.LastLoginAtUtc.Value >= start);
-        var adminUsersCount = users.Count(u => u.Role is UserRole.Admin or UserRole.SuperAdmin);
-        var lockedAdminUsersCount = users.Count(u => u.Role is UserRole.Admin or UserRole.SuperAdmin && u.IsLoginLocked);
-        var customersTotal = users.Count(u => u.Role == UserRole.Customer);
-        var newCustomers = users.Count(u => u.Role == UserRole.Customer && u.CreatedAtUtc >= start);
-        var activeCustomers = users.Count(u => u.Role == UserRole.Customer && u.LastLoginAtUtc.HasValue && u.LastLoginAtUtc.Value >= start);
-        var unreadNotifications = await dbContext.Notifications.CountAsync(n => !n.IsRead, cancellationToken);
-        var recentNotifications = await dbContext.Notifications.CountAsync(n => n.CreatedAtUtc >= start, cancellationToken);
-        var pushDevicesCount = await dbContext.UserPushDevices.CountAsync(cancellationToken);
-        var pendingDocumentReviews = await dbContext.VendorDocumentReviews.CountAsync(d => d.Decision == VendorDocumentReviewDecision.Pending, cancellationToken);
-        var pendingProductRequests = await dbContext.ProductRequests.CountAsync(p => p.Status == ApprovalStatus.Pending, cancellationToken);
-        var pendingBrandRequests = await dbContext.BrandRequests.CountAsync(p => p.Status == ApprovalStatus.Pending, cancellationToken);
-        var pendingCategoryRequests = await dbContext.CategoryRequests.CountAsync(p => p.Status == ApprovalStatus.Pending, cancellationToken);
-        var pendingSettlements = await dbContext.Settlements.CountAsync(s => s.Status == SettlementStatus.Pending, cancellationToken);
-        var failedSettlements = await dbContext.Settlements.CountAsync(s => s.Status == SettlementStatus.Failed, cancellationToken);
-        var settledNetAmount = await dbContext.Settlements
+                var activeUsersCount = await dbContext.Users.CountAsync(
+                    u => u.LastLoginAtUtc.HasValue && u.LastLoginAtUtc.Value >= start,
+                    cancellationToken);
+                var adminUsersCount = adminUsers.Count;
+                var lockedAdminUsersCount = adminUsers.Count(u => u.IsLoginLocked);
+                var customersTotal = await dbContext.Users.CountAsync(u => u.Role == UserRole.Customer, cancellationToken);
+                var newCustomers = await dbContext.Users.CountAsync(
+                    u => u.Role == UserRole.Customer && u.CreatedAtUtc >= start,
+                    cancellationToken);
+                var activeCustomers = await dbContext.Users.CountAsync(
+                    u => u.Role == UserRole.Customer && u.LastLoginAtUtc.HasValue && u.LastLoginAtUtc.Value >= start,
+                    cancellationToken);
+                var unreadNotifications = await dbContext.Notifications.CountAsync(n => !n.IsRead, cancellationToken);
+                var recentNotifications = await dbContext.Notifications.CountAsync(n => n.CreatedAtUtc >= start, cancellationToken);
+                var pushDevicesCount = await dbContext.UserPushDevices.CountAsync(cancellationToken);
+                var pendingDocumentReviews = await dbContext.VendorDocumentReviews.CountAsync(d => d.Decision == VendorDocumentReviewDecision.Pending, cancellationToken);
+                var pendingProductRequests = await dbContext.ProductRequests.CountAsync(p => p.Status == ApprovalStatus.Pending, cancellationToken);
+                var pendingBrandRequests = await dbContext.BrandRequests.CountAsync(p => p.Status == ApprovalStatus.Pending, cancellationToken);
+                var pendingCategoryRequests = await dbContext.CategoryRequests.CountAsync(p => p.Status == ApprovalStatus.Pending, cancellationToken);
+                var pendingSettlements = await dbContext.Settlements.CountAsync(s => s.Status == SettlementStatus.Pending, cancellationToken);
+                var failedSettlements = await dbContext.Settlements.CountAsync(s => s.Status == SettlementStatus.Failed, cancellationToken);
+                var settledNetAmount = await dbContext.Settlements
             .Where(s => s.ProcessedAtUtc.HasValue && s.ProcessedAtUtc.Value >= start && s.Status == SettlementStatus.Settled)
             .SumAsync(s => (decimal?)s.NetAmount, cancellationToken) ?? 0m;
-        var walletInflow = await dbContext.WalletTransactions
+                var walletInflow = await dbContext.WalletTransactions
             .Where(t => t.CreatedAtUtc >= start && t.Direction == "IN")
             .SumAsync(t => (decimal?)t.Amount, cancellationToken) ?? 0m;
-        var walletOutflow = await dbContext.WalletTransactions
+                var walletOutflow = await dbContext.WalletTransactions
             .Where(t => t.CreatedAtUtc >= start && t.Direction == "OUT")
             .SumAsync(t => (decimal?)t.Amount, cancellationToken) ?? 0m;
-        var pendingWithdrawals = await dbContext.DriverWithdrawalRequests.CountAsync(w => w.Status == DriverWithdrawalStatus.Pending, cancellationToken);
-        var processingWithdrawals = await dbContext.DriverWithdrawalRequests.CountAsync(w => w.Status == DriverWithdrawalStatus.Processing, cancellationToken);
-        var refundsTotal = await dbContext.Refunds
+                var pendingWithdrawals = await dbContext.DriverWithdrawalRequests.CountAsync(w => w.Status == DriverWithdrawalStatus.Pending, cancellationToken);
+                var processingWithdrawals = await dbContext.DriverWithdrawalRequests.CountAsync(w => w.Status == DriverWithdrawalStatus.Processing, cancellationToken);
+                var refundsTotal = await dbContext.Refunds
             .Where(r => r.CreatedAtUtc >= start)
             .SumAsync(r => (decimal?)r.Amount, cancellationToken) ?? 0m;
-        var refundsCount = await dbContext.Refunds.CountAsync(r => r.CreatedAtUtc >= start, cancellationToken);
-        var paymentsFailedCount = await dbContext.Payments.CountAsync(p => p.CreatedAtUtc >= start && p.Status == PaymentStatus.Failed, cancellationToken);
-        var paymentsPendingCount = await dbContext.Payments.CountAsync(p => p.CreatedAtUtc >= start && p.Status == PaymentStatus.Pending, cancellationToken);
-        var openDriverIncidents = await dbContext.DriverIncidents.CountAsync(i => i.Status != DriverIncidentStatus.Resolved, cancellationToken);
-        var lowReplyReviews = reviews.Count(r => r.Rating <= 2 && string.IsNullOrWhiteSpace(r.VendorReply));
-        var lowStockProducts = vendorProducts.Count(vp => vp.StockQuantity <= 5);
-        var unavailableProducts = vendorProducts.Count(vp => !vp.IsAvailable || vp.Status is VendorProductStatus.Inactive or VendorProductStatus.OutOfStock or VendorProductStatus.Suspended);
+                var refundsCount = await dbContext.Refunds.CountAsync(r => r.CreatedAtUtc >= start, cancellationToken);
+                var paymentsFailedCount = await dbContext.Payments.CountAsync(p => p.CreatedAtUtc >= start && p.Status == PaymentStatus.Failed, cancellationToken);
+                var paymentsPendingCount = await dbContext.Payments.CountAsync(p => p.CreatedAtUtc >= start && p.Status == PaymentStatus.Pending, cancellationToken);
+                var openDriverIncidents = await dbContext.DriverIncidents.CountAsync(i => i.Status != DriverIncidentStatus.Resolved, cancellationToken);
+                var lowReplyReviews = reviews.Count(r => r.Rating <= 2 && string.IsNullOrWhiteSpace(r.VendorReply));
+                var lowStockProducts = vendorProducts.Count(vp => vp.StockQuantity <= 5);
+                var unavailableProducts = vendorProducts.Count(vp => !vp.IsAvailable || vp.Status is VendorProductStatus.Inactive or VendorProductStatus.OutOfStock or VendorProductStatus.Suspended);
 
         var filteredOrders = orders
             .Where(order => MatchesVendor(order, request.VendorId) && MatchesRegion(order, vendorIndex, normalizedRegion))
@@ -236,7 +263,7 @@ internal sealed class GetAdminDashboardOverviewQueryHandler(IApplicationDbContex
             FinanceOps = BuildFinanceOpsSection(gmv, refundsTotal, refundsCount, paymentsFailedCount, paymentsPendingCount, pendingSettlements, failedSettlements, settledNetAmount, walletsCount, walletInflow, walletOutflow),
             CatalogHealth = BuildCatalogHealthSection(productsCount, brandsCount, categoriesCount, filteredVendorProducts, pendingProductRequests, pendingBrandRequests, pendingCategoryRequests, lowStockProducts, unavailableProducts, vendorIndex),
             MarketingPulse = BuildMarketingPulseSection(activeCouponsCount, activeBannersCount, featuredPlacementsCount, unreadNotifications, recentNotifications, filteredReviews),
-            AccessSecurity = BuildAccessSecuritySection(rolesCount, permissionDefinitionsCount, userAccessScopesCount, userPermissionOverridesCount, adminUsersCount, lockedAdminUsersCount, users)
+            AccessSecurity = BuildAccessSecuritySection(rolesCount, permissionDefinitionsCount, userAccessScopesCount, userPermissionOverridesCount, adminUsersCount, lockedAdminUsersCount, adminUsers)
         };
 
         return new AdminDashboardOverviewDto
@@ -351,6 +378,10 @@ internal sealed class GetAdminDashboardOverviewQueryHandler(IApplicationDbContex
             AuditFeed = auditFeed,
             Sections = sections
         };
+            },
+            new AppCacheEntryOptions(_durations.AdminDashboard),
+            [CacheTagNames.Dashboard],
+            cancellationToken);
     }
 
     private static string NormalizePeriod(string? period) =>
@@ -1531,10 +1562,10 @@ internal sealed class GetAdminDashboardOverviewQueryHandler(IApplicationDbContex
         int userPermissionOverridesCount,
         int adminUsersCount,
         int lockedAdminUsersCount,
-        IReadOnlyList<UserRow> users)
+        IReadOnlyList<UserRow> adminUsers)
     {
-        var elevatedPermissionVersions = users.Count(u => u.Role is UserRole.Admin or UserRole.SuperAdmin && u.PermissionVersion > 1);
-        var inactiveAdmins = users.Count(u => u.Role is UserRole.Admin or UserRole.SuperAdmin && u.AccountStatus != AccountStatus.Active);
+        var elevatedPermissionVersions = adminUsers.Count(u => u.PermissionVersion > 1);
+        var inactiveAdmins = adminUsers.Count(u => u.AccountStatus != AccountStatus.Active);
 
         return new AdminDashboardSectionDto
         {
@@ -1570,8 +1601,8 @@ internal sealed class GetAdminDashboardOverviewQueryHandler(IApplicationDbContex
                     ]
                 }
             ],
-            Exceptions = users
-                .Where(u => u.Role is UserRole.Admin or UserRole.SuperAdmin && (u.IsLoginLocked || u.AccountStatus != AccountStatus.Active))
+            Exceptions = adminUsers
+                .Where(u => u.IsLoginLocked || u.AccountStatus != AccountStatus.Active)
                 .Take(5)
                 .Select(u => new AdminDashboardExceptionRowDto
                 {

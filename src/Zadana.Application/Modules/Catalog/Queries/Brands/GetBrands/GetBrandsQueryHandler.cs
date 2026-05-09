@@ -30,6 +30,7 @@ public class GetBrandsQueryHandler : IRequestHandler<GetBrandsQuery, List<BrandD
                 b.NameAr,
                 b.NameEn,
                 b.LogoUrl,
+                b.CoverImageUrl,
                 b.CategoryId,
                 b.Category != null ? b.Category.NameAr : null,
                 b.Category != null ? b.Category.NameEn : null,

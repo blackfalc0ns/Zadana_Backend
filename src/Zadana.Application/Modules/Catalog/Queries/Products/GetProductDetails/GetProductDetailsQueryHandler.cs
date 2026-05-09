@@ -1,11 +1,15 @@
 using System.Globalization;
 using MediatR;
 using Microsoft.EntityFrameworkCore;
+using Microsoft.Extensions.Options;
+using Zadana.Application.Common.Caching;
 using Zadana.Application.Common.Interfaces;
+using Zadana.Application.Common.Settings;
 using Zadana.Application.Modules.Catalog.DTOs;
+using Zadana.Application.Modules.Catalog.Interfaces;
+using Zadana.Application.Modules.Catalog.Queries;
 using Zadana.Domain.Modules.Catalog.Entities;
 using Zadana.Domain.Modules.Catalog.Enums;
-using Zadana.Domain.Modules.Orders.Enums;
 using Zadana.Domain.Modules.Vendors.Enums;
 using Zadana.SharedKernel.Exceptions;
 
@@ -16,41 +20,41 @@ public class GetProductDetailsQueryHandler : IRequestHandler<GetProductDetailsQu
     private const int SimilarProductsLimit = 10;
 
     private readonly IApplicationDbContext _context;
-    private readonly ICurrentUserService _currentUserService;
+    private readonly IAppCache _cache;
+    private readonly ICatalogReadCacheService _catalogReadCacheService;
+    private readonly CacheDurationSettings _durations;
 
-    public GetProductDetailsQueryHandler(IApplicationDbContext context, ICurrentUserService currentUserService)
+    public GetProductDetailsQueryHandler(
+        IApplicationDbContext context,
+        IAppCache cache,
+        ICatalogReadCacheService catalogReadCacheService,
+        IOptions<CachingSettings> cachingOptions)
     {
         _context = context;
-        _currentUserService = currentUserService;
+        _cache = cache;
+        _catalogReadCacheService = catalogReadCacheService;
+        _durations = cachingOptions.Value.Durations;
     }
 
     public async Task<ProductDetailsDto> Handle(GetProductDetailsQuery request, CancellationToken cancellationToken)
     {
-        var salesByVendorProductId = await _context.OrderItems
-            .AsNoTracking()
-            .Where(item => item.Order.Status == OrderStatus.Delivered)
-            .GroupBy(item => item.VendorProductId)
-            .Select(group => new
-            {
-                VendorProductId = group.Key,
-                Quantity = group.Sum(item => item.Quantity)
-            })
-            .ToDictionaryAsync(item => item.VendorProductId, item => item.Quantity, cancellationToken);
+        var baseResponse = await _cache.GetOrCreateAsync(
+            CatalogQueryCacheKeys.ProductDetails(request.ProductId),
+            token => BuildBaseResponseAsync(request, token),
+            new AppCacheEntryOptions(_durations.BrowseBase),
+            [CacheTagNames.Catalog],
+            cancellationToken);
 
-        var reviewStatsByVendorId = await _context.Reviews
-            .AsNoTracking()
-            .GroupBy(review => review.VendorId)
-            .Select(group => new
-            {
-                VendorId = group.Key,
-                AverageRating = Math.Round(group.Average(review => review.Rating), 1),
-                ReviewCount = group.Count()
-            })
-            .ToDictionaryAsync(
-                item => item.VendorId,
-                item => new VendorReviewStats((decimal)item.AverageRating, item.ReviewCount),
-                cancellationToken);
+        var favoriteMasterProductIds = await _catalogReadCacheService.GetCurrentFavoriteMasterProductIdsAsync(cancellationToken);
+        return CatalogQueryFavoriteOverlays.ApplyFavorites(baseResponse, favoriteMasterProductIds);
+    }
 
+    private async Task<ProductDetailsDto> BuildBaseResponseAsync(
+        GetProductDetailsQuery request,
+        CancellationToken cancellationToken)
+    {
+        var salesByVendorProductId = await _catalogReadCacheService.GetDeliveredSalesByVendorProductIdAsync(cancellationToken);
+        var reviewStatsByVendorId = await _catalogReadCacheService.GetVendorReviewStatsByVendorIdAsync(cancellationToken);
         var visibleOffers = await LoadVisibleOffersAsync(cancellationToken);
 
         var directOffer = visibleOffers.FirstOrDefault(offer => offer.VendorProductId == request.ProductId);
@@ -112,10 +116,6 @@ public class GetProductDetailsQueryHandler : IRequestHandler<GetProductDetailsQu
             .Take(SimilarProductsLimit)
             .ToList();
 
-        var favoriteProductIds = await LoadFavoriteProductIdsAsync(
-            [masterProductId, .. similarOfferRows.Select(item => item.MasterProductId)],
-            cancellationToken);
-
         var similarProducts = similarOfferRows
             .Select(offer =>
             {
@@ -131,7 +131,7 @@ public class GetProductDetailsQueryHandler : IRequestHandler<GetProductDetailsQu
                     stats?.AverageRating,
                     stats?.ReviewCount ?? 0,
                     FormatDiscount(offer.Price, offer.OldPrice),
-                    favoriteProductIds.Contains(offer.MasterProductId),
+                    false,
                     offer.Unit,
                     offer.IsDiscounted);
             })
@@ -152,35 +152,12 @@ public class GetProductDetailsQueryHandler : IRequestHandler<GetProductDetailsQu
             defaultReviewStats?.AverageRating,
             defaultReviewStats?.ReviewCount ?? 0,
             FormatDiscount(defaultOffer.Price, defaultOffer.OldPrice),
-            favoriteProductIds.Contains(masterProductId),
+            false,
             defaultOffer.Unit,
             defaultOffer.IsDiscounted,
             defaultOffer.Description,
             vendorPrices,
             similarProducts);
-    }
-
-    private async Task<HashSet<Guid>> LoadFavoriteProductIdsAsync(IEnumerable<Guid> masterProductIds, CancellationToken cancellationToken)
-    {
-        if (!_currentUserService.UserId.HasValue && string.IsNullOrWhiteSpace(_currentUserService.GuestDeviceId))
-        {
-            return [];
-        }
-
-        var ids = masterProductIds.Distinct().ToArray();
-        if (ids.Length == 0)
-        {
-            return [];
-        }
-
-        return await _context.CustomerFavorites
-            .AsNoTracking()
-            .Where(x =>
-                ids.Contains(x.MasterProductId) &&
-                ((_currentUserService.UserId.HasValue && x.UserId == _currentUserService.UserId.Value) ||
-                 (!_currentUserService.UserId.HasValue && x.GuestId == _currentUserService.GuestDeviceId)))
-            .Select(x => x.MasterProductId)
-            .ToHashSetAsync(cancellationToken);
     }
 
     private async Task<List<VisibleOfferRow>> LoadVisibleOffersAsync(CancellationToken cancellationToken)
@@ -268,8 +245,6 @@ public class GetProductDetailsQueryHandler : IRequestHandler<GetProductDetailsQu
         var value = PickLocalized(arabic, english);
         return string.IsNullOrWhiteSpace(value) ? null : value;
     }
-
-    private sealed record VendorReviewStats(decimal AverageRating, int ReviewCount);
 
     private sealed record RawVisibleOfferRow(
         Guid VendorProductId,

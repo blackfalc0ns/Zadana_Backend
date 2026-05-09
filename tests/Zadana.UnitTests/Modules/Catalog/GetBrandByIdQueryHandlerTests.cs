@@ -15,7 +15,7 @@ public class GetBrandByIdQueryHandlerTests
         using var scope = new CultureScope("ar");
         await using var context = TestDbContextFactory.Create();
 
-        var brand = new Brand("\u0627\u0644\u0645\u0631\u0627\u0639\u064A", "Almarai", "almarai.png");
+        var brand = new Brand("المراعي", "Almarai", "almarai.png", "almarai-cover.png");
         context.Brands.Add(brand);
         await context.SaveChangesAsync();
 
@@ -24,8 +24,9 @@ public class GetBrandByIdQueryHandlerTests
         var result = await handler.Handle(new GetBrandByIdQuery(brand.Id), CancellationToken.None);
 
         result.Id.Should().Be(brand.Id);
-        result.Name.Should().Be("\u0627\u0644\u0645\u0631\u0627\u0639\u064A");
+        result.Name.Should().Be("المراعي");
         result.Logo.Should().Be("almarai.png");
+        result.CoverImageUrl.Should().Be("almarai-cover.png");
         result.ProductCount.Should().Be(0);
     }
 

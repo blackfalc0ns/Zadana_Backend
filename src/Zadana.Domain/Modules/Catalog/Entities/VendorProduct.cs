@@ -17,7 +17,8 @@ public class VendorProduct : BaseEntity
     public string? CustomDescriptionAr { get; private set; }
     public string? CustomDescriptionEn { get; private set; }
 
-    
+    public decimal? CostPrice { get; private set; }
+    public decimal? TradePrice { get; private set; }
     public decimal SellingPrice { get; private set; }
     public decimal? CompareAtPrice { get; private set; }
     public int StockQuantity { get; private set; }
@@ -37,14 +38,25 @@ public class VendorProduct : BaseEntity
         decimal sellingPrice,
         int stockQuantity = 0,
         decimal? compareAtPrice = null,
+        decimal? costPrice = null,
+        decimal? tradePrice = null,
         Guid? vendorBranchId = null,
         string? customNameAr = null,
         string? customNameEn = null,
         string? customDescriptionAr = null,
         string? customDescriptionEn = null)
     {
+        if (costPrice.HasValue && costPrice.Value < 0)
+            throw new BusinessRuleException("INVALID_COST_PRICE", "Cost price cannot be negative.");
+
+        if (tradePrice.HasValue && tradePrice.Value <= 0)
+            throw new BusinessRuleException("INVALID_TRADE_PRICE", "Trade price must be greater than zero.");
+
         if (sellingPrice < 0)
             throw new BusinessRuleException("INVALID_PRICE", "Selling price cannot be negative.");
+
+        if (tradePrice.HasValue && tradePrice.Value > sellingPrice)
+            throw new BusinessRuleException("INVALID_TRADE_PRICE", "Trade price cannot be greater than selling price.");
             
         if (stockQuantity < 0)
             throw new BusinessRuleException("INVALID_STOCK", "Stock quantity cannot be negative.");
@@ -52,6 +64,8 @@ public class VendorProduct : BaseEntity
         VendorId = vendorId;
         MasterProductId = masterProductId;
         VendorBranchId = vendorBranchId;
+        CostPrice = costPrice;
+        TradePrice = tradePrice;
         SellingPrice = sellingPrice;
         CompareAtPrice = compareAtPrice;
         StockQuantity = stockQuantity;
@@ -64,11 +78,22 @@ public class VendorProduct : BaseEntity
         CustomDescriptionEn = customDescriptionEn?.Trim();
     }
 
-    public void UpdatePricing(decimal sellingPrice, decimal? compareAtPrice)
+    public void UpdatePricing(decimal sellingPrice, decimal? compareAtPrice, decimal? costPrice, decimal? tradePrice)
     {
+        if (costPrice.HasValue && costPrice.Value < 0)
+            throw new BusinessRuleException("INVALID_COST_PRICE", "Cost price cannot be negative.");
+
+        if (tradePrice.HasValue && tradePrice.Value <= 0)
+            throw new BusinessRuleException("INVALID_TRADE_PRICE", "Trade price must be greater than zero.");
+
         if (sellingPrice < 0)
             throw new BusinessRuleException("INVALID_PRICE", "Selling price cannot be negative.");
 
+        if (tradePrice.HasValue && tradePrice.Value > sellingPrice)
+            throw new BusinessRuleException("INVALID_TRADE_PRICE", "Trade price cannot be greater than selling price.");
+
+        CostPrice = costPrice;
+        TradePrice = tradePrice;
         SellingPrice = sellingPrice;
         CompareAtPrice = compareAtPrice;
     }

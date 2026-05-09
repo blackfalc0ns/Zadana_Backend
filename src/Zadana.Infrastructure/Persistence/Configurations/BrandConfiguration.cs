@@ -23,6 +23,9 @@ public class BrandConfiguration : IEntityTypeConfiguration<Brand>
         builder.Property(b => b.LogoUrl)
             .HasMaxLength(500);
 
+        builder.Property(b => b.CoverImageUrl)
+            .HasMaxLength(1000);
+
         builder.Property(b => b.CategoryId)
             .IsRequired(false);
 

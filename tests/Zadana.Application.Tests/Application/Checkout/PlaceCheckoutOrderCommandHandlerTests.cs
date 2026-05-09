@@ -45,7 +45,7 @@ public class PlaceCheckoutOrderCommandHandlerTests
         vendor.UpdateOperationsSettings(true, null, 30);
         vendor.UpdateNotificationSettings(true, false, true);
 
-        var vendorProduct = new VendorProduct(vendor.Id, product.Id, 49m, 10);
+        var vendorProduct = new VendorProduct(vendor.Id, product.Id, 49m, 10, tradePrice: 35m);
         var address = new CustomerAddress(customer.Id, "Checkout Customer", "01000000030", "Nasr City 12", AddressLabel.Home, city: "Cairo");
         address.SetAsDefault();
 

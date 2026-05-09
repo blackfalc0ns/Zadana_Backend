@@ -7,6 +7,8 @@ namespace Zadana.Application.Modules.Catalog.Commands.VendorProducts.BulkCreateV
 
 public record BulkCreateVendorProductItemInput(
     Guid MasterProductId,
+    decimal? CostPrice,
+    decimal? TradePrice,
     decimal SellingPrice,
     decimal? CompareAtPrice,
     int StockQty,
@@ -35,8 +37,17 @@ public class BulkCreateVendorProductsCommandValidator : AbstractValidator<BulkCr
         {
             item.RuleFor(x => x.MasterProductId).NotEmpty().WithMessage(x => localizer["RequiredField"]);
             item.RuleFor(x => x.SellingPrice).GreaterThan(0).WithMessage(x => localizer["GreaterThanZero"]);
+            item.RuleFor(x => x.CostPrice)
+                .GreaterThanOrEqualTo(0).When(x => x.CostPrice.HasValue).WithMessage(x => localizer["MinValue"]);
+            item.RuleFor(x => x.TradePrice)
+                .NotNull().WithMessage("Trade price is required.");
+            item.RuleFor(x => x.TradePrice)
+                .GreaterThan(0).When(x => x.TradePrice.HasValue).WithMessage(x => localizer["GreaterThanZero"]);
             item.RuleFor(x => x.CompareAtPrice)
                 .GreaterThan(0).When(x => x.CompareAtPrice.HasValue).WithMessage(x => localizer["GreaterThanZero"]);
+            item.RuleFor(x => x)
+                .Must(x => !x.TradePrice.HasValue || x.TradePrice.Value <= x.SellingPrice)
+                .WithMessage("Trade price must be less than or equal to selling price.");
             item.RuleFor(x => x.StockQty)
                 .GreaterThanOrEqualTo(0).WithMessage(x => localizer["MinValue"]);
             item.RuleFor(x => x.MinOrderQty)

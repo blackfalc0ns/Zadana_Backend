@@ -1,8 +1,12 @@
 using System.Globalization;
 using MediatR;
 using Microsoft.EntityFrameworkCore;
+using Microsoft.Extensions.Options;
+using Zadana.Application.Common.Caching;
 using Zadana.Application.Common.Interfaces;
+using Zadana.Application.Common.Settings;
 using Zadana.Application.Modules.Catalog.DTOs;
+using Zadana.Application.Modules.Catalog.Queries;
 using Zadana.Domain.Modules.Catalog.Entities;
 using Zadana.Domain.Modules.Catalog.Enums;
 using Zadana.Domain.Modules.Vendors.Enums;
@@ -13,179 +17,194 @@ namespace Zadana.Application.Modules.Catalog.Queries.Categories.GetCategoryFilte
 public class GetCategoryFiltersQueryHandler : IRequestHandler<GetCategoryFiltersQuery, CategoryFiltersDto>
 {
     private readonly IApplicationDbContext _context;
+    private readonly IAppCache _cache;
+    private readonly CacheDurationSettings _durations;
 
-    public GetCategoryFiltersQueryHandler(IApplicationDbContext context)
+    public GetCategoryFiltersQueryHandler(
+        IApplicationDbContext context,
+        IAppCache cache,
+        IOptions<CachingSettings> cachingOptions)
     {
         _context = context;
+        _cache = cache;
+        _durations = cachingOptions.Value.Durations;
     }
 
     public async Task<CategoryFiltersDto> Handle(GetCategoryFiltersQuery request, CancellationToken cancellationToken)
     {
-        var categories = await _context.Categories
-            .AsNoTracking()
-            .Select(category => new CategoryScopeRow(
-                category.Id,
-                category.ParentCategoryId,
-                category.NameAr,
-                category.NameEn,
-                category.DisplayOrder,
-                category.IsActive))
-            .ToListAsync(cancellationToken);
+        return await _cache.GetOrCreateAsync(
+            CatalogQueryCacheKeys.CategoryFilters(request.CategoryId),
+            async token =>
+            {
+                var categories = await _context.Categories
+                    .AsNoTracking()
+                    .Select(category => new CategoryScopeRow(
+                        category.Id,
+                        category.ParentCategoryId,
+                        category.NameAr,
+                        category.NameEn,
+                        category.DisplayOrder,
+                        category.IsActive))
+                    .ToListAsync(token);
 
-        var scope = CatalogFilterScopeResolver.Resolve(request.CategoryId, categories)
-            ?? throw new NotFoundException(nameof(Category), request.CategoryId);
+                var scope = CatalogFilterScopeResolver.Resolve(request.CategoryId, categories)
+                    ?? throw new NotFoundException(nameof(Category), request.CategoryId);
 
-        var subtreeIdSet = scope.ActiveSubtreeIds.ToHashSet();
+                var subtreeIdSet = scope.ActiveSubtreeIds.ToHashSet();
 
-        var masterProducts = await _context.MasterProducts
-            .AsNoTracking()
-            .Where(product => product.Status == ProductStatus.Active)
-            .Select(product => new ScopedMasterProductRow(
-                product.CategoryId,
-                product.ProductTypeId,
-                product.PartId,
-                product.BrandId,
-                product.UnitOfMeasureId))
-            .ToListAsync(cancellationToken);
+                var masterProducts = await _context.MasterProducts
+                    .AsNoTracking()
+                    .Where(product => product.Status == ProductStatus.Active)
+                    .Select(product => new ScopedMasterProductRow(
+                        product.CategoryId,
+                        product.ProductTypeId,
+                        product.PartId,
+                        product.BrandId,
+                        product.UnitOfMeasureId))
+                    .ToListAsync(token);
 
-        var scopedMasterProducts = masterProducts
-            .Where(product => subtreeIdSet.Contains(product.CategoryId))
-            .ToList();
+                var scopedMasterProducts = masterProducts
+                    .Where(product => subtreeIdSet.Contains(product.CategoryId))
+                    .ToList();
 
-        var brandIds = scopedMasterProducts
-            .Where(product => product.BrandId.HasValue)
-            .Select(product => product.BrandId!.Value)
-            .Distinct()
-            .ToList();
+                var brandIds = scopedMasterProducts
+                    .Where(product => product.BrandId.HasValue)
+                    .Select(product => product.BrandId!.Value)
+                    .Distinct()
+                    .ToList();
 
-        var productTypeIds = scopedMasterProducts
-            .Where(product => product.ProductTypeId.HasValue)
-            .Select(product => product.ProductTypeId!.Value)
-            .Distinct()
-            .ToList();
+                var productTypeIds = scopedMasterProducts
+                    .Where(product => product.ProductTypeId.HasValue)
+                    .Select(product => product.ProductTypeId!.Value)
+                    .Distinct()
+                    .ToList();
 
-        var partIds = scopedMasterProducts
-            .Where(product => product.PartId.HasValue)
-            .Select(product => product.PartId!.Value)
-            .Distinct()
-            .ToList();
+                var partIds = scopedMasterProducts
+                    .Where(product => product.PartId.HasValue)
+                    .Select(product => product.PartId!.Value)
+                    .Distinct()
+                    .ToList();
 
-        var unitIds = scopedMasterProducts
-            .Where(product => product.UnitOfMeasureId.HasValue)
-            .Select(product => product.UnitOfMeasureId!.Value)
-            .Distinct()
-            .ToList();
+                var unitIds = scopedMasterProducts
+                    .Where(product => product.UnitOfMeasureId.HasValue)
+                    .Select(product => product.UnitOfMeasureId!.Value)
+                    .Distinct()
+                    .ToList();
 
-        var brandRows = await _context.Brands
-            .AsNoTracking()
-            .Where(brand => brand.IsActive && brandIds.Contains(brand.Id))
-            .Select(brand => new RawBrandRow(
-                brand.Id,
-                brand.NameAr,
-                brand.NameEn,
-                brand.LogoUrl))
-            .ToListAsync(cancellationToken);
+                var brandRows = await _context.Brands
+                    .AsNoTracking()
+                    .Where(brand => brand.IsActive && brandIds.Contains(brand.Id))
+                    .Select(brand => new RawBrandRow(
+                        brand.Id,
+                        brand.NameAr,
+                        brand.NameEn,
+                        brand.LogoUrl))
+                    .ToListAsync(token);
 
-        var subcategories = scope.DirectActiveChildren
-            .OrderBy(child => child.DisplayOrder)
-            .ThenBy(child => PickLocalized(child.NameAr, child.NameEn), StringComparer.CurrentCultureIgnoreCase)
-            .Select(child => new CatalogFilterNamedItemDto(
-                child.Id,
-                PickLocalized(child.NameAr, child.NameEn)))
-            .ToList();
+                var subcategories = scope.DirectActiveChildren
+                    .OrderBy(child => child.DisplayOrder)
+                    .ThenBy(child => PickLocalized(child.NameAr, child.NameEn), StringComparer.CurrentCultureIgnoreCase)
+                    .Select(child => new CatalogFilterNamedItemDto(
+                        child.Id,
+                        PickLocalized(child.NameAr, child.NameEn)))
+                    .ToList();
 
-        var productTypeRows = await _context.ProductTypes
-            .AsNoTracking()
-            .Where(productType => productType.IsActive && productTypeIds.Contains(productType.Id))
-            .Select(productType => new RawNamedRow(
-                productType.Id,
-                productType.NameAr,
-                productType.NameEn))
-            .ToListAsync(cancellationToken);
+                var productTypeRows = await _context.ProductTypes
+                    .AsNoTracking()
+                    .Where(productType => productType.IsActive && productTypeIds.Contains(productType.Id))
+                    .Select(productType => new RawNamedRow(
+                        productType.Id,
+                        productType.NameAr,
+                        productType.NameEn))
+                    .ToListAsync(token);
 
-        var productTypes = productTypeRows
-            .Select(item => new CatalogFilterNamedItemDto(
-                item.Id,
-                PickLocalized(item.NameAr, item.NameEn)))
-            .OrderBy(item => item.Name, StringComparer.CurrentCultureIgnoreCase)
-            .ToList();
+                var productTypes = productTypeRows
+                    .Select(item => new CatalogFilterNamedItemDto(
+                        item.Id,
+                        PickLocalized(item.NameAr, item.NameEn)))
+                    .OrderBy(item => item.Name, StringComparer.CurrentCultureIgnoreCase)
+                    .ToList();
 
-        var partRows = await _context.Parts
-            .AsNoTracking()
-            .Where(part => part.IsActive && partIds.Contains(part.Id))
-            .Select(part => new RawPartRow(
-                part.Id,
-                part.NameAr,
-                part.NameEn,
-                part.ProductTypeId))
-            .ToListAsync(cancellationToken);
+                var partRows = await _context.Parts
+                    .AsNoTracking()
+                    .Where(part => part.IsActive && partIds.Contains(part.Id))
+                    .Select(part => new RawPartRow(
+                        part.Id,
+                        part.NameAr,
+                        part.NameEn,
+                        part.ProductTypeId))
+                    .ToListAsync(token);
 
-        var parts = partRows
-            .Select(item => new CatalogFilterPartItemDto(
-                item.Id,
-                PickLocalized(item.NameAr, item.NameEn),
-                item.ProductTypeId))
-            .OrderBy(item => item.Name, StringComparer.CurrentCultureIgnoreCase)
-            .ToList();
+                var parts = partRows
+                    .Select(item => new CatalogFilterPartItemDto(
+                        item.Id,
+                        PickLocalized(item.NameAr, item.NameEn),
+                        item.ProductTypeId))
+                    .OrderBy(item => item.Name, StringComparer.CurrentCultureIgnoreCase)
+                    .ToList();
 
-        var brands = brandRows
-            .Select(item => new CatalogFilterBrandItemDto(
-                item.Id,
-                PickLocalized(item.NameAr, item.NameEn),
-                item.LogoUrl))
-            .OrderBy(item => item.Name, StringComparer.CurrentCultureIgnoreCase)
-            .ToList();
+                var brands = brandRows
+                    .Select(item => new CatalogFilterBrandItemDto(
+                        item.Id,
+                        PickLocalized(item.NameAr, item.NameEn),
+                        item.LogoUrl))
+                    .OrderBy(item => item.Name, StringComparer.CurrentCultureIgnoreCase)
+                    .ToList();
 
-        var quantityRows = await _context.UnitsOfMeasure
-            .AsNoTracking()
-            .Where(unit => unit.IsActive && unitIds.Contains(unit.Id))
-            .Select(unit => new RawNamedRow(
-                unit.Id,
-                unit.NameAr,
-                unit.NameEn))
-            .ToListAsync(cancellationToken);
+                var quantityRows = await _context.UnitsOfMeasure
+                    .AsNoTracking()
+                    .Where(unit => unit.IsActive && unitIds.Contains(unit.Id))
+                    .Select(unit => new RawNamedRow(
+                        unit.Id,
+                        unit.NameAr,
+                        unit.NameEn))
+                    .ToListAsync(token);
 
-        var quantities = quantityRows
-            .Select(unit => new CatalogFilterNamedItemDto(
-                unit.Id,
-                PickLocalized(unit.NameAr, unit.NameEn)))
-            .OrderBy(item => item.Name, StringComparer.CurrentCultureIgnoreCase)
-            .ToList();
+                var quantities = quantityRows
+                    .Select(unit => new CatalogFilterNamedItemDto(
+                        unit.Id,
+                        PickLocalized(unit.NameAr, unit.NameEn)))
+                    .OrderBy(item => item.Name, StringComparer.CurrentCultureIgnoreCase)
+                    .ToList();
 
-        var visiblePriceRows = await _context.VendorProducts
-            .AsNoTracking()
-            .Where(product =>
-                product.Status == VendorProductStatus.Active &&
-                product.IsAvailable &&
-                product.StockQuantity > 0 &&
-                product.MasterProduct.Status == ProductStatus.Active &&
-                product.Vendor.Status == VendorStatus.Active &&
-                product.Vendor.AcceptOrders)
-            .Select(product => new VisiblePriceRow(
-                product.MasterProduct.CategoryId,
-                product.SellingPrice))
-            .ToListAsync(cancellationToken);
+                var visiblePriceRows = await _context.VendorProducts
+                    .AsNoTracking()
+                    .Where(product =>
+                        product.Status == VendorProductStatus.Active &&
+                        product.IsAvailable &&
+                        product.StockQuantity > 0 &&
+                        product.MasterProduct.Status == ProductStatus.Active &&
+                        product.Vendor.Status == VendorStatus.Active &&
+                        product.Vendor.AcceptOrders)
+                    .Select(product => new VisiblePriceRow(
+                        product.MasterProduct.CategoryId,
+                        product.SellingPrice))
+                    .ToListAsync(token);
 
-        var visiblePrices = visiblePriceRows
-            .Where(product => subtreeIdSet.Contains(product.CategoryId))
-            .Select(product => product.SellingPrice)
-            .ToList();
+                var visiblePrices = visiblePriceRows
+                    .Where(product => subtreeIdSet.Contains(product.CategoryId))
+                    .Select(product => product.SellingPrice)
+                    .ToList();
 
-        var priceRange = visiblePrices.Count == 0
-            ? new CatalogFilterPriceRangeDto(0, 0)
-            : new CatalogFilterPriceRangeDto(visiblePrices.Min(), visiblePrices.Max());
+                var priceRange = visiblePrices.Count == 0
+                    ? new CatalogFilterPriceRangeDto(0, 0)
+                    : new CatalogFilterPriceRangeDto(visiblePrices.Min(), visiblePrices.Max());
 
-        return new CategoryFiltersDto(
-            new CatalogFilterNamedItemDto(
-                scope.Category.Id,
-                PickLocalized(scope.Category.NameAr, scope.Category.NameEn)),
-            subcategories,
-            productTypes,
-            parts,
-            quantities,
-            brands,
-            priceRange,
-            BuildSortOptions());
+                return new CategoryFiltersDto(
+                    new CatalogFilterNamedItemDto(
+                        scope.Category.Id,
+                        PickLocalized(scope.Category.NameAr, scope.Category.NameEn)),
+                    subcategories,
+                    productTypes,
+                    parts,
+                    quantities,
+                    brands,
+                    priceRange,
+                    BuildSortOptions());
+            },
+            new AppCacheEntryOptions(_durations.PublicCatalogMetadata),
+            [CacheTagNames.CatalogFilters],
+            cancellationToken);
     }
 
     private static IReadOnlyList<CatalogSortOptionDto> BuildSortOptions() =>

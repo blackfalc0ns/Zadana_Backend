@@ -34,6 +34,7 @@ public class GetVendorProductsQueryHandler : IRequestHandler<GetVendorProductsQu
                 .ThenInclude(mp => mp.Brand)
             .Include(vp => vp.MasterProduct)
                 .ThenInclude(mp => mp.UnitOfMeasure)
+            .Include(vp => vp.Vendor)
             .Where(vp => vp.VendorId == request.VendorId && vp.MasterProduct != null);
 
         if (request.CategoryId.HasValue)
@@ -91,8 +92,11 @@ public class GetVendorProductsQueryHandler : IRequestHandler<GetVendorProductsQu
             vp.Id,
             vp.VendorId,
             vp.MasterProductId,
+            vp.CostPrice,
+            vp.TradePrice,
             vp.SellingPrice,
             vp.CompareAtPrice,
+            vp.Vendor.CommissionRate,
             vp.StockQuantity,
             vp.IsAvailable,
             vp.Status.ToString(),

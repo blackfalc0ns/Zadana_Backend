@@ -1,5 +1,6 @@
 using MediatR;
 using Microsoft.EntityFrameworkCore;
+using Zadana.Application.Common.Caching;
 using Zadana.Application.Common.Interfaces;
 using Zadana.Domain.Modules.Catalog.Entities;
 using Zadana.Domain.Modules.Catalog.Enums;
@@ -10,10 +11,12 @@ namespace Zadana.Application.Modules.Catalog.Commands.VendorProducts.ChangeStatu
 public class ChangeVendorProductStatusCommandHandler : IRequestHandler<ChangeVendorProductStatusCommand>
 {
     private readonly IApplicationDbContext _context;
+    private readonly ICacheInvalidator _cacheInvalidator;
 
-    public ChangeVendorProductStatusCommandHandler(IApplicationDbContext context)
+    public ChangeVendorProductStatusCommandHandler(IApplicationDbContext context, ICacheInvalidator cacheInvalidator)
     {
         _context = context;
+        _cacheInvalidator = cacheInvalidator;
     }
 
     public async Task Handle(ChangeVendorProductStatusCommand request, CancellationToken cancellationToken)
@@ -40,5 +43,6 @@ public class ChangeVendorProductStatusCommandHandler : IRequestHandler<ChangeVen
         }
 
         await _context.SaveChangesAsync(cancellationToken);
+        await _cacheInvalidator.RemoveByTagsAsync(CacheInvalidationProfiles.CatalogReadModels, cancellationToken);
     }
 }

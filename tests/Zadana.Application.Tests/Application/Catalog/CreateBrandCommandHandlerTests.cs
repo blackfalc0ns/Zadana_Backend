@@ -1,56 +1,64 @@
 using FluentAssertions;
+using Microsoft.EntityFrameworkCore;
 using Moq;
 using Zadana.Application.Common.Interfaces;
 using Zadana.Application.Modules.Catalog.Commands.Brands.CreateBrand;
 using Zadana.Domain.Modules.Catalog.Entities;
-using Microsoft.EntityFrameworkCore;
+using Zadana.Infrastructure.Persistence;
+using Zadana.Infrastructure.Persistence.Interceptors;
 
 namespace Zadana.Application.Tests.Application.Catalog;
 
 public class CreateBrandCommandHandlerTests
 {
-    private readonly Mock<IApplicationDbContext> _dbContextMock = new();
+    private readonly Mock<ICacheInvalidator> _cacheInvalidatorMock = new();
 
-    private CreateBrandCommandHandler CreateHandler() => new(_dbContextMock.Object);
+    private static ApplicationDbContext CreateContext()
+    {
+        var options = new DbContextOptionsBuilder<ApplicationDbContext>()
+            .UseInMemoryDatabase(Guid.NewGuid().ToString())
+            .Options;
+
+        return new ApplicationDbContext(options, new AuditableEntityInterceptor());
+    }
 
     [Fact]
     public async Task Handle_WithValidData_ShouldAddBrandAndReturnDto()
     {
-        // Arrange
-        var mockBrandSet = new Mock<DbSet<Brand>>();
-        _dbContextMock.Setup(c => c.Brands).Returns(mockBrandSet.Object);
-        _dbContextMock.Setup(c => c.SaveChangesAsync(It.IsAny<CancellationToken>())).ReturnsAsync(1);
+        await using var context = CreateContext();
+        var category = new Category("فئة رئيسية", "Parent Category", null, Guid.NewGuid(), 1);
+        context.Categories.Add(category);
+        await context.SaveChangesAsync();
 
-        var command = new CreateBrandCommand("علامة تجارية", "Test Brand", "https://logo.png", Guid.NewGuid());
-        var handler = CreateHandler();
+        var command = new CreateBrandCommand("علامة تجارية", "Test Brand", "https://logo.png", "https://cover.png", category.Id);
+        var handler = new CreateBrandCommandHandler(context, _cacheInvalidatorMock.Object);
 
-        // Act
         var result = await handler.Handle(command, CancellationToken.None);
 
-        // Assert
         result.Should().NotBeNull();
         result.NameAr.Should().Be("علامة تجارية");
         result.NameEn.Should().Be("Test Brand");
         result.LogoUrl.Should().Be("https://logo.png");
+        result.CoverImageUrl.Should().Be("https://cover.png");
         result.IsActive.Should().BeTrue();
     }
 
     [Fact]
     public async Task Handle_WithValidData_ShouldCallSaveChanges()
     {
-        // Arrange
-        var mockBrandSet = new Mock<DbSet<Brand>>();
-        _dbContextMock.Setup(c => c.Brands).Returns(mockBrandSet.Object);
-        _dbContextMock.Setup(c => c.SaveChangesAsync(It.IsAny<CancellationToken>())).ReturnsAsync(1);
+        await using var context = CreateContext();
+        var category = new Category("فئة رئيسية", "Parent Category", null, Guid.NewGuid(), 1);
+        context.Categories.Add(category);
+        await context.SaveChangesAsync();
 
-        var command = new CreateBrandCommand("ماركة", "Brand", null, Guid.NewGuid());
-        var handler = CreateHandler();
+        var command = new CreateBrandCommand("ماركة", "Brand", null, null, category.Id);
+        var handler = new CreateBrandCommandHandler(context, _cacheInvalidatorMock.Object);
 
-        // Act
         await handler.Handle(command, CancellationToken.None);
 
-        // Assert
-        mockBrandSet.Verify(d => d.Add(It.IsAny<Brand>()), Times.Once);
-        _dbContextMock.Verify(c => c.SaveChangesAsync(It.IsAny<CancellationToken>()), Times.Once);
+        context.Brands.Should().ContainSingle(brand => brand.NameEn == "Brand");
+        _cacheInvalidatorMock.Verify(
+            c => c.RemoveByTagsAsync(It.IsAny<IEnumerable<string>>(), It.IsAny<CancellationToken>()),
+            Times.Once);
     }
 }

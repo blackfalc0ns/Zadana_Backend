@@ -1,5 +1,6 @@
 using MediatR;
 using Microsoft.EntityFrameworkCore;
+using Zadana.Application.Common.Caching;
 using Zadana.Application.Common.Interfaces;
 using Zadana.Domain.Modules.Catalog.Enums;
 using Zadana.SharedKernel.Exceptions;
@@ -9,10 +10,12 @@ namespace Zadana.Application.Modules.Catalog.Commands.UpdateMasterProduct;
 public class UpdateMasterProductCommandHandler : IRequestHandler<UpdateMasterProductCommand, Unit>
 {
     private readonly IApplicationDbContext _context;
+    private readonly ICacheInvalidator _cacheInvalidator;
 
-    public UpdateMasterProductCommandHandler(IApplicationDbContext context)
+    public UpdateMasterProductCommandHandler(IApplicationDbContext context, ICacheInvalidator cacheInvalidator)
     {
         _context = context;
+        _cacheInvalidator = cacheInvalidator;
     }
 
     public async Task<Unit> Handle(UpdateMasterProductCommand request, CancellationToken cancellationToken)
@@ -63,6 +66,7 @@ public class UpdateMasterProductCommandHandler : IRequestHandler<UpdateMasterPro
         }
 
         await _context.SaveChangesAsync(cancellationToken);
+        await _cacheInvalidator.RemoveByTagsAsync(CacheInvalidationProfiles.CatalogReadModels, cancellationToken);
 
         return Unit.Value;
     }

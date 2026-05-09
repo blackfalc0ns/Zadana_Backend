@@ -39,6 +39,8 @@ public class GetVendorProductBulkOperationItemsQueryHandler : IRequestHandler<Ge
                 x.MasterProductId,
                 x.MasterProduct.NameAr,
                 x.MasterProduct.NameEn,
+                x.CostPrice,
+                x.TradePrice,
                 x.SellingPrice,
                 x.CompareAtPrice,
                 x.StockQty,

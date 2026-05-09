@@ -38,6 +38,7 @@ public class OrderRepository : IOrderRepository
     {
         var vendorProducts = await _dbContext.VendorProducts
             .Include(product => product.MasterProduct)
+            .Include(product => product.Vendor)
             .Where(product => product.VendorId == vendorId && masterProductIds.Contains(product.MasterProductId))
             .ToListAsync(cancellationToken);
 

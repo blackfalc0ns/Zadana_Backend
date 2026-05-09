@@ -1,5 +1,6 @@
 using MediatR;
 using Microsoft.EntityFrameworkCore;
+using Zadana.Application.Common.Caching;
 using Zadana.Application.Common.Interfaces;
 using Zadana.Domain.Modules.Catalog.Entities;
 using Zadana.SharedKernel.Exceptions;
@@ -9,10 +10,12 @@ namespace Zadana.Application.Modules.Catalog.Commands.VendorProducts.UpdateVendo
 public class UpdateVendorProductCommandHandler : IRequestHandler<UpdateVendorProductCommand>
 {
     private readonly IApplicationDbContext _context;
+    private readonly ICacheInvalidator _cacheInvalidator;
 
-    public UpdateVendorProductCommandHandler(IApplicationDbContext context)
+    public UpdateVendorProductCommandHandler(IApplicationDbContext context, ICacheInvalidator cacheInvalidator)
     {
         _context = context;
+        _cacheInvalidator = cacheInvalidator;
     }
 
     public async Task Handle(UpdateVendorProductCommand request, CancellationToken cancellationToken)
@@ -23,7 +26,10 @@ public class UpdateVendorProductCommandHandler : IRequestHandler<UpdateVendorPro
         if (vendorProduct == null)
             throw new NotFoundException(nameof(VendorProduct), request.Id);
 
-        vendorProduct.UpdatePricing(request.SellingPrice, request.CompareAtPrice);
+        if (!request.TradePrice.HasValue)
+            throw new BusinessRuleException("TRADE_PRICE_REQUIRED", "Trade price is required.");
+
+        vendorProduct.UpdatePricing(request.SellingPrice, request.CompareAtPrice, request.CostPrice, request.TradePrice);
         vendorProduct.UpdateStock(request.StockQty);
         vendorProduct.UpdateCustomDetails(
             request.CustomNameAr, 
@@ -32,5 +38,6 @@ public class UpdateVendorProductCommandHandler : IRequestHandler<UpdateVendorPro
             request.CustomDescriptionEn);
 
         await _context.SaveChangesAsync(cancellationToken);
+        await _cacheInvalidator.RemoveByTagsAsync(CacheInvalidationProfiles.CatalogReadModels, cancellationToken);
     }
 }

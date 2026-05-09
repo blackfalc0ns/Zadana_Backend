@@ -2,6 +2,7 @@ using FluentValidation;
 using MediatR;
 using Microsoft.EntityFrameworkCore;
 using Microsoft.Extensions.Localization;
+using Zadana.Application.Common.Caching;
 using Zadana.Application.Common.Interfaces;
 using Zadana.Application.Common.Localization;
 using Zadana.Application.Modules.Marketing.DTOs;
@@ -65,7 +66,12 @@ public class UpdateHomeSectionCommandValidator : AbstractValidator<UpdateHomeSec
 public class CreateHomeSectionCommandHandler : IRequestHandler<CreateHomeSectionCommand, HomeSectionAdminDto>
 {
     private readonly IApplicationDbContext _context;
-    public CreateHomeSectionCommandHandler(IApplicationDbContext context) => _context = context;
+    private readonly ICacheInvalidator _cacheInvalidator;
+    public CreateHomeSectionCommandHandler(IApplicationDbContext context, ICacheInvalidator cacheInvalidator)
+    {
+        _context = context;
+        _cacheInvalidator = cacheInvalidator;
+    }
 
     public async Task<HomeSectionAdminDto> Handle(CreateHomeSectionCommand request, CancellationToken cancellationToken)
     {
@@ -81,6 +87,7 @@ public class CreateHomeSectionCommandHandler : IRequestHandler<CreateHomeSection
 
         _context.HomeSections.Add(entity);
         await _context.SaveChangesAsync(cancellationToken);
+        await _cacheInvalidator.RemoveByTagsAsync(CacheInvalidationProfiles.HomeReadModels, cancellationToken);
         return await _context.ProjectHomeSectionAsync(entity.Id, cancellationToken);
     }
 }
@@ -88,7 +95,12 @@ public class CreateHomeSectionCommandHandler : IRequestHandler<CreateHomeSection
 public class UpdateHomeSectionCommandHandler : IRequestHandler<UpdateHomeSectionCommand, HomeSectionAdminDto>
 {
     private readonly IApplicationDbContext _context;
-    public UpdateHomeSectionCommandHandler(IApplicationDbContext context) => _context = context;
+    private readonly ICacheInvalidator _cacheInvalidator;
+    public UpdateHomeSectionCommandHandler(IApplicationDbContext context, ICacheInvalidator cacheInvalidator)
+    {
+        _context = context;
+        _cacheInvalidator = cacheInvalidator;
+    }
 
     public async Task<HomeSectionAdminDto> Handle(UpdateHomeSectionCommand request, CancellationToken cancellationToken)
     {
@@ -107,6 +119,7 @@ public class UpdateHomeSectionCommandHandler : IRequestHandler<UpdateHomeSection
             request.IsActive);
 
         await _context.SaveChangesAsync(cancellationToken);
+        await _cacheInvalidator.RemoveByTagsAsync(CacheInvalidationProfiles.HomeReadModels, cancellationToken);
         return await _context.ProjectHomeSectionAsync(entity.Id, cancellationToken);
     }
 }
@@ -114,7 +127,12 @@ public class UpdateHomeSectionCommandHandler : IRequestHandler<UpdateHomeSection
 public class ActivateHomeSectionCommandHandler : IRequestHandler<ActivateHomeSectionCommand>
 {
     private readonly IApplicationDbContext _context;
-    public ActivateHomeSectionCommandHandler(IApplicationDbContext context) => _context = context;
+    private readonly ICacheInvalidator _cacheInvalidator;
+    public ActivateHomeSectionCommandHandler(IApplicationDbContext context, ICacheInvalidator cacheInvalidator)
+    {
+        _context = context;
+        _cacheInvalidator = cacheInvalidator;
+    }
 
     public async Task Handle(ActivateHomeSectionCommand request, CancellationToken cancellationToken)
     {
@@ -122,13 +140,19 @@ public class ActivateHomeSectionCommandHandler : IRequestHandler<ActivateHomeSec
             ?? throw new NotFoundException(nameof(HomeSection), request.Id);
         entity.Activate();
         await _context.SaveChangesAsync(cancellationToken);
+        await _cacheInvalidator.RemoveByTagsAsync(CacheInvalidationProfiles.HomeReadModels, cancellationToken);
     }
 }
 
 public class DeactivateHomeSectionCommandHandler : IRequestHandler<DeactivateHomeSectionCommand>
 {
     private readonly IApplicationDbContext _context;
-    public DeactivateHomeSectionCommandHandler(IApplicationDbContext context) => _context = context;
+    private readonly ICacheInvalidator _cacheInvalidator;
+    public DeactivateHomeSectionCommandHandler(IApplicationDbContext context, ICacheInvalidator cacheInvalidator)
+    {
+        _context = context;
+        _cacheInvalidator = cacheInvalidator;
+    }
 
     public async Task Handle(DeactivateHomeSectionCommand request, CancellationToken cancellationToken)
     {
@@ -136,13 +160,19 @@ public class DeactivateHomeSectionCommandHandler : IRequestHandler<DeactivateHom
             ?? throw new NotFoundException(nameof(HomeSection), request.Id);
         entity.Deactivate();
         await _context.SaveChangesAsync(cancellationToken);
+        await _cacheInvalidator.RemoveByTagsAsync(CacheInvalidationProfiles.HomeReadModels, cancellationToken);
     }
 }
 
 public class DeleteHomeSectionCommandHandler : IRequestHandler<DeleteHomeSectionCommand>
 {
     private readonly IApplicationDbContext _context;
-    public DeleteHomeSectionCommandHandler(IApplicationDbContext context) => _context = context;
+    private readonly ICacheInvalidator _cacheInvalidator;
+    public DeleteHomeSectionCommandHandler(IApplicationDbContext context, ICacheInvalidator cacheInvalidator)
+    {
+        _context = context;
+        _cacheInvalidator = cacheInvalidator;
+    }
 
     public async Task Handle(DeleteHomeSectionCommand request, CancellationToken cancellationToken)
     {
@@ -150,6 +180,7 @@ public class DeleteHomeSectionCommandHandler : IRequestHandler<DeleteHomeSection
             ?? throw new NotFoundException(nameof(HomeSection), request.Id);
         _context.HomeSections.Remove(entity);
         await _context.SaveChangesAsync(cancellationToken);
+        await _cacheInvalidator.RemoveByTagsAsync(CacheInvalidationProfiles.HomeReadModels, cancellationToken);
     }
 }
 

@@ -1,10 +1,14 @@
 using System.Globalization;
 using MediatR;
 using Microsoft.EntityFrameworkCore;
+using Microsoft.Extensions.Options;
+using Zadana.Application.Common.Caching;
 using Zadana.Application.Common.Interfaces;
+using Zadana.Application.Common.Settings;
 using Zadana.Application.Modules.Catalog.DTOs;
+using Zadana.Application.Modules.Catalog.Interfaces;
+using Zadana.Application.Modules.Catalog.Queries;
 using Zadana.Domain.Modules.Catalog.Enums;
-using Zadana.Domain.Modules.Orders.Enums;
 using Zadana.Domain.Modules.Vendors.Enums;
 
 namespace Zadana.Application.Modules.Catalog.Queries.Products.SearchProducts;
@@ -16,12 +20,20 @@ public class SearchProductsQueryHandler : IRequestHandler<SearchProductsQuery, S
     private const int MaxPerPage = 100;
 
     private readonly IApplicationDbContext _context;
-    private readonly ICurrentUserService _currentUserService;
+    private readonly IAppCache _cache;
+    private readonly ICatalogReadCacheService _catalogReadCacheService;
+    private readonly CacheDurationSettings _durations;
 
-    public SearchProductsQueryHandler(IApplicationDbContext context, ICurrentUserService currentUserService)
+    public SearchProductsQueryHandler(
+        IApplicationDbContext context,
+        IAppCache cache,
+        ICatalogReadCacheService catalogReadCacheService,
+        IOptions<CachingSettings> cachingOptions)
     {
         _context = context;
-        _currentUserService = currentUserService;
+        _cache = cache;
+        _catalogReadCacheService = catalogReadCacheService;
+        _durations = cachingOptions.Value.Durations;
     }
 
     public async Task<SearchProductsResponseDto> Handle(SearchProductsQuery request, CancellationToken cancellationToken)
@@ -32,32 +44,36 @@ public class SearchProductsQueryHandler : IRequestHandler<SearchProductsQuery, S
             return new SearchProductsResponseDto(string.Empty, 0, NormalizePage(request.Page), NormalizePerPage(request.PerPage), []);
         }
 
-        var favoriteMasterProductIds = await LoadFavoriteMasterProductIdsAsync(cancellationToken);
+        var page = NormalizePage(request.Page);
+        var perPage = NormalizePerPage(request.PerPage);
+        var baseResponse = await _cache.GetOrCreateAsync(
+            CatalogQueryCacheKeys.SearchProducts(
+                normalizedQuery,
+                request.CategoryId,
+                request.BrandId,
+                request.MinPrice,
+                request.MaxPrice,
+                request.Sort,
+                page,
+                perPage),
+            token => BuildBaseResponseAsync(request, normalizedQuery, page, perPage, token),
+            new AppCacheEntryOptions(_durations.BrowseBase),
+            [CacheTagNames.Catalog],
+            cancellationToken);
 
-        var salesByVendorProductId = await _context.OrderItems
-            .AsNoTracking()
-            .Where(item => item.Order.Status == OrderStatus.Delivered)
-            .GroupBy(item => item.VendorProductId)
-            .Select(group => new
-            {
-                VendorProductId = group.Key,
-                Quantity = group.Sum(item => item.Quantity)
-            })
-            .ToDictionaryAsync(item => item.VendorProductId, item => item.Quantity, cancellationToken);
+        var favoriteMasterProductIds = await _catalogReadCacheService.GetCurrentFavoriteMasterProductIdsAsync(cancellationToken);
+        return CatalogQueryFavoriteOverlays.ApplyFavorites(baseResponse, favoriteMasterProductIds);
+    }
 
-        var reviewStatsByVendorId = await _context.Reviews
-            .AsNoTracking()
-            .GroupBy(review => review.VendorId)
-            .Select(group => new
-            {
-                VendorId = group.Key,
-                AverageRating = Math.Round(group.Average(review => review.Rating), 1),
-                ReviewCount = group.Count()
-            })
-            .ToDictionaryAsync(
-                item => item.VendorId,
-                item => new VendorReviewStats((decimal)item.AverageRating, item.ReviewCount),
-                cancellationToken);
+    private async Task<SearchProductsResponseDto> BuildBaseResponseAsync(
+        SearchProductsQuery request,
+        string normalizedQuery,
+        int page,
+        int perPage,
+        CancellationToken cancellationToken)
+    {
+        var salesByVendorProductId = await _catalogReadCacheService.GetDeliveredSalesByVendorProductIdAsync(cancellationToken);
+        var reviewStatsByVendorId = await _catalogReadCacheService.GetVendorReviewStatsByVendorIdAsync(cancellationToken);
 
         var rawProducts = await _context.VendorProducts
             .AsNoTracking()
@@ -129,13 +145,11 @@ public class SearchProductsQueryHandler : IRequestHandler<SearchProductsQuery, S
 
         var sortedProducts = ApplySorting(products, request.Sort).ToList();
         var total = sortedProducts.Count;
-        var page = NormalizePage(request.Page);
-        var perPage = NormalizePerPage(request.PerPage);
 
         var items = sortedProducts
             .Skip((page - 1) * perPage)
             .Take(perPage)
-            .Select(product => MapToProductItem(product, favoriteMasterProductIds.Contains(product.Id)))
+            .Select(product => MapToProductItem(product, false))
             .ToList();
 
         return new SearchProductsResponseDto(normalizedQuery, total, page, perPage, items);
@@ -209,22 +223,6 @@ public class SearchProductsQueryHandler : IRequestHandler<SearchProductsQuery, S
             isDiscounted);
     }
 
-    private async Task<HashSet<Guid>> LoadFavoriteMasterProductIdsAsync(CancellationToken cancellationToken)
-    {
-        if (!_currentUserService.UserId.HasValue && string.IsNullOrWhiteSpace(_currentUserService.GuestDeviceId))
-        {
-            return [];
-        }
-
-        return await _context.CustomerFavorites
-            .AsNoTracking()
-            .Where(x =>
-                (_currentUserService.UserId.HasValue && x.UserId == _currentUserService.UserId.Value) ||
-                (!_currentUserService.UserId.HasValue && x.GuestId == _currentUserService.GuestDeviceId))
-            .Select(x => x.MasterProductId)
-            .ToHashSetAsync(cancellationToken);
-    }
-
     private static decimal CalculateDiscountRate(SearchProductSource product)
     {
         if (!product.CompareAtPrice.HasValue || product.CompareAtPrice.Value <= 0 || product.CompareAtPrice.Value <= product.SellingPrice)
@@ -260,8 +258,6 @@ public class SearchProductsQueryHandler : IRequestHandler<SearchProductsQuery, S
         var value = PickLocalized(arabic, english);
         return string.IsNullOrWhiteSpace(value) ? null : value;
     }
-
-    private sealed record VendorReviewStats(decimal AverageRating, int ReviewCount);
 
     private sealed record RawSearchProduct(
         Guid Id,

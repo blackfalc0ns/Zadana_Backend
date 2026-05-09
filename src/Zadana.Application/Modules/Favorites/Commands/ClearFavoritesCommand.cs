@@ -1,6 +1,7 @@
 using MediatR;
 using Microsoft.EntityFrameworkCore;
 using Microsoft.Extensions.Localization;
+using Zadana.Application.Common.Caching;
 using Zadana.Application.Common.Interfaces;
 using Zadana.Application.Common.Localization;
 using Zadana.Application.Modules.Favorites.DTOs;
@@ -13,13 +14,16 @@ public record ClearFavoritesCommand(Guid? UserId, string? GuestId) : IRequest<Cl
 public class ClearFavoritesCommandHandler : IRequestHandler<ClearFavoritesCommand, ClearFavoritesResponse>
 {
     private readonly IApplicationDbContext _context;
+    private readonly ICacheInvalidator _cacheInvalidator;
     private readonly IStringLocalizer<SharedResource> _localizer;
 
     public ClearFavoritesCommandHandler(
         IApplicationDbContext context,
+        ICacheInvalidator cacheInvalidator,
         IStringLocalizer<SharedResource> localizer)
     {
         _context = context;
+        _cacheInvalidator = cacheInvalidator;
         _localizer = localizer;
     }
 
@@ -41,6 +45,7 @@ public class ClearFavoritesCommandHandler : IRequestHandler<ClearFavoritesComman
         {
             _context.CustomerFavorites.RemoveRange(favorites);
             await _context.SaveChangesAsync(cancellationToken);
+            await _cacheInvalidator.RemoveByTagAsync(AppCacheKeys.FavoriteScopeTag(request.UserId, guestId), cancellationToken);
         }
 
         return new ClearFavoritesResponse(_localizer["FavoritesClearedSuccessfully"]);

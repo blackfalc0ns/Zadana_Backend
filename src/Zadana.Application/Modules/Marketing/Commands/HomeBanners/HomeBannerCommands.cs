@@ -2,6 +2,7 @@ using FluentValidation;
 using MediatR;
 using Microsoft.EntityFrameworkCore;
 using Microsoft.Extensions.Localization;
+using Zadana.Application.Common.Caching;
 using Zadana.Application.Common.Interfaces;
 using Zadana.Application.Common.Localization;
 using Zadana.Application.Modules.Marketing.DTOs;
@@ -82,11 +83,13 @@ public class UpdateHomeBannerCommandValidator : AbstractValidator<UpdateHomeBann
 public class CreateHomeBannerCommandHandler : IRequestHandler<CreateHomeBannerCommand, HomeBannerAdminDto>
 {
     private readonly IApplicationDbContext _context;
+    private readonly ICacheInvalidator _cacheInvalidator;
     private readonly IPublisher _publisher;
 
-    public CreateHomeBannerCommandHandler(IApplicationDbContext context, IPublisher publisher)
+    public CreateHomeBannerCommandHandler(IApplicationDbContext context, ICacheInvalidator cacheInvalidator, IPublisher publisher)
     {
         _context = context;
+        _cacheInvalidator = cacheInvalidator;
         _publisher = publisher;
     }
 
@@ -99,6 +102,7 @@ public class CreateHomeBannerCommandHandler : IRequestHandler<CreateHomeBannerCo
 
         _context.HomeBanners.Add(entity);
         await _context.SaveChangesAsync(cancellationToken);
+        await _cacheInvalidator.RemoveByTagsAsync(CacheInvalidationProfiles.HomeReadModels, cancellationToken);
 
         // Notify all customers about new banner
         await _publisher.Publish(
@@ -112,11 +116,13 @@ public class CreateHomeBannerCommandHandler : IRequestHandler<CreateHomeBannerCo
 public class UpdateHomeBannerCommandHandler : IRequestHandler<UpdateHomeBannerCommand, HomeBannerAdminDto>
 {
     private readonly IApplicationDbContext _context;
+    private readonly ICacheInvalidator _cacheInvalidator;
     private readonly IPublisher _publisher;
 
-    public UpdateHomeBannerCommandHandler(IApplicationDbContext context, IPublisher publisher)
+    public UpdateHomeBannerCommandHandler(IApplicationDbContext context, ICacheInvalidator cacheInvalidator, IPublisher publisher)
     {
         _context = context;
+        _cacheInvalidator = cacheInvalidator;
         _publisher = publisher;
     }
 
@@ -135,6 +141,7 @@ public class UpdateHomeBannerCommandHandler : IRequestHandler<UpdateHomeBannerCo
         if (request.IsActive) entity.Activate(); else entity.Deactivate();
 
         await _context.SaveChangesAsync(cancellationToken);
+        await _cacheInvalidator.RemoveByTagsAsync(CacheInvalidationProfiles.HomeReadModels, cancellationToken);
 
         if (!wasActive && entity.IsActive)
         {
@@ -150,11 +157,13 @@ public class UpdateHomeBannerCommandHandler : IRequestHandler<UpdateHomeBannerCo
 public class ActivateHomeBannerCommandHandler : IRequestHandler<ActivateHomeBannerCommand>
 {
     private readonly IApplicationDbContext _context;
+    private readonly ICacheInvalidator _cacheInvalidator;
     private readonly IPublisher _publisher;
 
-    public ActivateHomeBannerCommandHandler(IApplicationDbContext context, IPublisher publisher)
+    public ActivateHomeBannerCommandHandler(IApplicationDbContext context, ICacheInvalidator cacheInvalidator, IPublisher publisher)
     {
         _context = context;
+        _cacheInvalidator = cacheInvalidator;
         _publisher = publisher;
     }
 
@@ -164,6 +173,7 @@ public class ActivateHomeBannerCommandHandler : IRequestHandler<ActivateHomeBann
             ?? throw new NotFoundException(nameof(HomeBanner), request.Id);
         entity.Activate();
         await _context.SaveChangesAsync(cancellationToken);
+        await _cacheInvalidator.RemoveByTagsAsync(CacheInvalidationProfiles.HomeReadModels, cancellationToken);
 
         // Notify all customers about activated banner
         await _publisher.Publish(
@@ -175,26 +185,38 @@ public class ActivateHomeBannerCommandHandler : IRequestHandler<ActivateHomeBann
 public class DeactivateHomeBannerCommandHandler : IRequestHandler<DeactivateHomeBannerCommand>
 {
     private readonly IApplicationDbContext _context;
-    public DeactivateHomeBannerCommandHandler(IApplicationDbContext context) => _context = context;
+    private readonly ICacheInvalidator _cacheInvalidator;
+    public DeactivateHomeBannerCommandHandler(IApplicationDbContext context, ICacheInvalidator cacheInvalidator)
+    {
+        _context = context;
+        _cacheInvalidator = cacheInvalidator;
+    }
     public async Task Handle(DeactivateHomeBannerCommand request, CancellationToken cancellationToken)
     {
         var entity = await _context.HomeBanners.FirstOrDefaultAsync(x => x.Id == request.Id, cancellationToken)
             ?? throw new NotFoundException(nameof(HomeBanner), request.Id);
         entity.Deactivate();
         await _context.SaveChangesAsync(cancellationToken);
+        await _cacheInvalidator.RemoveByTagsAsync(CacheInvalidationProfiles.HomeReadModels, cancellationToken);
     }
 }
 
 public class DeleteHomeBannerCommandHandler : IRequestHandler<DeleteHomeBannerCommand>
 {
     private readonly IApplicationDbContext _context;
-    public DeleteHomeBannerCommandHandler(IApplicationDbContext context) => _context = context;
+    private readonly ICacheInvalidator _cacheInvalidator;
+    public DeleteHomeBannerCommandHandler(IApplicationDbContext context, ICacheInvalidator cacheInvalidator)
+    {
+        _context = context;
+        _cacheInvalidator = cacheInvalidator;
+    }
     public async Task Handle(DeleteHomeBannerCommand request, CancellationToken cancellationToken)
     {
         var entity = await _context.HomeBanners.FirstOrDefaultAsync(x => x.Id == request.Id, cancellationToken)
             ?? throw new NotFoundException(nameof(HomeBanner), request.Id);
         _context.HomeBanners.Remove(entity);
         await _context.SaveChangesAsync(cancellationToken);
+        await _cacheInvalidator.RemoveByTagsAsync(CacheInvalidationProfiles.HomeReadModels, cancellationToken);
     }
 }
 

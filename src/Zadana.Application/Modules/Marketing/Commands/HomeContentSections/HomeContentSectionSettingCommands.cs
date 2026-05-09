@@ -1,6 +1,7 @@
 using FluentValidation;
 using MediatR;
 using Microsoft.EntityFrameworkCore;
+using Zadana.Application.Common.Caching;
 using Zadana.Application.Common.Interfaces;
 using Zadana.Application.Modules.Marketing;
 using Zadana.Application.Modules.Marketing.DTOs;
@@ -41,7 +42,12 @@ public class DeactivateHomeContentSectionSettingCommandValidator : AbstractValid
 public class UpdateHomeContentSectionSettingCommandHandler : IRequestHandler<UpdateHomeContentSectionSettingCommand, HomeContentSectionSettingDto>
 {
     private readonly IApplicationDbContext _context;
-    public UpdateHomeContentSectionSettingCommandHandler(IApplicationDbContext context) => _context = context;
+    private readonly ICacheInvalidator _cacheInvalidator;
+    public UpdateHomeContentSectionSettingCommandHandler(IApplicationDbContext context, ICacheInvalidator cacheInvalidator)
+    {
+        _context = context;
+        _cacheInvalidator = cacheInvalidator;
+    }
 
     public async Task<HomeContentSectionSettingDto> Handle(UpdateHomeContentSectionSettingCommand request, CancellationToken cancellationToken)
     {
@@ -70,6 +76,7 @@ public class UpdateHomeContentSectionSettingCommandHandler : IRequestHandler<Upd
         try
         {
             await _context.SaveChangesAsync(cancellationToken);
+            await _cacheInvalidator.RemoveByTagsAsync(CacheInvalidationProfiles.HomeReadModels, cancellationToken);
         }
         catch (Exception ex) when (MarketingDatabaseObjectFallbacks.IsMissingDatabaseObject(ex))
         {
@@ -83,7 +90,12 @@ public class UpdateHomeContentSectionSettingCommandHandler : IRequestHandler<Upd
 public class ActivateHomeContentSectionSettingCommandHandler : IRequestHandler<ActivateHomeContentSectionSettingCommand>
 {
     private readonly IApplicationDbContext _context;
-    public ActivateHomeContentSectionSettingCommandHandler(IApplicationDbContext context) => _context = context;
+    private readonly ICacheInvalidator _cacheInvalidator;
+    public ActivateHomeContentSectionSettingCommandHandler(IApplicationDbContext context, ICacheInvalidator cacheInvalidator)
+    {
+        _context = context;
+        _cacheInvalidator = cacheInvalidator;
+    }
 
     public async Task Handle(ActivateHomeContentSectionSettingCommand request, CancellationToken cancellationToken)
     {
@@ -111,6 +123,7 @@ public class ActivateHomeContentSectionSettingCommandHandler : IRequestHandler<A
         try
         {
             await _context.SaveChangesAsync(cancellationToken);
+            await _cacheInvalidator.RemoveByTagsAsync(CacheInvalidationProfiles.HomeReadModels, cancellationToken);
         }
         catch (Exception ex) when (MarketingDatabaseObjectFallbacks.IsMissingDatabaseObject(ex))
         {
@@ -122,7 +135,12 @@ public class ActivateHomeContentSectionSettingCommandHandler : IRequestHandler<A
 public class DeactivateHomeContentSectionSettingCommandHandler : IRequestHandler<DeactivateHomeContentSectionSettingCommand>
 {
     private readonly IApplicationDbContext _context;
-    public DeactivateHomeContentSectionSettingCommandHandler(IApplicationDbContext context) => _context = context;
+    private readonly ICacheInvalidator _cacheInvalidator;
+    public DeactivateHomeContentSectionSettingCommandHandler(IApplicationDbContext context, ICacheInvalidator cacheInvalidator)
+    {
+        _context = context;
+        _cacheInvalidator = cacheInvalidator;
+    }
 
     public async Task Handle(DeactivateHomeContentSectionSettingCommand request, CancellationToken cancellationToken)
     {
@@ -150,6 +168,7 @@ public class DeactivateHomeContentSectionSettingCommandHandler : IRequestHandler
         try
         {
             await _context.SaveChangesAsync(cancellationToken);
+            await _cacheInvalidator.RemoveByTagsAsync(CacheInvalidationProfiles.HomeReadModels, cancellationToken);
         }
         catch (Exception ex) when (MarketingDatabaseObjectFallbacks.IsMissingDatabaseObject(ex))
         {

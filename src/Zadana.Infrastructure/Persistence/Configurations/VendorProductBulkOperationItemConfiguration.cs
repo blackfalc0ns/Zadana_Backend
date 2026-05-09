@@ -16,6 +16,12 @@ public class VendorProductBulkOperationItemConfiguration : IEntityTypeConfigurat
             .IsRequired()
             .HasPrecision(18, 2);
 
+        builder.Property(x => x.CostPrice)
+            .HasPrecision(18, 2);
+
+        builder.Property(x => x.TradePrice)
+            .HasPrecision(18, 2);
+
         builder.Property(x => x.CompareAtPrice)
             .HasPrecision(18, 2);
 

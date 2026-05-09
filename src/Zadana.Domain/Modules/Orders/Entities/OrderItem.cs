@@ -13,6 +13,8 @@ public class OrderItem
     public string? UnitName { get; private set; }
     public int Quantity { get; private set; }
     public decimal UnitPrice { get; private set; }
+    public decimal? TradeUnitPrice { get; private set; }
+    public decimal VendorProfitPerUnit { get; private set; }
     public decimal LineDiscount { get; private set; }
     public decimal LineTotal { get; private set; }
 
@@ -30,11 +32,15 @@ public class OrderItem
         string productName, 
         int quantity, 
         decimal unitPrice,
+        decimal? tradeUnitPrice = null,
+        decimal vendorProfitPerUnit = 0,
         decimal lineDiscount = 0,
         string? unitName = null)
     {
         if (quantity <= 0) throw new BusinessRuleException("INVALID_QUANTITY", "Quantity must be greater than zero.");
         if (unitPrice < 0) throw new BusinessRuleException("INVALID_PRICE", "Unit price cannot be negative.");
+        if (tradeUnitPrice.HasValue && tradeUnitPrice.Value <= 0) throw new BusinessRuleException("INVALID_TRADE_PRICE", "Trade unit price must be greater than zero.");
+        if (vendorProfitPerUnit < 0) throw new BusinessRuleException("INVALID_VENDOR_PROFIT", "Vendor profit per unit cannot be negative.");
 
         OrderId = orderId;
         VendorProductId = vendorProductId;
@@ -42,6 +48,8 @@ public class OrderItem
         ProductName = productName.Trim();
         Quantity = quantity;
         UnitPrice = unitPrice;
+        TradeUnitPrice = tradeUnitPrice;
+        VendorProfitPerUnit = vendorProfitPerUnit;
         LineDiscount = lineDiscount;
         UnitName = unitName?.Trim();
         LineTotal = Math.Max(0, (quantity * unitPrice) - lineDiscount);

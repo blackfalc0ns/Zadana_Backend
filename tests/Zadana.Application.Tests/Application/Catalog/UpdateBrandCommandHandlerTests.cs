@@ -1,58 +1,63 @@
 using FluentAssertions;
+using Microsoft.EntityFrameworkCore;
 using Moq;
 using Zadana.Application.Common.Interfaces;
 using Zadana.Application.Modules.Catalog.Commands.Brands.UpdateBrand;
 using Zadana.Domain.Modules.Catalog.Entities;
+using Zadana.Infrastructure.Persistence;
+using Zadana.Infrastructure.Persistence.Interceptors;
 using Zadana.SharedKernel.Exceptions;
-using Microsoft.EntityFrameworkCore;
 
 namespace Zadana.Application.Tests.Application.Catalog;
 
 public class UpdateBrandCommandHandlerTests
 {
-    private readonly Mock<IApplicationDbContext> _dbContextMock = new();
+    private readonly Mock<ICacheInvalidator> _cacheInvalidatorMock = new();
 
-    private UpdateBrandCommandHandler CreateHandler() => new(_dbContextMock.Object);
+    private static ApplicationDbContext CreateContext()
+    {
+        var options = new DbContextOptionsBuilder<ApplicationDbContext>()
+            .UseInMemoryDatabase(Guid.NewGuid().ToString())
+            .Options;
+
+        return new ApplicationDbContext(options, new AuditableEntityInterceptor());
+    }
 
     [Fact]
     public async Task Handle_WhenBrandNotFound_ShouldThrowNotFoundException()
     {
-        // Arrange
-        var mockBrandSet = new Mock<DbSet<Brand>>();
-        mockBrandSet.Setup(s => s.FindAsync(It.IsAny<object[]>(), It.IsAny<CancellationToken>()))
-            .ReturnsAsync((Brand?)null);
-        _dbContextMock.Setup(c => c.Brands).Returns(mockBrandSet.Object);
+        await using var context = CreateContext();
+        var command = new UpdateBrandCommand(Guid.NewGuid(), "Updated", "Updated", null, null, Guid.NewGuid(), true);
+        var handler = new UpdateBrandCommandHandler(context, _cacheInvalidatorMock.Object);
 
-        var command = new UpdateBrandCommand(Guid.NewGuid(), "Updated", "Updated", null, Guid.NewGuid(), true);
-        var handler = CreateHandler();
-
-        // Act
         var act = () => handler.Handle(command, CancellationToken.None);
 
-        // Assert
         await act.Should().ThrowAsync<NotFoundException>();
     }
 
     [Fact]
     public async Task Handle_WithValidData_ShouldUpdateAndSave()
     {
-        // Arrange
-        var brand = new Brand("قديم", "Old", null);
-        var mockBrandSet = new Mock<DbSet<Brand>>();
-        mockBrandSet.Setup(s => s.FindAsync(It.IsAny<object[]>(), It.IsAny<CancellationToken>()))
-            .ReturnsAsync(brand);
-        _dbContextMock.Setup(c => c.Brands).Returns(mockBrandSet.Object);
-        _dbContextMock.Setup(c => c.SaveChangesAsync(It.IsAny<CancellationToken>())).ReturnsAsync(1);
+        await using var context = CreateContext();
+        var category = new Category("فرعي", "Sub", null, Guid.NewGuid(), 1);
+        var brand = new Brand("قديم", "Old", null, null, category.Id);
 
-        var command = new UpdateBrandCommand(brand.Id, "جديد", "New", "https://new.png", Guid.NewGuid(), true);
-        var handler = CreateHandler();
+        context.Categories.Add(category);
+        context.Brands.Add(brand);
+        await context.SaveChangesAsync();
 
-        // Act
+        var command = new UpdateBrandCommand(brand.Id, "جديد", "New", "https://new.png", "https://cover-new.png", category.Id, true);
+        var handler = new UpdateBrandCommandHandler(context, _cacheInvalidatorMock.Object);
+
         await handler.Handle(command, CancellationToken.None);
 
-        // Assert
-        brand.NameAr.Should().Be("جديد");
-        brand.NameEn.Should().Be("New");
-        _dbContextMock.Verify(c => c.SaveChangesAsync(It.IsAny<CancellationToken>()), Times.Once);
+        var updated = await context.Brands.FirstAsync(item => item.Id == brand.Id);
+        updated.NameAr.Should().Be("جديد");
+        updated.NameEn.Should().Be("New");
+        updated.LogoUrl.Should().Be("https://new.png");
+        updated.CoverImageUrl.Should().Be("https://cover-new.png");
+        _cacheInvalidatorMock.Verify(
+            c => c.RemoveByTagsAsync(It.IsAny<IEnumerable<string>>(), It.IsAny<CancellationToken>()),
+            Times.Once);
     }
 }

@@ -1,6 +1,10 @@
 using System.Globalization;
 using Microsoft.EntityFrameworkCore;
+using Microsoft.Extensions.Options;
+using Zadana.Application.Common.Caching;
 using Zadana.Application.Common.Interfaces;
+using Zadana.Application.Common.Settings;
+using Zadana.Application.Modules.Catalog.Interfaces;
 using Zadana.Application.Modules.Home.DTOs;
 using Zadana.Application.Modules.Home.Interfaces;
 using Zadana.Domain.Modules.Catalog.Enums;
@@ -8,6 +12,7 @@ using Zadana.Domain.Modules.Identity.Enums;
 using Zadana.Domain.Modules.Marketing.Enums;
 using Zadana.Domain.Modules.Orders.Enums;
 using Zadana.Domain.Modules.Vendors.Enums;
+using Zadana.Infrastructure.Caching;
 
 namespace Zadana.Infrastructure.Modules.Home.Services;
 
@@ -21,11 +26,22 @@ public class HomeReadService : IHomeReadService
 
     private readonly IApplicationDbContext _context;
     private readonly ICurrentUserService _currentUserService;
+    private readonly IAppCache _cache;
+    private readonly ICatalogReadCacheService _catalogReadCacheService;
+    private readonly CacheDurationSettings _durations;
 
-    public HomeReadService(IApplicationDbContext context, ICurrentUserService currentUserService)
+    public HomeReadService(
+        IApplicationDbContext context,
+        ICurrentUserService currentUserService,
+        IAppCache cache,
+        ICatalogReadCacheService catalogReadCacheService,
+        IOptions<CachingSettings> cachingOptions)
     {
         _context = context;
         _currentUserService = currentUserService;
+        _cache = cache;
+        _catalogReadCacheService = catalogReadCacheService;
+        _durations = cachingOptions.Value.Durations;
     }
 
     public Task<HomeHeaderDto> GetHeaderAsync(CancellationToken cancellationToken = default) =>
@@ -272,155 +288,168 @@ public class HomeReadService : IHomeReadService
 
     private async Task<IReadOnlyList<HomeBannerDto>> GetBannersInternalAsync(int take, CancellationToken cancellationToken)
     {
-        var now = DateTime.UtcNow;
-        List<RawHomeBanner> banners;
-        try
-        {
-            banners = await _context.HomeBanners
-                .AsNoTracking()
-                .Where(x => x.IsActive
-                    && (!x.StartsAtUtc.HasValue || x.StartsAtUtc <= now)
-                    && (!x.EndsAtUtc.HasValue || x.EndsAtUtc >= now))
-                .OrderBy(x => x.DisplayOrder)
-                .ThenByDescending(x => x.CreatedAtUtc)
-                .Take(take)
-                .Select(x => new RawHomeBanner(
-                    x.Id,
-                    x.TagAr,
-                    x.TagEn,
-                    x.TitleAr,
-                    x.TitleEn,
-                    x.SubtitleAr,
-                    x.SubtitleEn,
-                    x.ActionLabelAr,
-                    x.ActionLabelEn,
-                    x.ImageUrl))
-                .ToListAsync(cancellationToken);
-        }
-        catch (Exception ex) when (IsMissingDatabaseObject(ex))
-        {
-            return [];
-        }
+        var key = AppCacheKeys.Build("home", "banners", "v1", AppCacheKeys.CurrentCulture, AppCacheKeys.IntToken(take));
+        return await _cache.GetOrCreateAsync(
+            key,
+            async token =>
+            {
+                var now = DateTime.UtcNow;
+                List<RawHomeBanner> banners;
+                try
+                {
+                    banners = await _context.HomeBanners
+                        .AsNoTracking()
+                        .Where(x => x.IsActive
+                            && (!x.StartsAtUtc.HasValue || x.StartsAtUtc <= now)
+                            && (!x.EndsAtUtc.HasValue || x.EndsAtUtc >= now))
+                        .OrderBy(x => x.DisplayOrder)
+                        .ThenByDescending(x => x.CreatedAtUtc)
+                        .Take(take)
+                        .Select(x => new RawHomeBanner(
+                            x.Id,
+                            x.TagAr,
+                            x.TagEn,
+                            x.TitleAr,
+                            x.TitleEn,
+                            x.SubtitleAr,
+                            x.SubtitleEn,
+                            x.ActionLabelAr,
+                            x.ActionLabelEn,
+                            x.ImageUrl))
+                        .ToListAsync(token);
+                }
+                catch (Exception ex) when (IsMissingDatabaseObject(ex))
+                {
+                    return Array.Empty<HomeBannerDto>();
+                }
 
-        return banners
-            .Select(x => new HomeBannerDto(
-                x.Id,
-                PickLocalized(x.TagAr, x.TagEn),
-                PickLocalized(x.TitleAr, x.TitleEn),
-                PickLocalizedNullable(x.SubtitleAr, x.SubtitleEn),
-                PickLocalizedNullable(x.ActionLabelAr, x.ActionLabelEn),
-                x.ImageUrl))
-            .ToList();
+                return banners
+                    .Select(x => new HomeBannerDto(
+                        x.Id,
+                        PickLocalized(x.TagAr, x.TagEn),
+                        PickLocalized(x.TitleAr, x.TitleEn),
+                        PickLocalizedNullable(x.SubtitleAr, x.SubtitleEn),
+                        PickLocalizedNullable(x.ActionLabelAr, x.ActionLabelEn),
+                        x.ImageUrl))
+                    .ToArray();
+            },
+            new AppCacheEntryOptions(_durations.HomePublic),
+            [CacheTagNames.Home],
+            cancellationToken);
     }
 
     private async Task<IReadOnlyList<HomeCategoryDto>> GetCategoriesInternalAsync(int take, CancellationToken cancellationToken)
     {
-        List<RawHomeCategory> categories;
-        try
-        {
-            categories = await _context.Categories
-                .AsNoTracking()
-                .Where(x => x.IsActive
-                    && x.ParentCategoryId != null
-                    && x.SubCategories.Any(child => child.IsActive)
-                    && !x.SubCategories.Any(child => child.IsActive && child.SubCategories.Any(grandChild => grandChild.IsActive)))
-                .OrderBy(x => x.DisplayOrder)
-                .ThenBy(x => x.NameAr)
-                .Take(take)
-                .Select(x => new RawHomeCategory(
-                    x.Id,
-                    x.NameAr,
-                    x.NameEn,
-                    x.ImageUrl))
-                .ToListAsync(cancellationToken);
-        }
-        catch (Exception ex) when (IsMissingDatabaseObject(ex))
-        {
-            return [];
-        }
+        var key = AppCacheKeys.Build("home", "categories", "v1", AppCacheKeys.CurrentCulture, AppCacheKeys.IntToken(take));
+        return await _cache.GetOrCreateAsync(
+            key,
+            async token =>
+            {
+                List<RawHomeCategory> categories;
+                try
+                {
+                    categories = await _context.Categories
+                        .AsNoTracking()
+                        .Where(x => x.IsActive
+                            && x.ParentCategoryId != null
+                            && x.SubCategories.Any(child => child.IsActive)
+                            && !x.SubCategories.Any(child => child.IsActive && child.SubCategories.Any(grandChild => grandChild.IsActive)))
+                        .OrderBy(x => x.DisplayOrder)
+                        .ThenBy(x => x.NameAr)
+                        .Take(take)
+                        .Select(x => new RawHomeCategory(
+                            x.Id,
+                            x.NameAr,
+                            x.NameEn,
+                            x.ImageUrl))
+                        .ToListAsync(token);
+                }
+                catch (Exception ex) when (IsMissingDatabaseObject(ex))
+                {
+                    return Array.Empty<HomeCategoryDto>();
+                }
 
-        return categories
-            .Select(x => new HomeCategoryDto(
-                x.Id,
-                PickLocalized(x.NameAr, x.NameEn),
-                x.ImageUrl))
-            .ToList();
+                return categories
+                    .Select(x => new HomeCategoryDto(
+                        x.Id,
+                        PickLocalized(x.NameAr, x.NameEn),
+                        x.ImageUrl))
+                    .ToArray();
+            },
+            new AppCacheEntryOptions(_durations.HomePublic),
+            [CacheTagNames.Home, CacheTagNames.Catalog],
+            cancellationToken);
     }
 
     private async Task<HomeProductCatalog> BuildProductCatalogAsync(CancellationToken cancellationToken)
     {
-        Dictionary<Guid, int> salesByVendorProductId;
-        Dictionary<Guid, VendorReviewStats> reviewStatsByVendorId;
-        List<RawHomeProduct> rawProducts;
-        try
-        {
-            salesByVendorProductId = await _context.OrderItems
-                .AsNoTracking()
-                .Where(x => x.Order.Status == OrderStatus.Delivered)
-                .GroupBy(x => x.VendorProductId)
-                .Select(x => new { VendorProductId = x.Key, Quantity = x.Sum(y => y.Quantity) })
-                .ToDictionaryAsync(x => x.VendorProductId, x => x.Quantity, cancellationToken);
-
-            reviewStatsByVendorId = await _context.Reviews
-                .AsNoTracking()
-                .GroupBy(x => x.VendorId)
-                .Select(x => new
+        var salesByVendorProductId = await _catalogReadCacheService.GetDeliveredSalesByVendorProductIdAsync(cancellationToken);
+        var reviewStatsByVendorId = await _catalogReadCacheService.GetVendorReviewStatsByVendorIdAsync(cancellationToken);
+        var favoritedMasterProductIds = await _catalogReadCacheService.GetCurrentFavoriteMasterProductIdsAsync(cancellationToken);
+        var rawProducts = await _cache.GetOrCreateAsync(
+            AppCacheKeys.Build("home", "catalog", "v1", AppCacheKeys.CurrentCulture),
+            async token =>
+            {
+                try
                 {
-                    VendorId = x.Key,
-                    AverageRating = Math.Round(x.Average(y => y.Rating), 1),
-                    ReviewCount = x.Count()
-                })
-                .ToDictionaryAsync(x => x.VendorId, x => new VendorReviewStats((decimal)x.AverageRating, x.ReviewCount), cancellationToken);
-
-            rawProducts = await _context.VendorProducts
-                .AsNoTracking()
-                .Where(vp =>
-                    vp.Status == VendorProductStatus.Active &&
-                    vp.IsAvailable &&
-                    vp.StockQuantity > 0 &&
-                    vp.MasterProduct.Status == ProductStatus.Active &&
-                    vp.Vendor.Status == VendorStatus.Active &&
-                    vp.Vendor.AcceptOrders)
-                .Select(vp => new RawHomeProduct(
-                    vp.Id,
-                    vp.CreatedAtUtc,
-                    vp.VendorId,
-                    vp.MasterProductId,
-                    vp.MasterProduct.CategoryId,
-                    vp.MasterProduct.BrandId,
-                    vp.MasterProduct.Brand != null && vp.MasterProduct.Brand.IsActive,
-                    !string.IsNullOrWhiteSpace(vp.CustomNameAr) ? vp.CustomNameAr : vp.MasterProduct.NameAr,
-                    !string.IsNullOrWhiteSpace(vp.CustomNameEn) ? vp.CustomNameEn : vp.MasterProduct.NameEn,
-                    vp.Vendor.BusinessNameAr,
-                    vp.Vendor.BusinessNameEn,
-                    vp.SellingPrice,
-                    vp.CompareAtPrice,
-                    vp.MasterProduct.UnitOfMeasure != null ? vp.MasterProduct.UnitOfMeasure.NameAr : null,
-                    vp.MasterProduct.UnitOfMeasure != null ? vp.MasterProduct.UnitOfMeasure.NameEn : null,
-                    vp.MasterProduct.Images
-                        .OrderByDescending(i => i.IsPrimary)
-                        .ThenBy(i => i.DisplayOrder)
-                        .Select(i => i.Url)
-                        .FirstOrDefault(),
-                    vp.MasterProduct.Brand != null ? vp.MasterProduct.Brand.NameAr : null,
-                    vp.MasterProduct.Brand != null ? vp.MasterProduct.Brand.NameEn : null,
-                    vp.MasterProduct.Brand != null ? vp.MasterProduct.Brand.LogoUrl : null))
-                .ToListAsync(cancellationToken);
-        }
-        catch (Exception ex) when (IsMissingDatabaseObject(ex))
-        {
-            return new HomeProductCatalog([], _currentUserService.UserId, new HashSet<Guid>());
-        }
+                    return await _context.VendorProducts
+                        .AsNoTracking()
+                        .Where(vp =>
+                            vp.Status == VendorProductStatus.Active &&
+                            vp.IsAvailable &&
+                            vp.StockQuantity > 0 &&
+                            vp.MasterProduct.Status == ProductStatus.Active &&
+                            vp.Vendor.Status == VendorStatus.Active &&
+                            vp.Vendor.AcceptOrders)
+                        .Select(vp => new HomeCatalogProductSnapshot(
+                            vp.MasterProductId,
+                            vp.Id,
+                            vp.CreatedAtUtc,
+                            vp.VendorId,
+                            vp.MasterProductId,
+                            vp.MasterProduct.CategoryId,
+                            vp.MasterProduct.BrandId,
+                            vp.MasterProduct.Brand != null && vp.MasterProduct.Brand.IsActive,
+                            !string.IsNullOrWhiteSpace(vp.CustomNameAr) ? vp.CustomNameAr : vp.MasterProduct.NameAr,
+                            !string.IsNullOrWhiteSpace(vp.CustomNameEn) ? vp.CustomNameEn : vp.MasterProduct.NameEn,
+                            vp.Vendor.BusinessNameAr,
+                            vp.Vendor.BusinessNameEn,
+                            vp.SellingPrice,
+                            vp.CompareAtPrice,
+                            vp.MasterProduct.UnitOfMeasure != null ? vp.MasterProduct.UnitOfMeasure.NameAr : null,
+                            vp.MasterProduct.UnitOfMeasure != null ? vp.MasterProduct.UnitOfMeasure.NameEn : null,
+                            vp.MasterProduct.Images
+                                .OrderByDescending(i => i.IsPrimary)
+                                .ThenBy(i => i.DisplayOrder)
+                                .Select(i => i.Url)
+                                .FirstOrDefault() ?? string.Empty,
+                            vp.MasterProduct.BrandId.HasValue
+                                ? (vp.MasterProduct.Brand != null ? vp.MasterProduct.Brand.NameAr : null)
+                                : null,
+                            vp.MasterProduct.BrandId.HasValue
+                                ? (vp.MasterProduct.Brand != null ? vp.MasterProduct.Brand.NameEn : null)
+                                : null,
+                            vp.MasterProduct.Brand != null ? vp.MasterProduct.Brand.LogoUrl : null))
+                        .ToArrayAsync(token);
+                }
+                catch (Exception ex) when (IsMissingDatabaseObject(ex))
+                {
+                    return Array.Empty<HomeCatalogProductSnapshot>();
+                }
+            },
+            new AppCacheEntryOptions(_durations.HomePublic),
+            [CacheTagNames.Home, CacheTagNames.Catalog],
+            cancellationToken);
 
         var products = rawProducts
             .Select(x =>
             {
-                salesByVendorProductId.TryGetValue(x.Id, out var salesCount);
+                salesByVendorProductId.TryGetValue(x.VendorProductId, out var salesCount);
                 reviewStatsByVendorId.TryGetValue(x.VendorId, out var reviewStats);
 
                 return new HomeProductSource(
-                    x.MasterProductId,
                     x.Id,
+                    x.VendorProductId,
                     x.CreatedAtUtc,
                     x.VendorId,
                     x.MasterProductId,
@@ -432,11 +461,11 @@ public class HomeReadService : IHomeReadService
                     x.SellingPrice,
                     x.CompareAtPrice,
                     PickLocalizedNullable(x.UnitAr, x.UnitEn),
-                    x.ImageUrl ?? string.Empty,
+                    x.ImageUrl,
                     salesCount,
                     reviewStats?.AverageRating,
                     reviewStats?.ReviewCount ?? 0,
-                    x.BrandId.HasValue ? PickLocalizedNullable(x.BrandNameAr, x.BrandNameEn) : null,
+                    PickLocalizedNullable(x.BrandNameAr, x.BrandNameEn),
                     x.BrandLogo);
             })
             .GroupBy(x => x.MasterProductId)
@@ -446,18 +475,6 @@ public class HomeReadService : IHomeReadService
                 .ThenBy(x => x.Store, StringComparer.CurrentCultureIgnoreCase)
                 .First())
             .ToList();
-
-        var favoritedMasterProductIds = new HashSet<Guid>();
-        if (_currentUserService.UserId.HasValue || !string.IsNullOrWhiteSpace(_currentUserService.GuestDeviceId))
-        {
-            favoritedMasterProductIds = await _context.CustomerFavorites
-                .AsNoTracking()
-                .Where(x =>
-                    (_currentUserService.UserId.HasValue && x.UserId == _currentUserService.UserId.Value) ||
-                    (!_currentUserService.UserId.HasValue && x.GuestId == _currentUserService.GuestDeviceId))
-                .Select(x => x.MasterProductId)
-                .ToHashSetAsync(cancellationToken);
-        }
 
         return new HomeProductCatalog(products, _currentUserService.UserId, favoritedMasterProductIds);
     }
@@ -510,27 +527,42 @@ public class HomeReadService : IHomeReadService
 
     private async Task<List<ActiveFeaturedPlacement>> GetActiveFeaturedPlacementsAsync(CancellationToken cancellationToken)
     {
-        var now = DateTime.UtcNow;
-        try
-        {
-            return await _context.FeaturedProductPlacements
-                .AsNoTracking()
-                .Where(x => x.IsActive
-                    && (!x.StartsAtUtc.HasValue || x.StartsAtUtc <= now)
-                    && (!x.EndsAtUtc.HasValue || x.EndsAtUtc >= now))
-                .OrderBy(x => x.PlacementType == FeaturedPlacementType.VendorProduct ? 0 : 1)
-                .ThenBy(x => x.DisplayOrder)
-                .ThenByDescending(x => x.CreatedAtUtc)
-                .Select(x => new ActiveFeaturedPlacement(
-                    x.PlacementType,
-                    x.VendorProductId,
-                    x.MasterProductId))
-                .ToListAsync(cancellationToken);
-        }
-        catch (Exception ex) when (IsMissingDatabaseObject(ex))
-        {
-            return [];
-        }
+        var snapshots = await _cache.GetOrCreateAsync(
+            AppCacheKeys.Build("home", "featured-placements", "v1"),
+            async token =>
+            {
+                var now = DateTime.UtcNow;
+                try
+                {
+                    return await _context.FeaturedProductPlacements
+                        .AsNoTracking()
+                        .Where(x => x.IsActive
+                            && (!x.StartsAtUtc.HasValue || x.StartsAtUtc <= now)
+                            && (!x.EndsAtUtc.HasValue || x.EndsAtUtc >= now))
+                        .OrderBy(x => x.PlacementType == FeaturedPlacementType.VendorProduct ? 0 : 1)
+                        .ThenBy(x => x.DisplayOrder)
+                        .ThenByDescending(x => x.CreatedAtUtc)
+                        .Select(x => new HomeFeaturedPlacementSnapshot(
+                            x.PlacementType,
+                            x.VendorProductId,
+                            x.MasterProductId))
+                        .ToArrayAsync(token);
+                }
+                catch (Exception ex) when (IsMissingDatabaseObject(ex))
+                {
+                    return Array.Empty<HomeFeaturedPlacementSnapshot>();
+                }
+            },
+            new AppCacheEntryOptions(_durations.HomePublic),
+            [CacheTagNames.Home],
+            cancellationToken);
+
+        return snapshots
+            .Select(item => new ActiveFeaturedPlacement(
+                item.PlacementType,
+                item.VendorProductId,
+                item.MasterProductId))
+            .ToList();
     }
 
     private IReadOnlyList<HomeProductCardDto> ResolveFeaturedPlacements(
@@ -594,29 +626,14 @@ public class HomeReadService : IHomeReadService
             return SelectFeaturedProducts(catalog, take);
         }
 
-        var purchasedMasterProducts = await _context.OrderItems
-            .AsNoTracking()
-            .Where(x => x.Order.UserId == catalog.CurrentUserId.Value && x.Order.Status == OrderStatus.Delivered)
-            .Join(
-                _context.MasterProducts.AsNoTracking(),
-                orderItem => orderItem.MasterProductId,
-                masterProduct => masterProduct.Id,
-                (orderItem, masterProduct) => new { masterProduct.CategoryId, masterProduct.BrandId })
-            .ToListAsync(cancellationToken);
-
-        if (purchasedMasterProducts.Count == 0)
+        var purchaseProfile = await _catalogReadCacheService.GetPurchaseProfileAsync(catalog.CurrentUserId.Value, cancellationToken);
+        if (purchaseProfile.CategoryIds.Count == 0 && purchaseProfile.BrandIds.Count == 0)
         {
             return SelectFeaturedProducts(catalog, take);
         }
 
-        var categoryIds = purchasedMasterProducts
-            .Select(x => x.CategoryId)
-            .ToHashSet();
-
-        var brandIds = purchasedMasterProducts
-            .Where(x => x.BrandId.HasValue)
-            .Select(x => x.BrandId!.Value)
-            .ToHashSet();
+        var categoryIds = purchaseProfile.CategoryIds.ToHashSet();
+        var brandIds = purchaseProfile.BrandIds.ToHashSet();
 
         var recommended = catalog.Products
             .Select(x => new
@@ -642,37 +659,46 @@ public class HomeReadService : IHomeReadService
 
     private async Task<IReadOnlyList<HomeBrandCardDto>> GetBrandsInternalAsync(int take, CancellationToken cancellationToken)
     {
-        List<RawHomeBrand> brands;
-        try
-        {
-            brands = await _context.Brands
-                .AsNoTracking()
-                .Where(x => x.IsActive)
-                .Select(x => new RawHomeBrand(
-                    x.Id,
-                    x.NameAr,
-                    x.NameEn,
-                    x.LogoUrl,
-                    x.MasterProducts.Count()))
-                .ToListAsync(cancellationToken);
-        }
-        catch (Exception ex) when (IsMissingDatabaseObject(ex))
-        {
-            return [];
-        }
+        var key = AppCacheKeys.Build("home", "brands", "v1", AppCacheKeys.CurrentCulture, AppCacheKeys.IntToken(take));
+        return await _cache.GetOrCreateAsync(
+            key,
+            async token =>
+            {
+                List<RawHomeBrand> brands;
+                try
+                {
+                    brands = await _context.Brands
+                        .AsNoTracking()
+                        .Where(x => x.IsActive)
+                        .Select(x => new RawHomeBrand(
+                            x.Id,
+                            x.NameAr,
+                            x.NameEn,
+                            x.LogoUrl,
+                            x.MasterProducts.Count()))
+                        .ToListAsync(token);
+                }
+                catch (Exception ex) when (IsMissingDatabaseObject(ex))
+                {
+                    return Array.Empty<HomeBrandCardDto>();
+                }
 
-        return brands
-            .Select(x => new HomeBrandCardDto(
-                x.Id,
-                PickLocalized(x.NameAr, x.NameEn),
-                x.LogoUrl,
-                null,
-                x.ProductCount,
-                null))
-            .OrderByDescending(x => x.ProductCount)
-            .ThenBy(x => x.Name)
-            .Take(take)
-            .ToList();
+                return brands
+                    .Select(x => new HomeBrandCardDto(
+                        x.Id,
+                        PickLocalized(x.NameAr, x.NameEn),
+                        x.LogoUrl,
+                        null,
+                        x.ProductCount,
+                        null))
+                    .OrderByDescending(x => x.ProductCount)
+                    .ThenBy(x => x.Name)
+                    .Take(take)
+                    .ToArray();
+            },
+            new AppCacheEntryOptions(_durations.HomePublic),
+            [CacheTagNames.Home, CacheTagNames.Catalog],
+            cancellationToken);
     }
 
     private IReadOnlyList<HomeProductCardDto> SelectExploreMore(
@@ -711,33 +737,39 @@ public class HomeReadService : IHomeReadService
         CancellationToken cancellationToken)
     {
         var products = catalog.Products;
-        var now = DateTime.UtcNow;
-
-        List<ActiveHomeSection> sections;
-        try
-        {
-            sections = await _context.HomeSections
-                .AsNoTracking()
-                .Where(x => x.IsActive
-                    && x.Category.IsActive
-                    && x.Category.ParentCategoryId != null
-                    && (!x.StartsAtUtc.HasValue || x.StartsAtUtc <= now)
-                    && (!x.EndsAtUtc.HasValue || x.EndsAtUtc >= now))
-                .OrderBy(x => x.DisplayOrder)
-                .ThenByDescending(x => x.CreatedAtUtc)
-                .Select(x => new ActiveHomeSection(
-                    x.Id,
-                    x.CategoryId,
-                    x.Theme,
-                    x.ProductsTake,
-                    x.Category.NameAr,
-                    x.Category.NameEn))
-                .ToListAsync(cancellationToken);
-        }
-        catch (Exception ex) when (IsMissingDatabaseObject(ex))
-        {
-            return [];
-        }
+        var sections = await _cache.GetOrCreateAsync(
+            AppCacheKeys.Build("home", "dynamic-sections", "v1", AppCacheKeys.CurrentCulture),
+            async token =>
+            {
+                var now = DateTime.UtcNow;
+                try
+                {
+                    return await _context.HomeSections
+                        .AsNoTracking()
+                        .Where(x => x.IsActive
+                            && x.Category.IsActive
+                            && x.Category.ParentCategoryId != null
+                            && (!x.StartsAtUtc.HasValue || x.StartsAtUtc <= now)
+                            && (!x.EndsAtUtc.HasValue || x.EndsAtUtc >= now))
+                        .OrderBy(x => x.DisplayOrder)
+                        .ThenByDescending(x => x.CreatedAtUtc)
+                        .Select(x => new HomeDynamicSectionSnapshot(
+                            x.Id,
+                            x.CategoryId,
+                            x.Theme,
+                            x.ProductsTake,
+                            x.Category.NameAr,
+                            x.Category.NameEn))
+                        .ToArrayAsync(token);
+                }
+                catch (Exception ex) when (IsMissingDatabaseObject(ex))
+                {
+                    return Array.Empty<HomeDynamicSectionSnapshot>();
+                }
+            },
+            new AppCacheEntryOptions(_durations.HomePublic),
+            [CacheTagNames.Home],
+            cancellationToken);
 
         return sections
             .Select(section =>
@@ -802,22 +834,30 @@ public class HomeReadService : IHomeReadService
 
     private async Task<Dictionary<HomeContentSectionType, bool>> LoadSectionSettingsAsync(CancellationToken cancellationToken)
     {
-        Dictionary<HomeContentSectionType, bool> savedSettings;
-        try
-        {
-            savedSettings = await _context.HomeContentSectionSettings
-                .AsNoTracking()
-                .ToDictionaryAsync(x => x.SectionType, x => x.IsEnabled, cancellationToken);
-        }
-        catch (Exception ex) when (IsMissingDatabaseObject(ex))
-        {
-            return CreateDefaultSectionSettings(dynamicSectionsEnabled: false);
-        }
+        var savedSettings = await _cache.GetOrCreateAsync(
+            AppCacheKeys.Build("home", "section-settings", "v1"),
+            async token =>
+            {
+                try
+                {
+                    return await _context.HomeContentSectionSettings
+                        .AsNoTracking()
+                        .Select(x => new HomeContentSectionSettingSnapshot(x.SectionType, x.IsEnabled))
+                        .ToArrayAsync(token);
+                }
+                catch (Exception ex) when (IsMissingDatabaseObject(ex))
+                {
+                    return Array.Empty<HomeContentSectionSettingSnapshot>();
+                }
+            },
+            new AppCacheEntryOptions(_durations.HomePublic),
+            [CacheTagNames.Home],
+            cancellationToken);
 
         var result = CreateDefaultSectionSettings(dynamicSectionsEnabled: true);
         foreach (var setting in savedSettings)
         {
-            result[setting.Key] = setting.Value;
+            result[setting.SectionType] = setting.IsEnabled;
         }
 
         return result;
@@ -825,18 +865,10 @@ public class HomeReadService : IHomeReadService
 
     private async Task<bool> IsSectionEnabledAsync(HomeContentSectionType sectionType, CancellationToken cancellationToken)
     {
-        try
-        {
-            var entity = await _context.HomeContentSectionSettings
-                .AsNoTracking()
-                .FirstOrDefaultAsync(x => x.SectionType == sectionType, cancellationToken);
-
-            return entity?.IsEnabled ?? GetDefaultSectionEnabled(sectionType, dynamicSectionsEnabled: true);
-        }
-        catch (Exception ex) when (IsMissingDatabaseObject(ex))
-        {
-            return GetDefaultSectionEnabled(sectionType, dynamicSectionsEnabled: false);
-        }
+        var settings = await LoadSectionSettingsAsync(cancellationToken);
+        return settings.TryGetValue(sectionType, out var isEnabled)
+            ? isEnabled
+            : GetDefaultSectionEnabled(sectionType, dynamicSectionsEnabled: true);
     }
 
     private static bool IsSectionEnabled(
@@ -953,29 +985,6 @@ public class HomeReadService : IHomeReadService
 
     private sealed record HomeProductCatalog(IReadOnlyList<HomeProductSource> Products, Guid? CurrentUserId, IReadOnlySet<Guid> FavoritedMasterProductIds);
 
-    private sealed record VendorReviewStats(decimal AverageRating, int ReviewCount);
-
-    private sealed record RawHomeProduct(
-        Guid Id,
-        DateTime CreatedAtUtc,
-        Guid VendorId,
-        Guid MasterProductId,
-        Guid CategoryId,
-        Guid? BrandId,
-        bool BrandIsActive,
-        string? NameAr,
-        string? NameEn,
-        string StoreAr,
-        string StoreEn,
-        decimal SellingPrice,
-        decimal? CompareAtPrice,
-        string? UnitAr,
-        string? UnitEn,
-        string? ImageUrl,
-        string? BrandNameAr,
-        string? BrandNameEn,
-        string? BrandLogo);
-
     private sealed record RawHomeBanner(
         Guid Id,
         string TagAr,
@@ -1026,12 +1035,4 @@ public class HomeReadService : IHomeReadService
         FeaturedPlacementType PlacementType,
         Guid? VendorProductId,
         Guid? MasterProductId);
-
-    private sealed record ActiveHomeSection(
-        Guid Id,
-        Guid CategoryId,
-        HomeSectionTheme Theme,
-        int ProductsTake,
-        string CategoryNameAr,
-        string CategoryNameEn);
 }

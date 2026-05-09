@@ -2,6 +2,7 @@ using FluentValidation;
 using MediatR;
 using Microsoft.EntityFrameworkCore;
 using Microsoft.Extensions.Localization;
+using Zadana.Application.Common.Caching;
 using Zadana.Application.Common.Interfaces;
 using Zadana.Application.Common.Localization;
 using Zadana.Application.Modules.Marketing.DTOs;
@@ -66,7 +67,12 @@ public class UpdateFeaturedProductPlacementCommandValidator : AbstractValidator<
 public class CreateFeaturedProductPlacementCommandHandler : IRequestHandler<CreateFeaturedProductPlacementCommand, FeaturedProductPlacementDto>
 {
     private readonly IApplicationDbContext _context;
-    public CreateFeaturedProductPlacementCommandHandler(IApplicationDbContext context) => _context = context;
+    private readonly ICacheInvalidator _cacheInvalidator;
+    public CreateFeaturedProductPlacementCommandHandler(IApplicationDbContext context, ICacheInvalidator cacheInvalidator)
+    {
+        _context = context;
+        _cacheInvalidator = cacheInvalidator;
+    }
 
     public async Task<FeaturedProductPlacementDto> Handle(CreateFeaturedProductPlacementCommand request, CancellationToken cancellationToken)
     {
@@ -84,6 +90,7 @@ public class CreateFeaturedProductPlacementCommandHandler : IRequestHandler<Crea
 
         _context.FeaturedProductPlacements.Add(entity);
         await _context.SaveChangesAsync(cancellationToken);
+        await _cacheInvalidator.RemoveByTagsAsync(CacheInvalidationProfiles.HomeReadModels, cancellationToken);
         return await _context.ProjectPlacementAsync(entity.Id, cancellationToken);
     }
 }
@@ -91,7 +98,12 @@ public class CreateFeaturedProductPlacementCommandHandler : IRequestHandler<Crea
 public class UpdateFeaturedProductPlacementCommandHandler : IRequestHandler<UpdateFeaturedProductPlacementCommand, FeaturedProductPlacementDto>
 {
     private readonly IApplicationDbContext _context;
-    public UpdateFeaturedProductPlacementCommandHandler(IApplicationDbContext context) => _context = context;
+    private readonly ICacheInvalidator _cacheInvalidator;
+    public UpdateFeaturedProductPlacementCommandHandler(IApplicationDbContext context, ICacheInvalidator cacheInvalidator)
+    {
+        _context = context;
+        _cacheInvalidator = cacheInvalidator;
+    }
 
     public async Task<FeaturedProductPlacementDto> Handle(UpdateFeaturedProductPlacementCommand request, CancellationToken cancellationToken)
     {
@@ -112,6 +124,7 @@ public class UpdateFeaturedProductPlacementCommandHandler : IRequestHandler<Upda
             request.IsActive);
 
         await _context.SaveChangesAsync(cancellationToken);
+        await _cacheInvalidator.RemoveByTagsAsync(CacheInvalidationProfiles.HomeReadModels, cancellationToken);
         return await _context.ProjectPlacementAsync(entity.Id, cancellationToken);
     }
 }
@@ -119,39 +132,57 @@ public class UpdateFeaturedProductPlacementCommandHandler : IRequestHandler<Upda
 public class ActivateFeaturedProductPlacementCommandHandler : IRequestHandler<ActivateFeaturedProductPlacementCommand>
 {
     private readonly IApplicationDbContext _context;
-    public ActivateFeaturedProductPlacementCommandHandler(IApplicationDbContext context) => _context = context;
+    private readonly ICacheInvalidator _cacheInvalidator;
+    public ActivateFeaturedProductPlacementCommandHandler(IApplicationDbContext context, ICacheInvalidator cacheInvalidator)
+    {
+        _context = context;
+        _cacheInvalidator = cacheInvalidator;
+    }
     public async Task Handle(ActivateFeaturedProductPlacementCommand request, CancellationToken cancellationToken)
     {
         var entity = await _context.FeaturedProductPlacements.FirstOrDefaultAsync(x => x.Id == request.Id, cancellationToken)
             ?? throw new NotFoundException(nameof(FeaturedProductPlacement), request.Id);
         entity.Activate();
         await _context.SaveChangesAsync(cancellationToken);
+        await _cacheInvalidator.RemoveByTagsAsync(CacheInvalidationProfiles.HomeReadModels, cancellationToken);
     }
 }
 
 public class DeactivateFeaturedProductPlacementCommandHandler : IRequestHandler<DeactivateFeaturedProductPlacementCommand>
 {
     private readonly IApplicationDbContext _context;
-    public DeactivateFeaturedProductPlacementCommandHandler(IApplicationDbContext context) => _context = context;
+    private readonly ICacheInvalidator _cacheInvalidator;
+    public DeactivateFeaturedProductPlacementCommandHandler(IApplicationDbContext context, ICacheInvalidator cacheInvalidator)
+    {
+        _context = context;
+        _cacheInvalidator = cacheInvalidator;
+    }
     public async Task Handle(DeactivateFeaturedProductPlacementCommand request, CancellationToken cancellationToken)
     {
         var entity = await _context.FeaturedProductPlacements.FirstOrDefaultAsync(x => x.Id == request.Id, cancellationToken)
             ?? throw new NotFoundException(nameof(FeaturedProductPlacement), request.Id);
         entity.Deactivate();
         await _context.SaveChangesAsync(cancellationToken);
+        await _cacheInvalidator.RemoveByTagsAsync(CacheInvalidationProfiles.HomeReadModels, cancellationToken);
     }
 }
 
 public class DeleteFeaturedProductPlacementCommandHandler : IRequestHandler<DeleteFeaturedProductPlacementCommand>
 {
     private readonly IApplicationDbContext _context;
-    public DeleteFeaturedProductPlacementCommandHandler(IApplicationDbContext context) => _context = context;
+    private readonly ICacheInvalidator _cacheInvalidator;
+    public DeleteFeaturedProductPlacementCommandHandler(IApplicationDbContext context, ICacheInvalidator cacheInvalidator)
+    {
+        _context = context;
+        _cacheInvalidator = cacheInvalidator;
+    }
     public async Task Handle(DeleteFeaturedProductPlacementCommand request, CancellationToken cancellationToken)
     {
         var entity = await _context.FeaturedProductPlacements.FirstOrDefaultAsync(x => x.Id == request.Id, cancellationToken)
             ?? throw new NotFoundException(nameof(FeaturedProductPlacement), request.Id);
         _context.FeaturedProductPlacements.Remove(entity);
         await _context.SaveChangesAsync(cancellationToken);
+        await _cacheInvalidator.RemoveByTagsAsync(CacheInvalidationProfiles.HomeReadModels, cancellationToken);
     }
 }
 
