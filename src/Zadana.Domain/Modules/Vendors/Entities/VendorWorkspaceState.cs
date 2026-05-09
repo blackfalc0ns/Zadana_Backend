@@ -7,8 +7,6 @@ public class VendorWorkspaceState : BaseEntity
     public Guid VendorId { get; private set; }
     public string Feature { get; private set; } = null!;
     public string PayloadJson { get; private set; } = "{}";
-    public DateTime UpdatedAtUtc { get; private set; }
-
     public Vendor Vendor { get; private set; } = null!;
 
     private VendorWorkspaceState() { }

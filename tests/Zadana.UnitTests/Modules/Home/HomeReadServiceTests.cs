@@ -42,7 +42,7 @@ public class HomeReadServiceTests
         context.Notifications.Add(readNotification);
         await context.SaveChangesAsync();
 
-        var service = new HomeReadService(context, new FakeCurrentUserService(customer.Id, true));
+        var service = CreateService(context, new FakeCurrentUserService(customer.Id, true));
 
         var result = await service.GetHeaderAsync();
 
@@ -62,7 +62,7 @@ public class HomeReadServiceTests
 
         await context.SaveChangesAsync();
 
-        var service = new HomeReadService(context, new FakeCurrentUserService(null, false));
+        var service = CreateService(context, new FakeCurrentUserService(null, false));
 
         var result = await service.GetBannersAsync(10);
 
@@ -97,7 +97,7 @@ public class HomeReadServiceTests
             new Category("خبز", "Bread", "bread.jpg", otherLevel3.Id, 1));
         await context.SaveChangesAsync();
 
-        var service = new HomeReadService(context, new FakeCurrentUserService(null, false));
+        var service = CreateService(context, new FakeCurrentUserService(null, false));
 
         var result = await service.GetCategoriesAsync(10);
 
@@ -127,7 +127,7 @@ public class HomeReadServiceTests
         context.VendorProducts.Add(new VendorProduct(secondVendor.Id, setup.DiscountedMasterProductId, 11m, 20, 14m));
         await context.SaveChangesAsync();
 
-        var service = new HomeReadService(context, new FakeCurrentUserService(null, false));
+        var service = CreateService(context, new FakeCurrentUserService(null, false));
 
         var result = await service.GetSpecialOffersAsync(10);
 
@@ -148,7 +148,7 @@ public class HomeReadServiceTests
         var setup = await SeedCatalogScenarioAsync(context, includeHistory: true);
         await context.SaveChangesAsync();
 
-        var service = new HomeReadService(context, new FakeCurrentUserService(setup.Customer.Id, true));
+        var service = CreateService(context, new FakeCurrentUserService(setup.Customer.Id, true));
 
         var result = await service.GetRecommendedAsync(1);
 
@@ -175,7 +175,7 @@ public class HomeReadServiceTests
             note: "vendor placement"));
         await context.SaveChangesAsync();
 
-        var service = new HomeReadService(context, new FakeCurrentUserService(null, false));
+        var service = CreateService(context, new FakeCurrentUserService(null, false));
 
         var result = await service.GetFeaturedProductsAsync(5);
 
@@ -215,7 +215,7 @@ public class HomeReadServiceTests
         eligibleBrandProduct.SetAvailability(true);
         await context.SaveChangesAsync();
 
-        var service = new HomeReadService(context, new FakeCurrentUserService(null, false));
+        var service = CreateService(context, new FakeCurrentUserService(null, false));
 
         var result = await service.GetBrandsAsync(10);
 
@@ -237,7 +237,7 @@ public class HomeReadServiceTests
         context.HomeSections.Add(new HomeSection(setup.DynamicSectionCategoryId!.Value, HomeSectionTheme.SoftBlue, 1, 6));
         await context.SaveChangesAsync();
 
-        var service = new HomeReadService(context, new FakeCurrentUserService(null, false));
+        var service = CreateService(context, new FakeCurrentUserService(null, false));
 
         var result = await service.GetContentAsync();
 
@@ -263,12 +263,22 @@ public class HomeReadServiceTests
         context.HomeContentSectionSettings.Add(new HomeContentSectionSetting(HomeContentSectionType.DynamicSections, false));
         await context.SaveChangesAsync();
 
-        var service = new HomeReadService(context, new FakeCurrentUserService(null, false));
+        var service = CreateService(context, new FakeCurrentUserService(null, false));
 
         var result = await service.GetContentAsync();
 
         result.DynamicSections.Should().BeEmpty();
     }
+
+    private static HomeReadService CreateService(
+        ApplicationDbContext context,
+        ICurrentUserService currentUserService) =>
+        new(
+            context,
+            currentUserService,
+            TestServiceFactory.CreateAppCache(),
+            TestServiceFactory.CreateCatalogReadCacheService(context, currentUserService),
+            TestServiceFactory.CreateCachingOptions());
 
     private static HomeBanner CreateInactiveBanner()
     {

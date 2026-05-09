@@ -481,7 +481,7 @@ public class OrderStatusChangedHandlerTests
             Microsoft.Extensions.Options.Options.Create(new Zadana.Application.Common.Settings.FinancialSettingsOptions()),
             payoutWalletService.Object,
             new Mock<Microsoft.Extensions.Logging.ILogger<Zadana.Application.Modules.Wallets.Services.OrderRevenueDistributionService>>().Object,
-            null);
+            (Zadana.Application.Modules.Wallets.Services.VendorRecoveryService?)null);
     }
 
     private static Mock<IOneSignalPushService> CreatePushServiceMock()

@@ -16,7 +16,8 @@ internal sealed class GetZoneFinanceSettingsQueryHandler(IApplicationDbContext d
 
         var pricingRules = await dbContext.DeliveryPricingRules
             .AsNoTracking()
-            .ToDictionaryAsync(x => x.DeliveryZoneId, cancellationToken);
+            .Where(x => x.DeliveryZoneId.HasValue)
+            .ToDictionaryAsync(x => x.DeliveryZoneId!.Value, cancellationToken);
 
         var financeSettings = await dbContext.ZoneFinanceSettings
             .AsNoTracking()

@@ -818,12 +818,17 @@ public class VendorWorkspaceController : ApiControllerBase
         CancellationToken cancellationToken = default)
     {
         var vendorId = await _currentVendorService.GetRequiredVendorIdAsync(cancellationToken);
-        var from = ResolvePeriodStart(period);
+        var (normalizedPeriod, from, to) = ResolveFinancePeriod(period);
 
         var orders = await _dbContext.Orders
             .AsNoTracking()
-            .Where(order => order.VendorId == vendorId && order.PlacedAtUtc >= from)
-            .OrderBy(order => order.PlacedAtUtc)
+            .Where(order =>
+                order.VendorId == vendorId &&
+                order.Status == OrderStatus.Delivered &&
+                order.DeliveredAtUtc.HasValue &&
+                order.DeliveredAtUtc.Value >= from &&
+                order.DeliveredAtUtc.Value < to)
+            .OrderBy(order => order.DeliveredAtUtc)
             .Select(order => new
             {
                 order.Id,
@@ -833,13 +838,18 @@ public class VendorWorkspaceController : ApiControllerBase
                 order.TotalAmount,
                 order.DeliveryFee,
                 order.CommissionAmount,
-                order.PlacedAtUtc
+                order.DeliveredAtUtc
             })
             .ToListAsync(cancellationToken);
 
         var orderProfitLookup = await _dbContext.OrderItems
             .AsNoTracking()
-            .Where(item => item.Order.VendorId == vendorId && item.Order.PlacedAtUtc >= from)
+            .Where(item =>
+                item.Order.VendorId == vendorId &&
+                item.Order.Status == OrderStatus.Delivered &&
+                item.Order.DeliveredAtUtc.HasValue &&
+                item.Order.DeliveredAtUtc.Value >= from &&
+                item.Order.DeliveredAtUtc.Value < to)
             .GroupBy(item => item.OrderId)
             .Select(group => new
             {
@@ -898,7 +908,10 @@ public class VendorWorkspaceController : ApiControllerBase
             ? []
             : await _dbContext.WalletTransactions
                 .AsNoTracking()
-                .Where(txn => txn.WalletId == vendorWallet.Id)
+                .Where(txn =>
+                    txn.WalletId == vendorWallet.Id &&
+                    txn.CreatedAtUtc >= from &&
+                    txn.CreatedAtUtc < to)
                 .OrderByDescending(txn => txn.CreatedAtUtc)
                 .Select(txn => new
                 {
@@ -911,27 +924,24 @@ public class VendorWorkspaceController : ApiControllerBase
                     txn.ReferenceType,
                     txn.ReferenceId
                 })
-                .Take(40)
+                .Take(10)
                 .ToListAsync(cancellationToken);
 
-        var paidOrders = orders.Where(order =>
-            order.PaymentStatus is PaymentStatus.Paid or PaymentStatus.Settled || order.Status == OrderStatus.Delivered).ToList();
-        var grossSales = paidOrders.Sum(order => order.TotalAmount);
-        var vendorProfit = paidOrders.Sum(order => orderProfitLookup.TryGetValue(order.Id, out var profit) ? profit : 0m);
-        var fees = paidOrders.Sum(order => order.CommissionAmount);
-        var vendorNetRevenue = paidOrders.Sum(order => Math.Max((order.TotalAmount - order.DeliveryFee) - order.CommissionAmount, 0m));
-        var payoutsPaid = payouts.Where(payout => payout.Status == PayoutStatus.Paid).Sum(payout => payout.Amount);
+        var deliveredOrders = orders.ToList();
+        var grossSales = deliveredOrders.Sum(order => order.TotalAmount);
+        var vendorProfit = deliveredOrders.Sum(order => orderProfitLookup.TryGetValue(order.Id, out var profit) ? profit : 0m);
+        var fees = deliveredOrders.Sum(order => order.CommissionAmount);
+        var vendorNetRevenue = deliveredOrders.Sum(order => Math.Max((order.TotalAmount - order.DeliveryFee) - order.CommissionAmount, 0m));
         var pendingSettlement = settlements
             .Where(settlement => settlement.Status is SettlementStatus.Pending or SettlementStatus.Processing)
             .Sum(settlement => settlement.NetAmount);
         var availableBalance = vendorWallet?.CurrentBalance ?? 0m;
         var holdAmount = vendorWallet?.PendingBalance ?? 0m;
 
-        var trend = BuildFinanceTrend(paidOrders, payouts);
+        var trend = BuildFinanceTrend(normalizedPeriod, from, to, deliveredOrders, payouts);
         var ledger = vendorWalletTransactions
             .OrderByDescending(txn => txn.CreatedAtUtc)
             .Select(txn => MapFinanceLedgerEntry(txn.Id, txn.TxnType, txn.Direction, txn.Amount, txn.CreatedAtUtc, txn.Description, txn.ReferenceType, txn.ReferenceId))
-            .Take(10)
             .ToList();
 
         var nextPayoutDate = ResolveNextPayoutDate(vendorFinancialMode, settlements);
@@ -944,10 +954,10 @@ public class VendorWorkspaceController : ApiControllerBase
             holdAmount,
             vendorFinancialMode.ToString(),
             [
-                new VendorFinanceKpiResponse("gross-sales", "VENDOR_FINANCE.KPIS.NET_SALES", grossSales, 0, "up", "primary"),
-                new VendorFinanceKpiResponse("vendor-profit", "VENDOR_FINANCE.KPIS.PAYOUTS", vendorProfit, 0, "up", "success"),
-                new VendorFinanceKpiResponse("platform-fees", "VENDOR_FINANCE.KPIS.FEES", fees, 0, "down", "warning"),
-                new VendorFinanceKpiResponse("vendor-net", "VENDOR_FINANCE.KPIS.REFUNDS", vendorNetRevenue, 0, "up", "success")
+                new VendorFinanceKpiResponse("gross-sales", "VENDOR_FINANCE.KPIS.GROSS_SALES", grossSales, 0, "up", "primary"),
+                new VendorFinanceKpiResponse("vendor-profit", "VENDOR_FINANCE.KPIS.VENDOR_PROFIT", vendorProfit, 0, "up", "success"),
+                new VendorFinanceKpiResponse("platform-fees", "VENDOR_FINANCE.KPIS.PLATFORM_FEES", fees, 0, "down", "warning"),
+                new VendorFinanceKpiResponse("vendor-net", "VENDOR_FINANCE.KPIS.VENDOR_NET", vendorNetRevenue, 0, "up", "success")
             ],
             trend,
             settlements.Select(settlement => new VendorSettlementResponse(
@@ -1083,15 +1093,15 @@ public class VendorWorkspaceController : ApiControllerBase
             review.VendorReplyUpdatedAtUtc));
     }
 
-    private static DateTime ResolvePeriodStart(string period)
+    private static (string NormalizedPeriod, DateTime From, DateTime To) ResolveFinancePeriod(string period)
     {
         var now = DateTime.UtcNow;
         return period.ToLowerInvariant() switch
         {
-            "today" => now.Date,
-            "week" => now.Date.AddDays(-7),
-            "quarter" => now.Date.AddMonths(-3),
-            _ => now.Date.AddMonths(-1)
+            "today" => ("today", now.Date, now.Date.AddDays(1)),
+            "week" => ("week", now.Date.AddDays(-6), now.Date.AddDays(1)),
+            "quarter" => ("quarter", new DateTime(now.Year, now.Month, 1).AddMonths(-2), new DateTime(now.Year, now.Month, 1).AddMonths(1)),
+            _ => ("month", now.Date.AddDays(-29), now.Date.AddDays(1))
         };
     }
 
@@ -1496,6 +1506,87 @@ public class VendorWorkspaceController : ApiControllerBase
         }).ToList();
     }
 
+    private static List<VendorFinanceTrendPointResponse> BuildFinanceTrend(
+        string period,
+        DateTime from,
+        DateTime to,
+        IReadOnlyCollection<dynamic> deliveredOrders,
+        IReadOnlyCollection<dynamic> payouts)
+    {
+        var buckets = BuildFinanceTrendBuckets(period, from, to);
+
+        return buckets.Select(bucket =>
+        {
+            var sales = deliveredOrders
+                .Where(order =>
+                {
+                    var deliveredAt = (DateTime?)order.DeliveredAtUtc;
+                    return deliveredAt.HasValue &&
+                           deliveredAt.Value >= bucket.StartUtc &&
+                           deliveredAt.Value < bucket.EndUtc;
+                })
+                .Sum(order => (decimal)order.TotalAmount);
+
+            var payoutsAmount = payouts
+                .Where(payout =>
+                {
+                    var occurredAt = (DateTime)(payout.ProcessedAtUtc ?? payout.CreatedAtUtc);
+                    return payout.Status == PayoutStatus.Paid &&
+                           occurredAt >= bucket.StartUtc &&
+                           occurredAt < bucket.EndUtc;
+                })
+                .Sum(payout => (decimal)payout.Amount);
+
+            return new VendorFinanceTrendPointResponse(bucket.Label, sales, payoutsAmount);
+        }).ToList();
+    }
+
+    private static List<FinanceTrendBucket> BuildFinanceTrendBuckets(string period, DateTime from, DateTime to)
+    {
+        if (period == "today")
+        {
+            return Enumerable.Range(0, 8)
+                .Select(index =>
+                {
+                    var start = from.AddHours(index * 3);
+                    var end = index == 7 ? to : start.AddHours(3);
+                    return new FinanceTrendBucket(start, end, start.ToString("HH:mm"));
+                })
+                .ToList();
+        }
+
+        if (period == "week")
+        {
+            return Enumerable.Range(0, 7)
+                .Select(index =>
+                {
+                    var start = from.AddDays(index);
+                    return new FinanceTrendBucket(start, start.AddDays(1), start.ToString("ddd", CultureInfo.InvariantCulture));
+                })
+                .ToList();
+        }
+
+        if (period == "quarter")
+        {
+            return Enumerable.Range(0, 3)
+                .Select(index =>
+                {
+                    var start = from.AddMonths(index);
+                    return new FinanceTrendBucket(start, start.AddMonths(1), start.ToString("MMM", CultureInfo.InvariantCulture));
+                })
+                .ToList();
+        }
+
+        return Enumerable.Range(0, 5)
+            .Select(index =>
+            {
+                var start = from.AddDays(index * 6);
+                var end = index == 4 ? to : start.AddDays(6);
+                return new FinanceTrendBucket(start, end, $"W{index + 1}");
+            })
+            .ToList();
+    }
+
     private static List<VendorFinanceAlertResponse> BuildFinanceAlerts(decimal pendingSettlement, decimal availableBalance)
     {
         var alerts = new List<VendorFinanceAlertResponse>();
@@ -1535,6 +1626,8 @@ public class VendorWorkspaceController : ApiControllerBase
             .Split(' ', StringSplitOptions.RemoveEmptyEntries)
             .Select(part => part.Length <= 2 ? $"{part[0]}*" : $"{part[..Math.Min(2, part.Length)]}{new string('*', Math.Max(1, part.Length - 2))}"));
     }
+
+    private sealed record FinanceTrendBucket(DateTime StartUtc, DateTime EndUtc, string Label);
 }
 
 public record VendorDashboardSnapshotResponse(

@@ -131,7 +131,7 @@ public class VerifyAssignmentOtpCommandHandler : IRequestHandler<VerifyAssignmen
                 assignment.VerifyDeliveryOtp(driver.Id, request.OtpCode);
             }
         }
-        catch (InvalidOperationException ex)
+        catch (InvalidOperationException)
         {
             var errorCode = request.OtpType.Equals("pickup", StringComparison.OrdinalIgnoreCase)
                 ? "PICKUP_OTP_INVALID"

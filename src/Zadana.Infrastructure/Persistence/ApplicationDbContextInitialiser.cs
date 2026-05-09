@@ -812,8 +812,9 @@ public class ApplicationDbContextInitialiser
         if (existingProducts.Count > 0)
         {
             var existingIds = existingProducts.Select(p => p.Id).ToList();
-            var idList = string.Join(",", existingIds.Select(id => $"'{id}'"));
-            await _context.Database.ExecuteSqlRawAsync($"DELETE FROM [MasterProductImage] WHERE [MasterProductId] IN ({idList})");
+            await _context.Set<MasterProductImage>()
+                .Where(image => existingIds.Contains(image.MasterProductId))
+                .ExecuteDeleteAsync();
 
             // Detach and re-load existing products so EF doesn't track stale images
             _context.ChangeTracker.Clear();

@@ -19,7 +19,11 @@ public class GetBrandProductsQueryHandlerTests
         using var scope = new CultureScope("en");
         await using var context = TestDbContextFactory.Create();
 
-        var handler = new GetBrandProductsQueryHandler(context, new FakeCurrentUserService());
+        var handler = new GetBrandProductsQueryHandler(
+            context,
+            TestServiceFactory.CreateAppCache(),
+            TestServiceFactory.CreateCatalogReadCacheService(context),
+            TestServiceFactory.CreateCachingOptions());
 
         var act = () => handler.Handle(new GetBrandProductsQuery(Guid.NewGuid()), CancellationToken.None);
 
@@ -71,7 +75,11 @@ public class GetBrandProductsQueryHandlerTests
             new VendorProduct(vendor.Id, wrongBrand.Id, 25m, 10));
         await context.SaveChangesAsync();
 
-        var handler = new GetBrandProductsQueryHandler(context, new FakeCurrentUserService());
+        var handler = new GetBrandProductsQueryHandler(
+            context,
+            TestServiceFactory.CreateAppCache(),
+            TestServiceFactory.CreateCatalogReadCacheService(context),
+            TestServiceFactory.CreateCachingOptions());
 
         var result = await handler.Handle(
             new GetBrandProductsQuery(brand.Id, dairy.Id, milk.Id, liter.Id, 20m, 30m, null, 1, 20),
@@ -146,7 +154,11 @@ public class GetBrandProductsQueryHandlerTests
             new OrderItem(order.Id, vp3.Id, p3.Id, p3.NameEn, 1, 20m, unitName: unit.NameEn));
         await context.SaveChangesAsync();
 
-        var handler = new GetBrandProductsQueryHandler(context, new FakeCurrentUserService());
+        var handler = new GetBrandProductsQueryHandler(
+            context,
+            TestServiceFactory.CreateAppCache(),
+            TestServiceFactory.CreateCatalogReadCacheService(context),
+            TestServiceFactory.CreateCachingOptions());
 
         var alphabetical = await handler.Handle(
             new GetBrandProductsQuery(brand.Id, null, null, null, null, null, "alphabetical", 1, 2),
@@ -193,7 +205,11 @@ public class GetBrandProductsQueryHandlerTests
             new VendorProduct(vendorTwo.Id, masterProduct.Id, 12m, 10));
         await context.SaveChangesAsync();
 
-        var handler = new GetBrandProductsQueryHandler(context, new FakeCurrentUserService());
+        var handler = new GetBrandProductsQueryHandler(
+            context,
+            TestServiceFactory.CreateAppCache(),
+            TestServiceFactory.CreateCatalogReadCacheService(context),
+            TestServiceFactory.CreateCachingOptions());
 
         var result = await handler.Handle(
             new GetBrandProductsQuery(brand.Id, null, null, null, null, null, null, 1, 20),

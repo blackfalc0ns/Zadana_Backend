@@ -20,7 +20,11 @@ public class GetCategoryProductsQueryHandlerTests
         using var scope = new CultureScope("en");
         await using var context = TestDbContextFactory.Create();
 
-        var handler = new GetCategoryProductsQueryHandler(context, new FakeCurrentUserService());
+        var handler = new GetCategoryProductsQueryHandler(
+            context,
+            TestServiceFactory.CreateAppCache(),
+            TestServiceFactory.CreateCatalogReadCacheService(context),
+            TestServiceFactory.CreateCachingOptions());
 
         var act = () => handler.Handle(
             new GetCategoryProductsQuery(Guid.NewGuid(), null, null, null, null, null, null, null, 1, 20),
@@ -80,7 +84,11 @@ public class GetCategoryProductsQueryHandlerTests
             new VendorProduct(vendor.Id, wrongSubcategory.Id, 25m, 10));
         await context.SaveChangesAsync();
 
-        var handler = new GetCategoryProductsQueryHandler(context, new FakeCurrentUserService());
+        var handler = new GetCategoryProductsQueryHandler(
+            context,
+            TestServiceFactory.CreateAppCache(),
+            TestServiceFactory.CreateCatalogReadCacheService(context),
+            TestServiceFactory.CreateCachingOptions());
 
         var result = await handler.Handle(
             new GetCategoryProductsQuery(
@@ -166,7 +174,11 @@ public class GetCategoryProductsQueryHandlerTests
             new OrderItem(order.Id, vp3.Id, p3.Id, p3.NameEn, 1, 20m, unitName: unit.NameEn));
         await context.SaveChangesAsync();
 
-        var handler = new GetCategoryProductsQueryHandler(context, new FakeCurrentUserService());
+        var handler = new GetCategoryProductsQueryHandler(
+            context,
+            TestServiceFactory.CreateAppCache(),
+            TestServiceFactory.CreateCatalogReadCacheService(context),
+            TestServiceFactory.CreateCachingOptions());
 
         var alphabetical = await handler.Handle(
             new GetCategoryProductsQuery(root.Id, null, null, null, null, null, null, "alphabetical", 1, 2),
@@ -219,7 +231,11 @@ public class GetCategoryProductsQueryHandlerTests
             new VendorProduct(vendor.Id, cheeseProduct.Id, 15m, 10));
         await context.SaveChangesAsync();
 
-        var handler = new GetCategoryProductsQueryHandler(context, new FakeCurrentUserService());
+        var handler = new GetCategoryProductsQueryHandler(
+            context,
+            TestServiceFactory.CreateAppCache(),
+            TestServiceFactory.CreateCatalogReadCacheService(context),
+            TestServiceFactory.CreateCachingOptions());
 
         var result = await handler.Handle(
             new GetCategoryProductsQuery(root.Id, null, null, null, null, null, null, "alphabetical", 1, 20),
@@ -260,7 +276,11 @@ public class GetCategoryProductsQueryHandlerTests
             new VendorProduct(vendorTwo.Id, masterProduct.Id, 12m, 10));
         await context.SaveChangesAsync();
 
-        var handler = new GetCategoryProductsQueryHandler(context, new FakeCurrentUserService());
+        var handler = new GetCategoryProductsQueryHandler(
+            context,
+            TestServiceFactory.CreateAppCache(),
+            TestServiceFactory.CreateCatalogReadCacheService(context),
+            TestServiceFactory.CreateCachingOptions());
 
         var result = await handler.Handle(
             new GetCategoryProductsQuery(category.Id, null, null, null, null, null, null, null, 1, 20),
@@ -305,7 +325,11 @@ public class GetCategoryProductsQueryHandlerTests
             new VendorProduct(vendor.Id, productTwo.Id, 20m, 10));
         await context.SaveChangesAsync();
 
-        var handler = new GetCategoryProductsQueryHandler(context, new FakeCurrentUserService());
+        var handler = new GetCategoryProductsQueryHandler(
+            context,
+            TestServiceFactory.CreateAppCache(),
+            TestServiceFactory.CreateCatalogReadCacheService(context),
+            TestServiceFactory.CreateCachingOptions());
 
         var result = await handler.Handle(
             new GetCategoryProductsQuery(null, null, null, null, null, null, null, "alphabetical", 1, 20),

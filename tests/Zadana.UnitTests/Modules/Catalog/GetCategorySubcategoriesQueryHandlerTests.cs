@@ -32,7 +32,10 @@ public class GetCategorySubcategoriesQueryHandlerTests
         context.Categories.Add(grandChild);
         await context.SaveChangesAsync();
 
-        var handler = new GetCategorySubcategoriesQueryHandler(context);
+        var handler = new GetCategorySubcategoriesQueryHandler(
+            context,
+            TestServiceFactory.CreateAppCache(),
+            TestServiceFactory.CreateCachingOptions());
 
         var result = await handler.Handle(new GetCategorySubcategoriesQuery(root.Id), CancellationToken.None);
 
@@ -57,7 +60,10 @@ public class GetCategorySubcategoriesQueryHandlerTests
         context.Categories.Add(child);
         await context.SaveChangesAsync();
 
-        var handler = new GetCategorySubcategoriesQueryHandler(context);
+        var handler = new GetCategorySubcategoriesQueryHandler(
+            context,
+            TestServiceFactory.CreateAppCache(),
+            TestServiceFactory.CreateCachingOptions());
 
         var result = await handler.Handle(new GetCategorySubcategoriesQuery(root.Id), CancellationToken.None);
 
@@ -75,7 +81,10 @@ public class GetCategorySubcategoriesQueryHandlerTests
         context.Categories.Add(root);
         await context.SaveChangesAsync();
 
-        var handler = new GetCategorySubcategoriesQueryHandler(context);
+        var handler = new GetCategorySubcategoriesQueryHandler(
+            context,
+            TestServiceFactory.CreateAppCache(),
+            TestServiceFactory.CreateCachingOptions());
 
         var result = await handler.Handle(new GetCategorySubcategoriesQuery(root.Id), CancellationToken.None);
 
@@ -88,7 +97,10 @@ public class GetCategorySubcategoriesQueryHandlerTests
         using var scope = new CultureScope("en");
         await using var context = TestDbContextFactory.Create();
 
-        var handler = new GetCategorySubcategoriesQueryHandler(context);
+        var handler = new GetCategorySubcategoriesQueryHandler(
+            context,
+            TestServiceFactory.CreateAppCache(),
+            TestServiceFactory.CreateCachingOptions());
         var missingId = Guid.NewGuid();
 
         var act = () => handler.Handle(new GetCategorySubcategoriesQuery(missingId), CancellationToken.None);
@@ -117,7 +129,10 @@ public class GetCategorySubcategoriesQueryHandlerTests
         context.Categories.AddRange(childOne, childTwo, grandChild, inactiveChild, rootOnly);
         await context.SaveChangesAsync();
 
-        var handler = new GetCategorySubcategoriesQueryHandler(context);
+        var handler = new GetCategorySubcategoriesQueryHandler(
+            context,
+            TestServiceFactory.CreateAppCache(),
+            TestServiceFactory.CreateCachingOptions());
 
         var result = await handler.Handle(new GetCategorySubcategoriesQuery(), CancellationToken.None);
 

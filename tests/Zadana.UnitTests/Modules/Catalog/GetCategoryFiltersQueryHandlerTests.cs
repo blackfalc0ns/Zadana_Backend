@@ -17,7 +17,10 @@ public class GetCategoryFiltersQueryHandlerTests
         using var scope = new CultureScope("en");
         await using var context = TestDbContextFactory.Create();
 
-        var handler = new GetCategoryFiltersQueryHandler(context);
+        var handler = new GetCategoryFiltersQueryHandler(
+            context,
+            TestServiceFactory.CreateAppCache(),
+            TestServiceFactory.CreateCachingOptions());
 
         var act = () => handler.Handle(new GetCategoryFiltersQuery(Guid.NewGuid()), CancellationToken.None);
 
@@ -35,7 +38,10 @@ public class GetCategoryFiltersQueryHandlerTests
         context.Categories.Add(category);
         await context.SaveChangesAsync();
 
-        var handler = new GetCategoryFiltersQueryHandler(context);
+        var handler = new GetCategoryFiltersQueryHandler(
+            context,
+            TestServiceFactory.CreateAppCache(),
+            TestServiceFactory.CreateCachingOptions());
 
         var act = () => handler.Handle(new GetCategoryFiltersQuery(category.Id), CancellationToken.None);
 
@@ -63,7 +69,10 @@ public class GetCategoryFiltersQueryHandlerTests
         context.Categories.Add(grandChild);
         await context.SaveChangesAsync();
 
-        var handler = new GetCategoryFiltersQueryHandler(context);
+        var handler = new GetCategoryFiltersQueryHandler(
+            context,
+            TestServiceFactory.CreateAppCache(),
+            TestServiceFactory.CreateCachingOptions());
 
         var result = await handler.Handle(new GetCategoryFiltersQuery(root.Id), CancellationToken.None);
 
@@ -152,7 +161,10 @@ public class GetCategoryFiltersQueryHandlerTests
             new VendorProduct(activeVendor.Id, rootProduct.Id, 120m, 0));
         await context.SaveChangesAsync();
 
-        var handler = new GetCategoryFiltersQueryHandler(context);
+        var handler = new GetCategoryFiltersQueryHandler(
+            context,
+            TestServiceFactory.CreateAppCache(),
+            TestServiceFactory.CreateCachingOptions());
 
         var result = await handler.Handle(new GetCategoryFiltersQuery(root.Id), CancellationToken.None);
 
@@ -181,7 +193,10 @@ public class GetCategoryFiltersQueryHandlerTests
         context.Categories.Add(leaf);
         await context.SaveChangesAsync();
 
-        var handler = new GetCategoryFiltersQueryHandler(context);
+        var handler = new GetCategoryFiltersQueryHandler(
+            context,
+            TestServiceFactory.CreateAppCache(),
+            TestServiceFactory.CreateCachingOptions());
 
         var result = await handler.Handle(new GetCategoryFiltersQuery(leaf.Id), CancellationToken.None);
 

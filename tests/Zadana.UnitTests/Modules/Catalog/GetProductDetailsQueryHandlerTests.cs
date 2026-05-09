@@ -20,7 +20,11 @@ public class GetProductDetailsQueryHandlerTests
         using var scope = new CultureScope("en");
         await using var context = TestDbContextFactory.Create();
 
-        var handler = new GetProductDetailsQueryHandler(context, new FakeCurrentUserService());
+        var handler = new GetProductDetailsQueryHandler(
+            context,
+            TestServiceFactory.CreateAppCache(),
+            TestServiceFactory.CreateCatalogReadCacheService(context),
+            TestServiceFactory.CreateCachingOptions());
 
         var act = () => handler.Handle(new GetProductDetailsQuery(Guid.NewGuid()), CancellationToken.None);
 
@@ -34,7 +38,11 @@ public class GetProductDetailsQueryHandlerTests
         await using var context = TestDbContextFactory.Create();
 
         var setup = await SeedProductScenarioAsync(context);
-        var handler = new GetProductDetailsQueryHandler(context, new FakeCurrentUserService());
+        var handler = new GetProductDetailsQueryHandler(
+            context,
+            TestServiceFactory.CreateAppCache(),
+            TestServiceFactory.CreateCatalogReadCacheService(context),
+            TestServiceFactory.CreateCachingOptions());
 
         var result = await handler.Handle(new GetProductDetailsQuery(setup.PrimaryVendorProduct.Id), CancellationToken.None);
 
@@ -64,7 +72,11 @@ public class GetProductDetailsQueryHandlerTests
         await using var context = TestDbContextFactory.Create();
 
         var setup = await SeedProductScenarioAsync(context);
-        var handler = new GetProductDetailsQueryHandler(context, new FakeCurrentUserService());
+        var handler = new GetProductDetailsQueryHandler(
+            context,
+            TestServiceFactory.CreateAppCache(),
+            TestServiceFactory.CreateCatalogReadCacheService(context),
+            TestServiceFactory.CreateCachingOptions());
 
         var result = await handler.Handle(new GetProductDetailsQuery(setup.PrimaryMasterProduct.Id), CancellationToken.None);
 

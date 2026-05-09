@@ -30,7 +30,13 @@ public class HomeCategoriesMainLevelTests
         context.Categories.AddRange(subcategoryOne, subcategoryTwo);
         await context.SaveChangesAsync();
 
-        var service = new HomeReadService(context, new FakeCurrentUserService());
+        var currentUserService = new FakeCurrentUserService();
+        var service = new HomeReadService(
+            context,
+            currentUserService,
+            TestServiceFactory.CreateAppCache(),
+            TestServiceFactory.CreateCatalogReadCacheService(context, currentUserService),
+            TestServiceFactory.CreateCachingOptions());
 
         var result = await service.GetCategoriesAsync(10);
 

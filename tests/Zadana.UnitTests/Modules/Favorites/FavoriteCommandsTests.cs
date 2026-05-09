@@ -31,7 +31,7 @@ public class FavoriteCommandsTests
     {
         await using var context = TestDbContextFactory.Create();
         var setup = await SeedProductAsync(context);
-        var handler = new AddFavoriteCommandHandler(context, _localizerMock.Object);
+        var handler = new AddFavoriteCommandHandler(context, TestServiceFactory.CreateCacheInvalidator(), _localizerMock.Object);
 
         var result = await handler.Handle(new AddFavoriteCommand(setup.UserId, null, setup.Product.Id), CancellationToken.None);
 
@@ -45,10 +45,10 @@ public class FavoriteCommandsTests
     {
         await using var context = TestDbContextFactory.Create();
         var setup = await SeedProductAsync(context);
-        var addHandler = new AddFavoriteCommandHandler(context, _localizerMock.Object);
+        var addHandler = new AddFavoriteCommandHandler(context, TestServiceFactory.CreateCacheInvalidator(), _localizerMock.Object);
         await addHandler.Handle(new AddFavoriteCommand(setup.UserId, null, setup.Product.Id), CancellationToken.None);
 
-        var handler = new RemoveFavoriteCommandHandler(context, _localizerMock.Object);
+        var handler = new RemoveFavoriteCommandHandler(context, TestServiceFactory.CreateCacheInvalidator(), _localizerMock.Object);
         var result = await handler.Handle(new RemoveFavoriteCommand(setup.UserId, null, setup.Product.Id), CancellationToken.None);
 
         result.Message.Should().Be("Product removed from favorites successfully.");
@@ -60,10 +60,10 @@ public class FavoriteCommandsTests
     {
         await using var context = TestDbContextFactory.Create();
         var setup = await SeedProductAsync(context);
-        var addHandler = new AddFavoriteCommandHandler(context, _localizerMock.Object);
+        var addHandler = new AddFavoriteCommandHandler(context, TestServiceFactory.CreateCacheInvalidator(), _localizerMock.Object);
         await addHandler.Handle(new AddFavoriteCommand(setup.UserId, null, setup.Product.Id), CancellationToken.None);
 
-        var handler = new ClearFavoritesCommandHandler(context, _localizerMock.Object);
+        var handler = new ClearFavoritesCommandHandler(context, TestServiceFactory.CreateCacheInvalidator(), _localizerMock.Object);
         var result = await handler.Handle(new ClearFavoritesCommand(setup.UserId, null), CancellationToken.None);
 
         result.Message.Should().Be("Favorites cleared successfully.");

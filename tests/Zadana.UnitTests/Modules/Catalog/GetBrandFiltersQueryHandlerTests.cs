@@ -16,7 +16,10 @@ public class GetBrandFiltersQueryHandlerTests
         using var scope = new CultureScope("en");
         await using var context = TestDbContextFactory.Create();
 
-        var handler = new GetBrandFiltersQueryHandler(context);
+        var handler = new GetBrandFiltersQueryHandler(
+            context,
+            TestServiceFactory.CreateAppCache(),
+            TestServiceFactory.CreateCachingOptions());
 
         var act = () => handler.Handle(new GetBrandFiltersQuery(Guid.NewGuid()), CancellationToken.None);
 
@@ -65,7 +68,10 @@ public class GetBrandFiltersQueryHandlerTests
             new VendorProduct(vendor.Id, foreignProduct.Id, 99m, 8));
         await context.SaveChangesAsync();
 
-        var handler = new GetBrandFiltersQueryHandler(context);
+        var handler = new GetBrandFiltersQueryHandler(
+            context,
+            TestServiceFactory.CreateAppCache(),
+            TestServiceFactory.CreateCachingOptions());
 
         var result = await handler.Handle(new GetBrandFiltersQuery(brand.Id), CancellationToken.None);
 
@@ -94,7 +100,10 @@ public class GetBrandFiltersQueryHandlerTests
         context.Brands.Add(brand);
         await context.SaveChangesAsync();
 
-        var handler = new GetBrandFiltersQueryHandler(context);
+        var handler = new GetBrandFiltersQueryHandler(
+            context,
+            TestServiceFactory.CreateAppCache(),
+            TestServiceFactory.CreateCachingOptions());
 
         var result = await handler.Handle(new GetBrandFiltersQuery(brand.Id), CancellationToken.None);
 
