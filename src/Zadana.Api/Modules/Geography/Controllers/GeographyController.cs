@@ -1,8 +1,11 @@
 using Microsoft.AspNetCore.Authorization;
 using Microsoft.AspNetCore.Mvc;
+using Microsoft.AspNetCore.OutputCaching;
 using Microsoft.EntityFrameworkCore;
-using Microsoft.Extensions.Caching.Memory;
 using Zadana.Api.Controllers;
+using Zadana.Api.Configuration;
+using Zadana.Application.Common.Caching;
+using Zadana.Application.Common.Interfaces;
 using Zadana.Infrastructure.Persistence;
 
 namespace Zadana.Api.Modules.Geography.Controllers;
@@ -14,23 +17,21 @@ public class GeographyController : ApiControllerBase
 {
     private static readonly TimeSpan CacheDuration = TimeSpan.FromHours(24);
     private readonly ApplicationDbContext _dbContext;
-    private readonly IMemoryCache _cache;
+    private readonly IAppCache _cache;
 
-    public GeographyController(ApplicationDbContext dbContext, IMemoryCache cache)
+    public GeographyController(ApplicationDbContext dbContext, IAppCache cache)
     {
         _dbContext = dbContext;
         _cache = cache;
     }
 
     [HttpGet("regions")]
-    [ResponseCache(Duration = 86400, Location = ResponseCacheLocation.Any)]
+    [OutputCache(PolicyName = OutputCachePolicyNames.Geography)]
     public Task<IReadOnlyList<SaudiRegionLookupDto>> GetRegions(CancellationToken cancellationToken)
     {
-        return _cache.GetOrCreateAsync<IReadOnlyList<SaudiRegionLookupDto>>("geography:saudi-regions", async entry =>
-        {
-            entry.AbsoluteExpirationRelativeToNow = CacheDuration;
-
-            return await _dbContext.SaudiRegions
+        return _cache.GetOrCreateAsync<IReadOnlyList<SaudiRegionLookupDto>>(
+            AppCacheKeys.Build("geography", "saudi-regions", AppCacheKeys.CurrentCulture),
+            async token => await _dbContext.SaudiRegions
                 .AsNoTracking()
                 .OrderBy(region => region.SortOrder)
                 .ThenBy(region => region.NameEn)
@@ -42,21 +43,20 @@ public class GeographyController : ApiControllerBase
                     region.Longitude,
                     region.MapZoom,
                     region.SortOrder))
-                .ToListAsync(cancellationToken);
-        })!;
+                .ToListAsync(token),
+            new AppCacheEntryOptions(CacheDuration),
+            cancellationToken: cancellationToken);
     }
 
     [HttpGet("regions/{regionCode}/cities")]
-    [ResponseCache(Duration = 86400, Location = ResponseCacheLocation.Any)]
+    [OutputCache(PolicyName = OutputCachePolicyNames.Geography)]
     public Task<IReadOnlyList<SaudiCityLookupDto>> GetCities(string regionCode, CancellationToken cancellationToken)
     {
         var normalizedRegionCode = regionCode.Trim().ToUpperInvariant();
 
-        return _cache.GetOrCreateAsync<IReadOnlyList<SaudiCityLookupDto>>($"geography:saudi-cities:{normalizedRegionCode}", async entry =>
-        {
-            entry.AbsoluteExpirationRelativeToNow = CacheDuration;
-
-            return await _dbContext.SaudiCities
+        return _cache.GetOrCreateAsync<IReadOnlyList<SaudiCityLookupDto>>(
+            AppCacheKeys.Build("geography", "saudi-cities", normalizedRegionCode, AppCacheKeys.CurrentCulture),
+            async token => await _dbContext.SaudiCities
                 .AsNoTracking()
                 .Where(city => city.Region.Code == normalizedRegionCode)
                 .OrderBy(city => city.SortOrder)
@@ -70,8 +70,9 @@ public class GeographyController : ApiControllerBase
                     city.Longitude,
                     city.MapZoom,
                     city.SortOrder))
-                .ToListAsync(cancellationToken);
-        })!;
+                .ToListAsync(token),
+            new AppCacheEntryOptions(CacheDuration),
+            cancellationToken: cancellationToken);
     }
 }
 

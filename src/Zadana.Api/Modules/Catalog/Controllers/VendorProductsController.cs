@@ -60,6 +60,7 @@ public class VendorProductsController : ApiControllerBase
             request.SellingPrice,
             request.CompareAtPrice,
             request.CostPrice,
+            request.TradePrice,
             request.StockQty,
             request.MinOrderQty,
             request.MaxOrderQty,
@@ -80,6 +81,8 @@ public class VendorProductsController : ApiControllerBase
             request.IdempotencyKey,
             request.Items.Select(item => new BulkCreateVendorProductItemInput(
                 item.MasterProductId,
+                item.CostPrice,
+                item.TradePrice,
                 item.SellingPrice,
                 item.CompareAtPrice,
                 item.StockQty,
@@ -117,6 +120,8 @@ public class VendorProductsController : ApiControllerBase
             vendorId,
             request.SellingPrice,
             request.CompareAtPrice,
+            request.CostPrice,
+            request.TradePrice,
             request.StockQty,
             request.CustomNameAr,
             request.CustomNameEn,
@@ -143,6 +148,7 @@ public record CreateVendorProductRequest(
     decimal SellingPrice,
     decimal? CompareAtPrice,
     decimal? CostPrice,
+    decimal? TradePrice,
     int StockQty,
     int MinOrderQty,
     int? MaxOrderQty,
@@ -155,6 +161,8 @@ public record BulkCreateVendorProductsRequest(
 
 public record BulkCreateVendorProductItemRequest(
     Guid MasterProductId,
+    decimal? CostPrice,
+    decimal? TradePrice,
     decimal SellingPrice,
     decimal? CompareAtPrice,
     int StockQty,
@@ -166,6 +174,8 @@ public record BulkCreateVendorProductItemRequest(
 public record UpdateVendorProductRequest(
     decimal SellingPrice,
     decimal? CompareAtPrice,
+    decimal? CostPrice,
+    decimal? TradePrice,
     int StockQty,
     string? CustomNameAr,
     string? CustomNameEn,

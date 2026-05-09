@@ -831,10 +831,22 @@ public class VendorWorkspaceController : ApiControllerBase
                 order.Status,
                 order.PaymentStatus,
                 order.TotalAmount,
+                order.DeliveryFee,
                 order.CommissionAmount,
                 order.PlacedAtUtc
             })
             .ToListAsync(cancellationToken);
+
+        var orderProfitLookup = await _dbContext.OrderItems
+            .AsNoTracking()
+            .Where(item => item.Order.VendorId == vendorId && item.Order.PlacedAtUtc >= from)
+            .GroupBy(item => item.OrderId)
+            .Select(group => new
+            {
+                OrderId = group.Key,
+                Profit = group.Sum(item => item.VendorProfitPerUnit * item.Quantity)
+            })
+            .ToDictionaryAsync(item => item.OrderId, item => item.Profit, cancellationToken);
 
         var settlements = await _dbContext.Settlements
             .AsNoTracking()
@@ -904,8 +916,10 @@ public class VendorWorkspaceController : ApiControllerBase
 
         var paidOrders = orders.Where(order =>
             order.PaymentStatus is PaymentStatus.Paid or PaymentStatus.Settled || order.Status == OrderStatus.Delivered).ToList();
-        var netSales = paidOrders.Sum(order => order.TotalAmount);
+        var grossSales = paidOrders.Sum(order => order.TotalAmount);
+        var vendorProfit = paidOrders.Sum(order => orderProfitLookup.TryGetValue(order.Id, out var profit) ? profit : 0m);
         var fees = paidOrders.Sum(order => order.CommissionAmount);
+        var vendorNetRevenue = paidOrders.Sum(order => Math.Max((order.TotalAmount - order.DeliveryFee) - order.CommissionAmount, 0m));
         var payoutsPaid = payouts.Where(payout => payout.Status == PayoutStatus.Paid).Sum(payout => payout.Amount);
         var pendingSettlement = settlements
             .Where(settlement => settlement.Status is SettlementStatus.Pending or SettlementStatus.Processing)
@@ -930,10 +944,10 @@ public class VendorWorkspaceController : ApiControllerBase
             holdAmount,
             vendorFinancialMode.ToString(),
             [
-                new VendorFinanceKpiResponse("net-sales", "VENDOR_FINANCE.KPIS.NET_SALES", netSales, 0, "up", "primary"),
-                new VendorFinanceKpiResponse("vendor-payouts", "VENDOR_FINANCE.KPIS.PAYOUTS", payoutsPaid, 0, "up", "success"),
-                new VendorFinanceKpiResponse("fees", "VENDOR_FINANCE.KPIS.FEES", fees, 0, "down", "warning"),
-                new VendorFinanceKpiResponse("refunds", "VENDOR_FINANCE.KPIS.REFUNDS", orders.Where(order => order.PaymentStatus == PaymentStatus.Refunded).Sum(order => order.TotalAmount), 0, "down", "danger")
+                new VendorFinanceKpiResponse("gross-sales", "VENDOR_FINANCE.KPIS.NET_SALES", grossSales, 0, "up", "primary"),
+                new VendorFinanceKpiResponse("vendor-profit", "VENDOR_FINANCE.KPIS.PAYOUTS", vendorProfit, 0, "up", "success"),
+                new VendorFinanceKpiResponse("platform-fees", "VENDOR_FINANCE.KPIS.FEES", fees, 0, "down", "warning"),
+                new VendorFinanceKpiResponse("vendor-net", "VENDOR_FINANCE.KPIS.REFUNDS", vendorNetRevenue, 0, "up", "success")
             ],
             trend,
             settlements.Select(settlement => new VendorSettlementResponse(

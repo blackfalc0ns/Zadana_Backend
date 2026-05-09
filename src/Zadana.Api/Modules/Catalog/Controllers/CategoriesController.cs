@@ -1,6 +1,8 @@
 using Microsoft.AspNetCore.Authorization;
 using Microsoft.AspNetCore.Mvc;
+using Microsoft.AspNetCore.OutputCaching;
 using Zadana.Api.Controllers;
+using Zadana.Api.Configuration;
 using Zadana.Application.Modules.Catalog.DTOs;
 using Zadana.Application.Modules.Catalog.Queries.Categories.GetCategoryFilters;
 using Zadana.Application.Modules.Catalog.Queries.Categories.GetCategoryProducts;
@@ -14,6 +16,7 @@ namespace Zadana.Api.Modules.Catalog.Controllers;
 public class CategoriesController : ApiControllerBase
 {
     [HttpGet("{categoryId:guid}/subcategories")]
+    [OutputCache(PolicyName = OutputCachePolicyNames.CatalogMetadata)]
     public async Task<ActionResult<List<CategoryListItemDto>>> GetSubcategoriesByCategoryId(
         Guid categoryId,
         CancellationToken cancellationToken)
@@ -85,6 +88,7 @@ public class CategoriesController : ApiControllerBase
     }
 
     [HttpGet("{categoryId:guid}/filters")]
+    [OutputCache(PolicyName = OutputCachePolicyNames.CatalogMetadata)]
     public async Task<ActionResult<CategoryFiltersDto>> GetFilters(Guid categoryId, CancellationToken cancellationToken)
     {
         var result = await Sender.Send(new GetCategoryFiltersQuery(categoryId), cancellationToken);

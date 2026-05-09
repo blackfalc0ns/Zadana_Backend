@@ -7,4 +7,5 @@ public record CreateBrandCommand(
     string NameAr,
     string NameEn,
     string? LogoUrl,
+    string? CoverImageUrl,
     Guid CategoryId) : IRequest<BrandDto>;

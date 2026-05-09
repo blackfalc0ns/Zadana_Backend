@@ -1,6 +1,8 @@
 using Microsoft.AspNetCore.Authorization;
 using Microsoft.AspNetCore.Mvc;
+using Microsoft.AspNetCore.OutputCaching;
 using Zadana.Api.Controllers;
+using Zadana.Api.Configuration;
 using Zadana.Application.Modules.Catalog.DTOs;
 using Zadana.Application.Modules.Catalog.Queries.Brands.GetBrandById;
 using Zadana.Application.Modules.Catalog.Queries.Brands.GetBrandFilters;
@@ -15,6 +17,7 @@ namespace Zadana.Api.Modules.Catalog.Controllers;
 public class BrandsController : ApiControllerBase
 {
     [HttpGet]
+    [OutputCache(PolicyName = OutputCachePolicyNames.CatalogMetadata)]
     public async Task<ActionResult<List<BrandCustomerDto>>> GetBrands(CancellationToken cancellationToken = default)
     {
         var result = await Sender.Send(new GetCustomerBrandsQuery(), cancellationToken);
@@ -29,6 +32,7 @@ public class BrandsController : ApiControllerBase
     }
 
     [HttpGet("{brandId:guid}/filters")]
+    [OutputCache(PolicyName = OutputCachePolicyNames.CatalogMetadata)]
     public async Task<ActionResult<BrandFiltersDto>> GetFilters(Guid brandId, CancellationToken cancellationToken = default)
     {
         var result = await Sender.Send(new GetBrandFiltersQuery(brandId), cancellationToken);

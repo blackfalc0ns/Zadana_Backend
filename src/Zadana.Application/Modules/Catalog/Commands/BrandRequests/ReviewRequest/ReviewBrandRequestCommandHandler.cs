@@ -1,6 +1,7 @@
 using MediatR;
 using Microsoft.EntityFrameworkCore;
 using Microsoft.Extensions.Localization;
+using Zadana.Application.Common.Caching;
 using Zadana.Application.Common.Extensions;
 using Zadana.Application.Common.Interfaces;
 using Zadana.Application.Common.Localization;
@@ -16,17 +17,20 @@ namespace Zadana.Application.Modules.Catalog.Commands.BrandRequests.ReviewReques
 public class ReviewBrandRequestCommandHandler : IRequestHandler<ReviewBrandRequestCommand, Guid?>
 {
     private readonly IApplicationDbContext _context;
+    private readonly ICacheInvalidator _cacheInvalidator;
     private readonly ICurrentUserService _currentUserService;
     private readonly IIdentityAccountService _identityAccountService;
     private readonly IStringLocalizer<SharedResource> _localizer;
 
     public ReviewBrandRequestCommandHandler(
         IApplicationDbContext context,
+        ICacheInvalidator cacheInvalidator,
         ICurrentUserService currentUserService,
         IIdentityAccountService identityAccountService,
         IStringLocalizer<SharedResource> localizer)
     {
         _context = context;
+        _cacheInvalidator = cacheInvalidator;
         _currentUserService = currentUserService;
         _identityAccountService = identityAccountService;
         _localizer = localizer;
@@ -53,7 +57,7 @@ public class ReviewBrandRequestCommandHandler : IRequestHandler<ReviewBrandReque
 
         if (request.IsApproved)
         {
-            var brand = new Brand(brandRequest.NameAr, brandRequest.NameEn, brandRequest.LogoUrl, brandRequest.CategoryId);
+            var brand = new Brand(brandRequest.NameAr, brandRequest.NameEn, brandRequest.LogoUrl, null, brandRequest.CategoryId);
             _context.Brands.Add(brand);
             brandRequest.Approve(reviewerName, brand.Id);
             _context.Notifications.Add(new Notification(
@@ -64,6 +68,7 @@ public class ReviewBrandRequestCommandHandler : IRequestHandler<ReviewBrandReque
                 $"Your brand request '{brandRequest.NameEn}' has been approved.",
                 "catalog_request_brand"));
             await _context.SaveChangesAsync(cancellationToken);
+            await _cacheInvalidator.RemoveByTagsAsync(CacheInvalidationProfiles.CatalogReadModels, cancellationToken);
             return brand.Id;
         }
 
