@@ -1,11 +1,15 @@
 using System.Text;
+using System.Text.Json;
 using System.Text.Json.Serialization;
 using System.Threading.RateLimiting;
 using Microsoft.AspNetCore.Authentication.JwtBearer;
+using Microsoft.AspNetCore.Diagnostics.HealthChecks;
 using Microsoft.AspNetCore.Identity;
+using Microsoft.AspNetCore.OutputCaching;
 using Microsoft.AspNetCore.RateLimiting;
 using Microsoft.AspNetCore.SignalR;
 using Microsoft.EntityFrameworkCore;
+using Microsoft.Extensions.Diagnostics.HealthChecks;
 using Microsoft.IdentityModel.Tokens;
 using Microsoft.OpenApi.Models;
 using Zadana.Api.Authorization;
@@ -35,6 +39,7 @@ using Zadana.Infrastructure.Modules.Orders.Repositories;
 using Zadana.Infrastructure.Modules.Orders.Services;
 using Zadana.Infrastructure.Modules.Vendors.Repositories;
 using Zadana.Infrastructure.Modules.Vendors.Services;
+using Zadana.Infrastructure.Caching;
 using Zadana.Infrastructure.Persistence;
 using Zadana.Infrastructure.Persistence.Interceptors;
 using Zadana.Infrastructure.Services;
@@ -50,8 +55,20 @@ if (builder.Environment.IsDevelopment())
 }
 
 var jwtSecret = builder.Configuration.GetRequiredSetting("JwtSettings:Secret");
+var cachingSettingsSection = builder.Configuration.GetSection(CachingSettings.SectionName);
+var cachingSettings = cachingSettingsSection.Get<CachingSettings>() ?? new CachingSettings();
+var redisConnectionString = cachingSettings.Redis.ConnectionString;
+var useRedisCaching = !string.IsNullOrWhiteSpace(redisConnectionString);
 
 builder.Services.AddApplication();
+builder.Services.AddOptions<CachingSettings>()
+    .Bind(cachingSettingsSection)
+    .Validate(settings => settings.MaximumPayloadBytes > 0, "Caching maximum payload bytes must be greater than zero.")
+    .Validate(settings => settings.MaximumKeyLength > 0, "Caching maximum key length must be greater than zero.")
+    .Validate(
+        settings => !builder.Environment.IsProduction() || !settings.Redis.RequireInProduction || !string.IsNullOrWhiteSpace(settings.Redis.ConnectionString),
+        "Caching:Redis:ConnectionString is required when Redis is enforced in production.")
+    .ValidateOnStart();
 
 if (!builder.Environment.IsEnvironment("Testing"))
 {
@@ -81,6 +98,7 @@ if (!builder.Environment.IsEnvironment("Testing"))
 
 builder.Services.AddScoped<IApplicationDbContext>(provider => provider.GetRequiredService<ApplicationDbContext>());
 builder.Services.AddScoped<IUnitOfWork>(provider => provider.GetRequiredService<ApplicationDbContext>());
+builder.Services.AddScoped<ICatalogReadCacheService, CatalogReadCacheService>();
 builder.Services.AddScoped<IVendorRepository, VendorRepository>();
 builder.Services.AddScoped<IVendorReadService, VendorReadService>();
 builder.Services.AddScoped<IVendorReviewAuditService, VendorReviewAuditService>();
@@ -151,6 +169,43 @@ else
 
 builder.Services.AddHttpContextAccessor();
 builder.Services.AddMemoryCache();
+if (useRedisCaching)
+{
+    builder.Services.AddStackExchangeRedisCache(options =>
+    {
+        options.Configuration = redisConnectionString;
+        options.InstanceName = $"{cachingSettings.Redis.InstanceName}:data:";
+    });
+
+    builder.Services.AddStackExchangeRedisOutputCache(options =>
+    {
+        options.Configuration = redisConnectionString;
+        options.InstanceName = $"{cachingSettings.Redis.InstanceName}:output:";
+    });
+}
+else
+{
+    builder.Services.AddDistributedMemoryCache();
+}
+
+builder.Services.AddHybridCache(options =>
+{
+    options.MaximumPayloadBytes = cachingSettings.MaximumPayloadBytes;
+    options.MaximumKeyLength = cachingSettings.MaximumKeyLength;
+});
+builder.Services.AddSingleton<HybridAppCache>();
+builder.Services.AddSingleton<IAppCache>(provider => provider.GetRequiredService<HybridAppCache>());
+builder.Services.AddSingleton<ICacheInvalidator>(provider => provider.GetRequiredService<HybridAppCache>());
+builder.Services.AddOutputCache(options =>
+{
+    options.AddPolicy(OutputCachePolicyNames.Geography, policy =>
+        policy.Expire(cachingSettings.Durations.Geography)
+            .SetVaryByHeader("Accept-Language"));
+
+    options.AddPolicy(OutputCachePolicyNames.CatalogMetadata, policy =>
+        policy.Expire(cachingSettings.Durations.PublicCatalogMetadata)
+            .SetVaryByHeader("Accept-Language"));
+});
 builder.Services.AddIdentity<User, IdentityRole<Guid>>(options =>
 {
     options.Password.RequireNonAlphanumeric = false;
@@ -339,7 +394,11 @@ builder.Services.AddSwaggerGen(c =>
 });
 
 builder.Services.AddLocalization();
-builder.Services.AddHealthChecks();
+builder.Services.AddHealthChecks()
+    .AddCheck<RedisDistributedCacheHealthCheck>(
+        "redis-cache",
+        failureStatus: HealthStatus.Unhealthy,
+        tags: ["ready", "cache"]);
 
 var app = builder.Build();
 var shouldSeedOnStartup = app.Environment.IsDevelopment() || app.Configuration.GetValue<bool>("Seeding:EnableOnStartup");
@@ -380,6 +439,7 @@ var localizationOptions = new RequestLocalizationOptions()
 app.UseRequestLocalization(localizationOptions);
 app.UseCors("Frontend");
 app.UseRateLimiter();
+app.UseOutputCache();
 app.UseAuthentication();
 app.UseAuthorization();
 app.MapControllers();
@@ -491,8 +551,16 @@ if (allowRemoteSeedEndpoints)
         .WithDescription("Resets and reseeds the database on the current environment. Requires X-Seeding-Key.");
 }
 
-app.MapHealthChecks("/health");
-app.MapGet("/health/ready", () => Results.Ok(new { status = "Ready", timestamp = DateTime.UtcNow }));
+app.MapHealthChecks("/health", new HealthCheckOptions
+{
+    Predicate = _ => true,
+    ResponseWriter = WriteHealthResponseAsync
+});
+app.MapHealthChecks("/health/ready", new HealthCheckOptions
+{
+    Predicate = check => check.Tags.Contains("ready"),
+    ResponseWriter = WriteHealthResponseAsync
+});
 
 app.Run();
 
@@ -556,6 +624,26 @@ static string ResolveRateLimitKey(HttpContext context)
     }
 
     return $"ip:{context.Connection.RemoteIpAddress}";
+}
+
+static Task WriteHealthResponseAsync(HttpContext context, HealthReport report)
+{
+    context.Response.ContentType = "application/json";
+
+    return context.Response.WriteAsync(JsonSerializer.Serialize(new
+    {
+        status = report.Status.ToString(),
+        timestamp = DateTime.UtcNow,
+        checks = report.Entries.ToDictionary(
+            entry => entry.Key,
+            entry => new
+            {
+                status = entry.Value.Status.ToString(),
+                description = entry.Value.Description,
+                duration_ms = entry.Value.Duration.TotalMilliseconds,
+                tags = entry.Value.Tags
+            })
+    }));
 }
 
 public partial class Program { }

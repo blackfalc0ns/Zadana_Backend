@@ -117,6 +117,14 @@ public sealed class VendorProductBulkOperationWorker : BackgroundService
             {
                 item.MarkFailed("Compare price must be greater than selling price.");
             }
+            else if (!item.TradePrice.HasValue)
+            {
+                item.MarkFailed("Trade price is required.");
+            }
+            else if (item.TradePrice.HasValue && item.TradePrice.Value > item.SellingPrice)
+            {
+                item.MarkFailed("Trade price must be less than or equal to selling price.");
+            }
             else if (item.MinOrderQty <= 0)
             {
                 item.MarkFailed("Minimum order quantity must be greater than zero.");
@@ -135,6 +143,8 @@ public sealed class VendorProductBulkOperationWorker : BackgroundService
                         item.SellingPrice,
                         item.StockQty,
                         item.CompareAtPrice,
+                        item.CostPrice,
+                        item.TradePrice,
                         item.VendorBranchId);
 
                     context.VendorProducts.Add(vendorProduct);
