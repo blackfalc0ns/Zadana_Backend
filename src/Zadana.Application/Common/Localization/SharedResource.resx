@@ -551,6 +551,12 @@
   <data name="ORDER_PLACED_SUCCESS" xml:space="preserve">
     <value>Your order has been placed successfully</value>
   </data>
+  <data name="ORDER_CANCELLED_SUCCESS" xml:space="preserve">
+    <value>Order cancelled successfully</value>
+  </data>
+  <data name="ORDER_DELETED_SUCCESS" xml:space="preserve">
+    <value>Order deleted successfully</value>
+  </data>
   <data name="PROMO_CODE_APPLIED" xml:space="preserve">
     <value>Promo code applied successfully</value>
   </data>
@@ -739,6 +745,9 @@
   </data>
   <data name="ORDER_CANNOT_BE_CANCELLED" xml:space="preserve">
     <value>Order cannot be cancelled at the current stage.</value>
+  </data>
+  <data name="ORDER_DELETE_NOT_ALLOWED" xml:space="preserve">
+    <value>Only unpaid pending-payment orders can be deleted.</value>
   </data>
   <data name="ORDER_COMPLAINT_ALREADY_EXISTS" xml:space="preserve">
     <value>A complaint has already been submitted for this order.</value>

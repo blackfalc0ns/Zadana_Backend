@@ -31,7 +31,9 @@ using Zadana.Application.Modules.Favorites.Queries;
 using Zadana.Application.Modules.Identity.Commands.ForgotPassword;
 using Zadana.Application.Modules.Identity.Commands.ResetPassword;
 using Zadana.Application.Modules.Orders.Commands.AddCartItem;
+using Zadana.Application.Modules.Orders.Commands.CancelCustomerOrder;
 using Zadana.Application.Modules.Orders.Commands.ClearCart;
+using Zadana.Application.Modules.Orders.Commands.DeleteCustomerOrder;
 using Zadana.Application.Modules.Orders.Commands.RemoveCartItem;
 using Zadana.Application.Modules.Orders.Commands.UpdateCartItemQuantity;
 using Zadana.Application.Modules.Orders.Interfaces;
@@ -44,6 +46,8 @@ using Zadana.Domain.Modules.Catalog.Entities;
 using Zadana.Domain.Modules.Identity.Entities;
 using Zadana.Domain.Modules.Identity.Enums;
 using Zadana.Domain.Modules.Orders.Entities;
+using Zadana.Domain.Modules.Orders.Enums;
+using Zadana.Domain.Modules.Payments.Enums;
 using Zadana.Domain.Modules.Vendors.Entities;
 using Zadana.SharedKernel.Exceptions;
 using Zadana.UnitTests.Common;
@@ -251,6 +255,50 @@ public class CustomerEndpointLocalizationTests
             CreateApplyPromoCodeResult().Message.Should().Be(LocalizedMessages.GetAr(LocalizedMessages.PromoCodeApplied));
             CreateRemovePromoCodeResult().Message.Should().Be(LocalizedMessages.GetAr(LocalizedMessages.PromoCodeRemoved));
             CreatePlaceOrderResult().Message.Should().Be(LocalizedMessages.GetAr(LocalizedMessages.OrderPlacedSuccess));
+        }
+    }
+
+    [Fact]
+    public async Task OrderMutationCustomerEndpoints_ReturnLocalizedMessages()
+    {
+        await using var englishContext = TestDbContextFactory.Create();
+        var english = await SeedCatalogAsync(englishContext);
+
+        using (new CultureScope("en"))
+        {
+            var cancelOrder = CreateOrder(english.UserId, english.VendorId);
+            cancelOrder.ChangeStatus(OrderStatus.PendingVendorAcceptance);
+            var deleteOrder = CreateOrder(english.UserId, english.VendorId);
+            englishContext.Orders.AddRange(cancelOrder, deleteOrder);
+            await englishContext.SaveChangesAsync();
+
+            var cancel = await new CancelCustomerOrderCommandHandler(englishContext, englishContext, new NoOpPublisher())
+                .Handle(new CancelCustomerOrderCommand(cancelOrder.Id, english.UserId, "changed_my_mind", null, null), CancellationToken.None);
+            var delete = await new DeleteCustomerOrderCommandHandler(englishContext, englishContext)
+                .Handle(new DeleteCustomerOrderCommand(deleteOrder.Id, english.UserId), CancellationToken.None);
+
+            cancel.Message.Should().Be(LocalizedMessages.GetEn(LocalizedMessages.OrderCancelledSuccess));
+            delete.Message.Should().Be(LocalizedMessages.GetEn(LocalizedMessages.OrderDeletedSuccess));
+        }
+
+        await using var arabicContext = TestDbContextFactory.Create();
+        var arabic = await SeedCatalogAsync(arabicContext);
+
+        using (new CultureScope("ar"))
+        {
+            var cancelOrder = CreateOrder(arabic.UserId, arabic.VendorId);
+            cancelOrder.ChangeStatus(OrderStatus.PendingVendorAcceptance);
+            var deleteOrder = CreateOrder(arabic.UserId, arabic.VendorId);
+            arabicContext.Orders.AddRange(cancelOrder, deleteOrder);
+            await arabicContext.SaveChangesAsync();
+
+            var cancel = await new CancelCustomerOrderCommandHandler(arabicContext, arabicContext, new NoOpPublisher())
+                .Handle(new CancelCustomerOrderCommand(cancelOrder.Id, arabic.UserId, "changed_my_mind", null, null), CancellationToken.None);
+            var delete = await new DeleteCustomerOrderCommandHandler(arabicContext, arabicContext)
+                .Handle(new DeleteCustomerOrderCommand(deleteOrder.Id, arabic.UserId), CancellationToken.None);
+
+            cancel.Message.Should().Be(LocalizedMessages.GetAr(LocalizedMessages.OrderCancelledSuccess));
+            delete.Message.Should().Be(LocalizedMessages.GetAr(LocalizedMessages.OrderDeletedSuccess));
         }
     }
 
@@ -551,6 +599,24 @@ public class CustomerEndpointLocalizationTests
         await context.SaveChangesAsync();
     }
 
+    private static Order CreateOrder(Guid userId, Guid vendorId) =>
+        new(
+            $"ORD-{Guid.NewGuid():N}",
+            userId,
+            vendorId,
+            Guid.NewGuid(),
+            PaymentMethodType.CashOnDelivery,
+            100m,
+            0m,
+            0m,
+            0m,
+            0m,
+            0m,
+            null,
+            null,
+            null,
+            0m);
+
     private static T GetOkValue<T>(ActionResult<T> actionResult)
     {
         var ok = actionResult.Result.Should().BeOfType<OkObjectResult>().Subject;
@@ -615,6 +681,16 @@ public class CustomerEndpointLocalizationTests
             new(name, string.Format(CultureInfo.CurrentCulture, GetSharedResource(name), arguments));
 
         public IEnumerable<LocalizedString> GetAllStrings(bool includeParentCultures) => [];
+    }
+
+    private sealed class NoOpPublisher : IPublisher
+    {
+        public Task Publish(object notification, CancellationToken cancellationToken = default) =>
+            Task.CompletedTask;
+
+        public Task Publish<TNotification>(TNotification notification, CancellationToken cancellationToken = default)
+            where TNotification : INotification =>
+            Task.CompletedTask;
     }
 
     private sealed record CatalogSeed(

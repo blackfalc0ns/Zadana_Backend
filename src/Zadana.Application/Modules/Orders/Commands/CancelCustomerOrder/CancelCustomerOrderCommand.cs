@@ -98,7 +98,10 @@ public class CancelCustomerOrderCommandHandler : IRequestHandler<CancelCustomerO
                 ActorRole: "customer"),
             cancellationToken);
 
-        return new CancelCustomerOrderResultDto(order.Id, "cancelled", "order cancelled successfully");
+        return new CancelCustomerOrderResultDto(
+            order.Id,
+            "cancelled",
+            LocalizedMessages.GetCurrent(LocalizedMessages.OrderCancelledSuccess));
     }
 
     private static string ResolveReasonText(CancelCustomerOrderCommand request)

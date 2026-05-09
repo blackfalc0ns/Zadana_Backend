@@ -1,3 +1,4 @@
+using System.Globalization;
 using Microsoft.Extensions.Caching.Hybrid;
 using Zadana.Application.Common.Caching;
 using Zadana.Application.Common.Interfaces;
@@ -13,9 +14,29 @@ public sealed class HybridAppCache(HybridCache cache) : IAppCache, ICacheInvalid
         IEnumerable<string>? tags = null,
         CancellationToken cancellationToken = default)
     {
+        var requestCulture = CultureInfo.CurrentCulture;
+        var requestUiCulture = CultureInfo.CurrentUICulture;
+
         return await cache.GetOrCreateAsync(
             key,
-            async token => await factory(token),
+            async token =>
+            {
+                var originalCulture = CultureInfo.CurrentCulture;
+                var originalUiCulture = CultureInfo.CurrentUICulture;
+
+                try
+                {
+                    CultureInfo.CurrentCulture = requestCulture;
+                    CultureInfo.CurrentUICulture = requestUiCulture;
+
+                    return await factory(token);
+                }
+                finally
+                {
+                    CultureInfo.CurrentCulture = originalCulture;
+                    CultureInfo.CurrentUICulture = originalUiCulture;
+                }
+            },
             CreateEntryOptions(options),
             tags,
             cancellationToken);

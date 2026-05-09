@@ -2,6 +2,7 @@ using FluentValidation;
 using MediatR;
 using Microsoft.EntityFrameworkCore;
 using Zadana.Application.Common.Interfaces;
+using Zadana.Application.Common.Localization;
 using Zadana.Domain.Modules.Orders.Enums;
 using Zadana.Domain.Modules.Payments.Enums;
 using Zadana.SharedKernel.Exceptions;
@@ -121,6 +122,8 @@ public class DeleteCustomerOrderCommandHandler : IRequestHandler<DeleteCustomerO
         _context.Orders.Remove(order);
         await _unitOfWork.SaveChangesAsync(cancellationToken);
 
-        return new DeleteCustomerOrderResultDto(order.Id, "order deleted successfully");
+        return new DeleteCustomerOrderResultDto(
+            order.Id,
+            LocalizedMessages.GetCurrent(LocalizedMessages.OrderDeletedSuccess));
     }
 }

@@ -552,6 +552,12 @@
   <data name="ORDER_PLACED_SUCCESS" xml:space="preserve">
     <value>تم تقديم طلبك بنجاح</value>
   </data>
+  <data name="ORDER_CANCELLED_SUCCESS" xml:space="preserve">
+    <value>تم إلغاء الطلب بنجاح</value>
+  </data>
+  <data name="ORDER_DELETED_SUCCESS" xml:space="preserve">
+    <value>تم حذف الطلب بنجاح</value>
+  </data>
   <data name="PROMO_CODE_APPLIED" xml:space="preserve">
     <value>تم تطبيق كود الخصم بنجاح</value>
   </data>
@@ -740,6 +746,9 @@
   </data>
   <data name="ORDER_CANNOT_BE_CANCELLED" xml:space="preserve">
     <value>لا يمكن إلغاء الطلب في مرحلته الحالية.</value>
+  </data>
+  <data name="ORDER_DELETE_NOT_ALLOWED" xml:space="preserve">
+    <value>يمكن حذف الطلبات غير المدفوعة في انتظار الدفع فقط.</value>
   </data>
   <data name="ORDER_COMPLAINT_ALREADY_EXISTS" xml:space="preserve">
     <value>تم تقديم شكوى لهذا الطلب بالفعل.</value>

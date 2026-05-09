@@ -47,6 +47,8 @@ public static class LocalizedMessages
 
     // Checkout
     public const string OrderPlacedSuccess = "ORDER_PLACED_SUCCESS";
+    public const string OrderCancelledSuccess = "ORDER_CANCELLED_SUCCESS";
+    public const string OrderDeletedSuccess = "ORDER_DELETED_SUCCESS";
     public const string PromoCodeApplied = "PROMO_CODE_APPLIED";
     public const string PromoCodeRemoved = "PROMO_CODE_REMOVED";
 
