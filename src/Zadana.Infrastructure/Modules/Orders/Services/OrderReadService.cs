@@ -200,7 +200,7 @@ public class OrderReadService : IOrderReadService
             !string.IsNullOrWhiteSpace(assignment.DeliveryOtpCode);
 
         return new CustomerOrderTrackingDto(
-            new CustomerOrderTrackingOrderDto(order.Id, MapTrackingStatus(order.Status)),
+            new CustomerOrderTrackingOrderDto(order.Id, order.OrderNumber, MapTrackingStatus(order.Status)),
             estimatedDelivery,
             driver,
             assignedDriver,
@@ -1081,6 +1081,7 @@ public class OrderReadService : IOrderReadService
             ? null
             : new OrderSupportCaseSummaryDto(
                 supportCase.Id,
+                supportCase.Order?.OrderNumber ?? string.Empty,
                 MapSupportCaseType(supportCase.Type),
                 ResolveSupportCaseTypeLabel(supportCase.Type),
                 MapSupportCaseStatus(supportCase.Status),

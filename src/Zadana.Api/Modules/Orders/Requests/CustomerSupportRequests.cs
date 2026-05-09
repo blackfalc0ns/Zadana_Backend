@@ -46,6 +46,7 @@ public record GetOrderSupportCaseResponse(
 
 public record OrderSupportCaseSummaryResponse(
     [property: JsonPropertyName("id")] Guid Id,
+    [property: JsonPropertyName("order_number")] string OrderNumber,
     [property: JsonPropertyName("type")] string Type,
     [property: JsonPropertyName("type_label")] string TypeLabel,
     [property: JsonPropertyName("status")] string Status,

@@ -414,7 +414,7 @@ public class OrdersController : ApiControllerBase
 
     private static CustomerOrderTrackingResponse MapOrderTracking(CustomerOrderTrackingDto dto) =>
         new(
-            new CustomerOrderTrackingOrderResponse(dto.Order.Id, dto.Order.Status),
+            new CustomerOrderTrackingOrderResponse(dto.Order.Id, dto.Order.OrderNumber, dto.Order.Status),
             dto.EstimatedDelivery is null
                 ? null
                 : new CustomerOrderEstimatedDeliveryResponse(dto.EstimatedDelivery.Datetime, dto.EstimatedDelivery.Formatted),
@@ -456,6 +456,7 @@ public class OrdersController : ApiControllerBase
             ? null
             : new OrderSupportCaseSummaryResponse(
                 dto.Id,
+                dto.OrderNumber,
                 dto.Type,
                 dto.TypeLabel,
                 dto.Status,

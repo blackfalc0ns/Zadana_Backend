@@ -60,6 +60,7 @@ public record CustomerOrderTrackingResponse(
 
 public record CustomerOrderTrackingOrderResponse(
     [property: JsonPropertyName("id")] Guid Id,
+    [property: JsonPropertyName("order_number")] string OrderNumber,
     [property: JsonPropertyName("status")] string Status);
 
 public record CustomerOrderEstimatedDeliveryResponse(

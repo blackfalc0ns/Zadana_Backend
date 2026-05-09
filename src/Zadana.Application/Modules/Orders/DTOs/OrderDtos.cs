@@ -159,6 +159,7 @@ public record CustomerOrderTrackingDto(
 
 public record CustomerOrderTrackingOrderDto(
     Guid Id,
+    string OrderNumber,
     string Status);
 
 public record CustomerOrderEstimatedDeliveryDto(
@@ -191,6 +192,7 @@ public record OrderComplaintAttachmentDto(
 
 public record OrderSupportCaseSummaryDto(
     Guid Id,
+    string OrderNumber,
     string Type,
     string TypeLabel,
     string Status,
