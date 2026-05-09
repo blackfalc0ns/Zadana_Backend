@@ -226,13 +226,7 @@ public class SearchProductsQueryHandler : IRequestHandler<SearchProductsQuery, S
             FormatDiscount(product),
             isFavorite,
             product.Unit,
-            isDiscounted,
-            product.NameAr,
-            product.NameEn,
-            product.StoreAr,
-            product.StoreEn,
-            product.UnitAr,
-            product.UnitEn);
+            isDiscounted);
     }
 
     private static decimal CalculateDiscountRate(SearchProductSource product)

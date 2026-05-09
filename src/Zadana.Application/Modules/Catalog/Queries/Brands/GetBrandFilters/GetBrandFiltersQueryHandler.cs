@@ -89,24 +89,18 @@ public class GetBrandFiltersQueryHandler : IRequestHandler<GetBrandFiltersQuery,
                     {
                         categoryItems[parent.Id] = new CatalogFilterNamedItemDto(
                             parent.Id,
-                            BrandCatalogQueryHelpers.PickLocalized(parent.NameAr, parent.NameEn),
-                            NormalizeText(parent.NameAr),
-                            NormalizeText(parent.NameEn));
+                            BrandCatalogQueryHelpers.PickLocalized(parent.NameAr, parent.NameEn));
 
                         subcategoryItems[category.Id] = new BrandFilterSubcategoryItemDto(
                             category.Id,
                             BrandCatalogQueryHelpers.PickLocalized(category.NameAr, category.NameEn),
-                            parent.Id,
-                            NormalizeText(category.NameAr),
-                            NormalizeText(category.NameEn));
+                            parent.Id);
                     }
                     else
                     {
                         categoryItems[category.Id] = new CatalogFilterNamedItemDto(
                             category.Id,
-                            BrandCatalogQueryHelpers.PickLocalized(category.NameAr, category.NameEn),
-                            NormalizeText(category.NameAr),
-                            NormalizeText(category.NameEn));
+                            BrandCatalogQueryHelpers.PickLocalized(category.NameAr, category.NameEn));
                     }
                 }
 
@@ -122,9 +116,7 @@ public class GetBrandFiltersQueryHandler : IRequestHandler<GetBrandFiltersQuery,
                 var units = unitRows
                     .Select(unit => new CatalogFilterNamedItemDto(
                         unit.Id,
-                        BrandCatalogQueryHelpers.PickLocalized(unit.NameAr, unit.NameEn),
-                        NormalizeText(unit.NameAr),
-                        NormalizeText(unit.NameEn)))
+                        BrandCatalogQueryHelpers.PickLocalized(unit.NameAr, unit.NameEn)))
                     .OrderBy(unit => unit.Name, StringComparer.CurrentCultureIgnoreCase)
                     .ToList();
 
@@ -148,9 +140,7 @@ public class GetBrandFiltersQueryHandler : IRequestHandler<GetBrandFiltersQuery,
                 return new BrandFiltersDto(
                     new CatalogFilterNamedItemDto(
                         brand.Id,
-                        BrandCatalogQueryHelpers.PickLocalized(brand.NameAr, brand.NameEn),
-                        NormalizeText(brand.NameAr),
-                        NormalizeText(brand.NameEn)),
+                        BrandCatalogQueryHelpers.PickLocalized(brand.NameAr, brand.NameEn)),
                     categoryItems.Values
                         .OrderBy(item => categoriesById[item.Id].DisplayOrder)
                         .ThenBy(item => item.Name, StringComparer.CurrentCultureIgnoreCase)
@@ -167,9 +157,6 @@ public class GetBrandFiltersQueryHandler : IRequestHandler<GetBrandFiltersQuery,
             [CacheTagNames.CatalogFilters],
             cancellationToken);
     }
-
-    private static string? NormalizeText(string? value) =>
-        string.IsNullOrWhiteSpace(value) ? null : value.Trim();
 
     private sealed record CategoryRow(
         Guid Id,

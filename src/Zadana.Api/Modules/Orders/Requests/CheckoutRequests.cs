@@ -39,8 +39,7 @@ public record CheckoutSelectedAddressResponse(
 
 public record CheckoutDeliverySlotResponse(
     [property: JsonPropertyName("id")] string Id,
-    [property: JsonPropertyName("label_ar")] string LabelAr,
-    [property: JsonPropertyName("label_en")] string LabelEn,
+    [property: JsonPropertyName("label")] string Label,
     [property: JsonPropertyName("start_at")] DateTime StartAt,
     [property: JsonPropertyName("end_at")] DateTime EndAt,
     [property: JsonPropertyName("is_available")] bool IsAvailable,
@@ -48,10 +47,8 @@ public record CheckoutDeliverySlotResponse(
 
 public record CheckoutPaymentMethodResponse(
     [property: JsonPropertyName("code")] string Code,
-    [property: JsonPropertyName("label_ar")] string LabelAr,
-    [property: JsonPropertyName("label_en")] string LabelEn,
-    [property: JsonPropertyName("description_ar")] string? DescriptionAr,
-    [property: JsonPropertyName("description_en")] string? DescriptionEn,
+    [property: JsonPropertyName("label")] string Label,
+    [property: JsonPropertyName("description")] string? Description,
     [property: JsonPropertyName("is_available")] bool IsAvailable,
     [property: JsonPropertyName("is_default")] bool IsDefault);
 
@@ -72,8 +69,7 @@ public record CheckoutDeliveryQuoteResponse(
 
 public record CheckoutShippingBreakdownLineResponse(
     [property: JsonPropertyName("code")] string Code,
-    [property: JsonPropertyName("label_ar")] string LabelAr,
-    [property: JsonPropertyName("label_en")] string LabelEn,
+    [property: JsonPropertyName("label")] string Label,
     [property: JsonPropertyName("amount")] decimal Amount);
 
 public record CheckoutSummaryTotalsResponse(
@@ -89,8 +85,7 @@ public record ApplyCheckoutPromoCodeRequest(
     [property: JsonPropertyName("code")] string Code);
 
 public record ApplyCheckoutPromoCodeResponse(
-    [property: JsonPropertyName("message_ar")] string MessageAr,
-    [property: JsonPropertyName("message_en")] string MessageEn,
+    [property: JsonPropertyName("message")] string Message,
     [property: JsonPropertyName("cart")] CheckoutCartResponse Cart,
     [property: JsonPropertyName("address_id")] Guid? AddressId,
     [property: JsonPropertyName("selected_address")] CheckoutSelectedAddressResponse? SelectedAddress,
@@ -104,8 +99,7 @@ public record ApplyCheckoutPromoCodeResponse(
     [property: JsonPropertyName("summary")] CheckoutSummaryTotalsResponse Summary);
 
 public record RemoveCheckoutPromoCodeResponse(
-    [property: JsonPropertyName("message_ar")] string MessageAr,
-    [property: JsonPropertyName("message_en")] string MessageEn,
+    [property: JsonPropertyName("message")] string Message,
     [property: JsonPropertyName("cart")] CheckoutCartResponse Cart,
     [property: JsonPropertyName("address_id")] Guid? AddressId,
     [property: JsonPropertyName("selected_address")] CheckoutSelectedAddressResponse? SelectedAddress,
@@ -204,8 +198,7 @@ public class PlaceOrderRequest
 }
 
 public record PlaceOrderResponse(
-    [property: JsonPropertyName("message_ar")] string MessageAr,
-    [property: JsonPropertyName("message_en")] string MessageEn,
+    [property: JsonPropertyName("message")] string Message,
     [property: JsonPropertyName("order")] PlacedOrderSummaryResponse Order,
     [property: JsonPropertyName("payment")]
     [property: JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingNull)]

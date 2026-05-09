@@ -251,6 +251,9 @@ internal static class CartProjection
         return string.IsNullOrWhiteSpace(value) ? null : value;
     }
 
+    private static string? NormalizeText(string? value) =>
+        string.IsNullOrWhiteSpace(value) ? null : value.Trim();
+
     private static bool IsDiscounted(decimal price, decimal? oldPrice) =>
         oldPrice.HasValue && oldPrice.Value > price;
 

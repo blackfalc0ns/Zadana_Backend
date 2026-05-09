@@ -1,3 +1,5 @@
+using System.Globalization;
+
 namespace Zadana.Application.Modules.Checkout.DTOs;
 
 public record CheckoutSummaryDto(
@@ -17,15 +19,54 @@ public record CheckoutCartDto(
     int TotalQuantity,
     List<CheckoutCartItemDto> Items);
 
-public record CheckoutCartItemDto(
-    Guid Id,
-    Guid ProductId,
-    string Name,
-    string? ImageUrl,
-    string? Unit,
-    int Quantity,
-    decimal Price,
-    decimal TotalPrice);
+public sealed record CheckoutCartItemDto
+{
+    public CheckoutCartItemDto(
+        Guid id,
+        Guid productId,
+        string name,
+        string? imageUrl,
+        string? unit,
+        int quantity,
+        decimal price,
+        decimal totalPrice)
+    {
+        Id = id;
+        ProductId = productId;
+        Name = name;
+        ImageUrl = imageUrl;
+        Unit = unit;
+        Quantity = quantity;
+        Price = price;
+        TotalPrice = totalPrice;
+    }
+
+    public CheckoutCartItemDto(
+        Guid id,
+        Guid productId,
+        string name,
+        string? imageUrl,
+        string? unit,
+        int quantity,
+        decimal price,
+        decimal totalPrice,
+        string? _,
+        string? __,
+        string? ___,
+        string? ____)
+        : this(id, productId, name, imageUrl, unit, quantity, price, totalPrice)
+    {
+    }
+
+    public Guid Id { get; init; }
+    public Guid ProductId { get; init; }
+    public string Name { get; init; }
+    public string? ImageUrl { get; init; }
+    public string? Unit { get; init; }
+    public int Quantity { get; init; }
+    public decimal Price { get; init; }
+    public decimal TotalPrice { get; init; }
+}
 
 public record CheckoutSelectedAddressDto(
     Guid Id,
@@ -33,23 +74,69 @@ public record CheckoutSelectedAddressDto(
     string AddressLine,
     bool IsDefault);
 
-public record CheckoutDeliverySlotDto(
-    string Id,
-    string LabelAr,
-    string LabelEn,
-    DateTime StartAt,
-    DateTime EndAt,
-    bool IsAvailable,
-    bool IsSelected);
+public sealed record CheckoutDeliverySlotDto
+{
+    public CheckoutDeliverySlotDto(string id, string label, DateTime startAt, DateTime endAt, bool isAvailable, bool isSelected)
+    {
+        Id = id;
+        Label = label;
+        StartAt = startAt;
+        EndAt = endAt;
+        IsAvailable = isAvailable;
+        IsSelected = isSelected;
+    }
 
-public record CheckoutPaymentMethodDto(
-    string Code,
-    string LabelAr,
-    string LabelEn,
-    string? DescriptionAr,
-    string? DescriptionEn,
-    bool IsAvailable,
-    bool IsDefault);
+    public CheckoutDeliverySlotDto(string id, string labelAr, string labelEn, DateTime startAt, DateTime endAt, bool isAvailable, bool isSelected)
+        : this(id, Localize(labelAr, labelEn), startAt, endAt, isAvailable, isSelected)
+    {
+    }
+
+    public string Id { get; init; }
+    public string Label { get; init; }
+    public DateTime StartAt { get; init; }
+    public DateTime EndAt { get; init; }
+    public bool IsAvailable { get; init; }
+    public bool IsSelected { get; init; }
+
+    private static string Localize(string arabic, string english) =>
+        CultureInfo.CurrentUICulture.TwoLetterISOLanguageName.Equals("ar", StringComparison.OrdinalIgnoreCase)
+            ? arabic
+            : english;
+}
+
+public sealed record CheckoutPaymentMethodDto
+{
+    public CheckoutPaymentMethodDto(string code, string label, string? description, bool isAvailable, bool isDefault)
+    {
+        Code = code;
+        Label = label;
+        Description = description;
+        IsAvailable = isAvailable;
+        IsDefault = isDefault;
+    }
+
+    public CheckoutPaymentMethodDto(string code, string labelAr, string labelEn, string? descriptionAr, string? descriptionEn, bool isAvailable, bool isDefault)
+        : this(code, Localize(labelAr, labelEn), LocalizeNullable(descriptionAr, descriptionEn), isAvailable, isDefault)
+    {
+    }
+
+    public string Code { get; init; }
+    public string Label { get; init; }
+    public string? Description { get; init; }
+    public bool IsAvailable { get; init; }
+    public bool IsDefault { get; init; }
+
+    private static string Localize(string arabic, string english) =>
+        CultureInfo.CurrentUICulture.TwoLetterISOLanguageName.Equals("ar", StringComparison.OrdinalIgnoreCase)
+            ? arabic
+            : english;
+
+    private static string? LocalizeNullable(string? arabic, string? english)
+    {
+        var value = Localize(arabic ?? string.Empty, english ?? string.Empty);
+        return string.IsNullOrWhiteSpace(value) ? null : value;
+    }
+}
 
 public record CheckoutPromoCodeDto(
     string Code,
@@ -75,28 +162,99 @@ public record CheckoutDeliveryQuoteDto(
     string PricingMode,
     string RuleLabel);
 
-public record CheckoutShippingBreakdownLineDto(
-    string Code,
-    string LabelAr,
-    string LabelEn,
-    decimal Amount);
+public sealed record CheckoutShippingBreakdownLineDto
+{
+    public CheckoutShippingBreakdownLineDto(string code, string label, decimal amount)
+    {
+        Code = code;
+        Label = label;
+        Amount = amount;
+    }
 
-public record ApplyCheckoutPromoCodeResultDto(
-    string MessageAr,
-    string MessageEn,
-    CheckoutPromoCodeDto PromoCode,
-    CheckoutTotalsDto Summary);
+    public CheckoutShippingBreakdownLineDto(string code, string labelAr, string labelEn, decimal amount)
+        : this(code, Localize(labelAr, labelEn), amount)
+    {
+    }
 
-public record RemoveCheckoutPromoCodeResultDto(
-    string MessageAr,
-    string MessageEn,
-    CheckoutTotalsDto Summary);
+    public string Code { get; init; }
+    public string Label { get; init; }
+    public decimal Amount { get; init; }
 
-public record PlaceCheckoutOrderResultDto(
-    string MessageAr,
-    string MessageEn,
-    CheckoutPlacedOrderDto Order,
-    CheckoutPaymentSessionDto? Payment);
+    private static string Localize(string arabic, string english) =>
+        CultureInfo.CurrentUICulture.TwoLetterISOLanguageName.Equals("ar", StringComparison.OrdinalIgnoreCase)
+            ? arabic
+            : english;
+}
+
+public sealed record ApplyCheckoutPromoCodeResultDto
+{
+    public ApplyCheckoutPromoCodeResultDto(string message, CheckoutPromoCodeDto promoCode, CheckoutTotalsDto summary)
+    {
+        Message = message;
+        PromoCode = promoCode;
+        Summary = summary;
+    }
+
+    public ApplyCheckoutPromoCodeResultDto(string messageAr, string messageEn, CheckoutPromoCodeDto promoCode, CheckoutTotalsDto summary)
+        : this(Localize(messageAr, messageEn), promoCode, summary)
+    {
+    }
+
+    public string Message { get; init; }
+    public CheckoutPromoCodeDto PromoCode { get; init; }
+    public CheckoutTotalsDto Summary { get; init; }
+
+    private static string Localize(string arabic, string english) =>
+        CultureInfo.CurrentUICulture.TwoLetterISOLanguageName.Equals("ar", StringComparison.OrdinalIgnoreCase)
+            ? arabic
+            : english;
+}
+
+public sealed record RemoveCheckoutPromoCodeResultDto
+{
+    public RemoveCheckoutPromoCodeResultDto(string message, CheckoutTotalsDto summary)
+    {
+        Message = message;
+        Summary = summary;
+    }
+
+    public RemoveCheckoutPromoCodeResultDto(string messageAr, string messageEn, CheckoutTotalsDto summary)
+        : this(Localize(messageAr, messageEn), summary)
+    {
+    }
+
+    public string Message { get; init; }
+    public CheckoutTotalsDto Summary { get; init; }
+
+    private static string Localize(string arabic, string english) =>
+        CultureInfo.CurrentUICulture.TwoLetterISOLanguageName.Equals("ar", StringComparison.OrdinalIgnoreCase)
+            ? arabic
+            : english;
+}
+
+public sealed record PlaceCheckoutOrderResultDto
+{
+    public PlaceCheckoutOrderResultDto(string message, CheckoutPlacedOrderDto order, CheckoutPaymentSessionDto? payment)
+    {
+        Message = message;
+        Order = order;
+        Payment = payment;
+    }
+
+    public PlaceCheckoutOrderResultDto(string messageAr, string messageEn, CheckoutPlacedOrderDto order, CheckoutPaymentSessionDto? payment)
+        : this(Localize(messageAr, messageEn), order, payment)
+    {
+    }
+
+    public string Message { get; init; }
+    public CheckoutPlacedOrderDto Order { get; init; }
+    public CheckoutPaymentSessionDto? Payment { get; init; }
+
+    private static string Localize(string arabic, string english) =>
+        CultureInfo.CurrentUICulture.TwoLetterISOLanguageName.Equals("ar", StringComparison.OrdinalIgnoreCase)
+            ? arabic
+            : english;
+}
 
 public record CheckoutPlacedOrderDto(
     Guid Id,

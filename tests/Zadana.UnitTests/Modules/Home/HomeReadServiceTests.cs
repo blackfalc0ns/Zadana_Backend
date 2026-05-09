@@ -73,6 +73,40 @@ public class HomeReadServiceTests
     }
 
     [Fact]
+    public async Task GetBannersAsync_WithArabicCulture_ReturnsArabicBannerContent()
+    {
+        using var scope = new CultureScope("ar");
+        await using var context = TestDbContextFactory.Create();
+
+        context.HomeBanners.Add(new HomeBanner(
+            "عروض",
+            "Deals",
+            "خصومات على المنتجات اليومية",
+            "Discounts on daily essentials",
+            "/a.jpg",
+            subtitleAr: "توصيل سريع وأسعار أفضل",
+            subtitleEn: "Fast delivery and better prices",
+            actionLabelAr: "تسوق الآن",
+            actionLabelEn: "Shop now",
+            displayOrder: 1,
+            startsAtUtc: DateTime.UtcNow.AddDays(-1),
+            endsAtUtc: DateTime.UtcNow.AddDays(2)));
+
+        await context.SaveChangesAsync();
+
+        var service = CreateService(context, new FakeCurrentUserService(null, false));
+
+        var result = await service.GetBannersAsync(10);
+
+        result.Title.Should().Be("لافتات");
+        result.Items.Should().ContainSingle();
+        result.Items[0].Tag.Should().Be("عروض");
+        result.Items[0].Title.Should().Be("خصومات على المنتجات اليومية");
+        result.Items[0].Subtitle.Should().Be("توصيل سريع وأسعار أفضل");
+        result.Items[0].ActionLabel.Should().Be("تسوق الآن");
+    }
+
+    [Fact]
     public async Task GetCategoriesAsync_ReturnsOnlyPenultimateLevelCategories()
     {
         using var scope = new CultureScope("en");

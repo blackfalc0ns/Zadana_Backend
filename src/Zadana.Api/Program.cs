@@ -5,6 +5,7 @@ using System.Threading.RateLimiting;
 using Microsoft.AspNetCore.Authentication.JwtBearer;
 using Microsoft.AspNetCore.Diagnostics.HealthChecks;
 using Microsoft.AspNetCore.Identity;
+using Microsoft.AspNetCore.Localization;
 using Microsoft.AspNetCore.OutputCaching;
 using Microsoft.AspNetCore.RateLimiting;
 using Microsoft.AspNetCore.SignalR;
@@ -435,6 +436,11 @@ var localizationOptions = new RequestLocalizationOptions()
     .SetDefaultCulture("ar")
     .AddSupportedCultures(supportedCultures)
     .AddSupportedUICultures(supportedCultures);
+
+localizationOptions.RequestCultureProviders =
+[
+    new AcceptLanguageHeaderRequestCultureProvider()
+];
 
 app.UseRequestLocalization(localizationOptions);
 app.UseCors("Frontend");

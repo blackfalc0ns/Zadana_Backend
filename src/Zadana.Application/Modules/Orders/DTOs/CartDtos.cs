@@ -1,31 +1,106 @@
+using System.Globalization;
+
 namespace Zadana.Application.Modules.Orders.DTOs;
 
-public record CartVendorPriceDto(
-    Guid Id,
-    string Name,
-    decimal Price,
-    decimal? OldPrice,
-    bool IsDiscounted);
+public sealed record CartVendorPriceDto
+{
+    public CartVendorPriceDto(Guid id, string name, decimal price, decimal? oldPrice, bool isDiscounted)
+    {
+        Id = id;
+        Name = name;
+        Price = price;
+        OldPrice = oldPrice;
+        IsDiscounted = isDiscounted;
+    }
 
-public record CartAvailableVendorDto(
-    Guid Id,
-    string Name,
-    string? LogoUrl,
-    int ProductsCount);
+    public CartVendorPriceDto(Guid id, string name, decimal price, decimal? oldPrice, bool isDiscounted, string? _, string? __)
+        : this(id, name, price, oldPrice, isDiscounted)
+    {
+    }
+
+    public Guid Id { get; init; }
+    public string Name { get; init; }
+    public decimal Price { get; init; }
+    public decimal? OldPrice { get; init; }
+    public bool IsDiscounted { get; init; }
+}
+
+public sealed record CartAvailableVendorDto
+{
+    public CartAvailableVendorDto(Guid id, string name, string? logoUrl, int productsCount)
+    {
+        Id = id;
+        Name = name;
+        LogoUrl = logoUrl;
+        ProductsCount = productsCount;
+    }
+
+    public CartAvailableVendorDto(Guid id, string name, string? logoUrl, int productsCount, string? _, string? __)
+        : this(id, name, logoUrl, productsCount)
+    {
+    }
+
+    public Guid Id { get; init; }
+    public string Name { get; init; }
+    public string? LogoUrl { get; init; }
+    public int ProductsCount { get; init; }
+}
 
 public record CartAvailableVendorsDto(
     List<CartAvailableVendorDto> Vendors);
 
-public record CartItemDto(
-    Guid Id,
-    Guid ProductId,
-    string Name,
-    string? ImageUrl,
-    string? Unit,
-    int Quantity,
-    List<CartVendorPriceDto> VendorPrices,
-    bool IsAvailable = true,
-    string? AvailabilityStatus = null);
+public sealed record CartItemDto
+{
+    public CartItemDto(
+        Guid id,
+        Guid productId,
+        string name,
+        string? imageUrl,
+        string? unit,
+        int quantity,
+        List<CartVendorPriceDto> vendorPrices,
+        bool isAvailable = true,
+        string? availabilityStatus = null)
+    {
+        Id = id;
+        ProductId = productId;
+        Name = name;
+        ImageUrl = imageUrl;
+        Unit = unit;
+        Quantity = quantity;
+        VendorPrices = vendorPrices;
+        IsAvailable = isAvailable;
+        AvailabilityStatus = availabilityStatus;
+    }
+
+    public CartItemDto(
+        Guid id,
+        Guid productId,
+        string name,
+        string? imageUrl,
+        string? unit,
+        int quantity,
+        List<CartVendorPriceDto> vendorPrices,
+        bool isAvailable,
+        string? availabilityStatus,
+        string? _,
+        string? __,
+        string? ___,
+        string? ____)
+        : this(id, productId, name, imageUrl, unit, quantity, vendorPrices, isAvailable, availabilityStatus)
+    {
+    }
+
+    public Guid Id { get; init; }
+    public Guid ProductId { get; init; }
+    public string Name { get; init; }
+    public string? ImageUrl { get; init; }
+    public string? Unit { get; init; }
+    public int Quantity { get; init; }
+    public List<CartVendorPriceDto> VendorPrices { get; init; }
+    public bool IsAvailable { get; init; }
+    public string? AvailabilityStatus { get; init; }
+}
 
 public record CartSummaryDto(
     int ItemsCount,
@@ -43,17 +118,68 @@ public record CartDto(
     List<CartItemDto> Items,
     CartSummaryDto Summary);
 
-public record CartItemMutationResponseDto(
-    string MessageAr,
-    string MessageEn,
-    CartItemDto Item,
-    CartSummaryDto Summary);
+public sealed record CartItemMutationResponseDto
+{
+    public CartItemMutationResponseDto(string message, CartItemDto item, CartSummaryDto summary)
+    {
+        Message = message;
+        Item = item;
+        Summary = summary;
+    }
 
-public record CartItemRemovalResponseDto(
-    string MessageAr,
-    string MessageEn,
-    CartSummaryDto Summary);
+    public CartItemMutationResponseDto(string messageAr, string messageEn, CartItemDto item, CartSummaryDto summary)
+        : this(Localize(messageAr, messageEn), item, summary)
+    {
+    }
 
-public record CartClearResponseDto(
-    string MessageAr,
-    string MessageEn);
+    public string Message { get; init; }
+    public CartItemDto Item { get; init; }
+    public CartSummaryDto Summary { get; init; }
+
+    private static string Localize(string arabic, string english) =>
+        CultureInfo.CurrentUICulture.TwoLetterISOLanguageName.Equals("ar", StringComparison.OrdinalIgnoreCase)
+            ? arabic
+            : english;
+}
+
+public sealed record CartItemRemovalResponseDto
+{
+    public CartItemRemovalResponseDto(string message, CartSummaryDto summary)
+    {
+        Message = message;
+        Summary = summary;
+    }
+
+    public CartItemRemovalResponseDto(string messageAr, string messageEn, CartSummaryDto summary)
+        : this(Localize(messageAr, messageEn), summary)
+    {
+    }
+
+    public string Message { get; init; }
+    public CartSummaryDto Summary { get; init; }
+
+    private static string Localize(string arabic, string english) =>
+        CultureInfo.CurrentUICulture.TwoLetterISOLanguageName.Equals("ar", StringComparison.OrdinalIgnoreCase)
+            ? arabic
+            : english;
+}
+
+public sealed record CartClearResponseDto
+{
+    public CartClearResponseDto(string message)
+    {
+        Message = message;
+    }
+
+    public CartClearResponseDto(string messageAr, string messageEn)
+        : this(Localize(messageAr, messageEn))
+    {
+    }
+
+    public string Message { get; init; }
+
+    private static string Localize(string arabic, string english) =>
+        CultureInfo.CurrentUICulture.TwoLetterISOLanguageName.Equals("ar", StringComparison.OrdinalIgnoreCase)
+            ? arabic
+            : english;
+}

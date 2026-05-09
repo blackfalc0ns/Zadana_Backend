@@ -1326,58 +1326,132 @@ public class ApplicationDbContextInitialiser
 
     private async Task SeedHomeBannersAsync()
     {
-        if (await _context.HomeBanners.AnyAsync())
+        var now = DateTime.UtcNow;
+        var seeds = new List<HomeBannerSeed>
         {
+            new(
+                TagAr: "عروض اليوم",
+                TagEn: "Today's deals",
+                TitleAr: "خصومات قوية على منتجاتك اليومية",
+                TitleEn: "Strong discounts on your daily essentials",
+                ImageUrl: ImageCatalog.BannerDeals,
+                SubtitleAr: "توصيل سريع وأسعار أفضل من المعتاد",
+                SubtitleEn: "Fast delivery and better-than-usual prices",
+                ActionLabelAr: "تسوق الآن",
+                ActionLabelEn: "Shop now",
+                DisplayOrder: 1,
+                StartsAtUtc: now.AddDays(-7),
+                EndsAtUtc: now.AddMonths(2)),
+            new(
+                TagAr: "منتجات مميزة",
+                TagEn: "Featured picks",
+                TitleAr: "اختيارات موصى بها من أفضل المتاجر",
+                TitleEn: "Recommended picks from top stores",
+                ImageUrl: ImageCatalog.BannerStores,
+                SubtitleAr: "تشكيلة منتقاة بعناية لتسهيل قرار الشراء",
+                SubtitleEn: "A curated selection to make buying easier",
+                ActionLabelAr: "اكتشف المزيد",
+                ActionLabelEn: "Explore more",
+                DisplayOrder: 2,
+                StartsAtUtc: now.AddDays(-3),
+                EndsAtUtc: now.AddMonths(1)),
+            new(
+                TagAr: "الأكثر مبيعاً",
+                TagEn: "Best sellers",
+                TitleAr: "الأصناف الأكثر طلباً هذا الأسبوع",
+                TitleEn: "The most ordered items this week",
+                ImageUrl: ImageCatalog.BannerBestSelling,
+                SubtitleAr: "منتجات يحبها العملاء ويكررون طلبها",
+                SubtitleEn: "Products customers love and reorder",
+                ActionLabelAr: "شاهد القائمة",
+                ActionLabelEn: "See list",
+                DisplayOrder: 3,
+                StartsAtUtc: now.AddDays(-1),
+                EndsAtUtc: now.AddMonths(1))
+        };
+
+        var existingBanners = await _context.HomeBanners.ToListAsync();
+        if (existingBanners.Count == 0)
+        {
+            await _context.HomeBanners.AddRangeAsync(seeds.Select(CreateHomeBanner));
+            await _context.SaveChangesAsync();
             return;
         }
 
-        var now = DateTime.UtcNow;
-        var banners = new List<HomeBanner>
+        var changed = false;
+        foreach (var seed in seeds)
         {
-            new(
-                tagAr: "عروض اليوم",
-                tagEn: "Today's deals",
-                titleAr: "خصومات قوية على منتجاتك اليومية",
-                titleEn: "Strong discounts on your daily essentials",
-                imageUrl: ImageCatalog.BannerDeals,
-                subtitleAr: "توصيل سريع وأسعار أفضل من المعتاد",
-                subtitleEn: "Fast delivery and better-than-usual prices",
-                actionLabelAr: "تسوق الآن",
-                actionLabelEn: "Shop now",
-                displayOrder: 1,
-                startsAtUtc: now.AddDays(-7),
-                endsAtUtc: now.AddMonths(2)),
-            new(
-                tagAr: "منتجات مميزة",
-                tagEn: "Featured picks",
-                titleAr: "اختيارات موصى بها من أفضل المتاجر",
-                titleEn: "Recommended picks from top stores",
-                imageUrl: ImageCatalog.BannerStores,
-                subtitleAr: "تشكيلة منتقاة بعناية لتسهيل قرار الشراء",
-                subtitleEn: "A curated selection to make buying easier",
-                actionLabelAr: "اكتشف المزيد",
-                actionLabelEn: "Explore more",
-                displayOrder: 2,
-                startsAtUtc: now.AddDays(-3),
-                endsAtUtc: now.AddMonths(1)),
-            new(
-                tagAr: "الأكثر مبيعاً",
-                tagEn: "Best sellers",
-                titleAr: "الأصناف الأكثر طلباً هذا الأسبوع",
-                titleEn: "The most ordered items this week",
-                imageUrl: ImageCatalog.BannerBestSelling,
-                subtitleAr: "منتجات يحبها العملاء ويكررون طلبها",
-                subtitleEn: "Products customers love and reorder",
-                actionLabelAr: "شاهد القائمة",
-                actionLabelEn: "See list",
-                displayOrder: 3,
-                startsAtUtc: now.AddDays(-1),
-                endsAtUtc: now.AddMonths(1))
-        };
+            var existing = existingBanners.FirstOrDefault(banner =>
+                banner.ImageUrl == seed.ImageUrl ||
+                banner.TitleEn == seed.TitleEn);
 
-        await _context.HomeBanners.AddRangeAsync(banners);
-        await _context.SaveChangesAsync();
+            if (existing is null || !NeedsArabicSeedRepair(existing, seed))
+            {
+                continue;
+            }
+
+            existing.UpdateContent(
+                RepairArabicSeedText(existing.TagAr, seed.TagAr),
+                existing.TagEn,
+                RepairArabicSeedText(existing.TitleAr, seed.TitleAr),
+                existing.TitleEn,
+                existing.ImageUrl,
+                RepairArabicSeedTextOrNull(existing.SubtitleAr, seed.SubtitleAr),
+                existing.SubtitleEn,
+                RepairArabicSeedTextOrNull(existing.ActionLabelAr, seed.ActionLabelAr),
+                existing.ActionLabelEn,
+                existing.DisplayOrder,
+                existing.StartsAtUtc,
+                existing.EndsAtUtc);
+            changed = true;
+        }
+
+        if (changed)
+        {
+            await _context.SaveChangesAsync();
+        }
     }
+
+    private static HomeBanner CreateHomeBanner(HomeBannerSeed seed) =>
+        new(
+            seed.TagAr,
+            seed.TagEn,
+            seed.TitleAr,
+            seed.TitleEn,
+            seed.ImageUrl,
+            seed.SubtitleAr,
+            seed.SubtitleEn,
+            seed.ActionLabelAr,
+            seed.ActionLabelEn,
+            seed.DisplayOrder,
+            seed.StartsAtUtc,
+            seed.EndsAtUtc);
+
+    private static bool NeedsArabicSeedRepair(HomeBanner banner, HomeBannerSeed seed) =>
+        !ContainsArabicLetter(banner.TagAr) ||
+        !ContainsArabicLetter(banner.TitleAr) ||
+        NeedsArabicSeedRepair(banner.SubtitleAr, seed.SubtitleAr) ||
+        NeedsArabicSeedRepair(banner.ActionLabelAr, seed.ActionLabelAr);
+
+    private static bool NeedsArabicSeedRepair(string? current, string? seed) =>
+        !string.IsNullOrWhiteSpace(seed) && !ContainsArabicLetter(current);
+
+    private static string RepairArabicSeedText(string current, string seed) =>
+        ContainsArabicLetter(current) ? current.Trim() : seed;
+
+    private static string? RepairArabicSeedTextOrNull(string? current, string? seed) =>
+        string.IsNullOrWhiteSpace(seed)
+            ? current?.Trim()
+            : ContainsArabicLetter(current) ? current?.Trim() : seed;
+
+    private static bool ContainsArabicLetter(string? value) =>
+        !string.IsNullOrWhiteSpace(value) &&
+        value.Any(character =>
+            character is >= '\u0600' and <= '\u06FF' ||
+            character is >= '\u0750' and <= '\u077F' ||
+            character is >= '\u08A0' and <= '\u08FF' ||
+            character is >= '\uFB50' and <= '\uFDFF' ||
+            character is >= '\uFE70' and <= '\uFEFF');
 
     private async Task SeedVendorProductsAsync()
     {
@@ -2363,6 +2437,20 @@ internal sealed record VendorProductSeed(
     decimal SellingPrice,
     int Quantity,
     decimal? CompareAtPrice);
+
+internal sealed record HomeBannerSeed(
+    string TagAr,
+    string TagEn,
+    string TitleAr,
+    string TitleEn,
+    string ImageUrl,
+    string? SubtitleAr,
+    string? SubtitleEn,
+    string? ActionLabelAr,
+    string? ActionLabelEn,
+    int DisplayOrder,
+    DateTime? StartsAtUtc,
+    DateTime? EndsAtUtc);
 
 internal static class ImageCatalog
 {

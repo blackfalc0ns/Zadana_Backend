@@ -52,9 +52,7 @@ public class GetCustomerBrandsQueryHandler : IRequestHandler<GetCustomerBrandsQu
                         BrandCatalogQueryHelpers.PickLocalized(brand.NameAr, brand.NameEn),
                         brand.LogoUrl,
                         brand.CoverImageUrl,
-                        brand.ProductCount,
-                        NormalizeText(brand.NameAr),
-                        NormalizeText(brand.NameEn)))
+                        brand.ProductCount))
                     .OrderByDescending(brand => brand.ProductCount)
                     .ThenBy(brand => brand.Name, StringComparer.CurrentCultureIgnoreCase)
                     .ToList();
@@ -64,6 +62,4 @@ public class GetCustomerBrandsQueryHandler : IRequestHandler<GetCustomerBrandsQu
             cancellationToken);
     }
 
-    private static string? NormalizeText(string? value) =>
-        string.IsNullOrWhiteSpace(value) ? null : value.Trim();
 }

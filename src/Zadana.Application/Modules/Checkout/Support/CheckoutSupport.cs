@@ -1,4 +1,5 @@
 using Microsoft.EntityFrameworkCore;
+using System.Globalization;
 using Zadana.Application.Common.Interfaces;
 using Zadana.Application.Modules.Checkout.DTOs;
 using Zadana.Application.Modules.Delivery.Interfaces;
@@ -447,14 +448,24 @@ internal static class CheckoutSupport
         return branchIds.Count == 1 ? branchIds[0] : null;
     }
 
-    private static string PickLocalized(string? arabic, string? english) =>
-        !string.IsNullOrWhiteSpace(arabic) ? arabic.Trim() : english?.Trim() ?? string.Empty;
+    private static bool IsArabic() =>
+        CultureInfo.CurrentUICulture.TwoLetterISOLanguageName.Equals("ar", StringComparison.OrdinalIgnoreCase);
+
+    private static string PickLocalized(string? arabic, string? english)
+    {
+        var preferred = IsArabic() ? arabic : english;
+        var fallback = IsArabic() ? english : arabic;
+        return preferred?.Trim() ?? fallback?.Trim() ?? string.Empty;
+    }
 
     private static string? PickLocalizedNullable(string? arabic, string? english)
     {
         var value = PickLocalized(arabic, english);
         return string.IsNullOrWhiteSpace(value) ? null : value;
     }
+
+    private static string? NormalizeText(string? value) =>
+        string.IsNullOrWhiteSpace(value) ? null : value.Trim();
 
     private static decimal CalculateCodFee(ZoneFinanceSettingsSnapshot settings, decimal taxableBase)
     {

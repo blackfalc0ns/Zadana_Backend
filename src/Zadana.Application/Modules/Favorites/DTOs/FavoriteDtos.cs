@@ -54,10 +54,16 @@ internal sealed record FavoriteOfferRow(
 internal sealed record FavoriteItemSource(
     Guid MasterProductId,
     DateTime CreatedAtUtc,
+    string? NameAr,
+    string? NameEn,
     string Name,
+    string? StoreAr,
+    string? StoreEn,
     string Store,
     decimal SellingPrice,
     decimal? CompareAtPrice,
+    string? UnitAr,
+    string? UnitEn,
     string? Unit,
     string? ImageUrl,
     decimal? Rating,
@@ -115,4 +121,7 @@ internal static class FavoriteProjectionMapper
 
     private static bool IsArabic() =>
         CultureInfo.CurrentUICulture.TwoLetterISOLanguageName.Equals("ar", StringComparison.OrdinalIgnoreCase);
+
+    public static string? NormalizeText(string? value) =>
+        string.IsNullOrWhiteSpace(value) ? null : value.Trim();
 }

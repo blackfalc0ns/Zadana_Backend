@@ -7,6 +7,4 @@ public record BrandCustomerDto(
     [property: JsonPropertyName("name")] string Name,
     [property: JsonPropertyName("logo")] string? Logo,
     [property: JsonPropertyName("cover_image_url")] string? CoverImageUrl,
-    [property: JsonPropertyName("product_count")] int ProductCount,
-    [property: JsonPropertyName("name_ar")] string? NameAr = null,
-    [property: JsonPropertyName("name_en")] string? NameEn = null);
+    [property: JsonPropertyName("product_count")] int ProductCount);

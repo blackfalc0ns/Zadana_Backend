@@ -1,5 +1,6 @@
 using Microsoft.AspNetCore.Authorization;
 using Microsoft.AspNetCore.Mvc;
+using System.Globalization;
 using Zadana.Api.Controllers;
 using Zadana.Api.Modules.Orders.Requests;
 using Zadana.Application.Common.Interfaces;
@@ -95,8 +96,7 @@ public class OrdersController : ApiControllerBase
         var reasons = CustomerOrderCancellationReasonCatalog.GetAll()
             .Select(item => new CustomerOrderCancellationReasonResponse(
                 item.Code,
-                item.LabelAr,
-                item.LabelEn,
+                PickLocalized(item.LabelAr, item.LabelEn),
                 item.RequiresNote))
             .ToList();
 
@@ -109,8 +109,7 @@ public class OrdersController : ApiControllerBase
         var reasons = OrderSupportCaseReasonCatalog.GetReasonsByType(type)
             .Select(item => new CustomerOrderSupportReasonResponse(
                 item.Code,
-                item.LabelAr,
-                item.LabelEn,
+                PickLocalized(item.LabelAr, item.LabelEn),
                 item.RequiresNote))
             .ToList();
 
@@ -558,4 +557,9 @@ public class OrdersController : ApiControllerBase
         var deviceId = Request.Headers[DeviceIdHeader].ToString();
         return string.IsNullOrWhiteSpace(deviceId) ? null : deviceId.Trim();
     }
+
+    private static string PickLocalized(string arabic, string english) =>
+        CultureInfo.CurrentUICulture.TwoLetterISOLanguageName.Equals("ar", StringComparison.OrdinalIgnoreCase)
+            ? arabic
+            : english;
 }

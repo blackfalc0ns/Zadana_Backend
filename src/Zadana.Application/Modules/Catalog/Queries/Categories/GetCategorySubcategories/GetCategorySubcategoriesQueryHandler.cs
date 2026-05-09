@@ -74,9 +74,7 @@ public class GetCategorySubcategoriesQueryHandler : IRequestHandler<GetCategoryS
                     .Select(c => new CategoryListItemDto(
                         c.Id,
                         PickLocalized(c.NameAr, c.NameEn),
-                        c.ImageUrl,
-                        NormalizeText(c.NameAr),
-                        NormalizeText(c.NameEn)))
+                        c.ImageUrl))
                     .ToList();
             },
             new AppCacheEntryOptions(_durations.PublicCatalogMetadata),
@@ -95,9 +93,6 @@ public class GetCategorySubcategoriesQueryHandler : IRequestHandler<GetCategoryS
             ?? fallback?.Trim()
             ?? string.Empty;
     }
-
-    private static string? NormalizeText(string? value) =>
-        string.IsNullOrWhiteSpace(value) ? null : value.Trim();
 
     private sealed record RawCategoryListItem(
         Guid Id,

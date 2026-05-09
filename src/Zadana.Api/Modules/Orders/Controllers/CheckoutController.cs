@@ -64,7 +64,7 @@ public class CheckoutController : ApiControllerBase
             new GetCheckoutSummaryQuery(userId, resolvedVendorId, null, null, resolvedPaymentMethod),
             cancellationToken);
 
-        return Ok(MapApplyPromoCodeResponse(result.MessageAr, result.MessageEn, checkout));
+        return Ok(MapApplyPromoCodeResponse(result.Message, checkout));
     }
 
     [HttpDelete("promo-code")]
@@ -81,7 +81,7 @@ public class CheckoutController : ApiControllerBase
             new GetCheckoutSummaryQuery(userId, resolvedVendorId, null, null, resolvedPaymentMethod),
             cancellationToken);
 
-        return Ok(MapRemovePromoCodeResponse(result.MessageAr, result.MessageEn, checkout));
+        return Ok(MapRemovePromoCodeResponse(result.Message, checkout));
     }
 
     private static GetCheckoutSummaryResponse MapSummary(CheckoutSummaryDto result)
@@ -114,18 +114,15 @@ public class CheckoutController : ApiControllerBase
                 addr.IsDefault)).ToList(),
             result.DeliverySlots.Select(slot => new CheckoutDeliverySlotResponse(
                 slot.Id,
-                slot.LabelAr,
-                slot.LabelEn,
+                slot.Label,
                 slot.StartAt,
                 slot.EndAt,
                 slot.IsAvailable,
                 slot.IsSelected)).ToList(),
             result.PaymentMethods.Select(method => new CheckoutPaymentMethodResponse(
                 method.Code,
-                method.LabelAr,
-                method.LabelEn,
-                method.DescriptionAr,
-                method.DescriptionEn,
+                method.Label,
+                method.Description,
                 method.IsAvailable,
                 method.IsDefault)).ToList(),
             result.PromoCode == null
@@ -145,8 +142,7 @@ public class CheckoutController : ApiControllerBase
                 result.DeliveryQuote.RuleLabel),
             result.ShippingBreakdown.Select(item => new CheckoutShippingBreakdownLineResponse(
                 item.Code,
-                item.LabelAr,
-                item.LabelEn,
+                item.Label,
                 item.Amount)).ToList(),
             result.PricingMode,
             new CheckoutSummaryTotalsResponse(
@@ -160,15 +156,13 @@ public class CheckoutController : ApiControllerBase
     }
 
     private static ApplyCheckoutPromoCodeResponse MapApplyPromoCodeResponse(
-        string messageAr,
-        string messageEn,
+        string message,
         CheckoutSummaryDto result)
     {
         var summary = MapSummary(result);
 
         return new ApplyCheckoutPromoCodeResponse(
-            messageAr,
-            messageEn,
+            message,
             summary.Cart,
             summary.AddressId,
             summary.SelectedAddress,
@@ -183,15 +177,13 @@ public class CheckoutController : ApiControllerBase
     }
 
     private static RemoveCheckoutPromoCodeResponse MapRemovePromoCodeResponse(
-        string messageAr,
-        string messageEn,
+        string message,
         CheckoutSummaryDto result)
     {
         var summary = MapSummary(result);
 
         return new RemoveCheckoutPromoCodeResponse(
-            messageAr,
-            messageEn,
+            message,
             summary.Cart,
             summary.AddressId,
             summary.SelectedAddress,
@@ -250,8 +242,7 @@ public class CheckoutController : ApiControllerBase
     internal static PlaceOrderResponse MapPlacedOrder(PlaceCheckoutOrderResultDto result)
     {
         return new PlaceOrderResponse(
-            result.MessageAr,
-            result.MessageEn,
+            result.Message,
             new PlacedOrderSummaryResponse(
                 result.Order.Id,
                 result.Order.CreatedAt,

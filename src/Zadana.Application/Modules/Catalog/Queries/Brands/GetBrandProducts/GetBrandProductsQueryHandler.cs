@@ -231,13 +231,7 @@ public class GetBrandProductsQueryHandler : IRequestHandler<GetBrandProductsQuer
             FormatDiscount(product),
             isFavorite,
             product.Unit,
-            isDiscounted,
-            product.NameAr,
-            product.NameEn,
-            product.StoreAr,
-            product.StoreEn,
-            product.UnitAr,
-            product.UnitEn);
+            isDiscounted);
     }
 
     private static string? NormalizeText(string? value) =>

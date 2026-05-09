@@ -18,6 +18,7 @@ namespace Zadana.Infrastructure.Modules.Home.Services;
 
 public class HomeReadService : IHomeReadService
 {
+    private const string HomePayloadVersion = "v3";
     private const int DefaultBannerTake = 5;
     private const int DefaultCategoryTake = 8;
     private const int DefaultBrandTake = 10;
@@ -97,14 +98,14 @@ public class HomeReadService : IHomeReadService
         var sections = IsSectionEnabled(sectionSettings, HomeContentSectionType.DynamicSections)
             ? await GetDynamicSectionsInternalAsync(catalog, cancellationToken)
             : [];
-        var bannersSection = CreateSection("banners", "Banners", IsSectionEnabled(sectionSettings, HomeContentSectionType.Banners), banners);
-        var categoriesSection = CreateSection("categories", "Categories", IsSectionEnabled(sectionSettings, HomeContentSectionType.Categories), categories);
-        var specialOffersSection = CreateSection("special_offers", "Special Offers", IsSectionEnabled(sectionSettings, HomeContentSectionType.SpecialOffers), specialOffers);
-        var recommendedSection = CreateSection("recommended", "Recommended", IsSectionEnabled(sectionSettings, HomeContentSectionType.Recommended), recommended);
-        var bestSellingSection = CreateSection("best_selling", "Best Selling", IsSectionEnabled(sectionSettings, HomeContentSectionType.BestSelling), bestSelling);
-        var brandsSection = CreateSection("brands", "Brands", IsSectionEnabled(sectionSettings, HomeContentSectionType.Brands), brands);
-        var featuredProductsSection = CreateSection("featured_products", "Featured Products", IsSectionEnabled(sectionSettings, HomeContentSectionType.FeaturedProducts), featuredProducts);
-        var exploreMoreSection = CreateSection("explore_more", "Explore More", IsSectionEnabled(sectionSettings, HomeContentSectionType.ExploreMore), exploreMore);
+        var bannersSection = CreateSection("banners", "لافتات", "Banners", IsSectionEnabled(sectionSettings, HomeContentSectionType.Banners), banners);
+        var categoriesSection = CreateSection("categories", "التصنيفات", "Categories", IsSectionEnabled(sectionSettings, HomeContentSectionType.Categories), categories);
+        var specialOffersSection = CreateSection("special_offers", "العروض الخاصة", "Special Offers", IsSectionEnabled(sectionSettings, HomeContentSectionType.SpecialOffers), specialOffers);
+        var recommendedSection = CreateSection("recommended", "موصى به", "Recommended", IsSectionEnabled(sectionSettings, HomeContentSectionType.Recommended), recommended);
+        var bestSellingSection = CreateSection("best_selling", "الأكثر مبيعًا", "Best Selling", IsSectionEnabled(sectionSettings, HomeContentSectionType.BestSelling), bestSelling);
+        var brandsSection = CreateSection("brands", "العلامات التجارية", "Brands", IsSectionEnabled(sectionSettings, HomeContentSectionType.Brands), brands);
+        var featuredProductsSection = CreateSection("featured_products", "منتجات مميزة", "Featured Products", IsSectionEnabled(sectionSettings, HomeContentSectionType.FeaturedProducts), featuredProducts);
+        var exploreMoreSection = CreateSection("explore_more", "اكتشف المزيد", "Explore More", IsSectionEnabled(sectionSettings, HomeContentSectionType.ExploreMore), exploreMore);
 
         return new HomeContentDto(
             header.DeliverToLabel,
@@ -125,25 +126,26 @@ public class HomeReadService : IHomeReadService
     public async Task<HomeListSectionDto<HomeBannerDto>> GetBannersAsync(int take, CancellationToken cancellationToken = default)
     {
         var items = await GetBannersOrEmptyAsync(NormalizeTake(take, DefaultBannerTake), cancellationToken);
-        return CreateSection("banners", "Banners", await IsSectionEnabledAsync(HomeContentSectionType.Banners, cancellationToken), items);
+        return CreateSection("banners", "لافتات", "Banners", await IsSectionEnabledAsync(HomeContentSectionType.Banners, cancellationToken), items);
     }
 
     public async Task<HomeListSectionDto<HomeCategoryDto>> GetCategoriesAsync(int take, CancellationToken cancellationToken = default)
     {
         var items = await GetCategoriesOrEmptyAsync(NormalizeTake(take, DefaultCategoryTake), cancellationToken);
-        return CreateSection("categories", "Categories", await IsSectionEnabledAsync(HomeContentSectionType.Categories, cancellationToken), items);
+        return CreateSection("categories", "التصنيفات", "Categories", await IsSectionEnabledAsync(HomeContentSectionType.Categories, cancellationToken), items);
     }
 
     public async Task<HomeListSectionDto<HomeProductCardDto>> GetSpecialOffersAsync(int take, CancellationToken cancellationToken = default)
     {
         if (!await IsSectionEnabledAsync(HomeContentSectionType.SpecialOffers, cancellationToken))
         {
-            return CreateSection("special_offers", "Special Offers", false, Array.Empty<HomeProductCardDto>());
+            return CreateSection("special_offers", "العروض الخاصة", "Special Offers", false, Array.Empty<HomeProductCardDto>());
         }
 
         var catalog = await BuildProductCatalogAsync(cancellationToken);
         return CreateSection(
             "special_offers",
+            "العروض الخاصة",
             "Special Offers",
             true,
             SelectSpecialOffers(catalog, NormalizeTake(take, DefaultProductTake)));
@@ -153,12 +155,13 @@ public class HomeReadService : IHomeReadService
     {
         if (!await IsSectionEnabledAsync(HomeContentSectionType.Recommended, cancellationToken))
         {
-            return CreateSection("recommended", "Recommended", false, Array.Empty<HomeProductCardDto>());
+            return CreateSection("recommended", "موصى به", "Recommended", false, Array.Empty<HomeProductCardDto>());
         }
 
         var catalog = await BuildProductCatalogAsync(cancellationToken);
         return CreateSection(
             "recommended",
+            "موصى به",
             "Recommended",
             true,
             await SelectRecommendedAsync(catalog, NormalizeTake(take, DefaultProductTake), cancellationToken));
@@ -168,12 +171,13 @@ public class HomeReadService : IHomeReadService
     {
         if (!await IsSectionEnabledAsync(HomeContentSectionType.BestSelling, cancellationToken))
         {
-            return CreateSection("best_selling", "Best Selling", false, Array.Empty<HomeProductCardDto>());
+            return CreateSection("best_selling", "الأكثر مبيعًا", "Best Selling", false, Array.Empty<HomeProductCardDto>());
         }
 
         var catalog = await BuildProductCatalogAsync(cancellationToken);
         return CreateSection(
             "best_selling",
+            "الأكثر مبيعًا",
             "Best Selling",
             true,
             SelectBestSelling(catalog, NormalizeTake(take, DefaultProductTake)));
@@ -183,11 +187,12 @@ public class HomeReadService : IHomeReadService
     {
         if (!await IsSectionEnabledAsync(HomeContentSectionType.Brands, cancellationToken))
         {
-            return CreateSection("brands", "Brands", false, Array.Empty<HomeBrandCardDto>());
+            return CreateSection("brands", "العلامات التجارية", "Brands", false, Array.Empty<HomeBrandCardDto>());
         }
 
         return CreateSection(
             "brands",
+            "العلامات التجارية",
             "Brands",
             true,
             await GetBrandsInternalAsync(NormalizeTake(take, DefaultBrandTake), cancellationToken));
@@ -197,12 +202,13 @@ public class HomeReadService : IHomeReadService
     {
         if (!await IsSectionEnabledAsync(HomeContentSectionType.FeaturedProducts, cancellationToken))
         {
-            return CreateSection("featured_products", "Featured Products", false, Array.Empty<HomeProductCardDto>());
+            return CreateSection("featured_products", "منتجات مميزة", "Featured Products", false, Array.Empty<HomeProductCardDto>());
         }
 
         var catalog = await BuildProductCatalogAsync(cancellationToken);
         return CreateSection(
             "featured_products",
+            "منتجات مميزة",
             "Featured Products",
             true,
             await GetFeaturedProductsInternalAsync(catalog, NormalizeTake(take, DefaultProductTake), cancellationToken));
@@ -212,12 +218,13 @@ public class HomeReadService : IHomeReadService
     {
         if (!await IsSectionEnabledAsync(HomeContentSectionType.ExploreMore, cancellationToken))
         {
-            return CreateSection("explore_more", "Explore More", false, Array.Empty<HomeProductCardDto>());
+            return CreateSection("explore_more", "اكتشف المزيد", "Explore More", false, Array.Empty<HomeProductCardDto>());
         }
 
         var catalog = await BuildProductCatalogAsync(cancellationToken);
         return CreateSection(
             "explore_more",
+            "اكتشف المزيد",
             "Explore More",
             true,
             SelectExploreMore(catalog, NormalizeTake(take, DefaultProductTake), null));
@@ -288,7 +295,7 @@ public class HomeReadService : IHomeReadService
 
     private async Task<IReadOnlyList<HomeBannerDto>> GetBannersInternalAsync(int take, CancellationToken cancellationToken)
     {
-        var key = AppCacheKeys.Build("home", "banners", "v1", AppCacheKeys.CurrentCulture, AppCacheKeys.IntToken(take));
+        var key = AppCacheKeys.Build("home", "banners", HomePayloadVersion, AppCacheKeys.CurrentCulture, AppCacheKeys.IntToken(take));
         return await _cache.GetOrCreateAsync(
             key,
             async token =>
@@ -340,7 +347,7 @@ public class HomeReadService : IHomeReadService
 
     private async Task<IReadOnlyList<HomeCategoryDto>> GetCategoriesInternalAsync(int take, CancellationToken cancellationToken)
     {
-        var key = AppCacheKeys.Build("home", "categories", "v1", AppCacheKeys.CurrentCulture, AppCacheKeys.IntToken(take));
+        var key = AppCacheKeys.Build("home", "categories", HomePayloadVersion, AppCacheKeys.CurrentCulture, AppCacheKeys.IntToken(take));
         return await _cache.GetOrCreateAsync(
             key,
             async token =>
@@ -387,7 +394,7 @@ public class HomeReadService : IHomeReadService
         var reviewStatsByVendorId = await _catalogReadCacheService.GetVendorReviewStatsByVendorIdAsync(cancellationToken);
         var favoritedMasterProductIds = await _catalogReadCacheService.GetCurrentFavoriteMasterProductIdsAsync(cancellationToken);
         var rawProducts = await _cache.GetOrCreateAsync(
-            AppCacheKeys.Build("home", "catalog", "v1", AppCacheKeys.CurrentCulture),
+            AppCacheKeys.Build("home", "catalog", HomePayloadVersion, AppCacheKeys.CurrentCulture),
             async token =>
             {
                 try
@@ -456,10 +463,16 @@ public class HomeReadService : IHomeReadService
                     x.CategoryId,
                     x.BrandId,
                     x.BrandIsActive,
+                    NormalizeText(x.NameAr),
+                    NormalizeText(x.NameEn),
                     PickLocalized(x.NameAr, x.NameEn),
+                    NormalizeText(x.StoreAr),
+                    NormalizeText(x.StoreEn),
                     PickLocalized(x.StoreAr, x.StoreEn),
                     x.SellingPrice,
                     x.CompareAtPrice,
+                    NormalizeText(x.UnitAr),
+                    NormalizeText(x.UnitEn),
                     PickLocalizedNullable(x.UnitAr, x.UnitEn),
                     x.ImageUrl,
                     salesCount,
@@ -659,7 +672,7 @@ public class HomeReadService : IHomeReadService
 
     private async Task<IReadOnlyList<HomeBrandCardDto>> GetBrandsInternalAsync(int take, CancellationToken cancellationToken)
     {
-        var key = AppCacheKeys.Build("home", "brands", "v1", AppCacheKeys.CurrentCulture, AppCacheKeys.IntToken(take));
+        var key = AppCacheKeys.Build("home", "brands", HomePayloadVersion, AppCacheKeys.CurrentCulture, AppCacheKeys.IntToken(take));
         return await _cache.GetOrCreateAsync(
             key,
             async token =>
@@ -738,7 +751,7 @@ public class HomeReadService : IHomeReadService
     {
         var products = catalog.Products;
         var sections = await _cache.GetOrCreateAsync(
-            AppCacheKeys.Build("home", "dynamic-sections", "v1", AppCacheKeys.CurrentCulture),
+            AppCacheKeys.Build("home", "dynamic-sections", HomePayloadVersion, AppCacheKeys.CurrentCulture),
             async token =>
             {
                 var now = DateTime.UtcNow;
@@ -798,15 +811,16 @@ public class HomeReadService : IHomeReadService
             .ToList();
     }
 
-    private static HomeListSectionDto<TItem> CreateSection<TItem>(
+    private HomeListSectionDto<TItem> CreateSection<TItem>(
         string key,
-        string title,
+        string titleAr,
+        string titleEn,
         bool isActive,
         IReadOnlyList<TItem> items,
         string? theme = null) =>
         new(
             key,
-            title,
+            PickLocalized(titleAr, titleEn),
             isActive,
             theme,
             items.Count,
@@ -947,6 +961,9 @@ public class HomeReadService : IHomeReadService
         return string.IsNullOrWhiteSpace(value) ? null : value;
     }
 
+    private static string? NormalizeText(string? value) =>
+        string.IsNullOrWhiteSpace(value) ? null : value.Trim();
+
     private string LocalizeAddressLabel(AddressLabel? label)
     {
         if (!label.HasValue)
@@ -1019,10 +1036,16 @@ public class HomeReadService : IHomeReadService
         Guid CategoryId,
         Guid? BrandId,
         bool BrandIsActive,
+        string? NameAr,
+        string? NameEn,
         string Name,
+        string? StoreAr,
+        string? StoreEn,
         string Store,
         decimal SellingPrice,
         decimal? CompareAtPrice,
+        string? UnitAr,
+        string? UnitEn,
         string? Unit,
         string ImageUrl,
         int SalesCount,

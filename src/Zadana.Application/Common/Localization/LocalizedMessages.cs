@@ -4,8 +4,7 @@ using System.Resources;
 namespace Zadana.Application.Common.Localization;
 
 /// <summary>
-/// Provides bilingual (Arabic + English) message resolution from SharedResource .resx files.
-/// Used for success/action messages that need both languages simultaneously in the API response.
+/// Provides localized message resolution from SharedResource .resx files.
 /// </summary>
 public static class LocalizedMessages
 {
@@ -29,8 +28,18 @@ public static class LocalizedMessages
         ResourceManager.GetString(key, EnCulture) ?? key;
 
     /// <summary>
-    /// Gets both Arabic and English translations as a tuple.
+    /// Gets the translation that matches the current request culture.
     /// </summary>
+    public static string GetCurrent(string key) =>
+        ResourceManager.GetString(
+            key,
+            CultureInfo.CurrentUICulture.TwoLetterISOLanguageName.Equals("ar", StringComparison.OrdinalIgnoreCase)
+                ? ArCulture
+                : EnCulture) ?? key;
+
+    /// <summary>
+     /// Gets both Arabic and English translations as a tuple.
+     /// </summary>
     public static (string Ar, string En) Get(string key) =>
         (GetAr(key), GetEn(key));
 

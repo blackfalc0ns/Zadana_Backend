@@ -104,8 +104,7 @@ public record CancelCustomerOrderResponse(
 
 public record CustomerOrderCancellationReasonResponse(
     [property: JsonPropertyName("code")] string Code,
-    [property: JsonPropertyName("label_ar")] string LabelAr,
-    [property: JsonPropertyName("label_en")] string LabelEn,
+    [property: JsonPropertyName("label")] string Label,
     [property: JsonPropertyName("requires_note")] bool RequiresNote);
 
 public record CancelledOrderStatusResponse(
@@ -119,6 +118,5 @@ public record DeleteCustomerOrderResponse(
 
 public record CustomerOrderSupportReasonResponse(
     [property: JsonPropertyName("code")] string Code,
-    [property: JsonPropertyName("label_ar")] string LabelAr,
-    [property: JsonPropertyName("label_en")] string LabelEn,
+    [property: JsonPropertyName("label")] string Label,
     [property: JsonPropertyName("requires_note")] bool RequiresNote);

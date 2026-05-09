@@ -106,9 +106,7 @@ public class GetCategoryFiltersQueryHandler : IRequestHandler<GetCategoryFilters
                     .ThenBy(child => PickLocalized(child.NameAr, child.NameEn), StringComparer.CurrentCultureIgnoreCase)
                     .Select(child => new CatalogFilterNamedItemDto(
                         child.Id,
-                        PickLocalized(child.NameAr, child.NameEn),
-                        NormalizeText(child.NameAr),
-                        NormalizeText(child.NameEn)))
+                        PickLocalized(child.NameAr, child.NameEn)))
                     .ToList();
 
                 var productTypeRows = await _context.ProductTypes
@@ -123,9 +121,7 @@ public class GetCategoryFiltersQueryHandler : IRequestHandler<GetCategoryFilters
                 var productTypes = productTypeRows
                     .Select(item => new CatalogFilterNamedItemDto(
                         item.Id,
-                        PickLocalized(item.NameAr, item.NameEn),
-                        NormalizeText(item.NameAr),
-                        NormalizeText(item.NameEn)))
+                        PickLocalized(item.NameAr, item.NameEn)))
                     .OrderBy(item => item.Name, StringComparer.CurrentCultureIgnoreCase)
                     .ToList();
 
@@ -143,9 +139,7 @@ public class GetCategoryFiltersQueryHandler : IRequestHandler<GetCategoryFilters
                     .Select(item => new CatalogFilterPartItemDto(
                         item.Id,
                         PickLocalized(item.NameAr, item.NameEn),
-                        item.ProductTypeId,
-                        NormalizeText(item.NameAr),
-                        NormalizeText(item.NameEn)))
+                        item.ProductTypeId))
                     .OrderBy(item => item.Name, StringComparer.CurrentCultureIgnoreCase)
                     .ToList();
 
@@ -153,9 +147,7 @@ public class GetCategoryFiltersQueryHandler : IRequestHandler<GetCategoryFilters
                     .Select(item => new CatalogFilterBrandItemDto(
                         item.Id,
                         PickLocalized(item.NameAr, item.NameEn),
-                        item.LogoUrl,
-                        NormalizeText(item.NameAr),
-                        NormalizeText(item.NameEn)))
+                        item.LogoUrl))
                     .OrderBy(item => item.Name, StringComparer.CurrentCultureIgnoreCase)
                     .ToList();
 
@@ -171,9 +163,7 @@ public class GetCategoryFiltersQueryHandler : IRequestHandler<GetCategoryFilters
                 var quantities = quantityRows
                     .Select(unit => new CatalogFilterNamedItemDto(
                         unit.Id,
-                        PickLocalized(unit.NameAr, unit.NameEn),
-                        NormalizeText(unit.NameAr),
-                        NormalizeText(unit.NameEn)))
+                        PickLocalized(unit.NameAr, unit.NameEn)))
                     .OrderBy(item => item.Name, StringComparer.CurrentCultureIgnoreCase)
                     .ToList();
 
@@ -203,9 +193,7 @@ public class GetCategoryFiltersQueryHandler : IRequestHandler<GetCategoryFilters
                 return new CategoryFiltersDto(
                     new CatalogFilterNamedItemDto(
                         scope.Category.Id,
-                        PickLocalized(scope.Category.NameAr, scope.Category.NameEn),
-                        NormalizeText(scope.Category.NameAr),
-                        NormalizeText(scope.Category.NameEn)),
+                        PickLocalized(scope.Category.NameAr, scope.Category.NameEn)),
                     subcategories,
                     productTypes,
                     parts,
@@ -251,9 +239,6 @@ public class GetCategoryFiltersQueryHandler : IRequestHandler<GetCategoryFilters
             ?? fallback?.Trim()
             ?? string.Empty;
     }
-
-    private static string? NormalizeText(string? value) =>
-        string.IsNullOrWhiteSpace(value) ? null : value.Trim();
 
     private sealed record ScopedMasterProductRow(
         Guid CategoryId,

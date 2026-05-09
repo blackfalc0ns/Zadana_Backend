@@ -1,10 +1,25 @@
+using System.Globalization;
+
 namespace Zadana.Application.Modules.Payments.DTOs;
 
-public record PaymobCheckoutResponseDto(
-    string MessageAr,
-    string MessageEn,
-    PaymobCheckoutOrderDto Order,
-    PaymobCheckoutPaymentDto Payment);
+public sealed record PaymobCheckoutResponseDto
+{
+    public PaymobCheckoutResponseDto(string message, PaymobCheckoutOrderDto order, PaymobCheckoutPaymentDto payment)
+    {
+        Message = message;
+        Order = order;
+        Payment = payment;
+    }
+
+    public PaymobCheckoutResponseDto(string messageAr, string messageEn, PaymobCheckoutOrderDto order, PaymobCheckoutPaymentDto payment)
+        : this(PaymentDtoLocalization.Localize(messageAr, messageEn), order, payment)
+    {
+    }
+
+    public string Message { get; init; }
+    public PaymobCheckoutOrderDto Order { get; init; }
+    public PaymobCheckoutPaymentDto Payment { get; init; }
+}
 
 public record PaymobCheckoutOrderDto(
     Guid Id,
@@ -53,18 +68,71 @@ public record PaymobWebhookNotificationDto(
     bool IsPending,
     string EventType);
 
-public record PaymobWebhookProcessResultDto(
-    string MessageAr,
-    string MessageEn,
-    Guid PaymentId,
-    string Status);
+public sealed record PaymobWebhookProcessResultDto
+{
+    public PaymobWebhookProcessResultDto(string message, Guid paymentId, string status)
+    {
+        Message = message;
+        PaymentId = paymentId;
+        Status = status;
+    }
 
-public record PaymobPaymentConfirmationResultDto(
-    string MessageAr,
-    string MessageEn,
-    Guid PaymentId,
-    string PaymentStatus,
-    Guid UserId,
-    Guid OrderId,
-    string OrderStatus,
-    bool AlreadyConfirmed);
+    public PaymobWebhookProcessResultDto(string messageAr, string messageEn, Guid paymentId, string status)
+        : this(PaymentDtoLocalization.Localize(messageAr, messageEn), paymentId, status)
+    {
+    }
+
+    public string Message { get; init; }
+    public Guid PaymentId { get; init; }
+    public string Status { get; init; }
+}
+
+public sealed record PaymobPaymentConfirmationResultDto
+{
+    public PaymobPaymentConfirmationResultDto(
+        string message,
+        Guid paymentId,
+        string paymentStatus,
+        Guid userId,
+        Guid orderId,
+        string orderStatus,
+        bool alreadyConfirmed)
+    {
+        Message = message;
+        PaymentId = paymentId;
+        PaymentStatus = paymentStatus;
+        UserId = userId;
+        OrderId = orderId;
+        OrderStatus = orderStatus;
+        AlreadyConfirmed = alreadyConfirmed;
+    }
+
+    public PaymobPaymentConfirmationResultDto(
+        string messageAr,
+        string messageEn,
+        Guid paymentId,
+        string paymentStatus,
+        Guid userId,
+        Guid orderId,
+        string orderStatus,
+        bool alreadyConfirmed)
+        : this(PaymentDtoLocalization.Localize(messageAr, messageEn), paymentId, paymentStatus, userId, orderId, orderStatus, alreadyConfirmed)
+    {
+    }
+
+    public string Message { get; init; }
+    public Guid PaymentId { get; init; }
+    public string PaymentStatus { get; init; }
+    public Guid UserId { get; init; }
+    public Guid OrderId { get; init; }
+    public string OrderStatus { get; init; }
+    public bool AlreadyConfirmed { get; init; }
+}
+
+internal static class PaymentDtoLocalization
+{
+    public static string Localize(string arabic, string english) =>
+        CultureInfo.CurrentUICulture.TwoLetterISOLanguageName.Equals("ar", StringComparison.OrdinalIgnoreCase)
+            ? arabic
+            : english;
+}

@@ -100,9 +100,7 @@ public class GetProductDetailsQueryHandler : IRequestHandler<GetProductDetailsQu
                 offer.StoreLogoUrl,
                 offer.Price,
                 offer.IsDiscounted ? offer.OldPrice : null,
-                offer.IsDiscounted,
-                offer.StoreAr,
-                offer.StoreEn))
+                offer.IsDiscounted))
             .ToList();
 
         var similarOfferRows = visibleOffers
@@ -135,13 +133,7 @@ public class GetProductDetailsQueryHandler : IRequestHandler<GetProductDetailsQu
                     FormatDiscount(offer.Price, offer.OldPrice),
                     false,
                     offer.Unit,
-                    offer.IsDiscounted,
-                    offer.NameAr,
-                    offer.NameEn,
-                    offer.StoreAr,
-                    offer.StoreEn,
-                    offer.UnitAr,
-                    offer.UnitEn);
+                    offer.IsDiscounted);
             })
             .ToList();
 
@@ -165,15 +157,7 @@ public class GetProductDetailsQueryHandler : IRequestHandler<GetProductDetailsQu
             defaultOffer.IsDiscounted,
             defaultOffer.Description,
             vendorPrices,
-            similarProducts,
-            defaultOffer.NameAr,
-            defaultOffer.NameEn,
-            defaultOffer.StoreAr,
-            defaultOffer.StoreEn,
-            defaultOffer.UnitAr,
-            defaultOffer.UnitEn,
-            defaultOffer.DescriptionAr,
-            defaultOffer.DescriptionEn);
+            similarProducts);
     }
 
     private async Task<List<VisibleOfferRow>> LoadVisibleOffersAsync(CancellationToken cancellationToken)

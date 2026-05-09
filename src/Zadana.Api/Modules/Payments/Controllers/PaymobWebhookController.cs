@@ -62,8 +62,7 @@ public class PaymobWebhookController(
             cancellationToken);
 
         return Ok(new ConfirmPaymobPaymentResponse(
-            result.MessageAr,
-            result.MessageEn,
+            result.Message,
             result.PaymentId,
             result.PaymentStatus,
             result.UserId,
@@ -81,8 +80,7 @@ public class PaymobWebhookController(
 }
 
 public record ConfirmPaymobPaymentResponse(
-    string MessageAr,
-    string MessageEn,
+    string Message,
     Guid PaymentId,
     string PaymentStatus,
     Guid UserId,

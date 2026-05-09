@@ -133,6 +133,7 @@ public class OrderReadService : IOrderReadService
         var total = await query.CountAsync(cancellationToken);
         var orders = await query
             .Include(order => order.Items)
+                .ThenInclude(item => item.MasterProduct)
             .OrderByDescending(order => order.PlacedAtUtc)
             .Skip((normalizedPage - 1) * normalizedPerPage)
             .Take(normalizedPerPage)
@@ -151,6 +152,7 @@ public class OrderReadService : IOrderReadService
         var order = await _dbContext.Orders
             .AsNoTracking()
             .Include(order => order.Items)
+                .ThenInclude(item => item.MasterProduct)
             .Include(order => order.SupportCases)
             .Where(order => order.Id == orderId && order.UserId == userId)
             .FirstOrDefaultAsync(cancellationToken);
@@ -966,6 +968,9 @@ public class OrderReadService : IOrderReadService
                     item.UnitPrice))
                 .ToList(),
             ResolveActiveSupportCaseSummary(order.SupportCases));
+
+    private static string? NormalizeText(string? value) =>
+        string.IsNullOrWhiteSpace(value) ? null : value.Trim();
 
     private static OrderComplaintDto MapComplaint(OrderComplaint complaint) =>
         new(
