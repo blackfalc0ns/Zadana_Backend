@@ -3,6 +3,7 @@ using MediatR;
 using Microsoft.EntityFrameworkCore;
 using Zadana.Application.Common.Interfaces;
 using Zadana.Application.Modules.Orders.Events;
+using Zadana.Application.Modules.Orders.Services;
 using Zadana.Domain.Modules.Delivery.Enums;
 using Zadana.Domain.Modules.Orders.Enums;
 using Zadana.SharedKernel.Exceptions;
@@ -35,15 +36,18 @@ public class ConfirmVendorPickupOtpCommandHandler : IRequestHandler<ConfirmVendo
     private readonly IApplicationDbContext _context;
     private readonly IUnitOfWork _unitOfWork;
     private readonly IPublisher _publisher;
+    private readonly OrderInventoryWorkflowService _orderInventoryWorkflowService;
 
     public ConfirmVendorPickupOtpCommandHandler(
         IApplicationDbContext context,
         IUnitOfWork unitOfWork,
-        IPublisher publisher)
+        IPublisher publisher,
+        OrderInventoryWorkflowService orderInventoryWorkflowService)
     {
         _context = context;
         _unitOfWork = unitOfWork;
         _publisher = publisher;
+        _orderInventoryWorkflowService = orderInventoryWorkflowService;
     }
 
     public async Task<VendorPickupOtpConfirmationDto> Handle(ConfirmVendorPickupOtpCommand request, CancellationToken cancellationToken)
@@ -108,6 +112,7 @@ public class ConfirmVendorPickupOtpCommandHandler : IRequestHandler<ConfirmVendo
             assignment.MarkPickedUp();
         }
 
+        await _orderInventoryWorkflowService.ApplyPickupDeductionAsync(order.Id, cancellationToken);
         await _unitOfWork.SaveChangesAsync(cancellationToken);
 
         await _publisher.Publish(

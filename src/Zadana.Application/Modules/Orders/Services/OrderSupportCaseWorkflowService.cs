@@ -23,19 +23,22 @@ public sealed class OrderSupportCaseWorkflowService : IOrderSupportCaseWorkflowS
     private readonly INotificationService _notificationService;
     private readonly IOneSignalPushService _oneSignalPushService;
     private readonly VendorRecoveryService? _vendorRecoveryService;
+    private readonly OrderInventoryWorkflowService _orderInventoryWorkflowService;
 
     public OrderSupportCaseWorkflowService(
         IApplicationDbContext context,
         IUnitOfWork unitOfWork,
         INotificationService notificationService,
         IOneSignalPushService oneSignalPushService,
-        VendorRecoveryService? vendorRecoveryService = null)
+        VendorRecoveryService? vendorRecoveryService = null,
+        OrderInventoryWorkflowService? orderInventoryWorkflowService = null)
     {
         _context = context;
         _unitOfWork = unitOfWork;
         _notificationService = notificationService;
         _oneSignalPushService = oneSignalPushService;
         _vendorRecoveryService = vendorRecoveryService;
+        _orderInventoryWorkflowService = orderInventoryWorkflowService ?? new OrderInventoryWorkflowService(context);
     }
 
     public async Task<OrderSupportCase> CreateCustomerCaseAsync(
@@ -671,6 +674,7 @@ public sealed class OrderSupportCaseWorkflowService : IOrderSupportCaseWorkflowS
                 _context.OrderStatusHistories.Add(order.StatusHistory.Last());
             }
 
+            await _orderInventoryWorkflowService.ApplyRestockAsync(order.Id, "refund_approved_coupon", cancellationToken);
             return;
         }
 
@@ -710,6 +714,8 @@ public sealed class OrderSupportCaseWorkflowService : IOrderSupportCaseWorkflowS
             order.ChangeStatus(OrderStatus.Refunded, actorUserId, decisionNotes ?? "Support case approved as return request.");
             _context.OrderStatusHistories.Add(order.StatusHistory.Last());
         }
+
+        await _orderInventoryWorkflowService.ApplyRestockAsync(order.Id, "refund_approved", cancellationToken);
     }
 
     private async Task NotifyCustomerAsync(

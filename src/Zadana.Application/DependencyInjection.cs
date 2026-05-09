@@ -34,6 +34,7 @@ public static class DependencyInjection
         services.AddScoped<IEmailCenterService, EmailCenterService>();
         services.AddScoped<ICurrentVendorService, CurrentVendorService>();
         services.AddScoped<IOrderStatusNotificationDispatcher, OrderStatusNotificationDispatcher>();
+        services.AddScoped<OrderInventoryWorkflowService>();
         services.AddScoped<IOrderSupportCaseWorkflowService, OrderSupportCaseWorkflowService>();
         services.AddScoped<IVendorCommunicationService, VendorCommunicationService>();
 

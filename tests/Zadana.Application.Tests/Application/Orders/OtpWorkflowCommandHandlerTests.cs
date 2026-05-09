@@ -6,6 +6,8 @@ using Zadana.Application.Modules.Delivery.Commands.VerifyAssignmentOtp;
 using Zadana.Application.Modules.Delivery.Interfaces;
 using Zadana.Application.Modules.Orders.Commands.ConfirmVendorPickupOtp;
 using Zadana.Application.Modules.Orders.Events;
+using Zadana.Application.Modules.Orders.Services;
+using Zadana.Domain.Modules.Catalog.Entities;
 using Zadana.Domain.Modules.Delivery.Entities;
 using Zadana.Domain.Modules.Delivery.Enums;
 using Zadana.Domain.Modules.Identity.Entities;
@@ -32,8 +34,10 @@ public class OtpWorkflowCommandHandlerTests
         var vendor = CreateVendor(vendorUser.Id);
         var driver = new Driver(driverUser.Id, DriverVehicleType.Car, "1234567899", "LIC-1003");
         driver.Approve(Guid.NewGuid());
+        var masterProductId = Guid.NewGuid();
+        var vendorProduct = new VendorProduct(vendor.Id, masterProductId, 120m, stockQuantity: 4, tradePrice: 90m);
 
-        var order = CreateOrder(customer.Id, vendor.Id, OrderStatus.DriverAssigned, "ORD-OTP-PICKUP-001");
+        var order = CreateOrder(customer.Id, vendor.Id, OrderStatus.DriverAssigned, "ORD-OTP-PICKUP-001", vendorProduct.Id, masterProductId);
         var assignment = new DeliveryAssignment(order.Id, 0m);
         assignment.OfferTo(driver.Id, 1, DateTime.UtcNow.AddMinutes(5));
         assignment.Accept();
@@ -43,12 +47,17 @@ public class OtpWorkflowCommandHandlerTests
         dbContext.Users.AddRange(customer, vendorUser, driverUser);
         dbContext.Vendors.Add(vendor);
         dbContext.Drivers.Add(driver);
+        dbContext.VendorProducts.Add(vendorProduct);
         dbContext.Orders.Add(order);
         dbContext.DeliveryAssignments.Add(assignment);
         await dbContext.SaveChangesAsync();
 
         var publisherMock = new Mock<IPublisher>();
-        var handler = new ConfirmVendorPickupOtpCommandHandler(dbContext, dbContext, publisherMock.Object);
+        var handler = new ConfirmVendorPickupOtpCommandHandler(
+            dbContext,
+            dbContext,
+            publisherMock.Object,
+            new OrderInventoryWorkflowService(dbContext));
 
         var result = await handler.Handle(
             new ConfirmVendorPickupOtpCommand(order.Id, vendor.Id, assignment.PickupOtpCode!),
@@ -58,6 +67,8 @@ public class OtpWorkflowCommandHandlerTests
         order.Status.Should().Be(OrderStatus.PickedUp);
         assignment.Status.Should().Be(AssignmentStatus.PickedUp);
         assignment.IsPickupOtpVerified.Should().BeTrue();
+        vendorProduct.StockQuantity.Should().Be(3);
+        order.Items.Single().StockDeductedAtUtc.Should().NotBeNull();
 
         publisherMock.Verify(
             publisher => publisher.Publish(
@@ -85,8 +96,10 @@ public class OtpWorkflowCommandHandlerTests
         var currentDriver = new Driver(currentDriverUser.Id, DriverVehicleType.Car, "1234567802", "LIC-2002");
         staleDriver.Approve(Guid.NewGuid());
         currentDriver.Approve(Guid.NewGuid());
+        var masterProductId = Guid.NewGuid();
+        var vendorProduct = new VendorProduct(vendor.Id, masterProductId, 120m, stockQuantity: 5, tradePrice: 90m);
 
-        var order = CreateOrder(customer.Id, vendor.Id, OrderStatus.DriverAssigned, "ORD-OTP-PICKUP-002");
+        var order = CreateOrder(customer.Id, vendor.Id, OrderStatus.DriverAssigned, "ORD-OTP-PICKUP-002", vendorProduct.Id, masterProductId);
 
         var staleAssignment = new DeliveryAssignment(order.Id, 0m);
         staleAssignment.OfferTo(staleDriver.Id, 1, DateTime.UtcNow.AddMinutes(5));
@@ -104,12 +117,17 @@ public class OtpWorkflowCommandHandlerTests
         dbContext.Users.AddRange(customer, vendorUser, staleDriverUser, currentDriverUser);
         dbContext.Vendors.Add(vendor);
         dbContext.Drivers.AddRange(staleDriver, currentDriver);
+        dbContext.VendorProducts.Add(vendorProduct);
         dbContext.Orders.Add(order);
         dbContext.DeliveryAssignments.AddRange(staleAssignment, currentAssignment);
         await dbContext.SaveChangesAsync();
 
         var publisherMock = new Mock<IPublisher>();
-        var handler = new ConfirmVendorPickupOtpCommandHandler(dbContext, dbContext, publisherMock.Object);
+        var handler = new ConfirmVendorPickupOtpCommandHandler(
+            dbContext,
+            dbContext,
+            publisherMock.Object,
+            new OrderInventoryWorkflowService(dbContext));
 
         var result = await handler.Handle(
             new ConfirmVendorPickupOtpCommand(order.Id, vendor.Id, currentAssignment.PickupOtpCode!),
@@ -122,6 +140,7 @@ public class OtpWorkflowCommandHandlerTests
         currentAssignment.IsPickupOtpVerified.Should().BeTrue();
         staleAssignment.Status.Should().Be(AssignmentStatus.Cancelled);
         staleAssignment.IsPickupOtpVerified.Should().BeFalse();
+        vendorProduct.StockQuantity.Should().Be(4);
 
         publisherMock.Verify(
             publisher => publisher.Publish(
@@ -142,8 +161,10 @@ public class OtpWorkflowCommandHandlerTests
         var driver = new Driver(driverUser.Id, DriverVehicleType.Car, "2234567899", "LIC-1004");
         driver.Approve(Guid.NewGuid());
         var vendorId = Guid.NewGuid();
+        var masterProductId = Guid.NewGuid();
+        var vendorProduct = new VendorProduct(vendorId, masterProductId, 120m, stockQuantity: 6, tradePrice: 90m);
 
-        var order = CreateOrder(customer.Id, vendorId, OrderStatus.OnTheWay, "ORD-OTP-DELIVERY-001");
+        var order = CreateOrder(customer.Id, vendorId, OrderStatus.OnTheWay, "ORD-OTP-DELIVERY-001", vendorProduct.Id, masterProductId);
         var assignment = new DeliveryAssignment(order.Id, 0m);
         assignment.OfferTo(driver.Id, 1, DateTime.UtcNow.AddMinutes(5));
         assignment.Accept();
@@ -152,9 +173,12 @@ public class OtpWorkflowCommandHandlerTests
         assignment.MarkPickedUp();
         assignment.MarkArrivedAtCustomer();
         assignment.EnsureDeliveryOtp(TimeSpan.FromHours(4));
+        order.Items.Single().MarkStockDeducted(DateTime.UtcNow.AddMinutes(-5));
+        vendorProduct.DecreaseStock(1);
 
         dbContext.Users.AddRange(customer, driverUser);
         dbContext.Drivers.Add(driver);
+        dbContext.VendorProducts.Add(vendorProduct);
         dbContext.Orders.Add(order);
         dbContext.DeliveryAssignments.Add(assignment);
         await dbContext.SaveChangesAsync();
@@ -165,7 +189,8 @@ public class OtpWorkflowCommandHandlerTests
             dbContext,
             new DriverRepository(dbContext),
             Mock.Of<IDriverReadService>(),
-            publisherMock.Object);
+            publisherMock.Object,
+            new OrderInventoryWorkflowService(dbContext));
 
         var result = await handler.Handle(
             new VerifyAssignmentOtpCommand(assignment.Id, driverUser.Id, "delivery", assignment.DeliveryOtpCode!),
@@ -175,6 +200,7 @@ public class OtpWorkflowCommandHandlerTests
         order.Status.Should().Be(OrderStatus.Delivered);
         assignment.Status.Should().Be(AssignmentStatus.Delivered);
         assignment.IsDeliveryOtpVerified.Should().BeTrue();
+        vendorProduct.StockQuantity.Should().Be(5);
 
         publisherMock.Verify(
             publisher => publisher.Publish(
@@ -187,6 +213,56 @@ public class OtpWorkflowCommandHandlerTests
                     notification.ActorRole == "driver"),
                 It.IsAny<CancellationToken>()),
             Times.Once);
+    }
+
+    [Fact]
+    public async Task VerifyAssignmentOtp_WhenPickupOtpIsRetried_ShouldNotDoubleDeduct()
+    {
+        await using var dbContext = CreateDbContext();
+        var customer = new User("Customer User", "otp.customer.pickup.retry@test.com", "01000000141", UserRole.Customer);
+        var driverUser = new User("Driver User", "otp.driver.pickup.retry@test.com", "01000000142", UserRole.Driver);
+        var driver = new Driver(driverUser.Id, DriverVehicleType.Car, "2234567888", "LIC-1008");
+        driver.Approve(Guid.NewGuid());
+        var vendorId = Guid.NewGuid();
+        var masterProductId = Guid.NewGuid();
+        var vendorProduct = new VendorProduct(vendorId, masterProductId, 120m, stockQuantity: 3, tradePrice: 90m);
+
+        var order = CreateOrder(customer.Id, vendorId, OrderStatus.PickedUp, "ORD-OTP-PICKUP-RETRY", vendorProduct.Id, masterProductId);
+        order.Items.Single().MarkStockDeducted(DateTime.UtcNow.AddMinutes(-2));
+        vendorProduct.DecreaseStock(1);
+
+        var assignment = new DeliveryAssignment(order.Id, 0m);
+        assignment.OfferTo(driver.Id, 1, DateTime.UtcNow.AddMinutes(5));
+        assignment.Accept();
+        assignment.EnsurePickupOtp(TimeSpan.FromHours(4));
+        assignment.VerifyPickupOtp(driver.Id, assignment.PickupOtpCode!);
+        assignment.MarkPickedUp();
+
+        dbContext.Users.AddRange(customer, driverUser);
+        dbContext.Drivers.Add(driver);
+        dbContext.VendorProducts.Add(vendorProduct);
+        dbContext.Orders.Add(order);
+        dbContext.DeliveryAssignments.Add(assignment);
+        await dbContext.SaveChangesAsync();
+
+        var publisherMock = new Mock<IPublisher>();
+        var handler = new VerifyAssignmentOtpCommandHandler(
+            dbContext,
+            dbContext,
+            new DriverRepository(dbContext),
+            Mock.Of<IDriverReadService>(),
+            publisherMock.Object,
+            new OrderInventoryWorkflowService(dbContext));
+
+        var result = await handler.Handle(
+            new VerifyAssignmentOtpCommand(assignment.Id, driverUser.Id, "pickup", assignment.PickupOtpCode!),
+            CancellationToken.None);
+
+        result.Status.Should().Be("picked_up");
+        vendorProduct.StockQuantity.Should().Be(2);
+        publisherMock.Verify(
+            publisher => publisher.Publish(It.IsAny<OrderStatusChangedNotification>(), It.IsAny<CancellationToken>()),
+            Times.Never);
     }
 
     private static ApplicationDbContext CreateDbContext()
@@ -210,10 +286,16 @@ public class OtpWorkflowCommandHandlerTests
             city: "Riyadh",
             nationalAddress: "Olaya");
 
-    private static Order CreateOrder(Guid userId, Guid vendorId, OrderStatus status, string orderNumber)
+    private static Order CreateOrder(
+        Guid userId,
+        Guid vendorId,
+        OrderStatus status,
+        string orderNumber,
+        Guid? vendorProductId = null,
+        Guid? masterProductId = null)
     {
         var order = new Order(orderNumber, userId, vendorId, Guid.NewGuid(), PaymentMethodType.Card, 120m, 0m, 15m, 15m, 0m, 0m, null, null, null, 5m);
-        order.Items.Add(new OrderItem(order.Id, Guid.NewGuid(), Guid.NewGuid(), "OTP Item", 1, 120m));
+        order.Items.Add(new OrderItem(order.Id, vendorProductId ?? Guid.NewGuid(), masterProductId ?? Guid.NewGuid(), "OTP Item", 1, 120m));
 
         if (status != OrderStatus.PendingPayment)
         {

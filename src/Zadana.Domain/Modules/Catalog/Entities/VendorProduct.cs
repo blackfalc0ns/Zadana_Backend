@@ -116,6 +116,25 @@ public class VendorProduct : BaseEntity
         }
     }
 
+    public void DecreaseStock(int quantity)
+    {
+        if (quantity <= 0)
+            throw new BusinessRuleException("INVALID_STOCK", "Stock adjustment must be greater than zero.");
+
+        if (StockQuantity < quantity)
+            throw new BusinessRuleException("INSUFFICIENT_STOCK", "Stock quantity is insufficient for this adjustment.");
+
+        UpdateStock(StockQuantity - quantity);
+    }
+
+    public void IncreaseStock(int quantity)
+    {
+        if (quantity <= 0)
+            throw new BusinessRuleException("INVALID_STOCK", "Stock adjustment must be greater than zero.");
+
+        UpdateStock(StockQuantity + quantity);
+    }
+
     public void SetAvailability(bool isAvailable) => IsAvailable = isAvailable;
 
     public void UpdateCustomDetails(string? customNameAr, string? customNameEn, string? customDescriptionAr, string? customDescriptionEn)

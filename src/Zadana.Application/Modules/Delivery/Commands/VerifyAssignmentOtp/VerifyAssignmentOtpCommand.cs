@@ -6,6 +6,7 @@ using Zadana.Application.Common.Localization;
 using Zadana.Application.Modules.Delivery.DTOs;
 using Zadana.Application.Modules.Delivery.Interfaces;
 using Zadana.Application.Modules.Orders.Events;
+using Zadana.Application.Modules.Orders.Services;
 using Zadana.Domain.Modules.Delivery.Enums;
 using Zadana.Domain.Modules.Orders.Enums;
 using Zadana.Domain.Modules.Payments.Enums;
@@ -39,19 +40,22 @@ public class VerifyAssignmentOtpCommandHandler : IRequestHandler<VerifyAssignmen
     private readonly IDriverRepository _driverRepository;
     private readonly IDriverReadService _driverReadService;
     private readonly IPublisher _publisher;
+    private readonly OrderInventoryWorkflowService _orderInventoryWorkflowService;
 
     public VerifyAssignmentOtpCommandHandler(
         IApplicationDbContext context,
         IUnitOfWork unitOfWork,
         IDriverRepository driverRepository,
         IDriverReadService driverReadService,
-        IPublisher publisher)
+        IPublisher publisher,
+        OrderInventoryWorkflowService orderInventoryWorkflowService)
     {
         _context = context;
         _unitOfWork = unitOfWork;
         _driverRepository = driverRepository;
         _driverReadService = driverReadService;
         _publisher = publisher;
+        _orderInventoryWorkflowService = orderInventoryWorkflowService;
     }
 
     public async Task<DriverOtpVerificationResultDto> Handle(VerifyAssignmentOtpCommand request, CancellationToken cancellationToken)
@@ -162,6 +166,7 @@ public class VerifyAssignmentOtpCommandHandler : IRequestHandler<VerifyAssignmen
                 assignment.MarkPickedUp();
             }
 
+            await _orderInventoryWorkflowService.ApplyPickupDeductionAsync(assignment.OrderId, cancellationToken);
             status = "picked_up";
             messageAr = LocalizedMessages.GetAr(LocalizedMessages.PickupOtpVerified);
             messageEn = LocalizedMessages.GetEn(LocalizedMessages.PickupOtpVerified);

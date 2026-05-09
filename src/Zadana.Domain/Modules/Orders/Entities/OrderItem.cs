@@ -17,6 +17,8 @@ public class OrderItem
     public decimal VendorProfitPerUnit { get; private set; }
     public decimal LineDiscount { get; private set; }
     public decimal LineTotal { get; private set; }
+    public DateTime? StockDeductedAtUtc { get; private set; }
+    public DateTime? StockRestoredAtUtc { get; private set; }
 
     // Navigation
     public Order Order { get; private set; } = null!;
@@ -53,5 +55,29 @@ public class OrderItem
         LineDiscount = lineDiscount;
         UnitName = unitName?.Trim();
         LineTotal = Math.Max(0, (quantity * unitPrice) - lineDiscount);
+    }
+
+    public bool RequiresStockDeduction() => !StockDeductedAtUtc.HasValue;
+
+    public bool RequiresStockRestore() => StockDeductedAtUtc.HasValue && !StockRestoredAtUtc.HasValue;
+
+    public void MarkStockDeducted(DateTime? deductedAtUtc = null)
+    {
+        if (StockDeductedAtUtc.HasValue)
+        {
+            return;
+        }
+
+        StockDeductedAtUtc = deductedAtUtc ?? DateTime.UtcNow;
+    }
+
+    public void MarkStockRestored(DateTime? restoredAtUtc = null)
+    {
+        if (!StockDeductedAtUtc.HasValue || StockRestoredAtUtc.HasValue)
+        {
+            return;
+        }
+
+        StockRestoredAtUtc = restoredAtUtc ?? DateTime.UtcNow;
     }
 }

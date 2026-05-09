@@ -21,6 +21,8 @@ public class OrderItemConfiguration : IEntityTypeConfiguration<OrderItem>
         builder.Property(x => x.VendorProfitPerUnit).HasPrecision(18, 2).IsRequired();
         builder.Property(x => x.LineDiscount).HasPrecision(18, 2).IsRequired();
         builder.Property(x => x.LineTotal).HasPrecision(18, 2).IsRequired();
+        builder.Property(x => x.StockDeductedAtUtc);
+        builder.Property(x => x.StockRestoredAtUtc);
 
         builder.HasOne(x => x.VendorProduct)
             .WithMany()

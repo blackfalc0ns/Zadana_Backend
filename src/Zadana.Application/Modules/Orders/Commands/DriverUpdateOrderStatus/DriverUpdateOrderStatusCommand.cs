@@ -6,6 +6,7 @@ using Zadana.Application.Common.Interfaces;
 using Zadana.Application.Common.Localization;
 using Zadana.Application.Modules.Delivery.Interfaces;
 using Zadana.Application.Modules.Orders.Events;
+using Zadana.Application.Modules.Orders.Services;
 using Zadana.Domain.Modules.Orders.Enums;
 using Zadana.Domain.Modules.Payments.Enums;
 using Zadana.SharedKernel.Exceptions;
@@ -55,6 +56,7 @@ public class DriverUpdateOrderStatusCommandHandler : IRequestHandler<DriverUpdat
     private readonly IDriverRepository _driverRepository;
     private readonly IDriverReadService _driverReadService;
     private readonly INotificationService _notificationService;
+    private readonly OrderInventoryWorkflowService _orderInventoryWorkflowService;
 
     public DriverUpdateOrderStatusCommandHandler(
         IApplicationDbContext context,
@@ -62,7 +64,8 @@ public class DriverUpdateOrderStatusCommandHandler : IRequestHandler<DriverUpdat
         IPublisher publisher,
         IDriverRepository driverRepository,
         IDriverReadService driverReadService,
-        INotificationService notificationService)
+        INotificationService notificationService,
+        OrderInventoryWorkflowService orderInventoryWorkflowService)
     {
         _context = context;
         _unitOfWork = unitOfWork;
@@ -70,6 +73,7 @@ public class DriverUpdateOrderStatusCommandHandler : IRequestHandler<DriverUpdat
         _driverRepository = driverRepository;
         _driverReadService = driverReadService;
         _notificationService = notificationService;
+        _orderInventoryWorkflowService = orderInventoryWorkflowService;
     }
 
     public async Task<DriverUpdateOrderStatusResultDto> Handle(DriverUpdateOrderStatusCommand request, CancellationToken cancellationToken)
@@ -148,7 +152,10 @@ public class DriverUpdateOrderStatusCommandHandler : IRequestHandler<DriverUpdat
 
         // Update assignment status to match order status
         if (request.NewStatus == OrderStatus.PickedUp)
+        {
             assignment.MarkPickedUp();
+            await _orderInventoryWorkflowService.ApplyPickupDeductionAsync(order.Id, cancellationToken);
+        }
         else if (request.NewStatus == OrderStatus.Delivered)
         {
             assignment.MarkDelivered();
@@ -166,7 +173,10 @@ public class DriverUpdateOrderStatusCommandHandler : IRequestHandler<DriverUpdat
             }
         }
         else if (request.NewStatus == OrderStatus.DeliveryFailed)
+        {
             assignment.Fail(request.Note ?? "Delivery failed");
+            await _orderInventoryWorkflowService.ApplyRestockAsync(order.Id, "delivery_failed", cancellationToken);
+        }
 
         await _unitOfWork.SaveChangesAsync(cancellationToken);
 

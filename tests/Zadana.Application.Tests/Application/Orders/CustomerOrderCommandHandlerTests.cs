@@ -290,6 +290,43 @@ public class CustomerOrderCommandHandlerTests
     }
 
     [Fact]
+    public async Task ApproveReturnRequest_ShouldRestoreStockForPreviouslyDeductedItems()
+    {
+        await using var dbContext = CreateDbContext();
+        var user = CreateUser();
+        var vendor = CreateVendor();
+        var masterProductId = Guid.NewGuid();
+        var vendorProduct = new Zadana.Domain.Modules.Catalog.Entities.VendorProduct(vendor.Id, masterProductId, 120m, stockQuantity: 2, tradePrice: 90m);
+        var order = CreateOrder(user.Id, OrderStatus.Delivered, "ORD-RETURN-STOCK-001", PaymentMethodType.Card, vendor.Id, vendorProduct.Id, masterProductId);
+        var supportCase = CreateReturnRequest(order, user.Id, 120m);
+
+        order.Items.Single().MarkStockDeducted(DateTime.UtcNow.AddMinutes(-30));
+        vendorProduct.DecreaseStock(1);
+
+        dbContext.Users.Add(user);
+        dbContext.Vendors.Add(vendor);
+        dbContext.VendorProducts.Add(vendorProduct);
+        dbContext.Orders.Add(order);
+        dbContext.OrderSupportCases.Add(supportCase);
+        await dbContext.SaveChangesAsync();
+
+        var workflowService = CreateWorkflowService(dbContext);
+
+        await workflowService.ApproveAsync(
+            supportCase.Id,
+            Guid.NewGuid(),
+            120m,
+            "same_method",
+            "vendor",
+            "Approved as cash refund",
+            "Your refund has been approved.",
+            CancellationToken.None);
+
+        vendorProduct.StockQuantity.Should().Be(2);
+        order.Items.Single().StockRestoredAtUtc.Should().NotBeNull();
+    }
+
+    [Fact]
     public async Task ApproveReturnRequest_WhenVendorBearsCost_ShouldRecoverFromVendorWallet()
     {
         await using var dbContext = CreateDbContext();
@@ -492,7 +529,8 @@ public class CustomerOrderCommandHandlerTests
             dbContext,
             notificationService.Object,
             pushService.Object,
-            vendorRecoveryService);
+            vendorRecoveryService,
+            new OrderInventoryWorkflowService(dbContext));
 
         return workflowService;
     }
@@ -523,10 +561,12 @@ public class CustomerOrderCommandHandlerTests
         OrderStatus status,
         string orderNumber,
         PaymentMethodType paymentMethod = PaymentMethodType.Card,
-        Guid? vendorId = null)
+        Guid? vendorId = null,
+        Guid? vendorProductId = null,
+        Guid? masterProductId = null)
     {
         var order = new Order(orderNumber, userId, vendorId ?? Guid.NewGuid(), Guid.NewGuid(), paymentMethod, 120m, 0m, 15m, 15m, 0m, 0m, null, null, null, 5m);
-        order.Items.Add(new OrderItem(order.Id, Guid.NewGuid(), Guid.NewGuid(), "Complaint Item", 1, 120m));
+        order.Items.Add(new OrderItem(order.Id, vendorProductId ?? Guid.NewGuid(), masterProductId ?? Guid.NewGuid(), "Complaint Item", 1, 120m));
 
         if (status != OrderStatus.PendingPayment)
         {

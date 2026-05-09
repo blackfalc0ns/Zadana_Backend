@@ -6,6 +6,8 @@ using Zadana.Application.Common.Interfaces;
 using Zadana.Application.Modules.Delivery.Interfaces;
 using Zadana.Application.Modules.Orders.Commands.DriverUpdateOrderStatus;
 using Zadana.Application.Modules.Orders.Events;
+using Zadana.Application.Modules.Orders.Services;
+using Zadana.Domain.Modules.Catalog.Entities;
 using Zadana.Domain.Modules.Delivery.Entities;
 using Zadana.Domain.Modules.Delivery.Enums;
 using Zadana.Domain.Modules.Identity.Entities;
@@ -49,7 +51,8 @@ public class DriverUpdateOrderStatusCommandHandlerTests
             Mock.Of<IPublisher>(),
             new DriverRepository(dbContext),
             Mock.Of<IDriverReadService>(),
-            Mock.Of<INotificationService>());
+            Mock.Of<INotificationService>(),
+            new OrderInventoryWorkflowService(dbContext));
 
         var action = () => handler.Handle(
             new DriverUpdateOrderStatusCommand(order.Id, driverUser.Id, OrderStatus.PickedUp, "Picked up"),
@@ -88,7 +91,8 @@ public class DriverUpdateOrderStatusCommandHandlerTests
             Mock.Of<IPublisher>(),
             new DriverRepository(dbContext),
             Mock.Of<IDriverReadService>(),
-            Mock.Of<INotificationService>());
+            Mock.Of<INotificationService>(),
+            new OrderInventoryWorkflowService(dbContext));
 
         var action = () => handler.Handle(
             new DriverUpdateOrderStatusCommand(order.Id, driverUser.Id, OrderStatus.PickedUp, "Picked up"),
@@ -130,7 +134,8 @@ public class DriverUpdateOrderStatusCommandHandlerTests
             Mock.Of<IPublisher>(),
             new DriverRepository(dbContext),
             Mock.Of<IDriverReadService>(),
-            Mock.Of<INotificationService>());
+            Mock.Of<INotificationService>(),
+            new OrderInventoryWorkflowService(dbContext));
 
         var action = () => handler.Handle(
             new DriverUpdateOrderStatusCommand(order.Id, driverUser.Id, OrderStatus.Delivered, "Delivered"),
@@ -169,7 +174,8 @@ public class DriverUpdateOrderStatusCommandHandlerTests
             Mock.Of<IPublisher>(),
             new DriverRepository(dbContext),
             Mock.Of<IDriverReadService>(),
-            Mock.Of<INotificationService>());
+            Mock.Of<INotificationService>(),
+            new OrderInventoryWorkflowService(dbContext));
 
         var action = () => handler.Handle(
             new DriverUpdateOrderStatusCommand(order.Id, driverUser.Id, OrderStatus.DeliveryFailed, null),
@@ -212,7 +218,8 @@ public class DriverUpdateOrderStatusCommandHandlerTests
             Mock.Of<IPublisher>(),
             new DriverRepository(dbContext),
             Mock.Of<IDriverReadService>(),
-            Mock.Of<INotificationService>());
+            Mock.Of<INotificationService>(),
+            new OrderInventoryWorkflowService(dbContext));
 
         var result = await handler.Handle(
             new DriverUpdateOrderStatusCommand(order.Id, driverUser.Id, OrderStatus.Delivered, "Delivered"),
@@ -255,7 +262,8 @@ public class DriverUpdateOrderStatusCommandHandlerTests
             publisherMock.Object,
             new DriverRepository(dbContext),
             Mock.Of<IDriverReadService>(),
-            Mock.Of<INotificationService>());
+            Mock.Of<INotificationService>(),
+            new OrderInventoryWorkflowService(dbContext));
 
         var result = await handler.Handle(
             new DriverUpdateOrderStatusCommand(order.Id, driverUser.Id, OrderStatus.PickedUp, "Picked up"),
@@ -302,7 +310,8 @@ public class DriverUpdateOrderStatusCommandHandlerTests
             publisherMock.Object,
             new DriverRepository(dbContext),
             Mock.Of<IDriverReadService>(),
-            Mock.Of<INotificationService>());
+            Mock.Of<INotificationService>(),
+            new OrderInventoryWorkflowService(dbContext));
 
         var result = await handler.Handle(
             new DriverUpdateOrderStatusCommand(order.Id, driverUser.Id, OrderStatus.Delivered, "Delivered"),
@@ -314,6 +323,142 @@ public class DriverUpdateOrderStatusCommandHandlerTests
             Times.Never);
     }
 
+    [Fact]
+    public async Task Handle_WhenPickedUp_ShouldDeductStockOnce()
+    {
+        await using var dbContext = CreateDbContext();
+        var customer = new User("Customer User", "driver-status.customer.stock@test.com", "01000000125", UserRole.Customer);
+        var driverUser = new User("Driver User", "driver-status.driver.stock@test.com", "01000000126", UserRole.Driver);
+        var vendorId = Guid.NewGuid();
+        var masterProductId = Guid.NewGuid();
+
+        var driver = new Driver(driverUser.Id, DriverVehicleType.Car, "1234567811", "LIC-1005");
+        driver.Approve(Guid.NewGuid());
+
+        var vendorProduct = new VendorProduct(vendorId, masterProductId, 120m, stockQuantity: 5, tradePrice: 90m);
+        var order = CreateOrder(customer.Id, vendorId, OrderStatus.DriverAssigned, "ORD-DRV-STOCK-PICKUP", vendorProduct.Id, masterProductId, 2);
+        var assignment = new DeliveryAssignment(order.Id, 0);
+        assignment.OfferTo(driver.Id, 1, DateTime.UtcNow.AddMinutes(5));
+        assignment.Accept();
+        assignment.EnsurePickupOtp(TimeSpan.FromHours(4));
+        assignment.VerifyPickupOtp(driver.Id, assignment.PickupOtpCode!);
+
+        dbContext.Users.AddRange(customer, driverUser);
+        dbContext.Drivers.Add(driver);
+        dbContext.VendorProducts.Add(vendorProduct);
+        dbContext.Orders.Add(order);
+        dbContext.DeliveryAssignments.Add(assignment);
+        await dbContext.SaveChangesAsync();
+
+        var handler = new DriverUpdateOrderStatusCommandHandler(
+            dbContext,
+            dbContext,
+            Mock.Of<IPublisher>(),
+            new DriverRepository(dbContext),
+            Mock.Of<IDriverReadService>(),
+            Mock.Of<INotificationService>(),
+            new OrderInventoryWorkflowService(dbContext));
+
+        await handler.Handle(
+            new DriverUpdateOrderStatusCommand(order.Id, driverUser.Id, OrderStatus.PickedUp, "Picked up"),
+            CancellationToken.None);
+
+        vendorProduct.StockQuantity.Should().Be(3);
+        order.Items.Single().StockDeductedAtUtc.Should().NotBeNull();
+        order.Items.Single().StockRestoredAtUtc.Should().BeNull();
+    }
+
+    [Fact]
+    public async Task Handle_WhenDeliveryFailsAfterPickup_ShouldRestoreStockOnce()
+    {
+        await using var dbContext = CreateDbContext();
+        var customer = new User("Customer User", "driver-status.customer.stock.fail@test.com", "01000000127", UserRole.Customer);
+        var driverUser = new User("Driver User", "driver-status.driver.stock.fail@test.com", "01000000128", UserRole.Driver);
+        var vendorId = Guid.NewGuid();
+        var masterProductId = Guid.NewGuid();
+
+        var driver = new Driver(driverUser.Id, DriverVehicleType.Car, "1234567812", "LIC-1006");
+        driver.Approve(Guid.NewGuid());
+
+        var vendorProduct = new VendorProduct(vendorId, masterProductId, 120m, stockQuantity: 3, tradePrice: 90m);
+        var order = CreateOrder(customer.Id, vendorId, OrderStatus.OnTheWay, "ORD-DRV-STOCK-FAILED", vendorProduct.Id, masterProductId, 2);
+        order.Items.Single().MarkStockDeducted(DateTime.UtcNow.AddMinutes(-10));
+
+        var assignment = new DeliveryAssignment(order.Id, 0);
+        assignment.OfferTo(driver.Id, 1, DateTime.UtcNow.AddMinutes(5));
+        assignment.Accept();
+        assignment.MarkPickedUp();
+
+        vendorProduct.DecreaseStock(2);
+
+        dbContext.Users.AddRange(customer, driverUser);
+        dbContext.Drivers.Add(driver);
+        dbContext.VendorProducts.Add(vendorProduct);
+        dbContext.Orders.Add(order);
+        dbContext.DeliveryAssignments.Add(assignment);
+        await dbContext.SaveChangesAsync();
+
+        var handler = new DriverUpdateOrderStatusCommandHandler(
+            dbContext,
+            dbContext,
+            Mock.Of<IPublisher>(),
+            new DriverRepository(dbContext),
+            Mock.Of<IDriverReadService>(),
+            Mock.Of<INotificationService>(),
+            new OrderInventoryWorkflowService(dbContext));
+
+        await handler.Handle(
+            new DriverUpdateOrderStatusCommand(order.Id, driverUser.Id, OrderStatus.DeliveryFailed, "Customer unreachable"),
+            CancellationToken.None);
+
+        vendorProduct.StockQuantity.Should().Be(3);
+        order.Items.Single().StockRestoredAtUtc.Should().NotBeNull();
+    }
+
+    [Fact]
+    public async Task Handle_WhenPickupStockIsInsufficient_ShouldThrowBusinessRuleException()
+    {
+        await using var dbContext = CreateDbContext();
+        var customer = new User("Customer User", "driver-status.customer.stock.low@test.com", "01000000143", UserRole.Customer);
+        var driverUser = new User("Driver User", "driver-status.driver.stock.low@test.com", "01000000144", UserRole.Driver);
+        var vendorId = Guid.NewGuid();
+        var masterProductId = Guid.NewGuid();
+
+        var driver = new Driver(driverUser.Id, DriverVehicleType.Car, "1234567813", "LIC-1007");
+        driver.Approve(Guid.NewGuid());
+
+        var vendorProduct = new VendorProduct(vendorId, masterProductId, 120m, stockQuantity: 1, tradePrice: 90m);
+        var order = CreateOrder(customer.Id, vendorId, OrderStatus.DriverAssigned, "ORD-DRV-STOCK-LOW", vendorProduct.Id, masterProductId, 2);
+        var assignment = new DeliveryAssignment(order.Id, 0);
+        assignment.OfferTo(driver.Id, 1, DateTime.UtcNow.AddMinutes(5));
+        assignment.Accept();
+        assignment.EnsurePickupOtp(TimeSpan.FromHours(4));
+        assignment.VerifyPickupOtp(driver.Id, assignment.PickupOtpCode!);
+
+        dbContext.Users.AddRange(customer, driverUser);
+        dbContext.Drivers.Add(driver);
+        dbContext.VendorProducts.Add(vendorProduct);
+        dbContext.Orders.Add(order);
+        dbContext.DeliveryAssignments.Add(assignment);
+        await dbContext.SaveChangesAsync();
+
+        var handler = new DriverUpdateOrderStatusCommandHandler(
+            dbContext,
+            dbContext,
+            Mock.Of<IPublisher>(),
+            new DriverRepository(dbContext),
+            Mock.Of<IDriverReadService>(),
+            Mock.Of<INotificationService>(),
+            new OrderInventoryWorkflowService(dbContext));
+
+        var action = () => handler.Handle(
+            new DriverUpdateOrderStatusCommand(order.Id, driverUser.Id, OrderStatus.PickedUp, "Picked up"),
+            CancellationToken.None);
+
+        await action.Should().ThrowAsync<BusinessRuleException>()
+            .Where(exception => exception.ErrorCode == "INSUFFICIENT_STOCK");
+    }
+
     private static ApplicationDbContext CreateDbContext()
     {
         var options = new DbContextOptionsBuilder<ApplicationDbContext>()
@@ -323,10 +468,17 @@ public class DriverUpdateOrderStatusCommandHandlerTests
         return new ApplicationDbContext(options, new AuditableEntityInterceptor());
     }
 
-    private static Order CreateOrder(Guid userId, Guid vendorId, OrderStatus status, string orderNumber)
+    private static Order CreateOrder(
+        Guid userId,
+        Guid vendorId,
+        OrderStatus status,
+        string orderNumber,
+        Guid? vendorProductId = null,
+        Guid? masterProductId = null,
+        int quantity = 1)
     {
         var order = new Order(orderNumber, userId, vendorId, Guid.NewGuid(), PaymentMethodType.Card, 120m, 0m, 15m, 15m, 0m, 0m, null, null, null, 5m);
-        order.Items.Add(new OrderItem(order.Id, Guid.NewGuid(), Guid.NewGuid(), "Status Item", 1, 120m));
+        order.Items.Add(new OrderItem(order.Id, vendorProductId ?? Guid.NewGuid(), masterProductId ?? Guid.NewGuid(), "Status Item", quantity, 120m));
 
         if (status != OrderStatus.PendingPayment)
         {
