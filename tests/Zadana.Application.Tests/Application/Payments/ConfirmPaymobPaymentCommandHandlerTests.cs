@@ -245,6 +245,44 @@ public class ConfirmPaymobPaymentCommandHandlerTests
     }
 
     [Fact]
+    public async Task Handle_WhenReturnStatusIsMissing_ShouldKeepPaymentPending()
+    {
+        await using var dbContext = CreateDbContext();
+        var user = CreateUser();
+        var order = CreateOrder(user.Id);
+        var payment = CreatePendingCardPayment(order);
+        var cart = CreateCart(user.Id);
+
+        dbContext.Users.Add(user);
+        dbContext.Orders.Add(order);
+        dbContext.Payments.Add(payment);
+        dbContext.Carts.Add(cart);
+        await dbContext.SaveChangesAsync();
+
+        var publisherMock = CreatePublisherMock();
+        var unitOfWorkMock = CreateUnitOfWorkMock();
+        var handler = new ConfirmPaymobPaymentCommandHandler(
+            dbContext,
+            Mock.Of<IPaymobGateway>(),
+            unitOfWorkMock.Object,
+            publisherMock.Object);
+
+        var result = await handler.Handle(
+            new ConfirmPaymobPaymentCommand(payment.Id, null, payment.ProviderTransactionId, "txn-unknown", null, null, null),
+            CancellationToken.None);
+
+        payment.Status.Should().Be(PaymentStatus.Pending);
+        order.Status.Should().Be(OrderStatus.PendingPayment);
+        dbContext.Entry(cart).State.Should().Be(EntityState.Unchanged);
+        result.PaymentStatus.Should().Be("pending");
+        result.OrderStatus.Should().Be("pending_payment");
+        unitOfWorkMock.Verify(unit => unit.SaveChangesAsync(It.IsAny<CancellationToken>()), Times.Never);
+        publisherMock.Verify(
+            publisher => publisher.Publish(It.IsAny<OrderStatusChangedNotification>(), It.IsAny<CancellationToken>()),
+            Times.Never);
+    }
+
+    [Fact]
     public async Task WebhookHandler_ShouldResolvePaymentByWebhookPayload_AndDelegateToSharedConfirmationFlow()
     {
         await using var dbContext = CreateDbContext();

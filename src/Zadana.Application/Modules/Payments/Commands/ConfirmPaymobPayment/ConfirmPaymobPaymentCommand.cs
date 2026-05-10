@@ -248,12 +248,14 @@ public class ConfirmPaymobPaymentCommandHandler : IRequestHandler<ConfirmPaymobP
             return _paymobGateway.ParseWebhookNotification(request.Payload);
         }
 
+        var hasExplicitReturnStatus = request.IsSuccess.HasValue || request.IsPending.HasValue;
+
         return new PaymobWebhookNotificationDto(
             request.PaymentId,
             request.ProviderReference,
             request.ProviderTransactionId,
             request.IsSuccess ?? false,
-            request.IsPending ?? false,
+            request.IsPending ?? !hasExplicitReturnStatus,
             "RETURN");
     }
 
