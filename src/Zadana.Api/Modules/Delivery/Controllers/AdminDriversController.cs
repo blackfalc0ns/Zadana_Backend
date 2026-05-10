@@ -8,12 +8,14 @@ using Zadana.Application.Common.Interfaces;
 using Zadana.Application.Modules.Delivery.Commands.AddDriverIncident;
 using Zadana.Application.Modules.Delivery.Commands.AddDriverNote;
 using Zadana.Application.Modules.Delivery.Commands.ApproveDriverDocumentReview;
+using Zadana.Application.Modules.Delivery.Commands.BanDriver;
 using Zadana.Application.Modules.Delivery.Commands.BlockDriverLocationUpdates;
 using Zadana.Application.Modules.Delivery.Commands.ClearDriverRestrictions;
 using Zadana.Application.Modules.Delivery.Commands.ReactivateDriver;
 using Zadana.Application.Modules.Delivery.Commands.RejectDriverDocumentReview;
 using Zadana.Application.Modules.Delivery.Commands.ReviewDriver;
 using Zadana.Application.Modules.Delivery.Commands.SuspendDriver;
+using Zadana.Application.Modules.Delivery.Commands.UnbanDriver;
 using Zadana.Application.Modules.Delivery.Commands.UnblockDriverLocationUpdates;
 using Zadana.Application.Modules.Delivery.DTOs;
 using Zadana.Application.Modules.Delivery.Interfaces;
@@ -275,6 +277,25 @@ public class AdminDriversController : ApiControllerBase
         return Ok(new { message = "Driver reactivated successfully" });
     }
 
+    [HttpPost("{id:guid}/ban")]
+    public async Task<IActionResult> BanDriver(
+        Guid id,
+        [FromBody] BanDriverRequest? request,
+        CancellationToken cancellationToken = default)
+    {
+        await Sender.Send(new BanDriverCommand(id, request?.Reason), cancellationToken);
+        return Ok(new { message = "Driver banned successfully" });
+    }
+
+    [HttpPost("{id:guid}/unban")]
+    public async Task<IActionResult> UnbanDriver(
+        Guid id,
+        CancellationToken cancellationToken = default)
+    {
+        await Sender.Send(new UnbanDriverCommand(id), cancellationToken);
+        return Ok(new { message = "Driver unbanned successfully" });
+    }
+
     [HttpPost("{id:guid}/restrictions/clear")]
     public async Task<IActionResult> ClearDriverRestrictions(
         Guid id,
@@ -350,6 +371,7 @@ public class AdminDriversController : ApiControllerBase
 public record ReviewDriverRequest(string Action, string? Note);
 public record RejectDriverDocumentRequest(string Reason);
 public record SuspendDriverRequest(string? Reason);
+public record BanDriverRequest(string? Reason);
 public record ClearDriverRestrictionsRequest(string? Note);
 public record BlockDriverLocationUpdatesRequest(string? Reason);
 public record AddDriverNoteRequest(string Message);

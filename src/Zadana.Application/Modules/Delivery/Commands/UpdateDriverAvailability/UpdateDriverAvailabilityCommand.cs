@@ -1,4 +1,4 @@
-using MediatR;
+﻿using MediatR;
 using Zadana.Application.Common.Interfaces;
 using Zadana.Application.Modules.Delivery.Interfaces;
 using Zadana.Application.Modules.Delivery.Support;
@@ -49,7 +49,14 @@ public class UpdateDriverAvailabilityCommandHandler : IRequestHandler<UpdateDriv
         {
             throw new BusinessRuleException(
                 "DRIVER_NOT_READY_FOR_DISPATCH",
-                "يجب مراجعة حسابك والموافقة عليه قبل تفعيل التوفر | Your account must be approved before you can go online.");
+                "Your account must be approved before you can go online.");
+        }
+
+        if (request.IsAvailable && driver.IsLocationUpdatesBlocked)
+        {
+            throw new BusinessRuleException(
+                "DRIVER_LOCATION_UPDATES_BLOCKED",
+                "Location updates are blocked for this account, so availability cannot be enabled.");
         }
 
         if (request.IsAvailable)
@@ -60,7 +67,7 @@ public class UpdateDriverAvailabilityCommandHandler : IRequestHandler<UpdateDriv
                 throw new BusinessRuleException(
                     "DRIVER_SOFT_BLOCKED_BY_REJECTIONS",
                     commitmentSummary.RestrictionMessage ??
-                    "تم تجاوز الحد المسموح به لرفض الطلبات. حاول لاحقاً | You have exceeded the offer rejection limit. Please try again later.");
+                    "You have exceeded the offer rejection limit. Please try again later.");
             }
         }
 

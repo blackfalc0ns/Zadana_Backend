@@ -466,7 +466,7 @@ public class DriverReadService : IDriverReadService
             incidents.Count(i => string.Equals(i.Severity, DriverIncidentSeverity.Critical.ToString(), StringComparison.OrdinalIgnoreCase)),
             incidents.Count(i => !string.Equals(i.Severity, DriverIncidentSeverity.Medium.ToString(), StringComparison.OrdinalIgnoreCase)),
             documents.Count(d => !string.Equals(d.Status, "valid", StringComparison.OrdinalIgnoreCase)),
-            driver.Status == AccountStatus.Suspended ? 1 : 0,
+            driver.Status is AccountStatus.Suspended or AccountStatus.Banned ? 1 : 0,
             ResolveRiskLevel(driver, incidents, wallet?.PendingBalance ?? 0, missingRequirements),
             documentHealth);
         var financeDetails = new AdminDriverFinanceSectionDto(
@@ -749,6 +749,7 @@ public class DriverReadService : IDriverReadService
         var completionPercent = DriverProfileReadinessFactory.GetCompletionPercent(missingRequirements.Count);
         var commitmentSummary = await _driverCommitmentPolicyService.GetDriverSummaryAsync(driver.Id, cancellationToken);
         var dailyLimit = DriverCommitmentPolicyService.GetDailyRejectionLimit();
+        var weeklyLimit = DriverCommitmentPolicyService.GetWeeklyRejectionLimit();
 
         // Resolve geography display names
         string? regionNameAr = null, regionNameEn = null, cityNameAr = null, cityNameEn = null;
@@ -803,7 +804,10 @@ public class DriverReadService : IDriverReadService
                 dailyLimit,
                 Math.Max(0, dailyLimit - commitmentSummary.DailyRejections),
                 !commitmentSummary.CanReceiveOffers,
-                commitmentSummary.RestrictionMessage),
+                commitmentSummary.RestrictionMessage,
+                commitmentSummary.WeeklyRejections,
+                weeklyLimit,
+                Math.Max(0, weeklyLimit - commitmentSummary.WeeklyRejections)),
             missingRequirements.Count == 0,
             completionPercent,
             missingRequirements,
@@ -832,7 +836,8 @@ public class DriverReadService : IDriverReadService
     private static string MapDriverStatus(Driver d, int activeTasks)
     {
         if (d.HasExpiredRequiredDocuments()) return "Inactive";
-        if (d.Status is AccountStatus.Suspended or AccountStatus.Banned) return "Suspended";
+        if (d.Status == AccountStatus.Banned) return "Banned";
+        if (d.Status == AccountStatus.Suspended) return "Suspended";
         if (d.Status == AccountStatus.Inactive) return "Inactive";
         if (activeTasks > 0) return "OnMission";
         if (!d.IsAvailable) return "Offline";
@@ -859,7 +864,7 @@ public class DriverReadService : IDriverReadService
             issues.Add("compliance");
         if (walletBalance < 0)
             issues.Add("payment");
-        if (driver.Status == AccountStatus.Suspended)
+        if (driver.Status is AccountStatus.Suspended or AccountStatus.Banned)
             issues.Add("legal");
         if (!commitmentSummary.CanReceiveOffers)
             issues.Add("dispatch");
@@ -1011,7 +1016,8 @@ public class DriverReadService : IDriverReadService
 
         var blockers = state switch
         {
-            "SUSPENDED" => ["suspension_active"],
+            "BANNED" => ["account_banned"],
+            "SUSPENDED" => ["account_suspended"],
             "PENDING_DOCUMENTS" => ["missing_documents"],
             "VERIFICATION_REVIEW" => ["verification_in_progress"],
             "COMPLIANCE_REVIEW" => ["open_compliance_case"],
@@ -1029,11 +1035,18 @@ public class DriverReadService : IDriverReadService
 
         var actions = state switch
         {
+            "BANNED" => new[]
+            {
+                new AdminDriverWorkflowActionDto("UNBAN_DRIVER", "success", "overview"),
+                new AdminDriverWorkflowActionDto("REVIEW_COMPLIANCE", "warning", "compliance"),
+                new AdminDriverWorkflowActionDto("OPEN_SUPPORT", "secondary", "support")
+            },
             "SUSPENDED" => new[]
             {
                 new AdminDriverWorkflowActionDto("REVIEW_COMPLIANCE", "warning", "compliance"),
                 new AdminDriverWorkflowActionDto("OPEN_FINANCE", "secondary", "finance"),
-                new AdminDriverWorkflowActionDto("REACTIVATE_DRIVER", "success", "overview")
+                new AdminDriverWorkflowActionDto("REACTIVATE_DRIVER", "success", "overview"),
+                new AdminDriverWorkflowActionDto("BAN_DRIVER", "danger", "overview")
             },
             "PENDING_DOCUMENTS" => new[]
             {
@@ -1050,6 +1063,7 @@ public class DriverReadService : IDriverReadService
             {
                 new AdminDriverWorkflowActionDto("REVIEW_COMPLIANCE", "warning", "compliance"),
                 new AdminDriverWorkflowActionDto("SUSPEND_DRIVER", "danger", "overview"),
+                new AdminDriverWorkflowActionDto("BAN_DRIVER", "danger", "overview"),
                 new AdminDriverWorkflowActionDto("OPEN_SUPPORT", "secondary", "support")
             },
             "FINANCE_HOLD" => new[]
@@ -1068,7 +1082,8 @@ public class DriverReadService : IDriverReadService
             {
                 new AdminDriverWorkflowActionDto("OPEN_OPERATIONS", "primary", "operations"),
                 new AdminDriverWorkflowActionDto("OPEN_SUPPORT", "secondary", "support"),
-                new AdminDriverWorkflowActionDto("SUSPEND_DRIVER", "danger", "overview")
+                new AdminDriverWorkflowActionDto("SUSPEND_DRIVER", "danger", "overview"),
+                new AdminDriverWorkflowActionDto("BAN_DRIVER", "danger", "overview")
             },
             _ => new[]
             {
@@ -1096,7 +1111,7 @@ public class DriverReadService : IDriverReadService
             "READY_TO_ACTIVATE" => "current",
             "FINANCE_HOLD" => "attention",
             "READY_FOR_DISPATCH" or "ACTIVE_DELIVERY" => "completed",
-            "SUSPENDED" => "attention",
+            "SUSPENDED" or "BANNED" => "attention",
             "COMPLIANCE_REVIEW" => "attention",
             _ => "upcoming"
         };
@@ -1139,7 +1154,12 @@ public class DriverReadService : IDriverReadService
         AdminDriverIncidentDto[] incidents,
         IReadOnlyCollection<string> missingRequirements)
     {
-        if (driver.Status is AccountStatus.Suspended or AccountStatus.Banned)
+        if (driver.Status == AccountStatus.Banned)
+        {
+            return "BANNED";
+        }
+
+        if (driver.Status == AccountStatus.Suspended)
         {
             return "SUSPENDED";
         }
@@ -1324,7 +1344,7 @@ public class DriverReadService : IDriverReadService
         decimal pendingBalance,
         IReadOnlyCollection<string> missingRequirements)
     {
-        if (driver.Status == AccountStatus.Suspended ||
+        if (driver.Status is AccountStatus.Suspended or AccountStatus.Banned ||
             incidents.Any(i => string.Equals(i.Severity, DriverIncidentSeverity.Critical.ToString(), StringComparison.OrdinalIgnoreCase)))
         {
             return "high";

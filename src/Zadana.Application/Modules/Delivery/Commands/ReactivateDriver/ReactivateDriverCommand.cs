@@ -1,4 +1,4 @@
-using MediatR;
+﻿using MediatR;
 using Zadana.Application.Common.Interfaces;
 using Zadana.Application.Modules.Delivery.Interfaces;
 using Zadana.Application.Modules.Delivery.Support;
@@ -41,6 +41,13 @@ public class ReactivateDriverCommandHandler : IRequestHandler<ReactivateDriverCo
                 "Cannot reactivate driver account while required documents are expired.");
         }
 
+        if (!driver.CanReactivate)
+        {
+            throw new BusinessRuleException(
+                "DRIVER_NOT_ELIGIBLE_FOR_REACTIVATION",
+                "Driver account must be approved and have valid required documents before reactivation.");
+        }
+
         driver.Reactivate();
         await _unitOfWork.SaveChangesAsync(cancellationToken);
 
@@ -54,13 +61,18 @@ public class ReactivateDriverCommandHandler : IRequestHandler<ReactivateDriverCo
                 verificationStatus = driver.VerificationStatus.ToString()
             });
 
+        const string titleAr = "Driver account reactivated";
+        const string titleEn = "Driver account reactivated";
+        const string bodyAr = "Your driver account was reactivated and you can return to work.";
+        const string bodyEn = "Your driver account was reactivated and you can return to work.";
+
         await _notificationService.SendToUserAsync(
             driver.UserId,
             new NotificationDispatchRequest(
-                "تمت إعادة تفعيل الحساب",
-                "Driver account reactivated",
-                "تمت إعادة تفعيل حسابك ويمكنك العودة للعمل.",
-                "Your driver account was reactivated and you can return to work.",
+                titleAr,
+                titleEn,
+                bodyAr,
+                bodyEn,
                 NotificationTypes.DriverAccountUpdated,
                 NotificationCategories.Account,
                 NotificationPriorities.High,
@@ -73,10 +85,10 @@ public class ReactivateDriverCommandHandler : IRequestHandler<ReactivateDriverCo
         await _oneSignalPushService.SendMobileNotificationAsync(
             OneSignalMobilePushRequest.CreateStandard(
                 driver.UserId.ToString(),
-                "تمت إعادة تفعيل الحساب",
-                "Driver account reactivated",
-                "تمت إعادة تفعيل حسابك ويمكنك العودة للعمل.",
-                "Your driver account was reactivated and you can return to work.",
+                titleAr,
+                titleEn,
+                bodyAr,
+                bodyEn,
                 NotificationTypes.DriverAccountUpdated,
                 driver.Id,
                 data,

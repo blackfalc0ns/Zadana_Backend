@@ -28,6 +28,15 @@ public class Driver : BaseEntity
         Status == AccountStatus.Active &&
         !HasExpiredRequiredDocuments();
 
+    public bool CanReceiveNewOffers =>
+        CanReceiveOrders &&
+        IsAvailable &&
+        !IsLocationUpdatesBlocked;
+
+    public bool CanReactivate =>
+        VerificationStatus == DriverVerificationStatus.Approved &&
+        !HasExpiredRequiredDocuments();
+
     // Verification & Review
     public DriverVerificationStatus VerificationStatus { get; private set; }
     public DateTime? ReviewedAtUtc { get; private set; }
@@ -249,7 +258,12 @@ public class Driver : BaseEntity
         IsAvailable = false;
     }
 
-    public void Ban() => Status = AccountStatus.Banned;
+    public void Ban(string? reason = null)
+    {
+        Status = AccountStatus.Banned;
+        IsAvailable = false;
+        SuspensionReason = NormalizeOptional(reason);
+    }
 
     public void ToggleAvailability(bool isAvailable)
     {
@@ -263,6 +277,7 @@ public class Driver : BaseEntity
     public void BlockLocationUpdates(Guid adminUserId, string? reason = null)
     {
         IsLocationUpdatesBlocked = true;
+        IsAvailable = false;
         LocationUpdatesBlockReason = NormalizeOptional(reason);
         LocationUpdatesBlockedAtUtc = DateTime.UtcNow;
         LocationUpdatesBlockedByUserId = adminUserId;

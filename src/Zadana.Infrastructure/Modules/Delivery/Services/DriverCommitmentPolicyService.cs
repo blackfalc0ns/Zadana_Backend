@@ -1,4 +1,4 @@
-using Microsoft.EntityFrameworkCore;
+﻿using Microsoft.EntityFrameworkCore;
 using Zadana.Application.Common.Interfaces;
 using Zadana.Application.Modules.Delivery.DTOs;
 using Zadana.Application.Modules.Delivery.Interfaces;
@@ -12,14 +12,15 @@ namespace Zadana.Infrastructure.Modules.Delivery.Services;
 public class DriverCommitmentPolicyService : IDriverCommitmentPolicyService
 {
     private const int DailyRejectionLimit = 3;
+    private const int DailyCancellationLimit = 2;
     private const int WeeklyRejectionLimit = 20;
+    private const int WeeklyCancellationReviewThreshold = 5;
     private const int WatchDailyThreshold = 2;
     private const int WatchWeeklyThreshold = 8;
     private const decimal RejectedPenalty = 18m;
     private const decimal TimedOutPenalty = 12m;
     private const decimal AcceptedBoost = 4m;
     private const decimal MaxAcceptedBoost = 20m;
-    private static readonly TimeSpan DailyWindow = TimeSpan.FromHours(24);
     private static readonly TimeSpan WeeklyWindow = TimeSpan.FromDays(7);
 
     private readonly IApplicationDbContext _context;
@@ -72,7 +73,7 @@ public class DriverCommitmentPolicyService : IDriverCommitmentPolicyService
         var distinctDriverIds = driverIds.Distinct().ToArray();
         var utcNow = DateTime.UtcNow;
         var weekWindowStart = utcNow.Subtract(WeeklyWindow);
-        var dayWindowStart = utcNow.Subtract(DailyWindow);
+        var todayStart = utcNow.Date;
 
         var commitmentClearDates = await _context.Drivers
             .Where(driver => distinctDriverIds.Contains(driver.Id))
@@ -100,6 +101,27 @@ public class DriverCommitmentPolicyService : IDriverCommitmentPolicyService
             .GroupBy(item => item.DriverId)
             .ToDictionary(group => group.Key, group => group.ToArray());
 
+        var cancellationRows = await _context.DeliveryAssignments
+            .Where(item =>
+                item.DriverId.HasValue &&
+                distinctDriverIds.Contains(item.DriverId.Value) &&
+                item.FailedAtUtc.HasValue &&
+                item.FailedAtUtc.Value >= weekWindowStart &&
+                (item.Status == AssignmentStatus.Failed ||
+                 (item.Status == AssignmentStatus.Cancelled &&
+                  item.FailureReason != null &&
+                  item.FailureReason.Contains("driver"))))
+            .Select(item => new
+            {
+                DriverId = item.DriverId!.Value,
+                EventAtUtc = item.FailedAtUtc!.Value
+            })
+            .ToListAsync(cancellationToken);
+
+        var groupedCancellations = cancellationRows
+            .GroupBy(item => item.DriverId)
+            .ToDictionary(group => group.Key, group => group.ToArray());
+
         var result = new Dictionary<Guid, DriverCommitmentSummaryDto>(distinctDriverIds.Length);
 
         foreach (var driverId in distinctDriverIds)
@@ -114,18 +136,29 @@ public class DriverCommitmentPolicyService : IDriverCommitmentPolicyService
                     .ToArray();
             }
 
+            groupedCancellations.TryGetValue(driverId, out var cancellations);
+            cancellations ??= [];
+            if (commitmentClearedAtUtc.HasValue)
+            {
+                cancellations = cancellations
+                    .Where(item => item.EventAtUtc >= commitmentClearedAtUtc.Value)
+                    .ToArray();
+            }
+
             var acceptedOffers = attempts.Count(item => item.Status == DeliveryOfferAttemptStatus.Accepted);
             var rejectedOffers = attempts.Count(item => item.Status == DeliveryOfferAttemptStatus.Rejected);
             var timedOutOffers = attempts.Count(item => item.Status == DeliveryOfferAttemptStatus.TimedOut);
 
             var dailyRejections = attempts.Count(item =>
-                item.EventAtUtc >= dayWindowStart &&
+                item.EventAtUtc >= todayStart &&
                 item.Status is DeliveryOfferAttemptStatus.Rejected or DeliveryOfferAttemptStatus.TimedOut);
+            var dailyCancellations = cancellations.Count(item => item.EventAtUtc >= todayStart);
 
             var weeklyRejections = rejectedOffers + timedOutOffers;
+            var weeklyCancellations = cancellations.Length;
             var acceptedBoost = Math.Min(MaxAcceptedBoost, acceptedOffers * AcceptedBoost);
             var commitmentScore = Math.Clamp(
-                100m - (rejectedOffers * RejectedPenalty) - (timedOutOffers * TimedOutPenalty) + acceptedBoost,
+                100m - (rejectedOffers * RejectedPenalty) - (timedOutOffers * TimedOutPenalty) - (weeklyCancellations * RejectedPenalty) + acceptedBoost,
                 0m,
                 100m);
 
@@ -133,11 +166,16 @@ public class DriverCommitmentPolicyService : IDriverCommitmentPolicyService
                 .Where(item => item.Status is DeliveryOfferAttemptStatus.Rejected or DeliveryOfferAttemptStatus.TimedOut)
                 .GroupBy(item => item.EventAtUtc.Date)
                 .Count(group => group.Count() >= DailyRejectionLimit);
+            var cancellationBlockedDaysInWeek = cancellations
+                .GroupBy(item => item.EventAtUtc.Date)
+                .Count(group => group.Count() >= DailyCancellationLimit);
 
             var enforcementLevel = ResolveEnforcementLevel(
                 dailyRejections,
                 weeklyRejections,
-                softBlockedDaysInWeek,
+                softBlockedDaysInWeek + cancellationBlockedDaysInWeek,
+                dailyCancellations,
+                weeklyCancellations,
                 commitmentScore);
 
             var canReceiveOffers = enforcementLevel is not (
@@ -153,7 +191,7 @@ public class DriverCommitmentPolicyService : IDriverCommitmentPolicyService
                 CommitmentScore: Math.Round(commitmentScore, 1),
                 EnforcementLevel: enforcementLevel.ToString(),
                 CanReceiveOffers: canReceiveOffers,
-                RestrictionMessage: ResolveRestrictionMessageAr(enforcementLevel),
+                RestrictionMessage: ResolveRestrictionMessageArClean(enforcementLevel),
                 LastOfferResponseAtUtc: attempts
                     .Where(item => item.RespondedAtUtc.HasValue)
                     .OrderByDescending(item => item.RespondedAtUtc)
@@ -166,6 +204,8 @@ public class DriverCommitmentPolicyService : IDriverCommitmentPolicyService
     }
 
     public static int GetDailyRejectionLimit() => DailyRejectionLimit;
+
+    public static int GetWeeklyRejectionLimit() => WeeklyRejectionLimit;
 
     public async Task ApplyOperationalEnforcementAsync(
         IReadOnlyCollection<Guid> driverIds,
@@ -282,17 +322,13 @@ public class DriverCommitmentPolicyService : IDriverCommitmentPolicyService
                 : "performance.forced_offline";
 
         var titleAr = suspensionCandidateTriggered
-            ? "يتطلب الحساب مراجعة تشغيلية"
-            : "تم إيقاف استقبال العروض مؤقتًا";
-        var titleEn = suspensionCandidateTriggered
             ? "Operational review required"
             : "Offer reception paused";
+        var titleEn = titleAr;
         var bodyAr = suspensionCandidateTriggered
-            ? "تكررت حالات رفض أو انتهاء مهلة العروض، وتم تحويل الحساب للمراجعة."
-            : "تم إيقاف استقبال العروض الجديدة مؤقتًا بسبب التزام العروض.";
-        var bodyEn = suspensionCandidateTriggered
             ? "Repeated rejections or offer timeouts moved your account to operational review."
             : "New offers were paused temporarily because of recent offer compliance.";
+        var bodyEn = bodyAr;
 
         var data = DriverNotificationDataBuilder.Build(
             screen: "account_status",
@@ -356,20 +392,29 @@ public class DriverCommitmentPolicyService : IDriverCommitmentPolicyService
         int dailyRejections,
         int weeklyRejections,
         int softBlockedDaysInWeek,
+        int dailyCancellations,
+        int weeklyCancellations,
         decimal commitmentScore)
     {
-        var softBlocked = dailyRejections >= DailyRejectionLimit || weeklyRejections >= WeeklyRejectionLimit;
-        if (softBlocked && softBlockedDaysInWeek >= 2)
+        var dailyBlocked = dailyRejections >= DailyRejectionLimit || dailyCancellations >= DailyCancellationLimit;
+        if (dailyBlocked &&
+            (softBlockedDaysInWeek >= 2 ||
+             weeklyRejections >= WeeklyRejectionLimit ||
+             weeklyCancellations >= WeeklyCancellationReviewThreshold))
         {
             return DriverCommitmentEnforcementLevel.SuspensionCandidate;
         }
 
-        if (softBlocked)
+        if (dailyBlocked)
         {
             return DriverCommitmentEnforcementLevel.SoftBlocked;
         }
 
-        if (dailyRejections >= WatchDailyThreshold || weeklyRejections >= WatchWeeklyThreshold || commitmentScore <= 80m)
+        if (dailyRejections >= WatchDailyThreshold ||
+            dailyCancellations > 0 ||
+            weeklyRejections >= WatchWeeklyThreshold ||
+            weeklyCancellations >= 2 ||
+            commitmentScore <= 80m)
         {
             return DriverCommitmentEnforcementLevel.Watch;
         }
@@ -378,24 +423,20 @@ public class DriverCommitmentPolicyService : IDriverCommitmentPolicyService
     }
 
     private static string? ResolveRestrictionMessageAr(DriverCommitmentEnforcementLevel enforcementLevel) =>
-        enforcementLevel switch
-        {
-            DriverCommitmentEnforcementLevel.SoftBlocked =>
-                "تم تقييد الحساب مؤقتًا بسبب الوصول إلى حد رفض العروض اليومي، ولا يمكن استقبال عروض جديدة حاليًا.",
-            DriverCommitmentEnforcementLevel.SuspensionCandidate =>
-                "تم تقييد الحساب مؤقتًا بسبب تكرار رفض العروض. يرجى انتظار مراجعة الإدارة قبل استئناف استقبال الطلبات.",
-            _ => null
-        };
+        ResolveRestrictionMessageEn(enforcementLevel);
 
     private static string? ResolveRestrictionMessageEn(DriverCommitmentEnforcementLevel enforcementLevel) =>
         enforcementLevel switch
         {
             DriverCommitmentEnforcementLevel.SoftBlocked =>
-                "The account was temporarily restricted after reaching the daily offer rejection limit and cannot receive new offers right now.",
+                "The account was temporarily restricted after reaching today's rejection or delivery cancellation limit. It can receive offers again tomorrow or after admin clearance.",
             DriverCommitmentEnforcementLevel.SuspensionCandidate =>
-                "The account was temporarily restricted because offer rejections happened repeatedly. Please wait for admin review before receiving orders again.",
+                "The account was temporarily restricted because offer rejections or delivery cancellations happened repeatedly. Please wait for admin review before receiving orders again.",
             _ => null
         };
+
+    private static string? ResolveRestrictionMessageArClean(DriverCommitmentEnforcementLevel enforcementLevel) =>
+        ResolveRestrictionMessageEn(enforcementLevel);
 
     private sealed class NoOpNotificationService : INotificationService
     {

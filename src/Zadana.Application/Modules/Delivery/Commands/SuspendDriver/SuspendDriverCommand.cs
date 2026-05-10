@@ -1,4 +1,4 @@
-using MediatR;
+﻿using MediatR;
 using Zadana.Application.Common.Interfaces;
 using Zadana.Application.Modules.Delivery.Interfaces;
 using Zadana.Application.Modules.Delivery.Support;
@@ -46,13 +46,18 @@ public class SuspendDriverCommandHandler : IRequestHandler<SuspendDriverCommand>
                 reason = request.Reason
             });
 
+        const string titleAr = "Driver account suspended";
+        const string titleEn = "Driver account suspended";
+        const string bodyAr = "Your driver account was suspended. Review your account status for details.";
+        const string bodyEn = "Your driver account was suspended. Review your account status for details.";
+
         await _notificationService.SendToUserAsync(
             driver.UserId,
             new NotificationDispatchRequest(
-                "تم إيقاف حساب المندوب",
-                "Driver account suspended",
-                "تم إيقاف حسابك مؤقتًا. راجع حالة الحساب لمعرفة التفاصيل.",
-                "Your driver account was suspended. Review your account status for details.",
+                titleAr,
+                titleEn,
+                bodyAr,
+                bodyEn,
                 NotificationTypes.DriverAccountUpdated,
                 NotificationCategories.Account,
                 NotificationPriorities.Critical,
@@ -65,10 +70,10 @@ public class SuspendDriverCommandHandler : IRequestHandler<SuspendDriverCommand>
         await _oneSignalPushService.SendMobileNotificationAsync(
             OneSignalMobilePushRequest.CreateHeadsUp(
                 driver.UserId.ToString(),
-                "تم إيقاف حساب المندوب",
-                "Driver account suspended",
-                "تم إيقاف حسابك مؤقتًا. راجع حالة الحساب لمعرفة التفاصيل.",
-                "Your driver account was suspended. Review your account status for details.",
+                titleAr,
+                titleEn,
+                bodyAr,
+                bodyEn,
                 NotificationTypes.DriverAccountUpdated,
                 driver.Id,
                 data,

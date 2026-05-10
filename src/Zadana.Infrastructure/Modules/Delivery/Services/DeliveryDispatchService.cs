@@ -436,9 +436,7 @@ public class DeliveryDispatchService : IDeliveryDispatchService
         var eligibleDrivers = await _context.Drivers
             .Include(driver => driver.User)
             .Where(driver =>
-                driver.VerificationStatus == DriverVerificationStatus.Approved &&
-                driver.Status == AccountStatus.Active &&
-                driver.IsAvailable &&
+                driver.CanReceiveNewOffers &&
                 !busyDriverIds.Contains(driver.Id))
             .ToListAsync(cancellationToken);
 
@@ -453,9 +451,7 @@ public class DeliveryDispatchService : IDeliveryDispatchService
             eligibleDrivers = await _context.Drivers
                 .Include(driver => driver.User)
                 .Where(driver =>
-                    driver.VerificationStatus == DriverVerificationStatus.Approved &&
-                    driver.Status == AccountStatus.Active &&
-                    driver.IsAvailable &&
+                    driver.CanReceiveNewOffers &&
                     !busyDriverIds.Contains(driver.Id))
                 .ToListAsync(cancellationToken);
 

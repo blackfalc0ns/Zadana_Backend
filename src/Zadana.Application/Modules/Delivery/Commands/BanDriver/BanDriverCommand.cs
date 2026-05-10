@@ -1,22 +1,22 @@
-﻿using MediatR;
+using MediatR;
 using Zadana.Application.Common.Interfaces;
 using Zadana.Application.Modules.Delivery.Interfaces;
 using Zadana.Application.Modules.Delivery.Support;
 using Zadana.Domain.Modules.Social.Enums;
 using Zadana.SharedKernel.Exceptions;
 
-namespace Zadana.Application.Modules.Delivery.Commands.BlockDriverLocationUpdates;
+namespace Zadana.Application.Modules.Delivery.Commands.BanDriver;
 
-public record BlockDriverLocationUpdatesCommand(Guid DriverId, Guid AdminUserId, string? Reason) : IRequest;
+public record BanDriverCommand(Guid DriverId, string? Reason) : IRequest;
 
-public class BlockDriverLocationUpdatesCommandHandler : IRequestHandler<BlockDriverLocationUpdatesCommand>
+public class BanDriverCommandHandler : IRequestHandler<BanDriverCommand>
 {
     private readonly IDriverRepository _driverRepository;
     private readonly IUnitOfWork _unitOfWork;
     private readonly INotificationService _notificationService;
     private readonly IOneSignalPushService _oneSignalPushService;
 
-    public BlockDriverLocationUpdatesCommandHandler(
+    public BanDriverCommandHandler(
         IDriverRepository driverRepository,
         IUnitOfWork unitOfWork,
         INotificationService notificationService,
@@ -28,28 +28,28 @@ public class BlockDriverLocationUpdatesCommandHandler : IRequestHandler<BlockDri
         _oneSignalPushService = oneSignalPushService;
     }
 
-    public async Task Handle(BlockDriverLocationUpdatesCommand request, CancellationToken cancellationToken)
+    public async Task Handle(BanDriverCommand request, CancellationToken cancellationToken)
     {
         var driver = await _driverRepository.GetByIdAsync(request.DriverId, cancellationToken)
             ?? throw new NotFoundException("Driver", request.DriverId);
 
-        driver.BlockLocationUpdates(request.AdminUserId, request.Reason);
+        driver.Ban(request.Reason);
         await _unitOfWork.SaveChangesAsync(cancellationToken);
 
         var data = DriverNotificationDataBuilder.Build(
             screen: "account_status",
-            @event: "account.location_blocked",
+            @event: "account.ban",
             driverId: driver.Id,
             extra: new
             {
-                reason = request.Reason,
-                locationUpdatesBlocked = driver.IsLocationUpdatesBlocked
+                accountStatus = driver.Status.ToString(),
+                reason = request.Reason
             });
 
-        const string titleAr = "Location updates blocked";
-        const string titleEn = "Location updates blocked";
-        const string bodyAr = "Your location updates were temporarily blocked by the team.";
-        const string bodyEn = "Your location updates were temporarily blocked by the team.";
+        const string titleAr = "Driver account banned";
+        const string titleEn = "Driver account banned";
+        const string bodyAr = "Your driver account was banned and cannot receive new delivery offers.";
+        const string bodyEn = "Your driver account was banned and cannot receive new delivery offers.";
 
         await _notificationService.SendToUserAsync(
             driver.UserId,
@@ -60,7 +60,7 @@ public class BlockDriverLocationUpdatesCommandHandler : IRequestHandler<BlockDri
                 bodyEn,
                 NotificationTypes.DriverAccountUpdated,
                 NotificationCategories.Account,
-                NotificationPriorities.High,
+                NotificationPriorities.Critical,
                 driver.Id,
                 data),
             cancellationToken);
@@ -68,7 +68,7 @@ public class BlockDriverLocationUpdatesCommandHandler : IRequestHandler<BlockDri
         await _notificationService.SendDriverHomeUpdatedAsync(driver.UserId, cancellationToken);
 
         await _oneSignalPushService.SendMobileNotificationAsync(
-            OneSignalMobilePushRequest.CreateStandard(
+            OneSignalMobilePushRequest.CreateHeadsUp(
                 driver.UserId.ToString(),
                 titleAr,
                 titleEn,

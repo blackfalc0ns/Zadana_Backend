@@ -77,6 +77,7 @@ public class ReviewDriverCommandHandler : IRequestHandler<ReviewDriverCommand>
                 {
                     throw new BusinessRuleException("DRIVER_DOCUMENTS_NOT_APPROVED", "All required driver documents must be approved before final account approval.");
                 }
+
                 driver.Approve(request.ReviewerUserId, request.Note);
                 break;
             case "request-docs":
@@ -101,28 +102,7 @@ public class ReviewDriverCommandHandler : IRequestHandler<ReviewDriverCommand>
             return;
         }
 
-        var (eventName, titleAr, titleEn, bodyAr, bodyEn) = request.Action.ToLowerInvariant() switch
-        {
-            "approve" => (
-                "account.approve",
-                "تم اعتماد حساب المندوب",
-                "Driver account approved",
-                "تمت مراجعة حسابك واعتماده. يمكنك الآن متابعة العمل من التطبيق.",
-                "Your driver account was approved. You can continue working from the app."),
-            "request-docs" => (
-                "account.request_docs",
-                "مطلوب استكمال المستندات",
-                "Additional documents required",
-                "يرجى مراجعة حسابك واستكمال المستندات المطلوبة.",
-                "Please review your account and upload the required documents."),
-            _ => (
-                "account.reject",
-                "تم رفض طلب التسجيل",
-                "Driver application rejected",
-                "تم رفض طلب التسجيل الحالي. راجع ملاحظات الفريق داخل التطبيق.",
-                "Your current driver application was rejected. Review the team note in the app.")
-        };
-
+        var (eventName, titleAr, titleEn, bodyAr, bodyEn) = BuildReviewNotification(request.Action);
         var data = DriverNotificationDataBuilder.Build(
             screen: "account_status",
             @event: eventName,
@@ -198,6 +178,29 @@ public class ReviewDriverCommandHandler : IRequestHandler<ReviewDriverCommand>
             _logger.LogWarning(ex, "Driver review push notification failed for driver {DriverId}", driverId);
         }
     }
+
+    private static (string EventName, string TitleAr, string TitleEn, string BodyAr, string BodyEn) BuildReviewNotification(string action) =>
+        action.ToLowerInvariant() switch
+        {
+            "approve" => (
+                "account.approve",
+                "Driver account approved",
+                "Driver account approved",
+                "Your driver account was approved. You can continue working from the app.",
+                "Your driver account was approved. You can continue working from the app."),
+            "request-docs" => (
+                "account.request_docs",
+                "Additional documents required",
+                "Additional documents required",
+                "Please review your account and upload the required documents.",
+                "Please review your account and upload the required documents."),
+            _ => (
+                "account.reject",
+                "Driver application rejected",
+                "Driver application rejected",
+                "Your current driver application was rejected. Review the team note in the app.",
+                "Your current driver application was rejected. Review the team note in the app.")
+        };
 
     private void DetachDriverUserIfTracked(Domain.Modules.Delivery.Entities.Driver driver)
     {

@@ -42,7 +42,12 @@ public sealed class AccessAuthorizationConvention : IApplicationModelConvention
             ["AdminDrivers"] = new(
                 [PermissionKeys.Admin.DriversView],
                 edit: [PermissionKeys.Admin.DriversEdit],
-                approve: [PermissionKeys.Admin.DriversApprove]),
+                approve: [PermissionKeys.Admin.DriversApprove],
+                overrides: new Dictionary<string, string[]>(StringComparer.Ordinal)
+                {
+                    ["BanDriver"] = [PermissionKeys.Admin.DriversApprove],
+                    ["UnbanDriver"] = [PermissionKeys.Admin.DriversApprove]
+                }),
             ["AdminEmailCenter"] = new(
                 [PermissionKeys.Admin.EmailCenterView],
                 edit: [PermissionKeys.Admin.EmailCenterEdit],

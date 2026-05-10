@@ -1,4 +1,4 @@
-using MediatR;
+﻿using MediatR;
 using Zadana.Application.Common.Interfaces;
 using Zadana.Application.Modules.Delivery.Interfaces;
 using Zadana.Application.Modules.Delivery.Support;
@@ -45,13 +45,18 @@ public class UnblockDriverLocationUpdatesCommandHandler : IRequestHandler<Unbloc
                 locationUpdatesBlocked = driver.IsLocationUpdatesBlocked
             });
 
+        const string titleAr = "Location updates restored";
+        const string titleEn = "Location updates restored";
+        const string bodyAr = "Your location updates were restored and everything is back to normal.";
+        const string bodyEn = "Your location updates were restored and everything is back to normal.";
+
         await _notificationService.SendToUserAsync(
             driver.UserId,
             new NotificationDispatchRequest(
-                "تمت إعادة تفعيل تحديثات الموقع",
-                "Location updates restored",
-                "تمت إعادة تفعيل تحديثات موقعك ويمكنك المتابعة بشكل طبيعي.",
-                "Your location updates were restored and everything is back to normal.",
+                titleAr,
+                titleEn,
+                bodyAr,
+                bodyEn,
                 NotificationTypes.DriverAccountUpdated,
                 NotificationCategories.Account,
                 NotificationPriorities.High,
@@ -64,10 +69,10 @@ public class UnblockDriverLocationUpdatesCommandHandler : IRequestHandler<Unbloc
         await _oneSignalPushService.SendMobileNotificationAsync(
             OneSignalMobilePushRequest.CreateStandard(
                 driver.UserId.ToString(),
-                "تمت إعادة تفعيل تحديثات الموقع",
-                "Location updates restored",
-                "تمت إعادة تفعيل تحديثات موقعك ويمكنك المتابعة بشكل طبيعي.",
-                "Your location updates were restored and everything is back to normal.",
+                titleAr,
+                titleEn,
+                bodyAr,
+                bodyEn,
                 NotificationTypes.DriverAccountUpdated,
                 driver.Id,
                 data,
