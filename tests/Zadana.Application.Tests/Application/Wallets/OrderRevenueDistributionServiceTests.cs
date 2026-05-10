@@ -4,6 +4,7 @@ using Microsoft.Extensions.Logging;
 using Microsoft.Extensions.Options;
 using Moq;
 using Zadana.Application.Common.Settings;
+using Zadana.Application.Modules.Finances.Services;
 using Zadana.Application.Modules.Wallets.Services;
 using Zadana.Domain.Modules.Identity.Entities;
 using Zadana.Domain.Modules.Identity.Enums;
@@ -41,10 +42,16 @@ public class OrderRevenueDistributionServiceTests
             dbContext,
             new Mock<ILogger<VendorPayoutWalletService>>().Object);
         var vendorRecoveryService = new VendorRecoveryService(dbContext, vendorPayoutWalletService);
+        var financialEventPostingService = new FinancialEventPostingService(
+            dbContext,
+            new Mock<ILogger<FinancialEventPostingService>>().Object);
+        var walletProjectionUpdater = new WalletProjectionUpdater(dbContext);
         var distributionService = new OrderRevenueDistributionService(
             dbContext,
             Options.Create(new FinancialSettingsOptions()),
             vendorPayoutWalletService,
+            financialEventPostingService,
+            walletProjectionUpdater,
             new Mock<ILogger<OrderRevenueDistributionService>>().Object,
             vendorRecoveryService);
 
