@@ -56,8 +56,8 @@ public class PaymobWebhookController(
                 null,
                 request?.ProviderReference,
                 request?.ProviderTransactionId,
-                null,
-                true,
+                request?.IsSuccess,
+                request?.IsPending,
                 ResolveDeviceIdHeader()),
             cancellationToken);
 
