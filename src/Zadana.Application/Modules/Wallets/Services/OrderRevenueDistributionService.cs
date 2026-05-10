@@ -3,6 +3,8 @@ using Microsoft.Extensions.Logging;
 using Microsoft.Extensions.Options;
 using Zadana.Application.Common.Interfaces;
 using Zadana.Application.Common.Settings;
+using Zadana.Application.Modules.Finances.Services;
+using Zadana.Domain.Modules.Finances.Enums;
 using Zadana.Domain.Modules.Orders.Enums;
 using Zadana.Domain.Modules.Payments.Enums;
 using Zadana.Domain.Modules.Vendors.Enums;
@@ -17,18 +19,24 @@ public class OrderRevenueDistributionService
     private readonly FinancialSettingsOptions _settings;
     private readonly VendorPayoutWalletService _vendorPayoutWalletService;
     private readonly VendorRecoveryService? _vendorRecoveryService;
+    private readonly FinancialEventPostingService _financialEventPostingService;
+    private readonly WalletProjectionUpdater _walletProjectionUpdater;
     private readonly ILogger<OrderRevenueDistributionService> _logger;
 
     public OrderRevenueDistributionService(
         IApplicationDbContext context,
         IOptions<FinancialSettingsOptions> settings,
         VendorPayoutWalletService vendorPayoutWalletService,
+        FinancialEventPostingService financialEventPostingService,
+        WalletProjectionUpdater walletProjectionUpdater,
         ILogger<OrderRevenueDistributionService> logger,
         VendorRecoveryService? vendorRecoveryService = null)
     {
         _context = context;
         _settings = settings.Value;
         _vendorPayoutWalletService = vendorPayoutWalletService;
+        _financialEventPostingService = financialEventPostingService;
+        _walletProjectionUpdater = walletProjectionUpdater;
         _logger = logger;
         _vendorRecoveryService = vendorRecoveryService;
     }
@@ -73,9 +81,10 @@ public class OrderRevenueDistributionService
         }
 
         // 3. Idempotency: check if already distributed
-        var alreadyDistributed = await _context.WalletTransactions
+        var idempotencyKey = $"order-revenue:{orderId:N}";
+        var alreadyDistributed = await _context.FinancialEvents
             .AsNoTracking()
-            .AnyAsync(t => t.OrderId == orderId && t.TxnType == WalletTxnType.OrderRevenue, cancellationToken);
+            .AnyAsync(item => item.IdempotencyKey == idempotencyKey, cancellationToken);
 
         if (alreadyDistributed)
         {
@@ -140,54 +149,132 @@ public class OrderRevenueDistributionService
             "[RevenueDistribution] Order {OrderId}: VendorNet={VendorNet}, DriverNet={DriverNet}, PlatformNet={PlatformNet}",
             orderId, vendorNet, driverNet, platformNet);
 
-        // 7. Get or create wallets
-        var vendorWallet = await GetOrCreateWalletAsync(WalletOwnerType.Vendor, vendor.Id, cancellationToken);
-        var platformWallet = await GetOrCreateWalletAsync(WalletOwnerType.Platform, _settings.PlatformWalletOwnerId, cancellationToken);
+        // 7. Post ledger-first journal, then update wallet projections from the posted entry.
+        var postingLines = BuildDeliveredOrderPostingLines(
+            orderId,
+            vendor.Id,
+            driverAssignment?.DriverId,
+            vendorNet,
+            driverNet,
+            platformNet,
+            order.PaymentMethod);
 
-        // 8. Credit vendor wallet
-        if (vendorNet > 0)
+        if (postingLines.Count == 0)
         {
-            vendorWallet.Credit(vendorNet);
-            var vendorTxn = new WalletTransaction(
-                vendorWallet.Id, WalletTxnType.OrderRevenue, vendorNet, "IN",
-                orderId: orderId,
-                referenceType: "OrderRevenue",
-                description: $"Revenue from order {order.OrderNumber}");
-            _context.WalletTransactions.Add(vendorTxn);
+            _logger.LogWarning("[RevenueDistribution] Order {OrderId} produced no financial posting lines.", orderId);
+            return;
         }
 
-        // 9. Credit driver wallet (if assigned)
-        if (driverNet > 0 && driverAssignment?.DriverId != null)
-        {
-            var driverWallet = await GetOrCreateWalletAsync(WalletOwnerType.Driver, driverAssignment.DriverId.Value, cancellationToken);
-            driverWallet.Credit(driverNet);
-            _context.WalletTransactions.Add(new WalletTransaction(
-                driverWallet.Id, WalletTxnType.OrderRevenue, driverNet, "IN",
-                orderId: orderId,
-                referenceType: "OrderRevenue",
-                description: $"Delivery fee from order {orderId}"));
-        }
+        var postingResult = await _financialEventPostingService.PostAsync(
+            order.PaymentMethod == PaymentMethodType.CashOnDelivery
+                ? FinancialEventType.CodCashCollected
+                : FinancialEventType.OnlinePaymentDelivered,
+            idempotencyKey,
+            postingLines,
+            orderId: orderId,
+            description: $"Revenue distribution for order {order.OrderNumber}",
+            cancellationToken: cancellationToken);
 
-        // 10. Credit platform wallet
-        if (platformNet > 0)
-        {
-            platformWallet.Credit(platformNet);
-            _context.WalletTransactions.Add(new WalletTransaction(
-                platformWallet.Id, WalletTxnType.OrderRevenue, platformNet, "IN",
-                orderId: orderId,
-                referenceType: "OrderRevenue",
-                description: $"Commission from order {orderId}"));
-        }
+        await _walletProjectionUpdater.ApplyJournalEntryAsync(postingResult.JournalEntryId, cancellationToken);
 
-        // 11. Handle per-order direct payout for vendor
+        // 8. Handle per-order direct payout for vendor
         if (vendor.FinancialLifecycleMode == VendorFinancialLifecycleMode.PerOrderDirectPayout && vendorNet > 0)
         {
             await CreateDirectPayoutAsync(vendor.Id, orderId, order, vendorNet, driverNet, platformNet, cancellationToken);
+            await _context.SaveChangesAsync(cancellationToken);
         }
 
-        await _context.SaveChangesAsync(cancellationToken);
-
         _logger.LogInformation("[RevenueDistribution] Order {OrderId} distributed successfully.", orderId);
+    }
+
+    private IReadOnlyCollection<JournalLineDraft> BuildDeliveredOrderPostingLines(
+        Guid orderId,
+        Guid vendorId,
+        Guid? driverId,
+        decimal vendorNet,
+        decimal driverNet,
+        decimal platformNet,
+        PaymentMethodType paymentMethod)
+    {
+        var lines = new List<JournalLineDraft>();
+        var postingTotal = vendorNet + platformNet;
+
+        if (driverNet > 0 && driverId is not null)
+        {
+            postingTotal += driverNet;
+        }
+
+        if (postingTotal <= 0)
+        {
+            return lines;
+        }
+
+        if (paymentMethod == PaymentMethodType.CashOnDelivery)
+        {
+            if (driverId is null)
+            {
+                _logger.LogWarning("[RevenueDistribution] COD order {OrderId} has no assigned driver; posting skipped.", orderId);
+                return [];
+            }
+
+            lines.Add(new JournalLineDraft(
+                FinancialAccountCode.DriverCodReceivable,
+                postingTotal,
+                0m,
+                FinancialOwnerType.Driver,
+                driverId,
+                orderId,
+                Memo: $"COD cash collected for order {orderId}"));
+        }
+        else
+        {
+            lines.Add(new JournalLineDraft(
+                FinancialAccountCode.GatewayReceivable,
+                postingTotal,
+                0m,
+                FinancialOwnerType.Gateway,
+                null,
+                orderId,
+                Memo: $"Online payment receivable for order {orderId}"));
+        }
+
+        if (vendorNet > 0)
+        {
+            lines.Add(new JournalLineDraft(
+                FinancialAccountCode.VendorPayable,
+                0m,
+                vendorNet,
+                FinancialOwnerType.Vendor,
+                vendorId,
+                orderId,
+                Memo: $"Vendor payable for order {orderId}"));
+        }
+
+        if (driverNet > 0 && driverId is not null)
+        {
+            lines.Add(new JournalLineDraft(
+                FinancialAccountCode.DriverPayable,
+                0m,
+                driverNet,
+                FinancialOwnerType.Driver,
+                driverId,
+                orderId,
+                Memo: $"Driver payable for order {orderId}"));
+        }
+
+        if (platformNet > 0)
+        {
+            lines.Add(new JournalLineDraft(
+                FinancialAccountCode.PlatformRevenue,
+                0m,
+                platformNet,
+                FinancialOwnerType.Platform,
+                _settings.PlatformWalletOwnerId,
+                orderId,
+                Memo: $"Platform revenue for order {orderId}"));
+        }
+
+        return lines;
     }
 
     private async Task CreateDirectPayoutAsync(
@@ -231,23 +318,6 @@ public class OrderRevenueDistributionService
             "PayoutHold",
             $"Hold for direct payout on order {orderId}",
             cancellationToken);
-    }
-
-    private async Task<Wallet> GetOrCreateWalletAsync(
-        WalletOwnerType ownerType,
-        Guid ownerId,
-        CancellationToken cancellationToken)
-    {
-        var wallet = await _context.Wallets
-            .FirstOrDefaultAsync(w => w.OwnerType == ownerType && w.OwnerId == ownerId, cancellationToken);
-
-        if (wallet is null)
-        {
-            wallet = new Wallet(ownerType, ownerId);
-            _context.Wallets.Add(wallet);
-        }
-
-        return wallet;
     }
 
     private static bool IsEligible(OrderStatus status, PaymentMethodType paymentMethod, PaymentStatus paymentStatus)

@@ -104,35 +104,6 @@ public class VendorRecoveryService
             }
         }
 
-        if (remaining > 0.009m)
-        {
-            var wallet = await _context.Wallets
-                .FirstOrDefaultAsync(
-                    item => item.OwnerType == WalletOwnerType.Vendor && item.OwnerId == supportCase.Order.VendorId,
-                    cancellationToken);
-
-            var walletRecoveryAmount = Math.Min(remaining, wallet?.CurrentBalance ?? 0m);
-            if (wallet is not null && walletRecoveryAmount > 0m)
-            {
-                wallet.Debit(walletRecoveryAmount);
-                var walletTxn = new WalletTransaction(
-                    wallet.Id,
-                    WalletTxnType.Debit,
-                    walletRecoveryAmount,
-                    "OUT",
-                    orderId: supportCase.OrderId,
-                    referenceType: "VendorRecovery",
-                    referenceId: recovery.Id,
-                    description: $"Vendor recovery debited from wallet for order {supportCase.Order.OrderNumber}.");
-                _context.WalletTransactions.Add(walletTxn);
-
-                recovery.ApplyRecovery(
-                    walletRecoveryAmount,
-                    VendorRecoverySource.VendorWalletDebit,
-                    walletTransactionId: walletTxn.Id);
-            }
-        }
-
         if (recovery.HasOutstandingBalance)
         {
             recovery.KeepPending("Remaining vendor recovery will be deducted from future settlements.");

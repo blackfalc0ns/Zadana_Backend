@@ -153,6 +153,12 @@ builder.Services.AddHttpClient<IPaymobGateway, PaymobGateway>((serviceProvider, 
     client.BaseAddress = new Uri(string.IsNullOrWhiteSpace(settings.BaseUrl) ? "https://accept.paymob.com" : settings.BaseUrl);
 });
 
+builder.Services.AddHttpClient<IPaymobPayoutGateway, PaymobPayoutGateway>((serviceProvider, client) =>
+{
+    var settings = serviceProvider.GetRequiredService<Microsoft.Extensions.Options.IOptions<PaymobSettings>>().Value;
+    client.BaseAddress = new Uri(string.IsNullOrWhiteSpace(settings.BaseUrl) ? "https://accept.paymob.com" : settings.BaseUrl);
+});
+
 builder.Services.AddHttpClient<IOneSignalPushService, OneSignalPushService>((serviceProvider, client) =>
 {
     var settings = serviceProvider.GetRequiredService<Microsoft.Extensions.Options.IOptions<OneSignalSettings>>().Value;

@@ -9,14 +9,23 @@ public class Payout : BaseEntity
 {
     public Guid SettlementId { get; private set; }
     public Guid? VendorBankAccountId { get; private set; }
+    public PayoutDestinationType DestinationType { get; private set; }
+    public string? DestinationSnapshot { get; private set; }
     public decimal Amount { get; private set; }
     public PayoutStatus Status { get; private set; }
+    public string ProviderName { get; private set; } = "Paymob";
+    public string? ProviderTransferId { get; private set; }
     public string? TransferReference { get; private set; }
+    public string? FailureReason { get; private set; }
+    public Guid? ProcessedByUserId { get; private set; }
+    public DateTime? TriggeredAtUtc { get; private set; }
+    public DateTime? CompletedAtUtc { get; private set; }
     public DateTime? ProcessedAtUtc { get; private set; }
 
     // Navigation
     public Settlement Settlement { get; private set; } = null!;
     public VendorBankAccount? VendorBankAccount { get; private set; }
+    public ICollection<PayoutAttempt> Attempts { get; private set; } = [];
 
     private Payout() { }
 
@@ -27,7 +36,23 @@ public class Payout : BaseEntity
         SettlementId = settlementId;
         Amount = amount;
         VendorBankAccountId = vendorBankAccountId;
+        DestinationType = vendorBankAccountId.HasValue ? PayoutDestinationType.VendorBankAccount : PayoutDestinationType.Manual;
+        ProviderName = "Paymob";
         Status = PayoutStatus.Pending;
+    }
+
+    public void PrepareDestination(PayoutDestinationType destinationType, string? destinationSnapshot)
+    {
+        DestinationType = destinationType;
+        DestinationSnapshot = string.IsNullOrWhiteSpace(destinationSnapshot) ? null : destinationSnapshot.Trim();
+    }
+
+    public void MarkQueued(string? providerTransferId = null)
+    {
+        Status = PayoutStatus.Queued;
+        ProviderTransferId = string.IsNullOrWhiteSpace(providerTransferId) ? ProviderTransferId : providerTransferId.Trim();
+        TriggeredAtUtc = DateTime.UtcNow;
+        FailureReason = null;
     }
 
     public void MarkAsProcessing() => Status = PayoutStatus.Processing;
@@ -36,7 +61,9 @@ public class Payout : BaseEntity
     {
         Status = PayoutStatus.Paid;
         TransferReference = transferReference.Trim();
+        CompletedAtUtc = DateTime.UtcNow;
         ProcessedAtUtc = DateTime.UtcNow;
+        FailureReason = null;
     }
 
     public void ReduceAmount(decimal amount)
@@ -59,6 +86,16 @@ public class Payout : BaseEntity
         Amount -= amount;
     }
 
-    public void MarkAsFailed() => Status = PayoutStatus.Failed;
-    public void Cancel() => Status = PayoutStatus.Cancelled;
+    public void MarkAsFailed(string? failureReason = null)
+    {
+        Status = PayoutStatus.Failed;
+        FailureReason = string.IsNullOrWhiteSpace(failureReason) ? null : failureReason.Trim();
+        CompletedAtUtc = DateTime.UtcNow;
+    }
+
+    public void Cancel()
+    {
+        Status = PayoutStatus.Cancelled;
+        CompletedAtUtc = DateTime.UtcNow;
+    }
 }

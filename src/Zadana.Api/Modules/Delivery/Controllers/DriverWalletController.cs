@@ -253,18 +253,18 @@ public class DriverWalletController : ApiControllerBase
             throw new BusinessRuleException("DRIVER_PAYOUT_METHOD_REQUIRED", "أضف طريقة سحب أساسية قبل طلب السحب | Add a primary payout method before requesting a withdrawal.");
         }
 
-        if (wallet.CurrentBalance < request.Amount)
+        if (wallet.CodOwedBalance > 0)
         {
-            throw new BusinessRuleException("INSUFFICIENT_WITHDRAWABLE_BALANCE", "مبلغ السحب يتجاوز الرصيد المتاح | Withdrawal amount exceeds available balance.");
+            throw new BusinessRuleException(
+                "DRIVER_COD_DEBT_NOT_SETTLED",
+                "يجب تسوية مبالغ الدفع عند الاستلام المستحقة قبل طلب السحب | Settle outstanding COD cash before requesting a withdrawal.");
         }
 
-        wallet.Hold(request.Amount);
-        context.WalletTransactions.Add(new WalletTransaction(
-            wallet.Id,
-            WalletTxnType.Hold,
-            request.Amount,
-            "OUT",
-            description: "Driver withdrawal request submitted"));
+        var netWithdrawable = wallet.CurrentBalance - wallet.CodOwedBalance;
+        if (netWithdrawable < request.Amount)
+        {
+            throw new BusinessRuleException("INSUFFICIENT_WITHDRAWABLE_BALANCE", "مبلغ السحب يتجاوز الصافي المتاح بعد خصم الدفع عند الاستلام | Withdrawal amount exceeds net available balance after COD obligations.");
+        }
 
         var withdrawal = new DriverWithdrawalRequest(driver.Id, wallet.Id, payoutMethod.Id, request.Amount);
         context.DriverWithdrawalRequests.Add(withdrawal);

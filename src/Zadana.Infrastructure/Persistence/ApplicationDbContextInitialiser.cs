@@ -1901,7 +1901,7 @@ public class ApplicationDbContextInitialiser
         refundedOrder.ChangeStatus(OrderStatus.Accepted, null, "Accepted");
         refundedOrder.ChangeStatus(OrderStatus.Cancelled, null, "Customer cancellation");
         refundedOrder.ChangeStatus(OrderStatus.Refunded, null, "Refund completed");
-        var refund = new Refund(refundedPayment.Id, refundedOrder.TotalAmount, "Customer cancellation after payment");
+        var refund = new Refund(refundedPayment.Id, refundedOrder.TotalAmount, "Customer cancellation after payment", costBearer: "Platform");
         refund.Process();
         refundedOrder.UpdatePaymentStatus(PaymentStatus.Refunded);
 
@@ -2011,9 +2011,9 @@ public class ApplicationDbContextInitialiser
         }
 
         var vendorWallet = new Wallet(WalletOwnerType.Vendor, vendor.Id);
-        vendorWallet.Credit(5200m);
+        vendorWallet.SetProjectionBalances(5200m, 0m, 0m, 0L);
         var driverWallet = new Wallet(WalletOwnerType.Driver, driver.Id);
-        driverWallet.Credit(850m);
+        driverWallet.SetProjectionBalances(850m, 0m, 0m, 0L);
 
         await _context.Wallets.AddRangeAsync(vendorWallet, driverWallet);
         await _context.SaveChangesAsync();
@@ -2036,9 +2036,6 @@ public class ApplicationDbContextInitialiser
         settlement.Payouts.Add(payout);
 
         await _context.Settlements.AddAsync(settlement);
-        await _context.WalletTransactions.AddRangeAsync(
-            new WalletTransaction(vendorWallet.Id, WalletTxnType.Credit, settlement.NetAmount, "IN", deliveredOrder.Id, deliveredPayment.Id, settlement.Id, "SETTLEMENT", settlement.Id, "Seeded vendor settlement payout"),
-            new WalletTransaction(driverWallet.Id, WalletTxnType.Credit, 18m, "IN", deliveredOrder.Id, null, null, "DELIVERY_FEE", deliveredOrder.Id, "Seeded driver earning"));
         await _context.SaveChangesAsync();
     }
 
@@ -2053,11 +2050,15 @@ public class ApplicationDbContextInitialiser
             await DeleteRangeAsync(_context.Refunds);
             await DeleteRangeAsync(_context.Reviews);
             await DeleteRangeAsync(_context.Notifications);
+            await DeleteRangeAsync(_context.PayoutAttempts);
             await DeleteRangeAsync(_context.Payouts);
             await DeleteRangeAsync(_context.WalletTransactions);
             await DeleteRangeAsync(_context.Wallets);
             await DeleteRangeAsync(_context.SettlementItems);
             await DeleteRangeAsync(_context.Settlements);
+            await DeleteRangeAsync(_context.JournalLines);
+            await DeleteRangeAsync(_context.JournalEntries);
+            await DeleteRangeAsync(_context.FinancialEvents);
             await DeleteRangeAsync(_context.Payments);
             await DeleteRangeAsync(_context.OrderStatusHistories);
             await DeleteRangeAsync(_context.OrderItems);

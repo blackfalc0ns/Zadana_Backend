@@ -12,5 +12,7 @@ public class PaymobSettings
     public string BaseUrl { get; set; } = "https://accept.paymob.com";
     public string Currency { get; set; } = "EGP";
     public string CallbackUrl { get; set; } = string.Empty;
+    public string PayoutsEndpoint { get; set; } = "/api/acceptance/payouts";
+    public string PayoutWebhookSecret { get; set; } = string.Empty;
     public int PaymentKeyExpirationSeconds { get; set; } = 3600;
 }

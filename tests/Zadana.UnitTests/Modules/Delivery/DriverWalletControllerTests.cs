@@ -159,19 +159,16 @@ public class AdminWalletsControllerTests
             withdrawal.Id,
             new AdminProcessWithdrawalRequest(false, null, "Rejected"),
             context,
+            null!,
+            null!,
+            null!,
             notificationService,
             oneSignalPushService,
             CancellationToken.None);
 
         result.Should().BeOfType<NoContentResult>();
 
-        var releaseTransaction = context.WalletTransactions
-            .SingleOrDefault(item => item.ReferenceId == withdrawal.Id && item.TxnType == WalletTxnType.Release);
-
-        releaseTransaction.Should().NotBeNull();
-        releaseTransaction!.Direction.Should().Be("IN");
-
-        wallet.CurrentBalance.Should().Be(100m);
-        wallet.PendingBalance.Should().Be(0m);
+        withdrawal.Status.Should().Be(DriverWithdrawalStatus.Failed);
+        withdrawal.FailureReason.Should().Be("Rejected");
     }
 }

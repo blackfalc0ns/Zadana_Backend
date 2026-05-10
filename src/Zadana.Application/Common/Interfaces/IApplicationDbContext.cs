@@ -87,12 +87,16 @@ public interface IApplicationDbContext
     DbSet<Settlement> Settlements { get; }
     DbSet<SettlementItem> SettlementItems { get; }
     DbSet<Payout> Payouts { get; }
+    DbSet<PayoutAttempt> PayoutAttempts { get; }
     DbSet<VendorRecovery> VendorRecoveries { get; }
     DbSet<DriverPayoutMethod> DriverPayoutMethods { get; }
     DbSet<DriverWithdrawalRequest> DriverWithdrawalRequests { get; }
 
     // Finances
     DbSet<ZoneFinanceSettings> ZoneFinanceSettings { get; }
+    DbSet<FinancialEvent> FinancialEvents { get; }
+    DbSet<JournalEntry> JournalEntries { get; }
+    DbSet<JournalLine> JournalLines { get; }
 
     // Marketing & Social
     DbSet<Coupon> Coupons { get; }

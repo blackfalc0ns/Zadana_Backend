@@ -592,7 +592,7 @@ public class AdminOrdersController : ApiControllerBase
             await _dbContext.SaveChangesAsync(cancellationToken);
         }
 
-        var refund = new Refund(payment.Id, Math.Min(amount, order.TotalAmount), reason);
+        var refund = new Refund(payment.Id, Math.Min(amount, order.TotalAmount), reason, costBearer: "Platform");
         refund.Process();
         _dbContext.Refunds.Add(refund);
         order.UpdatePaymentStatus(PaymentStatus.Refunded);

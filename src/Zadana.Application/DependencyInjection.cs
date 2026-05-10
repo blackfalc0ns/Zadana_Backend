@@ -7,6 +7,7 @@ using Zadana.Application.Common.Localization;
 using Zadana.Application.Common.Services;
 using Zadana.Application.Modules.EmailCenter.Interfaces;
 using Zadana.Application.Modules.EmailCenter.Services;
+using Zadana.Application.Modules.Finances.Services;
 using Zadana.Application.Modules.Orders.Interfaces;
 using Zadana.Application.Modules.Orders.Services;
 using Zadana.Application.Modules.Vendors.Interfaces;
@@ -32,6 +33,9 @@ public static class DependencyInjection
         services.AddScoped<Zadana.Application.Modules.Identity.Interfaces.IIdentityService, Zadana.Application.Modules.Identity.Services.IdentityService>();
         services.AddScoped<Zadana.Application.Modules.Identity.Interfaces.IRegistrationWorkflow, Zadana.Application.Modules.Identity.Services.RegistrationWorkflow>();
         services.AddScoped<IEmailCenterService, EmailCenterService>();
+        services.AddScoped<FinancialEventPostingService>();
+        services.AddScoped<WalletProjectionUpdater>();
+        services.AddScoped<PaymobPayoutOrchestrator>();
         services.AddScoped<ICurrentVendorService, CurrentVendorService>();
         services.AddScoped<IOrderStatusNotificationDispatcher, OrderStatusNotificationDispatcher>();
         services.AddScoped<OrderInventoryWorkflowService>();

@@ -244,7 +244,7 @@ public class VendorWorkspaceController : ApiControllerBase
 
         var settlements = await _dbContext.Settlements
             .AsNoTracking()
-            .Where(settlement => settlement.VendorId == vendorId)
+            .Where(settlement => settlement.OwnerType == SettlementOwnerType.Vendor && settlement.OwnerId == vendorId)
             .OrderByDescending(settlement => settlement.CreatedAtUtc)
             .Take(8)
             .Select(settlement => new
@@ -260,7 +260,7 @@ public class VendorWorkspaceController : ApiControllerBase
 
         var payouts = await _dbContext.Payouts
             .AsNoTracking()
-            .Where(payout => payout.Settlement.VendorId == vendorId)
+            .Where(payout => payout.Settlement.OwnerType == SettlementOwnerType.Vendor && payout.Settlement.OwnerId == vendorId)
             .Select(payout => new
             {
                 payout.Id,
@@ -861,7 +861,7 @@ public class VendorWorkspaceController : ApiControllerBase
 
         var settlements = await _dbContext.Settlements
             .AsNoTracking()
-            .Where(settlement => settlement.VendorId == vendorId)
+            .Where(settlement => settlement.OwnerType == SettlementOwnerType.Vendor && settlement.OwnerId == vendorId)
             .OrderByDescending(settlement => settlement.CreatedAtUtc)
             .Select(settlement => new
             {
@@ -876,7 +876,7 @@ public class VendorWorkspaceController : ApiControllerBase
 
         var payouts = await _dbContext.Payouts
             .AsNoTracking()
-            .Where(payout => payout.Settlement.VendorId == vendorId)
+            .Where(payout => payout.Settlement.OwnerType == SettlementOwnerType.Vendor && payout.Settlement.OwnerId == vendorId)
             .OrderByDescending(payout => payout.CreatedAtUtc)
             .Select(payout => new
             {

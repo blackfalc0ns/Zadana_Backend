@@ -102,12 +102,16 @@ public class ApplicationDbContext : IdentityDbContext<User, IdentityRole<Guid>, 
     public DbSet<Settlement> Settlements => Set<Settlement>();
     public DbSet<SettlementItem> SettlementItems => Set<SettlementItem>();
     public DbSet<Payout> Payouts => Set<Payout>();
+    public DbSet<PayoutAttempt> PayoutAttempts => Set<PayoutAttempt>();
     public DbSet<VendorRecovery> VendorRecoveries => Set<VendorRecovery>();
     public DbSet<DriverPayoutMethod> DriverPayoutMethods => Set<DriverPayoutMethod>();
     public DbSet<DriverWithdrawalRequest> DriverWithdrawalRequests => Set<DriverWithdrawalRequest>();
 
     // Finances
     public DbSet<ZoneFinanceSettings> ZoneFinanceSettings => Set<ZoneFinanceSettings>();
+    public DbSet<FinancialEvent> FinancialEvents => Set<FinancialEvent>();
+    public DbSet<JournalEntry> JournalEntries => Set<JournalEntry>();
+    public DbSet<JournalLine> JournalLines => Set<JournalLine>();
 
     // Marketing & Social
     public DbSet<Coupon> Coupons => Set<Coupon>();

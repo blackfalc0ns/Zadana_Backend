@@ -58,6 +58,14 @@ public sealed class AccessAuthorizationConvention : IApplicationModelConvention
                 [PermissionKeys.Admin.FinancesView],
                 edit: [PermissionKeys.Admin.FinancesEdit],
                 approve: [PermissionKeys.Admin.FinancesApprove]),
+            ["AdminPayouts"] = new(
+                [PermissionKeys.Admin.FinancesView],
+                edit: [PermissionKeys.Admin.FinancesEdit],
+                approve: [PermissionKeys.Admin.FinancesApprove]),
+            ["AdminSettlements"] = new(
+                [PermissionKeys.Admin.FinancesView],
+                edit: [PermissionKeys.Admin.FinancesEdit],
+                approve: [PermissionKeys.Admin.FinancesApprove]),
             ["AdminCustomers"] = new(
                 [PermissionKeys.Admin.CustomersView],
                 edit: [PermissionKeys.Admin.CustomersEdit]),

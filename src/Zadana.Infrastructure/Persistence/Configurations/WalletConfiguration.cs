@@ -31,6 +31,20 @@ public class WalletConfiguration : IEntityTypeConfiguration<Wallet>
             .HasPrecision(18, 2)
             .HasDefaultValue(0);
 
+        builder.Property(w => w.CodOwedBalance)
+            .IsRequired()
+            .HasPrecision(18, 2)
+            .HasDefaultValue(0);
+
+        builder.Property(w => w.CurrencyCode)
+            .HasMaxLength(3)
+            .IsRequired()
+            .HasDefaultValue("EGP");
+
+        builder.Property(w => w.LastJournalSequence)
+            .IsRequired()
+            .HasDefaultValue(0L);
+
         // Indexes
         builder.HasIndex(w => new { w.OwnerType, w.OwnerId })
             .IsUnique()

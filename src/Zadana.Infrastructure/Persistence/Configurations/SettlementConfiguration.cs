@@ -18,10 +18,21 @@ public class SettlementConfiguration : IEntityTypeConfiguration<Settlement>
             .IsRequired();
 
         builder.Property(x => x.Status).HasConversion<string>().HasMaxLength(50).IsRequired();
+        builder.Property(x => x.OwnerType).HasConversion<string>().HasMaxLength(20).IsRequired();
+        builder.Property(x => x.OwnerId).IsRequired();
+        builder.Property(x => x.ResolutionType).HasConversion<string>().HasMaxLength(40).IsRequired();
+        builder.Property(x => x.PeriodFrom).IsRequired();
+        builder.Property(x => x.PeriodTo).IsRequired();
 
         builder.Property(x => x.GrossAmount).HasPrecision(18, 2).IsRequired();
         builder.Property(x => x.CommissionAmount).HasPrecision(18, 2).IsRequired();
+        builder.Property(x => x.RefundAmount).HasPrecision(18, 2).IsRequired();
+        builder.Property(x => x.AdjustmentAmount).HasPrecision(18, 2).IsRequired();
+        builder.Property(x => x.RecoveryAmount).HasPrecision(18, 2).IsRequired();
         builder.Property(x => x.NetAmount).HasPrecision(18, 2).IsRequired();
+
+        builder.HasIndex(x => new { x.OwnerType, x.OwnerId, x.PeriodFrom, x.PeriodTo })
+            .HasDatabaseName("IX_Settlements_Owner_Period");
 
         builder.HasOne(x => x.Vendor)
             .WithMany()

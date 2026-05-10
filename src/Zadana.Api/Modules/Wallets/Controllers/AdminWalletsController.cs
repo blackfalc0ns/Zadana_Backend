@@ -1,10 +1,14 @@
 using Microsoft.AspNetCore.Authorization;
 using Microsoft.AspNetCore.Mvc;
 using Microsoft.EntityFrameworkCore;
+using Microsoft.Extensions.Options;
 using Zadana.Api.Controllers;
 using Zadana.Application.Common.Interfaces;
+using Zadana.Application.Common.Settings;
+using Zadana.Application.Modules.Finances.Services;
 using Zadana.Application.Modules.Delivery.Support;
 using Zadana.Application.Modules.Wallets.DTOs;
+using Zadana.Domain.Modules.Finances.Enums;
 using Zadana.Domain.Modules.Social.Enums;
 using Zadana.Domain.Modules.Wallets.Entities;
 using Zadana.Domain.Modules.Wallets.Enums;
@@ -182,32 +186,54 @@ public class AdminWalletsController : ApiControllerBase
         Guid id,
         [FromBody] AdminCreateAdjustmentRequest request,
         [FromServices] IApplicationDbContext context,
+        [FromServices] FinancialEventPostingService financialEventPostingService,
+        [FromServices] WalletProjectionUpdater walletProjectionUpdater,
         [FromServices] INotificationService notificationService,
         CancellationToken cancellationToken = default)
     {
         var wallet = await context.Wallets.FirstOrDefaultAsync(w => w.Id == id, cancellationToken)
             ?? throw new NotFoundException("Wallet", id);
 
-        if (request.Direction == "IN")
+        var ownerType = wallet.OwnerType switch
         {
-            wallet.Credit(request.Amount);
-        }
-        else
-        {
-            wallet.Debit(request.Amount);
-        }
+            WalletOwnerType.Vendor => FinancialOwnerType.Vendor,
+            WalletOwnerType.Driver => FinancialOwnerType.Driver,
+            WalletOwnerType.Platform => FinancialOwnerType.Platform,
+            _ => throw new BusinessRuleException("INVALID_WALLET_OWNER", "Unsupported wallet owner type.")
+        };
 
-        var txn = new WalletTransaction(
-            wallet.Id,
-            WalletTxnType.Adjustment,
-            request.Amount,
-            request.Direction,
+        var ownerDebit = request.Direction == "OUT" ? request.Amount : 0m;
+        var ownerCredit = request.Direction == "IN" ? request.Amount : 0m;
+        var offsetDebit = request.Direction == "IN" ? request.Amount : 0m;
+        var offsetCredit = request.Direction == "OUT" ? request.Amount : 0m;
+
+        var postingResult = await financialEventPostingService.PostAsync(
+            FinancialEventType.FinancialAdjustmentApplied,
+            $"admin-adjustment:{wallet.Id:N}:{Guid.NewGuid():N}",
+            [
+                new JournalLineDraft(
+                    FinancialAccountCode.ManualAdjustment,
+                    offsetDebit,
+                    offsetCredit,
+                    Memo: $"Offset for admin wallet adjustment {wallet.Id}"),
+                new JournalLineDraft(
+                    FinancialAccountCode.ManualAdjustment,
+                    ownerDebit,
+                    ownerCredit,
+                    ownerType,
+                    wallet.OwnerId,
+                    Memo: request.Description)
+            ],
             description: request.Description,
-            referenceType: "AdminAdjustment"
-        );
+            cancellationToken: cancellationToken);
 
-        context.WalletTransactions.Add(txn);
-        await context.SaveChangesAsync(cancellationToken);
+        await walletProjectionUpdater.ApplyJournalEntryAsync(postingResult.JournalEntryId, cancellationToken);
+
+        var txn = await context.WalletTransactions
+            .AsNoTracking()
+            .Where(item => item.WalletId == wallet.Id && item.ReferenceType == "JournalLine")
+            .OrderByDescending(item => item.CreatedAtUtc)
+            .FirstAsync(cancellationToken);
 
         if (wallet.OwnerType == WalletOwnerType.Driver)
         {
@@ -326,6 +352,9 @@ public class AdminWalletsController : ApiControllerBase
         Guid id,
         [FromBody] AdminProcessWithdrawalRequest request,
         [FromServices] IApplicationDbContext context,
+        [FromServices] FinancialEventPostingService financialEventPostingService,
+        [FromServices] WalletProjectionUpdater walletProjectionUpdater,
+        [FromServices] IOptions<FinancialSettingsOptions> financialSettings,
         [FromServices] INotificationService notificationService,
         [FromServices] IOneSignalPushService oneSignalPushService,
         CancellationToken cancellationToken = default)
@@ -340,38 +369,37 @@ public class AdminWalletsController : ApiControllerBase
             throw new BusinessRuleException("INVALID_STATUS", "Only pending or processing withdrawals can be processed.");
         }
 
-        var wallet = await context.Wallets.FirstOrDefaultAsync(w => w.Id == withdrawal.WalletId, cancellationToken)
-            ?? throw new NotFoundException("Wallet", withdrawal.WalletId);
-
         if (request.IsApproved)
         {
-            wallet.SettleHold(withdrawal.Amount);
             withdrawal.MarkPaid(request.TransferReference);
-            
-            var txn = new WalletTransaction(
-                wallet.Id,
-                WalletTxnType.Payout,
-                withdrawal.Amount,
-                "OUT",
-                description: "Withdrawal processed",
-                referenceType: "DriverWithdrawal",
-                referenceId: withdrawal.Id
-            );
-            context.WalletTransactions.Add(txn);
+
+            var posting = await financialEventPostingService.PostAsync(
+                FinancialEventType.DriverPayoutPaid,
+                $"driver-withdrawal-paid:{withdrawal.Id:N}",
+                [
+                    new JournalLineDraft(
+                        FinancialAccountCode.DriverPayable,
+                        withdrawal.Amount,
+                        0m,
+                        FinancialOwnerType.Driver,
+                        withdrawal.DriverId,
+                        Memo: $"Driver withdrawal paid {withdrawal.Id}"),
+                    new JournalLineDraft(
+                        FinancialAccountCode.PlatformCash,
+                        0m,
+                        withdrawal.Amount,
+                        FinancialOwnerType.Platform,
+                        financialSettings.Value.PlatformWalletOwnerId,
+                        Memo: $"Driver withdrawal platform cash {withdrawal.Id}")
+                ],
+                description: $"Driver withdrawal paid {withdrawal.Id}",
+                cancellationToken: cancellationToken);
+
+            await walletProjectionUpdater.ApplyJournalEntryAsync(posting.JournalEntryId, cancellationToken);
         }
         else
         {
-            wallet.ReleaseHold(withdrawal.Amount);
             withdrawal.MarkFailed(request.FailureReason ?? "Rejected by admin");
-            context.WalletTransactions.Add(new WalletTransaction(
-                wallet.Id,
-                WalletTxnType.Release,
-                withdrawal.Amount,
-                "IN",
-                description: "Withdrawal rejected and balance released",
-                referenceType: "DriverWithdrawal",
-                referenceId: withdrawal.Id
-            ));
         }
 
         await context.SaveChangesAsync(cancellationToken);

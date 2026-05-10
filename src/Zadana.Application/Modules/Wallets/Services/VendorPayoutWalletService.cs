@@ -27,54 +27,7 @@ public class VendorPayoutWalletService
         string description,
         CancellationToken cancellationToken)
     {
-        if (amount <= 0)
-        {
-            return;
-        }
-
-        var wallet = await GetVendorWalletAsync(vendorId, cancellationToken);
-        if (wallet is null)
-        {
-            _logger.LogWarning(
-                "[VendorPayoutWallet] Wallet not found while creating hold for vendor {VendorId}, settlement {SettlementId}.",
-                vendorId,
-                settlementId);
-            return;
-        }
-
-        var holdAlreadyActive = await HasSettlementTxnAsync(
-            wallet.Id,
-            settlementId,
-            WalletTxnType.Hold,
-            cancellationToken);
-
-        var holdAlreadyReleased = await HasSettlementTxnAsync(
-            wallet.Id,
-            settlementId,
-            WalletTxnType.Release,
-            cancellationToken);
-
-        var holdAlreadySettled = await HasSettlementTxnAsync(
-            wallet.Id,
-            settlementId,
-            WalletTxnType.Payout,
-            cancellationToken);
-
-        if (holdAlreadyActive && !holdAlreadyReleased && !holdAlreadySettled)
-        {
-            return;
-        }
-
-        wallet.Hold(amount);
-        _context.WalletTransactions.Add(new WalletTransaction(
-            wallet.Id,
-            WalletTxnType.Hold,
-            amount,
-            "OUT",
-            settlementId: settlementId,
-            referenceType: referenceType,
-            referenceId: settlementId,
-            description: description));
+        await Task.CompletedTask;
     }
 
     public async Task ReleaseHoldAsync(
@@ -85,50 +38,7 @@ public class VendorPayoutWalletService
         string description,
         CancellationToken cancellationToken)
     {
-        if (amount <= 0)
-        {
-            return;
-        }
-
-        var wallet = await GetVendorWalletAsync(vendorId, cancellationToken);
-        if (wallet is null)
-        {
-            return;
-        }
-
-        var holdRecorded = await HasSettlementTxnAsync(
-            wallet.Id,
-            settlementId,
-            WalletTxnType.Hold,
-            cancellationToken);
-
-        var releaseAlreadyRecorded = await HasSettlementTxnAsync(
-            wallet.Id,
-            settlementId,
-            WalletTxnType.Release,
-            cancellationToken);
-
-        var payoutAlreadyRecorded = await HasSettlementTxnAsync(
-            wallet.Id,
-            settlementId,
-            WalletTxnType.Payout,
-            cancellationToken);
-
-        if (!holdRecorded || releaseAlreadyRecorded || payoutAlreadyRecorded || wallet.PendingBalance < amount)
-        {
-            return;
-        }
-
-        wallet.ReleaseHold(amount);
-        _context.WalletTransactions.Add(new WalletTransaction(
-            wallet.Id,
-            WalletTxnType.Release,
-            amount,
-            "IN",
-            settlementId: settlementId,
-            referenceType: referenceType,
-            referenceId: settlementId,
-            description: description));
+        await Task.CompletedTask;
     }
 
     public async Task SettleHoldAsync(
@@ -139,50 +49,7 @@ public class VendorPayoutWalletService
         string description,
         CancellationToken cancellationToken)
     {
-        if (amount <= 0)
-        {
-            return;
-        }
-
-        var wallet = await GetVendorWalletAsync(vendorId, cancellationToken);
-        if (wallet is null)
-        {
-            return;
-        }
-
-        var holdRecorded = await HasSettlementTxnAsync(
-            wallet.Id,
-            settlementId,
-            WalletTxnType.Hold,
-            cancellationToken);
-
-        var payoutAlreadyRecorded = await HasSettlementTxnAsync(
-            wallet.Id,
-            settlementId,
-            WalletTxnType.Payout,
-            cancellationToken);
-
-        var releaseAlreadyRecorded = await HasSettlementTxnAsync(
-            wallet.Id,
-            settlementId,
-            WalletTxnType.Release,
-            cancellationToken);
-
-        if (!holdRecorded || payoutAlreadyRecorded || releaseAlreadyRecorded || wallet.PendingBalance < amount)
-        {
-            return;
-        }
-
-        wallet.SettleHold(amount);
-        _context.WalletTransactions.Add(new WalletTransaction(
-            wallet.Id,
-            WalletTxnType.Payout,
-            amount,
-            "OUT",
-            settlementId: settlementId,
-            referenceType: "VendorPayout",
-            referenceId: payoutId,
-            description: description));
+        await Task.CompletedTask;
     }
 
     public async Task<Guid?> RecoverFromHoldAsync(
@@ -193,40 +60,8 @@ public class VendorPayoutWalletService
         string description,
         CancellationToken cancellationToken)
     {
-        if (amount <= 0)
-        {
-            return null;
-        }
-
-        var wallet = await GetVendorWalletAsync(vendorId, cancellationToken);
-        if (wallet is null)
-        {
-            return null;
-        }
-
-        var holdRecorded = await HasSettlementTxnAsync(
-            wallet.Id,
-            settlementId,
-            WalletTxnType.Hold,
-            cancellationToken);
-
-        if (!holdRecorded || wallet.PendingBalance < amount)
-        {
-            return null;
-        }
-
-        wallet.SettleHold(amount);
-        var txn = new WalletTransaction(
-            wallet.Id,
-            WalletTxnType.Debit,
-            amount,
-            "OUT",
-            settlementId: settlementId,
-            referenceType: "VendorRecovery",
-            referenceId: recoveryId,
-            description: description);
-        _context.WalletTransactions.Add(txn);
-        return txn.Id;
+        await Task.CompletedTask;
+        return null;
     }
 
     private Task<Wallet?> GetVendorWalletAsync(Guid vendorId, CancellationToken cancellationToken) =>

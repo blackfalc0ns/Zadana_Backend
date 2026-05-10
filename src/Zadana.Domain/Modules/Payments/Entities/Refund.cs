@@ -22,13 +22,14 @@ public class Refund : BaseEntity
     public Refund(Guid paymentId, decimal amount, string? reason = null, string? refundMethod = null, string? costBearer = null, Guid? orderSupportCaseId = null)
     {
         if (amount <= 0) throw new BusinessRuleException("INVALID_AMOUNT", "Refund amount must be greater than zero.");
+        if (string.IsNullOrWhiteSpace(costBearer)) throw new BusinessRuleException("REFUND_COST_BEARER_REQUIRED", "Refund cost bearer is required.");
 
         PaymentId = paymentId;
         OrderSupportCaseId = orderSupportCaseId;
         Amount = amount;
         Reason = reason?.Trim();
         RefundMethod = string.IsNullOrWhiteSpace(refundMethod) ? null : refundMethod.Trim();
-        CostBearer = string.IsNullOrWhiteSpace(costBearer) ? null : costBearer.Trim();
+        CostBearer = costBearer.Trim();
         Status = PaymentStatus.Initiated;
     }
 
@@ -43,11 +44,15 @@ public class Refund : BaseEntity
         {
             throw new BusinessRuleException("INVALID_AMOUNT", "Refund amount must be greater than zero.");
         }
+        if (string.IsNullOrWhiteSpace(costBearer))
+        {
+            throw new BusinessRuleException("REFUND_COST_BEARER_REQUIRED", "Refund cost bearer is required.");
+        }
 
         Amount = amount;
         Reason = reason?.Trim();
         RefundMethod = string.IsNullOrWhiteSpace(refundMethod) ? null : refundMethod.Trim();
-        CostBearer = string.IsNullOrWhiteSpace(costBearer) ? null : costBearer.Trim();
+        CostBearer = costBearer.Trim();
         OrderSupportCaseId = orderSupportCaseId;
     }
 

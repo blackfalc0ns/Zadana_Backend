@@ -10,6 +10,9 @@ public class Wallet : BaseEntity
     public Guid OwnerId { get; private set; }
     public decimal CurrentBalance { get; private set; }
     public decimal PendingBalance { get; private set; }
+    public decimal CodOwedBalance { get; private set; }
+    public string CurrencyCode { get; private set; } = "EGP";
+    public long LastJournalSequence { get; private set; }
 
     public ICollection<WalletTransaction> Transactions { get; private set; } = [];
 
@@ -21,6 +24,9 @@ public class Wallet : BaseEntity
         OwnerId = ownerId;
         CurrentBalance = 0;
         PendingBalance = 0;
+        CodOwedBalance = 0;
+        CurrencyCode = "EGP";
+        LastJournalSequence = 0;
     }
 
     public void Credit(decimal amount)
@@ -60,5 +66,14 @@ public class Wallet : BaseEntity
         if (PendingBalance < amount) throw new BusinessRuleException("INVALID_HOLD_SETTLE", "Settle amount exceeds pending balance.");
 
         PendingBalance -= amount;
+    }
+
+    public void SetProjectionBalances(decimal currentBalance, decimal pendingBalance, decimal codOwedBalance, long lastJournalSequence, string currencyCode = "EGP")
+    {
+        CurrentBalance = currentBalance;
+        PendingBalance = pendingBalance;
+        CodOwedBalance = codOwedBalance;
+        LastJournalSequence = lastJournalSequence;
+        CurrencyCode = string.IsNullOrWhiteSpace(currencyCode) ? "EGP" : currencyCode.Trim().ToUpperInvariant();
     }
 }
