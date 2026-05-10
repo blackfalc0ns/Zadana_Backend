@@ -151,9 +151,18 @@ public class ConfirmPaymobPaymentCommandHandlerTests
 
         var publisherMock = CreatePublisherMock();
         var unitOfWorkMock = CreateUnitOfWorkMock();
+        var gatewayMock = new Mock<IPaymobGateway>();
+        gatewayMock
+            .Setup(gateway => gateway.InquireTransactionAsync(
+                payment.Id,
+                payment.ProviderTransactionId,
+                "txn-unknown",
+                It.IsAny<CancellationToken>()))
+            .ReturnsAsync((PaymobWebhookNotificationDto?)null);
+
         var handler = new ConfirmPaymobPaymentCommandHandler(
             dbContext,
-            Mock.Of<IPaymobGateway>(),
+            gatewayMock.Object,
             unitOfWorkMock.Object,
             publisherMock.Object);
 
@@ -280,6 +289,59 @@ public class ConfirmPaymobPaymentCommandHandlerTests
         publisherMock.Verify(
             publisher => publisher.Publish(It.IsAny<OrderStatusChangedNotification>(), It.IsAny<CancellationToken>()),
             Times.Never);
+    }
+
+    [Fact]
+    public async Task Handle_WhenReturnStatusIsMissingButInquirySucceeds_ShouldConfirmPayment()
+    {
+        await using var dbContext = CreateDbContext();
+        var user = CreateUser();
+        var order = CreateOrder(user.Id);
+        var payment = CreatePendingCardPayment(order);
+        var cart = CreateCart(user.Id);
+
+        dbContext.Users.Add(user);
+        dbContext.Orders.Add(order);
+        dbContext.Payments.Add(payment);
+        dbContext.Carts.Add(cart);
+        await dbContext.SaveChangesAsync();
+
+        var gatewayMock = new Mock<IPaymobGateway>();
+        gatewayMock
+            .Setup(gateway => gateway.InquireTransactionAsync(
+                payment.Id,
+                payment.ProviderTransactionId,
+                null,
+                It.IsAny<CancellationToken>()))
+            .ReturnsAsync(new PaymobWebhookNotificationDto(
+                payment.Id,
+                payment.ProviderTransactionId,
+                "txn-inquiry-paid",
+                true,
+                false,
+                "TRANSACTION_INQUIRY"));
+
+        var publisherMock = CreatePublisherMock();
+        var unitOfWorkMock = CreateUnitOfWorkMock();
+        var handler = new ConfirmPaymobPaymentCommandHandler(
+            dbContext,
+            gatewayMock.Object,
+            unitOfWorkMock.Object,
+            publisherMock.Object);
+
+        var result = await handler.Handle(
+            new ConfirmPaymobPaymentCommand(payment.Id, null, payment.ProviderTransactionId, null, null, null, null),
+            CancellationToken.None);
+
+        payment.Status.Should().Be(PaymentStatus.Paid);
+        order.Status.Should().Be(OrderStatus.PendingVendorAcceptance);
+        (await dbContext.Carts.AnyAsync(item => item.Id == cart.Id)).Should().BeFalse();
+        result.PaymentStatus.Should().Be("paid");
+        result.OrderStatus.Should().Be("pending_vendor_acceptance");
+        unitOfWorkMock.Verify(unit => unit.SaveChangesAsync(It.IsAny<CancellationToken>()), Times.Once);
+        publisherMock.Verify(
+            publisher => publisher.Publish(It.IsAny<OrderStatusChangedNotification>(), It.IsAny<CancellationToken>()),
+            Times.Once);
     }
 
     [Fact]

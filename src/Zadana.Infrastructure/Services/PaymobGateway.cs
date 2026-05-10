@@ -55,6 +55,68 @@ public class PaymobGateway : IPaymobGateway
         return new PaymobCheckoutSessionDto(providerOrderId, paymentToken, iframeUrl);
     }
 
+    public async Task<PaymobWebhookNotificationDto?> InquireTransactionAsync(
+        Guid paymentId,
+        string? providerReference = null,
+        string? providerTransactionId = null,
+        CancellationToken cancellationToken = default)
+    {
+        EnsureConfigured();
+
+        var authToken = await AuthenticateAsync(cancellationToken);
+        HttpResponseMessage response;
+
+        if (!string.IsNullOrWhiteSpace(providerTransactionId))
+        {
+            response = await _httpClient.GetAsync(
+                $"/api/acceptance/transactions/{Uri.EscapeDataString(providerTransactionId.Trim())}?token={Uri.EscapeDataString(authToken)}",
+                cancellationToken);
+        }
+        else
+        {
+            var payload = new Dictionary<string, object?>
+            {
+                ["auth_token"] = authToken,
+                ["merchant_order_id"] = paymentId.ToString("D")
+            };
+
+            if (!string.IsNullOrWhiteSpace(providerReference))
+            {
+                payload["order_id"] = providerReference.Trim();
+            }
+
+            response = await _httpClient.PostAsJsonAsync(
+                "/api/ecommerce/orders/transaction_inquiry",
+                payload,
+                cancellationToken);
+        }
+
+        var responsePayload = await response.Content.ReadAsStringAsync(cancellationToken);
+        if (!response.IsSuccessStatusCode)
+        {
+            _logger.LogWarning(
+                "Paymob transaction inquiry failed for payment {PaymentId}. Status {StatusCode}. Payload: {Payload}",
+                paymentId,
+                response.StatusCode,
+                responsePayload);
+            return null;
+        }
+
+        try
+        {
+            return ParseTransactionInquiry(paymentId, responsePayload);
+        }
+        catch (Exception ex) when (ex is JsonException or InvalidOperationException)
+        {
+            _logger.LogWarning(
+                ex,
+                "Paymob transaction inquiry response could not be parsed for payment {PaymentId}. Payload: {Payload}",
+                paymentId,
+                responsePayload);
+            return null;
+        }
+    }
+
     public PaymobWebhookNotificationDto ParseWebhookNotification(string rawPayload)
     {
         if (string.IsNullOrWhiteSpace(rawPayload))
@@ -98,6 +160,37 @@ public class PaymobGateway : IPaymobGateway
             success && !pending && !errorOccured,
             pending,
             GetString(root, "type") ?? "TRANSACTION");
+    }
+
+    private static PaymobWebhookNotificationDto ParseTransactionInquiry(Guid fallbackPaymentId, string rawPayload)
+    {
+        using var document = JsonDocument.Parse(rawPayload);
+        var root = document.RootElement;
+        var transaction = TryGetProperty(root, "obj") ??
+                          TryGetProperty(root, "transaction") ??
+                          TryGetFirstArrayItem(root, "results") ??
+                          TryGetFirstArrayItem(root, "data") ??
+                          root;
+
+        var order = TryGetProperty(transaction, "order");
+        var merchantOrderId = GetString(order, "merchant_order_id") ??
+                              GetString(transaction, "merchant_order_id") ??
+                              GetString(root, "merchant_order_id");
+        var paymentId = Guid.TryParse(merchantOrderId, out var parsedPaymentId)
+            ? parsedPaymentId
+            : fallbackPaymentId;
+
+        var success = GetBool(transaction, "success");
+        var pending = GetBool(transaction, "pending");
+        var errorOccured = GetBool(transaction, "error_occured");
+
+        return new PaymobWebhookNotificationDto(
+            paymentId,
+            GetString(order, "id") ?? GetString(transaction, "order_id"),
+            GetString(transaction, "id"),
+            success && !pending && !errorOccured,
+            pending,
+            GetString(root, "type") ?? "TRANSACTION_INQUIRY");
     }
 
     private async Task<string> AuthenticateAsync(CancellationToken cancellationToken)
@@ -333,6 +426,19 @@ public class PaymobGateway : IPaymobGateway
         }
 
         return element.TryGetProperty(propertyName, out var value) ? value : null;
+    }
+
+    private static JsonElement? TryGetFirstArrayItem(JsonElement element, string propertyName)
+    {
+        var property = TryGetProperty(element, propertyName);
+        if (!property.HasValue ||
+            property.Value.ValueKind != JsonValueKind.Array ||
+            property.Value.GetArrayLength() == 0)
+        {
+            return null;
+        }
+
+        return property.Value.EnumerateArray().First();
     }
 
     private static string? GetString(JsonElement? element, string propertyName)

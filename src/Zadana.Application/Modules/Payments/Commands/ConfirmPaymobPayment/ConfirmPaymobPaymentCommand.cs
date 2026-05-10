@@ -58,6 +58,20 @@ public class ConfirmPaymobPaymentCommandHandler : IRequestHandler<ConfirmPaymobP
     public async Task<PaymobPaymentConfirmationResultDto> Handle(ConfirmPaymobPaymentCommand request, CancellationToken cancellationToken)
     {
         var notification = ResolveNotification(request);
+        if (ShouldInquireProviderStatus(request, notification))
+        {
+            var providerNotification = await _paymobGateway.InquireTransactionAsync(
+                notification.PaymentId!.Value,
+                notification.ProviderReference,
+                notification.ProviderTransactionId,
+                cancellationToken);
+
+            if (providerNotification is not null)
+            {
+                notification = providerNotification;
+            }
+        }
+
         if (notification.IsSuccess)
         {
             return await HandleSuccessfulConfirmationAsync(request, notification, cancellationToken);
@@ -88,6 +102,14 @@ public class ConfirmPaymobPaymentCommandHandler : IRequestHandler<ConfirmPaymobP
             ToApiToken(failedOrder.Status.ToString()),
             false);
     }
+
+    private static bool ShouldInquireProviderStatus(
+        ConfirmPaymobPaymentCommand request,
+        PaymobWebhookNotificationDto notification) =>
+        string.IsNullOrWhiteSpace(request.Payload) &&
+        request.IsSuccess is null &&
+        request.IsPending is null &&
+        notification.PaymentId.HasValue;
 
     private async Task<PaymobPaymentConfirmationResultDto> HandleSuccessfulConfirmationAsync(
         ConfirmPaymobPaymentCommand request,

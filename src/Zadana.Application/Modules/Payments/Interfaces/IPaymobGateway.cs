@@ -10,6 +10,12 @@ public interface IPaymobGateway
         PaymobCheckoutSessionRequest request,
         CancellationToken cancellationToken = default);
 
+    Task<PaymobWebhookNotificationDto?> InquireTransactionAsync(
+        Guid paymentId,
+        string? providerReference = null,
+        string? providerTransactionId = null,
+        CancellationToken cancellationToken = default);
+
     PaymobWebhookNotificationDto ParseWebhookNotification(string rawPayload);
 
     bool IsWebhookTrusted();
