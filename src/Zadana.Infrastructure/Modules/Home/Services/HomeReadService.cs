@@ -52,6 +52,7 @@ public class HomeReadService : IHomeReadService
     {
         var sectionSettings = await LoadSectionSettingsAsync(cancellationToken);
         var header = await BuildHeaderAsync(cancellationToken);
+        var user = await BuildCurrentUserAsync(cancellationToken);
         var needsCatalog =
             IsSectionEnabled(sectionSettings, HomeContentSectionType.SpecialOffers) ||
             IsSectionEnabled(sectionSettings, HomeContentSectionType.Recommended) ||
@@ -108,6 +109,8 @@ public class HomeReadService : IHomeReadService
         var exploreMoreSection = CreateSection("explore_more", "اكتشف المزيد", "Explore More", IsSectionEnabled(sectionSettings, HomeContentSectionType.ExploreMore), exploreMore);
 
         return new HomeContentDto(
+            user.FullName,
+            user.Email,
             header.DeliverToLabel,
             header.Location,
             header.AddressLine,
@@ -291,6 +294,25 @@ public class HomeReadService : IHomeReadService
         var addressLine = address.AddressLine?.Trim() ?? string.Empty;
 
         return new HomeHeaderDto(deliverToLabel, location, addressLine, notificationsCount);
+    }
+
+    private async Task<HomeCurrentUserInfo> BuildCurrentUserAsync(CancellationToken cancellationToken)
+    {
+        var userId = _currentUserService.UserId;
+        if (!_currentUserService.IsAuthenticated || !userId.HasValue)
+        {
+            return new HomeCurrentUserInfo(string.Empty, string.Empty);
+        }
+
+        var user = await _context.Users
+            .AsNoTracking()
+            .Where(x => x.Id == userId.Value)
+            .Select(x => new HomeCurrentUserInfo(
+                x.FullName,
+                x.Email ?? string.Empty))
+            .FirstOrDefaultAsync(cancellationToken);
+
+        return user ?? new HomeCurrentUserInfo(string.Empty, string.Empty);
     }
 
     private async Task<IReadOnlyList<HomeBannerDto>> GetBannersInternalAsync(int take, CancellationToken cancellationToken)
@@ -1007,6 +1029,8 @@ public class HomeReadService : IHomeReadService
     }
 
     private sealed record HomeProductCatalog(IReadOnlyList<HomeProductSource> Products, Guid? CurrentUserId, IReadOnlySet<Guid> FavoritedMasterProductIds);
+
+    private sealed record HomeCurrentUserInfo(string FullName, string Email);
 
     private sealed record HomeProductSource(
         Guid Id,

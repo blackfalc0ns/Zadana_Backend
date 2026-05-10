@@ -64,6 +64,8 @@ public record HomeDynamicSectionDto(
     [property: JsonPropertyName("items")] IReadOnlyList<HomeProductCardDto> Items);
 
 public record HomeContentDto(
+    [property: JsonPropertyName("full_name")] string FullName,
+    [property: JsonPropertyName("email")] string Email,
     [property: JsonPropertyName("deliver_to_label")] string DeliverToLabel,
     [property: JsonPropertyName("location")] string Location,
     [property: JsonPropertyName("address_line")] string AddressLine,
