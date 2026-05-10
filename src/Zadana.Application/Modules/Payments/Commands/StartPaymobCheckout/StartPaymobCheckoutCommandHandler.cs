@@ -6,6 +6,7 @@ using Zadana.Application.Modules.Checkout.Support;
 using Zadana.Application.Modules.Orders.Commands.PlaceOrder;
 using Zadana.Application.Modules.Payments.DTOs;
 using Zadana.Application.Modules.Payments.Interfaces;
+using Zadana.Application.Modules.Payments.Support;
 using Zadana.Domain.Modules.Payments.Entities;
 using Zadana.Domain.Modules.Payments.Enums;
 using Zadana.SharedKernel.Exceptions;
@@ -106,12 +107,12 @@ public class StartPaymobCheckoutCommandHandler : IRequestHandler<StartPaymobChec
                     order.TotalAmount,
                     "EGP",
                     order.Items.Select(MapPaymobItem).ToArray(),
-                    GetFirstName(user.FullName),
-                    GetLastName(user.FullName),
-                    user.Email ?? string.Empty,
-                    user.PhoneNumber ?? address.ContactPhone,
-                    address.AddressLine,
-                    address.City ?? address.Area ?? "Cairo",
+                    PaymobBillingData.FirstName(user),
+                    PaymobBillingData.LastName(user),
+                    PaymobBillingData.Email(user),
+                    PaymobBillingData.Phone(user, address),
+                    PaymobBillingData.Street(address),
+                    PaymobBillingData.City(address),
                     "EG"),
                 cancellationToken);
 
@@ -162,18 +163,6 @@ public class StartPaymobCheckoutCommandHandler : IRequestHandler<StartPaymobChec
             cancellationToken);
 
         return coupon.Id;
-    }
-
-    private static string GetFirstName(string fullName)
-    {
-        var parts = fullName.Split(' ', StringSplitOptions.RemoveEmptyEntries | StringSplitOptions.TrimEntries);
-        return parts.FirstOrDefault() ?? "Customer";
-    }
-
-    private static string GetLastName(string fullName)
-    {
-        var parts = fullName.Split(' ', StringSplitOptions.RemoveEmptyEntries | StringSplitOptions.TrimEntries);
-        return parts.Length > 1 ? string.Join(' ', parts.Skip(1)) : "Customer";
     }
 
     private static PaymobOrderItemRequest MapPaymobItem(Zadana.Domain.Modules.Orders.Entities.OrderItem item) =>
