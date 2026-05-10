@@ -153,12 +153,13 @@ public class DriverCommitmentPolicyService : IDriverCommitmentPolicyService
                 CommitmentScore: Math.Round(commitmentScore, 1),
                 EnforcementLevel: enforcementLevel.ToString(),
                 CanReceiveOffers: canReceiveOffers,
-                RestrictionMessage: ResolveRestrictionMessage(enforcementLevel),
+                RestrictionMessage: ResolveRestrictionMessageAr(enforcementLevel),
                 LastOfferResponseAtUtc: attempts
                     .Where(item => item.RespondedAtUtc.HasValue)
                     .OrderByDescending(item => item.RespondedAtUtc)
                     .Select(item => item.RespondedAtUtc)
-                    .FirstOrDefault());
+                    .FirstOrDefault(),
+                RestrictionMessageEn: ResolveRestrictionMessageEn(enforcementLevel));
         }
 
         return result;
@@ -348,7 +349,8 @@ public class DriverCommitmentPolicyService : IDriverCommitmentPolicyService
             EnforcementLevel: DriverCommitmentEnforcementLevel.Healthy.ToString(),
             CanReceiveOffers: true,
             RestrictionMessage: null,
-            LastOfferResponseAtUtc: null);
+            LastOfferResponseAtUtc: null,
+            RestrictionMessageEn: null);
 
     private static DriverCommitmentEnforcementLevel ResolveEnforcementLevel(
         int dailyRejections,
@@ -375,13 +377,23 @@ public class DriverCommitmentPolicyService : IDriverCommitmentPolicyService
         return DriverCommitmentEnforcementLevel.Healthy;
     }
 
-    private static string? ResolveRestrictionMessage(DriverCommitmentEnforcementLevel enforcementLevel) =>
+    private static string? ResolveRestrictionMessageAr(DriverCommitmentEnforcementLevel enforcementLevel) =>
         enforcementLevel switch
         {
             DriverCommitmentEnforcementLevel.SoftBlocked =>
                 "تم تقييد الحساب مؤقتًا بسبب الوصول إلى حد رفض العروض اليومي، ولا يمكن استقبال عروض جديدة حاليًا.",
             DriverCommitmentEnforcementLevel.SuspensionCandidate =>
                 "تم تقييد الحساب مؤقتًا بسبب تكرار رفض العروض. يرجى انتظار مراجعة الإدارة قبل استئناف استقبال الطلبات.",
+            _ => null
+        };
+
+    private static string? ResolveRestrictionMessageEn(DriverCommitmentEnforcementLevel enforcementLevel) =>
+        enforcementLevel switch
+        {
+            DriverCommitmentEnforcementLevel.SoftBlocked =>
+                "The account was temporarily restricted after reaching the daily offer rejection limit and cannot receive new offers right now.",
+            DriverCommitmentEnforcementLevel.SuspensionCandidate =>
+                "The account was temporarily restricted because offer rejections happened repeatedly. Please wait for admin review before receiving orders again.",
             _ => null
         };
 

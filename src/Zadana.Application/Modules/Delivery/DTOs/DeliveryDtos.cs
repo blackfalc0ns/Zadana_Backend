@@ -30,7 +30,11 @@ public record DriverOperationalStatusDto(
     string EnforcementLevel,
     bool CanReceiveOffers,
     string? RestrictionMessage,
-    string Message);
+    string Message,
+    string MessageAr = "",
+    string MessageEn = "",
+    string? RestrictionMessageAr = null,
+    string? RestrictionMessageEn = null);
 
 public record DriverCommitmentSummaryDto(
     int AcceptedOffers,
@@ -42,7 +46,8 @@ public record DriverCommitmentSummaryDto(
     string EnforcementLevel,
     bool CanReceiveOffers,
     string? RestrictionMessage,
-    DateTime? LastOfferResponseAtUtc);
+    DateTime? LastOfferResponseAtUtc,
+    string? RestrictionMessageEn = null);
 
 public record DriverHomeDto(
     DriverOperationalStatusDto OperationalStatus,

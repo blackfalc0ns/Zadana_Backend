@@ -20,9 +20,13 @@ public static class DriverOperationalStatusFactory
             EnforcementLevel: DriverCommitmentEnforcementLevel.Healthy.ToString(),
             CanReceiveOffers: true,
             RestrictionMessage: null,
-            LastOfferResponseAtUtc: null);
+            LastOfferResponseAtUtc: null,
+            RestrictionMessageEn: null);
 
-        var gateMessage = ResolveMessage(driver);
+        var gateMessageAr = ResolveMessageAr(driver);
+        var gateMessageEn = ResolveMessageEn(driver);
+        var messageAr = commitment.RestrictionMessage ?? gateMessageAr;
+        var messageEn = commitment.RestrictionMessageEn ?? gateMessageEn;
         var canReceiveOrders = driver.CanReceiveOrders;
         var canReceiveOffers = canReceiveOrders && commitment.CanReceiveOffers;
 
@@ -45,7 +49,11 @@ public static class DriverOperationalStatusFactory
             EnforcementLevel: commitment.EnforcementLevel,
             CanReceiveOffers: canReceiveOffers,
             RestrictionMessage: commitment.RestrictionMessage,
-            Message: commitment.RestrictionMessage ?? gateMessage);
+            Message: messageAr,
+            MessageAr: messageAr,
+            MessageEn: messageEn,
+            RestrictionMessageAr: commitment.RestrictionMessage,
+            RestrictionMessageEn: commitment.RestrictionMessageEn);
     }
 
     public static string ResolveGateStatus(Driver driver) =>
@@ -64,7 +72,22 @@ public static class DriverOperationalStatusFactory
             _ => "Unavailable"
         };
 
-    public static string ResolveMessage(Driver driver) =>
+    public static string ResolveMessageAr(Driver driver) =>
+        ResolveGateStatus(driver) switch
+        {
+            "NeedsDocuments" => "ملف السائق ينتظر استكمال المستندات المطلوبة قبل المراجعة.",
+            "UnderReview" => "ملف السائق قيد مراجعة الإدارة حاليًا.",
+            "Rejected" => "تم رفض ملف السائق من الإدارة.",
+            "ExpiredDocuments" => "حساب السائق مغلق حتى يتم تجديد المستندات المنتهية.",
+            "Suspended" => "حساب السائق موقوف.",
+            "Banned" => "حساب السائق محظور.",
+            "Operational" => "تم اعتماد السائق ويمكنه استقبال الطلبات.",
+            "PendingActivation" => "تم اعتماد السائق لكن الحساب ما زال في انتظار التفعيل.",
+            "Inactive" => "تم اعتماد السائق لكن الحساب غير نشط حاليًا.",
+            _ => "حالة تشغيل السائق غير متاحة حاليًا."
+        };
+
+    public static string ResolveMessageEn(Driver driver) =>
         ResolveGateStatus(driver) switch
         {
             "NeedsDocuments" => "Driver profile is waiting for required documents before review.",

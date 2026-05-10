@@ -148,7 +148,11 @@ public class DriversController : ApiControllerBase
                 enforcementLevel = operationalStatus.EnforcementLevel,
                 canReceiveOffers = operationalStatus.CanReceiveOffers,
                 restrictionMessage = operationalStatus.RestrictionMessage,
-                message = operationalStatus.Message
+                restrictionMessageAr = operationalStatus.RestrictionMessageAr,
+                restrictionMessageEn = operationalStatus.RestrictionMessageEn,
+                message = operationalStatus.Message,
+                messageAr = operationalStatus.MessageAr,
+                messageEn = operationalStatus.MessageEn
             });
         }
 
@@ -176,7 +180,11 @@ public class DriversController : ApiControllerBase
                 enforcementLevel = operationalStatus.EnforcementLevel,
                 canReceiveOffers = operationalStatus.CanReceiveOffers,
                 restrictionMessage = operationalStatus.RestrictionMessage,
-                message = operationalStatus.Message
+                restrictionMessageAr = operationalStatus.RestrictionMessageAr,
+                restrictionMessageEn = operationalStatus.RestrictionMessageEn,
+                message = operationalStatus.Message,
+                messageAr = operationalStatus.MessageAr,
+                messageEn = operationalStatus.MessageEn
             });
         }
 
