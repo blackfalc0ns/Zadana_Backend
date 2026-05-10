@@ -363,9 +363,9 @@ public class DriverCommitmentPolicyService : IDriverCommitmentPolicyService
         enforcementLevel switch
         {
             DriverCommitmentEnforcementLevel.SoftBlocked =>
-                "Driver reached the daily offer rejection limit and the account is temporarily frozen from receiving new offers.",
+                "تم تقييد الحساب مؤقتًا بسبب الوصول إلى حد رفض العروض اليومي، ولا يمكن استقبال عروض جديدة حاليًا.",
             DriverCommitmentEnforcementLevel.SuspensionCandidate =>
-                "Driver repeatedly exceeded offer rejection limits and now requires admin review before resuming normal dispatch priority.",
+                "تم تقييد الحساب مؤقتًا بسبب تكرار رفض العروض. يرجى انتظار مراجعة الإدارة قبل استئناف استقبال الطلبات.",
             _ => null
         };
 
