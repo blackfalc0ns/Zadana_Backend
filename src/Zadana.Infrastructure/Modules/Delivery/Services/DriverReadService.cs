@@ -830,7 +830,7 @@ public class DriverReadService : IDriverReadService
     private static string MapDriverStatus(Driver d, int activeTasks)
     {
         if (d.HasExpiredRequiredDocuments()) return "Inactive";
-        if (d.Status == AccountStatus.Suspended) return "Suspended";
+        if (d.Status is AccountStatus.Suspended or AccountStatus.Banned) return "Suspended";
         if (d.Status == AccountStatus.Inactive) return "Inactive";
         if (activeTasks > 0) return "OnMission";
         if (!d.IsAvailable) return "Offline";
@@ -1137,7 +1137,7 @@ public class DriverReadService : IDriverReadService
         AdminDriverIncidentDto[] incidents,
         IReadOnlyCollection<string> missingRequirements)
     {
-        if (driver.Status == AccountStatus.Suspended)
+        if (driver.Status is AccountStatus.Suspended or AccountStatus.Banned)
         {
             return "SUSPENDED";
         }

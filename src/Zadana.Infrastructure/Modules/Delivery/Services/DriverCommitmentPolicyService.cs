@@ -74,6 +74,15 @@ public class DriverCommitmentPolicyService : IDriverCommitmentPolicyService
         var weekWindowStart = utcNow.Subtract(WeeklyWindow);
         var dayWindowStart = utcNow.Subtract(DailyWindow);
 
+        var commitmentClearDates = await _context.Drivers
+            .Where(driver => distinctDriverIds.Contains(driver.Id))
+            .Select(driver => new
+            {
+                driver.Id,
+                driver.CommitmentClearedAtUtc
+            })
+            .ToDictionaryAsync(item => item.Id, item => item.CommitmentClearedAtUtc, cancellationToken);
+
         var attemptRows = await _context.DeliveryOfferAttempts
             .Where(item =>
                 distinctDriverIds.Contains(item.DriverId) &&
@@ -97,6 +106,13 @@ public class DriverCommitmentPolicyService : IDriverCommitmentPolicyService
         {
             groupedAttempts.TryGetValue(driverId, out var attempts);
             attempts ??= [];
+            commitmentClearDates.TryGetValue(driverId, out var commitmentClearedAtUtc);
+            if (commitmentClearedAtUtc.HasValue)
+            {
+                attempts = attempts
+                    .Where(item => item.EventAtUtc >= commitmentClearedAtUtc.Value)
+                    .ToArray();
+            }
 
             var acceptedOffers = attempts.Count(item => item.Status == DeliveryOfferAttemptStatus.Accepted);
             var rejectedOffers = attempts.Count(item => item.Status == DeliveryOfferAttemptStatus.Rejected);

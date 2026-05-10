@@ -45,6 +45,9 @@ public class Driver : BaseEntity
     public string? LocationUpdatesBlockReason { get; private set; }
     public DateTime? LocationUpdatesBlockedAtUtc { get; private set; }
     public Guid? LocationUpdatesBlockedByUserId { get; private set; }
+    public DateTime? CommitmentClearedAtUtc { get; private set; }
+    public Guid? CommitmentClearedByUserId { get; private set; }
+    public string? CommitmentClearNote { get; private set; }
 
     // Navigation
     public User User { get; private set; } = null!;
@@ -230,6 +233,20 @@ public class Driver : BaseEntity
 
         Status = AccountStatus.Active;
         SuspensionReason = null;
+    }
+
+    public void ClearOperationalRestrictions(Guid adminUserId, string? note = null)
+    {
+        if (VerificationStatus != DriverVerificationStatus.Approved || HasExpiredRequiredDocuments())
+            return;
+
+        Status = AccountStatus.Active;
+        SuspensionReason = null;
+        UnblockLocationUpdates();
+        CommitmentClearedAtUtc = DateTime.UtcNow;
+        CommitmentClearedByUserId = adminUserId;
+        CommitmentClearNote = NormalizeOptional(note);
+        IsAvailable = false;
     }
 
     public void Ban() => Status = AccountStatus.Banned;

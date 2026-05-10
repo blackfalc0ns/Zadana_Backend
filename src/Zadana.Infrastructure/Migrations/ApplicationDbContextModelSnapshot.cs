@@ -1523,6 +1523,16 @@ namespace Zadana.Infrastructure.Migrations
                         .HasMaxLength(50)
                         .HasColumnType("nvarchar(50)");
 
+                    b.Property<DateTime?>("CommitmentClearedAtUtc")
+                        .HasColumnType("datetime2");
+
+                    b.Property<Guid?>("CommitmentClearedByUserId")
+                        .HasColumnType("uniqueidentifier");
+
+                    b.Property<string>("CommitmentClearNote")
+                        .HasMaxLength(500)
+                        .HasColumnType("nvarchar(500)");
+
                     b.Property<DateTime>("CreatedAtUtc")
                         .HasColumnType("datetime2");
 

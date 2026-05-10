@@ -9,6 +9,7 @@ using Zadana.Application.Modules.Delivery.Commands.AddDriverIncident;
 using Zadana.Application.Modules.Delivery.Commands.AddDriverNote;
 using Zadana.Application.Modules.Delivery.Commands.ApproveDriverDocumentReview;
 using Zadana.Application.Modules.Delivery.Commands.BlockDriverLocationUpdates;
+using Zadana.Application.Modules.Delivery.Commands.ClearDriverRestrictions;
 using Zadana.Application.Modules.Delivery.Commands.ReactivateDriver;
 using Zadana.Application.Modules.Delivery.Commands.RejectDriverDocumentReview;
 using Zadana.Application.Modules.Delivery.Commands.ReviewDriver;
@@ -274,6 +275,20 @@ public class AdminDriversController : ApiControllerBase
         return Ok(new { message = "Driver reactivated successfully" });
     }
 
+    [HttpPost("{id:guid}/restrictions/clear")]
+    public async Task<IActionResult> ClearDriverRestrictions(
+        Guid id,
+        [FromBody] ClearDriverRestrictionsRequest? request,
+        [FromServices] ICurrentUserService currentUserService,
+        CancellationToken cancellationToken = default)
+    {
+        var userId = currentUserService.UserId
+            ?? throw new UnauthorizedException("ADMIN_NOT_AUTHENTICATED");
+
+        await Sender.Send(new ClearDriverRestrictionsCommand(id, userId, request?.Note), cancellationToken);
+        return Ok(new { message = "Driver restrictions cleared successfully", messageAr = "تم فك كل الحظر عن السائق بنجاح" });
+    }
+
     [HttpPost("{id:guid}/location-updates/block")]
     public async Task<IActionResult> BlockLocationUpdates(
         Guid id,
@@ -335,6 +350,7 @@ public class AdminDriversController : ApiControllerBase
 public record ReviewDriverRequest(string Action, string? Note);
 public record RejectDriverDocumentRequest(string Reason);
 public record SuspendDriverRequest(string? Reason);
+public record ClearDriverRestrictionsRequest(string? Note);
 public record BlockDriverLocationUpdatesRequest(string? Reason);
 public record AddDriverNoteRequest(string Message);
 public record AddDriverIncidentRequest(
