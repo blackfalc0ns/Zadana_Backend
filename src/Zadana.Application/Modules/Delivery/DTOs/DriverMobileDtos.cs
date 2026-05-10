@@ -105,7 +105,9 @@ public record DriverProfileDto(
     bool IsProfileComplete,
     int CompletionPercent,
     IReadOnlyList<string> MissingRequirements,
-    bool CanSubmitForReview);
+    bool CanSubmitForReview,
+    string? ReviewNoteAr = null,
+    string? ReviewNoteEn = null);
 
 public record DriverRejectionPolicyDto(
     int DailyRejections,

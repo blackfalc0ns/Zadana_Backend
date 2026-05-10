@@ -807,7 +807,9 @@ public class DriverReadService : IDriverReadService
             missingRequirements.Count == 0,
             completionPercent,
             missingRequirements,
-            missingRequirements.Count == 0);
+            missingRequirements.Count == 0,
+            DriverOperationalStatusFactory.ResolveReviewNoteAr(driver.ReviewNote),
+            DriverOperationalStatusFactory.ResolveReviewNoteEn(driver.ReviewNote));
     }
 
     public async Task<DeliveryZoneDto[]> GetActiveZonesAsync(CancellationToken cancellationToken = default)

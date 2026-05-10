@@ -34,7 +34,9 @@ public record DriverOperationalStatusDto(
     string MessageAr = "",
     string MessageEn = "",
     string? RestrictionMessageAr = null,
-    string? RestrictionMessageEn = null);
+    string? RestrictionMessageEn = null,
+    string? ReviewNoteAr = null,
+    string? ReviewNoteEn = null);
 
 public record DriverCommitmentSummaryDto(
     int AcceptedOffers,
