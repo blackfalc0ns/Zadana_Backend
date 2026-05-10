@@ -1,6 +1,7 @@
 using Microsoft.EntityFrameworkCore;
 using Zadana.Application.Common.Interfaces;
 using Zadana.Application.Modules.Delivery.Interfaces;
+using Zadana.Domain.Modules.Delivery.Entities;
 using Zadana.Domain.Modules.Identity.Entities;
 using Zadana.Domain.Modules.Vendors.Entities;
 using Zadana.SharedKernel.Exceptions;
@@ -37,21 +38,45 @@ public class DeliveryPricingService : IDeliveryPricingService
             .OrderByDescending(item => item.DeliveryZoneId != null)
             .ToListAsync(cancellationToken);
 
-        var hasExactCoordinates = address.Latitude.HasValue && address.Longitude.HasValue;
+        var zones = rules
+            .Where(rule => rule.DeliveryZone != null)
+            .Select(rule => rule.DeliveryZone!)
+            .DistinctBy(zone => zone.Id)
+            .ToArray();
+
+        var hasExactCoordinates = address.Latitude.HasValue
+            && address.Longitude.HasValue
+            && !(address.Latitude.Value == 0m && address.Longitude.Value == 0m);
+        var latitude = address.Latitude;
+        var longitude = address.Longitude;
+
+        if (hasExactCoordinates
+            && !IsInsideAnyZone(zones, latitude!.Value, longitude!.Value)
+            && IsInsideAnyZone(zones, longitude!.Value, latitude!.Value))
+        {
+            (latitude, longitude) = (longitude, latitude);
+        }
+
         var distanceKm = hasExactCoordinates
             ? DeliveryDispatchScoring.ApproximateDistanceKm(
                 branch.Latitude,
                 branch.Longitude,
-                address.Latitude!.Value,
-                address.Longitude!.Value)
+                latitude!.Value,
+                longitude!.Value)
             : 0m;
 
         var addressZone = hasExactCoordinates
             ? DeliveryDispatchScoring.ResolveContainingZone(
-                rules.Where(rule => rule.DeliveryZone != null).Select(rule => rule.DeliveryZone!).DistinctBy(zone => zone.Id).ToArray(),
-                address.Latitude!.Value,
-                address.Longitude!.Value)
+                zones,
+                latitude!.Value,
+                longitude!.Value)
             : null;
+
+        if (hasExactCoordinates && addressZone is null)
+        {
+            addressZone = ResolveNearestCityZone(zones, address.City, latitude!.Value, longitude!.Value)
+                ?? ResolveNearestCityZone(zones, branch.Vendor.City, latitude!.Value, longitude!.Value);
+        }
 
         var rule = ResolveRule(rules, addressZone?.Id, address.City, branch.Vendor.City);
         if (rule is null)
@@ -108,8 +133,63 @@ public class DeliveryPricingService : IDeliveryPricingService
         }
 
         return rules.FirstOrDefault(item =>
-            item.DeliveryZoneId == null &&
-            string.Equals(item.City, city.Trim(), StringComparison.OrdinalIgnoreCase));
+                item.DeliveryZoneId != null &&
+                item.DeliveryZone != null &&
+                CityMatches(item.DeliveryZone.City, city))
+            ?? rules.FirstOrDefault(item =>
+                item.DeliveryZoneId == null &&
+                CityMatches(item.City, city));
+    }
+
+    private static DeliveryZone? ResolveNearestCityZone(
+        IReadOnlyCollection<DeliveryZone> zones,
+        string? city,
+        decimal latitude,
+        decimal longitude)
+    {
+        if (string.IsNullOrWhiteSpace(city))
+        {
+            return null;
+        }
+
+        return zones
+            .Where(zone => zone.IsActive && CityMatches(zone.City, city))
+            .OrderBy(zone => DeliveryDispatchScoring.ApproximateDistanceKm(zone.CenterLat, zone.CenterLng, latitude, longitude))
+            .FirstOrDefault();
+    }
+
+    private static bool IsInsideAnyZone(IReadOnlyCollection<DeliveryZone> zones, decimal latitude, decimal longitude) =>
+        zones.Any(zone => zone.IsActive && DeliveryDispatchScoring.IsPointWithinZone(zone, latitude, longitude));
+
+    private static bool CityMatches(string? left, string? right)
+    {
+        var normalizedLeft = NormalizeCity(left);
+        var normalizedRight = NormalizeCity(right);
+
+        return !string.IsNullOrWhiteSpace(normalizedLeft)
+            && string.Equals(normalizedLeft, normalizedRight, StringComparison.OrdinalIgnoreCase);
+    }
+
+    private static string? NormalizeCity(string? city)
+    {
+        if (string.IsNullOrWhiteSpace(city))
+        {
+            return null;
+        }
+
+        var normalized = city.Trim().ToLowerInvariant()
+            .Replace(" ", string.Empty)
+            .Replace("-", string.Empty)
+            .Replace("_", string.Empty);
+
+        return normalized switch
+        {
+            "الرياض" or "رياض" or "riyadh" => "riyadh",
+            "جدة" or "جده" or "jeddah" => "jeddah",
+            "الخبر" or "خبر" or "khobar" or "alkhobar" => "khobar",
+            "الدمام" or "دمام" or "dammam" => "dammam",
+            _ => normalized
+        };
     }
 
     private static decimal ResolveActiveSurgeMultiplier(IReadOnlyCollection<Domain.Modules.Delivery.Entities.DeliveryPricingSurgeWindow> windows)

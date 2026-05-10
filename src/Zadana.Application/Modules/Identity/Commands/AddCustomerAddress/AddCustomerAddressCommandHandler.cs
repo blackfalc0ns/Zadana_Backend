@@ -1,6 +1,7 @@
 using MediatR;
 using Microsoft.EntityFrameworkCore;
 using Zadana.Application.Common.Interfaces;
+using Zadana.Application.Modules.Identity.Commands;
 using Zadana.Application.Modules.Identity.DTOs;
 using Zadana.Application.Modules.Identity.Interfaces;
 using Zadana.Domain.Modules.Identity.Entities;
@@ -32,6 +33,12 @@ public class AddCustomerAddressCommandHandler : IRequestHandler<AddCustomerAddre
             parsedLabel = l;
         }
 
+        var coordinates = await CustomerAddressCoordinateNormalizer.NormalizeAsync(
+            _context,
+            request.Latitude,
+            request.Longitude,
+            cancellationToken);
+
         var address = new CustomerAddress(
             userId: request.UserId,
             contactName: request.ContactName,
@@ -43,8 +50,8 @@ public class AddCustomerAddressCommandHandler : IRequestHandler<AddCustomerAddre
             apartmentNo: request.ApartmentNo,
             city: request.City,
             area: request.Area,
-            latitude: request.Latitude,
-            longitude: request.Longitude
+            latitude: coordinates.Latitude,
+            longitude: coordinates.Longitude
         );
 
         var hasExistingDefault = await _context.CustomerAddresses

@@ -1,6 +1,7 @@
 using MediatR;
 using Microsoft.EntityFrameworkCore;
 using Zadana.Application.Common.Interfaces;
+using Zadana.Application.Modules.Identity.Commands;
 using Zadana.Domain.Modules.Identity.Entities;
 using Zadana.Domain.Modules.Identity.Enums;
 using Zadana.SharedKernel.Exceptions;
@@ -32,6 +33,12 @@ public class UpdateCustomerAddressCommandHandler : IRequestHandler<UpdateCustome
             parsedLabel = label;
         }
 
+        var coordinates = await CustomerAddressCoordinateNormalizer.NormalizeAsync(
+            _context,
+            request.Latitude,
+            request.Longitude,
+            cancellationToken);
+
         address.Update(
             request.ContactName,
             request.ContactPhone,
@@ -42,8 +49,8 @@ public class UpdateCustomerAddressCommandHandler : IRequestHandler<UpdateCustome
             request.ApartmentNo,
             request.City,
             request.Area,
-            request.Latitude,
-            request.Longitude);
+            coordinates.Latitude,
+            coordinates.Longitude);
 
         if (request.IsDefault)
         {
