@@ -55,11 +55,14 @@ public sealed class DriverWalletReadService : IDriverWalletReadService
             .ToListAsync(cancellationToken);
 
         var withdrawalSummary = await BuildWithdrawalSummaryAsync(driver.Id, cancellationToken);
+        var netWithdrawable = Math.Max(0m, wallet.CurrentBalance - wallet.CodOwedBalance - wallet.PendingBalance);
 
         return new DriverWalletSummaryDto(
             wallet.CurrentBalance,
-            wallet.CurrentBalance,
+            netWithdrawable,
             wallet.PendingBalance,
+            wallet.CodOwedBalance,
+            netWithdrawable,
             todayEarnings,
             weekEarnings,
             monthEarnings,

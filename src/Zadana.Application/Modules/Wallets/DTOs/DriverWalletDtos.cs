@@ -4,6 +4,8 @@ public record DriverWalletSummaryDto(
     decimal CurrentBalance,
     decimal AvailableToWithdraw,
     decimal PendingBalance,
+    decimal CodOwedBalance,
+    decimal NetWithdrawable,
     decimal TodayEarnings,
     decimal WeekEarnings,
     decimal MonthEarnings,
