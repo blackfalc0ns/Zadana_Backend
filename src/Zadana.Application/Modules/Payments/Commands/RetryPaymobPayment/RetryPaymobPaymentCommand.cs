@@ -142,8 +142,7 @@ public class RetryPaymobPaymentCommandHandler : IRequestHandler<RetryPaymobPayme
         }
         catch
         {
-            retryPayment.MarkAsFailed("Paymob checkout retry session creation failed.");
-            await _unitOfWork.SaveChangesAsync(cancellationToken);
+            await UnconfirmedCardPaymentCleanup.DeletePaymentAsync(_context, retryPayment.Id, cancellationToken);
             throw;
         }
     }

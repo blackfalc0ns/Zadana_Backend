@@ -33,17 +33,13 @@ public class OrderStatusNotificationDispatcherTests
             .Returns(Task.CompletedTask);
 
         pushServiceMock
-            .Setup(service => service.SendToExternalUserAsync(
-                userId.ToString(),
-                It.IsAny<string>(),
-                It.IsAny<string>(),
-                It.IsAny<string>(),
-                It.IsAny<string>(),
-                NotificationTypes.OrderStatusChanged,
-                orderId,
-                It.IsAny<string?>(),
-                $"/orders/{orderId}",
-                OneSignalPushProfile.MobileHeadsUp,
+            .Setup(service => service.SendMobileNotificationAsync(
+                It.Is<OneSignalMobilePushRequest>(request =>
+                    request.ExternalUserId == userId.ToString() &&
+                    request.Type == NotificationTypes.OrderStatusChanged &&
+                    request.ReferenceId == orderId &&
+                    request.TargetUrl == $"/orders/{orderId}" &&
+                    request.Profile == OneSignalPushProfile.MobileHeadsUp),
                 It.IsAny<CancellationToken>()))
             .ReturnsAsync(new OneSignalPushDispatchResult(
                 Attempted: true,
@@ -70,7 +66,7 @@ public class OrderStatusNotificationDispatcherTests
             CancellationToken.None);
 
         result.InboxQueued.Should().BeTrue();
-        result.RealtimeQueued.Should().BeFalse();
+        result.RealtimeQueued.Should().BeTrue();
         result.PushAttempted.Should().BeTrue();
         result.PushSent.Should().BeTrue();
         result.PushProviderStatusCode.Should().Be(200);
@@ -94,39 +90,37 @@ public class OrderStatusNotificationDispatcherTests
 
         notificationServiceMock.Verify(
             service => service.SendOrderStatusChangedToUserAsync(
-                It.IsAny<Guid>(),
-                It.IsAny<Guid>(),
-                It.IsAny<string>(),
-                It.IsAny<Guid>(),
-                It.IsAny<string>(),
-                It.IsAny<string>(),
-                It.IsAny<string?>(),
-                It.IsAny<string?>(),
-                It.IsAny<string?>(),
+                userId,
+                orderId,
+                "ORD-DISPATCH-001",
+                vendorId,
+                nameof(OrderStatus.PendingVendorAcceptance),
+                nameof(OrderStatus.Accepted),
+                "vendor",
+                "status_changed",
+                $"/orders/{orderId}",
                 It.IsAny<CancellationToken>()),
-            Times.Never);
+            Times.Once);
 
         pushServiceMock.Verify(
-            service => service.SendToExternalUserAsync(
-                userId.ToString(),
-                It.IsAny<string>(),
-                "Order Accepted",
-                It.IsAny<string>(),
-                It.Is<string>(body => body.Contains("ORD-DISPATCH-001")),
-                NotificationTypes.OrderStatusChanged,
-                orderId,
-                It.Is<string?>(data =>
-                    data != null &&
-                    data.Contains($"\"orderId\":\"{orderId}\"") &&
-                    data.Contains($"\"vendorId\":\"{vendorId}\"") &&
-                    data.Contains("\"orderNumber\":\"ORD-DISPATCH-001\"") &&
-                    data.Contains("\"oldStatus\":\"PendingVendorAcceptance\"") &&
-                    data.Contains("\"newStatus\":\"Accepted\"") &&
-                    data.Contains("\"actorRole\":\"vendor\"") &&
-                    data.Contains("\"action\":\"status_changed\"") &&
-                    data.Contains("\"targetUrl\":\"/orders/")),
-                $"/orders/{orderId}",
-                OneSignalPushProfile.MobileHeadsUp,
+            service => service.SendMobileNotificationAsync(
+                It.Is<OneSignalMobilePushRequest>(request =>
+                    request.ExternalUserId == userId.ToString() &&
+                    request.TitleEn == "Order Accepted" &&
+                    request.BodyEn.Contains("ORD-DISPATCH-001") &&
+                    request.Type == NotificationTypes.OrderStatusChanged &&
+                    request.ReferenceId == orderId &&
+                    request.Data != null &&
+                    request.Data.Contains($"\"orderId\":\"{orderId}\"") &&
+                    request.Data.Contains($"\"vendorId\":\"{vendorId}\"") &&
+                    request.Data.Contains("\"orderNumber\":\"ORD-DISPATCH-001\"") &&
+                    request.Data.Contains("\"oldStatus\":\"PendingVendorAcceptance\"") &&
+                    request.Data.Contains("\"newStatus\":\"Accepted\"") &&
+                    request.Data.Contains("\"actorRole\":\"vendor\"") &&
+                    request.Data.Contains("\"action\":\"status_changed\"") &&
+                    request.Data.Contains("\"targetUrl\":\"/orders/") &&
+                    request.TargetUrl == $"/orders/{orderId}" &&
+                    request.Profile == OneSignalPushProfile.MobileHeadsUp),
                 It.IsAny<CancellationToken>()),
             Times.Once);
     }

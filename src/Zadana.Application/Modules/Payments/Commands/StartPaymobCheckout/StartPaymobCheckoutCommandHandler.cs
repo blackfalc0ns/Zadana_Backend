@@ -136,8 +136,7 @@ public class StartPaymobCheckoutCommandHandler : IRequestHandler<StartPaymobChec
         }
         catch
         {
-            payment.MarkAsFailed("Paymob checkout session creation failed.");
-            await _unitOfWork.SaveChangesAsync(cancellationToken);
+            await UnconfirmedCardPaymentCleanup.DeleteOrderAsync(_context, order.Id, cancellationToken);
             throw;
         }
     }

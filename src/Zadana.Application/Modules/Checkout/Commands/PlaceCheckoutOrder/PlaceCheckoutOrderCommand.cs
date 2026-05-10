@@ -199,8 +199,7 @@ public class PlaceCheckoutOrderCommandHandler : IRequestHandler<PlaceCheckoutOrd
             }
             catch
             {
-                payment.MarkAsFailed("Paymob checkout session creation failed.");
-                await _unitOfWork.SaveChangesAsync(cancellationToken);
+                await UnconfirmedCardPaymentCleanup.DeleteOrderAsync(_context, order.Id, cancellationToken);
                 throw;
             }
         }

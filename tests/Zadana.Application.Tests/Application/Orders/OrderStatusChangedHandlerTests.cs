@@ -2,7 +2,10 @@ using FluentAssertions;
 using Microsoft.EntityFrameworkCore;
 using Moq;
 using Zadana.Application.Common.Interfaces;
+using Zadana.Application.Common.Settings;
+using Zadana.Application.Modules.Finances.Services;
 using Zadana.Application.Modules.Orders.Events;
+using Zadana.Application.Modules.Wallets.Services;
 using Zadana.Domain.Modules.Delivery.Entities;
 using Zadana.Domain.Modules.Delivery.Enums;
 using Zadana.Domain.Modules.Identity.Entities;
@@ -469,19 +472,25 @@ public class OrderStatusChangedHandlerTests
         return dispatcherMock;
     }
 
-    private static Mock<Zadana.Application.Modules.Wallets.Services.OrderRevenueDistributionService> CreateRevenueDistributionServiceMock(
+    private static Mock<OrderRevenueDistributionService> CreateRevenueDistributionServiceMock(
         ApplicationDbContext dbContext)
     {
-        var payoutWalletService = new Mock<Zadana.Application.Modules.Wallets.Services.VendorPayoutWalletService>(
+        var payoutWalletService = new Mock<VendorPayoutWalletService>(
             dbContext,
-            new Mock<Microsoft.Extensions.Logging.ILogger<Zadana.Application.Modules.Wallets.Services.VendorPayoutWalletService>>().Object);
+            new Mock<Microsoft.Extensions.Logging.ILogger<VendorPayoutWalletService>>().Object);
+        var financialEventPostingService = new FinancialEventPostingService(
+            dbContext,
+            new Mock<Microsoft.Extensions.Logging.ILogger<FinancialEventPostingService>>().Object);
+        var walletProjectionUpdater = new WalletProjectionUpdater(dbContext);
 
-        return new Mock<Zadana.Application.Modules.Wallets.Services.OrderRevenueDistributionService>(
+        return new Mock<OrderRevenueDistributionService>(
             dbContext,
-            Microsoft.Extensions.Options.Options.Create(new Zadana.Application.Common.Settings.FinancialSettingsOptions()),
+            Microsoft.Extensions.Options.Options.Create(new FinancialSettingsOptions()),
             payoutWalletService.Object,
-            new Mock<Microsoft.Extensions.Logging.ILogger<Zadana.Application.Modules.Wallets.Services.OrderRevenueDistributionService>>().Object,
-            (Zadana.Application.Modules.Wallets.Services.VendorRecoveryService?)null);
+            financialEventPostingService,
+            walletProjectionUpdater,
+            new Mock<Microsoft.Extensions.Logging.ILogger<OrderRevenueDistributionService>>().Object,
+            (VendorRecoveryService?)null);
     }
 
     private static Mock<IOneSignalPushService> CreatePushServiceMock()
