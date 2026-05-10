@@ -3,6 +3,8 @@ using System.Text.Json.Serialization;
 namespace Zadana.Application.Modules.Home.DTOs;
 
 public record HomeHeaderDto(
+    [property: JsonPropertyName("full_name")] string FullName,
+    [property: JsonPropertyName("email")] string Email,
     [property: JsonPropertyName("deliver_to_label")] string DeliverToLabel,
     [property: JsonPropertyName("location")] string Location,
     [property: JsonPropertyName("address_line")] string AddressLine,

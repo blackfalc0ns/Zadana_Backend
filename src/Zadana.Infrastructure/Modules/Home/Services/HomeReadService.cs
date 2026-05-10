@@ -269,8 +269,10 @@ public class HomeReadService : IHomeReadService
         var userId = _currentUserService.UserId;
         if (!_currentUserService.IsAuthenticated || !userId.HasValue)
         {
-            return new HomeHeaderDto(string.Empty, string.Empty, string.Empty, 0);
+            return new HomeHeaderDto(string.Empty, string.Empty, string.Empty, string.Empty, string.Empty, 0);
         }
+
+        var user = await BuildCurrentUserAsync(cancellationToken);
 
         var address = await _context.CustomerAddresses
             .AsNoTracking()
@@ -286,14 +288,14 @@ public class HomeReadService : IHomeReadService
 
         if (address is null)
         {
-            return new HomeHeaderDto(string.Empty, string.Empty, string.Empty, notificationsCount);
+            return new HomeHeaderDto(user.FullName, user.Email, string.Empty, string.Empty, string.Empty, notificationsCount);
         }
 
         var deliverToLabel = LocalizeAddressLabel(address.Label);
         var location = BuildLocation(address.Area, address.City, address.AddressLine);
         var addressLine = address.AddressLine?.Trim() ?? string.Empty;
 
-        return new HomeHeaderDto(deliverToLabel, location, addressLine, notificationsCount);
+        return new HomeHeaderDto(user.FullName, user.Email, deliverToLabel, location, addressLine, notificationsCount);
     }
 
     private async Task<HomeCurrentUserInfo> BuildCurrentUserAsync(CancellationToken cancellationToken)
