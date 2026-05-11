@@ -32,7 +32,7 @@ internal sealed class GetAdminDashboardOverviewQueryHandler(
             AppCacheKeys.Build(
                 "dashboard",
                 "admin-overview",
-                "v1",
+                "v2-ar",
                 period,
                 AppCacheKeys.NormalizeToken(normalizedRegion),
                 AppCacheKeys.GuidToken(request.VendorId),
@@ -281,9 +281,9 @@ internal sealed class GetAdminDashboardOverviewQueryHandler(
             {
                 DateRanges =
                 [
-                    new AdminDashboardFilterOptionDto { Value = "today", Label = "Today" },
-                    new AdminDashboardFilterOptionDto { Value = "week", Label = "7 Days" },
-                    new AdminDashboardFilterOptionDto { Value = "month", Label = "30 Days" }
+                    new AdminDashboardFilterOptionDto { Value = "today", Label = "اليوم" },
+                    new AdminDashboardFilterOptionDto { Value = "week", Label = "آخر 7 أيام" },
+                    new AdminDashboardFilterOptionDto { Value = "month", Label = "آخر 30 يوم" }
                 ],
                 Regions = BuildRegionOptions(vendors),
                 Vendors = BuildVendorOptions(vendors)
@@ -296,7 +296,7 @@ internal sealed class GetAdminDashboardOverviewQueryHandler(
                     LabelKey = "DASHBOARD.KPI.GMV",
                     Value = gmv,
                     DisplayValue = Math.Round(gmv, 0).ToString("N0"),
-                    Unit = "SAR",
+                    Unit = "ر.س",
                     ChangeLabel = FormatChange(totalOrders, completedOrders, "up"),
                     TrendDirection = "up",
                     Severity = "neutral",
@@ -320,7 +320,7 @@ internal sealed class GetAdminDashboardOverviewQueryHandler(
                     Value = onTimeRate,
                     DisplayValue = onTimeRate.ToString("N1"),
                     Unit = "%",
-                    ChangeLabel = onTimeRate >= 90m ? "+ healthy" : "- needs action",
+                    ChangeLabel = onTimeRate >= 90m ? "+ مستقر" : "- يحتاج إجراء",
                     TrendDirection = onTimeRate >= 90m ? "up" : "down",
                     Severity = onTimeRate >= 90m ? "success" : "warning",
                     ContextKey = "DASHBOARD.KPI_CONTEXT.ON_TIME_RATE"
@@ -331,7 +331,7 @@ internal sealed class GetAdminDashboardOverviewQueryHandler(
                     LabelKey = "DASHBOARD.KPI.ORDERS_AT_RISK",
                     Value = riskOrders,
                     DisplayValue = riskOrders.ToString("N0"),
-                    ChangeLabel = $"+{paymentIssues} payment",
+                    ChangeLabel = $"+{paymentIssues} دفع",
                     TrendDirection = riskOrders > 0 ? "up" : "flat",
                     Severity = riskOrders > 0 ? "critical" : "success",
                     ContextKey = "DASHBOARD.KPI_CONTEXT.ORDERS_AT_RISK"
@@ -342,7 +342,7 @@ internal sealed class GetAdminDashboardOverviewQueryHandler(
                     LabelKey = "DASHBOARD.KPI.DISPUTE_EXPOSURE",
                     Value = refundExposure,
                     DisplayValue = Math.Round(refundExposure, 0).ToString("N0"),
-                    Unit = "SAR",
+                    Unit = "ر.س",
                     ChangeLabel = filteredSupportCases.Count(c => c.Status is not (OrderSupportCaseStatus.Resolved or OrderSupportCaseStatus.Rejected)).ToString("N0"),
                     TrendDirection = refundExposure > 0 ? "up" : "flat",
                     Severity = refundExposure > 0 ? "warning" : "success",
@@ -354,7 +354,7 @@ internal sealed class GetAdminDashboardOverviewQueryHandler(
                     LabelKey = "DASHBOARD.KPI.SUPPLY_BACKLOG",
                     Value = vendorBacklog + driverBacklog,
                     DisplayValue = $"{vendorBacklog:N0} + {driverBacklog:N0}",
-                    ChangeLabel = "vendor + driver",
+                    ChangeLabel = "التجار + السائقين",
                     TrendDirection = vendorBacklog + driverBacklog > 0 ? "up" : "flat",
                     Severity = vendorBacklog + driverBacklog > 0 ? "warning" : "success",
                     ContextKey = "DASHBOARD.KPI_CONTEXT.SUPPLY_BACKLOG"
@@ -507,13 +507,65 @@ internal sealed class GetAdminDashboardOverviewQueryHandler(
 
         return region switch
         {
-            "central" => "Central Region",
-            "western" => "Western Region",
-            "eastern" => "Eastern Region",
-            "northern" => "Northern Region",
-            "southern" => "Southern Region",
-            "other" => "Other Regions",
-            _ => "All Network"
+            "central" => "المنطقة الوسطى",
+            "western" => "المنطقة الغربية",
+            "eastern" => "المنطقة الشرقية",
+            "northern" => "المنطقة الشمالية",
+            "southern" => "المنطقة الجنوبية",
+            "other" => "مناطق أخرى",
+            _ => "كل الشبكة"
+        };
+    }
+
+    private static string TranslateDashboardToken(string? value)
+    {
+        if (string.IsNullOrWhiteSpace(value))
+        {
+            return string.Empty;
+        }
+
+        return value.Trim() switch
+        {
+            "All Network" => "كل الشبكة",
+            "Central Region" => "المنطقة الوسطى",
+            "Western Region" => "المنطقة الغربية",
+            "Eastern Region" => "المنطقة الشرقية",
+            "Northern Region" => "المنطقة الشمالية",
+            "Southern Region" => "المنطقة الجنوبية",
+            "Other Regions" => "مناطق أخرى",
+            "Vendor" => "تاجر",
+            "Vendors" => "التجار",
+            "Driver" => "سائق",
+            "Drivers" => "السائقين",
+            "DriverOps" => "عمليات السائقين",
+            "VendorOps" => "عمليات التجار",
+            "Finance" => "المالية",
+            "FinanceOps" => "المالية",
+            "Operations" => "العمليات",
+            "Support" => "الدعم",
+            "CustomerSupport" => "دعم العملاء",
+            "Customer Experience" => "تجربة العملاء",
+            "Risk" => "المخاطر",
+            "Legal" => "الشؤون القانونية",
+            "Catalog" => "الكتالوج",
+            "Wallets" => "المحافظ",
+            "Submitted" => "مقدمة",
+            "InReview" => "قيد المراجعة",
+            "AwaitingCustomerEvidence" => "في انتظار إثبات العميل",
+            "Escalated" => "مصعدة",
+            "Resolved" => "محلولة",
+            "Rejected" => "مرفوضة",
+            "Pending" => "معلقة",
+            "Processing" => "قيد المعالجة",
+            "Active" => "نشط",
+            "Inactive" => "غير نشط",
+            "Suspended" => "موقوف",
+            "Blocked" => "محظور",
+            "Banned" => "محظور",
+            "PendingReview" => "قيد المراجعة",
+            "SuperAdmin" => "مدير عام",
+            "Admin" => "مشرف",
+            _ => value
         };
     }
 
@@ -533,7 +585,7 @@ internal sealed class GetAdminDashboardOverviewQueryHandler(
         groups.Insert(0, new AdminDashboardFilterOptionDto
         {
             Value = "all",
-            Label = "All regions",
+            Label = "كل المناطق",
             Count = vendors.Count()
         });
 
@@ -554,7 +606,7 @@ internal sealed class GetAdminDashboardOverviewQueryHandler(
         items.Insert(0, new AdminDashboardFilterOptionDto
         {
             Value = "all",
-            Label = "All vendors",
+            Label = "كل التجار",
             Count = vendors.Count()
         });
 
@@ -833,7 +885,7 @@ internal sealed class GetAdminDashboardOverviewQueryHandler(
                 Severity = "critical",
                 TitleKey = "DASHBOARD.ALERTS.PAYMENT_FAILURE.TITLE",
                 SummaryKey = "DASHBOARD.ALERTS.PAYMENT_FAILURE.SUMMARY",
-                SummaryParams = new Dictionary<string, object?> { ["count"] = paymentIssues, ["scope"] = regionPressure.FirstOrDefault()?.RegionLabel ?? "Network" },
+                SummaryParams = new Dictionary<string, object?> { ["count"] = paymentIssues, ["scope"] = regionPressure.FirstOrDefault()?.RegionLabel ?? "كل الشبكة" },
                 Count = paymentIssues,
                 Route = "/finances"
             });
@@ -890,7 +942,7 @@ internal sealed class GetAdminDashboardOverviewQueryHandler(
                 Id = $"order_{order.Id}",
                 EntityLabelKey = "DASHBOARD.ENTITY.ORDER",
                 EntityName = order.OrderNumber,
-                Summary = order.PaymentStatus == PaymentStatus.Failed ? "Payment failure requires reviewer action." : "Order is drifting outside the target delivery band.",
+                Summary = order.PaymentStatus == PaymentStatus.Failed ? "فشل الدفع يحتاج إجراء من المراجع." : "الطلب خرج عن نطاق التسليم المستهدف.",
                 Owner = vendorName,
                 Priority = order.PaymentStatus == PaymentStatus.Failed ? "critical" : "warning",
                 Route = $"/orders/{order.Id}",
@@ -909,8 +961,8 @@ internal sealed class GetAdminDashboardOverviewQueryHandler(
                 Id = $"support_{supportCase.Id}",
                 EntityLabelKey = "DASHBOARD.ENTITY.DISPUTE",
                 EntityName = supportCase.Id.ToString()[..8].ToUpperInvariant(),
-                Summary = $"Queue {supportCase.Queue} still holds this case in {supportCase.Status}.",
-                Owner = supportCase.Queue.ToString(),
+                Summary = $"ما زالت قائمة {TranslateDashboardToken(supportCase.Queue.ToString())} تحتفظ بهذه الحالة في مرحلة {TranslateDashboardToken(supportCase.Status.ToString())}.",
+                Owner = TranslateDashboardToken(supportCase.Queue.ToString()),
                 Priority = supportCase.Priority == OrderSupportCasePriority.Critical ? "critical" : "warning",
                 Route = "/disputes",
                 ActionLabelKey = "DASHBOARD.ACTIONS.OPEN_DISPUTES"
@@ -925,8 +977,8 @@ internal sealed class GetAdminDashboardOverviewQueryHandler(
                 Id = $"vendor_{suspendedVendor.Id}",
                 EntityLabelKey = "DASHBOARD.ENTITY.VENDOR",
                 EntityName = string.IsNullOrWhiteSpace(suspendedVendor.BusinessNameAr) ? suspendedVendor.BusinessNameEn : suspendedVendor.BusinessNameAr,
-                Summary = "Vendor readiness is blocked and needs compliance or operational review.",
-                Owner = "Vendor Desk",
+                Summary = "جاهزية التاجر متوقفة وتحتاج مراجعة امتثال أو تشغيل.",
+                Owner = "فريق التجار",
                 Priority = "warning",
                 Route = "/vendors",
                 ActionLabelKey = "DASHBOARD.ACTIONS.REVIEW_VENDOR"
@@ -941,8 +993,8 @@ internal sealed class GetAdminDashboardOverviewQueryHandler(
                 Id = $"driver_{blockedDriver.Id}",
                 EntityLabelKey = "DASHBOARD.ENTITY.DRIVER",
                 EntityName = blockedDriver.UserId.ToString()[..8].ToUpperInvariant(),
-                Summary = "Driver availability is blocked by verification or account hold.",
-                Owner = blockedDriver.City ?? blockedDriver.Region ?? "Driver Ops",
+                Summary = "إتاحة السائق متوقفة بسبب التحقق أو تعليق الحساب.",
+                Owner = blockedDriver.City ?? blockedDriver.Region ?? "عمليات السائقين",
                 Priority = "critical",
                 Route = "/drivers",
                 ActionLabelKey = "DASHBOARD.ACTIONS.OPEN_DRIVER"
@@ -1007,13 +1059,13 @@ internal sealed class GetAdminDashboardOverviewQueryHandler(
             {
                 var label = vendorIndex.TryGetValue(item.VendorId, out var vendor)
                     ? (string.IsNullOrWhiteSpace(vendor.BusinessNameAr) ? vendor.BusinessNameEn : vendor.BusinessNameAr)
-                    : "Vendor";
+                    : "تاجر";
                 return new AdminDashboardRankedRowDto
                 {
                     Id = $"orders_vendor_{item.VendorId}",
                     Label = label,
                     Value = item.Count.ToString("N0"),
-                    SecondaryValue = $"{item.Risk:N0} risk",
+                    SecondaryValue = $"{item.Risk:N0} مخاطر",
                     Severity = item.Risk > 0 ? "warning" : "success",
                     Route = "/orders"
                 };
@@ -1029,11 +1081,11 @@ internal sealed class GetAdminDashboardOverviewQueryHandler(
                 Id = $"order_exception_{order.Id}",
                 EntityLabel = order.OrderNumber,
                 IssueLabel = order.PaymentStatus == PaymentStatus.Failed
-                    ? "Payment failure"
-                    : "Delivery flow outside target band",
+                    ? "فشل الدفع"
+                    : "مسار التسليم خارج النطاق المستهدف",
                 OwnerLabel = vendorIndex.TryGetValue(order.VendorId, out var vendor)
                     ? (string.IsNullOrWhiteSpace(vendor.BusinessNameAr) ? vendor.BusinessNameEn : vendor.BusinessNameAr)
-                    : "Vendor",
+                    : "تاجر",
                 MetricLabel = order.TotalAmount.ToString("N0"),
                 Severity = order.PaymentStatus == PaymentStatus.Failed ? "critical" : "warning",
                 Route = $"/orders/{order.Id}"
@@ -1057,7 +1109,7 @@ internal sealed class GetAdminDashboardOverviewQueryHandler(
                 BuildStat("total-orders", "DASHBOARD.STATS.TOTAL_ORDERS", orders.Count, orders.Count.ToString("N0"), "info", "DASHBOARD.STATS_HELPERS.TOTAL_ORDERS"),
                 BuildStat("late-orders", "DASHBOARD.STATS.LATE_ORDERS", lateOrders, lateOrders.ToString("N0"), lateOrders > 0 ? "warning" : "success", "DASHBOARD.STATS_HELPERS.LATE_ORDERS"),
                 BuildStat("cancellations", "DASHBOARD.STATS.CANCELLATIONS", cancellations, cancellations.ToString("N0"), cancellations > 0 ? "warning" : "neutral", "DASHBOARD.STATS_HELPERS.CANCELLATIONS"),
-                BuildStat("avg-basket", "DASHBOARD.STATS.AVG_BASKET", avgBasket, avgBasket.ToString("N1"), "neutral", "DASHBOARD.STATS_HELPERS.AVG_BASKET", "SAR")
+                BuildStat("avg-basket", "DASHBOARD.STATS.AVG_BASKET", avgBasket, avgBasket.ToString("N1"), "neutral", "DASHBOARD.STATS_HELPERS.AVG_BASKET", "ر.س")
             ],
             RankedLists =
             [
@@ -1078,9 +1130,9 @@ internal sealed class GetAdminDashboardOverviewQueryHandler(
                         .Select(group => new AdminDashboardRankedRowDto
                         {
                             Id = $"queue_{group.Key}",
-                            Label = group.Key,
+                            Label = TranslateDashboardToken(group.Key),
                             Value = group.Count().ToString("N0"),
-                            SecondaryValue = $"{group.Count(c => c.Priority == OrderSupportCasePriority.Critical):N0} critical",
+                            SecondaryValue = $"{group.Count(c => c.Priority == OrderSupportCasePriority.Critical):N0} حرجة",
                             Severity = group.Any(c => c.Priority == OrderSupportCasePriority.Critical) ? "critical" : "info",
                             Route = "/disputes"
                         })
@@ -1146,7 +1198,7 @@ internal sealed class GetAdminDashboardOverviewQueryHandler(
                         Id = $"vendor_issue_{item.VendorId}",
                         Label = vendorIndex.TryGetValue(item.VendorId, out var vendor)
                             ? (string.IsNullOrWhiteSpace(vendor.BusinessNameAr) ? vendor.BusinessNameEn : vendor.BusinessNameAr)
-                            : "Vendor",
+                            : "تاجر",
                         Value = item.Count.ToString("N0"),
                         Severity = item.Count >= 3 ? "warning" : "info",
                         Route = "/vendors"
@@ -1159,10 +1211,10 @@ internal sealed class GetAdminDashboardOverviewQueryHandler(
                 .Select(v => new AdminDashboardExceptionRowDto
                 {
                     Id = $"vendor_exception_{v.Id}",
-                    EntityLabel = string.IsNullOrWhiteSpace(v.BusinessNameAr) ? v.BusinessNameEn : v.BusinessNameAr,
-                    IssueLabel = v.Status == VendorStatus.Suspended || v.LockedAtUtc.HasValue ? "Vendor blocked" : "Orders currently disabled",
+                EntityLabel = string.IsNullOrWhiteSpace(v.BusinessNameAr) ? v.BusinessNameEn : v.BusinessNameAr,
+                    IssueLabel = v.Status == VendorStatus.Suspended || v.LockedAtUtc.HasValue ? "التاجر محظور" : "استقبال الطلبات متوقف حاليًا",
                     OwnerLabel = ResolveScopeSummary(NormalizeRegion(v.Region ?? v.City), null),
-                    MetricLabel = v.Status.ToString(),
+                    MetricLabel = TranslateDashboardToken(v.Status.ToString()),
                     Severity = v.Status == VendorStatus.Suspended || v.LockedAtUtc.HasValue ? "critical" : "warning",
                     Route = "/vendors"
                 })
@@ -1212,8 +1264,8 @@ internal sealed class GetAdminDashboardOverviewQueryHandler(
                         Id = $"driver_gap_{region.RegionKey}",
                         Label = region.RegionLabel,
                         Value = region.Score.ToString("N0"),
-                        SecondaryValue = $"{region.DriverGap:N0} gap",
-                        MetaLabel = $"{region.LateOrders:N0} late / {region.PaymentIssues:N0} payment",
+                        SecondaryValue = $"{region.DriverGap:N0} فجوة",
+                    MetaLabel = $"{region.LateOrders:N0} متأخرة / {region.PaymentIssues:N0} دفع",
                         Severity = region.Score >= 15 ? "critical" : region.Score >= 8 ? "warning" : "info",
                         Route = "/drivers"
                     }).ToList()
@@ -1224,9 +1276,9 @@ internal sealed class GetAdminDashboardOverviewQueryHandler(
                 new AdminDashboardExceptionRowDto
                 {
                     Id = "driver-finance-pending",
-                    EntityLabel = "Driver withdrawals",
-                    IssueLabel = "Pending payout review",
-                    OwnerLabel = "Driver Finance",
+                    EntityLabel = "سحوبات السائقين",
+                    IssueLabel = "مراجعة صرف معلقة",
+                    OwnerLabel = "مالية السائقين",
                     MetricLabel = pendingWithdrawals.ToString("N0"),
                     Severity = pendingWithdrawals > 0 ? "warning" : "success",
                     Route = "/drivers"
@@ -1234,9 +1286,9 @@ internal sealed class GetAdminDashboardOverviewQueryHandler(
                 new AdminDashboardExceptionRowDto
                 {
                     Id = "driver-finance-processing",
-                    EntityLabel = "Driver withdrawals",
-                    IssueLabel = "Processing payout batch",
-                    OwnerLabel = "Driver Finance",
+                    EntityLabel = "سحوبات السائقين",
+                    IssueLabel = "دفعة صرف قيد المعالجة",
+                    OwnerLabel = "مالية السائقين",
                     MetricLabel = processingWithdrawals.ToString("N0"),
                     Severity = processingWithdrawals > 0 ? "info" : "neutral",
                     Route = "/drivers"
@@ -1288,9 +1340,9 @@ internal sealed class GetAdminDashboardOverviewQueryHandler(
                         .Select(group => new AdminDashboardRankedRowDto
                         {
                             Id = $"support_{group.Key}",
-                            Label = group.Key,
+                            Label = TranslateDashboardToken(group.Key),
                             Value = group.Count().ToString("N0"),
-                            SecondaryValue = $"{group.Count(c => c.Priority == OrderSupportCasePriority.Critical):N0} critical",
+                            SecondaryValue = $"{group.Count(c => c.Priority == OrderSupportCasePriority.Critical):N0} حرجة",
                             Severity = group.Any(c => c.Priority == OrderSupportCasePriority.Critical) ? "critical" : "warning",
                             Route = "/disputes"
                         })
@@ -1304,9 +1356,9 @@ internal sealed class GetAdminDashboardOverviewQueryHandler(
                 .Select(r => new AdminDashboardExceptionRowDto
                 {
                     Id = $"review_{r.Id}",
-                    EntityLabel = $"Review #{r.Id.ToString()[..8].ToUpperInvariant()}",
-                    IssueLabel = "Low rating without vendor reply",
-                    OwnerLabel = "Customer Experience",
+                    EntityLabel = $"مراجعة #{r.Id.ToString()[..8].ToUpperInvariant()}",
+                    IssueLabel = "تقييم منخفض بدون رد من التاجر",
+                    OwnerLabel = "تجربة العملاء",
                     MetricLabel = $"{r.Rating}/5",
                     Severity = r.Rating <= 1 ? "critical" : "warning",
                     Route = "/customers"
@@ -1342,9 +1394,9 @@ internal sealed class GetAdminDashboardOverviewQueryHandler(
             },
             Stats =
             [
-                BuildStat("gmv-section", "DASHBOARD.STATS.FINANCE_GMV", gmv, Math.Round(gmv, 0).ToString("N0"), "info", "DASHBOARD.STATS_HELPERS.FINANCE_GMV", "SAR"),
-                BuildStat("refunds-total", "DASHBOARD.STATS.REFUNDS_TOTAL", refundsTotal, Math.Round(refundsTotal, 0).ToString("N0"), refundsTotal > 0 ? "warning" : "success", "DASHBOARD.STATS_HELPERS.REFUNDS_TOTAL", "SAR"),
-                BuildStat("settled-net", "DASHBOARD.STATS.SETTLED_NET", settledNetAmount, Math.Round(settledNetAmount, 0).ToString("N0"), "success", "DASHBOARD.STATS_HELPERS.SETTLED_NET", "SAR"),
+                BuildStat("gmv-section", "DASHBOARD.STATS.FINANCE_GMV", gmv, Math.Round(gmv, 0).ToString("N0"), "info", "DASHBOARD.STATS_HELPERS.FINANCE_GMV", "ر.س"),
+                BuildStat("refunds-total", "DASHBOARD.STATS.REFUNDS_TOTAL", refundsTotal, Math.Round(refundsTotal, 0).ToString("N0"), refundsTotal > 0 ? "warning" : "success", "DASHBOARD.STATS_HELPERS.REFUNDS_TOTAL", "ر.س"),
+                BuildStat("settled-net", "DASHBOARD.STATS.SETTLED_NET", settledNetAmount, Math.Round(settledNetAmount, 0).ToString("N0"), "success", "DASHBOARD.STATS_HELPERS.SETTLED_NET", "ر.س"),
                 BuildStat("wallets-count", "DASHBOARD.STATS.WALLETS_COUNT", walletsCount, walletsCount.ToString("N0"), "neutral", "DASHBOARD.STATS_HELPERS.WALLETS_COUNT")
             ],
             RankedLists =
@@ -1356,10 +1408,10 @@ internal sealed class GetAdminDashboardOverviewQueryHandler(
                     DescriptionKey = "DASHBOARD.RANKINGS.FINANCE_WATCHLIST_DESC",
                     Rows =
                     [
-                        new AdminDashboardRankedRowDto { Id = "payments-failed", Label = "Failed payments", Value = paymentsFailedCount.ToString("N0"), Severity = paymentsFailedCount > 0 ? "critical" : "success", Route = "/finances" },
-                        new AdminDashboardRankedRowDto { Id = "payments-pending", Label = "Pending payments", Value = paymentsPendingCount.ToString("N0"), Severity = paymentsPendingCount > 0 ? "warning" : "neutral", Route = "/finances" },
-                        new AdminDashboardRankedRowDto { Id = "settlements-pending", Label = "Pending settlements", Value = pendingSettlements.ToString("N0"), Severity = pendingSettlements > 0 ? "warning" : "neutral", Route = "/wallets" },
-                        new AdminDashboardRankedRowDto { Id = "settlements-failed", Label = "Failed settlements", Value = failedSettlements.ToString("N0"), Severity = failedSettlements > 0 ? "critical" : "success", Route = "/wallets" }
+                        new AdminDashboardRankedRowDto { Id = "payments-failed", Label = "مدفوعات فاشلة", Value = paymentsFailedCount.ToString("N0"), Severity = paymentsFailedCount > 0 ? "critical" : "success", Route = "/finances" },
+                        new AdminDashboardRankedRowDto { Id = "payments-pending", Label = "مدفوعات معلقة", Value = paymentsPendingCount.ToString("N0"), Severity = paymentsPendingCount > 0 ? "warning" : "neutral", Route = "/finances" },
+                        new AdminDashboardRankedRowDto { Id = "settlements-pending", Label = "تسويات معلقة", Value = pendingSettlements.ToString("N0"), Severity = pendingSettlements > 0 ? "warning" : "neutral", Route = "/wallets" },
+                        new AdminDashboardRankedRowDto { Id = "settlements-failed", Label = "تسويات فاشلة", Value = failedSettlements.ToString("N0"), Severity = failedSettlements > 0 ? "critical" : "success", Route = "/wallets" }
                     ]
                 }
             ],
@@ -1368,29 +1420,29 @@ internal sealed class GetAdminDashboardOverviewQueryHandler(
                 new AdminDashboardExceptionRowDto
                 {
                     Id = "wallet-flow-in",
-                    EntityLabel = "Wallet inflow",
-                    IssueLabel = "Tracked inflow for selected window",
-                    OwnerLabel = "Wallets",
-                    MetricLabel = $"{Math.Round(walletInflow, 0):N0} SAR",
+                    EntityLabel = "تدفق داخل للمحفظة",
+                    IssueLabel = "تدفق داخل مرصود خلال الفترة المحددة",
+                    OwnerLabel = "المحافظ",
+                    MetricLabel = $"{Math.Round(walletInflow, 0):N0} ر.س",
                     Severity = "success",
                     Route = "/wallets"
                 },
                 new AdminDashboardExceptionRowDto
                 {
                     Id = "wallet-flow-out",
-                    EntityLabel = "Wallet outflow",
-                    IssueLabel = "Tracked outflow for selected window",
-                    OwnerLabel = "Wallets",
-                    MetricLabel = $"{Math.Round(walletOutflow, 0):N0} SAR",
+                    EntityLabel = "تدفق خارج من المحفظة",
+                    IssueLabel = "تدفق خارج مرصود خلال الفترة المحددة",
+                    OwnerLabel = "المحافظ",
+                    MetricLabel = $"{Math.Round(walletOutflow, 0):N0} ر.س",
                     Severity = walletOutflow > walletInflow ? "warning" : "info",
                     Route = "/wallets"
                 },
                 new AdminDashboardExceptionRowDto
                 {
                     Id = "refunds-count",
-                    EntityLabel = "Refund operations",
-                    IssueLabel = "Refund cases created in selected window",
-                    OwnerLabel = "Finances",
+                    EntityLabel = "عمليات الاسترداد",
+                    IssueLabel = "حالات استرداد تم إنشاؤها خلال الفترة المحددة",
+                    OwnerLabel = "المالية",
                     MetricLabel = refundsCount.ToString("N0"),
                     Severity = refundsCount > 0 ? "warning" : "success",
                     Route = "/finances"
@@ -1452,9 +1504,9 @@ internal sealed class GetAdminDashboardOverviewQueryHandler(
                             Id = $"catalog_gap_{item.VendorId}",
                             Label = vendorIndex.TryGetValue(item.VendorId, out var vendor)
                                 ? (string.IsNullOrWhiteSpace(vendor.BusinessNameAr) ? vendor.BusinessNameEn : vendor.BusinessNameAr)
-                                : "Vendor",
+                                : "تاجر",
                             Value = item.Gap.ToString("N0"),
-                            SecondaryValue = $"{item.Total:N0} total",
+                            SecondaryValue = $"{item.Total:N0} إجمالي",
                             Severity = item.Gap > 0 ? "warning" : "success",
                             Route = "/catalog/products"
                         })
@@ -1466,9 +1518,9 @@ internal sealed class GetAdminDashboardOverviewQueryHandler(
                 new AdminDashboardExceptionRowDto
                 {
                     Id = "product-requests",
-                    EntityLabel = "Product requests",
-                    IssueLabel = "Pending catalog approvals",
-                    OwnerLabel = "Catalog",
+                    EntityLabel = "طلبات المنتجات",
+                    IssueLabel = "موافقات كتالوج معلقة",
+                    OwnerLabel = "الكتالوج",
                     MetricLabel = pendingProductRequests.ToString("N0"),
                     Severity = pendingProductRequests > 0 ? "warning" : "success",
                     Route = "/catalog/products"
@@ -1476,9 +1528,9 @@ internal sealed class GetAdminDashboardOverviewQueryHandler(
                 new AdminDashboardExceptionRowDto
                 {
                     Id = "brand-requests",
-                    EntityLabel = "Brand requests",
-                    IssueLabel = "Pending brand approvals",
-                    OwnerLabel = "Catalog",
+                    EntityLabel = "طلبات العلامات التجارية",
+                    IssueLabel = "موافقات علامات تجارية معلقة",
+                    OwnerLabel = "الكتالوج",
                     MetricLabel = pendingBrandRequests.ToString("N0"),
                     Severity = pendingBrandRequests > 0 ? "warning" : "success",
                     Route = "/catalog/brands"
@@ -1486,9 +1538,9 @@ internal sealed class GetAdminDashboardOverviewQueryHandler(
                 new AdminDashboardExceptionRowDto
                 {
                     Id = "category-requests",
-                    EntityLabel = "Category requests",
-                    IssueLabel = "Pending category approvals",
-                    OwnerLabel = "Catalog",
+                    EntityLabel = "طلبات التصنيفات",
+                    IssueLabel = "موافقات تصنيفات معلقة",
+                    OwnerLabel = "الكتالوج",
                     MetricLabel = pendingCategoryRequests.ToString("N0"),
                     Severity = pendingCategoryRequests > 0 ? "warning" : "success",
                     Route = "/catalog/categories"
@@ -1496,9 +1548,9 @@ internal sealed class GetAdminDashboardOverviewQueryHandler(
                 new AdminDashboardExceptionRowDto
                 {
                     Id = "unavailable-products",
-                    EntityLabel = "Unavailable vendor products",
-                    IssueLabel = "Catalog entries not ready for selling",
-                    OwnerLabel = "Catalog",
+                    EntityLabel = "منتجات تجار غير متاحة",
+                    IssueLabel = "عناصر كتالوج غير جاهزة للبيع",
+                    OwnerLabel = "الكتالوج",
                     MetricLabel = unavailableProducts.ToString("N0"),
                     Severity = unavailableProducts > 0 ? "warning" : "success",
                     Route = "/catalog/products"
@@ -1546,9 +1598,9 @@ internal sealed class GetAdminDashboardOverviewQueryHandler(
                     DescriptionKey = "DASHBOARD.RANKINGS.ENGAGEMENT_PULSE_DESC",
                     Rows =
                     [
-                        new AdminDashboardRankedRowDto { Id = "recent-notifications", Label = "Recent notifications", Value = recentNotifications.ToString("N0"), Severity = recentNotifications > 0 ? "info" : "neutral", Route = "/notifications" },
-                        new AdminDashboardRankedRowDto { Id = "unread-notifications", Label = "Unread notifications", Value = unreadNotifications.ToString("N0"), Severity = unreadNotifications > 0 ? "warning" : "success", Route = "/notifications" },
-                        new AdminDashboardRankedRowDto { Id = "low-reply-reviews", Label = "Low reviews needing reply", Value = lowReplyReviews.ToString("N0"), Severity = lowReplyReviews > 0 ? "warning" : "success", Route = "/notifications" }
+                        new AdminDashboardRankedRowDto { Id = "recent-notifications", Label = "إشعارات حديثة", Value = recentNotifications.ToString("N0"), Severity = recentNotifications > 0 ? "info" : "neutral", Route = "/notifications" },
+                        new AdminDashboardRankedRowDto { Id = "unread-notifications", Label = "إشعارات غير مقروءة", Value = unreadNotifications.ToString("N0"), Severity = unreadNotifications > 0 ? "warning" : "success", Route = "/notifications" },
+                        new AdminDashboardRankedRowDto { Id = "low-reply-reviews", Label = "تقييمات منخفضة تحتاج رد", Value = lowReplyReviews.ToString("N0"), Severity = lowReplyReviews > 0 ? "warning" : "success", Route = "/notifications" }
                     ]
                 }
             ]
@@ -1595,9 +1647,9 @@ internal sealed class GetAdminDashboardOverviewQueryHandler(
                     DescriptionKey = "DASHBOARD.RANKINGS.ADMIN_ACCESS_HEALTH_DESC",
                     Rows =
                     [
-                        new AdminDashboardRankedRowDto { Id = "admins-total", Label = "Admin accounts", Value = adminUsersCount.ToString("N0"), Severity = "neutral", Route = "/admin-users" },
-                        new AdminDashboardRankedRowDto { Id = "admins-locked", Label = "Locked admin accounts", Value = lockedAdminUsersCount.ToString("N0"), Severity = lockedAdminUsersCount > 0 ? "warning" : "success", Route = "/admin-users" },
-                        new AdminDashboardRankedRowDto { Id = "admins-versioned", Label = "Permission version overrides", Value = elevatedPermissionVersions.ToString("N0"), Severity = elevatedPermissionVersions > 0 ? "info" : "neutral", Route = "/admin-users" }
+                        new AdminDashboardRankedRowDto { Id = "admins-total", Label = "حسابات المشرفين", Value = adminUsersCount.ToString("N0"), Severity = "neutral", Route = "/admin-users" },
+                        new AdminDashboardRankedRowDto { Id = "admins-locked", Label = "حسابات مشرفين مقفلة", Value = lockedAdminUsersCount.ToString("N0"), Severity = lockedAdminUsersCount > 0 ? "warning" : "success", Route = "/admin-users" },
+                        new AdminDashboardRankedRowDto { Id = "admins-versioned", Label = "تجاوزات إصدار الصلاحيات", Value = elevatedPermissionVersions.ToString("N0"), Severity = elevatedPermissionVersions > 0 ? "info" : "neutral", Route = "/admin-users" }
                     ]
                 }
             ],
@@ -1608,8 +1660,8 @@ internal sealed class GetAdminDashboardOverviewQueryHandler(
                 {
                     Id = $"admin_exception_{u.Id}",
                     EntityLabel = u.FullName,
-                    IssueLabel = u.IsLoginLocked ? "Admin login locked" : "Admin not active",
-                    OwnerLabel = u.Role.ToString(),
+                    IssueLabel = u.IsLoginLocked ? "تسجيل دخول المشرف مقفل" : "المشرف غير نشط",
+                    OwnerLabel = TranslateDashboardToken(u.Role.ToString()),
                     MetricLabel = $"v{u.PermissionVersion}",
                     Severity = u.IsLoginLocked ? "critical" : "warning",
                     Route = "/admin-users"
@@ -1761,7 +1813,7 @@ internal sealed class GetAdminDashboardOverviewQueryHandler(
                 .Select(index =>
                 {
                     var bucketStart = start.AddDays(index);
-                    return new TimeBucket(bucketStart, bucketStart.AddDays(1), bucketStart.ToString("ddd"));
+                    return new TimeBucket(bucketStart, bucketStart.AddDays(1), ResolveArabicDayLabel(bucketStart));
                 })
                 .ToList();
         }
@@ -1771,10 +1823,23 @@ internal sealed class GetAdminDashboardOverviewQueryHandler(
             {
                 var bucketStart = start.AddDays(index * 6);
                 var bucketEnd = index == 4 ? now.AddDays(1) : bucketStart.AddDays(6);
-                return new TimeBucket(bucketStart, bucketEnd, $"W{index + 1}");
+                return new TimeBucket(bucketStart, bucketEnd, $"الأسبوع {index + 1}");
             })
             .ToList();
     }
+
+    private static string ResolveArabicDayLabel(DateTime value) =>
+        value.DayOfWeek switch
+        {
+            DayOfWeek.Saturday => "السبت",
+            DayOfWeek.Sunday => "الأحد",
+            DayOfWeek.Monday => "الاثنين",
+            DayOfWeek.Tuesday => "الثلاثاء",
+            DayOfWeek.Wednesday => "الأربعاء",
+            DayOfWeek.Thursday => "الخميس",
+            DayOfWeek.Friday => "الجمعة",
+            _ => value.ToString("dd/MM")
+        };
 
     private sealed record VendorRow(
         Guid Id,
