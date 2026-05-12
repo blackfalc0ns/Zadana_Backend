@@ -10,6 +10,7 @@ public class AdminBrandBulkOperationItem : BaseEntity
     public string NameAr { get; private set; } = null!;
     public string NameEn { get; private set; } = null!;
     public string? LogoUrl { get; private set; }
+    public string? CoverImageUrl { get; private set; }
     public Guid CategoryId { get; private set; }
     public bool IsActive { get; private set; }
     public AdminBrandBulkOperationItemStatus Status { get; private set; }
@@ -26,6 +27,7 @@ public class AdminBrandBulkOperationItem : BaseEntity
         string nameAr,
         string nameEn,
         string? logoUrl,
+        string? coverImageUrl,
         Guid categoryId,
         bool isActive)
     {
@@ -33,6 +35,7 @@ public class AdminBrandBulkOperationItem : BaseEntity
         NameAr = nameAr.Trim();
         NameEn = nameEn.Trim();
         LogoUrl = logoUrl?.Trim();
+        CoverImageUrl = coverImageUrl?.Trim();
         CategoryId = categoryId;
         IsActive = isActive;
         Status = AdminBrandBulkOperationItemStatus.Pending;

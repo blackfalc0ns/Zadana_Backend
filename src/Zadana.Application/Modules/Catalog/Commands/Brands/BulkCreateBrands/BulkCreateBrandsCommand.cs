@@ -9,6 +9,7 @@ public record BulkCreateBrandItemInput(
     string NameAr,
     string NameEn,
     string? LogoUrl,
+    string? CoverImageUrl,
     Guid CategoryId,
     bool IsActive);
 
@@ -38,6 +39,9 @@ public class BulkCreateBrandsCommandValidator : AbstractValidator<BulkCreateBran
                 .MaximumLength(150).WithMessage(x => localizer["MaxLength"]);
             item.RuleFor(x => x.LogoUrl)
                 .MaximumLength(1000).When(x => !string.IsNullOrWhiteSpace(x.LogoUrl)).WithMessage(x => localizer["MaxLength"])
+                .Must(NotBeBrowserBlobUrl).WithMessage("Browser preview blob URLs cannot be saved. Upload the image first and save the returned cloud URL.");
+            item.RuleFor(x => x.CoverImageUrl)
+                .MaximumLength(1000).When(x => !string.IsNullOrWhiteSpace(x.CoverImageUrl)).WithMessage(x => localizer["MaxLength"])
                 .Must(NotBeBrowserBlobUrl).WithMessage("Browser preview blob URLs cannot be saved. Upload the image first and save the returned cloud URL.");
             item.RuleFor(x => x.CategoryId)
                 .NotEmpty().WithMessage(x => localizer["RequiredField"]);

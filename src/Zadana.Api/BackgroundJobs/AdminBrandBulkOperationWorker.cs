@@ -83,7 +83,7 @@ public sealed class AdminBrandBulkOperationWorker : BackgroundService
                 {
                     try
                     {
-                        var brand = new Brand(item.NameAr, item.NameEn, item.LogoUrl, null, item.CategoryId);
+                        var brand = new Brand(item.NameAr, item.NameEn, item.LogoUrl, item.CoverImageUrl, item.CategoryId);
                         if (!item.IsActive)
                         {
                             brand.Deactivate();

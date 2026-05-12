@@ -38,6 +38,7 @@ public class GetAdminBrandBulkOperationItemsQueryHandler : IRequestHandler<GetAd
                 x.NameAr,
                 x.NameEn,
                 x.LogoUrl,
+                x.CoverImageUrl,
                 x.CategoryId,
                 x.IsActive,
                 x.Status.ToString(),

@@ -53,6 +53,7 @@ public class BulkCreateBrandsCommandHandler : IRequestHandler<BulkCreateBrandsCo
                 item.NameAr,
                 item.NameEn,
                 item.LogoUrl,
+                item.CoverImageUrl,
                 item.CategoryId,
                 item.IsActive))
             .ToList();

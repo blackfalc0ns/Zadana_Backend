@@ -23,6 +23,9 @@ public class AdminBrandBulkOperationItemConfiguration : IEntityTypeConfiguration
         builder.Property(x => x.LogoUrl)
             .HasMaxLength(500);
 
+        builder.Property(x => x.CoverImageUrl)
+            .HasMaxLength(1000);
+
         builder.Property(x => x.ErrorMessage)
             .HasMaxLength(1000);
 

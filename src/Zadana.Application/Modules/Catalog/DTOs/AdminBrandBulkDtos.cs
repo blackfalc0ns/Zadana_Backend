@@ -6,6 +6,7 @@ public record AdminBrandBulkOperationItemDto(
     string NameAr,
     string NameEn,
     string? LogoUrl,
+    string? CoverImageUrl,
     Guid CategoryId,
     bool IsActive,
     string Status,
