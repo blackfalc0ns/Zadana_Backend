@@ -5,6 +5,7 @@ using Zadana.Api.Modules.Catalog.Requests;
 using Zadana.Application.Common.Interfaces;
 using Zadana.Application.Modules.Catalog.Commands.Brands.BulkCreateBrands;
 using Zadana.Application.Modules.Catalog.Commands.Brands.CreateBrand;
+using Zadana.Application.Modules.Catalog.Commands.Brands.DeleteBrand;
 using Zadana.Application.Modules.Catalog.Commands.Brands.UpdateBrand;
 using Zadana.Application.Modules.Catalog.DTOs;
 using Zadana.Application.Modules.Catalog.Queries.Brands.GetAdminBrandBulkOperation;
@@ -121,6 +122,13 @@ public class AdminBrandsController : ApiControllerBase
 
         await Sender.Send(command);
         return Ok();
+    }
+
+    [HttpDelete("{id:guid}")]
+    public async Task<ActionResult> DeleteBrand(Guid id)
+    {
+        await Sender.Send(new DeleteBrandCommand(id));
+        return NoContent();
     }
 }
 
