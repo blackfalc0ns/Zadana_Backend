@@ -99,6 +99,7 @@ if (!builder.Environment.IsEnvironment("Testing"))
 
 builder.Services.AddScoped<IApplicationDbContext>(provider => provider.GetRequiredService<ApplicationDbContext>());
 builder.Services.AddScoped<IUnitOfWork>(provider => provider.GetRequiredService<ApplicationDbContext>());
+builder.Services.AddScoped<IApplicationTransaction, ApplicationTransaction>();
 builder.Services.AddScoped<ICatalogReadCacheService, CatalogReadCacheService>();
 builder.Services.AddScoped<IVendorRepository, VendorRepository>();
 builder.Services.AddScoped<IVendorReadService, VendorReadService>();
@@ -421,7 +422,6 @@ if (!app.Environment.IsEnvironment("Testing"))
         using var scope = app.Services.CreateScope();
         var initialiser = scope.ServiceProvider.GetRequiredService<ApplicationDbContextInitialiser>();
         await initialiser.InitialiseAsync();
-        await initialiser.EnsureSaudiGeographySeedAsync();
     }
     catch (Exception ex)
     {
@@ -454,6 +454,7 @@ app.UseCors("Frontend");
 app.UseRateLimiter();
 app.UseOutputCache();
 app.UseAuthentication();
+app.UseMiddleware<TemporaryPasswordMiddleware>();
 app.UseAuthorization();
 app.MapControllers();
 app.MapHub<CustomerPresenceHub>(CustomerPresenceHub.HubRoute);
@@ -493,17 +494,17 @@ if (app.Environment.IsDevelopment())
             await initialiser.InitialiseAsync();
             var summary = await initialiser.ResetAndSeedAsync();
 
-            logger.LogInformation("Development database reset and reseed completed successfully.");
+            logger.LogInformation("Development database reset completed successfully. Only the Super Admin account was seeded.");
 
             return Results.Ok(new
             {
-                message = "Development database reset and reseed completed successfully.",
+                message = "Development database reset completed successfully. Only the Super Admin account was seeded.",
                 summary
             });
         })
         .WithTags("Development")
-        .WithSummary("Reset and reseed the development database")
-        .WithDescription("Deletes development data and rebuilds a complete deterministic seed dataset. Available only in Development.");
+        .WithSummary("Reset the development database")
+        .WithDescription("Deletes development data and recreates only the Super Admin account. Available only in Development.");
 }
 
 if (allowRemoteSeedEndpoints)
@@ -524,16 +525,16 @@ if (allowRemoteSeedEndpoints)
             await initialiser.InitialiseAsync();
             await initialiser.SeedAsync();
 
-            logger.LogInformation("Seed operation completed successfully via remote management endpoint.");
+            logger.LogInformation("Admin seed operation completed successfully via remote management endpoint.");
 
             return Results.Ok(new
             {
-                message = "Seed operation completed successfully."
+                message = "Admin seed operation completed successfully."
             });
         })
         .WithTags("Operations")
-        .WithSummary("Run seed data on the current environment")
-        .WithDescription("Runs the application seed logic on the current environment. Requires X-Seeding-Key.");
+        .WithSummary("Ensure the Super Admin account on the current environment")
+        .WithDescription("Runs the minimal admin seed logic on the current environment. Requires X-Seeding-Key.");
 
     app.MapPost("/ops/seed/reset", async (
             HttpContext httpContext,
@@ -551,17 +552,17 @@ if (allowRemoteSeedEndpoints)
             await initialiser.InitialiseAsync();
             var summary = await initialiser.ResetAndSeedAsync();
 
-            logger.LogInformation("Reset and seed operation completed successfully via remote management endpoint.");
+            logger.LogInformation("Reset and admin seed operation completed successfully via remote management endpoint.");
 
             return Results.Ok(new
             {
-                message = "Reset and seed operation completed successfully.",
+                message = "Reset and admin seed operation completed successfully.",
                 summary
             });
         })
         .WithTags("Operations")
-        .WithSummary("Reset and reseed data on the current environment")
-        .WithDescription("Resets and reseeds the database on the current environment. Requires X-Seeding-Key.");
+        .WithSummary("Reset data on the current environment")
+        .WithDescription("Resets the database and recreates only the Super Admin account. Requires X-Seeding-Key.");
 }
 
 app.MapHealthChecks("/health", new HealthCheckOptions

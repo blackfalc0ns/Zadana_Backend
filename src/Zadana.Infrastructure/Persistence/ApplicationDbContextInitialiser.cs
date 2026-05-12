@@ -1,32 +1,15 @@
-using System.Linq;
-using System.Reflection;
 using Microsoft.AspNetCore.Identity;
 using Microsoft.EntityFrameworkCore;
-using Zadana.Domain.Modules.Catalog.Entities;
-using Zadana.Domain.Modules.Delivery.Entities;
-using Zadana.Domain.Modules.Delivery.Enums;
 using Zadana.Domain.Modules.Identity.Constants;
 using Zadana.Domain.Modules.Identity.Entities;
 using Zadana.Domain.Modules.Identity.Enums;
-using Zadana.Domain.Modules.Marketing.Entities;
-using Zadana.Domain.Modules.Marketing.Enums;
-using Zadana.Domain.Modules.Orders.Entities;
-using Zadana.Domain.Modules.Orders.Enums;
-using Zadana.Domain.Modules.Payments.Entities;
-using Zadana.Domain.Modules.Payments.Enums;
-using Zadana.Domain.Modules.Social.Entities;
-using Zadana.Domain.Modules.Geography.Entities;
-using Zadana.Domain.Modules.Vendors.Entities;
-using Zadana.Domain.Modules.Wallets.Entities;
-using Zadana.Domain.Modules.Wallets.Enums;
-using Zadana.SharedKernel.Primitives;
 
 namespace Zadana.Infrastructure.Persistence;
 
 public class ApplicationDbContextInitialiser
 {
+    private const string DefaultAdminEmail = "admin@system.com";
     private const string DefaultAdminPassword = "Admin@123";
-    private const string DefaultUserPassword = "Zadana@12345";
 
     private readonly ApplicationDbContext _context;
     private readonly UserManager<User> _userManager;
@@ -44,106 +27,15 @@ public class ApplicationDbContextInitialiser
 
     public async Task InitialiseAsync()
     {
-        try
+        if (_context.Database.IsSqlServer())
         {
-            if (_context.Database.IsSqlServer())
-            {
-                await _context.Database.MigrateAsync();
-                await RepairSeededHomeBannersAsync();
-            }
-        }
-        catch (Exception)
-        {
-            throw;
+            await _context.Database.MigrateAsync();
         }
     }
 
     public async Task SeedAsync()
     {
         await TrySeedAsync();
-    }
-
-    public async Task EnsureSaudiGeographySeedAsync()
-    {
-        if (await _context.SaudiRegions.AnyAsync())
-        {
-            return;
-        }
-
-        var regions = new[]
-        {
-            new SaudiRegion(Guid.Parse("10000000-0000-0000-0000-000000000001"), "RIYADH", "منطقة الرياض", "Riyadh Region", 24.7136, 46.6753, 8, 1),
-            new SaudiRegion(Guid.Parse("10000000-0000-0000-0000-000000000002"), "MAKKAH", "منطقة مكة المكرمة", "Makkah Region", 21.4225, 39.8262, 8, 2),
-            new SaudiRegion(Guid.Parse("10000000-0000-0000-0000-000000000003"), "MADINAH", "منطقة المدينة المنورة", "Madinah Region", 24.4672, 39.6024, 8, 3),
-            new SaudiRegion(Guid.Parse("10000000-0000-0000-0000-000000000004"), "EASTERN", "المنطقة الشرقية", "Eastern Region", 26.3927, 49.9777, 7, 4),
-            new SaudiRegion(Guid.Parse("10000000-0000-0000-0000-000000000005"), "QASSIM", "منطقة القصيم", "Qassim Region", 26.3267, 43.9650, 8, 5),
-            new SaudiRegion(Guid.Parse("10000000-0000-0000-0000-000000000006"), "HAIL", "منطقة حائل", "Hail Region", 27.5114, 41.7208, 8, 6),
-            new SaudiRegion(Guid.Parse("10000000-0000-0000-0000-000000000007"), "TABUK", "منطقة تبوك", "Tabuk Region", 28.3835, 36.5662, 7, 7),
-            new SaudiRegion(Guid.Parse("10000000-0000-0000-0000-000000000008"), "NORTHERN_BORDERS", "منطقة الحدود الشمالية", "Northern Borders", 30.9753, 41.0186, 7, 8),
-            new SaudiRegion(Guid.Parse("10000000-0000-0000-0000-000000000009"), "JAWF", "منطقة الجوف", "Al Jawf Region", 29.8868, 39.3206, 8, 9),
-            new SaudiRegion(Guid.Parse("10000000-0000-0000-0000-000000000010"), "JIZAN", "منطقة جازان", "Jizan Region", 16.8893, 42.5510, 9, 10),
-            new SaudiRegion(Guid.Parse("10000000-0000-0000-0000-000000000011"), "ASIR", "منطقة عسير", "Asir Region", 18.2164, 42.5053, 8, 11),
-            new SaudiRegion(Guid.Parse("10000000-0000-0000-0000-000000000012"), "BAHA", "منطقة الباحة", "Al Baha Region", 20.0000, 41.4667, 9, 12),
-            new SaudiRegion(Guid.Parse("10000000-0000-0000-0000-000000000013"), "NAJRAN", "منطقة نجران", "Najran Region", 17.4933, 44.1322, 8, 13)
-        };
-
-        var cities = new[]
-        {
-            new SaudiCity(Guid.Parse("20000000-0000-0000-0000-000000000001"), regions[0].Id, "RIYADH", "الرياض", "Riyadh", 24.7136, 46.6753, 12, 1),
-            new SaudiCity(Guid.Parse("20000000-0000-0000-0000-000000000002"), regions[0].Id, "KHARJ", "الخرج", "Al Kharj", 24.1500, 47.3000, 12, 2),
-            new SaudiCity(Guid.Parse("20000000-0000-0000-0000-000000000003"), regions[0].Id, "DAWADMI", "الدوادمي", "Ad Dawadmi", 24.5000, 44.3833, 12, 3),
-            new SaudiCity(Guid.Parse("20000000-0000-0000-0000-000000000004"), regions[0].Id, "MAJMAAH", "المجمعة", "Al Majma'ah", 25.9000, 45.3500, 12, 4),
-            new SaudiCity(Guid.Parse("20000000-0000-0000-0000-000000000005"), regions[0].Id, "WADI_DAWASIR", "وادي الدواسر", "Wadi ad-Dawasir", 20.4500, 44.7833, 12, 5),
-            new SaudiCity(Guid.Parse("20000000-0000-0000-0000-000000000006"), regions[0].Id, "AFIF", "عفيف", "Afif", 23.9167, 42.9333, 12, 6),
-            new SaudiCity(Guid.Parse("20000000-0000-0000-0000-000000000007"), regions[0].Id, "SHAQRA", "شقراء", "Shaqra", 25.2500, 45.2500, 12, 7),
-            new SaudiCity(Guid.Parse("20000000-0000-0000-0000-000000000008"), regions[1].Id, "MAKKAH", "مكة المكرمة", "Makkah", 21.4225, 39.8262, 13, 1),
-            new SaudiCity(Guid.Parse("20000000-0000-0000-0000-000000000009"), regions[1].Id, "JEDDAH", "جدة", "Jeddah", 21.5433, 39.1728, 12, 2),
-            new SaudiCity(Guid.Parse("20000000-0000-0000-0000-000000000010"), regions[1].Id, "TAIF", "الطائف", "Taif", 21.2703, 40.4159, 12, 3),
-            new SaudiCity(Guid.Parse("20000000-0000-0000-0000-000000000011"), regions[1].Id, "RABIGH", "رابغ", "Rabigh", 22.7985, 39.0350, 12, 4),
-            new SaudiCity(Guid.Parse("20000000-0000-0000-0000-000000000012"), regions[1].Id, "QUNFUDHAH", "القنفذة", "Al Qunfudhah", 19.1269, 41.0789, 12, 5),
-            new SaudiCity(Guid.Parse("20000000-0000-0000-0000-000000000013"), regions[2].Id, "MADINAH", "المدينة المنورة", "Madinah", 24.4672, 39.6024, 13, 1),
-            new SaudiCity(Guid.Parse("20000000-0000-0000-0000-000000000014"), regions[2].Id, "YANBU", "ينبع", "Yanbu", 24.0886, 38.0633, 12, 2),
-            new SaudiCity(Guid.Parse("20000000-0000-0000-0000-000000000015"), regions[2].Id, "ULA", "العلا", "Al Ula", 26.6096, 37.9200, 12, 3),
-            new SaudiCity(Guid.Parse("20000000-0000-0000-0000-000000000016"), regions[2].Id, "BADR", "بدر", "Badr", 23.7831, 38.7885, 12, 4),
-            new SaudiCity(Guid.Parse("20000000-0000-0000-0000-000000000017"), regions[3].Id, "DAMMAM", "الدمام", "Dammam", 26.3927, 49.9777, 12, 1),
-            new SaudiCity(Guid.Parse("20000000-0000-0000-0000-000000000018"), regions[3].Id, "KHOBAR", "الخبر", "Al Khobar", 26.2172, 50.1971, 13, 2),
-            new SaudiCity(Guid.Parse("20000000-0000-0000-0000-000000000019"), regions[3].Id, "DHAHRAN", "الظهران", "Dhahran", 26.2361, 50.0393, 13, 3),
-            new SaudiCity(Guid.Parse("20000000-0000-0000-0000-000000000020"), regions[3].Id, "JUBAIL", "الجبيل", "Jubail", 27.0046, 49.6226, 12, 4),
-            new SaudiCity(Guid.Parse("20000000-0000-0000-0000-000000000021"), regions[3].Id, "QATIF", "القطيف", "Qatif", 26.5240, 50.0134, 12, 5),
-            new SaudiCity(Guid.Parse("20000000-0000-0000-0000-000000000022"), regions[3].Id, "HOFUF", "الهفوف", "Al Hofuf", 25.3809, 49.5866, 12, 6),
-            new SaudiCity(Guid.Parse("20000000-0000-0000-0000-000000000023"), regions[3].Id, "MUBARRAZ", "المبرز", "Al Mubarraz", 25.4282, 49.5614, 12, 7),
-            new SaudiCity(Guid.Parse("20000000-0000-0000-0000-000000000024"), regions[3].Id, "KHAFJI", "الخفجي", "Khafji", 28.4392, 48.4926, 12, 8),
-            new SaudiCity(Guid.Parse("20000000-0000-0000-0000-000000000025"), regions[4].Id, "BURAYDAH", "بريدة", "Buraydah", 26.3267, 43.9650, 12, 1),
-            new SaudiCity(Guid.Parse("20000000-0000-0000-0000-000000000026"), regions[4].Id, "UNAYZAH", "عنيزة", "Unayzah", 26.0842, 43.9887, 12, 2),
-            new SaudiCity(Guid.Parse("20000000-0000-0000-0000-000000000027"), regions[4].Id, "RASS", "الرس", "Ar Rass", 25.8523, 43.4946, 12, 3),
-            new SaudiCity(Guid.Parse("20000000-0000-0000-0000-000000000028"), regions[5].Id, "HAIL_CITY", "حائل", "Hail", 27.5114, 41.7208, 12, 1),
-            new SaudiCity(Guid.Parse("20000000-0000-0000-0000-000000000029"), regions[5].Id, "BAQAA", "بقعاء", "Baqa'a", 27.9000, 42.3833, 12, 2),
-            new SaudiCity(Guid.Parse("20000000-0000-0000-0000-000000000030"), regions[6].Id, "TABUK_CITY", "تبوك", "Tabuk", 28.3835, 36.5662, 12, 1),
-            new SaudiCity(Guid.Parse("20000000-0000-0000-0000-000000000031"), regions[6].Id, "WAJH", "الوجه", "Al Wajh", 26.2310, 36.4541, 12, 2),
-            new SaudiCity(Guid.Parse("20000000-0000-0000-0000-000000000032"), regions[6].Id, "DUBA", "ضباء", "Duba", 27.3491, 35.6987, 12, 3),
-            new SaudiCity(Guid.Parse("20000000-0000-0000-0000-000000000033"), regions[6].Id, "NEOM", "نيوم", "NEOM", 28.0000, 35.0000, 10, 4),
-            new SaudiCity(Guid.Parse("20000000-0000-0000-0000-000000000034"), regions[7].Id, "ARAR", "عرعر", "Arar", 30.9753, 41.0186, 12, 1),
-            new SaudiCity(Guid.Parse("20000000-0000-0000-0000-000000000035"), regions[7].Id, "RAFHA", "رفحاء", "Rafha", 29.6208, 43.4932, 12, 2),
-            new SaudiCity(Guid.Parse("20000000-0000-0000-0000-000000000036"), regions[7].Id, "TURAIF", "طريف", "Turaif", 31.6716, 38.6554, 12, 3),
-            new SaudiCity(Guid.Parse("20000000-0000-0000-0000-000000000037"), regions[8].Id, "SAKAKA", "سكاكا", "Sakaka", 29.9697, 40.2064, 12, 1),
-            new SaudiCity(Guid.Parse("20000000-0000-0000-0000-000000000038"), regions[8].Id, "DUMAT_JANDAL", "دومة الجندل", "Dumat Al-Jandal", 29.8136, 39.8618, 12, 2),
-            new SaudiCity(Guid.Parse("20000000-0000-0000-0000-000000000039"), regions[8].Id, "QURAYAT", "القريات", "Qurayat", 31.3343, 37.3428, 12, 3),
-            new SaudiCity(Guid.Parse("20000000-0000-0000-0000-000000000040"), regions[9].Id, "JIZAN_CITY", "جازان", "Jizan", 16.8893, 42.5510, 12, 1),
-            new SaudiCity(Guid.Parse("20000000-0000-0000-0000-000000000041"), regions[9].Id, "SABYA", "صبيا", "Sabya", 17.1509, 42.6231, 12, 2),
-            new SaudiCity(Guid.Parse("20000000-0000-0000-0000-000000000042"), regions[9].Id, "ABU_ARISH", "أبو عريش", "Abu Arish", 16.9618, 42.8304, 12, 3),
-            new SaudiCity(Guid.Parse("20000000-0000-0000-0000-000000000043"), regions[10].Id, "ABHA", "أبها", "Abha", 18.2164, 42.5053, 12, 1),
-            new SaudiCity(Guid.Parse("20000000-0000-0000-0000-000000000044"), regions[10].Id, "KHAMIS_MUSHAIT", "خميس مشيط", "Khamis Mushait", 18.3000, 42.7333, 12, 2),
-            new SaudiCity(Guid.Parse("20000000-0000-0000-0000-000000000045"), regions[10].Id, "BISHA", "بيشة", "Bisha", 19.9833, 42.6000, 12, 3),
-            new SaudiCity(Guid.Parse("20000000-0000-0000-0000-000000000046"), regions[10].Id, "NAMAS", "النماص", "An Namas", 19.1189, 42.1304, 12, 4),
-            new SaudiCity(Guid.Parse("20000000-0000-0000-0000-000000000047"), regions[11].Id, "BAHA_CITY", "الباحة", "Al Baha", 20.0000, 41.4667, 12, 1),
-            new SaudiCity(Guid.Parse("20000000-0000-0000-0000-000000000048"), regions[11].Id, "BALJURASHI", "بلجرشي", "Baljurashi", 19.8500, 41.6167, 12, 2),
-            new SaudiCity(Guid.Parse("20000000-0000-0000-0000-000000000049"), regions[12].Id, "NAJRAN_CITY", "نجران", "Najran", 17.4933, 44.1322, 12, 1),
-            new SaudiCity(Guid.Parse("20000000-0000-0000-0000-000000000050"), regions[12].Id, "SHARURAH", "شرورة", "Sharurah", 17.4875, 47.1128, 12, 2)
-        };
-
-        await _context.SaudiRegions.AddRangeAsync(regions);
-        await _context.SaudiCities.AddRangeAsync(cities);
-        await _context.SaveChangesAsync();
     }
 
     public async Task<DevelopmentSeedSummary> ResetAndSeedAsync()
@@ -155,131 +47,13 @@ public class ApplicationDbContextInitialiser
 
     private async Task TrySeedAsync()
     {
-        await SeedRolesAsync();
-        await SeedAccessControlDefinitionsAsync();
+        await SeedIdentityRolesAsync();
+        await SeedAdminAccessControlAsync();
         await SeedSuperAdminAsync();
-        await SeedSupportUsersAsync();
-        await SeedDeliveryZonesAsync();
-        await SeedDeliveryPricingRulesAsync();
-        await SeedUnitsAsync();
-        await SeedCategoriesAsync();
-        await SeedBrandsAsync();
-        await SeedProductTypesAndPartsAsync();
-        await SeedMasterProductsAsync();
-        await SeedSampleVendorsAsync();
-        await SeedVendorProductsAsync();
-        await SeedHomeBannersAsync();
-        await SeedHomeSectionsAsync();
-        await SeedFeaturedPlacementsAsync();
-        await SeedCouponsAsync();
-        await SeedCustomersAsync();
-        await SeedDriversAsync();
-        await SeedCustomerExperienceAsync();
-        await SeedDriverAssignmentsAsync();
-        await SeedWalletsAndSettlementsAsync();
-        await SeedUserAccessScopesAsync();
+        await SeedSuperAdminAccessScopeAsync();
     }
 
-    private async Task SeedDeliveryZonesAsync()
-    {
-        var zoneSeeds = new (string City, string Name, decimal CenterLat, decimal CenterLng, decimal RadiusKm)[]
-        {
-            ("Riyadh", "Al Olaya", 24.7136m, 46.6753m, 6m),
-            ("Riyadh", "Al Sulaymaniyah", 24.6948m, 46.6892m, 6m),
-            ("Riyadh", "Al Malqa", 24.8074m, 46.6256m, 7m),
-            ("Riyadh", "Al Yasmin", 24.8296m, 46.6423m, 7m),
-            ("Riyadh", "Al Nakheel", 24.7553m, 46.6318m, 6m),
-            ("Riyadh", "Al Rawdah", 24.7487m, 46.7766m, 7m)
-        };
-
-        var existingZones = await _context.DeliveryZones.ToListAsync();
-
-        foreach (var seed in zoneSeeds)
-        {
-            var existingZone = existingZones.FirstOrDefault(zone =>
-                string.Equals(zone.City, seed.City, StringComparison.OrdinalIgnoreCase) &&
-                string.Equals(zone.Name, seed.Name, StringComparison.OrdinalIgnoreCase));
-
-            if (existingZone is null)
-            {
-                await _context.DeliveryZones.AddAsync(new DeliveryZone(
-                    seed.City,
-                    seed.Name,
-                    seed.CenterLat,
-                    seed.CenterLng,
-                    seed.RadiusKm));
-                continue;
-            }
-
-            existingZone.Update(seed.City, seed.Name, seed.CenterLat, seed.CenterLng, seed.RadiusKm);
-            existingZone.Activate();
-        }
-
-        await _context.SaveChangesAsync();
-    }
-
-    private async Task SeedDeliveryPricingRulesAsync()
-    {
-        var zones = await _context.DeliveryZones
-            .Where(zone => zone.IsActive)
-            .OrderBy(zone => zone.City)
-            .ThenBy(zone => zone.Name)
-            .ToListAsync();
-
-        foreach (var zone in zones)
-        {
-            var ruleName = $"{zone.City} - {zone.Name} Standard";
-            var rule = await _context.DeliveryPricingRules
-                .FirstOrDefaultAsync(item => item.DeliveryZoneId == zone.Id);
-
-            if (rule is null)
-            {
-                rule = new DeliveryPricingRule(
-                    zone.Id,
-                    zone.City,
-                    ruleName,
-                    baseFee: 12m,
-                    includedKm: 3m,
-                    perKmFee: 2.25m,
-                    minFee: 12m,
-                    maxFee: 32m,
-                    isActive: true);
-
-                _context.DeliveryPricingRules.Add(rule);
-                await _context.SaveChangesAsync();
-            }
-            else
-            {
-                rule.Update(
-                    zone.Id,
-                    zone.City,
-                    ruleName,
-                    baseFee: 12m,
-                    includedKm: 3m,
-                    perKmFee: 2.25m,
-                    minFee: 12m,
-                    maxFee: 32m,
-                    isActive: true);
-                await _context.SaveChangesAsync();
-            }
-
-            await _context.DeliveryPricingSurgeWindows
-                .Where(item => item.DeliveryPricingRuleId == rule.Id)
-                .ExecuteDeleteAsync();
-
-            await _context.DeliveryPricingSurgeWindows.AddAsync(new DeliveryPricingSurgeWindow(
-                rule.Id,
-                "Evening peak",
-                new TimeSpan(17, 0, 0),
-                new TimeSpan(22, 0, 0),
-                1.25m,
-                true));
-
-            await _context.SaveChangesAsync();
-        }
-    }
-
-    private async Task SeedRolesAsync()
+    private async Task SeedIdentityRolesAsync()
     {
         foreach (var role in Enum.GetValues<UserRole>())
         {
@@ -290,115 +64,12 @@ public class ApplicationDbContextInitialiser
         }
     }
 
-    private async Task SeedAccessControlDefinitionsAsync()
+    private async Task SeedAdminAccessControlAsync()
     {
-        var permissions = new[]
-        {
-            new PermissionSeed(PermissionKeys.Admin.AccountView, "Admin Account View", "admin_account", "view", PanelScope.SuperAdminPanel, "View the signed-in admin account."),
-            new PermissionSeed(PermissionKeys.Admin.AccountEdit, "Admin Account Edit", "admin_account", "edit", PanelScope.SuperAdminPanel, "Update the signed-in admin account."),
-            new PermissionSeed(PermissionKeys.Admin.DashboardView, "Dashboard View", "dashboard", "view", PanelScope.SuperAdminPanel, "Read dashboard snapshots."),
-            new PermissionSeed(PermissionKeys.Admin.DashboardExport, "Dashboard Export", "dashboard", "export", PanelScope.SuperAdminPanel, "Export dashboard data."),
-            new PermissionSeed(PermissionKeys.Admin.VendorsView, "Vendors View", "vendors", "view", PanelScope.SuperAdminPanel, "View vendors."),
-            new PermissionSeed(PermissionKeys.Admin.VendorsEdit, "Vendors Edit", "vendors", "edit", PanelScope.SuperAdminPanel, "Edit vendor records."),
-            new PermissionSeed(PermissionKeys.Admin.VendorsApprove, "Vendors Approve", "vendors", "approve", PanelScope.SuperAdminPanel, "Approve vendor changes.", true),
-            new PermissionSeed(PermissionKeys.Admin.CatalogView, "Catalog View", "catalog", "view", PanelScope.SuperAdminPanel, "View catalog assets."),
-            new PermissionSeed(PermissionKeys.Admin.CatalogCreate, "Catalog Create", "catalog", "create", PanelScope.SuperAdminPanel, "Create catalog assets."),
-            new PermissionSeed(PermissionKeys.Admin.CatalogEdit, "Catalog Edit", "catalog", "edit", PanelScope.SuperAdminPanel, "Edit catalog assets."),
-            new PermissionSeed(PermissionKeys.Admin.CatalogApprove, "Catalog Approve", "catalog", "approve", PanelScope.SuperAdminPanel, "Approve catalog moderation actions.", true),
-            new PermissionSeed(PermissionKeys.Admin.OrdersView, "Orders View", "orders", "view", PanelScope.SuperAdminPanel, "View orders."),
-            new PermissionSeed(PermissionKeys.Admin.OrdersEdit, "Orders Edit", "orders", "edit", PanelScope.SuperAdminPanel, "Edit order states."),
-            new PermissionSeed(PermissionKeys.Admin.OrdersApprove, "Orders Approve", "orders", "approve", PanelScope.SuperAdminPanel, "Approve sensitive order actions.", true),
-            new PermissionSeed(PermissionKeys.Admin.CustomersView, "Customers View", "customers", "view", PanelScope.SuperAdminPanel, "View customers."),
-            new PermissionSeed(PermissionKeys.Admin.CustomersEdit, "Customers Edit", "customers", "edit", PanelScope.SuperAdminPanel, "Manage customer actions."),
-            new PermissionSeed(PermissionKeys.Admin.DriversView, "Drivers View", "drivers", "view", PanelScope.SuperAdminPanel, "View drivers."),
-            new PermissionSeed(PermissionKeys.Admin.DriversEdit, "Drivers Edit", "drivers", "edit", PanelScope.SuperAdminPanel, "Edit driver operations."),
-            new PermissionSeed(PermissionKeys.Admin.DriversApprove, "Drivers Approve", "drivers", "approve", PanelScope.SuperAdminPanel, "Approve driver lifecycle changes.", true),
-            new PermissionSeed(PermissionKeys.Admin.DisputesView, "Disputes View", "disputes", "view", PanelScope.SuperAdminPanel, "View disputes."),
-            new PermissionSeed(PermissionKeys.Admin.DisputesEdit, "Disputes Edit", "disputes", "edit", PanelScope.SuperAdminPanel, "Edit dispute workflows."),
-            new PermissionSeed(PermissionKeys.Admin.DisputesApprove, "Disputes Approve", "disputes", "approve", PanelScope.SuperAdminPanel, "Approve dispute outcomes.", true),
-            new PermissionSeed(PermissionKeys.Admin.FinancesView, "Finances View", "finances", "view", PanelScope.SuperAdminPanel, "View finance data."),
-            new PermissionSeed(PermissionKeys.Admin.FinancesEdit, "Finances Edit", "finances", "edit", PanelScope.SuperAdminPanel, "Edit finance records.", true),
-            new PermissionSeed(PermissionKeys.Admin.FinancesApprove, "Finances Approve", "finances", "approve", PanelScope.SuperAdminPanel, "Approve finance operations.", true),
-            new PermissionSeed(PermissionKeys.Admin.WalletsView, "Wallets View", "wallets", "view", PanelScope.SuperAdminPanel, "View wallet records."),
-            new PermissionSeed(PermissionKeys.Admin.WalletsEdit, "Wallets Edit", "wallets", "edit", PanelScope.SuperAdminPanel, "Edit wallet records.", true),
-            new PermissionSeed(PermissionKeys.Admin.WalletsApprove, "Wallets Approve", "wallets", "approve", PanelScope.SuperAdminPanel, "Approve wallet operations.", true),
-            new PermissionSeed(PermissionKeys.Admin.UsersAccessView, "Users Access View", "users_access", "view", PanelScope.SuperAdminPanel, "View access records."),
-            new PermissionSeed(PermissionKeys.Admin.UsersAccessCreate, "Users Access Create", "users_access", "create", PanelScope.SuperAdminPanel, "Create identities and roles.", true),
-            new PermissionSeed(PermissionKeys.Admin.UsersAccessEdit, "Users Access Edit", "users_access", "edit", PanelScope.SuperAdminPanel, "Edit identities and roles.", true),
-            new PermissionSeed(PermissionKeys.Admin.UsersAccessApprove, "Users Access Approve", "users_access", "approve", PanelScope.SuperAdminPanel, "Approve access operations.", true),
-            new PermissionSeed(PermissionKeys.Admin.EmailCenterView, "Email Center View", "email_center", "view", PanelScope.SuperAdminPanel, "View outbound communication center."),
-            new PermissionSeed(PermissionKeys.Admin.EmailCenterEdit, "Email Center Edit", "email_center", "edit", PanelScope.SuperAdminPanel, "Edit communication flows."),
-            new PermissionSeed(PermissionKeys.Admin.MarketingView, "Marketing View", "marketing", "view", PanelScope.SuperAdminPanel, "View marketing assets."),
-            new PermissionSeed(PermissionKeys.Admin.MarketingEdit, "Marketing Edit", "marketing", "edit", PanelScope.SuperAdminPanel, "Edit marketing assets."),
-            new PermissionSeed(PermissionKeys.Admin.NotificationsView, "Admin Notifications View", "admin_notifications", "view", PanelScope.SuperAdminPanel, "View admin notifications."),
-            new PermissionSeed(PermissionKeys.Admin.NotificationsEdit, "Admin Notifications Edit", "admin_notifications", "edit", PanelScope.SuperAdminPanel, "Update admin notifications."),
-            new PermissionSeed(PermissionKeys.Admin.DeliverySettingsView, "Delivery Settings View", "delivery_settings", "view", PanelScope.SuperAdminPanel, "View delivery settings."),
-            new PermissionSeed(PermissionKeys.Admin.DeliverySettingsEdit, "Delivery Settings Edit", "delivery_settings", "edit", PanelScope.SuperAdminPanel, "Edit delivery settings.", true),
-            new PermissionSeed(PermissionKeys.Admin.SystemManageSettings, "System Settings Manage", "system", "manage_settings", PanelScope.SuperAdminPanel, "Manage critical system settings.", true),
-            new PermissionSeed(PermissionKeys.Vendor.AccountView, "Vendor Account View", "vendor_account", "view", PanelScope.VendorPanel, "View the signed-in vendor account."),
-            new PermissionSeed(PermissionKeys.Vendor.AccountEdit, "Vendor Account Edit", "vendor_account", "edit", PanelScope.VendorPanel, "Update the signed-in vendor account."),
-            new PermissionSeed(PermissionKeys.Vendor.DashboardView, "Vendor Dashboard View", "vendor_dashboard", "view", PanelScope.VendorPanel, "View vendor dashboard."),
-            new PermissionSeed(PermissionKeys.Vendor.OrdersView, "Vendor Orders View", "vendor_orders", "view", PanelScope.VendorPanel, "View vendor orders."),
-            new PermissionSeed(PermissionKeys.Vendor.OrdersEdit, "Vendor Orders Edit", "vendor_orders", "edit", PanelScope.VendorPanel, "Edit vendor orders."),
-            new PermissionSeed(PermissionKeys.Vendor.OrdersApprove, "Vendor Orders Approve", "vendor_orders", "approve", PanelScope.VendorPanel, "Approve vendor order actions."),
-            new PermissionSeed(PermissionKeys.Vendor.CatalogView, "Vendor Catalog View", "vendor_catalog", "view", PanelScope.VendorPanel, "View vendor catalog."),
-            new PermissionSeed(PermissionKeys.Vendor.CatalogCreate, "Vendor Catalog Create", "vendor_catalog", "create", PanelScope.VendorPanel, "Create vendor catalog items."),
-            new PermissionSeed(PermissionKeys.Vendor.CatalogEdit, "Vendor Catalog Edit", "vendor_catalog", "edit", PanelScope.VendorPanel, "Edit vendor catalog items."),
-            new PermissionSeed(PermissionKeys.Vendor.CatalogApprove, "Vendor Catalog Approve", "vendor_catalog", "approve", PanelScope.VendorPanel, "Approve vendor catalog submissions."),
-            new PermissionSeed(PermissionKeys.Vendor.BranchTeamView, "Vendor Branch Team View", "vendor_branch_team", "view", PanelScope.VendorPanel, "View vendor branches and staff."),
-            new PermissionSeed(PermissionKeys.Vendor.BranchTeamCreate, "Vendor Branch Team Create", "vendor_branch_team", "create", PanelScope.VendorPanel, "Create vendor branch or staff records.", true),
-            new PermissionSeed(PermissionKeys.Vendor.BranchTeamEdit, "Vendor Branch Team Edit", "vendor_branch_team", "edit", PanelScope.VendorPanel, "Edit vendor branch or staff records.", true),
-            new PermissionSeed(PermissionKeys.Vendor.BranchTeamApprove, "Vendor Branch Team Approve", "vendor_branch_team", "approve", PanelScope.VendorPanel, "Approve branch or staff access changes.", true),
-            new PermissionSeed(PermissionKeys.Vendor.FinanceView, "Vendor Finance View", "vendor_finance", "view", PanelScope.VendorPanel, "View vendor finance data."),
-            new PermissionSeed(PermissionKeys.Vendor.FinanceExport, "Vendor Finance Export", "vendor_finance", "export", PanelScope.VendorPanel, "Export vendor finance data."),
-            new PermissionSeed(PermissionKeys.Vendor.SupportView, "Vendor Support View", "vendor_support", "view", PanelScope.VendorPanel, "View vendor support center."),
-            new PermissionSeed(PermissionKeys.Vendor.SupportEdit, "Vendor Support Edit", "vendor_support", "edit", PanelScope.VendorPanel, "Edit vendor support cases."),
-            new PermissionSeed(PermissionKeys.Vendor.SettingsView, "Vendor Settings View", "vendor_settings", "view", PanelScope.VendorPanel, "View vendor settings."),
-            new PermissionSeed(PermissionKeys.Vendor.SettingsEdit, "Vendor Settings Edit", "vendor_settings", "edit", PanelScope.VendorPanel, "Edit vendor settings."),
-            new PermissionSeed(PermissionKeys.Vendor.NotificationsView, "Vendor Notifications View", "vendor_notifications", "view", PanelScope.VendorPanel, "View vendor notifications."),
-            new PermissionSeed(PermissionKeys.Vendor.NotificationsEdit, "Vendor Notifications Edit", "vendor_notifications", "edit", PanelScope.VendorPanel, "Update vendor notifications."),
-            new PermissionSeed(PermissionKeys.Vendor.OffersView, "Vendor Offers View", "vendor_offers", "view", PanelScope.VendorPanel, "View vendor offers and coupons."),
-            new PermissionSeed(PermissionKeys.Vendor.OffersEdit, "Vendor Offers Edit", "vendor_offers", "edit", PanelScope.VendorPanel, "Create and edit vendor offers and coupons."),
-            new PermissionSeed(PermissionKeys.Vendor.ReviewsView, "Vendor Reviews View", "vendor_reviews", "view", PanelScope.VendorPanel, "View vendor reviews."),
-            new PermissionSeed(PermissionKeys.Vendor.ReviewsEdit, "Vendor Reviews Edit", "vendor_reviews", "edit", PanelScope.VendorPanel, "Reply to and manage vendor reviews."),
-            new PermissionSeed(PermissionKeys.Vendor.DisputesView, "Vendor Disputes View", "vendor_disputes", "view", PanelScope.VendorPanel, "View vendor disputes."),
-            new PermissionSeed(PermissionKeys.Vendor.DisputesEdit, "Vendor Disputes Edit", "vendor_disputes", "edit", PanelScope.VendorPanel, "Manage vendor dispute actions."),
-            new PermissionSeed(PermissionKeys.Vendor.AlertsView, "Vendor Alerts View", "vendor_alerts", "view", PanelScope.VendorPanel, "View vendor alerts."),
-            new PermissionSeed(PermissionKeys.Vendor.AlertsEdit, "Vendor Alerts Edit", "vendor_alerts", "edit", PanelScope.VendorPanel, "Manage vendor alerts."),
-            new PermissionSeed(PermissionKeys.Vendor.StaffView, "Vendor Staff View", "vendor_staff", "view", PanelScope.VendorPanel, "View vendor staff."),
-            new PermissionSeed(PermissionKeys.Vendor.StaffEdit, "Vendor Staff Edit", "vendor_staff", "edit", PanelScope.VendorPanel, "Manage vendor staff."),
-            new PermissionSeed(PermissionKeys.Vendor.ProfileView, "Vendor Profile View", "vendor_profile", "view", PanelScope.VendorPanel, "View vendor public profile configuration."),
-            new PermissionSeed(PermissionKeys.Vendor.ProfileEdit, "Vendor Profile Edit", "vendor_profile", "edit", PanelScope.VendorPanel, "Edit vendor public profile configuration."),
-            new PermissionSeed(PermissionKeys.Driver.AccountView, "Driver Account View", "driver_account", "view", PanelScope.DriverApp, "View the signed-in driver account."),
-            new PermissionSeed(PermissionKeys.Driver.AccountEdit, "Driver Account Edit", "driver_account", "edit", PanelScope.DriverApp, "Update the signed-in driver account."),
-            new PermissionSeed(PermissionKeys.Driver.DashboardView, "Driver Dashboard View", "driver_dashboard", "view", PanelScope.DriverApp, "View driver dashboard."),
-            new PermissionSeed(PermissionKeys.Driver.ProfileView, "Driver Profile View", "driver_profile", "view", PanelScope.DriverApp, "View driver profile."),
-            new PermissionSeed(PermissionKeys.Driver.ProfileEdit, "Driver Profile Edit", "driver_profile", "edit", PanelScope.DriverApp, "Edit driver profile."),
-            new PermissionSeed(PermissionKeys.Driver.DeliveriesView, "Driver Deliveries View", "driver_deliveries", "view", PanelScope.DriverApp, "View driver deliveries."),
-            new PermissionSeed(PermissionKeys.Driver.DeliveriesEdit, "Driver Deliveries Edit", "driver_deliveries", "edit", PanelScope.DriverApp, "Edit driver deliveries."),
-            new PermissionSeed(PermissionKeys.Driver.DeliveriesApprove, "Driver Deliveries Approve", "driver_deliveries", "approve", PanelScope.DriverApp, "Approve delivery handoff actions."),
-            new PermissionSeed(PermissionKeys.Driver.AvailabilityEdit, "Driver Availability Edit", "driver_availability", "edit", PanelScope.DriverApp, "Manage driver availability."),
-            new PermissionSeed(PermissionKeys.Driver.LocationEdit, "Driver Location Edit", "driver_location", "edit", PanelScope.DriverApp, "Update driver location."),
-            new PermissionSeed(PermissionKeys.Driver.WalletView, "Driver Wallet View", "driver_wallet", "view", PanelScope.DriverApp, "View driver wallet."),
-            new PermissionSeed(PermissionKeys.Driver.WalletEdit, "Driver Wallet Edit", "driver_wallet", "edit", PanelScope.DriverApp, "Manage driver wallet actions."),
-            new PermissionSeed(PermissionKeys.Driver.SupportView, "Driver Support View", "driver_support", "view", PanelScope.DriverApp, "View driver support cases."),
-            new PermissionSeed(PermissionKeys.Driver.SupportEdit, "Driver Support Edit", "driver_support", "edit", PanelScope.DriverApp, "Update driver support cases."),
-            new PermissionSeed(PermissionKeys.Driver.NotificationsView, "Driver Notifications View", "driver_notifications", "view", PanelScope.DriverApp, "View driver notifications."),
-            new PermissionSeed(PermissionKeys.Driver.NotificationsEdit, "Driver Notifications Edit", "driver_notifications", "edit", PanelScope.DriverApp, "Update driver notifications."),
-            new PermissionSeed(PermissionKeys.Customer.AccountView, "Customer Account View", "customer_account", "view", PanelScope.CustomerApp, "View the signed-in customer account."),
-            new PermissionSeed(PermissionKeys.Customer.AccountEdit, "Customer Account Edit", "customer_account", "edit", PanelScope.CustomerApp, "Update the signed-in customer account."),
-            new PermissionSeed(PermissionKeys.Customer.ProfileView, "Customer Profile View", "customer_profile", "view", PanelScope.CustomerApp, "View customer profile."),
-            new PermissionSeed(PermissionKeys.Customer.ProfileEdit, "Customer Profile Edit", "customer_profile", "edit", PanelScope.CustomerApp, "Edit customer profile."),
-            new PermissionSeed(PermissionKeys.Customer.AddressesView, "Customer Addresses View", "customer_addresses", "view", PanelScope.CustomerApp, "View customer addresses."),
-            new PermissionSeed(PermissionKeys.Customer.AddressesEdit, "Customer Addresses Edit", "customer_addresses", "edit", PanelScope.CustomerApp, "Manage customer addresses."),
-            new PermissionSeed(PermissionKeys.Customer.OrdersView, "Customer Orders View", "customer_orders", "view", PanelScope.CustomerApp, "View customer orders."),
-            new PermissionSeed(PermissionKeys.Customer.OrdersCreate, "Customer Orders Create", "customer_orders", "create", PanelScope.CustomerApp, "Create customer orders."),
-            new PermissionSeed(PermissionKeys.Customer.OrdersEdit, "Customer Orders Edit", "customer_orders", "edit", PanelScope.CustomerApp, "Manage customer orders."),
-            new PermissionSeed(PermissionKeys.Customer.CheckoutView, "Customer Checkout View", "customer_checkout", "view", PanelScope.CustomerApp, "View checkout summary."),
-            new PermissionSeed(PermissionKeys.Customer.CheckoutEdit, "Customer Checkout Edit", "customer_checkout", "edit", PanelScope.CustomerApp, "Manage checkout."),
-            new PermissionSeed(PermissionKeys.Customer.NotificationsView, "Customer Notifications View", "customer_notifications", "view", PanelScope.CustomerApp, "View customer notifications."),
-            new PermissionSeed(PermissionKeys.Customer.NotificationsEdit, "Customer Notifications Edit", "customer_notifications", "edit", PanelScope.CustomerApp, "Update customer notifications.")
-        };
+        var permissions = BuildPermissionKeys()
+            .Distinct(StringComparer.OrdinalIgnoreCase)
+            .Select(CreatePermissionSeed)
+            .ToList();
 
         foreach (var seed in permissions)
         {
@@ -421,1727 +92,175 @@ public class ApplicationDbContextInitialiser
 
         await _context.SaveChangesAsync();
 
-        var roles = new[]
+        foreach (var roleSeed in BuildRoleSeeds())
         {
-            new RoleSeed("super_admin_all", "Super Admin", UserRole.SuperAdmin, PanelScope.SuperAdminPanel, PermissionKeys.Admin.All),
-            new RoleSeed("admin_operations", "Operations Admin", UserRole.Admin, PanelScope.SuperAdminPanel, PermissionKeys.Admin.Operations),
-            new RoleSeed("vendor_owner", "Vendor Owner", UserRole.Vendor, PanelScope.VendorPanel, PermissionKeys.Vendor.Owner),
-            new RoleSeed("vendor_branch_manager", "Vendor Branch Manager", UserRole.VendorStaff, PanelScope.VendorPanel, PermissionKeys.Vendor.BranchManager),
-            new RoleSeed("vendor_branch_staff", "Vendor Branch Staff", UserRole.VendorStaff, PanelScope.VendorPanel, PermissionKeys.Vendor.BranchStaff),
-            new RoleSeed("driver_account", "Driver Account", UserRole.Driver, PanelScope.DriverApp, PermissionKeys.Driver.All),
-            new RoleSeed("customer_account", "Customer Account", UserRole.Customer, PanelScope.CustomerApp, PermissionKeys.Customer.All)
-        };
-
-        foreach (var seed in roles)
-        {
-            var existing = await _context.RoleDefinitions
-                .Include(x => x.RolePermissions)
-                .FirstOrDefaultAsync(x => x.Code == seed.Code);
-
-            if (existing is null)
-            {
-                existing = new RoleDefinition(seed.Code, seed.Name, seed.IdentityRole, seed.PanelScope, description: $"{seed.Name} system role.");
-                _context.RoleDefinitions.Add(existing);
-                await _context.SaveChangesAsync();
-            }
-            else
-            {
-                existing.Update(seed.Name, seed.IdentityRole, seed.PanelScope, isSystem: true, isActive: true, description: $"{seed.Name} system role.");
-                await _context.SaveChangesAsync();
-            }
-
-            var permissionIds = await _context.PermissionDefinitions
-                .Where(x => seed.PermissionKeys.Contains(x.Key))
-                .Select(x => x.Id)
-                .ToListAsync();
-
-            var existingPermissionIds = existing.RolePermissions.Select(x => x.PermissionDefinitionId).ToHashSet();
-
-            var obsolete = existing.RolePermissions
-                .Where(x => !permissionIds.Contains(x.PermissionDefinitionId))
-                .ToList();
-
-            if (obsolete.Any())
-            {
-                _context.RolePermissions.RemoveRange(obsolete);
-            }
-
-            foreach (var permissionId in permissionIds.Where(id => !existingPermissionIds.Contains(id)))
-            {
-                _context.RolePermissions.Add(new RolePermission(existing.Id, permissionId));
-            }
-
-            await _context.SaveChangesAsync();
+            await UpsertRoleSeedAsync(roleSeed);
         }
     }
 
-    private async Task SeedUserAccessScopesAsync()
+    private async Task UpsertRoleSeedAsync(RoleSeed seed)
     {
-        var roleLookup = await _context.RoleDefinitions
-            .Where(x => x.IsActive)
-            .ToDictionaryAsync(x => x.Code);
+        var existingRole = await _context.RoleDefinitions
+            .Include(x => x.RolePermissions)
+            .FirstOrDefaultAsync(x => x.Code == seed.Code);
 
-        var adminUsers = await _context.Users
-            .Where(x => x.Role == UserRole.SuperAdmin || x.Role == UserRole.Admin)
-            .ToListAsync();
-
-        foreach (var user in adminUsers)
+        if (existingRole is null)
         {
-            var roleCode = user.Role == UserRole.SuperAdmin ? "super_admin_all" : "admin_operations";
-            await EnsureUserAccessScopeAsync(user, roleLookup[roleCode].Id, PanelScope.SuperAdminPanel, AccessScopeType.Global, null);
-        }
-
-        var vendorUsers = await _context.Vendors
-            .AsNoTracking()
-            .Select(x => new { x.UserId, VendorId = x.Id })
-            .ToListAsync();
-
-        foreach (var vendor in vendorUsers)
-        {
-            var user = await _context.Users.FirstOrDefaultAsync(x => x.Id == vendor.UserId);
-            if (user is null)
-            {
-                continue;
-            }
-
-            await EnsureUserAccessScopeAsync(user, roleLookup["vendor_owner"].Id, PanelScope.VendorPanel, AccessScopeType.VendorCompany, vendor.VendorId);
-        }
-
-        var drivers = await _context.Drivers
-            .AsNoTracking()
-            .Select(x => new { x.UserId, DriverId = x.Id })
-            .ToListAsync();
-
-        foreach (var driver in drivers)
-        {
-            var user = await _context.Users.FirstOrDefaultAsync(x => x.Id == driver.UserId);
-            if (user is null)
-            {
-                continue;
-            }
-
-            await EnsureUserAccessScopeAsync(user, roleLookup["driver_account"].Id, PanelScope.DriverApp, AccessScopeType.DriverSelf, driver.DriverId);
-        }
-
-        var customers = await _context.Users
-            .Where(x => x.Role == UserRole.Customer)
-            .ToListAsync();
-
-        foreach (var customer in customers)
-        {
-            await EnsureUserAccessScopeAsync(customer, roleLookup["customer_account"].Id, PanelScope.CustomerApp, AccessScopeType.CustomerSelf, customer.Id);
-        }
-    }
-
-    private async Task EnsureUserAccessScopeAsync(
-        User user,
-        Guid roleDefinitionId,
-        PanelScope panelScope,
-        AccessScopeType scopeType,
-        Guid? scopeEntityId)
-    {
-        var existing = await _context.UserAccessScopes
-            .FirstOrDefaultAsync(x => x.UserId == user.Id && x.IsActive);
-
-        if (existing is null)
-        {
-            _context.UserAccessScopes.Add(new UserAccessScope(user.Id, roleDefinitionId, panelScope, scopeType, scopeEntityId));
-            user.IncrementPermissionVersion();
+            existingRole = new RoleDefinition(
+                seed.Code,
+                seed.Name,
+                seed.IdentityRole,
+                seed.PanelScope,
+                description: seed.Description);
+            _context.RoleDefinitions.Add(existingRole);
             await _context.SaveChangesAsync();
-            return;
         }
-
-        if (existing.RoleDefinitionId == roleDefinitionId &&
-            existing.PanelScope == panelScope &&
-            existing.ScopeType == scopeType &&
-            existing.ScopeEntityId == scopeEntityId)
+        else
         {
-            return;
+            existingRole.Update(
+                seed.Name,
+                seed.IdentityRole,
+                seed.PanelScope,
+                isSystem: true,
+                isActive: true,
+                description: seed.Description);
+            await _context.SaveChangesAsync();
         }
 
-        existing.Update(roleDefinitionId, panelScope, scopeType, scopeEntityId, null);
-        user.IncrementPermissionVersion();
+        var permissionIds = await _context.PermissionDefinitions
+            .Where(x => seed.Permissions.Contains(x.Key))
+            .Select(x => x.Id)
+            .ToListAsync();
+
+        var desiredPermissionIds = permissionIds.ToHashSet();
+        var existingPermissionIds = existingRole.RolePermissions
+            .Select(x => x.PermissionDefinitionId)
+            .ToHashSet();
+
+        var obsolete = existingRole.RolePermissions
+            .Where(x => !desiredPermissionIds.Contains(x.PermissionDefinitionId))
+            .ToList();
+
+        if (obsolete.Count > 0)
+        {
+            _context.RolePermissions.RemoveRange(obsolete);
+        }
+
+        foreach (var permissionId in desiredPermissionIds.Where(id => !existingPermissionIds.Contains(id)))
+        {
+            _context.RolePermissions.Add(new RolePermission(existingRole.Id, permissionId));
+        }
+
         await _context.SaveChangesAsync();
     }
 
     private async Task SeedSuperAdminAsync()
     {
-        if (await _userManager.FindByEmailAsync("admin@system.com") != null)
+        var admin = await _userManager.FindByEmailAsync(DefaultAdminEmail);
+        if (admin is null)
         {
-            return;
-        }
+            admin = new User(
+                "Super Admin",
+                DefaultAdminEmail,
+                "01000000000",
+                UserRole.SuperAdmin);
 
-        var admin = new User(
-            "Super Admin",
-            "admin@system.com",
-            "01000000000",
-            UserRole.SuperAdmin);
-
-        await _userManager.CreateAsync(admin, DefaultAdminPassword);
-        await _userManager.AddToRoleAsync(admin, UserRole.SuperAdmin.ToString());
-    }
-
-    private async Task SeedSupportUsersAsync()
-    {
-        await EnsureUserAsync(
-            "ops.admin@zadana.local",
-            "Operations Admin",
-            "01000000001",
-            UserRole.Admin,
-            DefaultAdminPassword,
-            user =>
+            var result = await _userManager.CreateAsync(admin, DefaultAdminPassword);
+            if (!result.Succeeded)
             {
-                user.VerifyEmail();
-                user.VerifyPhone();
-                user.RecordLogin();
-                user.MarkPresenceOffline(DateTime.UtcNow.AddHours(-2));
-            });
-    }
-
-    private async Task SeedUnitsAsync()
-    {
-        var unitSeeds = new (string NameAr, string NameEn, string Symbol)[]
-        {
-            ("كيلوغرام", "Kilogram", "kg"),
-            ("غرام", "Gram", "g"),
-            ("ملليغرام", "Milligram", "mg"),
-            ("طن", "Ton", "t"),
-            ("لتر", "Liter", "L"),
-            ("ملليلتر", "Milliliter", "mL"),
-            ("سنتيلتر", "Centiliter", "cL"),
-            ("قطعة", "Piece", "pcs"),
-            ("حبة", "Unit", "unit"),
-            ("رول", "Roll", "roll"),
-            ("عبوة", "Pack", "pk"),
-            ("كرتون", "Carton", "ctn"),
-            ("صندوق", "Box", "box"),
-            ("زجاجة", "Bottle", "btl"),
-            ("علبة", "Can", "can"),
-            ("برطمان", "Jar", "jar"),
-            ("كيس", "Bag", "bag"),
-            ("صينية", "Tray", "tray"),
-            ("رابطة", "Bundle", "bdl"),
-            ("ربطة", "Bunch", "bnch"),
-            ("شريحة", "Slice", "slc"),
-            ("رغيف", "Loaf", "loaf"),
-            ("ظرف", "Sachet", "scht"),
-            ("عود", "Stick", "stk"),
-            ("شريط", "Strip", "strip"),
-            ("لوح", "Bar", "bar"),
-            ("طقم", "Set", "set"),
-            ("زوج", "Pair", "pair"),
-            ("دزينة", "Dozen", "dz"),
-            ("كبسولة", "Capsule", "cap"),
-            ("قرص", "Tablet", "tab"),
-            ("أنبوب", "Tube", "tube")
-        };
-
-        var existingUnits = await _context.UnitsOfMeasure.ToListAsync();
-        var existingBySymbol = existingUnits
-            .Where(x => !string.IsNullOrWhiteSpace(x.Symbol))
-            .ToDictionary(x => x.Symbol!, StringComparer.OrdinalIgnoreCase);
-
-        foreach (var seed in unitSeeds)
-        {
-            if (existingBySymbol.TryGetValue(seed.Symbol, out var existing))
-            {
-                existing.Update(seed.NameAr, seed.NameEn, seed.Symbol);
-                existing.Activate();
-                continue;
-            }
-
-            await _context.UnitsOfMeasure.AddAsync(new UnitOfMeasure(seed.NameAr, seed.NameEn, seed.Symbol));
-        }
-
-        await _context.SaveChangesAsync();
-    }
-
-    private async Task SeedCategoriesAsync()
-    {
-        if (await _context.Categories.AnyAsync())
-        {
-            return;
-        }
-
-        var food = new Category("البقالة", "Groceries", ImageCatalog.CategoryGroceries, null, 1);
-        var electronics = new Category("الإلكترونيات", "Electronics", ImageCatalog.CategoryElectronics, null, 2);
-        var home = new Category("المنزل", "Home Essentials", ImageCatalog.CategoryHome, null, 3);
-
-        await _context.Categories.AddRangeAsync(food, electronics, home);
-        await _context.SaveChangesAsync();
-
-        var categories = new[]
-        {
-            new Category("الأغذية والمشروبات", "Food & Drinks", ImageCatalog.CategoryGroceries, food.Id, 1),
-            new Category("الخضار والفاكهة", "Fresh Market", ImageCatalog.CategoryProduce, food.Id, 2),
-            new Category("الأجهزة الذكية", "Smart Devices", ImageCatalog.CategoryElectronics, electronics.Id, 1),
-            new Category("ملحقات الأجهزة", "Device Accessories", ImageCatalog.CategoryAccessories, electronics.Id, 2),
-            new Category("العناية المنزلية", "Home Care", ImageCatalog.CategoryHomeCare, home.Id, 1),
-            new Category("المطبخ", "Kitchen", ImageCatalog.CategoryKitchen, home.Id, 2)
-        };
-
-        await _context.Categories.AddRangeAsync(categories);
-        await _context.SaveChangesAsync();
-
-        var foodAndDrinks = categories.Single(x => x.NameEn == "Food & Drinks");
-        var freshMarket = categories.Single(x => x.NameEn == "Fresh Market");
-        var smartDevices = categories.Single(x => x.NameEn == "Smart Devices");
-        var deviceAccessories = categories.Single(x => x.NameEn == "Device Accessories");
-        var homeCare = categories.Single(x => x.NameEn == "Home Care");
-        var kitchen = categories.Single(x => x.NameEn == "Kitchen");
-
-        var subCategories = new[]
-        {
-            new Category("الألبان", "Dairy", ImageCatalog.CategoryDairy, foodAndDrinks.Id, 1),
-            new Category("المشروبات", "Beverages", ImageCatalog.CategoryBeverages, foodAndDrinks.Id, 2),
-            new Category("المخبوزات", "Bakery", ImageCatalog.CategoryBakery, foodAndDrinks.Id, 3),
-            new Category("الوجبات الخفيفة", "Snacks", ImageCatalog.CategorySnacks, foodAndDrinks.Id, 4),
-            new Category("الفاكهة", "Fruits", ImageCatalog.CategoryProduce, freshMarket.Id, 1),
-            new Category("الخضار", "Vegetables", ImageCatalog.CategoryProduce, freshMarket.Id, 2),
-            new Category("الهواتف", "Phones", ImageCatalog.CategoryPhones, smartDevices.Id, 1),
-            new Category("الإكسسوارات", "Accessories", ImageCatalog.CategoryAccessories, deviceAccessories.Id, 1),
-            new Category("منظفات المنزل", "Household Care", ImageCatalog.CategoryHomeCare, homeCare.Id, 1),
-            new Category("مستلزمات المطبخ", "Kitchen Supplies", ImageCatalog.CategoryKitchen, kitchen.Id, 1)
-        };
-
-        await _context.Categories.AddRangeAsync(subCategories);
-        await _context.SaveChangesAsync();
-
-        var dairy = subCategories.Single(x => x.NameEn == "Dairy");
-        var beverages = subCategories.Single(x => x.NameEn == "Beverages");
-        var bakery = subCategories.Single(x => x.NameEn == "Bakery");
-        var snacks = subCategories.Single(x => x.NameEn == "Snacks");
-        var fruits = subCategories.Single(x => x.NameEn == "Fruits");
-        var vegetables = subCategories.Single(x => x.NameEn == "Vegetables");
-        var phones = subCategories.Single(x => x.NameEn == "Phones");
-        var accessories = subCategories.Single(x => x.NameEn == "Accessories");
-        var householdCare = subCategories.Single(x => x.NameEn == "Household Care");
-
-        var leafCategories = new[]
-        {
-            new Category("الحليب", "Milk", ImageCatalog.CategoryDairy, dairy.Id, 1),
-            new Category("الزبادي", "Yogurt", ImageCatalog.CategoryDairy, dairy.Id, 2),
-            new Category("العصائر", "Juices", ImageCatalog.CategoryBeverages, beverages.Id, 1),
-            new Category("المياه", "Water", ImageCatalog.CategoryBeverages, beverages.Id, 2),
-            new Category("خبز التوست", "Toast Bread", ImageCatalog.CategoryBakery, bakery.Id, 1),
-            new Category("الشيبس", "Chips", ImageCatalog.CategorySnacks, snacks.Id, 1),
-            new Category("الموز", "Bananas", ImageCatalog.CategoryProduce, fruits.Id, 1),
-            new Category("الطماطم", "Tomatoes", ImageCatalog.CategoryProduce, vegetables.Id, 1),
-            new Category("هواتف سامسونج", "Samsung Phones", ImageCatalog.CategoryPhones, phones.Id, 1),
-            new Category("هواتف آيفون", "iPhone Phones", ImageCatalog.CategoryPhones, phones.Id, 2),
-            new Category("الشواحن", "Chargers", ImageCatalog.CategoryAccessories, accessories.Id, 1),
-            new Category("أغطية الجوال", "Phone Cases", ImageCatalog.CategoryAccessories, accessories.Id, 2),
-            new Category("منظفات الأطباق", "Dishwashing", ImageCatalog.CategoryHomeCare, householdCare.Id, 1),
-            new Category("المناديل", "Tissues", ImageCatalog.CategoryHomeCare, householdCare.Id, 2)
-        };
-
-        await _context.Categories.AddRangeAsync(leafCategories);
-        await _context.SaveChangesAsync();
-    }
-
-    private async Task SeedBrandsAsync()
-    {
-        if (await _context.Brands.AnyAsync())
-        {
-            return;
-        }
-
-        // Only fetch subcategories (categories that have a parent)
-        var dairy = await _context.Categories.FirstOrDefaultAsync(item => item.NameEn == "Dairy" && item.ParentCategoryId != null);
-        var beverages = await _context.Categories.FirstOrDefaultAsync(item => item.NameEn == "Beverages" && item.ParentCategoryId != null);
-        var snacks = await _context.Categories.FirstOrDefaultAsync(item => item.NameEn == "Snacks" && item.ParentCategoryId != null);
-        var phones = await _context.Categories.FirstOrDefaultAsync(item => item.NameEn == "Phones" && item.ParentCategoryId != null);
-        var accessories = await _context.Categories.FirstOrDefaultAsync(item => item.NameEn == "Accessories" && item.ParentCategoryId != null);
-        var householdCare = await _context.Categories.FirstOrDefaultAsync(item => item.NameEn == "Household Care" && item.ParentCategoryId != null);
-
-        var brands = new List<Brand>
-        {
-            new("المراعي", "Almarai", "https://cdn.simpleicons.org/tesco/00539f", null, dairy?.Id),
-            new("نادك", "Nadec", "https://cdn.simpleicons.org/carrefour/004f9f", null, dairy?.Id),
-            new("نادا", "Nada", "https://cdn.simpleicons.org/walmart/0071ce", null, beverages?.Id),
-            new("بيبسي", "Pepsi", "https://cdn.simpleicons.org/pepsi/2151a1", null, beverages?.Id),
-            new("ليز", "Lay's", "https://cdn.simpleicons.org/fritolay/ffcc00", null, snacks?.Id),
-            new("سامسونج", "Samsung", "https://cdn.simpleicons.org/samsung/1428a0", null, phones?.Id),
-            new("آبل", "Apple", "https://cdn.simpleicons.org/apple/000000", null, phones?.Id),
-            new("أنكر", "Anker", "https://cdn.simpleicons.org/anker/00a7e1", null, accessories?.Id),
-            new("برايل", "Pril", "https://cdn.simpleicons.org/homeassistant/41bdf5", null, householdCare?.Id),
-            new("فاين", "Fine", "https://cdn.simpleicons.org/cloudflare/ff6633", null, householdCare?.Id)
-        };
-
-        await _context.Brands.AddRangeAsync(brands);
-        await _context.SaveChangesAsync();
-    }
-
-    private async Task SeedMasterProductsAsync()
-    {
-        // Clean up orphaned images that may remain from a previous reset
-        await _context.Database.ExecuteSqlRawAsync("""
-            DELETE mpi FROM [MasterProductImage] mpi
-            LEFT JOIN [MasterProduct] mp ON mpi.[MasterProductId] = mp.[Id]
-            WHERE mp.[Id] IS NULL
-        """);
-
-        var categories = await _context.Categories.ToDictionaryAsync(x => x.NameEn);
-        var brands = await _context.Brands.ToDictionaryAsync(x => x.NameEn);
-        var units = await _context.UnitsOfMeasure.ToDictionaryAsync(x => x.Symbol!);
-        var productTypes = await _context.ProductTypes.ToDictionaryAsync(x => x.NameEn);
-        var parts = await _context.Parts.ToDictionaryAsync(x => x.NameEn);
-        var existingProducts = await _context.MasterProducts
-            .Include(x => x.Images)
-            .ToListAsync();
-        var existingProductsBySlug = existingProducts.ToDictionary(x => x.Slug, StringComparer.OrdinalIgnoreCase);
-
-        var products = new List<SeededMasterProduct>
-        {
-            CreateProduct(new Guid("00000000-0000-0000-0000-000000000101"), "حليب كامل الدسم 1 لتر", "Full Cream Milk 1L", "full-cream-milk-1l", "حليب طازج يومي غني بالكالسيوم.", "Fresh full cream milk for daily essentials.", categories["Milk"].Id, brands["Almarai"].Id, units["L"].Id, productTypes.GetValueOrDefault("Milk")?.Id, parts.GetValueOrDefault("Full Cream")?.Id, ImageCatalog.Milk1, ImageCatalog.Milk2),
-            CreateProduct(new Guid("00000000-0000-0000-0000-000000000102"), "زبادي يوناني", "Greek Yogurt", "greek-yogurt", "زبادي كثيف مناسب للفطور والوجبات الخفيفة.", "Rich Greek yogurt for breakfast and snacks.", categories["Yogurt"].Id, brands["Almarai"].Id, units["pk"].Id, productTypes.GetValueOrDefault("Yogurt")?.Id, parts.GetValueOrDefault("Greek")?.Id, ImageCatalog.Yogurt1, ImageCatalog.Yogurt2),
-            CreateProduct(new Guid("00000000-0000-0000-0000-000000000103"), "عصير برتقال طازج 1 لتر", "Orange Juice 1L", "orange-juice-1l", "عصير منعش بطعم طبيعي.", "Refreshing orange juice with a natural taste.", categories["Juices"].Id, brands["Nada"].Id, units["L"].Id, null, null, ImageCatalog.Juice1, ImageCatalog.Juice2),
-            CreateProduct(new Guid("00000000-0000-0000-0000-000000000104"), "مياه شرب عبوة 6", "Water Pack 6x330ml", "water-pack-6", "عبوة مياه للشرب اليومي.", "Convenient water pack for daily hydration.", categories["Water"].Id, brands["Pepsi"].Id, units["ctn"].Id, null, null, ImageCatalog.Water1, ImageCatalog.Water2),
-            CreateProduct(new Guid("00000000-0000-0000-0000-000000000105"), "خبز توست أبيض", "White Toast Bread", "white-toast-bread", "خبز طازج للسندويتشات اليومية.", "Fresh toast bread for everyday sandwiches.", categories["Toast Bread"].Id, null, units["pk"].Id, null, null, ImageCatalog.Bread1, ImageCatalog.Bread2),
-            CreateProduct(new Guid("00000000-0000-0000-0000-000000000106"), "بطاطس شيبس كلاسيك", "Classic Potato Chips", "classic-potato-chips", "وجبة خفيفة مقرمشة.", "Crunchy classic potato chips.", categories["Chips"].Id, brands["Lay's"].Id, units["pk"].Id, null, null, ImageCatalog.Chips1, ImageCatalog.Chips2),
-            CreateProduct(new Guid("00000000-0000-0000-0000-000000000107"), "موز طازج", "Fresh Bananas", "fresh-bananas", "موز طازج صالح للوجبات الخفيفة والعصائر.", "Fresh bananas for snacks and smoothies.", categories["Bananas"].Id, null, units["kg"].Id, null, null, ImageCatalog.Banana1, ImageCatalog.Banana2),
-            CreateProduct(new Guid("00000000-0000-0000-0000-000000000108"), "طماطم حمراء", "Red Tomatoes", "red-tomatoes", "طماطم يومية للطبخ والسلطات.", "Everyday tomatoes for cooking and salads.", categories["Tomatoes"].Id, null, units["kg"].Id, null, null, ImageCatalog.Tomato1, ImageCatalog.Tomato2),
-            CreateProduct(new Guid("00000000-0000-0000-0000-000000000109"), "سائل تنظيف أطباق", "Dishwashing Liquid", "dishwashing-liquid", "منظف أطباق بفعالية عالية.", "High-performance dishwashing liquid.", categories["Dishwashing"].Id, brands["Pril"].Id, units["L"].Id, null, null, ImageCatalog.DishSoap1, ImageCatalog.DishSoap2),
-            CreateProduct(new Guid("00000000-0000-0000-0000-000000000110"), "مناديل مطبخ رولين", "Kitchen Towels 2 Rolls", "kitchen-towels-2-rolls", "مناديل مطبخ بامتصاص ممتاز.", "Kitchen towels with strong absorption.", categories["Tissues"].Id, brands["Fine"].Id, units["roll"].Id, null, null, ImageCatalog.Towel1, ImageCatalog.Towel2),
-            CreateProduct(new Guid("00000000-0000-0000-0000-000000000111"), "شاحن سريع USB-C", "USB-C Fast Charger", "usb-c-fast-charger", "شاحن سريع متوافق مع أغلب الهواتف الحديثة.", "Fast charger compatible with most modern phones.", categories["Chargers"].Id, brands["Anker"].Id, units["pcs"].Id, null, null, ImageCatalog.Charger1, ImageCatalog.Charger2),
-            CreateProduct(new Guid("00000000-0000-0000-0000-000000000112"), "غطاء آيفون شفاف", "Transparent iPhone Case", "transparent-iphone-case", "غطاء شفاف خفيف يحمي الهاتف من الخدوش.", "Slim transparent case for scratch protection.", categories["Phone Cases"].Id, brands["Apple"].Id, units["pcs"].Id, null, null, ImageCatalog.Case1, ImageCatalog.Case2),
-            CreateProduct(new Guid("00000000-0000-0000-0000-000000000113"), "هاتف سامسونج جالاكسي A55", "Samsung Galaxy A55", "samsung-galaxy-a55", "هاتف ذكي للأداء اليومي.", "Smartphone with balanced daily performance.", categories["Samsung Phones"].Id, brands["Samsung"].Id, units["pcs"].Id, null, null, ImageCatalog.Phone1, ImageCatalog.Phone2),
-            CreateProduct(new Guid("00000000-0000-0000-0000-000000000114"), "آيفون 15", "iPhone 15", "iphone-15", "هاتف آيفون حديث بتجربة سلسة.", "Modern iPhone with a smooth experience.", categories["iPhone Phones"].Id, brands["Apple"].Id, units["pcs"].Id, null, null, ImageCatalog.Iphone1, ImageCatalog.Iphone2)
-        };
-
-        // Delete images for existing products via raw SQL to avoid PK conflicts during re-seed
-        if (existingProducts.Count > 0)
-        {
-            var existingIds = existingProducts.Select(p => p.Id).ToList();
-            await _context.Set<MasterProductImage>()
-                .Where(image => existingIds.Contains(image.MasterProductId))
-                .ExecuteDeleteAsync();
-
-            // Detach and re-load existing products so EF doesn't track stale images
-            _context.ChangeTracker.Clear();
-            existingProducts = await _context.MasterProducts.Include(x => x.Images).ToListAsync();
-            existingProductsBySlug = existingProducts.ToDictionary(x => x.Slug, StringComparer.OrdinalIgnoreCase);
-        }
-
-        foreach (var seed in products)
-        {
-            if (existingProductsBySlug.TryGetValue(seed.Product.Slug, out var existing))
-            {
-                existing.UpdateDetails(
-                    seed.Product.NameAr,
-                    seed.Product.NameEn,
-                    seed.Product.Slug,
-                    seed.Product.DescriptionAr,
-                    seed.Product.DescriptionEn,
-                    seed.Product.Barcode);
-                existing.ChangeCategory(seed.Product.CategoryId);
-                existing.ChangeBrand(seed.Product.BrandId);
-                existing.ChangeUnit(seed.Product.UnitOfMeasureId);
-                existing.ChangeProductType(seed.Product.ProductTypeId);
-                existing.ChangePart(seed.Product.PartId);
-                existing.Publish();
-                foreach (var image in seed.Product.Images.OrderBy(x => x.DisplayOrder))
-                {
-                    existing.AddImage(image.Url, image.AltText, image.DisplayOrder, image.IsPrimary);
-                }
-
-                continue;
-            }
-
-            await _context.MasterProducts.AddAsync(seed.Product);
-        }
-
-        await _context.SaveChangesAsync();
-    }
-
-    private async Task SeedProductTypesAndPartsAsync()
-    {
-        var dairyCategory = await _context.Categories.FirstOrDefaultAsync(item => item.NameEn == "Dairy");
-        if (dairyCategory == null)
-        {
-            return;
-        }
-
-        var milkType = await EnsureProductTypeAsync("حليب", "Milk", dairyCategory.Id);
-        var yogurtType = await EnsureProductTypeAsync("زبادي", "Yogurt", dairyCategory.Id);
-
-        await EnsurePartAsync("كامل الدسم", "Full Cream", milkType.Id);
-        await EnsurePartAsync("خالي الدسم", "Skimmed", milkType.Id);
-        await EnsurePartAsync("طازج", "Fresh", yogurtType.Id);
-        await EnsurePartAsync("يوناني", "Greek", yogurtType.Id);
-
-        await _context.SaveChangesAsync();
-    }
-
-    private async Task<ProductType> EnsureProductTypeAsync(string nameAr, string nameEn, Guid categoryId)
-    {
-        var existing = await _context.ProductTypes
-            .FirstOrDefaultAsync(item => item.CategoryId == categoryId && item.NameEn == nameEn);
-
-        if (existing != null)
-        {
-            existing.Update(nameAr, nameEn, categoryId);
-            return existing;
-        }
-
-        var entity = new ProductType(nameAr, nameEn, categoryId);
-        await _context.ProductTypes.AddAsync(entity);
-        await _context.SaveChangesAsync();
-        return entity;
-    }
-
-    private async Task<Part> EnsurePartAsync(string nameAr, string nameEn, Guid productTypeId)
-    {
-        var existing = await _context.Parts
-            .FirstOrDefaultAsync(item => item.ProductTypeId == productTypeId && item.NameEn == nameEn);
-
-        if (existing != null)
-        {
-            existing.Update(nameAr, nameEn, productTypeId);
-            return existing;
-        }
-
-        var entity = new Part(nameAr, nameEn, productTypeId);
-        await _context.Parts.AddAsync(entity);
-        return entity;
-    }
-
-    private async Task BackfillDairyProductTypesAndPartsAsync(
-        Guid categoryId,
-        Guid? milkTypeId,
-        Guid? yogurtTypeId,
-        Guid? fullCreamPartId,
-        Guid? freshPartId)
-    {
-        var products = await _context.MasterProducts
-            .Where(item => item.CategoryId == categoryId && (!item.ProductTypeId.HasValue || !item.PartId.HasValue))
-            .ToListAsync();
-
-        foreach (var product in products)
-        {
-            var normalized = $"{product.NameEn} {product.NameAr} {product.Slug}".ToLowerInvariant();
-
-            if (normalized.Contains("milk") || normalized.Contains("حليب"))
-            {
-                if (!product.ProductTypeId.HasValue)
-                {
-                    product.ChangeProductType(milkTypeId);
-                }
-
-                if (!product.PartId.HasValue)
-                {
-                    product.ChangePart(fullCreamPartId);
-                }
-
-                continue;
-            }
-
-            if (normalized.Contains("yogurt") || normalized.Contains("yoghurt") || normalized.Contains("زباد"))
-            {
-                if (!product.ProductTypeId.HasValue)
-                {
-                    product.ChangeProductType(yogurtTypeId);
-                }
-
-                if (!product.PartId.HasValue)
-                {
-                    product.ChangePart(freshPartId);
-                }
+                throw new InvalidOperationException($"Failed to create admin user {DefaultAdminEmail}: {string.Join(", ", result.Errors.Select(x => x.Description))}");
             }
         }
-    }
 
-    private static SeededMasterProduct CreateProduct(
-        Guid id,
-        string nameAr,
-        string nameEn,
-        string slug,
-        string descriptionAr,
-        string descriptionEn,
-        Guid categoryId,
-        Guid? brandId,
-        Guid? unitId,
-        Guid? productTypeId,
-        Guid? partId,
-        string primaryImage,
-        string secondaryImage)
-    {
-        var product = new MasterProduct(
-            nameAr,
-            nameEn,
-            slug,
-            categoryId,
-            brandId,
-            unitId,
-            descriptionAr,
-            descriptionEn,
-            null,
-            productTypeId,
-            partId);
-
-        SetSeedEntityId(product, id);
-        product.Publish();
-        product.AddImage(primaryImage, nameEn, 0, true);
-        product.AddImage(secondaryImage, nameEn, 1, false);
-        return new SeededMasterProduct(id, product);
-    }
-
-    private static void SetSeedEntityId(BaseEntity entity, Guid id)
-    {
-        var property = typeof(BaseEntity).GetProperty(nameof(BaseEntity.Id), BindingFlags.Instance | BindingFlags.Public);
-        var setter = property?.SetMethod;
-        setter?.Invoke(entity, [id]);
-    }
-
-    private async Task SeedSampleVendorsAsync()
-    {
-        var adminUser = await _userManager.FindByEmailAsync("admin@system.com");
-        if (adminUser == null)
+        if (!await _userManager.IsInRoleAsync(admin, UserRole.SuperAdmin.ToString()))
         {
-            return;
+            await _userManager.AddToRoleAsync(admin, UserRole.SuperAdmin.ToString());
         }
 
-        var seeds = new[]
-        {
-            new VendorSeedDefinition(
-                FullName: "Abdullah Khaled",
-                Email: "vendor.test1@zadana.local",
-                Phone: "+966501234567",
-                Password: "Vendor@12345",
-                BusinessNameAr: "Modern Tech Mart",
-                BusinessNameEn: "Modern Tech Mart",
-                BusinessType: "Electronics",
-                CommercialRegistrationNumber: "1010123456",
-                CommercialRegistrationExpiryDate: DateTime.UtcNow.Date.AddYears(2),
-                ContactEmail: "vendor.test1@zadana.local",
-                ContactPhone: "+966501234567",
-                DescriptionAr: "Electronics and smart accessories store.",
-                DescriptionEn: "Electronics and smart accessories store.",
-                OwnerName: "Abdullah Khaled",
-                OwnerEmail: "vendor.test1@zadana.local",
-                OwnerPhone: "+966501234567",
-                IdNumber: "1012344321",
-                Nationality: "Saudi",
-                Region: "Central",
-                City: "Riyadh",
-                NationalAddress: "7293 King Fahd Rd, Al Malqa, Riyadh 13524",
-                TaxId: "300123456789012",
-                LicenseNumber: "LIC-987654",
-                BankName: "Alrajhi",
-                AccountHolderName: "Abdullah Khaled",
-                Iban: "SA1280000000608012345678",
-                SwiftCode: "RJHISARI",
-                PayoutCycle: "Biweekly",
-                BranchName: "Modern Tech Mart - HQ",
-                BranchAddressLine: "King Fahd Rd, Riyadh",
-                BranchLatitude: 24.774265m,
-                BranchLongitude: 46.738586m,
-                BranchContactPhone: "+966501234567",
-                BranchDeliveryRadiusKm: 18m,
-                CommissionRate: 12.5m,
-                StatusKind: SeedVendorStatus.Active,
-                AcceptOrders: true,
-                MinimumOrderAmount: 75m,
-                PreparationTimeMinutes: 35,
-                EmailNotificationsEnabled: true,
-                SmsNotificationsEnabled: true,
-                NewOrdersNotificationsEnabled: true,
-                Hours: BuildStandardHours("09:00", "23:00")),
-
-            new VendorSeedDefinition(
-                FullName: "Sara Mahmoud",
-                Email: "vendor.test2@zadana.local",
-                Phone: "+966553334455",
-                Password: "Vendor@12345",
-                BusinessNameAr: "Fresh Basket",
-                BusinessNameEn: "Fresh Basket",
-                BusinessType: "Grocery",
-                CommercialRegistrationNumber: "4032211455",
-                CommercialRegistrationExpiryDate: DateTime.UtcNow.Date.AddYears(3),
-                ContactEmail: "vendor.test2@zadana.local",
-                ContactPhone: "+966553334455",
-                DescriptionAr: "Groceries and daily essentials.",
-                DescriptionEn: "Groceries and daily essentials.",
-                OwnerName: "Sara Mahmoud",
-                OwnerEmail: "vendor.test2@zadana.local",
-                OwnerPhone: "+966553334455",
-                IdNumber: "1023456789",
-                Nationality: "Egyptian",
-                Region: "Western",
-                City: "Jeddah",
-                NationalAddress: "Prince Sultan Rd, Jeddah 23435",
-                TaxId: "300987654321098",
-                LicenseNumber: "LIC-443322",
-                BankName: "Alahli",
-                AccountHolderName: "Sara Mahmoud",
-                Iban: "SA0380000000608012345671",
-                SwiftCode: "NCBKSAJE",
-                PayoutCycle: "Monthly",
-                BranchName: "Fresh Basket - Jeddah",
-                BranchAddressLine: "Prince Sultan Rd, Jeddah",
-                BranchLatitude: 21.543333m,
-                BranchLongitude: 39.172779m,
-                BranchContactPhone: "+966553334455",
-                BranchDeliveryRadiusKm: 14m,
-                CommissionRate: null,
-                StatusKind: SeedVendorStatus.Pending,
-                AcceptOrders: false,
-                MinimumOrderAmount: 50m,
-                PreparationTimeMinutes: 20,
-                EmailNotificationsEnabled: true,
-                SmsNotificationsEnabled: false,
-                NewOrdersNotificationsEnabled: true,
-                Hours: BuildStandardHours("08:00", "22:00")),
-
-            new VendorSeedDefinition(
-                FullName: "Omar Hassan",
-                Email: "vendor.new@zadana.local",
-                Phone: "+966512345890",
-                Password: "Vendor@12345",
-                BusinessNameAr: "Green Valley Market",
-                BusinessNameEn: "Green Valley Market",
-                BusinessType: "Grocery",
-                CommercialRegistrationNumber: "1015566778",
-                CommercialRegistrationExpiryDate: DateTime.UtcNow.Date.AddYears(2),
-                ContactEmail: "vendor.new@zadana.local",
-                ContactPhone: "+966512345890",
-                DescriptionAr: "متجر بقالة ومنتجات طازجة للتجربة.",
-                DescriptionEn: "Grocery and fresh products demo store.",
-                OwnerName: "Omar Hassan",
-                OwnerEmail: "vendor.new@zadana.local",
-                OwnerPhone: "+966512345890",
-                IdNumber: "1102233445",
-                Nationality: "Egyptian",
-                Region: "Central",
-                City: "Riyadh",
-                NationalAddress: "King Abdullah Rd, Riyadh",
-                TaxId: "300666777888999",
-                LicenseNumber: "LIC-554433",
-                BankName: "Alrajhi",
-                AccountHolderName: "Omar Hassan",
-                Iban: "SA9980000000608012345683",
-                SwiftCode: "RJHISARI",
-                PayoutCycle: "Weekly",
-                BranchName: "Green Valley Market - Riyadh",
-                BranchAddressLine: "King Abdullah Rd, Riyadh",
-                BranchLatitude: 24.713800m,
-                BranchLongitude: 46.675300m,
-                BranchContactPhone: "+966512345890",
-                BranchDeliveryRadiusKm: 16m,
-                CommissionRate: 12m,
-                StatusKind: SeedVendorStatus.Active,
-                AcceptOrders: true,
-                MinimumOrderAmount: 55m,
-                PreparationTimeMinutes: 25,
-                EmailNotificationsEnabled: true,
-                SmsNotificationsEnabled: true,
-                NewOrdersNotificationsEnabled: true,
-                Hours: BuildStandardHours("08:30", "23:30")),
-
-            new VendorSeedDefinition(
-                FullName: "Faisal Nasser",
-                Email: "vendor.suspended@zadana.local",
-                Phone: "+966544445566",
-                Password: "Vendor@12345",
-                BusinessNameAr: "Riyadh Kitchens",
-                BusinessNameEn: "Riyadh Kitchens",
-                BusinessType: "Restaurant",
-                CommercialRegistrationNumber: "1019988776",
-                CommercialRegistrationExpiryDate: DateTime.UtcNow.Date.AddYears(1),
-                ContactEmail: "vendor.suspended@zadana.local",
-                ContactPhone: "+966544445566",
-                DescriptionAr: "Cloud kitchen for quick meals.",
-                DescriptionEn: "Cloud kitchen for quick meals.",
-                OwnerName: "Faisal Nasser",
-                OwnerEmail: "vendor.suspended@zadana.local",
-                OwnerPhone: "+966544445566",
-                IdNumber: "1045678901",
-                Nationality: "Saudi",
-                Region: "Central",
-                City: "Riyadh",
-                NationalAddress: "Olaya St, Riyadh",
-                TaxId: "300222222222222",
-                LicenseNumber: "LIC-778899",
-                BankName: "Alinma",
-                AccountHolderName: "Faisal Nasser",
-                Iban: "SA5080000000608012345679",
-                SwiftCode: "INMASARI",
-                PayoutCycle: "Weekly",
-                BranchName: "Riyadh Kitchens - Main",
-                BranchAddressLine: "Olaya St, Riyadh",
-                BranchLatitude: 24.713552m,
-                BranchLongitude: 46.675297m,
-                BranchContactPhone: "+966544445566",
-                BranchDeliveryRadiusKm: 10m,
-                CommissionRate: 15m,
-                StatusKind: SeedVendorStatus.Suspended,
-                AcceptOrders: false,
-                MinimumOrderAmount: 45m,
-                PreparationTimeMinutes: 30,
-                EmailNotificationsEnabled: true,
-                SmsNotificationsEnabled: true,
-                NewOrdersNotificationsEnabled: false,
-                Hours: BuildStandardHours("10:00", "01:00")),
-
-            new VendorSeedDefinition(
-                FullName: "Mona Adel",
-                Email: "vendor.rejected@zadana.local",
-                Phone: "+966566778899",
-                Password: "Vendor@12345",
-                BusinessNameAr: "Beauty Corner",
-                BusinessNameEn: "Beauty Corner",
-                BusinessType: "Beauty",
-                CommercialRegistrationNumber: "2055512344",
-                CommercialRegistrationExpiryDate: DateTime.UtcNow.Date.AddYears(1),
-                ContactEmail: "vendor.rejected@zadana.local",
-                ContactPhone: "+966566778899",
-                DescriptionAr: "Beauty and care products store.",
-                DescriptionEn: "Beauty and care products store.",
-                OwnerName: "Mona Adel",
-                OwnerEmail: "vendor.rejected@zadana.local",
-                OwnerPhone: "+966566778899",
-                IdNumber: "1067890123",
-                Nationality: "Egyptian",
-                Region: "Eastern",
-                City: "Dammam",
-                NationalAddress: "King Saud St, Dammam",
-                TaxId: "300333333333333",
-                LicenseNumber: "LIC-112233",
-                BankName: "Alahli",
-                AccountHolderName: "Mona Adel",
-                Iban: "SA0480000000608012345680",
-                SwiftCode: "NCBKSAJE",
-                PayoutCycle: "Monthly",
-                BranchName: "Beauty Corner - Dammam",
-                BranchAddressLine: "King Saud St, Dammam",
-                BranchLatitude: 26.420683m,
-                BranchLongitude: 50.088795m,
-                BranchContactPhone: "+966566778899",
-                BranchDeliveryRadiusKm: 12m,
-                CommissionRate: null,
-                StatusKind: SeedVendorStatus.Rejected,
-                AcceptOrders: false,
-                MinimumOrderAmount: 60m,
-                PreparationTimeMinutes: 25,
-                EmailNotificationsEnabled: true,
-                SmsNotificationsEnabled: false,
-                NewOrdersNotificationsEnabled: true,
-                Hours: BuildStandardHours("11:00", "22:00")),
-
-            new VendorSeedDefinition(
-                FullName: "Yousef Ibrahim",
-                Email: "vendor.locked@zadana.local",
-                Phone: "+966577889900",
-                Password: "Vendor@12345",
-                BusinessNameAr: "Home Furniture Hub",
-                BusinessNameEn: "Home Furniture Hub",
-                BusinessType: "Home",
-                CommercialRegistrationNumber: "3022244668",
-                CommercialRegistrationExpiryDate: DateTime.UtcNow.Date.AddYears(2),
-                ContactEmail: "vendor.locked@zadana.local",
-                ContactPhone: "+966577889900",
-                DescriptionAr: "Furniture and home setup store.",
-                DescriptionEn: "Furniture and home setup store.",
-                OwnerName: "Yousef Ibrahim",
-                OwnerEmail: "vendor.locked@zadana.local",
-                OwnerPhone: "+966577889900",
-                IdNumber: "1089012345",
-                Nationality: "Saudi",
-                Region: "Eastern",
-                City: "Khobar",
-                NationalAddress: "Corniche Rd, Khobar",
-                TaxId: "300444444444444",
-                LicenseNumber: "LIC-665544",
-                BankName: "Alrajhi",
-                AccountHolderName: "Yousef Ibrahim",
-                Iban: "SA1380000000608012345681",
-                SwiftCode: "RJHISARI",
-                PayoutCycle: "Monthly",
-                BranchName: "Home Furniture Hub - Khobar",
-                BranchAddressLine: "Corniche Rd, Khobar",
-                BranchLatitude: 26.279445m,
-                BranchLongitude: 50.208332m,
-                BranchContactPhone: "+966577889900",
-                BranchDeliveryRadiusKm: 20m,
-                CommissionRate: 11m,
-                StatusKind: SeedVendorStatus.Locked,
-                AcceptOrders: false,
-                MinimumOrderAmount: 120m,
-                PreparationTimeMinutes: 90,
-                EmailNotificationsEnabled: true,
-                SmsNotificationsEnabled: true,
-                NewOrdersNotificationsEnabled: false,
-                Hours: BuildStandardHours("10:00", "23:30")),
-
-            new VendorSeedDefinition(
-                FullName: "Rania Hassan",
-                Email: "vendor.archived@zadana.local",
-                Phone: "+966588990011",
-                Password: "Vendor@12345",
-                BusinessNameAr: "Orient Perfumes",
-                BusinessNameEn: "Orient Perfumes",
-                BusinessType: "Retail",
-                CommercialRegistrationNumber: "4033399887",
-                CommercialRegistrationExpiryDate: DateTime.UtcNow.Date.AddMonths(9),
-                ContactEmail: "vendor.archived@zadana.local",
-                ContactPhone: "+966588990011",
-                DescriptionAr: "Perfumes and gifts store.",
-                DescriptionEn: "Perfumes and gifts store.",
-                OwnerName: "Rania Hassan",
-                OwnerEmail: "vendor.archived@zadana.local",
-                OwnerPhone: "+966588990011",
-                IdNumber: "1099123456",
-                Nationality: "Jordanian",
-                Region: "Western",
-                City: "Makkah",
-                NationalAddress: "Ibrahim Al Khalil Rd, Makkah",
-                TaxId: "300555555555555",
-                LicenseNumber: "LIC-998877",
-                BankName: "Alinma",
-                AccountHolderName: "Rania Hassan",
-                Iban: "SA6080000000608012345682",
-                SwiftCode: "INMASARI",
-                PayoutCycle: "Biweekly",
-                BranchName: "Orient Perfumes - Makkah",
-                BranchAddressLine: "Ibrahim Al Khalil Rd, Makkah",
-                BranchLatitude: 21.389082m,
-                BranchLongitude: 39.857910m,
-                BranchContactPhone: "+966588990011",
-                BranchDeliveryRadiusKm: 9m,
-                CommissionRate: 13m,
-                StatusKind: SeedVendorStatus.Archived,
-                AcceptOrders: false,
-                MinimumOrderAmount: 80m,
-                PreparationTimeMinutes: 15,
-                EmailNotificationsEnabled: false,
-                SmsNotificationsEnabled: false,
-                NewOrdersNotificationsEnabled: false,
-                Hours: BuildStandardHours("12:00", "21:00"))
-        };
-
-        foreach (var seed in seeds)
-        {
-            await EnsureVendorSeedAsync(seed, adminUser.Id);
-        }
+        admin.VerifyEmail();
+        admin.VerifyPhone();
+        _context.Users.Update(admin);
+        await _context.SaveChangesAsync();
     }
 
-    private async Task SeedHomeBannersAsync()
+    private async Task SeedSuperAdminAccessScopeAsync()
     {
-        var seeds = CreateHomeBannerSeeds(DateTime.UtcNow);
-        var existingBanners = await _context.HomeBanners.ToListAsync();
-        if (existingBanners.Count == 0)
+        var admin = await _userManager.FindByEmailAsync(DefaultAdminEmail);
+        if (admin is null)
         {
-            await _context.HomeBanners.AddRangeAsync(seeds.Select(CreateHomeBanner));
+            throw new InvalidOperationException($"Admin user {DefaultAdminEmail} was not created.");
+        }
+
+        var role = await _context.RoleDefinitions.FirstOrDefaultAsync(x => x.Code == "super_admin_all");
+        if (role is null)
+        {
+            throw new InvalidOperationException("Super Admin role definition was not created.");
+        }
+
+        var existing = await _context.UserAccessScopes
+            .FirstOrDefaultAsync(x => x.UserId == admin.Id && x.IsActive);
+
+        if (existing is null)
+        {
+            _context.UserAccessScopes.Add(new UserAccessScope(
+                admin.Id,
+                role.Id,
+                PanelScope.SuperAdminPanel,
+                AccessScopeType.Global));
+            admin.IncrementPermissionVersion();
             await _context.SaveChangesAsync();
             return;
         }
 
-        await RepairSeededHomeBannersAsync(existingBanners, seeds);
-    }
-
-    private async Task RepairSeededHomeBannersAsync()
-    {
-        var existingBanners = await _context.HomeBanners.ToListAsync();
-        if (existingBanners.Count == 0)
+        if (existing.RoleDefinitionId == role.Id &&
+            existing.PanelScope == PanelScope.SuperAdminPanel &&
+            existing.ScopeType == AccessScopeType.Global &&
+            existing.ScopeEntityId is null)
         {
             return;
         }
 
-        await RepairSeededHomeBannersAsync(existingBanners, CreateHomeBannerSeeds(DateTime.UtcNow));
-    }
-
-    private async Task RepairSeededHomeBannersAsync(
-        IReadOnlyList<HomeBanner> existingBanners,
-        IReadOnlyList<HomeBannerSeed> seeds)
-    {
-        var changed = false;
-        foreach (var seed in seeds)
-        {
-            var existing = existingBanners.FirstOrDefault(banner =>
-                banner.ImageUrl == seed.ImageUrl ||
-                banner.TitleEn == seed.TitleEn);
-
-            if (existing is null || !NeedsArabicSeedRepair(existing, seed))
-            {
-                continue;
-            }
-
-            existing.UpdateContent(
-                RepairArabicSeedText(existing.TagAr, seed.TagAr),
-                existing.TagEn,
-                RepairArabicSeedText(existing.TitleAr, seed.TitleAr),
-                existing.TitleEn,
-                existing.ImageUrl,
-                RepairArabicSeedTextOrNull(existing.SubtitleAr, seed.SubtitleAr),
-                existing.SubtitleEn,
-                RepairArabicSeedTextOrNull(existing.ActionLabelAr, seed.ActionLabelAr),
-                existing.ActionLabelEn,
-                existing.DisplayOrder,
-                existing.StartsAtUtc,
-                existing.EndsAtUtc);
-            changed = true;
-        }
-
-        if (changed)
-        {
-            await _context.SaveChangesAsync();
-        }
-    }
-
-    private static IReadOnlyList<HomeBannerSeed> CreateHomeBannerSeeds(DateTime now) =>
-    [
-        new(
-            TagAr: "عروض اليوم",
-            TagEn: "Today's deals",
-            TitleAr: "خصومات قوية على منتجاتك اليومية",
-            TitleEn: "Strong discounts on your daily essentials",
-            ImageUrl: ImageCatalog.BannerDeals,
-            SubtitleAr: "توصيل سريع وأسعار أفضل من المعتاد",
-            SubtitleEn: "Fast delivery and better-than-usual prices",
-            ActionLabelAr: "تسوق الآن",
-            ActionLabelEn: "Shop now",
-            DisplayOrder: 1,
-            StartsAtUtc: now.AddDays(-7),
-            EndsAtUtc: now.AddMonths(2)),
-        new(
-            TagAr: "منتجات مميزة",
-            TagEn: "Featured picks",
-            TitleAr: "اختيارات موصى بها من أفضل المتاجر",
-            TitleEn: "Recommended picks from top stores",
-            ImageUrl: ImageCatalog.BannerStores,
-            SubtitleAr: "تشكيلة منتقاة بعناية لتسهيل قرار الشراء",
-            SubtitleEn: "A curated selection to make buying easier",
-            ActionLabelAr: "اكتشف المزيد",
-            ActionLabelEn: "Explore more",
-            DisplayOrder: 2,
-            StartsAtUtc: now.AddDays(-3),
-            EndsAtUtc: now.AddMonths(1)),
-        new(
-            TagAr: "الأكثر مبيعاً",
-            TagEn: "Best sellers",
-            TitleAr: "الأصناف الأكثر طلباً هذا الأسبوع",
-            TitleEn: "The most ordered items this week",
-            ImageUrl: ImageCatalog.BannerBestSelling,
-            SubtitleAr: "منتجات يحبها العملاء ويكررون طلبها",
-            SubtitleEn: "Products customers love and reorder",
-            ActionLabelAr: "شاهد القائمة",
-            ActionLabelEn: "See list",
-            DisplayOrder: 3,
-            StartsAtUtc: now.AddDays(-1),
-            EndsAtUtc: now.AddMonths(1))
-    ];
-
-    private static HomeBanner CreateHomeBanner(HomeBannerSeed seed) =>
-        new(
-            seed.TagAr,
-            seed.TagEn,
-            seed.TitleAr,
-            seed.TitleEn,
-            seed.ImageUrl,
-            seed.SubtitleAr,
-            seed.SubtitleEn,
-            seed.ActionLabelAr,
-            seed.ActionLabelEn,
-            seed.DisplayOrder,
-            seed.StartsAtUtc,
-            seed.EndsAtUtc);
-
-    private static bool NeedsArabicSeedRepair(HomeBanner banner, HomeBannerSeed seed) =>
-        !ContainsArabicLetter(banner.TagAr) ||
-        !ContainsArabicLetter(banner.TitleAr) ||
-        NeedsArabicSeedRepair(banner.SubtitleAr, seed.SubtitleAr) ||
-        NeedsArabicSeedRepair(banner.ActionLabelAr, seed.ActionLabelAr);
-
-    private static bool NeedsArabicSeedRepair(string? current, string? seed) =>
-        !string.IsNullOrWhiteSpace(seed) && !ContainsArabicLetter(current);
-
-    private static string RepairArabicSeedText(string current, string seed) =>
-        ContainsArabicLetter(current) ? current.Trim() : seed;
-
-    private static string? RepairArabicSeedTextOrNull(string? current, string? seed) =>
-        string.IsNullOrWhiteSpace(seed)
-            ? current?.Trim()
-            : ContainsArabicLetter(current) ? current?.Trim() : seed;
-
-    private static bool ContainsArabicLetter(string? value) =>
-        !string.IsNullOrWhiteSpace(value) &&
-        value.Any(character =>
-            character is >= '\u0600' and <= '\u06FF' ||
-            character is >= '\u0750' and <= '\u077F' ||
-            character is >= '\u08A0' and <= '\u08FF' ||
-            character is >= '\uFB50' and <= '\uFDFF' ||
-            character is >= '\uFE70' and <= '\uFEFF');
-
-    private async Task SeedVendorProductsAsync()
-    {
-        var vendors = await _context.Vendors
-            .Include(x => x.Branches)
-            .ToDictionaryAsync(x => x.BusinessNameEn);
-        var products = await _context.MasterProducts.ToDictionaryAsync(x => x.Slug);
-        var existingPairs = await _context.VendorProducts
-            .Select(x => new { x.VendorId, x.MasterProductId })
-            .ToListAsync();
-        var existingLookup = existingPairs
-            .Select(x => (x.VendorId, x.MasterProductId))
-            .ToHashSet();
-
-        var offers = new[]
-        {
-            new VendorProductSeed("Green Valley Market", "full-cream-milk-1l", 16.95m, 120, 19.95m),
-            new VendorProductSeed("Green Valley Market", "greek-yogurt", 8.50m, 90, 10.00m),
-            new VendorProductSeed("Green Valley Market", "orange-juice-1l", 11.75m, 70, 13.50m),
-            new VendorProductSeed("Green Valley Market", "water-pack-6", 9.95m, 150, null),
-            new VendorProductSeed("Green Valley Market", "white-toast-bread", 6.25m, 55, null),
-            new VendorProductSeed("Green Valley Market", "fresh-bananas", 12.50m, 80, null),
-            new VendorProductSeed("Green Valley Market", "red-tomatoes", 8.95m, 65, null),
-            new VendorProductSeed("Green Valley Market", "dishwashing-liquid", 14.95m, 45, 17.95m),
-            new VendorProductSeed("Green Valley Market", "kitchen-towels-2-rolls", 13.50m, 40, null),
-
-            new VendorProductSeed("Fresh Basket", "full-cream-milk-1l", 17.50m, 35, 19.95m),
-            new VendorProductSeed("Fresh Basket", "orange-juice-1l", 12.10m, 30, null),
-            new VendorProductSeed("Fresh Basket", "classic-potato-chips", 7.25m, 25, null),
-            new VendorProductSeed("Fresh Basket", "fresh-bananas", 13.20m, 22, null),
-
-            new VendorProductSeed("Modern Tech Mart", "usb-c-fast-charger", 79.00m, 28, 99.00m),
-            new VendorProductSeed("Modern Tech Mart", "transparent-iphone-case", 49.00m, 40, 59.00m),
-            new VendorProductSeed("Modern Tech Mart", "samsung-galaxy-a55", 1499.00m, 12, 1599.00m),
-            new VendorProductSeed("Modern Tech Mart", "iphone-15", 3199.00m, 8, 3399.00m),
-
-            new VendorProductSeed("Riyadh Kitchens", "water-pack-6", 8.95m, 0, null),
-            new VendorProductSeed("Riyadh Kitchens", "dishwashing-liquid", 16.95m, 10, null)
-        };
-
-        foreach (var offer in offers)
-        {
-            if (!vendors.TryGetValue(offer.VendorName, out var vendor))
-            {
-                continue;
-            }
-
-            if (!products.TryGetValue(offer.ProductSlug, out var product))
-            {
-                continue;
-            }
-
-            var branch = vendor.Branches.FirstOrDefault();
-            if (branch == null)
-            {
-                continue;
-            }
-
-            if (existingLookup.Contains((vendor.Id, product.Id)))
-            {
-                continue;
-            }
-
-            var entity = new VendorProduct(vendor.Id, product.Id, offer.SellingPrice, offer.Quantity, offer.CompareAtPrice, null, offer.SellingPrice, branch.Id);
-            if (offer.Quantity == 0)
-            {
-                entity.UpdateStock(0);
-            }
-
-            await _context.VendorProducts.AddAsync(entity);
-            existingLookup.Add((vendor.Id, product.Id));
-        }
-
-        await _context.SaveChangesAsync();
-    }
-
-    private async Task SeedHomeSectionsAsync()
-    {
-        if (await _context.HomeContentSectionSettings.AnyAsync())
-        {
-            return;
-        }
-
-        var settings = Enum.GetValues<HomeContentSectionType>()
-            .Select(section => new HomeContentSectionSetting(section, true))
-            .ToArray();
-        await _context.HomeContentSectionSettings.AddRangeAsync(settings);
-
-        var dairy = await _context.Categories.FirstAsync(x => x.NameEn == "Dairy");
-        var beverages = await _context.Categories.FirstAsync(x => x.NameEn == "Beverages");
-        var accessories = await _context.Categories.FirstAsync(x => x.NameEn == "Accessories");
-
-        await _context.HomeSections.AddRangeAsync(
-            new HomeSection(dairy.Id, HomeSectionTheme.SoftBlue, 1, 8, DateTime.UtcNow.AddDays(-15), DateTime.UtcNow.AddMonths(2)),
-            new HomeSection(beverages.Id, HomeSectionTheme.FreshOrange, 2, 8, DateTime.UtcNow.AddDays(-10), DateTime.UtcNow.AddMonths(2)),
-            new HomeSection(accessories.Id, HomeSectionTheme.BoldDark, 3, 6, DateTime.UtcNow.AddDays(-5), DateTime.UtcNow.AddMonths(2)));
-
-        await _context.SaveChangesAsync();
-    }
-
-    private async Task SeedFeaturedPlacementsAsync()
-    {
-        var vendorProducts = await _context.VendorProducts
-            .Include(x => x.MasterProduct)
-            .ToListAsync();
-        var existingOrders = await _context.FeaturedProductPlacements
-            .Select(x => x.DisplayOrder)
-            .ToListAsync();
-        var now = DateTime.UtcNow;
-        var placements = new List<FeaturedProductPlacement>();
-
-        var milkOffer = vendorProducts.FirstOrDefault(x => x.MasterProduct.Slug == "full-cream-milk-1l");
-        if (milkOffer != null && !existingOrders.Contains(1))
-        {
-            placements.Add(new FeaturedProductPlacement(
-                FeaturedPlacementType.VendorProduct,
-                1,
-                milkOffer.Id,
-                null,
-                now.AddDays(-7),
-                now.AddMonths(1),
-                "Daily essentials spotlight"));
-        }
-
-        var juice = await _context.MasterProducts.FirstOrDefaultAsync(x => x.Slug == "orange-juice-1l");
-        if (juice != null && !existingOrders.Contains(2))
-        {
-            placements.Add(new FeaturedProductPlacement(
-                FeaturedPlacementType.MasterProduct,
-                2,
-                null,
-                juice.Id,
-                now.AddDays(-7),
-                now.AddMonths(1),
-                "Fresh beverages"));
-        }
-
-        var phoneOffer = vendorProducts.FirstOrDefault(x => x.MasterProduct.Slug == "samsung-galaxy-a55");
-        if (phoneOffer != null && !existingOrders.Contains(3))
-        {
-            placements.Add(new FeaturedProductPlacement(
-                FeaturedPlacementType.VendorProduct,
-                3,
-                phoneOffer.Id,
-                null,
-                now.AddDays(-7),
-                now.AddMonths(1),
-                "Trending tech"));
-        }
-
-        if (placements.Count == 0)
-        {
-            return;
-        }
-
-        await _context.FeaturedProductPlacements.AddRangeAsync(placements);
-
-        await _context.SaveChangesAsync();
-    }
-
-    private async Task SeedCouponsAsync()
-    {
-        if (await _context.Coupons.AnyAsync())
-        {
-            return;
-        }
-
-        var greenValley = await _context.Vendors.FirstAsync(x => x.BusinessNameEn == "Green Valley Market");
-        var modernTech = await _context.Vendors.FirstAsync(x => x.BusinessNameEn == "Modern Tech Mart");
-        var now = DateTime.UtcNow;
-
-        var groceryCoupon = new Coupon("FRESH10", "Fresh Basket Savings", CouponDiscountType.Percentage, 10m, 60m, 25m, now.AddDays(-5), now.AddMonths(1), 500, 2);
-        var techCoupon = new Coupon("TECH50", "Tech Accessories Deal", CouponDiscountType.Fixed, 50m, 300m, null, now.AddDays(-2), now.AddMonths(1), 100, 1);
-
-        groceryCoupon.ApplicableVendors.Add(new CouponVendor(groceryCoupon.Id, greenValley.Id));
-        techCoupon.ApplicableVendors.Add(new CouponVendor(techCoupon.Id, modernTech.Id));
-
-        await _context.Coupons.AddRangeAsync(groceryCoupon, techCoupon);
-        await _context.SaveChangesAsync();
-    }
-
-    private async Task SeedCustomersAsync()
-    {
-        await EnsureUserAsync("ahmed.customer@zadana.local", "Ahmed Mostafa", "01000000010", UserRole.Customer, DefaultUserPassword, user =>
-        {
-            user.VerifyEmail();
-            user.VerifyPhone();
-            user.RecordLogin();
-            user.MarkPresenceOnline(DateTime.UtcNow.AddMinutes(-2));
-        });
-
-        await EnsureUserAsync("layla.customer@zadana.local", "Layla Adel", "01000000011", UserRole.Customer, DefaultUserPassword, user =>
-        {
-            user.VerifyEmail();
-            user.VerifyPhone();
-            user.RecordLogin();
-            user.MarkPresenceOffline(DateTime.UtcNow.AddHours(-1));
-        });
-
-        await EnsureUserAsync("noor.customer@zadana.local", "Noor Hossam", "01000000012", UserRole.Customer, DefaultUserPassword, user =>
-        {
-            user.VerifyEmail();
-            user.VerifyPhone();
-            user.RecordLogin();
-            user.MarkPresenceOffline(DateTime.UtcNow.AddDays(-1));
-        });
-    }
-
-    private async Task SeedDriversAsync()
-    {
-        if (await _context.Drivers.AnyAsync())
-        {
-            return;
-        }
-
-        var activeDriverUser = await EnsureUserAsync("driver.active@zadana.local", "Mahmoud Driver", "01000000020", UserRole.Driver, DefaultUserPassword, user =>
-        {
-            user.VerifyEmail();
-            user.VerifyPhone();
-            user.RecordLogin();
-            user.MarkPresenceOnline(DateTime.UtcNow.AddMinutes(-12));
-        });
-
-        var pendingDriverUser = await EnsureUserAsync("driver.pending@zadana.local", "Yara Driver", "01000000021", UserRole.Driver, DefaultUserPassword, user =>
-        {
-            user.VerifyEmail();
-            user.VerifyPhone();
-            user.RecordLogin();
-            user.MarkPresenceOffline(DateTime.UtcNow.AddHours(-5));
-        });
-
-        var reviewerUser = await _userManager.FindByEmailAsync("ops.admin@zadana.local");
-
-        var activeDriver = new Driver(
-            activeDriverUser.Id,
-            DriverVehicleType.Motorcycle,
-            "29801011234567",
-            "DRV-1001",
-            DateTime.UtcNow.Date.AddYears(1),
-            DateTime.UtcNow.Date.AddYears(1),
-            "VEH-1001",
-            DateTime.UtcNow.Date.AddYears(1),
-            "Riyadh",
-            ImageCatalog.DriverNationalId,
-            null,
-            ImageCatalog.DriverLicense,
-            ImageCatalog.DriverVehicle,
-            ImageCatalog.DriverProfile);
-        activeDriver.Approve(reviewerUser?.Id ?? activeDriverUser.Id);
-        activeDriver.ToggleAvailability(true);
-
-        var pendingDriver = new Driver(
-            pendingDriverUser.Id,
-            DriverVehicleType.Car,
-            "29801011234568",
-            "DRV-1002",
-            DateTime.UtcNow.Date.AddYears(1),
-            DateTime.UtcNow.Date.AddYears(1),
-            "VEH-1002",
-            DateTime.UtcNow.Date.AddYears(1),
-            "Jeddah",
-            ImageCatalog.DriverNationalId,
-            null,
-            ImageCatalog.DriverLicense,
-            ImageCatalog.DriverVehicle,
-            ImageCatalog.DriverProfile);
-
-        await _context.Drivers.AddRangeAsync(activeDriver, pendingDriver);
-        await _context.SaveChangesAsync();
-    }
-
-    private async Task SeedCustomerExperienceAsync()
-    {
-        if (await _context.Orders.AnyAsync())
-        {
-            return;
-        }
-
-        var ahmed = await _userManager.FindByEmailAsync("ahmed.customer@zadana.local");
-        var layla = await _userManager.FindByEmailAsync("layla.customer@zadana.local");
-        var noor = await _userManager.FindByEmailAsync("noor.customer@zadana.local");
-        if (ahmed is null || layla is null || noor is null)
-        {
-            return;
-        }
-
-        var ahmedHome = new CustomerAddress(ahmed.Id, "Ahmed Mostafa", ahmed.PhoneNumber!, "King Fahd Road, Building 18", AddressLabel.Home, "18", "3", "12", "Riyadh", "Al Olaya", 24.7136m, 46.6753m);
-        ahmedHome.SetAsDefault();
-        var laylaWork = new CustomerAddress(layla.Id, "Layla Adel", layla.PhoneNumber!, "Prince Sultan Street, Tower 5", AddressLabel.Work, "5", "6", "22", "Jeddah", "Al Zahraa", 21.5433m, 39.1728m);
-        laylaWork.SetAsDefault();
-        var noorHome = new CustomerAddress(noor.Id, "Noor Hossam", noor.PhoneNumber!, "Corniche Road, Villa 7", AddressLabel.Home, "7", null, null, "Khobar", "Corniche", 26.2794m, 50.2083m);
-        noorHome.SetAsDefault();
-
-        await _context.CustomerAddresses.AddRangeAsync(ahmedHome, laylaWork, noorHome);
-        await _context.SaveChangesAsync();
-
-        await SeedFavoritesAsync(ahmed.Id, layla.Id, noor.Id);
-        await SeedCartsAsync(ahmed.Id, layla.Id);
-        await SeedOrdersAsync(ahmed, ahmedHome, layla, laylaWork, noor, noorHome);
-        await SeedReviewsAsync(ahmed.Id, layla.Id);
-        await SeedNotificationsAsync(ahmed.Id, layla.Id, noor.Id);
-    }
-
-    private async Task SeedFavoritesAsync(Guid ahmedId, Guid laylaId, Guid noorId)
-    {
-        var products = await _context.MasterProducts.ToDictionaryAsync(x => x.Slug);
-        var favorites = new List<CustomerFavorite>();
-
-        if (products.TryGetValue("full-cream-milk-1l", out var milk))
-        {
-            favorites.Add(new CustomerFavorite(ahmedId, null, milk.Id));
-        }
-
-        if (products.TryGetValue("usb-c-fast-charger", out var charger))
-        {
-            favorites.Add(new CustomerFavorite(ahmedId, null, charger.Id));
-        }
-
-        if (products.TryGetValue("orange-juice-1l", out var juice))
-        {
-            favorites.Add(new CustomerFavorite(laylaId, null, juice.Id));
-        }
-
-        if (products.TryGetValue("iphone-15", out var iphone))
-        {
-            favorites.Add(new CustomerFavorite(noorId, null, iphone.Id));
-        }
-
-        if (favorites.Count == 0)
-        {
-            return;
-        }
-
-        await _context.CustomerFavorites.AddRangeAsync(favorites);
-        await _context.SaveChangesAsync();
-    }
-
-    private async Task SeedCartsAsync(Guid ahmedId, Guid laylaId)
-    {
-        var products = await _context.MasterProducts.ToDictionaryAsync(x => x.Slug);
-
-        var ahmedCart = new Cart(ahmedId);
-        if (products.TryGetValue("full-cream-milk-1l", out var milk))
-        {
-            ahmedCart.Items.Add(new CartItem(ahmedCart.Id, milk.Id, milk.NameEn, 2));
-        }
-
-        if (products.TryGetValue("dishwashing-liquid", out var soap))
-        {
-            ahmedCart.Items.Add(new CartItem(ahmedCart.Id, soap.Id, soap.NameEn, 1));
-        }
-
-        var laylaCart = new Cart(laylaId);
-        if (products.TryGetValue("usb-c-fast-charger", out var charger))
-        {
-            laylaCart.Items.Add(new CartItem(laylaCart.Id, charger.Id, charger.NameEn, 1));
-        }
-
-        var carts = new List<Cart>();
-        if (ahmedCart.Items.Count > 0)
-        {
-            carts.Add(ahmedCart);
-        }
-
-        if (laylaCart.Items.Count > 0)
-        {
-            carts.Add(laylaCart);
-        }
-
-        if (carts.Count == 0)
-        {
-            return;
-        }
-
-        await _context.Carts.AddRangeAsync(carts);
-        await _context.SaveChangesAsync();
-    }
-
-    private async Task SeedOrdersAsync(User ahmed, CustomerAddress ahmedHome, User layla, CustomerAddress laylaWork, User noor, CustomerAddress noorHome)
-    {
-        var vendors = await _context.Vendors.Include(x => x.Branches).ToDictionaryAsync(x => x.BusinessNameEn);
-        var vendorProducts = await _context.VendorProducts.Include(x => x.MasterProduct).ToListAsync();
-        var coupons = await _context.Coupons.ToDictionaryAsync(x => x.Code);
-
-        if (!vendors.TryGetValue("Green Valley Market", out var groceryVendor) ||
-            !vendors.TryGetValue("Modern Tech Mart", out var techVendor))
-        {
-            return;
-        }
-
-        var groceryBranch = groceryVendor.Branches.Single();
-        var techBranch = techVendor.Branches.Single();
-
-        var milk = vendorProducts.FirstOrDefault(x => x.MasterProduct.Slug == "full-cream-milk-1l" && x.VendorId == groceryVendor.Id);
-        var soap = vendorProducts.FirstOrDefault(x => x.MasterProduct.Slug == "dishwashing-liquid" && x.VendorId == groceryVendor.Id);
-        var charger = vendorProducts.FirstOrDefault(x => x.MasterProduct.Slug == "usb-c-fast-charger" && x.VendorId == techVendor.Id);
-        var phone = vendorProducts.FirstOrDefault(x => x.MasterProduct.Slug == "samsung-galaxy-a55" && x.VendorId == techVendor.Id);
-
-        if (milk is null || soap is null || charger is null || phone is null)
-        {
-            return;
-        }
-
-        coupons.TryGetValue("FRESH10", out var freshCoupon);
-        coupons.TryGetValue("TECH50", out var techCoupon);
-
-        var deliveredOrder = new Order("ORD-DEV-1001", ahmed.Id, groceryVendor.Id, ahmedHome.Id, PaymentMethodType.Card, 48.85m, 4.00m, 12m, 12m, 0m, 0m, 2.4m, "zone-fallback", "Riyadh - Al Olaya Standard", 5.50m, 0m, 0m, "Leave at the door", groceryBranch.Id, freshCoupon?.Id);
-        deliveredOrder.Items.Add(new OrderItem(deliveredOrder.Id, milk.Id, milk.MasterProductId, milk.MasterProduct.NameEn, 2, 16.95m, 16.95m, 0m, 2.00m, "Liter"));
-        deliveredOrder.Items.Add(new OrderItem(deliveredOrder.Id, soap.Id, soap.MasterProductId, soap.MasterProduct.NameEn, 1, 14.95m, 14.95m, 0m, 2.00m, "Liter"));
-        var deliveredPayment = new Payment(deliveredOrder.Id, PaymentMethodType.Card, deliveredOrder.TotalAmount);
-        deliveredPayment.MarkAsPending("MockGateway", "PAY-DEV-1001");
-        deliveredPayment.MarkAsPaid();
-        deliveredOrder.ChangeStatus(OrderStatus.Accepted, null, "Seed vendor accepted");
-        deliveredOrder.ChangeStatus(OrderStatus.Preparing, null, "Seed preparing");
-        deliveredOrder.ChangeStatus(OrderStatus.ReadyForPickup, null, "Seed ready");
-        deliveredOrder.ChangeStatus(OrderStatus.DriverAssignmentInProgress, null, "Looking for driver");
-        deliveredOrder.ChangeStatus(OrderStatus.DriverAssigned, null, "Driver assigned");
-        deliveredOrder.ChangeStatus(OrderStatus.PickedUp, null, "Picked up");
-        deliveredOrder.ChangeStatus(OrderStatus.OnTheWay, null, "On the way");
-        deliveredOrder.ChangeStatus(OrderStatus.Delivered, null, "Delivered successfully");
-
-        var refundedOrder = new Order("ORD-DEV-1002", layla.Id, techVendor.Id, laylaWork.Id, PaymentMethodType.ApplePay, 1578.00m, 79.00m, 0m, 0m, 0m, 0m, null, "zone-fallback", "Jeddah Standard", 90m, 0m, 0m, "Office reception", techBranch.Id, techCoupon?.Id);
-        refundedOrder.Items.Add(new OrderItem(refundedOrder.Id, charger.Id, charger.MasterProductId, charger.MasterProduct.NameEn, 1, 79m, 79m, 0m, 0m, "Piece"));
-        refundedOrder.Items.Add(new OrderItem(refundedOrder.Id, phone.Id, phone.MasterProductId, phone.MasterProduct.NameEn, 1, 1499m, 1499m, 0m, 79m, "Piece"));
-        var refundedPayment = new Payment(refundedOrder.Id, PaymentMethodType.ApplePay, refundedOrder.TotalAmount);
-        refundedPayment.MarkAsPending("MockGateway", "PAY-DEV-1002");
-        refundedPayment.MarkAsPaid();
-        refundedOrder.ChangeStatus(OrderStatus.Accepted, null, "Accepted");
-        refundedOrder.ChangeStatus(OrderStatus.Cancelled, null, "Customer cancellation");
-        refundedOrder.ChangeStatus(OrderStatus.Refunded, null, "Refund completed");
-        var refund = new Refund(refundedPayment.Id, refundedOrder.TotalAmount, "Customer cancellation after payment", costBearer: "Platform");
-        refund.Process();
-        refundedOrder.UpdatePaymentStatus(PaymentStatus.Refunded);
-
-        var codOrder = new Order("ORD-DEV-1003", noor.Id, groceryVendor.Id, noorHome.Id, PaymentMethodType.CashOnDelivery, 29.70m, 0m, 10m, 10m, 0m, 0m, 1.8m, "zone-fallback", "Khobar Standard", 3m, 0m, 0m, "Call on arrival", groceryBranch.Id);
-        codOrder.Items.Add(new OrderItem(codOrder.Id, milk.Id, milk.MasterProductId, milk.MasterProduct.NameEn, 1, 16.95m, 16.95m, 0m, 0m, "Liter"));
-        codOrder.Items.Add(new OrderItem(codOrder.Id, soap.Id, soap.MasterProductId, soap.MasterProduct.NameEn, 1, 14.95m, 14.95m, 0m, 2.20m, "Liter"));
-        var codPayment = new Payment(codOrder.Id, PaymentMethodType.CashOnDelivery, codOrder.TotalAmount);
-        codPayment.MarkAsPending("CashOnDelivery", "PAY-DEV-1003");
-        codOrder.ChangeStatus(OrderStatus.Placed, null, "Order placed");
-        codOrder.ChangeStatus(OrderStatus.PendingVendorAcceptance, null, "Awaiting vendor response");
-
-        await _context.Orders.AddRangeAsync(deliveredOrder, refundedOrder, codOrder);
-        await _context.Payments.AddRangeAsync(deliveredPayment, refundedPayment, codPayment);
-        await _context.Refunds.AddAsync(refund);
-        await _context.SaveChangesAsync();
-    }
-
-    private async Task SeedReviewsAsync(Guid ahmedId, Guid laylaId)
-    {
-        if (await _context.Reviews.AnyAsync())
-        {
-            return;
-        }
-
-        var delivered = await _context.Orders.FirstOrDefaultAsync(x => x.Status == OrderStatus.Delivered);
-        if (delivered == null)
-        {
-            return;
-        }
-
-        await _context.Reviews.AddRangeAsync(
-            new Review(delivered.Id, ahmedId, delivered.VendorId, 5, "طلب ممتاز، التغليف جيد والتوصيل سريع."),
-            new Review(delivered.Id, laylaId, delivered.VendorId, 4, "Quality products and fast support."));
-        await _context.SaveChangesAsync();
-    }
-
-    private async Task SeedNotificationsAsync(Guid ahmedId, Guid laylaId, Guid noorId)
-    {
-        if (await _context.Notifications.AnyAsync())
-        {
-            return;
-        }
-
-        await _context.Notifications.AddRangeAsync(
-            new Notification(ahmedId, "تم توصيل طلبك", "Order Delivered", "طلبك الأخير وصل بنجاح وتم تقييمه كأحد أفضل الطلبات هذا الأسبوع.", "Your latest order has been delivered successfully.", "order"),
-            new Notification(ahmedId, "عرض جديد", "New Offer", "خصم 10% على منتجات البقالة من Green Valley Market.", "10% discount on grocery products from Green Valley Market.", "marketing"),
-            new Notification(laylaId, "تم استرداد المبلغ", "Refund completed", "تم استرداد مبلغ طلبك ORD-DEV-1002 بنجاح.", "Your refund for order ORD-DEV-1002 has been completed.", "payment"),
-            new Notification(noorId, "طلبك قيد المراجعة", "Order Under Review", "المتجر يراجع طلب الدفع عند الاستلام الخاص بك الآن.", "The store is reviewing your cash-on-delivery order now.", "order"));
-        await _context.SaveChangesAsync();
-    }
-
-    private async Task SeedDriverAssignmentsAsync()
-    {
-        if (await _context.DeliveryAssignments.AnyAsync())
-        {
-            return;
-        }
-
-        var activeDriver = await _context.Drivers.FirstAsync(x => x.IsAvailable);
-        var deliveredOrder = await _context.Orders.FirstAsync(x => x.OrderNumber == "ORD-DEV-1001");
-        var pendingOrder = await _context.Orders.FirstAsync(x => x.OrderNumber == "ORD-DEV-1003");
-
-        var deliveredAssignment = new DeliveryAssignment(deliveredOrder.Id, 0m);
-        deliveredAssignment.OfferTo(activeDriver.Id, 1, DateTime.UtcNow.AddMinutes(5));
-        deliveredAssignment.Accept();
-        deliveredAssignment.MarkPickedUp();
-        deliveredAssignment.MarkDelivered();
-
-        var searchingAssignment = new DeliveryAssignment(pendingOrder.Id, pendingOrder.TotalAmount);
-        searchingAssignment.OfferTo(activeDriver.Id, 1, DateTime.UtcNow.AddMinutes(5));
-
-        await _context.DeliveryAssignments.AddRangeAsync(deliveredAssignment, searchingAssignment);
-        await _context.SaveChangesAsync();
-    }
-
-    private async Task SeedWalletsAndSettlementsAsync()
-    {
-        if (await _context.Wallets.AnyAsync())
-        {
-            return;
-        }
-
-        var deliveredOrder = await _context.Orders.FirstOrDefaultAsync(x => x.OrderNumber == "ORD-DEV-1001");
-        if (deliveredOrder == null)
-        {
-            return;
-        }
-
-        var deliveredPayment = await _context.Payments.FirstOrDefaultAsync(x => x.OrderId == deliveredOrder.Id);
-        if (deliveredPayment == null)
-        {
-            return;
-        }
-
-        var vendor = await _context.Vendors
-            .Include(x => x.BankAccounts)
-            .FirstOrDefaultAsync(x => x.Id == deliveredOrder.VendorId);
-        if (vendor == null)
-        {
-            return;
-        }
-
-        var driver = await _context.Drivers.FirstOrDefaultAsync(x => x.IsAvailable);
-        if (driver == null)
-        {
-            return;
-        }
-
-        var vendorWallet = new Wallet(WalletOwnerType.Vendor, vendor.Id);
-        vendorWallet.SetProjectionBalances(5200m, 0m, 0m, 0L);
-        var driverWallet = new Wallet(WalletOwnerType.Driver, driver.Id);
-        driverWallet.SetProjectionBalances(850m, 0m, 0m, 0L);
-
-        await _context.Wallets.AddRangeAsync(vendorWallet, driverWallet);
-        await _context.SaveChangesAsync();
-
-        var settlement = new Settlement(vendor.Id, null);
-        settlement.UpdateTotals(deliveredOrder.TotalAmount, deliveredOrder.CommissionAmount);
-        settlement.MarkAsProcessing();
-        settlement.Items.Add(new SettlementItem(
-            settlement.Id,
-            deliveredOrder.Id,
-            settlement.NetAmount,
-            18m,
-            deliveredOrder.CommissionAmount,
-            0m));
-        settlement.MarkAsSettled();
-
-        var payout = new Payout(settlement.Id, settlement.NetAmount, vendor.BankAccounts.FirstOrDefault(x => x.IsPrimary)?.Id);
-        payout.MarkAsProcessing();
-        payout.MarkAsPaid("TRX-SETTLEMENT-1001");
-        settlement.Payouts.Add(payout);
-
-        await _context.Settlements.AddAsync(settlement);
+        existing.Update(role.Id, PanelScope.SuperAdminPanel, AccessScopeType.Global, null, null);
+        admin.IncrementPermissionVersion();
         await _context.SaveChangesAsync();
     }
 
     private async Task ResetDevelopmentDataAsync()
     {
+        _context.ChangeTracker.Clear();
+
+        if (!_context.Database.IsSqlServer())
+        {
+            await _context.Database.EnsureDeletedAsync();
+            await _context.Database.EnsureCreatedAsync();
+            _context.ChangeTracker.Clear();
+            return;
+        }
+
         await DisableAllTableConstraintsAsync();
         try
         {
-            await DeleteRangeAsync(_context.DeliveryProofs);
-            await DeleteRangeAsync(_context.DriverLocations);
-            await DeleteRangeAsync(_context.DeliveryAssignments);
-            await DeleteRangeAsync(_context.Refunds);
-            await DeleteRangeAsync(_context.Reviews);
-            await DeleteRangeAsync(_context.Notifications);
-            await DeleteRangeAsync(_context.PayoutAttempts);
-            await DeleteRangeAsync(_context.Payouts);
-            await DeleteRangeAsync(_context.WalletTransactions);
-            await DeleteRangeAsync(_context.Wallets);
-            await DeleteRangeAsync(_context.SettlementItems);
-            await DeleteRangeAsync(_context.Settlements);
-            await DeleteRangeAsync(_context.JournalLines);
-            await DeleteRangeAsync(_context.JournalEntries);
-            await DeleteRangeAsync(_context.FinancialEvents);
-            await DeleteRangeAsync(_context.Payments);
-            await DeleteRangeAsync(_context.OrderStatusHistories);
-            await DeleteRangeAsync(_context.OrderItems);
-            await DeleteRangeAsync(_context.Orders);
-            await DeleteRangeAsync(_context.CartItems);
-            await DeleteRangeAsync(_context.Carts);
-            await DeleteRangeAsync(_context.CustomerFavorites);
-            await DeleteRangeAsync(_context.CustomerAddresses);
-            await DeleteRangeAsync(_context.CouponVendors);
-            await DeleteRangeAsync(_context.Coupons);
-            await DeleteRangeAsync(_context.FeaturedProductPlacements);
-            await DeleteRangeAsync(_context.HomeSections);
-            await DeleteRangeAsync(_context.HomeContentSectionSettings);
-            await DeleteRangeAsync(_context.HomeBanners);
-            await DeleteRangeAsync(_context.VendorProducts);
-            await DeleteRangeAsync(_context.ProductRequests);
-            await DeleteRangeAsync(_context.BrandRequests);
-            await DeleteRangeAsync(_context.CategoryRequests);
-            await DeleteRangeAsync(_context.Drivers);
-            await DeleteRangeAsync(_context.VendorBankAccounts);
-            await DeleteRangeAsync(_context.BranchOperatingHours);
-            await DeleteRangeAsync(_context.VendorBranches);
-            await DeleteRangeAsync(_context.Vendors);
-            await DeleteRangeAsync(_context.RefreshTokens);
+            const string sql = """
+                DECLARE @sql NVARCHAR(MAX) = N'';
 
-            // MasterProductImage has no DbSet — delete via raw SQL before deleting MasterProducts
-            await _context.Database.ExecuteSqlRawAsync("DELETE FROM [MasterProductImage]");
+                SELECT @sql += N'DELETE FROM '
+                    + QUOTENAME(SCHEMA_NAME(schema_id))
+                    + N'.'
+                    + QUOTENAME(name)
+                    + N';'
+                FROM sys.tables
+                WHERE name <> N'__EFMigrationsHistory'
+                ORDER BY name;
 
-            var products = await _context.MasterProducts.ToListAsync();
-            if (products.Count > 0)
-            {
-                _context.MasterProducts.RemoveRange(products);
-                await _context.SaveChangesAsync();
-            }
+                EXEC sp_executesql @sql;
+                """;
 
-            await DeleteRangeAsync(_context.Parts);
-            await DeleteRangeAsync(_context.ProductTypes);
-            await DeleteRangeAsync(_context.Brands);
-
-            var categories = await _context.Categories
-                .OrderByDescending(x => x.ParentCategoryId.HasValue)
-                .ToListAsync();
-            if (categories.Count > 0)
-            {
-                _context.Categories.RemoveRange(categories);
-                await _context.SaveChangesAsync();
-            }
-
-            await DeleteRangeAsync(_context.UnitsOfMeasure);
-
-            // Identity junction tables must be deleted manually since FK constraints are disabled
-            await _context.Database.ExecuteSqlRawAsync("DELETE FROM [AspNetUserRoles]");
-            await _context.Database.ExecuteSqlRawAsync("DELETE FROM [AspNetUserClaims]");
-            await _context.Database.ExecuteSqlRawAsync("DELETE FROM [AspNetUserLogins]");
-            await _context.Database.ExecuteSqlRawAsync("DELETE FROM [AspNetUserTokens]");
-            await _context.Database.ExecuteSqlRawAsync("DELETE FROM [AspNetRoleClaims]");
-
-            var users = await _userManager.Users.ToListAsync();
-            foreach (var user in users)
-            {
-                await _userManager.DeleteAsync(user);
-            }
-
-            var roles = await _roleManager.Roles.ToListAsync();
-            foreach (var role in roles)
-            {
-                await _roleManager.DeleteAsync(role);
-            }
-
+            await _context.Database.ExecuteSqlRawAsync(sql);
             _context.ChangeTracker.Clear();
         }
         finally
         {
             await EnableAllTableConstraintsAsync();
-        }
-    }
-
-    private async Task DeleteRangeAsync<TEntity>(DbSet<TEntity> dbSet) where TEntity : class
-    {
-        var query = dbSet.IgnoreQueryFilters();
-        if (await query.AnyAsync())
-        {
-            await query.ExecuteDeleteAsync();
         }
     }
 
@@ -2154,7 +273,11 @@ public class ApplicationDbContextInitialiser
 
         const string sql = """
             DECLARE @sql NVARCHAR(MAX) = N'';
-            SELECT @sql += N'ALTER TABLE [' + SCHEMA_NAME(schema_id) + N'].[' + name + N'] NOCHECK CONSTRAINT ALL;'
+            SELECT @sql += N'ALTER TABLE '
+                + QUOTENAME(SCHEMA_NAME(schema_id))
+                + N'.'
+                + QUOTENAME(name)
+                + N' NOCHECK CONSTRAINT ALL;'
             FROM sys.tables;
             EXEC sp_executesql @sql;
             """;
@@ -2171,42 +294,16 @@ public class ApplicationDbContextInitialiser
 
         const string sql = """
             DECLARE @sql NVARCHAR(MAX) = N'';
-            SELECT @sql += N'ALTER TABLE [' + SCHEMA_NAME(schema_id) + N'].[' + name + N'] CHECK CONSTRAINT ALL;'
+            SELECT @sql += N'ALTER TABLE '
+                + QUOTENAME(SCHEMA_NAME(schema_id))
+                + N'.'
+                + QUOTENAME(name)
+                + N' CHECK CONSTRAINT ALL;'
             FROM sys.tables;
             EXEC sp_executesql @sql;
             """;
 
         await _context.Database.ExecuteSqlRawAsync(sql);
-    }
-
-    private async Task<User> EnsureUserAsync(
-        string email,
-        string fullName,
-        string phone,
-        UserRole role,
-        string password,
-        Action<User>? configure = null)
-    {
-        var user = await _userManager.FindByEmailAsync(email);
-        if (user == null)
-        {
-            user = new User(fullName, email, phone, role);
-            var result = await _userManager.CreateAsync(user, password);
-            if (!result.Succeeded)
-            {
-                throw new InvalidOperationException($"Failed to create seeded user {email}: {string.Join(", ", result.Errors.Select(x => x.Description))}");
-            }
-        }
-
-        if (!await _userManager.IsInRoleAsync(user, role.ToString()))
-        {
-            await _userManager.AddToRoleAsync(user, role.ToString());
-        }
-
-        configure?.Invoke(user);
-        _context.Users.Update(user);
-        await _context.SaveChangesAsync();
-        return user;
     }
 
     private async Task<DevelopmentSeedSummary> BuildSummaryAsync()
@@ -2226,216 +323,156 @@ public class ApplicationDbContextInitialiser
             await _context.Notifications.CountAsync());
     }
 
-    private async Task EnsureVendorSeedAsync(VendorSeedDefinition seed, Guid adminUserId)
+    private static IReadOnlyList<string> BuildPermissionKeys() =>
+    [
+        ..PermissionKeys.Admin.All,
+        ..PermissionKeys.Vendor.Owner,
+        ..PermissionKeys.Vendor.BranchManager,
+        ..PermissionKeys.Vendor.BranchStaff,
+        ..PermissionKeys.Driver.All,
+        ..PermissionKeys.Customer.All
+    ];
+
+    private static IReadOnlyList<RoleSeed> BuildRoleSeeds() =>
+    [
+        new("super_admin_all", "Super Admin", UserRole.SuperAdmin, PanelScope.SuperAdminPanel, PermissionKeys.Admin.All, "Super Admin system role."),
+        new("admin_operations", "Operations Lead", UserRole.Admin, PanelScope.SuperAdminPanel, PermissionKeys.Admin.Operations, "Operations admin role."),
+        new("risk_admin", "Risk Admin", UserRole.Admin, PanelScope.SuperAdminPanel,
+        [
+            PermissionKeys.Admin.DashboardView,
+            PermissionKeys.Admin.DashboardExport,
+            PermissionKeys.Admin.VendorsView,
+            PermissionKeys.Admin.VendorsApprove,
+            PermissionKeys.Admin.VendorsExport,
+            PermissionKeys.Admin.OrdersView,
+            PermissionKeys.Admin.OrdersApprove,
+            PermissionKeys.Admin.OrdersExport,
+            PermissionKeys.Admin.CustomersView,
+            PermissionKeys.Admin.CustomersExport,
+            PermissionKeys.Admin.DriversView,
+            PermissionKeys.Admin.DriversApprove,
+            PermissionKeys.Admin.DisputesView,
+            PermissionKeys.Admin.DisputesEdit,
+            PermissionKeys.Admin.DisputesApprove,
+            PermissionKeys.Admin.DisputesExport,
+            PermissionKeys.Admin.EmailCenterView,
+            PermissionKeys.Admin.EmailCenterApprove
+        ], "Risk and compliance admin role."),
+        new("finance_admin", "Finance Admin", UserRole.Admin, PanelScope.SuperAdminPanel,
+        [
+            PermissionKeys.Admin.DashboardView,
+            PermissionKeys.Admin.DashboardExport,
+            PermissionKeys.Admin.OrdersView,
+            PermissionKeys.Admin.OrdersExport,
+            PermissionKeys.Admin.VendorsView,
+            PermissionKeys.Admin.VendorsExport,
+            PermissionKeys.Admin.DisputesView,
+            PermissionKeys.Admin.DisputesExport,
+            PermissionKeys.Admin.FinancesView,
+            PermissionKeys.Admin.FinancesEdit,
+            PermissionKeys.Admin.FinancesApprove,
+            PermissionKeys.Admin.FinancesExport,
+            PermissionKeys.Admin.FinancesManageSettings,
+            PermissionKeys.Admin.EmailCenterView,
+            PermissionKeys.Admin.EmailCenterEdit
+        ], "Finance admin role."),
+        new("support_admin", "Support Admin", UserRole.Admin, PanelScope.SuperAdminPanel,
+        [
+            PermissionKeys.Admin.DashboardView,
+            PermissionKeys.Admin.VendorsView,
+            PermissionKeys.Admin.CatalogView,
+            PermissionKeys.Admin.OrdersView,
+            PermissionKeys.Admin.OrdersExport,
+            PermissionKeys.Admin.CustomersView,
+            PermissionKeys.Admin.CustomersEdit,
+            PermissionKeys.Admin.DriversView,
+            PermissionKeys.Admin.DisputesView,
+            PermissionKeys.Admin.EmailCenterView
+        ], "Support admin role."),
+        new("vendor_owner", "Vendor Owner", UserRole.Vendor, PanelScope.VendorPanel, PermissionKeys.Vendor.Owner, "Vendor owner role."),
+        new("vendor_company_manager", "Vendor Company Manager", UserRole.VendorStaff, PanelScope.VendorPanel, PermissionKeys.Vendor.Owner, "Vendor company manager role."),
+        new("vendor_branch_manager", "Vendor Branch Manager", UserRole.VendorStaff, PanelScope.VendorPanel, PermissionKeys.Vendor.BranchManager, "Vendor branch manager role."),
+        new("vendor_branch_staff", "Vendor Branch Staff", UserRole.VendorStaff, PanelScope.VendorPanel, PermissionKeys.Vendor.BranchStaff, "Vendor branch staff role."),
+        new("vendor_finance_manager", "Vendor Finance Manager", UserRole.VendorStaff, PanelScope.VendorPanel,
+        [
+            PermissionKeys.Vendor.DashboardView,
+            PermissionKeys.Vendor.OrdersView,
+            PermissionKeys.Vendor.OrdersExport,
+            PermissionKeys.Vendor.FinanceView,
+            PermissionKeys.Vendor.FinanceEdit,
+            PermissionKeys.Vendor.FinanceExport,
+            PermissionKeys.Vendor.FinanceManageSettings
+        ], "Vendor finance manager role."),
+        new("vendor_support_manager", "Vendor Support Manager", UserRole.VendorStaff, PanelScope.VendorPanel,
+        [
+            PermissionKeys.Vendor.DashboardView,
+            PermissionKeys.Vendor.OrdersView,
+            PermissionKeys.Vendor.OrdersEdit,
+            PermissionKeys.Vendor.SupportView,
+            PermissionKeys.Vendor.SupportEdit,
+            PermissionKeys.Vendor.SupportExport
+        ], "Vendor support manager role."),
+        new("driver_account", "Driver Account", UserRole.Driver, PanelScope.DriverApp, PermissionKeys.Driver.All, "Driver account role."),
+        new("customer_account", "Customer Account", UserRole.Customer, PanelScope.CustomerApp, PermissionKeys.Customer.All, "Customer account role.")
+    ];
+
+    private static PermissionSeed CreatePermissionSeed(string key)
     {
-        var user = await _userManager.FindByEmailAsync(seed.Email);
-        if (user == null)
+        var parts = key.Split('.', 2, StringSplitOptions.RemoveEmptyEntries);
+        var domain = parts.Length > 0 ? parts[0] : "admin";
+        var action = parts.Length > 1 ? parts[1] : "manage";
+        var name = string.Join(' ', domain.Split('_').Append(action).Select(ToDisplayWord));
+        var panelScope = domain switch
         {
-            user = new User(seed.FullName, seed.Email, seed.Phone, UserRole.Vendor);
-            await _userManager.CreateAsync(user, seed.Password);
-        }
+            _ when domain.StartsWith("vendor_", StringComparison.OrdinalIgnoreCase) => PanelScope.VendorPanel,
+            _ when domain.StartsWith("driver_", StringComparison.OrdinalIgnoreCase) => PanelScope.DriverApp,
+            _ when domain.StartsWith("customer_", StringComparison.OrdinalIgnoreCase) => PanelScope.CustomerApp,
+            _ => PanelScope.SuperAdminPanel
+        };
+        var isSensitive = action.Equals("approve", StringComparison.OrdinalIgnoreCase) ||
+            key.Equals(PermissionKeys.Admin.SystemManageSettings, StringComparison.OrdinalIgnoreCase) ||
+            domain.Equals("finances", StringComparison.OrdinalIgnoreCase) ||
+            domain.Equals("vendor_finance", StringComparison.OrdinalIgnoreCase) ||
+            domain.Equals("wallets", StringComparison.OrdinalIgnoreCase) ||
+            domain.Equals("users_access", StringComparison.OrdinalIgnoreCase);
 
-        if (!await _userManager.IsInRoleAsync(user, UserRole.Vendor.ToString()))
-        {
-            await _userManager.AddToRoleAsync(user, UserRole.Vendor.ToString());
-        }
-
-        var existingVendor = await _context.Vendors.AnyAsync(item => item.UserId == user.Id);
-        if (existingVendor)
-        {
-            return;
-        }
-
-        var vendor = new Vendor(
-            user.Id,
-            seed.BusinessNameAr,
-            seed.BusinessNameEn,
-            seed.BusinessType,
-            seed.CommercialRegistrationNumber,
-            seed.ContactEmail,
-            seed.ContactPhone,
-            seed.TaxId,
-            seed.DescriptionAr,
-            seed.DescriptionEn,
-            seed.OwnerName,
-            seed.OwnerEmail,
-            seed.OwnerPhone,
-            seed.IdNumber,
-            seed.Nationality,
-            seed.Region,
-            seed.City,
-            seed.NationalAddress,
-            seed.CommercialRegistrationExpiryDate,
-            seed.LicenseNumber,
-            seed.PayoutCycle);
-
-        vendor.UpdateOperationsSettings(seed.AcceptOrders, seed.MinimumOrderAmount, seed.PreparationTimeMinutes);
-        vendor.UpdateNotificationSettings(
-            seed.EmailNotificationsEnabled,
-            seed.SmsNotificationsEnabled,
-            seed.NewOrdersNotificationsEnabled);
-
-        ApplyVendorSeedStatus(vendor, user, adminUserId, seed);
-
-        var branch = new VendorBranch(
-            vendor.Id,
-            seed.BranchName,
-            seed.BranchAddressLine,
-            seed.BranchLatitude,
-            seed.BranchLongitude,
-            seed.BranchContactPhone,
-            seed.BranchDeliveryRadiusKm);
-
-        foreach (var hour in seed.Hours)
-        {
-            branch.OperatingHours.Add(new BranchOperatingHour(
-                branch.Id,
-                hour.DayOfWeek,
-                TimeSpan.Parse(hour.OpenTime),
-                TimeSpan.Parse(hour.CloseTime),
-                !hour.IsOpen));
-        }
-
-        var bankAccount = new VendorBankAccount(
-            vendor.Id,
-            seed.BankName,
-            seed.AccountHolderName,
-            seed.Iban,
-            seed.SwiftCode);
-
-        bankAccount.Verify(adminUserId);
-        bankAccount.SetAsPrimary();
-
-        vendor.Branches.Add(branch);
-        vendor.BankAccounts.Add(bankAccount);
-
-        _context.Users.Update(user);
-        await _context.Vendors.AddAsync(vendor);
-        await _context.SaveChangesAsync();
+        return new PermissionSeed(
+            key,
+            name,
+            domain,
+            action,
+            panelScope,
+            $"Allows access to {action.Replace('_', ' ')} {domain.Replace('_', ' ')}.",
+            isSensitive);
     }
 
-    private static void ApplyVendorSeedStatus(
-        Vendor vendor,
-        User user,
-        Guid adminUserId,
-        VendorSeedDefinition seed)
+    private static string ToDisplayWord(string value)
     {
-        switch (seed.StatusKind)
+        if (string.IsNullOrWhiteSpace(value))
         {
-            case SeedVendorStatus.Pending:
-                return;
-            case SeedVendorStatus.Active:
-                vendor.Approve(seed.CommissionRate ?? 12m, adminUserId);
-                return;
-            case SeedVendorStatus.Suspended:
-                vendor.Approve(seed.CommissionRate ?? 12m, adminUserId);
-                vendor.Suspend("Seeded suspension for manual testing.");
-                user.Suspend();
-                return;
-            case SeedVendorStatus.Rejected:
-                vendor.Reject("Seeded rejection for manual testing.");
-                return;
-            case SeedVendorStatus.Locked:
-                vendor.Approve(seed.CommissionRate ?? 12m, adminUserId);
-                vendor.Lock("Seeded lock for manual testing.");
-                user.LockLogin("Seeded lock for manual testing.");
-                return;
-            case SeedVendorStatus.Archived:
-                vendor.Approve(seed.CommissionRate ?? 12m, adminUserId);
-                vendor.Archive("Seeded archive for manual testing.");
-                user.Archive("Seeded archive for manual testing.");
-                return;
-            default:
-                throw new ArgumentOutOfRangeException();
+            return value;
         }
+
+        return string.Concat(value[..1].ToUpperInvariant(), value[1..].ToLowerInvariant());
     }
 
-    private static List<SeedOperatingHour> BuildStandardHours(string openTime, string closeTime) =>
-        Enumerable.Range(0, 7)
-            .Select(day => new SeedOperatingHour(day, openTime, closeTime, day != 5))
-            .ToList();
+    private sealed record PermissionSeed(
+        string Key,
+        string Name,
+        string Domain,
+        string Action,
+        PanelScope PanelScope,
+        string Description,
+        bool IsSensitive);
+
+    private sealed record RoleSeed(
+        string Code,
+        string Name,
+        UserRole IdentityRole,
+        PanelScope PanelScope,
+        IReadOnlyCollection<string> Permissions,
+        string Description);
 }
-
-internal enum SeedVendorStatus
-{
-    Pending,
-    Active,
-    Suspended,
-    Rejected,
-    Locked,
-    Archived
-}
-
-internal sealed record VendorSeedDefinition(
-    string FullName,
-    string Email,
-    string Phone,
-    string Password,
-    string BusinessNameAr,
-    string BusinessNameEn,
-    string BusinessType,
-    string CommercialRegistrationNumber,
-    DateTime? CommercialRegistrationExpiryDate,
-    string ContactEmail,
-    string ContactPhone,
-    string? DescriptionAr,
-    string? DescriptionEn,
-    string OwnerName,
-    string OwnerEmail,
-    string OwnerPhone,
-    string? IdNumber,
-    string? Nationality,
-    string Region,
-    string City,
-    string NationalAddress,
-    string? TaxId,
-    string? LicenseNumber,
-    string BankName,
-    string AccountHolderName,
-    string Iban,
-    string? SwiftCode,
-    string? PayoutCycle,
-    string BranchName,
-    string BranchAddressLine,
-    decimal BranchLatitude,
-    decimal BranchLongitude,
-    string BranchContactPhone,
-    decimal BranchDeliveryRadiusKm,
-    decimal? CommissionRate,
-    SeedVendorStatus StatusKind,
-    bool AcceptOrders,
-    decimal? MinimumOrderAmount,
-    int? PreparationTimeMinutes,
-    bool EmailNotificationsEnabled,
-    bool SmsNotificationsEnabled,
-    bool NewOrdersNotificationsEnabled,
-    IReadOnlyCollection<SeedOperatingHour> Hours);
-
-internal sealed record SeedOperatingHour(
-    int DayOfWeek,
-    string OpenTime,
-    string CloseTime,
-    bool IsOpen);
-
-internal sealed record PermissionSeed(
-    string Key,
-    string Name,
-    string Domain,
-    string Action,
-    PanelScope PanelScope,
-    string Description,
-    bool IsSensitive = false);
-
-internal sealed record RoleSeed(
-    string Code,
-    string Name,
-    UserRole IdentityRole,
-    PanelScope PanelScope,
-    IReadOnlyCollection<string> PermissionKeys);
-
-internal sealed record SeededMasterProduct(
-    Guid Id,
-    MasterProduct Product);
 
 public sealed record DevelopmentSeedSummary(
     int Categories,
@@ -2446,80 +483,7 @@ public sealed record DevelopmentSeedSummary(
     int Customers,
     int Drivers,
     int Orders,
-    int Banners,
+    int HomeBanners,
     int Coupons,
     int Reviews,
     int Notifications);
-
-internal sealed record VendorProductSeed(
-    string VendorName,
-    string ProductSlug,
-    decimal SellingPrice,
-    int Quantity,
-    decimal? CompareAtPrice);
-
-internal sealed record HomeBannerSeed(
-    string TagAr,
-    string TagEn,
-    string TitleAr,
-    string TitleEn,
-    string ImageUrl,
-    string? SubtitleAr,
-    string? SubtitleEn,
-    string? ActionLabelAr,
-    string? ActionLabelEn,
-    int DisplayOrder,
-    DateTime? StartsAtUtc,
-    DateTime? EndsAtUtc);
-
-internal static class ImageCatalog
-{
-    public const string CategoryGroceries = "https://images.unsplash.com/photo-1542838132-92c53300491e?auto=format&fit=crop&w=1200&q=80";
-    public const string CategoryElectronics = "https://images.unsplash.com/photo-1519389950473-47ba0277781c?auto=format&fit=crop&w=1200&q=80";
-    public const string CategoryHome = "https://images.unsplash.com/photo-1484154218962-a197022b5858?auto=format&fit=crop&w=1200&q=80";
-    public const string CategoryDairy = "https://images.unsplash.com/photo-1550583724-b2692b85b150?auto=format&fit=crop&w=1200&q=80";
-    public const string CategoryBeverages = "https://images.unsplash.com/photo-1544145945-f90425340c7e?auto=format&fit=crop&w=1200&q=80";
-    public const string CategoryProduce = "https://images.unsplash.com/photo-1610832958506-aa56368176cf?auto=format&fit=crop&w=1200&q=80";
-    public const string CategoryBakery = "https://images.unsplash.com/photo-1509440159596-0249088772ff?auto=format&fit=crop&w=1200&q=80";
-    public const string CategorySnacks = "https://images.unsplash.com/photo-1585238342024-78d387f4a707?auto=format&fit=crop&w=1200&q=80";
-    public const string CategoryPhones = "https://images.unsplash.com/photo-1511707171634-5f897ff02aa9?auto=format&fit=crop&w=1200&q=80";
-    public const string CategoryAccessories = "https://images.unsplash.com/photo-1585386959984-a41552231658?auto=format&fit=crop&w=1200&q=80";
-    public const string CategoryHomeCare = "https://images.unsplash.com/photo-1581578731548-c64695cc6952?auto=format&fit=crop&w=1200&q=80";
-    public const string CategoryKitchen = "https://images.unsplash.com/photo-1513694203232-719a280e022f?auto=format&fit=crop&w=1200&q=80";
-    public const string BannerDeals = "https://images.unsplash.com/photo-1607082350899-7e105aa886ae?auto=format&fit=crop&w=1600&q=80";
-    public const string BannerStores = "https://images.unsplash.com/photo-1520607162513-77705c0f0d4a?auto=format&fit=crop&w=1600&q=80";
-    public const string BannerBestSelling = "https://images.unsplash.com/photo-1515169067868-5387ec356754?auto=format&fit=crop&w=1600&q=80";
-    public const string Milk1 = "https://images.unsplash.com/photo-1550583724-b2692b85b150?auto=format&fit=crop&w=1200&q=80";
-    public const string Milk2 = "https://images.unsplash.com/photo-1563636619-e9143da7973b?auto=format&fit=crop&w=1200&q=80";
-    public const string Yogurt1 = "https://images.unsplash.com/photo-1571212515416-fca88f7c75bb?auto=format&fit=crop&w=1200&q=80";
-    public const string Yogurt2 = "https://images.unsplash.com/photo-1488477181946-6428a0291777?auto=format&fit=crop&w=1200&q=80";
-    public const string Juice1 = "https://images.unsplash.com/photo-1600271886742-f049cd451bba?auto=format&fit=crop&w=1200&q=80";
-    public const string Juice2 = "https://images.unsplash.com/photo-1621506289937-a8e4df240d0b?auto=format&fit=crop&w=1200&q=80";
-    public const string Water1 = "https://images.unsplash.com/photo-1564419320461-6870880221ad?auto=format&fit=crop&w=1200&q=80";
-    public const string Water2 = "https://images.unsplash.com/photo-1616118132534-381148898bb4?auto=format&fit=crop&w=1200&q=80";
-    public const string Bread1 = "https://images.unsplash.com/photo-1509440159596-0249088772ff?auto=format&fit=crop&w=1200&q=80";
-    public const string Bread2 = "https://images.unsplash.com/photo-1608198093002-ad4e005484ec?auto=format&fit=crop&w=1200&q=80";
-    public const string Chips1 = "https://images.unsplash.com/photo-1585238342024-78d387f4a707?auto=format&fit=crop&w=1200&q=80";
-    public const string Chips2 = "https://images.unsplash.com/photo-1621939514649-280e2ee25f60?auto=format&fit=crop&w=1200&q=80";
-    public const string Banana1 = "https://images.unsplash.com/photo-1571771894821-ce9b6c11b08e?auto=format&fit=crop&w=1200&q=80";
-    public const string Banana2 = "https://images.unsplash.com/photo-1603833665858-e61d17a86224?auto=format&fit=crop&w=1200&q=80";
-    public const string Tomato1 = "https://images.unsplash.com/photo-1592924357228-91a4daadcfea?auto=format&fit=crop&w=1200&q=80";
-    public const string Tomato2 = "https://images.unsplash.com/photo-1546094096-0df4bcaaa337?auto=format&fit=crop&w=1200&q=80";
-    public const string DishSoap1 = "https://images.unsplash.com/photo-1581578731548-c64695cc6952?auto=format&fit=crop&w=1200&q=80";
-    public const string DishSoap2 = "https://images.unsplash.com/photo-1583947582886-f40ec95dd752?auto=format&fit=crop&w=1200&q=80";
-    public const string Towel1 = "https://images.unsplash.com/photo-1527515637462-cff94eecc1ac?auto=format&fit=crop&w=1200&q=80";
-    public const string Towel2 = "https://images.unsplash.com/photo-1616627456094-7d0f04f0353f?auto=format&fit=crop&w=1200&q=80";
-    public const string Charger1 = "https://images.unsplash.com/photo-1585386959984-a41552231658?auto=format&fit=crop&w=1200&q=80";
-    public const string Charger2 = "https://images.unsplash.com/photo-1615526675159-e248c3021d3f?auto=format&fit=crop&w=1200&q=80";
-    public const string Case1 = "https://images.unsplash.com/photo-1601593346740-925612772716?auto=format&fit=crop&w=1200&q=80";
-    public const string Case2 = "https://images.unsplash.com/photo-1511707171634-5f897ff02aa9?auto=format&fit=crop&w=1200&q=80";
-    public const string Phone1 = "https://images.unsplash.com/photo-1511707171634-5f897ff02aa9?auto=format&fit=crop&w=1200&q=80";
-    public const string Phone2 = "https://images.unsplash.com/photo-1598327105666-5b89351aff97?auto=format&fit=crop&w=1200&q=80";
-    public const string Iphone1 = "https://images.unsplash.com/photo-1695048133142-1a20484d2569?auto=format&fit=crop&w=1200&q=80";
-    public const string Iphone2 = "https://images.unsplash.com/photo-1592750475338-74b7b21085ab?auto=format&fit=crop&w=1200&q=80";
-    public const string DriverNationalId = "https://images.unsplash.com/photo-1517841905240-472988babdf9?auto=format&fit=crop&w=800&q=80";
-    public const string DriverLicense = "https://images.unsplash.com/photo-1516321318423-f06f85e504b3?auto=format&fit=crop&w=800&q=80";
-    public const string DriverVehicle = "https://images.unsplash.com/photo-1558981806-ec527fa84c39?auto=format&fit=crop&w=800&q=80";
-    public const string DriverProfile = "https://images.unsplash.com/photo-1500648767791-00dcc994a43e?auto=format&fit=crop&w=800&q=80";
-}
-

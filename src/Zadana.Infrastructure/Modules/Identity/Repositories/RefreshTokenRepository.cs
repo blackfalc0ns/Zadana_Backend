@@ -85,6 +85,7 @@ public class RefreshTokenRepository : IRefreshTokenStore
                     refreshToken.User.LockedAtUtc,
                     refreshToken.User.ArchivedAtUtc,
                     refreshToken.User.EmailConfirmed,
-                    refreshToken.User.PhoneNumberConfirmed)
+                    refreshToken.User.PhoneNumberConfirmed,
+                    refreshToken.User.MustChangePassword)
                 : null);
 }

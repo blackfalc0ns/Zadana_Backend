@@ -23,6 +23,7 @@ public record CurrentUserDto(
     string? Email,
     string? Phone,
     string Role,
+    bool MustChangePassword = false,
     int FavoritesCount = 0,
     EffectiveAccessDto? Access = null);
 
@@ -45,7 +46,8 @@ public record IdentityAccountSnapshot(
     DateTime? LockedAtUtc,
     DateTime? ArchivedAtUtc,
     bool EmailConfirmed,
-    bool PhoneNumberConfirmed);
+    bool PhoneNumberConfirmed,
+    bool MustChangePassword);
 
 public record CreateIdentityAccountRequest(
     string FullName,

@@ -3,6 +3,7 @@ using Microsoft.EntityFrameworkCore;
 using Zadana.Application.Modules.Identity.DTOs;
 using Zadana.Application.Modules.Identity.Interfaces;
 using Zadana.Domain.Modules.Identity.Entities;
+using Zadana.Domain.Modules.Identity.Enums;
 
 namespace Zadana.Infrastructure.Modules.Identity.Services;
 
@@ -60,6 +61,15 @@ public class IdentityAccountService : IIdentityAccountService
             return new IdentityCreateResult(
                 IdentityCreateStatus.Failed,
                 Errors: result.Errors.Select(error => error.Description).ToArray());
+        }
+
+        var roleResult = await _userManager.AddToRoleAsync(user, request.Role.ToString());
+        if (!roleResult.Succeeded)
+        {
+            await _userManager.DeleteAsync(user);
+            return new IdentityCreateResult(
+                IdentityCreateStatus.Failed,
+                Errors: roleResult.Errors.Select(error => error.Description).ToArray());
         }
 
         return new IdentityCreateResult(IdentityCreateStatus.Succeeded, Map(user));
@@ -172,6 +182,76 @@ public class IdentityAccountService : IIdentityAccountService
         return await PersistUserAsync(user);
     }
 
+    public async Task<IdentityOperationResult> UpdateRoleAsync(
+        Guid userId,
+        UserRole role,
+        CancellationToken cancellationToken = default)
+    {
+        var user = await _userManager.FindByIdAsync(userId.ToString());
+        if (user == null)
+        {
+            return new IdentityOperationResult(false, ["User account was not found."]);
+        }
+
+        var targetRole = role.ToString();
+        var currentRoles = await _userManager.GetRolesAsync(user);
+
+        if (!currentRoles.Contains(targetRole, StringComparer.OrdinalIgnoreCase))
+        {
+            var addResult = await _userManager.AddToRoleAsync(user, targetRole);
+            if (!addResult.Succeeded)
+            {
+                return new IdentityOperationResult(
+                    false,
+                    addResult.Errors.Select(error => error.Description).ToArray());
+            }
+        }
+
+        var identityRoleNames = Enum.GetNames<UserRole>();
+        var rolesToRemove = currentRoles
+            .Where(current => !current.Equals(targetRole, StringComparison.OrdinalIgnoreCase)
+                && identityRoleNames.Contains(current, StringComparer.OrdinalIgnoreCase))
+            .ToArray();
+
+        if (rolesToRemove.Length > 0)
+        {
+            var removeResult = await _userManager.RemoveFromRolesAsync(user, rolesToRemove);
+            if (!removeResult.Succeeded)
+            {
+                return new IdentityOperationResult(
+                    false,
+                    removeResult.Errors.Select(error => error.Description).ToArray());
+            }
+        }
+
+        user.UpdateRole(role);
+        return await PersistUserAsync(user);
+    }
+
+    public async Task<IdentityOperationResult> ChangePasswordAsync(
+        Guid userId,
+        string currentPassword,
+        string newPassword,
+        CancellationToken cancellationToken = default)
+    {
+        var user = await _userManager.FindByIdAsync(userId.ToString());
+        if (user == null)
+        {
+            return new IdentityOperationResult(false, ["User account was not found."]);
+        }
+
+        var result = await _userManager.ChangePasswordAsync(user, currentPassword, newPassword);
+        if (!result.Succeeded)
+        {
+            return new IdentityOperationResult(
+                false,
+                result.Errors.Select(error => error.Description).ToArray());
+        }
+
+        user.CompletePasswordChange();
+        return await PersistUserAsync(user);
+    }
+
     public async Task<IdentityOperationResult> ActivateAsync(Guid userId, CancellationToken cancellationToken = default)
     {
         var user = await _userManager.FindByIdAsync(userId.ToString());
@@ -247,6 +327,8 @@ public class IdentityAccountService : IIdentityAccountService
         var result = await _userManager.ResetPasswordAsync(user, resetToken, newPassword);
         if (result.Succeeded)
         {
+            user.CompletePasswordChange();
+            await PersistUserAsync(user);
             return new IdentityOperationResult(true);
         }
 
@@ -422,5 +504,6 @@ public class IdentityAccountService : IIdentityAccountService
             user.LockedAtUtc,
             user.ArchivedAtUtc,
             user.EmailConfirmed,
-            user.PhoneNumberConfirmed);
+            user.PhoneNumberConfirmed,
+            user.MustChangePassword);
 }

@@ -11,24 +11,32 @@ public static class PermissionKeys
         public const string VendorsView = "vendors.view";
         public const string VendorsEdit = "vendors.edit";
         public const string VendorsApprove = "vendors.approve";
+        public const string VendorsExport = "vendors.export";
         public const string CatalogView = "catalog.view";
         public const string CatalogCreate = "catalog.create";
         public const string CatalogEdit = "catalog.edit";
         public const string CatalogApprove = "catalog.approve";
+        public const string CatalogExport = "catalog.export";
         public const string OrdersView = "orders.view";
         public const string OrdersEdit = "orders.edit";
         public const string OrdersApprove = "orders.approve";
+        public const string OrdersExport = "orders.export";
         public const string CustomersView = "customers.view";
         public const string CustomersEdit = "customers.edit";
+        public const string CustomersExport = "customers.export";
         public const string DriversView = "drivers.view";
         public const string DriversEdit = "drivers.edit";
         public const string DriversApprove = "drivers.approve";
+        public const string DriversExport = "drivers.export";
         public const string DisputesView = "disputes.view";
         public const string DisputesEdit = "disputes.edit";
         public const string DisputesApprove = "disputes.approve";
+        public const string DisputesExport = "disputes.export";
         public const string FinancesView = "finances.view";
         public const string FinancesEdit = "finances.edit";
         public const string FinancesApprove = "finances.approve";
+        public const string FinancesExport = "finances.export";
+        public const string FinancesManageSettings = "finances.manage_settings";
         public const string WalletsView = "wallets.view";
         public const string WalletsEdit = "wallets.edit";
         public const string WalletsApprove = "wallets.approve";
@@ -36,44 +44,52 @@ public static class PermissionKeys
         public const string UsersAccessCreate = "users_access.create";
         public const string UsersAccessEdit = "users_access.edit";
         public const string UsersAccessApprove = "users_access.approve";
+        public const string UsersAccessManageSettings = "users_access.manage_settings";
         public const string EmailCenterView = "email_center.view";
         public const string EmailCenterEdit = "email_center.edit";
+        public const string EmailCenterApprove = "email_center.approve";
+        public const string EmailCenterManageSettings = "email_center.manage_settings";
         public const string MarketingView = "marketing.view";
+        public const string MarketingCreate = "marketing.create";
         public const string MarketingEdit = "marketing.edit";
+        public const string MarketingApprove = "marketing.approve";
+        public const string MarketingManageSettings = "marketing.manage_settings";
         public const string NotificationsView = "admin_notifications.view";
         public const string NotificationsEdit = "admin_notifications.edit";
         public const string DeliverySettingsView = "delivery_settings.view";
         public const string DeliverySettingsEdit = "delivery_settings.edit";
+        public const string SystemView = "system.view";
+        public const string SystemEdit = "system.edit";
         public const string SystemManageSettings = "system.manage_settings";
 
         public static readonly string[] All =
         [
             AccountView, AccountEdit, DashboardView, DashboardExport,
-            VendorsView, VendorsEdit, VendorsApprove,
-            CatalogView, CatalogCreate, CatalogEdit, CatalogApprove,
-            OrdersView, OrdersEdit, OrdersApprove,
-            CustomersView, CustomersEdit,
-            DriversView, DriversEdit, DriversApprove,
-            DisputesView, DisputesEdit, DisputesApprove,
-            FinancesView, FinancesEdit, FinancesApprove,
+            VendorsView, VendorsEdit, VendorsApprove, VendorsExport,
+            CatalogView, CatalogCreate, CatalogEdit, CatalogApprove, CatalogExport,
+            OrdersView, OrdersEdit, OrdersApprove, OrdersExport,
+            CustomersView, CustomersEdit, CustomersExport,
+            DriversView, DriversEdit, DriversApprove, DriversExport,
+            DisputesView, DisputesEdit, DisputesApprove, DisputesExport,
+            FinancesView, FinancesEdit, FinancesApprove, FinancesExport, FinancesManageSettings,
             WalletsView, WalletsEdit, WalletsApprove,
-            UsersAccessView, UsersAccessCreate, UsersAccessEdit, UsersAccessApprove,
-            EmailCenterView, EmailCenterEdit,
-            MarketingView, MarketingEdit,
+            UsersAccessView, UsersAccessCreate, UsersAccessEdit, UsersAccessApprove, UsersAccessManageSettings,
+            EmailCenterView, EmailCenterEdit, EmailCenterApprove, EmailCenterManageSettings,
+            MarketingView, MarketingCreate, MarketingEdit, MarketingApprove, MarketingManageSettings,
             NotificationsView, NotificationsEdit,
             DeliverySettingsView, DeliverySettingsEdit,
-            SystemManageSettings
+            SystemView, SystemEdit, SystemManageSettings
         ];
 
         public static readonly string[] Operations =
         [
             AccountView, AccountEdit, DashboardView, DashboardExport,
-            VendorsView, VendorsEdit, VendorsApprove,
-            CatalogView, CatalogCreate, CatalogEdit, CatalogApprove,
-            OrdersView, OrdersEdit, OrdersApprove,
-            CustomersView, CustomersEdit,
-            DriversView, DriversEdit, DriversApprove,
-            DisputesView, DisputesEdit, DisputesApprove,
+            VendorsView, VendorsEdit, VendorsApprove, VendorsExport,
+            CatalogView, CatalogCreate, CatalogEdit, CatalogApprove, CatalogExport,
+            OrdersView, OrdersEdit, OrdersApprove, OrdersExport,
+            CustomersView, CustomersEdit, CustomersExport,
+            DriversView, DriversEdit, DriversApprove, DriversExport,
+            DisputesView, DisputesEdit, DisputesApprove, DisputesExport,
             FinancesView,
             WalletsView, WalletsEdit,
             EmailCenterView, EmailCenterEdit,
@@ -91,20 +107,27 @@ public static class PermissionKeys
         public const string OrdersView = "vendor_orders.view";
         public const string OrdersEdit = "vendor_orders.edit";
         public const string OrdersApprove = "vendor_orders.approve";
+        public const string OrdersExport = "vendor_orders.export";
         public const string CatalogView = "vendor_catalog.view";
         public const string CatalogCreate = "vendor_catalog.create";
         public const string CatalogEdit = "vendor_catalog.edit";
         public const string CatalogApprove = "vendor_catalog.approve";
+        public const string CatalogExport = "vendor_catalog.export";
         public const string BranchTeamView = "vendor_branch_team.view";
         public const string BranchTeamCreate = "vendor_branch_team.create";
         public const string BranchTeamEdit = "vendor_branch_team.edit";
         public const string BranchTeamApprove = "vendor_branch_team.approve";
+        public const string BranchTeamManageSettings = "vendor_branch_team.manage_settings";
         public const string FinanceView = "vendor_finance.view";
+        public const string FinanceEdit = "vendor_finance.edit";
         public const string FinanceExport = "vendor_finance.export";
+        public const string FinanceManageSettings = "vendor_finance.manage_settings";
         public const string SupportView = "vendor_support.view";
         public const string SupportEdit = "vendor_support.edit";
+        public const string SupportExport = "vendor_support.export";
         public const string SettingsView = "vendor_settings.view";
         public const string SettingsEdit = "vendor_settings.edit";
+        public const string SettingsManageSettings = "vendor_settings.manage_settings";
         public const string NotificationsView = "vendor_notifications.view";
         public const string NotificationsEdit = "vendor_notifications.edit";
         public const string OffersView = "vendor_offers.view";
@@ -123,12 +146,12 @@ public static class PermissionKeys
         public static readonly string[] Owner =
         [
             AccountView, AccountEdit, DashboardView,
-            OrdersView, OrdersEdit, OrdersApprove,
-            CatalogView, CatalogCreate, CatalogEdit, CatalogApprove,
-            BranchTeamView, BranchTeamCreate, BranchTeamEdit, BranchTeamApprove,
-            FinanceView, FinanceExport,
-            SupportView, SupportEdit,
-            SettingsView, SettingsEdit,
+            OrdersView, OrdersEdit, OrdersApprove, OrdersExport,
+            CatalogView, CatalogCreate, CatalogEdit, CatalogApprove, CatalogExport,
+            BranchTeamView, BranchTeamCreate, BranchTeamEdit, BranchTeamApprove, BranchTeamManageSettings,
+            FinanceView, FinanceEdit, FinanceExport, FinanceManageSettings,
+            SupportView, SupportEdit, SupportExport,
+            SettingsView, SettingsEdit, SettingsManageSettings,
             NotificationsView, NotificationsEdit,
             OffersView, OffersEdit,
             ReviewsView, ReviewsEdit,
@@ -141,11 +164,11 @@ public static class PermissionKeys
         public static readonly string[] BranchManager =
         [
             AccountView, AccountEdit, DashboardView,
-            OrdersView, OrdersEdit, OrdersApprove,
-            CatalogView, CatalogCreate, CatalogEdit,
+            OrdersView, OrdersEdit, OrdersApprove, OrdersExport,
+            CatalogView, CatalogCreate, CatalogEdit, CatalogExport,
             BranchTeamView,
             FinanceView,
-            SupportView, SupportEdit,
+            SupportView, SupportEdit, SupportExport,
             SettingsView, SettingsEdit,
             NotificationsView, NotificationsEdit,
             OffersView, OffersEdit,

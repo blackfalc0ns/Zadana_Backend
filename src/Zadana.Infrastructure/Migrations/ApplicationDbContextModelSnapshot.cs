@@ -153,6 +153,54 @@ namespace Zadana.Infrastructure.Migrations
                     b.ToTable("AspNetUserTokens", (string)null);
                 });
 
+            modelBuilder.Entity("Zadana.Domain.Modules.Identity.Entities.AccessAuditLog", b =>
+                {
+                    b.Property<Guid>("Id")
+                        .ValueGeneratedOnAdd()
+                        .HasColumnType("uniqueidentifier");
+
+                    b.Property<string>("Action")
+                        .IsRequired()
+                        .HasMaxLength(100)
+                        .HasColumnType("nvarchar(100)");
+
+                    b.Property<Guid?>("ActorUserId")
+                        .HasColumnType("uniqueidentifier");
+
+                    b.Property<string>("AfterJson")
+                        .HasColumnType("nvarchar(max)");
+
+                    b.Property<string>("BeforeJson")
+                        .HasColumnType("nvarchar(max)");
+
+                    b.Property<DateTime>("CreatedAtUtc")
+                        .HasColumnType("datetime2");
+
+                    b.Property<string>("IpAddress")
+                        .HasMaxLength(100)
+                        .HasColumnType("nvarchar(100)");
+
+                    b.Property<string>("Summary")
+                        .IsRequired()
+                        .HasMaxLength(500)
+                        .HasColumnType("nvarchar(500)");
+
+                    b.Property<Guid>("TargetUserId")
+                        .HasColumnType("uniqueidentifier");
+
+                    b.Property<string>("UserAgent")
+                        .HasMaxLength(500)
+                        .HasColumnType("nvarchar(500)");
+
+                    b.HasKey("Id");
+
+                    b.HasIndex("ActorUserId");
+
+                    b.HasIndex("TargetUserId", "CreatedAtUtc");
+
+                    b.ToTable("AccessAuditLogs", (string)null);
+                });
+
             modelBuilder.Entity("Zadana.Domain.Modules.Catalog.Entities.AdminBrandBulkOperation", b =>
                 {
                     b.Property<Guid>("Id")
@@ -2422,6 +2470,10 @@ namespace Zadana.Infrastructure.Migrations
                     b.Property<bool>("EmailConfirmed")
                         .HasColumnType("bit");
 
+                    b.Property<string>("Department")
+                        .HasMaxLength(100)
+                        .HasColumnType("nvarchar(100)");
+
                     b.Property<string>("FullName")
                         .IsRequired()
                         .HasMaxLength(200)
@@ -2436,6 +2488,9 @@ namespace Zadana.Infrastructure.Migrations
                         .HasColumnType("datetime2");
 
                     b.Property<DateTime?>("LastOtpSentAt")
+                        .HasColumnType("datetime2");
+
+                    b.Property<DateTime?>("LastPasswordChangedAtUtc")
                         .HasColumnType("datetime2");
 
                     b.Property<DateTime?>("LastSeenAtUtc")
@@ -2457,6 +2512,11 @@ namespace Zadana.Infrastructure.Migrations
 
                     b.Property<DateTimeOffset?>("LockoutEnd")
                         .HasColumnType("datetimeoffset");
+
+                    b.Property<bool>("MustChangePassword")
+                        .ValueGeneratedOnAdd()
+                        .HasColumnType("bit")
+                        .HasDefaultValue(false);
 
                     b.Property<decimal?>("Longitude")
                         .HasPrecision(9, 6)
@@ -2511,6 +2571,13 @@ namespace Zadana.Infrastructure.Migrations
 
                     b.Property<string>("SecurityStamp")
                         .HasColumnType("nvarchar(max)");
+
+                    b.Property<string>("Team")
+                        .HasMaxLength(100)
+                        .HasColumnType("nvarchar(100)");
+
+                    b.Property<DateTime?>("TemporaryPasswordIssuedAtUtc")
+                        .HasColumnType("datetime2");
 
                     b.Property<bool>("TwoFactorEnabled")
                         .HasColumnType("bit");
@@ -5697,6 +5764,17 @@ namespace Zadana.Infrastructure.Migrations
                     b.Navigation("MasterProduct");
 
                     b.Navigation("User");
+                });
+
+            modelBuilder.Entity("Zadana.Domain.Modules.Identity.Entities.AccessAuditLog", b =>
+                {
+                    b.HasOne("Zadana.Domain.Modules.Identity.Entities.User", "TargetUser")
+                        .WithMany()
+                        .HasForeignKey("TargetUserId")
+                        .OnDelete(DeleteBehavior.Cascade)
+                        .IsRequired();
+
+                    b.Navigation("TargetUser");
                 });
 
             modelBuilder.Entity("Zadana.Domain.Modules.Identity.Entities.RefreshToken", b =>

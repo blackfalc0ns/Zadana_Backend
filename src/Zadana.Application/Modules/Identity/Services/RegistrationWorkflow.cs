@@ -66,6 +66,7 @@ public class RegistrationWorkflow : IRegistrationWorkflow
             account.Email,
             account.PhoneNumber,
             account.Role.ToString(),
+            account.MustChangePassword,
             Access: await _accessControlService.GetEffectiveAccessAsync(account.Id, cancellationToken));
 
         var isVerified = AuthResponseVerificationResolver.Resolve(account.Role, driverStatus);

@@ -44,10 +44,15 @@ public record AdminUserRecordDto(
     string AudienceType,
     string IdentityKind,
     string PanelScope,
+    Guid? RoleDefinitionId,
+    string RoleCode,
+    string RoleName,
+    List<string> RolePermissions,
     string RolePresetId,
     string AccessLevel,
     string Status,
     string InviteState,
+    bool MustChangePassword,
     List<string> GrantedPermissions,
     List<string> RevokedPermissions,
     AdminUserSecurityDto Security,
@@ -58,3 +63,24 @@ public record AdminUserRecordDto(
     string EntityPath,
     List<string> Tags
 );
+
+public record PagedResultDto<T>(
+    List<T> Items,
+    int PageNumber,
+    int PageSize,
+    int TotalCount,
+    int TotalPages);
+
+public record AccessAuditLogDto(
+    Guid Id,
+    Guid? ActorUserId,
+    string? ActorFullName,
+    string? ActorEmail,
+    Guid TargetUserId,
+    string Action,
+    string Summary,
+    string? BeforeJson,
+    string? AfterJson,
+    string CreatedAtUtc,
+    string? IpAddress,
+    string? UserAgent);

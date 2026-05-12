@@ -29,6 +29,11 @@ public class CreateRoleCommandHandler : IRequestHandler<CreateRoleCommand, RoleD
     {
         var code = request.Name.ToLower().Replace(" ", "_");
 
+        if (await _context.RoleDefinitions.AnyAsync(r => r.Code == code, cancellationToken))
+        {
+            throw new BadRequestException("ROLE_CODE_EXISTS", "A role with this name already exists.");
+        }
+
         var role = new RoleDefinition(
             code: code,
             name: request.Name,
@@ -41,6 +46,25 @@ public class CreateRoleCommandHandler : IRequestHandler<CreateRoleCommand, RoleD
         var permissionDefs = await _context.PermissionDefinitions
             .Where(p => request.Permissions.Contains(p.Key))
             .ToListAsync(cancellationToken);
+        var invalidPermissions = request.Permissions
+            .Except(permissionDefs.Select(p => p.Key), StringComparer.OrdinalIgnoreCase)
+            .ToList();
+
+        if (invalidPermissions.Count > 0)
+        {
+            throw new BadRequestException("INVALID_PERMISSION", $"Unknown permission keys: {string.Join(", ", invalidPermissions)}");
+        }
+
+        var wrongScopePermissions = permissionDefs
+            .Where(p => p.PanelScope != request.PanelScope)
+            .Select(p => p.Key)
+            .ToList();
+        if (wrongScopePermissions.Count > 0)
+        {
+            throw new BadRequestException(
+                "INVALID_PERMISSION_SCOPE",
+                $"Permissions do not belong to the selected panel scope: {string.Join(", ", wrongScopePermissions)}");
+        }
 
         foreach (var permissionDef in permissionDefs)
         {
@@ -59,7 +83,7 @@ public class CreateRoleCommandHandler : IRequestHandler<CreateRoleCommand, RoleD
             IsActive: role.IsActive,
             IdentityRole: role.IdentityRole,
             PanelScope: role.PanelScope,
-            Permissions: request.Permissions,
+            Permissions: permissionDefs.Select(p => p.Key).OrderBy(x => x).ToList(),
             UsersCount: 0
         );
     }

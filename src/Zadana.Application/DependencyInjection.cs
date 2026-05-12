@@ -12,6 +12,7 @@ using Zadana.Application.Modules.Orders.Interfaces;
 using Zadana.Application.Modules.Orders.Services;
 using Zadana.Application.Modules.Vendors.Interfaces;
 using Zadana.Application.Modules.Vendors.Services;
+using Zadana.Application.Modules.Identity.Services;
 
 namespace Zadana.Application;
 
@@ -32,6 +33,8 @@ public static class DependencyInjection
 
         services.AddScoped<Zadana.Application.Modules.Identity.Interfaces.IIdentityService, Zadana.Application.Modules.Identity.Services.IdentityService>();
         services.AddScoped<Zadana.Application.Modules.Identity.Interfaces.IRegistrationWorkflow, Zadana.Application.Modules.Identity.Services.RegistrationWorkflow>();
+        services.AddScoped<IAdminAccessValidationService, AdminAccessValidationService>();
+        services.AddScoped<IAccessAuditService, AccessAuditService>();
         services.AddScoped<IEmailCenterService, EmailCenterService>();
         services.AddScoped<FinancialEventPostingService>();
         services.AddScoped<WalletProjectionUpdater>();

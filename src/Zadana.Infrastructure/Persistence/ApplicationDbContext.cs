@@ -36,6 +36,7 @@ public class ApplicationDbContext : IdentityDbContext<User, IdentityRole<Guid>, 
     public DbSet<RolePermission> RolePermissions => Set<RolePermission>();
     public DbSet<UserAccessScope> UserAccessScopes => Set<UserAccessScope>();
     public DbSet<UserPermissionOverride> UserPermissionOverrides => Set<UserPermissionOverride>();
+    public DbSet<AccessAuditLog> AccessAuditLogs => Set<AccessAuditLog>();
     public DbSet<RefreshToken> RefreshTokens => Set<RefreshToken>();
     public DbSet<CustomerFavorite> CustomerFavorites => Set<CustomerFavorite>();
     public DbSet<UserPushDevice> UserPushDevices => Set<UserPushDevice>();

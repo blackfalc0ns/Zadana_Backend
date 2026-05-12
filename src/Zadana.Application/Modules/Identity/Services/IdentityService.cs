@@ -98,7 +98,7 @@ public class IdentityService : IIdentityService
 
         var favoritesCount = await _context.CustomerFavorites.CountAsync(x => x.UserId == user.Id, cancellationToken);
         var access = await _accessControlService.GetEffectiveAccessAsync(user.Id, cancellationToken);
-        var userDto = new CurrentUserDto(user.Id, user.FullName, user.Email, user.PhoneNumber, user.Role.ToString(), favoritesCount, access);
+        var userDto = new CurrentUserDto(user.Id, user.FullName, user.Email, user.PhoneNumber, user.Role.ToString(), user.MustChangePassword, favoritesCount, access);
         DriverOperationalStatusDto? driverStatus = null;
 
         if (user.Role == UserRole.Driver)
@@ -188,7 +188,7 @@ public class IdentityService : IIdentityService
 
         var favoritesCount = await _context.CustomerFavorites.CountAsync(x => x.UserId == user.Id, cancellationToken);
         var access = await _accessControlService.GetEffectiveAccessAsync(user.Id, cancellationToken);
-        return new CurrentUserDto(user.Id, user.FullName, user.Email, user.PhoneNumber, user.Role.ToString(), favoritesCount, access);
+        return new CurrentUserDto(user.Id, user.FullName, user.Email, user.PhoneNumber, user.Role.ToString(), user.MustChangePassword, favoritesCount, access);
     }
 
     private async Task<IdentityAccountSnapshot> EnsureDriverAccessScopeAsync(
@@ -277,6 +277,7 @@ public class IdentityService : IIdentityService
             userEntity.LockedAtUtc,
             userEntity.ArchivedAtUtc,
             userEntity.EmailConfirmed,
-            userEntity.PhoneNumberConfirmed);
+            userEntity.PhoneNumberConfirmed,
+            userEntity.MustChangePassword);
     }
 }

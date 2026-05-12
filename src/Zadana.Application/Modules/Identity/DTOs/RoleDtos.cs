@@ -14,3 +14,14 @@ public record RoleDefinitionDto(
     List<string> Permissions,
     int UsersCount = 0
 );
+
+public record PermissionDefinitionDto(
+    Guid Id,
+    string Key,
+    string Name,
+    string Domain,
+    string Action,
+    PanelScope PanelScope,
+    string? Description,
+    bool IsSensitive
+);

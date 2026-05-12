@@ -1,4 +1,5 @@
 using Zadana.Application.Modules.Identity.DTOs;
+using Zadana.Domain.Modules.Identity.Enums;
 
 namespace Zadana.Application.Modules.Identity.Interfaces;
 
@@ -14,6 +15,8 @@ public interface IIdentityAccountService
     Task<IdentityOperationResult> RecordLoginAsync(Guid userId, CancellationToken cancellationToken = default);
     Task<IdentityOperationResult> RecordActivityAsync(Guid userId, CancellationToken cancellationToken = default);
     Task<IdentityOperationResult> UpdateProfileAsync(Guid userId, string fullName, string email, string phoneNumber, CancellationToken cancellationToken = default);
+    Task<IdentityOperationResult> UpdateRoleAsync(Guid userId, UserRole role, CancellationToken cancellationToken = default);
+    Task<IdentityOperationResult> ChangePasswordAsync(Guid userId, string currentPassword, string newPassword, CancellationToken cancellationToken = default);
     Task<IdentityOperationResult> ActivateAsync(Guid userId, CancellationToken cancellationToken = default);
     Task<IdentityOperationResult> SuspendAsync(Guid userId, CancellationToken cancellationToken = default);
     Task<IdentityOperationResult> LockLoginAsync(Guid userId, string reason, CancellationToken cancellationToken = default);

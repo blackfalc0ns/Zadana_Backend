@@ -15,6 +15,11 @@ public class User : IdentityUser<Guid>
     public string? LockReason { get; private set; }
     public DateTime? ArchivedAtUtc { get; private set; }
     public string? ArchiveReason { get; private set; }
+    public string? Department { get; private set; }
+    public string? Team { get; private set; }
+    public bool MustChangePassword { get; private set; }
+    public DateTime? TemporaryPasswordIssuedAtUtc { get; private set; }
+    public DateTime? LastPasswordChangedAtUtc { get; private set; }
     
     public string? OtpCode { get; private set; }
     public DateTime? OtpExpiryTime { get; private set; }
@@ -57,6 +62,7 @@ public class User : IdentityUser<Guid>
         AccountStatus = AccountStatus.Active;
         PresenceState = PresenceState.Offline;
         IsLoginLocked = false;
+        MustChangePassword = false;
         LockoutEnabled = true;
         EmailConfirmed = false;
         PhoneNumberConfirmed = false;
@@ -76,6 +82,40 @@ public class User : IdentityUser<Guid>
 
     public void VerifyEmail() => EmailConfirmed = true;
     public void VerifyPhone() => PhoneNumberConfirmed = true;
+
+    public void UpdateDirectoryProfile(string? department, string? team)
+    {
+        Department = string.IsNullOrWhiteSpace(department) ? null : department.Trim();
+        Team = string.IsNullOrWhiteSpace(team) ? null : team.Trim();
+        UpdatedAtUtc = DateTime.UtcNow;
+    }
+
+    public void UpdateRole(UserRole role)
+    {
+        if (Role == role)
+        {
+            return;
+        }
+
+        Role = role;
+        UpdatedAtUtc = DateTime.UtcNow;
+    }
+
+    public void RequirePasswordChange()
+    {
+        MustChangePassword = true;
+        TemporaryPasswordIssuedAtUtc = DateTime.UtcNow;
+        UpdatedAtUtc = DateTime.UtcNow;
+    }
+
+    public void CompletePasswordChange()
+    {
+        MustChangePassword = false;
+        TemporaryPasswordIssuedAtUtc = null;
+        LastPasswordChangedAtUtc = DateTime.UtcNow;
+        UpdatedAtUtc = DateTime.UtcNow;
+    }
+
     public void IncrementPermissionVersion()
     {
         PermissionVersion++;

@@ -34,11 +34,20 @@ public class UserConfiguration : IEntityTypeConfiguration<User>
         builder.Property(u => u.IsLoginLocked)
             .HasDefaultValue(false);
 
+        builder.Property(u => u.MustChangePassword)
+            .HasDefaultValue(false);
+
         builder.Property(u => u.LockReason)
             .HasMaxLength(500);
 
         builder.Property(u => u.ArchiveReason)
             .HasMaxLength(500);
+
+        builder.Property(u => u.Department)
+            .HasMaxLength(100);
+
+        builder.Property(u => u.Team)
+            .HasMaxLength(100);
 
         builder.Property(u => u.Latitude)
             .HasPrecision(9, 6);
@@ -50,6 +59,8 @@ public class UserConfiguration : IEntityTypeConfiguration<User>
         builder.Property(u => u.LastSeenAtUtc);
         builder.Property(u => u.LockedAtUtc);
         builder.Property(u => u.ArchivedAtUtc);
+        builder.Property(u => u.TemporaryPasswordIssuedAtUtc);
+        builder.Property(u => u.LastPasswordChangedAtUtc);
 
         builder.HasMany(u => u.RefreshTokens)
             .WithOne(r => r.User)
@@ -66,5 +77,9 @@ public class UserConfiguration : IEntityTypeConfiguration<User>
             .HasForeignKey(overrideEntry => overrideEntry.UserId)
             .OnDelete(DeleteBehavior.Cascade);
 
+        builder.HasMany<AccessAuditLog>()
+            .WithOne(log => log.TargetUser)
+            .HasForeignKey(log => log.TargetUserId)
+            .OnDelete(DeleteBehavior.Cascade);
     }
 }

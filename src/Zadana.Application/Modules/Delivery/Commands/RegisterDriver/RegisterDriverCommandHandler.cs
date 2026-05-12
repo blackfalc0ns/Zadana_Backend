@@ -173,6 +173,7 @@ public class RegisterDriverCommandHandler : IRequestHandler<RegisterDriverComman
             userEntity.LockedAtUtc,
             userEntity.ArchivedAtUtc,
             userEntity.EmailConfirmed,
-            userEntity.PhoneNumberConfirmed);
+            userEntity.PhoneNumberConfirmed,
+            userEntity.MustChangePassword);
     }
 }

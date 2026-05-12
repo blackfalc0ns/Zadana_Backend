@@ -58,10 +58,45 @@ public class UpdateRoleCommandHandler : IRequestHandler<UpdateRoleCommand, RoleD
         var permissionDefs = await _context.PermissionDefinitions
             .Where(p => request.Permissions.Contains(p.Key))
             .ToListAsync(cancellationToken);
+        var invalidPermissions = request.Permissions
+            .Except(permissionDefs.Select(p => p.Key), StringComparer.OrdinalIgnoreCase)
+            .ToList();
+
+        if (invalidPermissions.Count > 0)
+        {
+            throw new BadRequestException("INVALID_PERMISSION", $"Unknown permission keys: {string.Join(", ", invalidPermissions)}");
+        }
+
+        var wrongScopePermissions = permissionDefs
+            .Where(p => p.PanelScope != request.PanelScope)
+            .Select(p => p.Key)
+            .ToList();
+        if (wrongScopePermissions.Count > 0)
+        {
+            throw new BadRequestException(
+                "INVALID_PERMISSION_SCOPE",
+                $"Permissions do not belong to the selected panel scope: {string.Join(", ", wrongScopePermissions)}");
+        }
 
         foreach (var permissionDef in permissionDefs)
         {
             role.RolePermissions.Add(new RolePermission(role.Id, permissionDef.Id));
+        }
+
+        var assignedUserIds = role.UserAccessScopes
+            .Where(scope => scope.IsActive)
+            .Select(scope => scope.UserId)
+            .Distinct()
+            .ToList();
+        if (assignedUserIds.Count > 0)
+        {
+            var users = await _context.Users
+                .Where(user => assignedUserIds.Contains(user.Id))
+                .ToListAsync(cancellationToken);
+            foreach (var user in users)
+            {
+                user.IncrementPermissionVersion();
+            }
         }
 
         await _context.SaveChangesAsync(cancellationToken);
@@ -75,7 +110,7 @@ public class UpdateRoleCommandHandler : IRequestHandler<UpdateRoleCommand, RoleD
             IsActive: role.IsActive,
             IdentityRole: role.IdentityRole,
             PanelScope: role.PanelScope,
-            Permissions: request.Permissions,
+            Permissions: permissionDefs.Select(p => p.Key).OrderBy(x => x).ToList(),
             UsersCount: role.UserAccessScopes.Count
         );
     }

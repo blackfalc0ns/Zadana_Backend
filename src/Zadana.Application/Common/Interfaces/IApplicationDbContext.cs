@@ -22,6 +22,7 @@ public interface IApplicationDbContext
     DbSet<RolePermission> RolePermissions { get; }
     DbSet<UserAccessScope> UserAccessScopes { get; }
     DbSet<UserPermissionOverride> UserPermissionOverrides { get; }
+    DbSet<AccessAuditLog> AccessAuditLogs { get; }
     DbSet<CustomerFavorite> CustomerFavorites { get; }
     DbSet<UserPushDevice> UserPushDevices { get; }
 

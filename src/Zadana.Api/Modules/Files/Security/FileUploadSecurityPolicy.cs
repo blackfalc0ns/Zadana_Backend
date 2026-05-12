@@ -25,7 +25,10 @@ public static class FileUploadSecurityPolicy
             [NormalizeDirectory("drivers/profile")] = Create("drivers/profile", allowAnonymous: true),
             [NormalizeDirectory("drivers/proofs")] = Create("drivers/proofs", allowAnonymous: false, UserRole.Driver),
             [NormalizeDirectory("uploads/catalog/brand-requests")] = Create("uploads/catalog/brand-requests", allowAnonymous: false, UserRole.Vendor, UserRole.VendorStaff),
-            [NormalizeDirectory("uploads/catalog/category-requests")] = Create("uploads/catalog/category-requests", allowAnonymous: false, UserRole.Vendor, UserRole.VendorStaff)
+            [NormalizeDirectory("uploads/catalog/category-requests")] = Create("uploads/catalog/category-requests", allowAnonymous: false, UserRole.Vendor, UserRole.VendorStaff),
+            [NormalizeDirectory("uploads/catalog/categories")] = Create("uploads/catalog/categories", allowAnonymous: true),
+            [NormalizeDirectory("uploads/catalog/brands")] = Create("uploads/catalog/brands", allowAnonymous: true),
+            [NormalizeDirectory("uploads/catalog/products")] = Create("uploads/catalog/products", allowAnonymous: true)
         };
 
     public static string NormalizeDirectory(string? directory)

@@ -55,7 +55,7 @@ public class ResendOtpCommandHandler : IRequestHandler<ResendOtpCommand, AuthRes
             await _otpService.SendOtpEmailAsync(user.Email, otpResult.OtpCode, cancellationToken);
         }
 
-        var userDto = new CurrentUserDto(user.Id, user.FullName, user.Email, user.PhoneNumber, user.Role.ToString());
+        var userDto = new CurrentUserDto(user.Id, user.FullName, user.Email, user.PhoneNumber, user.Role.ToString(), user.MustChangePassword);
         return new AuthResponseDto(null, userDto, false, _localizer["OtpResentSuccessfully"]);
     }
 }
