@@ -8,4 +8,5 @@ public record CreateBrandCommand(
     string NameEn,
     string? LogoUrl,
     string? CoverImageUrl,
-    Guid CategoryId) : IRequest<BrandDto>;
+    Guid CategoryId,
+    IReadOnlyList<Guid>? CategoryIds = null) : IRequest<BrandDto>;

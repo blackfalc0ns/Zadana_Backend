@@ -52,6 +52,7 @@ public class ApplicationDbContext : IdentityDbContext<User, IdentityRole<Guid>, 
     // Catalog
     public DbSet<Category> Categories => Set<Category>();
     public DbSet<Brand> Brands => Set<Brand>();
+    public DbSet<BrandCategory> BrandCategories => Set<BrandCategory>();
     public DbSet<ProductType> ProductTypes => Set<ProductType>();
     public DbSet<Part> Parts => Set<Part>();
     public DbSet<UnitOfMeasure> UnitsOfMeasure => Set<UnitOfMeasure>();

@@ -20,7 +20,6 @@ public class SearchBrandsQueryHandler : IRequestHandler<SearchBrandsQuery, Catal
         var filters = request.Filters ?? new BrandSearchFiltersDto();
         var query = _context.Brands
             .AsNoTracking()
-            .Include(brand => brand.MasterProducts)
             .AsQueryable();
 
         if (!string.IsNullOrWhiteSpace(request.Search))
@@ -38,7 +37,9 @@ public class SearchBrandsQueryHandler : IRequestHandler<SearchBrandsQuery, Catal
 
         if (filters.CategoryId.HasValue)
         {
-            query = query.Where(brand => brand.CategoryId == filters.CategoryId.Value);
+            query = query.Where(brand =>
+                brand.CategoryId == filters.CategoryId.Value ||
+                brand.BrandCategories.Any(link => link.CategoryId == filters.CategoryId.Value));
         }
 
         if (filters.HasProducts.HasValue)
@@ -65,21 +66,12 @@ public class SearchBrandsQueryHandler : IRequestHandler<SearchBrandsQuery, Catal
         var totalPages = Math.Max(1, (int)Math.Ceiling(totalCount / (double)pageSize));
 
         var items = await ApplySorting(query, request.SortField, request.SortDirection)
+            .Include(brand => brand.Category)
+            .Include(brand => brand.BrandCategories)
+                .ThenInclude(link => link.Category)
+            .Include(brand => brand.MasterProducts)
             .Skip((pageNumber - 1) * pageSize)
             .Take(pageSize)
-            .Select(brand => new BrandDto(
-                brand.Id,
-                brand.NameAr,
-                brand.NameEn,
-                brand.LogoUrl,
-                brand.CoverImageUrl,
-                brand.CategoryId,
-                brand.Category != null ? brand.Category.NameAr : null,
-                brand.Category != null ? brand.Category.NameEn : null,
-                brand.IsActive,
-                brand.MasterProducts.Count,
-                brand.CreatedAtUtc,
-                brand.UpdatedAtUtc))
             .ToListAsync(cancellationToken);
 
         var activeCount = await query.CountAsync(brand => brand.IsActive, cancellationToken);
@@ -90,7 +82,7 @@ public class SearchBrandsQueryHandler : IRequestHandler<SearchBrandsQuery, Catal
             withProductsCount);
 
         return new CatalogSearchResponse<BrandDto, BrandSearchFiltersDto, BrandSearchFacetsDto>(
-            items,
+            items.Select(MapBrand).ToList(),
             totalCount,
             totalPages,
             pageNumber,
@@ -103,6 +95,39 @@ public class SearchBrandsQueryHandler : IRequestHandler<SearchBrandsQuery, Catal
                 new("masterProductsCount", "desc", "Most products")
             ],
             facets);
+    }
+
+    private static BrandDto MapBrand(Brand brand)
+    {
+        var categories = brand.BrandCategories
+            .Where(link => link.Category is not null)
+            .OrderBy(link => link.Category.NameEn)
+            .Select(link => new BrandCategoryLinkDto(link.CategoryId, link.Category.NameAr, link.Category.NameEn))
+            .ToList();
+
+        if (categories.Count == 0 && brand.CategoryId.HasValue)
+        {
+            categories.Add(new BrandCategoryLinkDto(
+                brand.CategoryId.Value,
+                brand.Category?.NameAr,
+                brand.Category?.NameEn));
+        }
+
+        return new BrandDto(
+            brand.Id,
+            brand.NameAr,
+            brand.NameEn,
+            brand.LogoUrl,
+            brand.CoverImageUrl,
+            brand.CategoryId,
+            categories.Select(item => item.CategoryId).ToList(),
+            categories,
+            brand.Category?.NameAr,
+            brand.Category?.NameEn,
+            brand.IsActive,
+            brand.MasterProducts.Count,
+            brand.CreatedAtUtc,
+            brand.UpdatedAtUtc);
     }
 
     private static IQueryable<Brand> ApplySorting(IQueryable<Brand> query, string? sortField, string? sortDirection)

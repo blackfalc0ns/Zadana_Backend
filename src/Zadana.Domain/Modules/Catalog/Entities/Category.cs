@@ -17,6 +17,7 @@ public class Category : BaseEntity
     public ICollection<ProductType> ProductTypes { get; private set; } = [];
     public ICollection<MasterProduct> MasterProducts { get; private set; } = [];
     public ICollection<Brand> Brands { get; private set; } = [];
+    public ICollection<BrandCategory> BrandCategories { get; private set; } = [];
 
     private Category() { }
 

@@ -13,6 +13,7 @@ public class Brand : BaseEntity
 
     // Navigation
     public Category? Category { get; private set; }
+    public ICollection<BrandCategory> BrandCategories { get; private set; } = [];
     public ICollection<MasterProduct> MasterProducts { get; private set; } = [];
 
     private Brand() { }

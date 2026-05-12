@@ -9,4 +9,5 @@ public record UpdateBrandCommand(
     string? LogoUrl,
     string? CoverImageUrl,
     Guid CategoryId,
+    IReadOnlyList<Guid>? CategoryIds,
     bool IsActive) : IRequest;

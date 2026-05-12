@@ -37,6 +37,7 @@ public interface IApplicationDbContext
     // Catalog
     DbSet<Category> Categories { get; }
     DbSet<Brand> Brands { get; }
+    DbSet<BrandCategory> BrandCategories { get; }
     DbSet<ProductType> ProductTypes { get; }
     DbSet<Part> Parts { get; }
     DbSet<UnitOfMeasure> UnitsOfMeasure { get; }

@@ -68,7 +68,13 @@ public class AdminBrandsController : ApiControllerBase
     [HttpPost]
     public async Task<ActionResult<BrandDto>> CreateBrand([FromBody] CreateBrandRequest request)
     {
-        var result = await Sender.Send(new CreateBrandCommand(request.NameAr, request.NameEn, request.LogoUrl, request.CoverImageUrl, request.CategoryId));
+        var result = await Sender.Send(new CreateBrandCommand(
+            request.NameAr,
+            request.NameEn,
+            request.LogoUrl,
+            request.CoverImageUrl,
+            request.CategoryId,
+            request.CategoryIds));
         return Ok(result);
     }
 
@@ -118,6 +124,7 @@ public class AdminBrandsController : ApiControllerBase
             request.LogoUrl,
             request.CoverImageUrl,
             request.CategoryId,
+            request.CategoryIds,
             request.IsActive);
 
         await Sender.Send(command);

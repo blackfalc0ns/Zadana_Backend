@@ -1,5 +1,10 @@
 namespace Zadana.Application.Modules.Catalog.DTOs;
 
+public record BrandCategoryLinkDto(
+    Guid CategoryId,
+    string? CategoryNameAr,
+    string? CategoryNameEn);
+
 public record BrandDto(
     Guid Id,
     string NameAr,
@@ -7,6 +12,8 @@ public record BrandDto(
     string? LogoUrl,
     string? CoverImageUrl,
     Guid? CategoryId,
+    IReadOnlyList<Guid> CategoryIds,
+    IReadOnlyList<BrandCategoryLinkDto> Categories,
     string? CategoryNameAr,
     string? CategoryNameEn,
     bool IsActive,

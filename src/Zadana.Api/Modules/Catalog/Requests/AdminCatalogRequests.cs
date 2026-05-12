@@ -3,7 +3,13 @@ using Zadana.Domain.Modules.Catalog.Enums;
 
 namespace Zadana.Api.Modules.Catalog.Requests;
 
-public record CreateBrandRequest(string NameAr, string NameEn, string? LogoUrl, string? CoverImageUrl, Guid CategoryId);
+public record CreateBrandRequest(
+    string NameAr,
+    string NameEn,
+    string? LogoUrl,
+    string? CoverImageUrl,
+    Guid CategoryId,
+    IReadOnlyList<Guid>? CategoryIds = null);
 
 public record UpdateBrandRequest(
     string NameAr,
@@ -11,6 +17,7 @@ public record UpdateBrandRequest(
     string? LogoUrl,
     string? CoverImageUrl,
     Guid CategoryId,
+    IReadOnlyList<Guid>? CategoryIds,
     bool IsActive);
 
 public record CreateCategoryRequest(

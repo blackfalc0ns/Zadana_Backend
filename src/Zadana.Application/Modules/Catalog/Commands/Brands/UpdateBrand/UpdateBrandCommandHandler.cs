@@ -20,10 +20,13 @@ public class UpdateBrandCommandHandler : IRequestHandler<UpdateBrandCommand>
 
     public async Task Handle(UpdateBrandCommand request, CancellationToken cancellationToken)
     {
-        var brand = await _context.Brands.FindAsync(new object[] { request.Id }, cancellationToken);
+        var brand = await _context.Brands
+            .Include(item => item.BrandCategories)
+            .FirstOrDefaultAsync(item => item.Id == request.Id, cancellationToken);
         if (brand == null)
             throw new NotFoundException(nameof(Brand), request.Id);
 
+        var categoryIds = ResolveCategoryIds(request.CategoryId, request.CategoryIds);
         var category = await _context.Categories
             .AsNoTracking()
             .FirstOrDefaultAsync(item => item.Id == request.CategoryId && item.ParentCategoryId != null, cancellationToken);
@@ -32,6 +35,7 @@ public class UpdateBrandCommandHandler : IRequestHandler<UpdateBrandCommand>
             throw new NotFoundException(nameof(Category), request.CategoryId);
 
         brand.Update(request.NameAr, request.NameEn, request.LogoUrl, request.CoverImageUrl, request.CategoryId);
+        SyncBrandCategories(brand, categoryIds);
 
         if (request.IsActive && !brand.IsActive)
             brand.Activate();
@@ -40,5 +44,34 @@ public class UpdateBrandCommandHandler : IRequestHandler<UpdateBrandCommand>
 
         await _context.SaveChangesAsync(cancellationToken);
         await _cacheInvalidator.RemoveByTagsAsync(CacheInvalidationProfiles.CatalogReadModels, cancellationToken);
+    }
+
+    private void SyncBrandCategories(Brand brand, IReadOnlyList<Guid> categoryIds)
+    {
+        var desiredIds = categoryIds.ToHashSet();
+        var existingLinks = brand.BrandCategories.ToList();
+
+        foreach (var link in existingLinks.Where(link => !desiredIds.Contains(link.CategoryId)))
+        {
+            _context.BrandCategories.Remove(link);
+        }
+
+        var existingIds = existingLinks.Select(link => link.CategoryId).ToHashSet();
+        foreach (var categoryId in desiredIds.Where(id => !existingIds.Contains(id)))
+        {
+            _context.BrandCategories.Add(new BrandCategory(brand.Id, categoryId));
+        }
+    }
+
+    private static IReadOnlyList<Guid> ResolveCategoryIds(Guid categoryId, IReadOnlyList<Guid>? categoryIds)
+    {
+        var resolved = categoryIds is { Count: > 0 }
+            ? categoryIds
+            : [categoryId];
+
+        return resolved
+            .Where(id => id != Guid.Empty)
+            .Distinct()
+            .ToArray();
     }
 }

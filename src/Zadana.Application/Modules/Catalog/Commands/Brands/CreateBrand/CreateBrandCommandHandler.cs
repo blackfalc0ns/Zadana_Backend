@@ -20,13 +20,25 @@ public class CreateBrandCommandHandler : IRequestHandler<CreateBrandCommand, Bra
 
     public async Task<BrandDto> Handle(CreateBrandCommand request, CancellationToken cancellationToken)
     {
+        var categoryIds = ResolveCategoryIds(request.CategoryId, request.CategoryIds);
         var category = await _context.Categories
             .AsNoTracking()
             .FirstAsync(item => item.Id == request.CategoryId && item.ParentCategoryId != null, cancellationToken);
 
+        var categories = await _context.Categories
+            .AsNoTracking()
+            .Where(item => categoryIds.Contains(item.Id) && item.ParentCategoryId != null)
+            .OrderBy(item => item.NameEn)
+            .ToListAsync(cancellationToken);
+
         var brand = new Brand(request.NameAr, request.NameEn, request.LogoUrl, request.CoverImageUrl, request.CategoryId);
 
         _context.Brands.Add(brand);
+        foreach (var categoryId in categoryIds)
+        {
+            _context.BrandCategories.Add(new BrandCategory(brand.Id, categoryId));
+        }
+
         await _context.SaveChangesAsync(cancellationToken);
         await _cacheInvalidator.RemoveByTagsAsync(CacheInvalidationProfiles.CatalogReadModels, cancellationToken);
 
@@ -37,11 +49,25 @@ public class CreateBrandCommandHandler : IRequestHandler<CreateBrandCommand, Bra
             brand.LogoUrl,
             brand.CoverImageUrl,
             brand.CategoryId,
+            categoryIds,
+            categories.Select(item => new BrandCategoryLinkDto(item.Id, item.NameAr, item.NameEn)).ToList(),
             category.NameAr,
             category.NameEn,
             brand.IsActive,
             0,
             brand.CreatedAtUtc,
             brand.UpdatedAtUtc);
+    }
+
+    private static IReadOnlyList<Guid> ResolveCategoryIds(Guid categoryId, IReadOnlyList<Guid>? categoryIds)
+    {
+        var resolved = categoryIds is { Count: > 0 }
+            ? categoryIds
+            : [categoryId];
+
+        return resolved
+            .Where(id => id != Guid.Empty)
+            .Distinct()
+            .ToArray();
     }
 }

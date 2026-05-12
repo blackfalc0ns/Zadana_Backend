@@ -44,13 +44,20 @@ public class SubmitProductRequestCommandHandler : IRequestHandler<SubmitProductR
 
         if (request.SuggestedCategoryId.HasValue && request.SuggestedBrandId.HasValue)
         {
-            var selectedBrandCategoryId = await _context.Brands
+            var selectedBrandMatchesCategory = await _context.Brands
                 .AsNoTracking()
                 .Where(brand => brand.Id == request.SuggestedBrandId.Value)
-                .Select(brand => brand.CategoryId)
-                .FirstOrDefaultAsync(cancellationToken);
+                .AnyAsync(brand =>
+                    brand.CategoryId == request.SuggestedCategoryId.Value ||
+                    brand.BrandCategories.Any(link => link.CategoryId == request.SuggestedCategoryId.Value),
+                    cancellationToken);
 
-            if (selectedBrandCategoryId.HasValue && selectedBrandCategoryId.Value != request.SuggestedCategoryId.Value)
+            var selectedBrandHasCategories = await _context.Brands
+                .AsNoTracking()
+                .Where(brand => brand.Id == request.SuggestedBrandId.Value)
+                .AnyAsync(brand => brand.CategoryId.HasValue || brand.BrandCategories.Any(), cancellationToken);
+
+            if (selectedBrandHasCategories && !selectedBrandMatchesCategory)
             {
                 throw new BusinessRuleException("BRAND_CATEGORY_MISMATCH", "The selected brand does not belong to the selected category.");
             }

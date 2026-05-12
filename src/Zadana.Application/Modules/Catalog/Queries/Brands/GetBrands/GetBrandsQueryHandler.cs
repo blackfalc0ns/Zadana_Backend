@@ -2,6 +2,7 @@ using MediatR;
 using Microsoft.EntityFrameworkCore;
 using Zadana.Application.Common.Interfaces;
 using Zadana.Application.Modules.Catalog.DTOs;
+using Zadana.Domain.Modules.Catalog.Entities;
 
 namespace Zadana.Application.Modules.Catalog.Queries.Brands.GetBrands;
 
@@ -24,22 +25,46 @@ public class GetBrandsQueryHandler : IRequestHandler<GetBrandsQuery, List<BrandD
         }
 
         var brands = await query
+            .Include(b => b.Category)
+            .Include(b => b.BrandCategories)
+                .ThenInclude(link => link.Category)
+            .Include(b => b.MasterProducts)
             .OrderBy(b => b.NameEn)
-            .Select(b => new BrandDto(
-                b.Id,
-                b.NameAr,
-                b.NameEn,
-                b.LogoUrl,
-                b.CoverImageUrl,
-                b.CategoryId,
-                b.Category != null ? b.Category.NameAr : null,
-                b.Category != null ? b.Category.NameEn : null,
-                b.IsActive,
-                b.MasterProducts.Count(),
-                b.CreatedAtUtc,
-                b.UpdatedAtUtc))
             .ToListAsync(cancellationToken);
 
-        return brands;
+        return brands.Select(MapBrand).ToList();
+    }
+
+    private static BrandDto MapBrand(Brand brand)
+    {
+        var categories = brand.BrandCategories
+            .Where(link => link.Category is not null)
+            .OrderBy(link => link.Category.NameEn)
+            .Select(link => new BrandCategoryLinkDto(link.CategoryId, link.Category.NameAr, link.Category.NameEn))
+            .ToList();
+
+        if (categories.Count == 0 && brand.CategoryId.HasValue)
+        {
+            categories.Add(new BrandCategoryLinkDto(
+                brand.CategoryId.Value,
+                brand.Category?.NameAr,
+                brand.Category?.NameEn));
+        }
+
+        return new BrandDto(
+            brand.Id,
+            brand.NameAr,
+            brand.NameEn,
+            brand.LogoUrl,
+            brand.CoverImageUrl,
+            brand.CategoryId,
+            categories.Select(item => item.CategoryId).ToList(),
+            categories,
+            brand.Category?.NameAr,
+            brand.Category?.NameEn,
+            brand.IsActive,
+            brand.MasterProducts.Count,
+            brand.CreatedAtUtc,
+            brand.UpdatedAtUtc);
     }
 }

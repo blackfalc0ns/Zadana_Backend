@@ -42,10 +42,31 @@ public class CreateBrandCommandValidator : AbstractValidator<CreateBrandCommand>
             })
             .WithMessage(localizer["BrandMustBeLinkedToSubcategory"].Value)
             .WithName("CategoryId");
+
+        RuleFor(x => ResolveCategoryIds(x.CategoryId, x.CategoryIds))
+            .NotEmpty().WithMessage(localizer["RequiredField"].Value)
+            .MustAsync(async (categoryIds, cancellationToken) =>
+            {
+                var uniqueIds = categoryIds.Distinct().ToArray();
+                var validCount = await context.Categories
+                    .AsNoTracking()
+                    .CountAsync(item => uniqueIds.Contains(item.Id) && item.ParentCategoryId != null, cancellationToken);
+
+                return validCount == uniqueIds.Length;
+            })
+            .WithMessage(localizer["BrandMustBeLinkedToSubcategory"].Value)
+            .WithName("CategoryIds");
     }
 
     private static bool NotBeBrowserBlobUrl(string? value)
     {
         return string.IsNullOrWhiteSpace(value) || !value.TrimStart().StartsWith("blob:", StringComparison.OrdinalIgnoreCase);
+    }
+
+    private static IReadOnlyList<Guid> ResolveCategoryIds(Guid categoryId, IReadOnlyList<Guid>? categoryIds)
+    {
+        return categoryIds is { Count: > 0 }
+            ? categoryIds.Where(id => id != Guid.Empty).Distinct().ToArray()
+            : [categoryId];
     }
 }
