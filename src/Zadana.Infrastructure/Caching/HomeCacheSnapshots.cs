@@ -25,6 +25,7 @@ public sealed record HomeBrandSnapshot(
     string NameAr,
     string NameEn,
     string? LogoUrl,
+    string? CoverImageUrl,
     int ProductCount);
 
 public sealed record HomeCatalogProductSnapshot(

@@ -20,6 +20,20 @@ public class FileUploadSecurityPolicyTests
         rule.AllowAnonymous.Should().Be(allowAnonymous);
     }
 
+    [Theory]
+    [InlineData("brands", "uploads/catalog/brands")]
+    [InlineData("products", "uploads/catalog/products")]
+    [InlineData("categories", "uploads/catalog/categories")]
+    [InlineData("catalog", "uploads/catalog/products")]
+    public void TryResolve_MapsCatalogUploadAliasesToCloudFolders(string directory, string expectedDirectory)
+    {
+        var resolved = FileUploadSecurityPolicy.TryResolve(directory, out var rule);
+
+        resolved.Should().BeTrue();
+        rule.Directory.Should().Be(expectedDirectory);
+        rule.AllowAnonymous.Should().BeTrue();
+    }
+
     [Fact]
     public void TryResolve_RequiresDriverRoleForProofUploads()
     {

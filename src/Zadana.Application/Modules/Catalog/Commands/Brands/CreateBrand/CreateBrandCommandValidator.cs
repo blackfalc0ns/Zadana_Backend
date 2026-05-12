@@ -22,10 +22,12 @@ public class CreateBrandCommandValidator : AbstractValidator<CreateBrandCommand>
 
         RuleFor(x => x.LogoUrl)
             .MaximumLength(1000).WithMessage(localizer["MaxLength"].Value)
+            .Must(NotBeBrowserBlobUrl).WithMessage("Browser preview blob URLs cannot be saved. Upload the image first and save the returned cloud URL.")
             .WithName("LogoUrl");
 
         RuleFor(x => x.CoverImageUrl)
             .MaximumLength(1000).WithMessage(localizer["MaxLength"].Value)
+            .Must(NotBeBrowserBlobUrl).WithMessage("Browser preview blob URLs cannot be saved. Upload the image first and save the returned cloud URL.")
             .WithName("CoverImageUrl");
 
         RuleFor(x => x.CategoryId)
@@ -40,5 +42,10 @@ public class CreateBrandCommandValidator : AbstractValidator<CreateBrandCommand>
             })
             .WithMessage(localizer["BrandMustBeLinkedToSubcategory"].Value)
             .WithName("CategoryId");
+    }
+
+    private static bool NotBeBrowserBlobUrl(string? value)
+    {
+        return string.IsNullOrWhiteSpace(value) || !value.TrimStart().StartsWith("blob:", StringComparison.OrdinalIgnoreCase);
     }
 }

@@ -18,7 +18,7 @@ namespace Zadana.Infrastructure.Modules.Home.Services;
 
 public class HomeReadService : IHomeReadService
 {
-    private const string HomePayloadVersion = "v5";
+    private const string HomePayloadVersion = "v6";
     private const int DefaultBannerTake = 5;
     private const int DefaultCategoryTake = 8;
     private const int DefaultBrandTake = 10;
@@ -700,6 +700,7 @@ public class HomeReadService : IHomeReadService
                             x.NameAr,
                             x.NameEn,
                             x.LogoUrl,
+                            x.CoverImageUrl,
                             x.MasterProducts.Count()))
                         .ToArrayAsync(token);
                 }
@@ -852,7 +853,7 @@ public class HomeReadService : IHomeReadService
             brand.Id,
             PickLocalized(brand.NameAr, brand.NameEn),
             brand.LogoUrl,
-            null,
+            brand.CoverImageUrl,
             brand.ProductCount,
             null);
 

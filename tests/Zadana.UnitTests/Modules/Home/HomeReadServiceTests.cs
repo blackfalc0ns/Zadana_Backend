@@ -300,6 +300,7 @@ public class HomeReadServiceTests
         result.Items.Should().HaveCount(5);
         result.Items.Select(x => x.Name).Should().Contain(["Almarai", "Samsung", "Brand 3", "Brand 4", "Brand 5"]);
         result.Items.First(x => x.Name == "Almarai").ProductCount.Should().Be(2);
+        result.Items.First(x => x.Name == "Almarai").CoverImage.Should().Be("almarai-cover.png");
         result.Items.First(x => x.Name == "Samsung").ProductCount.Should().Be(2);
         result.Items.First(x => x.Name == "Brand 3").ProductCount.Should().Be(0);
     }
@@ -381,7 +382,7 @@ public class HomeReadServiceTests
         var subCategory = createSubcategoryData
             ? new Category("فواكه", "Fruits", "fruits.jpg", category.Id, 1)
             : null;
-        var brand = new Brand("المراعي", "Almarai", "almarai.png");
+        var brand = new Brand("المراعي", "Almarai", "almarai.png", "almarai-cover.png");
         var otherBrand = new Brand("سامسونج", "Samsung", "samsung.png");
         var unit = new UnitOfMeasure("لتر", "Liter", "L");
 
