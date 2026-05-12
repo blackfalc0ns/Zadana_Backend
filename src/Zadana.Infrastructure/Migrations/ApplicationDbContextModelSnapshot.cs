@@ -277,8 +277,8 @@ namespace Zadana.Infrastructure.Migrations
                         .HasColumnType("bit");
 
                     b.Property<string>("LogoUrl")
-                        .HasMaxLength(500)
-                        .HasColumnType("nvarchar(500)");
+                        .HasMaxLength(1000)
+                        .HasColumnType("nvarchar(1000)");
 
                     b.Property<string>("NameAr")
                         .IsRequired()
@@ -469,8 +469,8 @@ namespace Zadana.Infrastructure.Migrations
                         .HasDefaultValue(true);
 
                     b.Property<string>("LogoUrl")
-                        .HasMaxLength(500)
-                        .HasColumnType("nvarchar(500)");
+                        .HasMaxLength(1000)
+                        .HasColumnType("nvarchar(1000)");
 
                     b.Property<string>("NameAr")
                         .IsRequired()

@@ -10,20 +10,23 @@ namespace Zadana.Infrastructure.Migrations
         /// <inheritdoc />
         protected override void Up(MigrationBuilder migrationBuilder)
         {
-            migrationBuilder.AddColumn<string>(
-                name: "CoverImageUrl",
-                table: "AdminBrandBulkOperationItems",
-                type: "nvarchar(1000)",
-                maxLength: 1000,
-                nullable: true);
+            migrationBuilder.Sql("""
+                IF COL_LENGTH(N'[AdminBrandBulkOperationItems]', N'CoverImageUrl') IS NULL
+                BEGIN
+                    ALTER TABLE [AdminBrandBulkOperationItems] ADD [CoverImageUrl] nvarchar(1000) NULL;
+                END
+                """);
         }
 
         /// <inheritdoc />
         protected override void Down(MigrationBuilder migrationBuilder)
         {
-            migrationBuilder.DropColumn(
-                name: "CoverImageUrl",
-                table: "AdminBrandBulkOperationItems");
+            migrationBuilder.Sql("""
+                IF COL_LENGTH(N'[AdminBrandBulkOperationItems]', N'CoverImageUrl') IS NOT NULL
+                BEGIN
+                    ALTER TABLE [AdminBrandBulkOperationItems] DROP COLUMN [CoverImageUrl];
+                END
+                """);
         }
     }
 }

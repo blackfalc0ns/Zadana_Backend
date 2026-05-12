@@ -21,7 +21,7 @@ public class AdminBrandBulkOperationItemConfiguration : IEntityTypeConfiguration
             .IsRequired();
 
         builder.Property(x => x.LogoUrl)
-            .HasMaxLength(500);
+            .HasMaxLength(1000);
 
         builder.Property(x => x.CoverImageUrl)
             .HasMaxLength(1000);
