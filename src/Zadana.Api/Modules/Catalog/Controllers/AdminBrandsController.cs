@@ -9,6 +9,7 @@ using Zadana.Application.Modules.Catalog.Commands.Brands.UpdateBrand;
 using Zadana.Application.Modules.Catalog.DTOs;
 using Zadana.Application.Modules.Catalog.Queries.Brands.GetAdminBrandBulkOperation;
 using Zadana.Application.Modules.Catalog.Queries.Brands.GetAdminBrandBulkOperationItems;
+using Zadana.Application.Modules.Catalog.Queries.Brands.GetAdminBrandById;
 using Zadana.Application.Modules.Catalog.Queries.Brands.GetBrands;
 using Zadana.Application.Modules.Catalog.Queries.Brands.SearchBrands;
 using Zadana.SharedKernel.Exceptions;
@@ -31,6 +32,13 @@ public class AdminBrandsController : ApiControllerBase
     public async Task<ActionResult<List<BrandDto>>> GetBrands([FromQuery] bool includeInactive = false)
     {
         var result = await Sender.Send(new GetBrandsQuery(includeInactive));
+        return Ok(result);
+    }
+
+    [HttpGet("{id:guid}")]
+    public async Task<ActionResult<BrandDto>> GetBrand(Guid id)
+    {
+        var result = await Sender.Send(new GetAdminBrandByIdQuery(id));
         return Ok(result);
     }
 

@@ -18,6 +18,7 @@ public class UploadFileCommandHandler : IRequestHandler<UploadFileCommand, strin
             [".jpg"] = new(["image/jpeg", "application/octet-stream"], MaxImageBytes, [[0xFF, 0xD8, 0xFF]]),
             [".jpeg"] = new(["image/jpeg", "application/octet-stream"], MaxImageBytes, [[0xFF, 0xD8, 0xFF]]),
             [".png"] = new(["image/png", "application/octet-stream"], MaxImageBytes, [[0x89, 0x50, 0x4E, 0x47]]),
+            [".webp"] = new(["image/webp", "application/octet-stream"], MaxImageBytes, [[0x52, 0x49, 0x46, 0x46], [0x57, 0x45, 0x42, 0x50]]),
             [".pdf"] = new(["application/pdf", "application/octet-stream"], MaxPdfBytes, [[0x25, 0x50, 0x44, 0x46]])
         };
 
@@ -89,14 +90,20 @@ public class UploadFileCommandHandler : IRequestHandler<UploadFileCommand, strin
         }
 
         file.ContentStream.Position = 0;
-        var maxSignatureLength = rule.Signatures.Max(signature => signature.Length);
+        var maxSignatureLength = file.FileName.EndsWith(".webp", StringComparison.OrdinalIgnoreCase)
+            ? 12
+            : rule.Signatures.Max(signature => signature.Length);
         var buffer = new byte[maxSignatureLength];
         var bytesRead = await file.ContentStream.ReadAsync(buffer.AsMemory(0, maxSignatureLength), cancellationToken);
         file.ContentStream.Position = 0;
 
-        var matchesSignature = rule.Signatures.Any(signature =>
-            bytesRead >= signature.Length &&
-            buffer.AsSpan(0, signature.Length).SequenceEqual(signature));
+        var matchesSignature = file.FileName.EndsWith(".webp", StringComparison.OrdinalIgnoreCase)
+            ? bytesRead >= 12 &&
+              buffer.AsSpan(0, 4).SequenceEqual(rule.Signatures[0]) &&
+              buffer.AsSpan(8, 4).SequenceEqual(rule.Signatures[1])
+            : rule.Signatures.Any(signature =>
+                bytesRead >= signature.Length &&
+                buffer.AsSpan(0, signature.Length).SequenceEqual(signature));
 
         if (!matchesSignature)
         {
