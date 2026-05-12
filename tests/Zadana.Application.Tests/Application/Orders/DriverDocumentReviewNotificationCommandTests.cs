@@ -205,7 +205,8 @@ public class DriverDocumentReviewNotificationCommandTests
                 null,
                 null,
                 true,
-                true));
+                true,
+                false));
 
         _oneSignalPushServiceMock
             .Setup(service => service.SendMobileNotificationAsync(

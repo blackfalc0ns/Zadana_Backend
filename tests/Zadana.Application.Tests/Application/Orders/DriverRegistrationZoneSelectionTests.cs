@@ -70,7 +70,8 @@ public class DriverRegistrationRegionCityTests
             null,
             null,
             true,
-            true);
+            true,
+            false);
 
         var registrationWorkflow = new Mock<IRegistrationWorkflow>();
         registrationWorkflow
