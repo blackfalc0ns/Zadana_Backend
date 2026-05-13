@@ -27,7 +27,7 @@ public class UpdateBrandCommandHandlerTests
     public async Task Handle_WhenBrandNotFound_ShouldThrowNotFoundException()
     {
         await using var context = CreateContext();
-        var command = new UpdateBrandCommand(Guid.NewGuid(), "Updated", "Updated", null, null, Guid.NewGuid(), true);
+        var command = new UpdateBrandCommand(Guid.NewGuid(), "Updated", "Updated", null, null, Guid.NewGuid(), null, true);
         var handler = new UpdateBrandCommandHandler(context, _cacheInvalidatorMock.Object);
 
         var act = () => handler.Handle(command, CancellationToken.None);
@@ -46,7 +46,7 @@ public class UpdateBrandCommandHandlerTests
         context.Brands.Add(brand);
         await context.SaveChangesAsync();
 
-        var command = new UpdateBrandCommand(brand.Id, "جديد", "New", "https://new.png", "https://cover-new.png", category.Id, true);
+        var command = new UpdateBrandCommand(brand.Id, "جديد", "New", "https://new.png", "https://cover-new.png", category.Id, null, true);
         var handler = new UpdateBrandCommandHandler(context, _cacheInvalidatorMock.Object);
 
         await handler.Handle(command, CancellationToken.None);

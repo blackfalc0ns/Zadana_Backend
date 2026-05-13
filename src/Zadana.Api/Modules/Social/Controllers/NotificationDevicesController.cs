@@ -50,7 +50,15 @@ public class NotificationDevicesController : ApiControllerBase
             request.AssignmentPushEnabled,
             request.SupportPushEnabled,
             request.WalletPushEnabled,
-            request.AccountPushEnabled), cancellationToken);
+            request.AccountPushEnabled,
+            request.AdminDriversPushEnabled,
+            request.AdminVendorsPushEnabled,
+            request.AdminCatalogPushEnabled,
+            request.AdminDisputesPushEnabled,
+            request.AdminRefundsPushEnabled,
+            request.AdminSettlementsPushEnabled,
+            request.AdminSupportPushEnabled,
+            request.AdminSystemPushEnabled), cancellationToken);
 
         return Ok(Map(device));
     }
@@ -70,7 +78,15 @@ public class NotificationDevicesController : ApiControllerBase
             request.AssignmentPushEnabled,
             request.SupportPushEnabled,
             request.WalletPushEnabled,
-            request.AccountPushEnabled), cancellationToken);
+            request.AccountPushEnabled,
+            request.AdminDriversPushEnabled,
+            request.AdminVendorsPushEnabled,
+            request.AdminCatalogPushEnabled,
+            request.AdminDisputesPushEnabled,
+            request.AdminRefundsPushEnabled,
+            request.AdminSettlementsPushEnabled,
+            request.AdminSupportPushEnabled,
+            request.AdminSystemPushEnabled), cancellationToken);
 
         return Ok(Map(device));
     }
@@ -103,6 +119,14 @@ public class NotificationDevicesController : ApiControllerBase
             dto.SupportPushEnabled,
             dto.WalletPushEnabled,
             dto.AccountPushEnabled,
+            dto.AdminDriversPushEnabled,
+            dto.AdminVendorsPushEnabled,
+            dto.AdminCatalogPushEnabled,
+            dto.AdminDisputesPushEnabled,
+            dto.AdminRefundsPushEnabled,
+            dto.AdminSettlementsPushEnabled,
+            dto.AdminSupportPushEnabled,
+            dto.AdminSystemPushEnabled,
             dto.IsActive,
             dto.LastRegisteredAtUtc,
             dto.LastSeenAtUtc);
@@ -124,6 +148,14 @@ public record NotificationDeviceResponse(
     bool SupportPushEnabled,
     bool WalletPushEnabled,
     bool AccountPushEnabled,
+    bool AdminDriversPushEnabled,
+    bool AdminVendorsPushEnabled,
+    bool AdminCatalogPushEnabled,
+    bool AdminDisputesPushEnabled,
+    bool AdminRefundsPushEnabled,
+    bool AdminSettlementsPushEnabled,
+    bool AdminSupportPushEnabled,
+    bool AdminSystemPushEnabled,
     bool IsActive,
     DateTime LastRegisteredAtUtc,
     DateTime LastSeenAtUtc);

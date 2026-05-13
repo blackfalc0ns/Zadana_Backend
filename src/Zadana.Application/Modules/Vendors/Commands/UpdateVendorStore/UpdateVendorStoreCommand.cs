@@ -49,19 +49,22 @@ public class UpdateVendorStoreCommandHandler : IRequestHandler<UpdateVendorStore
     private readonly IUnitOfWork _unitOfWork;
     private readonly ICurrentUserService _currentUserService;
     private readonly IVendorReviewAuditService _vendorReviewAuditService;
+    private readonly IAdminAlertService _adminAlertService;
 
     public UpdateVendorStoreCommandHandler(
         IVendorRepository vendorRepository,
         IVendorReadService vendorReadService,
         IUnitOfWork unitOfWork,
         ICurrentUserService currentUserService,
-        IVendorReviewAuditService vendorReviewAuditService)
+        IVendorReviewAuditService vendorReviewAuditService,
+        IAdminAlertService adminAlertService)
     {
         _vendorRepository = vendorRepository;
         _vendorReadService = vendorReadService;
         _unitOfWork = unitOfWork;
         _currentUserService = currentUserService;
         _vendorReviewAuditService = vendorReviewAuditService;
+        _adminAlertService = adminAlertService;
     }
 
     public async Task<VendorWorkspaceDto> Handle(UpdateVendorStoreCommand request, CancellationToken cancellationToken)
@@ -96,6 +99,20 @@ public class UpdateVendorStoreCommandHandler : IRequestHandler<UpdateVendorStore
             vendor.BusinessNameEn,
             userId,
             vendor.BusinessNameEn,
+            cancellationToken);
+
+        await _adminAlertService.SendAsync(
+            new AdminAlertRequest(
+                AdminAlertTypes.VendorCriticalChangeSubmitted,
+                AdminAlertCategories.Vendors,
+                AdminAlertPriorities.High,
+                "تعديل مهم في بيانات تاجر",
+                "Vendor critical profile change",
+                $"قام التاجر {vendor.BusinessNameAr} بتعديل بيانات المتجر.",
+                $"Vendor {vendor.BusinessNameEn} updated store profile details.",
+                vendor.Id,
+                $"/vendors/{vendor.Id}",
+                new { vendorId = vendor.Id, userId = vendor.UserId, section = "store" }),
             cancellationToken);
 
         return await _vendorReadService.GetWorkspaceByUserIdAsync(userId, cancellationToken)

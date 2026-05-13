@@ -94,7 +94,8 @@ public class DriverRegistrationRegionCityTests
             registrationWorkflow.Object,
             new DriverRepository(dbContext),
             unitOfWork.Object,
-            dbContext);
+            dbContext,
+            Mock.Of<IAdminAlertService>());
 
         var result = await handler.Handle(CreateCommand(), CancellationToken.None);
 
@@ -124,7 +125,8 @@ public class DriverRegistrationRegionCityTests
             registrationWorkflow.Object,
             new DriverRepository(dbContext),
             Mock.Of<IUnitOfWork>(),
-            dbContext);
+            dbContext,
+            Mock.Of<IAdminAlertService>());
 
         var action = () => handler.Handle(
             CreateCommand(region: "RIYADH", city: "JEDDAH"),

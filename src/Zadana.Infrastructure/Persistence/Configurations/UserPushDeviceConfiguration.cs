@@ -48,6 +48,15 @@ public class UserPushDeviceConfiguration : IEntityTypeConfiguration<UserPushDevi
         builder.Property(x => x.AccountPushEnabled)
             .HasDefaultValue(true);
 
+        builder.Property(x => x.AdminDriversPushEnabled).HasDefaultValue(true);
+        builder.Property(x => x.AdminVendorsPushEnabled).HasDefaultValue(true);
+        builder.Property(x => x.AdminCatalogPushEnabled).HasDefaultValue(true);
+        builder.Property(x => x.AdminDisputesPushEnabled).HasDefaultValue(true);
+        builder.Property(x => x.AdminRefundsPushEnabled).HasDefaultValue(true);
+        builder.Property(x => x.AdminSettlementsPushEnabled).HasDefaultValue(true);
+        builder.Property(x => x.AdminSupportPushEnabled).HasDefaultValue(true);
+        builder.Property(x => x.AdminSystemPushEnabled).HasDefaultValue(true);
+
         builder.HasIndex(x => x.DeviceToken).IsUnique();
         builder.HasIndex(x => new { x.UserId, x.IsActive });
         builder.HasIndex(x => new { x.UserId, x.DeviceId });

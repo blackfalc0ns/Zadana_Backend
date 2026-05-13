@@ -21,6 +21,14 @@ public record NotificationDeviceDto(
     bool SupportPushEnabled,
     bool WalletPushEnabled,
     bool AccountPushEnabled,
+    bool AdminDriversPushEnabled,
+    bool AdminVendorsPushEnabled,
+    bool AdminCatalogPushEnabled,
+    bool AdminDisputesPushEnabled,
+    bool AdminRefundsPushEnabled,
+    bool AdminSettlementsPushEnabled,
+    bool AdminSupportPushEnabled,
+    bool AdminSystemPushEnabled,
     bool IsActive,
     DateTime LastRegisteredAtUtc,
     DateTime LastSeenAtUtc);
@@ -38,7 +46,15 @@ public record RegisterNotificationDeviceCommand(
     bool AssignmentPushEnabled = true,
     bool SupportPushEnabled = true,
     bool WalletPushEnabled = true,
-    bool AccountPushEnabled = true) : IRequest<NotificationDeviceDto>;
+    bool AccountPushEnabled = true,
+    bool AdminDriversPushEnabled = true,
+    bool AdminVendorsPushEnabled = true,
+    bool AdminCatalogPushEnabled = true,
+    bool AdminDisputesPushEnabled = true,
+    bool AdminRefundsPushEnabled = true,
+    bool AdminSettlementsPushEnabled = true,
+    bool AdminSupportPushEnabled = true,
+    bool AdminSystemPushEnabled = true) : IRequest<NotificationDeviceDto>;
 
 public class RegisterNotificationDeviceCommandHandler : IRequestHandler<RegisterNotificationDeviceCommand, NotificationDeviceDto>
 {
@@ -82,7 +98,15 @@ public class RegisterNotificationDeviceCommandHandler : IRequestHandler<Register
                 request.AssignmentPushEnabled,
                 request.SupportPushEnabled,
                 request.WalletPushEnabled,
-                request.AccountPushEnabled);
+                request.AccountPushEnabled,
+                request.AdminDriversPushEnabled,
+                request.AdminVendorsPushEnabled,
+                request.AdminCatalogPushEnabled,
+                request.AdminDisputesPushEnabled,
+                request.AdminRefundsPushEnabled,
+                request.AdminSettlementsPushEnabled,
+                request.AdminSupportPushEnabled,
+                request.AdminSystemPushEnabled);
 
             _context.UserPushDevices.Add(device);
         }
@@ -101,7 +125,15 @@ public class RegisterNotificationDeviceCommandHandler : IRequestHandler<Register
                 request.AssignmentPushEnabled,
                 request.SupportPushEnabled,
                 request.WalletPushEnabled,
-                request.AccountPushEnabled);
+                request.AccountPushEnabled,
+                request.AdminDriversPushEnabled,
+                request.AdminVendorsPushEnabled,
+                request.AdminCatalogPushEnabled,
+                request.AdminDisputesPushEnabled,
+                request.AdminRefundsPushEnabled,
+                request.AdminSettlementsPushEnabled,
+                request.AdminSupportPushEnabled,
+                request.AdminSystemPushEnabled);
         }
 
         await _context.SaveChangesAsync(cancellationToken);
@@ -124,6 +156,14 @@ public class RegisterNotificationDeviceCommandHandler : IRequestHandler<Register
             device.SupportPushEnabled,
             device.WalletPushEnabled,
             device.AccountPushEnabled,
+            device.AdminDriversPushEnabled,
+            device.AdminVendorsPushEnabled,
+            device.AdminCatalogPushEnabled,
+            device.AdminDisputesPushEnabled,
+            device.AdminRefundsPushEnabled,
+            device.AdminSettlementsPushEnabled,
+            device.AdminSupportPushEnabled,
+            device.AdminSystemPushEnabled,
             device.IsActive,
             device.LastRegisteredAtUtc,
             device.LastSeenAtUtc);
@@ -138,7 +178,15 @@ public record UpdateNotificationDevicePreferencesCommand(
     bool? AssignmentPushEnabled = null,
     bool? SupportPushEnabled = null,
     bool? WalletPushEnabled = null,
-    bool? AccountPushEnabled = null) : IRequest<NotificationDeviceDto>;
+    bool? AccountPushEnabled = null,
+    bool? AdminDriversPushEnabled = null,
+    bool? AdminVendorsPushEnabled = null,
+    bool? AdminCatalogPushEnabled = null,
+    bool? AdminDisputesPushEnabled = null,
+    bool? AdminRefundsPushEnabled = null,
+    bool? AdminSettlementsPushEnabled = null,
+    bool? AdminSupportPushEnabled = null,
+    bool? AdminSystemPushEnabled = null) : IRequest<NotificationDeviceDto>;
 
 public class UpdateNotificationDevicePreferencesCommandHandler : IRequestHandler<UpdateNotificationDevicePreferencesCommand, NotificationDeviceDto>
 {
@@ -160,7 +208,15 @@ public class UpdateNotificationDevicePreferencesCommandHandler : IRequestHandler
             request.AssignmentPushEnabled,
             request.SupportPushEnabled,
             request.WalletPushEnabled,
-            request.AccountPushEnabled);
+            request.AccountPushEnabled,
+            request.AdminDriversPushEnabled,
+            request.AdminVendorsPushEnabled,
+            request.AdminCatalogPushEnabled,
+            request.AdminDisputesPushEnabled,
+            request.AdminRefundsPushEnabled,
+            request.AdminSettlementsPushEnabled,
+            request.AdminSupportPushEnabled,
+            request.AdminSystemPushEnabled);
         await _context.SaveChangesAsync(cancellationToken);
         return RegisterNotificationDeviceCommandHandler.Map(device);
     }

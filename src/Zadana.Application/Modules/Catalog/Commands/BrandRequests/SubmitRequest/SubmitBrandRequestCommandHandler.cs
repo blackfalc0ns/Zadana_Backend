@@ -13,15 +13,18 @@ public class SubmitBrandRequestCommandHandler : IRequestHandler<SubmitBrandReque
     private readonly IApplicationDbContext _context;
     private readonly ICurrentVendorService _currentVendorService;
     private readonly IStringLocalizer<SharedResource> _localizer;
+    private readonly IAdminAlertService _adminAlertService;
 
     public SubmitBrandRequestCommandHandler(
         IApplicationDbContext context,
         ICurrentVendorService currentVendorService,
-        IStringLocalizer<SharedResource> localizer)
+        IStringLocalizer<SharedResource> localizer,
+        IAdminAlertService adminAlertService)
     {
         _context = context;
         _currentVendorService = currentVendorService;
         _localizer = localizer;
+        _adminAlertService = adminAlertService;
     }
 
     public async Task<Guid> Handle(SubmitBrandRequestCommand request, CancellationToken cancellationToken)
@@ -42,6 +45,19 @@ public class SubmitBrandRequestCommandHandler : IRequestHandler<SubmitBrandReque
         var brandRequest = new BrandRequest(vendorId, request.CategoryId, request.NameAr, request.NameEn, request.LogoUrl);
         _context.BrandRequests.Add(brandRequest);
         await _context.SaveChangesAsync(cancellationToken);
+        await _adminAlertService.SendAsync(
+            new AdminAlertRequest(
+                AdminAlertTypes.CatalogBrandRequestSubmitted,
+                AdminAlertCategories.Catalog,
+                AdminAlertPriorities.Normal,
+                "طلب علامة تجارية من تاجر",
+                "New vendor brand request",
+                $"تم إرسال طلب علامة تجارية: {request.NameAr}.",
+                $"A new brand request was submitted: {request.NameEn}.",
+                brandRequest.Id,
+                "/catalog/requests",
+                new { brandRequestId = brandRequest.Id, vendorId }),
+            cancellationToken);
         return brandRequest.Id;
     }
 }

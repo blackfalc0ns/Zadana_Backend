@@ -14,15 +14,18 @@ public class SubmitProductRequestCommandHandler : IRequestHandler<SubmitProductR
     private readonly IApplicationDbContext _context;
     private readonly ICurrentVendorService _currentVendorService;
     private readonly IStringLocalizer<SharedResource> _localizer;
+    private readonly IAdminAlertService _adminAlertService;
 
     public SubmitProductRequestCommandHandler(
         IApplicationDbContext context,
         ICurrentVendorService currentVendorService,
-        IStringLocalizer<SharedResource> localizer)
+        IStringLocalizer<SharedResource> localizer,
+        IAdminAlertService adminAlertService)
     {
         _context = context;
         _currentVendorService = currentVendorService;
         _localizer = localizer;
+        _adminAlertService = adminAlertService;
     }
 
     public async Task<Guid> Handle(SubmitProductRequestCommand request, CancellationToken cancellationToken)
@@ -164,6 +167,20 @@ public class SubmitProductRequestCommandHandler : IRequestHandler<SubmitProductR
 
         _context.ProductRequests.Add(productRequest);
         await _context.SaveChangesAsync(cancellationToken);
+
+        await _adminAlertService.SendAsync(
+            new AdminAlertRequest(
+                AdminAlertTypes.CatalogProductRequestSubmitted,
+                AdminAlertCategories.Catalog,
+                AdminAlertPriorities.Normal,
+                "طلب منتج جديد من تاجر",
+                "New vendor product request",
+                $"تم إرسال طلب منتج جديد: {request.SuggestedNameAr}.",
+                $"A new product request was submitted: {request.SuggestedNameEn}.",
+                productRequest.Id,
+                "/catalog/requests",
+                new { productRequestId = productRequest.Id, vendorId }),
+            cancellationToken);
 
         return productRequest.Id;
     }

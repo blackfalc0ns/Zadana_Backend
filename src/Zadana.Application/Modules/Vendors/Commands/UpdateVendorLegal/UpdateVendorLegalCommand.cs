@@ -36,19 +36,22 @@ public class UpdateVendorLegalCommandHandler : IRequestHandler<UpdateVendorLegal
     private readonly IUnitOfWork _unitOfWork;
     private readonly ICurrentUserService _currentUserService;
     private readonly IVendorReviewAuditService _vendorReviewAuditService;
+    private readonly IAdminAlertService _adminAlertService;
 
     public UpdateVendorLegalCommandHandler(
         IVendorRepository vendorRepository,
         IVendorReadService vendorReadService,
         IUnitOfWork unitOfWork,
         ICurrentUserService currentUserService,
-        IVendorReviewAuditService vendorReviewAuditService)
+        IVendorReviewAuditService vendorReviewAuditService,
+        IAdminAlertService adminAlertService)
     {
         _vendorRepository = vendorRepository;
         _vendorReadService = vendorReadService;
         _unitOfWork = unitOfWork;
         _currentUserService = currentUserService;
         _vendorReviewAuditService = vendorReviewAuditService;
+        _adminAlertService = adminAlertService;
     }
 
     public async Task<VendorWorkspaceDto> Handle(UpdateVendorLegalCommand request, CancellationToken cancellationToken)
@@ -111,6 +114,24 @@ public class UpdateVendorLegalCommandHandler : IRequestHandler<UpdateVendorLegal
                 vendor.BusinessNameEn,
                 cancellationToken);
         }
+
+        await _adminAlertService.SendAsync(
+            new AdminAlertRequest(
+                resetDocuments.Count > 0 ? AdminAlertTypes.VendorDocumentsSubmitted : AdminAlertTypes.VendorCriticalChangeSubmitted,
+                AdminAlertCategories.Vendors,
+                AdminAlertPriorities.High,
+                resetDocuments.Count > 0 ? "إعادة رفع مستندات تاجر" : "تعديل قانوني مهم لتاجر",
+                resetDocuments.Count > 0 ? "Vendor documents re-uploaded" : "Vendor legal profile changed",
+                resetDocuments.Count > 0
+                    ? $"قام التاجر {vendor.BusinessNameAr} بإعادة رفع مستندات تحتاج مراجعة."
+                    : $"قام التاجر {vendor.BusinessNameAr} بتعديل بيانات قانونية تحتاج مراجعة.",
+                resetDocuments.Count > 0
+                    ? $"Vendor {vendor.BusinessNameEn} re-uploaded documents that need review."
+                    : $"Vendor {vendor.BusinessNameEn} updated legal data that needs review.",
+                vendor.Id,
+                $"/vendors/{vendor.Id}",
+                new { vendorId = vendor.Id, userId = vendor.UserId, section = "legal", resetDocuments }),
+            cancellationToken);
 
         return await _vendorReadService.GetWorkspaceByUserIdAsync(userId, cancellationToken)
             ?? throw new NotFoundException("Vendor", userId);

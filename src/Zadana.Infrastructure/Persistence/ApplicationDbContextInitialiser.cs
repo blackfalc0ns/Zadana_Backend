@@ -356,7 +356,9 @@ public class ApplicationDbContextInitialiser
             PermissionKeys.Admin.DisputesApprove,
             PermissionKeys.Admin.DisputesExport,
             PermissionKeys.Admin.EmailCenterView,
-            PermissionKeys.Admin.EmailCenterApprove
+            PermissionKeys.Admin.EmailCenterApprove,
+            PermissionKeys.Admin.NotificationsView,
+            PermissionKeys.Admin.NotificationsEdit
         ], "Risk and compliance admin role."),
         new("finance_admin", "Finance Admin", UserRole.Admin, PanelScope.SuperAdminPanel,
         [
@@ -374,7 +376,9 @@ public class ApplicationDbContextInitialiser
             PermissionKeys.Admin.FinancesExport,
             PermissionKeys.Admin.FinancesManageSettings,
             PermissionKeys.Admin.EmailCenterView,
-            PermissionKeys.Admin.EmailCenterEdit
+            PermissionKeys.Admin.EmailCenterEdit,
+            PermissionKeys.Admin.NotificationsView,
+            PermissionKeys.Admin.NotificationsEdit
         ], "Finance admin role."),
         new("support_admin", "Support Admin", UserRole.Admin, PanelScope.SuperAdminPanel,
         [
@@ -387,7 +391,9 @@ public class ApplicationDbContextInitialiser
             PermissionKeys.Admin.CustomersEdit,
             PermissionKeys.Admin.DriversView,
             PermissionKeys.Admin.DisputesView,
-            PermissionKeys.Admin.EmailCenterView
+            PermissionKeys.Admin.EmailCenterView,
+            PermissionKeys.Admin.NotificationsView,
+            PermissionKeys.Admin.NotificationsEdit
         ], "Support admin role."),
         new("vendor_owner", "Vendor Owner", UserRole.Vendor, PanelScope.VendorPanel, PermissionKeys.Vendor.Owner, "Vendor owner role."),
         new("vendor_company_manager", "Vendor Company Manager", UserRole.VendorStaff, PanelScope.VendorPanel, PermissionKeys.Vendor.Owner, "Vendor company manager role."),

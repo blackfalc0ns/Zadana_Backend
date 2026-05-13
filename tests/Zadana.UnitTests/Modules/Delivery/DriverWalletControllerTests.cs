@@ -101,12 +101,14 @@ public class DriverWalletControllerTests
         context.Wallets.Add(wallet);
         await context.SaveChangesAsync(CancellationToken.None);
 
+        var adminAlertService = Mock.Of<IAdminAlertService>();
         var act = () => controller.CreateWithdrawal(
             new CreateDriverWithdrawalRequest(Guid.NewGuid(), 20m),
             currentUserService,
             driverRepository.Object,
             context,
             notificationService,
+            adminAlertService,
             CancellationToken.None);
 
         await act.Should().ThrowAsync<BusinessRuleException>()

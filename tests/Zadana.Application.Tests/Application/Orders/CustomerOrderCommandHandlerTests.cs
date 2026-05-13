@@ -529,6 +529,7 @@ public class CustomerOrderCommandHandlerTests
             dbContext,
             notificationService.Object,
             pushService.Object,
+            null,
             vendorRecoveryService,
             new OrderInventoryWorkflowService(dbContext));
 

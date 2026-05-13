@@ -127,6 +127,8 @@ public class ApplicationDbContext : IdentityDbContext<User, IdentityRole<Guid>, 
     public DbSet<FeaturedProductPlacement> FeaturedProductPlacements => Set<FeaturedProductPlacement>();
     public DbSet<Review> Reviews => Set<Review>();
     public DbSet<Notification> Notifications => Set<Notification>();
+    public DbSet<AdminAlertEvent> AdminAlertEvents => Set<AdminAlertEvent>();
+    public DbSet<AdminAlertDispatch> AdminAlertDispatches => Set<AdminAlertDispatch>();
 
     // Geography
     public DbSet<SaudiRegion> SaudiRegions => Set<SaudiRegion>();

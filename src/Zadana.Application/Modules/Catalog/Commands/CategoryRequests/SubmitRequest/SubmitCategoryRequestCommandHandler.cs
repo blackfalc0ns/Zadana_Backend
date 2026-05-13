@@ -14,15 +14,18 @@ public class SubmitCategoryRequestCommandHandler : IRequestHandler<SubmitCategor
     private readonly IApplicationDbContext _context;
     private readonly ICurrentVendorService _currentVendorService;
     private readonly IStringLocalizer<SharedResource> _localizer;
+    private readonly IAdminAlertService _adminAlertService;
 
     public SubmitCategoryRequestCommandHandler(
         IApplicationDbContext context,
         ICurrentVendorService currentVendorService,
-        IStringLocalizer<SharedResource> localizer)
+        IStringLocalizer<SharedResource> localizer,
+        IAdminAlertService adminAlertService)
     {
         _context = context;
         _currentVendorService = currentVendorService;
         _localizer = localizer;
+        _adminAlertService = adminAlertService;
     }
 
     public async Task<Guid> Handle(SubmitCategoryRequestCommand request, CancellationToken cancellationToken)
@@ -83,6 +86,19 @@ public class SubmitCategoryRequestCommandHandler : IRequestHandler<SubmitCategor
 
         _context.CategoryRequests.Add(categoryRequest);
         await _context.SaveChangesAsync(cancellationToken);
+        await _adminAlertService.SendAsync(
+            new AdminAlertRequest(
+                AdminAlertTypes.CatalogCategoryRequestSubmitted,
+                AdminAlertCategories.Catalog,
+                AdminAlertPriorities.Normal,
+                "طلب تصنيف من تاجر",
+                "New vendor category request",
+                $"تم إرسال طلب تصنيف: {request.NameAr}.",
+                $"A new category request was submitted: {request.NameEn}.",
+                categoryRequest.Id,
+                "/catalog/requests",
+                new { categoryRequestId = categoryRequest.Id, vendorId }),
+            cancellationToken);
         return categoryRequest.Id;
     }
 

@@ -18,6 +18,14 @@ public class UserPushDevice : BaseEntity
     public bool SupportPushEnabled { get; private set; }
     public bool WalletPushEnabled { get; private set; }
     public bool AccountPushEnabled { get; private set; }
+    public bool AdminDriversPushEnabled { get; private set; }
+    public bool AdminVendorsPushEnabled { get; private set; }
+    public bool AdminCatalogPushEnabled { get; private set; }
+    public bool AdminDisputesPushEnabled { get; private set; }
+    public bool AdminRefundsPushEnabled { get; private set; }
+    public bool AdminSettlementsPushEnabled { get; private set; }
+    public bool AdminSupportPushEnabled { get; private set; }
+    public bool AdminSystemPushEnabled { get; private set; }
     public bool IsActive { get; private set; }
     public DateTime LastRegisteredAtUtc { get; private set; }
     public DateTime LastSeenAtUtc { get; private set; }
@@ -41,7 +49,15 @@ public class UserPushDevice : BaseEntity
         bool assignmentPushEnabled = true,
         bool supportPushEnabled = true,
         bool walletPushEnabled = true,
-        bool accountPushEnabled = true)
+        bool accountPushEnabled = true,
+        bool adminDriversPushEnabled = true,
+        bool adminVendorsPushEnabled = true,
+        bool adminCatalogPushEnabled = true,
+        bool adminDisputesPushEnabled = true,
+        bool adminRefundsPushEnabled = true,
+        bool adminSettlementsPushEnabled = true,
+        bool adminSupportPushEnabled = true,
+        bool adminSystemPushEnabled = true)
     {
         UserId = userId;
         DeviceToken = deviceToken.Trim();
@@ -56,6 +72,14 @@ public class UserPushDevice : BaseEntity
         SupportPushEnabled = supportPushEnabled;
         WalletPushEnabled = walletPushEnabled;
         AccountPushEnabled = accountPushEnabled;
+        AdminDriversPushEnabled = adminDriversPushEnabled;
+        AdminVendorsPushEnabled = adminVendorsPushEnabled;
+        AdminCatalogPushEnabled = adminCatalogPushEnabled;
+        AdminDisputesPushEnabled = adminDisputesPushEnabled;
+        AdminRefundsPushEnabled = adminRefundsPushEnabled;
+        AdminSettlementsPushEnabled = adminSettlementsPushEnabled;
+        AdminSupportPushEnabled = adminSupportPushEnabled;
+        AdminSystemPushEnabled = adminSystemPushEnabled;
         IsActive = true;
         LastRegisteredAtUtc = DateTime.UtcNow;
         LastSeenAtUtc = DateTime.UtcNow;
@@ -74,7 +98,15 @@ public class UserPushDevice : BaseEntity
         bool assignmentPushEnabled = true,
         bool supportPushEnabled = true,
         bool walletPushEnabled = true,
-        bool accountPushEnabled = true)
+        bool accountPushEnabled = true,
+        bool adminDriversPushEnabled = true,
+        bool adminVendorsPushEnabled = true,
+        bool adminCatalogPushEnabled = true,
+        bool adminDisputesPushEnabled = true,
+        bool adminRefundsPushEnabled = true,
+        bool adminSettlementsPushEnabled = true,
+        bool adminSupportPushEnabled = true,
+        bool adminSystemPushEnabled = true)
     {
         UserId = userId;
         DeviceToken = deviceToken.Trim();
@@ -89,6 +121,14 @@ public class UserPushDevice : BaseEntity
         SupportPushEnabled = supportPushEnabled;
         WalletPushEnabled = walletPushEnabled;
         AccountPushEnabled = accountPushEnabled;
+        AdminDriversPushEnabled = adminDriversPushEnabled;
+        AdminVendorsPushEnabled = adminVendorsPushEnabled;
+        AdminCatalogPushEnabled = adminCatalogPushEnabled;
+        AdminDisputesPushEnabled = adminDisputesPushEnabled;
+        AdminRefundsPushEnabled = adminRefundsPushEnabled;
+        AdminSettlementsPushEnabled = adminSettlementsPushEnabled;
+        AdminSupportPushEnabled = adminSupportPushEnabled;
+        AdminSystemPushEnabled = adminSystemPushEnabled;
         IsActive = true;
         LastRegisteredAtUtc = DateTime.UtcNow;
         LastSeenAtUtc = DateTime.UtcNow;
@@ -106,7 +146,15 @@ public class UserPushDevice : BaseEntity
         bool? assignmentPushEnabled = null,
         bool? supportPushEnabled = null,
         bool? walletPushEnabled = null,
-        bool? accountPushEnabled = null)
+        bool? accountPushEnabled = null,
+        bool? adminDriversPushEnabled = null,
+        bool? adminVendorsPushEnabled = null,
+        bool? adminCatalogPushEnabled = null,
+        bool? adminDisputesPushEnabled = null,
+        bool? adminRefundsPushEnabled = null,
+        bool? adminSettlementsPushEnabled = null,
+        bool? adminSupportPushEnabled = null,
+        bool? adminSystemPushEnabled = null)
     {
         NotificationsEnabled = notificationsEnabled;
         DispatchPushEnabled = dispatchPushEnabled ?? DispatchPushEnabled;
@@ -114,6 +162,14 @@ public class UserPushDevice : BaseEntity
         SupportPushEnabled = supportPushEnabled ?? SupportPushEnabled;
         WalletPushEnabled = walletPushEnabled ?? WalletPushEnabled;
         AccountPushEnabled = accountPushEnabled ?? AccountPushEnabled;
+        AdminDriversPushEnabled = adminDriversPushEnabled ?? AdminDriversPushEnabled;
+        AdminVendorsPushEnabled = adminVendorsPushEnabled ?? AdminVendorsPushEnabled;
+        AdminCatalogPushEnabled = adminCatalogPushEnabled ?? AdminCatalogPushEnabled;
+        AdminDisputesPushEnabled = adminDisputesPushEnabled ?? AdminDisputesPushEnabled;
+        AdminRefundsPushEnabled = adminRefundsPushEnabled ?? AdminRefundsPushEnabled;
+        AdminSettlementsPushEnabled = adminSettlementsPushEnabled ?? AdminSettlementsPushEnabled;
+        AdminSupportPushEnabled = adminSupportPushEnabled ?? AdminSupportPushEnabled;
+        AdminSystemPushEnabled = adminSystemPushEnabled ?? AdminSystemPushEnabled;
         LastSeenAtUtc = DateTime.UtcNow;
         UpdatedAtUtc = DateTime.UtcNow;
     }
@@ -128,6 +184,22 @@ public class UserPushDevice : BaseEntity
             "support" => SupportPushEnabled,
             "wallet" => WalletPushEnabled,
             "account" => AccountPushEnabled,
+            _ => true
+        };
+
+    public bool IsAdminPushAllowedForCategory(string? category) =>
+        NotificationsEnabled &&
+        IsActive &&
+        category?.Trim().ToLowerInvariant() switch
+        {
+            "drivers" => AdminDriversPushEnabled,
+            "vendors" => AdminVendorsPushEnabled,
+            "catalog" => AdminCatalogPushEnabled,
+            "disputes" => AdminDisputesPushEnabled,
+            "refunds" => AdminRefundsPushEnabled,
+            "settlements" => AdminSettlementsPushEnabled,
+            "support" => AdminSupportPushEnabled,
+            "system" => AdminSystemPushEnabled,
             _ => true
         };
 

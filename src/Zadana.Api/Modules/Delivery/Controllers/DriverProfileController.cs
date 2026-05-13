@@ -38,6 +38,7 @@ public class DriverProfileController : ApiControllerBase
         [FromServices] IIdentityAccountService identityAccountService,
         [FromServices] IApplicationDbContext context,
         [FromServices] IDriverReadService driverReadService,
+        [FromServices] IAdminAlertService adminAlertService,
         CancellationToken cancellationToken = default)
     {
         var userId = currentUserService.UserId ?? throw new UnauthorizedException("DRIVER_NOT_AUTHENTICATED");
@@ -62,6 +63,7 @@ public class DriverProfileController : ApiControllerBase
         driver.RefreshProfileReviewState(HasRequiredProfileData(driver), sensitiveChange: false);
 
         await context.SaveChangesAsync(cancellationToken);
+        await SendDriverReviewAlertAsync(driver, adminAlertService, hasRequiredProfileData: HasRequiredProfileData(driver), cancellationToken);
 
         var profile = await driverReadService.GetDriverProfileAsync(userId, cancellationToken)
             ?? throw new NotFoundException("Driver", userId);
@@ -76,6 +78,7 @@ public class DriverProfileController : ApiControllerBase
         [FromServices] IDriverRepository driverRepository,
         [FromServices] IApplicationDbContext context,
         [FromServices] IDriverReadService driverReadService,
+        [FromServices] IAdminAlertService adminAlertService,
         CancellationToken cancellationToken = default)
     {
         var userId = currentUserService.UserId ?? throw new UnauthorizedException("DRIVER_NOT_AUTHENTICATED");
@@ -138,6 +141,7 @@ public class DriverProfileController : ApiControllerBase
             note: "Profile updated and pending admin re-review");
 
         await context.SaveChangesAsync(cancellationToken);
+        await SendDriverReviewAlertAsync(driver, adminAlertService, hasRequiredProfileData: HasRequiredProfileData(driver), cancellationToken);
 
         var profile = await driverReadService.GetDriverProfileAsync(userId, cancellationToken)
             ?? throw new NotFoundException("Driver", userId);
@@ -214,5 +218,51 @@ public class DriverProfileController : ApiControllerBase
         {
             driver.ResetDocumentReviewToPending(type);
         }
+    }
+
+    private static Task SendDriverReviewAlertAsync(
+        Domain.Modules.Delivery.Entities.Driver driver,
+        IAdminAlertService adminAlertService,
+        bool hasRequiredProfileData,
+        CancellationToken cancellationToken)
+    {
+        var type = hasRequiredProfileData
+            ? AdminAlertTypes.DriverDocumentsSubmitted
+            : AdminAlertTypes.DriverApprovalBlocked;
+        var priority = hasRequiredProfileData
+            ? AdminAlertPriorities.High
+            : AdminAlertPriorities.Critical;
+        var titleAr = hasRequiredProfileData
+            ? "مستندات مندوب جاهزة للمراجعة"
+            : "مانع في موافقة مندوب";
+        var titleEn = hasRequiredProfileData
+            ? "Driver documents ready for review"
+            : "Driver approval blocker";
+        var bodyAr = hasRequiredProfileData
+            ? $"قام المندوب {driver.User.FullName} بتحديث بياناته ومستنداته."
+            : $"بيانات أو مستندات المندوب {driver.User.FullName} ما زالت تمنع الموافقة.";
+        var bodyEn = hasRequiredProfileData
+            ? $"Driver {driver.User.FullName} updated profile data and documents."
+            : $"Driver {driver.User.FullName} still has profile or document blockers.";
+
+        return adminAlertService.SendAsync(
+            new AdminAlertRequest(
+                type,
+                AdminAlertCategories.Drivers,
+                priority,
+                titleAr,
+                titleEn,
+                bodyAr,
+                bodyEn,
+                driver.Id,
+                $"/drivers/{driver.Id}",
+                new
+                {
+                    driverId = driver.Id,
+                    userId = driver.UserId,
+                    status = driver.Status.ToString(),
+                    hasRequiredProfileData
+                }),
+            cancellationToken);
     }
 }

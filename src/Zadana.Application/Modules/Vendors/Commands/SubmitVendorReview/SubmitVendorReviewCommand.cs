@@ -24,19 +24,22 @@ public sealed class SubmitVendorReviewCommandHandler : IRequestHandler<SubmitVen
     private readonly IVendorReviewAuditService _vendorReviewAuditService;
     private readonly ICurrentUserService _currentUserService;
     private readonly IUnitOfWork _unitOfWork;
+    private readonly IAdminAlertService _adminAlertService;
 
     public SubmitVendorReviewCommandHandler(
         IVendorRepository vendorRepository,
         IVendorReadService vendorReadService,
         IVendorReviewAuditService vendorReviewAuditService,
         ICurrentUserService currentUserService,
-        IUnitOfWork unitOfWork)
+        IUnitOfWork unitOfWork,
+        IAdminAlertService adminAlertService)
     {
         _vendorRepository = vendorRepository;
         _vendorReadService = vendorReadService;
         _vendorReviewAuditService = vendorReviewAuditService;
         _currentUserService = currentUserService;
         _unitOfWork = unitOfWork;
+        _adminAlertService = adminAlertService;
     }
 
     public async Task<VendorWorkspaceDto> Handle(SubmitVendorReviewCommand request, CancellationToken cancellationToken)
@@ -86,6 +89,25 @@ public sealed class SubmitVendorReviewCommandHandler : IRequestHandler<SubmitVen
             vendor.BusinessNameEn,
             userId,
             vendor.BusinessNameEn,
+            cancellationToken);
+
+        await _adminAlertService.SendAsync(
+            new AdminAlertRequest(
+                AdminAlertTypes.VendorDocumentsSubmitted,
+                AdminAlertCategories.Vendors,
+                AdminAlertPriorities.High,
+                "مستندات تاجر جاهزة للمراجعة",
+                "Vendor documents ready for review",
+                $"قام التاجر {vendor.BusinessNameAr} بإرسال بياناته ومستنداته للمراجعة.",
+                $"Vendor {vendor.BusinessNameEn} submitted profile and documents for review.",
+                vendor.Id,
+                $"/vendors/{vendor.Id}",
+                new
+                {
+                    vendorId = vendor.Id,
+                    userId = vendor.UserId,
+                    status = vendor.Status.ToString()
+                }),
             cancellationToken);
 
         return await _vendorReadService.GetWorkspaceByUserIdAsync(userId, cancellationToken)

@@ -134,6 +134,7 @@ builder.Services.AddHostedService<DeliveryDispatchWorker>();
 builder.Services.AddHostedService<AdminBrandBulkOperationWorker>();
 builder.Services.AddHostedService<AdminMasterProductBulkOperationWorker>();
 builder.Services.AddHostedService<VendorProductBulkOperationWorker>();
+builder.Services.AddHostedService<AdminAlertOutboxWorker>();
 builder.Services.AddHostedService<VendorSettlementCycleWorker>();
 
 builder.Services.AddOptions<FinancialSettingsOptions>()

@@ -2,26 +2,21 @@ using System.Text.Json;
 using Microsoft.EntityFrameworkCore;
 using Microsoft.Extensions.Logging;
 using Zadana.Application.Common.Interfaces;
-using Zadana.Domain.Modules.Identity.Enums;
+using Zadana.Domain.Modules.Social.Entities;
 
 namespace Zadana.Infrastructure.Services;
 
 public sealed class AdminAlertService : IAdminAlertService
 {
+    private static readonly JsonSerializerOptions JsonOptions = new(JsonSerializerDefaults.Web);
     private readonly IApplicationDbContext _context;
-    private readonly INotificationService _notificationService;
-    private readonly IOneSignalPushService _oneSignalPushService;
     private readonly ILogger<AdminAlertService> _logger;
 
     public AdminAlertService(
         IApplicationDbContext context,
-        INotificationService notificationService,
-        IOneSignalPushService oneSignalPushService,
         ILogger<AdminAlertService> logger)
     {
         _context = context;
-        _notificationService = notificationService;
-        _oneSignalPushService = oneSignalPushService;
         _logger = logger;
     }
 
@@ -30,86 +25,64 @@ public sealed class AdminAlertService : IAdminAlertService
         CancellationToken cancellationToken = default)
     {
         var sanitized = Normalize(request);
-        var recipients = await _context.Users
-            .AsNoTracking()
-            .Where(user =>
-                user.AccountStatus == AccountStatus.Active &&
-                !user.IsLoginLocked &&
-                (user.Role == UserRole.Admin || user.Role == UserRole.SuperAdmin))
-            .Select(user => user.Id)
-            .ToListAsync(cancellationToken);
+        var dataJson = BuildDataJson(sanitized);
+        var dedupeKey = BuildDedupeKey(sanitized);
+        var dedupeWindow = ResolveDedupeWindow(sanitized);
+        var cutoff = DateTime.UtcNow.Subtract(dedupeWindow);
 
-        if (recipients.Count == 0)
+        var existing = await _context.AdminAlertEvents
+            .AsNoTracking()
+            .Where(item => item.DedupeKey == dedupeKey && item.CreatedAtUtc >= cutoff)
+            .OrderByDescending(item => item.CreatedAtUtc)
+            .FirstOrDefaultAsync(cancellationToken);
+
+        if (existing is not null)
         {
-            _logger.LogWarning(
-                "Admin alert {AlertType} skipped because no active admin recipients were found.",
-                sanitized.Type);
+            _logger.LogInformation(
+                "Admin alert {AlertType} deduped into existing event {EventId}.",
+                sanitized.Type,
+                existing.Id);
 
             return new AdminAlertDispatchResult(
                 0,
                 0,
-                new OneSignalPushDispatchResult(false, false, true, null, null, "No active admin recipients."));
+                new OneSignalPushDispatchResult(false, false, true, null, null, "Deduplicated."))
+            {
+                EventId = existing.Id,
+                Status = "deduped"
+            };
         }
 
-        var data = BuildDataJson(sanitized);
-        var signalRSuccessCount = 0;
-
-        foreach (var recipientId in recipients)
-        {
-            try
-            {
-                await _notificationService.SendToUserAsync(
-                    recipientId,
-                    new NotificationDispatchRequest(
-                        sanitized.TitleAr,
-                        sanitized.TitleEn,
-                        sanitized.BodyAr,
-                        sanitized.BodyEn,
-                        sanitized.Type,
-                        sanitized.Category,
-                        sanitized.Priority,
-                        sanitized.ReferenceId,
-                        data),
-                    cancellationToken);
-
-                signalRSuccessCount++;
-            }
-            catch (Exception ex)
-            {
-                _logger.LogError(
-                    ex,
-                    "Admin alert {AlertType} failed for admin recipient {RecipientId}.",
-                    sanitized.Type,
-                    recipientId);
-            }
-        }
-
-        var pushResults = await _oneSignalPushService.SendToExternalUsersAsync(
-            recipients.Select(id => id.ToString()).ToArray(),
+        var alertEvent = new AdminAlertEvent(
+            sanitized.Type,
+            sanitized.Category,
+            sanitized.Priority,
             sanitized.TitleAr,
             sanitized.TitleEn,
             sanitized.BodyAr,
             sanitized.BodyEn,
-            sanitized.Type,
             sanitized.ReferenceId,
-            data,
             sanitized.TargetUrl,
-            OneSignalPushProfile.Default,
-            OneSignalApplicationTarget.AdminWeb,
-            cancellationToken);
+            dataJson,
+            dedupeKey,
+            sanitized.SuppressPush);
 
-        var pushResult = SummarizePushResults(pushResults);
+        _context.AdminAlertEvents.Add(alertEvent);
+        await _context.SaveChangesAsync(cancellationToken);
 
         _logger.LogInformation(
-            "Admin alert {AlertType} dispatched. Recipients: {RecipientCount}. SignalRSuccess: {SignalRSuccessCount}. PushAttempted: {PushAttempted}. PushSent: {PushSent}. PushSkipped: {PushSkipped}.",
-            sanitized.Type,
-            recipients.Count,
-            signalRSuccessCount,
-            pushResult.Attempted,
-            pushResult.Sent,
-            pushResult.Skipped);
+            "Admin alert {AlertType} queued as outbox event {EventId}.",
+            alertEvent.Type,
+            alertEvent.Id);
 
-        return new AdminAlertDispatchResult(recipients.Count, signalRSuccessCount, pushResult);
+        return new AdminAlertDispatchResult(
+            0,
+            0,
+            new OneSignalPushDispatchResult(false, false, true, null, null, "Queued for outbox dispatch."))
+        {
+            EventId = alertEvent.Id,
+            Status = "queued"
+        };
     }
 
     private static AdminAlertRequest Normalize(AdminAlertRequest request)
@@ -142,7 +115,7 @@ public sealed class AdminAlertService : IAdminAlertService
             ["targetUrl"] = request.TargetUrl,
             ["category"] = request.Category,
             ["priority"] = request.Priority,
-            ["source"] = "admin_alert_service"
+            ["source"] = "admin_alert_outbox"
         };
 
         if (request.Data is not null)
@@ -150,23 +123,16 @@ public sealed class AdminAlertService : IAdminAlertService
             envelope["payload"] = request.Data;
         }
 
-        return JsonSerializer.Serialize(envelope);
+        return JsonSerializer.Serialize(envelope, JsonOptions);
     }
 
-    private static OneSignalPushDispatchResult SummarizePushResults(IReadOnlyList<OneSignalPushDispatchResult> results)
-    {
-        if (results.Count == 0)
-        {
-            return new OneSignalPushDispatchResult(false, false, true, null, null, "No OneSignal push batches were produced.");
-        }
+    private static string BuildDedupeKey(AdminAlertRequest request) =>
+        $"{request.Type.Trim().ToLowerInvariant()}|{request.ReferenceId?.ToString("N") ?? "none"}|{request.TargetUrl.Trim().ToLowerInvariant()}";
 
-        var attempted = results.Any(result => result.Attempted);
-        var sent = results.Any(result => result.Sent);
-        var skipped = results.All(result => result.Skipped);
-        var firstStatus = results.FirstOrDefault(result => result.ProviderStatusCode.HasValue)?.ProviderStatusCode;
-        var providerId = results.FirstOrDefault(result => !string.IsNullOrWhiteSpace(result.ProviderNotificationId))?.ProviderNotificationId;
-        var reason = results.FirstOrDefault(result => !string.IsNullOrWhiteSpace(result.Reason))?.Reason;
-
-        return new OneSignalPushDispatchResult(attempted, sent, skipped, firstStatus, providerId, reason);
-    }
+    private static TimeSpan ResolveDedupeWindow(AdminAlertRequest request) =>
+        string.Equals(request.Type, AdminAlertTypes.SystemIntegrationFailure, StringComparison.OrdinalIgnoreCase) ||
+        string.Equals(request.Type, AdminAlertTypes.SystemOneSignalFailure, StringComparison.OrdinalIgnoreCase)
+            ? TimeSpan.FromMinutes(1)
+            : TimeSpan.FromMinutes(5);
 }
+

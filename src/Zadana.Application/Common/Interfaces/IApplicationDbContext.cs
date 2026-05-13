@@ -112,6 +112,8 @@ public interface IApplicationDbContext
     DbSet<FeaturedProductPlacement> FeaturedProductPlacements { get; }
     DbSet<Review> Reviews { get; }
     DbSet<Notification> Notifications { get; }
+    DbSet<AdminAlertEvent> AdminAlertEvents { get; }
+    DbSet<AdminAlertDispatch> AdminAlertDispatches { get; }
 
     // Geography
     DbSet<SaudiRegion> SaudiRegions { get; }

@@ -12,7 +12,15 @@ public record RegisterNotificationDeviceRequest(
     bool AssignmentPushEnabled = true,
     bool SupportPushEnabled = true,
     bool WalletPushEnabled = true,
-    bool AccountPushEnabled = true);
+    bool AccountPushEnabled = true,
+    bool AdminDriversPushEnabled = true,
+    bool AdminVendorsPushEnabled = true,
+    bool AdminCatalogPushEnabled = true,
+    bool AdminDisputesPushEnabled = true,
+    bool AdminRefundsPushEnabled = true,
+    bool AdminSettlementsPushEnabled = true,
+    bool AdminSupportPushEnabled = true,
+    bool AdminSystemPushEnabled = true);
 
 public record UpdateNotificationDevicePreferencesRequest(
     string? DeviceId,
@@ -22,7 +30,15 @@ public record UpdateNotificationDevicePreferencesRequest(
     bool? AssignmentPushEnabled = null,
     bool? SupportPushEnabled = null,
     bool? WalletPushEnabled = null,
-    bool? AccountPushEnabled = null);
+    bool? AccountPushEnabled = null,
+    bool? AdminDriversPushEnabled = null,
+    bool? AdminVendorsPushEnabled = null,
+    bool? AdminCatalogPushEnabled = null,
+    bool? AdminDisputesPushEnabled = null,
+    bool? AdminRefundsPushEnabled = null,
+    bool? AdminSettlementsPushEnabled = null,
+    bool? AdminSupportPushEnabled = null,
+    bool? AdminSystemPushEnabled = null);
 
 public record UnregisterNotificationDeviceRequest(
     string? DeviceId,
