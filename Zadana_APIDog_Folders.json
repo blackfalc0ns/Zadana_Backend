@@ -8785,51 +8785,18 @@
         }
       }
     },
-    "/api/categories/subcategories": {
-      "get": {
-        "tags": [
-          "Customer/Categories"
-        ],
-        "summary": "Get subcategories (all leaf subcategories if no categoryId, or direct children of a category)",
-        "parameters": [
-          {
-            "name": "categoryId",
-            "in": "query",
-            "description": "Optional. If provided, returns subcategories of this category. If omitted, returns all leaf subcategories.",
-            "schema": {
-              "type": "string",
-              "format": "uuid"
-            }
-          }
-        ],
-        "responses": {
-          "200": {
-            "description": "OK",
-            "content": {
-              "application/json": {
-                "schema": {
-                  "type": "array",
-                  "items": {
-                    "$ref": "#/components/schemas/CategoryListItemDto"
-                  }
-                }
-              }
-            }
-          }
-        }
-      }
-    },
     "/api/categories/{categoryId}/subcategories": {
       "get": {
         "tags": [
           "Customer/Categories"
         ],
-        "summary": "Get subcategories of a specific category",
+        "summary": "Get subcategories. If categoryId is provided (path or query), returns direct children. If omitted, returns all leaf subcategories.",
         "parameters": [
           {
             "name": "categoryId",
             "in": "path",
-            "required": true,
+            "required": false,
+            "description": "Optional. Category ID. Also works via /api/categories/subcategories without path param.",
             "schema": {
               "type": "string",
               "format": "uuid"
@@ -8846,110 +8813,6 @@
                   "items": {
                     "$ref": "#/components/schemas/CategoryListItemDto"
                   }
-                }
-              }
-            }
-          }
-        }
-      }
-    },
-    "/api/categories/products": {
-      "get": {
-        "tags": [
-          "Customer/Categories"
-        ],
-        "summary": "Get products (all products if no categoryId, or products of a specific category)",
-        "parameters": [
-          {
-            "name": "categoryId",
-            "in": "query",
-            "description": "Optional. If provided, returns products of this category. If omitted, returns all products.",
-            "schema": {
-              "type": "string",
-              "format": "uuid"
-            }
-          },
-          {
-            "name": "product_type_id",
-            "in": "query",
-            "schema": {
-              "type": "string",
-              "format": "uuid"
-            }
-          },
-          {
-            "name": "part_id",
-            "in": "query",
-            "schema": {
-              "type": "string",
-              "format": "uuid"
-            }
-          },
-          {
-            "name": "quantity_id",
-            "in": "query",
-            "schema": {
-              "type": "string",
-              "format": "uuid"
-            }
-          },
-          {
-            "name": "brand_id",
-            "in": "query",
-            "schema": {
-              "type": "string",
-              "format": "uuid"
-            }
-          },
-          {
-            "name": "min_price",
-            "in": "query",
-            "schema": {
-              "type": "number",
-              "format": "double"
-            }
-          },
-          {
-            "name": "max_price",
-            "in": "query",
-            "schema": {
-              "type": "number",
-              "format": "double"
-            }
-          },
-          {
-            "name": "sort",
-            "in": "query",
-            "schema": {
-              "type": "string"
-            }
-          },
-          {
-            "name": "page",
-            "in": "query",
-            "schema": {
-              "type": "integer",
-              "format": "int32",
-              "default": 1
-            }
-          },
-          {
-            "name": "per_page",
-            "in": "query",
-            "schema": {
-              "type": "integer",
-              "format": "int32",
-              "default": 20
-            }
-          }
-        ],
-        "responses": {
-          "200": {
-            "description": "OK",
-            "content": {
-              "application/json": {
-                "schema": {
-                  "$ref": "#/components/schemas/CategoryProductsDto"
                 }
               }
             }
@@ -8962,12 +8825,13 @@
         "tags": [
           "Customer/Categories"
         ],
-        "summary": "Get products of a specific category",
+        "summary": "Get products. If categoryId is provided (path or query), returns products of that category. If omitted, returns all products.",
         "parameters": [
           {
             "name": "categoryId",
             "in": "path",
-            "required": true,
+            "required": false,
+            "description": "Optional. Category ID. Also works via /api/categories/products without path param.",
             "schema": {
               "type": "string",
               "format": "uuid"

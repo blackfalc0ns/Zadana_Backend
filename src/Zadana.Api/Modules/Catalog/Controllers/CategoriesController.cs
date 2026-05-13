@@ -16,20 +16,23 @@ namespace Zadana.Api.Modules.Catalog.Controllers;
 public class CategoriesController : ApiControllerBase
 {
     [HttpGet("subcategories")]
+    [HttpGet("{categoryId:guid}/subcategories")]
     [OutputCache(PolicyName = OutputCachePolicyNames.CatalogMetadata)]
     public async Task<ActionResult<List<CategoryListItemDto>>> GetSubcategories(
-        [FromQuery] Guid? categoryId,
+        [FromQuery(Name = "categoryId")] Guid? queryCategoryId,
+        [FromRoute] Guid? categoryId,
         CancellationToken cancellationToken)
     {
-        var result = await Sender.Send(new GetCategorySubcategoriesQuery(categoryId), cancellationToken);
+        var effectiveCategoryId = categoryId ?? queryCategoryId;
+        var result = await Sender.Send(new GetCategorySubcategoriesQuery(effectiveCategoryId), cancellationToken);
         return Ok(result);
     }
 
     [HttpGet("products")]
     [HttpGet("{categoryId:guid}/products")]
     public async Task<ActionResult<CategoryProductsDto>> GetProducts(
-        [FromRoute] Guid? categoryId,
         [FromQuery(Name = "categoryId")] Guid? queryCategoryId,
+        [FromRoute] Guid? categoryId,
         [FromQuery(Name = "product_type_id")] Guid? productTypeId,
         [FromQuery(Name = "part_id")] Guid? partId,
         [FromQuery(Name = "quantity_id")] Guid? quantityId,
