@@ -28,7 +28,8 @@ public class CategoriesController : ApiControllerBase
     [HttpGet("products")]
     [HttpGet("{categoryId:guid}/products")]
     public async Task<ActionResult<CategoryProductsDto>> GetProducts(
-        Guid? categoryId,
+        [FromRoute] Guid? categoryId,
+        [FromQuery(Name = "categoryId")] Guid? queryCategoryId,
         [FromQuery(Name = "product_type_id")] Guid? productTypeId,
         [FromQuery(Name = "part_id")] Guid? partId,
         [FromQuery(Name = "quantity_id")] Guid? quantityId,
@@ -40,9 +41,10 @@ public class CategoriesController : ApiControllerBase
         [FromQuery(Name = "per_page")] int perPage = 20,
         CancellationToken cancellationToken = default)
     {
+        var effectiveCategoryId = categoryId ?? queryCategoryId;
         var result = await Sender.Send(
             new GetCategoryProductsQuery(
-                categoryId,
+                effectiveCategoryId,
                 productTypeId,
                 partId,
                 quantityId,
