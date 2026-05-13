@@ -39,7 +39,7 @@ public class GetBrandFiltersQueryHandler : IRequestHandler<GetBrandFiltersQuery,
                 var brand = await _context.Brands
                     .AsNoTracking()
                     .Where(item => item.Id == request.BrandId && item.IsActive)
-                    .Select(item => new { item.Id, item.NameAr, item.NameEn })
+                    .Select(item => new { item.Id, item.NameAr, item.NameEn, item.LogoUrl })
                     .FirstOrDefaultAsync(token)
                     ?? throw new NotFoundException(nameof(Brand), request.BrandId);
 
@@ -51,6 +51,7 @@ public class GetBrandFiltersQueryHandler : IRequestHandler<GetBrandFiltersQuery,
                         category.ParentCategoryId,
                         category.NameAr,
                         category.NameEn,
+                        category.ImageUrl,
                         category.DisplayOrder))
                     .ToListAsync(token);
 
@@ -94,7 +95,8 @@ public class GetBrandFiltersQueryHandler : IRequestHandler<GetBrandFiltersQuery,
                         subcategoryItems[category.Id] = new BrandFilterSubcategoryItemDto(
                             category.Id,
                             BrandCatalogQueryHelpers.PickLocalized(category.NameAr, category.NameEn),
-                            parent.Id);
+                            parent.Id,
+                            category.ImageUrl);
                     }
                     else
                     {
@@ -138,9 +140,10 @@ public class GetBrandFiltersQueryHandler : IRequestHandler<GetBrandFiltersQuery,
                     : new CatalogFilterPriceRangeDto(visiblePrices.Min(), visiblePrices.Max());
 
                 return new BrandFiltersDto(
-                    new CatalogFilterNamedItemDto(
+                    new BrandFilterBrandItemDto(
                         brand.Id,
-                        BrandCatalogQueryHelpers.PickLocalized(brand.NameAr, brand.NameEn)),
+                        BrandCatalogQueryHelpers.PickLocalized(brand.NameAr, brand.NameEn),
+                        brand.LogoUrl),
                     categoryItems.Values
                         .OrderBy(item => categoriesById[item.Id].DisplayOrder)
                         .ThenBy(item => item.Name, StringComparer.CurrentCultureIgnoreCase)
@@ -163,6 +166,7 @@ public class GetBrandFiltersQueryHandler : IRequestHandler<GetBrandFiltersQuery,
         Guid? ParentCategoryId,
         string? NameAr,
         string? NameEn,
+        string? ImageUrl,
         int DisplayOrder);
 
     private sealed record ScopedMasterProductRow(

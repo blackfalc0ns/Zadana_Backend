@@ -67,12 +67,12 @@ public class UploadFileCommandHandler : IRequestHandler<UploadFileCommand, strin
         if (!string.IsNullOrWhiteSpace(request.File.ContentType) &&
             !validationRule.AllowedContentTypes.Contains(request.File.ContentType.Trim(), StringComparer.OrdinalIgnoreCase))
         {
-            throw new BadRequestException("INVALID_FILE_CONTENT_TYPE", "The uploaded file content type is not allowed.");
+            throw new BadRequestException("INVALID_FILE_CONTENT_TYPE", "نوع محتوى الملف المرفوع غير مسموح به.|The uploaded file content type is not allowed.");
         }
 
         if (request.File.ContentStream.CanSeek && request.File.ContentStream.Length > validationRule.MaxBytes)
         {
-            throw new BadRequestException("FILE_TOO_LARGE", $"The uploaded file exceeds the allowed size limit of {validationRule.MaxBytes / (1024 * 1024)} MB.");
+            throw new BadRequestException("FILE_TOO_LARGE", $"حجم الملف المرفوع يتجاوز الحد المسموح ({validationRule.MaxBytes / (1024 * 1024)} ميجابايت).|The uploaded file exceeds the allowed size limit of {validationRule.MaxBytes / (1024 * 1024)} MB.");
         }
 
         await EnsureFileSignatureAsync(request.File, validationRule, cancellationToken);
@@ -90,24 +90,54 @@ public class UploadFileCommandHandler : IRequestHandler<UploadFileCommand, strin
         }
 
         file.ContentStream.Position = 0;
-        var maxSignatureLength = file.FileName.EndsWith(".webp", StringComparison.OrdinalIgnoreCase)
-            ? 12
-            : rule.Signatures.Max(signature => signature.Length);
-        var buffer = new byte[maxSignatureLength];
-        var bytesRead = await file.ContentStream.ReadAsync(buffer.AsMemory(0, maxSignatureLength), cancellationToken);
+
+        var isPdf = file.FileName.EndsWith(".pdf", StringComparison.OrdinalIgnoreCase);
+        var isWebp = file.FileName.EndsWith(".webp", StringComparison.OrdinalIgnoreCase);
+
+        // For PDFs, scan within the first 1024 bytes (handles BOM, whitespace, or other leading bytes).
+        // For WebP, need 12 bytes. For others, need the max signature length.
+        var scanLength = isPdf
+            ? 1024
+            : isWebp
+                ? 12
+                : rule.Signatures.Max(signature => signature.Length);
+
+        var buffer = new byte[scanLength];
+        var bytesRead = await file.ContentStream.ReadAsync(buffer.AsMemory(0, scanLength), cancellationToken);
         file.ContentStream.Position = 0;
 
-        var matchesSignature = file.FileName.EndsWith(".webp", StringComparison.OrdinalIgnoreCase)
-            ? bytesRead >= 12 &&
-              buffer.AsSpan(0, 4).SequenceEqual(rule.Signatures[0]) &&
-              buffer.AsSpan(8, 4).SequenceEqual(rule.Signatures[1])
-            : rule.Signatures.Any(signature =>
+        bool matchesSignature;
+
+        if (isWebp)
+        {
+            matchesSignature = bytesRead >= 12 &&
+                               buffer.AsSpan(0, 4).SequenceEqual(rule.Signatures[0]) &&
+                               buffer.AsSpan(8, 4).SequenceEqual(rule.Signatures[1]);
+        }
+        else if (isPdf)
+        {
+            // Scan for %PDF signature anywhere within the first 1024 bytes.
+            var pdfSignature = rule.Signatures[0]; // [0x25, 0x50, 0x44, 0x46] = %PDF
+            matchesSignature = false;
+            for (var i = 0; i <= bytesRead - pdfSignature.Length; i++)
+            {
+                if (buffer.AsSpan(i, pdfSignature.Length).SequenceEqual(pdfSignature))
+                {
+                    matchesSignature = true;
+                    break;
+                }
+            }
+        }
+        else
+        {
+            matchesSignature = rule.Signatures.Any(signature =>
                 bytesRead >= signature.Length &&
                 buffer.AsSpan(0, signature.Length).SequenceEqual(signature));
+        }
 
         if (!matchesSignature)
         {
-            throw new BadRequestException("INVALID_FILE_SIGNATURE", "The uploaded file content does not match the declared file type.");
+            throw new BadRequestException("INVALID_FILE_SIGNATURE", "محتوى الملف المرفوع لا يتطابق مع نوع الملف المعلن. تأكد من رفع ملف PDF أو صورة صالحة.|The uploaded file content does not match the declared file type. Please ensure you upload a valid PDF or image file.");
         }
     }
 

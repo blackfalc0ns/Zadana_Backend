@@ -5,10 +5,16 @@ namespace Zadana.Application.Modules.Catalog.DTOs;
 public record BrandFilterSubcategoryItemDto(
     [property: JsonPropertyName("id")] Guid Id,
     [property: JsonPropertyName("name")] string Name,
-    [property: JsonPropertyName("category_id")] Guid CategoryId);
+    [property: JsonPropertyName("category_id")] Guid CategoryId,
+    [property: JsonPropertyName("image_url")] string? ImageUrl);
+
+public record BrandFilterBrandItemDto(
+    [property: JsonPropertyName("id")] Guid Id,
+    [property: JsonPropertyName("name")] string Name,
+    [property: JsonPropertyName("logo_url")] string? LogoUrl);
 
 public record BrandFiltersDto(
-    [property: JsonPropertyName("brand")] CatalogFilterNamedItemDto Brand,
+    [property: JsonPropertyName("brand")] BrandFilterBrandItemDto Brand,
     [property: JsonPropertyName("categories")] IReadOnlyList<CatalogFilterNamedItemDto> Categories,
     [property: JsonPropertyName("subcategories")] IReadOnlyList<BrandFilterSubcategoryItemDto> Subcategories,
     [property: JsonPropertyName("units")] IReadOnlyList<CatalogFilterNamedItemDto> Units,

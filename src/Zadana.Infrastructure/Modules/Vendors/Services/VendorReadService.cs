@@ -29,7 +29,8 @@ public class VendorReadService : IVendorReadService
     {
         var query =
             from vendor in _dbContext.Vendors.AsNoTracking()
-            join user in _dbContext.Users.AsNoTracking() on vendor.UserId equals user.Id
+            join user in _dbContext.Users.AsNoTracking() on vendor.UserId equals user.Id into userGroup
+            from user in userGroup.DefaultIfEmpty()
             select new { vendor, user };
 
         if (status.HasValue)
@@ -46,7 +47,7 @@ public class VendorReadService : IVendorReadService
                 EF.Functions.Like(item.vendor.BusinessNameEn, pattern) ||
                 EF.Functions.Like(item.vendor.ContactPhone, pattern) ||
                 EF.Functions.Like(item.vendor.ContactEmail, pattern) ||
-                EF.Functions.Like(item.user.FullName, pattern) ||
+                (item.user != null && EF.Functions.Like(item.user.FullName, pattern)) ||
                 (item.vendor.OwnerName != null && EF.Functions.Like(item.vendor.OwnerName, pattern)) ||
                 (item.vendor.OwnerEmail != null && EF.Functions.Like(item.vendor.OwnerEmail, pattern)));
         }
@@ -59,17 +60,17 @@ public class VendorReadService : IVendorReadService
                 item.vendor.BusinessNameEn,
                 item.vendor.BusinessType,
                 NormalizeVendorStatus(item.vendor.Status),
-                item.vendor.OwnerName ?? item.user.FullName,
+                item.vendor.OwnerName ?? (item.user != null ? item.user.FullName : item.vendor.ContactEmail),
                 item.vendor.ContactPhone,
                 item.vendor.CreatedAtUtc,
                 item.vendor.ContactEmail,
                 item.vendor.CommissionRate,
                 item.vendor.City,
                 item.vendor.Region,
-                item.user.AccountStatus.ToString(),
-                item.user.IsLoginLocked,
-                item.user.LockedAtUtc,
-                item.user.ArchivedAtUtc));
+                item.user != null ? item.user.AccountStatus.ToString() : null,
+                item.user != null && item.user.IsLoginLocked,
+                item.user != null ? item.user.LockedAtUtc : null,
+                item.user != null ? item.user.ArchivedAtUtc : null));
 
         return await PaginatedList<VendorListItemDto>.CreateAsync(projected, page, pageSize, cancellationToken);
     }
@@ -92,11 +93,6 @@ public class VendorReadService : IVendorReadService
         var user = await _dbContext.Users
             .AsNoTracking()
             .FirstOrDefaultAsync(item => item.Id == vendor.UserId, cancellationToken);
-
-        if (user == null)
-        {
-            return null;
-        }
 
         var approvedByName = vendor.ApprovedBy.HasValue
             ? await _dbContext.Users
@@ -234,7 +230,7 @@ public class VendorReadService : IVendorReadService
 
     private static VendorWorkspaceDto MapWorkspace(
         Vendor vendor,
-        User user,
+        User? user,
         string? approvedByName,
         IReadOnlyList<Notification>? reviewNotifications = null)
     {
@@ -260,19 +256,19 @@ public class VendorReadService : IVendorReadService
             vendor.Region,
             vendor.City,
             vendor.NationalAddress,
-            vendor.OwnerName ?? user.FullName,
-            vendor.OwnerEmail ?? user.Email,
-            vendor.OwnerPhone ?? user.PhoneNumber,
+            vendor.OwnerName ?? user?.FullName ?? vendor.ContactEmail,
+            vendor.OwnerEmail ?? user?.Email,
+            vendor.OwnerPhone ?? user?.PhoneNumber,
             vendor.IdNumber,
             vendor.Nationality,
             vendor.PayoutCycle,
             vendor.FinancialLifecycleMode.ToString(),
             vendor.CommissionRate,
             NormalizeVendorStatus(vendor.Status),
-            user.AccountStatus.ToString(),
-            user.IsLoginLocked,
-            user.LockedAtUtc,
-            user.ArchivedAtUtc,
+            user?.AccountStatus.ToString() ?? "Pending",
+            user?.IsLoginLocked ?? false,
+            user?.LockedAtUtc,
+            user?.ArchivedAtUtc,
             vendor.SuspendedAtUtc,
             vendor.RejectionReason,
             vendor.SuspensionReason,
@@ -527,7 +523,7 @@ public class VendorReadService : IVendorReadService
 
     private static VendorDetailDto MapDetail(
         Vendor vendor,
-        User user,
+        User? user,
         string? approvedByName,
         IReadOnlyList<Notification> reviewNotifications)
     {
@@ -604,9 +600,9 @@ public class VendorReadService : IVendorReadService
             requestedChangesAtUtc,
             reviewDecisionReason,
             VendorReviewWorkflow.IsReadyForFinalApproval(vendor),
-            workspace.OwnerName ?? user.FullName,
-            workspace.OwnerEmail ?? user.Email ?? string.Empty,
-            workspace.OwnerPhone ?? user.PhoneNumber ?? string.Empty,
+            workspace.OwnerName ?? user?.FullName ?? workspace.ContactEmail,
+            workspace.OwnerEmail ?? user?.Email ?? string.Empty,
+            workspace.OwnerPhone ?? user?.PhoneNumber ?? string.Empty,
             workspace.IdNumber,
             workspace.Nationality,
             workspace.PayoutCycle,
@@ -624,7 +620,7 @@ public class VendorReadService : IVendorReadService
     private static IReadOnlyList<VendorReviewDocumentDto> MapReviewDocuments(
         Vendor vendor,
         VendorBankAccountDto? primaryBankAccount,
-        User user)
+        User? user)
     {
         var reviewLookup = vendor.DocumentReviews.ToDictionary(item => item.Type);
 
@@ -640,7 +636,7 @@ public class VendorReadService : IVendorReadService
 
     private static VendorReviewDocumentDto CreateReviewDocument(
         Vendor vendor,
-        User user,
+        User? user,
         VendorBankAccountDto? primaryBankAccount,
         IReadOnlyDictionary<VendorDocumentType, VendorDocumentReview> reviewLookup,
         VendorDocumentType type)

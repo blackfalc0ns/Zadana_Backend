@@ -37,6 +37,9 @@ public static class AdminAlertTypes
     public const string VendorApprovalRequested = "vendor.approval_requested";
     public const string VendorDocumentsSubmitted = "vendor.documents_submitted";
     public const string VendorCriticalChangeSubmitted = "vendor.critical_change_submitted";
+    public const string VendorStoreUpdated = "vendor.store_updated";
+    public const string VendorLegalUpdated = "vendor.legal_updated";
+    public const string VendorBankingUpdated = "vendor.banking_updated";
     public const string CatalogProductRequestSubmitted = "catalog.product_request_submitted";
     public const string CatalogBrandRequestSubmitted = "catalog.brand_request_submitted";
     public const string CatalogCategoryRequestSubmitted = "catalog.category_request_submitted";

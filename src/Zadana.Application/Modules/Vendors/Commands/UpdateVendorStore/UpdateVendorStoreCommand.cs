@@ -1,4 +1,4 @@
-using FluentValidation;
+﻿using FluentValidation;
 using MediatR;
 using Microsoft.Extensions.Localization;
 using Zadana.Application.Common.Interfaces;
@@ -103,11 +103,11 @@ public class UpdateVendorStoreCommandHandler : IRequestHandler<UpdateVendorStore
 
         await _adminAlertService.SendAsync(
             new AdminAlertRequest(
-                AdminAlertTypes.VendorCriticalChangeSubmitted,
+                AdminAlertTypes.VendorStoreUpdated,
                 AdminAlertCategories.Vendors,
                 AdminAlertPriorities.High,
-                "تعديل مهم في بيانات تاجر",
-                "Vendor critical profile change",
+                "تعديل بيانات المتجر",
+                "Vendor store details updated",
                 $"قام التاجر {vendor.BusinessNameAr} بتعديل بيانات المتجر.",
                 $"Vendor {vendor.BusinessNameEn} updated store profile details.",
                 vendor.Id,

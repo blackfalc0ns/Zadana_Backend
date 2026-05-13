@@ -1,4 +1,4 @@
-using Microsoft.AspNetCore.Authorization;
+﻿using Microsoft.AspNetCore.Authorization;
 using Microsoft.AspNetCore.Mvc;
 using Microsoft.EntityFrameworkCore;
 using Zadana.Api.Controllers;
@@ -90,7 +90,7 @@ public class DriverProfileController : ApiControllerBase
         {
             if (!DriverVehicleTypeMapper.TryParse(request.VehicleType, out var resolvedVehicleType))
             {
-                throw new BusinessRuleException("INVALID_VEHICLE_TYPE", "نوع المركبة غير مدعوم | Unsupported vehicle type.");
+                throw new BusinessRuleException("INVALID_VEHICLE_TYPE", "Ù†ÙˆØ¹ Ø§Ù„Ù…Ø±ÙƒØ¨Ø© ØºÙŠØ± Ù…Ø¯Ø¹ÙˆÙ… | Unsupported vehicle type.");
             }
 
             parsedVehicleType = resolvedVehicleType;
@@ -117,7 +117,7 @@ public class DriverProfileController : ApiControllerBase
             var regionEntity = await context.SaudiRegions
                 .AsNoTracking()
                 .FirstOrDefaultAsync(r => r.Code == normalizedRegion, cancellationToken)
-                ?? throw new BusinessRuleException("INVALID_REGION", "المنطقة المختارة غير موجودة | Selected region does not exist.");
+                ?? throw new BusinessRuleException("INVALID_REGION", "Ø§Ù„Ù…Ù†Ø·Ù‚Ø© Ø§Ù„Ù…Ø®ØªØ§Ø±Ø© ØºÙŠØ± Ù…ÙˆØ¬ÙˆØ¯Ø© | Selected region does not exist.");
 
             if (!string.IsNullOrWhiteSpace(request.City))
             {
@@ -128,7 +128,7 @@ public class DriverProfileController : ApiControllerBase
 
                 if (!cityExists)
                 {
-                    throw new BusinessRuleException("INVALID_CITY", "المدينة المختارة لا تتبع المنطقة المحددة | Selected city does not belong to the chosen region.");
+                    throw new BusinessRuleException("INVALID_CITY", "Ø§Ù„Ù…Ø¯ÙŠÙ†Ø© Ø§Ù„Ù…Ø®ØªØ§Ø±Ø© Ù„Ø§ ØªØªØ¨Ø¹ Ø§Ù„Ù…Ù†Ø·Ù‚Ø© Ø§Ù„Ù…Ø­Ø¯Ø¯Ø© | Selected city does not belong to the chosen region.");
                 }
             }
 
@@ -156,6 +156,7 @@ public class DriverProfileController : ApiControllerBase
         [FromServices] IDriverRepository driverRepository,
         [FromServices] IApplicationDbContext context,
         [FromServices] IDriverReadService driverReadService,
+        [FromServices] IAdminAlertService adminAlertService,
         CancellationToken cancellationToken = default)
     {
         var userId = currentUserService.UserId ?? throw new UnauthorizedException("DRIVER_NOT_AUTHENTICATED");
@@ -179,6 +180,7 @@ public class DriverProfileController : ApiControllerBase
             note: "Profile updated and pending admin re-review");
 
         await context.SaveChangesAsync(cancellationToken);
+        await SendDriverReviewAlertAsync(driver, adminAlertService, hasRequiredProfileData: HasRequiredProfileData(driver), cancellationToken);
 
         var profile = await driverReadService.GetDriverProfileAsync(userId, cancellationToken)
             ?? throw new NotFoundException("Driver", userId);
@@ -233,14 +235,14 @@ public class DriverProfileController : ApiControllerBase
             ? AdminAlertPriorities.High
             : AdminAlertPriorities.Critical;
         var titleAr = hasRequiredProfileData
-            ? "مستندات مندوب جاهزة للمراجعة"
-            : "مانع في موافقة مندوب";
+            ? "مستندات سائق جاهزة للمراجعة"
+            : "مانع في موافقة سائق";
         var titleEn = hasRequiredProfileData
             ? "Driver documents ready for review"
             : "Driver approval blocker";
         var bodyAr = hasRequiredProfileData
-            ? $"قام المندوب {driver.User.FullName} بتحديث بياناته ومستنداته."
-            : $"بيانات أو مستندات المندوب {driver.User.FullName} ما زالت تمنع الموافقة.";
+            ? $"قام السائق {driver.User.FullName} بتحديث بياناته ومستنداته."
+            : $"بيانات أو مستندات السائق {driver.User.FullName} ما زالت تمنع الموافقة.";
         var bodyEn = hasRequiredProfileData
             ? $"Driver {driver.User.FullName} updated profile data and documents."
             : $"Driver {driver.User.FullName} still has profile or document blockers.";

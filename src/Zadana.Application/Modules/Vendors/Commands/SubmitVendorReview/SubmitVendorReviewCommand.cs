@@ -1,4 +1,4 @@
-using MediatR;
+﻿using MediatR;
 using Zadana.Application.Common.Interfaces;
 using Zadana.Application.Modules.Vendors.DTOs;
 using Zadana.Application.Modules.Vendors.Interfaces;

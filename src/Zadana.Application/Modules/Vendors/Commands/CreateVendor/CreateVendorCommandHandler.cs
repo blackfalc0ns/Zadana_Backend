@@ -12,15 +12,18 @@ public class CreateVendorCommandHandler : IRequestHandler<CreateVendorCommand, G
     private readonly IVendorRepository _vendorRepository;
     private readonly IUnitOfWork _unitOfWork;
     private readonly IIdentityAccountService _identityAccountService;
+    private readonly IAdminAlertService _adminAlertService;
 
     public CreateVendorCommandHandler(
         IVendorRepository vendorRepository,
         IUnitOfWork unitOfWork,
-        IIdentityAccountService identityAccountService)
+        IIdentityAccountService identityAccountService,
+        IAdminAlertService adminAlertService)
     {
         _vendorRepository = vendorRepository;
         _unitOfWork = unitOfWork;
         _identityAccountService = identityAccountService;
+        _adminAlertService = adminAlertService;
     }
 
     public async Task<Guid> Handle(CreateVendorCommand request, CancellationToken cancellationToken)
@@ -48,6 +51,27 @@ public class CreateVendorCommandHandler : IRequestHandler<CreateVendorCommand, G
         // 3. Save to database
         _vendorRepository.Add(vendor);
         await _unitOfWork.SaveChangesAsync(cancellationToken);
+
+        await _adminAlertService.SendAsync(
+            new AdminAlertRequest(
+                AdminAlertTypes.VendorApprovalRequested,
+                AdminAlertCategories.Vendors,
+                AdminAlertPriorities.High,
+                "تاجر جديد تحت المراجعة",
+                "New vendor pending review",
+                $"تم إنشاء التاجر {vendor.BusinessNameAr} وهو الآن بانتظار مراجعة الإدارة.",
+                $"Vendor {vendor.BusinessNameEn} was created and is now pending admin review.",
+                vendor.Id,
+                $"/vendors/{vendor.Id}",
+                new
+                {
+                    vendorId = vendor.Id,
+                    vendorUserId = vendor.UserId,
+                    businessNameAr = vendor.BusinessNameAr,
+                    businessNameEn = vendor.BusinessNameEn,
+                    status = vendor.Status.ToString()
+                }),
+            cancellationToken);
 
         // 4. Return new ID
         return vendor.Id;

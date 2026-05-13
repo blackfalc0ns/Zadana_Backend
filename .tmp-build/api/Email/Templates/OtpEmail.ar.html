@@ -1,0 +1,105 @@
+<!DOCTYPE html>
+<html lang="ar" dir="rtl">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <style>
+        body {
+            font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif, 'Cairo', 'Tajawal';
+            background-color: #f8fafc;
+            color: #1e293b;
+            margin: 0;
+            padding: 0;
+            line-height: 1.6;
+        }
+        .container {
+            max-width: 600px;
+            margin: 40px auto;
+            background-color: #ffffff;
+            border-radius: 12px;
+            overflow: hidden;
+            box-shadow: 0 4px 6px -1px rgba(0, 0, 0, 0.1), 0 2px 4px -1px rgba(0, 0, 0, 0.06);
+        }
+        .header {
+            background-color: #0f172a;
+            padding: 30px 20px;
+            text-align: center;
+        }
+        .header h1 {
+            color: #ffffff;
+            margin: 0;
+            font-size: 24px;
+            font-weight: 700;
+        }
+        .content {
+            padding: 40px 30px;
+            text-align: center;
+        }
+        .greeting {
+            font-size: 20px;
+            font-weight: 600;
+            margin-bottom: 20px;
+            color: #0f172a;
+        }
+        .message {
+            font-size: 16px;
+            color: #475569;
+            margin-bottom: 30px;
+        }
+        .otp-container {
+            background-color: #f1f5f9;
+            border: 2px dashed #cbd5e1;
+            border-radius: 8px;
+            padding: 20px;
+            margin: 20px auto;
+            max-width: 300px;
+        }
+        .otp-code {
+            font-size: 32px;
+            font-weight: 700;
+            color: #2563eb;
+            letter-spacing: 6px;
+            margin: 0;
+        }
+        .warning {
+            font-size: 14px;
+            color: #64748b;
+            margin-top: 30px;
+        }
+        .footer {
+            background-color: #f8fafc;
+            padding: 20px;
+            text-align: center;
+            border-top: 1px solid #e2e8f0;
+            font-size: 13px;
+            color: #94a3b8;
+        }
+        .footer p { margin: 5px 0; }
+    </style>
+</head>
+<body>
+    <div class="container">
+        <div class="header">
+            <h1>زادانا - Zadana</h1>
+        </div>
+        <div class="content">
+            <div class="greeting">أهلاً بك 👋</div>
+            <div class="message">
+                لقد تلقينا طلباً للتحقق من حسابك. يرجى استخدام رمز التفعيل أدناه لإتمام العملية. هذا الرمز صالح لفترة قصيرة فقط.
+            </div>
+            
+            <div class="otp-container">
+                <p class="otp-code">{{OtpCode}}</p>
+            </div>
+            
+            <div class="warning">
+                إذا لم تقم بهذا الطلب، يمكنك تجاهل هذه الرسالة بأمان. لا تقم بمشاركة هذا الرمز مع أي شخص.
+            </div>
+        </div>
+        <div class="footer">
+            <p>&copy; {{Year}} زادانا. جميع الحقوق محفوظة.</p>
+            <p>هذه رسالة تلقائية، يرجى عدم الرد عليها.</p>
+        </div>
+    </div>
+</body>
+</html>

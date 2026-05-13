@@ -1,4 +1,4 @@
-using FluentValidation;
+﻿using FluentValidation;
 using MediatR;
 using Microsoft.Extensions.Localization;
 using Zadana.Application.Common.Interfaces;
@@ -117,17 +117,17 @@ public class UpdateVendorLegalCommandHandler : IRequestHandler<UpdateVendorLegal
 
         await _adminAlertService.SendAsync(
             new AdminAlertRequest(
-                resetDocuments.Count > 0 ? AdminAlertTypes.VendorDocumentsSubmitted : AdminAlertTypes.VendorCriticalChangeSubmitted,
+                resetDocuments.Count > 0 ? AdminAlertTypes.VendorDocumentsSubmitted : AdminAlertTypes.VendorLegalUpdated,
                 AdminAlertCategories.Vendors,
                 AdminAlertPriorities.High,
-                resetDocuments.Count > 0 ? "إعادة رفع مستندات تاجر" : "تعديل قانوني مهم لتاجر",
-                resetDocuments.Count > 0 ? "Vendor documents re-uploaded" : "Vendor legal profile changed",
+                resetDocuments.Count > 0 ? "إعادة رفع مستندات تاجر" : "تعديل بيانات التراخيص والضرائب",
+                resetDocuments.Count > 0 ? "Vendor documents re-uploaded" : "Vendor legal and tax details updated",
                 resetDocuments.Count > 0
                     ? $"قام التاجر {vendor.BusinessNameAr} بإعادة رفع مستندات تحتاج مراجعة."
-                    : $"قام التاجر {vendor.BusinessNameAr} بتعديل بيانات قانونية تحتاج مراجعة.",
+                    : $"قام التاجر {vendor.BusinessNameAr} بتعديل بيانات التراخيص والضرائب.",
                 resetDocuments.Count > 0
                     ? $"Vendor {vendor.BusinessNameEn} re-uploaded documents that need review."
-                    : $"Vendor {vendor.BusinessNameEn} updated legal data that needs review.",
+                    : $"Vendor {vendor.BusinessNameEn} updated legal and tax details.",
                 vendor.Id,
                 $"/vendors/{vendor.Id}",
                 new { vendorId = vendor.Id, userId = vendor.UserId, section = "legal", resetDocuments }),

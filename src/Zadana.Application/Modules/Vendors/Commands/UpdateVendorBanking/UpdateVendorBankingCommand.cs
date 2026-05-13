@@ -1,4 +1,4 @@
-using FluentValidation;
+﻿using FluentValidation;
 using MediatR;
 using Microsoft.Extensions.Localization;
 using Zadana.Application.Common.Interfaces;
@@ -105,7 +105,7 @@ public class UpdateVendorBankingCommandHandler : IRequestHandler<UpdateVendorBan
 
         await _adminAlertService.SendAsync(
             new AdminAlertRequest(
-                AdminAlertTypes.VendorCriticalChangeSubmitted,
+                AdminAlertTypes.VendorBankingUpdated,
                 AdminAlertCategories.Vendors,
                 AdminAlertPriorities.High,
                 "تعديل حساب تسويات تاجر",

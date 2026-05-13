@@ -185,7 +185,17 @@ public sealed class AdminAlertOutboxWorker : BackgroundService
                 pushResult.Sent,
                 pushResult.Skipped);
 
-            if (pushResult.Attempted && !pushResult.Sent && !alertEvent.SuppressPush && alertEvent.Type != AdminAlertTypes.SystemOneSignalFailure)
+            if (pushResult.Attempted && !pushResult.Sent && !alertEvent.SuppressPush)
+            {
+                _logger.LogWarning(
+                    "Admin alert event {EventId} inbox/SignalR dispatch completed, but OneSignal push failed. Type: {Type}. StatusCode: {StatusCode}. Reason: {Reason}",
+                    alertEvent.Id,
+                    alertEvent.Type,
+                    pushResult.ProviderStatusCode,
+                    pushResult.Reason);
+            }
+
+            if (ShouldCreatePushFailureAlert() && pushResult.Attempted && !pushResult.Sent && !alertEvent.SuppressPush && alertEvent.Type != AdminAlertTypes.SystemOneSignalFailure)
             {
                 await adminAlertService.SendAsync(
                     new AdminAlertRequest(
@@ -293,6 +303,8 @@ public sealed class AdminAlertOutboxWorker : BackgroundService
         var index = Math.Clamp(attempts - 1, 0, RetryDelays.Length - 1);
         return RetryDelays[index];
     }
+
+    private static bool ShouldCreatePushFailureAlert() => false;
 
     private static JsonElement? TryParseJson(string? json)
     {
