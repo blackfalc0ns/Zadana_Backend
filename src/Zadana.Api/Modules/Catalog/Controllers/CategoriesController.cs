@@ -16,10 +16,9 @@ namespace Zadana.Api.Modules.Catalog.Controllers;
 public class CategoriesController : ApiControllerBase
 {
     [HttpGet("subcategories")]
-    [HttpGet("{categoryId:guid}/subcategories")]
     [OutputCache(PolicyName = OutputCachePolicyNames.CatalogMetadata)]
     public async Task<ActionResult<List<CategoryListItemDto>>> GetSubcategories(
-        Guid? categoryId,
+        [FromQuery] Guid? categoryId,
         CancellationToken cancellationToken)
     {
         var result = await Sender.Send(new GetCategorySubcategoriesQuery(categoryId), cancellationToken);
