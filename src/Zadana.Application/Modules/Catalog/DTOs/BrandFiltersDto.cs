@@ -2,6 +2,11 @@ using System.Text.Json.Serialization;
 
 namespace Zadana.Application.Modules.Catalog.DTOs;
 
+public record BrandFilterCategoryItemDto(
+    [property: JsonPropertyName("id")] Guid Id,
+    [property: JsonPropertyName("name")] string Name,
+    [property: JsonPropertyName("image_url")] string? ImageUrl);
+
 public record BrandFilterSubcategoryItemDto(
     [property: JsonPropertyName("id")] Guid Id,
     [property: JsonPropertyName("name")] string Name,
@@ -15,7 +20,7 @@ public record BrandFilterBrandItemDto(
 
 public record BrandFiltersDto(
     [property: JsonPropertyName("brand")] BrandFilterBrandItemDto Brand,
-    [property: JsonPropertyName("categories")] IReadOnlyList<CatalogFilterNamedItemDto> Categories,
+    [property: JsonPropertyName("categories")] IReadOnlyList<BrandFilterCategoryItemDto> Categories,
     [property: JsonPropertyName("subcategories")] IReadOnlyList<BrandFilterSubcategoryItemDto> Subcategories,
     [property: JsonPropertyName("units")] IReadOnlyList<CatalogFilterNamedItemDto> Units,
     [property: JsonPropertyName("price_range")] CatalogFilterPriceRangeDto PriceRange,

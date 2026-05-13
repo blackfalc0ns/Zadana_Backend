@@ -79,7 +79,7 @@ public class GetBrandFiltersQueryHandler : IRequestHandler<GetBrandFiltersQuery,
                     .Distinct()
                     .ToList();
 
-                var categoryItems = new Dictionary<Guid, CatalogFilterNamedItemDto>();
+                var categoryItems = new Dictionary<Guid, BrandFilterCategoryItemDto>();
                 var subcategoryItems = new Dictionary<Guid, BrandFilterSubcategoryItemDto>();
 
                 foreach (var categoryId in activeCategoryIds)
@@ -88,9 +88,10 @@ public class GetBrandFiltersQueryHandler : IRequestHandler<GetBrandFiltersQuery,
 
                     if (category.ParentCategoryId.HasValue && categoriesById.TryGetValue(category.ParentCategoryId.Value, out var parent))
                     {
-                        categoryItems[parent.Id] = new CatalogFilterNamedItemDto(
+                        categoryItems[parent.Id] = new BrandFilterCategoryItemDto(
                             parent.Id,
-                            BrandCatalogQueryHelpers.PickLocalized(parent.NameAr, parent.NameEn));
+                            BrandCatalogQueryHelpers.PickLocalized(parent.NameAr, parent.NameEn),
+                            parent.ImageUrl);
 
                         subcategoryItems[category.Id] = new BrandFilterSubcategoryItemDto(
                             category.Id,
@@ -100,9 +101,10 @@ public class GetBrandFiltersQueryHandler : IRequestHandler<GetBrandFiltersQuery,
                     }
                     else
                     {
-                        categoryItems[category.Id] = new CatalogFilterNamedItemDto(
+                        categoryItems[category.Id] = new BrandFilterCategoryItemDto(
                             category.Id,
-                            BrandCatalogQueryHelpers.PickLocalized(category.NameAr, category.NameEn));
+                            BrandCatalogQueryHelpers.PickLocalized(category.NameAr, category.NameEn),
+                            category.ImageUrl);
                     }
                 }
 
