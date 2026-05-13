@@ -33,6 +33,14 @@ public record FeaturedProductPlacementDto(
     DateTime CreatedAtUtc,
     DateTime UpdatedAtUtc);
 
+public record FeaturedProductSelectionSettingsDto(
+    string SelectionMode,
+    int TargetCount,
+    int MinSalesCount,
+    int MinStoreCount,
+    bool RequireDiscount,
+    bool ExcludeProductsAlreadyInSpecialOffers);
+
 public record HomeSectionAdminDto(
     Guid Id,
     Guid CategoryId,

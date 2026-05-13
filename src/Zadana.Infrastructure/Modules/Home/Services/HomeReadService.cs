@@ -489,17 +489,28 @@ public class HomeReadService : IHomeReadService
                     PickLocalizedNullable(x.UnitAr, x.UnitEn),
                     x.ImageUrl,
                     salesCount,
+                    salesCount,
                     reviewStats?.AverageRating,
                     reviewStats?.ReviewCount ?? 0,
+                    1,
                     PickLocalizedNullable(x.BrandNameAr, x.BrandNameEn),
                     x.BrandLogo);
             })
             .GroupBy(x => x.MasterProductId)
-            .Select(group => group
-                .OrderBy(x => x.SellingPrice)
-                .ThenByDescending(x => x.CreatedAtUtc)
-                .ThenBy(x => x.Store, StringComparer.CurrentCultureIgnoreCase)
-                .First())
+            .Select(group =>
+            {
+                var selected = group
+                    .OrderBy(x => x.SellingPrice)
+                    .ThenByDescending(x => x.CreatedAtUtc)
+                    .ThenBy(x => x.Store, StringComparer.CurrentCultureIgnoreCase)
+                    .First();
+
+                return selected with
+                {
+                    TotalSalesCount = group.Sum(x => x.SalesCount),
+                    StoreCount = group.Select(x => x.VendorId).Distinct().Count()
+                };
+            })
             .ToList();
 
         return new HomeProductCatalog(products, _currentUserService.UserId, favoritedMasterProductIds);
@@ -539,16 +550,32 @@ public class HomeReadService : IHomeReadService
         int take,
         CancellationToken cancellationToken)
     {
-        var placements = await GetActiveFeaturedPlacementsAsync(cancellationToken);
-        if (placements.Count == 0)
+        var settings = await LoadFeaturedProductSelectionSettingsAsync(cancellationToken);
+        var targetCount = Math.Min(take, settings.TargetCount);
+        if (targetCount <= 0)
         {
-            return SelectFeaturedProducts(catalog, take);
+            return [];
         }
 
-        var curated = ResolveFeaturedPlacements(catalog, placements, take);
-        return curated.Count > 0
-            ? curated
-            : SelectFeaturedProducts(catalog, take);
+        var placements = await GetActiveFeaturedPlacementsAsync(cancellationToken);
+        var manualItems = ResolveFeaturedPlacements(catalog, placements, targetCount);
+        if (manualItems.Count >= targetCount)
+        {
+            return manualItems;
+        }
+
+        var excludedSpecialOfferMasterProductIds = settings.ExcludeProductsAlreadyInSpecialOffers
+            ? SelectSpecialOffers(catalog, targetCount).Select(x => x.Id).ToHashSet()
+            : null;
+
+        var autoItems = SelectAutomaticFeaturedProducts(
+            catalog,
+            settings,
+            targetCount - manualItems.Count,
+            manualItems.Select(x => x.Id).ToHashSet(),
+            excludedSpecialOfferMasterProductIds);
+
+        return manualItems.Concat(autoItems).ToList();
     }
 
     private async Task<List<ActiveFeaturedPlacement>> GetActiveFeaturedPlacementsAsync(CancellationToken cancellationToken)
@@ -640,6 +667,33 @@ public class HomeReadService : IHomeReadService
         }
 
         return result;
+    }
+
+    private IReadOnlyList<HomeProductCardDto> SelectAutomaticFeaturedProducts(
+        HomeProductCatalog catalog,
+        FeaturedSelectionSettingsState settings,
+        int take,
+        IReadOnlySet<Guid> excludedMasterProductIds,
+        IReadOnlySet<Guid>? specialOfferMasterProductIds)
+    {
+        if (take <= 0)
+        {
+            return [];
+        }
+
+        return catalog.Products
+            .Where(x => !excludedMasterProductIds.Contains(x.MasterProductId))
+            .Where(x => x.TotalSalesCount >= settings.MinSalesCount)
+            .Where(x => x.StoreCount >= settings.MinStoreCount)
+            .Where(x => !settings.RequireDiscount || IsDiscounted(x))
+            .Where(x => specialOfferMasterProductIds is null || !specialOfferMasterProductIds.Contains(x.MasterProductId))
+            .OrderByDescending(x => x.TotalSalesCount)
+            .ThenByDescending(x => x.StoreCount)
+            .ThenByDescending(x => CalculateDiscountRate(x))
+            .ThenByDescending(x => x.CreatedAtUtc)
+            .Take(take)
+            .Select(x => MapToProductCard(x, catalog.FavoritedMasterProductIds.Contains(x.MasterProductId), true))
+            .ToList();
     }
 
     private async Task<IReadOnlyList<HomeProductCardDto>> SelectRecommendedAsync(
@@ -1031,6 +1085,48 @@ public class HomeReadService : IHomeReadService
         return $"{Math.Round(rate * 100, MidpointRounding.AwayFromZero):0}%";
     }
 
+    private static bool IsDiscounted(HomeProductSource product) =>
+        product.CompareAtPrice.HasValue && product.CompareAtPrice.Value > product.SellingPrice;
+
+    private async Task<FeaturedSelectionSettingsState> LoadFeaturedProductSelectionSettingsAsync(CancellationToken cancellationToken)
+    {
+        var savedSettings = await _cache.GetOrCreateAsync(
+            AppCacheKeys.Build("home", "featured-selection-settings", "v1"),
+            async token =>
+            {
+                try
+                {
+                    return await _context.FeaturedProductSelectionSettings
+                        .AsNoTracking()
+                        .OrderBy(x => x.CreatedAtUtc)
+                        .Select(x => new HomeFeaturedProductSelectionSettingsSnapshot(
+                            x.SelectionMode,
+                            x.TargetCount,
+                            x.MinSalesCount,
+                            x.MinStoreCount,
+                            x.RequireDiscount,
+                            x.ExcludeProductsAlreadyInSpecialOffers))
+                        .FirstOrDefaultAsync(token);
+                }
+                catch (Exception ex) when (IsMissingDatabaseObject(ex))
+                {
+                    return null;
+                }
+            },
+            new AppCacheEntryOptions(_durations.HomePublic),
+            [CacheTagNames.Home],
+            cancellationToken);
+
+        return savedSettings is null
+            ? FeaturedSelectionSettingsState.Default
+            : new FeaturedSelectionSettingsState(
+                savedSettings.TargetCount,
+                savedSettings.MinSalesCount,
+                savedSettings.MinStoreCount,
+                savedSettings.RequireDiscount,
+                savedSettings.ExcludeProductsAlreadyInSpecialOffers);
+    }
+
     private sealed record HomeProductCatalog(IReadOnlyList<HomeProductSource> Products, Guid? CurrentUserId, IReadOnlySet<Guid> FavoritedMasterProductIds);
 
     private sealed record HomeCurrentUserInfo(string FullName, string Email);
@@ -1057,8 +1153,10 @@ public class HomeReadService : IHomeReadService
         string? Unit,
         string ImageUrl,
         int SalesCount,
+        int TotalSalesCount,
         decimal? Rating,
         int ReviewCount,
+        int StoreCount,
         string? BrandName,
         string? BrandLogo);
 
@@ -1066,4 +1164,20 @@ public class HomeReadService : IHomeReadService
         FeaturedPlacementType PlacementType,
         Guid? VendorProductId,
         Guid? MasterProductId);
+
+    private sealed record FeaturedSelectionSettingsState(
+        int TargetCount,
+        int MinSalesCount,
+        int MinStoreCount,
+        bool RequireDiscount,
+        bool ExcludeProductsAlreadyInSpecialOffers)
+    {
+        public static FeaturedSelectionSettingsState Default =>
+            new(
+                Zadana.Domain.Modules.Marketing.Entities.FeaturedProductSelectionSettings.DefaultTargetCount,
+                Zadana.Domain.Modules.Marketing.Entities.FeaturedProductSelectionSettings.DefaultMinSalesCount,
+                Zadana.Domain.Modules.Marketing.Entities.FeaturedProductSelectionSettings.DefaultMinStoreCount,
+                Zadana.Domain.Modules.Marketing.Entities.FeaturedProductSelectionSettings.DefaultRequireDiscount,
+                Zadana.Domain.Modules.Marketing.Entities.FeaturedProductSelectionSettings.DefaultExcludeProductsAlreadyInSpecialOffers);
+    }
 }

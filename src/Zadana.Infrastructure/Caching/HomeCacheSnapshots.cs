@@ -57,6 +57,14 @@ public sealed record HomeFeaturedPlacementSnapshot(
     Guid? VendorProductId,
     Guid? MasterProductId);
 
+public sealed record HomeFeaturedProductSelectionSettingsSnapshot(
+    FeaturedProductSelectionMode SelectionMode,
+    int TargetCount,
+    int MinSalesCount,
+    int MinStoreCount,
+    bool RequireDiscount,
+    bool ExcludeProductsAlreadyInSpecialOffers);
+
 public sealed record HomeDynamicSectionSnapshot(
     Guid Id,
     Guid CategoryId,

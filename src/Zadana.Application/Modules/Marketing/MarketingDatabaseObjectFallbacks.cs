@@ -1,4 +1,5 @@
 using Zadana.Application.Modules.Marketing.DTOs;
+using Zadana.Domain.Modules.Marketing.Entities;
 using Zadana.Domain.Modules.Marketing.Enums;
 
 namespace Zadana.Application.Modules.Marketing;
@@ -24,4 +25,13 @@ internal static class MarketingDatabaseObjectFallbacks
         Enum.GetValues<HomeContentSectionType>()
             .Select(sectionType => new HomeContentSectionSettingDto(sectionType.ToString(), true))
             .ToList();
+
+    public static FeaturedProductSelectionSettingsDto CreateDefaultFeaturedProductSelectionSettings() =>
+        new(
+            FeaturedProductSelectionMode.ManualFirstAutoFill.ToString(),
+            FeaturedProductSelectionSettings.DefaultTargetCount,
+            FeaturedProductSelectionSettings.DefaultMinSalesCount,
+            FeaturedProductSelectionSettings.DefaultMinStoreCount,
+            FeaturedProductSelectionSettings.DefaultRequireDiscount,
+            FeaturedProductSelectionSettings.DefaultExcludeProductsAlreadyInSpecialOffers);
 }

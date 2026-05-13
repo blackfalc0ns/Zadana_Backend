@@ -110,6 +110,7 @@ public interface IApplicationDbContext
     DbSet<EmailDispatchLog> EmailDispatchLogs { get; }
     DbSet<HomeSection> HomeSections { get; }
     DbSet<FeaturedProductPlacement> FeaturedProductPlacements { get; }
+    DbSet<FeaturedProductSelectionSettings> FeaturedProductSelectionSettings { get; }
     DbSet<Review> Reviews { get; }
     DbSet<Notification> Notifications { get; }
     DbSet<AdminAlertEvent> AdminAlertEvents { get; }

@@ -3,8 +3,10 @@ using Microsoft.AspNetCore.Mvc;
 using Zadana.Api.Controllers;
 using Zadana.Api.Modules.Marketing.Requests;
 using Zadana.Application.Modules.Marketing.Commands.FeaturedPlacements;
+using Zadana.Application.Modules.Marketing.Commands.FeaturedProductSelectionSettings;
 using Zadana.Application.Modules.Marketing.DTOs;
 using Zadana.Application.Modules.Marketing.Queries.FeaturedPlacements;
+using Zadana.Application.Modules.Marketing.Queries.FeaturedProductSelectionSettings;
 
 namespace Zadana.Api.Modules.Marketing.Controllers;
 
@@ -17,6 +19,13 @@ public class AdminMarketingFeaturedProductsController : ApiControllerBase
     public async Task<ActionResult<List<FeaturedProductPlacementDto>>> GetPlacements()
     {
         var result = await Sender.Send(new GetFeaturedProductPlacementsQuery());
+        return Ok(result);
+    }
+
+    [HttpGet("settings")]
+    public async Task<ActionResult<FeaturedProductSelectionSettingsDto>> GetSettings()
+    {
+        var result = await Sender.Send(new GetFeaturedProductSelectionSettingsQuery());
         return Ok(result);
     }
 
@@ -42,6 +51,19 @@ public class AdminMarketingFeaturedProductsController : ApiControllerBase
         var result = await Sender.Send(new UpdateFeaturedProductPlacementCommand(
             id, request.PlacementType, request.VendorProductId, request.MasterProductId,
             request.DisplayOrder, request.StartsAtUtc, request.EndsAtUtc, request.IsActive, request.Note));
+        return Ok(result);
+    }
+
+    [HttpPut("settings")]
+    public async Task<ActionResult<FeaturedProductSelectionSettingsDto>> UpdateSettings([FromBody] UpdateFeaturedProductSelectionSettingsRequest request)
+    {
+        var result = await Sender.Send(new UpdateFeaturedProductSelectionSettingsCommand(
+            request.SelectionMode,
+            request.TargetCount,
+            request.MinSalesCount,
+            request.MinStoreCount,
+            request.RequireDiscount,
+            request.ExcludeProductsAlreadyInSpecialOffers));
         return Ok(result);
     }
 

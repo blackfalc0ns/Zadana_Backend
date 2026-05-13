@@ -6,6 +6,7 @@ using Moq;
 using Zadana.Api.Modules.Marketing.Controllers;
 using Zadana.Api.Modules.Marketing.Requests;
 using Zadana.Application.Modules.Marketing.Commands.FeaturedPlacements;
+using Zadana.Application.Modules.Marketing.Commands.FeaturedProductSelectionSettings;
 using Zadana.Application.Modules.Marketing.Commands.HomeBanners;
 using Zadana.Application.Modules.Marketing.Commands.HomeContentSections;
 using Zadana.Application.Modules.Marketing.Commands.HomeSections;
@@ -38,6 +39,19 @@ public class AdminMarketingControllersTests
         _senderMock.Setup(x => x.Send(It.IsAny<CreateFeaturedProductPlacementCommand>(), default)).ReturnsAsync(dto);
 
         var result = await controller.CreatePlacement(new CreateFeaturedPlacementRequest("VendorProduct", dto.VendorProductId, null, 1, null, null, null));
+
+        var ok = result.Result.Should().BeOfType<OkObjectResult>().Subject;
+        ok.Value.Should().BeEquivalentTo(dto);
+    }
+
+    [Fact]
+    public async Task UpdateFeaturedSettings_ReturnsOkResult()
+    {
+        var controller = CreateFeaturedController();
+        var dto = new FeaturedProductSelectionSettingsDto("ManualFirstAutoFill", 10, 1, 2, false, true);
+        _senderMock.Setup(x => x.Send(It.IsAny<UpdateFeaturedProductSelectionSettingsCommand>(), default)).ReturnsAsync(dto);
+
+        var result = await controller.UpdateSettings(new UpdateFeaturedProductSelectionSettingsRequest("ManualFirstAutoFill", 10, 1, 2, false, true));
 
         var ok = result.Result.Should().BeOfType<OkObjectResult>().Subject;
         ok.Value.Should().BeEquivalentTo(dto);

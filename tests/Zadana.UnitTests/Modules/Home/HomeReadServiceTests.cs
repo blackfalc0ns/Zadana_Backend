@@ -265,6 +265,97 @@ public class HomeReadServiceTests
     }
 
     [Fact]
+    public async Task GetFeaturedProductsAsync_ManualPlacementsAreFilledByAutomaticSalesAndStoreRanking()
+    {
+        using var scope = new CultureScope("en");
+        await using var context = TestDbContextFactory.Create();
+
+        var setup = await SeedCatalogScenarioAsync(context);
+        context.FeaturedProductSelectionSettings.Add(new FeaturedProductSelectionSettings(
+            FeaturedProductSelectionMode.ManualFirstAutoFill,
+            targetCount: 3,
+            minSalesCount: 0,
+            minStoreCount: 1,
+            requireDiscount: false,
+            excludeProductsAlreadyInSpecialOffers: false));
+
+        context.FeaturedProductPlacements.Add(new FeaturedProductPlacement(
+            FeaturedPlacementType.VendorProduct,
+            1,
+            vendorProductId: setup.DiscountedVendorProductId,
+            note: "pinned"));
+
+        var extraVendorProduct = await AddApprovedVendorProductAsync(context, setup.RegularMasterProductId, 11m, 12);
+        await AddDeliveredSalesAsync(context, setup.Customer.Id, setup.PrimaryVendorId, setup.RegularVendorProductId, setup.RegularMasterProductId, 5, "REG-A");
+        await AddDeliveredSalesAsync(context, setup.Customer.Id, extraVendorProduct.VendorId, extraVendorProduct.Id, setup.RegularMasterProductId, 1, "REG-B");
+        await AddDeliveredSalesAsync(context, setup.Customer.Id, setup.PrimaryVendorId, setup.OtherVendorProductId, setup.OtherMasterProductId, 5, "OTH-A");
+
+        var service = CreateService(context, new FakeCurrentUserService(null, false));
+
+        var result = await service.GetFeaturedProductsAsync(10);
+
+        result.Items.Should().HaveCount(3);
+        result.Items.Select(x => x.Id).Should().ContainInOrder(
+            setup.DiscountedMasterProductId,
+            setup.RegularMasterProductId,
+            setup.OtherMasterProductId);
+    }
+
+    [Fact]
+    public async Task GetFeaturedProductsAsync_UsesAutomaticSelectionWhenNoPlacementsExist()
+    {
+        using var scope = new CultureScope("en");
+        await using var context = TestDbContextFactory.Create();
+
+        var setup = await SeedCatalogScenarioAsync(context);
+        context.FeaturedProductSelectionSettings.Add(new FeaturedProductSelectionSettings(
+            FeaturedProductSelectionMode.ManualFirstAutoFill,
+            targetCount: 2,
+            minSalesCount: 1,
+            minStoreCount: 1,
+            requireDiscount: false,
+            excludeProductsAlreadyInSpecialOffers: false));
+
+        await AddDeliveredSalesAsync(context, setup.Customer.Id, setup.PrimaryVendorId, setup.OtherVendorProductId, setup.OtherMasterProductId, 6, "AUTO-A");
+        await AddDeliveredSalesAsync(context, setup.Customer.Id, setup.PrimaryVendorId, setup.RegularVendorProductId, setup.RegularMasterProductId, 4, "AUTO-B");
+
+        var service = CreateService(context, new FakeCurrentUserService(null, false));
+
+        var result = await service.GetFeaturedProductsAsync(10);
+
+        result.Items.Should().HaveCount(2);
+        result.Items.Select(x => x.Id).Should().ContainInOrder(
+            setup.OtherMasterProductId,
+            setup.RegularMasterProductId);
+    }
+
+    [Fact]
+    public async Task GetFeaturedProductsAsync_ExcludeSpecialOffersSkipsDiscountedProducts()
+    {
+        using var scope = new CultureScope("en");
+        await using var context = TestDbContextFactory.Create();
+
+        var setup = await SeedCatalogScenarioAsync(context);
+        context.FeaturedProductSelectionSettings.Add(new FeaturedProductSelectionSettings(
+            FeaturedProductSelectionMode.ManualFirstAutoFill,
+            targetCount: 2,
+            minSalesCount: 1,
+            minStoreCount: 1,
+            requireDiscount: false,
+            excludeProductsAlreadyInSpecialOffers: true));
+
+        await AddDeliveredSalesAsync(context, setup.Customer.Id, setup.PrimaryVendorId, setup.DiscountedVendorProductId, setup.DiscountedMasterProductId, 8, "DISC-A");
+        await AddDeliveredSalesAsync(context, setup.Customer.Id, setup.PrimaryVendorId, setup.RegularVendorProductId, setup.RegularMasterProductId, 3, "DISC-B");
+
+        var service = CreateService(context, new FakeCurrentUserService(null, false));
+
+        var result = await service.GetFeaturedProductsAsync(10);
+
+        result.Items.Should().ContainSingle();
+        result.Items[0].Id.Should().Be(setup.RegularMasterProductId);
+    }
+
+    [Fact]
     public async Task GetBrandsAsync_ReturnsAllActiveBrandsEvenWhenOnlyOneHasEligibleProducts()
     {
         using var scope = new CultureScope("en");
@@ -473,11 +564,80 @@ public class HomeReadServiceTests
 
         return new HomeScenario(
             customer,
+            vendor.Id,
             discountedMaster.Id,
             discountedProduct.Id,
+            regularMaster.Id,
+            regularProduct.Id,
             historyMatchedMasterProductId,
             otherMaster.Id,
+            otherProduct.Id,
             subCategory?.Id);
+    }
+
+    private static async Task<VendorProduct> AddApprovedVendorProductAsync(
+        ApplicationDbContext context,
+        Guid masterProductId,
+        decimal sellingPrice,
+        int stockQuantity)
+    {
+        var admin = CreateAdmin($"{Guid.NewGuid():N}@admin.test");
+        var vendorUser = CreateVendorUser($"{Guid.NewGuid():N}@vendor.test");
+        context.Users.AddRange(admin, vendorUser);
+
+        var vendor = new Vendor(
+            vendorUser.Id,
+            $"Store {Guid.NewGuid():N}",
+            $"Store {Guid.NewGuid():N}",
+            "Grocery",
+            $"CR-{Guid.NewGuid():N}",
+            $"{Guid.NewGuid():N}@example.com",
+            "0500000003");
+        vendor.Approve(10m, admin.Id);
+        context.Vendors.Add(vendor);
+        await context.SaveChangesAsync();
+
+        var vendorProduct = new VendorProduct(vendor.Id, masterProductId, sellingPrice, stockQuantity, null);
+        context.VendorProducts.Add(vendorProduct);
+        await context.SaveChangesAsync();
+        return vendorProduct;
+    }
+
+    private static async Task AddDeliveredSalesAsync(
+        ApplicationDbContext context,
+        Guid customerId,
+        Guid vendorId,
+        Guid vendorProductId,
+        Guid masterProductId,
+        int quantity,
+        string orderNumberSuffix)
+    {
+        var address = new CustomerAddress(customerId, "Customer", "0102", $"Address {orderNumberSuffix}", AddressLabel.Home, city: "Cairo", area: "Maadi");
+        context.CustomerAddresses.Add(address);
+        await context.SaveChangesAsync();
+
+        var order = new Order(
+            $"ORD-{orderNumberSuffix}",
+            customerId,
+            vendorId,
+            address.Id,
+            PaymentMethodType.CashOnDelivery,
+            8m,
+            0m,
+            0m,
+            0m,
+            0m,
+            0m,
+            null,
+            null,
+            null,
+            0m);
+        order.ChangeStatus(OrderStatus.Delivered);
+        context.Orders.Add(order);
+        await context.SaveChangesAsync();
+
+        context.OrderItems.Add(new OrderItem(order.Id, vendorProductId, masterProductId, "Product", quantity, 8m, unitName: "Liter"));
+        await context.SaveChangesAsync();
     }
 
     private static User CreateAdmin(string email) => new("Admin", email, "01000000000", UserRole.SuperAdmin);
@@ -486,10 +646,14 @@ public class HomeReadServiceTests
 
     private sealed record HomeScenario(
         User Customer,
+        Guid PrimaryVendorId,
         Guid DiscountedMasterProductId,
         Guid DiscountedVendorProductId,
+        Guid RegularMasterProductId,
+        Guid RegularVendorProductId,
         Guid? HistoryMatchedMasterProductId,
         Guid OtherMasterProductId,
+        Guid OtherVendorProductId,
         Guid? DynamicSectionCategoryId);
 
     private sealed class FakeCurrentUserService : ICurrentUserService

@@ -48,6 +48,14 @@ public record UpdateFeaturedPlacementRequest(
     bool IsActive,
     string? Note);
 
+public record UpdateFeaturedProductSelectionSettingsRequest(
+    string SelectionMode,
+    int TargetCount,
+    int MinSalesCount,
+    int MinStoreCount,
+    bool RequireDiscount,
+    bool ExcludeProductsAlreadyInSpecialOffers);
+
 public record CreateHomeSectionRequest(
     Guid CategoryId,
     string Theme,
