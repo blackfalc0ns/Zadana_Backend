@@ -105,15 +105,24 @@ public sealed class CatalogReadCacheService(
                         dbContext.MasterProducts.AsNoTracking(),
                         orderItem => orderItem.MasterProductId,
                         masterProduct => masterProduct.Id,
-                        (orderItem, masterProduct) => new { masterProduct.CategoryId, masterProduct.BrandId })
+                        (orderItem, masterProduct) => new
+                        {
+                            orderItem.MasterProductId,
+                            orderItem.Quantity,
+                            masterProduct.CategoryId,
+                            masterProduct.BrandId
+                        })
                     .ToListAsync(token);
 
                 return new CatalogPurchaseProfileSnapshot(
-                    purchases.Select(item => item.CategoryId).Distinct().ToArray(),
-                    purchases.Where(item => item.BrandId.HasValue)
-                        .Select(item => item.BrandId!.Value)
-                        .Distinct()
-                        .ToArray());
+                    purchases
+                        .GroupBy(item => item.CategoryId)
+                        .ToDictionary(group => group.Key, group => group.Sum(item => item.Quantity)),
+                    purchases
+                        .Where(item => item.BrandId.HasValue)
+                        .GroupBy(item => item.BrandId!.Value)
+                        .ToDictionary(group => group.Key, group => group.Sum(item => item.Quantity)),
+                    purchases.Select(item => item.MasterProductId).ToHashSet());
             },
             CreateOptions(_durations.PurchaseProfile),
             [AppCacheKeys.PurchaseProfileTag(userId)],

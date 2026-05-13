@@ -234,6 +234,68 @@ public class HomeReadServiceTests
     }
 
     [Fact]
+    public async Task GetRecommendedAsync_FavoritesReceiveBoostWithinMatchingSignals()
+    {
+        using var scope = new CultureScope("en");
+        await using var context = TestDbContextFactory.Create();
+
+        var setup = await SeedCatalogScenarioAsync(context, includeHistory: true);
+        context.CustomerFavorites.Add(new CustomerFavorite(setup.Customer.Id, null, setup.DiscountedMasterProductId));
+        await context.SaveChangesAsync();
+
+        var service = CreateService(context, new FakeCurrentUserService(setup.Customer.Id, true));
+
+        var result = await service.GetRecommendedAsync(2);
+
+        result.Items.Should().HaveCount(2);
+        result.Items[0].Id.Should().Be(setup.DiscountedMasterProductId);
+        result.Items[0].IsFavorite.Should().BeTrue();
+    }
+
+    [Fact]
+    public async Task GetRecommendedAsync_DemotesPreviouslyPurchasedProductsFromTopResults()
+    {
+        using var scope = new CultureScope("en");
+        await using var context = TestDbContextFactory.Create();
+
+        var setup = await SeedCatalogScenarioAsync(context, includeHistory: true);
+        await AddApprovedVendorProductAsync(context, setup.DiscountedMasterProductId, 9m, 18);
+        await AddApprovedVendorProductAsync(context, setup.HistoricalMasterProductId, 7m, 22);
+        context.CustomerFavorites.Add(new CustomerFavorite(setup.Customer.Id, null, setup.DiscountedMasterProductId));
+        await context.SaveChangesAsync();
+
+        var service = CreateService(context, new FakeCurrentUserService(setup.Customer.Id, true));
+
+        var result = await service.GetRecommendedAsync(2);
+
+        result.Items.Should().HaveCount(2);
+        result.Items[0].Id.Should().Be(setup.DiscountedMasterProductId);
+        result.Items[0].Id.Should().NotBe(setup.HistoricalMasterProductId);
+    }
+
+    [Fact]
+    public async Task GetBestSellingAsync_BreaksSalesTiesByStoreCount()
+    {
+        using var scope = new CultureScope("en");
+        await using var context = TestDbContextFactory.Create();
+
+        var setup = await SeedCatalogScenarioAsync(context);
+        var extraRegular = await AddApprovedVendorProductAsync(context, setup.RegularMasterProductId, 11m, 12);
+
+        await AddDeliveredSalesAsync(context, setup.Customer.Id, setup.PrimaryVendorId, setup.RegularVendorProductId, setup.RegularMasterProductId, 5, "BEST-A");
+        await AddDeliveredSalesAsync(context, setup.Customer.Id, extraRegular.VendorId, extraRegular.Id, setup.RegularMasterProductId, 1, "BEST-B");
+        await AddDeliveredSalesAsync(context, setup.Customer.Id, setup.PrimaryVendorId, setup.OtherVendorProductId, setup.OtherMasterProductId, 6, "BEST-C");
+
+        var service = CreateService(context, new FakeCurrentUserService(null, false));
+
+        var result = await service.GetBestSellingAsync(2);
+
+        result.Items.Should().HaveCount(2);
+        result.Items[0].Id.Should().Be(setup.RegularMasterProductId);
+        result.Items[1].Id.Should().Be(setup.OtherMasterProductId);
+    }
+
+    [Fact]
     public async Task GetFeaturedProductsAsync_PrefersCuratedVendorThenMasterPlacements()
     {
         using var scope = new CultureScope("en");
@@ -569,6 +631,7 @@ public class HomeReadServiceTests
             discountedProduct.Id,
             regularMaster.Id,
             regularProduct.Id,
+            historicalMaster.Id,
             historyMatchedMasterProductId,
             otherMaster.Id,
             otherProduct.Id,
@@ -651,6 +714,7 @@ public class HomeReadServiceTests
         Guid DiscountedVendorProductId,
         Guid RegularMasterProductId,
         Guid RegularVendorProductId,
+        Guid HistoricalMasterProductId,
         Guid? HistoryMatchedMasterProductId,
         Guid OtherMasterProductId,
         Guid OtherVendorProductId,

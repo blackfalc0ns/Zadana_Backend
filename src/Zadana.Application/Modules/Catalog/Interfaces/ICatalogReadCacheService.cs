@@ -20,5 +20,6 @@ public interface ICatalogReadCacheService
 public sealed record VendorReviewStatsSnapshot(decimal AverageRating, int ReviewCount);
 
 public sealed record CatalogPurchaseProfileSnapshot(
-    IReadOnlyList<Guid> CategoryIds,
-    IReadOnlyList<Guid> BrandIds);
+    IReadOnlyDictionary<Guid, int> CategoryScores,
+    IReadOnlyDictionary<Guid, int> BrandScores,
+    IReadOnlySet<Guid> PurchasedMasterProductIds);

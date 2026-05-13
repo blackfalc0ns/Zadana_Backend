@@ -528,8 +528,9 @@ public class HomeReadService : IHomeReadService
 
     private IReadOnlyList<HomeProductCardDto> SelectBestSelling(HomeProductCatalog catalog, int take) =>
         catalog.Products
-            .OrderByDescending(x => x.SalesCount)
-            .ThenByDescending(x => x.Rating ?? 0)
+            .OrderByDescending(x => x.TotalSalesCount)
+            .ThenByDescending(x => x.StoreCount)
+            .ThenByDescending(x => CalculateDiscountRate(x))
             .ThenByDescending(x => x.CreatedAtUtc)
             .Take(take)
             .Select(x => MapToProductCard(x, catalog.FavoritedMasterProductIds.Contains(x.MasterProductId)))
@@ -703,39 +704,103 @@ public class HomeReadService : IHomeReadService
     {
         if (!_currentUserService.IsAuthenticated || !catalog.CurrentUserId.HasValue)
         {
-            return SelectFeaturedProducts(catalog, take);
+            return SelectStrongPopularProducts(catalog, take, null);
         }
 
         var purchaseProfile = await _catalogReadCacheService.GetPurchaseProfileAsync(catalog.CurrentUserId.Value, cancellationToken);
-        if (purchaseProfile.CategoryIds.Count == 0 && purchaseProfile.BrandIds.Count == 0)
+        var favoriteIds = catalog.FavoritedMasterProductIds;
+        var hasPurchaseSignals = purchaseProfile.CategoryScores.Count > 0 || purchaseProfile.BrandScores.Count > 0;
+        if (!hasPurchaseSignals && favoriteIds.Count == 0)
         {
-            return SelectFeaturedProducts(catalog, take);
+            return SelectStrongPopularProducts(catalog, take, null);
         }
 
-        var categoryIds = purchaseProfile.CategoryIds.ToHashSet();
-        var brandIds = purchaseProfile.BrandIds.ToHashSet();
+        var purchasedMasterProductIds = purchaseProfile.PurchasedMasterProductIds;
 
-        var recommended = catalog.Products
+        var recommended = RankRecommendedProducts(
+                catalog,
+                purchaseProfile,
+                favoriteIds,
+                purchasedMasterProductIds,
+                includePurchasedProducts: false)
+            .Take(take)
+            .Select(x => MapToProductCard(x.Product, favoriteIds.Contains(x.Product.MasterProductId)))
+            .ToList();
+
+        if (recommended.Count >= take)
+        {
+            return recommended;
+        }
+
+        var alreadySelectedIds = recommended.Select(x => x.Id).ToHashSet();
+        var purchasedFallback = RankRecommendedProducts(
+                catalog,
+                purchaseProfile,
+                favoriteIds,
+                purchasedMasterProductIds,
+                includePurchasedProducts: true)
+            .Where(x => !alreadySelectedIds.Contains(x.Product.MasterProductId))
+            .Take(take - recommended.Count)
+            .Select(x => MapToProductCard(x.Product, favoriteIds.Contains(x.Product.MasterProductId)))
+            .ToList();
+
+        recommended.AddRange(purchasedFallback);
+
+        if (recommended.Count >= take)
+        {
+            return recommended;
+        }
+
+        var excludedIds = recommended.Select(x => x.Id).ToHashSet();
+        var popularFallback = SelectStrongPopularProducts(catalog, take - recommended.Count, excludedIds);
+        recommended.AddRange(popularFallback);
+
+        return recommended;
+    }
+
+    private IEnumerable<RecommendedCandidate> RankRecommendedProducts(
+        HomeProductCatalog catalog,
+        CatalogPurchaseProfileSnapshot purchaseProfile,
+        IReadOnlySet<Guid> favoriteIds,
+        IReadOnlySet<Guid> purchasedMasterProductIds,
+        bool includePurchasedProducts) =>
+        catalog.Products
+            .Where(x => includePurchasedProducts || !purchasedMasterProductIds.Contains(x.MasterProductId))
             .Select(x => new
             {
                 Product = x,
-                Score =
-                    (categoryIds.Contains(x.CategoryId) ? 2 : 0) +
-                    (x.BrandId.HasValue && brandIds.Contains(x.BrandId.Value) ? 1 : 0)
+                CategoryScore = purchaseProfile.CategoryScores.TryGetValue(x.CategoryId, out var categoryScore) ? categoryScore : 0,
+                BrandScore = x.BrandId.HasValue && purchaseProfile.BrandScores.TryGetValue(x.BrandId.Value, out var brandScore) ? brandScore : 0,
+                IsFavorite = favoriteIds.Contains(x.MasterProductId)
             })
+            .Select(x => new RecommendedCandidate(
+                x.Product,
+                (x.CategoryScore * 5) +
+                (x.BrandScore * 3) +
+                (x.IsFavorite ? 15 : 0) +
+                Math.Min(x.Product.TotalSalesCount, 20) +
+                (x.Product.StoreCount * 2) +
+                (IsDiscounted(x.Product) ? 2 : 0)))
             .Where(x => x.Score > 0)
             .OrderByDescending(x => x.Score)
-            .ThenByDescending(x => x.Product.Rating ?? 0)
-            .ThenByDescending(x => x.Product.SalesCount)
-            .ThenByDescending(x => x.Product.CreatedAtUtc)
-            .Take(take)
-            .Select(x => MapToProductCard(x.Product, catalog.FavoritedMasterProductIds.Contains(x.Product.MasterProductId)))
-            .ToList();
+            .ThenByDescending(x => x.Product.TotalSalesCount)
+            .ThenByDescending(x => x.Product.StoreCount)
+            .ThenByDescending(x => CalculateDiscountRate(x.Product))
+            .ThenByDescending(x => x.Product.CreatedAtUtc);
 
-        return recommended.Any()
-            ? recommended
-            : SelectFeaturedProducts(catalog, take);
-    }
+    private IReadOnlyList<HomeProductCardDto> SelectStrongPopularProducts(
+        HomeProductCatalog catalog,
+        int take,
+        IReadOnlySet<Guid>? excludedMasterProductIds) =>
+        catalog.Products
+            .Where(x => excludedMasterProductIds is null || !excludedMasterProductIds.Contains(x.MasterProductId))
+            .OrderByDescending(x => x.TotalSalesCount)
+            .ThenByDescending(x => x.StoreCount)
+            .ThenByDescending(x => CalculateDiscountRate(x))
+            .ThenByDescending(x => x.CreatedAtUtc)
+            .Take(take)
+            .Select(x => MapToProductCard(x, catalog.FavoritedMasterProductIds.Contains(x.MasterProductId)))
+            .ToList();
 
     private async Task<IReadOnlyList<HomeBrandCardDto>> GetBrandsInternalAsync(int take, CancellationToken cancellationToken)
     {
@@ -1164,6 +1229,8 @@ public class HomeReadService : IHomeReadService
         FeaturedPlacementType PlacementType,
         Guid? VendorProductId,
         Guid? MasterProductId);
+
+    private sealed record RecommendedCandidate(HomeProductSource Product, int Score);
 
     private sealed record FeaturedSelectionSettingsState(
         int TargetCount,
