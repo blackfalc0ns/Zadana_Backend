@@ -124,6 +124,7 @@ builder.Services.AddSingleton<CustomerPresenceService>();
 builder.Services.AddSingleton<ICustomerPresenceService>(provider => provider.GetRequiredService<CustomerPresenceService>());
 builder.Services.AddSingleton<NotificationService>();
 builder.Services.AddSingleton<Zadana.Application.Common.Interfaces.INotificationService>(provider => provider.GetRequiredService<NotificationService>());
+builder.Services.AddScoped<IAdminAlertService, AdminAlertService>();
 builder.Services.AddSingleton<IAdminBrandBulkOperationQueue, AdminBrandBulkOperationQueue>();
 builder.Services.AddSingleton<IAdminMasterProductBulkOperationQueue, AdminMasterProductBulkOperationQueue>();
 builder.Services.AddSingleton<IVendorProductBulkOperationQueue, VendorProductBulkOperationQueue>();

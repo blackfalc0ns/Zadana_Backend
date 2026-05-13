@@ -8,6 +8,7 @@ public record AdminBrandBulkOperationItemDto(
     string? LogoUrl,
     string? CoverImageUrl,
     Guid CategoryId,
+    IReadOnlyList<Guid> CategoryIds,
     bool IsActive,
     string Status,
     string? ErrorMessage,

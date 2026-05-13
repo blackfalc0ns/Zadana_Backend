@@ -18,19 +18,22 @@ public sealed class PaymobPayoutOrchestrator
     private readonly FinancialEventPostingService _postingService;
     private readonly WalletProjectionUpdater _walletProjectionUpdater;
     private readonly FinancialSettingsOptions _settings;
+    private readonly IAdminAlertService _adminAlertService;
 
     public PaymobPayoutOrchestrator(
         IApplicationDbContext context,
         IPaymobPayoutGateway paymobPayoutGateway,
         FinancialEventPostingService postingService,
         WalletProjectionUpdater walletProjectionUpdater,
-        IOptions<FinancialSettingsOptions> settings)
+        IOptions<FinancialSettingsOptions> settings,
+        IAdminAlertService adminAlertService)
     {
         _context = context;
         _paymobPayoutGateway = paymobPayoutGateway;
         _postingService = postingService;
         _walletProjectionUpdater = walletProjectionUpdater;
         _settings = settings.Value;
+        _adminAlertService = adminAlertService;
     }
 
     public async Task<Payout> TriggerAsync(Guid payoutId, Guid? processedByUserId = null, bool isRetry = false, CancellationToken cancellationToken = default)
@@ -57,15 +60,24 @@ public sealed class PaymobPayoutOrchestrator
             isRetry ? PayoutAttemptType.Retry : PayoutAttemptType.Trigger,
             PayoutStatus.Processing));
 
-        var result = await _paymobPayoutGateway.TriggerPayoutAsync(
-            new PaymobPayoutRequest(
-                payout.Id,
-                payout.Amount,
-                "EGP",
-                payout.DestinationType.ToString(),
-                payout.DestinationSnapshot ?? string.Empty,
-                payout.TransferReference ?? payout.Id.ToString("N")),
-            cancellationToken);
+        PaymobPayoutResult result;
+        try
+        {
+            result = await _paymobPayoutGateway.TriggerPayoutAsync(
+                new PaymobPayoutRequest(
+                    payout.Id,
+                    payout.Amount,
+                    "EGP",
+                    payout.DestinationType.ToString(),
+                    payout.DestinationSnapshot ?? string.Empty,
+                    payout.TransferReference ?? payout.Id.ToString("N")),
+                cancellationToken);
+        }
+        catch (Exception ex)
+        {
+            await SendPayoutIntegrationFailureAlertAsync(payout, ex, cancellationToken);
+            throw;
+        }
 
         _context.PayoutAttempts.Add(new PayoutAttempt(
             payout.Id,
@@ -87,6 +99,12 @@ public sealed class PaymobPayoutOrchestrator
         }
 
         await _context.SaveChangesAsync(cancellationToken);
+
+        if (!result.IsAccepted)
+        {
+            await SendPayoutFailedAlertAsync(payout, result.FailureReason, cancellationToken);
+        }
+
         return payout;
     }
 
@@ -126,6 +144,12 @@ public sealed class PaymobPayoutOrchestrator
         }
 
         await _context.SaveChangesAsync(cancellationToken);
+
+        if (attemptStatus == PayoutStatus.Failed)
+        {
+            await SendPayoutFailedAlertAsync(payout, notification.FailureReason, cancellationToken);
+        }
+
         return payout;
     }
 
@@ -189,5 +213,56 @@ public sealed class PaymobPayoutOrchestrator
             cancellationToken: cancellationToken);
 
         await _walletProjectionUpdater.ApplyJournalEntryAsync(result.JournalEntryId, cancellationToken);
+    }
+
+    private Task SendPayoutFailedAlertAsync(Payout payout, string? failureReason, CancellationToken cancellationToken)
+    {
+        var reason = string.IsNullOrWhiteSpace(failureReason) ? "Provider did not return a failure reason." : failureReason.Trim();
+
+        return _adminAlertService.SendAsync(
+            new AdminAlertRequest(
+                AdminAlertTypes.SettlementFailed,
+                AdminAlertCategories.Settlements,
+                AdminAlertPriorities.Critical,
+                "فشل تحويل تسوية",
+                "Settlement payout failed",
+                $"فشل تحويل تسوية بقيمة {payout.Amount:N2}. السبب: {reason}",
+                $"A settlement payout for {payout.Amount:N2} failed. Reason: {reason}",
+                payout.Id,
+                "/finances/settlements",
+                new
+                {
+                    payoutId = payout.Id,
+                    settlementId = payout.SettlementId,
+                    amount = payout.Amount,
+                    providerTransferId = payout.ProviderTransferId,
+                    transferReference = payout.TransferReference,
+                    failureReason = reason
+                }),
+            cancellationToken);
+    }
+
+    private Task SendPayoutIntegrationFailureAlertAsync(Payout payout, Exception exception, CancellationToken cancellationToken)
+    {
+        return _adminAlertService.SendAsync(
+            new AdminAlertRequest(
+                AdminAlertTypes.SystemIntegrationFailure,
+                AdminAlertCategories.System,
+                AdminAlertPriorities.Critical,
+                "فشل تكامل Paymob Payout",
+                "Paymob payout integration failure",
+                $"حدث خطأ أثناء إرسال تحويل Paymob للتسوية {payout.SettlementId}.",
+                $"Paymob payout trigger failed for settlement {payout.SettlementId}.",
+                payout.Id,
+                "/finances/settlements",
+                new
+                {
+                    payoutId = payout.Id,
+                    settlementId = payout.SettlementId,
+                    amount = payout.Amount,
+                    exceptionType = exception.GetType().Name,
+                    message = exception.Message
+                }),
+            cancellationToken);
     }
 }

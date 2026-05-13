@@ -55,7 +55,7 @@ public class RegisterNotificationDeviceCommandHandler : IRequestHandler<Register
 
         if (!Enum.TryParse<PushPlatform>(request.Platform, true, out var platform))
         {
-            throw new BadRequestException("INVALID_PUSH_PLATFORM", "Push platform must be either fcm or apns.");
+            throw new BadRequestException("INVALID_PUSH_PLATFORM", "Push platform must be fcm, apns, or web.");
         }
 
         var normalizedDeviceId = string.IsNullOrWhiteSpace(request.DeviceId) ? null : request.DeviceId.Trim();

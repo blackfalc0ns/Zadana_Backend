@@ -1,5 +1,6 @@
 using Zadana.Domain.Modules.Catalog.Enums;
 using Zadana.SharedKernel.Primitives;
+using System.Text.Json;
 
 namespace Zadana.Domain.Modules.Catalog.Entities;
 
@@ -12,6 +13,7 @@ public class AdminBrandBulkOperationItem : BaseEntity
     public string? LogoUrl { get; private set; }
     public string? CoverImageUrl { get; private set; }
     public Guid CategoryId { get; private set; }
+    public string? CategoryIdsJson { get; private set; }
     public bool IsActive { get; private set; }
     public AdminBrandBulkOperationItemStatus Status { get; private set; }
     public string? ErrorMessage { get; private set; }
@@ -29,16 +31,40 @@ public class AdminBrandBulkOperationItem : BaseEntity
         string? logoUrl,
         string? coverImageUrl,
         Guid categoryId,
+        IReadOnlyList<Guid>? categoryIds,
         bool isActive)
     {
+        var resolvedCategoryIds = ResolveCategoryIds(categoryId, categoryIds);
+
         RowNumber = rowNumber;
         NameAr = nameAr.Trim();
         NameEn = nameEn.Trim();
         LogoUrl = logoUrl?.Trim();
         CoverImageUrl = coverImageUrl?.Trim();
-        CategoryId = categoryId;
+        CategoryId = resolvedCategoryIds[0];
+        CategoryIdsJson = JsonSerializer.Serialize(resolvedCategoryIds);
         IsActive = isActive;
         Status = AdminBrandBulkOperationItemStatus.Pending;
+    }
+
+    public IReadOnlyList<Guid> GetCategoryIds()
+    {
+        if (!string.IsNullOrWhiteSpace(CategoryIdsJson))
+        {
+            try
+            {
+                var categoryIds = JsonSerializer.Deserialize<List<Guid>>(CategoryIdsJson);
+                if (categoryIds is { Count: > 0 })
+                {
+                    return categoryIds.Where(id => id != Guid.Empty).Distinct().ToArray();
+                }
+            }
+            catch (JsonException)
+            {
+            }
+        }
+
+        return CategoryId == Guid.Empty ? [] : [CategoryId];
     }
 
     public void AttachToOperation(Guid operationId)
@@ -63,5 +89,17 @@ public class AdminBrandBulkOperationItem : BaseEntity
     {
         Status = AdminBrandBulkOperationItemStatus.Skipped;
         ErrorMessage = errorMessage;
+    }
+
+    private static IReadOnlyList<Guid> ResolveCategoryIds(Guid categoryId, IReadOnlyList<Guid>? categoryIds)
+    {
+        var resolved = categoryIds is { Count: > 0 }
+            ? categoryIds
+            : [categoryId];
+
+        return resolved
+            .Where(id => id != Guid.Empty)
+            .Distinct()
+            .ToArray();
     }
 }

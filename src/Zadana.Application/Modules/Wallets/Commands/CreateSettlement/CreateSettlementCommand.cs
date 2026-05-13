@@ -43,10 +43,14 @@ public class CreateSettlementCommandValidator : AbstractValidator<CreateSettleme
 public class CreateSettlementCommandHandler : IRequestHandler<CreateSettlementCommand, Guid>
 {
     private readonly IApplicationDbContext _context;
+    private readonly IAdminAlertService _adminAlertService;
 
-    public CreateSettlementCommandHandler(IApplicationDbContext context)
+    public CreateSettlementCommandHandler(
+        IApplicationDbContext context,
+        IAdminAlertService adminAlertService)
     {
         _context = context;
+        _adminAlertService = adminAlertService;
     }
 
     public async Task<Guid> Handle(CreateSettlementCommand request, CancellationToken cancellationToken)
@@ -73,6 +77,27 @@ public class CreateSettlementCommandHandler : IRequestHandler<CreateSettlementCo
                 await _context.SaveChangesAsync(cancellationToken);
             }
         }
+
+        await _adminAlertService.SendAsync(
+            new AdminAlertRequest(
+                AdminAlertTypes.SettlementRequested,
+                AdminAlertCategories.Settlements,
+                AdminAlertPriorities.High,
+                "Settlement requires finance review",
+                "Settlement requires finance review",
+                $"Settlement {settlement.Id} was created with net amount {settlement.NetAmount:0.##}.",
+                $"Settlement {settlement.Id} was created with net amount {settlement.NetAmount:0.##}.",
+                settlement.Id,
+                "/finances/settlements",
+                new
+                {
+                    settlementId = settlement.Id,
+                    vendorId = request.VendorId,
+                    driverId = request.DriverId,
+                    netAmount = settlement.NetAmount,
+                    origin = request.Origin.ToString()
+                }),
+            cancellationToken);
 
         return settlement.Id;
     }

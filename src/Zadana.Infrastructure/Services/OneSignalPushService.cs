@@ -162,6 +162,35 @@ public sealed class OneSignalPushService : IOneSignalPushService
             requireRegisteredDevices: false,
             cancellationToken);
 
+    public Task<IReadOnlyList<OneSignalPushDispatchResult>> SendToExternalUsersAsync(
+        IReadOnlyCollection<string> externalUserIds,
+        string titleAr,
+        string titleEn,
+        string bodyAr,
+        string bodyEn,
+        string? type,
+        Guid? referenceId,
+        string? data,
+        string? targetUrl,
+        OneSignalPushProfile profile,
+        OneSignalApplicationTarget targetApplication,
+        CancellationToken cancellationToken = default) =>
+        SendToExternalUsersCoreAsync(
+            externalUserIds,
+            titleAr,
+            titleEn,
+            bodyAr,
+            bodyEn,
+            type,
+            referenceId,
+            data,
+            targetUrl,
+            profile,
+            category: null,
+            requireRegisteredDevices: false,
+            cancellationToken,
+            targetApplication);
+
     private async Task<IReadOnlyList<OneSignalPushDispatchResult>> SendToExternalUsersCoreAsync(
         IReadOnlyCollection<string> externalUserIds,
         string titleAr,
@@ -204,7 +233,7 @@ public sealed class OneSignalPushService : IOneSignalPushService
         }
 
         var sanitized = NotificationPayloadHelper.Sanitize(titleAr, titleEn, bodyAr, bodyEn, type, data);
-        var resolvedTargetUrl = ShouldIncludeWebUrl(profile) ? ResolveTargetUrl(targetUrl) : null;
+        var resolvedTargetUrl = ShouldIncludeWebUrl(profile) ? ResolveTargetUrl(targetUrl, targetApplication) : null;
         var notificationEventId = Guid.NewGuid();
 
         var recipientsByLocale = await ResolveRecipientsByLocaleAsync(
@@ -609,9 +638,23 @@ public sealed class OneSignalPushService : IOneSignalPushService
             ResolveSettingValue("OneSignal__DriverRestApiKey", _settings.DriverRestApiKey),
             customerRestApiKey);
 
-        return targetApplication == OneSignalApplicationTarget.Driver
-            ? (driverAppId, driverRestApiKey)
-            : (customerAppId, customerRestApiKey);
+        if (targetApplication == OneSignalApplicationTarget.Driver)
+        {
+            return (driverAppId, driverRestApiKey);
+        }
+
+        if (targetApplication == OneSignalApplicationTarget.AdminWeb)
+        {
+            return (
+                FirstNonEmpty(
+                    ResolveSettingValue("OneSignal__AdminWebAppId", _settings.AdminWebAppId),
+                    customerAppId),
+                FirstNonEmpty(
+                    ResolveSettingValue("OneSignal__AdminWebRestApiKey", _settings.AdminWebRestApiKey),
+                    customerRestApiKey));
+        }
+
+        return (customerAppId, customerRestApiKey);
     }
 
     private (string AppId, string RestApiKey) ResolveAppConfiguration(
@@ -761,11 +804,17 @@ public sealed class OneSignalPushService : IOneSignalPushService
         }
     }
 
-    private string? ResolveTargetUrl(string? requestedTargetUrl)
+    private string? ResolveTargetUrl(string? requestedTargetUrl, OneSignalApplicationTarget? targetApplication = null)
     {
+        var configuredDefaultWebUrl = targetApplication == OneSignalApplicationTarget.AdminWeb
+            ? FirstNonEmpty(
+                ResolveSettingValue("OneSignal__AdminDefaultWebUrl", _settings.AdminDefaultWebUrl),
+                ResolveSettingValue("OneSignal__DefaultWebUrl", _settings.DefaultWebUrl))
+            : ResolveSettingValue("OneSignal__DefaultWebUrl", _settings.DefaultWebUrl);
+
         if (string.IsNullOrWhiteSpace(requestedTargetUrl))
         {
-            return string.IsNullOrWhiteSpace(_settings.DefaultWebUrl) ? null : _settings.DefaultWebUrl;
+            return string.IsNullOrWhiteSpace(configuredDefaultWebUrl) ? null : configuredDefaultWebUrl;
         }
 
         if (Uri.TryCreate(requestedTargetUrl, UriKind.Absolute, out var absolute))
@@ -773,8 +822,8 @@ public sealed class OneSignalPushService : IOneSignalPushService
             return absolute.ToString();
         }
 
-        if (string.IsNullOrWhiteSpace(_settings.DefaultWebUrl) ||
-            !Uri.TryCreate(_settings.DefaultWebUrl, UriKind.Absolute, out var baseUri))
+        if (string.IsNullOrWhiteSpace(configuredDefaultWebUrl) ||
+            !Uri.TryCreate(configuredDefaultWebUrl, UriKind.Absolute, out var baseUri))
         {
             return requestedTargetUrl;
         }

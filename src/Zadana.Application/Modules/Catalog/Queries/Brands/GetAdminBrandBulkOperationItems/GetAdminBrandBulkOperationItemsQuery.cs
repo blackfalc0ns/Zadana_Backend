@@ -28,10 +28,13 @@ public class GetAdminBrandBulkOperationItemsQueryHandler : IRequestHandler<GetAd
             throw new NotFoundException("AdminBrandBulkOperation", request.OperationId);
         }
 
-        return await _context.AdminBrandBulkOperationItems
+        var items = await _context.AdminBrandBulkOperationItems
             .AsNoTracking()
             .Where(x => x.OperationId == request.OperationId)
             .OrderBy(x => x.RowNumber)
+            .ToListAsync(cancellationToken);
+
+        return items
             .Select(x => new AdminBrandBulkOperationItemDto(
                 x.Id,
                 x.RowNumber,
@@ -40,10 +43,11 @@ public class GetAdminBrandBulkOperationItemsQueryHandler : IRequestHandler<GetAd
                 x.LogoUrl,
                 x.CoverImageUrl,
                 x.CategoryId,
+                x.GetCategoryIds(),
                 x.IsActive,
                 x.Status.ToString(),
                 x.ErrorMessage,
                 x.CreatedBrandId))
-            .ToListAsync(cancellationToken);
+            .ToList();
     }
 }

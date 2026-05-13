@@ -217,6 +217,7 @@ public class DriverWalletController : ApiControllerBase
         [FromServices] IDriverRepository driverRepository,
         [FromServices] IApplicationDbContext context,
         [FromServices] INotificationService notificationService,
+        [FromServices] IAdminAlertService adminAlertService,
         CancellationToken cancellationToken = default)
     {
         if (request is null)
@@ -295,6 +296,27 @@ public class DriverWalletController : ApiControllerBase
             cancellationToken);
 
         await notificationService.SendDriverWalletUpdatedAsync(driver.UserId, cancellationToken);
+
+        await adminAlertService.SendAsync(
+            new AdminAlertRequest(
+                AdminAlertTypes.SettlementRequested,
+                AdminAlertCategories.Settlements,
+                AdminAlertPriorities.High,
+                "Driver withdrawal requires review",
+                "Driver withdrawal requires review",
+                $"Driver {driver.User.FullName} requested withdrawal of {withdrawal.Amount:0.##}.",
+                $"Driver {driver.User.FullName} requested withdrawal of {withdrawal.Amount:0.##}.",
+                withdrawal.Id,
+                "/finances/withdrawals",
+                new
+                {
+                    withdrawalId = withdrawal.Id,
+                    driverId = driver.Id,
+                    driverUserId = driver.UserId,
+                    amount = withdrawal.Amount,
+                    status = withdrawal.Status.ToString()
+                }),
+            cancellationToken);
 
         return Ok(MapWithdrawalDto(withdrawal, payoutMethod));
     }

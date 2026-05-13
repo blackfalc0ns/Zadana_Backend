@@ -25,6 +25,8 @@ public class AdminNotificationsController : ApiControllerBase
         [FromQuery(Name = "page")] int page = 1,
         [FromQuery(Name = "per_page")] int perPage = 20,
         [FromQuery(Name = "type")] string? type = null,
+        [FromQuery(Name = "category")] string? category = null,
+        [FromQuery(Name = "priority")] string? priority = null,
         [FromQuery(Name = "is_read")] bool? isRead = null,
         [FromQuery(Name = "from_utc")] DateTime? fromUtc = null,
         [FromQuery(Name = "to_utc")] DateTime? toUtc = null,
@@ -32,7 +34,7 @@ public class AdminNotificationsController : ApiControllerBase
     {
         var userId = _currentUserService.UserId ?? throw new UnauthorizedException("USER_NOT_AUTHENTICATED");
         var result = await Sender.Send(
-            new GetNotificationsQuery(userId, page, perPage, type, isRead, fromUtc, toUtc),
+            new GetNotificationsQuery(userId, page, perPage, type, isRead, fromUtc, toUtc, category, priority),
             cancellationToken);
 
         return Ok(new NotificationsResponse(

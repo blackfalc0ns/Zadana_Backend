@@ -2,8 +2,10 @@ using System.Text;
 using Microsoft.AspNetCore.Authorization;
 using Microsoft.AspNetCore.Mvc;
 using Microsoft.AspNetCore.RateLimiting;
+using Microsoft.Extensions.Logging;
 using Zadana.Api.Controllers;
 using Zadana.Api.Security;
+using Zadana.Application.Common.Interfaces;
 using Zadana.Application.Common.Localization;
 using Zadana.Application.Modules.Payments.Commands.ConfirmPaymobPayment;
 using Zadana.Application.Modules.Payments.Commands.ProcessPaymobWebhook;
@@ -16,7 +18,9 @@ namespace Zadana.Api.Modules.Payments.Controllers;
 [Tags("Payments")]
 public class PaymobWebhookController(
     IPaymobGateway paymobGateway,
-    IWebHostEnvironment environment) : ApiControllerBase
+    IWebHostEnvironment environment,
+    IAdminAlertService adminAlertService,
+    ILogger<PaymobWebhookController> logger) : ApiControllerBase
 {
     private const string DeviceIdHeader = "X-Device-Id";
 
@@ -27,6 +31,11 @@ public class PaymobWebhookController(
     {
         if (!paymobGateway.IsWebhookTrusted() && !environment.IsDevelopment())
         {
+            await NotifyIntegrationFailureAsync(
+                "Paymob webhook security is not configured.",
+                null,
+                cancellationToken);
+
             throw new BusinessRuleException("PAYMOB_WEBHOOK_SECURITY_NOT_CONFIGURED", "Paymob webhook HMAC validation must be configured outside development.");
         }
 
@@ -35,8 +44,20 @@ public class PaymobWebhookController(
         var payload = await reader.ReadToEndAsync(cancellationToken);
         Request.Body.Position = 0;
 
-        var result = await Sender.Send(new ProcessPaymobWebhookCommand(payload), cancellationToken);
-        return Ok(result);
+        try
+        {
+            var result = await Sender.Send(new ProcessPaymobWebhookCommand(payload), cancellationToken);
+            return Ok(result);
+        }
+        catch (Exception ex)
+        {
+            await NotifyIntegrationFailureAsync(
+                $"Paymob payment webhook failed: {ex.Message}",
+                payload,
+                cancellationToken);
+
+            throw;
+        }
     }
 
     [AllowAnonymous]
@@ -75,6 +96,40 @@ public class PaymobWebhookController(
     {
         var deviceId = Request.Headers[DeviceIdHeader].ToString();
         return string.IsNullOrWhiteSpace(deviceId) ? null : deviceId.Trim();
+    }
+
+    private async Task NotifyIntegrationFailureAsync(
+        string reason,
+        string? payload,
+        CancellationToken cancellationToken)
+    {
+        try
+        {
+            await adminAlertService.SendAsync(
+                new AdminAlertRequest(
+                    AdminAlertTypes.SystemIntegrationFailure,
+                    AdminAlertCategories.System,
+                    AdminAlertPriorities.Critical,
+                    "فشل تكامل Paymob",
+                    "Paymob integration failure",
+                    "حدث خطأ أثناء معالجة webhook الدفع من Paymob.",
+                    "Paymob payment webhook processing failed.",
+                    null,
+                    "/finances",
+                    new
+                    {
+                        integration = "PaymobPayments",
+                        reason,
+                        payloadLength = payload?.Length ?? 0
+                    }),
+                cancellationToken);
+        }
+        catch (Exception alertException)
+        {
+            logger.LogError(
+                alertException,
+                "Failed to dispatch Paymob payment integration failure admin alert.");
+        }
     }
 
 }

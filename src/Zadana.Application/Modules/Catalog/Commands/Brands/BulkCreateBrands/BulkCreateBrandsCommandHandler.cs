@@ -48,14 +48,19 @@ public class BulkCreateBrandsCommandHandler : IRequestHandler<BulkCreateBrandsCo
         }
 
         var items = request.Items
-            .Select((item, index) => new AdminBrandBulkOperationItem(
-                index + 1,
-                item.NameAr,
-                item.NameEn,
-                item.LogoUrl,
-                item.CoverImageUrl,
-                item.CategoryId,
-                item.IsActive))
+            .Select((item, index) =>
+            {
+                var categoryIds = BulkCreateBrandsCommandValidator.ResolveCategoryIds(item.CategoryId, item.CategoryIds);
+                return new AdminBrandBulkOperationItem(
+                    index + 1,
+                    item.NameAr,
+                    item.NameEn,
+                    item.LogoUrl,
+                    item.CoverImageUrl,
+                    categoryIds[0],
+                    categoryIds,
+                    item.IsActive);
+            })
             .ToList();
 
         var operation = new AdminBrandBulkOperation(request.AdminUserId, request.IdempotencyKey, items);

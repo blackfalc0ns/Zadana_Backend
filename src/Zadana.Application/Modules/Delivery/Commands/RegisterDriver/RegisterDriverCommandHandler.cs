@@ -18,17 +18,20 @@ public class RegisterDriverCommandHandler : IRequestHandler<RegisterDriverComman
     private readonly IDriverRepository _driverRepository;
     private readonly IUnitOfWork _unitOfWork;
     private readonly IApplicationDbContext _context;
+    private readonly IAdminAlertService _adminAlertService;
 
     public RegisterDriverCommandHandler(
         IRegistrationWorkflow registrationWorkflow,
         IDriverRepository driverRepository,
         IUnitOfWork unitOfWork,
-        IApplicationDbContext context)
+        IApplicationDbContext context,
+        IAdminAlertService adminAlertService)
     {
         _registrationWorkflow = registrationWorkflow;
         _driverRepository = driverRepository;
         _unitOfWork = unitOfWork;
         _context = context;
+        _adminAlertService = adminAlertService;
     }
 
     public async Task<AuthResponseDto> Handle(RegisterDriverCommand request, CancellationToken cancellationToken)
@@ -101,6 +104,28 @@ public class RegisterDriverCommandHandler : IRequestHandler<RegisterDriverComman
                 DriverOperationalStatusFactory.Create(driver),
                 cancellationToken);
             await _unitOfWork.SaveChangesAsync(cancellationToken);
+
+            await _adminAlertService.SendAsync(
+                new AdminAlertRequest(
+                    AdminAlertTypes.DriverApprovalRequested,
+                    AdminAlertCategories.Drivers,
+                    AdminAlertPriorities.High,
+                    "New driver requires review",
+                    "New driver requires review",
+                    $"Driver {user.FullName} submitted an onboarding request.",
+                    $"Driver {user.FullName} submitted an onboarding request.",
+                    driver.Id,
+                    $"/drivers/{driver.Id}",
+                    new
+                    {
+                        driverId = driver.Id,
+                        driverUserId = driver.UserId,
+                        fullName = user.FullName,
+                        region = request.Region,
+                        city = request.City,
+                        vehicleType = request.VehicleType
+                    }),
+                cancellationToken);
 
             return authResponse;
         }

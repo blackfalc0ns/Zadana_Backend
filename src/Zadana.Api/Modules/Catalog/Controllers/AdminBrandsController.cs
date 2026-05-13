@@ -92,6 +92,7 @@ public class AdminBrandsController : ApiControllerBase
                 item.LogoUrl,
                 item.CoverImageUrl,
                 item.CategoryId,
+                item.CategoryIds,
                 item.IsActive)).ToList());
 
         var result = await Sender.Send(command);
@@ -148,5 +149,6 @@ public record BulkCreateBrandItemRequest(
     string NameEn,
     string? LogoUrl,
     string? CoverImageUrl,
-    Guid CategoryId,
+    Guid? CategoryId,
+    IReadOnlyList<Guid>? CategoryIds,
     bool IsActive);

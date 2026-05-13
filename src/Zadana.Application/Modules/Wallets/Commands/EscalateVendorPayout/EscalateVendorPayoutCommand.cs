@@ -25,13 +25,16 @@ public class EscalateVendorPayoutCommandHandler : IRequestHandler<EscalateVendor
 {
     private readonly IApplicationDbContext _context;
     private readonly VendorPayoutWalletService _vendorPayoutWalletService;
+    private readonly IAdminAlertService _adminAlertService;
 
     public EscalateVendorPayoutCommandHandler(
         IApplicationDbContext context,
-        VendorPayoutWalletService vendorPayoutWalletService)
+        VendorPayoutWalletService vendorPayoutWalletService,
+        IAdminAlertService adminAlertService)
     {
         _context = context;
         _vendorPayoutWalletService = vendorPayoutWalletService;
+        _adminAlertService = adminAlertService;
     }
 
     public async Task<Guid> Handle(EscalateVendorPayoutCommand request, CancellationToken cancellationToken)
@@ -67,6 +70,26 @@ public class EscalateVendorPayoutCommandHandler : IRequestHandler<EscalateVendor
             cancellationToken);
 
         await _context.SaveChangesAsync(cancellationToken);
+
+        await _adminAlertService.SendAsync(
+            new AdminAlertRequest(
+                AdminAlertTypes.SettlementFailed,
+                AdminAlertCategories.Settlements,
+                AdminAlertPriorities.Critical,
+                "Vendor payout failed",
+                "Vendor payout failed",
+                $"Payout {payout.Id} failed and settlement {payout.SettlementId} needs review.",
+                $"Payout {payout.Id} failed and settlement {payout.SettlementId} needs review.",
+                payout.SettlementId,
+                "/finances/settlements",
+                new
+                {
+                    vendorId = request.VendorId,
+                    payoutId = payout.Id,
+                    settlementId = payout.SettlementId,
+                    amount = payout.Amount
+                }),
+            cancellationToken);
 
         return payout.Id;
     }

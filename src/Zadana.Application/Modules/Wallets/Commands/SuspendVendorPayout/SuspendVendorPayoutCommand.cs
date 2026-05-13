@@ -25,13 +25,16 @@ public class SuspendVendorPayoutCommandHandler : IRequestHandler<SuspendVendorPa
 {
     private readonly IApplicationDbContext _context;
     private readonly VendorPayoutWalletService _vendorPayoutWalletService;
+    private readonly IAdminAlertService _adminAlertService;
 
     public SuspendVendorPayoutCommandHandler(
         IApplicationDbContext context,
-        VendorPayoutWalletService vendorPayoutWalletService)
+        VendorPayoutWalletService vendorPayoutWalletService,
+        IAdminAlertService adminAlertService)
     {
         _context = context;
         _vendorPayoutWalletService = vendorPayoutWalletService;
+        _adminAlertService = adminAlertService;
     }
 
     public async Task<Guid> Handle(SuspendVendorPayoutCommand request, CancellationToken cancellationToken)
@@ -67,6 +70,26 @@ public class SuspendVendorPayoutCommandHandler : IRequestHandler<SuspendVendorPa
             cancellationToken);
 
         await _context.SaveChangesAsync(cancellationToken);
+
+        await _adminAlertService.SendAsync(
+            new AdminAlertRequest(
+                AdminAlertTypes.SettlementFailed,
+                AdminAlertCategories.Settlements,
+                AdminAlertPriorities.High,
+                "Vendor payout suspended",
+                "Vendor payout suspended",
+                $"Payout {payout.Id} was suspended and settlement {payout.SettlementId} needs review.",
+                $"Payout {payout.Id} was suspended and settlement {payout.SettlementId} needs review.",
+                payout.SettlementId,
+                "/finances/settlements",
+                new
+                {
+                    vendorId = request.VendorId,
+                    payoutId = payout.Id,
+                    settlementId = payout.SettlementId,
+                    amount = payout.Amount
+                }),
+            cancellationToken);
 
         return payout.Id;
     }

@@ -22,6 +22,7 @@ public sealed class OrderSupportCaseWorkflowService : IOrderSupportCaseWorkflowS
     private readonly IUnitOfWork _unitOfWork;
     private readonly INotificationService _notificationService;
     private readonly IOneSignalPushService _oneSignalPushService;
+    private readonly IAdminAlertService? _adminAlertService;
     private readonly VendorRecoveryService? _vendorRecoveryService;
     private readonly OrderInventoryWorkflowService _orderInventoryWorkflowService;
 
@@ -30,6 +31,7 @@ public sealed class OrderSupportCaseWorkflowService : IOrderSupportCaseWorkflowS
         IUnitOfWork unitOfWork,
         INotificationService notificationService,
         IOneSignalPushService oneSignalPushService,
+        IAdminAlertService? adminAlertService = null,
         VendorRecoveryService? vendorRecoveryService = null,
         OrderInventoryWorkflowService? orderInventoryWorkflowService = null)
     {
@@ -37,6 +39,7 @@ public sealed class OrderSupportCaseWorkflowService : IOrderSupportCaseWorkflowS
         _unitOfWork = unitOfWork;
         _notificationService = notificationService;
         _oneSignalPushService = oneSignalPushService;
+        _adminAlertService = adminAlertService;
         _vendorRecoveryService = vendorRecoveryService;
         _orderInventoryWorkflowService = orderInventoryWorkflowService ?? new OrderInventoryWorkflowService(context);
     }
@@ -1133,6 +1136,42 @@ public sealed class OrderSupportCaseWorkflowService : IOrderSupportCaseWorkflowS
         bool notifyCurrentReviewer,
         CancellationToken cancellationToken)
     {
+        if (_adminAlertService is not null)
+        {
+            var composedAlert = OrderSupportCaseNotificationComposer.ComposeAdmin(
+                order.Id,
+                supportCase.Id,
+                order.OrderNumber,
+                supportCase.Type,
+                supportCase.Status,
+                supportCase.Queue,
+                supportCase.Priority,
+                action);
+
+            await _adminAlertService.SendAsync(
+                new AdminAlertRequest(
+                    ResolveAdminAlertType(supportCase, action),
+                    ResolveAdminAlertCategory(supportCase),
+                    ResolveAdminAlertPriority(supportCase.Priority),
+                    composedAlert.TitleAr,
+                    composedAlert.TitleEn,
+                    composedAlert.BodyAr,
+                    composedAlert.BodyEn,
+                    supportCase.Id,
+                    composedAlert.TargetUrl,
+                    new
+                    {
+                        orderId = order.Id,
+                        caseId = supportCase.Id,
+                        orderNumber = order.OrderNumber,
+                        action,
+                        status = OrderSupportCaseNotificationComposer.ToApiValue(supportCase.Status),
+                        type = OrderSupportCaseNotificationComposer.ToApiValue(supportCase.Type)
+                    }),
+                cancellationToken);
+            return;
+        }
+
         var recipients = new HashSet<Guid>();
 
         if (notifyCurrentReviewer && supportCase.AssignedAdminId.HasValue && supportCase.AssignedAdminId.Value != actorUserId)
@@ -1186,6 +1225,37 @@ public sealed class OrderSupportCaseWorkflowService : IOrderSupportCaseWorkflowS
                 cancellationToken);
         }
     }
+
+    private static string ResolveAdminAlertType(OrderSupportCase supportCase, string action)
+    {
+        if (supportCase.Priority == OrderSupportCasePriority.Critical && action == "created")
+        {
+            return AdminAlertTypes.SupportCriticalCreated;
+        }
+
+        if (action == "created")
+        {
+            return supportCase.Type == OrderSupportCaseType.ReturnRequest
+                ? AdminAlertTypes.RefundRequested
+                : AdminAlertTypes.DisputeCreated;
+        }
+
+        return AdminAlertTypes.DisputeEscalated;
+    }
+
+    private static string ResolveAdminAlertCategory(OrderSupportCase supportCase) =>
+        supportCase.Type == OrderSupportCaseType.ReturnRequest
+            ? AdminAlertCategories.Refunds
+            : AdminAlertCategories.Disputes;
+
+    private static string ResolveAdminAlertPriority(OrderSupportCasePriority priority) =>
+        priority switch
+        {
+            OrderSupportCasePriority.Critical => AdminAlertPriorities.Critical,
+            OrderSupportCasePriority.High => AdminAlertPriorities.High,
+            OrderSupportCasePriority.Low => AdminAlertPriorities.Low,
+            _ => AdminAlertPriorities.Normal
+        };
 
     private async Task NotifySpecificAdminAsync(
         Order order,

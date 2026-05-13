@@ -13,15 +13,18 @@ public class RegisterVendorCommandHandler : IRequestHandler<RegisterVendorComman
     private readonly IRegistrationWorkflow _registrationWorkflow;
     private readonly IVendorRepository _vendorRepository;
     private readonly IUnitOfWork _unitOfWork;
+    private readonly IAdminAlertService _adminAlertService;
 
     public RegisterVendorCommandHandler(
         IRegistrationWorkflow registrationWorkflow,
         IVendorRepository vendorRepository,
-        IUnitOfWork unitOfWork)
+        IUnitOfWork unitOfWork,
+        IAdminAlertService adminAlertService)
     {
         _registrationWorkflow = registrationWorkflow;
         _vendorRepository = vendorRepository;
         _unitOfWork = unitOfWork;
+        _adminAlertService = adminAlertService;
     }
 
     public async Task<AuthResponseDto> Handle(RegisterVendorCommand request, CancellationToken cancellationToken)
@@ -95,6 +98,28 @@ public class RegisterVendorCommandHandler : IRequestHandler<RegisterVendorComman
                 user,
                 cancellationToken: cancellationToken);
             await _unitOfWork.SaveChangesAsync(cancellationToken);
+
+            await _adminAlertService.SendAsync(
+                new AdminAlertRequest(
+                    AdminAlertTypes.VendorApprovalRequested,
+                    AdminAlertCategories.Vendors,
+                    AdminAlertPriorities.High,
+                    "New vendor requires review",
+                    "New vendor requires review",
+                    $"Vendor {vendor.BusinessNameEn} submitted an onboarding request.",
+                    $"Vendor {vendor.BusinessNameEn} submitted an onboarding request.",
+                    vendor.Id,
+                    $"/vendors/{vendor.Id}",
+                    new
+                    {
+                        vendorId = vendor.Id,
+                        vendorUserId = vendor.UserId,
+                        businessNameAr = vendor.BusinessNameAr,
+                        businessNameEn = vendor.BusinessNameEn,
+                        city = vendor.City,
+                        region = vendor.Region
+                    }),
+                cancellationToken);
 
             return authResponse;
         }

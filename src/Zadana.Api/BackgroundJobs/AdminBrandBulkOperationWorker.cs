@@ -58,7 +58,10 @@ public sealed class AdminBrandBulkOperationWorker : BackgroundService
 
         try
         {
-            var categoryIds = operation.Items.Select(x => x.CategoryId).Distinct().ToArray();
+            var categoryIds = operation.Items
+                .SelectMany(x => x.GetCategoryIds())
+                .Distinct()
+                .ToArray();
             var categories = await context.Categories
                 .AsNoTracking()
                 .Where(x => categoryIds.Contains(x.Id))
@@ -71,11 +74,17 @@ public sealed class AdminBrandBulkOperationWorker : BackgroundService
                     continue;
                 }
 
-                if (!categories.TryGetValue(item.CategoryId, out var category))
+                var itemCategoryIds = item.GetCategoryIds();
+                var missingCategoryIds = itemCategoryIds.Where(categoryId => !categories.ContainsKey(categoryId)).ToArray();
+                var rootCategoryIds = itemCategoryIds
+                    .Where(categoryId => categories.TryGetValue(categoryId, out var category) && !category.ParentCategoryId.HasValue)
+                    .ToArray();
+
+                if (missingCategoryIds.Length > 0)
                 {
                     item.MarkFailed("Category was not found.");
                 }
-                else if (!category.ParentCategoryId.HasValue)
+                else if (rootCategoryIds.Length > 0)
                 {
                     item.MarkFailed("Category must be a subcategory.");
                 }
@@ -83,13 +92,18 @@ public sealed class AdminBrandBulkOperationWorker : BackgroundService
                 {
                     try
                     {
-                        var brand = new Brand(item.NameAr, item.NameEn, item.LogoUrl, item.CoverImageUrl, item.CategoryId);
+                        var brand = new Brand(item.NameAr, item.NameEn, item.LogoUrl, item.CoverImageUrl, itemCategoryIds[0]);
                         if (!item.IsActive)
                         {
                             brand.Deactivate();
                         }
 
                         context.Brands.Add(brand);
+                        foreach (var categoryId in itemCategoryIds)
+                        {
+                            context.BrandCategories.Add(new BrandCategory(brand.Id, categoryId));
+                        }
+
                         await context.SaveChangesAsync(cancellationToken);
                         item.MarkSucceeded(brand.Id);
                     }

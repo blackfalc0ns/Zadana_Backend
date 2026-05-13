@@ -75,5 +75,6 @@ public sealed record OneSignalMobilePushRequest(
 public enum OneSignalApplicationTarget
 {
     Customer = 0,
-    Driver = 1
+    Driver = 1,
+    AdminWeb = 2
 }

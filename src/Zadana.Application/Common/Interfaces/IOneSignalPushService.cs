@@ -47,6 +47,20 @@ public interface IOneSignalPushService
         string? targetUrl = null,
         OneSignalPushProfile profile = OneSignalPushProfile.Default,
         CancellationToken cancellationToken = default);
+
+    Task<IReadOnlyList<OneSignalPushDispatchResult>> SendToExternalUsersAsync(
+        IReadOnlyCollection<string> externalUserIds,
+        string titleAr,
+        string titleEn,
+        string bodyAr,
+        string bodyEn,
+        string? type,
+        Guid? referenceId,
+        string? data,
+        string? targetUrl,
+        OneSignalPushProfile profile,
+        OneSignalApplicationTarget targetApplication,
+        CancellationToken cancellationToken = default);
 }
 
 public enum OneSignalPushProfile

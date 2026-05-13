@@ -10,7 +10,8 @@ public record BulkCreateBrandItemInput(
     string NameEn,
     string? LogoUrl,
     string? CoverImageUrl,
-    Guid CategoryId,
+    Guid? CategoryId,
+    IReadOnlyList<Guid>? CategoryIds,
     bool IsActive);
 
 public record BulkCreateBrandsCommand(
@@ -43,9 +44,21 @@ public class BulkCreateBrandsCommandValidator : AbstractValidator<BulkCreateBran
             item.RuleFor(x => x.CoverImageUrl)
                 .MaximumLength(1000).When(x => !string.IsNullOrWhiteSpace(x.CoverImageUrl)).WithMessage(x => localizer["MaxLength"])
                 .Must(NotBeBrowserBlobUrl).WithMessage("Browser preview blob URLs cannot be saved. Upload the image first and save the returned cloud URL.");
-            item.RuleFor(x => x.CategoryId)
+            item.RuleFor(x => ResolveCategoryIds(x.CategoryId, x.CategoryIds))
                 .NotEmpty().WithMessage(x => localizer["RequiredField"]);
         });
+    }
+
+    public static IReadOnlyList<Guid> ResolveCategoryIds(Guid? categoryId, IReadOnlyList<Guid>? categoryIds)
+    {
+        var resolved = categoryIds is { Count: > 0 }
+            ? categoryIds
+            : (categoryId.HasValue ? [categoryId.Value] : []);
+
+        return resolved
+            .Where(id => id != Guid.Empty)
+            .Distinct()
+            .ToArray();
     }
 
     private static bool NotBeBrowserBlobUrl(string? value)
