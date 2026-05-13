@@ -8785,16 +8785,17 @@
         }
       }
     },
-    "/api/categories/{categoryId}/subcategories": {
+    "/api/categories/subcategories": {
       "get": {
         "tags": [
           "Customer/Categories"
         ],
+        "summary": "Get subcategories (all leaf subcategories if no categoryId, or direct children of a category)",
         "parameters": [
           {
             "name": "categoryId",
-            "in": "path",
-            "required": true,
+            "in": "query",
+            "description": "Optional. If provided, returns subcategories of this category. If omitted, returns all leaf subcategories.",
             "schema": {
               "type": "string",
               "format": "uuid"
@@ -8805,23 +8806,7 @@
           "200": {
             "description": "OK",
             "content": {
-              "text/plain": {
-                "schema": {
-                  "type": "array",
-                  "items": {
-                    "$ref": "#/components/schemas/CategoryListItemDto"
-                  }
-                }
-              },
               "application/json": {
-                "schema": {
-                  "type": "array",
-                  "items": {
-                    "$ref": "#/components/schemas/CategoryListItemDto"
-                  }
-                }
-              },
-              "text/json": {
                 "schema": {
                   "type": "array",
                   "items": {
@@ -8834,11 +8819,12 @@
         }
       }
     },
-    "/api/categories/{categoryId}/products": {
+    "/api/categories/{categoryId}/subcategories": {
       "get": {
         "tags": [
           "Customer/Categories"
         ],
+        "summary": "Get subcategories of a specific category",
         "parameters": [
           {
             "name": "categoryId",
@@ -8848,98 +8834,18 @@
               "type": "string",
               "format": "uuid"
             }
-          },
-          {
-            "name": "product_type_id",
-            "in": "query",
-            "schema": {
-              "type": "string",
-              "format": "uuid"
-            }
-          },
-          {
-            "name": "part_id",
-            "in": "query",
-            "schema": {
-              "type": "string",
-              "format": "uuid"
-            }
-          },
-          {
-            "name": "quantity_id",
-            "in": "query",
-            "schema": {
-              "type": "string",
-              "format": "uuid"
-            }
-          },
-          {
-            "name": "brand_id",
-            "in": "query",
-            "schema": {
-              "type": "string",
-              "format": "uuid"
-            }
-          },
-          {
-            "name": "min_price",
-            "in": "query",
-            "schema": {
-              "type": "number",
-              "format": "double"
-            }
-          },
-          {
-            "name": "max_price",
-            "in": "query",
-            "schema": {
-              "type": "number",
-              "format": "double"
-            }
-          },
-          {
-            "name": "sort",
-            "in": "query",
-            "schema": {
-              "type": "string"
-            }
-          },
-          {
-            "name": "page",
-            "in": "query",
-            "schema": {
-              "type": "integer",
-              "format": "int32",
-              "default": 1
-            }
-          },
-          {
-            "name": "per_page",
-            "in": "query",
-            "schema": {
-              "type": "integer",
-              "format": "int32",
-              "default": 20
-            }
           }
         ],
         "responses": {
           "200": {
             "description": "OK",
             "content": {
-              "text/plain": {
-                "schema": {
-                  "$ref": "#/components/schemas/CategoryProductsDto"
-                }
-              },
               "application/json": {
                 "schema": {
-                  "$ref": "#/components/schemas/CategoryProductsDto"
-                }
-              },
-              "text/json": {
-                "schema": {
-                  "$ref": "#/components/schemas/CategoryProductsDto"
+                  "type": "array",
+                  "items": {
+                    "$ref": "#/components/schemas/CategoryListItemDto"
+                  }
                 }
               }
             }
@@ -8952,10 +8858,12 @@
         "tags": [
           "Customer/Categories"
         ],
+        "summary": "Get products (all products if no categoryId, or products of a specific category)",
         "parameters": [
           {
             "name": "categoryId",
             "in": "query",
+            "description": "Optional. If provided, returns products of this category. If omitted, returns all products.",
             "schema": {
               "type": "string",
               "format": "uuid"
@@ -9039,17 +8947,111 @@
           "200": {
             "description": "OK",
             "content": {
-              "text/plain": {
-                "schema": {
-                  "$ref": "#/components/schemas/CategoryProductsDto"
-                }
-              },
               "application/json": {
                 "schema": {
                   "$ref": "#/components/schemas/CategoryProductsDto"
                 }
-              },
-              "text/json": {
+              }
+            }
+          }
+        }
+      }
+    },
+    "/api/categories/{categoryId}/products": {
+      "get": {
+        "tags": [
+          "Customer/Categories"
+        ],
+        "summary": "Get products of a specific category",
+        "parameters": [
+          {
+            "name": "categoryId",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "format": "uuid"
+            }
+          },
+          {
+            "name": "product_type_id",
+            "in": "query",
+            "schema": {
+              "type": "string",
+              "format": "uuid"
+            }
+          },
+          {
+            "name": "part_id",
+            "in": "query",
+            "schema": {
+              "type": "string",
+              "format": "uuid"
+            }
+          },
+          {
+            "name": "quantity_id",
+            "in": "query",
+            "schema": {
+              "type": "string",
+              "format": "uuid"
+            }
+          },
+          {
+            "name": "brand_id",
+            "in": "query",
+            "schema": {
+              "type": "string",
+              "format": "uuid"
+            }
+          },
+          {
+            "name": "min_price",
+            "in": "query",
+            "schema": {
+              "type": "number",
+              "format": "double"
+            }
+          },
+          {
+            "name": "max_price",
+            "in": "query",
+            "schema": {
+              "type": "number",
+              "format": "double"
+            }
+          },
+          {
+            "name": "sort",
+            "in": "query",
+            "schema": {
+              "type": "string"
+            }
+          },
+          {
+            "name": "page",
+            "in": "query",
+            "schema": {
+              "type": "integer",
+              "format": "int32",
+              "default": 1
+            }
+          },
+          {
+            "name": "per_page",
+            "in": "query",
+            "schema": {
+              "type": "integer",
+              "format": "int32",
+              "default": 20
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "OK",
+            "content": {
+              "application/json": {
                 "schema": {
                   "$ref": "#/components/schemas/CategoryProductsDto"
                 }
@@ -9079,67 +9081,9 @@
           "200": {
             "description": "OK",
             "content": {
-              "text/plain": {
-                "schema": {
-                  "$ref": "#/components/schemas/CategoryFiltersDto"
-                }
-              },
               "application/json": {
                 "schema": {
                   "$ref": "#/components/schemas/CategoryFiltersDto"
-                }
-              },
-              "text/json": {
-                "schema": {
-                  "$ref": "#/components/schemas/CategoryFiltersDto"
-                }
-              }
-            }
-          }
-        }
-      }
-    },
-    "/api/categories/subcategories": {
-      "get": {
-        "tags": [
-          "Customer/Categories"
-        ],
-        "parameters": [
-          {
-            "name": "categoryId",
-            "in": "query",
-            "schema": {
-              "type": "string",
-              "format": "uuid"
-            }
-          }
-        ],
-        "responses": {
-          "200": {
-            "description": "OK",
-            "content": {
-              "text/plain": {
-                "schema": {
-                  "type": "array",
-                  "items": {
-                    "$ref": "#/components/schemas/CategoryListItemDto"
-                  }
-                }
-              },
-              "application/json": {
-                "schema": {
-                  "type": "array",
-                  "items": {
-                    "$ref": "#/components/schemas/CategoryListItemDto"
-                  }
-                }
-              },
-              "text/json": {
-                "schema": {
-                  "type": "array",
-                  "items": {
-                    "$ref": "#/components/schemas/CategoryListItemDto"
-                  }
                 }
               }
             }
