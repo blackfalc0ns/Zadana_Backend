@@ -304,7 +304,7 @@ public sealed class AdminAlertOutboxWorker : BackgroundService
         return RetryDelays[index];
     }
 
-    private static bool ShouldCreatePushFailureAlert() => false;
+    private static bool ShouldCreatePushFailureAlert() => true;
 
     private static JsonElement? TryParseJson(string? json)
     {

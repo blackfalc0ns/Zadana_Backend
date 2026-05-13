@@ -93,11 +93,17 @@ public class GetNotificationsQueryHandler : IRequestHandler<GetNotificationsQuer
         query = query
             .OrderByDescending(x => x.CreatedAtUtc);
 
-        var unreadCount = await _context.Notifications
+        // Run total and unread count in parallel to reduce latency
+        var unreadCountTask = _context.Notifications
             .AsNoTracking()
             .CountAsync(x => x.UserId == request.UserId && !x.IsRead, cancellationToken);
 
-        var total = await query.CountAsync(cancellationToken);
+        var totalTask = query.CountAsync(cancellationToken);
+
+        await Task.WhenAll(unreadCountTask, totalTask);
+
+        var unreadCount = unreadCountTask.Result;
+        var total = totalTask.Result;
 
         var rawItems = await query
             .Skip((page - 1) * perPage)
