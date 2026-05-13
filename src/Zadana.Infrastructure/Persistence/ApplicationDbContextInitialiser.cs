@@ -1,5 +1,6 @@
 using Microsoft.AspNetCore.Identity;
 using Microsoft.EntityFrameworkCore;
+using Zadana.Domain.Modules.Catalog.Entities;
 using Zadana.Domain.Modules.Identity.Constants;
 using Zadana.Domain.Modules.Identity.Entities;
 using Zadana.Domain.Modules.Identity.Enums;
@@ -51,6 +52,33 @@ public class ApplicationDbContextInitialiser
         await SeedAdminAccessControlAsync();
         await SeedSuperAdminAsync();
         await SeedSuperAdminAccessScopeAsync();
+        await SeedUnitsOfMeasureAsync();
+    }
+
+    private async Task SeedUnitsOfMeasureAsync()
+    {
+        var seeds = BuildUnitSeeds();
+        var names = seeds.Select(seed => seed.NameEn).ToList();
+        var existingUnits = await _context.UnitsOfMeasure
+            .Where(unit => names.Contains(unit.NameEn))
+            .ToListAsync();
+        var existingByNameEn = existingUnits
+            .GroupBy(unit => unit.NameEn, StringComparer.OrdinalIgnoreCase)
+            .ToDictionary(group => group.Key, group => group.First(), StringComparer.OrdinalIgnoreCase);
+
+        foreach (var seed in seeds)
+        {
+            if (existingByNameEn.TryGetValue(seed.NameEn, out var existing))
+            {
+                existing.Update(seed.NameAr, seed.NameEn, seed.Symbol);
+                existing.Activate();
+                continue;
+            }
+
+            _context.UnitsOfMeasure.Add(new UnitOfMeasure(seed.NameAr, seed.NameEn, seed.Symbol));
+        }
+
+        await _context.SaveChangesAsync();
     }
 
     private async Task SeedIdentityRolesAsync()
@@ -333,6 +361,60 @@ public class ApplicationDbContextInitialiser
         ..PermissionKeys.Customer.All
     ];
 
+    private static IReadOnlyList<UnitSeed> BuildUnitSeeds() =>
+    [
+        new("قطعة", "Piece", "pc"),
+        new("عبوة", "Pack", "pack"),
+        new("علبة", "Box", "box"),
+        new("كرتونة", "Carton", "ctn"),
+        new("صندوق", "Case", "case"),
+        new("زجاجة", "Bottle", "btl"),
+        new("برطمان", "Jar", "jar"),
+        new("علبة معدنية", "Can", "can"),
+        new("كيس تغليف", "Pouch", "pouch"),
+        new("كيس صغير", "Sachet", "sachet"),
+        new("كيس", "Bag", "bag"),
+        new("رول", "Roll", "roll"),
+        new("ورقة", "Sheet", "sheet"),
+        new("زوج", "Pair", "pair"),
+        new("طقم", "Set", "set"),
+        new("حزمة", "Bundle", "bundle"),
+        new("دستة", "Dozen", "dz"),
+        new("صينية", "Tray", "tray"),
+        new("قفص", "Crate", "crate"),
+        new("طبالية", "Pallet", "pallet"),
+        new("شريط", "Strip", "strip"),
+        new("شريط تغليف", "Blister", "blister"),
+        new("أنبوب", "Tube", "tube"),
+        new("قالب", "Bar", "bar"),
+        new("رغيف", "Loaf", "loaf"),
+        new("شريحة", "Slice", "slice"),
+        new("كبسولة", "Capsule", "cap"),
+        new("قرص", "Tablet", "tab"),
+        new("قارورة صغيرة", "Vial", "vial"),
+        new("أمبول", "Ampoule", "amp"),
+        new("كيلوجرام", "Kilogram", "kg"),
+        new("جرام", "Gram", "g"),
+        new("ملليجرام", "Milligram", "mg"),
+        new("لتر", "Liter", "L"),
+        new("ملليلتر", "Milliliter", "mL"),
+        new("متر", "Meter", "m"),
+        new("سنتيمتر", "Centimeter", "cm"),
+        new("ملليمتر", "Millimeter", "mm"),
+        new("متر مربع", "Square Meter", "m2"),
+        new("متر مكعب", "Cubic Meter", "m3"),
+        new("ساعة", "Hour", "hr"),
+        new("يوم", "Day", "day"),
+        new("خدمة", "Service", "svc"),
+        new("زيارة", "Visit", "visit"),
+        new("وجبة", "Meal", "meal"),
+        new("حصة تقديم", "Serving", "serving"),
+        new("حصة", "Portion", "portion"),
+        new("كوب", "Cup", "cup"),
+        new("مغرفة", "Scoop", "scoop"),
+        new("قطرة", "Drop", "drop")
+    ];
+
     private static IReadOnlyList<RoleSeed> BuildRoleSeeds() =>
     [
         new("super_admin_all", "Super Admin", UserRole.SuperAdmin, PanelScope.SuperAdminPanel, PermissionKeys.Admin.All, "Super Admin system role."),
@@ -470,6 +552,11 @@ public class ApplicationDbContextInitialiser
         PanelScope PanelScope,
         string Description,
         bool IsSensitive);
+
+    private sealed record UnitSeed(
+        string NameAr,
+        string NameEn,
+        string Symbol);
 
     private sealed record RoleSeed(
         string Code,
