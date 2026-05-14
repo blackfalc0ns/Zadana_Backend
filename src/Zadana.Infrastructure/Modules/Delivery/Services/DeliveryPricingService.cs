@@ -480,6 +480,7 @@ public class DeliveryPricingService : IDeliveryPricingService
 
         return cities.FirstOrDefault(city =>
                 !string.IsNullOrWhiteSpace(normalizedRegion) &&
+                city.Region != null &&
                 string.Equals(city.Region.Code, normalizedRegion, StringComparison.OrdinalIgnoreCase) &&
                 (string.Equals(city.Code, cityValue?.Trim(), StringComparison.OrdinalIgnoreCase) ||
                  CityMatches(city.NameAr, cityValue) ||
