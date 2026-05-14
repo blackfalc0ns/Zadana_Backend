@@ -42,6 +42,7 @@ public class GetCategorySubcategoriesQueryHandlerTests
         result.Should().HaveCount(2);
         result.Select(x => x.Id).Should().Equal(childA.Id, childB.Id);
         result.Select(x => x.Name).Should().Equal("Milk", "Yogurt");
+        result.Select(x => x.CategoryId).Should().Equal(root.Id, root.Id);
         result.Should().NotContain(x => x.Id == grandChild.Id);
         result.Should().NotContain(x => x.Id == inactiveChild.Id);
     }
@@ -69,6 +70,7 @@ public class GetCategorySubcategoriesQueryHandlerTests
 
         result.Should().ContainSingle();
         result[0].Name.Should().Be("تفاح");
+        result[0].CategoryId.Should().Be(root.Id);
     }
 
     [Fact]
@@ -139,6 +141,7 @@ public class GetCategorySubcategoriesQueryHandlerTests
         result.Should().HaveCount(2);
         result.Select(x => x.Id).Should().Equal(childTwo.Id, grandChild.Id);
         result.Select(x => x.Name).Should().Equal("Child Two", "Grand Child");
+        result.Select(x => x.CategoryId).Should().Equal(rootTwo.Id, childOne.Id);
         result.Should().NotContain(x => x.Id == inactiveChild.Id || x.Id == rootOnly.Id || x.Id == childOne.Id);
     }
 

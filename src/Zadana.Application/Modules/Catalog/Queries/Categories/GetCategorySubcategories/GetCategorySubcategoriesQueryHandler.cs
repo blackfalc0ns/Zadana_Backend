@@ -62,6 +62,7 @@ public class GetCategorySubcategoriesQueryHandler : IRequestHandler<GetCategoryS
                 var subcategories = await query
                     .Select(c => new RawCategoryListItem(
                         c.Id,
+                        c.ParentCategoryId!.Value,
                         c.NameAr,
                         c.NameEn,
                         c.ImageUrl,
@@ -74,7 +75,8 @@ public class GetCategorySubcategoriesQueryHandler : IRequestHandler<GetCategoryS
                     .Select(c => new CategoryListItemDto(
                         c.Id,
                         PickLocalized(c.NameAr, c.NameEn),
-                        c.ImageUrl))
+                        c.ImageUrl,
+                        c.CategoryId))
                     .ToList();
             },
             new AppCacheEntryOptions(_durations.PublicCatalogMetadata),
@@ -96,6 +98,7 @@ public class GetCategorySubcategoriesQueryHandler : IRequestHandler<GetCategoryS
 
     private sealed record RawCategoryListItem(
         Guid Id,
+        Guid CategoryId,
         string? NameAr,
         string? NameEn,
         string? ImageUrl,
