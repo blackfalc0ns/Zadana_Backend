@@ -33,6 +33,7 @@ public class CategoriesController : ApiControllerBase
     public async Task<ActionResult<CategoryProductsDto>> GetProducts(
         [FromQuery(Name = "categoryId")] Guid? queryCategoryId,
         [FromRoute] Guid? categoryId,
+        [FromQuery(Name = "subcategory_id")] Guid? subcategoryId,
         [FromQuery(Name = "product_type_id")] Guid? productTypeId,
         [FromQuery(Name = "part_id")] Guid? partId,
         [FromQuery(Name = "quantity_id")] Guid? quantityId,
@@ -48,6 +49,7 @@ public class CategoriesController : ApiControllerBase
         var result = await Sender.Send(
             new GetCategoryProductsQuery(
                 effectiveCategoryId,
+                subcategoryId,
                 productTypeId,
                 partId,
                 quantityId,

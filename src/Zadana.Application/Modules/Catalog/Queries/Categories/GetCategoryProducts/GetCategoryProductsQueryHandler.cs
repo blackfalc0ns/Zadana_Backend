@@ -45,6 +45,7 @@ public class GetCategoryProductsQueryHandler : IRequestHandler<GetCategoryProduc
         var baseResponse = await _cache.GetOrCreateAsync(
             CatalogQueryCacheKeys.CategoryProducts(
                 request.CategoryId,
+                request.SubcategoryId,
                 request.ProductTypeId,
                 request.PartId,
                 request.QuantityId,
@@ -70,7 +71,10 @@ public class GetCategoryProductsQueryHandler : IRequestHandler<GetCategoryProduc
         CancellationToken cancellationToken)
     {
         HashSet<Guid>? categoryScopeIds = null;
-        if (request.CategoryId.HasValue)
+        Guid? effectiveCategoryId = request.CategoryId;
+        Guid? effectiveSubcategoryId = request.SubcategoryId;
+
+        if (request.CategoryId.HasValue || request.SubcategoryId.HasValue)
         {
             var categories = await _context.Categories
                 .AsNoTracking()
@@ -83,10 +87,34 @@ public class GetCategoryProductsQueryHandler : IRequestHandler<GetCategoryProduc
                     category.IsActive))
                 .ToListAsync(cancellationToken);
 
-            var categoryScope = ResolveScope(request.CategoryId.Value, categories)
-                ?? throw new NotFoundException(nameof(Category), request.CategoryId.Value);
+            if (request.SubcategoryId.HasValue)
+            {
+                var subcategoryScope = ResolveScope(request.SubcategoryId.Value, categories)
+                    ?? throw new NotFoundException(nameof(Category), request.SubcategoryId.Value);
 
-            categoryScopeIds = categoryScope.ActiveSubtreeIds.ToHashSet();
+                categoryScopeIds = subcategoryScope.ActiveSubtreeIds.ToHashSet();
+
+                var subcategoryParentId = subcategoryScope.Category.ParentCategoryId;
+                effectiveCategoryId ??= subcategoryParentId ?? request.SubcategoryId.Value;
+
+                if (request.CategoryId.HasValue)
+                {
+                    var categoryScope = ResolveScope(request.CategoryId.Value, categories)
+                        ?? throw new NotFoundException(nameof(Category), request.CategoryId.Value);
+
+                    if (!categoryScope.ActiveSubtreeIds.Contains(request.SubcategoryId.Value))
+                    {
+                        throw new NotFoundException(nameof(Category), request.SubcategoryId.Value);
+                    }
+                }
+            }
+            else if (request.CategoryId.HasValue)
+            {
+                var categoryScope = ResolveScope(request.CategoryId.Value, categories)
+                    ?? throw new NotFoundException(nameof(Category), request.CategoryId.Value);
+
+                categoryScopeIds = categoryScope.ActiveSubtreeIds.ToHashSet();
+            }
         }
 
         var salesByVendorProductId = await _catalogReadCacheService.GetDeliveredSalesByVendorProductIdAsync(cancellationToken);
@@ -173,6 +201,8 @@ public class GetCategoryProductsQueryHandler : IRequestHandler<GetCategoryProduc
 
         return new CategoryProductsDto(
             new CategoryProductsAppliedFiltersDto(
+                effectiveCategoryId,
+                effectiveSubcategoryId,
                 request.ProductTypeId,
                 request.PartId,
                 request.QuantityId,

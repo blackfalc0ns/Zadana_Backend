@@ -27,7 +27,7 @@ public class GetCategoryProductsQueryHandlerTests
             TestServiceFactory.CreateCachingOptions());
 
         var act = () => handler.Handle(
-            new GetCategoryProductsQuery(Guid.NewGuid(), null, null, null, null, null, null, null, 1, 20),
+            new GetCategoryProductsQuery(Guid.NewGuid(), null, null, null, null, null, null, null, null, 1, 20),
             CancellationToken.None);
 
         await act.Should().ThrowAsync<NotFoundException>();
@@ -93,6 +93,7 @@ public class GetCategoryProductsQueryHandlerTests
         var result = await handler.Handle(
             new GetCategoryProductsQuery(
                 subcategory.Id,
+                null,
                 milkType.Id,
                 fullCreamPart.Id,
                 liter.Id,
@@ -108,6 +109,8 @@ public class GetCategoryProductsQueryHandlerTests
         result.Items.Should().ContainSingle();
         result.Items[0].Id.Should().Be(matching.Id);
         result.Items[0].Name.Should().Be("Alpha Milk");
+        result.AppliedFilters.CategoryId.Should().Be(subcategory.Id);
+        result.AppliedFilters.SubcategoryId.Should().BeNull();
         result.AppliedFilters.ProductTypeId.Should().Be(milkType.Id);
         result.AppliedFilters.PartId.Should().Be(fullCreamPart.Id);
         result.AppliedFilters.BrandId.Should().Be(brandA.Id);
@@ -181,14 +184,14 @@ public class GetCategoryProductsQueryHandlerTests
             TestServiceFactory.CreateCachingOptions());
 
         var alphabetical = await handler.Handle(
-            new GetCategoryProductsQuery(root.Id, null, null, null, null, null, null, "alphabetical", 1, 2),
+            new GetCategoryProductsQuery(root.Id, null, null, null, null, null, null, null, "alphabetical", 1, 2),
             CancellationToken.None);
 
         alphabetical.Total.Should().Be(3);
         alphabetical.Items.Select(item => item.Name).Should().Equal("Alpha", "Gamma");
 
         var bestSelling = await handler.Handle(
-            new GetCategoryProductsQuery(root.Id, null, null, null, null, null, null, "best_selling", 1, 3),
+            new GetCategoryProductsQuery(root.Id, null, null, null, null, null, null, null, "best_selling", 1, 3),
             CancellationToken.None);
 
         bestSelling.Items.First().Name.Should().Be("Zeta");
@@ -238,7 +241,7 @@ public class GetCategoryProductsQueryHandlerTests
             TestServiceFactory.CreateCachingOptions());
 
         var result = await handler.Handle(
-            new GetCategoryProductsQuery(root.Id, null, null, null, null, null, null, "alphabetical", 1, 20),
+            new GetCategoryProductsQuery(root.Id, null, null, null, null, null, null, null, "alphabetical", 1, 20),
             CancellationToken.None);
 
         result.Total.Should().Be(2);
@@ -283,7 +286,7 @@ public class GetCategoryProductsQueryHandlerTests
             TestServiceFactory.CreateCachingOptions());
 
         var result = await handler.Handle(
-            new GetCategoryProductsQuery(category.Id, null, null, null, null, null, null, null, 1, 20),
+            new GetCategoryProductsQuery(category.Id, null, null, null, null, null, null, null, null, 1, 20),
             CancellationToken.None);
 
         result.Total.Should().Be(1);
@@ -332,11 +335,65 @@ public class GetCategoryProductsQueryHandlerTests
             TestServiceFactory.CreateCachingOptions());
 
         var result = await handler.Handle(
-            new GetCategoryProductsQuery(null, null, null, null, null, null, null, "alphabetical", 1, 20),
+            new GetCategoryProductsQuery(null, null, null, null, null, null, null, null, "alphabetical", 1, 20),
             CancellationToken.None);
 
         result.Total.Should().Be(2);
         result.Items.Select(item => item.Name).Should().Equal("Alpha Product", "Beta Product");
+    }
+
+    [Fact]
+    public async Task Handle_WhenSubcategoryIsSelected_InfersParentCategoryAndFiltersToItsProducts()
+    {
+        using var scope = new CultureScope("en");
+        await using var context = TestDbContextFactory.Create();
+
+        var root = new Category("food-ar", "Food", null, null, 1);
+        context.Categories.Add(root);
+        await context.SaveChangesAsync();
+
+        var milk = new Category("milk-ar", "Milk", null, root.Id, 1);
+        var cheese = new Category("cheese-ar", "Cheese", null, root.Id, 2);
+        context.Categories.AddRange(milk, cheese);
+        await context.SaveChangesAsync();
+
+        var brand = new Brand("brand-ar", "Brand", "brand.png");
+        var unit = new UnitOfMeasure("unit-ar", "Unit", "U");
+        context.Brands.Add(brand);
+        context.UnitsOfMeasure.Add(unit);
+        await context.SaveChangesAsync();
+
+        var milkProduct = new MasterProduct("milk-prod-ar", "Milk Product", "milk-product", milk.Id, brand.Id, unit.Id);
+        var cheeseProduct = new MasterProduct("cheese-prod-ar", "Cheese Product", "cheese-product", cheese.Id, brand.Id, unit.Id);
+        milkProduct.Publish();
+        cheeseProduct.Publish();
+        context.MasterProducts.AddRange(milkProduct, cheeseProduct);
+        await context.SaveChangesAsync();
+
+        var vendor = CreateActiveVendor("Store One");
+        context.Vendors.Add(vendor);
+        await context.SaveChangesAsync();
+
+        context.VendorProducts.AddRange(
+            new VendorProduct(vendor.Id, milkProduct.Id, 10m, 10),
+            new VendorProduct(vendor.Id, cheeseProduct.Id, 15m, 10));
+        await context.SaveChangesAsync();
+
+        var handler = new GetCategoryProductsQueryHandler(
+            context,
+            TestServiceFactory.CreateAppCache(),
+            TestServiceFactory.CreateCatalogReadCacheService(context),
+            TestServiceFactory.CreateCachingOptions());
+
+        var result = await handler.Handle(
+            new GetCategoryProductsQuery(null, milk.Id, null, null, null, null, null, null, null, 1, 20),
+            CancellationToken.None);
+
+        result.Total.Should().Be(1);
+        result.Items.Should().ContainSingle();
+        result.Items[0].Name.Should().Be("Milk Product");
+        result.AppliedFilters.CategoryId.Should().Be(root.Id);
+        result.AppliedFilters.SubcategoryId.Should().Be(milk.Id);
     }
 
     private static Vendor CreateActiveVendor(string businessNameEn)

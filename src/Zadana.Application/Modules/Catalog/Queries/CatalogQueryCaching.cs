@@ -64,6 +64,7 @@ internal static class CatalogQueryCacheKeys
 
     public static string CategoryProducts(
         Guid? categoryId,
+        Guid? subcategoryId,
         Guid? productTypeId,
         Guid? partId,
         Guid? quantityId,
@@ -80,6 +81,7 @@ internal static class CatalogQueryCacheKeys
             Version,
             AppCacheKeys.CurrentCulture,
             AppCacheKeys.GuidToken(categoryId),
+            AppCacheKeys.GuidToken(subcategoryId),
             AppCacheKeys.GuidToken(productTypeId),
             AppCacheKeys.GuidToken(partId),
             AppCacheKeys.GuidToken(quantityId),

@@ -415,7 +415,7 @@ public class CustomerEndpointLocalizationTests
         var categoryFilters = await new GetCategoryFiltersQueryHandler(context, cache, options)
             .Handle(new GetCategoryFiltersQuery(seed.Category.Id), CancellationToken.None);
         var categoryProducts = await new GetCategoryProductsQueryHandler(context, cache, catalogCache, options)
-            .Handle(new GetCategoryProductsQuery(seed.Subcategory.Id, null, null, null, null, null, null, null, 1, 20), CancellationToken.None);
+            .Handle(new GetCategoryProductsQuery(seed.Subcategory.Id, null, null, null, null, null, null, null, null, 1, 20), CancellationToken.None);
         var brandProducts = await new GetBrandProductsQueryHandler(context, cache, catalogCache, options)
             .Handle(new GetBrandProductsQuery(seed.Brand.Id, null, null, null, null, null, null, 1, 20), CancellationToken.None);
         var search = await new SearchProductsQueryHandler(context, cache, catalogCache, options)
