@@ -96,6 +96,7 @@ public interface IApplicationDbContext
     DbSet<DriverWithdrawalRequest> DriverWithdrawalRequests { get; }
 
     // Finances
+    DbSet<CityDeliveryPricingSettings> CityDeliveryPricingSettings { get; }
     DbSet<ZoneFinanceSettings> ZoneFinanceSettings { get; }
     DbSet<FinancialEvent> FinancialEvents { get; }
     DbSet<JournalEntry> JournalEntries { get; }

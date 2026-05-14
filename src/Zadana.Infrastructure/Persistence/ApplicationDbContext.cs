@@ -111,6 +111,7 @@ public class ApplicationDbContext : IdentityDbContext<User, IdentityRole<Guid>, 
     public DbSet<DriverWithdrawalRequest> DriverWithdrawalRequests => Set<DriverWithdrawalRequest>();
 
     // Finances
+    public DbSet<CityDeliveryPricingSettings> CityDeliveryPricingSettings => Set<CityDeliveryPricingSettings>();
     public DbSet<ZoneFinanceSettings> ZoneFinanceSettings => Set<ZoneFinanceSettings>();
     public DbSet<FinancialEvent> FinancialEvents => Set<FinancialEvent>();
     public DbSet<JournalEntry> JournalEntries => Set<JournalEntry>();

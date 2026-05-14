@@ -15,4 +15,11 @@ public sealed record DeliveryPriceQuote(
     decimal TotalFee,
     decimal DistanceKm,
     string PricingMode,
-    string RuleLabel);
+    string RuleLabel,
+    decimal DriverToVendorDistanceKm,
+    decimal VendorToCustomerDistanceKm,
+    decimal DriverToVendorFee,
+    decimal VendorToCustomerFee,
+    string DriverToVendorPricingSource,
+    string VendorToCustomerPricingSource,
+    bool UsedEstimatedDriverPricing);

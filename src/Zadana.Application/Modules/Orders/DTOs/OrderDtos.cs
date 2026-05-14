@@ -54,6 +54,17 @@ public record VendorOrderListItemDto(
 
 public record GeoPointDto(decimal Latitude, decimal Longitude);
 
+public record OrderDeliveryBreakdownDto(
+    decimal DriverToVendorDistanceKm,
+    decimal VendorToCustomerDistanceKm,
+    decimal DriverToVendorFee,
+    decimal VendorToCustomerFee,
+    decimal TotalDeliveryFee,
+    string DriverToVendorPricingSource,
+    string VendorToCustomerPricingSource,
+    string PricingMode,
+    bool UsedEstimatedDriverPricing);
+
 public record DriverLiveLocationDto(
     decimal Latitude,
     decimal Longitude,
@@ -71,6 +82,7 @@ public record VendorOrderDetailDto(
     string PaymentMethod,
     decimal Subtotal,
     decimal DeliveryFee,
+    OrderDeliveryBreakdownDto DeliveryBreakdown,
     decimal TotalAmount,
     string? Notes,
     DateTime PlacedAtUtc,
@@ -132,6 +144,7 @@ public record CustomerOrderDetailDto(
     bool CanCancel,
     int ItemsCount,
     CustomerOrderPriceSummaryDto Summary,
+    OrderDeliveryBreakdownDto DeliveryBreakdown,
     IReadOnlyList<CustomerOrderProductDto> Items,
     OrderSupportCaseSummaryDto? ActiveCase);
 
@@ -151,6 +164,7 @@ public record CustomerOrderTrackingDto(
     CustomerOrderEstimatedDeliveryDto? EstimatedDelivery,
     CustomerOrderTrackingDriverDto? Driver,
     AssignedDriverSummaryDto? AssignedDriver,
+    OrderDeliveryBreakdownDto DeliveryBreakdown,
     string DriverArrivalState,
     DateTime? DriverArrivalUpdatedAtUtc,
     string? DeliveryOtp,
@@ -425,6 +439,7 @@ public record AdminOrderDetailDto(
     DateTime LastUpdatedAtUtc,
     decimal Subtotal,
     decimal DeliveryFee,
+    OrderDeliveryBreakdownDto DeliveryBreakdown,
     decimal Tax,
     decimal Total,
     GeoPointDto? CustomerGeo,

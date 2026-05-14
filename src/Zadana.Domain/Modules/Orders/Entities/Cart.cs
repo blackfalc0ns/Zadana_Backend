@@ -19,6 +19,13 @@ public class Cart : BaseEntity
     public decimal? QuotedDistanceKm { get; private set; }
     public string? DeliveryPricingMode { get; private set; }
     public string? DeliveryPricingRuleLabel { get; private set; }
+    public decimal DriverToVendorDistanceKm { get; private set; }
+    public decimal VendorToCustomerDistanceKm { get; private set; }
+    public decimal DriverToVendorFee { get; private set; }
+    public decimal VendorToCustomerFee { get; private set; }
+    public string? DriverToVendorPricingSource { get; private set; }
+    public string? VendorToCustomerPricingSource { get; private set; }
+    public bool UsedEstimatedDriverPricing { get; private set; }
     public decimal Total { get; private set; }
 
     // Navigation
@@ -44,6 +51,10 @@ public class Cart : BaseEntity
         BaseDeliveryFee = 0;
         DistanceDeliveryFee = 0;
         SurgeDeliveryFee = 0;
+        DriverToVendorDistanceKm = 0;
+        VendorToCustomerDistanceKm = 0;
+        DriverToVendorFee = 0;
+        VendorToCustomerFee = 0;
         Total = 0;
     }
 
@@ -69,7 +80,14 @@ public class Cart : BaseEntity
         decimal surgeDeliveryFee = 0,
         decimal? quotedDistanceKm = null,
         string? deliveryPricingMode = null,
-        string? deliveryPricingRuleLabel = null)
+        string? deliveryPricingRuleLabel = null,
+        decimal driverToVendorDistanceKm = 0,
+        decimal vendorToCustomerDistanceKm = 0,
+        decimal driverToVendorFee = 0,
+        decimal vendorToCustomerFee = 0,
+        string? driverToVendorPricingSource = null,
+        string? vendorToCustomerPricingSource = null,
+        bool usedEstimatedDriverPricing = false)
     {
         Subtotal = subtotal;
         DeliveryFee = deliveryFee;
@@ -79,6 +97,13 @@ public class Cart : BaseEntity
         QuotedDistanceKm = quotedDistanceKm;
         DeliveryPricingMode = string.IsNullOrWhiteSpace(deliveryPricingMode) ? null : deliveryPricingMode.Trim();
         DeliveryPricingRuleLabel = string.IsNullOrWhiteSpace(deliveryPricingRuleLabel) ? null : deliveryPricingRuleLabel.Trim();
+        DriverToVendorDistanceKm = driverToVendorDistanceKm;
+        VendorToCustomerDistanceKm = vendorToCustomerDistanceKm;
+        DriverToVendorFee = driverToVendorFee;
+        VendorToCustomerFee = vendorToCustomerFee;
+        DriverToVendorPricingSource = string.IsNullOrWhiteSpace(driverToVendorPricingSource) ? null : driverToVendorPricingSource.Trim();
+        VendorToCustomerPricingSource = string.IsNullOrWhiteSpace(vendorToCustomerPricingSource) ? null : vendorToCustomerPricingSource.Trim();
+        UsedEstimatedDriverPricing = usedEstimatedDriverPricing;
         RecalculateTotal();
     }
 

@@ -10,6 +10,7 @@ public record CheckoutSummaryDto(
     List<CheckoutPaymentMethodDto> PaymentMethods,
     CheckoutPromoCodeDto? PromoCode,
     CheckoutDeliveryQuoteDto DeliveryQuote,
+    CheckoutDeliveryBreakdownDto DeliveryBreakdown,
     List<CheckoutShippingBreakdownLineDto> ShippingBreakdown,
     string PricingMode,
     CheckoutTotalsDto Summary);
@@ -161,6 +162,18 @@ public record CheckoutDeliveryQuoteDto(
     decimal TotalFee,
     string PricingMode,
     string RuleLabel);
+
+public record CheckoutDeliveryLegDto(
+    decimal DistanceKm,
+    decimal Fee,
+    string PricingSource);
+
+public record CheckoutDeliveryBreakdownDto(
+    CheckoutDeliveryLegDto DriverToVendor,
+    CheckoutDeliveryLegDto VendorToCustomer,
+    decimal TotalDelivery,
+    string PricingMode,
+    bool UsedEstimatedDriverPricing);
 
 public sealed record CheckoutShippingBreakdownLineDto
 {

@@ -28,6 +28,13 @@ public class Order : BaseEntity
     public decimal? QuotedDistanceKm { get; private set; }
     public string? DeliveryPricingMode { get; private set; }
     public string? DeliveryPricingRuleLabel { get; private set; }
+    public decimal DriverToVendorDistanceKm { get; private set; }
+    public decimal VendorToCustomerDistanceKm { get; private set; }
+    public decimal DriverToVendorFee { get; private set; }
+    public decimal VendorToCustomerFee { get; private set; }
+    public string? DriverToVendorPricingSource { get; private set; }
+    public string? VendorToCustomerPricingSource { get; private set; }
+    public bool UsedEstimatedDriverPricing { get; private set; }
     public decimal CommissionAmount { get; private set; }
     public decimal VatAmount { get; private set; }
     public decimal CodFee { get; private set; }
@@ -66,6 +73,13 @@ public class Order : BaseEntity
         decimal? quotedDistanceKm,
         string? deliveryPricingMode,
         string? deliveryPricingRuleLabel,
+        decimal driverToVendorDistanceKm,
+        decimal vendorToCustomerDistanceKm,
+        decimal driverToVendorFee,
+        decimal vendorToCustomerFee,
+        string? driverToVendorPricingSource,
+        string? vendorToCustomerPricingSource,
+        bool usedEstimatedDriverPricing,
         decimal commissionAmount,
         decimal vatAmount = 0,
         decimal codFee = 0,
@@ -87,6 +101,13 @@ public class Order : BaseEntity
         QuotedDistanceKm = quotedDistanceKm;
         DeliveryPricingMode = string.IsNullOrWhiteSpace(deliveryPricingMode) ? null : deliveryPricingMode.Trim();
         DeliveryPricingRuleLabel = string.IsNullOrWhiteSpace(deliveryPricingRuleLabel) ? null : deliveryPricingRuleLabel.Trim();
+        DriverToVendorDistanceKm = driverToVendorDistanceKm;
+        VendorToCustomerDistanceKm = vendorToCustomerDistanceKm;
+        DriverToVendorFee = driverToVendorFee;
+        VendorToCustomerFee = vendorToCustomerFee;
+        DriverToVendorPricingSource = string.IsNullOrWhiteSpace(driverToVendorPricingSource) ? null : driverToVendorPricingSource.Trim();
+        VendorToCustomerPricingSource = string.IsNullOrWhiteSpace(vendorToCustomerPricingSource) ? null : vendorToCustomerPricingSource.Trim();
+        UsedEstimatedDriverPricing = usedEstimatedDriverPricing;
         CommissionAmount = commissionAmount;
         VatAmount = vatAmount;
         CodFee = codFee;
