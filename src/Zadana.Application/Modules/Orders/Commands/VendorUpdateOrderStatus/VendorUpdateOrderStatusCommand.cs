@@ -69,7 +69,9 @@ public class VendorUpdateOrderStatusCommandHandler : IRequestHandler<VendorUpdat
             ?? throw new NotFoundException("Order", request.OrderId);
 
         // Idempotent: avoid duplicate status side effects, but still retry dispatch for ready orders.
-        if (order.Status == request.NewStatus)
+        // Once an order is marked ready, auto-dispatch may immediately advance it to a later
+        // dispatch state before the vendor UI refreshes.
+        if (IsIdempotentReadyTransition(order.Status, request.NewStatus))
         {
             if (request.NewStatus == OrderStatus.ReadyForPickup)
             {
@@ -78,7 +80,7 @@ public class VendorUpdateOrderStatusCommandHandler : IRequestHandler<VendorUpdat
 
             return new VendorUpdateOrderStatusResultDto(
                 order.Id,
-                request.NewStatus.ToString(),
+                order.Status.ToString(),
                 "Order status updated successfully");
         }
 
@@ -144,4 +146,9 @@ public class VendorUpdateOrderStatusCommandHandler : IRequestHandler<VendorUpdat
                 $"Cannot transition from {current} to {target}");
         }
     }
+
+    private static bool IsIdempotentReadyTransition(OrderStatus current, OrderStatus target) =>
+        current == target ||
+        (target == OrderStatus.ReadyForPickup &&
+         current is OrderStatus.DriverAssignmentInProgress or OrderStatus.DriverAssigned);
 }

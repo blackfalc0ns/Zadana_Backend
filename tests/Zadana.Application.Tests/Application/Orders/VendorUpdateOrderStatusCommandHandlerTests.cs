@@ -177,6 +177,48 @@ public class VendorUpdateOrderStatusCommandHandlerTests
             Times.Once);
     }
 
+    [Theory]
+    [InlineData(OrderStatus.DriverAssignmentInProgress)]
+    [InlineData(OrderStatus.DriverAssigned)]
+    public async Task Handle_WhenReadyForPickupAlreadyAdvancedIntoDispatch_ShouldRemainIdempotent(
+        OrderStatus currentStatus)
+    {
+        await using var dbContext = CreateDbContext();
+        var customer = CreateCustomer();
+        var vendorId = Guid.NewGuid();
+        var order = CreateOrder(customer.Id, vendorId, currentStatus, $"ORD-IDEMPOTENT-{currentStatus}");
+
+        dbContext.Users.Add(customer);
+        dbContext.Orders.Add(order);
+        await dbContext.SaveChangesAsync();
+
+        var publisherMock = new Mock<IPublisher>();
+        var dispatcherMock = new Mock<IOrderStatusNotificationDispatcher>();
+        var deliveryDispatchServiceMock = new Mock<IDeliveryDispatchService>();
+        var handler = new VendorUpdateOrderStatusCommandHandler(
+            dbContext,
+            dbContext,
+            publisherMock.Object,
+            dispatcherMock.Object,
+            deliveryDispatchServiceMock.Object);
+
+        var result = await handler.Handle(
+            new VendorUpdateOrderStatusCommand(order.Id, vendorId, OrderStatus.ReadyForPickup, null),
+            CancellationToken.None);
+
+        result.Status.Should().Be(currentStatus.ToString());
+        order.Status.Should().Be(currentStatus);
+        dispatcherMock.Verify(
+            service => service.DispatchCustomerAsync(It.IsAny<OrderStatusCustomerNotificationRequest>(), It.IsAny<CancellationToken>()),
+            Times.Never);
+        publisherMock.Verify(
+            publisher => publisher.Publish(It.IsAny<OrderStatusChangedNotification>(), It.IsAny<CancellationToken>()),
+            Times.Never);
+        deliveryDispatchServiceMock.Verify(
+            service => service.TryAutoDispatchAsync(order.Id, It.IsAny<bool>(), It.IsAny<CancellationToken>()),
+            Times.Once);
+    }
+
     private static ApplicationDbContext CreateDbContext()
     {
         var options = new DbContextOptionsBuilder<ApplicationDbContext>()

@@ -453,10 +453,18 @@ public class DeliveryDispatchService : IDeliveryDispatchService
             order.Vendor?.City,
             order.Vendor?.Region);
 
+        var today = DateTime.UtcNow.Date;
+
         var eligibleDrivers = await _context.Drivers
             .Include(driver => driver.User)
             .Where(driver =>
-                driver.CanReceiveNewOffers &&
+                driver.VerificationStatus == DriverVerificationStatus.Approved &&
+                driver.Status == AccountStatus.Active &&
+                driver.IsAvailable &&
+                !driver.IsLocationUpdatesBlocked &&
+                (!driver.NationalIdExpiryDate.HasValue || driver.NationalIdExpiryDate.Value >= today) &&
+                (!driver.DriverLicenseExpiryDate.HasValue || driver.DriverLicenseExpiryDate.Value >= today) &&
+                (!driver.VehicleLicenseExpiryDate.HasValue || driver.VehicleLicenseExpiryDate.Value >= today) &&
                 !busyDriverIds.Contains(driver.Id))
             .ToListAsync(cancellationToken);
 
@@ -471,7 +479,13 @@ public class DeliveryDispatchService : IDeliveryDispatchService
             eligibleDrivers = await _context.Drivers
                 .Include(driver => driver.User)
                 .Where(driver =>
-                    driver.CanReceiveNewOffers &&
+                    driver.VerificationStatus == DriverVerificationStatus.Approved &&
+                    driver.Status == AccountStatus.Active &&
+                    driver.IsAvailable &&
+                    !driver.IsLocationUpdatesBlocked &&
+                    (!driver.NationalIdExpiryDate.HasValue || driver.NationalIdExpiryDate.Value >= today) &&
+                    (!driver.DriverLicenseExpiryDate.HasValue || driver.DriverLicenseExpiryDate.Value >= today) &&
+                    (!driver.VehicleLicenseExpiryDate.HasValue || driver.VehicleLicenseExpiryDate.Value >= today) &&
                     !busyDriverIds.Contains(driver.Id))
                 .ToListAsync(cancellationToken);
 
