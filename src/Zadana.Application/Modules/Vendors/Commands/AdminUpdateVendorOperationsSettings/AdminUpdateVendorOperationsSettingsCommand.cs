@@ -60,9 +60,9 @@ public class AdminUpdateVendorOperationsSettingsCommandHandler : IRequestHandler
             vendor.UserId,
             "operations-settings-updated",
             "info",
-            $"Operations settings updated. Accept orders: {(request.AcceptOrders ? "enabled" : "disabled")}, minimum order: {request.MinimumOrderAmount?.ToString("0.##") ?? "not set"}, preparation time: {request.PreparationTimeMinutes?.ToString() ?? "not set"} minutes.",
-            "Operations Console",
-            "Admin",
+            $"تم تحديث إعدادات التشغيل. قبول الطلبات: {(request.AcceptOrders ? "مفعّل" : "معطّل")}، الحد الأدنى للطلب: {request.MinimumOrderAmount?.ToString("0.##") ?? "غير محدد"}، وقت التحضير: {request.PreparationTimeMinutes?.ToString() ?? "غير محدد"} دقيقة.",
+            "لوحة التشغيل",
+            "المسؤول",
             _currentUserService.UserId,
             cancellationToken: cancellationToken);
 

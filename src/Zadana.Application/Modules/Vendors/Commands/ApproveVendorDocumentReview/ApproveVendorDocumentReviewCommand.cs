@@ -63,9 +63,9 @@ public class ApproveVendorDocumentReviewCommandHandler : IRequestHandler<Approve
             vendor.UserId,
             "document-approved",
             "success",
-            $"{documentType} document approved.",
-            "Document Review",
-            "Vendor Compliance Desk",
+            $"تم قبول مستند {MapDocumentTypeToArabic(documentType)}.",
+            "مراجعة المستندات",
+            "مكتب امتثال التاجر",
             _currentUserService.UserId,
             reviewerName,
             cancellationToken);
@@ -101,4 +101,14 @@ public class ApproveVendorDocumentReviewCommandHandler : IRequestHandler<Approve
         var actor = await _identityAccountService.FindByIdAsync(_currentUserService.UserId.Value, cancellationToken);
         return string.IsNullOrWhiteSpace(actor?.FullName) ? "Vendor Compliance Desk" : actor.FullName;
     }
+
+    private static string MapDocumentTypeToArabic(VendorDocumentType type) => type switch
+    {
+        VendorDocumentType.Commercial => "السجل التجاري",
+        VendorDocumentType.Tax => "الضريبة",
+        VendorDocumentType.License => "الرخصة",
+        VendorDocumentType.Identity => "الهوية",
+        VendorDocumentType.Bank => "البنك",
+        _ => type.ToString()
+    };
 }

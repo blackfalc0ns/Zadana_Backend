@@ -10,7 +10,8 @@ namespace Zadana.Application.Modules.Vendors.Commands.UpdateVendorNotificationSe
 public record UpdateVendorNotificationSettingsCommand(
     bool EmailNotificationsEnabled,
     bool SmsNotificationsEnabled,
-    bool NewOrdersNotificationsEnabled) : IRequest<VendorWorkspaceDto>;
+    bool NewOrdersNotificationsEnabled,
+    string? NotificationSound = null) : IRequest<VendorWorkspaceDto>;
 
 public class UpdateVendorNotificationSettingsCommandValidator : AbstractValidator<UpdateVendorNotificationSettingsCommand>
 {
@@ -47,7 +48,8 @@ public class UpdateVendorNotificationSettingsCommandHandler : IRequestHandler<Up
         vendor.UpdateNotificationSettings(
             request.EmailNotificationsEnabled,
             request.SmsNotificationsEnabled,
-            request.NewOrdersNotificationsEnabled);
+            request.NewOrdersNotificationsEnabled,
+            request.NotificationSound);
 
         await _unitOfWork.SaveChangesAsync(cancellationToken);
 
@@ -55,11 +57,11 @@ public class UpdateVendorNotificationSettingsCommandHandler : IRequestHandler<Up
             vendor.UserId,
             "profile-notifications-updated",
             "info",
-            "Vendor updated notification preferences from Vendor Portal.",
-            "Vendor Portal",
-            vendor.BusinessNameEn,
+            "قام التاجر بتحديث تفضيلات الإشعارات من بوابة التاجر.",
+            "بوابة التاجر",
+            vendor.BusinessNameAr,
             userId,
-            vendor.BusinessNameEn,
+            vendor.BusinessNameAr,
             cancellationToken);
 
         return await _vendorReadService.GetWorkspaceByUserIdAsync(userId, cancellationToken)

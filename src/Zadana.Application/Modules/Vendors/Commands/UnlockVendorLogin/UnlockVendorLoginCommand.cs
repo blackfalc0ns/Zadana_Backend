@@ -69,9 +69,9 @@ public class UnlockVendorLoginCommandHandler : IRequestHandler<UnlockVendorLogin
             vendor.UserId,
             "login-unlocked",
             "success",
-            "Vendor login was unlocked and account access was restored.",
-            "Security Control",
-            "Admin",
+            "تم فتح دخول التاجر واستعادة الوصول للحساب.",
+            "التحكم الأمني",
+            "المسؤول",
             _currentUserService.UserId,
             cancellationToken: cancellationToken);
 

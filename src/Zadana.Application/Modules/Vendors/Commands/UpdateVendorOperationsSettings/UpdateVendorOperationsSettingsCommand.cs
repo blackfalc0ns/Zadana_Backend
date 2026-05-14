@@ -56,11 +56,11 @@ public class UpdateVendorOperationsSettingsCommandHandler : IRequestHandler<Upda
             vendor.UserId,
             "profile-operations-updated",
             "info",
-            "Vendor updated operational settings from Vendor Portal.",
-            "Vendor Portal",
-            vendor.BusinessNameEn,
+            "قام التاجر بتحديث إعدادات التشغيل من بوابة التاجر.",
+            "بوابة التاجر",
+            vendor.BusinessNameAr,
             userId,
-            vendor.BusinessNameEn,
+            vendor.BusinessNameAr,
             cancellationToken);
 
         return await _vendorReadService.GetWorkspaceByUserIdAsync(userId, cancellationToken)

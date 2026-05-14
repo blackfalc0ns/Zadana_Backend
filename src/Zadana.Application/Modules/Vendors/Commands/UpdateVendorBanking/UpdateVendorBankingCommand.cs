@@ -96,11 +96,11 @@ public class UpdateVendorBankingCommandHandler : IRequestHandler<UpdateVendorBan
             vendor.UserId,
             "profile-banking-updated",
             "warning",
-            "Vendor updated banking and payout setup from Vendor Portal.",
-            "Vendor Portal",
-            vendor.BusinessNameEn,
+            "قام التاجر بتحديث بيانات الحساب البنكي والتسويات من بوابة التاجر.",
+            "بوابة التاجر",
+            vendor.BusinessNameAr,
             userId,
-            vendor.BusinessNameEn,
+            vendor.BusinessNameAr,
             cancellationToken);
 
         await _adminAlertService.SendAsync(

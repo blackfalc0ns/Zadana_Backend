@@ -1,4 +1,4 @@
-﻿using Microsoft.AspNetCore.Authorization;
+using Microsoft.AspNetCore.Authorization;
 using Microsoft.AspNetCore.Mvc;
 using Zadana.Api.Controllers;
 using Zadana.Api.Modules.Marketing.Requests;
@@ -6,6 +6,7 @@ using Zadana.Application.Modules.Marketing.Commands.FeaturedPlacements;
 using Zadana.Application.Modules.Marketing.Commands.FeaturedProductSelectionSettings;
 using Zadana.Application.Modules.Marketing.DTOs;
 using Zadana.Application.Modules.Marketing.Queries.FeaturedPlacements;
+using Zadana.Application.Modules.Marketing.Queries.ProductLookup;
 using Zadana.Application.Modules.Marketing.Queries.FeaturedProductSelectionSettings;
 
 namespace Zadana.Api.Modules.Marketing.Controllers;
@@ -86,6 +87,20 @@ public class AdminMarketingFeaturedProductsController : ApiControllerBase
     {
         await Sender.Send(new DeleteFeaturedProductPlacementCommand(id));
         return NoContent();
+    }
+
+    [HttpGet("lookup/master-products")]
+    public async Task<ActionResult<List<MasterProductLookupDto>>> LookupMasterProducts([FromQuery] string? search)
+    {
+        var result = await Sender.Send(new GetMasterProductLookupQuery(search));
+        return Ok(result);
+    }
+
+    [HttpGet("lookup/vendor-products")]
+    public async Task<ActionResult<List<VendorProductLookupDto>>> LookupVendorProducts([FromQuery] string? search)
+    {
+        var result = await Sender.Send(new GetVendorProductLookupQuery(search));
+        return Ok(result);
     }
 }
 

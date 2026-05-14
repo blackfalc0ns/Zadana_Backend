@@ -58,7 +58,8 @@ public class NotificationDevicesController : ApiControllerBase
             request.AdminRefundsPushEnabled,
             request.AdminSettlementsPushEnabled,
             request.AdminSupportPushEnabled,
-            request.AdminSystemPushEnabled), cancellationToken);
+            request.AdminSystemPushEnabled,
+            request.NotificationSound), cancellationToken);
 
         return Ok(Map(device));
     }
@@ -86,7 +87,8 @@ public class NotificationDevicesController : ApiControllerBase
             request.AdminRefundsPushEnabled,
             request.AdminSettlementsPushEnabled,
             request.AdminSupportPushEnabled,
-            request.AdminSystemPushEnabled), cancellationToken);
+            request.AdminSystemPushEnabled,
+            request.NotificationSound), cancellationToken);
 
         return Ok(Map(device));
     }
@@ -127,6 +129,7 @@ public class NotificationDevicesController : ApiControllerBase
             dto.AdminSettlementsPushEnabled,
             dto.AdminSupportPushEnabled,
             dto.AdminSystemPushEnabled,
+            dto.NotificationSound,
             dto.IsActive,
             dto.LastRegisteredAtUtc,
             dto.LastSeenAtUtc);
@@ -156,6 +159,7 @@ public record NotificationDeviceResponse(
     bool AdminSettlementsPushEnabled,
     bool AdminSupportPushEnabled,
     bool AdminSystemPushEnabled,
+    string NotificationSound,
     bool IsActive,
     DateTime LastRegisteredAtUtc,
     DateTime LastSeenAtUtc);

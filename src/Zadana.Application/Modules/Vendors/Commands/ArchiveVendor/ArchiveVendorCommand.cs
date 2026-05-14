@@ -68,8 +68,8 @@ public class ArchiveVendorCommandHandler : IRequestHandler<ArchiveVendorCommand>
             "archived",
             "danger",
             request.Reason,
-            "Admin Action",
-            "Admin",
+            "إجراء إداري",
+            "المسؤول",
             _currentUserService.UserId,
             cancellationToken: cancellationToken);
 

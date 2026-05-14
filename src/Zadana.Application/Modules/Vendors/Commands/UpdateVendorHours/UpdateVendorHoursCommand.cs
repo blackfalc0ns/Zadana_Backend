@@ -103,11 +103,11 @@ public class UpdateVendorHoursCommandHandler : IRequestHandler<UpdateVendorHours
             vendor.UserId,
             "profile-hours-updated",
             "info",
-            "Vendor updated operating hours from Vendor Portal.",
-            "Vendor Portal",
-            vendor.BusinessNameEn,
+            "قام التاجر بتحديث ساعات العمل من بوابة التاجر.",
+            "بوابة التاجر",
+            vendor.BusinessNameAr,
             userId,
-            vendor.BusinessNameEn,
+            vendor.BusinessNameAr,
             cancellationToken);
 
         return await _vendorReadService.GetWorkspaceByUserIdAsync(userId, cancellationToken)

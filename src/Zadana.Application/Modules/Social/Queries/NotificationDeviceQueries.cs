@@ -41,6 +41,7 @@ public class GetNotificationDevicesQueryHandler : IRequestHandler<GetNotificatio
                 x.AdminSettlementsPushEnabled,
                 x.AdminSupportPushEnabled,
                 x.AdminSystemPushEnabled,
+                x.NotificationSound,
                 x.IsActive,
                 x.LastRegisteredAtUtc,
                 x.LastSeenAtUtc))

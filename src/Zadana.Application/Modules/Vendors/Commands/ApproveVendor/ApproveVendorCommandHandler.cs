@@ -65,9 +65,9 @@ public class ApproveVendorCommandHandler : IRequestHandler<ApproveVendorCommand>
             vendor.UserId,
             "approved",
             "success",
-            $"Vendor approved with commission rate {request.CommissionRate:0.##}%.",
-            "Compliance Review",
-            "Admin",
+            $"تمت الموافقة على التاجر بنسبة عمولة {request.CommissionRate:0.##}%.",
+            "مراجعة الامتثال",
+            "المسؤول",
             adminId,
             cancellationToken: cancellationToken);
 

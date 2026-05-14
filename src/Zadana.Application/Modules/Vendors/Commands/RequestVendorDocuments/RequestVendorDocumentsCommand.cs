@@ -38,7 +38,7 @@ public class RequestVendorDocumentsCommandHandler : IRequestHandler<RequestVendo
         VendorReviewWorkflow.EnsureComplianceActionAllowed(vendor);
 
         var note = string.IsNullOrWhiteSpace(request.Note)
-            ? "Please re-upload the required legal documents and confirm the latest vendor information."
+            ? "يرجى إعادة رفع المستندات القانونية المطلوبة وتأكيد أحدث بيانات التاجر."
             : request.Note.Trim();
 
         await _vendorReviewAuditService.AppendEntryAsync(
@@ -46,8 +46,8 @@ public class RequestVendorDocumentsCommandHandler : IRequestHandler<RequestVendo
             "request-documents",
             "warning",
             note,
-            "Compliance Review",
-            "Vendor Compliance Desk",
+            "مراجعة الامتثال",
+            "مكتب امتثال التاجر",
             _currentUserService.UserId,
             cancellationToken: cancellationToken);
 

@@ -39,8 +39,8 @@ public class RejectVendorCommandHandler : IRequestHandler<RejectVendorCommand>
             "rejected",
             "danger",
             request.Reason,
-            "Compliance Review",
-            "Vendor Compliance Desk",
+            "مراجعة الامتثال",
+            "مكتب امتثال التاجر",
             _currentUserService.UserId,
             cancellationToken: cancellationToken);
 

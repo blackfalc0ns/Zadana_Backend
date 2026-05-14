@@ -3,6 +3,7 @@ using Microsoft.EntityFrameworkCore;
 using Zadana.Application.Common.Interfaces;
 using Zadana.Domain.Modules.Identity.Entities;
 using Zadana.Domain.Modules.Identity.Enums;
+using Zadana.Domain.Modules.Social.Support;
 using Zadana.SharedKernel.Exceptions;
 
 namespace Zadana.Application.Modules.Social.Commands;
@@ -29,6 +30,7 @@ public record NotificationDeviceDto(
     bool AdminSettlementsPushEnabled,
     bool AdminSupportPushEnabled,
     bool AdminSystemPushEnabled,
+    string NotificationSound,
     bool IsActive,
     DateTime LastRegisteredAtUtc,
     DateTime LastSeenAtUtc);
@@ -54,7 +56,8 @@ public record RegisterNotificationDeviceCommand(
     bool AdminRefundsPushEnabled = true,
     bool AdminSettlementsPushEnabled = true,
     bool AdminSupportPushEnabled = true,
-    bool AdminSystemPushEnabled = true) : IRequest<NotificationDeviceDto>;
+    bool AdminSystemPushEnabled = true,
+    string? NotificationSound = null) : IRequest<NotificationDeviceDto>;
 
 public class RegisterNotificationDeviceCommandHandler : IRequestHandler<RegisterNotificationDeviceCommand, NotificationDeviceDto>
 {
@@ -106,7 +109,8 @@ public class RegisterNotificationDeviceCommandHandler : IRequestHandler<Register
                 request.AdminRefundsPushEnabled,
                 request.AdminSettlementsPushEnabled,
                 request.AdminSupportPushEnabled,
-                request.AdminSystemPushEnabled);
+                request.AdminSystemPushEnabled,
+                request.NotificationSound);
 
             _context.UserPushDevices.Add(device);
         }
@@ -133,7 +137,8 @@ public class RegisterNotificationDeviceCommandHandler : IRequestHandler<Register
                 request.AdminRefundsPushEnabled,
                 request.AdminSettlementsPushEnabled,
                 request.AdminSupportPushEnabled,
-                request.AdminSystemPushEnabled);
+                request.AdminSystemPushEnabled,
+                request.NotificationSound);
         }
 
         await _context.SaveChangesAsync(cancellationToken);
@@ -164,6 +169,7 @@ public class RegisterNotificationDeviceCommandHandler : IRequestHandler<Register
             device.AdminSettlementsPushEnabled,
             device.AdminSupportPushEnabled,
             device.AdminSystemPushEnabled,
+            NotificationSoundCatalog.Normalize(device.NotificationSound),
             device.IsActive,
             device.LastRegisteredAtUtc,
             device.LastSeenAtUtc);
@@ -186,7 +192,8 @@ public record UpdateNotificationDevicePreferencesCommand(
     bool? AdminRefundsPushEnabled = null,
     bool? AdminSettlementsPushEnabled = null,
     bool? AdminSupportPushEnabled = null,
-    bool? AdminSystemPushEnabled = null) : IRequest<NotificationDeviceDto>;
+    bool? AdminSystemPushEnabled = null,
+    string? NotificationSound = null) : IRequest<NotificationDeviceDto>;
 
 public class UpdateNotificationDevicePreferencesCommandHandler : IRequestHandler<UpdateNotificationDevicePreferencesCommand, NotificationDeviceDto>
 {
@@ -216,7 +223,8 @@ public class UpdateNotificationDevicePreferencesCommandHandler : IRequestHandler
             request.AdminRefundsPushEnabled,
             request.AdminSettlementsPushEnabled,
             request.AdminSupportPushEnabled,
-            request.AdminSystemPushEnabled);
+            request.AdminSystemPushEnabled,
+            request.NotificationSound);
         await _context.SaveChangesAsync(cancellationToken);
         return RegisterNotificationDeviceCommandHandler.Map(device);
     }

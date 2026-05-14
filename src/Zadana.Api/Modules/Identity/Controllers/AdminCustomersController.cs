@@ -37,10 +37,18 @@ public class AdminCustomersController : ApiControllerBase
     [HttpGet]
     public async Task<IActionResult> GetCustomers(
         [FromQuery] string? search,
+        [FromQuery] string? status,
+        [FromQuery] string? city,
+        [FromQuery] bool? isLocked,
+        [FromQuery] bool? hasOrders,
+        [FromQuery] decimal? minSpent,
+        [FromQuery] decimal? maxSpent,
+        [FromQuery] string? sortBy,
         [FromQuery] int page = 1,
         [FromQuery] int pageSize = 50)
     {
-        var result = await Sender.Send(new GetAdminCustomersQuery(search, page, pageSize));
+        var result = await Sender.Send(new GetAdminCustomersQuery(
+            search, status, city, isLocked, hasOrders, minSpent, maxSpent, sortBy, page, pageSize));
         return Ok(result);
     }
 

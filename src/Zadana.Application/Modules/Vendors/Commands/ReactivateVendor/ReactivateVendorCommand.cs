@@ -72,9 +72,9 @@ public class ReactivateVendorCommandHandler : IRequestHandler<ReactivateVendorCo
             vendor.UserId,
             "reactivated",
             "success",
-            "Vendor account reactivated and returned to active status.",
-            "Risk & Compliance",
-            "Risk & Compliance Desk",
+            "تم إعادة تفعيل حساب التاجر وإرجاعه للحالة النشطة.",
+            "المخاطر والامتثال",
+            "مكتب المخاطر والامتثال",
             _currentUserService.UserId,
             cancellationToken: cancellationToken);
 

@@ -68,8 +68,8 @@ public class LockVendorLoginCommandHandler : IRequestHandler<LockVendorLoginComm
             "locked",
             "danger",
             request.Reason,
-            "Security Review",
-            "Security Desk",
+            "مراجعة أمنية",
+            "مكتب الأمان",
             _currentUserService.UserId,
             cancellationToken: cancellationToken);
 

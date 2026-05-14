@@ -1,6 +1,7 @@
 using Microsoft.EntityFrameworkCore;
 using Microsoft.EntityFrameworkCore.Metadata.Builders;
 using Zadana.Domain.Modules.Identity.Entities;
+using Zadana.Domain.Modules.Social.Support;
 using Zadana.Domain.Modules.Vendors.Entities;
 using Zadana.Domain.Modules.Vendors.Enums;
 
@@ -99,6 +100,11 @@ public class VendorConfiguration : IEntityTypeConfiguration<Vendor>
 
         builder.Property(v => v.NewOrdersNotificationsEnabled)
             .HasDefaultValue(true);
+
+        builder.Property(v => v.NotificationSound)
+            .IsRequired()
+            .HasMaxLength(32)
+            .HasDefaultValue(NotificationSoundCatalog.Classic);
 
         builder.Property(v => v.Status)
             .IsRequired()

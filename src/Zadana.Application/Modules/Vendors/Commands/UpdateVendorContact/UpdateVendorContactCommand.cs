@@ -59,11 +59,11 @@ public class UpdateVendorContactCommandHandler : IRequestHandler<UpdateVendorCon
             vendor.UserId,
             "profile-contact-updated",
             "info",
-            "Vendor updated address and contact location details from Vendor Portal.",
-            "Vendor Portal",
-            vendor.BusinessNameEn,
+            "قام التاجر بتحديث بيانات العنوان والموقع من بوابة التاجر.",
+            "بوابة التاجر",
+            vendor.BusinessNameAr,
             userId,
-            vendor.BusinessNameEn,
+            vendor.BusinessNameAr,
             cancellationToken);
 
         return await _vendorReadService.GetWorkspaceByUserIdAsync(userId, cancellationToken)

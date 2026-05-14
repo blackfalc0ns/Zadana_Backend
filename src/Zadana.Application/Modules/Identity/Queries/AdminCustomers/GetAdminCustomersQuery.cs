@@ -10,6 +10,13 @@ namespace Zadana.Application.Modules.Identity.Queries.AdminCustomers;
 
 public record GetAdminCustomersQuery(
     string? Search = null,
+    string? Status = null,
+    string? City = null,
+    bool? IsLocked = null,
+    bool? HasOrders = null,
+    decimal? MinSpent = null,
+    decimal? MaxSpent = null,
+    string? SortBy = null,
     int Page = 1,
     int PageSize = 50) : IRequest<PaginatedList<AdminCustomerListItemDto>>;
 
@@ -42,10 +49,94 @@ public class GetAdminCustomersQueryHandler : IRequestHandler<GetAdminCustomersQu
                 (user.PhoneNumber != null && user.PhoneNumber.Contains(search)));
         }
 
+        // Filter by account status
+        if (!string.IsNullOrWhiteSpace(request.Status))
+        {
+            if (Enum.TryParse<AccountStatus>(request.Status, ignoreCase: true, out var parsedStatus))
+            {
+                query = query.Where(user => user.AccountStatus == parsedStatus);
+            }
+        }
+
+        // Filter by login locked
+        if (request.IsLocked.HasValue)
+        {
+            query = query.Where(user => user.IsLoginLocked == request.IsLocked.Value);
+        }
+
+        // Filter by city (via address join)
+        if (!string.IsNullOrWhiteSpace(request.City))
+        {
+            var city = request.City.Trim();
+            var userIdsInCity = _context.CustomerAddresses
+                .AsNoTracking()
+                .Where(address => address.City != null && address.City.Contains(city))
+                .Select(address => address.UserId);
+
+            query = query.Where(user => userIdsInCity.Contains(user.Id));
+        }
+
+        // Filter by hasOrders / spending — requires joining order stats
+        // We collect IDs first for spend/order filters that need aggregation
+        var needsOrderFilter = request.HasOrders.HasValue || request.MinSpent.HasValue || request.MaxSpent.HasValue;
+        if (needsOrderFilter)
+        {
+            var orderStatsFilter = _context.Orders
+                .AsNoTracking()
+                .GroupBy(order => order.UserId)
+                .Select(group => new
+                {
+                    UserId = group.Key,
+                    TotalOrders = group.Count(),
+                    TotalSpent = group.Sum(order => order.TotalAmount)
+                });
+
+            if (request.HasOrders == true)
+            {
+                var usersWithOrders = orderStatsFilter
+                    .Where(stats => stats.TotalOrders > 0)
+                    .Select(stats => stats.UserId);
+                query = query.Where(user => usersWithOrders.Contains(user.Id));
+            }
+            else if (request.HasOrders == false)
+            {
+                var usersWithOrders = orderStatsFilter
+                    .Where(stats => stats.TotalOrders > 0)
+                    .Select(stats => stats.UserId);
+                query = query.Where(user => !usersWithOrders.Contains(user.Id));
+            }
+
+            if (request.MinSpent.HasValue)
+            {
+                var usersAboveMin = orderStatsFilter
+                    .Where(stats => stats.TotalSpent >= request.MinSpent.Value)
+                    .Select(stats => stats.UserId);
+                query = query.Where(user => usersAboveMin.Contains(user.Id));
+            }
+
+            if (request.MaxSpent.HasValue)
+            {
+                var usersBelowMax = orderStatsFilter
+                    .Where(stats => stats.TotalSpent <= request.MaxSpent.Value)
+                    .Select(stats => stats.UserId);
+                query = query.Where(user => usersBelowMax.Contains(user.Id));
+            }
+        }
+
         var totalCount = await query.CountAsync(cancellationToken);
 
+        // Sorting
+        var sortBy = request.SortBy?.Trim().ToLowerInvariant();
+        query = sortBy switch
+        {
+            "name" => query.OrderBy(user => user.FullName),
+            "name_desc" => query.OrderByDescending(user => user.FullName),
+            "created" => query.OrderBy(user => user.CreatedAtUtc),
+            "last_login" => query.OrderByDescending(user => user.LastLoginAtUtc),
+            _ => query.OrderByDescending(user => user.CreatedAtUtc)
+        };
+
         var customers = await query
-            .OrderByDescending(user => user.CreatedAtUtc)
             .Skip((page - 1) * pageSize)
             .Take(pageSize)
             .Select(user => new

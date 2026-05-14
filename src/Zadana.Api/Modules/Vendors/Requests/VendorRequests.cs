@@ -107,7 +107,8 @@ public record UpdateVendorOperationsSettingsRequest(
 public record UpdateVendorNotificationSettingsRequest(
     bool EmailNotificationsEnabled,
     bool SmsNotificationsEnabled,
-    bool NewOrdersNotificationsEnabled);
+    bool NewOrdersNotificationsEnabled,
+    string? NotificationSound = null);
 
 public record ApproveVendorRequest(decimal CommissionRate);
 
@@ -172,7 +173,8 @@ public record AdminUpdateVendorOperationsSettingsRequest(
 public record AdminUpdateVendorNotificationSettingsRequest(
     bool EmailNotificationsEnabled,
     bool SmsNotificationsEnabled,
-    bool NewOrdersNotificationsEnabled);
+    bool NewOrdersNotificationsEnabled,
+    string? NotificationSound = null);
 
 public record AdminCreateVendorSettlementRequest(
     decimal GrossAmount,

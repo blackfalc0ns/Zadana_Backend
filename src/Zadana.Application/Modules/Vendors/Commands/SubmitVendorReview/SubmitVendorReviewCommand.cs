@@ -84,11 +84,11 @@ public sealed class SubmitVendorReviewCommandHandler : IRequestHandler<SubmitVen
             vendor.UserId,
             "vendor-profile-submitted",
             "info",
-            "Vendor submitted the profile and required documents for compliance review.",
-            "Vendor Portal",
-            vendor.BusinessNameEn,
+            "قام التاجر بإرسال الملف الشخصي والمستندات المطلوبة لمراجعة الامتثال.",
+            "بوابة التاجر",
+            vendor.BusinessNameAr,
             userId,
-            vendor.BusinessNameEn,
+            vendor.BusinessNameAr,
             cancellationToken);
 
         await _adminAlertService.SendAsync(

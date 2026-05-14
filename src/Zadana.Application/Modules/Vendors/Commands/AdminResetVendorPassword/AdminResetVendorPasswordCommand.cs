@@ -66,9 +66,9 @@ public class AdminResetVendorPasswordCommandHandler : IRequestHandler<AdminReset
             vendor.UserId,
             "password-reset",
             "warning",
-            "Vendor password was reset by an administrator and all active sessions were revoked.",
-            "Security Control",
-            "Admin",
+            "تمت إعادة تعيين كلمة مرور التاجر بواسطة المسؤول وتم إلغاء جميع الجلسات النشطة.",
+            "التحكم الأمني",
+            "المسؤول",
             _currentUserService.UserId,
             cancellationToken: cancellationToken);
 

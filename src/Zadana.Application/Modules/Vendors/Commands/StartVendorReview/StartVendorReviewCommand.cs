@@ -41,9 +41,9 @@ public class StartVendorReviewCommandHandler : IRequestHandler<StartVendorReview
             vendor.UserId,
             "start-review",
             "info",
-            "Vendor review started.",
-            "Compliance Review",
-            "Vendor Compliance Desk",
+            "بدأت مراجعة التاجر.",
+            "مراجعة الامتثال",
+            "مكتب امتثال التاجر",
             _currentUserService.UserId,
             cancellationToken: cancellationToken);
 

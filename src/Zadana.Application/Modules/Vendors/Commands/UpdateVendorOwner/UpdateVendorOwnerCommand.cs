@@ -80,11 +80,11 @@ public class UpdateVendorOwnerCommandHandler : IRequestHandler<UpdateVendorOwner
             vendor.UserId,
             "profile-owner-updated",
             "info",
-            "Vendor updated owner information from Vendor Portal.",
-            "Vendor Portal",
-            vendor.BusinessNameEn,
+            "قام التاجر بتحديث بيانات المالك من بوابة التاجر.",
+            "بوابة التاجر",
+            vendor.BusinessNameAr,
             userId,
-            vendor.BusinessNameEn,
+            vendor.BusinessNameAr,
             cancellationToken);
 
         return await _vendorReadService.GetWorkspaceByUserIdAsync(userId, cancellationToken)

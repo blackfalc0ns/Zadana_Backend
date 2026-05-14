@@ -1,4 +1,5 @@
 using Zadana.Domain.Modules.Identity.Enums;
+using Zadana.Domain.Modules.Social.Support;
 using Zadana.SharedKernel.Primitives;
 
 namespace Zadana.Domain.Modules.Identity.Entities;
@@ -26,6 +27,7 @@ public class UserPushDevice : BaseEntity
     public bool AdminSettlementsPushEnabled { get; private set; }
     public bool AdminSupportPushEnabled { get; private set; }
     public bool AdminSystemPushEnabled { get; private set; }
+    public string NotificationSound { get; private set; } = NotificationSoundCatalog.Classic;
     public bool IsActive { get; private set; }
     public DateTime LastRegisteredAtUtc { get; private set; }
     public DateTime LastSeenAtUtc { get; private set; }
@@ -57,7 +59,8 @@ public class UserPushDevice : BaseEntity
         bool adminRefundsPushEnabled = true,
         bool adminSettlementsPushEnabled = true,
         bool adminSupportPushEnabled = true,
-        bool adminSystemPushEnabled = true)
+        bool adminSystemPushEnabled = true,
+        string? notificationSound = null)
     {
         UserId = userId;
         DeviceToken = deviceToken.Trim();
@@ -80,6 +83,7 @@ public class UserPushDevice : BaseEntity
         AdminSettlementsPushEnabled = adminSettlementsPushEnabled;
         AdminSupportPushEnabled = adminSupportPushEnabled;
         AdminSystemPushEnabled = adminSystemPushEnabled;
+        NotificationSound = NotificationSoundCatalog.Normalize(notificationSound);
         IsActive = true;
         LastRegisteredAtUtc = DateTime.UtcNow;
         LastSeenAtUtc = DateTime.UtcNow;
@@ -106,7 +110,8 @@ public class UserPushDevice : BaseEntity
         bool adminRefundsPushEnabled = true,
         bool adminSettlementsPushEnabled = true,
         bool adminSupportPushEnabled = true,
-        bool adminSystemPushEnabled = true)
+        bool adminSystemPushEnabled = true,
+        string? notificationSound = null)
     {
         UserId = userId;
         DeviceToken = deviceToken.Trim();
@@ -129,6 +134,7 @@ public class UserPushDevice : BaseEntity
         AdminSettlementsPushEnabled = adminSettlementsPushEnabled;
         AdminSupportPushEnabled = adminSupportPushEnabled;
         AdminSystemPushEnabled = adminSystemPushEnabled;
+        NotificationSound = NotificationSoundCatalog.Normalize(notificationSound, NotificationSound);
         IsActive = true;
         LastRegisteredAtUtc = DateTime.UtcNow;
         LastSeenAtUtc = DateTime.UtcNow;
@@ -154,7 +160,8 @@ public class UserPushDevice : BaseEntity
         bool? adminRefundsPushEnabled = null,
         bool? adminSettlementsPushEnabled = null,
         bool? adminSupportPushEnabled = null,
-        bool? adminSystemPushEnabled = null)
+        bool? adminSystemPushEnabled = null,
+        string? notificationSound = null)
     {
         NotificationsEnabled = notificationsEnabled;
         DispatchPushEnabled = dispatchPushEnabled ?? DispatchPushEnabled;
@@ -170,6 +177,9 @@ public class UserPushDevice : BaseEntity
         AdminSettlementsPushEnabled = adminSettlementsPushEnabled ?? AdminSettlementsPushEnabled;
         AdminSupportPushEnabled = adminSupportPushEnabled ?? AdminSupportPushEnabled;
         AdminSystemPushEnabled = adminSystemPushEnabled ?? AdminSystemPushEnabled;
+        NotificationSound = notificationSound == null
+            ? NotificationSound
+            : NotificationSoundCatalog.Normalize(notificationSound, NotificationSound);
         LastSeenAtUtc = DateTime.UtcNow;
         UpdatedAtUtc = DateTime.UtcNow;
     }

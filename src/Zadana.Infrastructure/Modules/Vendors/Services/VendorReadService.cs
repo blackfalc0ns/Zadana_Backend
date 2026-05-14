@@ -289,7 +289,8 @@ public class VendorReadService : IVendorReadService
             new VendorNotificationSettingsDto(
                 vendor.EmailNotificationsEnabled,
                 vendor.SmsNotificationsEnabled,
-                vendor.NewOrdersNotificationsEnabled),
+                vendor.NewOrdersNotificationsEnabled,
+                vendor.NotificationSound),
             vendor.Branches.Count,
             vendor.BankAccounts.Count,
             MapBankAccount(primaryBankAccount),

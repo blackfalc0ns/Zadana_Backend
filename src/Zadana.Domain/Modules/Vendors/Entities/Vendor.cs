@@ -1,4 +1,5 @@
 using Zadana.Domain.Modules.Vendors.Enums;
+using Zadana.Domain.Modules.Social.Support;
 using Zadana.SharedKernel.Exceptions;
 using Zadana.SharedKernel.Primitives;
 
@@ -51,6 +52,7 @@ public class Vendor : BaseEntity
     public bool EmailNotificationsEnabled { get; private set; } = true;
     public bool SmsNotificationsEnabled { get; private set; }
     public bool NewOrdersNotificationsEnabled { get; private set; } = true;
+    public string NotificationSound { get; private set; } = NotificationSoundCatalog.Classic;
 
     public ICollection<VendorBranch> Branches { get; private set; } = [];
     public ICollection<VendorBankAccount> BankAccounts { get; private set; } = [];
@@ -114,6 +116,7 @@ public class Vendor : BaseEntity
         AcceptOrders = true;
         EmailNotificationsEnabled = true;
         NewOrdersNotificationsEnabled = true;
+        NotificationSound = NotificationSoundCatalog.Classic;
         Status = VendorStatus.PendingReview;
         LastStatusChangedAtUtc = DateTime.UtcNow;
     }
@@ -282,11 +285,15 @@ public class Vendor : BaseEntity
     public void UpdateNotificationSettings(
         bool emailNotificationsEnabled,
         bool smsNotificationsEnabled,
-        bool newOrdersNotificationsEnabled)
+        bool newOrdersNotificationsEnabled,
+        string? notificationSound = null)
     {
         EmailNotificationsEnabled = emailNotificationsEnabled;
         SmsNotificationsEnabled = smsNotificationsEnabled;
         NewOrdersNotificationsEnabled = newOrdersNotificationsEnabled;
+        NotificationSound = notificationSound == null
+            ? NotificationSound
+            : NotificationSoundCatalog.Normalize(notificationSound, NotificationSound);
         UpdatedAtUtc = DateTime.UtcNow;
     }
 

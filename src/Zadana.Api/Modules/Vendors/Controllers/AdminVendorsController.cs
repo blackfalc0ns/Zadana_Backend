@@ -510,7 +510,8 @@ public class AdminVendorsController : ApiControllerBase
             vendorId,
             request.EmailNotificationsEnabled,
             request.SmsNotificationsEnabled,
-            request.NewOrdersNotificationsEnabled));
+            request.NewOrdersNotificationsEnabled,
+            request.NotificationSound));
 
         return Ok(result);
     }

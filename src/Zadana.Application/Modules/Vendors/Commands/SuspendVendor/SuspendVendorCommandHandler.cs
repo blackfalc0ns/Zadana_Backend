@@ -54,8 +54,8 @@ public class SuspendVendorCommandHandler : IRequestHandler<SuspendVendorCommand>
             "suspended",
             "danger",
             request.Reason,
-            "Risk & Compliance",
-            "Risk & Compliance Desk",
+            "المخاطر والامتثال",
+            "مكتب المخاطر والامتثال",
             _currentUserService.UserId,
             cancellationToken: cancellationToken);
 

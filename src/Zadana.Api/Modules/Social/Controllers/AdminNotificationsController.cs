@@ -7,6 +7,7 @@ using Zadana.Application.Common.Localization;
 using Zadana.Application.Modules.Social.Queries;
 using Zadana.Domain.Modules.Identity.Enums;
 using Zadana.Domain.Modules.Social.Enums;
+using Zadana.Domain.Modules.Social.Support;
 using Zadana.SharedKernel.Exceptions;
 
 namespace Zadana.Api.Modules.Social.Controllers;
@@ -18,16 +19,13 @@ public class AdminNotificationsController : ApiControllerBase
 {
     private readonly ICurrentUserService _currentUserService;
     private readonly IApplicationDbContext _context;
-    private readonly IAdminAlertService _adminAlertService;
 
     public AdminNotificationsController(
         ICurrentUserService currentUserService,
-        IApplicationDbContext context,
-        IAdminAlertService adminAlertService)
+        IApplicationDbContext context)
     {
         _currentUserService = currentUserService;
         _context = context;
-        _adminAlertService = adminAlertService;
     }
 
     [HttpGet]
@@ -114,21 +112,29 @@ public class AdminNotificationsController : ApiControllerBase
                 adminRefundsPushEnabled: request.Categories.Refunds,
                 adminSettlementsPushEnabled: request.Categories.Settlements,
                 adminSupportPushEnabled: request.Categories.Support,
-                adminSystemPushEnabled: request.Categories.System);
+                adminSystemPushEnabled: request.Categories.System,
+                notificationSound: request.Sound);
         }
 
         await _context.SaveChangesAsync(cancellationToken);
 
         return Ok(devices.Count == 0
-            ? new AdminNotificationPreferencesResponse(request.PushEnabled, request.Categories, true, 0)
+            ? new AdminNotificationPreferencesResponse(
+                request.PushEnabled,
+                request.Categories,
+                NotificationSoundCatalog.Normalize(request.Sound),
+                true,
+                0)
             : AdminNotificationPreferencesResponse.FromDevice(devices.OrderByDescending(item => item.LastSeenAtUtc).First(), devices.Count));
     }
 
     [HttpPost("test")]
-    public async Task<ActionResult<object>> SendTestNotification(CancellationToken cancellationToken = default)
+    public async Task<ActionResult<object>> SendTestNotification(
+        [FromServices] IAdminAlertService adminAlertService,
+        CancellationToken cancellationToken = default)
     {
         var userId = _currentUserService.UserId ?? throw new UnauthorizedException("USER_NOT_AUTHENTICATED");
-        var result = await _adminAlertService.SendAsync(
+        var result = await adminAlertService.SendAsync(
             new AdminAlertRequest(
                 "admin.test",
                 AdminAlertCategories.System,
@@ -179,11 +185,13 @@ public sealed record AdminNotificationCategoryPreferences(
 
 public sealed record AdminNotificationPreferencesRequest(
     bool PushEnabled,
-    AdminNotificationCategoryPreferences Categories);
+    AdminNotificationCategoryPreferences Categories,
+    string? Sound = null);
 
 public sealed record AdminNotificationPreferencesResponse(
     bool PushEnabled,
     AdminNotificationCategoryPreferences Categories,
+    string Sound,
     bool CriticalAlwaysOn,
     int WebDeviceCount)
 {
@@ -201,6 +209,7 @@ public sealed record AdminNotificationPreferencesResponse(
                 device?.AdminSettlementsPushEnabled ?? true,
                 device?.AdminSupportPushEnabled ?? true,
                 device?.AdminSystemPushEnabled ?? true),
+            NotificationSoundCatalog.Normalize(device?.NotificationSound),
             true,
             webDeviceCount);
 }

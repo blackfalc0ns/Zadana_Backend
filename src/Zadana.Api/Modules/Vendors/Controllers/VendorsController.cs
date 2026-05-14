@@ -207,7 +207,8 @@ public class VendorsController : ApiControllerBase
         var result = await Sender.Send(new UpdateVendorNotificationSettingsCommand(
             request.EmailNotificationsEnabled,
             request.SmsNotificationsEnabled,
-            request.NewOrdersNotificationsEnabled));
+            request.NewOrdersNotificationsEnabled,
+            request.NotificationSound));
 
         return Ok(new { Data = result, Message = _localizer["VendorProfileUpdated"].Value });
     }

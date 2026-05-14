@@ -94,11 +94,11 @@ public class UpdateVendorStoreCommandHandler : IRequestHandler<UpdateVendorStore
             vendor.UserId,
             "profile-store-updated",
             "info",
-            "Vendor updated store profile details from Vendor Portal.",
-            "Vendor Portal",
-            vendor.BusinessNameEn,
+            "قام التاجر بتحديث بيانات المتجر من بوابة التاجر.",
+            "بوابة التاجر",
+            vendor.BusinessNameAr,
             userId,
-            vendor.BusinessNameEn,
+            vendor.BusinessNameAr,
             cancellationToken);
 
         await _adminAlertService.SendAsync(

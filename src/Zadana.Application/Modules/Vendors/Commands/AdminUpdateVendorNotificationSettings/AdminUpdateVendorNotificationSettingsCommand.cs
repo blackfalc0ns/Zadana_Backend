@@ -11,7 +11,8 @@ public record AdminUpdateVendorNotificationSettingsCommand(
     Guid VendorId,
     bool EmailNotificationsEnabled,
     bool SmsNotificationsEnabled,
-    bool NewOrdersNotificationsEnabled) : IRequest<VendorDetailDto>;
+    bool NewOrdersNotificationsEnabled,
+    string? NotificationSound = null) : IRequest<VendorDetailDto>;
 
 public class AdminUpdateVendorNotificationSettingsCommandValidator : AbstractValidator<AdminUpdateVendorNotificationSettingsCommand>
 {
@@ -54,7 +55,8 @@ public class AdminUpdateVendorNotificationSettingsCommandHandler : IRequestHandl
         vendor.UpdateNotificationSettings(
             request.EmailNotificationsEnabled,
             request.SmsNotificationsEnabled,
-            request.NewOrdersNotificationsEnabled);
+            request.NewOrdersNotificationsEnabled,
+            request.NotificationSound);
 
         await _unitOfWork.SaveChangesAsync(cancellationToken);
 
@@ -62,9 +64,9 @@ public class AdminUpdateVendorNotificationSettingsCommandHandler : IRequestHandl
             vendor.UserId,
             "notification-settings-updated",
             "info",
-            $"Notification settings updated. Email: {(request.EmailNotificationsEnabled ? "enabled" : "disabled")}, SMS: {(request.SmsNotificationsEnabled ? "enabled" : "disabled")}, new orders: {(request.NewOrdersNotificationsEnabled ? "enabled" : "disabled")}.",
-            "Operations Console",
-            "Admin",
+            $"تم تحديث إعدادات الإشعارات. البريد: {(request.EmailNotificationsEnabled ? "مفعّل" : "معطّل")}، الرسائل: {(request.SmsNotificationsEnabled ? "مفعّل" : "معطّل")}، طلبات جديدة: {(request.NewOrdersNotificationsEnabled ? "مفعّل" : "معطّل")}، الصوت: {(request.NotificationSound ?? vendor.NotificationSound)}.",
+            "لوحة التشغيل",
+            "المسؤول",
             _currentUserService.UserId,
             cancellationToken: cancellationToken);
 

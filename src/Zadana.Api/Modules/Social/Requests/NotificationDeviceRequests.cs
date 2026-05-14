@@ -20,7 +20,8 @@ public record RegisterNotificationDeviceRequest(
     bool AdminRefundsPushEnabled = true,
     bool AdminSettlementsPushEnabled = true,
     bool AdminSupportPushEnabled = true,
-    bool AdminSystemPushEnabled = true);
+    bool AdminSystemPushEnabled = true,
+    string? NotificationSound = null);
 
 public record UpdateNotificationDevicePreferencesRequest(
     string? DeviceId,
@@ -38,7 +39,8 @@ public record UpdateNotificationDevicePreferencesRequest(
     bool? AdminRefundsPushEnabled = null,
     bool? AdminSettlementsPushEnabled = null,
     bool? AdminSupportPushEnabled = null,
-    bool? AdminSystemPushEnabled = null);
+    bool? AdminSystemPushEnabled = null,
+    string? NotificationSound = null);
 
 public record UnregisterNotificationDeviceRequest(
     string? DeviceId,

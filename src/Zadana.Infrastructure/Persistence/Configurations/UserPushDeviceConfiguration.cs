@@ -1,6 +1,7 @@
 using Microsoft.EntityFrameworkCore;
 using Microsoft.EntityFrameworkCore.Metadata.Builders;
 using Zadana.Domain.Modules.Identity.Entities;
+using Zadana.Domain.Modules.Social.Support;
 
 namespace Zadana.Infrastructure.Persistence.Configurations;
 
@@ -32,6 +33,11 @@ public class UserPushDeviceConfiguration : IEntityTypeConfiguration<UserPushDevi
 
         builder.Property(x => x.Locale)
             .HasMaxLength(20);
+
+        builder.Property(x => x.NotificationSound)
+            .IsRequired()
+            .HasMaxLength(32)
+            .HasDefaultValue(NotificationSoundCatalog.Classic);
 
         builder.Property(x => x.DispatchPushEnabled)
             .HasDefaultValue(true);

@@ -94,11 +94,11 @@ public class UpdateVendorLegalCommandHandler : IRequestHandler<UpdateVendorLegal
                 vendor.UserId,
                 "vendor-document-reuploaded",
                 "info",
-                $"Vendor re-uploaded document(s): {string.Join(", ", resetDocuments)}. They are back in the review queue.",
-                "Vendor Portal",
-                vendor.BusinessNameEn,
+                $"قام التاجر بإعادة رفع مستند(ات): {string.Join("، ", resetDocuments.Select(MapDocumentTypeToArabic))}. تم إرجاعها لقائمة المراجعة.",
+                "بوابة التاجر",
+                vendor.BusinessNameAr,
                 userId,
-                vendor.BusinessNameEn,
+                vendor.BusinessNameAr,
                 cancellationToken);
         }
         else
@@ -107,11 +107,11 @@ public class UpdateVendorLegalCommandHandler : IRequestHandler<UpdateVendorLegal
                 vendor.UserId,
                 "profile-legal-updated",
                 "warning",
-                "Vendor updated legal and compliance information from Vendor Portal.",
-                "Vendor Portal",
-                vendor.BusinessNameEn,
+                "قام التاجر بتحديث البيانات القانونية والامتثال من بوابة التاجر.",
+                "بوابة التاجر",
+                vendor.BusinessNameAr,
                 userId,
-                vendor.BusinessNameEn,
+                vendor.BusinessNameAr,
                 cancellationToken);
         }
 
@@ -168,4 +168,14 @@ public class UpdateVendorLegalCommandHandler : IRequestHandler<UpdateVendorLegal
     private static bool HasChanged(string? currentValue, string? nextValue) =>
         !string.IsNullOrWhiteSpace(nextValue)
         && !string.Equals(currentValue?.Trim(), nextValue.Trim(), StringComparison.OrdinalIgnoreCase);
+
+    private static string MapDocumentTypeToArabic(VendorDocumentType type) => type switch
+    {
+        VendorDocumentType.Commercial => "السجل التجاري",
+        VendorDocumentType.Tax => "الضريبة",
+        VendorDocumentType.License => "الرخصة",
+        VendorDocumentType.Identity => "الهوية",
+        VendorDocumentType.Bank => "البنك",
+        _ => type.ToString()
+    };
 }
