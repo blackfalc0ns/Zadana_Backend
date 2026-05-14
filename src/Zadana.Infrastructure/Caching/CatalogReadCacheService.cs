@@ -93,7 +93,7 @@ public sealed class CatalogReadCacheService(
 
     public Task<CatalogPurchaseProfileSnapshot> GetPurchaseProfileAsync(Guid userId, CancellationToken cancellationToken = default)
     {
-        var key = AppCacheKeys.Build("home", "purchase-profile", "v1", $"user:{userId:N}");
+        var key = AppCacheKeys.Build("home", "purchase-profile", "v2", $"user:{userId:N}");
         return cache.GetOrCreateAsync(
             key,
             async token =>
@@ -126,10 +126,20 @@ public sealed class CatalogReadCacheService(
             },
             CreateOptions(_durations.PurchaseProfile),
             [AppCacheKeys.PurchaseProfileTag(userId)],
-            cancellationToken);
+            cancellationToken).ContinueWith(
+                task => NormalizePurchaseProfile(task.Result),
+                cancellationToken,
+                TaskContinuationOptions.ExecuteSynchronously,
+                TaskScheduler.Default);
     }
 
     private static AppCacheEntryOptions CreateOptions(TimeSpan duration) =>
         new(duration, duration);
+
+    private static CatalogPurchaseProfileSnapshot NormalizePurchaseProfile(CatalogPurchaseProfileSnapshot? snapshot) =>
+        new(
+            snapshot?.CategoryScores ?? new Dictionary<Guid, int>(),
+            snapshot?.BrandScores ?? new Dictionary<Guid, int>(),
+            snapshot?.PurchasedMasterProductIds ?? new HashSet<Guid>());
 
 }

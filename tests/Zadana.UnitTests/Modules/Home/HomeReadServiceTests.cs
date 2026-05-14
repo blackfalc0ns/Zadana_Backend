@@ -274,6 +274,29 @@ public class HomeReadServiceTests
     }
 
     [Fact]
+    public async Task GetRecommendedAsync_WithMalformedPurchaseProfile_FallsBackToPopularProducts()
+    {
+        using var scope = new CultureScope("en");
+        await using var context = TestDbContextFactory.Create();
+
+        var setup = await SeedCatalogScenarioAsync(context);
+        await AddDeliveredSalesAsync(context, setup.Customer.Id, setup.PrimaryVendorId, setup.OtherVendorProductId, setup.OtherMasterProductId, 6, "REC-FALLBACK-1");
+        await AddDeliveredSalesAsync(context, setup.Customer.Id, setup.PrimaryVendorId, setup.RegularVendorProductId, setup.RegularMasterProductId, 3, "REC-FALLBACK-2");
+
+        var service = CreateService(
+            context,
+            new FakeCurrentUserService(setup.Customer.Id, true),
+            catalogReadCacheService: new MalformedPurchaseProfileCatalogReadCacheService(
+                TestServiceFactory.CreateCatalogReadCacheService(context, new FakeCurrentUserService(setup.Customer.Id, true))));
+
+        var result = await service.GetRecommendedAsync(2);
+
+        result.Items.Should().HaveCount(2);
+        result.Items[0].Id.Should().Be(setup.OtherMasterProductId);
+        result.Items[1].Id.Should().Be(setup.RegularMasterProductId);
+    }
+
+    [Fact]
     public async Task GetBestSellingAsync_BreaksSalesTiesByStoreCount()
     {
         using var scope = new CultureScope("en");
@@ -504,13 +527,32 @@ public class HomeReadServiceTests
     private static HomeReadService CreateService(
         ApplicationDbContext context,
         ICurrentUserService currentUserService,
-        IAppCache? cache = null) =>
+        IAppCache? cache = null,
+        ICatalogReadCacheService? catalogReadCacheService = null) =>
         new(
             context,
             currentUserService,
             cache ?? TestServiceFactory.CreateAppCache(),
-            TestServiceFactory.CreateCatalogReadCacheService(context, currentUserService),
+            catalogReadCacheService ?? TestServiceFactory.CreateCatalogReadCacheService(context, currentUserService),
             TestServiceFactory.CreateCachingOptions());
+
+    private sealed class MalformedPurchaseProfileCatalogReadCacheService(ICatalogReadCacheService inner) : ICatalogReadCacheService
+    {
+        public Task<IReadOnlyDictionary<Guid, int>> GetDeliveredSalesByVendorProductIdAsync(CancellationToken cancellationToken = default) =>
+            inner.GetDeliveredSalesByVendorProductIdAsync(cancellationToken);
+
+        public Task<IReadOnlyDictionary<Guid, VendorReviewStatsSnapshot>> GetVendorReviewStatsByVendorIdAsync(CancellationToken cancellationToken = default) =>
+            inner.GetVendorReviewStatsByVendorIdAsync(cancellationToken);
+
+        public Task<IReadOnlySet<Guid>> GetCurrentFavoriteMasterProductIdsAsync(CancellationToken cancellationToken = default) =>
+            inner.GetCurrentFavoriteMasterProductIdsAsync(cancellationToken);
+
+        public Task<IReadOnlySet<Guid>> GetFavoriteMasterProductIdsAsync(Guid? userId, string? guestDeviceId, CancellationToken cancellationToken = default) =>
+            inner.GetFavoriteMasterProductIdsAsync(userId, guestDeviceId, cancellationToken);
+
+        public Task<CatalogPurchaseProfileSnapshot> GetPurchaseProfileAsync(Guid userId, CancellationToken cancellationToken = default) =>
+            Task.FromResult(new CatalogPurchaseProfileSnapshot(null!, null!, null!));
+    }
 
     private static HomeBanner CreateInactiveBanner()
     {

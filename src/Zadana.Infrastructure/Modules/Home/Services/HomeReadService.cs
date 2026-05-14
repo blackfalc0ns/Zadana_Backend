@@ -1,5 +1,6 @@
 using System.Globalization;
 using Microsoft.EntityFrameworkCore;
+using Microsoft.Extensions.Logging;
 using Microsoft.Extensions.Options;
 using Zadana.Application.Common.Caching;
 using Zadana.Application.Common.Interfaces;
@@ -30,19 +31,22 @@ public class HomeReadService : IHomeReadService
     private readonly IAppCache _cache;
     private readonly ICatalogReadCacheService _catalogReadCacheService;
     private readonly CacheDurationSettings _durations;
+    private readonly ILogger<HomeReadService>? _logger;
 
     public HomeReadService(
         IApplicationDbContext context,
         ICurrentUserService currentUserService,
         IAppCache cache,
         ICatalogReadCacheService catalogReadCacheService,
-        IOptions<CachingSettings> cachingOptions)
+        IOptions<CachingSettings> cachingOptions,
+        ILogger<HomeReadService>? logger = null)
     {
         _context = context;
         _currentUserService = currentUserService;
         _cache = cache;
         _catalogReadCacheService = catalogReadCacheService;
         _durations = cachingOptions.Value.Durations;
+        _logger = logger;
     }
 
     public Task<HomeHeaderDto> GetHeaderAsync(CancellationToken cancellationToken = default) =>
@@ -707,55 +711,67 @@ public class HomeReadService : IHomeReadService
             return SelectStrongPopularProducts(catalog, take, null);
         }
 
-        var purchaseProfile = await _catalogReadCacheService.GetPurchaseProfileAsync(catalog.CurrentUserId.Value, cancellationToken);
-        var favoriteIds = catalog.FavoritedMasterProductIds;
-        var hasPurchaseSignals = purchaseProfile.CategoryScores.Count > 0 || purchaseProfile.BrandScores.Count > 0;
-        if (!hasPurchaseSignals && favoriteIds.Count == 0)
+        try
         {
+            var purchaseProfile = NormalizePurchaseProfile(
+                await _catalogReadCacheService.GetPurchaseProfileAsync(catalog.CurrentUserId.Value, cancellationToken));
+            var favoriteIds = catalog.FavoritedMasterProductIds;
+            var hasPurchaseSignals = purchaseProfile.CategoryScores.Count > 0 || purchaseProfile.BrandScores.Count > 0;
+            if (!hasPurchaseSignals && favoriteIds.Count == 0)
+            {
+                return SelectStrongPopularProducts(catalog, take, null);
+            }
+
+            var purchasedMasterProductIds = purchaseProfile.PurchasedMasterProductIds;
+
+            var recommended = RankRecommendedProducts(
+                    catalog,
+                    purchaseProfile,
+                    favoriteIds,
+                    purchasedMasterProductIds,
+                    includePurchasedProducts: false)
+                .Take(take)
+                .Select(x => MapToProductCard(x.Product, favoriteIds.Contains(x.Product.MasterProductId)))
+                .ToList();
+
+            if (recommended.Count >= take)
+            {
+                return recommended;
+            }
+
+            var alreadySelectedIds = recommended.Select(x => x.Id).ToHashSet();
+            var purchasedFallback = RankRecommendedProducts(
+                    catalog,
+                    purchaseProfile,
+                    favoriteIds,
+                    purchasedMasterProductIds,
+                    includePurchasedProducts: true)
+                .Where(x => !alreadySelectedIds.Contains(x.Product.MasterProductId))
+                .Take(take - recommended.Count)
+                .Select(x => MapToProductCard(x.Product, favoriteIds.Contains(x.Product.MasterProductId)))
+                .ToList();
+
+            recommended.AddRange(purchasedFallback);
+
+            if (recommended.Count >= take)
+            {
+                return recommended;
+            }
+
+            var excludedIds = recommended.Select(x => x.Id).ToHashSet();
+            var popularFallback = SelectStrongPopularProducts(catalog, take - recommended.Count, excludedIds);
+            recommended.AddRange(popularFallback);
+
+            return recommended;
+        }
+        catch (Exception ex)
+        {
+            _logger?.LogWarning(
+                ex,
+                "Falling back to strong popular products for home recommendations. UserId: {UserId}",
+                catalog.CurrentUserId);
             return SelectStrongPopularProducts(catalog, take, null);
         }
-
-        var purchasedMasterProductIds = purchaseProfile.PurchasedMasterProductIds;
-
-        var recommended = RankRecommendedProducts(
-                catalog,
-                purchaseProfile,
-                favoriteIds,
-                purchasedMasterProductIds,
-                includePurchasedProducts: false)
-            .Take(take)
-            .Select(x => MapToProductCard(x.Product, favoriteIds.Contains(x.Product.MasterProductId)))
-            .ToList();
-
-        if (recommended.Count >= take)
-        {
-            return recommended;
-        }
-
-        var alreadySelectedIds = recommended.Select(x => x.Id).ToHashSet();
-        var purchasedFallback = RankRecommendedProducts(
-                catalog,
-                purchaseProfile,
-                favoriteIds,
-                purchasedMasterProductIds,
-                includePurchasedProducts: true)
-            .Where(x => !alreadySelectedIds.Contains(x.Product.MasterProductId))
-            .Take(take - recommended.Count)
-            .Select(x => MapToProductCard(x.Product, favoriteIds.Contains(x.Product.MasterProductId)))
-            .ToList();
-
-        recommended.AddRange(purchasedFallback);
-
-        if (recommended.Count >= take)
-        {
-            return recommended;
-        }
-
-        var excludedIds = recommended.Select(x => x.Id).ToHashSet();
-        var popularFallback = SelectStrongPopularProducts(catalog, take - recommended.Count, excludedIds);
-        recommended.AddRange(popularFallback);
-
-        return recommended;
     }
 
     private IEnumerable<RecommendedCandidate> RankRecommendedProducts(
@@ -1152,6 +1168,12 @@ public class HomeReadService : IHomeReadService
 
     private static bool IsDiscounted(HomeProductSource product) =>
         product.CompareAtPrice.HasValue && product.CompareAtPrice.Value > product.SellingPrice;
+
+    private static CatalogPurchaseProfileSnapshot NormalizePurchaseProfile(CatalogPurchaseProfileSnapshot? snapshot) =>
+        new(
+            snapshot?.CategoryScores ?? new Dictionary<Guid, int>(),
+            snapshot?.BrandScores ?? new Dictionary<Guid, int>(),
+            snapshot?.PurchasedMasterProductIds ?? new HashSet<Guid>());
 
     private async Task<FeaturedSelectionSettingsState> LoadFeaturedProductSelectionSettingsAsync(CancellationToken cancellationToken)
     {
