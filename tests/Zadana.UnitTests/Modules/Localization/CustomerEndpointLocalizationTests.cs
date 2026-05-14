@@ -447,7 +447,7 @@ public class CustomerEndpointLocalizationTests
         var deliveryPricing = new Mock<IDeliveryPricingService>();
         deliveryPricing
             .Setup(x => x.QuoteAsync(It.IsAny<Guid>(), It.IsAny<Guid>(), It.IsAny<CancellationToken>()))
-            .ReturnsAsync(new DeliveryPriceQuote(5m, 2m, 0m, 7m, 3m, "zone", "Zone rule"));
+            .ReturnsAsync(new DeliveryPriceQuote(5m, 2m, 0m, 7m, 3m, "zone", "Zone rule", 1m, 2m, 3m, 4m, "driver", "vendor", false, "manual", null, "locked", DateTime.UtcNow, 1, false));
 
         return new GetCheckoutSummaryQueryHandler(context, paymobGateway.Object, deliveryPricing.Object);
     }
@@ -615,6 +615,19 @@ public class CustomerEndpointLocalizationTests
             null,
             null,
             null,
+            0m,
+            0m,
+            0m,
+            0m,
+            null,
+            null,
+            false,
+            null,
+            null,
+            null,
+            null,
+            1,
+            false,
             0m);
 
     private static T GetOkValue<T>(ActionResult<T> actionResult)
