@@ -38,11 +38,6 @@ public class DeliveryPricingService : IDeliveryPricingService
             .FirstOrDefaultAsync(item => item.Id == customerAddressId, cancellationToken)
             ?? throw new NotFoundException("CustomerAddress", customerAddressId);
 
-        if (branch.Latitude == 0m && branch.Longitude == 0m)
-        {
-            throw new BusinessRuleException("DELIVERY_PRICING_UNAVAILABLE", "Vendor pickup coordinates are required for delivery pricing.");
-        }
-
         var pricingRules = await _context.DeliveryPricingRules
             .AsNoTracking()
             .Include(item => item.DeliveryZone)
@@ -80,13 +75,18 @@ public class DeliveryPricingService : IDeliveryPricingService
 
         var vendorCity = ResolveCity(cities, branch.Vendor.City, branch.Vendor.Region);
         var customerCity = ResolveCity(cities, address.City, null);
+        var hasBranchCoordinates = !(branch.Latitude == 0m && branch.Longitude == 0m);
 
-        var vendorZone = ResolveLocationZone(zones, branch.Latitude, branch.Longitude, branch.Vendor.City);
+        var vendorZone = hasBranchCoordinates
+            ? ResolveLocationZone(zones, branch.Latitude, branch.Longitude, branch.Vendor.City)
+            : ResolveZoneByCity(zones, branch.Vendor.City);
         var customerPoint = ResolveCustomerPoint(address, customerCity, zones);
         var customerZone = customerPoint.Zone;
+        var vendorPickupPoint = ResolveVendorPickupPoint(branch, vendorCity, vendorZone);
 
         var driverOrigin = await ResolveDriverOriginAsync(
-            branch,
+            vendorPickupPoint.Latitude,
+            vendorPickupPoint.Longitude,
             zones,
             vendorZone,
             vendorCity,
@@ -112,12 +112,12 @@ public class DeliveryPricingService : IDeliveryPricingService
         var driverToVendorDistanceKm = DeliveryDispatchScoring.ApproximateDistanceKm(
             driverOrigin.Latitude,
             driverOrigin.Longitude,
-            branch.Latitude,
-            branch.Longitude);
+            vendorPickupPoint.Latitude,
+            vendorPickupPoint.Longitude);
 
         var vendorToCustomerDistanceKm = DeliveryDispatchScoring.ApproximateDistanceKm(
-            branch.Latitude,
-            branch.Longitude,
+            vendorPickupPoint.Latitude,
+            vendorPickupPoint.Longitude,
             customerPoint.Latitude,
             customerPoint.Longitude);
 
@@ -158,7 +158,8 @@ public class DeliveryPricingService : IDeliveryPricingService
     }
 
     private async Task<PricingOriginPoint> ResolveDriverOriginAsync(
-        VendorBranch branch,
+        decimal pickupLatitude,
+        decimal pickupLongitude,
         IReadOnlyCollection<DeliveryZone> zones,
         DeliveryZone? vendorZone,
         SaudiCity? vendorCity,
@@ -209,8 +210,8 @@ public class DeliveryPricingService : IDeliveryPricingService
                     .OrderBy(location => DeliveryDispatchScoring.ApproximateDistanceKm(
                         location.Latitude,
                         location.Longitude,
-                        branch.Latitude,
-                        branch.Longitude))
+                        pickupLatitude,
+                        pickupLongitude))
                     .FirstOrDefault();
 
                 if (liveLocation is not null)
@@ -235,7 +236,30 @@ public class DeliveryPricingService : IDeliveryPricingService
             return new PricingOriginPoint((decimal)vendorCity.Latitude, (decimal)vendorCity.Longitude, "estimated", "vendor_city_center", null);
         }
 
-        return new PricingOriginPoint(branch.Latitude, branch.Longitude, "estimated", "vendor_branch_fallback", null);
+        return new PricingOriginPoint(pickupLatitude, pickupLongitude, "estimated", "vendor_branch_fallback", null);
+    }
+
+    private static PricingOriginPoint ResolveVendorPickupPoint(
+        VendorBranch branch,
+        SaudiCity? vendorCity,
+        DeliveryZone? vendorZone)
+    {
+        if (!(branch.Latitude == 0m && branch.Longitude == 0m))
+        {
+            return new PricingOriginPoint(branch.Latitude, branch.Longitude, "branch", "branch_coordinates", null);
+        }
+
+        if (vendorZone is not null)
+        {
+            return new PricingOriginPoint(vendorZone.CenterLat, vendorZone.CenterLng, "estimated", "vendor_zone_center", null);
+        }
+
+        if (vendorCity is not null)
+        {
+            return new PricingOriginPoint((decimal)vendorCity.Latitude, (decimal)vendorCity.Longitude, "estimated", "vendor_city_center", null);
+        }
+
+        throw new BusinessRuleException("DELIVERY_PRICING_UNAVAILABLE", "Vendor pickup coordinates are required for delivery pricing.");
     }
 
     private static CustomerPricingPoint ResolveCustomerPoint(

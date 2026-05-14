@@ -145,7 +145,7 @@ internal static class CheckoutSupport
 
         return new CheckoutPricingSnapshot(
             candidateVendor.VendorId,
-            ResolveSingleBranchId(candidateVendor.Offers),
+            await ResolveSingleBranchIdAsync(context, candidateVendor.VendorId, candidateVendor.Offers, cancellationToken),
             items,
             items.Sum(x => x.TotalPrice));
     }
@@ -506,10 +506,36 @@ internal static class CheckoutSupport
             _ => "pending"
         };
 
-    private static Guid? ResolveSingleBranchId(IReadOnlyCollection<VendorOfferSnapshot> offers)
+    private static async Task<Guid?> ResolveSingleBranchIdAsync(
+        IApplicationDbContext context,
+        Guid vendorId,
+        IReadOnlyCollection<VendorOfferSnapshot> offers,
+        CancellationToken cancellationToken)
     {
-        var branchIds = offers.Select(x => x.VendorBranchId).Distinct().ToList();
-        return branchIds.Count == 1 ? branchIds[0] : null;
+        var nonNullBranchIds = offers
+            .Where(x => x.VendorBranchId.HasValue)
+            .Select(x => x.VendorBranchId!.Value)
+            .Distinct()
+            .ToList();
+
+        if (nonNullBranchIds.Count == 1)
+        {
+            return nonNullBranchIds[0];
+        }
+
+        if (nonNullBranchIds.Count > 1)
+        {
+            return null;
+        }
+
+        var activeBranchIds = await context.VendorBranches
+            .AsNoTracking()
+            .Where(branch => branch.VendorId == vendorId && branch.IsActive)
+            .OrderBy(branch => branch.CreatedAtUtc)
+            .Select(branch => branch.Id)
+            .ToListAsync(cancellationToken);
+
+        return activeBranchIds.Count == 1 ? activeBranchIds[0] : null;
     }
 
     private static bool IsArabic() =>
