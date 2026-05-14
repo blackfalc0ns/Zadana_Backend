@@ -479,6 +479,19 @@ public class OrderReadService : IOrderReadService
                 vendorLocation = new GeoPointDto(branch.Latitude, branch.Longitude);
         }
 
+        // Fallback: if no branch on the order, use the vendor's first active branch
+        if (vendorLocation is null)
+        {
+            var fallbackBranch = await _dbContext.Set<VendorBranch>()
+                .AsNoTracking()
+                .Where(b => b.VendorId == order.VendorId && b.IsActive)
+                .OrderBy(b => b.CreatedAtUtc)
+                .Select(b => new { b.Latitude, b.Longitude })
+                .FirstOrDefaultAsync(cancellationToken);
+            if (fallbackBranch is not null)
+                vendorLocation = new GeoPointDto(fallbackBranch.Latitude, fallbackBranch.Longitude);
+        }
+
         GeoPointDto? customerLocation = null;
         if (customerAddress is { Latitude: not null, Longitude: not null })
         {
@@ -486,7 +499,7 @@ public class OrderReadService : IOrderReadService
         }
 
         DriverLiveLocationDto? driverLiveLocation = null;
-        if (assignment?.DriverId != null && IsActiveDeliveryStatus(order.Status))
+        if (assignment?.DriverId != null)
         {
             var latestLocation = await _dbContext.DriverLocations
                 .AsNoTracking()

@@ -41,11 +41,6 @@ public sealed class DriverHomeReadService : IDriverHomeReadService
         bool processExpiredOffers = false,
         CancellationToken cancellationToken = default)
     {
-        if (processExpiredOffers)
-        {
-            await _dispatchService.ProcessExpiredOffersAsync(cancellationToken);
-        }
-
         var driver = await _driverRepository.GetByUserIdAsync(driverUserId, cancellationToken)
             ?? throw new NotFoundException("Driver", driverUserId);
 
@@ -62,6 +57,8 @@ public sealed class DriverHomeReadService : IDriverHomeReadService
         var commitment = await _driverCommitmentPolicyService.GetDriverSummaryAsync(driver.Id, cancellationToken);
         var operationalStatus = DriverOperationalStatusFactory.Create(driver, commitment);
 
+        // Query the offer BEFORE processing expirations so the driver sees
+        // the offer even if it expired moments ago (the countdown UI handles it).
         var currentOfferEntity = await _context.DeliveryAssignments
             .Include(a => a.Order)
                 .ThenInclude(o => o.Vendor)
@@ -72,7 +69,8 @@ public sealed class DriverHomeReadService : IDriverHomeReadService
             .Where(a =>
                 a.DriverId == driver.Id &&
                 a.Status == AssignmentStatus.OfferSent &&
-                a.OfferExpiresAtUtc.HasValue)
+                a.OfferExpiresAtUtc.HasValue &&
+                a.OfferExpiresAtUtc.Value > DateTime.UtcNow)
             .OrderByDescending(a => a.OfferedAtUtc)
             .FirstOrDefaultAsync(cancellationToken);
 
@@ -94,6 +92,14 @@ public sealed class DriverHomeReadService : IDriverHomeReadService
         var currentOffer = currentOfferEntity is null
             ? null
             : await BuildIncomingOfferDtoAsync(currentOfferEntity, cancellationToken);
+
+        // Process expired offers AFTER reading the driver's own offer so we don't
+        // accidentally expire it before the driver sees it. The background worker
+        // handles expiration independently; this is just a best-effort cleanup.
+        if (processExpiredOffers)
+        {
+            await _dispatchService.ProcessExpiredOffersAsync(cancellationToken);
+        }
 
         var currentAssignment = currentAssignmentEntity is null
             ? null
