@@ -159,6 +159,19 @@ public class VendorWorkspaceFinanceControllerTests
             null,
             null,
             null,
+            0m,
+            0m,
+            0m,
+            0m,
+            null,
+            null,
+            false,
+            null,
+            null,
+            null,
+            null,
+            1,
+            false,
             commissionAmount);
 
         SetPrivateProperty(order, nameof(Order.Status), OrderStatus.Delivered);

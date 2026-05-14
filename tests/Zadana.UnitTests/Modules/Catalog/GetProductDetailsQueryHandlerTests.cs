@@ -151,6 +151,19 @@ public class GetProductDetailsQueryHandlerTests
             null,
             null,
             null,
+            0m,
+            0m,
+            0m,
+            0m,
+            null,
+            null,
+            false,
+            null,
+            null,
+            null,
+            null,
+            1,
+            false,
             0m);
         firstOrder.ChangeStatus(OrderStatus.Delivered);
 
@@ -169,6 +182,19 @@ public class GetProductDetailsQueryHandlerTests
             null,
             null,
             null,
+            0m,
+            0m,
+            0m,
+            0m,
+            null,
+            null,
+            false,
+            null,
+            null,
+            null,
+            null,
+            1,
+            false,
             0m);
         secondOrder.ChangeStatus(OrderStatus.Delivered);
 
