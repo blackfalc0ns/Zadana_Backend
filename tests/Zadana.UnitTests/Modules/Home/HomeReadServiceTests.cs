@@ -3,6 +3,7 @@ using FluentAssertions;
 using Microsoft.EntityFrameworkCore;
 using Zadana.Application.Common.Caching;
 using Zadana.Application.Common.Interfaces;
+using Zadana.Application.Modules.Catalog.Interfaces;
 using Zadana.Application.Modules.Home.DTOs;
 using Zadana.Domain.Modules.Catalog.Entities;
 using Zadana.Domain.Modules.Identity.Entities;
@@ -657,7 +658,7 @@ public class HomeReadServiceTests
             context.CustomerAddresses.Add(address);
             await context.SaveChangesAsync();
 
-            var deliveredOrder = new Order("ORD-1", customer.Id, vendor.Id, address.Id, PaymentMethodType.CashOnDelivery, 8m, 0m, 0m, 0m, 0m, 0m, null, null, null, 0m);
+            var deliveredOrder = new Order("ORD-1", customer.Id, vendor.Id, address.Id, PaymentMethodType.CashOnDelivery, 8m, 0m, 0m, 0m, 0m, 0m, null, null, null, 0m, 0m, 0m, 0m, null, null, false, null, null, null, null, 1, false, 0m);
             deliveredOrder.ChangeStatus(OrderStatus.Delivered);
             context.Orders.Add(deliveredOrder);
             await context.SaveChangesAsync();
@@ -736,6 +737,19 @@ public class HomeReadServiceTests
             null,
             null,
             null,
+            0m,
+            0m,
+            0m,
+            0m,
+            null,
+            null,
+            false,
+            null,
+            null,
+            null,
+            null,
+            1,
+            false,
             0m);
         order.ChangeStatus(OrderStatus.Delivered);
         context.Orders.Add(order);

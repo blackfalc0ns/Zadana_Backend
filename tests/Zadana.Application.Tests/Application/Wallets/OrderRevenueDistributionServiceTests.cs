@@ -94,7 +94,7 @@ public class OrderRevenueDistributionServiceTests
 
     private static Order CreateDeliveredPaidOrder(Guid userId, Guid vendorId, string orderNumber)
     {
-        var order = new Order(orderNumber, userId, vendorId, Guid.NewGuid(), PaymentMethodType.Card, 120m, 0m, 15m, 15m, 0m, 0m, null, null, null, 5m);
+        var order = new Order(orderNumber, userId, vendorId, Guid.NewGuid(), PaymentMethodType.Card, 120m, 0m, 15m, 15m, 0m, 0m, null, null, null, 0m, 0m, 0m, 0m, null, null, false, null, null, null, null, 1, false, 5m);
         order.Items.Add(new OrderItem(order.Id, Guid.NewGuid(), Guid.NewGuid(), "Recovery Item", 1, 120m));
         order.ChangeStatus(OrderStatus.Delivered);
         order.UpdatePaymentStatus(PaymentStatus.Paid);

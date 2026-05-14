@@ -378,7 +378,7 @@ public class CustomerOrderReadServiceTests
         Guid? vendorId = null,
         Guid? couponId = null)
     {
-        var order = new Order(orderNumber, userId, vendorId ?? Guid.NewGuid(), Guid.NewGuid(), paymentMethod, 100m, 0m, 10m, 10m, 0m, 0m, null, null, null, 5m, couponId: couponId);
+        var order = new Order(orderNumber, userId, vendorId ?? Guid.NewGuid(), Guid.NewGuid(), paymentMethod, 100m, 0m, 10m, 10m, 0m, 0m, null, null, null, 0m, 0m, 0m, 0m, null, null, false, null, null, null, null, 1, false, 5m, couponId: couponId);
         order.Items.Add(new OrderItem(order.Id, Guid.NewGuid(), Guid.NewGuid(), "Fresh Item", 2, 50m));
 
         if (status != OrderStatus.PendingPayment)
@@ -391,7 +391,7 @@ public class CustomerOrderReadServiceTests
 
     private static Order CreateOrder(Guid userId, string orderNumber, params OrderStatus[] statuses)
     {
-        var order = new Order(orderNumber, userId, Guid.NewGuid(), Guid.NewGuid(), PaymentMethodType.CashOnDelivery, 100m, 0m, 10m, 10m, 0m, 0m, null, null, null, 5m);
+        var order = new Order(orderNumber, userId, Guid.NewGuid(), Guid.NewGuid(), PaymentMethodType.CashOnDelivery, 100m, 0m, 10m, 10m, 0m, 0m, null, null, null, 0m, 0m, 0m, 0m, null, null, false, null, null, null, null, 1, false, 5m);
         order.Items.Add(new OrderItem(order.Id, Guid.NewGuid(), Guid.NewGuid(), "Fresh Item", 2, 50m));
 
         foreach (var status in statuses)

@@ -33,7 +33,7 @@ public class DriverArrivalStateCommandHandlerTests
         var driver = new Driver(driverUser.Id, DriverVehicleType.Car, "1234567890", "CAR-123");
         driver.Approve(Guid.NewGuid());
 
-        var order = new Order("ORD-ARR-001", customer.Id, vendor.Id, Guid.NewGuid(), PaymentMethodType.Card, 100m, 0m, 10m, 10m, 0m, 0m, null, null, null, 5m);
+        var order = new Order("ORD-ARR-001", customer.Id, vendor.Id, Guid.NewGuid(), PaymentMethodType.Card, 100m, 0m, 10m, 10m, 0m, 0m, null, null, null, 0m, 0m, 0m, 0m, null, null, false, null, null, null, null, 1, false, 5m);
         order.ChangeStatus(OrderStatus.DriverAssigned);
 
         var assignment = new DeliveryAssignment(order.Id, 0m);
@@ -87,7 +87,7 @@ public class DriverArrivalStateCommandHandlerTests
         var driver = new Driver(driverUser.Id, DriverVehicleType.Car, "1234567891", "CAR-124");
         driver.Approve(Guid.NewGuid());
 
-        var order = new Order("ORD-ARR-002", customer.Id, vendor.Id, Guid.NewGuid(), PaymentMethodType.Card, 100m, 0m, 10m, 10m, 0m, 0m, null, null, null, 5m);
+        var order = new Order("ORD-ARR-002", customer.Id, vendor.Id, Guid.NewGuid(), PaymentMethodType.Card, 100m, 0m, 10m, 10m, 0m, 0m, null, null, null, 0m, 0m, 0m, 0m, null, null, false, null, null, null, null, 1, false, 5m);
         order.ChangeStatus(OrderStatus.DriverAssigned);
         order.ChangeStatus(OrderStatus.PickedUp);
         order.ChangeStatus(OrderStatus.OnTheWay);

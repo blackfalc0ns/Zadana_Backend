@@ -47,11 +47,24 @@ public class PlaceOrderCommandHandlerTests
                 It.IsAny<decimal>(),
                 It.IsAny<decimal>(),
                 It.IsAny<decimal>(),
+                It.IsAny<decimal>(),
+                It.IsAny<string?>(),
+                It.IsAny<string?>(),
+                It.IsAny<bool>(),
+                It.IsAny<string?>(),
+                It.IsAny<Guid?>(),
+                It.IsAny<string?>(),
+                It.IsAny<DateTime?>(),
+                It.IsAny<int>(),
+                It.IsAny<bool>(),
+                It.IsAny<decimal>(),
+                It.IsAny<decimal>(),
+                It.IsAny<decimal>(),
                 It.IsAny<IReadOnlyDictionary<Guid, int>>(),
                 It.IsAny<CancellationToken>()))
             .ReturnsAsync((Order?)null);
 
-        var command = new PlaceOrderCommand(Guid.NewGuid(), Guid.NewGuid(), Guid.NewGuid(), "CashOnDelivery", null, null, null, 0m, 0m, 0m, null, null, null);
+        var command = new PlaceOrderCommand(Guid.NewGuid(), Guid.NewGuid(), Guid.NewGuid(), "CashOnDelivery", null, null, null, 0m, 0m, 0m, null, null, null, 0m, 0m, 0m, 0m);
         var handler = CreateHandler();
 
         var act = () => handler.Handle(command, CancellationToken.None);
@@ -97,11 +110,24 @@ public class PlaceOrderCommandHandlerTests
                 It.IsAny<decimal>(),
                 It.IsAny<decimal>(),
                 It.IsAny<decimal>(),
+                It.IsAny<decimal>(),
+                It.IsAny<string?>(),
+                It.IsAny<string?>(),
+                It.IsAny<bool>(),
+                It.IsAny<string?>(),
+                It.IsAny<Guid?>(),
+                It.IsAny<string?>(),
+                It.IsAny<DateTime?>(),
+                It.IsAny<int>(),
+                It.IsAny<bool>(),
+                It.IsAny<decimal>(),
+                It.IsAny<decimal>(),
+                It.IsAny<decimal>(),
                 It.IsAny<IReadOnlyDictionary<Guid, int>>(),
                 It.IsAny<CancellationToken>()))
             .ReturnsAsync((Order?)null);
 
-        var command = new PlaceOrderCommand(userId, vendorId, Guid.NewGuid(), "CashOnDelivery", null, null, null, 0m, 0m, 0m, null, null, null);
+        var command = new PlaceOrderCommand(userId, vendorId, Guid.NewGuid(), "CashOnDelivery", null, null, null, 0m, 0m, 0m, null, null, null, 0m, 0m, 0m, 0m);
         var handler = CreateHandler();
 
         var act = () => handler.Handle(command, CancellationToken.None);
@@ -132,6 +158,19 @@ public class PlaceOrderCommandHandlerTests
             null,
             null,
             null,
+            0m,
+            0m,
+            0m,
+            0m,
+            null,
+            null,
+            false,
+            null,
+            null,
+            null,
+            null,
+            1,
+            false,
             6m);
         var masterProduct = new MasterProduct("Name Ar", "Name En", "name-en", Guid.NewGuid());
         var cart = new Cart(userId);
@@ -166,6 +205,19 @@ public class PlaceOrderCommandHandlerTests
                 0m,
                 0m,
                 0m,
+                0m,
+                null,
+                null,
+                false,
+                null,
+                null,
+                null,
+                null,
+                1,
+                false,
+                0m,
+                0m,
+                0m,
                 It.IsAny<IReadOnlyDictionary<Guid, int>>(),
                 It.IsAny<CancellationToken>()))
             .ReturnsAsync(existingOrder);
@@ -173,7 +225,7 @@ public class PlaceOrderCommandHandlerTests
         var handler = CreateHandler();
 
         var result = await handler.Handle(
-            new PlaceOrderCommand(userId, vendorId, addressId, "Card", null, null, null, 20m, 0m, 0m, null, null, null, 0m, 0m, false),
+            new PlaceOrderCommand(userId, vendorId, addressId, "Card", null, null, null, 20m, 0m, 0m, null, null, null, 0m, 0m, 0m, 0m, ClearCartAfterPlacement: false),
             CancellationToken.None);
 
         result.Should().Be(existingOrder.Id);
@@ -204,7 +256,7 @@ public class PlaceOrderCommandHandlerTests
         var handler = CreateHandler();
 
         var act = () => handler.Handle(
-            new PlaceOrderCommand(userId, vendorId, Guid.NewGuid(), "CashOnDelivery", null, null, null, 0m, 0m, 0m, null, null, null),
+            new PlaceOrderCommand(userId, vendorId, Guid.NewGuid(), "CashOnDelivery", null, null, null, 0m, 0m, 0m, null, null, null, 0m, 0m, 0m, 0m),
             CancellationToken.None);
 
         await act.Should()
