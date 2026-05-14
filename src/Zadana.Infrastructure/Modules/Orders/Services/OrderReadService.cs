@@ -206,6 +206,7 @@ public class OrderReadService : IOrderReadService
             estimatedDelivery,
             driver,
             assignedDriver,
+            BuildDeliveryBreakdown(order),
             arrivalState,
             arrivalUpdatedAtUtc,
             showDeliveryOtp ? assignment!.DeliveryOtpCode : null,
@@ -513,6 +514,7 @@ public class OrderReadService : IOrderReadService
             order.PaymentMethod.ToString(),
             order.Subtotal,
             order.DeliveryFee,
+            BuildDeliveryBreakdown(order),
             order.TotalAmount,
             order.Notes,
             order.PlacedAtUtc,
@@ -960,6 +962,7 @@ public class OrderReadService : IOrderReadService
                 order.Subtotal,
                 order.DeliveryFee,
                 order.TotalAmount),
+            BuildDeliveryBreakdown(order),
             order.Items
                 .Select(item => new CustomerOrderProductDto(
                     item.Id,
@@ -968,6 +971,18 @@ public class OrderReadService : IOrderReadService
                     item.UnitPrice))
                 .ToList(),
             ResolveActiveSupportCaseSummary(order.SupportCases));
+
+    private static OrderDeliveryBreakdownDto BuildDeliveryBreakdown(Order order) =>
+        new(
+            order.DriverToVendorDistanceKm,
+            order.VendorToCustomerDistanceKm,
+            order.DriverToVendorFee,
+            order.VendorToCustomerFee,
+            order.DeliveryFee,
+            order.DriverToVendorPricingSource ?? "fallback",
+            order.VendorToCustomerPricingSource ?? "fallback",
+            order.DeliveryPricingMode ?? "estimated",
+            order.UsedEstimatedDriverPricing);
 
     private static string? NormalizeText(string? value) =>
         string.IsNullOrWhiteSpace(value) ? null : value.Trim();
@@ -1852,6 +1867,7 @@ public class OrderReadService : IOrderReadService
             ResolveLastUpdatedAtUtc(order),
             order.Subtotal,
             order.DeliveryFee,
+            BuildDeliveryBreakdown(order),
             Math.Max(0, order.TotalAmount - order.Subtotal - order.DeliveryFee),
             order.TotalAmount,
             address?.Latitude is not null && address?.Longitude is not null

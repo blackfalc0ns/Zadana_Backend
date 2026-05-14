@@ -6,7 +6,9 @@ using Zadana.Application.Common.Interfaces;
 using Zadana.Application.Modules.Finances.DTOs;
 using Zadana.Application.Modules.Finances.Services;
 using Zadana.Application.Modules.Finances.Queries.GetAdminFinanceDashboard;
+using Zadana.Application.Modules.Finances.Queries.GetCityDeliveryPricingSettings;
 using Zadana.Application.Modules.Finances.Queries.GetZoneFinanceSettings;
+using Zadana.Application.Modules.Finances.Commands.UpdateCityDeliveryPricingSettings;
 using Zadana.Application.Modules.Finances.Commands.UpdateZoneFinanceSettings;
 using Zadana.Domain.Modules.Finances.Enums;
 
@@ -40,6 +42,14 @@ public class AdminFinancesController(
         return Ok(result);
     }
 
+    [HttpGet("city-pricing")]
+    [ProducesResponseType(StatusCodes.Status200OK)]
+    public async Task<ActionResult<List<CityDeliveryPricingSettingsDto>>> GetCityPricing(CancellationToken cancellationToken)
+    {
+        var result = await mediator.Send(new GetCityDeliveryPricingSettingsQuery(), cancellationToken);
+        return Ok(result);
+    }
+
     [HttpPut("pricing-settings/{zoneId}")]
     [ProducesResponseType(StatusCodes.Status200OK)]
     [ProducesResponseType(StatusCodes.Status404NotFound)]
@@ -49,6 +59,20 @@ public class AdminFinancesController(
         CancellationToken cancellationToken)
     {
         if (zoneId != command.ZoneId) return BadRequest("ZoneId mismatch");
+
+        var result = await mediator.Send(command, cancellationToken);
+        return Ok(result);
+    }
+
+    [HttpPut("city-pricing/{cityId}")]
+    [ProducesResponseType(StatusCodes.Status200OK)]
+    [ProducesResponseType(StatusCodes.Status404NotFound)]
+    public async Task<ActionResult<CityDeliveryPricingSettingsDto>> UpdateCityPricing(
+        [FromRoute] Guid cityId,
+        [FromBody] UpdateCityDeliveryPricingSettingsCommand command,
+        CancellationToken cancellationToken)
+    {
+        if (cityId != command.CityId) return BadRequest("CityId mismatch");
 
         var result = await mediator.Send(command, cancellationToken);
         return Ok(result);

@@ -62,6 +62,13 @@ public class OrderRepository : IOrderRepository
         decimal? quotedDistanceKm,
         string? deliveryPricingMode,
         string? deliveryPricingRuleLabel,
+        decimal driverToVendorDistanceKm,
+        decimal vendorToCustomerDistanceKm,
+        decimal driverToVendorFee,
+        decimal vendorToCustomerFee,
+        string? driverToVendorPricingSource,
+        string? vendorToCustomerPricingSource,
+        bool usedEstimatedDriverPricing,
         decimal commissionAmount,
         decimal vatAmount,
         decimal codFee,
@@ -90,6 +97,13 @@ public class OrderRepository : IOrderRepository
                 order.QuotedDistanceKm == quotedDistanceKm &&
                 order.DeliveryPricingMode == deliveryPricingMode &&
                 order.DeliveryPricingRuleLabel == deliveryPricingRuleLabel &&
+                order.DriverToVendorDistanceKm == driverToVendorDistanceKm &&
+                order.VendorToCustomerDistanceKm == vendorToCustomerDistanceKm &&
+                order.DriverToVendorFee == driverToVendorFee &&
+                order.VendorToCustomerFee == vendorToCustomerFee &&
+                order.DriverToVendorPricingSource == driverToVendorPricingSource &&
+                order.VendorToCustomerPricingSource == vendorToCustomerPricingSource &&
+                order.UsedEstimatedDriverPricing == usedEstimatedDriverPricing &&
                 order.CommissionAmount == commissionAmount &&
                 order.VatAmount == vatAmount &&
                 order.CodFee == codFee)

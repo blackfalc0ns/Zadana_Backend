@@ -12,6 +12,7 @@ public record GetCheckoutSummaryResponse(
     [property: JsonPropertyName("payment_methods")] List<CheckoutPaymentMethodResponse> PaymentMethods,
     [property: JsonPropertyName("promo_code")] CheckoutPromoCodeResponse? PromoCode,
     [property: JsonPropertyName("delivery_quote")] CheckoutDeliveryQuoteResponse DeliveryQuote,
+    [property: JsonPropertyName("delivery_breakdown")] CheckoutDeliveryBreakdownResponse DeliveryBreakdown,
     [property: JsonPropertyName("shipping_breakdown")] List<CheckoutShippingBreakdownLineResponse> ShippingBreakdown,
     [property: JsonPropertyName("pricing_mode")] string PricingMode,
     [property: JsonPropertyName("summary")] CheckoutSummaryTotalsResponse Summary);
@@ -67,6 +68,18 @@ public record CheckoutDeliveryQuoteResponse(
     [property: JsonPropertyName("pricing_mode")] string PricingMode,
     [property: JsonPropertyName("rule_label")] string RuleLabel);
 
+public record CheckoutDeliveryLegResponse(
+    [property: JsonPropertyName("distance_km")] decimal DistanceKm,
+    [property: JsonPropertyName("fee")] decimal Fee,
+    [property: JsonPropertyName("pricing_source")] string PricingSource);
+
+public record CheckoutDeliveryBreakdownResponse(
+    [property: JsonPropertyName("driver_to_vendor")] CheckoutDeliveryLegResponse DriverToVendor,
+    [property: JsonPropertyName("vendor_to_customer")] CheckoutDeliveryLegResponse VendorToCustomer,
+    [property: JsonPropertyName("total_delivery")] decimal TotalDelivery,
+    [property: JsonPropertyName("pricing_mode")] string PricingMode,
+    [property: JsonPropertyName("used_estimated_driver_pricing")] bool UsedEstimatedDriverPricing);
+
 public record CheckoutShippingBreakdownLineResponse(
     [property: JsonPropertyName("code")] string Code,
     [property: JsonPropertyName("label")] string Label,
@@ -94,6 +107,7 @@ public record ApplyCheckoutPromoCodeResponse(
     [property: JsonPropertyName("payment_methods")] List<CheckoutPaymentMethodResponse> PaymentMethods,
     [property: JsonPropertyName("promo_code")] CheckoutPromoCodeResponse? PromoCode,
     [property: JsonPropertyName("delivery_quote")] CheckoutDeliveryQuoteResponse DeliveryQuote,
+    [property: JsonPropertyName("delivery_breakdown")] CheckoutDeliveryBreakdownResponse DeliveryBreakdown,
     [property: JsonPropertyName("shipping_breakdown")] List<CheckoutShippingBreakdownLineResponse> ShippingBreakdown,
     [property: JsonPropertyName("pricing_mode")] string PricingMode,
     [property: JsonPropertyName("summary")] CheckoutSummaryTotalsResponse Summary);
@@ -108,6 +122,7 @@ public record RemoveCheckoutPromoCodeResponse(
     [property: JsonPropertyName("payment_methods")] List<CheckoutPaymentMethodResponse> PaymentMethods,
     [property: JsonPropertyName("promo_code")] CheckoutPromoCodeResponse? PromoCode,
     [property: JsonPropertyName("delivery_quote")] CheckoutDeliveryQuoteResponse DeliveryQuote,
+    [property: JsonPropertyName("delivery_breakdown")] CheckoutDeliveryBreakdownResponse DeliveryBreakdown,
     [property: JsonPropertyName("shipping_breakdown")] List<CheckoutShippingBreakdownLineResponse> ShippingBreakdown,
     [property: JsonPropertyName("pricing_mode")] string PricingMode,
     [property: JsonPropertyName("summary")] CheckoutSummaryTotalsResponse Summary);

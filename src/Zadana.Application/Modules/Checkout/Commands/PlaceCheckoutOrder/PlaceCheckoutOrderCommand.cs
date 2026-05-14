@@ -99,7 +99,7 @@ public class PlaceCheckoutOrderCommandHandler : IRequestHandler<PlaceCheckoutOrd
             cancellationToken);
         var coupon = await ResolveOrderCouponAsync(request.UserId, cart, request.PromoCode, pricing.VendorId, pricing.Subtotal, cancellationToken);
         var discount = coupon == null ? 0m : CheckoutSupport.CalculateDiscountAmount(coupon, pricing.Subtotal);
-        var financeBreakdown = await CheckoutSupport.ResolveFinanceBreakdownAsync(
+        var financeBreakdown = await CheckoutSupport.ResolveFinanceBreakdownV2Async(
             _context,
             address,
             pricing.Subtotal,
@@ -116,7 +116,14 @@ public class PlaceCheckoutOrderCommandHandler : IRequestHandler<PlaceCheckoutOrd
             deliveryQuote.SurgeFee,
             deliveryQuote.DistanceKm,
             deliveryQuote.PricingMode,
-            deliveryQuote.RuleLabel);
+            deliveryQuote.RuleLabel,
+            deliveryQuote.DriverToVendorDistanceKm,
+            deliveryQuote.VendorToCustomerDistanceKm,
+            deliveryQuote.DriverToVendorFee,
+            deliveryQuote.VendorToCustomerFee,
+            deliveryQuote.DriverToVendorPricingSource,
+            deliveryQuote.VendorToCustomerPricingSource,
+            deliveryQuote.UsedEstimatedDriverPricing);
         if (coupon == null)
         {
             cart.RemoveCoupon();
@@ -145,6 +152,13 @@ public class PlaceCheckoutOrderCommandHandler : IRequestHandler<PlaceCheckoutOrd
                 deliveryQuote.DistanceKm,
                 deliveryQuote.PricingMode,
                 deliveryQuote.RuleLabel,
+                deliveryQuote.DriverToVendorDistanceKm,
+                deliveryQuote.VendorToCustomerDistanceKm,
+                deliveryQuote.DriverToVendorFee,
+                deliveryQuote.VendorToCustomerFee,
+                deliveryQuote.DriverToVendorPricingSource,
+                deliveryQuote.VendorToCustomerPricingSource,
+                deliveryQuote.UsedEstimatedDriverPricing,
                 financeBreakdown.VatAmount,
                 financeBreakdown.CodFee,
                 shouldClearCartAfterPlacement),

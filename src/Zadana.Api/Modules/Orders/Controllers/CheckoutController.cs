@@ -140,6 +140,18 @@ public class CheckoutController : ApiControllerBase
                 result.DeliveryQuote.TotalFee,
                 result.DeliveryQuote.PricingMode,
                 result.DeliveryQuote.RuleLabel),
+            new CheckoutDeliveryBreakdownResponse(
+                new CheckoutDeliveryLegResponse(
+                    result.DeliveryBreakdown.DriverToVendor.DistanceKm,
+                    result.DeliveryBreakdown.DriverToVendor.Fee,
+                    result.DeliveryBreakdown.DriverToVendor.PricingSource),
+                new CheckoutDeliveryLegResponse(
+                    result.DeliveryBreakdown.VendorToCustomer.DistanceKm,
+                    result.DeliveryBreakdown.VendorToCustomer.Fee,
+                    result.DeliveryBreakdown.VendorToCustomer.PricingSource),
+                result.DeliveryBreakdown.TotalDelivery,
+                result.DeliveryBreakdown.PricingMode,
+                result.DeliveryBreakdown.UsedEstimatedDriverPricing),
             result.ShippingBreakdown.Select(item => new CheckoutShippingBreakdownLineResponse(
                 item.Code,
                 item.Label,
@@ -171,6 +183,7 @@ public class CheckoutController : ApiControllerBase
             summary.PaymentMethods,
             summary.PromoCode,
             summary.DeliveryQuote,
+            summary.DeliveryBreakdown,
             summary.ShippingBreakdown,
             summary.PricingMode,
             summary.Summary);
@@ -192,6 +205,7 @@ public class CheckoutController : ApiControllerBase
             summary.PaymentMethods,
             summary.PromoCode,
             summary.DeliveryQuote,
+            summary.DeliveryBreakdown,
             summary.ShippingBreakdown,
             summary.PricingMode,
             summary.Summary);

@@ -19,6 +19,13 @@ public record PlaceOrderCommand(
     decimal? QuotedDistanceKm,
     string? DeliveryPricingMode,
     string? DeliveryPricingRuleLabel,
+    decimal DriverToVendorDistanceKm,
+    decimal VendorToCustomerDistanceKm,
+    decimal DriverToVendorFee,
+    decimal VendorToCustomerFee,
+    string? DriverToVendorPricingSource,
+    string? VendorToCustomerPricingSource,
+    bool UsedEstimatedDriverPricing,
     decimal VatAmount = 0m,
     decimal CodFee = 0m,
     bool ClearCartAfterPlacement = true) : MediatR.IRequest<Guid>;

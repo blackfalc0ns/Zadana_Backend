@@ -2,6 +2,8 @@ using Microsoft.EntityFrameworkCore;
 using Zadana.Application.Common.Interfaces;
 using Zadana.Application.Modules.Delivery.Interfaces;
 using Zadana.Domain.Modules.Delivery.Entities;
+using Zadana.Domain.Modules.Finances.Entities;
+using Zadana.Domain.Modules.Geography.Entities;
 using Zadana.Domain.Modules.Identity.Entities;
 using Zadana.Domain.Modules.Vendors.Entities;
 using Zadana.SharedKernel.Exceptions;
@@ -11,10 +13,14 @@ namespace Zadana.Infrastructure.Modules.Delivery.Services;
 public class DeliveryPricingService : IDeliveryPricingService
 {
     private readonly IApplicationDbContext _context;
+    private readonly IDriverCommitmentPolicyService _driverCommitmentPolicyService;
 
-    public DeliveryPricingService(IApplicationDbContext context)
+    public DeliveryPricingService(
+        IApplicationDbContext context,
+        IDriverCommitmentPolicyService driverCommitmentPolicyService)
     {
         _context = context;
+        _driverCommitmentPolicyService = driverCommitmentPolicyService;
     }
 
     public async Task<DeliveryPriceQuote> QuoteAsync(
@@ -31,114 +37,371 @@ public class DeliveryPricingService : IDeliveryPricingService
             .FirstOrDefaultAsync(item => item.Id == customerAddressId, cancellationToken)
             ?? throw new NotFoundException("CustomerAddress", customerAddressId);
 
-        var rules = await _context.DeliveryPricingRules
+        var pricingRules = await _context.DeliveryPricingRules
+            .AsNoTracking()
             .Include(item => item.DeliveryZone)
             .Include(item => item.SurgeWindows)
             .Where(item => item.IsActive)
             .OrderByDescending(item => item.DeliveryZoneId != null)
             .ToListAsync(cancellationToken);
 
-        var zones = rules
+        var zoneFinanceSettings = await _context.ZoneFinanceSettings
+            .AsNoTracking()
+            .ToDictionaryAsync(item => item.DeliveryZoneId, cancellationToken);
+
+        var cityPricingSettings = await _context.CityDeliveryPricingSettings
+            .AsNoTracking()
+            .ToListAsync(cancellationToken);
+
+        var cities = await _context.SaudiCities
+            .AsNoTracking()
+            .Include(item => item.Region)
+            .ToListAsync(cancellationToken);
+
+        var zones = pricingRules
             .Where(rule => rule.DeliveryZone != null)
             .Select(rule => rule.DeliveryZone!)
             .DistinctBy(zone => zone.Id)
             .ToArray();
 
-        var hasExactCoordinates = address.Latitude.HasValue
+        var vendorCity = ResolveCity(cities, branch.Vendor.City, branch.Vendor.Region);
+        var customerCity = ResolveCity(cities, address.City, null);
+
+        var vendorZone = ResolveLocationZone(zones, branch.Latitude, branch.Longitude, branch.Vendor.City);
+        var customerPoint = ResolveCustomerPoint(address, customerCity, zones);
+        var customerZone = customerPoint.Zone;
+
+        var driverOrigin = await ResolveDriverOriginAsync(
+            branch,
+            zones,
+            vendorZone,
+            vendorCity,
+            cancellationToken);
+
+        var vendorLegSettings = ResolveLegPricingSettings(
+            pricingRules,
+            zoneFinanceSettings,
+            cityPricingSettings,
+            vendorZone,
+            vendorCity);
+        var customerLegSettings = ResolveLegPricingSettings(
+            pricingRules,
+            zoneFinanceSettings,
+            cityPricingSettings,
+            customerZone,
+            customerCity);
+
+        var driverToVendorDistanceKm = DeliveryDispatchScoring.ApproximateDistanceKm(
+            driverOrigin.Latitude,
+            driverOrigin.Longitude,
+            branch.Latitude,
+            branch.Longitude);
+
+        var vendorToCustomerDistanceKm = DeliveryDispatchScoring.ApproximateDistanceKm(
+            branch.Latitude,
+            branch.Longitude,
+            customerPoint.Latitude,
+            customerPoint.Longitude);
+
+        var driverToVendorLeg = QuoteLeg(vendorLegSettings, driverToVendorDistanceKm);
+        var vendorToCustomerLeg = QuoteLeg(customerLegSettings, vendorToCustomerDistanceKm);
+
+        var totalFee = decimal.Round(driverToVendorLeg.TotalFee + vendorToCustomerLeg.TotalFee, 2, MidpointRounding.AwayFromZero);
+        var totalDistanceKm = decimal.Round(driverToVendorDistanceKm + vendorToCustomerDistanceKm, 2, MidpointRounding.AwayFromZero);
+        var pricingMode = driverOrigin.Mode;
+
+        return new DeliveryPriceQuote(
+            driverToVendorLeg.TotalFee,
+            vendorToCustomerLeg.TotalFee,
+            0m,
+            totalFee,
+            totalDistanceKm,
+            pricingMode,
+            $"{vendorLegSettings.Label} -> {customerLegSettings.Label}",
+            decimal.Round(driverToVendorDistanceKm, 2, MidpointRounding.AwayFromZero),
+            decimal.Round(vendorToCustomerDistanceKm, 2, MidpointRounding.AwayFromZero),
+            driverToVendorLeg.TotalFee,
+            vendorToCustomerLeg.TotalFee,
+            vendorLegSettings.Source,
+            customerLegSettings.Source,
+            driverOrigin.Mode == "estimated");
+    }
+
+    private async Task<PricingOriginPoint> ResolveDriverOriginAsync(
+        VendorBranch branch,
+        IReadOnlyCollection<DeliveryZone> zones,
+        DeliveryZone? vendorZone,
+        SaudiCity? vendorCity,
+        CancellationToken cancellationToken)
+    {
+        var busyDriverIds = await _context.DeliveryAssignments
+            .Where(item =>
+                item.DriverId.HasValue &&
+                item.Status != AssignmentStatus.Delivered &&
+                item.Status != AssignmentStatus.Failed &&
+                item.Status != AssignmentStatus.Cancelled &&
+                item.Status != AssignmentStatus.Rejected &&
+                item.Status != AssignmentStatus.Returned)
+            .Select(item => item.DriverId!.Value)
+            .Distinct()
+            .ToListAsync(cancellationToken);
+
+        var eligibleDrivers = await _context.Drivers
+            .AsNoTracking()
+            .Where(driver => driver.CanReceiveNewOffers && !busyDriverIds.Contains(driver.Id))
+            .ToListAsync(cancellationToken);
+
+        if (eligibleDrivers.Count > 0)
+        {
+            var driverIds = eligibleDrivers.Select(driver => driver.Id).ToList();
+            await _driverCommitmentPolicyService.ApplyOperationalEnforcementAsync(driverIds, cancellationToken);
+            var commitment = await _driverCommitmentPolicyService.GetDriverSummariesAsync(driverIds, cancellationToken);
+
+            eligibleDrivers = eligibleDrivers
+                .Where(driver =>
+                    commitment.TryGetValue(driver.Id, out var summary) &&
+                    summary.CanReceiveOffers)
+                .ToList();
+
+            if (eligibleDrivers.Count > 0)
+            {
+                var latestLocations = await _context.DriverLocations
+                    .AsNoTracking()
+                    .Where(location => driverIds.Contains(location.DriverId))
+                    .GroupBy(location => location.DriverId)
+                    .Select(group => group.OrderByDescending(location => location.RecordedAtUtc).First())
+                    .ToListAsync(cancellationToken);
+
+                var liveLocation = latestLocations
+                    .Where(location =>
+                        (DateTime.UtcNow - location.RecordedAtUtc) <= DeliveryDispatchScoring.GpsFreshnessThreshold &&
+                        (!location.AccuracyMeters.HasValue || location.AccuracyMeters.Value <= DeliveryDispatchScoring.LowConfidenceAccuracyMeters))
+                    .OrderBy(location => DeliveryDispatchScoring.ApproximateDistanceKm(
+                        location.Latitude,
+                        location.Longitude,
+                        branch.Latitude,
+                        branch.Longitude))
+                    .FirstOrDefault();
+
+                if (liveLocation is not null)
+                {
+                    return new PricingOriginPoint(
+                        liveLocation.Latitude,
+                        liveLocation.Longitude,
+                        "live",
+                        "nearest-eligible-driver");
+                }
+            }
+        }
+
+        if (vendorZone is not null)
+        {
+            return new PricingOriginPoint(vendorZone.CenterLat, vendorZone.CenterLng, "estimated", "vendor-zone-center");
+        }
+
+        if (vendorCity is not null)
+        {
+            return new PricingOriginPoint((decimal)vendorCity.Latitude, (decimal)vendorCity.Longitude, "estimated", "vendor-city-center");
+        }
+
+        return new PricingOriginPoint(branch.Latitude, branch.Longitude, "estimated", "vendor-branch-fallback");
+    }
+
+    private static CustomerPricingPoint ResolveCustomerPoint(
+        CustomerAddress address,
+        SaudiCity? customerCity,
+        IReadOnlyCollection<DeliveryZone> zones)
+    {
+        var hasCoordinates = address.Latitude.HasValue
             && address.Longitude.HasValue
             && !(address.Latitude.Value == 0m && address.Longitude.Value == 0m);
-        var latitude = address.Latitude;
-        var longitude = address.Longitude;
 
-        if (hasExactCoordinates
-            && !IsInsideAnyZone(zones, latitude!.Value, longitude!.Value)
-            && IsInsideAnyZone(zones, longitude!.Value, latitude!.Value))
+        var latitude = address.Latitude ?? 0m;
+        var longitude = address.Longitude ?? 0m;
+
+        if (hasCoordinates
+            && !IsInsideAnyZone(zones, latitude, longitude)
+            && IsInsideAnyZone(zones, longitude, latitude))
         {
             (latitude, longitude) = (longitude, latitude);
         }
 
-        var distanceKm = hasExactCoordinates
-            ? DeliveryDispatchScoring.ApproximateDistanceKm(
-                branch.Latitude,
-                branch.Longitude,
-                latitude!.Value,
-                longitude!.Value)
-            : 0m;
+        var zone = hasCoordinates
+            ? ResolveLocationZone(zones, latitude, longitude, address.City)
+            : ResolveZoneByCity(zones, address.City);
 
-        var addressZone = hasExactCoordinates
-            ? DeliveryDispatchScoring.ResolveContainingZone(
-                zones,
-                latitude!.Value,
-                longitude!.Value)
-            : null;
-
-        if (hasExactCoordinates && addressZone is null)
+        if (hasCoordinates)
         {
-            addressZone = ResolveNearestCityZone(zones, address.City, latitude!.Value, longitude!.Value)
-                ?? ResolveNearestCityZone(zones, branch.Vendor.City, latitude!.Value, longitude!.Value);
+            return new CustomerPricingPoint(latitude, longitude, zone);
         }
 
-        var rule = ResolveRule(rules, addressZone?.Id, address.City, branch.Vendor.City);
-        if (rule is null)
+        if (zone is not null)
         {
-            throw new BusinessRuleException(
-                "DELIVERY_PRICING_UNAVAILABLE",
-                "Delivery pricing is not configured for the selected address.");
+            return new CustomerPricingPoint(zone.CenterLat, zone.CenterLng, zone);
         }
 
-        var pricingMode = hasExactCoordinates ? "exact-distance" : "zone-fallback";
-        var baseFee = rule.BaseFee;
-        var distanceFee = hasExactCoordinates
-            ? Math.Max(0m, decimal.Round(distanceKm - rule.IncludedKm, 2, MidpointRounding.AwayFromZero)) * rule.PerKmFee
-            : 0m;
+        if (customerCity is not null)
+        {
+            return new CustomerPricingPoint((decimal)customerCity.Latitude, (decimal)customerCity.Longitude, null);
+        }
 
-        distanceFee = decimal.Round(distanceFee, 2, MidpointRounding.AwayFromZero);
-
-        var activeMultiplier = ResolveActiveSurgeMultiplier(rule.SurgeWindows.ToArray());
-        var surgeFee = activeMultiplier > 1m
-            ? decimal.Round((baseFee + distanceFee) * (activeMultiplier - 1m), 2, MidpointRounding.AwayFromZero)
-            : 0m;
-
-        ApplyClamp(rule.MinFee, rule.MaxFee, ref baseFee, ref distanceFee, ref surgeFee);
-
-        return new DeliveryPriceQuote(
-            baseFee,
-            distanceFee,
-            surgeFee,
-            decimal.Round(baseFee + distanceFee + surgeFee, 2, MidpointRounding.AwayFromZero),
-            decimal.Round(distanceKm, 2, MidpointRounding.AwayFromZero),
-            pricingMode,
-            rule.Name);
+        throw new BusinessRuleException(
+            "DELIVERY_PRICING_UNAVAILABLE",
+            "Delivery pricing is not configured for the selected address.");
     }
 
-    private static Domain.Modules.Delivery.Entities.DeliveryPricingRule? ResolveRule(
-        IReadOnlyCollection<Domain.Modules.Delivery.Entities.DeliveryPricingRule> rules,
-        Guid? zoneId,
-        string? addressCity,
-        string? vendorCity)
+    private static LegPricingSettings ResolveLegPricingSettings(
+        IReadOnlyCollection<DeliveryPricingRule> pricingRules,
+        IReadOnlyDictionary<Guid, ZoneFinanceSettings> zoneFinanceSettings,
+        IReadOnlyCollection<CityDeliveryPricingSettings> cityPricingSettings,
+        DeliveryZone? zone,
+        SaudiCity? city)
     {
-        if (zoneId.HasValue)
+        if (zone is not null)
         {
-            var zoneRule = rules.FirstOrDefault(item => item.DeliveryZoneId == zoneId.Value);
+            var zoneRule = pricingRules.FirstOrDefault(item => item.DeliveryZoneId == zone.Id);
             if (zoneRule is not null)
             {
-                return zoneRule;
+                zoneFinanceSettings.TryGetValue(zone.Id, out var zoneFinance);
+                return new LegPricingSettings(
+                    zoneRule.BaseFee,
+                    zoneRule.IncludedKm,
+                    zoneRule.PerKmFee,
+                    zoneRule.MinFee,
+                    zoneRule.MaxFee,
+                    zoneRule.SurgeWindows.ToArray(),
+                    zoneFinance?.VatPercent ?? 15m,
+                    zoneFinance?.CodFeeType ?? "flat",
+                    zoneFinance?.CodFlatFee ?? 0m,
+                    zoneFinance?.CodPercent ?? 0m,
+                    zoneFinance?.IsVatActive ?? true,
+                    zoneFinance?.IsCodFeeActive ?? false,
+                    "zone",
+                    zoneRule.Name);
             }
         }
 
-        var city = !string.IsNullOrWhiteSpace(addressCity) ? addressCity : vendorCity;
+        if (city is not null)
+        {
+            var citySettings = cityPricingSettings.FirstOrDefault(item => item.SaudiCityId == city.Id && item.IsPricingActive);
+            if (citySettings is not null)
+            {
+                return new LegPricingSettings(
+                    citySettings.BaseDeliveryFee,
+                    citySettings.IncludedKm,
+                    citySettings.ExtraKmFee,
+                    citySettings.MinDeliveryFee,
+                    citySettings.MaxDeliveryFee,
+                    [],
+                    citySettings.VatPercent,
+                    citySettings.CodFeeType,
+                    citySettings.CodFlatFee,
+                    citySettings.CodPercent,
+                    citySettings.IsVatActive,
+                    citySettings.IsCodFeeActive,
+                    "city",
+                    city.NameEn);
+            }
+        }
+
+        return new LegPricingSettings(
+            0m,
+            5m,
+            0m,
+            0m,
+            0m,
+            [],
+            15m,
+            "flat",
+            0m,
+            0m,
+            true,
+            false,
+            "fallback",
+            "Default");
+    }
+
+    private static QuotedLeg QuoteLeg(LegPricingSettings settings, decimal distanceKm)
+    {
+        var baseFee = settings.BaseDeliveryFee;
+        var extraDistanceFee = Math.Max(0m, decimal.Round(distanceKm - settings.IncludedKm, 2, MidpointRounding.AwayFromZero)) * settings.ExtraKmFee;
+        extraDistanceFee = decimal.Round(extraDistanceFee, 2, MidpointRounding.AwayFromZero);
+
+        var activeMultiplier = ResolveActiveSurgeMultiplier(settings.SurgeWindows);
+        var surgeFee = activeMultiplier > 1m
+            ? decimal.Round((baseFee + extraDistanceFee) * (activeMultiplier - 1m), 2, MidpointRounding.AwayFromZero)
+            : 0m;
+
+        ApplyClamp(settings.MinDeliveryFee, settings.MaxDeliveryFee, ref baseFee, ref extraDistanceFee, ref surgeFee);
+
+        return new QuotedLeg(
+            decimal.Round(baseFee + extraDistanceFee + surgeFee, 2, MidpointRounding.AwayFromZero),
+            baseFee,
+            extraDistanceFee,
+            surgeFee);
+    }
+
+    private static DeliveryZone? ResolveLocationZone(
+        IReadOnlyCollection<DeliveryZone> zones,
+        decimal latitude,
+        decimal longitude,
+        string? fallbackCity)
+    {
+        var containingZone = DeliveryDispatchScoring.ResolveContainingZone(zones, latitude, longitude);
+        if (containingZone is not null)
+        {
+            return containingZone;
+        }
+
+        var nearestCityZone = ResolveNearestCityZone(zones, fallbackCity, latitude, longitude);
+        if (nearestCityZone is not null)
+        {
+            return nearestCityZone;
+        }
+
+        return DeliveryDispatchScoring.ResolveNearestZone(zones, latitude, longitude);
+    }
+
+    private static DeliveryZone? ResolveZoneByCity(
+        IReadOnlyCollection<DeliveryZone> zones,
+        string? city)
+    {
         if (string.IsNullOrWhiteSpace(city))
         {
             return null;
         }
 
-        return rules.FirstOrDefault(item =>
-                item.DeliveryZoneId != null &&
-                item.DeliveryZone != null &&
-                CityMatches(item.DeliveryZone.City, city))
-            ?? rules.FirstOrDefault(item =>
-                item.DeliveryZoneId == null &&
-                CityMatches(item.City, city));
+        return zones.FirstOrDefault(zone => zone.IsActive && CityMatches(zone.City, city));
+    }
+
+    private static SaudiCity? ResolveCity(
+        IReadOnlyCollection<SaudiCity> cities,
+        string? cityValue,
+        string? regionValue)
+    {
+        var normalizedCity = NormalizeCity(cityValue);
+        var normalizedRegion = NormalizeRegion(regionValue);
+
+        return cities.FirstOrDefault(city =>
+                !string.IsNullOrWhiteSpace(normalizedRegion) &&
+                string.Equals(city.Region.Code, normalizedRegion, StringComparison.OrdinalIgnoreCase) &&
+                (string.Equals(city.Code, cityValue?.Trim(), StringComparison.OrdinalIgnoreCase) ||
+                 CityMatches(city.NameAr, cityValue) ||
+                 CityMatches(city.NameEn, cityValue)))
+            ?? cities.FirstOrDefault(city =>
+                string.Equals(city.Code, cityValue?.Trim(), StringComparison.OrdinalIgnoreCase) ||
+                CityMatches(city.NameAr, normalizedCity) ||
+                CityMatches(city.NameEn, normalizedCity));
+    }
+
+    private static string? NormalizeRegion(string? region)
+    {
+        if (string.IsNullOrWhiteSpace(region))
+        {
+            return null;
+        }
+
+        return region.Trim().ToUpperInvariant();
     }
 
     private static DeliveryZone? ResolveNearestCityZone(
@@ -192,7 +455,7 @@ public class DeliveryPricingService : IDeliveryPricingService
         };
     }
 
-    private static decimal ResolveActiveSurgeMultiplier(IReadOnlyCollection<Domain.Modules.Delivery.Entities.DeliveryPricingSurgeWindow> windows)
+    private static decimal ResolveActiveSurgeMultiplier(IReadOnlyCollection<DeliveryPricingSurgeWindow> windows)
     {
         var now = DateTime.Now.TimeOfDay;
 
@@ -226,7 +489,7 @@ public class DeliveryPricingService : IDeliveryPricingService
             return;
         }
 
-        if (total <= maxFee)
+        if (maxFee <= 0 || total <= maxFee)
         {
             return;
         }
@@ -253,4 +516,26 @@ public class DeliveryPricingService : IDeliveryPricingService
 
         baseFee = Math.Max(0m, baseFee - overflow);
     }
+
+    private sealed record PricingOriginPoint(decimal Latitude, decimal Longitude, string Mode, string Source);
+
+    private sealed record CustomerPricingPoint(decimal Latitude, decimal Longitude, DeliveryZone? Zone);
+
+    private sealed record LegPricingSettings(
+        decimal BaseDeliveryFee,
+        decimal IncludedKm,
+        decimal ExtraKmFee,
+        decimal MinDeliveryFee,
+        decimal MaxDeliveryFee,
+        IReadOnlyCollection<DeliveryPricingSurgeWindow> SurgeWindows,
+        decimal VatPercent,
+        string CodFeeType,
+        decimal CodFlatFee,
+        decimal CodPercent,
+        bool IsVatActive,
+        bool IsCodFeeActive,
+        string Source,
+        string Label);
+
+    private sealed record QuotedLeg(decimal TotalFee, decimal BaseFee, decimal DistanceFee, decimal SurgeFee);
 }

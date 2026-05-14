@@ -50,7 +50,7 @@ public class GetCheckoutSummaryQueryHandler : IRequestHandler<GetCheckoutSummary
             address,
             cancellationToken);
         var discount = coupon == null ? 0m : CheckoutSupport.CalculateDiscountAmount(coupon, pricing.Subtotal);
-        var financeBreakdown = await CheckoutSupport.ResolveFinanceBreakdownAsync(
+        var financeBreakdown = await CheckoutSupport.ResolveFinanceBreakdownV2Async(
             _context,
             address,
             pricing.Subtotal,
@@ -76,7 +76,8 @@ public class GetCheckoutSummaryQueryHandler : IRequestHandler<GetCheckoutSummary
             CheckoutSupport.BuildPaymentMethods(_paymobGateway.IsEnabled),
             CheckoutSupport.BuildPromoCodeDto(coupon, discount),
             CheckoutSupport.BuildDeliveryQuoteDto(deliveryQuote),
-            CheckoutSupport.BuildShippingBreakdown(deliveryQuote, financeBreakdown),
+            CheckoutSupport.BuildDeliveryBreakdownDto(deliveryQuote),
+            CheckoutSupport.BuildShippingBreakdownV2(deliveryQuote, financeBreakdown),
             deliveryQuote.PricingMode,
             financeBreakdown.Totals);
     }

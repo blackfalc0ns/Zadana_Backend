@@ -31,7 +31,7 @@ public class GetCategorySubcategoriesQueryHandler : IRequestHandler<GetCategoryS
     public async Task<List<CategoryListItemDto>> Handle(GetCategorySubcategoriesQuery request, CancellationToken cancellationToken)
     {
         return await _cache.GetOrCreateAsync(
-            CatalogQueryCacheKeys.CategorySubcategories(request.CategoryId),
+            CatalogQueryCacheKeys.CategorySubcategories(request.CategoryId) + (request.Limit.HasValue ? $":limit:{request.Limit}" : ""),
             async token =>
             {
                 if (request.CategoryId.HasValue)
@@ -72,6 +72,7 @@ public class GetCategorySubcategoriesQueryHandler : IRequestHandler<GetCategoryS
                 return subcategories
                     .OrderBy(c => c.DisplayOrder)
                     .ThenBy(c => PickLocalized(c.NameAr, c.NameEn), StringComparer.CurrentCultureIgnoreCase)
+                    .Take(request.Limit ?? int.MaxValue)
                     .Select(c => new CategoryListItemDto(
                         c.Id,
                         PickLocalized(c.NameAr, c.NameEn),

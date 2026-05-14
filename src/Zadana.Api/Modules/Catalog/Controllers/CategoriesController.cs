@@ -21,10 +21,11 @@ public class CategoriesController : ApiControllerBase
     public async Task<ActionResult<List<CategoryListItemDto>>> GetSubcategories(
         [FromQuery(Name = "categoryId")] Guid? queryCategoryId,
         [FromRoute] Guid? categoryId,
+        [FromQuery] int? limit,
         CancellationToken cancellationToken)
     {
         var effectiveCategoryId = categoryId ?? queryCategoryId;
-        var result = await Sender.Send(new GetCategorySubcategoriesQuery(effectiveCategoryId), cancellationToken);
+        var result = await Sender.Send(new GetCategorySubcategoriesQuery(effectiveCategoryId, limit), cancellationToken);
         return Ok(result);
     }
 

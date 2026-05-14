@@ -257,7 +257,7 @@ internal static class CheckoutSupport
     }
 
     public static DeliveryPriceQuote BuildNoPricingQuote() =>
-        new(0m, 0m, 0m, 0m, 0m, "zone-fallback", "No pricing");
+        new(0m, 0m, 0m, 0m, 0m, "zone-fallback", "No pricing", 0m, 0m, 0m, 0m, "fallback", "fallback", true);
 
     public static CheckoutDeliveryQuoteDto BuildDeliveryQuoteDto(DeliveryPriceQuote quote) =>
         new(
@@ -269,6 +269,14 @@ internal static class CheckoutSupport
             quote.PricingMode,
             quote.RuleLabel);
 
+    public static CheckoutDeliveryBreakdownDto BuildDeliveryBreakdownDto(DeliveryPriceQuote quote) =>
+        new(
+            new CheckoutDeliveryLegDto(quote.DriverToVendorDistanceKm, quote.DriverToVendorFee, quote.DriverToVendorPricingSource),
+            new CheckoutDeliveryLegDto(quote.VendorToCustomerDistanceKm, quote.VendorToCustomerFee, quote.VendorToCustomerPricingSource),
+            quote.TotalFee,
+            quote.PricingMode,
+            quote.UsedEstimatedDriverPricing);
+
     public static async Task<CheckoutFinanceBreakdown> ResolveFinanceBreakdownAsync(
         IApplicationDbContext context,
         CustomerAddress? address,
@@ -279,6 +287,34 @@ internal static class CheckoutSupport
         CancellationToken cancellationToken)
     {
         var settings = await ResolveZoneFinanceSettingsAsync(context, address, cancellationToken);
+        var normalizedPaymentMethod = NormalizePaymentMethodCode(paymentMethodCode);
+        var taxableBase = Math.Max(0m, subtotal + shippingCost - discount);
+
+        var vatAmount = settings.IsVatActive && settings.VatPercent > 0m
+            ? decimal.Round(taxableBase * settings.VatPercent / 100m, 2, MidpointRounding.AwayFromZero)
+            : 0m;
+
+        var codFee = normalizedPaymentMethod == "cash" && settings.IsCodFeeActive
+            ? CalculateCodFee(settings, taxableBase)
+            : 0m;
+
+        return new CheckoutFinanceBreakdown(
+            taxableBase,
+            vatAmount,
+            codFee,
+            BuildTotals(subtotal, shippingCost, discount, vatAmount, codFee));
+    }
+
+    public static async Task<CheckoutFinanceBreakdown> ResolveFinanceBreakdownV2Async(
+        IApplicationDbContext context,
+        CustomerAddress? address,
+        decimal subtotal,
+        decimal shippingCost,
+        decimal discount,
+        string? paymentMethodCode,
+        CancellationToken cancellationToken)
+    {
+        var settings = await ResolveZoneOrCityFinanceSettingsAsync(context, address, cancellationToken);
         var normalizedPaymentMethod = NormalizePaymentMethodCode(paymentMethodCode);
         var taxableBase = Math.Max(0m, subtotal + shippingCost - discount);
 
@@ -333,6 +369,34 @@ internal static class CheckoutSupport
             coupon.DiscountType == CouponDiscountType.Fixed ? "fixed" : "percentage",
             coupon.DiscountValue,
             discountAmount);
+    }
+
+    public static List<CheckoutShippingBreakdownLineDto> BuildShippingBreakdownV2(
+        DeliveryPriceQuote quote,
+        CheckoutFinanceBreakdown financeBreakdown)
+    {
+        var lines = new List<CheckoutShippingBreakdownLineDto>
+        {
+            new("driver_to_vendor", "رسوم انتقال المندوب إلى التاجر", "Driver to vendor", quote.DriverToVendorFee),
+            new("vendor_to_customer", "رسوم التوصيل من التاجر إلى العميل", "Vendor to customer", quote.VendorToCustomerFee)
+        };
+
+        if (quote.SurgeFee > 0m)
+        {
+            lines.Add(new CheckoutShippingBreakdownLineDto("peak_surcharge", "رسوم الذروة", "Peak surcharge", quote.SurgeFee));
+        }
+
+        if (financeBreakdown.VatAmount > 0m)
+        {
+            lines.Add(new CheckoutShippingBreakdownLineDto("vat", "ضريبة القيمة المضافة", "VAT", financeBreakdown.VatAmount));
+        }
+
+        if (financeBreakdown.CodFee > 0m)
+        {
+            lines.Add(new CheckoutShippingBreakdownLineDto("cod_fee", "رسوم الدفع عند الاستلام", "Cash on delivery fee", financeBreakdown.CodFee));
+        }
+
+        return lines;
     }
 
     public static CheckoutTotalsDto BuildTotals(decimal subtotal, decimal shippingCost, decimal discount) =>
@@ -523,6 +587,65 @@ internal static class CheckoutSupport
                 settings.CodPercent,
                 settings.IsVatActive,
                 settings.IsCodFeeActive);
+    }
+
+    private static async Task<ZoneFinanceSettingsSnapshot> ResolveZoneOrCityFinanceSettingsAsync(
+        IApplicationDbContext context,
+        CustomerAddress? address,
+        CancellationToken cancellationToken)
+    {
+        var zoneSettings = await ResolveZoneFinanceSettingsAsync(context, address, cancellationToken);
+        if (zoneSettings != ZoneFinanceSettingsSnapshot.Default)
+        {
+            return zoneSettings;
+        }
+
+        if (string.IsNullOrWhiteSpace(address?.City))
+        {
+            return ZoneFinanceSettingsSnapshot.Default;
+        }
+
+        var normalizedCity = NormalizeCityName(address.City);
+        var cities = await context.SaudiCities
+            .AsNoTracking()
+            .ToListAsync(cancellationToken);
+
+        var city = cities.FirstOrDefault(item =>
+            string.Equals(item.Code, address.City, StringComparison.OrdinalIgnoreCase) ||
+            string.Equals(NormalizeCityName(item.NameAr), normalizedCity, StringComparison.OrdinalIgnoreCase) ||
+            string.Equals(NormalizeCityName(item.NameEn), normalizedCity, StringComparison.OrdinalIgnoreCase));
+
+        if (city is null)
+        {
+            return ZoneFinanceSettingsSnapshot.Default;
+        }
+
+        var citySettings = await context.CityDeliveryPricingSettings
+            .AsNoTracking()
+            .FirstOrDefaultAsync(item => item.SaudiCityId == city.Id, cancellationToken);
+
+        return citySettings is null
+            ? ZoneFinanceSettingsSnapshot.Default
+            : new ZoneFinanceSettingsSnapshot(
+                citySettings.VatPercent,
+                citySettings.CodFeeType,
+                citySettings.CodFlatFee,
+                citySettings.CodPercent,
+                citySettings.IsVatActive,
+                citySettings.IsCodFeeActive);
+    }
+
+    private static string? NormalizeCityName(string? value)
+    {
+        if (string.IsNullOrWhiteSpace(value))
+        {
+            return null;
+        }
+
+        return value.Trim().ToLowerInvariant()
+            .Replace(" ", string.Empty)
+            .Replace("-", string.Empty)
+            .Replace("_", string.Empty);
     }
 
     private static bool IsPointWithinZone(DeliveryZone zone, decimal latitude, decimal longitude) =>
