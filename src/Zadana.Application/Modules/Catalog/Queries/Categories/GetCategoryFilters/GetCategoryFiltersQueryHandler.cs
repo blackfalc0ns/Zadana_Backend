@@ -43,6 +43,7 @@ public class GetCategoryFiltersQueryHandler : IRequestHandler<GetCategoryFilters
                         category.ParentCategoryId,
                         category.NameAr,
                         category.NameEn,
+                        category.ImageUrl,
                         category.DisplayOrder,
                         category.IsActive))
                     .ToListAsync(token);
@@ -104,9 +105,10 @@ public class GetCategoryFiltersQueryHandler : IRequestHandler<GetCategoryFilters
                 var subcategories = scope.DirectActiveChildren
                     .OrderBy(child => child.DisplayOrder)
                     .ThenBy(child => PickLocalized(child.NameAr, child.NameEn), StringComparer.CurrentCultureIgnoreCase)
-                    .Select(child => new CatalogFilterNamedItemDto(
+                    .Select(child => new CategoryFilterCategoryItemDto(
                         child.Id,
-                        PickLocalized(child.NameAr, child.NameEn)))
+                        PickLocalized(child.NameAr, child.NameEn),
+                        child.ImageUrl))
                     .ToList();
 
                 var productTypeRows = await _context.ProductTypes
@@ -191,9 +193,10 @@ public class GetCategoryFiltersQueryHandler : IRequestHandler<GetCategoryFilters
                     : new CatalogFilterPriceRangeDto(visiblePrices.Min(), visiblePrices.Max());
 
                 return new CategoryFiltersDto(
-                    new CatalogFilterNamedItemDto(
+                    new CategoryFilterCategoryItemDto(
                         scope.Category.Id,
-                        PickLocalized(scope.Category.NameAr, scope.Category.NameEn)),
+                        PickLocalized(scope.Category.NameAr, scope.Category.NameEn),
+                        scope.Category.ImageUrl),
                     subcategories,
                     productTypes,
                     parts,

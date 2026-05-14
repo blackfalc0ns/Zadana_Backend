@@ -54,13 +54,13 @@ public class GetCategoryFiltersQueryHandlerTests
         using var scope = new CultureScope("ar");
         await using var context = TestDbContextFactory.Create();
 
-        var root = new Category("\u0623\u0644\u0628\u0627\u0646", "Dairy", null, null, 1);
+        var root = new Category("\u0623\u0644\u0628\u0627\u0646", "Dairy", "dairy.png", null, 1);
         context.Categories.Add(root);
         await context.SaveChangesAsync();
 
-        var childOne = new Category("\u062D\u0644\u064A\u0628", "Milk", null, root.Id, 1);
-        var childTwo = new Category("\u0632\u0628\u0627\u062F\u064A", "Yogurt", null, root.Id, 2);
-        var inactiveChild = new Category("\u062C\u0628\u0646\u0629", "Cheese", null, root.Id, 3);
+        var childOne = new Category("\u062D\u0644\u064A\u0628", "Milk", "milk.png", root.Id, 1);
+        var childTwo = new Category("\u0632\u0628\u0627\u062F\u064A", "Yogurt", "yogurt.png", root.Id, 2);
+        var inactiveChild = new Category("\u062C\u0628\u0646\u0629", "Cheese", "cheese.png", root.Id, 3);
         inactiveChild.Deactivate();
         context.Categories.AddRange(childOne, childTwo, inactiveChild);
         await context.SaveChangesAsync();
@@ -77,10 +77,12 @@ public class GetCategoryFiltersQueryHandlerTests
         var result = await handler.Handle(new GetCategoryFiltersQuery(root.Id), CancellationToken.None);
 
         result.Category.Name.Should().Be("\u0623\u0644\u0628\u0627\u0646");
+        result.Category.ImageUrl.Should().Be("dairy.png");
         result.Subcategories.Select(item => item.Id).Should().Equal(childOne.Id, childTwo.Id);
         result.Subcategories.Select(item => item.Name).Should().Equal(
             "\u062D\u0644\u064A\u0628",
             "\u0632\u0628\u0627\u062F\u064A");
+        result.Subcategories.Select(item => item.ImageUrl).Should().Equal("milk.png", "yogurt.png");
         result.Subcategories.Should().NotContain(item => item.Id == grandChild.Id || item.Id == inactiveChild.Id);
         result.ProductTypes.Should().BeEmpty();
         result.Parts.Should().BeEmpty();

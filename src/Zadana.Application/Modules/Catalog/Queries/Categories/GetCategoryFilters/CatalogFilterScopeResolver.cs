@@ -49,6 +49,7 @@ internal sealed record CategoryScopeRow(
     Guid? ParentCategoryId,
     string? NameAr,
     string? NameEn,
+    string? ImageUrl,
     int DisplayOrder,
     bool IsActive);
 
