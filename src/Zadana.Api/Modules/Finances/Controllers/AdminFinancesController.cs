@@ -7,8 +7,12 @@ using Zadana.Application.Modules.Finances.DTOs;
 using Zadana.Application.Modules.Finances.Services;
 using Zadana.Application.Modules.Finances.Queries.GetAdminFinanceDashboard;
 using Zadana.Application.Modules.Finances.Queries.GetCityDeliveryPricingSettings;
+using Zadana.Application.Modules.Finances.Queries.GetDeliveryPricingDefaults;
+using Zadana.Application.Modules.Finances.Queries.GetRegionDeliveryPricingSettings;
 using Zadana.Application.Modules.Finances.Queries.GetZoneFinanceSettings;
 using Zadana.Application.Modules.Finances.Commands.UpdateCityDeliveryPricingSettings;
+using Zadana.Application.Modules.Finances.Commands.UpdateDeliveryPricingDefaults;
+using Zadana.Application.Modules.Finances.Commands.UpdateRegionDeliveryPricingSettings;
 using Zadana.Application.Modules.Finances.Commands.UpdateZoneFinanceSettings;
 using Zadana.Domain.Modules.Finances.Enums;
 
@@ -50,6 +54,22 @@ public class AdminFinancesController(
         return Ok(result);
     }
 
+    [HttpGet("region-pricing")]
+    [ProducesResponseType(StatusCodes.Status200OK)]
+    public async Task<ActionResult<List<RegionDeliveryPricingSettingsDto>>> GetRegionPricing(CancellationToken cancellationToken)
+    {
+        var result = await mediator.Send(new GetRegionDeliveryPricingSettingsQuery(), cancellationToken);
+        return Ok(result);
+    }
+
+    [HttpGet("delivery-defaults")]
+    [ProducesResponseType(StatusCodes.Status200OK)]
+    public async Task<ActionResult<DeliveryPricingDefaultsDto>> GetDeliveryDefaults(CancellationToken cancellationToken)
+    {
+        var result = await mediator.Send(new GetDeliveryPricingDefaultsQuery(), cancellationToken);
+        return Ok(result);
+    }
+
     [HttpPut("pricing-settings/{zoneId}")]
     [ProducesResponseType(StatusCodes.Status200OK)]
     [ProducesResponseType(StatusCodes.Status404NotFound)]
@@ -74,6 +94,30 @@ public class AdminFinancesController(
     {
         if (cityId != command.CityId) return BadRequest("CityId mismatch");
 
+        var result = await mediator.Send(command, cancellationToken);
+        return Ok(result);
+    }
+
+    [HttpPut("region-pricing/{regionId}")]
+    [ProducesResponseType(StatusCodes.Status200OK)]
+    [ProducesResponseType(StatusCodes.Status404NotFound)]
+    public async Task<ActionResult<RegionDeliveryPricingSettingsDto>> UpdateRegionPricing(
+        [FromRoute] Guid regionId,
+        [FromBody] UpdateRegionDeliveryPricingSettingsCommand command,
+        CancellationToken cancellationToken)
+    {
+        if (regionId != command.RegionId) return BadRequest("RegionId mismatch");
+
+        var result = await mediator.Send(command, cancellationToken);
+        return Ok(result);
+    }
+
+    [HttpPut("delivery-defaults")]
+    [ProducesResponseType(StatusCodes.Status200OK)]
+    public async Task<ActionResult<DeliveryPricingDefaultsDto>> UpdateDeliveryDefaults(
+        [FromBody] UpdateDeliveryPricingDefaultsCommand command,
+        CancellationToken cancellationToken)
+    {
         var result = await mediator.Send(command, cancellationToken);
         return Ok(result);
     }

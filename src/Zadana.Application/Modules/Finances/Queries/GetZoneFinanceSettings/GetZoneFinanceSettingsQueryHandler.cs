@@ -14,6 +14,11 @@ internal sealed class GetZoneFinanceSettingsQueryHandler(IApplicationDbContext d
             .AsNoTracking()
             .ToListAsync(cancellationToken);
 
+        var cities = await dbContext.SaudiCities
+            .AsNoTracking()
+            .Include(item => item.Region)
+            .ToListAsync(cancellationToken);
+
         var pricingRules = await dbContext.DeliveryPricingRules
             .AsNoTracking()
             .Where(x => x.DeliveryZoneId.HasValue)
@@ -29,12 +34,20 @@ internal sealed class GetZoneFinanceSettingsQueryHandler(IApplicationDbContext d
         {
             pricingRules.TryGetValue(zone.Id, out var rule);
             financeSettings.TryGetValue(zone.Id, out var settings);
+            var matchedCity = cities.FirstOrDefault(item =>
+                string.Equals(item.Code, zone.City, StringComparison.OrdinalIgnoreCase) ||
+                string.Equals(NormalizeText(item.NameAr), NormalizeText(zone.City), StringComparison.OrdinalIgnoreCase) ||
+                string.Equals(NormalizeText(item.NameEn), NormalizeText(zone.City), StringComparison.OrdinalIgnoreCase));
 
             result.Add(new ZoneFinanceSettingsDto
             {
                 ZoneId = zone.Id,
                 ZoneName = zone.Name,
                 City = zone.City,
+                RegionId = matchedCity?.RegionId,
+                RegionCode = matchedCity?.Region.Code,
+                RegionNameAr = matchedCity?.Region.NameAr,
+                RegionNameEn = matchedCity?.Region.NameEn,
                 
                 BaseDeliveryFee = rule?.BaseFee ?? 0,
                 IncludedKm = rule?.IncludedKm ?? 0,
@@ -53,5 +66,18 @@ internal sealed class GetZoneFinanceSettingsQueryHandler(IApplicationDbContext d
         }
 
         return result.OrderBy(x => x.City).ThenBy(x => x.ZoneName).ToList();
+    }
+
+    private static string? NormalizeText(string? value)
+    {
+        if (string.IsNullOrWhiteSpace(value))
+        {
+            return null;
+        }
+
+        return value.Trim().ToLowerInvariant()
+            .Replace(" ", string.Empty)
+            .Replace("-", string.Empty)
+            .Replace("_", string.Empty);
     }
 }

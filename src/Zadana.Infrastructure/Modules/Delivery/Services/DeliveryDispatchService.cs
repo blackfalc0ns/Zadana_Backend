@@ -260,6 +260,8 @@ public class DeliveryDispatchService : IDeliveryDispatchService
         var assignment = await _context.DeliveryAssignments
             .Include(item => item.Order)
                 .ThenInclude(order => order.Vendor)
+            .Include(item => item.Order)
+                .ThenInclude(order => order.VendorBranch)
             .Include(item => item.Driver)
                 .ThenInclude(driver => driver!.User)
             .FirstOrDefaultAsync(item => item.Id == assignmentId, cancellationToken)
@@ -291,6 +293,24 @@ public class DeliveryDispatchService : IDeliveryDispatchService
         {
             assignment.Order.ChangeStatus(OrderStatus.DriverAssigned, null, "Driver accepted delivery offer.");
             _context.OrderStatusHistories.Add(assignment.Order.StatusHistory.Last());
+        }
+
+        var latestLocation = await _context.DriverLocations
+            .AsNoTracking()
+            .Where(item => item.DriverId == driverId)
+            .OrderByDescending(item => item.RecordedAtUtc)
+            .FirstOrDefaultAsync(cancellationToken);
+
+        var pickupLatitude = assignment.Order.VendorBranch?.Latitude ?? 0m;
+        var pickupLongitude = assignment.Order.VendorBranch?.Longitude ?? 0m;
+        if (latestLocation is not null && pickupLatitude != 0m && pickupLongitude != 0m)
+        {
+            var actualPickupDistance = DeliveryDispatchScoring.ApproximateDistanceKm(
+                latestLocation.Latitude,
+                latestLocation.Longitude,
+                pickupLatitude,
+                pickupLongitude);
+            assignment.Order.RecordAssignedDriverDistance(decimal.Round(actualPickupDistance, 2, MidpointRounding.AwayFromZero));
         }
 
         await _unitOfWork.SaveChangesAsync(cancellationToken);

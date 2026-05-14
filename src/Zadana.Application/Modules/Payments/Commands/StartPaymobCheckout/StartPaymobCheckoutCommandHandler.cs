@@ -53,7 +53,7 @@ public class StartPaymobCheckoutCommandHandler : IRequestHandler<StartPaymobChec
             .AsNoTracking()
             .FirstOrDefaultAsync(x => x.Id == request.CustomerAddressId && x.UserId == request.UserId, cancellationToken)
             ?? throw new NotFoundException("CustomerAddress", request.CustomerAddressId);
-        var financeBreakdown = await CheckoutSupport.ResolveFinanceBreakdownAsync(
+        var financeBreakdown = await CheckoutSupport.ResolveFinanceBreakdownV2Async(
             _context,
             address,
             cart.Subtotal,
@@ -64,22 +64,35 @@ public class StartPaymobCheckoutCommandHandler : IRequestHandler<StartPaymobChec
 
         var orderId = await _sender.Send(
             new PlaceOrderCommand(
-                request.UserId,
-                request.VendorId,
-                request.CustomerAddressId,
-                nameof(PaymentMethodType.Card),
-                request.Notes,
-                request.VendorBranchId,
-                couponId,
-                cart.BaseDeliveryFee,
-                cart.DistanceDeliveryFee,
-                cart.SurgeDeliveryFee,
-                cart.QuotedDistanceKm,
-                cart.DeliveryPricingMode,
-                cart.DeliveryPricingRuleLabel,
-                financeBreakdown.VatAmount,
-                financeBreakdown.CodFee,
-                false),
+                UserId: request.UserId,
+                VendorId: request.VendorId,
+                CustomerAddressId: request.CustomerAddressId,
+                PaymentMethod: nameof(PaymentMethodType.Card),
+                Notes: request.Notes,
+                VendorBranchId: request.VendorBranchId,
+                CouponId: couponId,
+                BaseDeliveryFee: cart.BaseDeliveryFee,
+                DistanceDeliveryFee: cart.DistanceDeliveryFee,
+                SurgeDeliveryFee: cart.SurgeDeliveryFee,
+                QuotedDistanceKm: cart.QuotedDistanceKm,
+                DeliveryPricingMode: cart.DeliveryPricingMode,
+                DeliveryPricingRuleLabel: cart.DeliveryPricingRuleLabel,
+                DriverToVendorDistanceKm: cart.DriverToVendorDistanceKm,
+                VendorToCustomerDistanceKm: cart.VendorToCustomerDistanceKm,
+                DriverToVendorFee: cart.DriverToVendorFee,
+                VendorToCustomerFee: cart.VendorToCustomerFee,
+                DriverToVendorPricingSource: cart.DriverToVendorPricingSource,
+                VendorToCustomerPricingSource: cart.VendorToCustomerPricingSource,
+                UsedEstimatedDriverPricing: cart.UsedEstimatedDriverPricing,
+                PricingOriginType: cart.PricingOriginType,
+                PricingOriginDriverId: cart.PricingOriginDriverId,
+                DeliveryQuoteStatus: cart.DeliveryQuoteStatus,
+                DeliveryQuoteLockedAtUtc: cart.DeliveryQuoteLockedAtUtc,
+                DeliveryQuoteVersion: cart.DeliveryQuoteVersion,
+                HasDeliveryAnomalyWarning: cart.HasDeliveryAnomalyWarning,
+                VatAmount: financeBreakdown.VatAmount,
+                CodFee: financeBreakdown.CodFee,
+                ClearCartAfterPlacement: false),
             cancellationToken);
 
         var order = await _context.Orders

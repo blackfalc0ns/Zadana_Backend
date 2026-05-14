@@ -29,6 +29,16 @@ public class OrderConfiguration : IEntityTypeConfiguration<Order>
         builder.Property(x => x.QuotedDistanceKm).HasPrecision(18, 2);
         builder.Property(x => x.DeliveryPricingMode).HasMaxLength(50);
         builder.Property(x => x.DeliveryPricingRuleLabel).HasMaxLength(150);
+        builder.Property(x => x.DriverToVendorDistanceKm).HasPrecision(18, 2);
+        builder.Property(x => x.VendorToCustomerDistanceKm).HasPrecision(18, 2);
+        builder.Property(x => x.DriverToVendorFee).HasPrecision(18, 2);
+        builder.Property(x => x.VendorToCustomerFee).HasPrecision(18, 2);
+        builder.Property(x => x.DriverToVendorPricingSource).HasMaxLength(50);
+        builder.Property(x => x.VendorToCustomerPricingSource).HasMaxLength(50);
+        builder.Property(x => x.PricingOriginType).HasMaxLength(50);
+        builder.Property(x => x.DeliveryQuoteStatus).HasMaxLength(50);
+        builder.Property(x => x.ActualAssignedDriverPickupDistanceKm).HasPrecision(18, 2);
+        builder.Property(x => x.ActualDispatchDeviationPercent).HasPrecision(18, 2);
         builder.Property(x => x.CommissionAmount).HasPrecision(18, 2).IsRequired();
         builder.Property(x => x.VatAmount).HasPrecision(18, 2).IsRequired().HasDefaultValue(0);
         builder.Property(x => x.CodFee).HasPrecision(18, 2).IsRequired().HasDefaultValue(0);

@@ -35,6 +35,14 @@ public class Order : BaseEntity
     public string? DriverToVendorPricingSource { get; private set; }
     public string? VendorToCustomerPricingSource { get; private set; }
     public bool UsedEstimatedDriverPricing { get; private set; }
+    public string? PricingOriginType { get; private set; }
+    public Guid? PricingOriginDriverId { get; private set; }
+    public string? DeliveryQuoteStatus { get; private set; }
+    public DateTime? DeliveryQuoteLockedAtUtc { get; private set; }
+    public int DeliveryQuoteVersion { get; private set; }
+    public bool HasDeliveryAnomalyWarning { get; private set; }
+    public decimal? ActualAssignedDriverPickupDistanceKm { get; private set; }
+    public decimal? ActualDispatchDeviationPercent { get; private set; }
     public decimal CommissionAmount { get; private set; }
     public decimal VatAmount { get; private set; }
     public decimal CodFee { get; private set; }
@@ -80,6 +88,12 @@ public class Order : BaseEntity
         string? driverToVendorPricingSource,
         string? vendorToCustomerPricingSource,
         bool usedEstimatedDriverPricing,
+        string? pricingOriginType,
+        Guid? pricingOriginDriverId,
+        string? deliveryQuoteStatus,
+        DateTime? deliveryQuoteLockedAtUtc,
+        int deliveryQuoteVersion,
+        bool hasDeliveryAnomalyWarning,
         decimal commissionAmount,
         decimal vatAmount = 0,
         decimal codFee = 0,
@@ -108,6 +122,12 @@ public class Order : BaseEntity
         DriverToVendorPricingSource = string.IsNullOrWhiteSpace(driverToVendorPricingSource) ? null : driverToVendorPricingSource.Trim();
         VendorToCustomerPricingSource = string.IsNullOrWhiteSpace(vendorToCustomerPricingSource) ? null : vendorToCustomerPricingSource.Trim();
         UsedEstimatedDriverPricing = usedEstimatedDriverPricing;
+        PricingOriginType = string.IsNullOrWhiteSpace(pricingOriginType) ? null : pricingOriginType.Trim();
+        PricingOriginDriverId = pricingOriginDriverId;
+        DeliveryQuoteStatus = string.IsNullOrWhiteSpace(deliveryQuoteStatus) ? null : deliveryQuoteStatus.Trim();
+        DeliveryQuoteLockedAtUtc = deliveryQuoteLockedAtUtc;
+        DeliveryQuoteVersion = deliveryQuoteVersion <= 0 ? 1 : deliveryQuoteVersion;
+        HasDeliveryAnomalyWarning = hasDeliveryAnomalyWarning;
         CommissionAmount = commissionAmount;
         VatAmount = vatAmount;
         CodFee = codFee;
@@ -119,6 +139,21 @@ public class Order : BaseEntity
         Status = OrderStatus.PendingPayment;
         PaymentStatus = Zadana.Domain.Modules.Payments.Enums.PaymentStatus.Initiated;
         PlacedAtUtc = DateTime.UtcNow;
+    }
+
+    public void RecordAssignedDriverDistance(decimal pickupDistanceKm)
+    {
+        ActualAssignedDriverPickupDistanceKm = pickupDistanceKm;
+        if (DriverToVendorDistanceKm <= 0)
+        {
+            ActualDispatchDeviationPercent = null;
+            return;
+        }
+
+        ActualDispatchDeviationPercent = Math.Round(
+            Math.Abs(pickupDistanceKm - DriverToVendorDistanceKm) / DriverToVendorDistanceKm * 100m,
+            2,
+            MidpointRounding.AwayFromZero);
     }
 
     public void ChangeStatus(OrderStatus newStatus, Guid? changedByUserId = null, string? note = null)

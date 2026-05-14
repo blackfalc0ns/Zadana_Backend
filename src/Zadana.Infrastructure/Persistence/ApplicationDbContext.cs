@@ -112,6 +112,8 @@ public class ApplicationDbContext : IdentityDbContext<User, IdentityRole<Guid>, 
 
     // Finances
     public DbSet<CityDeliveryPricingSettings> CityDeliveryPricingSettings => Set<CityDeliveryPricingSettings>();
+    public DbSet<RegionDeliveryPricingSettings> RegionDeliveryPricingSettings => Set<RegionDeliveryPricingSettings>();
+    public DbSet<DeliveryPricingDefaults> DeliveryPricingDefaults => Set<DeliveryPricingDefaults>();
     public DbSet<ZoneFinanceSettings> ZoneFinanceSettings => Set<ZoneFinanceSettings>();
     public DbSet<FinancialEvent> FinancialEvents => Set<FinancialEvent>();
     public DbSet<JournalEntry> JournalEntries => Set<JournalEntry>();

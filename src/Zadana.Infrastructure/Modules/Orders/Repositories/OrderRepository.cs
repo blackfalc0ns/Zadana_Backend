@@ -69,6 +69,12 @@ public class OrderRepository : IOrderRepository
         string? driverToVendorPricingSource,
         string? vendorToCustomerPricingSource,
         bool usedEstimatedDriverPricing,
+        string? pricingOriginType,
+        Guid? pricingOriginDriverId,
+        string? deliveryQuoteStatus,
+        DateTime? deliveryQuoteLockedAtUtc,
+        int deliveryQuoteVersion,
+        bool hasDeliveryAnomalyWarning,
         decimal commissionAmount,
         decimal vatAmount,
         decimal codFee,
@@ -104,6 +110,12 @@ public class OrderRepository : IOrderRepository
                 order.DriverToVendorPricingSource == driverToVendorPricingSource &&
                 order.VendorToCustomerPricingSource == vendorToCustomerPricingSource &&
                 order.UsedEstimatedDriverPricing == usedEstimatedDriverPricing &&
+                order.PricingOriginType == pricingOriginType &&
+                order.PricingOriginDriverId == pricingOriginDriverId &&
+                order.DeliveryQuoteStatus == deliveryQuoteStatus &&
+                order.DeliveryQuoteLockedAtUtc == deliveryQuoteLockedAtUtc &&
+                order.DeliveryQuoteVersion == deliveryQuoteVersion &&
+                order.HasDeliveryAnomalyWarning == hasDeliveryAnomalyWarning &&
                 order.CommissionAmount == commissionAmount &&
                 order.VatAmount == vatAmount &&
                 order.CodFee == codFee)

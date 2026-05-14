@@ -21,6 +21,14 @@ public class CartConfiguration : IEntityTypeConfiguration<Cart>
         builder.Property(x => x.QuotedDistanceKm).HasPrecision(18, 2);
         builder.Property(x => x.DeliveryPricingMode).HasMaxLength(50);
         builder.Property(x => x.DeliveryPricingRuleLabel).HasMaxLength(150);
+        builder.Property(x => x.DriverToVendorDistanceKm).HasPrecision(18, 2);
+        builder.Property(x => x.VendorToCustomerDistanceKm).HasPrecision(18, 2);
+        builder.Property(x => x.DriverToVendorFee).HasPrecision(18, 2);
+        builder.Property(x => x.VendorToCustomerFee).HasPrecision(18, 2);
+        builder.Property(x => x.DriverToVendorPricingSource).HasMaxLength(50);
+        builder.Property(x => x.VendorToCustomerPricingSource).HasMaxLength(50);
+        builder.Property(x => x.PricingOriginType).HasMaxLength(50);
+        builder.Property(x => x.DeliveryQuoteStatus).HasMaxLength(50);
         builder.Property(x => x.Total).HasPrecision(18, 2).IsRequired();
         builder.Property(x => x.GuestId).HasMaxLength(200);
 

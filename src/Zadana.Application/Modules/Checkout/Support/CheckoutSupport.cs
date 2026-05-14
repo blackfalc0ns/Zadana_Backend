@@ -257,7 +257,7 @@ internal static class CheckoutSupport
     }
 
     public static DeliveryPriceQuote BuildNoPricingQuote() =>
-        new(0m, 0m, 0m, 0m, 0m, "zone-fallback", "No pricing", 0m, 0m, 0m, 0m, "fallback", "fallback", true);
+        new(0m, 0m, 0m, 0m, 0m, "zone-fallback", "No pricing", 0m, 0m, 0m, 0m, "fallback", "fallback", true, "fallback", null, "pricing_unavailable", DateTime.UtcNow, 2, false);
 
     public static CheckoutDeliveryQuoteDto BuildDeliveryQuoteDto(DeliveryPriceQuote quote) =>
         new(
@@ -624,15 +624,45 @@ internal static class CheckoutSupport
             .AsNoTracking()
             .FirstOrDefaultAsync(item => item.SaudiCityId == city.Id, cancellationToken);
 
-        return citySettings is null
-            ? ZoneFinanceSettingsSnapshot.Default
-            : new ZoneFinanceSettingsSnapshot(
+        if (citySettings is not null)
+        {
+            return new ZoneFinanceSettingsSnapshot(
                 citySettings.VatPercent,
                 citySettings.CodFeeType,
                 citySettings.CodFlatFee,
                 citySettings.CodPercent,
                 citySettings.IsVatActive,
                 citySettings.IsCodFeeActive);
+        }
+
+        var regionSettings = await context.RegionDeliveryPricingSettings
+            .AsNoTracking()
+            .FirstOrDefaultAsync(item => item.SaudiRegionId == city.RegionId, cancellationToken);
+
+        if (regionSettings is not null)
+        {
+            return new ZoneFinanceSettingsSnapshot(
+                regionSettings.VatPercent,
+                regionSettings.CodFeeType,
+                regionSettings.CodFlatFee,
+                regionSettings.CodPercent,
+                regionSettings.IsVatActive,
+                regionSettings.IsCodFeeActive);
+        }
+
+        var defaults = await context.DeliveryPricingDefaults
+            .AsNoTracking()
+            .FirstOrDefaultAsync(cancellationToken);
+
+        return defaults is null
+            ? ZoneFinanceSettingsSnapshot.Default
+            : new ZoneFinanceSettingsSnapshot(
+                defaults.VatPercent,
+                defaults.CodFeeType,
+                defaults.CodFlatFee,
+                defaults.CodPercent,
+                defaults.IsVatActive,
+                defaults.IsCodFeeActive);
     }
 
     private static string? NormalizeCityName(string? value)

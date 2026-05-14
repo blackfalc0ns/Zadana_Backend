@@ -63,7 +63,15 @@ public record OrderDeliveryBreakdownDto(
     string DriverToVendorPricingSource,
     string VendorToCustomerPricingSource,
     string PricingMode,
-    bool UsedEstimatedDriverPricing);
+    bool UsedEstimatedDriverPricing,
+    string DeliveryQuoteStatus,
+    string? PricingOriginType,
+    Guid? PricingOriginDriverId,
+    DateTime? QuoteLockedAtUtc,
+    int QuoteVersion,
+    bool HasAnomalyWarning,
+    decimal? ActualAssignedDriverPickupDistanceKm,
+    decimal? ActualDispatchDeviationPercent);
 
 public record DriverLiveLocationDto(
     decimal Latitude,

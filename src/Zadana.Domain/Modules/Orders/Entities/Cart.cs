@@ -26,6 +26,12 @@ public class Cart : BaseEntity
     public string? DriverToVendorPricingSource { get; private set; }
     public string? VendorToCustomerPricingSource { get; private set; }
     public bool UsedEstimatedDriverPricing { get; private set; }
+    public string? PricingOriginType { get; private set; }
+    public Guid? PricingOriginDriverId { get; private set; }
+    public string? DeliveryQuoteStatus { get; private set; }
+    public DateTime? DeliveryQuoteLockedAtUtc { get; private set; }
+    public int DeliveryQuoteVersion { get; private set; }
+    public bool HasDeliveryAnomalyWarning { get; private set; }
     public decimal Total { get; private set; }
 
     // Navigation
@@ -55,6 +61,7 @@ public class Cart : BaseEntity
         VendorToCustomerDistanceKm = 0;
         DriverToVendorFee = 0;
         VendorToCustomerFee = 0;
+        DeliveryQuoteVersion = 1;
         Total = 0;
     }
 
@@ -87,7 +94,13 @@ public class Cart : BaseEntity
         decimal vendorToCustomerFee = 0,
         string? driverToVendorPricingSource = null,
         string? vendorToCustomerPricingSource = null,
-        bool usedEstimatedDriverPricing = false)
+        bool usedEstimatedDriverPricing = false,
+        string? pricingOriginType = null,
+        Guid? pricingOriginDriverId = null,
+        string? deliveryQuoteStatus = null,
+        DateTime? deliveryQuoteLockedAtUtc = null,
+        int deliveryQuoteVersion = 1,
+        bool hasDeliveryAnomalyWarning = false)
     {
         Subtotal = subtotal;
         DeliveryFee = deliveryFee;
@@ -104,6 +117,12 @@ public class Cart : BaseEntity
         DriverToVendorPricingSource = string.IsNullOrWhiteSpace(driverToVendorPricingSource) ? null : driverToVendorPricingSource.Trim();
         VendorToCustomerPricingSource = string.IsNullOrWhiteSpace(vendorToCustomerPricingSource) ? null : vendorToCustomerPricingSource.Trim();
         UsedEstimatedDriverPricing = usedEstimatedDriverPricing;
+        PricingOriginType = string.IsNullOrWhiteSpace(pricingOriginType) ? null : pricingOriginType.Trim();
+        PricingOriginDriverId = pricingOriginDriverId;
+        DeliveryQuoteStatus = string.IsNullOrWhiteSpace(deliveryQuoteStatus) ? null : deliveryQuoteStatus.Trim();
+        DeliveryQuoteLockedAtUtc = deliveryQuoteLockedAtUtc;
+        DeliveryQuoteVersion = deliveryQuoteVersion <= 0 ? 1 : deliveryQuoteVersion;
+        HasDeliveryAnomalyWarning = hasDeliveryAnomalyWarning;
         RecalculateTotal();
     }
 

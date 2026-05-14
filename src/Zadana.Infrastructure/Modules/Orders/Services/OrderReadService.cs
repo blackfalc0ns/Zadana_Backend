@@ -982,7 +982,15 @@ public class OrderReadService : IOrderReadService
             order.DriverToVendorPricingSource ?? "fallback",
             order.VendorToCustomerPricingSource ?? "fallback",
             order.DeliveryPricingMode ?? "estimated",
-            order.UsedEstimatedDriverPricing);
+            order.UsedEstimatedDriverPricing,
+            order.DeliveryQuoteStatus ?? "estimated_locked",
+            order.PricingOriginType,
+            order.PricingOriginDriverId,
+            order.DeliveryQuoteLockedAtUtc,
+            order.DeliveryQuoteVersion,
+            order.HasDeliveryAnomalyWarning,
+            order.ActualAssignedDriverPickupDistanceKm,
+            order.ActualDispatchDeviationPercent);
 
     private static string? NormalizeText(string? value) =>
         string.IsNullOrWhiteSpace(value) ? null : value.Trim();

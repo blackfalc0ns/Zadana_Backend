@@ -1,28 +1,23 @@
 namespace Zadana.Application.Modules.Finances.DTOs;
 
-public class ZoneFinanceSettingsDto
+public class DeliveryPricingDefaultsDto
 {
-    public Guid ZoneId { get; set; }
-    public string ZoneName { get; set; } = null!;
-    public string City { get; set; } = null!;
-    public Guid? RegionId { get; set; }
-    public string? RegionCode { get; set; }
-    public string? RegionNameAr { get; set; }
-    public string? RegionNameEn { get; set; }
-    
-    // Pricing Rule
+    public Guid Id { get; set; }
+    public string PricingScope { get; set; } = "global";
     public decimal BaseDeliveryFee { get; set; }
     public decimal IncludedKm { get; set; }
     public decimal ExtraKmFee { get; set; }
     public decimal MinDeliveryFee { get; set; }
     public decimal MaxDeliveryFee { get; set; }
     public bool IsPricingActive { get; set; }
-    
-    // Finance Settings
     public decimal VatPercent { get; set; }
-    public string CodFeeType { get; set; } = null!; // "flat" or "percent"
+    public string CodFeeType { get; set; } = "flat";
     public decimal CodFlatFee { get; set; }
     public decimal CodPercent { get; set; }
     public bool IsVatActive { get; set; }
     public bool IsCodFeeActive { get; set; }
+    public decimal MinTotalDeliveryFee { get; set; }
+    public decimal MaxTotalDeliveryFee { get; set; }
+    public decimal MaxQuotedDistanceKm { get; set; }
+    public decimal WarningSubtotalRatioThreshold { get; set; }
 }

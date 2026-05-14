@@ -97,6 +97,8 @@ public interface IApplicationDbContext
 
     // Finances
     DbSet<CityDeliveryPricingSettings> CityDeliveryPricingSettings { get; }
+    DbSet<RegionDeliveryPricingSettings> RegionDeliveryPricingSettings { get; }
+    DbSet<DeliveryPricingDefaults> DeliveryPricingDefaults { get; }
     DbSet<ZoneFinanceSettings> ZoneFinanceSettings { get; }
     DbSet<FinancialEvent> FinancialEvents { get; }
     DbSet<JournalEntry> JournalEntries { get; }

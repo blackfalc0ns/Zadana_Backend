@@ -22,4 +22,10 @@ public sealed record DeliveryPriceQuote(
     decimal VendorToCustomerFee,
     string DriverToVendorPricingSource,
     string VendorToCustomerPricingSource,
-    bool UsedEstimatedDriverPricing);
+    bool UsedEstimatedDriverPricing,
+    string PricingOriginType,
+    Guid? PricingOriginDriverId,
+    string DeliveryQuoteStatus,
+    DateTime QuoteLockedAtUtc,
+    int QuoteVersion,
+    bool HasAnomalyWarning);
