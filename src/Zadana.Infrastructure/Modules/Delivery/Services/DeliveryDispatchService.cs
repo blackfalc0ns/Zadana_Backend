@@ -701,6 +701,11 @@ public class DeliveryDispatchService : IDeliveryDispatchService
             attemptNumber,
             best.Evaluation.MatchReason);
 
+        // Push the full driver home payload so the mobile app's home screen
+        // reflects the new offer immediately (covers cases where the app
+        // relies on ReceiveDriverHomeUpdated rather than ReceiveDeliveryOffer).
+        await _notificationService.SendDriverHomeUpdatedAsync(best.Driver.UserId, cancellationToken);
+
         return new DispatchDecisionDto(
             best.Driver.Id,
             best.Driver.User.FullName,
