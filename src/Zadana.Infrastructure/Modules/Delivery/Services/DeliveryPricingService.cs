@@ -177,10 +177,12 @@ public class DeliveryPricingService : IDeliveryPricingService
             .Distinct()
             .ToListAsync(cancellationToken);
 
-        var eligibleDrivers = await _context.Drivers
-            .AsNoTracking()
-            .Where(driver => driver.CanReceiveNewOffers && !busyDriverIds.Contains(driver.Id))
-            .ToListAsync(cancellationToken);
+        var eligibleDrivers = (await _context.Drivers
+                .AsNoTracking()
+                .Where(driver => !busyDriverIds.Contains(driver.Id))
+                .ToListAsync(cancellationToken))
+            .Where(driver => driver.CanReceiveNewOffers)
+            .ToList();
 
         if (eligibleDrivers.Any())
         {
@@ -377,7 +379,7 @@ public class DeliveryPricingService : IDeliveryPricingService
                     regionSettings.IsVatActive,
                     regionSettings.IsCodFeeActive,
                     "region",
-                    city.Region.NameEn);
+                    city.Region?.NameEn ?? city.NameEn);
             }
         }
 
