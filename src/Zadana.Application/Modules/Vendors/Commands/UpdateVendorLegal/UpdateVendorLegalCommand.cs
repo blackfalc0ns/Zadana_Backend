@@ -5,6 +5,7 @@ using Zadana.Application.Common.Interfaces;
 using Zadana.Application.Common.Localization;
 using Zadana.Application.Modules.Vendors.DTOs;
 using Zadana.Application.Modules.Vendors.Interfaces;
+using Zadana.Application.Modules.Vendors.Support;
 using Zadana.Domain.Modules.Vendors.Enums;
 using Zadana.SharedKernel.Exceptions;
 
@@ -85,6 +86,8 @@ public class UpdateVendorLegalCommandHandler : IRequestHandler<UpdateVendorLegal
                 review.ResetToPending();
             }
         }
+
+        VendorProfileReviewMutations.ResetSectionToSubmitted(vendor, "legal");
 
         await _unitOfWork.SaveChangesAsync(cancellationToken);
 

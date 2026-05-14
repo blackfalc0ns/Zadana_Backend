@@ -5,6 +5,7 @@ using Zadana.Application.Common.Interfaces;
 using Zadana.Application.Common.Localization;
 using Zadana.Application.Modules.Vendors.DTOs;
 using Zadana.Application.Modules.Vendors.Interfaces;
+using Zadana.Application.Modules.Vendors.Support;
 using Zadana.SharedKernel.Exceptions;
 
 namespace Zadana.Application.Modules.Vendors.Commands.UpdateVendorStore;
@@ -87,6 +88,8 @@ public class UpdateVendorStoreCommandHandler : IRequestHandler<UpdateVendorStore
             request.City,
             request.NationalAddress,
             request.CommercialRegistrationNumber);
+
+        VendorProfileReviewMutations.ResetSectionToSubmitted(vendor, "store");
 
         await _unitOfWork.SaveChangesAsync(cancellationToken);
 

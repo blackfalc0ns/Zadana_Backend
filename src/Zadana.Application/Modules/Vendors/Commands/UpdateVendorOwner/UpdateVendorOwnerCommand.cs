@@ -6,6 +6,7 @@ using Zadana.Application.Common.Localization;
 using Zadana.Application.Modules.Identity.Interfaces;
 using Zadana.Application.Modules.Vendors.DTOs;
 using Zadana.Application.Modules.Vendors.Interfaces;
+using Zadana.Application.Modules.Vendors.Support;
 using Zadana.SharedKernel.Exceptions;
 
 namespace Zadana.Application.Modules.Vendors.Commands.UpdateVendorOwner;
@@ -61,6 +62,7 @@ public class UpdateVendorOwnerCommandHandler : IRequestHandler<UpdateVendorOwner
             ?? throw new NotFoundException("Vendor", userId);
 
         vendor.UpdateOwner(request.OwnerName, request.OwnerEmail, request.OwnerPhone, request.IdNumber, request.Nationality);
+        VendorProfileReviewMutations.ResetSectionToSubmitted(vendor, "owner");
 
         var updateIdentityResult = await _identityAccountService.UpdateProfileAsync(
             userId,

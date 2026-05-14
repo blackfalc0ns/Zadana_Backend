@@ -16,6 +16,8 @@ public record VendorWorkspaceDto(
     string? Region,
     string? City,
     string? NationalAddress,
+    decimal? PrimaryBranchLatitude,
+    decimal? PrimaryBranchLongitude,
     string? OwnerName,
     string? OwnerEmail,
     string? OwnerPhone,
@@ -75,6 +77,8 @@ public record VendorWorkspaceReviewSummaryDto(
 public record VendorWorkspaceReviewItemDto(
     string Code,
     string Status,
+    string TargetType,
+    int Step,
     string? ReviewerId,
     string? ReviewerName,
     string? DecisionNote,

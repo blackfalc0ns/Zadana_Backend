@@ -26,6 +26,7 @@ using Zadana.Application.Modules.Vendors.Commands.LockVendorLogin;
 using Zadana.Application.Modules.Vendors.Commands.RejectVendorDocumentReview;
 using Zadana.Application.Modules.Vendors.Commands.RejectVendor;
 using Zadana.Application.Modules.Vendors.Commands.ReactivateVendor;
+using Zadana.Application.Modules.Vendors.Commands.ReviewVendorProfileFields;
 using Zadana.Application.Modules.Vendors.Commands.RequestVendorDocuments;
 using Zadana.Application.Modules.Vendors.Commands.StartVendorReview;
 using Zadana.Application.Modules.Vendors.Commands.SuspendVendor;
@@ -301,6 +302,16 @@ public class AdminVendorsController : ApiControllerBase
         return Ok(result);
     }
 
+    [HttpPost("{vendorId:guid}/profile-fields/review")]
+    public async Task<IActionResult> ReviewVendorProfileFields(Guid vendorId, [FromBody] AdminReviewVendorProfileFieldsRequest request)
+    {
+        var result = await Sender.Send(new ReviewVendorProfileFieldsCommand(
+            vendorId,
+            request.Items.Select(item => new ReviewVendorProfileFieldItem(item.Code, item.Decision, item.Reason)).ToList()));
+
+        return Ok(result);
+    }
+
     [HttpPost("{vendorId:guid}/payouts/{payoutId:guid}/retry")]
     public async Task<IActionResult> RetryVendorPayout(Guid vendorId, Guid payoutId)
     {
@@ -426,7 +437,9 @@ public class AdminVendorsController : ApiControllerBase
             vendorId,
             request.Region,
             request.City,
-            request.NationalAddress));
+            request.NationalAddress,
+            request.BranchLatitude,
+            request.BranchLongitude));
 
         return Ok(result);
     }

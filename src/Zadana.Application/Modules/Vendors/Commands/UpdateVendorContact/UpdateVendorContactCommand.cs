@@ -5,6 +5,7 @@ using Zadana.Application.Common.Interfaces;
 using Zadana.Application.Common.Localization;
 using Zadana.Application.Modules.Vendors.DTOs;
 using Zadana.Application.Modules.Vendors.Interfaces;
+using Zadana.Application.Modules.Vendors.Support;
 using Zadana.SharedKernel.Exceptions;
 
 namespace Zadana.Application.Modules.Vendors.Commands.UpdateVendorContact;
@@ -12,7 +13,9 @@ namespace Zadana.Application.Modules.Vendors.Commands.UpdateVendorContact;
 public record UpdateVendorContactCommand(
     string Region,
     string City,
-    string NationalAddress) : IRequest<VendorWorkspaceDto>;
+    string NationalAddress,
+    decimal? BranchLatitude,
+    decimal? BranchLongitude) : IRequest<VendorWorkspaceDto>;
 
 public class UpdateVendorContactCommandValidator : AbstractValidator<UpdateVendorContactCommand>
 {
@@ -21,6 +24,8 @@ public class UpdateVendorContactCommandValidator : AbstractValidator<UpdateVendo
         RuleFor(x => x.Region).NotEmpty().MaximumLength(100);
         RuleFor(x => x.City).NotEmpty().MaximumLength(100);
         RuleFor(x => x.NationalAddress).NotEmpty().MaximumLength(500);
+        RuleFor(x => x.BranchLatitude).InclusiveBetween(-90, 90).When(x => x.BranchLatitude.HasValue);
+        RuleFor(x => x.BranchLongitude).InclusiveBetween(-180, 180).When(x => x.BranchLongitude.HasValue);
     }
 }
 
@@ -53,6 +58,24 @@ public class UpdateVendorContactCommandHandler : IRequestHandler<UpdateVendorCon
             ?? throw new NotFoundException("Vendor", userId);
 
         vendor.UpdateContact(request.Region, request.City, request.NationalAddress);
+
+        var primaryBranch = vendor.Branches
+            .OrderByDescending(branch => branch.IsActive)
+            .ThenBy(branch => branch.CreatedAtUtc)
+            .FirstOrDefault();
+
+        if (primaryBranch != null && request.BranchLatitude.HasValue && request.BranchLongitude.HasValue)
+        {
+            primaryBranch.Update(
+                primaryBranch.Name,
+                request.NationalAddress,
+                request.BranchLatitude.Value,
+                request.BranchLongitude.Value,
+                primaryBranch.ContactPhone,
+                primaryBranch.DeliveryRadiusKm);
+        }
+
+        VendorProfileReviewMutations.ResetSectionToSubmitted(vendor, "contact");
         await _unitOfWork.SaveChangesAsync(cancellationToken);
 
         await _vendorReviewAuditService.AppendActivityEntryAsync(

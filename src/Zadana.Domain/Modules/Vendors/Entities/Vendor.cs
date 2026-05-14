@@ -57,6 +57,7 @@ public class Vendor : BaseEntity
     public ICollection<VendorBranch> Branches { get; private set; } = [];
     public ICollection<VendorBankAccount> BankAccounts { get; private set; } = [];
     public ICollection<VendorDocumentReview> DocumentReviews { get; private set; } = [];
+    public ICollection<VendorProfileReviewItem> ProfileReviewItems { get; private set; } = [];
 
     private Vendor() { }
 

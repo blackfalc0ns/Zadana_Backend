@@ -139,7 +139,9 @@ public class VendorsController : ApiControllerBase
         var result = await Sender.Send(new UpdateVendorContactCommand(
             request.Region,
             request.City,
-            request.NationalAddress));
+            request.NationalAddress,
+            request.BranchLatitude,
+            request.BranchLongitude));
 
         return Ok(new { Data = result, Message = _localizer["VendorProfileUpdated"].Value });
     }

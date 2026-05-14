@@ -11,7 +11,9 @@ public record AdminUpdateVendorContactCommand(
     Guid VendorId,
     string Region,
     string City,
-    string NationalAddress) : IRequest<VendorDetailDto>;
+    string NationalAddress,
+    decimal? BranchLatitude,
+    decimal? BranchLongitude) : IRequest<VendorDetailDto>;
 
 public class AdminUpdateVendorContactCommandValidator : AbstractValidator<AdminUpdateVendorContactCommand>
 {
@@ -21,6 +23,8 @@ public class AdminUpdateVendorContactCommandValidator : AbstractValidator<AdminU
         RuleFor(x => x.Region).NotEmpty().MaximumLength(100);
         RuleFor(x => x.City).NotEmpty().MaximumLength(100);
         RuleFor(x => x.NationalAddress).NotEmpty().MaximumLength(500);
+        RuleFor(x => x.BranchLatitude).InclusiveBetween(-90, 90).When(x => x.BranchLatitude.HasValue);
+        RuleFor(x => x.BranchLongitude).InclusiveBetween(-180, 180).When(x => x.BranchLongitude.HasValue);
     }
 }
 
@@ -49,6 +53,23 @@ public class AdminUpdateVendorContactCommandHandler : IRequestHandler<AdminUpdat
             ?? throw new NotFoundException("Vendor", request.VendorId);
 
         vendor.UpdateContact(request.Region, request.City, request.NationalAddress);
+
+        var primaryBranch = vendor.Branches
+            .OrderByDescending(branch => branch.IsActive)
+            .ThenBy(branch => branch.CreatedAtUtc)
+            .FirstOrDefault();
+
+        if (primaryBranch != null && request.BranchLatitude.HasValue && request.BranchLongitude.HasValue)
+        {
+            primaryBranch.Update(
+                primaryBranch.Name,
+                request.NationalAddress,
+                request.BranchLatitude.Value,
+                request.BranchLongitude.Value,
+                primaryBranch.ContactPhone,
+                primaryBranch.DeliveryRadiusKm);
+        }
+
         await _unitOfWork.SaveChangesAsync(cancellationToken);
 
         await _vendorCommunicationService.SendAsync(

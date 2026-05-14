@@ -83,6 +83,7 @@ public class VendorReadService : IVendorReadService
                 .ThenInclude(branch => branch.OperatingHours)
             .Include(item => item.BankAccounts)
             .Include(item => item.DocumentReviews)
+            .Include(item => item.ProfileReviewItems)
             .FirstOrDefaultAsync(item => item.Id == vendorId, cancellationToken);
 
         if (vendor == null)
@@ -188,6 +189,7 @@ public class VendorReadService : IVendorReadService
                 .ThenInclude(branch => branch.OperatingHours)
             .Include(item => item.BankAccounts)
             .Include(item => item.DocumentReviews)
+            .Include(item => item.ProfileReviewItems)
             .FirstOrDefaultAsync(item => item.UserId == userId, cancellationToken);
 
         if (vendor == null)
@@ -256,6 +258,8 @@ public class VendorReadService : IVendorReadService
             vendor.Region,
             vendor.City,
             vendor.NationalAddress,
+            primaryBranch?.Latitude,
+            primaryBranch?.Longitude,
             vendor.OwnerName ?? user?.FullName ?? vendor.ContactEmail,
             vendor.OwnerEmail ?? user?.Email,
             vendor.OwnerPhone ?? user?.PhoneNumber,
@@ -317,19 +321,31 @@ public class VendorReadService : IVendorReadService
         IReadOnlyList<VendorReviewDocumentDto> reviewDocuments,
         IReadOnlyList<Notification> reviewNotifications)
     {
+        var fieldReviewItems = BuildFieldWorkspaceReviewItems(vendor);
+        var documentReviewItems = BuildDocumentWorkspaceReviewItems(reviewDocuments);
+        var allItems = fieldReviewItems
+            .Concat(documentReviewItems)
+            .OrderBy(item => item.Step)
+            .ThenBy(item => item.Code, StringComparer.OrdinalIgnoreCase)
+            .ToList();
         var requiredDocuments = reviewDocuments.Where(item => item.IsRequired).ToList();
         var missingRequired = requiredDocuments.Where(item => !item.IsUploaded).ToList();
         var rejectedRequired = requiredDocuments
             .Where(item => string.Equals(item.ReviewDecision, "rejected", StringComparison.OrdinalIgnoreCase))
             .ToList();
-        var approvedCount = reviewDocuments.Count(item =>
-            string.Equals(item.ReviewDecision, "approved", StringComparison.OrdinalIgnoreCase));
-        var changesRequestedCount = reviewDocuments.Count(item =>
-            string.Equals(item.ReviewDecision, "rejected", StringComparison.OrdinalIgnoreCase));
-        var submittedCount = reviewDocuments.Count(item =>
-            item.IsUploaded
-            && string.Equals(item.ReviewDecision, "pending", StringComparison.OrdinalIgnoreCase));
-        var pendingVendorCount = reviewDocuments.Count(item => !item.IsUploaded);
+        var rejectedFieldItems = fieldReviewItems
+            .Where(item => string.Equals(item.Status, "changes_requested", StringComparison.OrdinalIgnoreCase))
+            .ToList();
+        var pendingRequiredFieldItems = fieldReviewItems
+            .Where(item =>
+                string.Equals(item.Status, "pending_vendor", StringComparison.OrdinalIgnoreCase)
+                && VendorProfileReviewCatalog.DefinitionsByCode.TryGetValue(item.Code, out var definition)
+                && definition.IsRequired)
+            .ToList();
+        var approvedCount = allItems.Count(item => string.Equals(item.Status, "approved", StringComparison.OrdinalIgnoreCase));
+        var changesRequestedCount = allItems.Count(item => string.Equals(item.Status, "changes_requested", StringComparison.OrdinalIgnoreCase));
+        var submittedCount = allItems.Count(item => string.Equals(item.Status, "submitted", StringComparison.OrdinalIgnoreCase));
+        var pendingVendorCount = allItems.Count(item => string.Equals(item.Status, "pending_vendor", StringComparison.OrdinalIgnoreCase));
 
         var reviewStartedAtUtc = reviewNotifications
             .FirstOrDefault(item => GetReviewKind(item.Type) == "start-review")
@@ -344,6 +360,11 @@ public class VendorReadService : IVendorReadService
                 .Where(item => item.Decision == VendorDocumentReviewDecision.Rejected)
                 .OrderByDescending(item => item.ReviewedAtUtc)
                 .Select(item => item.ReviewedAtUtc)
+                .FirstOrDefault()
+            ?? vendor.ProfileReviewItems
+                .Where(item => item.Status == VendorProfileReviewStatus.Rejected)
+                .OrderByDescending(item => item.ReviewedAtUtc)
+                .Select(item => item.ReviewedAtUtc)
                 .FirstOrDefault();
         var reviewCompletedAtUtc = vendor.ApprovedAtUtc
             ?? reviewNotifications
@@ -355,25 +376,30 @@ public class VendorReadService : IVendorReadService
 
         var requiredActions = missingRequired
             .Select(item => new VendorWorkspaceRequiredActionDto(
-                item.Type,
+                MapDocumentTypeToReviewCode(item.Type),
                 $"Please upload the required {NormalizeDocumentLabel(item.Type)} document."))
             .Concat(rejectedRequired.Select(item => new VendorWorkspaceRequiredActionDto(
-                item.Type,
+                MapDocumentTypeToReviewCode(item.Type),
                 string.IsNullOrWhiteSpace(item.RejectionReason)
                     ? $"Please re-upload the {NormalizeDocumentLabel(item.Type)} document."
                     : item.RejectionReason!)))
+            .Concat(rejectedFieldItems.Select(item => new VendorWorkspaceRequiredActionDto(
+                item.Code,
+                item.DecisionNote ?? $"Please update {item.Code}.")))
             .ToList();
 
         var canSubmitForReview = vendor.Status == VendorStatus.PendingReview
             && !vendor.ArchivedAtUtc.HasValue
             && missingRequired.Count == 0
             && rejectedRequired.Count == 0
+            && rejectedFieldItems.Count == 0
+            && pendingRequiredFieldItems.Count == 0
             && !VendorReviewWorkflow.IsReadyForFinalApproval(vendor);
 
         var reviewState = ResolveWorkspaceReviewState(
             vendor,
-            missingRequired.Count,
-            rejectedRequired.Count,
+            missingRequired.Count + pendingRequiredFieldItems.Count,
+            rejectedRequired.Count + rejectedFieldItems.Count,
             reviewStartedAtUtc,
             reviewSubmittedAtUtc);
 
@@ -385,20 +411,63 @@ public class VendorReadService : IVendorReadService
             reviewStartedAtUtc,
             reviewCompletedAtUtc,
             requestedChangesAtUtc,
-            ResolveLastReviewDecision(vendor, rejectedRequired.Count),
+            ResolveLastReviewDecision(vendor, rejectedRequired.Count + rejectedFieldItems.Count),
             new VendorWorkspaceReviewSummaryDto(
-                reviewDocuments.Count,
+                allItems.Count,
                 approvedCount,
                 pendingVendorCount,
                 submittedCount,
                 changesRequestedCount,
                 0),
-            reviewDocuments.Select(MapWorkspaceReviewItem).ToList(),
+            allItems,
             requiredActions,
             reviewNotifications.Select(MapWorkspaceAuditEntry).ToList(),
-            missingRequired.Count + rejectedRequired.Count,
+            missingRequired.Count + rejectedRequired.Count + pendingRequiredFieldItems.Count + rejectedFieldItems.Count,
             canSubmitForReview);
     }
+
+    private static IReadOnlyList<VendorWorkspaceReviewItemDto> BuildFieldWorkspaceReviewItems(Vendor vendor)
+    {
+        var reviewLookup = vendor.ProfileReviewItems.ToDictionary(item => item.Code, StringComparer.OrdinalIgnoreCase);
+        var primaryBranch = GetPrimaryBranch(vendor);
+        var primaryBankAccount = GetPrimaryBankAccount(vendor);
+
+        return VendorProfileReviewCatalog.Definitions
+            .Where(item => item.Code != VendorProfileReviewCatalog.Step5Commercial
+                && item.Code != VendorProfileReviewCatalog.Step5Tax
+                && item.Code != VendorProfileReviewCatalog.Step5License)
+            .Select(definition =>
+            {
+                reviewLookup.TryGetValue(definition.Code, out var review);
+                var hasValue = HasReviewDefinitionValue(definition, vendor, primaryBranch, primaryBankAccount);
+                var status = review?.Status switch
+                {
+                    VendorProfileReviewStatus.Approved => "approved",
+                    VendorProfileReviewStatus.Rejected => "changes_requested",
+                    VendorProfileReviewStatus.Submitted => hasValue ? "submitted" : "pending_vendor",
+                    _ => hasValue ? "submitted" : "pending_vendor"
+                };
+
+                return new VendorWorkspaceReviewItemDto(
+                    definition.Code,
+                    status,
+                    definition.TargetType.ToString().ToLowerInvariant(),
+                    definition.Step,
+                    review?.ReviewedByUserId?.ToString(),
+                    review?.ReviewedByName,
+                    review?.DecisionNote,
+                    review?.LastSubmittedAtUtc,
+                    review?.ReviewedAtUtc);
+            })
+            .ToList();
+    }
+
+    private static IReadOnlyList<VendorWorkspaceReviewItemDto> BuildDocumentWorkspaceReviewItems(
+        IReadOnlyList<VendorReviewDocumentDto> reviewDocuments) =>
+        reviewDocuments
+            .Where(document => document.Type is "commercial" or "tax" or "license")
+            .Select(MapWorkspaceReviewItem)
+            .ToList();
 
     private static VendorWorkspaceReviewItemDto MapWorkspaceReviewItem(VendorReviewDocumentDto document)
     {
@@ -410,8 +479,10 @@ public class VendorReadService : IVendorReadService
         };
 
         return new VendorWorkspaceReviewItemDto(
-            document.Type,
+            MapDocumentTypeToReviewCode(document.Type),
             status,
+            "document",
+            5,
             null,
             document.ReviewedByName,
             document.RejectionReason,
@@ -506,6 +577,41 @@ public class VendorReadService : IVendorReadService
             _ => "vendor"
         };
 
+    private static string MapDocumentTypeToReviewCode(string type) =>
+        type.ToLowerInvariant() switch
+        {
+            "commercial" => VendorProfileReviewCatalog.Step5Commercial,
+            "tax" => VendorProfileReviewCatalog.Step5Tax,
+            "license" => VendorProfileReviewCatalog.Step5License,
+            _ => type
+        };
+
+    private static string MapDocumentTypeToReviewCode(VendorDocumentType type) =>
+        type switch
+        {
+            VendorDocumentType.Commercial => VendorProfileReviewCatalog.Step5Commercial,
+            VendorDocumentType.Tax => VendorProfileReviewCatalog.Step5Tax,
+            VendorDocumentType.License => VendorProfileReviewCatalog.Step5License,
+            _ => type.ToString().ToLowerInvariant()
+        };
+
+    private static bool HasReviewDefinitionValue(
+        VendorProfileReviewCatalog.ReviewDefinition definition,
+        Vendor vendor,
+        VendorBranch? primaryBranch,
+        VendorBankAccount? primaryBankAccount)
+    {
+        return definition.Code switch
+        {
+            VendorProfileReviewCatalog.Step2BranchLatitude => primaryBranch != null,
+            VendorProfileReviewCatalog.Step2BranchLongitude => primaryBranch != null,
+            VendorProfileReviewCatalog.Step4BankName => !string.IsNullOrWhiteSpace(primaryBankAccount?.BankName),
+            VendorProfileReviewCatalog.Step4Iban => !string.IsNullOrWhiteSpace(primaryBankAccount?.IBAN),
+            VendorProfileReviewCatalog.Step4SwiftCode => !string.IsNullOrWhiteSpace(primaryBankAccount?.SwiftCode),
+            _ => !string.IsNullOrWhiteSpace(definition.ValueAccessor(vendor))
+        };
+    }
+
     private sealed record WorkspaceReviewProjection(
         string ReviewState,
         bool CommercialAccessEnabled,
@@ -534,13 +640,18 @@ public class VendorReadService : IVendorReadService
             .ToList();
         var reviewDocuments = MapReviewDocuments(vendor, workspace.PrimaryBankAccount, user);
         var latestRejectedDocumentReview = VendorReviewWorkflow.GetLatestRejectedRequiredReview(vendor);
+        var latestRejectedFieldReview = vendor.ProfileReviewItems
+            .Where(item => item.Status == VendorProfileReviewStatus.Rejected)
+            .OrderByDescending(item => item.ReviewedAtUtc)
+            .FirstOrDefault();
         var reviewStartedAtUtc = reviewNotifications
             .FirstOrDefault(item => GetReviewKind(item.Type) == "start-review")
             ?.CreatedAtUtc;
         var requestedChangesAtUtc = reviewNotifications
             .FirstOrDefault(item => GetReviewKind(item.Type) == "request-documents")
             ?.CreatedAtUtc
-            ?? latestRejectedDocumentReview?.ReviewedAtUtc;
+            ?? latestRejectedDocumentReview?.ReviewedAtUtc
+            ?? latestRejectedFieldReview?.ReviewedAtUtc;
         var reviewCompletedAtUtc = vendor.ApprovedAtUtc
             ?? reviewNotifications
                 .FirstOrDefault(item =>
@@ -548,6 +659,7 @@ public class VendorReadService : IVendorReadService
                     || GetReviewKind(item.Type) == "rejected")
                 ?.CreatedAtUtc;
         var reviewDecisionReason = latestRejectedDocumentReview?.RejectionReason
+            ?? latestRejectedFieldReview?.DecisionNote
             ?? reviewNotifications
             .FirstOrDefault(item =>
                 GetReviewKind(item.Type) == "request-documents"
@@ -577,6 +689,8 @@ public class VendorReadService : IVendorReadService
             workspace.Region,
             workspace.City,
             workspace.NationalAddress,
+            workspace.PrimaryBranchLatitude,
+            workspace.PrimaryBranchLongitude,
             workspace.CommissionRate,
             workspace.Status,
             workspace.AccountStatus,
@@ -612,6 +726,8 @@ public class VendorReadService : IVendorReadService
             workspace.NotificationSettings,
             workspace.PrimaryBankAccount,
             workspace.OperatingHours,
+            workspace.ReviewItems,
+            workspace.RequiredActions,
             reviewDocuments,
             reviewNotes,
             workspace.BranchesCount,

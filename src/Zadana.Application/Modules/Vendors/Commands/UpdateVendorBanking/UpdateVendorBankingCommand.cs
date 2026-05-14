@@ -5,6 +5,7 @@ using Zadana.Application.Common.Interfaces;
 using Zadana.Application.Common.Localization;
 using Zadana.Application.Modules.Vendors.DTOs;
 using Zadana.Application.Modules.Vendors.Interfaces;
+using Zadana.Application.Modules.Vendors.Support;
 using Zadana.Domain.Modules.Vendors.Entities;
 using Zadana.SharedKernel.Exceptions;
 
@@ -89,6 +90,8 @@ public class UpdateVendorBankingCommandHandler : IRequestHandler<UpdateVendorBan
             primaryAccount.UpdateDetails(request.BankName, request.AccountHolderName, request.Iban, request.SwiftCode);
             primaryAccount.MarkAsPreferredForSetup();
         }
+
+        VendorProfileReviewMutations.ResetSectionToSubmitted(vendor, "banking");
 
         await _unitOfWork.SaveChangesAsync(cancellationToken);
 

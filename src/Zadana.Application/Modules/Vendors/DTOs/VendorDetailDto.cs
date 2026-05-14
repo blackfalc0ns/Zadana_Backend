@@ -16,6 +16,8 @@ public record VendorDetailDto(
     string? Region,
     string? City,
     string? NationalAddress,
+    decimal? PrimaryBranchLatitude,
+    decimal? PrimaryBranchLongitude,
     decimal? CommissionRate,
     string Status,
     string AccountStatus,
@@ -52,6 +54,8 @@ public record VendorDetailDto(
     VendorNotificationSettingsDto NotificationSettings,
     VendorBankAccountDto? PrimaryBankAccount,
     IReadOnlyList<VendorOperatingHourDto> OperatingHours,
+    IReadOnlyList<VendorWorkspaceReviewItemDto> ReviewItems,
+    IReadOnlyList<VendorWorkspaceRequiredActionDto> RequiredActions,
     IReadOnlyList<VendorReviewDocumentDto> ReviewDocuments,
     IReadOnlyList<VendorReviewNoteDto> ReviewNotes,
     // Counts

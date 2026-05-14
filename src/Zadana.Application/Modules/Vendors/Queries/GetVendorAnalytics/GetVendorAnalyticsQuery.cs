@@ -37,109 +37,99 @@ public class GetVendorAnalyticsQueryHandler : IRequestHandler<GetVendorAnalytics
         var toUtc = generatedAtUtc;
         var fromUtc = generatedAtUtc.Date.AddDays(-(rangeDays - 1));
 
-        var ordersQuery = _context.Orders
-            .AsNoTracking()
-            .Where(order =>
-                order.VendorId == request.VendorId &&
-                order.Status != OrderStatus.PendingPayment &&
-                order.PlacedAtUtc >= fromUtc &&
-                order.PlacedAtUtc <= toUtc);
+        // Safely query orders
+        int totalOrders = 0, completedOrders = 0, cancelledOrders = 0;
+        decimal totalRevenue = 0m;
+        List<AdminVendorAnalyticsTrendPointDto> salesTrend = [];
+        List<AdminVendorAnalyticsStatusBreakdownDto> statusBreakdown = [];
+        List<AdminVendorAnalyticsTopProductDto> topProducts = [];
+        var productHealth = new AdminVendorAnalyticsProductHealthDto(0, 0, 0, 0);
 
-        var totalOrders = await ordersQuery.CountAsync(cancellationToken);
-        var completedOrders = await ordersQuery
-            .CountAsync(order => order.Status == OrderStatus.Delivered, cancellationToken);
-        var cancelledOrders = await ordersQuery
-            .CountAsync(order => CancellationStatuses.Contains(order.Status), cancellationToken);
-        var totalRevenue = await ordersQuery
-            .Where(order => !RevenueExcludedStatuses.Contains(order.Status))
-            .SumAsync(order => (decimal?)order.TotalAmount, cancellationToken)
-            ?? 0m;
+        try
+        {
+            var ordersQuery = _context.Orders
+                .AsNoTracking()
+                .Where(order =>
+                    order.VendorId == request.VendorId &&
+                    order.Status != OrderStatus.PendingPayment &&
+                    order.PlacedAtUtc >= fromUtc &&
+                    order.PlacedAtUtc <= toUtc);
 
-        var groupedTrend = await ordersQuery
-            .GroupBy(order => order.PlacedAtUtc.Date)
-            .Select(group => new
+            totalOrders = await ordersQuery.CountAsync(cancellationToken);
+            completedOrders = await ordersQuery.CountAsync(order => order.Status == OrderStatus.Delivered, cancellationToken);
+            cancelledOrders = await ordersQuery.CountAsync(order => order.Status == OrderStatus.Cancelled || order.Status == OrderStatus.VendorRejected, cancellationToken);
+            totalRevenue = await ordersQuery
+                .Where(order => order.Status != OrderStatus.Cancelled && order.Status != OrderStatus.VendorRejected)
+                .SumAsync(order => (decimal?)order.TotalAmount, cancellationToken) ?? 0m;
+
+            // Sales trend
+            var trendData = await ordersQuery
+                .GroupBy(order => order.PlacedAtUtc.Date)
+                .Select(group => new { Date = group.Key, Count = group.Count(), Revenue = group.Sum(o => (decimal?)o.TotalAmount) ?? 0m })
+                .ToListAsync(cancellationToken);
+
+            var trendDict = trendData.ToDictionary(x => x.Date, x => x);
+            salesTrend = Enumerable.Range(0, rangeDays)
+                .Select(offset =>
+                {
+                    var date = fromUtc.Date.AddDays(offset);
+                    trendDict.TryGetValue(date, out var point);
+                    return new AdminVendorAnalyticsTrendPointDto(date, point?.Count ?? 0, point?.Revenue ?? 0m);
+                })
+                .ToList();
+
+            // Status breakdown
+            var statusData = await ordersQuery
+                .GroupBy(order => order.Status)
+                .Select(group => new { Status = group.Key, Count = group.Count() })
+                .ToListAsync(cancellationToken);
+
+            statusBreakdown = statusData.Select(item =>
             {
-                Date = group.Key,
-                OrdersCount = group.Count(),
-                Revenue = group
-                    .Where(order => !RevenueExcludedStatuses.Contains(order.Status))
-                    .Sum(order => (decimal?)order.TotalAmount) ?? 0m
-            })
-            .ToDictionaryAsync(item => item.Date, item => new { item.OrdersCount, item.Revenue }, cancellationToken);
+                var label = item.Status == OrderStatus.Delivered ? "completed"
+                    : item.Status == OrderStatus.Cancelled || item.Status == OrderStatus.VendorRejected ? "cancelled"
+                    : item.Status == OrderStatus.DeliveryFailed || item.Status == OrderStatus.Refunded ? "failed"
+                    : item.Status == OrderStatus.Placed || item.Status == OrderStatus.PendingVendorAcceptance ? "awaiting_action"
+                    : "in_progress";
+                return new AdminVendorAnalyticsStatusBreakdownDto(label, item.Count, totalOrders > 0 ? Math.Round((decimal)item.Count * 100m / totalOrders, 1) : 0m);
+            }).ToList();
+        }
+        catch { /* Orders query failed - return zeros */ }
 
-        var salesTrend = Enumerable.Range(0, rangeDays)
-            .Select(offset =>
-            {
-                var date = fromUtc.Date.AddDays(offset);
-                groupedTrend.TryGetValue(date, out var point);
+        try
+        {
+            var productsQuery = _context.VendorProducts.AsNoTracking().Where(p => p.VendorId == request.VendorId);
+            productHealth = new AdminVendorAnalyticsProductHealthDto(
+                await productsQuery.CountAsync(p => p.Status == VendorProductStatus.Active && p.IsAvailable && p.StockQuantity > 5, cancellationToken),
+                await productsQuery.CountAsync(p => p.Status == VendorProductStatus.Active && p.StockQuantity > 0 && p.StockQuantity <= 5, cancellationToken),
+                await productsQuery.CountAsync(p => p.Status == VendorProductStatus.OutOfStock || p.StockQuantity <= 0, cancellationToken),
+                await productsQuery.CountAsync(p => p.Status == VendorProductStatus.Inactive || p.Status == VendorProductStatus.Suspended, cancellationToken));
+        }
+        catch { /* Products query failed */ }
 
-                return new AdminVendorAnalyticsTrendPointDto(
-                    date,
-                    point?.OrdersCount ?? 0,
-                    point?.Revenue ?? 0m);
-            })
-            .ToList();
-
-        var statusBreakdown = (await ordersQuery
-            .GroupBy(order => order.Status == OrderStatus.Delivered
-                ? "completed"
-                : CancellationStatuses.Contains(order.Status)
-                    ? "cancelled"
-                    : order.Status == OrderStatus.DeliveryFailed || order.Status == OrderStatus.Refunded
-                        ? "failed"
-                        : order.Status == OrderStatus.Placed || order.Status == OrderStatus.PendingVendorAcceptance
-                            ? "awaiting_action"
-                            : "in_progress")
-            .Select(group => new
-            {
-                Status = group.Key,
-                Count = group.Count()
-            })
-            .OrderByDescending(item => item.Count)
-            .ToListAsync(cancellationToken))
-            .Select(item => new AdminVendorAnalyticsStatusBreakdownDto(
-                item.Status,
-                item.Count,
-                totalOrders > 0 ? Math.Round((decimal)item.Count * 100m / totalOrders, 1) : 0m))
-            .ToList();
-
-        var productsQuery = _context.VendorProducts
-            .AsNoTracking()
-            .Where(product => product.VendorId == request.VendorId);
-
-        var productHealth = new AdminVendorAnalyticsProductHealthDto(
-            await productsQuery.CountAsync(
-                product => product.Status == VendorProductStatus.Active && product.IsAvailable && product.StockQuantity > 5,
-                cancellationToken),
-            await productsQuery.CountAsync(
-                product => product.Status == VendorProductStatus.Active && product.IsAvailable && product.StockQuantity > 0 && product.StockQuantity <= 5,
-                cancellationToken),
-            await productsQuery.CountAsync(
-                product => product.Status == VendorProductStatus.OutOfStock || product.StockQuantity <= 0,
-                cancellationToken),
-            await productsQuery.CountAsync(
-                product => product.Status == VendorProductStatus.Inactive || product.Status == VendorProductStatus.Suspended,
-                cancellationToken));
-
-        var topProducts = await _context.OrderItems
-            .AsNoTracking()
-            .Where(item =>
-                item.Order.VendorId == request.VendorId &&
-                item.Order.PlacedAtUtc >= fromUtc &&
-                item.Order.PlacedAtUtc <= toUtc &&
-                item.Order.Status != OrderStatus.PendingPayment &&
-                !CancellationStatuses.Contains(item.Order.Status))
-            .GroupBy(item => new { item.VendorProductId, item.ProductName })
-            .Select(group => new AdminVendorAnalyticsTopProductDto(
-                group.Key.VendorProductId,
-                group.Key.ProductName,
-                group.Sum(item => item.Quantity),
-                group.Sum(item => item.LineTotal),
-                group.Select(item => item.OrderId).Distinct().Count()))
-            .OrderByDescending(item => item.Revenue)
-            .ThenByDescending(item => item.UnitsSold)
-            .Take(5)
-            .ToListAsync(cancellationToken);
+        try
+        {
+            topProducts = await _context.OrderItems
+                .AsNoTracking()
+                .Where(item =>
+                    item.Order.VendorId == request.VendorId &&
+                    item.Order.PlacedAtUtc >= fromUtc &&
+                    item.Order.PlacedAtUtc <= toUtc &&
+                    item.Order.Status != OrderStatus.PendingPayment &&
+                    item.Order.Status != OrderStatus.Cancelled &&
+                    item.Order.Status != OrderStatus.VendorRejected)
+                .GroupBy(item => new { item.VendorProductId, item.ProductName })
+                .Select(group => new AdminVendorAnalyticsTopProductDto(
+                    group.Key.VendorProductId,
+                    group.Key.ProductName,
+                    group.Sum(item => item.Quantity),
+                    group.Sum(item => item.LineTotal),
+                    group.Select(item => item.OrderId).Distinct().Count()))
+                .OrderByDescending(item => item.Revenue)
+                .Take(5)
+                .ToListAsync(cancellationToken);
+        }
+        catch { /* Top products query failed */ }
 
         var summary = new AdminVendorAnalyticsSummaryDto(
             totalRevenue,

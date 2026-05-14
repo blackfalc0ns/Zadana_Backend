@@ -73,7 +73,9 @@ public record UpdateVendorOwnerRequest(
 public record UpdateVendorContactRequest(
     string Region,
     string City,
-    string NationalAddress);
+    string NationalAddress,
+    decimal? BranchLatitude,
+    decimal? BranchLongitude);
 
 public record UpdateVendorLegalRequest(
     string CommercialRegistrationNumber,
@@ -161,7 +163,9 @@ public record AdminUpdateVendorLegalBankingRequest(
 public record AdminUpdateVendorContactRequest(
     string Region,
     string City,
-    string NationalAddress);
+    string NationalAddress,
+    decimal? BranchLatitude,
+    decimal? BranchLongitude);
 
 public record AdminUpdateVendorHoursRequest(IReadOnlyCollection<UpdateVendorOperatingHourRequest> Hours);
 
@@ -195,6 +199,14 @@ public record AdminAddVendorReviewNoteRequest(
     string? RoleLabel);
 
 public record AdminRejectVendorDocumentRequest(string Reason);
+
+public record AdminReviewVendorProfileFieldsRequest(
+    IReadOnlyCollection<AdminReviewVendorProfileFieldItemRequest> Items);
+
+public record AdminReviewVendorProfileFieldItemRequest(
+    string Code,
+    string Decision,
+    string? Reason);
 
 public sealed class AdminSendVendorNotificationRequest
 {

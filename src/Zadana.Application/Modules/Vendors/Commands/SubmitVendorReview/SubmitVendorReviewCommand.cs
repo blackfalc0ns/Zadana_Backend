@@ -74,6 +74,31 @@ public sealed class SubmitVendorReviewCommandHandler : IRequestHandler<SubmitVen
                 $"Rejected vendor documents must be re-uploaded first: {string.Join(", ", rejectedRequired)}.");
         }
 
+        var missingRequiredFields = VendorProfileReviewCatalog.Definitions
+            .Where(item => item.TargetType == VendorProfileReviewTargetType.Field && item.IsRequired)
+            .Where(item => string.IsNullOrWhiteSpace(item.ValueAccessor(vendor)))
+            .Select(item => item.Code)
+            .ToList();
+
+        if (missingRequiredFields.Count > 0)
+        {
+            throw new BusinessRuleException(
+                "VendorReviewRequiredFieldsMissing",
+                $"Required vendor fields are missing: {string.Join(", ", missingRequiredFields)}.");
+        }
+
+        var rejectedFields = vendor.ProfileReviewItems
+            .Where(item => item.Status == VendorProfileReviewStatus.Rejected)
+            .Select(item => item.Code)
+            .ToList();
+
+        if (rejectedFields.Count > 0)
+        {
+            throw new BusinessRuleException(
+                "VendorReviewRejectedFieldsMustBeUpdated",
+                $"Rejected vendor fields must be updated first: {string.Join(", ", rejectedFields)}.");
+        }
+
         if (vendor.Status == VendorStatus.Rejected)
         {
             vendor.ReopenForReview();
