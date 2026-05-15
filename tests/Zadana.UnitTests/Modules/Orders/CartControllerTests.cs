@@ -137,6 +137,29 @@ public class CartControllerTests
     }
 
     [Fact]
+    public async Task UpdateItem_UsesCamelCaseVendorIdQueryAlias_WhenProvided()
+    {
+        var dto = new CartItemMutationResponseDto(
+            "تم تحديث المنتج في السلة",
+            "cart item updated successfully",
+            new CartItemDto(Guid.NewGuid(), Guid.NewGuid(), "Milk", null, "Liter", 2, []),
+            new CartSummaryDto(1, 2, 120m, 20m, 100m));
+        UpdateCartItemQuantityCommand? sentCommand = null;
+
+        _senderMock.Setup(x => x.Send(It.IsAny<UpdateCartItemQuantityCommand>(), It.IsAny<CancellationToken>()))
+            .Callback<IRequest<CartItemMutationResponseDto>, CancellationToken>((command, _) => sentCommand = (UpdateCartItemQuantityCommand)command)
+            .ReturnsAsync(dto);
+
+        var vendorId = Guid.NewGuid();
+        _controller.ControllerContext.HttpContext.Request.QueryString = new Microsoft.AspNetCore.Http.QueryString($"?vendorId={vendorId}");
+
+        await _controller.UpdateItem(Guid.NewGuid(), new UpdateCartItemQuantityRequest(2), null, CancellationToken.None);
+
+        sentCommand.Should().NotBeNull();
+        sentCommand!.VendorId.Should().Be(vendorId);
+    }
+
+    [Fact]
     public async Task RemoveItem_ReturnsOkResult()
     {
         var dto = new CartItemRemovalResponseDto("تم حذف المنتج من السلة", "cart item removed successfully", new CartSummaryDto(0, 0, null, null, null));
@@ -161,6 +184,25 @@ public class CartControllerTests
 
         var vendorId = Guid.NewGuid();
         await _controller.RemoveItem(Guid.NewGuid(), vendorId, CancellationToken.None);
+
+        sentCommand.Should().NotBeNull();
+        sentCommand!.VendorId.Should().Be(vendorId);
+    }
+
+    [Fact]
+    public async Task RemoveItem_UsesCamelCaseVendorIdQueryAlias_WhenProvided()
+    {
+        var dto = new CartItemRemovalResponseDto("تم حذف المنتج من السلة", "cart item removed successfully", new CartSummaryDto(1, 1, 35m, 5m, 30m));
+        RemoveCartItemCommand? sentCommand = null;
+
+        _senderMock.Setup(x => x.Send(It.IsAny<RemoveCartItemCommand>(), It.IsAny<CancellationToken>()))
+            .Callback<IRequest<CartItemRemovalResponseDto>, CancellationToken>((command, _) => sentCommand = (RemoveCartItemCommand)command)
+            .ReturnsAsync(dto);
+
+        var vendorId = Guid.NewGuid();
+        _controller.ControllerContext.HttpContext.Request.QueryString = new Microsoft.AspNetCore.Http.QueryString($"?vendorId={vendorId}");
+
+        await _controller.RemoveItem(Guid.NewGuid(), null, CancellationToken.None);
 
         sentCommand.Should().NotBeNull();
         sentCommand!.VendorId.Should().Be(vendorId);
@@ -249,6 +291,25 @@ public class CartControllerTests
 
         var vendorId = Guid.NewGuid();
         await _controller.GetCart(vendorId, CancellationToken.None);
+
+        sentQuery.Should().NotBeNull();
+        sentQuery!.VendorId.Should().Be(vendorId);
+    }
+
+    [Fact]
+    public async Task GetCart_UsesCamelCaseVendorIdQueryAlias_WhenProvided()
+    {
+        var dto = new CartDto([], new CartSummaryDto(0, 0, null, null, null));
+        GetCartQuery? sentQuery = null;
+
+        _senderMock.Setup(x => x.Send(It.IsAny<GetCartQuery>(), It.IsAny<CancellationToken>()))
+            .Callback<IRequest<CartDto>, CancellationToken>((query, _) => sentQuery = (GetCartQuery)query)
+            .ReturnsAsync(dto);
+
+        var vendorId = Guid.NewGuid();
+        _controller.ControllerContext.HttpContext.Request.QueryString = new Microsoft.AspNetCore.Http.QueryString($"?vendorId={vendorId}");
+
+        await _controller.GetCart(null, CancellationToken.None);
 
         sentQuery.Should().NotBeNull();
         sentQuery!.VendorId.Should().Be(vendorId);

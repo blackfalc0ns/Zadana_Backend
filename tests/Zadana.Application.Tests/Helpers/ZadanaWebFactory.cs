@@ -1,10 +1,13 @@
 using Microsoft.AspNetCore.Hosting;
+using Microsoft.AspNetCore.Identity;
 using Microsoft.AspNetCore.Mvc.Testing;
 using Microsoft.EntityFrameworkCore;
 using Microsoft.Extensions.Configuration;
 using Microsoft.Extensions.DependencyInjection;
 using Microsoft.Extensions.DependencyInjection.Extensions;
 using Zadana.Application.Common.Interfaces;
+using Zadana.Domain.Modules.Identity.Entities;
+using Zadana.Domain.Modules.Identity.Enums;
 using Zadana.Infrastructure.Persistence;
 
 namespace Zadana.Application.Tests.Helpers;
@@ -83,19 +86,23 @@ public class ZadanaWebFactory : WebApplicationFactory<Program>
     {
         using var scope = Services.CreateScope();
         var db = scope.ServiceProvider.GetRequiredService<ApplicationDbContext>();
-        var hasher = scope.ServiceProvider.GetRequiredService<IPasswordHasher>();
+        var userManager = scope.ServiceProvider.GetRequiredService<UserManager<User>>();
 
         db.Database.EnsureCreated();
 
         if (!db.Users.Any(u => u.Email == "admin@test.com"))
         {
-            db.Users.Add(new Zadana.Domain.Modules.Identity.Entities.User(
+            var admin = new User(
                 fullName: "Test Admin",
                 email: "admin@test.com",
                 phone: "01000000001",
-                passwordHash: hasher.HashPassword("Admin@123"),
-                role: Zadana.Domain.Modules.Identity.Enums.UserRole.SuperAdmin));
-            db.SaveChanges();
+                role: UserRole.SuperAdmin);
+
+            var result = userManager.CreateAsync(admin, "Admin@123").GetAwaiter().GetResult();
+            if (!result.Succeeded)
+            {
+                throw new InvalidOperationException($"Failed to create seeded admin user: {string.Join(", ", result.Errors.Select(error => error.Description))}");
+            }
         }
     }
 }

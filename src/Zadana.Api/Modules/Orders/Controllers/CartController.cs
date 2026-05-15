@@ -46,7 +46,8 @@ public class CartController : ApiControllerBase
             return Ok(new CartDto([], new CartSummaryDto(0, 0, null, null, null)));
         }
 
-        var result = await Sender.Send(new GetCartQuery(actor, vendorId), cancellationToken);
+        var resolvedVendorId = ResolveVendorIdQueryAlias(vendorId);
+        var result = await Sender.Send(new GetCartQuery(actor, resolvedVendorId), cancellationToken);
         return Ok(result);
     }
 
@@ -92,8 +93,9 @@ public class CartController : ApiControllerBase
             throw new BadRequestException("INVALID_REQUEST_BODY", "Request body is required.");
         }
 
+        var resolvedVendorId = ResolveVendorIdQueryAlias(vendorId);
         var result = await Sender.Send(
-            new UpdateCartItemQuantityCommand(GetRequiredCartActor(), itemId, request.Quantity, vendorId),
+            new UpdateCartItemQuantityCommand(GetRequiredCartActor(), itemId, request.Quantity, resolvedVendorId),
             cancellationToken);
 
         return Ok(result);
@@ -105,7 +107,8 @@ public class CartController : ApiControllerBase
         [FromQuery(Name = "vendor_id")] Guid? vendorId = null,
         CancellationToken cancellationToken = default)
     {
-        var result = await Sender.Send(new RemoveCartItemCommand(GetRequiredCartActor(), itemId, vendorId), cancellationToken);
+        var resolvedVendorId = ResolveVendorIdQueryAlias(vendorId);
+        var result = await Sender.Send(new RemoveCartItemCommand(GetRequiredCartActor(), itemId, resolvedVendorId), cancellationToken);
         return Ok(result);
     }
 
@@ -137,5 +140,31 @@ public class CartController : ApiControllerBase
     {
         return TryGetCartActor()
             ?? throw new UnauthorizedException(_localizer["GuestCartHeaderRequired", GuestDeviceHeader]);
+    }
+
+    private Guid? ResolveVendorIdQueryAlias(Guid? currentValue)
+    {
+        if (currentValue.HasValue)
+        {
+            return currentValue;
+        }
+
+        if (!Request.Query.TryGetValue("vendorId", out var values))
+        {
+            return null;
+        }
+
+        var value = values.Count > 0 ? values[0] : null;
+        if (string.IsNullOrWhiteSpace(value))
+        {
+            return null;
+        }
+
+        if (Guid.TryParse(value, out var parsed))
+        {
+            return parsed;
+        }
+
+        throw new BadRequestException("INVALID_VENDOR_ID", "vendorId must be a valid GUID.");
     }
 }
