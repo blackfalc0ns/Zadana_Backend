@@ -1078,7 +1078,10 @@ public class HomeReadService : IHomeReadService
         {
             var message = current.Message;
             if (message.Contains("Invalid object name", StringComparison.OrdinalIgnoreCase)
-                || message.Contains("no such table", StringComparison.OrdinalIgnoreCase))
+                || message.Contains("Invalid column name", StringComparison.OrdinalIgnoreCase)
+                || message.Contains("no such table", StringComparison.OrdinalIgnoreCase)
+                || message.Contains("no such column", StringComparison.OrdinalIgnoreCase)
+                || current.GetType().Name.Contains("Sql", StringComparison.OrdinalIgnoreCase))
             {
                 return true;
             }
