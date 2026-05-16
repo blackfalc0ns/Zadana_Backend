@@ -75,6 +75,7 @@ public class BrandsController : ApiControllerBase
         return Ok(result);
     }
 
+    [NonAction]
     public Task<ActionResult<BrandProductsDto>> GetProducts(
         Guid brandId,
         Guid? categoryId,
