@@ -21,11 +21,6 @@ public class SearchMasterProductsQueryHandler : IRequestHandler<SearchMasterProd
         var normalizedFilters = NormalizeFilters(request.Filters);
         var query = _context.MasterProducts
             .AsNoTracking()
-            .Include(p => p.Images)
-            .Include(p => p.Brand)
-            .Include(p => p.Category)
-            .Include(p => p.PackageType)
-            .Include(p => p.MeasurementUnit)
             .AsQueryable();
 
         if (!string.IsNullOrWhiteSpace(request.Search))
@@ -85,11 +80,39 @@ public class SearchMasterProductsQueryHandler : IRequestHandler<SearchMasterProd
                 p.Brand.IsActive == normalizedFilters.IsActiveBrand.Value);
         }
 
-        var totalCount = await query.CountAsync(cancellationToken);
+        var filteredProductKeys = await query
+            .Select(p => new
+            {
+                p.Id,
+                p.VariantGroupId,
+                p.UpdatedAtUtc,
+                p.CreatedAtUtc
+            })
+            .ToListAsync(cancellationToken);
+
+        var representativeIds = filteredProductKeys
+            .GroupBy(p => p.VariantGroupId == Guid.Empty ? p.Id : p.VariantGroupId)
+            .Select(group => group
+                .OrderByDescending(p => p.UpdatedAtUtc)
+                .ThenByDescending(p => p.CreatedAtUtc)
+                .Select(p => p.Id)
+                .First())
+            .ToList();
+
+        var totalCount = representativeIds.Count;
         var pageNumber = Math.Max(1, request.PageNumber);
         var pageSize = Math.Clamp(request.PageSize, 1, 100);
         var totalPages = Math.Max(1, (int)Math.Ceiling(totalCount / (double)pageSize));
-        var pagedQuery = ApplyProductSorting(query, request.SortField, request.SortDirection)
+        var representativeQuery = _context.MasterProducts
+            .AsNoTracking()
+            .Include(p => p.Images)
+            .Include(p => p.Brand)
+            .Include(p => p.Category)
+            .Include(p => p.PackageType)
+            .Include(p => p.MeasurementUnit)
+            .Where(p => representativeIds.Contains(p.Id));
+
+        var pagedQuery = ApplyProductSorting(representativeQuery, request.SortField, request.SortDirection)
             .Skip((pageNumber - 1) * pageSize)
             .Take(pageSize);
 
@@ -99,14 +122,14 @@ public class SearchMasterProductsQueryHandler : IRequestHandler<SearchMasterProd
             .ToList();
 
         var facets = new ProductSearchFacetsDto(
-            await query.GroupBy(p => p.Status)
+            await representativeQuery.GroupBy(p => p.Status)
                 .Select(group => new CatalogFacetCountDto(
                     group.Key.ToString(),
                     MapStatusLabelAr(group.Key),
                     MapStatusLabelEn(group.Key),
                     group.Count()))
                 .ToListAsync(cancellationToken),
-            await query.Where(p => p.BrandId != null && p.Brand != null)
+            await representativeQuery.Where(p => p.BrandId != null && p.Brand != null)
                 .GroupBy(p => new { p.BrandId, p.Brand!.NameAr, p.Brand!.NameEn })
                 .Select(group => new CatalogFacetCountDto(
                     group.Key.BrandId!.Value.ToString(),
@@ -114,7 +137,7 @@ public class SearchMasterProductsQueryHandler : IRequestHandler<SearchMasterProd
                     group.Key.NameEn,
                     group.Count()))
                 .ToListAsync(cancellationToken),
-            await query.GroupBy(p => new { p.CategoryId, p.Category.NameAr, p.Category.NameEn })
+            await representativeQuery.GroupBy(p => new { p.CategoryId, p.Category.NameAr, p.Category.NameEn })
                 .Select(group => new CatalogFacetCountDto(
                     group.Key.CategoryId.ToString(),
                     group.Key.NameAr,
