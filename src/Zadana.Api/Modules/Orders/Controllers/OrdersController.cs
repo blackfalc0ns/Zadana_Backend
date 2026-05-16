@@ -424,8 +424,10 @@ public class OrdersController : ApiControllerBase
                           ? null
                           : new CustomerEstimatedDeliveryWindowResponse(
                               dto.EstimatedDelivery.Window.MinMinutes,
+                              dto.EstimatedDelivery.Window.Title,
                               dto.EstimatedDelivery.Window.MaxMinutes,
                               dto.EstimatedDelivery.Window.Label,
+                              dto.EstimatedDelivery.Window.Subtitle,
                               dto.EstimatedDelivery.Window.Confidence,
                               dto.EstimatedDelivery.Window.Source,
                               dto.EstimatedDelivery.Window.IsApproximate)),

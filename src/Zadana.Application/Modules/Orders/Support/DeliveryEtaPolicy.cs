@@ -32,7 +32,10 @@ public static class DeliveryEtaPolicy
                 isApproximate: true);
         }
 
-        var totalMinutes = prepMinutes + driverMinutes + customerMinutes + bufferMinutes;
+        var totalMinutes = HarmonizeOperationalTotal(
+            prepMinutes + driverMinutes + customerMinutes + bufferMinutes,
+            driverMinutes + customerMinutes,
+            profile);
         var confidence = profile.IsReliable && !prepFallback
             ? "high"
             : profile.SampleSize > 0 || !prepFallback
@@ -70,19 +73,82 @@ public static class DeliveryEtaPolicy
         var driverMinutes = ResolveTravelMinutes(driverToVendorDistanceKm, DriverToVendorMinutesPerKm, profile.AverageDispatchLeadMinutes);
         var customerMinutes = ResolveTravelMinutes(vendorToCustomerDistanceKm, VendorToCustomerMinutesPerKm, profile.AverageLastMileMinutes);
         var baseBuffer = ResolveBuffer(profile, TrackingOperationalBufferMinutes);
+        var checkoutLikeTotal = HarmonizeOperationalTotal(
+            prepMinutes + driverMinutes + customerMinutes + ResolveBuffer(profile, CheckoutOperationalBufferMinutes),
+            driverMinutes + customerMinutes,
+            profile);
 
         var (remainingMinutes, baseAtUtc, spreadMin, spreadMax, confidence, source, approximate) = status switch
         {
             OrderStatus.PendingVendorAcceptance or OrderStatus.Accepted =>
-                (prepMinutes + driverMinutes + customerMinutes + ResolveBuffer(profile, CheckoutOperationalBufferMinutes), placedAtUtc, 10, 20, ResolveHybridConfidence(profile, prepFallback), ResolveHybridSource(profile), prepFallback || !profile.IsReliable),
+                ((int)Math.Round(checkoutLikeTotal), placedAtUtc, 10, 20, ResolveHybridConfidence(profile, prepFallback), ResolveHybridSource(profile), prepFallback || !profile.IsReliable),
             OrderStatus.Preparing =>
-                (Math.Max(8, (int)Math.Round(prepMinutes * 0.7)) + driverMinutes + customerMinutes + baseBuffer, placedAtUtc, 10, 15, ResolveHybridConfidence(profile, prepFallback), ResolveHybridSource(profile), prepFallback || !profile.IsReliable),
+                (
+                    Math.Max(
+                        8,
+                        (int)Math.Round(
+                            HarmonizeOperationalTotal(
+                                Math.Max(8, (int)Math.Round(prepMinutes * 0.7)) + driverMinutes + customerMinutes + baseBuffer,
+                                driverMinutes + customerMinutes,
+                                profile,
+                                capExtraMinutes: 18))),
+                    placedAtUtc,
+                    10,
+                    15,
+                    ResolveHybridConfidence(profile, prepFallback),
+                    ResolveHybridSource(profile),
+                    prepFallback || !profile.IsReliable),
             OrderStatus.ReadyForPickup or OrderStatus.DriverAssignmentInProgress =>
-                (driverMinutes + customerMinutes + baseBuffer, DateTime.UtcNow, 8, 12, profile.IsReliable ? "high" : "medium", "hybrid_operational", !profile.IsReliable),
+                (
+                    Math.Max(
+                        8,
+                        (int)Math.Round(
+                            HarmonizeOperationalTotal(
+                                driverMinutes + customerMinutes + baseBuffer,
+                                driverMinutes + customerMinutes,
+                                profile,
+                                includePreparationBaseline: false,
+                                capExtraMinutes: 15))),
+                    DateTime.UtcNow,
+                    8,
+                    12,
+                    profile.IsReliable ? "high" : "medium",
+                    "hybrid_operational",
+                    !profile.IsReliable),
             OrderStatus.DriverAssigned =>
-                (Math.Max(5, (int)Math.Round(driverMinutes * 0.7)) + customerMinutes + Math.Max(4, baseBuffer - 2), driverAcceptedAtUtc ?? DateTime.UtcNow, 6, 10, "high", "live_tracking_refined", false),
+                (
+                    Math.Max(
+                        5,
+                        (int)Math.Round(
+                            HarmonizeOperationalTotal(
+                                Math.Max(5, (int)Math.Round(driverMinutes * 0.7)) + customerMinutes + Math.Max(4, baseBuffer - 2),
+                                Math.Max(5, (int)Math.Round(driverMinutes * 0.7)) + customerMinutes,
+                                profile,
+                                includePreparationBaseline: false,
+                                capExtraMinutes: 12))),
+                    driverAcceptedAtUtc ?? DateTime.UtcNow,
+                    6,
+                    10,
+                    "high",
+                    "live_tracking_refined",
+                    false),
             OrderStatus.PickedUp or OrderStatus.OnTheWay =>
-                (Math.Max(5, customerMinutes) + 5, pickedUpAtUtc ?? driverAcceptedAtUtc ?? DateTime.UtcNow, 5, 8, "high", "live_tracking_refined", false),
+                (
+                    Math.Max(
+                        5,
+                        (int)Math.Round(
+                            HarmonizeOperationalTotal(
+                                Math.Max(5, customerMinutes) + 5,
+                                Math.Max(5, customerMinutes),
+                                profile,
+                                includePreparationBaseline: false,
+                                capExtraMinutes: 10))),
+                    pickedUpAtUtc ?? driverAcceptedAtUtc ?? DateTime.UtcNow,
+                    5,
+                    8,
+                    "high",
+                    "live_tracking_refined",
+                    false),
             _ =>
                 ((int)Math.Round(profile.AverageTotalMinutes), placedAtUtc, 12, 20, "low", "historical_fallback", true)
         };
@@ -163,6 +229,32 @@ public static class DeliveryEtaPolicy
             ? Math.Clamp(profile.RecommendedBufferMinutes, 6, 20)
             : fallbackBuffer;
 
+    private static double HarmonizeOperationalTotal(
+        double computedMinutes,
+        int travelMinutes,
+        DeliveryEtaOperationalProfile profile,
+        bool includePreparationBaseline = true,
+        int capExtraMinutes = 20)
+    {
+        if (profile.SampleSize <= 0)
+        {
+            return computedMinutes;
+        }
+
+        var baselineMinutes = includePreparationBaseline
+            ? profile.AverageTotalMinutes
+            : Math.Max(10d, profile.AverageDispatchLeadMinutes + profile.AverageLastMileMinutes + profile.RecommendedBufferMinutes);
+
+        var blendedMinutes = profile.IsReliable
+            ? (computedMinutes * 0.35d) + (baselineMinutes * 0.65d)
+            : (computedMinutes * 0.55d) + (baselineMinutes * 0.45d);
+
+        var travelAwareCap = baselineMinutes + capExtraMinutes + Math.Min(10, Math.Max(0, travelMinutes - 20));
+        var floor = Math.Max(includePreparationBaseline ? 15d : 8d, baselineMinutes * 0.75d);
+
+        return Math.Clamp(blendedMinutes, floor, travelAwareCap);
+    }
+
     private static string ResolveHybridConfidence(DeliveryEtaOperationalProfile profile, bool prepFallback) =>
         profile.IsReliable && !prepFallback
             ? "high"
@@ -172,6 +264,30 @@ public static class DeliveryEtaPolicy
 
     private static string ResolveHybridSource(DeliveryEtaOperationalProfile profile) =>
         profile.SampleSize > 0 ? "hybrid_operational" : "historical_fallback";
+}
+
+public static class DeliveryEtaWindowDisplayTextBuilder
+{
+    public static string BuildTitle() =>
+        CultureInfo.CurrentUICulture.TwoLetterISOLanguageName.Equals("ar", StringComparison.OrdinalIgnoreCase)
+            ? "وقت التوصيل المتوقع"
+            : "Estimated delivery time";
+
+    public static string BuildSubtitle(string confidence, bool isApproximate)
+    {
+        var isArabic = CultureInfo.CurrentUICulture.TwoLetterISOLanguageName.Equals("ar", StringComparison.OrdinalIgnoreCase);
+
+        if (isApproximate || string.Equals(confidence, "low", StringComparison.OrdinalIgnoreCase))
+        {
+            return isArabic
+                ? "الوقت تقديري وقد يتغير حسب حالة المتجر والمندوب."
+                : "This time is approximate and may change based on store and driver status.";
+        }
+
+        return isArabic
+            ? "سيتم تحديث الوقت حسب تقدم الطلب."
+            : "This estimate will be updated as the order progresses.";
+    }
 }
 
 public sealed record DeliveryEtaWindow(

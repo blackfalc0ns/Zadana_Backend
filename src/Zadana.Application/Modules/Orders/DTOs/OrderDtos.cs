@@ -199,12 +199,16 @@ public sealed record EstimatedDeliveryWindowDto
         Confidence = confidence;
         Source = source;
         IsApproximate = isApproximate;
+        Title = Support.DeliveryEtaWindowDisplayTextBuilder.BuildTitle();
         Label = Support.DeliveryEtaWindowLabelBuilder.Build(minMinutes, maxMinutes, isApproximate);
+        Subtitle = Support.DeliveryEtaWindowDisplayTextBuilder.BuildSubtitle(confidence, isApproximate);
     }
 
     public int MinMinutes { get; init; }
     public int MaxMinutes { get; init; }
+    public string Title { get; init; }
     public string Label { get; init; }
+    public string Subtitle { get; init; }
     public string Confidence { get; init; }
     public string Source { get; init; }
     public bool IsApproximate { get; init; }

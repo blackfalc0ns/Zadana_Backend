@@ -71,8 +71,10 @@ public record CustomerOrderEstimatedDeliveryResponse(
 
 public record CustomerEstimatedDeliveryWindowResponse(
     [property: JsonPropertyName("min_minutes")] int MinMinutes,
+    [property: JsonPropertyName("title")] string Title,
     [property: JsonPropertyName("max_minutes")] int MaxMinutes,
     [property: JsonPropertyName("label")] string Label,
+    [property: JsonPropertyName("subtitle")] string Subtitle,
     [property: JsonPropertyName("confidence")] string Confidence,
     [property: JsonPropertyName("source")] string Source,
     [property: JsonPropertyName("is_approximate")] bool IsApproximate);

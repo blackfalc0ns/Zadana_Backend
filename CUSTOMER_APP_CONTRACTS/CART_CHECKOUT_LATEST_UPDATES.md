@@ -98,7 +98,9 @@ This file summarizes the latest backend changes related to cart, checkout, deliv
 
 - `min_minutes`
 - `max_minutes`
+- `title`
 - `label`
+- `subtitle`
 - `confidence`
 - `source`
 - `is_approximate`
@@ -133,7 +135,7 @@ This file summarizes the latest backend changes related to cart, checkout, deliv
 - Do not calculate delivery eligibility locally.
 - Do not calculate ETA locally.
 - Use `delivery_check` as the decision gate.
-- Use `estimated_delivery_window` as the displayed checkout ETA.
+- Use `estimated_delivery_window.title`, `estimated_delivery_window.label`, and `estimated_delivery_window.subtitle` as the displayed checkout ETA block.
 - Use tracking response as the source of truth after order placement.
 
 ## Status

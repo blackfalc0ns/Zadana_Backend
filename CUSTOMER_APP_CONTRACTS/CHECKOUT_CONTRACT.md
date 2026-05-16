@@ -127,7 +127,9 @@ Example response:
   "estimated_delivery_window": {
     "min_minutes": 45,
     "max_minutes": 60,
+    "title": "Estimated delivery time",
     "label": "45-60 minutes",
+    "subtitle": "This estimate will be updated as the order progresses.",
     "confidence": "high",
     "source": "hybrid_operational",
     "is_approximate": false
@@ -190,7 +192,11 @@ Example response:
 - If delivery is not allowed, checkout summary still returns cart and address context, but `summary.shipping_cost` becomes `0` and the UI should use `delivery_check` as the source of truth for the blocked state
 - `estimated_delivery_window` is the checkout ETA source of truth for the user-facing delivery time
 - The backend calibrates checkout ETA from recent delivered orders at the branch level when enough data exists, then falls back to vendor-level history and finally to default policy
-- Mobile should render the window label directly and should not convert `delivery_quote` distance into time on device
+- Mobile should render checkout ETA directly from:
+  - `estimated_delivery_window.title`
+  - `estimated_delivery_window.label`
+  - `estimated_delivery_window.subtitle`
+- Mobile should not convert `delivery_quote` distance into time on device
 - `estimated_delivery_window.confidence` can be:
   - `low`
   - `medium`

@@ -137,7 +137,9 @@ public class CheckoutController : ApiControllerBase
             new CheckoutEstimatedDeliveryWindowResponse(
                 result.EstimatedDeliveryWindow.MinMinutes,
                 result.EstimatedDeliveryWindow.MaxMinutes,
+                result.EstimatedDeliveryWindow.Title,
                 result.EstimatedDeliveryWindow.Label,
+                result.EstimatedDeliveryWindow.Subtitle,
                 result.EstimatedDeliveryWindow.Confidence,
                 result.EstimatedDeliveryWindow.Source,
                 result.EstimatedDeliveryWindow.IsApproximate),
