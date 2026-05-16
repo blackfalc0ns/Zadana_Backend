@@ -299,7 +299,8 @@ internal static class CheckoutSupport
                 item.Latitude,
                 item.Longitude,
                 item.DeliveryRadiusKm,
-                item.IsActive))
+                item.IsActive,
+                item.Vendor.City))
             .FirstOrDefaultAsync(cancellationToken);
 
         if (branch is null || !branch.IsActive)
@@ -829,6 +830,11 @@ internal static class CheckoutSupport
 
     private static bool IsOutsideBranchRadius(VendorBranchSnapshot branch, CustomerAddress address, DeliveryPriceQuote quote)
     {
+        if (IsSameCityDelivery(branch.City, address.City))
+        {
+            return false;
+        }
+
         if (branch.DeliveryRadiusKm <= 0m)
         {
             return false;
@@ -846,6 +852,16 @@ internal static class CheckoutSupport
         }
 
         return quote.VendorToCustomerDistanceKm > branch.DeliveryRadiusKm;
+    }
+
+    private static bool IsSameCityDelivery(string? branchCity, string? customerCity)
+    {
+        var normalizedBranchCity = NormalizeCityName(branchCity);
+        var normalizedCustomerCity = NormalizeCityName(customerCity);
+
+        return !string.IsNullOrWhiteSpace(normalizedBranchCity) &&
+               !string.IsNullOrWhiteSpace(normalizedCustomerCity) &&
+               string.Equals(normalizedBranchCity, normalizedCustomerCity, StringComparison.OrdinalIgnoreCase);
     }
 
     internal sealed record CheckoutPricingSnapshot(
@@ -901,7 +917,8 @@ internal static class CheckoutSupport
         decimal Latitude,
         decimal Longitude,
         decimal DeliveryRadiusKm,
-        bool IsActive);
+        bool IsActive,
+        string? City);
 
     private static async Task EnsureCouponEligibilityAsync(
         IApplicationDbContext context,
