@@ -48,7 +48,8 @@ public sealed record HomeCatalogProductSnapshot(
     string ImageUrl,
     string? BrandNameAr,
     string? BrandNameEn,
-    string? BrandLogo);
+    string? BrandLogo,
+    Guid VariantGroupId = default);
 
 public sealed record HomeContentSectionSettingSnapshot(HomeContentSectionType SectionType, bool IsEnabled);
 

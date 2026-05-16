@@ -151,9 +151,10 @@ public class SearchProductsQueryHandler : IRequestHandler<SearchProductsQuery, S
                     product.ImageUrl,
                     salesCount,
                     reviewStats?.AverageRating,
-                    reviewStats?.ReviewCount ?? 0);
+                    reviewStats?.ReviewCount ?? 0,
+                    product.VariantGroupId);
             })
-            .GroupBy(product => product.Id)
+            .GroupBy(product => product.VariantGroupId)
             .Select(group => group
                 .OrderBy(product => product.SellingPrice)
                 .ThenByDescending(product => product.CreatedAtUtc)
@@ -173,9 +174,7 @@ public class SearchProductsQueryHandler : IRequestHandler<SearchProductsQuery, S
             .Take(perPage)
             .Select(product =>
             {
-                var rawMatch = rawProducts.FirstOrDefault(r => r.MasterProductId == product.Id);
-                var variantGroupId = rawMatch?.VariantGroupId ?? Guid.Empty;
-                var variantCount = variantCountByGroupId.GetValueOrDefault(variantGroupId, 1);
+                var variantCount = variantCountByGroupId.GetValueOrDefault(product.VariantGroupId, 1);
                 return MapToProductItem(product, false, variantCount);
             })
             .ToList();
@@ -332,5 +331,6 @@ public class SearchProductsQueryHandler : IRequestHandler<SearchProductsQuery, S
         string? ImageUrl,
         int SalesCount,
         decimal? Rating,
-        int ReviewCount);
+        int ReviewCount,
+        Guid VariantGroupId = default);
 }

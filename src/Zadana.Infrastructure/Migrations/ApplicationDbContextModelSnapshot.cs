@@ -361,6 +361,12 @@ namespace Zadana.Infrastructure.Migrations
                     b.Property<string>("ImagesJson")
                         .HasColumnType("nvarchar(max)");
 
+                    b.Property<Guid?>("MeasurementUnitId")
+                        .HasColumnType("uniqueidentifier");
+
+                    b.Property<decimal?>("MeasurementValue")
+                        .HasColumnType("decimal(18,2)");
+
                     b.Property<string>("NameAr")
                         .IsRequired()
                         .HasMaxLength(250)
@@ -372,6 +378,9 @@ namespace Zadana.Infrastructure.Migrations
                         .HasColumnType("nvarchar(250)");
 
                     b.Property<Guid>("OperationId")
+                        .HasColumnType("uniqueidentifier");
+
+                    b.Property<Guid?>("PackageTypeId")
                         .HasColumnType("uniqueidentifier");
 
                     b.Property<int>("RowNumber")
@@ -394,13 +403,20 @@ namespace Zadana.Infrastructure.Migrations
                     b.Property<DateTime>("UpdatedAtUtc")
                         .HasColumnType("datetime2");
 
+                    b.Property<Guid?>("VariantGroupId")
+                        .HasColumnType("uniqueidentifier");
+
                     b.HasKey("Id");
 
                     b.HasIndex("BrandId");
 
                     b.HasIndex("CategoryId");
 
+                    b.HasIndex("MeasurementUnitId");
+
                     b.HasIndex("OperationId");
+
+                    b.HasIndex("PackageTypeId");
 
                     b.HasIndex("UnitId");
 
@@ -694,6 +710,12 @@ namespace Zadana.Infrastructure.Migrations
                         .HasMaxLength(2000)
                         .HasColumnType("nvarchar(2000)");
 
+                    b.Property<Guid?>("MeasurementUnitId")
+                        .HasColumnType("uniqueidentifier");
+
+                    b.Property<decimal?>("MeasurementValue")
+                        .HasColumnType("decimal(18,2)");
+
                     b.Property<string>("NameAr")
                         .IsRequired()
                         .HasMaxLength(300)
@@ -703,6 +725,9 @@ namespace Zadana.Infrastructure.Migrations
                         .IsRequired()
                         .HasMaxLength(300)
                         .HasColumnType("nvarchar(300)");
+
+                    b.Property<Guid?>("PackageTypeId")
+                        .HasColumnType("uniqueidentifier");
 
                     b.Property<Guid?>("PartId")
                         .HasColumnType("uniqueidentifier");
@@ -726,6 +751,9 @@ namespace Zadana.Infrastructure.Migrations
                     b.Property<DateTime>("UpdatedAtUtc")
                         .HasColumnType("datetime2");
 
+                    b.Property<Guid>("VariantGroupId")
+                        .HasColumnType("uniqueidentifier");
+
                     b.HasKey("Id");
 
                     b.HasIndex("Barcode")
@@ -739,6 +767,12 @@ namespace Zadana.Infrastructure.Migrations
                     b.HasIndex("CategoryId")
                         .HasDatabaseName("IX_MasterProduct_CategoryId");
 
+                    b.HasIndex("MeasurementUnitId")
+                        .HasDatabaseName("IX_MasterProduct_MeasurementUnitId");
+
+                    b.HasIndex("PackageTypeId")
+                        .HasDatabaseName("IX_MasterProduct_PackageTypeId");
+
                     b.HasIndex("PartId")
                         .HasDatabaseName("IX_MasterProduct_PartId");
 
@@ -750,6 +784,9 @@ namespace Zadana.Infrastructure.Migrations
                         .HasDatabaseName("IX_MasterProduct_Slug");
 
                     b.HasIndex("UnitOfMeasureId");
+
+                    b.HasIndex("VariantGroupId")
+                        .HasDatabaseName("IX_MasterProduct_VariantGroupId");
 
                     b.ToTable("MasterProduct", (string)null);
                 });
@@ -963,6 +1000,13 @@ namespace Zadana.Infrastructure.Migrations
                         .ValueGeneratedOnAdd()
                         .HasColumnType("bit")
                         .HasDefaultValue(true);
+
+                    b.Property<string>("Kind")
+                        .IsRequired()
+                        .ValueGeneratedOnAdd()
+                        .HasMaxLength(30)
+                        .HasColumnType("nvarchar(30)")
+                        .HasDefaultValue("Measurement");
 
                     b.Property<string>("NameAr")
                         .IsRequired()
@@ -3831,6 +3875,9 @@ namespace Zadana.Infrastructure.Migrations
                     b.Property<DateTime>("CreatedAtUtc")
                         .HasColumnType("datetime2");
 
+                    b.Property<string>("ImageUrl")
+                        .HasColumnType("nvarchar(max)");
+
                     b.Property<Guid>("MasterProductId")
                         .HasColumnType("uniqueidentifier");
 
@@ -3841,6 +3888,9 @@ namespace Zadana.Infrastructure.Migrations
 
                     b.Property<int>("Quantity")
                         .HasColumnType("int");
+
+                    b.Property<string>("UnitName")
+                        .HasColumnType("nvarchar(max)");
 
                     b.Property<DateTime>("UpdatedAtUtc")
                         .HasColumnType("datetime2");
@@ -4132,6 +4182,18 @@ namespace Zadana.Infrastructure.Migrations
 
                     b.Property<int>("Quantity")
                         .HasColumnType("int");
+
+                    b.Property<string>("SnapshotBarcode")
+                        .HasMaxLength(100)
+                        .HasColumnType("nvarchar(100)");
+
+                    b.Property<string>("SnapshotDisplaySize")
+                        .HasMaxLength(200)
+                        .HasColumnType("nvarchar(200)");
+
+                    b.Property<string>("SnapshotImageUrl")
+                        .HasMaxLength(2048)
+                        .HasColumnType("nvarchar(2048)");
 
                     b.Property<DateTime?>("StockDeductedAtUtc")
                         .HasColumnType("datetime2");
@@ -5981,11 +6043,21 @@ namespace Zadana.Infrastructure.Migrations
                         .OnDelete(DeleteBehavior.NoAction)
                         .IsRequired();
 
+                    b.HasOne("Zadana.Domain.Modules.Catalog.Entities.UnitOfMeasure", "MeasurementUnit")
+                        .WithMany()
+                        .HasForeignKey("MeasurementUnitId")
+                        .OnDelete(DeleteBehavior.NoAction);
+
                     b.HasOne("Zadana.Domain.Modules.Catalog.Entities.AdminMasterProductBulkOperation", "Operation")
                         .WithMany("Items")
                         .HasForeignKey("OperationId")
                         .OnDelete(DeleteBehavior.Cascade)
                         .IsRequired();
+
+                    b.HasOne("Zadana.Domain.Modules.Catalog.Entities.UnitOfMeasure", "PackageType")
+                        .WithMany()
+                        .HasForeignKey("PackageTypeId")
+                        .OnDelete(DeleteBehavior.NoAction);
 
                     b.HasOne("Zadana.Domain.Modules.Catalog.Entities.UnitOfMeasure", "Unit")
                         .WithMany()
@@ -5996,7 +6068,11 @@ namespace Zadana.Infrastructure.Migrations
 
                     b.Navigation("Category");
 
+                    b.Navigation("MeasurementUnit");
+
                     b.Navigation("Operation");
+
+                    b.Navigation("PackageType");
 
                     b.Navigation("Unit");
                 });
@@ -6104,6 +6180,16 @@ namespace Zadana.Infrastructure.Migrations
                         .OnDelete(DeleteBehavior.Restrict)
                         .IsRequired();
 
+                    b.HasOne("Zadana.Domain.Modules.Catalog.Entities.UnitOfMeasure", "MeasurementUnit")
+                        .WithMany("MeasurementMasterProducts")
+                        .HasForeignKey("MeasurementUnitId")
+                        .OnDelete(DeleteBehavior.Restrict);
+
+                    b.HasOne("Zadana.Domain.Modules.Catalog.Entities.UnitOfMeasure", "PackageType")
+                        .WithMany("PackageTypeMasterProducts")
+                        .HasForeignKey("PackageTypeId")
+                        .OnDelete(DeleteBehavior.Restrict);
+
                     b.HasOne("Zadana.Domain.Modules.Catalog.Entities.Part", "Part")
                         .WithMany("MasterProducts")
                         .HasForeignKey("PartId")
@@ -6122,6 +6208,10 @@ namespace Zadana.Infrastructure.Migrations
                     b.Navigation("Brand");
 
                     b.Navigation("Category");
+
+                    b.Navigation("MeasurementUnit");
+
+                    b.Navigation("PackageType");
 
                     b.Navigation("Part");
 
@@ -7047,6 +7137,10 @@ namespace Zadana.Infrastructure.Migrations
             modelBuilder.Entity("Zadana.Domain.Modules.Catalog.Entities.UnitOfMeasure", b =>
                 {
                     b.Navigation("MasterProducts");
+
+                    b.Navigation("MeasurementMasterProducts");
+
+                    b.Navigation("PackageTypeMasterProducts");
                 });
 
             modelBuilder.Entity("Zadana.Domain.Modules.Catalog.Entities.VendorProductBulkOperation", b =>

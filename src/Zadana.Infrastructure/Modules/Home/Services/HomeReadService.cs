@@ -453,7 +453,8 @@ public class HomeReadService : IHomeReadService
                             vp.MasterProduct.BrandId.HasValue
                                 ? (vp.MasterProduct.Brand != null ? vp.MasterProduct.Brand.NameEn : null)
                                 : null,
-                            vp.MasterProduct.Brand != null ? vp.MasterProduct.Brand.LogoUrl : null))
+                            vp.MasterProduct.Brand != null ? vp.MasterProduct.Brand.LogoUrl : null,
+                            vp.MasterProduct.VariantGroupId))
                         .ToArrayAsync(token);
                 }
                 catch (Exception ex) when (IsMissingDatabaseObject(ex))
@@ -498,9 +499,10 @@ public class HomeReadService : IHomeReadService
                     reviewStats?.ReviewCount ?? 0,
                     1,
                     PickLocalizedNullable(x.BrandNameAr, x.BrandNameEn),
-                    x.BrandLogo);
+                    x.BrandLogo,
+                    x.VariantGroupId);
             })
-            .GroupBy(x => x.MasterProductId)
+            .GroupBy(x => x.VariantGroupId != default ? x.VariantGroupId : x.MasterProductId)
             .Select(group =>
             {
                 var selected = group
@@ -1248,7 +1250,8 @@ public class HomeReadService : IHomeReadService
         int ReviewCount,
         int StoreCount,
         string? BrandName,
-        string? BrandLogo);
+        string? BrandLogo,
+        Guid VariantGroupId = default);
 
     private sealed record ActiveFeaturedPlacement(
         FeaturedPlacementType PlacementType,
