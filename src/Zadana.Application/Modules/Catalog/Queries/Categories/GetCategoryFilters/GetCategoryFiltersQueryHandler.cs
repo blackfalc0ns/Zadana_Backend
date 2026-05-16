@@ -61,6 +61,7 @@ public class GetCategoryFiltersQueryHandler : IRequestHandler<GetCategoryFilters
                         product.ProductTypeId,
                         product.PartId,
                         product.BrandId,
+                        product.MeasurementValue,
                         product.MeasurementUnitId,
                         product.PackageTypeId))
                     .ToListAsync(token);
@@ -91,6 +92,13 @@ public class GetCategoryFiltersQueryHandler : IRequestHandler<GetCategoryFilters
                     .Where(product => product.MeasurementUnitId.HasValue)
                     .Select(product => product.MeasurementUnitId!.Value)
                     .Distinct()
+                    .ToList();
+
+                var measurementValues = scopedMasterProducts
+                    .Where(product => product.MeasurementValue.HasValue)
+                    .Select(product => product.MeasurementValue!.Value)
+                    .Distinct()
+                    .OrderBy(value => value)
                     .ToList();
 
                 var packageTypeIds = scopedMasterProducts
@@ -225,6 +233,7 @@ public class GetCategoryFiltersQueryHandler : IRequestHandler<GetCategoryFilters
                     parts,
                     quantities,
                     packageTypes,
+                    measurementValues,
                     brands,
                     priceRange,
                     BuildSortOptions());
@@ -272,6 +281,7 @@ public class GetCategoryFiltersQueryHandler : IRequestHandler<GetCategoryFilters
         Guid? ProductTypeId,
         Guid? PartId,
         Guid? BrandId,
+        decimal? MeasurementValue,
         Guid? MeasurementUnitId,
         Guid? PackageTypeId);
 

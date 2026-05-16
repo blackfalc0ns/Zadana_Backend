@@ -6,6 +6,7 @@ using Zadana.Application.Modules.Checkout.Support;
 using Zadana.Application.Modules.Delivery.Interfaces;
 using Zadana.Application.Modules.Orders.Support;
 using Zadana.Application.Modules.Payments.Interfaces;
+using Zadana.Domain.Modules.Orders.Enums;
 
 namespace Zadana.Application.Modules.Checkout.Queries.GetCheckoutSummary;
 
@@ -44,11 +45,30 @@ public class GetCheckoutSummaryQueryHandler : IRequestHandler<GetCheckoutSummary
         var pricing = await CheckoutSupport.BuildPricingSnapshotAsync(_context, cart, request.VendorId, cancellationToken);
         var address = await CheckoutSupport.ResolveSelectedAddressAsync(_context, request.UserId, request.AddressId, cancellationToken);
         var coupon = await CheckoutSupport.ResolveAppliedCouponAsync(_context, request.UserId, cart, cancellationToken);
-        var deliveryQuote = await CheckoutSupport.QuoteDeliveryOrFallbackAsync(
+        var deliveryAssessment = await CheckoutSupport.EvaluateDeliveryAsync(
+            _context,
             _deliveryPricingService,
             pricing.VendorBranchId,
             address,
             cancellationToken);
+        var deliveryQuote = deliveryAssessment.DeliveryCheck.IsDeliverable
+            ? deliveryAssessment.DeliveryQuote
+            : CheckoutSupport.BuildNoPricingQuote();
+        var preparationTimeMinutes = await _context.Vendors
+            .AsNoTracking()
+            .Where(v => v.Id == pricing.VendorId)
+            .Select(v => v.PreparationTimeMinutes)
+            .FirstOrDefaultAsync(cancellationToken);
+        var operationalProfile = await DeliveryEtaTelemetry.LoadOperationalProfileAsync(
+            _context,
+            pricing.VendorId,
+            pricing.VendorBranchId,
+            cancellationToken);
+        var estimatedDeliveryWindow = DeliveryEtaPolicy.EstimateCheckoutWindow(
+            preparationTimeMinutes,
+            deliveryAssessment.DeliveryCheck.IsDeliverable ? deliveryAssessment.DeliveryQuote.DriverToVendorDistanceKm : 0m,
+            deliveryAssessment.DeliveryCheck.IsDeliverable ? deliveryAssessment.DeliveryQuote.VendorToCustomerDistanceKm : 0m,
+            operationalProfile);
         var discount = coupon == null ? 0m : CheckoutSupport.CalculateDiscountAmount(coupon, pricing.Subtotal);
         var financeBreakdown = await CheckoutSupport.ResolveFinanceBreakdownV2Async(
             _context,
@@ -75,6 +95,13 @@ public class GetCheckoutSummaryQueryHandler : IRequestHandler<GetCheckoutSummary
             CheckoutSupport.BuildDeliverySlots(request.DeliverySlotId),
             CheckoutSupport.BuildPaymentMethods(_paymobGateway.IsEnabled),
             CheckoutSupport.BuildPromoCodeDto(coupon, discount),
+            deliveryAssessment.DeliveryCheck,
+            new CheckoutEstimatedDeliveryWindowDto(
+                estimatedDeliveryWindow.MinMinutes,
+                estimatedDeliveryWindow.MaxMinutes,
+                estimatedDeliveryWindow.Confidence,
+                estimatedDeliveryWindow.Source,
+                estimatedDeliveryWindow.IsApproximate),
             CheckoutSupport.BuildDeliveryQuoteDto(deliveryQuote),
             CheckoutSupport.BuildDeliveryBreakdownDto(deliveryQuote),
             CheckoutSupport.BuildShippingBreakdownV2(deliveryQuote, financeBreakdown),

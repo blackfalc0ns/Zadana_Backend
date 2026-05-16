@@ -9,6 +9,7 @@ public record GetCategoryProductsQuery(
     Guid? ProductTypeId,
     Guid? PartId,
     Guid? QuantityId,
+    decimal? MeasurementValue,
     Guid? PackageTypeId,
     Guid? BrandId,
     decimal? MinPrice,
@@ -23,13 +24,14 @@ public record GetCategoryProductsQuery(
         Guid? productTypeId,
         Guid? partId,
         Guid? quantityId,
+        decimal? measurementValue,
         Guid? brandId,
         decimal? minPrice,
         decimal? maxPrice,
         string? sort,
         int page = 1,
         int perPage = 20)
-        : this(categoryId, subcategoryId, productTypeId, partId, quantityId, null, brandId, minPrice, maxPrice, sort, page, perPage)
+        : this(categoryId, subcategoryId, productTypeId, partId, quantityId, measurementValue, null, brandId, minPrice, maxPrice, sort, page, perPage)
     {
     }
 }

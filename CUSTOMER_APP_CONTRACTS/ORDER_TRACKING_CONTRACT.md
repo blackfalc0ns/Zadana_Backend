@@ -32,7 +32,15 @@ Example response:
   },
   "estimated_delivery": {
     "datetime": "2026-04-25T12:15:00Z",
-    "formatted": "Today, 3:15 PM"
+    "formatted": "Today, 3:15 PM",
+    "window": {
+      "min_minutes": 15,
+      "max_minutes": 25,
+      "label": "15-25 minutes",
+      "confidence": "high",
+      "source": "live_tracking_refined",
+      "is_approximate": false
+    }
   },
   "driver": {
     "id": "55555555-5555-5555-5555-555555555555",
@@ -71,6 +79,18 @@ Example response:
 ```
 
 ## Field Meaning
+
+### `estimated_delivery.window`
+
+Use for the moving delivery estimate window:
+
+- `min_minutes`
+- `max_minutes`
+- `label`
+- `confidence`
+- `source`
+
+If the order is already delivered, backend may return the actual `datetime`/`formatted` value with `window = null`.
 
 ### `driver`
 
@@ -111,6 +131,7 @@ Suggested order tracking sections:
 
 - order status
 - estimated delivery
+- estimated delivery window
 - driver card
 - delivery OTP card
 - timeline
@@ -128,6 +149,8 @@ Arrival state hint:
 ## Important Mobile Notes
 
 - Treat backend tracking response as the source of truth
+- Do not recalculate ETA locally from coordinates or timeline state
+- Tracking ETA is progressively refined by stage using live order state plus historical branch/vendor calibration
 - Do not infer OTP visibility from order status alone
 - Do not infer driver arrival state locally
 - Use `assigned_driver` for detailed driver identity

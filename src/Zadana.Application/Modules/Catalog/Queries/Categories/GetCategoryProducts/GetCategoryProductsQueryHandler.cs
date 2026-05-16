@@ -49,6 +49,7 @@ public class GetCategoryProductsQueryHandler : IRequestHandler<GetCategoryProduc
                 request.ProductTypeId,
                 request.PartId,
                 request.QuantityId,
+                request.MeasurementValue,
                 request.PackageTypeId,
                 request.BrandId,
                 request.MinPrice,
@@ -135,6 +136,7 @@ public class GetCategoryProductsQueryHandler : IRequestHandler<GetCategoryProduc
                 (!request.PartId.HasValue || product.MasterProduct.PartId == request.PartId.Value) &&
                 (!request.BrandId.HasValue || product.MasterProduct.BrandId == request.BrandId.Value) &&
                 (!request.QuantityId.HasValue || product.MasterProduct.MeasurementUnitId == request.QuantityId.Value) &&
+                (!request.MeasurementValue.HasValue || product.MasterProduct.MeasurementValue == request.MeasurementValue.Value) &&
                 (!request.PackageTypeId.HasValue || product.MasterProduct.PackageTypeId == request.PackageTypeId.Value) &&
                 (!request.MinPrice.HasValue || product.SellingPrice >= request.MinPrice.Value) &&
                 (!request.MaxPrice.HasValue || product.SellingPrice <= request.MaxPrice.Value))
@@ -218,6 +220,7 @@ public class GetCategoryProductsQueryHandler : IRequestHandler<GetCategoryProduc
                 request.ProductTypeId,
                 request.PartId,
                 request.QuantityId,
+                request.MeasurementValue,
                 request.PackageTypeId,
                 request.BrandId,
                 request.MinPrice,

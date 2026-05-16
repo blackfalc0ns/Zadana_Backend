@@ -94,6 +94,9 @@ public record ProductSearchFiltersRequest(
     List<Guid>? SubcategoryIds = null,
     List<Guid>? BrandIds = null,
     List<ProductStatus>? Statuses = null,
+    Guid? PackageTypeId = null,
+    Guid? MeasurementUnitId = null,
+    decimal? MeasurementValue = null,
     bool? IsActiveBrand = null,
     bool? HasBrand = null);
 

@@ -256,6 +256,113 @@ internal static class CheckoutSupport
         return await deliveryPricingService.QuoteAsync(vendorBranchId.Value, address.Id, cancellationToken);
     }
 
+    public static async Task<CheckoutDeliveryAssessment> EvaluateDeliveryAsync(
+        IApplicationDbContext context,
+        IDeliveryPricingService deliveryPricingService,
+        Guid? vendorBranchId,
+        CustomerAddress? address,
+        CancellationToken cancellationToken)
+    {
+        if (address is null)
+        {
+            return new CheckoutDeliveryAssessment(
+                new CheckoutDeliveryCheckDto(
+                    "address_required",
+                    false,
+                    false,
+                    "اختر عنوانًا لحساب التوصيل.",
+                    "Choose an address to calculate delivery.",
+                    null,
+                    null),
+                BuildNoPricingQuote());
+        }
+
+        if (!vendorBranchId.HasValue)
+        {
+            return new CheckoutDeliveryAssessment(
+                new CheckoutDeliveryCheckDto(
+                    "pricing_unavailable",
+                    false,
+                    false,
+                    "تعذر تحديد التوصيل لهذا العنوان.",
+                    "Delivery could not be determined for this address.",
+                    null,
+                    null),
+                BuildNoPricingQuote());
+        }
+
+        VendorBranchSnapshot? branch = await context.VendorBranches
+            .AsNoTracking()
+            .Where(item => item.Id == vendorBranchId.Value)
+            .Select(item => new VendorBranchSnapshot(
+                item.Id,
+                item.Latitude,
+                item.Longitude,
+                item.DeliveryRadiusKm,
+                item.IsActive))
+            .FirstOrDefaultAsync(cancellationToken);
+
+        if (branch is null || !branch.IsActive)
+        {
+            return new CheckoutDeliveryAssessment(
+                new CheckoutDeliveryCheckDto(
+                    "pricing_unavailable",
+                    false,
+                    false,
+                    "تعذر تحديد التوصيل لهذا العنوان.",
+                    "Delivery could not be determined for this address.",
+                    null,
+                    null),
+                BuildNoPricingQuote());
+        }
+
+        try
+        {
+            var quote = await deliveryPricingService.QuoteAsync(branch.Id, address.Id, cancellationToken);
+            if (IsOutsideBranchRadius(branch, address, quote))
+            {
+                return new CheckoutDeliveryAssessment(
+                    new CheckoutDeliveryCheckDto(
+                        "undeliverable",
+                        false,
+                        false,
+                        "هذا المتجر غير متاح للتوصيل إلى العنوان الحالي.",
+                        "This store does not deliver to the current address.",
+                        quote.TotalFee,
+                        quote.DistanceKm),
+                    quote);
+            }
+
+            return new CheckoutDeliveryAssessment(
+                new CheckoutDeliveryCheckDto(
+                    "deliverable",
+                    true,
+                    true,
+                    "التوصيل متاح لهذا العنوان.",
+                    "Delivery is available for this address.",
+                    quote.TotalFee,
+                    quote.DistanceKm),
+                quote);
+        }
+        catch (BusinessRuleException exception) when (exception.ErrorCode is "CUSTOMER_ADDRESS_REQUIRED" or "DELIVERY_PRICING_UNAVAILABLE")
+        {
+            return new CheckoutDeliveryAssessment(
+                new CheckoutDeliveryCheckDto(
+                    exception.ErrorCode == "CUSTOMER_ADDRESS_REQUIRED" ? "address_required" : "pricing_unavailable",
+                    false,
+                    false,
+                    exception.ErrorCode == "CUSTOMER_ADDRESS_REQUIRED"
+                        ? "اختر عنوانًا لحساب التوصيل."
+                        : "تعذر تحديد التوصيل لهذا العنوان.",
+                    exception.ErrorCode == "CUSTOMER_ADDRESS_REQUIRED"
+                        ? "Choose an address to calculate delivery."
+                        : "Delivery could not be determined for this address.",
+                    null,
+                    null),
+                BuildNoPricingQuote());
+        }
+    }
+
     public static DeliveryPriceQuote BuildNoPricingQuote() =>
         new(0m, 0m, 0m, 0m, 0m, "zone-fallback", "No pricing", 0m, 0m, 0m, 0m, "fallback", "fallback", true, "fallback", null, "pricing_unavailable", DateTime.UtcNow, 2, false);
 
@@ -720,6 +827,27 @@ internal static class CheckoutSupport
         return (decimal)distanceKm;
     }
 
+    private static bool IsOutsideBranchRadius(VendorBranchSnapshot branch, CustomerAddress address, DeliveryPriceQuote quote)
+    {
+        if (branch.DeliveryRadiusKm <= 0m)
+        {
+            return false;
+        }
+
+        var branchHasCoordinates = !(branch.Latitude == 0m && branch.Longitude == 0m);
+        var addressHasCoordinates =
+            address.Latitude.HasValue &&
+            address.Longitude.HasValue &&
+            !(address.Latitude.Value == 0m && address.Longitude.Value == 0m);
+
+        if (!branchHasCoordinates || !addressHasCoordinates)
+        {
+            return false;
+        }
+
+        return quote.VendorToCustomerDistanceKm > branch.DeliveryRadiusKm;
+    }
+
     internal sealed record CheckoutPricingSnapshot(
         Guid VendorId,
         Guid? VendorBranchId,
@@ -731,6 +859,10 @@ internal static class CheckoutSupport
         decimal VatAmount,
         decimal CodFee,
         CheckoutTotalsDto Totals);
+
+    internal sealed record CheckoutDeliveryAssessment(
+        CheckoutDeliveryCheckDto DeliveryCheck,
+        DeliveryPriceQuote DeliveryQuote);
 
     private sealed record ZoneFinanceSettingsSnapshot(
         decimal VatPercent,
@@ -763,6 +895,13 @@ internal static class CheckoutSupport
         bool CoversAllProducts,
         decimal Total,
         List<VendorOfferSnapshot> Offers);
+
+    private sealed record VendorBranchSnapshot(
+        Guid Id,
+        decimal Latitude,
+        decimal Longitude,
+        decimal DeliveryRadiusKm,
+        bool IsActive);
 
     private static async Task EnsureCouponEligibilityAsync(
         IApplicationDbContext context,

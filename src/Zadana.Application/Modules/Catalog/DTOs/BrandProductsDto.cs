@@ -6,13 +6,14 @@ public record BrandProductsAppliedFiltersDto(
     [property: JsonPropertyName("category_id")] Guid? CategoryId,
     [property: JsonPropertyName("subcategory_id")] Guid? SubcategoryId,
     [property: JsonPropertyName("unit_id")] Guid? UnitId,
+    [property: JsonPropertyName("measurement_value")] decimal? MeasurementValue,
     [property: JsonPropertyName("package_type_id")] Guid? PackageTypeId,
     [property: JsonPropertyName("min_price")] decimal? MinPrice,
     [property: JsonPropertyName("max_price")] decimal? MaxPrice,
     [property: JsonPropertyName("sort")] string? Sort)
 {
     public BrandProductsAppliedFiltersDto(Guid? categoryId, Guid? subcategoryId, Guid? unitId, decimal? minPrice, decimal? maxPrice, string? sort)
-        : this(categoryId, subcategoryId, unitId, null, minPrice, maxPrice, sort)
+        : this(categoryId, subcategoryId, unitId, null, null, minPrice, maxPrice, sort)
     {
     }
 }

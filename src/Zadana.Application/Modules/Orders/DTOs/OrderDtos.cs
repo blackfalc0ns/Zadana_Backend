@@ -187,7 +187,28 @@ public record CustomerOrderTrackingOrderDto(
 
 public record CustomerOrderEstimatedDeliveryDto(
     DateTime Datetime,
-    string Formatted);
+    string Formatted,
+    EstimatedDeliveryWindowDto? Window = null);
+
+public sealed record EstimatedDeliveryWindowDto
+{
+    public EstimatedDeliveryWindowDto(int minMinutes, int maxMinutes, string confidence, string source, bool isApproximate)
+    {
+        MinMinutes = minMinutes;
+        MaxMinutes = maxMinutes;
+        Confidence = confidence;
+        Source = source;
+        IsApproximate = isApproximate;
+        Label = Support.DeliveryEtaWindowLabelBuilder.Build(minMinutes, maxMinutes, isApproximate);
+    }
+
+    public int MinMinutes { get; init; }
+    public int MaxMinutes { get; init; }
+    public string Label { get; init; }
+    public string Confidence { get; init; }
+    public string Source { get; init; }
+    public bool IsApproximate { get; init; }
+}
 
 public record CustomerOrderTrackingDriverDto(
     Guid Id,

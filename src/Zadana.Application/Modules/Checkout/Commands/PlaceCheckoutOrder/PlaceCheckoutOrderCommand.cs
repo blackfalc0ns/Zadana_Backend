@@ -92,11 +92,23 @@ public class PlaceCheckoutOrderCommandHandler : IRequestHandler<PlaceCheckoutOrd
         var user = await _context.Users.FirstOrDefaultAsync(x => x.Id == request.UserId, cancellationToken)
             ?? throw new NotFoundException("User", request.UserId);
 
-        var deliveryQuote = await CheckoutSupport.QuoteDeliveryOrFallbackAsync(
+        var deliveryAssessment = await CheckoutSupport.EvaluateDeliveryAsync(
+            _context,
             _deliveryPricingService,
             pricing.VendorBranchId,
             address,
             cancellationToken);
+        if (!deliveryAssessment.DeliveryCheck.CanProceedToCheckout)
+        {
+            throw deliveryAssessment.DeliveryCheck.Status switch
+            {
+                "address_required" => new BusinessRuleException("CUSTOMER_ADDRESS_REQUIRED", deliveryAssessment.DeliveryCheck.MessageEn),
+                "undeliverable" => new BusinessRuleException("DELIVERY_NOT_AVAILABLE", deliveryAssessment.DeliveryCheck.MessageEn),
+                _ => new BusinessRuleException("DELIVERY_PRICING_UNAVAILABLE", deliveryAssessment.DeliveryCheck.MessageEn)
+            };
+        }
+
+        var deliveryQuote = deliveryAssessment.DeliveryQuote;
         var coupon = await ResolveOrderCouponAsync(request.UserId, cart, request.PromoCode, pricing.VendorId, pricing.Subtotal, cancellationToken);
         var discount = coupon == null ? 0m : CheckoutSupport.CalculateDiscountAmount(coupon, pricing.Subtotal);
         var financeBreakdown = await CheckoutSupport.ResolveFinanceBreakdownV2Async(

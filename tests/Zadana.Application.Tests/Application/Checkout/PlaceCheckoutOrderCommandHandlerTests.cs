@@ -17,6 +17,7 @@ using Zadana.Domain.Modules.Orders.Enums;
 using Zadana.Infrastructure.Modules.Orders.Repositories;
 using Zadana.Infrastructure.Persistence;
 using Zadana.Infrastructure.Persistence.Interceptors;
+using Zadana.SharedKernel.Exceptions;
 
 namespace Zadana.Application.Tests.Application.Checkout;
 
@@ -45,7 +46,8 @@ public class PlaceCheckoutOrderCommandHandlerTests
         vendor.UpdateOperationsSettings(true, null, 30);
         vendor.UpdateNotificationSettings(true, false, true);
 
-        var vendorProduct = new VendorProduct(vendor.Id, product.Id, 49m, 10, tradePrice: 35m);
+        var branch = new Zadana.Domain.Modules.Vendors.Entities.VendorBranch(vendor.Id, "Main Branch", "Nasr City", 30.0444m, 31.2357m, "01000000032", 15m);
+        var vendorProduct = new VendorProduct(vendor.Id, product.Id, 49m, 10, tradePrice: 35m, vendorBranchId: branch.Id);
         var address = new CustomerAddress(customer.Id, "Checkout Customer", "01000000030", "Nasr City 12", AddressLabel.Home, city: "Cairo");
         address.SetAsDefault();
 
@@ -57,6 +59,7 @@ public class PlaceCheckoutOrderCommandHandlerTests
         dbContext.Categories.Add(category);
         dbContext.MasterProducts.Add(product);
         dbContext.Vendors.Add(vendor);
+        dbContext.VendorBranches.Add(branch);
         dbContext.VendorProducts.Add(vendorProduct);
         dbContext.CustomerAddresses.Add(address);
         dbContext.Carts.Add(cart);
@@ -82,10 +85,15 @@ public class PlaceCheckoutOrderCommandHandlerTests
             .Setup(publisher => publisher.Publish(It.IsAny<INotification>(), It.IsAny<CancellationToken>()))
             .Returns(Task.CompletedTask);
 
+        var deliveryPricingMock = new Mock<IDeliveryPricingService>();
+        deliveryPricingMock
+            .Setup(service => service.QuoteAsync(branch.Id, address.Id, It.IsAny<CancellationToken>()))
+            .ReturnsAsync(new DeliveryPriceQuote(5m, 2m, 0m, 7m, 3m, "zone", "Zone rule", 1m, 2m, 3m, 4m, "driver", "vendor", false, "manual", null, "locked", DateTime.UtcNow, 1, false));
+
         var handler = new PlaceCheckoutOrderCommandHandler(
             dbContext,
             Mock.Of<IPaymobGateway>(),
-            Mock.Of<IDeliveryPricingService>(),
+            deliveryPricingMock.Object,
             sender,
             dbContext,
             publisherMock.Object);
@@ -112,6 +120,87 @@ public class PlaceCheckoutOrderCommandHandlerTests
             .Select(history => history.NewStatus)
             .Should()
             .ContainInOrder(OrderStatus.Placed, OrderStatus.PendingVendorAcceptance);
+    }
+
+    [Fact]
+    public async Task Handle_WhenDeliveryCheckMarksAddressAsUndeliverable_ShouldRejectPlacement()
+    {
+        await using var dbContext = CreateDbContext();
+
+        var customer = new User("Checkout Customer", "checkout.customer.undeliverable@test.com", "01000000130", UserRole.Customer);
+        var vendorUser = new User("Checkout Vendor", "checkout.vendor.undeliverable@test.com", "01000000131", UserRole.Vendor);
+        var category = new Category("بقالة", "Groceries");
+        var product = new MasterProduct("مياه", "Water", "water-test", category.Id);
+        product.Publish();
+
+        var vendor = new Zadana.Domain.Modules.Vendors.Entities.Vendor(
+            vendorUser.Id,
+            "متجر الاختبار",
+            "Checkout Test Store",
+            "Groceries",
+            "1234567891",
+            "checkout.vendor.undeliverable@test.com",
+            "01000000131");
+        vendor.Approve(10m, Guid.NewGuid());
+        vendor.UpdateOperationsSettings(true, null, 30);
+
+        var branch = new Zadana.Domain.Modules.Vendors.Entities.VendorBranch(vendor.Id, "Main Branch", "Nasr City", 30.0444m, 31.2357m, "01000000132", 1m);
+        var vendorProduct = new VendorProduct(vendor.Id, product.Id, 20m, 5, vendorBranchId: branch.Id);
+        var address = new CustomerAddress(customer.Id, "Checkout Customer", "01000000130", "Heliopolis", AddressLabel.Home, city: "Cairo", latitude: 30.1000m, longitude: 31.4000m);
+        address.SetAsDefault();
+
+        var cart = new Cart(customer.Id);
+        cart.Items.Add(new CartItem(cart.Id, product.Id, product.NameEn, 1));
+        cart.UpdateTotals(20m, 0m);
+
+        dbContext.Users.AddRange(customer, vendorUser);
+        dbContext.Categories.Add(category);
+        dbContext.MasterProducts.Add(product);
+        dbContext.Vendors.Add(vendor);
+        dbContext.VendorBranches.Add(branch);
+        dbContext.VendorProducts.Add(vendorProduct);
+        dbContext.CustomerAddresses.Add(address);
+        dbContext.Carts.Add(cart);
+        await dbContext.SaveChangesAsync();
+
+        var orderRepository = new OrderRepository(dbContext);
+        var placeOrderHandler = new PlaceOrderCommandHandler(orderRepository, TestLocalizer.Create<SharedResource>(), dbContext);
+        var sender = new SenderProxy(type =>
+        {
+            if (type == typeof(IRequestHandler<PlaceOrderCommand, Guid>))
+            {
+                return placeOrderHandler;
+            }
+
+            throw new InvalidOperationException($"Unsupported handler: {type.FullName}");
+        });
+
+        var deliveryPricingMock = new Mock<IDeliveryPricingService>();
+        deliveryPricingMock
+            .Setup(service => service.QuoteAsync(branch.Id, address.Id, It.IsAny<CancellationToken>()))
+            .ReturnsAsync(new DeliveryPriceQuote(10m, 5m, 0m, 15m, 20m, "zone", "Zone rule", 1m, 5m, 3m, 12m, "driver", "vendor", false, "manual", null, "locked", DateTime.UtcNow, 1, false));
+
+        var handler = new PlaceCheckoutOrderCommandHandler(
+            dbContext,
+            Mock.Of<IPaymobGateway>(),
+            deliveryPricingMock.Object,
+            sender,
+            dbContext,
+            Mock.Of<IPublisher>());
+
+        var act = () => handler.Handle(
+            new PlaceCheckoutOrderCommand(
+                customer.Id,
+                vendor.Id,
+                address.Id,
+                null,
+                "cash",
+                null,
+                "should fail"),
+            CancellationToken.None);
+
+        await act.Should().ThrowAsync<BusinessRuleException>()
+            .Where(exception => exception.ErrorCode == "DELIVERY_NOT_AVAILABLE");
     }
 
     private sealed class SenderProxy : ISender

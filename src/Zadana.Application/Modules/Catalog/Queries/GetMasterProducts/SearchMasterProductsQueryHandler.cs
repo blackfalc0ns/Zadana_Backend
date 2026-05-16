@@ -55,6 +55,21 @@ public class SearchMasterProductsQueryHandler : IRequestHandler<SearchMasterProd
             query = query.Where(p => normalizedFilters.Statuses.Contains(p.Status));
         }
 
+        if (normalizedFilters.PackageTypeId.HasValue)
+        {
+            query = query.Where(p => p.PackageTypeId == normalizedFilters.PackageTypeId.Value);
+        }
+
+        if (normalizedFilters.MeasurementUnitId.HasValue)
+        {
+            query = query.Where(p => p.MeasurementUnitId == normalizedFilters.MeasurementUnitId.Value);
+        }
+
+        if (normalizedFilters.MeasurementValue.HasValue)
+        {
+            query = query.Where(p => p.MeasurementValue == normalizedFilters.MeasurementValue.Value);
+        }
+
         if (normalizedFilters.HasBrand.HasValue)
         {
             query = normalizedFilters.HasBrand.Value

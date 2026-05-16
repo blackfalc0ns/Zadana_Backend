@@ -1,5 +1,6 @@
 using Microsoft.AspNetCore.Authorization;
 using Microsoft.AspNetCore.Mvc;
+using System.Globalization;
 using Zadana.Api.Controllers;
 using Zadana.Api.Modules.Orders.Requests;
 using Zadana.Application.Common.Interfaces;
@@ -132,6 +133,14 @@ public class CheckoutController : ApiControllerBase
                     result.PromoCode.DiscountType,
                     result.PromoCode.DiscountValue,
                     result.PromoCode.DiscountAmount),
+            MapDeliveryCheck(result.DeliveryCheck),
+            new CheckoutEstimatedDeliveryWindowResponse(
+                result.EstimatedDeliveryWindow.MinMinutes,
+                result.EstimatedDeliveryWindow.MaxMinutes,
+                result.EstimatedDeliveryWindow.Label,
+                result.EstimatedDeliveryWindow.Confidence,
+                result.EstimatedDeliveryWindow.Source,
+                result.EstimatedDeliveryWindow.IsApproximate),
             new CheckoutDeliveryQuoteResponse(
                 result.DeliveryQuote.DistanceKm,
                 result.DeliveryQuote.BaseFee,
@@ -182,6 +191,8 @@ public class CheckoutController : ApiControllerBase
             summary.DeliverySlots,
             summary.PaymentMethods,
             summary.PromoCode,
+            summary.DeliveryCheck,
+            summary.EstimatedDeliveryWindow,
             summary.DeliveryQuote,
             summary.DeliveryBreakdown,
             summary.ShippingBreakdown,
@@ -204,11 +215,30 @@ public class CheckoutController : ApiControllerBase
             summary.DeliverySlots,
             summary.PaymentMethods,
             summary.PromoCode,
+            summary.DeliveryCheck,
+            summary.EstimatedDeliveryWindow,
             summary.DeliveryQuote,
             summary.DeliveryBreakdown,
             summary.ShippingBreakdown,
             summary.PricingMode,
             summary.Summary);
+    }
+
+    internal static CheckoutDeliveryCheckResponse MapDeliveryCheck(CheckoutDeliveryCheckDto result)
+    {
+        var message = CultureInfo.CurrentUICulture.TwoLetterISOLanguageName.Equals("ar", StringComparison.OrdinalIgnoreCase)
+            ? result.MessageAr
+            : result.MessageEn;
+
+        return new CheckoutDeliveryCheckResponse(
+            result.Status,
+            result.IsDeliverable,
+            result.CanProceedToCheckout,
+            message,
+            result.MessageAr,
+            result.MessageEn,
+            result.DeliveryFee,
+            result.DistanceKm);
     }
 
     private Guid? ResolveGuidQueryAlias(Guid? currentValue, string aliasName, string errorCode)

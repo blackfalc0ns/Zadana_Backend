@@ -27,6 +27,9 @@ public record ProductSearchFiltersDto(
     IReadOnlyList<Guid>? SubcategoryIds = null,
     IReadOnlyList<Guid>? BrandIds = null,
     IReadOnlyList<ProductStatus>? Statuses = null,
+    Guid? PackageTypeId = null,
+    Guid? MeasurementUnitId = null,
+    decimal? MeasurementValue = null,
     bool? IsActiveBrand = null,
     bool? HasBrand = null);
 

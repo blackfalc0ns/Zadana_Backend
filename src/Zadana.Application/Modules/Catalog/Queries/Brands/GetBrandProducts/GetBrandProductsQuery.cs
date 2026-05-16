@@ -8,6 +8,7 @@ public record GetBrandProductsQuery(
     Guid? CategoryId = null,
     Guid? SubcategoryId = null,
     Guid? UnitId = null,
+    decimal? MeasurementValue = null,
     Guid? PackageTypeId = null,
     decimal? MinPrice = null,
     decimal? MaxPrice = null,
@@ -20,12 +21,13 @@ public record GetBrandProductsQuery(
         Guid? categoryId,
         Guid? subcategoryId,
         Guid? unitId,
+        decimal? measurementValue,
         decimal? minPrice,
         decimal? maxPrice,
         string? sort,
         int page = 1,
         int perPage = 20)
-        : this(brandId, categoryId, subcategoryId, unitId, null, minPrice, maxPrice, sort, page, perPage)
+        : this(brandId, categoryId, subcategoryId, unitId, measurementValue, null, minPrice, maxPrice, sort, page, perPage)
     {
     }
 }

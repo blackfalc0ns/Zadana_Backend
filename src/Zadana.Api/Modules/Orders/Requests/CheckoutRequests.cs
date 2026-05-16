@@ -11,6 +11,8 @@ public record GetCheckoutSummaryResponse(
     [property: JsonPropertyName("delivery_slots")] List<CheckoutDeliverySlotResponse> DeliverySlots,
     [property: JsonPropertyName("payment_methods")] List<CheckoutPaymentMethodResponse> PaymentMethods,
     [property: JsonPropertyName("promo_code")] CheckoutPromoCodeResponse? PromoCode,
+    [property: JsonPropertyName("delivery_check")] CheckoutDeliveryCheckResponse DeliveryCheck,
+    [property: JsonPropertyName("estimated_delivery_window")] CheckoutEstimatedDeliveryWindowResponse EstimatedDeliveryWindow,
     [property: JsonPropertyName("delivery_quote")] CheckoutDeliveryQuoteResponse DeliveryQuote,
     [property: JsonPropertyName("delivery_breakdown")] CheckoutDeliveryBreakdownResponse DeliveryBreakdown,
     [property: JsonPropertyName("shipping_breakdown")] List<CheckoutShippingBreakdownLineResponse> ShippingBreakdown,
@@ -59,6 +61,24 @@ public record CheckoutPromoCodeResponse(
     [property: JsonPropertyName("discount_value")] decimal DiscountValue,
     [property: JsonPropertyName("discount_amount")] decimal DiscountAmount);
 
+public record CheckoutDeliveryCheckResponse(
+    [property: JsonPropertyName("status")] string Status,
+    [property: JsonPropertyName("is_deliverable")] bool IsDeliverable,
+    [property: JsonPropertyName("can_proceed_to_checkout")] bool CanProceedToCheckout,
+    [property: JsonPropertyName("message")] string Message,
+    [property: JsonPropertyName("message_ar")] string MessageAr,
+    [property: JsonPropertyName("message_en")] string MessageEn,
+    [property: JsonPropertyName("delivery_fee")] decimal? DeliveryFee,
+    [property: JsonPropertyName("distance_km")] decimal? DistanceKm);
+
+public record CheckoutEstimatedDeliveryWindowResponse(
+    [property: JsonPropertyName("min_minutes")] int MinMinutes,
+    [property: JsonPropertyName("max_minutes")] int MaxMinutes,
+    [property: JsonPropertyName("label")] string Label,
+    [property: JsonPropertyName("confidence")] string Confidence,
+    [property: JsonPropertyName("source")] string Source,
+    [property: JsonPropertyName("is_approximate")] bool IsApproximate);
+
 public record CheckoutDeliveryQuoteResponse(
     [property: JsonPropertyName("distance_km")] decimal DistanceKm,
     [property: JsonPropertyName("base_fee")] decimal BaseFee,
@@ -106,6 +126,8 @@ public record ApplyCheckoutPromoCodeResponse(
     [property: JsonPropertyName("delivery_slots")] List<CheckoutDeliverySlotResponse> DeliverySlots,
     [property: JsonPropertyName("payment_methods")] List<CheckoutPaymentMethodResponse> PaymentMethods,
     [property: JsonPropertyName("promo_code")] CheckoutPromoCodeResponse? PromoCode,
+    [property: JsonPropertyName("delivery_check")] CheckoutDeliveryCheckResponse DeliveryCheck,
+    [property: JsonPropertyName("estimated_delivery_window")] CheckoutEstimatedDeliveryWindowResponse EstimatedDeliveryWindow,
     [property: JsonPropertyName("delivery_quote")] CheckoutDeliveryQuoteResponse DeliveryQuote,
     [property: JsonPropertyName("delivery_breakdown")] CheckoutDeliveryBreakdownResponse DeliveryBreakdown,
     [property: JsonPropertyName("shipping_breakdown")] List<CheckoutShippingBreakdownLineResponse> ShippingBreakdown,
@@ -121,11 +143,19 @@ public record RemoveCheckoutPromoCodeResponse(
     [property: JsonPropertyName("delivery_slots")] List<CheckoutDeliverySlotResponse> DeliverySlots,
     [property: JsonPropertyName("payment_methods")] List<CheckoutPaymentMethodResponse> PaymentMethods,
     [property: JsonPropertyName("promo_code")] CheckoutPromoCodeResponse? PromoCode,
+    [property: JsonPropertyName("delivery_check")] CheckoutDeliveryCheckResponse DeliveryCheck,
+    [property: JsonPropertyName("estimated_delivery_window")] CheckoutEstimatedDeliveryWindowResponse EstimatedDeliveryWindow,
     [property: JsonPropertyName("delivery_quote")] CheckoutDeliveryQuoteResponse DeliveryQuote,
     [property: JsonPropertyName("delivery_breakdown")] CheckoutDeliveryBreakdownResponse DeliveryBreakdown,
     [property: JsonPropertyName("shipping_breakdown")] List<CheckoutShippingBreakdownLineResponse> ShippingBreakdown,
     [property: JsonPropertyName("pricing_mode")] string PricingMode,
     [property: JsonPropertyName("summary")] CheckoutSummaryTotalsResponse Summary);
+
+public record GetCartDeliveryCheckResponse(
+    [property: JsonPropertyName("address_id")] Guid? AddressId,
+    [property: JsonPropertyName("selected_address")] CheckoutSelectedAddressResponse? SelectedAddress,
+    [property: JsonPropertyName("delivery_check")] CheckoutDeliveryCheckResponse DeliveryCheck,
+    [property: JsonPropertyName("delivery_quote")] CheckoutDeliveryQuoteResponse DeliveryQuote);
 
 public class PlaceOrderRequest
 {

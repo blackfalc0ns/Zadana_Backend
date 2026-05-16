@@ -38,6 +38,8 @@ public class CategoriesController : ApiControllerBase
         [FromQuery(Name = "product_type_id")] Guid? productTypeId,
         [FromQuery(Name = "part_id")] Guid? partId,
         [FromQuery(Name = "quantity_id")] Guid? quantityId,
+        [FromQuery(Name = "measurement_unit_id")] Guid? measurementUnitId,
+        [FromQuery(Name = "measurement_value")] decimal? measurementValue,
         [FromQuery(Name = "brand_id")] Guid? brandId,
         [FromQuery(Name = "min_price")] decimal? minPrice,
         [FromQuery(Name = "max_price")] decimal? maxPrice,
@@ -48,13 +50,16 @@ public class CategoriesController : ApiControllerBase
         CancellationToken cancellationToken = default)
     {
         var effectiveCategoryId = categoryId ?? queryCategoryId;
+        var effectiveMeasurementUnitId = measurementUnitId ?? quantityId;
+
         var result = await Sender.Send(
             new GetCategoryProductsQuery(
                 effectiveCategoryId,
                 subcategoryId,
                 productTypeId,
                 partId,
-                quantityId,
+                effectiveMeasurementUnitId,
+                measurementValue,
                 packageTypeId,
                 brandId,
                 minPrice,

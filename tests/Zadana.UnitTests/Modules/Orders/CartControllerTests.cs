@@ -12,6 +12,8 @@ using Zadana.Application.Modules.Orders.Commands.AddCartItem;
 using Zadana.Application.Modules.Orders.Commands.ClearCart;
 using Zadana.Application.Modules.Orders.Commands.RemoveCartItem;
 using Zadana.Application.Modules.Orders.Commands.UpdateCartItemQuantity;
+using Zadana.Application.Modules.Checkout.DTOs;
+using Zadana.Application.Modules.Checkout.Queries.GetCartDeliveryCheck;
 using Zadana.Application.Modules.Orders.DTOs;
 using Zadana.Application.Modules.Orders.Queries.GetCart;
 using Zadana.Application.Modules.Orders.Queries.GetCartVendors;
@@ -345,5 +347,35 @@ public class CartControllerTests
 
         var okResult = result.Result.Should().BeOfType<OkObjectResult>().Subject;
         okResult.Value.Should().BeEquivalentTo(dto);
+    }
+
+    [Fact]
+    public async Task GetDeliveryCheck_ReturnsMappedDeliveryGate()
+    {
+        var addressId = Guid.NewGuid();
+        var dto = new CartDeliveryCheckDto(
+            addressId,
+            new CheckoutSelectedAddressDto(addressId, "home", "Nasr City", true),
+            new CheckoutDeliveryCheckDto(
+                "deliverable",
+                true,
+                true,
+                "التوصيل متاح لهذا العنوان.",
+                "Delivery is available for this address.",
+                25m,
+                4m),
+            new CheckoutDeliveryQuoteDto(4m, 10m, 15m, 0m, 25m, "zone", "Zone rule"));
+
+        _senderMock.Setup(x => x.Send(It.IsAny<GetCartDeliveryCheckQuery>(), It.IsAny<CancellationToken>()))
+            .ReturnsAsync(dto);
+
+        var result = await _controller.GetDeliveryCheck(null, null, CancellationToken.None);
+
+        var okResult = result.Result.Should().BeOfType<OkObjectResult>().Subject;
+        var payload = okResult.Value.Should().BeOfType<GetCartDeliveryCheckResponse>().Subject;
+        payload.AddressId.Should().Be(addressId);
+        payload.DeliveryCheck.Status.Should().Be("deliverable");
+        payload.DeliveryCheck.CanProceedToCheckout.Should().BeTrue();
+        payload.DeliveryQuote.TotalFee.Should().Be(25m);
     }
 }

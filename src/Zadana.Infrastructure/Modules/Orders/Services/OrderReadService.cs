@@ -1190,66 +1190,44 @@ public class OrderReadService : IOrderReadService
             return null;
         }
 
-        // For delivered orders, just show the actual delivery time
-        if (order.Status == OrderStatus.Delivered)
+        var preparationTimeMinutes = await _dbContext.Vendors
+            .AsNoTracking()
+            .Where(v => v.Id == order.VendorId)
+            .Select(v => v.PreparationTimeMinutes)
+            .FirstOrDefaultAsync(cancellationToken);
+        var operationalProfile = await DeliveryEtaTelemetry.LoadOperationalProfileAsync(
+            _dbContext,
+            order.VendorId,
+            order.VendorBranchId,
+            cancellationToken);
+        var estimate = DeliveryEtaPolicy.EstimateTracking(
+            order.Status,
+            order.PlacedAtUtc,
+            order.DeliveredAtUtc ?? ResolveHistoryDate(order, OrderStatus.Delivered),
+            assignment?.AcceptedAtUtc,
+            assignment?.PickedUpAtUtc,
+            preparationTimeMinutes,
+            order.DriverToVendorDistanceKm,
+            order.VendorToCustomerDistanceKm,
+            operationalProfile);
+
+        if (estimate is null)
         {
-            var deliveredAt = order.DeliveredAtUtc ?? ResolveHistoryDate(order, OrderStatus.Delivered) ?? order.PlacedAtUtc;
-            return new CustomerOrderEstimatedDeliveryDto(
-                deliveredAt,
-                deliveredAt.ToString("dd MMM yyyy, hh:mm tt 'UTC'", CultureInfo.InvariantCulture));
+            return null;
         }
 
-        // Calculate average delivery time from vendor's past orders (last 30 days, max 50)
-        var avgMinutes = await CalculateVendorAverageDeliveryMinutesAsync(order.VendorId, cancellationToken);
-
-        var estimatedAtUtc = order.Status switch
-        {
-            OrderStatus.OnTheWay => (assignment?.PickedUpAtUtc ?? assignment?.AcceptedAtUtc ?? order.PlacedAtUtc).AddMinutes(avgMinutes * 0.4),
-            OrderStatus.PickedUp => (assignment?.PickedUpAtUtc ?? order.PlacedAtUtc).AddMinutes(avgMinutes * 0.5),
-            OrderStatus.DriverAssigned => (assignment?.AcceptedAtUtc ?? order.PlacedAtUtc).AddMinutes(avgMinutes * 0.8),
-            OrderStatus.DriverAssignmentInProgress => order.PlacedAtUtc.AddMinutes(avgMinutes),
-            _ => order.PlacedAtUtc.AddMinutes(avgMinutes)
-        };
-
-        // Ensure the estimate is never in the past for active orders
-        if (estimatedAtUtc < DateTime.UtcNow)
-        {
-            estimatedAtUtc = DateTime.UtcNow.AddMinutes(Math.Max(5, avgMinutes * 0.2));
-        }
-
+        var estimatedAtUtc = estimate.DatetimeUtc;
         return new CustomerOrderEstimatedDeliveryDto(
             estimatedAtUtc,
-            estimatedAtUtc.ToString("dd MMM yyyy, hh:mm tt 'UTC'", CultureInfo.InvariantCulture));
-    }
-
-    private async Task<double> CalculateVendorAverageDeliveryMinutesAsync(
-        Guid vendorId, CancellationToken cancellationToken)
-    {
-        const double defaultMinutes = 35.0;
-        var cutoff = DateTime.UtcNow.AddDays(-30);
-
-        var deliveredOrders = await _dbContext.Orders
-            .AsNoTracking()
-            .Where(o =>
-                o.VendorId == vendorId &&
-                o.Status == OrderStatus.Delivered &&
-                o.DeliveredAtUtc.HasValue &&
-                o.PlacedAtUtc >= cutoff)
-            .OrderByDescending(o => o.DeliveredAtUtc)
-            .Take(50)
-            .Select(o => new { o.PlacedAtUtc, o.DeliveredAtUtc })
-            .ToArrayAsync(cancellationToken);
-
-        if (deliveredOrders.Length < 3)
-        {
-            return defaultMinutes;
-        }
-
-        var avgMinutes = deliveredOrders
-            .Average(o => (o.DeliveredAtUtc!.Value - o.PlacedAtUtc).TotalMinutes);
-
-        // Clamp to reasonable range: 10 min minimum, 120 min maximum
-        return Math.Clamp(avgMinutes, 10.0, 120.0);
+            estimatedAtUtc.ToString("dd MMM yyyy, hh:mm tt 'UTC'", CultureInfo.InvariantCulture),
+            estimate.Window is null
+                ? null
+                : new EstimatedDeliveryWindowDto(
+                    estimate.Window.MinMinutes,
+                    estimate.Window.MaxMinutes,
+                    estimate.Window.Confidence,
+                    estimate.Window.Source,
+                    estimate.Window.IsApproximate));
     }
 
     private static CustomerOrderTrackingDriverDto? BuildDriver(DeliveryAssignment? assignment)

@@ -413,14 +413,25 @@ public class OrdersController : ApiControllerBase
             MapSupportCaseSummary(dto.ActiveCase));
 
     private static CustomerOrderTrackingResponse MapOrderTracking(CustomerOrderTrackingDto dto) =>
-        new(
-            new CustomerOrderTrackingOrderResponse(dto.Order.Id, dto.Order.OrderNumber, dto.Order.Status),
-            dto.EstimatedDelivery is null
-                ? null
-                : new CustomerOrderEstimatedDeliveryResponse(dto.EstimatedDelivery.Datetime, dto.EstimatedDelivery.Formatted),
-            dto.Driver is null
-                ? null
-                : new CustomerOrderTrackingDriverResponse(dto.Driver.Id, dto.Driver.Name, dto.Driver.PhoneNumber, dto.Driver.Subtitle),
+          new(
+              new CustomerOrderTrackingOrderResponse(dto.Order.Id, dto.Order.OrderNumber, dto.Order.Status),
+              dto.EstimatedDelivery is null
+                  ? null
+                  : new CustomerOrderEstimatedDeliveryResponse(
+                      dto.EstimatedDelivery.Datetime,
+                      dto.EstimatedDelivery.Formatted,
+                      dto.EstimatedDelivery.Window is null
+                          ? null
+                          : new CustomerEstimatedDeliveryWindowResponse(
+                              dto.EstimatedDelivery.Window.MinMinutes,
+                              dto.EstimatedDelivery.Window.MaxMinutes,
+                              dto.EstimatedDelivery.Window.Label,
+                              dto.EstimatedDelivery.Window.Confidence,
+                              dto.EstimatedDelivery.Window.Source,
+                              dto.EstimatedDelivery.Window.IsApproximate)),
+              dto.Driver is null
+                  ? null
+                  : new CustomerOrderTrackingDriverResponse(dto.Driver.Id, dto.Driver.Name, dto.Driver.PhoneNumber, dto.Driver.Subtitle),
             dto.AssignedDriver is null
                 ? null
                 : new CustomerAssignedDriverResponse(

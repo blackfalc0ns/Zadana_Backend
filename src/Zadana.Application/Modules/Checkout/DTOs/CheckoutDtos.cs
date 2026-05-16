@@ -1,4 +1,5 @@
 using System.Globalization;
+using Zadana.Application.Modules.Orders.Support;
 
 namespace Zadana.Application.Modules.Checkout.DTOs;
 
@@ -9,6 +10,8 @@ public record CheckoutSummaryDto(
     List<CheckoutDeliverySlotDto> DeliverySlots,
     List<CheckoutPaymentMethodDto> PaymentMethods,
     CheckoutPromoCodeDto? PromoCode,
+    CheckoutDeliveryCheckDto DeliveryCheck,
+    CheckoutEstimatedDeliveryWindowDto EstimatedDeliveryWindow,
     CheckoutDeliveryQuoteDto DeliveryQuote,
     CheckoutDeliveryBreakdownDto DeliveryBreakdown,
     List<CheckoutShippingBreakdownLineDto> ShippingBreakdown,
@@ -144,6 +147,35 @@ public record CheckoutPromoCodeDto(
     string DiscountType,
     decimal DiscountValue,
     decimal DiscountAmount);
+
+public record CheckoutDeliveryCheckDto(
+    string Status,
+    bool IsDeliverable,
+    bool CanProceedToCheckout,
+    string MessageAr,
+    string MessageEn,
+    decimal? DeliveryFee,
+    decimal? DistanceKm);
+
+public sealed record CheckoutEstimatedDeliveryWindowDto
+{
+    public CheckoutEstimatedDeliveryWindowDto(int minMinutes, int maxMinutes, string confidence, string source, bool isApproximate)
+    {
+        MinMinutes = minMinutes;
+        MaxMinutes = maxMinutes;
+        Confidence = confidence;
+        Source = source;
+        IsApproximate = isApproximate;
+        Label = DeliveryEtaWindowLabelBuilder.Build(minMinutes, maxMinutes, isApproximate);
+    }
+
+    public int MinMinutes { get; init; }
+    public int MaxMinutes { get; init; }
+    public string Label { get; init; }
+    public string Confidence { get; init; }
+    public string Source { get; init; }
+    public bool IsApproximate { get; init; }
+}
 
 public record CheckoutTotalsDto(
     decimal Subtotal,

@@ -66,7 +66,16 @@ public record CustomerOrderTrackingOrderResponse(
 
 public record CustomerOrderEstimatedDeliveryResponse(
     [property: JsonPropertyName("datetime")] DateTime Datetime,
-    [property: JsonPropertyName("formatted")] string Formatted);
+    [property: JsonPropertyName("formatted")] string Formatted,
+    [property: JsonPropertyName("window")] CustomerEstimatedDeliveryWindowResponse? Window);
+
+public record CustomerEstimatedDeliveryWindowResponse(
+    [property: JsonPropertyName("min_minutes")] int MinMinutes,
+    [property: JsonPropertyName("max_minutes")] int MaxMinutes,
+    [property: JsonPropertyName("label")] string Label,
+    [property: JsonPropertyName("confidence")] string Confidence,
+    [property: JsonPropertyName("source")] string Source,
+    [property: JsonPropertyName("is_approximate")] bool IsApproximate);
 
 public record CustomerOrderTrackingDriverResponse(
     [property: JsonPropertyName("id")] Guid Id,

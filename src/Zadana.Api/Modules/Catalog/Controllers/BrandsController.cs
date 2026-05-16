@@ -45,6 +45,8 @@ public class BrandsController : ApiControllerBase
         [FromQuery(Name = "category_id")] Guid? categoryId,
         [FromQuery(Name = "subcategory_id")] Guid? subcategoryId,
         [FromQuery(Name = "unit_id")] Guid? unitId,
+        [FromQuery(Name = "measurement_unit_id")] Guid? measurementUnitId,
+        [FromQuery(Name = "measurement_value")] decimal? measurementValue,
         [FromQuery(Name = "min_price")] decimal? minPrice,
         [FromQuery(Name = "max_price")] decimal? maxPrice,
         [FromQuery] string? sort,
@@ -53,12 +55,15 @@ public class BrandsController : ApiControllerBase
         [FromQuery(Name = "package_type_id")] Guid? packageTypeId = null,
         CancellationToken cancellationToken = default)
     {
+        var effectiveMeasurementUnitId = measurementUnitId ?? unitId;
+
         var result = await Sender.Send(
             new GetBrandProductsQuery(
                 brandId,
                 categoryId,
                 subcategoryId,
-                unitId,
+                effectiveMeasurementUnitId,
+                measurementValue,
                 packageTypeId,
                 minPrice,
                 maxPrice,
@@ -75,11 +80,12 @@ public class BrandsController : ApiControllerBase
         Guid? categoryId,
         Guid? subcategoryId,
         Guid? unitId,
+        decimal? measurementValue,
         decimal? minPrice,
         decimal? maxPrice,
         string? sort,
         int page,
         int perPage,
         CancellationToken cancellationToken) =>
-        GetProducts(brandId, categoryId, subcategoryId, unitId, minPrice, maxPrice, sort, page, perPage, null, cancellationToken);
+        GetProducts(brandId, categoryId, subcategoryId, unitId, null, measurementValue, minPrice, maxPrice, sort, page, perPage, null, cancellationToken);
 }

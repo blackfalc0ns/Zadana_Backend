@@ -48,6 +48,7 @@ public class GetBrandProductsQueryHandler : IRequestHandler<GetBrandProductsQuer
                 request.CategoryId,
                 request.SubcategoryId,
                 request.UnitId,
+                request.MeasurementValue,
                 request.PackageTypeId,
                 request.MinPrice,
                 request.MaxPrice,
@@ -106,6 +107,7 @@ public class GetBrandProductsQueryHandler : IRequestHandler<GetBrandProductsQuer
                 (!request.SubcategoryId.HasValue || product.MasterProduct.CategoryId == request.SubcategoryId.Value) &&
                 (!request.CategoryId.HasValue || request.SubcategoryId.HasValue || (categoryScopeIds != null && categoryScopeIds.Contains(product.MasterProduct.CategoryId))) &&
                 (!request.UnitId.HasValue || product.MasterProduct.MeasurementUnitId == request.UnitId.Value) &&
+                (!request.MeasurementValue.HasValue || product.MasterProduct.MeasurementValue == request.MeasurementValue.Value) &&
                 (!request.PackageTypeId.HasValue || product.MasterProduct.PackageTypeId == request.PackageTypeId.Value) &&
                 (!request.MinPrice.HasValue || product.SellingPrice >= request.MinPrice.Value) &&
                 (!request.MaxPrice.HasValue || product.SellingPrice <= request.MaxPrice.Value))
@@ -184,6 +186,7 @@ public class GetBrandProductsQueryHandler : IRequestHandler<GetBrandProductsQuer
                 request.CategoryId,
                 request.SubcategoryId,
                 request.UnitId,
+                request.MeasurementValue,
                 request.PackageTypeId,
                 request.MinPrice,
                 request.MaxPrice,

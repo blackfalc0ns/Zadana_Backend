@@ -36,6 +36,7 @@ public record CategoryFiltersDto(
     [property: JsonPropertyName("parts")] IReadOnlyList<CatalogFilterPartItemDto> Parts,
     [property: JsonPropertyName("quantities")] IReadOnlyList<CatalogFilterNamedItemDto> Quantities,
     [property: JsonPropertyName("package_types")] IReadOnlyList<CatalogFilterNamedItemDto> PackageTypes,
+    [property: JsonPropertyName("measurement_values")] IReadOnlyList<decimal> MeasurementValues,
     [property: JsonPropertyName("brands")] IReadOnlyList<CatalogFilterBrandItemDto> Brands,
     [property: JsonPropertyName("price_range")] CatalogFilterPriceRangeDto PriceRange,
     [property: JsonPropertyName("sort_options")] IReadOnlyList<CatalogSortOptionDto> SortOptions);

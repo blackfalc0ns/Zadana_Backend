@@ -64,6 +64,7 @@ public class GetBrandFiltersQueryHandler : IRequestHandler<GetBrandFiltersQuery,
                         product.BrandId == request.BrandId)
                     .Select(product => new ScopedMasterProductRow(
                         product.CategoryId,
+                        product.MeasurementValue,
                         product.MeasurementUnitId,
                         product.PackageTypeId))
                     .ToListAsync(token);
@@ -84,6 +85,13 @@ public class GetBrandFiltersQueryHandler : IRequestHandler<GetBrandFiltersQuery,
                     .Where(product => product.PackageTypeId.HasValue)
                     .Select(product => product.PackageTypeId!.Value)
                     .Distinct()
+                    .ToList();
+
+                var measurementValues = scopedMasterProducts
+                    .Where(product => product.MeasurementValue.HasValue)
+                    .Select(product => product.MeasurementValue!.Value)
+                    .Distinct()
+                    .OrderBy(value => value)
                     .ToList();
 
                 var categoryItems = new Dictionary<Guid, BrandFilterCategoryItemDto>();
@@ -179,6 +187,7 @@ public class GetBrandFiltersQueryHandler : IRequestHandler<GetBrandFiltersQuery,
                         .ToList(),
                     units,
                     packageTypes,
+                    measurementValues,
                     priceRange,
                     BrandCatalogQueryHelpers.BuildSortOptions());
             },
@@ -197,6 +206,7 @@ public class GetBrandFiltersQueryHandler : IRequestHandler<GetBrandFiltersQuery,
 
     private sealed record ScopedMasterProductRow(
         Guid CategoryId,
+        decimal? MeasurementValue,
         Guid? MeasurementUnitId,
         Guid? PackageTypeId);
 

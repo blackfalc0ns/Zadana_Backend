@@ -9,6 +9,7 @@ using Zadana.Application.Modules.Orders.Commands.AddCartItem;
 using Zadana.Application.Modules.Orders.Commands.ClearCart;
 using Zadana.Application.Modules.Orders.Commands.RemoveCartItem;
 using Zadana.Application.Modules.Orders.Commands.UpdateCartItemQuantity;
+using Zadana.Application.Modules.Checkout.Queries.GetCartDeliveryCheck;
 using Zadana.Application.Modules.Orders.DTOs;
 using Zadana.Application.Modules.Orders.Queries.GetCart;
 using Zadana.Application.Modules.Orders.Queries.GetCartVendors;
@@ -19,7 +20,6 @@ namespace Zadana.Api.Modules.Orders.Controllers;
 
 [Route("api/cart")]
 [Tags("Customer App API")]
-[AllowAnonymous]
 public class CartController : ApiControllerBase
 {
     private const string GuestDeviceHeader = "X-Device-Id";
@@ -36,6 +36,7 @@ public class CartController : ApiControllerBase
     }
 
     [HttpGet]
+    [AllowAnonymous]
     public async Task<ActionResult<CartDto>> GetCart(
         [FromQuery(Name = "vendor_id")] Guid? vendorId = null,
         CancellationToken cancellationToken = default)
@@ -52,6 +53,7 @@ public class CartController : ApiControllerBase
     }
 
     [HttpGet("vendors")]
+    [AllowAnonymous]
     public async Task<ActionResult<CartAvailableVendorsDto>> GetCartVendors(CancellationToken cancellationToken = default)
     {
         var actor = TryGetCartActor();
@@ -64,7 +66,40 @@ public class CartController : ApiControllerBase
         return Ok(result);
     }
 
+    [HttpGet("delivery-check")]
+    [Authorize(Policy = "CustomerOnly")]
+    public async Task<ActionResult<GetCartDeliveryCheckResponse>> GetDeliveryCheck(
+        [FromQuery(Name = "vendor_id")] Guid? vendorId = null,
+        [FromQuery(Name = "address_id")] Guid? addressId = null,
+        CancellationToken cancellationToken = default)
+    {
+        var userId = _currentUserService.UserId ?? throw new UnauthorizedException("USER_NOT_AUTHENTICATED");
+        var resolvedVendorId = ResolveVendorIdQueryAlias(vendorId);
+        var resolvedAddressId = ResolveAddressIdQueryAlias(addressId);
+        var result = await Sender.Send(new GetCartDeliveryCheckQuery(userId, resolvedVendorId, resolvedAddressId), cancellationToken);
+
+        return Ok(new GetCartDeliveryCheckResponse(
+            result.AddressId,
+            result.SelectedAddress == null
+                ? null
+                : new CheckoutSelectedAddressResponse(
+                    result.SelectedAddress.Id,
+                    result.SelectedAddress.Label,
+                    result.SelectedAddress.AddressLine,
+                    result.SelectedAddress.IsDefault),
+            CheckoutController.MapDeliveryCheck(result.DeliveryCheck),
+            new CheckoutDeliveryQuoteResponse(
+                result.DeliveryQuote.DistanceKm,
+                result.DeliveryQuote.BaseFee,
+                result.DeliveryQuote.DistanceFee,
+                result.DeliveryQuote.SurgeFee,
+                result.DeliveryQuote.TotalFee,
+                result.DeliveryQuote.PricingMode,
+                result.DeliveryQuote.RuleLabel)));
+    }
+
     [HttpPost("items")]
+    [AllowAnonymous]
     public async Task<ActionResult<CartItemMutationResponseDto>> AddItem(
         [FromBody] AddCartItemRequest? request,
         CancellationToken cancellationToken = default)
@@ -82,6 +117,7 @@ public class CartController : ApiControllerBase
     }
 
     [HttpPatch("items/{itemId:guid}")]
+    [AllowAnonymous]
     public async Task<ActionResult<CartItemMutationResponseDto>> UpdateItem(
         Guid itemId,
         [FromBody] UpdateCartItemQuantityRequest? request,
@@ -102,6 +138,7 @@ public class CartController : ApiControllerBase
     }
 
     [HttpDelete("items/{itemId:guid}")]
+    [AllowAnonymous]
     public async Task<ActionResult<CartItemRemovalResponseDto>> RemoveItem(
         Guid itemId,
         [FromQuery(Name = "vendor_id")] Guid? vendorId = null,
@@ -113,6 +150,7 @@ public class CartController : ApiControllerBase
     }
 
     [HttpDelete]
+    [AllowAnonymous]
     public async Task<ActionResult<CartClearResponseDto>> ClearCart(CancellationToken cancellationToken = default)
     {
         var result = await Sender.Send(new ClearCartCommand(GetRequiredCartActor()), cancellationToken);
@@ -166,5 +204,31 @@ public class CartController : ApiControllerBase
         }
 
         throw new BadRequestException("INVALID_VENDOR_ID", "vendorId must be a valid GUID.");
+    }
+
+    private Guid? ResolveAddressIdQueryAlias(Guid? currentValue)
+    {
+        if (currentValue.HasValue)
+        {
+            return currentValue;
+        }
+
+        if (!Request.Query.TryGetValue("addressId", out var values))
+        {
+            return null;
+        }
+
+        var value = values.Count > 0 ? values[0] : null;
+        if (string.IsNullOrWhiteSpace(value))
+        {
+            return null;
+        }
+
+        if (Guid.TryParse(value, out var parsed))
+        {
+            return parsed;
+        }
+
+        throw new BadRequestException("INVALID_ADDRESS_ID", "addressId must be a valid GUID.");
     }
 }

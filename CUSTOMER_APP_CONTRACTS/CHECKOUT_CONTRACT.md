@@ -20,12 +20,55 @@ see:
 
 The backend now returns:
 
+- `delivery_check`
+- `estimated_delivery_window`
 - `delivery_quote`
 - `shipping_breakdown`
 - `pricing_mode`
 - `summary.shipping_cost`
 
 Mobile should render the delivery fee from these backend values, not from local calculations.
+
+## Cart Gate Endpoint
+
+### Get Cart Delivery Check
+
+- `GET /api/cart/delivery-check?vendor_id={vendorId}&address_id={addressId}`
+- Mobile camelCase query aliases are also accepted: `vendorId`, `addressId`
+- This endpoint is intended for the cart screen before navigation to checkout
+
+Example response:
+
+```json
+{
+  "address_id": "33333333-3333-3333-3333-333333333333",
+  "selected_address": {
+    "id": "33333333-3333-3333-3333-333333333333",
+    "label": "Home",
+    "address_line": "12 Lebanon Sq, Mohandessin",
+    "is_default": true
+  },
+  "delivery_check": {
+    "status": "deliverable",
+    "is_deliverable": true,
+    "can_proceed_to_checkout": true,
+    "message": "Delivery is available for this address.",
+    "message_ar": "التوصيل متاح لهذا العنوان.",
+    "message_en": "Delivery is available for this address.",
+    "delivery_fee": 28.5,
+    "distance_km": 6.4
+  },
+  "delivery_quote": {
+    "distance_km": 6.4,
+    "base_fee": 18.0,
+    "distance_fee": 7.5,
+    "surge_fee": 3.0,
+    "total_fee": 28.5,
+    "pricing_mode": "exact-distance",
+    "rule_label": "Giza Standard"
+  }
+}
+```
 
 ## Main Endpoint
 
@@ -81,6 +124,24 @@ Example response:
     }
   ],
   "promo_code": null,
+  "estimated_delivery_window": {
+    "min_minutes": 45,
+    "max_minutes": 60,
+    "label": "45-60 minutes",
+    "confidence": "high",
+    "source": "hybrid_operational",
+    "is_approximate": false
+  },
+  "delivery_check": {
+    "status": "deliverable",
+    "is_deliverable": true,
+    "can_proceed_to_checkout": true,
+    "message": "Delivery is available for this address.",
+    "message_ar": "التوصيل متاح لهذا العنوان.",
+    "message_en": "Delivery is available for this address.",
+    "delivery_fee": 28.5,
+    "distance_km": 6.4
+  },
   "delivery_quote": {
     "distance_km": 6.4,
     "base_fee": 18.0,
@@ -120,6 +181,25 @@ Example response:
 
 ## Delivery Pricing Rules
 
+- `delivery_check.status` can be:
+  - `deliverable`
+  - `undeliverable`
+  - `address_required`
+  - `pricing_unavailable`
+- The cart screen must block navigation to checkout when `delivery_check.can_proceed_to_checkout = false`
+- If delivery is not allowed, checkout summary still returns cart and address context, but `summary.shipping_cost` becomes `0` and the UI should use `delivery_check` as the source of truth for the blocked state
+- `estimated_delivery_window` is the checkout ETA source of truth for the user-facing delivery time
+- The backend calibrates checkout ETA from recent delivered orders at the branch level when enough data exists, then falls back to vendor-level history and finally to default policy
+- Mobile should render the window label directly and should not convert `delivery_quote` distance into time on device
+- `estimated_delivery_window.confidence` can be:
+  - `low`
+  - `medium`
+  - `high`
+- `estimated_delivery_window.source` can be:
+  - `hybrid_operational`
+  - `historical_fallback`
+  - `live_tracking_refined`
+
 - `delivery_quote.total_fee` is the official shipping total before discount
 - `summary.shipping_cost` is the shipping number the UI should display in totals
 - `shipping_breakdown` is the recommended UI breakdown
@@ -133,6 +213,7 @@ Example response:
 Recommended checkout UI lines:
 
 - subtotal
+- estimated delivery window
 - shipping breakdown lines
 - discount
 - final total
@@ -146,8 +227,10 @@ Suggested mapping:
 ## Important Mobile Notes
 
 - Do not calculate shipping on device
+- Do not calculate ETA on device
 - Do not rebuild delivery quote from address coordinates on mobile
 - Always trust:
+  - `estimated_delivery_window`
   - `delivery_quote`
   - `shipping_breakdown`
   - `summary`

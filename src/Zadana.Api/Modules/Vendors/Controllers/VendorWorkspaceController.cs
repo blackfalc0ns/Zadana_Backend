@@ -5,6 +5,7 @@ using System.Globalization;
 using System.Text.Json;
 using Zadana.Api.Controllers;
 using Zadana.Application.Common.Interfaces;
+using Zadana.Application.Modules.Orders.Support;
 using Zadana.Domain.Modules.Orders.Enums;
 using Zadana.Domain.Modules.Payments.Enums;
 using Zadana.Domain.Modules.Wallets.Enums;
@@ -335,13 +336,19 @@ public class VendorWorkspaceController : ApiControllerBase
         
         var financialLifecycleModeStr = vendorDetails.ToString();
         var nextSettlementAt = CalculateNextSettlementDate(vendorDetails);
+        var etaProfile = await DeliveryEtaTelemetry.LoadOperationalProfileAsync(_dbContext, vendorId, null, cancellationToken);
 
         var prepTimes = orders
             .Where(o => o.AcceptedAtUtc.HasValue && o.ReadyAtUtc.HasValue)
             .Select(o => (o.ReadyAtUtc!.Value - o.AcceptedAtUtc!.Value).TotalMinutes)
             .ToList();
-        var averagePrepTimeMinutes = prepTimes.Count() > 0 ? (int)prepTimes.Average() : 0;
-        var prepEfficiencyScore = prepTimes.Count() > 0 ? Math.Round((decimal)prepTimes.Count(t => t <= 30) / prepTimes.Count() * 100, 1) : 100m;
+        var averagePrepTimeMinutes = prepTimes.Count > 0
+            ? (int)Math.Round(prepTimes.Average())
+            : (int)Math.Round(etaProfile.AveragePreparationMinutes);
+        var prepEfficiencyThreshold = Math.Max(30, averagePrepTimeMinutes + 10);
+        var prepEfficiencyScore = prepTimes.Count > 0
+            ? Math.Round((decimal)prepTimes.Count(t => t <= prepEfficiencyThreshold) / prepTimes.Count * 100, 1)
+            : etaProfile.OnTimeRate;
 
         var lostRevenueAmount = orders.Where(o => o.Status is OrderStatus.Cancelled or OrderStatus.VendorRejected).Sum(o => o.TotalAmount);
 
@@ -427,6 +434,15 @@ public class VendorWorkspaceController : ApiControllerBase
                 lowStockCritical,
                 prepEfficiencyScore,
                 averagePrepTimeMinutes,
+                new VendorDashboardEtaHealthResponse(
+                    etaProfile.OnTimeRate,
+                    (int)Math.Round(etaProfile.AverageTotalMinutes),
+                    (int)Math.Round(etaProfile.AveragePreparationMinutes),
+                    (int)Math.Round(etaProfile.AverageDispatchLeadMinutes),
+                    (int)Math.Round(etaProfile.AverageLastMileMinutes),
+                    etaProfile.RecommendedBufferMinutes,
+                    etaProfile.SampleSize,
+                    etaProfile.CalibrationSource),
                 orderTrend.Select(point => new VendorDashboardDualTrendPointResponse(point.Label, point.Value, point.SecondaryValue)).ToList(),
                 activeOrders.GroupBy(order => order.Status.ToString()).Select(group => new VendorDashboardBreakdownSliceResponse(group.Key, group.Key, group.Count())).OrderByDescending(group => group.Value).ToList(),
                 [
@@ -1827,11 +1843,22 @@ public record VendorDashboardOrdersSectionResponse(
     int LowStockCritical,
     decimal PrepEfficiencyScore,
     int AveragePrepTimeMinutes,
+    VendorDashboardEtaHealthResponse EtaHealth,
     List<VendorDashboardDualTrendPointResponse> OrdersTrend,
     List<VendorDashboardBreakdownSliceResponse> StatusBreakdown,
     List<VendorDashboardBreakdownSliceResponse> Funnel,
     List<VendorDashboardUrgentOrderResponse> UrgentOrders,
     List<VendorDashboardAlertItemResponse> LatestAlerts);
+
+public record VendorDashboardEtaHealthResponse(
+    decimal OnTimeRate,
+    int AverageDeliveryTimeMinutes,
+    int AveragePreparationTimeMinutes,
+    int AverageDispatchLeadMinutes,
+    int AverageLastMileMinutes,
+    int RecommendedBufferMinutes,
+    int SampleSize,
+    string CalibrationSource);
 
 public record VendorDashboardSalesSectionEnvelopeResponse(
     VendorDashboardSalesSectionResponse Data,
