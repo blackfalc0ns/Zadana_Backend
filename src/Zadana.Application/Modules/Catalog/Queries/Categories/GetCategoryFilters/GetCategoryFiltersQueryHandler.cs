@@ -184,6 +184,32 @@ public class GetCategoryFiltersQueryHandler : IRequestHandler<GetCategoryFilters
                     .OrderBy(item => item.Name, StringComparer.CurrentCultureIgnoreCase)
                     .ToList();
 
+                var quantityLookup = quantityRows.ToDictionary(
+                    unit => unit.Id,
+                    unit => PickLocalized(unit.NameAr, unit.NameEn));
+
+                var measurementOptions = scopedMasterProducts
+                    .Where(product => product.MeasurementValue.HasValue && product.MeasurementUnitId.HasValue)
+                    .Select(product => new
+                    {
+                        MeasurementValue = product.MeasurementValue!.Value,
+                        MeasurementUnitId = product.MeasurementUnitId!.Value
+                    })
+                    .Distinct()
+                    .Select(option =>
+                    {
+                        var unitName = quantityLookup.GetValueOrDefault(option.MeasurementUnitId);
+                        return new CatalogMeasurementOptionDto(
+                            option.MeasurementValue,
+                            option.MeasurementUnitId,
+                            unitName ?? string.Empty,
+                            BuildMeasurementLabel(option.MeasurementValue, unitName));
+                    })
+                    .Where(option => !string.IsNullOrWhiteSpace(option.MeasurementUnitName))
+                    .OrderBy(option => option.MeasurementUnitName, StringComparer.CurrentCultureIgnoreCase)
+                    .ThenBy(option => option.MeasurementValue)
+                    .ToList();
+
                 var packageTypeRows = await _context.UnitsOfMeasure
                     .AsNoTracking()
                     .Where(unit => unit.IsActive && unit.Kind == UnitKind.Packaging && packageTypeIds.Contains(unit.Id))
@@ -234,6 +260,7 @@ public class GetCategoryFiltersQueryHandler : IRequestHandler<GetCategoryFilters
                     quantities,
                     packageTypes,
                     measurementValues,
+                    measurementOptions,
                     brands,
                     priceRange,
                     BuildSortOptions());
@@ -274,6 +301,17 @@ public class GetCategoryFiltersQueryHandler : IRequestHandler<GetCategoryFilters
         return preferred?.Trim()
             ?? fallback?.Trim()
             ?? string.Empty;
+    }
+
+    private static string BuildMeasurementLabel(decimal measurementValue, string? unitName)
+    {
+        var value = measurementValue == decimal.Truncate(measurementValue)
+            ? decimal.Truncate(measurementValue).ToString(CultureInfo.InvariantCulture)
+            : measurementValue.ToString("0.##", CultureInfo.InvariantCulture);
+
+        return string.IsNullOrWhiteSpace(unitName)
+            ? value
+            : $"{value} {unitName.Trim()}";
     }
 
     private sealed record ScopedMasterProductRow(

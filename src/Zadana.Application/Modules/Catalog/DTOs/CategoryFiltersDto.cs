@@ -6,6 +6,12 @@ public record CatalogFilterNamedItemDto(
     [property: JsonPropertyName("id")] Guid Id,
     [property: JsonPropertyName("name")] string Name);
 
+public record CatalogMeasurementOptionDto(
+    [property: JsonPropertyName("measurement_value")] decimal MeasurementValue,
+    [property: JsonPropertyName("measurement_unit_id")] Guid MeasurementUnitId,
+    [property: JsonPropertyName("measurement_unit_name")] string MeasurementUnitName,
+    [property: JsonPropertyName("label")] string Label);
+
 public record CategoryFilterCategoryItemDto(
     [property: JsonPropertyName("id")] Guid Id,
     [property: JsonPropertyName("name")] string Name,
@@ -37,6 +43,7 @@ public record CategoryFiltersDto(
     [property: JsonPropertyName("quantities")] IReadOnlyList<CatalogFilterNamedItemDto> Quantities,
     [property: JsonPropertyName("package_types")] IReadOnlyList<CatalogFilterNamedItemDto> PackageTypes,
     [property: JsonPropertyName("measurement_values")] IReadOnlyList<decimal> MeasurementValues,
+    [property: JsonPropertyName("measurement_options")] IReadOnlyList<CatalogMeasurementOptionDto> MeasurementOptions,
     [property: JsonPropertyName("brands")] IReadOnlyList<CatalogFilterBrandItemDto> Brands,
     [property: JsonPropertyName("price_range")] CatalogFilterPriceRangeDto PriceRange,
     [property: JsonPropertyName("sort_options")] IReadOnlyList<CatalogSortOptionDto> SortOptions);
