@@ -6,6 +6,7 @@ using Zadana.Application.Common.Models;
 using Zadana.Application.Modules.Catalog.Commands.CreateVendorProduct;
 using Zadana.Application.Modules.Catalog.Commands.VendorProducts.BulkCreateVendorProducts;
 using Zadana.Application.Modules.Catalog.Commands.VendorProducts.ChangeStatus;
+using Zadana.Application.Modules.Catalog.Commands.VendorProducts.DeleteVendorProduct;
 using Zadana.Application.Modules.Catalog.Commands.VendorProducts.UpdateVendorProduct;
 using Zadana.Application.Modules.Catalog.DTOs;
 using Zadana.Application.Modules.Catalog.Queries.GetVendorProducts;
@@ -139,6 +140,14 @@ public class VendorProductsController : ApiControllerBase
         var vendorId = await _currentVendorService.GetRequiredVendorIdAsync(HttpContext.RequestAborted);
         var command = new ChangeVendorProductStatusCommand(id, vendorId, request.IsActive);
         await Sender.Send(command);
+        return NoContent();
+    }
+
+    [HttpDelete("{id}")]
+    public async Task<ActionResult> DeleteProduct(Guid id)
+    {
+        var vendorId = await _currentVendorService.GetRequiredVendorIdAsync(HttpContext.RequestAborted);
+        await Sender.Send(new DeleteVendorProductCommand(id, vendorId));
         return NoContent();
     }
 }
