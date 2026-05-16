@@ -881,10 +881,10 @@ internal static class CheckoutSupport
         {
             "الدمام" or "دمام" or "dammam" => "dammam",
             "الرياض" or "رياض" or "riyadh" => "riyadh",
-            "جده" or "جدة" or "جدا" or "jeddah" or "jeddah" => "jeddah",
+            "جده" or "جدة" or "جدا" or "jeddah" => "jeddah",
             "مكه" or "مكة" or "mecca" or "makkah" => "makkah",
             "المدينه" or "المدينة" or "مدينه" or "مدينة" or "madinah" or "medina" => "madinah",
-            "الخبر" or "خبر" or "khobar" or "alkhobar" or "alkhobar" => "khobar",
+            "الخبر" or "خبر" or "khobar" or "alkhobar" => "khobar",
             "الظهران" or "ظهران" or "dhahran" => "dhahran",
             "الجبيل" or "جبيل" or "jubail" or "jubel" => "jubail",
             "الطائف" or "طائف" or "taif" => "taif",

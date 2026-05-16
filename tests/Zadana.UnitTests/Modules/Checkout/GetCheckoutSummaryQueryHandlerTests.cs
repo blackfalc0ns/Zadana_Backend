@@ -211,6 +211,74 @@ public class GetCheckoutSummaryQueryHandlerTests
         result.DeliveryCheck.CanProceedToCheckout.Should().BeTrue();
     }
 
+    [Fact]
+    public async Task Handle_WhenVendorCityIsEnglishAndAddressCityIsArabic_TreatsThemAsSameCity()
+    {
+        await using var context = TestDbContextFactory.Create();
+
+        var customer = new User("Cross Language Customer", "checkout.city.alias@test.com", "01000000091", UserRole.Customer);
+        var vendorUser = new User("Cross Language Vendor", "checkout.city.alias.vendor@test.com", "01000000092", UserRole.Vendor);
+        var category = new Category("تصنيف", "Category");
+        var product = new MasterProduct("منتج", "Product", "checkout-city-alias-product", category.Id);
+        product.Publish();
+
+        var vendor = new Vendor(
+            vendorUser.Id,
+            "متجر الدمام",
+            "Dammam Store",
+            "Groceries",
+            "CR-CHECKOUT-CITY-ALIAS",
+            "checkout.city.alias.vendor@test.com",
+            "01000000092",
+            city: "DAMMAM");
+        vendor.Approve(10m, Guid.NewGuid());
+
+        var branch = new VendorBranch(vendor.Id, "Main Branch", "Branch Address", 26.4207m, 50.0888m, "01000000093", 10m);
+        var vendorProduct = new VendorProduct(vendor.Id, product.Id, 50m, 10);
+        var address = new CustomerAddress(
+            customer.Id,
+            "Cross Language Customer",
+            "01000000091",
+            "الدمام - المنطقة الشرقية",
+            AddressLabel.Home,
+            city: "الدمام",
+            area: "حي",
+            latitude: 26.30m,
+            longitude: 50.20m);
+        address.SetAsDefault();
+
+        var cart = new Cart(customer.Id);
+        cart.Items.Add(new CartItem(cart.Id, product.Id, product.NameEn, 1));
+        cart.UpdateTotals(50m, 0m);
+
+        context.Users.AddRange(customer, vendorUser);
+        context.Categories.Add(category);
+        context.MasterProducts.Add(product);
+        context.Vendors.Add(vendor);
+        context.VendorBranches.Add(branch);
+        context.VendorProducts.Add(vendorProduct);
+        context.CustomerAddresses.Add(address);
+        context.Carts.Add(cart);
+        await context.SaveChangesAsync();
+
+        var paymobGateway = new Mock<Zadana.Application.Modules.Payments.Interfaces.IPaymobGateway>();
+        paymobGateway.SetupGet(gateway => gateway.IsEnabled).Returns(true);
+
+        var deliveryPricing = new Mock<IDeliveryPricingService>();
+        deliveryPricing
+            .Setup(service => service.QuoteAsync(branch.Id, address.Id, It.IsAny<CancellationToken>()))
+            .ReturnsAsync(new DeliveryPriceQuote(15m, 16.7m, 0m, 31.7m, 20.33m, "zone", "Zone rule", 1m, 20.33m, 3m, 28.7m, "driver", "vendor", false, "manual", null, "locked", DateTime.UtcNow, 1, false));
+
+        var handler = new GetCheckoutSummaryQueryHandler(context, paymobGateway.Object, deliveryPricing.Object);
+
+        var result = await handler.Handle(
+            new GetCheckoutSummaryQuery(customer.Id, vendor.Id, address.Id, null, "cash"),
+            CancellationToken.None);
+
+        result.DeliveryCheck.Status.Should().Be("deliverable");
+        result.DeliveryCheck.CanProceedToCheckout.Should().BeTrue();
+    }
+
     private static Order CreateDeliveredOrder(Guid userId, Guid vendorId, Guid vendorBranchId, string orderNumber, int totalMinutes)
     {
         var order = new Order(
