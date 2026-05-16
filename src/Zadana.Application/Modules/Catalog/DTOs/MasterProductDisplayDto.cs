@@ -62,7 +62,9 @@ public static class MasterProductDisplayDto
         bool isArabic)
     {
         var packaging = Normalize(packageTypeName);
-        var measurementUnit = Normalize(!string.IsNullOrWhiteSpace(measurementUnitSymbol) ? measurementUnitSymbol : measurementUnitName);
+        var measurementUnit = isArabic
+            ? Normalize(measurementUnitName) ?? Normalize(measurementUnitSymbol)
+            : Normalize(!string.IsNullOrWhiteSpace(measurementUnitSymbol) ? measurementUnitSymbol : measurementUnitName);
 
         if (measurementValue.HasValue && !string.IsNullOrWhiteSpace(measurementUnit))
         {
