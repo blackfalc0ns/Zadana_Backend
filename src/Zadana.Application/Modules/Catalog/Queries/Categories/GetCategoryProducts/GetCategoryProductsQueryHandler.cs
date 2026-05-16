@@ -162,7 +162,8 @@ public class GetCategoryProductsQueryHandler : IRequestHandler<GetCategoryProduc
                     .OrderByDescending(image => image.IsPrimary)
                     .ThenBy(image => image.DisplayOrder)
                     .Select(image => image.Url)
-                    .FirstOrDefault()))
+                    .FirstOrDefault(),
+                product.MasterProduct.VariantGroupId))
             .ToListAsync(cancellationToken);
 
         var products = rawProducts
@@ -195,9 +196,10 @@ public class GetCategoryProductsQueryHandler : IRequestHandler<GetCategoryProduc
                     product.ImageUrl,
                     salesCount,
                     reviewStats?.AverageRating,
-                    reviewStats?.ReviewCount ?? 0);
+                    reviewStats?.ReviewCount ?? 0,
+                    product.VariantGroupId);
             })
-            .GroupBy(product => product.Id)
+            .GroupBy(product => product.VariantGroupId != default ? product.VariantGroupId : product.Id)
             .Select(group => group
                 .OrderBy(product => product.SellingPrice)
                 .ThenByDescending(product => product.CreatedAtUtc)
@@ -405,7 +407,8 @@ public class GetCategoryProductsQueryHandler : IRequestHandler<GetCategoryProduc
         string? MeasurementUnitAr,
         string? MeasurementUnitEn,
         string? MeasurementUnitSymbol,
-        string? ImageUrl);
+        string? ImageUrl,
+        Guid VariantGroupId = default);
 
     private sealed record CategoryProductSource(
         Guid Id,
@@ -429,5 +432,6 @@ public class GetCategoryProductsQueryHandler : IRequestHandler<GetCategoryProduc
         string? ImageUrl,
         int SalesCount,
         decimal? Rating,
-        int ReviewCount);
+        int ReviewCount,
+        Guid VariantGroupId = default);
 }
