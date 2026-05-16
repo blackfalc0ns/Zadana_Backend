@@ -428,8 +428,7 @@ if (!app.Environment.IsEnvironment("Testing"))
     }
     catch (Exception ex)
     {
-        var logger = app.Services.GetRequiredService<ILogger<Program>>();
-        logger.LogError(ex, "An error occurred during database migration.");
+        LogStartupExceptionSafely(app.Services, ex, "An error occurred during database migration.");
     }
 }
 
@@ -480,8 +479,7 @@ if (shouldSeedOnStartup)
     }
     catch (Exception ex)
     {
-        var logger = app.Services.GetRequiredService<ILogger<Program>>();
-        logger.LogError(ex, "An error occurred during database initialization.");
+        LogStartupExceptionSafely(app.Services, ex, "An error occurred during database initialization.");
     }
 }
 
@@ -641,6 +639,22 @@ static string ResolveRateLimitKey(HttpContext context)
     }
 
     return $"ip:{context.Connection.RemoteIpAddress}";
+}
+
+static void LogStartupExceptionSafely(IServiceProvider services, Exception exception, string message)
+{
+    try
+    {
+        var logger = services.GetRequiredService<ILogger<Program>>();
+        logger.LogError(exception, message);
+    }
+    catch (Exception loggingException)
+    {
+        Console.Error.WriteLine($"{DateTime.UtcNow:o} {message}");
+        Console.Error.WriteLine(exception);
+        Console.Error.WriteLine("Startup exception logging fallback activated.");
+        Console.Error.WriteLine(loggingException);
+    }
 }
 
 static Task WriteHealthResponseAsync(HttpContext context, HealthReport report)

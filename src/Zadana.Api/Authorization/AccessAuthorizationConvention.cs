@@ -220,6 +220,10 @@ public sealed class AccessAuthorizationConvention : IApplicationModelConvention
                 [PermissionKeys.Customer.AddressesView],
                 create: [PermissionKeys.Customer.AddressesEdit],
                 edit: [PermissionKeys.Customer.AddressesEdit]),
+            ["Cart"] = new(
+                [PermissionKeys.Customer.CheckoutView],
+                create: [PermissionKeys.Customer.CheckoutEdit],
+                edit: [PermissionKeys.Customer.CheckoutEdit]),
             ["Checkout"] = new(
                 [PermissionKeys.Customer.CheckoutView],
                 create: [PermissionKeys.Customer.CheckoutEdit],
