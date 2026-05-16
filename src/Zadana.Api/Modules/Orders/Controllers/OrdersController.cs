@@ -390,7 +390,7 @@ public class OrdersController : ApiControllerBase
             dto.Items.Select(MapOrderProduct).ToList());
 
     private static CustomerOrderProductResponse MapOrderProduct(CustomerOrderProductDto dto) =>
-        new(dto.Id, dto.Name, dto.Quantity, dto.Price);
+        new(dto.Id, dto.Name, dto.Quantity, dto.Price, dto.ImageUrl, dto.VariantDisplaySize);
 
     private static CustomerOrderDetailResponse MapOrderDetail(CustomerOrderDetailDto dto) =>
         new(

@@ -25,7 +25,9 @@ public record CustomerOrderProductResponse(
     [property: JsonPropertyName("id")] Guid Id,
     [property: JsonPropertyName("name")] string Name,
     [property: JsonPropertyName("quantity")] int Quantity,
-    [property: JsonPropertyName("price")] decimal Price);
+    [property: JsonPropertyName("price")] decimal Price,
+    [property: JsonPropertyName("image_url")] string? ImageUrl = null,
+    [property: JsonPropertyName("unit")] string? Unit = null);
 
 public record CustomerOrderDetailResponse(
     [property: JsonPropertyName("id")] Guid Id,
