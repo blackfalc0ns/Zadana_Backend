@@ -809,7 +809,12 @@ internal static class CheckoutSupport
         return value.Trim().ToLowerInvariant()
             .Replace(" ", string.Empty)
             .Replace("-", string.Empty)
-            .Replace("_", string.Empty);
+            .Replace("_", string.Empty)
+            .Replace("أ", "ا")
+            .Replace("إ", "ا")
+            .Replace("آ", "ا")
+            .Replace("ى", "ي")
+            .Replace("ة", "ه");
     }
 
     private static bool IsPointWithinZone(DeliveryZone zone, decimal latitude, decimal longitude) =>
@@ -856,12 +861,42 @@ internal static class CheckoutSupport
 
     private static bool IsSameCityDelivery(string? branchCity, string? customerCity)
     {
-        var normalizedBranchCity = NormalizeCityName(branchCity);
-        var normalizedCustomerCity = NormalizeCityName(customerCity);
+        var normalizedBranchCity = NormalizeCityKey(branchCity);
+        var normalizedCustomerCity = NormalizeCityKey(customerCity);
 
         return !string.IsNullOrWhiteSpace(normalizedBranchCity) &&
                !string.IsNullOrWhiteSpace(normalizedCustomerCity) &&
                string.Equals(normalizedBranchCity, normalizedCustomerCity, StringComparison.OrdinalIgnoreCase);
+    }
+
+    private static string? NormalizeCityKey(string? value)
+    {
+        var normalized = NormalizeCityName(value);
+        if (string.IsNullOrWhiteSpace(normalized))
+        {
+            return null;
+        }
+
+        return normalized switch
+        {
+            "الدمام" or "دمام" or "dammam" => "dammam",
+            "الرياض" or "رياض" or "riyadh" => "riyadh",
+            "جده" or "جدة" or "جدا" or "jeddah" or "jeddah" => "jeddah",
+            "مكه" or "مكة" or "mecca" or "makkah" => "makkah",
+            "المدينه" or "المدينة" or "مدينه" or "مدينة" or "madinah" or "medina" => "madinah",
+            "الخبر" or "خبر" or "khobar" or "alkhobar" or "alkhobar" => "khobar",
+            "الظهران" or "ظهران" or "dhahran" => "dhahran",
+            "الجبيل" or "جبيل" or "jubail" or "jubel" => "jubail",
+            "الطائف" or "طائف" or "taif" => "taif",
+            "تبوك" or "tabuk" => "tabuk",
+            "ابها" or "أبها" or "abha" => "abha",
+            "حائل" or "حايل" or "hail" or "ha'il" => "hail",
+            "جازان" or "جيزان" or "jazan" or "jizan" => "jazan",
+            "نجران" or "najran" => "najran",
+            "بريده" or "بريدة" or "buraidah" or "buraydah" => "buraidah",
+            "ينبع" or "yanbu" or "yanbuu" => "yanbu",
+            _ => normalized
+        };
     }
 
     internal sealed record CheckoutPricingSnapshot(
