@@ -2,6 +2,7 @@ using MediatR;
 using Microsoft.Extensions.Localization;
 using Zadana.Application.Common.Interfaces;
 using Zadana.Application.Common.Localization;
+using Zadana.Application.Modules.Catalog.DTOs;
 using Zadana.Application.Modules.Orders.Interfaces;
 using Zadana.Domain.Modules.Orders.Entities;
 using Zadana.Domain.Modules.Payments.Enums;
@@ -166,6 +167,7 @@ public class PlaceOrderCommandHandler : IRequestHandler<PlaceOrderCommand, Guid>
         foreach (var item in cart.Items)
         {
             var vendorProduct = vendorProducts[item.MasterProductId];
+            var masterProduct = vendorProduct.MasterProduct;
             var orderItem = new OrderItem(
                 orderId: order.Id,
                 vendorProductId: vendorProduct.Id,
@@ -176,6 +178,25 @@ public class PlaceOrderCommandHandler : IRequestHandler<PlaceOrderCommand, Guid>
                 tradeUnitPrice: vendorProduct.TradePrice,
                 vendorProfitPerUnit: Math.Max(vendorProduct.SellingPrice - vendorProduct.TradePrice!.Value, 0m)
             );
+
+            // Capture variant snapshot for historical accuracy
+            var snapshotImageUrl = masterProduct?.Images
+                .OrderByDescending(img => img.IsPrimary)
+                .ThenBy(img => img.DisplayOrder)
+                .Select(img => img.Url)
+                .FirstOrDefault();
+
+            var measurementUnit = masterProduct?.MeasurementUnit ?? masterProduct?.UnitOfMeasure;
+            var snapshotDisplaySize = masterProduct is not null
+                ? MasterProductDisplayDto.BuildDisplaySize(
+                    masterProduct.PackageType?.NameAr,
+                    masterProduct.MeasurementValue,
+                    measurementUnit?.NameAr,
+                    measurementUnit?.Symbol,
+                    true)
+                : null;
+
+            orderItem.CaptureVariantSnapshot(snapshotImageUrl, snapshotDisplaySize, masterProduct?.Barcode);
 
             _orderRepository.AddOrderItem(orderItem);
         }

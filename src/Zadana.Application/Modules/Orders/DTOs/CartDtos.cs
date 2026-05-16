@@ -83,6 +83,32 @@ public sealed record CartItemDto
         List<CartVendorPriceDto> vendorPrices,
         bool isAvailable,
         string? availabilityStatus,
+        string? variantDisplaySize,
+        string? packageTypeName,
+        decimal? measurementValue,
+        string? measurementUnitName,
+        string? variantImageUrl,
+        IReadOnlyList<string>? variantImages)
+        : this(id, productId, name, imageUrl, unit, quantity, vendorPrices, isAvailable, availabilityStatus)
+    {
+        VariantDisplaySize = variantDisplaySize;
+        PackageTypeName = packageTypeName;
+        MeasurementValue = measurementValue;
+        MeasurementUnitName = measurementUnitName;
+        VariantImageUrl = variantImageUrl;
+        VariantImages = variantImages?.ToList() ?? [];
+    }
+
+    public CartItemDto(
+        Guid id,
+        Guid productId,
+        string name,
+        string? imageUrl,
+        string? unit,
+        int quantity,
+        List<CartVendorPriceDto> vendorPrices,
+        bool isAvailable,
+        string? availabilityStatus,
         string? _,
         string? __,
         string? ___,
@@ -100,6 +126,12 @@ public sealed record CartItemDto
     public List<CartVendorPriceDto> VendorPrices { get; init; }
     public bool IsAvailable { get; init; }
     public string? AvailabilityStatus { get; init; }
+    public string? VariantDisplaySize { get; init; }
+    public string? PackageTypeName { get; init; }
+    public decimal? MeasurementValue { get; init; }
+    public string? MeasurementUnitName { get; init; }
+    public string? VariantImageUrl { get; init; }
+    public IReadOnlyList<string> VariantImages { get; init; } = [];
 }
 
 public record CartSummaryDto(

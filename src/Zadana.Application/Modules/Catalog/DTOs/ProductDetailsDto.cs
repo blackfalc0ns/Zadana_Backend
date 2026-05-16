@@ -31,7 +31,18 @@ public record ProductDetailsVariantOptionDto(
     [property: JsonPropertyName("name_en")] string NameEn,
     [property: JsonPropertyName("display_size_ar")] string? DisplaySizeAr,
     [property: JsonPropertyName("display_size_en")] string? DisplaySizeEn,
-    [property: JsonPropertyName("is_current")] bool IsCurrent);
+    [property: JsonPropertyName("is_current")] bool IsCurrent,
+    [property: JsonPropertyName("image_url")] string? ImageUrl,
+    [property: JsonPropertyName("images")] IReadOnlyList<string> Images,
+    [property: JsonPropertyName("package_type_name_ar")] string? PackageTypeNameAr,
+    [property: JsonPropertyName("package_type_name_en")] string? PackageTypeNameEn,
+    [property: JsonPropertyName("measurement_value")] decimal? MeasurementValue,
+    [property: JsonPropertyName("measurement_unit_name_ar")] string? MeasurementUnitNameAr,
+    [property: JsonPropertyName("measurement_unit_name_en")] string? MeasurementUnitNameEn,
+    [property: JsonPropertyName("unit")] string? Unit,
+    [property: JsonPropertyName("price")] decimal? Price,
+    [property: JsonPropertyName("old_price")] decimal? OldPrice,
+    [property: JsonPropertyName("is_discounted")] bool IsDiscounted);
 
 public record ProductDetailsDto(
     [property: JsonPropertyName("id")] Guid Id,

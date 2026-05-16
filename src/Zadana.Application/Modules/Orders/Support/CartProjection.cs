@@ -38,7 +38,24 @@ internal static class CartProjection
                     .OrderByDescending(image => image.IsPrimary)
                     .ThenBy(image => image.DisplayOrder)
                     .Select(image => image.Url)
-                    .FirstOrDefault(),
+                    .ToList(),
+                MasterProductDisplayDto.BuildDisplaySize(
+                    product.PackageType != null ? product.PackageType.NameAr : null,
+                    product.MeasurementValue,
+                    product.MeasurementUnit != null ? product.MeasurementUnit.NameAr : product.UnitOfMeasure != null ? product.UnitOfMeasure.NameAr : null,
+                    product.MeasurementUnit != null ? product.MeasurementUnit.Symbol : product.UnitOfMeasure != null ? product.UnitOfMeasure.Symbol : null,
+                    true),
+                MasterProductDisplayDto.BuildDisplaySize(
+                    product.PackageType != null ? product.PackageType.NameEn : null,
+                    product.MeasurementValue,
+                    product.MeasurementUnit != null ? product.MeasurementUnit.NameEn : product.UnitOfMeasure != null ? product.UnitOfMeasure.NameEn : null,
+                    product.MeasurementUnit != null ? product.MeasurementUnit.Symbol : product.UnitOfMeasure != null ? product.UnitOfMeasure.Symbol : null,
+                    false),
+                product.PackageType != null ? product.PackageType.NameAr : null,
+                product.PackageType != null ? product.PackageType.NameEn : null,
+                product.MeasurementValue,
+                product.MeasurementUnit != null ? product.MeasurementUnit.NameAr : product.UnitOfMeasure != null ? product.UnitOfMeasure.NameAr : null,
+                product.MeasurementUnit != null ? product.MeasurementUnit.NameEn : product.UnitOfMeasure != null ? product.UnitOfMeasure.NameEn : null,
                 MasterProductDisplayDto.BuildLegacyUnit(
                     product.PackageType != null ? product.PackageType.NameAr : null,
                     product.MeasurementUnit != null ? product.MeasurementUnit.NameAr : product.UnitOfMeasure != null ? product.UnitOfMeasure.NameAr : null,
@@ -121,7 +138,13 @@ internal static class CartProjection
                     item.Quantity,
                     vendorPrices,
                     isAvailable,
-                    availabilityStatus);
+                    availabilityStatus,
+                    product is null ? null : PickLocalizedNullable(product.DisplaySizeAr, product.DisplaySizeEn),
+                    product is null ? null : PickLocalizedNullable(product.PackageTypeAr, product.PackageTypeEn),
+                    product?.MeasurementValue,
+                    product is null ? null : PickLocalizedNullable(product.MeasurementUnitAr, product.MeasurementUnitEn),
+                    offers?.FirstOrDefault()?.ImageUrl ?? product?.ImageUrl,
+                    product?.ImageUrls);
             })
             .ToList();
 
@@ -264,7 +287,23 @@ internal static class CartProjection
     private static bool IsDiscounted(decimal price, decimal? oldPrice) =>
         oldPrice.HasValue && oldPrice.Value > price;
 
-    private sealed record MasterProductSnapshot(Guid Id, string NameAr, string NameEn, string? ImageUrl, string? UnitAr, string? UnitEn);
+    private sealed record MasterProductSnapshot(
+        Guid Id,
+        string NameAr,
+        string NameEn,
+        List<string> ImageUrls,
+        string? DisplaySizeAr,
+        string? DisplaySizeEn,
+        string? PackageTypeAr,
+        string? PackageTypeEn,
+        decimal? MeasurementValue,
+        string? MeasurementUnitAr,
+        string? MeasurementUnitEn,
+        string? UnitAr,
+        string? UnitEn)
+    {
+        public string? ImageUrl => ImageUrls.FirstOrDefault();
+    }
 
     private sealed record VisibleCartOfferSnapshot(
         Guid Id,

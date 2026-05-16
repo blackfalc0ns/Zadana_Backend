@@ -22,7 +22,12 @@ public record OrderItemDto(
     string ProductName,
     int Quantity,
     decimal UnitPrice,
-    decimal LineTotal);
+    decimal LineTotal,
+    string? ImageUrl = null,
+    string? VariantDisplaySize = null,
+    string? PackageTypeName = null,
+    decimal? MeasurementValue = null,
+    string? MeasurementUnitName = null);
 
 public record AdminVendorOrderListItemDto(
     Guid Id,
@@ -165,7 +170,12 @@ public record CustomerOrderProductDto(
     Guid Id,
     string Name,
     int Quantity,
-    decimal Price);
+    decimal Price,
+    string? ImageUrl = null,
+    string? VariantDisplaySize = null,
+    string? PackageTypeName = null,
+    decimal? MeasurementValue = null,
+    string? MeasurementUnitName = null);
 
 public record CustomerOrderTrackingDto(
     CustomerOrderTrackingOrderDto Order,
@@ -493,7 +503,12 @@ public record AdminOrderItemDto(
     decimal Price,
     decimal Total,
     string Icon,
-    string Sku);
+    string Sku,
+    string? ImageUrl = null,
+    string? VariantDisplaySize = null,
+    string? PackageTypeName = null,
+    decimal? MeasurementValue = null,
+    string? MeasurementUnitName = null);
 
 public record AdminOrderTimelineItemDto(
     string Title,

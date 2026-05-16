@@ -54,6 +54,31 @@ public sealed record CheckoutCartItemDto
         int quantity,
         decimal price,
         decimal totalPrice,
+        string? variantDisplaySize,
+        string? packageTypeName,
+        decimal? measurementValue,
+        string? measurementUnitName,
+        string? variantImageUrl,
+        IReadOnlyList<string>? variantImages)
+        : this(id, productId, name, imageUrl, unit, quantity, price, totalPrice)
+    {
+        VariantDisplaySize = variantDisplaySize;
+        PackageTypeName = packageTypeName;
+        MeasurementValue = measurementValue;
+        MeasurementUnitName = measurementUnitName;
+        VariantImageUrl = variantImageUrl;
+        VariantImages = variantImages?.ToList() ?? [];
+    }
+
+    public CheckoutCartItemDto(
+        Guid id,
+        Guid productId,
+        string name,
+        string? imageUrl,
+        string? unit,
+        int quantity,
+        decimal price,
+        decimal totalPrice,
         string? _,
         string? __,
         string? ___,
@@ -70,6 +95,12 @@ public sealed record CheckoutCartItemDto
     public int Quantity { get; init; }
     public decimal Price { get; init; }
     public decimal TotalPrice { get; init; }
+    public string? VariantDisplaySize { get; init; }
+    public string? PackageTypeName { get; init; }
+    public decimal? MeasurementValue { get; init; }
+    public string? MeasurementUnitName { get; init; }
+    public string? VariantImageUrl { get; init; }
+    public IReadOnlyList<string> VariantImages { get; init; } = [];
 }
 
 public record CheckoutSelectedAddressDto(

@@ -20,6 +20,11 @@ public class OrderItem
     public DateTime? StockDeductedAtUtc { get; private set; }
     public DateTime? StockRestoredAtUtc { get; private set; }
 
+    // Snapshot fields — captured at order creation time for historical accuracy
+    public string? SnapshotImageUrl { get; private set; }
+    public string? SnapshotDisplaySize { get; private set; }
+    public string? SnapshotBarcode { get; private set; }
+
     // Navigation
     public Order Order { get; private set; } = null!;
     public VendorProduct VendorProduct { get; private set; } = null!;
@@ -79,5 +84,16 @@ public class OrderItem
         }
 
         StockRestoredAtUtc = restoredAtUtc ?? DateTime.UtcNow;
+    }
+
+    /// <summary>
+    /// Captures a point-in-time snapshot of the variant's visual identity at order creation.
+    /// This ensures historical orders display the correct image/size even if the product is later modified.
+    /// </summary>
+    public void CaptureVariantSnapshot(string? imageUrl, string? displaySize, string? barcode)
+    {
+        SnapshotImageUrl = imageUrl;
+        SnapshotDisplaySize = displaySize;
+        SnapshotBarcode = barcode;
     }
 }

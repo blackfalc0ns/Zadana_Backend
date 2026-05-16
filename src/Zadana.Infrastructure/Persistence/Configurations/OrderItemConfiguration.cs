@@ -24,6 +24,11 @@ public class OrderItemConfiguration : IEntityTypeConfiguration<OrderItem>
         builder.Property(x => x.StockDeductedAtUtc);
         builder.Property(x => x.StockRestoredAtUtc);
 
+        // Variant snapshot — captured at order creation for historical accuracy
+        builder.Property(x => x.SnapshotImageUrl).HasMaxLength(2048);
+        builder.Property(x => x.SnapshotDisplaySize).HasMaxLength(200);
+        builder.Property(x => x.SnapshotBarcode).HasMaxLength(100);
+
         builder.HasOne(x => x.VendorProduct)
             .WithMany()
             .HasForeignKey(x => x.VendorProductId)

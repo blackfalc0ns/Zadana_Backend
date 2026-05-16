@@ -34,6 +34,7 @@ public class GetMasterProductByIdQueryHandler : IRequestHandler<GetMasterProduct
             .AsNoTracking()
             .Include(p => p.PackageType)
             .Include(p => p.MeasurementUnit)
+            .Include(p => p.Images)
             .Where(p => p.VariantGroupId == product.VariantGroupId)
             .OrderBy(p => p.MeasurementValue ?? decimal.MaxValue)
             .ThenBy(p => p.NameAr)
@@ -58,7 +59,14 @@ public class GetMasterProductByIdQueryHandler : IRequestHandler<GetMasterProduct
                     p.MeasurementUnit != null ? p.MeasurementUnit.NameEn : null,
                     p.MeasurementUnit != null ? p.MeasurementUnit.Symbol : null,
                     false),
-                p.Id == product.Id))
+                p.Id == product.Id,
+                p.Images
+                    .OrderByDescending(img => img.IsPrimary)
+                    .ThenBy(img => img.DisplayOrder)
+                    .Select(img => img.Url)
+                    .FirstOrDefault(),
+                p.Barcode,
+                p.Slug))
             .ToListAsync(cancellationToken);
 
         return MasterProductDisplayDto.ToDto(product, false, variants);

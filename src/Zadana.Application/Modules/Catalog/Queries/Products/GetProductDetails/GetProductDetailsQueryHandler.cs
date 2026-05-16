@@ -119,7 +119,18 @@ public class GetProductDetailsQueryHandler : IRequestHandler<GetProductDetailsQu
                 option.NameEn ?? option.Name,
                 option.DisplaySizeAr,
                 option.DisplaySizeEn,
-                option.MasterProductId == masterProductId))
+                option.MasterProductId == masterProductId,
+                option.ImageUrl,
+                option.Images,
+                option.PackageTypeAr,
+                option.PackageTypeEn,
+                option.MeasurementValue,
+                option.MeasurementUnitAr,
+                option.MeasurementUnitEn,
+                option.Unit,
+                option.Price,
+                option.IsDiscounted ? option.OldPrice : null,
+                option.IsDiscounted))
             .ToList();
 
         var similarOfferRows = visibleOffers

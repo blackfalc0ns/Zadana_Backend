@@ -10,7 +10,10 @@ public record MasterProductVariantOptionDto(
     string NameEn,
     string? DisplaySizeAr,
     string? DisplaySizeEn,
-    bool IsCurrent);
+    bool IsCurrent,
+    string? ImageUrl = null,
+    string? Barcode = null,
+    string? Slug = null);
 
 public static class MasterProductDisplayDto
 {

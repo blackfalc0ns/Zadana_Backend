@@ -1,6 +1,7 @@
 using System.Globalization;
 using Microsoft.EntityFrameworkCore;
 using Zadana.Application.Common.Models;
+using Zadana.Application.Modules.Catalog.DTOs;
 using Zadana.Application.Modules.Delivery.DTOs;
 using Zadana.Application.Modules.Delivery.Interfaces;
 using Zadana.Application.Modules.Orders.DTOs;
@@ -73,32 +74,46 @@ public class OrderReadService : IOrderReadService
             Task.CompletedTask;
     }
 
-    public Task<OrderDto?> GetByIdAsync(Guid orderId, Guid userId, CancellationToken cancellationToken = default) =>
-        _dbContext.Orders
+    public async Task<OrderDto?> GetByIdAsync(Guid orderId, Guid userId, CancellationToken cancellationToken = default)
+    {
+        var order = await _dbContext.Orders
             .AsNoTracking()
-            .Where(order => order.Id == orderId && order.UserId == userId)
-            .Select(order => new OrderDto(
-                order.Id,
-                order.OrderNumber,
-                order.UserId,
-                order.VendorId,
-                order.CustomerAddressId,
-                order.Status.ToString(),
-                order.PaymentMethod.ToString(),
-                order.PaymentStatus.ToString(),
-                order.Subtotal,
-                order.DeliveryFee,
-                order.TotalAmount,
-                order.PlacedAtUtc,
-                order.Items.Select(item => new OrderItemDto(
-                    item.Id,
-                    item.VendorProductId,
-                    item.MasterProductId,
-                    item.ProductName,
-                    item.Quantity,
-                    item.UnitPrice,
-                    item.LineTotal)).ToList()))
-            .FirstOrDefaultAsync(cancellationToken);
+            .Include(item => item.Items)
+                .ThenInclude(item => item.MasterProduct)
+            .FirstOrDefaultAsync(item => item.Id == orderId && item.UserId == userId, cancellationToken);
+
+        if (order is null)
+        {
+            return null;
+        }
+
+        return new OrderDto(
+            order.Id,
+            order.OrderNumber,
+            order.UserId,
+            order.VendorId,
+            order.CustomerAddressId,
+            order.Status.ToString(),
+            order.PaymentMethod.ToString(),
+            order.PaymentStatus.ToString(),
+            order.Subtotal,
+            order.DeliveryFee,
+            order.TotalAmount,
+            order.PlacedAtUtc,
+            order.Items.Select(item => new OrderItemDto(
+                item.Id,
+                item.VendorProductId,
+                item.MasterProductId,
+                item.ProductName,
+                item.Quantity,
+                item.UnitPrice,
+                item.LineTotal,
+                BuildProductImageUrl(item),
+                BuildVariantDisplaySize(item),
+                BuildPackageTypeName(item),
+                item.MasterProduct?.MeasurementValue,
+                BuildMeasurementUnitName(item))).ToList());
+    }
 
     public async Task<CustomerOrderListDto> GetCustomerOrdersAsync(
         Guid userId,
@@ -409,6 +424,7 @@ public class OrderReadService : IOrderReadService
             .AsNoTracking()
             .Include(item => item.User)
             .Include(item => item.Items)
+                .ThenInclude(item => item.MasterProduct)
             .Include(item => item.StatusHistory)
             .Include(item => item.Vendor)
             .Where(item => item.VendorId == vendorId && item.Id == orderId && item.Status != OrderStatus.PendingPayment)
@@ -547,7 +563,12 @@ public class OrderReadService : IOrderReadService
                 item.ProductName,
                 item.Quantity,
                 item.UnitPrice,
-                item.LineTotal)).ToList(),
+                item.LineTotal,
+                BuildProductImageUrl(item),
+                BuildVariantDisplaySize(item),
+                BuildPackageTypeName(item),
+                item.MasterProduct?.MeasurementValue,
+                BuildMeasurementUnitName(item))).ToList(),
             BuildVendorTimeline(order));
     }
 
@@ -665,6 +686,7 @@ public class OrderReadService : IOrderReadService
             .AsNoTracking()
             .Include(item => item.User)
             .Include(item => item.Items)
+                .ThenInclude(item => item.MasterProduct)
             .Include(item => item.StatusHistory)
             .Include(item => item.Vendor)
             .Include(item => item.VendorBranch)
@@ -955,7 +977,12 @@ public class OrderReadService : IOrderReadService
                     item.Id,
                     item.ProductName,
                     item.Quantity,
-                    item.UnitPrice))
+                    item.UnitPrice,
+                    BuildProductImageUrl(item),
+                    BuildVariantDisplaySize(item),
+                    BuildPackageTypeName(item),
+                    item.MasterProduct?.MeasurementValue,
+                    BuildMeasurementUnitName(item)))
                 .ToList());
 
     private static CustomerOrderDetailDto MapDetail(Order order) =>
@@ -981,7 +1008,12 @@ public class OrderReadService : IOrderReadService
                     item.Id,
                     item.ProductName,
                     item.Quantity,
-                    item.UnitPrice))
+                    item.UnitPrice,
+                    BuildProductImageUrl(item),
+                    BuildVariantDisplaySize(item),
+                    BuildPackageTypeName(item),
+                    item.MasterProduct?.MeasurementValue,
+                    BuildMeasurementUnitName(item)))
                 .ToList(),
             ResolveActiveSupportCaseSummary(order.SupportCases));
 
@@ -1007,6 +1039,85 @@ public class OrderReadService : IOrderReadService
 
     private static string? NormalizeText(string? value) =>
         string.IsNullOrWhiteSpace(value) ? null : value.Trim();
+
+    private static string? BuildProductImageUrl(OrderItem item)
+    {
+        // Prefer the historical snapshot captured at order time
+        if (!string.IsNullOrWhiteSpace(item.SnapshotImageUrl))
+        {
+            return item.SnapshotImageUrl;
+        }
+
+        // Fallback to current MasterProduct images (legacy orders without snapshot)
+        return item.MasterProduct?.Images
+            .OrderByDescending(image => image.IsPrimary)
+            .ThenBy(image => image.DisplayOrder)
+            .Select(image => image.Url)
+            .FirstOrDefault();
+    }
+
+    private static string? BuildVariantDisplaySize(OrderItem item)
+    {
+        // Prefer the historical snapshot captured at order time
+        if (!string.IsNullOrWhiteSpace(item.SnapshotDisplaySize))
+        {
+            return item.SnapshotDisplaySize;
+        }
+
+        // Fallback to current MasterProduct data (legacy orders without snapshot)
+        var product = item.MasterProduct;
+        if (product is null)
+        {
+            return NormalizeText(item.UnitName);
+        }
+
+        var measurementUnit = product.MeasurementUnit ?? product.UnitOfMeasure;
+        var displaySize = IsArabic()
+            ? MasterProductDisplayDto.BuildDisplaySize(
+                product.PackageType?.NameAr,
+                product.MeasurementValue,
+                measurementUnit?.NameAr,
+                measurementUnit?.Symbol,
+                true)
+            : MasterProductDisplayDto.BuildDisplaySize(
+                product.PackageType?.NameEn,
+                product.MeasurementValue,
+                measurementUnit?.NameEn,
+                measurementUnit?.Symbol,
+                false);
+
+        return NormalizeText(displaySize) ?? NormalizeText(item.UnitName);
+    }
+
+    private static string? BuildPackageTypeName(OrderItem item)
+    {
+        var product = item.MasterProduct;
+        if (product?.PackageType is null)
+        {
+            return null;
+        }
+
+        return IsArabic()
+            ? NormalizeText(product.PackageType.NameAr) ?? NormalizeText(product.PackageType.NameEn)
+            : NormalizeText(product.PackageType.NameEn) ?? NormalizeText(product.PackageType.NameAr);
+    }
+
+    private static string? BuildMeasurementUnitName(OrderItem item)
+    {
+        var product = item.MasterProduct;
+        var measurementUnit = product?.MeasurementUnit ?? product?.UnitOfMeasure;
+        if (measurementUnit is null)
+        {
+            return null;
+        }
+
+        return IsArabic()
+            ? NormalizeText(measurementUnit.NameAr) ?? NormalizeText(measurementUnit.NameEn)
+            : NormalizeText(measurementUnit.NameEn) ?? NormalizeText(measurementUnit.NameAr);
+    }
+
+    private static bool IsArabic() =>
+        CultureInfo.CurrentUICulture.TwoLetterISOLanguageName.Equals("ar", StringComparison.OrdinalIgnoreCase);
 
     private static OrderComplaintDto MapComplaint(OrderComplaint complaint) =>
         new(
@@ -1881,7 +1992,12 @@ public class OrderReadService : IOrderReadService
                 item.UnitPrice,
                 item.LineTotal,
                 "inventory_2",
-                item.MasterProductId == Guid.Empty ? item.Id.ToString("N")[..8].ToUpperInvariant() : item.MasterProductId.ToString("N")[..8].ToUpperInvariant()))
+                item.MasterProductId == Guid.Empty ? item.Id.ToString("N")[..8].ToUpperInvariant() : item.MasterProductId.ToString("N")[..8].ToUpperInvariant(),
+                BuildProductImageUrl(item),
+                BuildVariantDisplaySize(item),
+                BuildPackageTypeName(item),
+                item.MasterProduct?.MeasurementValue,
+                BuildMeasurementUnitName(item)))
                 .ToList(),
             timeline,
             activities,

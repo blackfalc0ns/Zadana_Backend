@@ -1,6 +1,7 @@
 using Microsoft.EntityFrameworkCore;
 using System.Globalization;
 using Zadana.Application.Common.Interfaces;
+using Zadana.Application.Modules.Catalog.DTOs;
 using Zadana.Application.Modules.Checkout.DTOs;
 using Zadana.Application.Modules.Delivery.Interfaces;
 using Zadana.Application.Modules.Orders.Support;
@@ -69,9 +70,32 @@ internal static class CheckoutSupport
                     .OrderByDescending(image => image.IsPrimary)
                     .ThenBy(image => image.DisplayOrder)
                     .Select(image => image.Url)
-                    .FirstOrDefault(),
-                product.MasterProduct.UnitOfMeasure != null ? product.MasterProduct.UnitOfMeasure.NameAr : null,
-                product.MasterProduct.UnitOfMeasure != null ? product.MasterProduct.UnitOfMeasure.NameEn : null))
+                    .ToList(),
+                MasterProductDisplayDto.BuildDisplaySize(
+                    product.MasterProduct.PackageType != null ? product.MasterProduct.PackageType.NameAr : null,
+                    product.MasterProduct.MeasurementValue,
+                    product.MasterProduct.MeasurementUnit != null ? product.MasterProduct.MeasurementUnit.NameAr : product.MasterProduct.UnitOfMeasure != null ? product.MasterProduct.UnitOfMeasure.NameAr : null,
+                    product.MasterProduct.MeasurementUnit != null ? product.MasterProduct.MeasurementUnit.Symbol : product.MasterProduct.UnitOfMeasure != null ? product.MasterProduct.UnitOfMeasure.Symbol : null,
+                    true),
+                MasterProductDisplayDto.BuildDisplaySize(
+                    product.MasterProduct.PackageType != null ? product.MasterProduct.PackageType.NameEn : null,
+                    product.MasterProduct.MeasurementValue,
+                    product.MasterProduct.MeasurementUnit != null ? product.MasterProduct.MeasurementUnit.NameEn : product.MasterProduct.UnitOfMeasure != null ? product.MasterProduct.UnitOfMeasure.NameEn : null,
+                    product.MasterProduct.MeasurementUnit != null ? product.MasterProduct.MeasurementUnit.Symbol : product.MasterProduct.UnitOfMeasure != null ? product.MasterProduct.UnitOfMeasure.Symbol : null,
+                    false),
+                product.MasterProduct.PackageType != null ? product.MasterProduct.PackageType.NameAr : null,
+                product.MasterProduct.PackageType != null ? product.MasterProduct.PackageType.NameEn : null,
+                product.MasterProduct.MeasurementValue,
+                product.MasterProduct.MeasurementUnit != null ? product.MasterProduct.MeasurementUnit.NameAr : product.MasterProduct.UnitOfMeasure != null ? product.MasterProduct.UnitOfMeasure.NameAr : null,
+                product.MasterProduct.MeasurementUnit != null ? product.MasterProduct.MeasurementUnit.NameEn : product.MasterProduct.UnitOfMeasure != null ? product.MasterProduct.UnitOfMeasure.NameEn : null,
+                MasterProductDisplayDto.BuildLegacyUnit(
+                    product.MasterProduct.PackageType != null ? product.MasterProduct.PackageType.NameAr : null,
+                    product.MasterProduct.MeasurementUnit != null ? product.MasterProduct.MeasurementUnit.NameAr : product.MasterProduct.UnitOfMeasure != null ? product.MasterProduct.UnitOfMeasure.NameAr : null,
+                    true),
+                MasterProductDisplayDto.BuildLegacyUnit(
+                    product.MasterProduct.PackageType != null ? product.MasterProduct.PackageType.NameEn : null,
+                    product.MasterProduct.MeasurementUnit != null ? product.MasterProduct.MeasurementUnit.NameEn : product.MasterProduct.UnitOfMeasure != null ? product.MasterProduct.UnitOfMeasure.NameEn : null,
+                    false)))
             .ToListAsync(cancellationToken);
 
         CandidateVendorSnapshot? candidateVendor;
@@ -139,7 +163,13 @@ internal static class CheckoutSupport
                     PickLocalizedNullable(offer.UnitAr, offer.UnitEn),
                     item.Quantity,
                     offer.Price,
-                    offer.Price * item.Quantity);
+                    offer.Price * item.Quantity,
+                    PickLocalizedNullable(offer.DisplaySizeAr, offer.DisplaySizeEn),
+                    PickLocalizedNullable(offer.PackageTypeAr, offer.PackageTypeEn),
+                    offer.MeasurementValue,
+                    PickLocalizedNullable(offer.MeasurementUnitAr, offer.MeasurementUnitEn),
+                    offer.ImageUrl,
+                    offer.Images);
             })
             .ToList();
 
@@ -937,9 +967,19 @@ internal static class CheckoutSupport
         string? CustomNameEn,
         string NameAr,
         string NameEn,
-        string? ImageUrl,
+        List<string> Images,
+        string? DisplaySizeAr,
+        string? DisplaySizeEn,
+        string? PackageTypeAr,
+        string? PackageTypeEn,
+        decimal? MeasurementValue,
+        string? MeasurementUnitAr,
+        string? MeasurementUnitEn,
         string? UnitAr,
-        string? UnitEn);
+        string? UnitEn)
+    {
+        public string? ImageUrl => Images.FirstOrDefault();
+    }
 
     private sealed record CandidateVendorSnapshot(
         Guid VendorId,
