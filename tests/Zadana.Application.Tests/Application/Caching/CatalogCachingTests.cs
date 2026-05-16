@@ -61,6 +61,7 @@ public class CatalogCachingTests
             true,
             "desc",
             [],
+            [],
             [
                 new ProductDetailsSimilarProductDto(
                     Guid.Parse("cccccccc-cccc-cccc-cccc-cccccccccccc"),

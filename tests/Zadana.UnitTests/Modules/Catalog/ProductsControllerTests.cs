@@ -52,6 +52,7 @@ public class ProductsControllerTests
             true,
             "Description",
             [],
+            [],
             []);
 
         _senderMock.Setup(x => x.Send(It.IsAny<GetProductDetailsQuery>(), It.IsAny<CancellationToken>()))

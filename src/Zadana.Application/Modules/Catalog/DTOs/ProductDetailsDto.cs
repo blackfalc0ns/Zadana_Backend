@@ -52,28 +52,4 @@ public record ProductDetailsDto(
     [property: JsonPropertyName("description")] string? Description,
     [property: JsonPropertyName("variant_options")] IReadOnlyList<ProductDetailsVariantOptionDto> VariantOptions,
     [property: JsonPropertyName("vendor_prices")] IReadOnlyList<ProductDetailsVendorPriceDto> VendorPrices,
-    [property: JsonPropertyName("similar_products")] IReadOnlyList<ProductDetailsSimilarProductDto> SimilarProducts)
-{
-    public ProductDetailsDto(
-        Guid id,
-        Guid masterProductId,
-        Guid defaultVendorProductId,
-        string name,
-        string store,
-        decimal price,
-        decimal? oldPrice,
-        string? imageUrl,
-        IReadOnlyList<string> images,
-        decimal? rating,
-        int? reviewCount,
-        string? discount,
-        bool isFavorite,
-        string? unit,
-        bool isDiscounted,
-        string? description,
-        IReadOnlyList<ProductDetailsVendorPriceDto> vendorPrices,
-        IReadOnlyList<ProductDetailsSimilarProductDto> similarProducts)
-        : this(id, masterProductId, defaultVendorProductId, name, store, price, oldPrice, imageUrl, images, rating, reviewCount, discount, isFavorite, unit, isDiscounted, description, [], vendorPrices, similarProducts)
-    {
-    }
-}
+    [property: JsonPropertyName("similar_products")] IReadOnlyList<ProductDetailsSimilarProductDto> SimilarProducts);
