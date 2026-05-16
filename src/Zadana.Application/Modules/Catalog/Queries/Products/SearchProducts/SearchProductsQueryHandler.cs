@@ -118,7 +118,8 @@ public class SearchProductsQueryHandler : IRequestHandler<SearchProductsQuery, S
                     .OrderByDescending(image => image.IsPrimary)
                     .ThenBy(image => image.DisplayOrder)
                     .Select(image => image.Url)
-                    .FirstOrDefault()))
+                    .FirstOrDefault(),
+                product.MasterProduct.VariantGroupId))
             .ToListAsync(cancellationToken);
 
         var products = rawProducts
@@ -162,10 +163,21 @@ public class SearchProductsQueryHandler : IRequestHandler<SearchProductsQuery, S
         var sortedProducts = ApplySorting(products, request.Sort).ToList();
         var total = sortedProducts.Count;
 
+        // Compute variant counts per variant group
+        var variantCountByGroupId = rawProducts
+            .GroupBy(p => p.VariantGroupId)
+            .ToDictionary(g => g.Key, g => g.Select(p => p.MasterProductId).Distinct().Count());
+
         var items = sortedProducts
             .Skip((page - 1) * perPage)
             .Take(perPage)
-            .Select(product => MapToProductItem(product, false))
+            .Select(product =>
+            {
+                var rawMatch = rawProducts.FirstOrDefault(r => r.MasterProductId == product.Id);
+                var variantGroupId = rawMatch?.VariantGroupId ?? Guid.Empty;
+                var variantCount = variantCountByGroupId.GetValueOrDefault(variantGroupId, 1);
+                return MapToProductItem(product, false, variantCount);
+            })
             .ToList();
 
         return new SearchProductsResponseDto(normalizedQuery, total, page, perPage, items);
@@ -220,7 +232,7 @@ public class SearchProductsQueryHandler : IRequestHandler<SearchProductsQuery, S
         };
     }
 
-    private SearchProductItemDto MapToProductItem(SearchProductSource product, bool isFavorite)
+    private SearchProductItemDto MapToProductItem(SearchProductSource product, bool isFavorite, int variantCount = 1)
     {
         var isDiscounted = product.CompareAtPrice.HasValue && product.CompareAtPrice.Value > product.SellingPrice;
 
@@ -236,7 +248,8 @@ public class SearchProductsQueryHandler : IRequestHandler<SearchProductsQuery, S
             FormatDiscount(product),
             isFavorite,
             product.Unit,
-            isDiscounted);
+            isDiscounted,
+            variantCount);
     }
 
     private static decimal CalculateDiscountRate(SearchProductSource product)
@@ -295,7 +308,8 @@ public class SearchProductsQueryHandler : IRequestHandler<SearchProductsQuery, S
         string? MeasurementUnitAr,
         string? MeasurementUnitEn,
         string? MeasurementUnitSymbol,
-        string? ImageUrl);
+        string? ImageUrl,
+        Guid VariantGroupId);
 
     private sealed record SearchProductSource(
         Guid Id,

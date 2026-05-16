@@ -14,7 +14,8 @@ public record SearchProductItemDto(
     [property: JsonPropertyName("discount")] string? Discount,
     [property: JsonPropertyName("is_favorite")] bool IsFavorite,
     [property: JsonPropertyName("unit")] string? Unit,
-    [property: JsonPropertyName("is_discounted")] bool IsDiscounted);
+    [property: JsonPropertyName("is_discounted")] bool IsDiscounted,
+    [property: JsonPropertyName("variant_count")] int VariantCount = 1);
 
 public record SearchProductsResponseDto(
     [property: JsonPropertyName("query")] string Query,

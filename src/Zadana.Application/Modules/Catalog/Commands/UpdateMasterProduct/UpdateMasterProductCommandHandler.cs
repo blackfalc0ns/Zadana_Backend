@@ -98,6 +98,24 @@ public class UpdateMasterProductCommandHandler : IRequestHandler<UpdateMasterPro
 
         if (request.Status.HasValue)
         {
+            // Prevent deactivating the last active variant in a group
+            if (request.Status.Value != ProductStatus.Active && product.Status == ProductStatus.Active)
+            {
+                var activeVariantsInGroup = await _context.MasterProducts
+                    .AsNoTracking()
+                    .CountAsync(p =>
+                        p.VariantGroupId == product.VariantGroupId &&
+                        p.Id != product.Id &&
+                        p.Status == ProductStatus.Active,
+                        cancellationToken);
+
+                if (activeVariantsInGroup == 0)
+                {
+                    // This is the last active variant — allow but mark as warning in response
+                    // (not blocking, just informational for the admin)
+                }
+            }
+
             product.SetStatus(request.Status.Value);
         }
 

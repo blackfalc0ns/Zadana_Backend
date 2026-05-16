@@ -5,6 +5,7 @@ using Microsoft.Extensions.Localization;
 using Microsoft.Extensions.Logging;
 using Zadana.Application.Common.Interfaces;
 using Zadana.Application.Common.Localization;
+using Zadana.Application.Modules.Catalog.DTOs;
 using Zadana.Application.Modules.Orders.DTOs;
 using Zadana.Application.Modules.Orders.Support;
 using Zadana.Domain.Modules.Catalog.Entities;
@@ -46,6 +47,10 @@ public class AddCartItemCommandHandler : IRequestHandler<AddCartItemCommand, Car
         var actor = CartActor.Create(request.Actor.UserId, CartLookup.NormalizeGuestId(request.Actor.GuestId));
         var product = await _context.MasterProducts
             .AsNoTracking()
+            .Include(p => p.Images)
+            .Include(p => p.PackageType)
+            .Include(p => p.MeasurementUnit)
+            .Include(p => p.UnitOfMeasure)
             .FirstOrDefaultAsync(
                 item => item.Id == request.ProductId && item.Status == ProductStatus.Active,
                 cancellationToken);
@@ -146,11 +151,21 @@ public class AddCartItemCommandHandler : IRequestHandler<AddCartItemCommand, Car
         }
         else
         {
+            // Build unit display and image for the cart item snapshot
+            var unitName = BuildCartItemUnit(product);
+            var imageUrl = product.Images
+                .OrderByDescending(img => img.IsPrimary)
+                .ThenBy(img => img.DisplayOrder)
+                .Select(img => img.Url)
+                .FirstOrDefault();
+
             affectedItem = new CartItem(
                 cart.Id,
                 request.ProductId,
                 !string.IsNullOrWhiteSpace(product.NameEn) ? product.NameEn : product.NameAr,
-                request.Quantity);
+                request.Quantity,
+                unitName,
+                imageUrl);
 
             _context.CartItems.Add(affectedItem);
         }
@@ -162,6 +177,19 @@ public class AddCartItemCommandHandler : IRequestHandler<AddCartItemCommand, Car
 
         await _context.SaveChangesAsync(cancellationToken);
         return affectedItem;
+    }
+
+    private static string? BuildCartItemUnit(MasterProduct product)
+    {
+        var measurementUnit = product.MeasurementUnit ?? product.UnitOfMeasure;
+        var displaySize = MasterProductDisplayDto.BuildDisplaySize(
+            product.PackageType?.NameEn,
+            product.MeasurementValue,
+            measurementUnit?.NameEn,
+            measurementUnit?.Symbol,
+            false);
+
+        return string.IsNullOrWhiteSpace(displaySize) ? null : displaySize.Trim();
     }
 
     private async Task<Cart> ReloadCartForWriteAsync(CartActor actor, CancellationToken cancellationToken)

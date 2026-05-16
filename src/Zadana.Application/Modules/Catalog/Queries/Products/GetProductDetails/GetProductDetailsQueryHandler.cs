@@ -111,7 +111,8 @@ public class GetProductDetailsQueryHandler : IRequestHandler<GetProductDetailsQu
                 .OrderBy(offer => offer.Price)
                 .ThenByDescending(offer => offer.CreatedAtUtc)
                 .First())
-            .OrderBy(option => option.Name, StringComparer.CurrentCultureIgnoreCase)
+            .OrderBy(option => option.MeasurementValue ?? decimal.MaxValue)
+            .ThenBy(option => option.Name, StringComparer.CurrentCultureIgnoreCase)
             .Select(option => new ProductDetailsVariantOptionDto(
                 option.MasterProductId,
                 option.VendorProductId,

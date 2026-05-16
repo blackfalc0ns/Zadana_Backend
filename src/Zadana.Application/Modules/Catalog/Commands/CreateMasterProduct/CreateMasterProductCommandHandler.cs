@@ -80,6 +80,24 @@ public class CreateMasterProductCommandHandler : IRequestHandler<CreateMasterPro
             {
                 throw new NotFoundException("VariantGroup", request.VariantGroupId.Value);
             }
+
+            // Prevent duplicate variant: same measurement in the same group
+            if (request.MeasurementValue.HasValue && request.MeasurementUnitId.HasValue)
+            {
+                var duplicateExists = await _context.MasterProducts
+                    .AsNoTracking()
+                    .AnyCompatAsync(product =>
+                        product.VariantGroupId == request.VariantGroupId.Value &&
+                        product.MeasurementValue == request.MeasurementValue.Value &&
+                        product.MeasurementUnitId == request.MeasurementUnitId.Value &&
+                        product.PackageTypeId == request.PackageTypeId,
+                        cancellationToken);
+
+                if (duplicateExists)
+                {
+                    throw new BusinessRuleException("DUPLICATE_VARIANT", "A variant with the same size already exists in this group.");
+                }
+            }
         }
 
         var masterProduct = new MasterProduct(

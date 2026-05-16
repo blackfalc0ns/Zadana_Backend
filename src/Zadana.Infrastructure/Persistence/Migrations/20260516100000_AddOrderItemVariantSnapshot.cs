@@ -30,6 +30,20 @@ public partial class AddOrderItemVariantSnapshot : Migration
             type: "nvarchar(100)",
             maxLength: 100,
             nullable: true);
+
+        migrationBuilder.AddColumn<string>(
+            name: "UnitName",
+            table: "CartItems",
+            type: "nvarchar(200)",
+            maxLength: 200,
+            nullable: true);
+
+        migrationBuilder.AddColumn<string>(
+            name: "ImageUrl",
+            table: "CartItems",
+            type: "nvarchar(2048)",
+            maxLength: 2048,
+            nullable: true);
     }
 
     /// <inheritdoc />
@@ -46,5 +60,13 @@ public partial class AddOrderItemVariantSnapshot : Migration
         migrationBuilder.DropColumn(
             name: "SnapshotBarcode",
             table: "OrderItems");
+
+        migrationBuilder.DropColumn(
+            name: "UnitName",
+            table: "CartItems");
+
+        migrationBuilder.DropColumn(
+            name: "ImageUrl",
+            table: "CartItems");
     }
 }
