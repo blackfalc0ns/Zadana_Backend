@@ -42,7 +42,8 @@ public record ProductDetailsVariantOptionDto(
     [property: JsonPropertyName("unit")] string? Unit,
     [property: JsonPropertyName("price")] decimal? Price,
     [property: JsonPropertyName("old_price")] decimal? OldPrice,
-    [property: JsonPropertyName("is_discounted")] bool IsDiscounted);
+    [property: JsonPropertyName("is_discounted")] bool IsDiscounted,
+    [property: JsonPropertyName("vendor_prices")] IReadOnlyList<ProductDetailsVendorPriceDto> VendorPrices);
 
 public record ProductDetailsDto(
     [property: JsonPropertyName("id")] Guid Id,

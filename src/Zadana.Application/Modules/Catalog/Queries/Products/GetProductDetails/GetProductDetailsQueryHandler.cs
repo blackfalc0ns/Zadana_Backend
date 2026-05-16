@@ -104,34 +104,55 @@ public class GetProductDetailsQueryHandler : IRequestHandler<GetProductDetailsQu
                 offer.IsDiscounted))
             .ToList();
 
-        var variantOptions = visibleOffers
+        var variantGroupOffers = visibleOffers
             .Where(offer => offer.VariantGroupId == variantGroupId)
+            .ToList();
+
+        var variantOffersByMasterProduct = variantGroupOffers
             .GroupBy(offer => offer.MasterProductId)
-            .Select(group => group
+            .ToDictionary(g => g.Key, g => g
                 .OrderBy(offer => offer.Price)
                 .ThenByDescending(offer => offer.CreatedAtUtc)
-                .First())
+                .ThenBy(offer => offer.Store, StringComparer.CurrentCultureIgnoreCase)
+                .ToList());
+
+        var variantOptions = variantOffersByMasterProduct
+            .Select(kvp =>
+            {
+                var cheapest = kvp.Value.First();
+                var variantVendorPrices = kvp.Value
+                    .Select(offer => new ProductDetailsVendorPriceDto(
+                        offer.VendorProductId,
+                        offer.Store,
+                        offer.StoreLogoUrl,
+                        offer.Price,
+                        offer.IsDiscounted ? offer.OldPrice : null,
+                        offer.IsDiscounted))
+                    .ToList();
+
+                return new ProductDetailsVariantOptionDto(
+                    cheapest.MasterProductId,
+                    cheapest.VendorProductId,
+                    cheapest.NameAr ?? cheapest.Name,
+                    cheapest.NameEn ?? cheapest.Name,
+                    cheapest.DisplaySizeAr,
+                    cheapest.DisplaySizeEn,
+                    cheapest.MasterProductId == masterProductId,
+                    cheapest.ImageUrl,
+                    cheapest.Images,
+                    cheapest.PackageTypeAr,
+                    cheapest.PackageTypeEn,
+                    cheapest.MeasurementValue,
+                    cheapest.MeasurementUnitAr,
+                    cheapest.MeasurementUnitEn,
+                    cheapest.Unit,
+                    cheapest.Price,
+                    cheapest.IsDiscounted ? cheapest.OldPrice : null,
+                    cheapest.IsDiscounted,
+                    variantVendorPrices);
+            })
             .OrderBy(option => option.MeasurementValue ?? decimal.MaxValue)
-            .ThenBy(option => option.Name, StringComparer.CurrentCultureIgnoreCase)
-            .Select(option => new ProductDetailsVariantOptionDto(
-                option.MasterProductId,
-                option.VendorProductId,
-                option.NameAr ?? option.Name,
-                option.NameEn ?? option.Name,
-                option.DisplaySizeAr,
-                option.DisplaySizeEn,
-                option.MasterProductId == masterProductId,
-                option.ImageUrl,
-                option.Images,
-                option.PackageTypeAr,
-                option.PackageTypeEn,
-                option.MeasurementValue,
-                option.MeasurementUnitAr,
-                option.MeasurementUnitEn,
-                option.Unit,
-                option.Price,
-                option.IsDiscounted ? option.OldPrice : null,
-                option.IsDiscounted))
+            .ThenBy(option => option.NameAr, StringComparer.CurrentCultureIgnoreCase)
             .ToList();
 
         var similarOfferRows = visibleOffers
