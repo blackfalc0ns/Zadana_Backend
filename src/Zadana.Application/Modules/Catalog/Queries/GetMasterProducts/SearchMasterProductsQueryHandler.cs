@@ -24,7 +24,8 @@ public class SearchMasterProductsQueryHandler : IRequestHandler<SearchMasterProd
             .Include(p => p.Images)
             .Include(p => p.Brand)
             .Include(p => p.Category)
-            .Include(p => p.UnitOfMeasure)
+            .Include(p => p.PackageType)
+            .Include(p => p.MeasurementUnit)
             .AsQueryable();
 
         if (!string.IsNullOrWhiteSpace(request.Search))
@@ -140,27 +141,7 @@ public class SearchMasterProductsQueryHandler : IRequestHandler<SearchMasterProd
 
     private static MasterProductDto MapMasterProductDto(MasterProduct product, bool isInVendorStore)
     {
-        return new MasterProductDto(
-            product.Id,
-            product.NameAr,
-            product.NameEn,
-            product.Slug,
-            product.DescriptionAr,
-            product.DescriptionEn,
-            product.Barcode,
-            product.CategoryId,
-            product.BrandId,
-            product.Brand?.NameAr,
-            product.Brand?.NameEn,
-            product.UnitOfMeasureId,
-            product.UnitOfMeasure?.NameAr,
-            product.UnitOfMeasure?.NameEn,
-            product.Status.ToString(),
-            isInVendorStore,
-            product.Images.Select(i => new MasterProductImageDto(i.Url, i.AltText, i.DisplayOrder, i.IsPrimary)).ToList(),
-            product.CreatedAtUtc,
-            product.UpdatedAtUtc
-        );
+        return MasterProductDisplayDto.ToDto(product, isInVendorStore);
     }
 
     private static List<SortDescriptorDto> GetProductSortOptions()

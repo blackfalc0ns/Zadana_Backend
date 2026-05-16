@@ -33,7 +33,9 @@ public class GetVendorProductsQueryHandler : IRequestHandler<GetVendorProductsQu
             .Include(vp => vp.MasterProduct)
                 .ThenInclude(mp => mp.Brand)
             .Include(vp => vp.MasterProduct)
-                .ThenInclude(mp => mp.UnitOfMeasure)
+                .ThenInclude(mp => mp.PackageType)
+            .Include(vp => vp.MasterProduct)
+                .ThenInclude(mp => mp.MeasurementUnit)
             .Include(vp => vp.Vendor)
             .Where(vp => vp.VendorId == request.VendorId && vp.MasterProduct != null);
 
@@ -100,27 +102,7 @@ public class GetVendorProductsQueryHandler : IRequestHandler<GetVendorProductsQu
             vp.StockQuantity,
             vp.IsAvailable,
             vp.Status.ToString(),
-            new MasterProductDto(
-                vp.MasterProduct.Id,
-                vp.MasterProduct.NameAr ?? string.Empty,
-                vp.MasterProduct.NameEn ?? string.Empty,
-                vp.MasterProduct.Slug ?? string.Empty,
-                vp.MasterProduct.DescriptionAr,
-                vp.MasterProduct.DescriptionEn,
-                vp.MasterProduct.Barcode,
-                vp.MasterProduct.CategoryId,
-                vp.MasterProduct.BrandId,
-                vp.MasterProduct.Brand?.NameAr,
-                vp.MasterProduct.Brand?.NameEn,
-                vp.MasterProduct.UnitOfMeasureId,
-                vp.MasterProduct.UnitOfMeasure?.NameAr,
-                vp.MasterProduct.UnitOfMeasure?.NameEn,
-                vp.MasterProduct.Status.ToString(),
-                true,
-                vp.MasterProduct.Images.Select(i => new MasterProductImageDto(i.Url, i.AltText, i.DisplayOrder, i.IsPrimary)).ToList(),
-                vp.MasterProduct.CreatedAtUtc,
-                vp.MasterProduct.UpdatedAtUtc
-            )
+            MasterProductDisplayDto.ToDto(vp.MasterProduct, true)
         )).ToList();
         
         return new PaginatedList<VendorProductDto>(items, totalCount, request.PageNumber, request.PageSize);

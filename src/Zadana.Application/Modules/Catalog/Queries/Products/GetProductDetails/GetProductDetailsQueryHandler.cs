@@ -81,6 +81,7 @@ public class GetProductDetailsQueryHandler : IRequestHandler<GetProductDetailsQu
             .ToList();
 
         var defaultOffer = directOffer ?? offersForProduct.First();
+        var variantGroupId = defaultOffer.VariantGroupId;
 
         var galleryImages = offersForProduct
             .SelectMany(offer => offer.Images)
@@ -101,6 +102,24 @@ public class GetProductDetailsQueryHandler : IRequestHandler<GetProductDetailsQu
                 offer.Price,
                 offer.IsDiscounted ? offer.OldPrice : null,
                 offer.IsDiscounted))
+            .ToList();
+
+        var variantOptions = visibleOffers
+            .Where(offer => offer.VariantGroupId == variantGroupId)
+            .GroupBy(offer => offer.MasterProductId)
+            .Select(group => group
+                .OrderBy(offer => offer.Price)
+                .ThenByDescending(offer => offer.CreatedAtUtc)
+                .First())
+            .OrderBy(option => option.Name, StringComparer.CurrentCultureIgnoreCase)
+            .Select(option => new ProductDetailsVariantOptionDto(
+                option.MasterProductId,
+                option.VendorProductId,
+                option.NameAr ?? option.Name,
+                option.NameEn ?? option.Name,
+                option.DisplaySizeAr,
+                option.DisplaySizeEn,
+                option.MasterProductId == masterProductId))
             .ToList();
 
         var similarOfferRows = visibleOffers
@@ -156,6 +175,7 @@ public class GetProductDetailsQueryHandler : IRequestHandler<GetProductDetailsQu
             defaultOffer.Unit,
             defaultOffer.IsDiscounted,
             defaultOffer.Description,
+            variantOptions,
             vendorPrices,
             similarProducts);
     }
@@ -184,8 +204,13 @@ public class GetProductDetailsQueryHandler : IRequestHandler<GetProductDetailsQu
                 product.Vendor.LogoUrl,
                 product.SellingPrice,
                 product.CompareAtPrice,
-                product.MasterProduct.UnitOfMeasure != null ? product.MasterProduct.UnitOfMeasure.NameAr : null,
-                product.MasterProduct.UnitOfMeasure != null ? product.MasterProduct.UnitOfMeasure.NameEn : null,
+                product.MasterProduct.VariantGroupId,
+                product.MasterProduct.PackageType != null ? product.MasterProduct.PackageType.NameAr : null,
+                product.MasterProduct.PackageType != null ? product.MasterProduct.PackageType.NameEn : null,
+                product.MasterProduct.MeasurementValue,
+                product.MasterProduct.MeasurementUnit != null ? product.MasterProduct.MeasurementUnit.NameAr : product.MasterProduct.UnitOfMeasure != null ? product.MasterProduct.UnitOfMeasure.NameAr : null,
+                product.MasterProduct.MeasurementUnit != null ? product.MasterProduct.MeasurementUnit.NameEn : product.MasterProduct.UnitOfMeasure != null ? product.MasterProduct.UnitOfMeasure.NameEn : null,
+                product.MasterProduct.MeasurementUnit != null ? product.MasterProduct.MeasurementUnit.Symbol : product.MasterProduct.UnitOfMeasure != null ? product.MasterProduct.UnitOfMeasure.Symbol : null,
                 product.MasterProduct.DescriptionAr,
                 product.MasterProduct.DescriptionEn,
                 product.MasterProduct.Images
@@ -215,9 +240,18 @@ public class GetProductDetailsQueryHandler : IRequestHandler<GetProductDetailsQu
             offer.StoreLogoUrl,
             offer.SellingPrice,
             offer.CompareAtPrice,
-            NormalizeText(offer.UnitAr),
-            NormalizeText(offer.UnitEn),
-            PickLocalizedNullable(offer.UnitAr, offer.UnitEn),
+            offer.VariantGroupId,
+            NormalizeText(offer.PackageTypeAr),
+            NormalizeText(offer.PackageTypeEn),
+            offer.MeasurementValue,
+            NormalizeText(offer.MeasurementUnitAr),
+            NormalizeText(offer.MeasurementUnitEn),
+            NormalizeText(offer.MeasurementUnitSymbol),
+            MasterProductDisplayDto.BuildDisplaySize(offer.PackageTypeAr, offer.MeasurementValue, offer.MeasurementUnitAr, offer.MeasurementUnitSymbol, true),
+            MasterProductDisplayDto.BuildDisplaySize(offer.PackageTypeEn, offer.MeasurementValue, offer.MeasurementUnitEn, offer.MeasurementUnitSymbol, false),
+            PickLocalizedNullable(
+                MasterProductDisplayDto.BuildLegacyUnit(offer.PackageTypeAr, offer.MeasurementUnitAr, true),
+                MasterProductDisplayDto.BuildLegacyUnit(offer.PackageTypeEn, offer.MeasurementUnitEn, false)),
             NormalizeText(offer.DescriptionAr),
             NormalizeText(offer.DescriptionEn),
             PickLocalizedNullable(offer.DescriptionAr, offer.DescriptionEn),
@@ -270,8 +304,13 @@ public class GetProductDetailsQueryHandler : IRequestHandler<GetProductDetailsQu
         string? StoreLogoUrl,
         decimal SellingPrice,
         decimal? CompareAtPrice,
-        string? UnitAr,
-        string? UnitEn,
+        Guid VariantGroupId,
+        string? PackageTypeAr,
+        string? PackageTypeEn,
+        decimal? MeasurementValue,
+        string? MeasurementUnitAr,
+        string? MeasurementUnitEn,
+        string? MeasurementUnitSymbol,
         string? DescriptionAr,
         string? DescriptionEn,
         List<string> Images);
@@ -291,8 +330,15 @@ public class GetProductDetailsQueryHandler : IRequestHandler<GetProductDetailsQu
         string? StoreLogoUrl,
         decimal Price,
         decimal? OldPrice,
-        string? UnitAr,
-        string? UnitEn,
+        Guid VariantGroupId,
+        string? PackageTypeAr,
+        string? PackageTypeEn,
+        decimal? MeasurementValue,
+        string? MeasurementUnitAr,
+        string? MeasurementUnitEn,
+        string? MeasurementUnitSymbol,
+        string? DisplaySizeAr,
+        string? DisplaySizeEn,
         string? Unit,
         string? DescriptionAr,
         string? DescriptionEn,

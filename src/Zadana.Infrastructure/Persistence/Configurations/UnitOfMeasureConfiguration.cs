@@ -1,6 +1,7 @@
 using Microsoft.EntityFrameworkCore;
 using Microsoft.EntityFrameworkCore.Metadata.Builders;
 using Zadana.Domain.Modules.Catalog.Entities;
+using Zadana.Domain.Modules.Catalog.Enums;
 
 namespace Zadana.Infrastructure.Persistence.Configurations;
 
@@ -22,6 +23,12 @@ public class UnitOfMeasureConfiguration : IEntityTypeConfiguration<UnitOfMeasure
 
         builder.Property(u => u.Symbol)
             .HasMaxLength(20);
+
+        builder.Property(u => u.Kind)
+            .IsRequired()
+            .HasConversion<string>()
+            .HasMaxLength(30)
+            .HasDefaultValue(UnitKind.Measurement);
 
         builder.Property(u => u.IsActive)
             .IsRequired()

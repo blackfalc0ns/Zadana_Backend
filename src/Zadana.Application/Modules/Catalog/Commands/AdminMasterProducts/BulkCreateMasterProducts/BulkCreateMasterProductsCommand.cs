@@ -20,6 +20,10 @@ public record BulkCreateMasterProductItemInput(
     Guid CategoryId,
     Guid? BrandId,
     Guid? UnitId,
+    Guid? PackageTypeId,
+    decimal? MeasurementValue,
+    Guid? MeasurementUnitId,
+    Guid? VariantGroupId,
     ProductStatus Status,
     string? DescriptionAr,
     string? DescriptionEn,
@@ -55,6 +59,12 @@ public class BulkCreateMasterProductsCommandValidator : AbstractValidator<BulkCr
                 .MaximumLength(100).When(x => !string.IsNullOrWhiteSpace(x.Barcode)).WithMessage(x => localizer["MaxLength"]);
             item.RuleFor(x => x.CategoryId)
                 .NotEmpty().WithMessage(x => localizer["RequiredField"]);
+            item.RuleFor(x => x.MeasurementValue)
+                .GreaterThan(0).When(x => x.MeasurementValue.HasValue)
+                .WithMessage(x => localizer["GreaterThanZero"]);
+            item.RuleFor(x => x)
+                .Must(x => x.MeasurementValue.HasValue == (x.MeasurementUnitId ?? x.UnitId).HasValue)
+                .WithMessage("Measurement value and measurement unit must be provided together.");
             item.RuleForEach(x => x.Images!).ChildRules(image =>
             {
                 image.RuleFor(x => x.Url)

@@ -16,7 +16,7 @@ public class CreateUnitCommandHandler : IRequestHandler<CreateUnitCommand, UnitO
 
     public async Task<UnitOfMeasureDto> Handle(CreateUnitCommand request, CancellationToken cancellationToken)
     {
-        var unit = new UnitOfMeasure(request.NameAr, request.NameEn, request.Symbol);
+        var unit = new UnitOfMeasure(request.NameAr, request.NameEn, request.Symbol, request.Kind);
 
         _context.UnitsOfMeasure.Add(unit);
         await _context.SaveChangesAsync(cancellationToken);
@@ -26,6 +26,7 @@ public class CreateUnitCommandHandler : IRequestHandler<CreateUnitCommand, UnitO
             unit.NameAr,
             unit.NameEn,
             unit.Symbol,
+            unit.Kind,
             unit.IsActive);
     }
 }

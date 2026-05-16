@@ -38,12 +38,14 @@ public record UpdateCategoryRequest(
 public record CreateUnitRequest(
     string NameAr,
     string NameEn,
-    string? Symbol);
+    string? Symbol,
+    UnitKind Kind = UnitKind.Measurement);
 
 public record UpdateUnitRequest(
     string NameAr,
     string NameEn,
     string? Symbol,
+    UnitKind Kind,
     bool IsActive);
 
 public record CreateMasterProductRequest(
@@ -55,7 +57,11 @@ public record CreateMasterProductRequest(
     string? DescriptionAr,
     string? DescriptionEn,
     Guid? BrandId,
-    Guid? UnitId,
+    Guid? UnitId = null,
+    Guid? PackageTypeId = null,
+    decimal? MeasurementValue = null,
+    Guid? MeasurementUnitId = null,
+    Guid? VariantGroupId = null,
     ProductStatus Status = ProductStatus.Draft,
     List<CreateProductImageInfo>? Images = null);
 
@@ -68,7 +74,11 @@ public record UpdateMasterProductRequest(
     string? DescriptionAr,
     string? DescriptionEn,
     Guid? BrandId,
-    Guid? UnitId,
+    Guid? UnitId = null,
+    Guid? PackageTypeId = null,
+    decimal? MeasurementValue = null,
+    Guid? MeasurementUnitId = null,
+    Guid? VariantGroupId = null,
     ProductStatus? Status = null,
     List<CreateProductImageInfo>? Images = null);
 

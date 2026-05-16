@@ -1,6 +1,7 @@
 using System.Text.Json;
 using System.Text;
 using Microsoft.EntityFrameworkCore;
+using FluentValidation;
 using Zadana.Domain.Modules.Catalog.Entities;
 using Zadana.Domain.Modules.Catalog.Enums;
 using Zadana.Application.Modules.Catalog.Interfaces;
@@ -60,7 +61,12 @@ public sealed class AdminMasterProductBulkOperationWorker : BackgroundService
 
         var categoryIds = operation.Items.Select(x => x.CategoryId).Distinct().ToArray();
         var brandIds = operation.Items.Where(x => x.BrandId.HasValue).Select(x => x.BrandId!.Value).Distinct().ToArray();
-        var unitIds = operation.Items.Where(x => x.UnitId.HasValue).Select(x => x.UnitId!.Value).Distinct().ToArray();
+        var unitIds = operation.Items
+            .SelectMany(x => new[] { x.UnitId, x.PackageTypeId, x.MeasurementUnitId })
+            .Where(x => x.HasValue)
+            .Select(x => x!.Value)
+            .Distinct()
+            .ToArray();
 
         var existingCategoryIds = await context.Categories
             .AsNoTracking()
@@ -80,11 +86,10 @@ public sealed class AdminMasterProductBulkOperationWorker : BackgroundService
             .Select(x => x.Id)
             .ToHashSetAsync(cancellationToken);
 
-        var existingUnitIds = await context.UnitsOfMeasure
+        var existingUnits = await context.UnitsOfMeasure
             .AsNoTracking()
             .Where(x => unitIds.Contains(x.Id))
-            .Select(x => x.Id)
-            .ToHashSetAsync(cancellationToken);
+            .ToDictionaryAsync(x => x.Id, cancellationToken);
 
         var existingSlugs = await context.MasterProducts
             .AsNoTracking()
@@ -119,14 +124,33 @@ public sealed class AdminMasterProductBulkOperationWorker : BackgroundService
             {
                 item.MarkFailed("Brand was not found.");
             }
-            else if (item.UnitId.HasValue && !existingUnitIds.Contains(item.UnitId.Value))
+            else if (item.UnitId.HasValue && !existingUnits.ContainsKey(item.UnitId.Value))
             {
                 item.MarkFailed("Unit was not found.");
+            }
+            else if (item.PackageTypeId.HasValue && !existingUnits.ContainsKey(item.PackageTypeId.Value))
+            {
+                item.MarkFailed("Package type was not found.");
+            }
+            else if (item.MeasurementUnitId.HasValue && !existingUnits.ContainsKey(item.MeasurementUnitId.Value))
+            {
+                item.MarkFailed("Measurement unit was not found.");
             }
             else
             {
                 try
                 {
+                    var measurementUnitId = item.MeasurementUnitId ?? item.UnitId;
+                    if (measurementUnitId.HasValue && existingUnits[measurementUnitId.Value].Kind != UnitKind.Measurement)
+                    {
+                        throw new ValidationException("measurementUnitId must refer to a measurement unit.");
+                    }
+
+                    if (item.PackageTypeId.HasValue && existingUnits[item.PackageTypeId.Value].Kind != UnitKind.Packaging)
+                    {
+                        throw new ValidationException("packageTypeId must refer to a packaging unit.");
+                    }
+
                     var generatedSlug = GenerateUniqueSlug(item, reservedSlugs);
                     var generatedBarcode = GenerateUniqueBarcode(item.Barcode, reservedBarcodes);
 
@@ -138,10 +162,14 @@ public sealed class AdminMasterProductBulkOperationWorker : BackgroundService
                         slug: generatedSlug,
                         categoryId: item.CategoryId,
                         brandId: item.BrandId,
-                        unitOfMeasureId: item.UnitId,
+                        unitOfMeasureId: measurementUnitId,
+                        packageTypeId: item.PackageTypeId,
+                        measurementValue: item.MeasurementValue,
+                        measurementUnitId: measurementUnitId,
                         descriptionAr: item.DescriptionAr,
                         descriptionEn: item.DescriptionEn,
-                        barcode: generatedBarcode);
+                        barcode: generatedBarcode,
+                        variantGroupId: item.VariantGroupId);
 
                     masterProduct.SetStatus(item.StatusValue);
 
@@ -153,6 +181,12 @@ public sealed class AdminMasterProductBulkOperationWorker : BackgroundService
 
                     context.MasterProducts.Add(masterProduct);
                     await context.SaveChangesAsync(cancellationToken);
+
+                    if (masterProduct.VariantGroupId == Guid.Empty)
+                    {
+                        masterProduct.ChangeVariantGroup(masterProduct.Id);
+                        await context.SaveChangesAsync(cancellationToken);
+                    }
 
                     item.MarkSucceeded(masterProduct.Id);
                 }

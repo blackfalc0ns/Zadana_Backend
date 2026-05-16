@@ -50,6 +50,7 @@ public class BrandsController : ApiControllerBase
         [FromQuery] string? sort,
         [FromQuery] int page = 1,
         [FromQuery(Name = "per_page")] int perPage = 20,
+        [FromQuery(Name = "package_type_id")] Guid? packageTypeId = null,
         CancellationToken cancellationToken = default)
     {
         var result = await Sender.Send(
@@ -58,6 +59,7 @@ public class BrandsController : ApiControllerBase
                 categoryId,
                 subcategoryId,
                 unitId,
+                packageTypeId,
                 minPrice,
                 maxPrice,
                 sort,
@@ -67,4 +69,17 @@ public class BrandsController : ApiControllerBase
 
         return Ok(result);
     }
+
+    public Task<ActionResult<BrandProductsDto>> GetProducts(
+        Guid brandId,
+        Guid? categoryId,
+        Guid? subcategoryId,
+        Guid? unitId,
+        decimal? minPrice,
+        decimal? maxPrice,
+        string? sort,
+        int page,
+        int perPage,
+        CancellationToken cancellationToken) =>
+        GetProducts(brandId, categoryId, subcategoryId, unitId, minPrice, maxPrice, sort, page, perPage, null, cancellationToken);
 }

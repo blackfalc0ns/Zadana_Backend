@@ -1,6 +1,7 @@
 using System.Globalization;
 using Microsoft.EntityFrameworkCore;
 using Zadana.Application.Common.Interfaces;
+using Zadana.Application.Modules.Catalog.DTOs;
 using Zadana.Application.Modules.Orders.DTOs;
 using Zadana.Domain.Modules.Catalog.Enums;
 using Zadana.Domain.Modules.Orders.Entities;
@@ -38,8 +39,14 @@ internal static class CartProjection
                     .ThenBy(image => image.DisplayOrder)
                     .Select(image => image.Url)
                     .FirstOrDefault(),
-                product.UnitOfMeasure != null ? product.UnitOfMeasure.NameAr : null,
-                product.UnitOfMeasure != null ? product.UnitOfMeasure.NameEn : null))
+                MasterProductDisplayDto.BuildLegacyUnit(
+                    product.PackageType != null ? product.PackageType.NameAr : null,
+                    product.MeasurementUnit != null ? product.MeasurementUnit.NameAr : product.UnitOfMeasure != null ? product.UnitOfMeasure.NameAr : null,
+                    true),
+                MasterProductDisplayDto.BuildLegacyUnit(
+                    product.PackageType != null ? product.PackageType.NameEn : null,
+                    product.MeasurementUnit != null ? product.MeasurementUnit.NameEn : product.UnitOfMeasure != null ? product.UnitOfMeasure.NameEn : null,
+                    false)))
             .ToDictionaryAsync(product => product.Id, cancellationToken);
 
         var visibleOffers = await context.VendorProducts

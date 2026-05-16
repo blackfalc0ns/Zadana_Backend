@@ -20,7 +20,7 @@ public class UpdateUnitCommandHandler : IRequestHandler<UpdateUnitCommand>
         if (unit == null)
             throw new NotFoundException(nameof(UnitOfMeasure), request.Id);
 
-        unit.Update(request.NameAr, request.NameEn, request.Symbol);
+        unit.Update(request.NameAr, request.NameEn, request.Symbol, request.Kind);
 
         if (request.IsActive && !unit.IsActive)
             unit.Activate();

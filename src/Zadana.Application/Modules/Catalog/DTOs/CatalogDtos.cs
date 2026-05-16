@@ -23,11 +23,22 @@ public record MasterProductDto(
     Guid? UnitOfMeasureId,
     string? UnitNameAr,
     string? UnitNameEn,
+    Guid? PackageTypeId,
+    string? PackageTypeNameAr,
+    string? PackageTypeNameEn,
+    decimal? MeasurementValue,
+    Guid? MeasurementUnitId,
+    string? MeasurementUnitNameAr,
+    string? MeasurementUnitNameEn,
+    Guid VariantGroupId,
+    string? DisplaySizeAr,
+    string? DisplaySizeEn,
     string Status,
     bool IsInVendorStore,
     ICollection<MasterProductImageDto> Images,
     DateTime? CreatedAtUtc = null,
-    DateTime? UpdatedAtUtc = null);
+    DateTime? UpdatedAtUtc = null,
+    ICollection<MasterProductVariantOptionDto>? Variants = null);
 
 public record VendorProductDto(
     Guid Id,

@@ -1,3 +1,5 @@
+using Zadana.Domain.Modules.Catalog.Enums;
+
 namespace Zadana.Application.Modules.Catalog.DTOs;
 
 public record UnitOfMeasureDto(
@@ -5,4 +7,5 @@ public record UnitOfMeasureDto(
     string NameAr,
     string NameEn,
     string? Symbol,
+    UnitKind Kind,
     bool IsActive);

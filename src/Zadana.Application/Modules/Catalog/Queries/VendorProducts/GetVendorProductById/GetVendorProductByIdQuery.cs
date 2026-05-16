@@ -26,7 +26,9 @@ public class GetVendorProductByIdQueryHandler : IRequestHandler<GetVendorProduct
             .Include(x => x.MasterProduct)
                 .ThenInclude(mp => mp.Brand)
             .Include(x => x.MasterProduct)
-                .ThenInclude(mp => mp.UnitOfMeasure)
+                .ThenInclude(mp => mp.PackageType)
+            .Include(x => x.MasterProduct)
+                .ThenInclude(mp => mp.MeasurementUnit)
             .Include(x => x.Vendor)
             .FirstOrDefaultAsync(x => x.Id == request.ProductId && x.VendorId == request.VendorId, cancellationToken);
 
@@ -45,27 +47,7 @@ public class GetVendorProductByIdQueryHandler : IRequestHandler<GetVendorProduct
             vp.StockQuantity,
             vp.IsAvailable,
             vp.Status.ToString(),
-            new MasterProductDto(
-                vp.MasterProduct.Id,
-                vp.MasterProduct.NameAr,
-                vp.MasterProduct.NameEn,
-                vp.MasterProduct.Slug,
-                vp.MasterProduct.DescriptionAr,
-                vp.MasterProduct.DescriptionEn,
-                vp.MasterProduct.Barcode,
-                vp.MasterProduct.CategoryId,
-                vp.MasterProduct.BrandId,
-                vp.MasterProduct.Brand?.NameAr,
-                vp.MasterProduct.Brand?.NameEn,
-                vp.MasterProduct.UnitOfMeasureId,
-                vp.MasterProduct.UnitOfMeasure?.NameAr,
-                vp.MasterProduct.UnitOfMeasure?.NameEn,
-                vp.MasterProduct.Status.ToString(),
-                true,
-                vp.MasterProduct.Images.Select(i => new MasterProductImageDto(i.Url, i.AltText, i.DisplayOrder, i.IsPrimary)).ToList(),
-                vp.MasterProduct.CreatedAtUtc,
-                vp.MasterProduct.UpdatedAtUtc
-            )
+            MasterProductDisplayDto.ToDto(vp.MasterProduct, true)
         );
     }
 }

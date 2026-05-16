@@ -8,6 +8,7 @@ public record CategoryProductsAppliedFiltersDto(
     [property: JsonPropertyName("product_type_id")] Guid? ProductTypeId,
     [property: JsonPropertyName("part_id")] Guid? PartId,
     [property: JsonPropertyName("quantity_id")] Guid? QuantityId,
+    [property: JsonPropertyName("package_type_id")] Guid? PackageTypeId,
     [property: JsonPropertyName("brand_id")] Guid? BrandId,
     [property: JsonPropertyName("min_price")] decimal? MinPrice,
     [property: JsonPropertyName("max_price")] decimal? MaxPrice,

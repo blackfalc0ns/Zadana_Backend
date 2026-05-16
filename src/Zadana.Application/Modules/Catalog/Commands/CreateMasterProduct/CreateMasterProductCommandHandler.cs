@@ -1,8 +1,11 @@
+using FluentValidation;
 using MediatR;
 using Zadana.Application.Common.Caching;
 using Zadana.Application.Common.Interfaces;
+using Zadana.Application.Modules.Catalog.Commands;
 using Zadana.Domain.Modules.Catalog.Entities;
 using Zadana.Domain.Modules.Catalog.Enums;
+using Microsoft.EntityFrameworkCore;
 using Zadana.SharedKernel.Exceptions;
 
 namespace Zadana.Application.Modules.Catalog.Commands.CreateMasterProduct;
@@ -20,20 +23,63 @@ public class CreateMasterProductCommandHandler : IRequestHandler<CreateMasterPro
 
     public async Task<Guid> Handle(CreateMasterProductCommand request, CancellationToken cancellationToken)
     {
-        var categoryExists = _context.Categories.Any(c => c.Id == request.CategoryId);
+        var categoryExists = await _context.Categories.AnyCompatAsync(c => c.Id == request.CategoryId, cancellationToken);
         if (!categoryExists)
         {
             throw new NotFoundException("Category", request.CategoryId);
         }
 
-        if (request.BrandId.HasValue && !_context.Brands.Any(b => b.Id == request.BrandId.Value))
+        if (request.BrandId.HasValue && !await _context.Brands.AnyCompatAsync(b => b.Id == request.BrandId.Value, cancellationToken))
         {
             throw new NotFoundException("Brand", request.BrandId.Value);
         }
 
-        if (request.UnitId.HasValue && !_context.UnitsOfMeasure.Any(u => u.Id == request.UnitId.Value))
+        var measurementUnitId = request.ResolveMeasurementUnitId();
+
+        if (measurementUnitId.HasValue)
         {
-            throw new NotFoundException("UnitOfMeasure", request.UnitId.Value);
+            var measurementUnit = await _context.UnitsOfMeasure
+                .AsNoTracking()
+                .FirstOrDefaultCompatAsync(u => u.Id == measurementUnitId.Value, cancellationToken);
+
+            if (measurementUnit is null)
+            {
+                throw new NotFoundException("UnitOfMeasure", measurementUnitId.Value);
+            }
+
+            if (measurementUnit.Kind != UnitKind.Measurement)
+            {
+                throw new ValidationException("measurementUnitId must refer to a measurement unit.");
+            }
+        }
+
+        if (request.PackageTypeId.HasValue)
+        {
+            var packageType = await _context.UnitsOfMeasure
+                .AsNoTracking()
+                .FirstOrDefaultCompatAsync(u => u.Id == request.PackageTypeId.Value, cancellationToken);
+
+            if (packageType is null)
+            {
+                throw new NotFoundException("UnitOfMeasure", request.PackageTypeId.Value);
+            }
+
+            if (packageType.Kind != UnitKind.Packaging)
+            {
+                throw new ValidationException("packageTypeId must refer to a packaging unit.");
+            }
+        }
+
+        if (request.VariantGroupId.HasValue)
+        {
+            var variantGroupExists = await _context.MasterProducts
+                .AsNoTracking()
+                .AnyCompatAsync(product => product.VariantGroupId == request.VariantGroupId.Value || product.Id == request.VariantGroupId.Value, cancellationToken);
+
+            if (!variantGroupExists)
+            {
+                throw new NotFoundException("VariantGroup", request.VariantGroupId.Value);
+            }
         }
 
         var masterProduct = new MasterProduct(
@@ -42,11 +88,20 @@ public class CreateMasterProductCommandHandler : IRequestHandler<CreateMasterPro
             slug: request.Slug,
             categoryId: request.CategoryId,
             brandId: request.BrandId,
-            unitOfMeasureId: request.UnitId,
+            unitOfMeasureId: measurementUnitId,
+            packageTypeId: request.PackageTypeId,
+            measurementValue: request.MeasurementValue,
+            measurementUnitId: measurementUnitId,
             descriptionAr: request.DescriptionAr,
             descriptionEn: request.DescriptionEn,
-            barcode: request.Barcode
+            barcode: request.Barcode,
+            variantGroupId: request.VariantGroupId
         );
+
+        if (!request.VariantGroupId.HasValue)
+        {
+            masterProduct.ChangeVariantGroup(masterProduct.Id);
+        }
 
         masterProduct.SetStatus(request.Status);
 
@@ -60,6 +115,7 @@ public class CreateMasterProductCommandHandler : IRequestHandler<CreateMasterPro
 
         _context.MasterProducts.Add(masterProduct);
         await _context.SaveChangesAsync(cancellationToken);
+
         await _cacheInvalidator.RemoveByTagsAsync(CacheInvalidationProfiles.CatalogReadModels, cancellationToken);
 
         return masterProduct.Id;

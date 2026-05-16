@@ -31,7 +31,40 @@ public class GetCartVendorsQueryHandler : IRequestHandler<GetCartVendorsQuery, C
 
         if (cart == null || cart.Items.Count == 0)
         {
-            return new CartAvailableVendorsDto([]);
+            var availableVendors = await _context.VendorProducts
+                .AsNoTracking()
+                .Where(product =>
+                    product.Status == VendorProductStatus.Active &&
+                    product.IsAvailable &&
+                    product.StockQuantity > 0 &&
+                    product.MasterProduct.Status == ProductStatus.Active &&
+                    product.Vendor.Status == VendorStatus.Active &&
+                    product.Vendor.AcceptOrders)
+                .GroupBy(product => new
+                {
+                    product.VendorId,
+                    product.Vendor.BusinessNameAr,
+                    product.Vendor.BusinessNameEn,
+                    product.Vendor.LogoUrl
+                })
+                .Select(group => new CartAvailableVendorRow(
+                    group.Key.VendorId,
+                    group.Key.BusinessNameAr,
+                    group.Key.BusinessNameEn,
+                    group.Key.LogoUrl,
+                    group.Select(item => item.MasterProductId).Distinct().Count()))
+                .ToListAsync(cancellationToken);
+
+            return new CartAvailableVendorsDto(
+                availableVendors
+                    .Select(item => new CartAvailableVendorDto(
+                        item.Id,
+                        PickLocalized(item.NameAr, item.NameEn),
+                        item.LogoUrl,
+                        item.ProductsCount))
+                    .OrderByDescending(item => item.ProductsCount)
+                    .ThenBy(item => item.Name, StringComparer.CurrentCultureIgnoreCase)
+                    .ToList());
         }
 
         var productIds = cart.Items

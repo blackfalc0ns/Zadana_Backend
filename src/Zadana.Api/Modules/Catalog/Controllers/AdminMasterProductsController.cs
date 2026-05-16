@@ -85,6 +85,10 @@ public class AdminMasterProductsController : ApiControllerBase
             request.DescriptionEn,
             request.BrandId,
             request.UnitId,
+            request.PackageTypeId,
+            request.MeasurementValue,
+            request.MeasurementUnitId,
+            request.VariantGroupId,
             request.Status,
             request.Images);
 
@@ -108,6 +112,10 @@ public class AdminMasterProductsController : ApiControllerBase
                 item.CategoryId,
                 item.BrandId,
                 item.UnitId,
+                item.PackageTypeId,
+                item.MeasurementValue,
+                item.MeasurementUnitId,
+                item.VariantGroupId,
                 item.Status,
                 item.DescriptionAr,
                 item.DescriptionEn,
@@ -151,6 +159,10 @@ public class AdminMasterProductsController : ApiControllerBase
             request.DescriptionEn,
             request.BrandId,
             request.UnitId,
+            request.PackageTypeId,
+            request.MeasurementValue,
+            request.MeasurementUnitId,
+            request.VariantGroupId,
             request.Status,
             request.Images);
 
@@ -188,6 +200,10 @@ public record BulkCreateMasterProductItemRequest(
     Guid CategoryId,
     Guid? BrandId,
     Guid? UnitId,
+    Guid? PackageTypeId,
+    decimal? MeasurementValue,
+    Guid? MeasurementUnitId,
+    Guid? VariantGroupId,
     ProductStatus Status,
     string? DescriptionAr,
     string? DescriptionEn,

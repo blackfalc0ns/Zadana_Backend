@@ -1,7 +1,9 @@
+using FluentValidation;
 using MediatR;
 using Microsoft.EntityFrameworkCore;
 using Zadana.Application.Common.Caching;
 using Zadana.Application.Common.Interfaces;
+using Zadana.Application.Modules.Catalog.Commands;
 using Zadana.Domain.Modules.Catalog.Enums;
 using Zadana.SharedKernel.Exceptions;
 
@@ -27,15 +29,49 @@ public class UpdateMasterProductCommandHandler : IRequestHandler<UpdateMasterPro
         if (product == null)
             throw new NotFoundException("MasterProduct", request.Id);
 
-        var categoryExists = await _context.Categories.AnyAsync(c => c.Id == request.CategoryId, cancellationToken);
+        var categoryExists = await _context.Categories.AnyCompatAsync(c => c.Id == request.CategoryId, cancellationToken);
         if (!categoryExists)
             throw new NotFoundException("Category", request.CategoryId);
 
-        if (request.BrandId.HasValue && !await _context.Brands.AnyAsync(b => b.Id == request.BrandId.Value, cancellationToken))
+        if (request.BrandId.HasValue && !await _context.Brands.AnyCompatAsync(b => b.Id == request.BrandId.Value, cancellationToken))
             throw new NotFoundException("Brand", request.BrandId.Value);
 
-        if (request.UnitId.HasValue && !await _context.UnitsOfMeasure.AnyAsync(u => u.Id == request.UnitId.Value, cancellationToken))
-            throw new NotFoundException("UnitOfMeasure", request.UnitId.Value);
+        var measurementUnitId = request.ResolveMeasurementUnitId();
+        if (measurementUnitId.HasValue)
+        {
+            var measurementUnit = await _context.UnitsOfMeasure
+                .AsNoTracking()
+                .FirstOrDefaultCompatAsync(u => u.Id == measurementUnitId.Value, cancellationToken);
+
+            if (measurementUnit is null)
+                throw new NotFoundException("UnitOfMeasure", measurementUnitId.Value);
+
+            if (measurementUnit.Kind != UnitKind.Measurement)
+                throw new ValidationException("measurementUnitId must refer to a measurement unit.");
+        }
+
+        if (request.PackageTypeId.HasValue)
+        {
+            var packageType = await _context.UnitsOfMeasure
+                .AsNoTracking()
+                .FirstOrDefaultCompatAsync(u => u.Id == request.PackageTypeId.Value, cancellationToken);
+
+            if (packageType is null)
+                throw new NotFoundException("UnitOfMeasure", request.PackageTypeId.Value);
+
+            if (packageType.Kind != UnitKind.Packaging)
+                throw new ValidationException("packageTypeId must refer to a packaging unit.");
+        }
+
+        if (request.VariantGroupId.HasValue)
+        {
+            var variantGroupExists = await _context.MasterProducts
+                .AsNoTracking()
+                .AnyCompatAsync(p => p.Id == request.VariantGroupId.Value || p.VariantGroupId == request.VariantGroupId.Value, cancellationToken);
+
+            if (!variantGroupExists)
+                throw new NotFoundException("VariantGroup", request.VariantGroupId.Value);
+        }
 
         product.UpdateDetails(
             nameAr: request.NameAr,
@@ -48,7 +84,17 @@ public class UpdateMasterProductCommandHandler : IRequestHandler<UpdateMasterPro
 
         product.ChangeCategory(request.CategoryId);
         product.ChangeBrand(request.BrandId);
-        product.ChangeUnit(request.UnitId);
+        product.ChangeMeasurement(request.MeasurementValue, measurementUnitId);
+        product.ChangePackageType(request.PackageTypeId);
+
+        if (request.VariantGroupId.HasValue)
+        {
+            product.ChangeVariantGroup(request.VariantGroupId.Value);
+        }
+        else if (product.VariantGroupId == Guid.Empty)
+        {
+            product.ChangeVariantGroup(product.Id);
+        }
 
         if (request.Status.HasValue)
         {

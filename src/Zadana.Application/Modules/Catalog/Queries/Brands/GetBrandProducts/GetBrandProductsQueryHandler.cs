@@ -48,6 +48,7 @@ public class GetBrandProductsQueryHandler : IRequestHandler<GetBrandProductsQuer
                 request.CategoryId,
                 request.SubcategoryId,
                 request.UnitId,
+                request.PackageTypeId,
                 request.MinPrice,
                 request.MaxPrice,
                 request.Sort,
@@ -104,7 +105,8 @@ public class GetBrandProductsQueryHandler : IRequestHandler<GetBrandProductsQuer
                 product.Vendor.AcceptOrders &&
                 (!request.SubcategoryId.HasValue || product.MasterProduct.CategoryId == request.SubcategoryId.Value) &&
                 (!request.CategoryId.HasValue || request.SubcategoryId.HasValue || (categoryScopeIds != null && categoryScopeIds.Contains(product.MasterProduct.CategoryId))) &&
-                (!request.UnitId.HasValue || product.MasterProduct.UnitOfMeasureId == request.UnitId.Value) &&
+                (!request.UnitId.HasValue || product.MasterProduct.MeasurementUnitId == request.UnitId.Value) &&
+                (!request.PackageTypeId.HasValue || product.MasterProduct.PackageTypeId == request.PackageTypeId.Value) &&
                 (!request.MinPrice.HasValue || product.SellingPrice >= request.MinPrice.Value) &&
                 (!request.MaxPrice.HasValue || product.SellingPrice <= request.MaxPrice.Value))
             .Select(product => new RawBrandProduct(
@@ -118,8 +120,12 @@ public class GetBrandProductsQueryHandler : IRequestHandler<GetBrandProductsQuer
                 product.Vendor.BusinessNameEn,
                 product.SellingPrice,
                 product.CompareAtPrice,
-                product.MasterProduct.UnitOfMeasure != null ? product.MasterProduct.UnitOfMeasure.NameAr : null,
-                product.MasterProduct.UnitOfMeasure != null ? product.MasterProduct.UnitOfMeasure.NameEn : null,
+                product.MasterProduct.PackageType != null ? product.MasterProduct.PackageType.NameAr : null,
+                product.MasterProduct.PackageType != null ? product.MasterProduct.PackageType.NameEn : null,
+                product.MasterProduct.MeasurementValue,
+                product.MasterProduct.MeasurementUnit != null ? product.MasterProduct.MeasurementUnit.NameAr : product.MasterProduct.UnitOfMeasure != null ? product.MasterProduct.UnitOfMeasure.NameAr : null,
+                product.MasterProduct.MeasurementUnit != null ? product.MasterProduct.MeasurementUnit.NameEn : product.MasterProduct.UnitOfMeasure != null ? product.MasterProduct.UnitOfMeasure.NameEn : null,
+                product.MasterProduct.MeasurementUnit != null ? product.MasterProduct.MeasurementUnit.Symbol : product.MasterProduct.UnitOfMeasure != null ? product.MasterProduct.UnitOfMeasure.Symbol : null,
                 product.MasterProduct.Images
                     .OrderByDescending(image => image.IsPrimary)
                     .ThenBy(image => image.DisplayOrder)
@@ -144,9 +150,15 @@ public class GetBrandProductsQueryHandler : IRequestHandler<GetBrandProductsQuer
                     BrandCatalogQueryHelpers.PickLocalized(product.StoreAr, product.StoreEn),
                     product.SellingPrice,
                     product.CompareAtPrice,
-                    NormalizeText(product.UnitAr),
-                    NormalizeText(product.UnitEn),
-                    BrandCatalogQueryHelpers.PickLocalizedNullable(product.UnitAr, product.UnitEn),
+                    NormalizeText(product.PackageTypeAr),
+                    NormalizeText(product.PackageTypeEn),
+                    product.MeasurementValue,
+                    NormalizeText(product.MeasurementUnitAr),
+                    NormalizeText(product.MeasurementUnitEn),
+                    NormalizeText(product.MeasurementUnitSymbol),
+                    BrandCatalogQueryHelpers.PickLocalizedNullable(
+                        MasterProductDisplayDto.BuildDisplaySize(product.PackageTypeAr, product.MeasurementValue, product.MeasurementUnitAr, product.MeasurementUnitSymbol, true),
+                        MasterProductDisplayDto.BuildDisplaySize(product.PackageTypeEn, product.MeasurementValue, product.MeasurementUnitEn, product.MeasurementUnitSymbol, false)),
                     product.ImageUrl,
                     salesCount,
                     reviewStats?.AverageRating,
@@ -172,6 +184,7 @@ public class GetBrandProductsQueryHandler : IRequestHandler<GetBrandProductsQuer
                 request.CategoryId,
                 request.SubcategoryId,
                 request.UnitId,
+                request.PackageTypeId,
                 request.MinPrice,
                 request.MaxPrice,
                 BrandCatalogQueryHelpers.NormalizeSort(request.Sort)),
@@ -301,8 +314,12 @@ public class GetBrandProductsQueryHandler : IRequestHandler<GetBrandProductsQuer
         string StoreEn,
         decimal SellingPrice,
         decimal? CompareAtPrice,
-        string? UnitAr,
-        string? UnitEn,
+        string? PackageTypeAr,
+        string? PackageTypeEn,
+        decimal? MeasurementValue,
+        string? MeasurementUnitAr,
+        string? MeasurementUnitEn,
+        string? MeasurementUnitSymbol,
         string? ImageUrl);
 
     private sealed record BrandProductSource(
@@ -316,8 +333,12 @@ public class GetBrandProductsQueryHandler : IRequestHandler<GetBrandProductsQuer
         string Store,
         decimal SellingPrice,
         decimal? CompareAtPrice,
-        string? UnitAr,
-        string? UnitEn,
+        string? PackageTypeAr,
+        string? PackageTypeEn,
+        decimal? MeasurementValue,
+        string? MeasurementUnitAr,
+        string? MeasurementUnitEn,
+        string? MeasurementUnitSymbol,
         string? Unit,
         string? ImageUrl,
         int SalesCount,

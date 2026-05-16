@@ -44,6 +44,7 @@ public class CategoriesController : ApiControllerBase
         [FromQuery] string? sort,
         [FromQuery] int page = 1,
         [FromQuery(Name = "per_page")] int perPage = 20,
+        [FromQuery(Name = "package_type_id")] Guid? packageTypeId = null,
         CancellationToken cancellationToken = default)
     {
         var effectiveCategoryId = categoryId ?? queryCategoryId;
@@ -54,6 +55,7 @@ public class CategoriesController : ApiControllerBase
                 productTypeId,
                 partId,
                 quantityId,
+                packageTypeId,
                 brandId,
                 minPrice,
                 maxPrice,

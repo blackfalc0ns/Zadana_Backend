@@ -61,7 +61,8 @@ public class GetCategoryFiltersQueryHandler : IRequestHandler<GetCategoryFilters
                         product.ProductTypeId,
                         product.PartId,
                         product.BrandId,
-                        product.UnitOfMeasureId))
+                        product.MeasurementUnitId,
+                        product.PackageTypeId))
                     .ToListAsync(token);
 
                 var scopedMasterProducts = masterProducts
@@ -87,8 +88,14 @@ public class GetCategoryFiltersQueryHandler : IRequestHandler<GetCategoryFilters
                     .ToList();
 
                 var unitIds = scopedMasterProducts
-                    .Where(product => product.UnitOfMeasureId.HasValue)
-                    .Select(product => product.UnitOfMeasureId!.Value)
+                    .Where(product => product.MeasurementUnitId.HasValue)
+                    .Select(product => product.MeasurementUnitId!.Value)
+                    .Distinct()
+                    .ToList();
+
+                var packageTypeIds = scopedMasterProducts
+                    .Where(product => product.PackageTypeId.HasValue)
+                    .Select(product => product.PackageTypeId!.Value)
                     .Distinct()
                     .ToList();
 
@@ -155,7 +162,7 @@ public class GetCategoryFiltersQueryHandler : IRequestHandler<GetCategoryFilters
 
                 var quantityRows = await _context.UnitsOfMeasure
                     .AsNoTracking()
-                    .Where(unit => unit.IsActive && unitIds.Contains(unit.Id))
+                    .Where(unit => unit.IsActive && unit.Kind == UnitKind.Measurement && unitIds.Contains(unit.Id))
                     .Select(unit => new RawNamedRow(
                         unit.Id,
                         unit.NameAr,
@@ -163,6 +170,22 @@ public class GetCategoryFiltersQueryHandler : IRequestHandler<GetCategoryFilters
                     .ToListAsync(token);
 
                 var quantities = quantityRows
+                    .Select(unit => new CatalogFilterNamedItemDto(
+                        unit.Id,
+                        PickLocalized(unit.NameAr, unit.NameEn)))
+                    .OrderBy(item => item.Name, StringComparer.CurrentCultureIgnoreCase)
+                    .ToList();
+
+                var packageTypeRows = await _context.UnitsOfMeasure
+                    .AsNoTracking()
+                    .Where(unit => unit.IsActive && unit.Kind == UnitKind.Packaging && packageTypeIds.Contains(unit.Id))
+                    .Select(unit => new RawNamedRow(
+                        unit.Id,
+                        unit.NameAr,
+                        unit.NameEn))
+                    .ToListAsync(token);
+
+                var packageTypes = packageTypeRows
                     .Select(unit => new CatalogFilterNamedItemDto(
                         unit.Id,
                         PickLocalized(unit.NameAr, unit.NameEn)))
@@ -201,6 +224,7 @@ public class GetCategoryFiltersQueryHandler : IRequestHandler<GetCategoryFilters
                     productTypes,
                     parts,
                     quantities,
+                    packageTypes,
                     brands,
                     priceRange,
                     BuildSortOptions());
@@ -248,7 +272,8 @@ public class GetCategoryFiltersQueryHandler : IRequestHandler<GetCategoryFilters
         Guid? ProductTypeId,
         Guid? PartId,
         Guid? BrandId,
-        Guid? UnitOfMeasureId);
+        Guid? MeasurementUnitId,
+        Guid? PackageTypeId);
 
     private sealed record RawBrandRow(
         Guid Id,

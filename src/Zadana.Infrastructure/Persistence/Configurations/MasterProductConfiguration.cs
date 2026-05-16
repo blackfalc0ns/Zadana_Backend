@@ -33,6 +33,9 @@ public class MasterProductConfiguration : IEntityTypeConfiguration<MasterProduct
         builder.Property(p => p.Barcode)
             .HasMaxLength(50);
 
+        builder.Property(p => p.MeasurementValue)
+            .HasColumnType("decimal(18,2)");
+
         builder.Property(p => p.Status)
             .IsRequired()
             .HasMaxLength(20)
@@ -52,6 +55,16 @@ public class MasterProductConfiguration : IEntityTypeConfiguration<MasterProduct
         builder.HasOne(p => p.UnitOfMeasure)
             .WithMany(u => u.MasterProducts)
             .HasForeignKey(p => p.UnitOfMeasureId)
+            .OnDelete(DeleteBehavior.Restrict);
+
+        builder.HasOne(p => p.PackageType)
+            .WithMany(u => u.PackageTypeMasterProducts)
+            .HasForeignKey(p => p.PackageTypeId)
+            .OnDelete(DeleteBehavior.Restrict);
+
+        builder.HasOne(p => p.MeasurementUnit)
+            .WithMany(u => u.MeasurementMasterProducts)
+            .HasForeignKey(p => p.MeasurementUnitId)
             .OnDelete(DeleteBehavior.Restrict);
 
         builder.HasOne(p => p.ProductType)
@@ -79,6 +92,15 @@ public class MasterProductConfiguration : IEntityTypeConfiguration<MasterProduct
 
         builder.HasIndex(p => p.BrandId)
             .HasDatabaseName("IX_MasterProduct_BrandId");
+
+        builder.HasIndex(p => p.PackageTypeId)
+            .HasDatabaseName("IX_MasterProduct_PackageTypeId");
+
+        builder.HasIndex(p => p.MeasurementUnitId)
+            .HasDatabaseName("IX_MasterProduct_MeasurementUnitId");
+
+        builder.HasIndex(p => p.VariantGroupId)
+            .HasDatabaseName("IX_MasterProduct_VariantGroupId");
 
         builder.HasIndex(p => p.ProductTypeId)
             .HasDatabaseName("IX_MasterProduct_ProductTypeId");

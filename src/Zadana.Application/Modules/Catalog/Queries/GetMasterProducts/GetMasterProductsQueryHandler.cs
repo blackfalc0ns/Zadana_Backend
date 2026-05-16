@@ -20,7 +20,8 @@ public class GetMasterProductsQueryHandler : IRequestHandler<GetMasterProductsQu
         var query = _context.MasterProducts
             .Include(p => p.Images)
             .Include(p => p.Brand)
-            .Include(p => p.UnitOfMeasure)
+            .Include(p => p.PackageType)
+            .Include(p => p.MeasurementUnit)
             .AsNoTracking();
 
         if (!string.IsNullOrWhiteSpace(request.SearchTerm))
@@ -43,33 +44,20 @@ public class GetMasterProductsQueryHandler : IRequestHandler<GetMasterProductsQu
             query = query.Where(p => p.Status == request.Status.Value);
         }
 
-        var projectedQuery = query
-            .OrderByDescending(p => p.Id)
-            .Select(p => new MasterProductDto(
-                p.Id,
-                p.NameAr,
-                p.NameEn,
-                p.Slug,
-                p.DescriptionAr,
-                p.DescriptionEn,
-                p.Barcode,
-                p.CategoryId,
-                p.BrandId,
-                p.Brand != null ? p.Brand.NameAr : null,
-                p.Brand != null ? p.Brand.NameEn : null,
-                p.UnitOfMeasureId,
-                p.UnitOfMeasure != null ? p.UnitOfMeasure.NameAr : null,
-                p.UnitOfMeasure != null ? p.UnitOfMeasure.NameEn : null,
-                p.Status.ToString(),
-                request.VendorId.HasValue && _context.VendorProducts.Any(vp => vp.MasterProductId == p.Id && vp.VendorId == request.VendorId.Value),
-                p.Images.Select(i => new MasterProductImageDto(i.Url, i.AltText, i.DisplayOrder, i.IsPrimary)).ToList(),
-                p.CreatedAtUtc,
-                p.UpdatedAtUtc
-            ));
+        var totalCount = await query.CountAsync(cancellationToken);
 
-        return await PaginatedList<MasterProductDto>.CreateAsync(
-            projectedQuery,
-            request.PageNumber,
-            request.PageSize);
+        var products = await query
+            .OrderByDescending(p => p.Id)
+            .Skip((request.PageNumber - 1) * request.PageSize)
+            .Take(request.PageSize)
+            .ToListAsync(cancellationToken);
+
+        var items = products
+            .Select(p => MasterProductDisplayDto.ToDto(
+                p,
+                request.VendorId.HasValue && _context.VendorProducts.Any(vp => vp.MasterProductId == p.Id && vp.VendorId == request.VendorId.Value)))
+            .ToList();
+
+        return new PaginatedList<MasterProductDto>(items, totalCount, request.PageNumber, request.PageSize);
     }
 }

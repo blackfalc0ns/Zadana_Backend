@@ -24,7 +24,7 @@ public class AdminUnitsController : ApiControllerBase
     [HttpPost]
     public async Task<ActionResult<UnitOfMeasureDto>> CreateUnit([FromBody] CreateUnitRequest request)
     {
-        var result = await Sender.Send(new CreateUnitCommand(request.NameAr, request.NameEn, request.Symbol));
+        var result = await Sender.Send(new CreateUnitCommand(request.NameAr, request.NameEn, request.Symbol, request.Kind));
         return Ok(result);
     }
 
@@ -36,6 +36,7 @@ public class AdminUnitsController : ApiControllerBase
             request.NameAr,
             request.NameEn,
             request.Symbol,
+            request.Kind,
             request.IsActive);
 
         await Sender.Send(command);

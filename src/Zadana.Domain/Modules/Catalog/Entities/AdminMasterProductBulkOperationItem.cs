@@ -15,6 +15,10 @@ public class AdminMasterProductBulkOperationItem : BaseEntity
     public Guid CategoryId { get; private set; }
     public Guid? BrandId { get; private set; }
     public Guid? UnitId { get; private set; }
+    public Guid? PackageTypeId { get; private set; }
+    public decimal? MeasurementValue { get; private set; }
+    public Guid? MeasurementUnitId { get; private set; }
+    public Guid? VariantGroupId { get; private set; }
     public ProductStatus StatusValue { get; private set; }
     public string? DescriptionAr { get; private set; }
     public string? DescriptionEn { get; private set; }
@@ -27,6 +31,8 @@ public class AdminMasterProductBulkOperationItem : BaseEntity
     public Category Category { get; private set; } = null!;
     public Brand? Brand { get; private set; }
     public UnitOfMeasure? Unit { get; private set; }
+    public UnitOfMeasure? PackageType { get; private set; }
+    public UnitOfMeasure? MeasurementUnit { get; private set; }
 
     private AdminMasterProductBulkOperationItem() { }
 
@@ -39,6 +45,10 @@ public class AdminMasterProductBulkOperationItem : BaseEntity
         Guid categoryId,
         Guid? brandId,
         Guid? unitId,
+        Guid? packageTypeId,
+        decimal? measurementValue,
+        Guid? measurementUnitId,
+        Guid? variantGroupId,
         ProductStatus statusValue,
         string? descriptionAr,
         string? descriptionEn,
@@ -52,6 +62,10 @@ public class AdminMasterProductBulkOperationItem : BaseEntity
         CategoryId = categoryId;
         BrandId = brandId;
         UnitId = unitId;
+        PackageTypeId = packageTypeId;
+        MeasurementValue = measurementValue;
+        MeasurementUnitId = measurementUnitId ?? unitId;
+        VariantGroupId = variantGroupId;
         StatusValue = statusValue;
         DescriptionAr = descriptionAr?.Trim();
         DescriptionEn = descriptionEn?.Trim();

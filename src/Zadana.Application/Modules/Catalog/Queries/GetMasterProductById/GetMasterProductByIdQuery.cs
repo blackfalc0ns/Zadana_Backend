@@ -22,33 +22,45 @@ public class GetMasterProductByIdQueryHandler : IRequestHandler<GetMasterProduct
         var product = await _context.MasterProducts
             .Include(p => p.Images)
             .Include(p => p.Brand)
-            .Include(p => p.UnitOfMeasure)
+            .Include(p => p.PackageType)
+            .Include(p => p.MeasurementUnit)
             .AsNoTracking()
             .FirstOrDefaultAsync(p => p.Id == request.Id, cancellationToken);
 
         if (product == null)
             throw new NotFoundException("MasterProduct", request.Id);
 
-        return new MasterProductDto(
-            product.Id,
-            product.NameAr,
-            product.NameEn,
-            product.Slug,
-            product.DescriptionAr,
-            product.DescriptionEn,
-            product.Barcode,
-            product.CategoryId,
-            product.BrandId,
-            product.Brand != null ? product.Brand.NameAr : null,
-            product.Brand != null ? product.Brand.NameEn : null,
-            product.UnitOfMeasureId,
-            product.UnitOfMeasure != null ? product.UnitOfMeasure.NameAr : null,
-            product.UnitOfMeasure != null ? product.UnitOfMeasure.NameEn : null,
-            product.Status.ToString(),
-            false,
-            product.Images.Select(i => new MasterProductImageDto(i.Url, i.AltText, i.DisplayOrder, i.IsPrimary)).ToList(),
-            product.CreatedAtUtc,
-            product.UpdatedAtUtc
-        );
+        var variants = await _context.MasterProducts
+            .AsNoTracking()
+            .Include(p => p.PackageType)
+            .Include(p => p.MeasurementUnit)
+            .Where(p => p.VariantGroupId == product.VariantGroupId)
+            .OrderBy(p => p.MeasurementValue ?? decimal.MaxValue)
+            .ThenBy(p => p.NameAr)
+            .Select(p => new MasterProductVariantOptionDto(
+                p.Id,
+                _context.VendorProducts
+                    .Where(vp => vp.MasterProductId == p.Id)
+                    .OrderBy(vp => vp.CreatedAtUtc)
+                    .Select(vp => (Guid?)vp.Id)
+                    .FirstOrDefault(),
+                p.NameAr,
+                p.NameEn,
+                MasterProductDisplayDto.BuildDisplaySize(
+                    p.PackageType != null ? p.PackageType.NameAr : null,
+                    p.MeasurementValue,
+                    p.MeasurementUnit != null ? p.MeasurementUnit.NameAr : null,
+                    p.MeasurementUnit != null ? p.MeasurementUnit.Symbol : null,
+                    true),
+                MasterProductDisplayDto.BuildDisplaySize(
+                    p.PackageType != null ? p.PackageType.NameEn : null,
+                    p.MeasurementValue,
+                    p.MeasurementUnit != null ? p.MeasurementUnit.NameEn : null,
+                    p.MeasurementUnit != null ? p.MeasurementUnit.Symbol : null,
+                    false),
+                p.Id == product.Id))
+            .ToListAsync(cancellationToken);
+
+        return MasterProductDisplayDto.ToDto(product, false, variants);
     }
 }

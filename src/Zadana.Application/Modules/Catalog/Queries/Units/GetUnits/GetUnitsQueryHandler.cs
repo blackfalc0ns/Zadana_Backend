@@ -24,12 +24,14 @@ public class GetUnitsQueryHandler : IRequestHandler<GetUnitsQuery, List<UnitOfMe
         }
 
         var units = await query
-            .OrderBy(u => u.NameEn)
+            .OrderBy(u => u.Kind)
+            .ThenBy(u => u.NameEn)
             .Select(u => new UnitOfMeasureDto(
                 u.Id,
                 u.NameAr,
                 u.NameEn,
                 u.Symbol,
+                u.Kind,
                 u.IsActive))
             .ToListAsync(cancellationToken);
 

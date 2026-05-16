@@ -33,6 +33,9 @@ public class AdminMasterProductBulkOperationItemConfiguration : IEntityTypeConfi
         builder.Property(x => x.DescriptionEn)
             .HasMaxLength(2000);
 
+        builder.Property(x => x.MeasurementValue)
+            .HasColumnType("decimal(18,2)");
+
         builder.Property(x => x.ImagesJson)
             .HasColumnType("nvarchar(max)");
 
@@ -52,6 +55,16 @@ public class AdminMasterProductBulkOperationItemConfiguration : IEntityTypeConfi
         builder.HasOne(x => x.Unit)
             .WithMany()
             .HasForeignKey(x => x.UnitId)
+            .OnDelete(DeleteBehavior.NoAction);
+
+        builder.HasOne(x => x.PackageType)
+            .WithMany()
+            .HasForeignKey(x => x.PackageTypeId)
+            .OnDelete(DeleteBehavior.NoAction);
+
+        builder.HasOne(x => x.MeasurementUnit)
+            .WithMany()
+            .HasForeignKey(x => x.MeasurementUnitId)
             .OnDelete(DeleteBehavior.NoAction);
 
         builder.HasIndex(x => x.OperationId);

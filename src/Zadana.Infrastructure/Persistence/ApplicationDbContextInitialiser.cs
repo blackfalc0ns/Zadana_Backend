@@ -1,6 +1,7 @@
 using Microsoft.AspNetCore.Identity;
 using Microsoft.EntityFrameworkCore;
 using Zadana.Domain.Modules.Catalog.Entities;
+using Zadana.Domain.Modules.Catalog.Enums;
 using Zadana.Domain.Modules.Identity.Constants;
 using Zadana.Domain.Modules.Identity.Entities;
 using Zadana.Domain.Modules.Identity.Enums;
@@ -58,10 +59,8 @@ public class ApplicationDbContextInitialiser
     private async Task SeedUnitsOfMeasureAsync()
     {
         var seeds = BuildUnitSeeds();
-        var names = seeds.Select(seed => seed.NameEn).ToList();
-        var existingUnits = await _context.UnitsOfMeasure
-            .Where(unit => names.Contains(unit.NameEn))
-            .ToListAsync();
+        var names = seeds.Select(seed => seed.NameEn).ToHashSet(StringComparer.OrdinalIgnoreCase);
+        var existingUnits = await _context.UnitsOfMeasure.ToListAsync();
         var existingByNameEn = existingUnits
             .GroupBy(unit => unit.NameEn, StringComparer.OrdinalIgnoreCase)
             .ToDictionary(group => group.Key, group => group.First(), StringComparer.OrdinalIgnoreCase);
@@ -70,12 +69,17 @@ public class ApplicationDbContextInitialiser
         {
             if (existingByNameEn.TryGetValue(seed.NameEn, out var existing))
             {
-                existing.Update(seed.NameAr, seed.NameEn, seed.Symbol);
+                existing.Update(seed.NameAr, seed.NameEn, seed.Symbol, ResolveUnitKind(seed.NameEn));
                 existing.Activate();
                 continue;
             }
 
-            _context.UnitsOfMeasure.Add(new UnitOfMeasure(seed.NameAr, seed.NameEn, seed.Symbol));
+            _context.UnitsOfMeasure.Add(new UnitOfMeasure(seed.NameAr, seed.NameEn, seed.Symbol, ResolveUnitKind(seed.NameEn)));
+        }
+
+        foreach (var obsoleteUnit in existingUnits.Where(unit => !names.Contains(unit.NameEn)))
+        {
+            obsoleteUnit.Deactivate();
         }
 
         await _context.SaveChangesAsync();
@@ -367,28 +371,14 @@ public class ApplicationDbContextInitialiser
         new("عبوة", "Pack", "pack"),
         new("علبة", "Box", "box"),
         new("كرتونة", "Carton", "ctn"),
-        new("صندوق", "Case", "case"),
         new("زجاجة", "Bottle", "btl"),
         new("برطمان", "Jar", "jar"),
         new("علبة معدنية", "Can", "can"),
         new("كيس تغليف", "Pouch", "pouch"),
         new("كيس صغير", "Sachet", "sachet"),
         new("كيس", "Bag", "bag"),
-        new("رول", "Roll", "roll"),
-        new("ورقة", "Sheet", "sheet"),
-        new("زوج", "Pair", "pair"),
-        new("طقم", "Set", "set"),
-        new("حزمة", "Bundle", "bundle"),
-        new("دستة", "Dozen", "dz"),
         new("صينية", "Tray", "tray"),
-        new("قفص", "Crate", "crate"),
-        new("طبالية", "Pallet", "pallet"),
-        new("شريط", "Strip", "strip"),
-        new("شريط تغليف", "Blister", "blister"),
         new("أنبوب", "Tube", "tube"),
-        new("قالب", "Bar", "bar"),
-        new("رغيف", "Loaf", "loaf"),
-        new("شريحة", "Slice", "slice"),
         new("كبسولة", "Capsule", "cap"),
         new("قرص", "Tablet", "tab"),
         new("قارورة صغيرة", "Vial", "vial"),
@@ -397,22 +387,7 @@ public class ApplicationDbContextInitialiser
         new("جرام", "Gram", "g"),
         new("ملليجرام", "Milligram", "mg"),
         new("لتر", "Liter", "L"),
-        new("ملليلتر", "Milliliter", "mL"),
-        new("متر", "Meter", "m"),
-        new("سنتيمتر", "Centimeter", "cm"),
-        new("ملليمتر", "Millimeter", "mm"),
-        new("متر مربع", "Square Meter", "m2"),
-        new("متر مكعب", "Cubic Meter", "m3"),
-        new("ساعة", "Hour", "hr"),
-        new("يوم", "Day", "day"),
-        new("خدمة", "Service", "svc"),
-        new("زيارة", "Visit", "visit"),
-        new("وجبة", "Meal", "meal"),
-        new("حصة تقديم", "Serving", "serving"),
-        new("حصة", "Portion", "portion"),
-        new("كوب", "Cup", "cup"),
-        new("مغرفة", "Scoop", "scoop"),
-        new("قطرة", "Drop", "drop")
+        new("ملليلتر", "Milliliter", "mL")
     ];
 
     private static IReadOnlyList<RoleSeed> BuildRoleSeeds() =>
@@ -542,6 +517,16 @@ public class ApplicationDbContextInitialiser
         }
 
         return string.Concat(value[..1].ToUpperInvariant(), value[1..].ToLowerInvariant());
+    }
+
+    private static UnitKind ResolveUnitKind(string unitNameEn)
+    {
+        return unitNameEn switch
+        {
+            "Piece" or "Pack" or "Box" or "Carton" or "Bottle" or "Jar" or "Can" or "Pouch" or "Sachet" or "Bag" or "Tray" or "Tube" or "Capsule" or "Tablet" or "Vial" or "Ampoule"
+                => UnitKind.Packaging,
+            _ => UnitKind.Measurement
+        };
     }
 
     private sealed record PermissionSeed(
