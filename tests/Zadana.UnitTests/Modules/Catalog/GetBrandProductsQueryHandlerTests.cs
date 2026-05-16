@@ -82,7 +82,18 @@ public class GetBrandProductsQueryHandlerTests
             TestServiceFactory.CreateCachingOptions());
 
         var result = await handler.Handle(
-            new GetBrandProductsQuery(brand.Id, dairy.Id, milk.Id, liter.Id, 20m, 30m, null, 1, 20),
+            new GetBrandProductsQuery(
+                brand.Id,
+                dairy.Id,
+                milk.Id,
+                liter.Id,
+                null,
+                null,
+                20m,
+                30m,
+                null,
+                1,
+                20),
             CancellationToken.None);
 
         result.Total.Should().Be(1);
@@ -174,14 +185,36 @@ public class GetBrandProductsQueryHandlerTests
             TestServiceFactory.CreateCachingOptions());
 
         var alphabetical = await handler.Handle(
-            new GetBrandProductsQuery(brand.Id, null, null, null, null, null, "alphabetical", 1, 2),
+            new GetBrandProductsQuery(
+                brand.Id,
+                null,
+                null,
+                null,
+                null,
+                null,
+                null,
+                null,
+                "alphabetical",
+                1,
+                2),
             CancellationToken.None);
 
         alphabetical.Total.Should().Be(3);
         alphabetical.Items.Select(item => item.Name).Should().Equal("Alpha", "Gamma");
 
         var bestSelling = await handler.Handle(
-            new GetBrandProductsQuery(brand.Id, null, null, null, null, null, "best_selling", 1, 3),
+            new GetBrandProductsQuery(
+                brand.Id,
+                null,
+                null,
+                null,
+                null,
+                null,
+                null,
+                null,
+                "best_selling",
+                1,
+                3),
             CancellationToken.None);
 
         bestSelling.Items.First().Name.Should().Be("Zeta");
@@ -225,7 +258,18 @@ public class GetBrandProductsQueryHandlerTests
             TestServiceFactory.CreateCachingOptions());
 
         var result = await handler.Handle(
-            new GetBrandProductsQuery(brand.Id, null, null, null, null, null, null, 1, 20),
+            new GetBrandProductsQuery(
+                brand.Id,
+                null,
+                null,
+                null,
+                null,
+                null,
+                null,
+                null,
+                null,
+                1,
+                20),
             CancellationToken.None);
 
         result.Total.Should().Be(1);

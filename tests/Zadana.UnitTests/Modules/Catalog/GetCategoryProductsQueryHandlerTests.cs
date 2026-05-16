@@ -27,7 +27,7 @@ public class GetCategoryProductsQueryHandlerTests
             TestServiceFactory.CreateCachingOptions());
 
         var act = () => handler.Handle(
-            new GetCategoryProductsQuery(Guid.NewGuid(), null, null, null, null, null, null, null, null, 1, 20),
+            new GetCategoryProductsQuery(Guid.NewGuid(), null, null, null, null, null, null, null, null, null, 1, 20),
             CancellationToken.None);
 
         await act.Should().ThrowAsync<NotFoundException>();
@@ -97,6 +97,8 @@ public class GetCategoryProductsQueryHandlerTests
                 milkType.Id,
                 fullCreamPart.Id,
                 liter.Id,
+                null,
+                null,
                 brandA.Id,
                 20m,
                 30m,
@@ -197,14 +199,14 @@ public class GetCategoryProductsQueryHandlerTests
             TestServiceFactory.CreateCachingOptions());
 
         var alphabetical = await handler.Handle(
-            new GetCategoryProductsQuery(root.Id, null, null, null, null, null, null, null, "alphabetical", 1, 2),
+            new GetCategoryProductsQuery(root.Id, null, null, null, null, null, null, null, null, null, "alphabetical", 1, 2),
             CancellationToken.None);
 
         alphabetical.Total.Should().Be(3);
         alphabetical.Items.Select(item => item.Name).Should().Equal("Alpha", "Gamma");
 
         var bestSelling = await handler.Handle(
-            new GetCategoryProductsQuery(root.Id, null, null, null, null, null, null, null, "best_selling", 1, 3),
+            new GetCategoryProductsQuery(root.Id, null, null, null, null, null, null, null, null, null, "best_selling", 1, 3),
             CancellationToken.None);
 
         bestSelling.Items.First().Name.Should().Be("Zeta");
@@ -254,7 +256,7 @@ public class GetCategoryProductsQueryHandlerTests
             TestServiceFactory.CreateCachingOptions());
 
         var result = await handler.Handle(
-            new GetCategoryProductsQuery(root.Id, null, null, null, null, null, null, null, "alphabetical", 1, 20),
+            new GetCategoryProductsQuery(root.Id, null, null, null, null, null, null, null, null, null, "alphabetical", 1, 20),
             CancellationToken.None);
 
         result.Total.Should().Be(2);
@@ -299,7 +301,7 @@ public class GetCategoryProductsQueryHandlerTests
             TestServiceFactory.CreateCachingOptions());
 
         var result = await handler.Handle(
-            new GetCategoryProductsQuery(category.Id, null, null, null, null, null, null, null, null, 1, 20),
+            new GetCategoryProductsQuery(category.Id, null, null, null, null, null, null, null, null, null, 1, 20),
             CancellationToken.None);
 
         result.Total.Should().Be(1);
@@ -348,7 +350,7 @@ public class GetCategoryProductsQueryHandlerTests
             TestServiceFactory.CreateCachingOptions());
 
         var result = await handler.Handle(
-            new GetCategoryProductsQuery(null, null, null, null, null, null, null, null, "alphabetical", 1, 20),
+            new GetCategoryProductsQuery(null, null, null, null, null, null, null, null, null, null, "alphabetical", 1, 20),
             CancellationToken.None);
 
         result.Total.Should().Be(2);
@@ -399,7 +401,7 @@ public class GetCategoryProductsQueryHandlerTests
             TestServiceFactory.CreateCachingOptions());
 
         var result = await handler.Handle(
-            new GetCategoryProductsQuery(null, milk.Id, null, null, null, null, null, null, null, 1, 20),
+            new GetCategoryProductsQuery(null, milk.Id, null, null, null, null, null, null, null, null, 1, 20),
             CancellationToken.None);
 
         result.Total.Should().Be(1);

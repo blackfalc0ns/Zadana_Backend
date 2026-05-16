@@ -55,7 +55,7 @@ public class BrandsControllerTests
     public async Task GetProducts_BindsQueryAndReturnsOkResult()
     {
         var dto = new BrandProductsDto(
-            new BrandProductsAppliedFiltersDto(Guid.NewGuid(), Guid.NewGuid(), Guid.NewGuid(), 10m, 20m, "newest"),
+            new BrandProductsAppliedFiltersDto(Guid.NewGuid(), Guid.NewGuid(), Guid.NewGuid(), null, null, 10m, 20m, "newest"),
             1,
             1,
             20,
@@ -64,7 +64,20 @@ public class BrandsControllerTests
         _senderMock.Setup(x => x.Send(It.IsAny<GetBrandProductsQuery>(), It.IsAny<CancellationToken>()))
             .ReturnsAsync(dto);
 
-        var result = await _controller.GetProducts(Guid.NewGuid(), Guid.NewGuid(), Guid.NewGuid(), Guid.NewGuid(), 10m, 20m, "newest", 1, 20, CancellationToken.None);
+        var result = await _controller.GetProducts(
+            Guid.NewGuid(),
+            Guid.NewGuid(),
+            Guid.NewGuid(),
+            Guid.NewGuid(),
+            null,
+            null,
+            10m,
+            20m,
+            "newest",
+            1,
+            20,
+            null,
+            CancellationToken.None);
 
         var okResult = result.Result.Should().BeOfType<OkObjectResult>().Subject;
         okResult.Value.Should().BeEquivalentTo(dto);
