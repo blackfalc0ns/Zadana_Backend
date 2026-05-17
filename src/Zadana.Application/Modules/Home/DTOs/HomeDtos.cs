@@ -12,6 +12,10 @@ public record HomeHeaderDto(
 
 public record HomeBannerDto(
     [property: JsonPropertyName("id")] Guid Id,
+    [property: JsonIgnore] string Tag,
+    [property: JsonIgnore] string Title,
+    [property: JsonIgnore] string? Subtitle,
+    [property: JsonIgnore] string? ActionLabel,
     [property: JsonPropertyName("image_url")] string ImageUrl);
 
 public record HomeCategoryDto(
