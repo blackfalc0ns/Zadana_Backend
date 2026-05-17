@@ -87,6 +87,45 @@ public class CheckoutController : ApiControllerBase
 
     private static GetCheckoutSummaryResponse MapSummary(CheckoutSummaryDto result)
     {
+        var canExposeDeliveryEstimate = result.DeliveryCheck.IsDeliverable && result.DeliveryCheck.CanProceedToCheckout;
+        var estimatedDeliveryWindow = canExposeDeliveryEstimate
+            ? new CheckoutEstimatedDeliveryWindowResponse(
+                result.EstimatedDeliveryWindow.MinMinutes,
+                result.EstimatedDeliveryWindow.MaxMinutes,
+                result.EstimatedDeliveryWindow.Title,
+                result.EstimatedDeliveryWindow.Label,
+                result.EstimatedDeliveryWindow.Subtitle,
+                result.EstimatedDeliveryWindow.Confidence,
+                result.EstimatedDeliveryWindow.Source,
+                result.EstimatedDeliveryWindow.IsApproximate,
+                result.EstimatedDeliveryWindow.CalculationMode,
+                result.EstimatedDeliveryWindow.Explanation)
+            : null;
+        var deliveryQuote = canExposeDeliveryEstimate
+            ? new CheckoutDeliveryQuoteResponse(
+                result.DeliveryQuote.DistanceKm,
+                result.DeliveryQuote.BaseFee,
+                result.DeliveryQuote.DistanceFee,
+                result.DeliveryQuote.SurgeFee,
+                result.DeliveryQuote.TotalFee,
+                result.DeliveryQuote.PricingMode,
+                result.DeliveryQuote.RuleLabel)
+            : null;
+        var deliveryBreakdown = canExposeDeliveryEstimate
+            ? new CheckoutDeliveryBreakdownResponse(
+                new CheckoutDeliveryLegResponse(
+                    result.DeliveryBreakdown.DriverToVendor.DistanceKm,
+                    result.DeliveryBreakdown.DriverToVendor.Fee,
+                    result.DeliveryBreakdown.DriverToVendor.PricingSource),
+                new CheckoutDeliveryLegResponse(
+                    result.DeliveryBreakdown.VendorToCustomer.DistanceKm,
+                    result.DeliveryBreakdown.VendorToCustomer.Fee,
+                    result.DeliveryBreakdown.VendorToCustomer.PricingSource),
+                result.DeliveryBreakdown.TotalDelivery,
+                result.DeliveryBreakdown.PricingMode,
+                result.DeliveryBreakdown.UsedEstimatedDriverPricing)
+            : null;
+
         return new GetCheckoutSummaryResponse(
             new CheckoutCartResponse(
                 result.Cart.ItemsCount,
@@ -140,37 +179,9 @@ public class CheckoutController : ApiControllerBase
                     result.PromoCode.DiscountValue,
                     result.PromoCode.DiscountAmount),
             MapDeliveryCheck(result.DeliveryCheck),
-            new CheckoutEstimatedDeliveryWindowResponse(
-                result.EstimatedDeliveryWindow.MinMinutes,
-                result.EstimatedDeliveryWindow.MaxMinutes,
-                result.EstimatedDeliveryWindow.Title,
-                result.EstimatedDeliveryWindow.Label,
-                result.EstimatedDeliveryWindow.Subtitle,
-                result.EstimatedDeliveryWindow.Confidence,
-                result.EstimatedDeliveryWindow.Source,
-                result.EstimatedDeliveryWindow.IsApproximate,
-                result.EstimatedDeliveryWindow.CalculationMode,
-                result.EstimatedDeliveryWindow.Explanation),
-            new CheckoutDeliveryQuoteResponse(
-                result.DeliveryQuote.DistanceKm,
-                result.DeliveryQuote.BaseFee,
-                result.DeliveryQuote.DistanceFee,
-                result.DeliveryQuote.SurgeFee,
-                result.DeliveryQuote.TotalFee,
-                result.DeliveryQuote.PricingMode,
-                result.DeliveryQuote.RuleLabel),
-            new CheckoutDeliveryBreakdownResponse(
-                new CheckoutDeliveryLegResponse(
-                    result.DeliveryBreakdown.DriverToVendor.DistanceKm,
-                    result.DeliveryBreakdown.DriverToVendor.Fee,
-                    result.DeliveryBreakdown.DriverToVendor.PricingSource),
-                new CheckoutDeliveryLegResponse(
-                    result.DeliveryBreakdown.VendorToCustomer.DistanceKm,
-                    result.DeliveryBreakdown.VendorToCustomer.Fee,
-                    result.DeliveryBreakdown.VendorToCustomer.PricingSource),
-                result.DeliveryBreakdown.TotalDelivery,
-                result.DeliveryBreakdown.PricingMode,
-                result.DeliveryBreakdown.UsedEstimatedDriverPricing),
+            estimatedDeliveryWindow,
+            deliveryQuote,
+            deliveryBreakdown,
             result.ShippingBreakdown.Select(item => new CheckoutShippingBreakdownLineResponse(
                 item.Code,
                 item.Label,
