@@ -3,6 +3,7 @@ using Microsoft.Extensions.Localization;
 using Zadana.Application.Common.Interfaces;
 using Zadana.Application.Common.Localization;
 using Zadana.Application.Modules.Orders.Interfaces;
+using Zadana.Application.Modules.Orders.Support;
 using Zadana.Domain.Modules.Orders.Entities;
 using Zadana.SharedKernel.Exceptions;
 
@@ -10,15 +11,18 @@ namespace Zadana.Application.Modules.Orders.Commands.AddToCart;
 
 public class AddToCartCommandHandler : IRequestHandler<AddToCartCommand, Guid>
 {
+    private readonly IApplicationDbContext _context;
     private readonly IOrderRepository _orderRepository;
     private readonly IStringLocalizer<SharedResource> _localizer;
     private readonly IUnitOfWork _unitOfWork;
 
     public AddToCartCommandHandler(
+        IApplicationDbContext context,
         IOrderRepository orderRepository,
         IStringLocalizer<SharedResource> localizer,
         IUnitOfWork unitOfWork)
     {
+        _context = context;
         _orderRepository = orderRepository;
         _localizer = localizer;
         _unitOfWork = unitOfWork;
@@ -31,6 +35,17 @@ public class AddToCartCommandHandler : IRequestHandler<AddToCartCommand, Guid>
         if (masterProduct == null)
         {
             throw new NotFoundException("MasterProduct", request.MasterProductId);
+        }
+
+        var hasVisibleOffer = await CartProjection.HasVisibleOfferAsync(
+            _context,
+            request.MasterProductId,
+            null,
+            cancellationToken);
+
+        if (!hasVisibleOffer)
+        {
+            throw new BusinessRuleException("VENDOR_OFFLINE", _localizer["Selected product is temporarily unavailable."]);
         }
 
         var cart = await _orderRepository.GetCartAsync(request.UserId, cancellationToken);

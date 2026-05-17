@@ -3,6 +3,7 @@ using Microsoft.EntityFrameworkCore;
 using Zadana.Application.Common.Interfaces;
 using Zadana.Application.Modules.Catalog.DTOs;
 using Zadana.Application.Modules.Orders.DTOs;
+using Zadana.Application.Modules.Vendors.Support;
 using Zadana.Domain.Modules.Catalog.Enums;
 using Zadana.Domain.Modules.Orders.Entities;
 using Zadana.Domain.Modules.Vendors.Enums;
@@ -66,7 +67,7 @@ internal static class CartProjection
                     false)))
             .ToDictionaryAsync(product => product.Id, cancellationToken);
 
-        var visibleOffers = await context.VendorProducts
+        var candidateOffers = await context.VendorProducts
             .AsNoTracking()
             .Where(product =>
                 masterProductIds.Contains(product.MasterProductId) &&
@@ -74,8 +75,7 @@ internal static class CartProjection
                 product.IsAvailable &&
                 product.StockQuantity > 0 &&
                 product.MasterProduct.Status == ProductStatus.Active &&
-                product.Vendor.Status == VendorStatus.Active &&
-                product.Vendor.AcceptOrders)
+                product.Vendor.Status == VendorStatus.Active)
             .Select(product => new VisibleCartOfferSnapshot(
                 product.Id,
                 product.VendorId,
@@ -92,13 +92,25 @@ internal static class CartProjection
                     .FirstOrDefault()))
             .ToListAsync(cancellationToken);
 
-        var effectiveVendorId = ResolveEffectiveVendorId(selectedVendorId, masterProductIds, visibleOffers);
+        var availabilityDecisions = await VendorCustomerAvailabilityPolicy.LoadDecisionsAsync(
+            context,
+            candidateOffers.Select(offer => offer.VendorId),
+            cancellationToken);
 
-        var scopedOffers = effectiveVendorId.HasValue
+        var visibleOffers = candidateOffers
+            .Where(offer => VendorCustomerAvailabilityPolicy.ResolveOrOffline(availabilityDecisions, offer.VendorId).IsVisibleInCatalog)
+            .ToList();
+
+        var effectiveVendorId = ResolveEffectiveVendorId(selectedVendorId, masterProductIds, visibleOffers);
+        var selectedVendorDecision = effectiveVendorId.HasValue
+            ? VendorCustomerAvailabilityPolicy.ResolveOrOffline(availabilityDecisions, effectiveVendorId.Value)
+            : null;
+
+        var scopedVisibleOffers = effectiveVendorId.HasValue
             ? visibleOffers.Where(offer => offer.VendorId == effectiveVendorId.Value)
             : visibleOffers;
 
-        var offersByProductId = scopedOffers
+        var offersByProductId = scopedVisibleOffers
             .GroupBy(offer => offer.MasterProductId)
             .ToDictionary(
                 group => group.Key,
@@ -115,10 +127,15 @@ internal static class CartProjection
             {
                 masterProducts.TryGetValue(item.MasterProductId, out var product);
                 offersByProductId.TryGetValue(item.MasterProductId, out var offers);
+                var hasCandidateAtSelectedVendor = !effectiveVendorId.HasValue || candidateOffers.Any(offer =>
+                    offer.VendorId == effectiveVendorId.Value &&
+                    offer.MasterProductId == item.MasterProductId);
                 var isAvailable = !effectiveVendorId.HasValue || (offers?.Count > 0);
                 var availabilityStatus = isAvailable
                     ? null
-                    : "unavailable_at_selected_vendor";
+                    : effectiveVendorId.HasValue && selectedVendorDecision is not null && !selectedVendorDecision.IsVisibleInCatalog && hasCandidateAtSelectedVendor
+                        ? selectedVendorDecision.ReasonCode
+                        : "unavailable_at_selected_vendor";
 
                 var vendorPrices = offers?
                     .Select(offer => new CartVendorPriceDto(
@@ -192,9 +209,11 @@ internal static class CartProjection
         var unavailableItemsCount = items.Count(item => !item.IsAvailable);
         if (effectiveVendorId.HasValue)
         {
-            canCheckout = unavailableItemsCount == 0 && totalAmount.HasValue;
+            canCheckout = (selectedVendorDecision?.IsPurchasable ?? true) && unavailableItemsCount == 0 && totalAmount.HasValue;
             checkoutBlockReason = canCheckout
                 ? null
+                : selectedVendorDecision is not null && !selectedVendorDecision.IsPurchasable
+                    ? selectedVendorDecision.ReasonCode
                 : unavailableItemsCount > 0
                     ? "cart_contains_unavailable_items"
                     : "pricing_unavailable_for_selected_vendor";
@@ -251,18 +270,39 @@ internal static class CartProjection
         Guid? vendorId,
         CancellationToken cancellationToken)
     {
-        return context.VendorProducts
+        return HasVisibleOfferInternalAsync(context, masterProductId, vendorId, cancellationToken);
+    }
+
+    private static async Task<bool> HasVisibleOfferInternalAsync(
+        IApplicationDbContext context,
+        Guid masterProductId,
+        Guid? vendorId,
+        CancellationToken cancellationToken)
+    {
+        var offers = await context.VendorProducts
             .AsNoTracking()
-            .AnyAsync(product =>
+            .Where(product =>
                 product.MasterProductId == masterProductId &&
                 (!vendorId.HasValue || product.VendorId == vendorId.Value) &&
                 product.Status == VendorProductStatus.Active &&
                 product.IsAvailable &&
                 product.StockQuantity > 0 &&
                 product.MasterProduct.Status == ProductStatus.Active &&
-                product.Vendor.Status == VendorStatus.Active &&
-                product.Vendor.AcceptOrders,
-                cancellationToken);
+                product.Vendor.Status == VendorStatus.Active)
+            .Select(product => new { product.VendorId })
+            .ToListAsync(cancellationToken);
+
+        if (offers.Count == 0)
+        {
+            return false;
+        }
+
+        var decisions = await VendorCustomerAvailabilityPolicy.LoadDecisionsAsync(
+            context,
+            offers.Select(offer => offer.VendorId),
+            cancellationToken);
+
+        return offers.Any(offer => VendorCustomerAvailabilityPolicy.ResolveOrOffline(decisions, offer.VendorId).IsVisibleInCatalog);
     }
 
     private static bool IsArabic() =>

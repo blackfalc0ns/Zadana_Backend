@@ -27,12 +27,20 @@ public sealed record CartVendorPriceDto
 
 public sealed record CartAvailableVendorDto
 {
-    public CartAvailableVendorDto(Guid id, string name, string? logoUrl, int productsCount)
+    public CartAvailableVendorDto(
+        Guid id,
+        string name,
+        string? logoUrl,
+        int productsCount,
+        bool isOnlineNow = true,
+        string? unavailableReason = null)
     {
         Id = id;
         Name = name;
         LogoUrl = logoUrl;
         ProductsCount = productsCount;
+        IsOnlineNow = isOnlineNow;
+        UnavailableReason = unavailableReason;
     }
 
     public CartAvailableVendorDto(Guid id, string name, string? logoUrl, int productsCount, string? _, string? __)
@@ -44,6 +52,8 @@ public sealed record CartAvailableVendorDto
     public string Name { get; init; }
     public string? LogoUrl { get; init; }
     public int ProductsCount { get; init; }
+    public bool IsOnlineNow { get; init; }
+    public string? UnavailableReason { get; init; }
 }
 
 public record CartAvailableVendorsDto(

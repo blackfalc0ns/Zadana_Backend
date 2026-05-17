@@ -15,11 +15,16 @@ namespace Zadana.Api.Modules.Vendors.Controllers;
 public class VendorWorkspaceStateController : ApiControllerBase
 {
     private readonly IApplicationDbContext _dbContext;
+    private readonly ICacheInvalidator _cacheInvalidator;
     private readonly ICurrentVendorService _currentVendorService;
 
-    public VendorWorkspaceStateController(IApplicationDbContext dbContext, ICurrentVendorService currentVendorService)
+    public VendorWorkspaceStateController(
+        IApplicationDbContext dbContext,
+        ICacheInvalidator cacheInvalidator,
+        ICurrentVendorService currentVendorService)
     {
         _dbContext = dbContext;
+        _cacheInvalidator = cacheInvalidator;
         _currentVendorService = currentVendorService;
     }
 
@@ -65,6 +70,7 @@ public class VendorWorkspaceStateController : ApiControllerBase
         }
 
         await _dbContext.SaveChangesAsync(cancellationToken);
+        await _cacheInvalidator.RemoveByTagsAsync(["catalog", "catalog_filters", "home"], cancellationToken);
     }
 }
 
@@ -74,10 +80,12 @@ public class VendorWorkspaceStateController : ApiControllerBase
 public class AdminVendorWorkspaceStateController : ApiControllerBase
 {
     private readonly IApplicationDbContext _dbContext;
+    private readonly ICacheInvalidator _cacheInvalidator;
 
-    public AdminVendorWorkspaceStateController(IApplicationDbContext dbContext)
+    public AdminVendorWorkspaceStateController(IApplicationDbContext dbContext, ICacheInvalidator cacheInvalidator)
     {
         _dbContext = dbContext;
+        _cacheInvalidator = cacheInvalidator;
     }
 
     [HttpGet("{feature}")]
@@ -112,6 +120,7 @@ public class AdminVendorWorkspaceStateController : ApiControllerBase
         }
 
         await _dbContext.SaveChangesAsync(cancellationToken);
+        await _cacheInvalidator.RemoveByTagsAsync(["catalog", "catalog_filters", "home"], cancellationToken);
         return NoContent();
     }
 

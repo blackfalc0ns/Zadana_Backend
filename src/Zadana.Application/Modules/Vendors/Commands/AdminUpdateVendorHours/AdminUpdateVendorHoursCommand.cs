@@ -1,5 +1,6 @@
 using FluentValidation;
 using MediatR;
+using Zadana.Application.Common.Caching;
 using Zadana.Application.Common.Interfaces;
 using Zadana.Application.Modules.Vendors.DTOs;
 using Zadana.Application.Modules.Vendors.Interfaces;
@@ -33,17 +34,20 @@ public class AdminUpdateVendorHoursCommandHandler : IRequestHandler<AdminUpdateV
     private readonly IVendorReadService _vendorReadService;
     private readonly IVendorCommunicationService _vendorCommunicationService;
     private readonly IUnitOfWork _unitOfWork;
+    private readonly ICacheInvalidator _cacheInvalidator;
 
     public AdminUpdateVendorHoursCommandHandler(
         IVendorRepository vendorRepository,
         IVendorReadService vendorReadService,
         IVendorCommunicationService vendorCommunicationService,
-        IUnitOfWork unitOfWork)
+        IUnitOfWork unitOfWork,
+        ICacheInvalidator cacheInvalidator)
     {
         _vendorRepository = vendorRepository;
         _vendorReadService = vendorReadService;
         _vendorCommunicationService = vendorCommunicationService;
         _unitOfWork = unitOfWork;
+        _cacheInvalidator = cacheInvalidator;
     }
 
     public async Task<VendorDetailDto> Handle(AdminUpdateVendorHoursCommand request, CancellationToken cancellationToken)
@@ -93,6 +97,7 @@ public class AdminUpdateVendorHoursCommandHandler : IRequestHandler<AdminUpdateV
         }
 
         await _unitOfWork.SaveChangesAsync(cancellationToken);
+        await _cacheInvalidator.RemoveByTagsAsync(CacheInvalidationProfiles.CatalogReadModels, cancellationToken);
 
         await _vendorCommunicationService.SendAsync(
             vendor,

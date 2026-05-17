@@ -1,5 +1,6 @@
 using FluentValidation;
 using MediatR;
+using Zadana.Application.Common.Caching;
 using Zadana.Application.Common.Interfaces;
 using Zadana.Application.Modules.Vendors.DTOs;
 using Zadana.Application.Modules.Vendors.Interfaces;
@@ -31,6 +32,7 @@ public class AdminUpdateVendorOperationsSettingsCommandHandler : IRequestHandler
     private readonly IVendorCommunicationService _vendorCommunicationService;
     private readonly IUnitOfWork _unitOfWork;
     private readonly ICurrentUserService _currentUserService;
+    private readonly ICacheInvalidator _cacheInvalidator;
 
     public AdminUpdateVendorOperationsSettingsCommandHandler(
         IVendorRepository vendorRepository,
@@ -38,7 +40,8 @@ public class AdminUpdateVendorOperationsSettingsCommandHandler : IRequestHandler
         IVendorReviewAuditService vendorReviewAuditService,
         IVendorCommunicationService vendorCommunicationService,
         IUnitOfWork unitOfWork,
-        ICurrentUserService currentUserService)
+        ICurrentUserService currentUserService,
+        ICacheInvalidator cacheInvalidator)
     {
         _vendorRepository = vendorRepository;
         _vendorReadService = vendorReadService;
@@ -46,6 +49,7 @@ public class AdminUpdateVendorOperationsSettingsCommandHandler : IRequestHandler
         _vendorCommunicationService = vendorCommunicationService;
         _unitOfWork = unitOfWork;
         _currentUserService = currentUserService;
+        _cacheInvalidator = cacheInvalidator;
     }
 
     public async Task<VendorDetailDto> Handle(AdminUpdateVendorOperationsSettingsCommand request, CancellationToken cancellationToken)
@@ -55,6 +59,7 @@ public class AdminUpdateVendorOperationsSettingsCommandHandler : IRequestHandler
 
         vendor.UpdateOperationsSettings(request.AcceptOrders, request.MinimumOrderAmount, request.PreparationTimeMinutes);
         await _unitOfWork.SaveChangesAsync(cancellationToken);
+        await _cacheInvalidator.RemoveByTagsAsync(CacheInvalidationProfiles.CatalogReadModels, cancellationToken);
 
         await _vendorReviewAuditService.AppendActivityEntryAsync(
             vendor.UserId,

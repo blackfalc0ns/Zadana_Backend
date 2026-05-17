@@ -8,6 +8,7 @@ using Zadana.Application.Modules.Catalog.DTOs;
 using Zadana.Application.Modules.Catalog.Interfaces;
 using Zadana.Application.Modules.Catalog.Queries;
 using Zadana.Application.Modules.Catalog.Queries.Brands;
+using Zadana.Application.Modules.Vendors.Support;
 using Zadana.Domain.Modules.Catalog.Entities;
 using Zadana.Domain.Modules.Catalog.Enums;
 using Zadana.Domain.Modules.Vendors.Enums;
@@ -103,7 +104,6 @@ public class GetBrandProductsQueryHandler : IRequestHandler<GetBrandProductsQuer
                 product.MasterProduct.Status == ProductStatus.Active &&
                 product.MasterProduct.BrandId == request.BrandId &&
                 product.Vendor.Status == VendorStatus.Active &&
-                product.Vendor.AcceptOrders &&
                 (!request.SubcategoryId.HasValue || product.MasterProduct.CategoryId == request.SubcategoryId.Value) &&
                 (!request.CategoryId.HasValue || request.SubcategoryId.HasValue || (categoryScopeIds != null && categoryScopeIds.Contains(product.MasterProduct.CategoryId))) &&
                 (!request.UnitId.HasValue || product.MasterProduct.MeasurementUnitId == request.UnitId.Value) &&
@@ -134,6 +134,15 @@ public class GetBrandProductsQueryHandler : IRequestHandler<GetBrandProductsQuer
                     .Select(image => image.Url)
                     .FirstOrDefault()))
             .ToListAsync(cancellationToken);
+
+        var availabilityDecisions = await VendorCustomerAvailabilityPolicy.LoadDecisionsAsync(
+            _context,
+            rawProducts.Select(product => product.VendorId),
+            cancellationToken);
+
+        rawProducts = rawProducts
+            .Where(product => VendorCustomerAvailabilityPolicy.ResolveOrOffline(availabilityDecisions, product.VendorId).IsVisibleInCatalog)
+            .ToList();
 
         var products = rawProducts
             .Select(product =>

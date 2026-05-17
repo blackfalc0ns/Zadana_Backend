@@ -85,6 +85,34 @@ public class GetProductDetailsQueryHandlerTests
         result.Id.Should().Be(setup.PrimaryMasterProduct.Id);
     }
 
+    [Fact]
+    public async Task Handle_WhenVendorIsManuallyOffline_ReturnsUnavailableDetailsInsteadOfNotFound()
+    {
+        using var scope = new CultureScope("en");
+        await using var context = TestDbContextFactory.Create();
+
+        var setup = await SeedProductScenarioAsync(context);
+        context.VendorWorkspaceStates.Add(new VendorWorkspaceState(
+            setup.PrimaryVendor.Id,
+            "store-availability",
+            "{\"manual_mode\":\"offline\"}"));
+        await context.SaveChangesAsync();
+
+        var handler = new GetProductDetailsQueryHandler(
+            context,
+            TestServiceFactory.CreateAppCache(),
+            TestServiceFactory.CreateCatalogReadCacheService(context),
+            TestServiceFactory.CreateCachingOptions());
+
+        var result = await handler.Handle(new GetProductDetailsQuery(setup.PrimaryVendorProduct.Id), CancellationToken.None);
+
+        result.IsAvailableForPurchase.Should().BeFalse();
+        result.IsOnlineNow.Should().BeFalse();
+        result.UnavailableReason.Should().Be("vendor_offline");
+        result.VendorPrices.Should().BeEmpty();
+        result.DefaultVendorProductId.Should().Be(setup.PrimaryVendorProduct.Id);
+    }
+
     private static async Task<ProductScenario> SeedProductScenarioAsync(Infrastructure.Persistence.ApplicationDbContext context)
     {
         var category = new Category("milk-ar", "Milk", null, null, 1);
@@ -213,6 +241,7 @@ public class GetProductDetailsQueryHandlerTests
         await context.SaveChangesAsync();
 
         return new ProductScenario(
+            primaryVendor,
             primaryMasterProduct,
             primaryVendorProduct,
             secondaryVendorProduct,
@@ -238,6 +267,7 @@ public class GetProductDetailsQueryHandlerTests
     }
 
     private sealed record ProductScenario(
+        Vendor PrimaryVendor,
         MasterProduct PrimaryMasterProduct,
         VendorProduct PrimaryVendorProduct,
         VendorProduct SecondaryVendorProduct,

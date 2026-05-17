@@ -60,6 +60,9 @@ public class CatalogCachingTests
             "kg",
             true,
             "desc",
+            true,
+            true,
+            null,
             [],
             [],
             [

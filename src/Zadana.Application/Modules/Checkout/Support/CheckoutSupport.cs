@@ -5,6 +5,7 @@ using Zadana.Application.Modules.Catalog.DTOs;
 using Zadana.Application.Modules.Checkout.DTOs;
 using Zadana.Application.Modules.Delivery.Interfaces;
 using Zadana.Application.Modules.Orders.Support;
+using Zadana.Application.Modules.Vendors.Support;
 using Zadana.Domain.Modules.Catalog.Enums;
 using Zadana.Domain.Modules.Delivery.Entities;
 using Zadana.Domain.Modules.Identity.Entities;
@@ -44,7 +45,7 @@ internal static class CheckoutSupport
         CancellationToken cancellationToken)
     {
         var masterProductIds = cart.Items.Select(x => x.MasterProductId).Distinct().ToList();
-        var visibleOffers = await context.VendorProducts
+        var candidateOffers = await context.VendorProducts
             .AsNoTracking()
             .Where(product =>
                 masterProductIds.Contains(product.MasterProductId) &&
@@ -53,8 +54,7 @@ internal static class CheckoutSupport
                 product.IsAvailable &&
                 product.StockQuantity > 0 &&
                 product.MasterProduct.Status == ProductStatus.Active &&
-                product.Vendor.Status == VendorStatus.Active &&
-                product.Vendor.AcceptOrders)
+                product.Vendor.Status == VendorStatus.Active)
             .Select(product => new VendorOfferSnapshot(
                 product.Id,
                 product.VendorId,
@@ -97,6 +97,24 @@ internal static class CheckoutSupport
                     product.MasterProduct.MeasurementUnit != null ? product.MasterProduct.MeasurementUnit.NameEn : product.MasterProduct.UnitOfMeasure != null ? product.MasterProduct.UnitOfMeasure.NameEn : null,
                     false)))
             .ToListAsync(cancellationToken);
+
+        var availabilityDecisions = await VendorCustomerAvailabilityPolicy.LoadDecisionsAsync(
+            context,
+            candidateOffers.Select(offer => offer.VendorId),
+            cancellationToken);
+
+        if (selectedVendorId.HasValue)
+        {
+            var selectedVendorDecision = VendorCustomerAvailabilityPolicy.ResolveOrOffline(availabilityDecisions, selectedVendorId.Value);
+            if (!selectedVendorDecision.IsPurchasable && candidateOffers.Count > 0)
+            {
+                throw new BusinessRuleException(selectedVendorDecision.ReasonCode?.ToUpperInvariant() ?? "VENDOR_OFFLINE", selectedVendorDecision.ReasonMessage ?? "Vendor is temporarily unavailable.");
+            }
+        }
+
+        var visibleOffers = candidateOffers
+            .Where(offer => VendorCustomerAvailabilityPolicy.ResolveOrOffline(availabilityDecisions, offer.VendorId).IsVisibleInCatalog)
+            .ToList();
 
         CandidateVendorSnapshot? candidateVendor;
         if (selectedVendorId.HasValue)

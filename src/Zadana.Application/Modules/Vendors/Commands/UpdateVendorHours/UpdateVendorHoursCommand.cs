@@ -1,5 +1,6 @@
 using FluentValidation;
 using MediatR;
+using Zadana.Application.Common.Caching;
 using Microsoft.Extensions.Localization;
 using Zadana.Application.Common.Interfaces;
 using Zadana.Application.Common.Localization;
@@ -35,19 +36,22 @@ public class UpdateVendorHoursCommandHandler : IRequestHandler<UpdateVendorHours
     private readonly IUnitOfWork _unitOfWork;
     private readonly ICurrentUserService _currentUserService;
     private readonly IVendorReviewAuditService _vendorReviewAuditService;
+    private readonly ICacheInvalidator _cacheInvalidator;
 
     public UpdateVendorHoursCommandHandler(
         IVendorRepository vendorRepository,
         IVendorReadService vendorReadService,
         IUnitOfWork unitOfWork,
         ICurrentUserService currentUserService,
-        IVendorReviewAuditService vendorReviewAuditService)
+        IVendorReviewAuditService vendorReviewAuditService,
+        ICacheInvalidator cacheInvalidator)
     {
         _vendorRepository = vendorRepository;
         _vendorReadService = vendorReadService;
         _unitOfWork = unitOfWork;
         _currentUserService = currentUserService;
         _vendorReviewAuditService = vendorReviewAuditService;
+        _cacheInvalidator = cacheInvalidator;
     }
 
     public async Task<VendorWorkspaceDto> Handle(UpdateVendorHoursCommand request, CancellationToken cancellationToken)
@@ -98,6 +102,7 @@ public class UpdateVendorHoursCommandHandler : IRequestHandler<UpdateVendorHours
         }
 
         await _unitOfWork.SaveChangesAsync(cancellationToken);
+        await _cacheInvalidator.RemoveByTagsAsync(CacheInvalidationProfiles.CatalogReadModels, cancellationToken);
 
         await _vendorReviewAuditService.AppendActivityEntryAsync(
             vendor.UserId,

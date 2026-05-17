@@ -62,6 +62,9 @@ public record ProductDetailsDto(
     [property: JsonPropertyName("unit")] string? Unit,
     [property: JsonPropertyName("is_discounted")] bool IsDiscounted,
     [property: JsonPropertyName("description")] string? Description,
+    [property: JsonPropertyName("is_online_now")] bool IsOnlineNow,
+    [property: JsonPropertyName("is_available_for_purchase")] bool IsAvailableForPurchase,
+    [property: JsonPropertyName("unavailable_reason")] string? UnavailableReason,
     [property: JsonPropertyName("variant_options")] IReadOnlyList<ProductDetailsVariantOptionDto> VariantOptions,
     [property: JsonPropertyName("vendor_prices")] IReadOnlyList<ProductDetailsVendorPriceDto> VendorPrices,
     [property: JsonPropertyName("similar_products")] IReadOnlyList<ProductDetailsSimilarProductDto> SimilarProducts);

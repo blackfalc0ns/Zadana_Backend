@@ -1,6 +1,7 @@
 using Microsoft.EntityFrameworkCore;
 using Zadana.Application.Common.Interfaces;
 using Zadana.Application.Modules.Favorites.DTOs;
+using Zadana.Application.Modules.Vendors.Support;
 using Zadana.Domain.Modules.Catalog.Enums;
 using Zadana.Domain.Modules.Orders.Enums;
 using Zadana.Domain.Modules.Vendors.Enums;
@@ -53,8 +54,7 @@ internal static class FavoriteReadModelBuilder
                 product.IsAvailable &&
                 product.StockQuantity > 0 &&
                 product.MasterProduct.Status == ProductStatus.Active &&
-                product.Vendor.Status == VendorStatus.Active &&
-                product.Vendor.AcceptOrders)
+                product.Vendor.Status == VendorStatus.Active)
             .Select(product => new FavoriteOfferRow(
                 product.Id,
                 product.MasterProductId,
@@ -75,15 +75,22 @@ internal static class FavoriteReadModelBuilder
                     .FirstOrDefault()))
             .ToListAsync(cancellationToken);
 
+        var availabilityDecisions = await VendorCustomerAvailabilityPolicy.LoadDecisionsAsync(
+            context,
+            offers.Select(offer => offer.VendorId),
+            cancellationToken);
+
         return offers
             .Select(offer =>
             {
                 reviewStatsByVendorId.TryGetValue(offer.VendorId, out var reviewStats);
                 salesByVendorProductId.TryGetValue(offer.VendorProductId, out var salesCount);
+                var decision = VendorCustomerAvailabilityPolicy.ResolveOrOffline(availabilityDecisions, offer.VendorId);
 
                 return new
                 {
                     offer.MasterProductId,
+                    IsVisible = decision.IsVisibleInCatalog,
                     Offer = new FavoriteItemSource(
                         offer.MasterProductId,
                         offer.CreatedAtUtc,
@@ -100,19 +107,28 @@ internal static class FavoriteReadModelBuilder
                         FavoriteProjectionMapper.PickLocalizedNullable(offer.UnitAr, offer.UnitEn),
                         offer.ImageUrl,
                         reviewStats?.AverageRating,
-                        reviewStats?.ReviewCount ?? 0),
+                        reviewStats?.ReviewCount ?? 0,
+                        decision.IsOnlineNow,
+                        decision.IsPurchasable,
+                        decision.ReasonCode),
                     SalesCount = salesCount
                 };
             })
             .GroupBy(item => item.MasterProductId)
             .ToDictionary(
                 group => group.Key,
-                group => FavoriteProjectionMapper.Map(group
-                    .OrderBy(item => item.Offer.SellingPrice)
-                    .ThenByDescending(item => item.SalesCount)
-                    .ThenByDescending(item => item.Offer.CreatedAtUtc)
-                    .Select(item => item.Offer)
-                    .First()));
+                group =>
+                {
+                    var preferred = group
+                        .OrderByDescending(item => item.IsVisible)
+                        .ThenBy(item => item.Offer.SellingPrice)
+                        .ThenByDescending(item => item.SalesCount)
+                        .ThenByDescending(item => item.Offer.CreatedAtUtc)
+                        .Select(item => item.Offer)
+                        .First();
+
+                    return FavoriteProjectionMapper.Map(preferred);
+                });
     }
 
     private sealed record VendorReviewStats(decimal AverageRating, int ReviewCount);

@@ -8,6 +8,7 @@ using Zadana.Application.Common.Settings;
 using Zadana.Application.Modules.Catalog.DTOs;
 using Zadana.Application.Modules.Catalog.Interfaces;
 using Zadana.Application.Modules.Catalog.Queries;
+using Zadana.Application.Modules.Vendors.Support;
 using Zadana.Domain.Modules.Catalog.Enums;
 using Zadana.Domain.Modules.Vendors.Enums;
 
@@ -83,7 +84,6 @@ public class SearchProductsQueryHandler : IRequestHandler<SearchProductsQuery, S
                 product.StockQuantity > 0 &&
                 product.MasterProduct.Status == ProductStatus.Active &&
                 product.Vendor.Status == VendorStatus.Active &&
-                product.Vendor.AcceptOrders &&
                 (!request.CategoryId.HasValue || product.MasterProduct.CategoryId == request.CategoryId.Value) &&
                 (!request.BrandId.HasValue || product.MasterProduct.BrandId == request.BrandId.Value) &&
                 (!request.MinPrice.HasValue || product.SellingPrice >= request.MinPrice.Value) &&
@@ -121,6 +121,15 @@ public class SearchProductsQueryHandler : IRequestHandler<SearchProductsQuery, S
                     .FirstOrDefault(),
                 product.MasterProduct.VariantGroupId))
             .ToListAsync(cancellationToken);
+
+        var availabilityDecisions = await VendorCustomerAvailabilityPolicy.LoadDecisionsAsync(
+            _context,
+            rawProducts.Select(product => product.VendorId),
+            cancellationToken);
+
+        rawProducts = rawProducts
+            .Where(product => VendorCustomerAvailabilityPolicy.ResolveOrOffline(availabilityDecisions, product.VendorId).IsVisibleInCatalog)
+            .ToList();
 
         var products = rawProducts
             .Select(product =>

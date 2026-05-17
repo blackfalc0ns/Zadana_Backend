@@ -8,6 +8,7 @@ using Zadana.Application.Common.Settings;
 using Zadana.Application.Modules.Catalog.Interfaces;
 using Zadana.Application.Modules.Home.DTOs;
 using Zadana.Application.Modules.Home.Interfaces;
+using Zadana.Application.Modules.Vendors.Support;
 using Zadana.Domain.Modules.Catalog.Enums;
 using Zadana.Domain.Modules.Identity.Enums;
 using Zadana.Domain.Modules.Marketing.Enums;
@@ -423,8 +424,7 @@ public class HomeReadService : IHomeReadService
                             vp.IsAvailable &&
                             vp.StockQuantity > 0 &&
                             vp.MasterProduct.Status == ProductStatus.Active &&
-                            vp.Vendor.Status == VendorStatus.Active &&
-                            vp.Vendor.AcceptOrders)
+                            vp.Vendor.Status == VendorStatus.Active)
                         .Select(vp => new HomeCatalogProductSnapshot(
                             vp.MasterProductId,
                             vp.Id,
@@ -465,6 +465,15 @@ public class HomeReadService : IHomeReadService
             new AppCacheEntryOptions(_durations.HomePublic),
             [CacheTagNames.Home, CacheTagNames.Catalog],
             cancellationToken);
+
+        var availabilityDecisions = await VendorCustomerAvailabilityPolicy.LoadDecisionsAsync(
+            _context,
+            rawProducts.Select(product => product.VendorId),
+            cancellationToken);
+
+        rawProducts = rawProducts
+            .Where(product => VendorCustomerAvailabilityPolicy.ResolveOrOffline(availabilityDecisions, product.VendorId).IsVisibleInCatalog)
+            .ToArray();
 
         var products = rawProducts
             .Select(x =>

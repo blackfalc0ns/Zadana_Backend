@@ -51,6 +51,9 @@ public class ProductsControllerTests
             "Liter",
             true,
             "Description",
+            true,
+            true,
+            null,
             [],
             [],
             []);

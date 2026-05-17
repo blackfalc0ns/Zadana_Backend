@@ -8,6 +8,7 @@ using Zadana.Application.Common.Settings;
 using Zadana.Application.Modules.Catalog.DTOs;
 using Zadana.Application.Modules.Catalog.Interfaces;
 using Zadana.Application.Modules.Catalog.Queries;
+using Zadana.Application.Modules.Vendors.Support;
 using Zadana.Domain.Modules.Catalog.Entities;
 using Zadana.Domain.Modules.Catalog.Enums;
 using Zadana.Domain.Modules.Vendors.Enums;
@@ -55,9 +56,10 @@ public class GetProductDetailsQueryHandler : IRequestHandler<GetProductDetailsQu
     {
         var salesByVendorProductId = await _catalogReadCacheService.GetDeliveredSalesByVendorProductIdAsync(cancellationToken);
         var reviewStatsByVendorId = await _catalogReadCacheService.GetVendorReviewStatsByVendorIdAsync(cancellationToken);
-        var visibleOffers = await LoadVisibleOffersAsync(cancellationToken);
+        var offers = await LoadCandidateOffersAsync(cancellationToken);
+        var visibleOffers = offers.Where(offer => offer.IsVisibleInCatalog).ToList();
 
-        var directOffer = visibleOffers.FirstOrDefault(offer => offer.VendorProductId == request.ProductId);
+        var directOffer = offers.FirstOrDefault(offer => offer.VendorProductId == request.ProductId);
         Guid masterProductId;
 
         if (directOffer is not null)
@@ -67,23 +69,39 @@ public class GetProductDetailsQueryHandler : IRequestHandler<GetProductDetailsQu
         else
         {
             masterProductId = request.ProductId;
-            if (!visibleOffers.Any(offer => offer.MasterProductId == masterProductId))
+            if (!offers.Any(offer => offer.MasterProductId == masterProductId))
             {
                 throw new NotFoundException(nameof(MasterProduct), request.ProductId);
             }
         }
 
-        var offersForProduct = visibleOffers
+        var visibleOffersForProduct = visibleOffers
             .Where(offer => offer.MasterProductId == masterProductId)
             .OrderBy(offer => offer.Price)
             .ThenByDescending(offer => offer.CreatedAtUtc)
             .ThenBy(offer => offer.Store, StringComparer.CurrentCultureIgnoreCase)
             .ToList();
 
-        var defaultOffer = directOffer ?? offersForProduct.First();
-        var variantGroupId = defaultOffer.VariantGroupId;
+        var allOffersForProduct = offers
+            .Where(offer => offer.MasterProductId == masterProductId)
+            .OrderBy(offer => offer.Price)
+            .ThenByDescending(offer => offer.CreatedAtUtc)
+            .ThenBy(offer => offer.Store, StringComparer.CurrentCultureIgnoreCase)
+            .ToList();
 
-        var galleryImages = offersForProduct
+        var defaultOffer = directOffer ?? visibleOffersForProduct.FirstOrDefault() ?? allOffersForProduct.First();
+        var sourceOffersForProduct = visibleOffersForProduct.Count > 0 ? visibleOffersForProduct : allOffersForProduct;
+        var variantGroupId = defaultOffer.VariantGroupId;
+        var isExplicitlyOfflineSelection = directOffer is not null && !directOffer.IsVisibleInCatalog;
+        var isAvailableForPurchase = !isExplicitlyOfflineSelection && visibleOffersForProduct.Count > 0;
+        var isOnlineNow = isExplicitlyOfflineSelection ? directOffer!.IsOnlineNow : defaultOffer.IsOnlineNow;
+        var unavailableReason = isAvailableForPurchase
+            ? null
+            : isExplicitlyOfflineSelection
+                ? directOffer!.UnavailableReason
+                : defaultOffer.UnavailableReason;
+
+        var galleryImages = sourceOffersForProduct
             .SelectMany(offer => offer.Images)
             .Where(url => !string.IsNullOrWhiteSpace(url))
             .Distinct(StringComparer.OrdinalIgnoreCase)
@@ -94,17 +112,19 @@ public class GetProductDetailsQueryHandler : IRequestHandler<GetProductDetailsQu
             galleryImages.Add(defaultOffer.ImageUrl);
         }
 
-        var vendorPrices = offersForProduct
-            .Select(offer => new ProductDetailsVendorPriceDto(
-                offer.VendorProductId,
-                offer.Store,
-                offer.StoreLogoUrl,
-                offer.Price,
-                offer.IsDiscounted ? offer.OldPrice : null,
-                offer.IsDiscounted))
-            .ToList();
+        var vendorPrices = isExplicitlyOfflineSelection
+            ? []
+            : visibleOffersForProduct
+                .Select(offer => new ProductDetailsVendorPriceDto(
+                    offer.VendorProductId,
+                    offer.Store,
+                    offer.StoreLogoUrl,
+                    offer.Price,
+                    offer.IsDiscounted ? offer.OldPrice : null,
+                    offer.IsDiscounted))
+                .ToList();
 
-        var variantGroupOffers = visibleOffers
+        var variantGroupOffers = offers
             .Where(offer => offer.VariantGroupId == variantGroupId)
             .ToList();
 
@@ -121,6 +141,7 @@ public class GetProductDetailsQueryHandler : IRequestHandler<GetProductDetailsQu
             {
                 var cheapest = kvp.Value.First();
                 var variantVendorPrices = kvp.Value
+                    .Where(offer => offer.IsVisibleInCatalog)
                     .Select(offer => new ProductDetailsVendorPriceDto(
                         offer.VendorProductId,
                         offer.Store,
@@ -132,7 +153,7 @@ public class GetProductDetailsQueryHandler : IRequestHandler<GetProductDetailsQu
 
                 return new ProductDetailsVariantOptionDto(
                     cheapest.MasterProductId,
-                    cheapest.VendorProductId,
+                    cheapest.IsVisibleInCatalog ? cheapest.VendorProductId : null,
                     cheapest.NameAr ?? cheapest.Name,
                     cheapest.NameEn ?? cheapest.Name,
                     cheapest.DisplaySizeAr,
@@ -146,9 +167,9 @@ public class GetProductDetailsQueryHandler : IRequestHandler<GetProductDetailsQu
                     cheapest.MeasurementUnitAr,
                     cheapest.MeasurementUnitEn,
                     cheapest.Unit,
-                    cheapest.Price,
-                    cheapest.IsDiscounted ? cheapest.OldPrice : null,
-                    cheapest.IsDiscounted,
+                    cheapest.IsVisibleInCatalog ? cheapest.Price : null,
+                    cheapest.IsVisibleInCatalog && cheapest.IsDiscounted ? cheapest.OldPrice : null,
+                    cheapest.IsVisibleInCatalog && cheapest.IsDiscounted,
                     variantVendorPrices);
             })
             .OrderBy(option => option.MeasurementValue ?? decimal.MaxValue)
@@ -213,12 +234,15 @@ public class GetProductDetailsQueryHandler : IRequestHandler<GetProductDetailsQu
             defaultOffer.Unit,
             defaultOffer.IsDiscounted,
             defaultOffer.Description,
+            isOnlineNow,
+            isAvailableForPurchase,
+            unavailableReason,
             variantOptions,
             vendorPrices,
             similarProducts);
     }
 
-    private async Task<List<VisibleOfferRow>> LoadVisibleOffersAsync(CancellationToken cancellationToken)
+    private async Task<List<VisibleOfferRow>> LoadCandidateOffersAsync(CancellationToken cancellationToken)
     {
         var offers = await _context.VendorProducts
             .AsNoTracking()
@@ -227,8 +251,7 @@ public class GetProductDetailsQueryHandler : IRequestHandler<GetProductDetailsQu
                 product.IsAvailable &&
                 product.StockQuantity > 0 &&
                 product.MasterProduct.Status == ProductStatus.Active &&
-                product.Vendor.Status == VendorStatus.Active &&
-                product.Vendor.AcceptOrders)
+                product.Vendor.Status == VendorStatus.Active)
             .Select(product => new RawVisibleOfferRow(
                 product.Id,
                 product.MasterProductId,
@@ -258,43 +281,60 @@ public class GetProductDetailsQueryHandler : IRequestHandler<GetProductDetailsQu
                     .ToList()))
             .ToListAsync(cancellationToken);
 
-        return rawOffersToVisibleOffers(raw: offers);
+        var availabilityDecisions = await VendorCustomerAvailabilityPolicy.LoadDecisionsAsync(
+            _context,
+            offers.Select(offer => offer.VendorId),
+            cancellationToken);
+
+        return RawOffersToVisibleOffers(offers, availabilityDecisions);
     }
 
-    private List<VisibleOfferRow> rawOffersToVisibleOffers(List<RawVisibleOfferRow> raw)
+    private List<VisibleOfferRow> RawOffersToVisibleOffers(
+        List<RawVisibleOfferRow> raw,
+        IReadOnlyDictionary<Guid, VendorCustomerAvailabilityDecision> availabilityDecisions)
     {
-        return raw.Select(offer => new VisibleOfferRow(
-            offer.VendorProductId,
-            offer.MasterProductId,
-            offer.VendorId,
-            offer.CategoryId,
-            offer.CreatedAtUtc,
-            NormalizeText(offer.NameAr),
-            NormalizeText(offer.NameEn),
-            PickLocalized(offer.NameAr, offer.NameEn),
-            NormalizeText(offer.StoreAr),
-            NormalizeText(offer.StoreEn),
-            PickLocalized(offer.StoreAr, offer.StoreEn),
-            offer.StoreLogoUrl,
-            offer.SellingPrice,
-            offer.CompareAtPrice,
-            offer.VariantGroupId,
-            NormalizeText(offer.PackageTypeAr),
-            NormalizeText(offer.PackageTypeEn),
-            offer.MeasurementValue,
-            NormalizeText(offer.MeasurementUnitAr),
-            NormalizeText(offer.MeasurementUnitEn),
-            NormalizeText(offer.MeasurementUnitSymbol),
-            MasterProductDisplayDto.BuildDisplaySize(offer.PackageTypeAr, offer.MeasurementValue, offer.MeasurementUnitAr, offer.MeasurementUnitSymbol, true),
-            MasterProductDisplayDto.BuildDisplaySize(offer.PackageTypeEn, offer.MeasurementValue, offer.MeasurementUnitEn, offer.MeasurementUnitSymbol, false),
-            PickLocalizedNullable(
-                MasterProductDisplayDto.BuildLegacyUnit(offer.PackageTypeAr, offer.MeasurementUnitAr, true),
-                MasterProductDisplayDto.BuildLegacyUnit(offer.PackageTypeEn, offer.MeasurementUnitEn, false)),
-            NormalizeText(offer.DescriptionAr),
-            NormalizeText(offer.DescriptionEn),
-            PickLocalizedNullable(offer.DescriptionAr, offer.DescriptionEn),
-            offer.Images.Where(url => !string.IsNullOrWhiteSpace(url)).ToList()))
-        .ToList();
+        return raw
+            .Select(offer =>
+            {
+                var decision = VendorCustomerAvailabilityPolicy.ResolveOrOffline(availabilityDecisions, offer.VendorId);
+
+                return new VisibleOfferRow(
+                    offer.VendorProductId,
+                    offer.MasterProductId,
+                    offer.VendorId,
+                    offer.CategoryId,
+                    offer.CreatedAtUtc,
+                    NormalizeText(offer.NameAr),
+                    NormalizeText(offer.NameEn),
+                    PickLocalized(offer.NameAr, offer.NameEn),
+                    NormalizeText(offer.StoreAr),
+                    NormalizeText(offer.StoreEn),
+                    PickLocalized(offer.StoreAr, offer.StoreEn),
+                    offer.StoreLogoUrl,
+                    offer.SellingPrice,
+                    offer.CompareAtPrice,
+                    offer.VariantGroupId,
+                    NormalizeText(offer.PackageTypeAr),
+                    NormalizeText(offer.PackageTypeEn),
+                    offer.MeasurementValue,
+                    NormalizeText(offer.MeasurementUnitAr),
+                    NormalizeText(offer.MeasurementUnitEn),
+                    NormalizeText(offer.MeasurementUnitSymbol),
+                    MasterProductDisplayDto.BuildDisplaySize(offer.PackageTypeAr, offer.MeasurementValue, offer.MeasurementUnitAr, offer.MeasurementUnitSymbol, true),
+                    MasterProductDisplayDto.BuildDisplaySize(offer.PackageTypeEn, offer.MeasurementValue, offer.MeasurementUnitEn, offer.MeasurementUnitSymbol, false),
+                    PickLocalizedNullable(
+                        MasterProductDisplayDto.BuildLegacyUnit(offer.PackageTypeAr, offer.MeasurementUnitAr, true),
+                        MasterProductDisplayDto.BuildLegacyUnit(offer.PackageTypeEn, offer.MeasurementUnitEn, false)),
+                    NormalizeText(offer.DescriptionAr),
+                    NormalizeText(offer.DescriptionEn),
+                    PickLocalizedNullable(offer.DescriptionAr, offer.DescriptionEn),
+                    offer.Images.Where(url => !string.IsNullOrWhiteSpace(url)).ToList(),
+                    decision.IsVisibleInCatalog,
+                    decision.IsPurchasable,
+                    decision.IsOnlineNow,
+                    decision.ReasonCode);
+            })
+            .ToList();
     }
 
     private static string? FormatDiscount(decimal price, decimal? oldPrice)
@@ -381,7 +421,11 @@ public class GetProductDetailsQueryHandler : IRequestHandler<GetProductDetailsQu
         string? DescriptionAr,
         string? DescriptionEn,
         string? Description,
-        List<string> Images)
+        List<string> Images,
+        bool IsVisibleInCatalog,
+        bool IsPurchasable,
+        bool IsOnlineNow,
+        string? UnavailableReason)
     {
         public string? ImageUrl => Images.FirstOrDefault();
         public bool IsDiscounted => OldPrice.HasValue && OldPrice.Value > Price;

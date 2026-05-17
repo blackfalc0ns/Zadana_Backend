@@ -4,6 +4,7 @@ using Microsoft.EntityFrameworkCore;
 using Zadana.Application.Common.Interfaces;
 using Zadana.Application.Modules.Orders.DTOs;
 using Zadana.Application.Modules.Orders.Support;
+using Zadana.Application.Modules.Vendors.Support;
 using Zadana.Domain.Modules.Catalog.Enums;
 using Zadana.Domain.Modules.Vendors.Enums;
 
@@ -38,8 +39,7 @@ public class GetCartVendorsQueryHandler : IRequestHandler<GetCartVendorsQuery, C
                     product.IsAvailable &&
                     product.StockQuantity > 0 &&
                     product.MasterProduct.Status == ProductStatus.Active &&
-                    product.Vendor.Status == VendorStatus.Active &&
-                    product.Vendor.AcceptOrders)
+                    product.Vendor.Status == VendorStatus.Active)
                 .GroupBy(product => new
                 {
                     product.VendorId,
@@ -55,8 +55,14 @@ public class GetCartVendorsQueryHandler : IRequestHandler<GetCartVendorsQuery, C
                     group.Select(item => item.MasterProductId).Distinct().Count()))
                 .ToListAsync(cancellationToken);
 
+            var availabilityDecisions = await VendorCustomerAvailabilityPolicy.LoadDecisionsAsync(
+                _context,
+                availableVendors.Select(item => item.Id),
+                cancellationToken);
+
             return new CartAvailableVendorsDto(
                 availableVendors
+                    .Where(item => VendorCustomerAvailabilityPolicy.ResolveOrOffline(availabilityDecisions, item.Id).IsVisibleInCatalog)
                     .Select(item => new CartAvailableVendorDto(
                         item.Id,
                         PickLocalized(item.NameAr, item.NameEn),
@@ -80,8 +86,7 @@ public class GetCartVendorsQueryHandler : IRequestHandler<GetCartVendorsQuery, C
                 product.IsAvailable &&
                 product.StockQuantity > 0 &&
                 product.MasterProduct.Status == ProductStatus.Active &&
-                product.Vendor.Status == VendorStatus.Active &&
-                product.Vendor.AcceptOrders)
+                product.Vendor.Status == VendorStatus.Active)
             .GroupBy(product => new
             {
                 product.VendorId,
@@ -97,12 +102,23 @@ public class GetCartVendorsQueryHandler : IRequestHandler<GetCartVendorsQuery, C
                 group.Select(item => item.MasterProductId).Distinct().Count()))
             .ToListAsync(cancellationToken);
 
+        var decisions = await VendorCustomerAvailabilityPolicy.LoadDecisionsAsync(
+            _context,
+            vendorRows.Select(item => item.Id),
+            cancellationToken);
+
         var vendors = vendorRows
-            .Select(item => new CartAvailableVendorDto(
-                item.Id,
-                PickLocalized(item.NameAr, item.NameEn),
-                item.LogoUrl,
-                item.ProductsCount))
+            .Select(item =>
+            {
+                var decision = VendorCustomerAvailabilityPolicy.ResolveOrOffline(decisions, item.Id);
+                return new CartAvailableVendorDto(
+                    item.Id,
+                    PickLocalized(item.NameAr, item.NameEn),
+                    item.LogoUrl,
+                    item.ProductsCount,
+                    decision.IsOnlineNow,
+                    decision.IsVisibleInCatalog ? null : decision.ReasonCode);
+            })
             .OrderByDescending(item => item.ProductsCount)
             .ThenBy(item => item.Name, StringComparer.CurrentCultureIgnoreCase)
             .ToList();

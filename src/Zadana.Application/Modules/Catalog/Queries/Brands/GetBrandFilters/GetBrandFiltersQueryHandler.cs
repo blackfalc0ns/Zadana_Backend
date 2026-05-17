@@ -7,6 +7,7 @@ using Zadana.Application.Common.Settings;
 using Zadana.Application.Modules.Catalog.DTOs;
 using Zadana.Application.Modules.Catalog.Queries;
 using Zadana.Application.Modules.Catalog.Queries.Brands;
+using Zadana.Application.Modules.Vendors.Support;
 using Zadana.Domain.Modules.Catalog.Entities;
 using Zadana.Domain.Modules.Catalog.Enums;
 using Zadana.Domain.Modules.Vendors.Enums;
@@ -63,11 +64,40 @@ public class GetBrandFiltersQueryHandler : IRequestHandler<GetBrandFiltersQuery,
                         product.Status == ProductStatus.Active &&
                         product.BrandId == request.BrandId)
                     .Select(product => new ScopedMasterProductRow(
+                        product.Id,
                         product.CategoryId,
                         product.MeasurementValue,
                         product.MeasurementUnitId,
                         product.PackageTypeId))
                     .ToListAsync(token);
+
+                var visibleMasterProductRows = await _context.VendorProducts
+                    .AsNoTracking()
+                    .Where(product =>
+                        product.Status == VendorProductStatus.Active &&
+                        product.IsAvailable &&
+                        product.StockQuantity > 0 &&
+                        product.MasterProduct.Status == ProductStatus.Active &&
+                        product.MasterProduct.BrandId == request.BrandId &&
+                        product.Vendor.Status == VendorStatus.Active)
+                    .Select(product => new VisibleMasterProductRow(
+                        product.MasterProductId,
+                        product.VendorId))
+                    .ToListAsync(token);
+
+                var availabilityDecisions = await VendorCustomerAvailabilityPolicy.LoadDecisionsAsync(
+                    _context,
+                    visibleMasterProductRows.Select(product => product.VendorId),
+                    token);
+
+                var visibleMasterProductIds = visibleMasterProductRows
+                    .Where(product => VendorCustomerAvailabilityPolicy.ResolveOrOffline(availabilityDecisions, product.VendorId).IsVisibleInCatalog)
+                    .Select(product => product.MasterProductId)
+                    .ToHashSet();
+
+                scopedMasterProducts = scopedMasterProducts
+                    .Where(product => visibleMasterProductIds.Contains(product.MasterProductId))
+                    .ToList();
 
                 var activeCategoryIds = scopedMasterProducts
                     .Select(product => product.CategoryId)
@@ -163,14 +193,18 @@ public class GetBrandFiltersQueryHandler : IRequestHandler<GetBrandFiltersQuery,
                         product.StockQuantity > 0 &&
                         product.MasterProduct.Status == ProductStatus.Active &&
                         product.MasterProduct.BrandId == request.BrandId &&
-                        product.Vendor.Status == VendorStatus.Active &&
-                        product.Vendor.AcceptOrders)
-                    .Select(product => product.SellingPrice)
+                        product.Vendor.Status == VendorStatus.Active)
+                    .Select(product => new VisiblePriceRow(product.VendorId, product.SellingPrice))
                     .ToListAsync(token);
 
-                var priceRange = visiblePrices.Count == 0
+                var filteredPrices = visiblePrices
+                    .Where(product => VendorCustomerAvailabilityPolicy.ResolveOrOffline(availabilityDecisions, product.VendorId).IsVisibleInCatalog)
+                    .Select(product => product.SellingPrice)
+                    .ToList();
+
+                var priceRange = filteredPrices.Count == 0
                     ? new CatalogFilterPriceRangeDto(0, 0)
-                    : new CatalogFilterPriceRangeDto(visiblePrices.Min(), visiblePrices.Max());
+                    : new CatalogFilterPriceRangeDto(filteredPrices.Min(), filteredPrices.Max());
 
                 return new BrandFiltersDto(
                     new BrandFilterBrandItemDto(
@@ -205,6 +239,7 @@ public class GetBrandFiltersQueryHandler : IRequestHandler<GetBrandFiltersQuery,
         int DisplayOrder);
 
     private sealed record ScopedMasterProductRow(
+        Guid MasterProductId,
         Guid CategoryId,
         decimal? MeasurementValue,
         Guid? MeasurementUnitId,
@@ -214,4 +249,8 @@ public class GetBrandFiltersQueryHandler : IRequestHandler<GetBrandFiltersQuery,
         Guid Id,
         string? NameAr,
         string? NameEn);
+
+    private sealed record VisiblePriceRow(Guid VendorId, decimal SellingPrice);
+
+    private sealed record VisibleMasterProductRow(Guid MasterProductId, Guid VendorId);
 }

@@ -7,6 +7,7 @@ using Zadana.Application.Common.Interfaces;
 using Zadana.Application.Common.Settings;
 using Zadana.Application.Modules.Catalog.DTOs;
 using Zadana.Application.Modules.Catalog.Queries;
+using Zadana.Application.Modules.Vendors.Support;
 using Zadana.Domain.Modules.Catalog.Entities;
 using Zadana.Domain.Modules.Catalog.Enums;
 using Zadana.Domain.Modules.Vendors.Enums;
@@ -57,6 +58,7 @@ public class GetCategoryFiltersQueryHandler : IRequestHandler<GetCategoryFilters
                     .AsNoTracking()
                     .Where(product => product.Status == ProductStatus.Active)
                     .Select(product => new ScopedMasterProductRow(
+                        product.Id,
                         product.CategoryId,
                         product.ProductTypeId,
                         product.PartId,
@@ -66,8 +68,36 @@ public class GetCategoryFiltersQueryHandler : IRequestHandler<GetCategoryFilters
                         product.PackageTypeId))
                     .ToListAsync(token);
 
+                var visibleMasterProductRows = await _context.VendorProducts
+                    .AsNoTracking()
+                    .Where(product =>
+                        product.Status == VendorProductStatus.Active &&
+                        product.IsAvailable &&
+                        product.StockQuantity > 0 &&
+                        product.MasterProduct.Status == ProductStatus.Active &&
+                        product.Vendor.Status == VendorStatus.Active)
+                    .Select(product => new VisibleMasterProductRow(
+                        product.MasterProductId,
+                        product.VendorId,
+                        product.MasterProduct.CategoryId))
+                    .ToListAsync(token);
+
+                var availabilityDecisions = await VendorCustomerAvailabilityPolicy.LoadDecisionsAsync(
+                    _context,
+                    visibleMasterProductRows.Select(product => product.VendorId),
+                    token);
+
+                var visibleMasterProductIds = visibleMasterProductRows
+                    .Where(product =>
+                        subtreeIdSet.Contains(product.CategoryId) &&
+                        VendorCustomerAvailabilityPolicy.ResolveOrOffline(availabilityDecisions, product.VendorId).IsVisibleInCatalog)
+                    .Select(product => product.MasterProductId)
+                    .ToHashSet();
+
                 var scopedMasterProducts = masterProducts
-                    .Where(product => subtreeIdSet.Contains(product.CategoryId))
+                    .Where(product =>
+                        subtreeIdSet.Contains(product.CategoryId) &&
+                        visibleMasterProductIds.Contains(product.MasterProductId))
                     .ToList();
 
                 var brandIds = scopedMasterProducts
@@ -233,15 +263,17 @@ public class GetCategoryFiltersQueryHandler : IRequestHandler<GetCategoryFilters
                         product.IsAvailable &&
                         product.StockQuantity > 0 &&
                         product.MasterProduct.Status == ProductStatus.Active &&
-                        product.Vendor.Status == VendorStatus.Active &&
-                        product.Vendor.AcceptOrders)
+                        product.Vendor.Status == VendorStatus.Active)
                     .Select(product => new VisiblePriceRow(
                         product.MasterProduct.CategoryId,
+                        product.VendorId,
                         product.SellingPrice))
                     .ToListAsync(token);
 
                 var visiblePrices = visiblePriceRows
-                    .Where(product => subtreeIdSet.Contains(product.CategoryId))
+                    .Where(product =>
+                        subtreeIdSet.Contains(product.CategoryId) &&
+                        VendorCustomerAvailabilityPolicy.ResolveOrOffline(availabilityDecisions, product.VendorId).IsVisibleInCatalog)
                     .Select(product => product.SellingPrice)
                     .ToList();
 
@@ -315,6 +347,7 @@ public class GetCategoryFiltersQueryHandler : IRequestHandler<GetCategoryFilters
     }
 
     private sealed record ScopedMasterProductRow(
+        Guid MasterProductId,
         Guid CategoryId,
         Guid? ProductTypeId,
         Guid? PartId,
@@ -342,5 +375,11 @@ public class GetCategoryFiltersQueryHandler : IRequestHandler<GetCategoryFilters
 
     private sealed record VisiblePriceRow(
         Guid CategoryId,
+        Guid VendorId,
         decimal SellingPrice);
+
+    private sealed record VisibleMasterProductRow(
+        Guid MasterProductId,
+        Guid VendorId,
+        Guid CategoryId);
 }

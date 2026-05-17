@@ -9,6 +9,7 @@ using Zadana.Domain.Modules.Identity.Enums;
 using Zadana.Domain.Modules.Orders.Entities;
 using Zadana.Domain.Modules.Orders.Enums;
 using Zadana.Domain.Modules.Vendors.Entities;
+using Zadana.SharedKernel.Exceptions;
 using Zadana.UnitTests.Common;
 
 namespace Zadana.UnitTests.Modules.Checkout;
@@ -289,6 +290,61 @@ public class GetCheckoutSummaryQueryHandlerTests
         result.EstimatedDeliveryWindow.Source.Should().Be("regional_fallback");
         result.EstimatedDeliveryWindow.Confidence.Should().NotBe("low");
         result.EstimatedDeliveryWindow.MaxMinutes.Should().BeGreaterThan(result.EstimatedDeliveryWindow.MinMinutes);
+    }
+
+    [Fact]
+    public async Task Handle_WhenVendorIsManuallyOffline_ThrowsBusinessRuleException()
+    {
+        await using var context = TestDbContextFactory.Create();
+
+        var customer = new User("Offline Customer", "checkout.offline@test.com", "01000000100", UserRole.Customer);
+        var vendorUser = new User("Offline Vendor", "checkout.offline.vendor@test.com", "01000000101", UserRole.Vendor);
+        var category = new Category("تصنيف", "Category");
+        var product = new MasterProduct("منتج", "Product", "checkout-offline-product", category.Id);
+        product.Publish();
+
+        var vendor = new Vendor(
+            vendorUser.Id,
+            "متجر مغلق",
+            "Closed Store",
+            "Groceries",
+            "CR-CHECKOUT-OFFLINE",
+            "checkout.offline.vendor@test.com",
+            "01000000101");
+        vendor.Approve(10m, Guid.NewGuid());
+
+        var branch = new VendorBranch(vendor.Id, "Main Branch", "Branch Address", 30.0444m, 31.2357m, "01000000102", 10m);
+        var vendorProduct = new VendorProduct(vendor.Id, product.Id, 50m, 10);
+        var address = new CustomerAddress(customer.Id, "Offline Customer", "01000000100", "Address", AddressLabel.Home, city: "Cairo", area: "Nasr City");
+        address.SetAsDefault();
+
+        var cart = new Cart(customer.Id);
+        cart.Items.Add(new CartItem(cart.Id, product.Id, product.NameEn, 1));
+        cart.UpdateTotals(50m, 0m);
+
+        context.Users.AddRange(customer, vendorUser);
+        context.Categories.Add(category);
+        context.MasterProducts.Add(product);
+        context.Vendors.Add(vendor);
+        context.VendorBranches.Add(branch);
+        context.VendorProducts.Add(vendorProduct);
+        context.CustomerAddresses.Add(address);
+        context.Carts.Add(cart);
+        context.VendorWorkspaceStates.Add(new VendorWorkspaceState(vendor.Id, "store-availability", "{\"manual_mode\":\"offline\"}"));
+        await context.SaveChangesAsync();
+
+        var paymobGateway = new Mock<Zadana.Application.Modules.Payments.Interfaces.IPaymobGateway>();
+        paymobGateway.SetupGet(gateway => gateway.IsEnabled).Returns(true);
+
+        var deliveryPricing = new Mock<IDeliveryPricingService>();
+        var handler = new GetCheckoutSummaryQueryHandler(context, paymobGateway.Object, deliveryPricing.Object);
+
+        var act = () => handler.Handle(
+            new GetCheckoutSummaryQuery(customer.Id, vendor.Id, address.Id, null, "cash"),
+            CancellationToken.None);
+
+        await act.Should().ThrowAsync<BusinessRuleException>()
+            .Where(exception => exception.ErrorCode == "VENDOR_OFFLINE");
     }
 
     [Fact]
