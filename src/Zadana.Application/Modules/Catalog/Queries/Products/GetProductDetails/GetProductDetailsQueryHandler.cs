@@ -155,9 +155,14 @@ public class GetProductDetailsQueryHandler : IRequestHandler<GetProductDetailsQu
             .ThenBy(option => option.NameAr, StringComparer.CurrentCultureIgnoreCase)
             .ToList();
 
+        var currentProductGroupKey = variantGroupId != default
+            ? variantGroupId
+            : masterProductId;
+
         var similarOfferRows = visibleOffers
-            .Where(offer => offer.CategoryId == defaultOffer.CategoryId && offer.MasterProductId != masterProductId)
-            .GroupBy(offer => offer.MasterProductId)
+            .Where(offer => offer.CategoryId == defaultOffer.CategoryId)
+            .Where(offer => (offer.VariantGroupId != default ? offer.VariantGroupId : offer.MasterProductId) != currentProductGroupKey)
+            .GroupBy(offer => offer.VariantGroupId != default ? offer.VariantGroupId : offer.MasterProductId)
             .Select(group => group
                 .OrderBy(offer => offer.Price)
                 .ThenByDescending(offer => offer.CreatedAtUtc)
