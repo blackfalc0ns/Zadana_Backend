@@ -458,6 +458,7 @@ app.UseOutputCache();
 app.UseAuthentication();
 app.UseMiddleware<TemporaryPasswordMiddleware>();
 app.UseAuthorization();
+app.UseMiddleware<SystemLogMiddleware>();
 app.MapControllers();
 app.MapHub<CustomerPresenceHub>(CustomerPresenceHub.HubRoute);
 app.MapHub<NotificationHub>(NotificationHub.HubRoute);

@@ -13,5 +13,6 @@ public record ResetPasswordRequest(string Identifier, string OtpCode, string New
 public record LogoutRequest(string RefreshToken);
 
 public record ChangeTemporaryPasswordRequest(string CurrentPassword, string NewPassword);
+public record ChangePasswordRequest(string CurrentPassword, string NewPassword);
 
 public record UpdateProfileRequest(string FullName, string Email, string Phone);

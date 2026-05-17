@@ -4,6 +4,7 @@ using Microsoft.AspNetCore.RateLimiting;
 using Zadana.Api.Security;
 using Zadana.Api.Modules.Identity.Requests;
 using Zadana.Application.Common.Localization;
+using Zadana.Application.Modules.Identity.Commands.ChangePassword;
 using Zadana.Application.Modules.Identity.Commands.ChangeTemporaryPassword;
 using Zadana.Domain.Modules.Identity.Enums;
 using Microsoft.Extensions.Localization;
@@ -39,6 +40,14 @@ public class AdminAuthController : IdentityAuthControllerBase
     public async Task<IActionResult> ChangeTemporaryPassword([FromBody] ChangeTemporaryPasswordRequest request)
     {
         await Sender.Send(new ChangeTemporaryPasswordCommand(request.CurrentPassword, request.NewPassword));
+        return NoContent();
+    }
+
+    [Authorize(Policy = "AdminOnly")]
+    [HttpPost("change-password")]
+    public async Task<IActionResult> ChangePassword([FromBody] ChangePasswordRequest request)
+    {
+        await Sender.Send(new ChangePasswordCommand(request.CurrentPassword, request.NewPassword));
         return NoContent();
     }
 

@@ -117,6 +117,7 @@ public sealed class AccessAuthorizationConvention : IApplicationModelConvention
                 [PermissionKeys.Admin.WalletsView],
                 edit: [PermissionKeys.Admin.WalletsEdit],
                 approve: [PermissionKeys.Admin.WalletsApprove]),
+            ["AdminSystemLogs"] = new([PermissionKeys.Admin.SystemView]),
             ["VendorAuth"] = new(
                 [PermissionKeys.Vendor.AccountView],
                 edit: [PermissionKeys.Vendor.AccountEdit],

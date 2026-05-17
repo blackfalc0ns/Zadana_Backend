@@ -484,6 +484,7 @@ public class OrderReadService : IOrderReadService
 
         // â”€â”€ Live Tracking: vendor, customer, and driver locations â”€â”€
         GeoPointDto? vendorLocation = null;
+        Console.WriteLine($"[TRACKING] OrderId={order.Id} VendorBranchId={order.VendorBranchId} VendorId={order.VendorId} CustomerAddressId={order.CustomerAddressId}");
         if (order.VendorBranchId.HasValue)
         {
             var branch = await _dbContext.Set<VendorBranch>()
@@ -491,6 +492,7 @@ public class OrderReadService : IOrderReadService
                 .Where(b => b.Id == order.VendorBranchId.Value)
                 .Select(b => new { b.Latitude, b.Longitude })
                 .FirstOrDefaultAsync(cancellationToken);
+            Console.WriteLine($"[TRACKING] Branch found: {branch is not null}, Lat={branch?.Latitude}, Lng={branch?.Longitude}");
             if (branch is not null)
                 vendorLocation = new GeoPointDto(branch.Latitude, branch.Longitude);
         }
@@ -504,17 +506,20 @@ public class OrderReadService : IOrderReadService
                 .OrderBy(b => b.CreatedAtUtc)
                 .Select(b => new { b.Latitude, b.Longitude })
                 .FirstOrDefaultAsync(cancellationToken);
+            Console.WriteLine($"[TRACKING] Fallback branch: {fallbackBranch is not null}, Lat={fallbackBranch?.Latitude}, Lng={fallbackBranch?.Longitude}");
             if (fallbackBranch is not null)
                 vendorLocation = new GeoPointDto(fallbackBranch.Latitude, fallbackBranch.Longitude);
         }
 
         GeoPointDto? customerLocation = null;
+        Console.WriteLine($"[TRACKING] CustomerAddr: Lat={customerAddress?.Latitude}, Lng={customerAddress?.Longitude}");
         if (customerAddress is { Latitude: not null, Longitude: not null })
         {
             customerLocation = new GeoPointDto(customerAddress.Latitude.Value, customerAddress.Longitude.Value);
         }
 
         DriverLiveLocationDto? driverLiveLocation = null;
+        Console.WriteLine($"[TRACKING] Assignment: {assignment is not null}, DriverId={assignment?.DriverId}, Status={assignment?.Status}");
         if (assignment?.DriverId != null)
         {
             var latestLocation = await _dbContext.DriverLocations

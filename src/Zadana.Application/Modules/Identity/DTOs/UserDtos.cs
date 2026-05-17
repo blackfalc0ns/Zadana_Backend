@@ -84,3 +84,28 @@ public record AccessAuditLogDto(
     string CreatedAtUtc,
     string? IpAddress,
     string? UserAgent);
+
+public record SystemLogEntryDto(
+    Guid Id,
+    string OccurredAtUtc,
+    string SourceApp,
+    string Module,
+    string Action,
+    string Summary,
+    string RequestPath,
+    string HttpMethod,
+    int StatusCode,
+    bool IsSuccess,
+    Guid? ActorUserId,
+    string? ActorFullName,
+    string? ActorEmail,
+    string? ActorRole,
+    string? TargetEntityType,
+    string? TargetEntityId,
+    string? CorrelationId,
+    string? IpAddress,
+    string? UserAgent,
+    string? QueryString,
+    string? RequestPayloadJson,
+    string? MetadataJson,
+    string? ErrorMessage);
