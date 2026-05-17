@@ -116,6 +116,11 @@ public class PlaceCheckoutOrderCommandHandlerTests
             .SingleAsync();
 
         savedOrder.Status.Should().Be(OrderStatus.PendingVendorAcceptance);
+        savedOrder.EtaMinMinutes.Should().NotBeNull();
+        savedOrder.EtaMaxMinutes.Should().NotBeNull();
+        savedOrder.EtaSource.Should().NotBeNullOrWhiteSpace();
+        savedOrder.EtaCalculationMode.Should().NotBeNullOrWhiteSpace();
+        savedOrder.EtaExplanation.Should().NotBeNullOrWhiteSpace();
         savedOrder.StatusHistory
             .Select(history => history.NewStatus)
             .Should()

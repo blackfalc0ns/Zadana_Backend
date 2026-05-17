@@ -63,12 +63,19 @@ public class GetCheckoutSummaryQueryHandler : IRequestHandler<GetCheckoutSummary
             _context,
             pricing.VendorId,
             pricing.VendorBranchId,
+            address?.City,
+            address?.Area,
+            cancellationToken);
+        var liveSignal = await DeliveryEtaTelemetry.LoadLiveSignalAsync(
+            _context,
+            pricing.VendorBranchId,
             cancellationToken);
         var estimatedDeliveryWindow = DeliveryEtaPolicy.EstimateCheckoutWindow(
             preparationTimeMinutes,
             deliveryAssessment.DeliveryCheck.IsDeliverable ? deliveryAssessment.DeliveryQuote.DriverToVendorDistanceKm : 0m,
             deliveryAssessment.DeliveryCheck.IsDeliverable ? deliveryAssessment.DeliveryQuote.VendorToCustomerDistanceKm : 0m,
-            operationalProfile);
+            operationalProfile,
+            liveSignal);
         var discount = coupon == null ? 0m : CheckoutSupport.CalculateDiscountAmount(coupon, pricing.Subtotal);
         var financeBreakdown = await CheckoutSupport.ResolveFinanceBreakdownV2Async(
             _context,
@@ -101,7 +108,9 @@ public class GetCheckoutSummaryQueryHandler : IRequestHandler<GetCheckoutSummary
                 estimatedDeliveryWindow.MaxMinutes,
                 estimatedDeliveryWindow.Confidence,
                 estimatedDeliveryWindow.Source,
-                estimatedDeliveryWindow.IsApproximate),
+                estimatedDeliveryWindow.IsApproximate,
+                estimatedDeliveryWindow.CalculationMode,
+                estimatedDeliveryWindow.Explanation),
             CheckoutSupport.BuildDeliveryQuoteDto(deliveryQuote),
             CheckoutSupport.BuildDeliveryBreakdownDto(deliveryQuote),
             CheckoutSupport.BuildShippingBreakdownV2(deliveryQuote, financeBreakdown),

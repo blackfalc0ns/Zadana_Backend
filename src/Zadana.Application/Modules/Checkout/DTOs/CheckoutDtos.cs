@@ -190,13 +190,15 @@ public record CheckoutDeliveryCheckDto(
 
 public sealed record CheckoutEstimatedDeliveryWindowDto
 {
-    public CheckoutEstimatedDeliveryWindowDto(int minMinutes, int maxMinutes, string confidence, string source, bool isApproximate)
+    public CheckoutEstimatedDeliveryWindowDto(int minMinutes, int maxMinutes, string confidence, string source, bool isApproximate, string? calculationMode = null, string? explanation = null)
     {
         MinMinutes = minMinutes;
         MaxMinutes = maxMinutes;
         Confidence = confidence;
         Source = source;
         IsApproximate = isApproximate;
+        CalculationMode = calculationMode;
+        Explanation = explanation;
         Title = DeliveryEtaWindowDisplayTextBuilder.BuildTitle();
         Label = DeliveryEtaWindowLabelBuilder.Build(minMinutes, maxMinutes, isApproximate);
         Subtitle = DeliveryEtaWindowDisplayTextBuilder.BuildSubtitle(confidence, isApproximate);
@@ -210,6 +212,8 @@ public sealed record CheckoutEstimatedDeliveryWindowDto
     public string Confidence { get; init; }
     public string Source { get; init; }
     public bool IsApproximate { get; init; }
+    public string? CalculationMode { get; init; }
+    public string? Explanation { get; init; }
 }
 
 public record CheckoutTotalsDto(

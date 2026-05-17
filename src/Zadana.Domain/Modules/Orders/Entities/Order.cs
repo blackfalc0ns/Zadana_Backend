@@ -53,6 +53,14 @@ public class Order : BaseEntity
     public DateTime PlacedAtUtc { get; private set; }
     public DateTime? DeliveredAtUtc { get; private set; }
     public DateTime? CancelledAtUtc { get; private set; }
+    public int? EtaMinMinutes { get; private set; }
+    public int? EtaMaxMinutes { get; private set; }
+    public string? EtaConfidence { get; private set; }
+    public string? EtaSource { get; private set; }
+    public bool? EtaIsApproximate { get; private set; }
+    public string? EtaCalculationMode { get; private set; }
+    public string? EtaExplanation { get; private set; }
+    public DateTime? EtaCalculatedAtUtc { get; private set; }
 
     // Navigation
     public User User { get; private set; } = null!;
@@ -177,5 +185,25 @@ public class Order : BaseEntity
                 null,
                 PaymentMethod == PaymentMethodType.Card ? "Online payment confirmed and awaiting vendor response" : "Payment confirmed");
         }
+    }
+
+    public void CaptureEtaSnapshot(
+        int minMinutes,
+        int maxMinutes,
+        string confidence,
+        string source,
+        bool isApproximate,
+        string? calculationMode,
+        string? explanation,
+        DateTime? calculatedAtUtc = null)
+    {
+        EtaMinMinutes = minMinutes > 0 ? minMinutes : null;
+        EtaMaxMinutes = maxMinutes > 0 ? maxMinutes : null;
+        EtaConfidence = string.IsNullOrWhiteSpace(confidence) ? null : confidence.Trim();
+        EtaSource = string.IsNullOrWhiteSpace(source) ? null : source.Trim();
+        EtaIsApproximate = isApproximate;
+        EtaCalculationMode = string.IsNullOrWhiteSpace(calculationMode) ? null : calculationMode.Trim();
+        EtaExplanation = string.IsNullOrWhiteSpace(explanation) ? null : explanation.Trim();
+        EtaCalculatedAtUtc = calculatedAtUtc ?? DateTime.UtcNow;
     }
 }

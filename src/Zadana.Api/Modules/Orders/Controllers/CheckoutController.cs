@@ -99,7 +99,13 @@ public class CheckoutController : ApiControllerBase
                     item.Unit,
                     item.Quantity,
                     item.Price,
-                    item.TotalPrice)).ToList()),
+                    item.TotalPrice,
+                    item.VariantDisplaySize,
+                    item.PackageTypeName,
+                    item.MeasurementValue,
+                    item.MeasurementUnitName,
+                    item.VariantImageUrl,
+                    item.VariantImages)).ToList()),
             result.SelectedAddress?.Id,
             result.SelectedAddress == null
                 ? null
@@ -142,7 +148,9 @@ public class CheckoutController : ApiControllerBase
                 result.EstimatedDeliveryWindow.Subtitle,
                 result.EstimatedDeliveryWindow.Confidence,
                 result.EstimatedDeliveryWindow.Source,
-                result.EstimatedDeliveryWindow.IsApproximate),
+                result.EstimatedDeliveryWindow.IsApproximate,
+                result.EstimatedDeliveryWindow.CalculationMode,
+                result.EstimatedDeliveryWindow.Explanation),
             new CheckoutDeliveryQuoteResponse(
                 result.DeliveryQuote.DistanceKm,
                 result.DeliveryQuote.BaseFee,

@@ -79,7 +79,9 @@ public record CustomerEstimatedDeliveryWindowResponse(
     [property: JsonPropertyName("subtitle")] string Subtitle,
     [property: JsonPropertyName("confidence")] string Confidence,
     [property: JsonPropertyName("source")] string Source,
-    [property: JsonPropertyName("is_approximate")] bool IsApproximate);
+    [property: JsonPropertyName("is_approximate")] bool IsApproximate,
+    [property: JsonPropertyName("calculation_mode")] string? CalculationMode,
+    [property: JsonPropertyName("explanation")] string? Explanation);
 
 public record CustomerOrderTrackingDriverResponse(
     [property: JsonPropertyName("id")] Guid Id,

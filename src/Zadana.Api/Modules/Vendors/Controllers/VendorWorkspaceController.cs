@@ -336,7 +336,7 @@ public class VendorWorkspaceController : ApiControllerBase
         
         var financialLifecycleModeStr = vendorDetails.ToString();
         var nextSettlementAt = CalculateNextSettlementDate(vendorDetails);
-        var etaProfile = await DeliveryEtaTelemetry.LoadOperationalProfileAsync(_dbContext, vendorId, null, cancellationToken);
+        var etaProfile = await DeliveryEtaTelemetry.LoadOperationalProfileAsync(_dbContext, vendorId, null, null, null, cancellationToken);
 
         var prepTimes = orders
             .Where(o => o.AcceptedAtUtc.HasValue && o.ReadyAtUtc.HasValue)

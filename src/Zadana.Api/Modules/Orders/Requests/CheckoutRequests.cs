@@ -32,7 +32,13 @@ public record CheckoutCartItemResponse(
     [property: JsonPropertyName("unit")] string? Unit,
     [property: JsonPropertyName("quantity")] int Quantity,
     [property: JsonPropertyName("price")] decimal Price,
-    [property: JsonPropertyName("total_price")] decimal TotalPrice);
+    [property: JsonPropertyName("total_price")] decimal TotalPrice,
+    [property: JsonPropertyName("variant_display_size")] string? VariantDisplaySize,
+    [property: JsonPropertyName("package_type_name")] string? PackageTypeName,
+    [property: JsonPropertyName("measurement_value")] decimal? MeasurementValue,
+    [property: JsonPropertyName("measurement_unit_name")] string? MeasurementUnitName,
+    [property: JsonPropertyName("variant_image_url")] string? VariantImageUrl,
+    [property: JsonPropertyName("variant_images")] IReadOnlyList<string> VariantImages);
 
 public record CheckoutSelectedAddressResponse(
     [property: JsonPropertyName("id")] Guid Id,
@@ -79,7 +85,9 @@ public record CheckoutEstimatedDeliveryWindowResponse(
     [property: JsonPropertyName("subtitle")] string Subtitle,
     [property: JsonPropertyName("confidence")] string Confidence,
     [property: JsonPropertyName("source")] string Source,
-    [property: JsonPropertyName("is_approximate")] bool IsApproximate);
+    [property: JsonPropertyName("is_approximate")] bool IsApproximate,
+    [property: JsonPropertyName("calculation_mode")] string? CalculationMode,
+    [property: JsonPropertyName("explanation")] string? Explanation);
 
 public record CheckoutDeliveryQuoteResponse(
     [property: JsonPropertyName("distance_km")] decimal DistanceKm,

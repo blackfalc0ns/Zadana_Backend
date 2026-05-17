@@ -138,9 +138,10 @@ public class GetCheckoutSummaryQueryHandlerTests
             new GetCheckoutSummaryQuery(customer.Id, vendor.Id, address.Id, null, "cash"),
             CancellationToken.None);
 
-        result.EstimatedDeliveryWindow.Source.Should().Be("hybrid_operational");
+        result.EstimatedDeliveryWindow.Source.Should().NotBe("distance_baseline");
         result.EstimatedDeliveryWindow.Confidence.Should().Be("medium");
-        result.EstimatedDeliveryWindow.MaxMinutes.Should().BeLessThan(70);
+        result.EstimatedDeliveryWindow.MaxMinutes.Should().BeGreaterThan(result.EstimatedDeliveryWindow.MinMinutes);
+        result.EstimatedDeliveryWindow.MaxMinutes.Should().BeLessThan(120);
     }
 
     [Fact]
@@ -212,6 +213,85 @@ public class GetCheckoutSummaryQueryHandlerTests
     }
 
     [Fact]
+    public async Task Handle_WhenVendorHasNoHistory_UsesRegionalFallbackBeforeDistanceBaseline()
+    {
+        await using var context = TestDbContextFactory.Create();
+
+        var customer = new User("Regional Customer", "checkout.regional@test.com", "01000000094", UserRole.Customer);
+        var vendorUser = new User("Regional Vendor", "checkout.regional.vendor@test.com", "01000000095", UserRole.Vendor);
+        var historicalVendorUser = new User("History Vendor", "checkout.regional.history@test.com", "01000000096", UserRole.Vendor);
+        var category = new Category("تصنيف", "Category");
+        var product = new MasterProduct("منتج", "Product", "checkout-regional-product", category.Id);
+        product.Publish();
+
+        var vendor = new Vendor(
+            vendorUser.Id,
+            "متجر جديد",
+            "New Store",
+            "Groceries",
+            "CR-CHECKOUT-REGIONAL",
+            "checkout.regional.vendor@test.com",
+            "01000000095");
+        vendor.Approve(10m, Guid.NewGuid());
+
+        var historicalVendor = new Vendor(
+            historicalVendorUser.Id,
+            "متجر تاريخي",
+            "History Store",
+            "Groceries",
+            "CR-CHECKOUT-REGIONAL-HISTORY",
+            "checkout.regional.history@test.com",
+            "01000000096");
+        historicalVendor.Approve(10m, Guid.NewGuid());
+
+        var branch = new VendorBranch(vendor.Id, "Main Branch", "Branch Address", 30.0444m, 31.2357m, "01000000097", 10m);
+        var historyBranch = new VendorBranch(historicalVendor.Id, "History Branch", "History Address", 30.0500m, 31.2400m, "01000000098", 10m);
+        var vendorProduct = new VendorProduct(vendor.Id, product.Id, 50m, 10);
+        var historyAddress = new CustomerAddress(customer.Id, "History Customer", "01000000099", "History Address", AddressLabel.Home, city: "Cairo", area: "Nasr City");
+        var address = new CustomerAddress(customer.Id, "Regional Customer", "01000000094", "Address", AddressLabel.Home, city: "Cairo", area: "Nasr City");
+        address.SetAsDefault();
+
+        var cart = new Cart(customer.Id);
+        cart.Items.Add(new CartItem(cart.Id, product.Id, product.NameEn, 1));
+        cart.UpdateTotals(50m, 0m);
+
+        context.Users.AddRange(customer, vendorUser, historicalVendorUser);
+        context.Categories.Add(category);
+        context.MasterProducts.Add(product);
+        context.Vendors.AddRange(vendor, historicalVendor);
+        context.VendorBranches.AddRange(branch, historyBranch);
+        context.VendorProducts.Add(vendorProduct);
+        context.CustomerAddresses.AddRange(address, historyAddress);
+        context.Carts.Add(cart);
+
+        for (var index = 0; index < 5; index++)
+        {
+            var regionalOrder = CreateDeliveredOrder(customer.Id, historicalVendor.Id, historyBranch.Id, historyAddress.Id, $"REG-{index}", 52 + index);
+            context.Orders.Add(regionalOrder);
+        }
+
+        await context.SaveChangesAsync();
+
+        var paymobGateway = new Mock<Zadana.Application.Modules.Payments.Interfaces.IPaymobGateway>();
+        paymobGateway.SetupGet(gateway => gateway.IsEnabled).Returns(true);
+
+        var deliveryPricing = new Mock<IDeliveryPricingService>();
+        deliveryPricing
+            .Setup(service => service.QuoteAsync(branch.Id, address.Id, It.IsAny<CancellationToken>()))
+            .ReturnsAsync(new DeliveryPriceQuote(5m, 2m, 0m, 7m, 3m, "zone", "Zone rule", 1m, 2m, 3m, 4m, "driver", "vendor", false, "manual", null, "locked", DateTime.UtcNow, 1, false));
+
+        var handler = new GetCheckoutSummaryQueryHandler(context, paymobGateway.Object, deliveryPricing.Object);
+
+        var result = await handler.Handle(
+            new GetCheckoutSummaryQuery(customer.Id, vendor.Id, address.Id, null, "cash"),
+            CancellationToken.None);
+
+        result.EstimatedDeliveryWindow.Source.Should().Be("regional_fallback");
+        result.EstimatedDeliveryWindow.Confidence.Should().NotBe("low");
+        result.EstimatedDeliveryWindow.MaxMinutes.Should().BeGreaterThan(result.EstimatedDeliveryWindow.MinMinutes);
+    }
+
+    [Fact]
     public async Task Handle_WhenVendorCityIsEnglishAndAddressCityIsArabic_TreatsThemAsSameCity()
     {
         await using var context = TestDbContextFactory.Create();
@@ -279,13 +359,16 @@ public class GetCheckoutSummaryQueryHandlerTests
         result.DeliveryCheck.CanProceedToCheckout.Should().BeTrue();
     }
 
-    private static Order CreateDeliveredOrder(Guid userId, Guid vendorId, Guid vendorBranchId, string orderNumber, int totalMinutes)
+    private static Order CreateDeliveredOrder(Guid userId, Guid vendorId, Guid vendorBranchId, string orderNumber, int totalMinutes) =>
+        CreateDeliveredOrder(userId, vendorId, vendorBranchId, Guid.NewGuid(), orderNumber, totalMinutes);
+
+    private static Order CreateDeliveredOrder(Guid userId, Guid vendorId, Guid vendorBranchId, Guid customerAddressId, string orderNumber, int totalMinutes)
     {
         var order = new Order(
             orderNumber,
             userId,
             vendorId,
-            Guid.NewGuid(),
+            customerAddressId,
             Zadana.Domain.Modules.Payments.Enums.PaymentMethodType.CashOnDelivery,
             100m,
             0m,

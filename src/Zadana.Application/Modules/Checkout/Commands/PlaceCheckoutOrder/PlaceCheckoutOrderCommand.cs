@@ -109,6 +109,28 @@ public class PlaceCheckoutOrderCommandHandler : IRequestHandler<PlaceCheckoutOrd
         }
 
         var deliveryQuote = deliveryAssessment.DeliveryQuote;
+        var preparationTimeMinutes = await _context.Vendors
+            .AsNoTracking()
+            .Where(v => v.Id == pricing.VendorId)
+            .Select(v => v.PreparationTimeMinutes)
+            .FirstOrDefaultAsync(cancellationToken);
+        var operationalProfile = await DeliveryEtaTelemetry.LoadOperationalProfileAsync(
+            _context,
+            pricing.VendorId,
+            pricing.VendorBranchId,
+            address.City,
+            address.Area,
+            cancellationToken);
+        var liveSignal = await DeliveryEtaTelemetry.LoadLiveSignalAsync(
+            _context,
+            pricing.VendorBranchId,
+            cancellationToken);
+        var estimatedDeliveryWindow = DeliveryEtaPolicy.EstimateCheckoutWindow(
+            preparationTimeMinutes,
+            deliveryQuote.DriverToVendorDistanceKm,
+            deliveryQuote.VendorToCustomerDistanceKm,
+            operationalProfile,
+            liveSignal);
         var coupon = await ResolveOrderCouponAsync(request.UserId, cart, request.PromoCode, pricing.VendorId, pricing.Subtotal, cancellationToken);
         var discount = coupon == null ? 0m : CheckoutSupport.CalculateDiscountAmount(coupon, pricing.Subtotal);
         var financeBreakdown = await CheckoutSupport.ResolveFinanceBreakdownV2Async(
@@ -193,6 +215,15 @@ public class PlaceCheckoutOrderCommandHandler : IRequestHandler<PlaceCheckoutOrd
             .Include(x => x.Items)
             .FirstOrDefaultAsync(x => x.Id == orderId, cancellationToken)
             ?? throw new NotFoundException("Order", orderId);
+        order.CaptureEtaSnapshot(
+            estimatedDeliveryWindow.MinMinutes,
+            estimatedDeliveryWindow.MaxMinutes,
+            estimatedDeliveryWindow.Confidence,
+            estimatedDeliveryWindow.Source,
+            estimatedDeliveryWindow.IsApproximate,
+            estimatedDeliveryWindow.CalculationMode,
+            estimatedDeliveryWindow.Explanation,
+            DateTime.UtcNow);
 
         var payment = new Payment(order.Id, Enum.Parse<PaymentMethodType>(internalPaymentMethod, true), order.TotalAmount);
         payment.SetCheckoutDeviceId(request.DeviceId);

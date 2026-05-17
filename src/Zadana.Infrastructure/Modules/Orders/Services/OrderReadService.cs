@@ -1311,21 +1311,52 @@ public class OrderReadService : IOrderReadService
             .Where(v => v.Id == order.VendorId)
             .Select(v => v.PreparationTimeMinutes)
             .FirstOrDefaultAsync(cancellationToken);
+        var addressRegion = await _dbContext.CustomerAddresses
+            .AsNoTracking()
+            .Where(address => address.Id == order.CustomerAddressId)
+            .Select(address => new
+            {
+                address.City,
+                address.Area
+            })
+            .FirstOrDefaultAsync(cancellationToken);
         var operationalProfile = await DeliveryEtaTelemetry.LoadOperationalProfileAsync(
             _dbContext,
             order.VendorId,
             order.VendorBranchId,
+            addressRegion?.City,
+            addressRegion?.Area,
             cancellationToken);
+        var liveSignal = await DeliveryEtaTelemetry.LoadLiveSignalAsync(
+            _dbContext,
+            order.VendorBranchId,
+            cancellationToken);
+        var persistedWindow = order.EtaMinMinutes.HasValue &&
+                              order.EtaMaxMinutes.HasValue &&
+                              !string.IsNullOrWhiteSpace(order.EtaConfidence) &&
+                              !string.IsNullOrWhiteSpace(order.EtaSource)
+            ? new DeliveryEtaWindow(
+                order.EtaMinMinutes.Value,
+                order.EtaMaxMinutes.Value,
+                order.EtaConfidence!,
+                order.EtaSource!,
+                order.EtaIsApproximate ?? true,
+                order.EtaCalculationMode,
+                order.EtaExplanation)
+            : null;
         var estimate = DeliveryEtaPolicy.EstimateTracking(
             order.Status,
             order.PlacedAtUtc,
             order.DeliveredAtUtc ?? ResolveHistoryDate(order, OrderStatus.Delivered),
+            ResolveHistoryDate(order, OrderStatus.Accepted),
             assignment?.AcceptedAtUtc,
             assignment?.PickedUpAtUtc,
             preparationTimeMinutes,
             order.DriverToVendorDistanceKm,
             order.VendorToCustomerDistanceKm,
-            operationalProfile);
+            operationalProfile,
+            liveSignal,
+            persistedWindow);
 
         if (estimate is null)
         {
@@ -1343,7 +1374,9 @@ public class OrderReadService : IOrderReadService
                     estimate.Window.MaxMinutes,
                     estimate.Window.Confidence,
                     estimate.Window.Source,
-                    estimate.Window.IsApproximate));
+                    estimate.Window.IsApproximate,
+                    estimate.Window.CalculationMode,
+                    estimate.Window.Explanation));
     }
 
     private static CustomerOrderTrackingDriverDto? BuildDriver(DeliveryAssignment? assignment)

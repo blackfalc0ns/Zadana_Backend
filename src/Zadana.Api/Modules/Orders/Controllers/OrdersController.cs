@@ -430,7 +430,9 @@ public class OrdersController : ApiControllerBase
                               dto.EstimatedDelivery.Window.Subtitle,
                               dto.EstimatedDelivery.Window.Confidence,
                               dto.EstimatedDelivery.Window.Source,
-                              dto.EstimatedDelivery.Window.IsApproximate)),
+                              dto.EstimatedDelivery.Window.IsApproximate,
+                              dto.EstimatedDelivery.Window.CalculationMode,
+                              dto.EstimatedDelivery.Window.Explanation)),
               dto.Driver is null
                   ? null
                   : new CustomerOrderTrackingDriverResponse(dto.Driver.Id, dto.Driver.Name, dto.Driver.PhoneNumber, dto.Driver.Subtitle),
