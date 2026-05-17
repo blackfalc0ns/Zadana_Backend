@@ -1,4 +1,4 @@
-using System.Globalization;
+﻿using System.Globalization;
 using Zadana.Domain.Modules.Orders.Enums;
 
 namespace Zadana.Application.Modules.Orders.Support;
@@ -423,7 +423,7 @@ public static class DeliveryEtaWindowDisplayTextBuilder
 {
     public static string BuildTitle() =>
         CultureInfo.CurrentUICulture.TwoLetterISOLanguageName.Equals("ar", StringComparison.OrdinalIgnoreCase)
-            ? "ÙˆÙ‚Øª Ø§Ù„ØªÙˆØµÙŠÙ„ Ø§Ù„Ù…ØªÙˆÙ‚Ø¹"
+            ? "وقت التوصيل المتوقع"
             : "Estimated delivery time";
 
     public static string BuildSubtitle(string confidence, bool isApproximate)
@@ -433,12 +433,12 @@ public static class DeliveryEtaWindowDisplayTextBuilder
         if (isApproximate || string.Equals(confidence, "low", StringComparison.OrdinalIgnoreCase))
         {
             return isArabic
-                ? "Ø§Ù„ÙˆÙ‚Øª ØªÙ‚Ø¯ÙŠØ±ÙŠ ÙˆÙ‚Ø¯ ÙŠØªØºÙŠØ± Ø­Ø³Ø¨ Ø­Ø§Ù„Ø© Ø§Ù„Ù…ØªØ¬Ø± ÙˆØ§Ù„Ù…Ù†Ø¯ÙˆØ¨."
+                ? "الوقت تقديري وقد يتغير حسب حالة المتجر والمندوب."
                 : "This time is approximate and may change based on store and driver status.";
         }
 
         return isArabic
-            ? "Ø³ÙŠØªÙ… ØªØ­Ø¯ÙŠØ« Ø§Ù„ÙˆÙ‚Øª Ø­Ø³Ø¨ ØªÙ‚Ø¯Ù… Ø§Ù„Ø·Ù„Ø¨."
+            ? "سيتم تحديث الوقت حسب تقدم الطلب."
             : "This estimate will be updated as the order progresses.";
     }
 }
@@ -460,11 +460,12 @@ public static class DeliveryEtaWindowLabelBuilder
 {
     public static string Build(int minMinutes, int maxMinutes, bool isApproximate)
     {
-        var windowText = $"{minMinutes}-{maxMinutes} {(CultureInfo.CurrentUICulture.TwoLetterISOLanguageName.Equals("ar", StringComparison.OrdinalIgnoreCase) ? "Ø¯Ù‚ÙŠÙ‚Ø©" : "minutes")}";
+        var windowText = $"{minMinutes}-{maxMinutes} {(CultureInfo.CurrentUICulture.TwoLetterISOLanguageName.Equals("ar", StringComparison.OrdinalIgnoreCase) ? "دقيقة" : "minutes")}";
         return isApproximate
             ? CultureInfo.CurrentUICulture.TwoLetterISOLanguageName.Equals("ar", StringComparison.OrdinalIgnoreCase)
-                ? $"Ø­ÙˆØ§Ù„ÙŠ {windowText}"
+                ? $"حوالي {windowText}"
                 : $"Around {windowText}"
             : windowText;
     }
 }
+

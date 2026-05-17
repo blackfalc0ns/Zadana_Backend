@@ -982,10 +982,6 @@ public class HomeReadService : IHomeReadService
     private HomeBannerDto MapHomeBanner(HomeBannerSnapshot banner) =>
         new(
             banner.Id,
-            PickLocalized(banner.TagAr, banner.TagEn),
-            PickLocalized(banner.TitleAr, banner.TitleEn),
-            PickLocalizedNullable(banner.SubtitleAr, banner.SubtitleEn),
-            PickLocalizedNullable(banner.ActionLabelAr, banner.ActionLabelEn),
             banner.ImageUrl);
 
     private HomeCategoryDto MapHomeCategory(HomeCategorySnapshot category) =>
