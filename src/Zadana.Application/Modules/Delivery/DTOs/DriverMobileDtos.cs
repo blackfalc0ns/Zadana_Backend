@@ -10,6 +10,7 @@ public record DriverAssignmentDetailDto(
     string HomeStateLabel,
     IReadOnlyList<string> AllowedActions,
     string VendorName,
+    string? VendorImageUrl,
     string PickupAddress,
     decimal? PickupLatitude,
     decimal? PickupLongitude,
@@ -64,6 +65,7 @@ public record DriverCompletedOrderDetailDto(
     Guid AssignmentId,
     string OrderNumber,
     string MerchantName,
+    string? MerchantImageUrl,
     string MerchantPhone,
     string CustomerName,
     string? CustomerPhone,
@@ -79,6 +81,7 @@ public record DriverCompletedOrderDetailDto(
 
 public record DriverCompletedOrderItemDto(
     string Name,
+    string? ImageUrl,
     int Quantity,
     decimal UnitPrice,
     decimal LineTotal);

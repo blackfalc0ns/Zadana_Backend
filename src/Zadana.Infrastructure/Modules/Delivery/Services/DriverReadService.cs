@@ -599,6 +599,7 @@ public class DriverReadService : IDriverReadService
             IsArabic()
                 ? (assignment.Order.Vendor.BusinessNameAr ?? assignment.Order.Vendor.BusinessNameEn)
                 : (assignment.Order.Vendor.BusinessNameEn ?? assignment.Order.Vendor.BusinessNameAr),
+            assignment.Order.Vendor.LogoUrl,
             assignment.Order.VendorBranch?.AddressLine ?? assignment.Order.Vendor.NationalAddress ?? string.Empty,
             assignment.Order.VendorBranch?.Latitude,
             assignment.Order.VendorBranch?.Longitude,
@@ -647,6 +648,7 @@ public class DriverReadService : IDriverReadService
                 .ThenInclude(o => o.Vendor)
             .Include(a => a.Order)
                 .ThenInclude(o => o.Items)
+                    .ThenInclude(i => i.MasterProduct)
             .Where(a => a.DriverId == driverId &&
                 (a.Order.Status == OrderStatus.Delivered ||
                  a.Order.Status == OrderStatus.Cancelled ||
@@ -691,7 +693,7 @@ public class DriverReadService : IDriverReadService
                     assignment.Order.PaymentMethod.ToString(),
                     BuildFullCustomerAddress(customerAddress),
                     assignment.Order.Items
-                        .Select(item => new DriverCompletedOrderItemDto(item.ProductName, item.Quantity, item.UnitPrice, item.LineTotal))
+                        .Select(item => new DriverCompletedOrderItemDto(ResolveItemName(item), item.SnapshotImageUrl, item.Quantity, item.UnitPrice, item.LineTotal))
                         .ToArray());
             })
             .ToArray();
@@ -712,6 +714,7 @@ public class DriverReadService : IDriverReadService
                 .ThenInclude(o => o.VendorBranch)
             .Include(a => a.Order)
                 .ThenInclude(o => o.Items)
+                    .ThenInclude(i => i.MasterProduct)
             .Where(a => a.DriverId == driverId && a.OrderId == orderId)
             .OrderByDescending(a => a.CreatedAtUtc)
             .FirstOrDefaultAsync(cancellationToken);
@@ -737,6 +740,7 @@ public class DriverReadService : IDriverReadService
             IsArabic()
                 ? (assignment.Order.Vendor.BusinessNameAr ?? assignment.Order.Vendor.BusinessNameEn)
                 : (assignment.Order.Vendor.BusinessNameEn ?? assignment.Order.Vendor.BusinessNameAr),
+            assignment.Order.Vendor.LogoUrl,
             assignment.Order.Vendor.ContactPhone,
             customerAddress?.ContactName ?? "Customer",
             customerAddress?.ContactPhone,
@@ -749,7 +753,7 @@ public class DriverReadService : IDriverReadService
             ResolveDistanceKm(assignment.Order, customerAddress),
             ResolveCompletedAtUtc(assignment),
             assignment.Order.Items
-                .Select(item => new DriverCompletedOrderItemDto(item.ProductName, item.Quantity, item.UnitPrice, item.LineTotal))
+                .Select(item => new DriverCompletedOrderItemDto(ResolveItemName(item), item.SnapshotImageUrl, item.Quantity, item.UnitPrice, item.LineTotal))
                 .ToArray());
     }
 
