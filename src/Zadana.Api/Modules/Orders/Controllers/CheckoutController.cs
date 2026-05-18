@@ -322,6 +322,7 @@ public class CheckoutController : ApiControllerBase
                     result.Payment.Provider,
                     result.Payment.Status,
                     result.Payment.IframeUrl,
-                    result.Payment.ProviderReference));
+                    result.Payment.ProviderReference,
+                    result.Payment.ProviderConfig));
     }
 }

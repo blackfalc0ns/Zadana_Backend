@@ -281,7 +281,8 @@ public class PlaceCheckoutOrderCommandHandler : IRequestHandler<PlaceCheckoutOrd
                     session.ProviderName.ToLowerInvariant(),
                     CheckoutSupport.MapPaymentStatusToContractValue(payment.Status.ToString()),
                     session.ClientAction,
-                    session.ProviderPaymentId ?? string.Empty);
+                    session.ProviderPaymentId ?? string.Empty,
+                    session.ProviderConfig);
             }
             catch
             {

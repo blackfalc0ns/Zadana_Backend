@@ -8,6 +8,7 @@ using Zadana.Application.Modules.Finances.Services;
 using Zadana.Application.Modules.Orders.Events;
 using Zadana.Application.Modules.Orders.Support;
 using Zadana.Application.Modules.Payments.DTOs;
+using Zadana.Application.Modules.Payments.Gateways;
 using Zadana.Application.Modules.Payments.Interfaces;
 using Zadana.Domain.Modules.Orders.Enums;
 using Zadana.Domain.Modules.Payments.Enums;
@@ -67,13 +68,29 @@ public class ConfirmCardPaymentCommandHandler : IRequestHandler<ConfirmCardPayme
         var providerName = string.IsNullOrWhiteSpace(request.ProviderName) ? "Moyasar" : request.ProviderName!.Trim();
         var gateway = _gatewayResolver.Resolve(providerName);
 
-        var payment = await ResolvePaymentAsync(request, cancellationToken);
+        var requestedProviderPaymentId = string.IsNullOrWhiteSpace(request.ProviderPaymentId)
+            ? null
+            : request.ProviderPaymentId!.Trim();
+
+        var payment = await TryResolvePaymentAsync(request, cancellationToken);
+        GatewayPaymentDetails? details = null;
+
+        if (payment is null && requestedProviderPaymentId is not null)
+        {
+            details = await gateway.FetchPaymentAsync(requestedProviderPaymentId, cancellationToken);
+            payment = await ResolvePaymentFromProviderMetadataAsync(details, providerName, cancellationToken);
+        }
+
+        if (payment is null)
+        {
+            var lookup = request.PaymentId?.ToString() ?? requestedProviderPaymentId ?? "unknown";
+            throw new NotFoundException("Payment", lookup);
+        }
+
         var order = payment.Order;
 
         // If the caller didn't pass a provider payment id, but we have one cached on the payment, use that.
-        var providerPaymentId = string.IsNullOrWhiteSpace(request.ProviderPaymentId)
-            ? payment.ProviderTransactionId
-            : request.ProviderPaymentId!.Trim();
+        var providerPaymentId = requestedProviderPaymentId ?? payment.ProviderTransactionId;
 
         if (string.IsNullOrWhiteSpace(providerPaymentId))
         {
@@ -81,7 +98,7 @@ public class ConfirmCardPaymentCommandHandler : IRequestHandler<ConfirmCardPayme
             return BuildResult(payment, order, LocalizedMessages.GetAr(LocalizedMessages.PaymentStillPending), LocalizedMessages.GetEn(LocalizedMessages.PaymentStillPending), false);
         }
 
-        var details = await gateway.FetchPaymentAsync(providerPaymentId, cancellationToken);
+        details ??= await gateway.FetchPaymentAsync(providerPaymentId, cancellationToken);
 
         // Verification: currency, amount, metadata.order_id must match.
         CurrencyPolicy.EnsureOfficial(details.Currency);
@@ -208,7 +225,7 @@ public class ConfirmCardPaymentCommandHandler : IRequestHandler<ConfirmCardPayme
             alreadyConfirmed);
     }
 
-    private async Task<Domain.Modules.Payments.Entities.Payment> ResolvePaymentAsync(
+    private async Task<Domain.Modules.Payments.Entities.Payment?> TryResolvePaymentAsync(
         ConfirmCardPaymentCommand request,
         CancellationToken cancellationToken)
     {
@@ -232,13 +249,66 @@ public class ConfirmCardPaymentCommandHandler : IRequestHandler<ConfirmCardPayme
                     cancellationToken);
         }
 
-        if (payment is null)
+        return payment;
+    }
+
+    private async Task<Domain.Modules.Payments.Entities.Payment?> ResolvePaymentFromProviderMetadataAsync(
+        GatewayPaymentDetails details,
+        string providerName,
+        CancellationToken cancellationToken)
+    {
+        if (TryGetMetadataValue(details.Metadata, "payment_id", out var metadataPaymentId)
+            && Guid.TryParse(metadataPaymentId, out var paymentId))
         {
-            var lookup = request.PaymentId?.ToString() ?? request.ProviderPaymentId ?? "unknown";
-            throw new NotFoundException("Payment", lookup);
+            var payment = await _context.Payments
+                .Include(x => x.Order)
+                .FirstOrDefaultAsync(
+                    x => x.Id == paymentId && x.ProviderName == providerName,
+                    cancellationToken);
+
+            if (payment is not null)
+            {
+                return payment;
+            }
         }
 
-        return payment;
+        if (TryGetMetadataValue(details.Metadata, "order_id", out var metadataOrderId)
+            && Guid.TryParse(metadataOrderId, out var orderId))
+        {
+            return await _context.Payments
+                .Include(x => x.Order)
+                .Where(x =>
+                    x.OrderId == orderId &&
+                    x.ProviderName == providerName &&
+                    x.Method == PaymentMethodType.Card)
+                .OrderByDescending(x => x.CreatedAtUtc)
+                .FirstOrDefaultAsync(cancellationToken);
+        }
+
+        return null;
+    }
+
+    private static bool TryGetMetadataValue(
+        IReadOnlyDictionary<string, string> metadata,
+        string key,
+        out string value)
+    {
+        if (metadata.TryGetValue(key, out value!))
+        {
+            return true;
+        }
+
+        foreach (var pair in metadata)
+        {
+            if (string.Equals(pair.Key, key, StringComparison.OrdinalIgnoreCase))
+            {
+                value = pair.Value;
+                return true;
+            }
+        }
+
+        value = string.Empty;
+        return false;
     }
 
     private static bool IsPaidStatus(string status) =>

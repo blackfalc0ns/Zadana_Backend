@@ -149,7 +149,8 @@ public class RetryCardPaymentCommandHandler : IRequestHandler<RetryCardPaymentCo
                     session.ProviderName.ToLowerInvariant(),
                     CheckoutSupport.MapPaymentStatusToContractValue(retryPayment.Status.ToString()),
                     BuildClientHint(session),
-                    session.ProviderPaymentId ?? string.Empty));
+                    session.ProviderPaymentId ?? string.Empty,
+                    session.ProviderConfig));
         }
         catch
         {

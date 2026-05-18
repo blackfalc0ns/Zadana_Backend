@@ -152,7 +152,8 @@ public class OrdersController : ApiControllerBase
                 result.Payment.Provider,
                 result.Payment.Status,
                 result.Payment.IframeUrl,
-                result.Payment.ProviderReference)));
+                result.Payment.ProviderReference,
+                result.Payment.ProviderConfig)));
     }
 
     [HttpDelete("{orderId:guid}")]

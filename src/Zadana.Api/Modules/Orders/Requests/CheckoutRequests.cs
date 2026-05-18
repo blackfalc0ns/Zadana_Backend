@@ -272,4 +272,7 @@ public record CheckoutOrderPaymentResponse(
     [property: JsonPropertyName("provider")] string Provider,
     [property: JsonPropertyName("status")] string Status,
     [property: JsonPropertyName("iframe_url")] string IframeUrl,
-    [property: JsonPropertyName("provider_reference")] string ProviderReference);
+    [property: JsonPropertyName("provider_reference")] string ProviderReference,
+    [property: JsonPropertyName("provider_config")]
+    [property: JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingNull)]
+    object? ProviderConfig = null);

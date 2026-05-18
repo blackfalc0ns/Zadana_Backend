@@ -353,4 +353,5 @@ public record CheckoutPaymentSessionDto(
     string Provider,
     string Status,
     string IframeUrl,
-    string ProviderReference);
+    string ProviderReference,
+    object? ProviderConfig = null);
