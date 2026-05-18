@@ -17,7 +17,6 @@ public record DriverAssignmentDetailDto(
     string StorePhone,
     string CustomerName,
     string DeliveryAddress,
-    DriverAddressDetailDto? DeliveryAddressDetail,
     decimal? DeliveryLatitude,
     decimal? DeliveryLongitude,
     string? CustomerPhone,
@@ -34,14 +33,6 @@ public record DriverAssignmentDetailDto(
     string DriverArrivalState,
     string DriverArrivalStateLabel,
     IReadOnlyList<DriverAssignmentItemDto> OrderItems);
-
-public record DriverAddressDetailDto(
-    string? AddressLine,
-    string? BuildingNo,
-    string? FloorNo,
-    string? ApartmentNo,
-    string? Area,
-    string? City);
 
 public record DriverAssignmentItemDto(
     string Name,
