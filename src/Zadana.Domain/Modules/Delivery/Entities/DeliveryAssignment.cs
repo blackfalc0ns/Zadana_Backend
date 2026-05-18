@@ -151,6 +151,24 @@ public class DeliveryAssignment : BaseEntity
         return PickupOtpCode;
     }
 
+    /// <summary>
+    /// Always generates a fresh pickup OTP code (used on resend).
+    /// Throws if the OTP was already verified.
+    /// </summary>
+    public string RegeneratePickupOtp(TimeSpan ttl)
+    {
+        if (PickupOtpVerifiedAtUtc.HasValue)
+        {
+            throw new InvalidOperationException("Pickup OTP has already been verified.");
+        }
+
+        PickupOtpCode = GenerateOtp();
+        PickupOtpExpiresAtUtc = DateTime.UtcNow.Add(ttl);
+        PickupOtpVerifiedAtUtc = null;
+        PickupOtpVerifiedByDriverId = null;
+        return PickupOtpCode;
+    }
+
     public string EnsureDeliveryOtp(TimeSpan ttl)
     {
         if (DeliveryOtpVerifiedAtUtc.HasValue)
@@ -163,6 +181,24 @@ public class DeliveryAssignment : BaseEntity
             DeliveryOtpCode = GenerateOtp();
         }
 
+        DeliveryOtpExpiresAtUtc = DateTime.UtcNow.Add(ttl);
+        DeliveryOtpVerifiedAtUtc = null;
+        DeliveryOtpVerifiedByDriverId = null;
+        return DeliveryOtpCode;
+    }
+
+    /// <summary>
+    /// Always generates a fresh delivery OTP code (used on resend).
+    /// Throws if the OTP was already verified.
+    /// </summary>
+    public string RegenerateDeliveryOtp(TimeSpan ttl)
+    {
+        if (DeliveryOtpVerifiedAtUtc.HasValue)
+        {
+            throw new InvalidOperationException("Delivery OTP has already been verified.");
+        }
+
+        DeliveryOtpCode = GenerateOtp();
         DeliveryOtpExpiresAtUtc = DateTime.UtcNow.Add(ttl);
         DeliveryOtpVerifiedAtUtc = null;
         DeliveryOtpVerifiedByDriverId = null;

@@ -5,7 +5,9 @@ public record DriverAssignmentDetailDto(
     Guid OrderId,
     string OrderNumber,
     string AssignmentStatus,
+    string AssignmentStatusLabel,
     string HomeState,
+    string HomeStateLabel,
     IReadOnlyList<string> AllowedActions,
     string VendorName,
     string PickupAddress,
@@ -18,13 +20,17 @@ public record DriverAssignmentDetailDto(
     decimal? DeliveryLongitude,
     string? CustomerPhone,
     string PaymentMethod,
+    string PaymentMethodLabel,
     decimal CodAmount,
     bool PickupOtpRequired,
     string PickupOtpStatus,
+    string PickupOtpStatusLabel,
     bool DeliveryOtpRequired,
     string DeliveryOtpStatus,
+    string DeliveryOtpStatusLabel,
     string? PickupOtpCode,
     string DriverArrivalState,
+    string DriverArrivalStateLabel,
     IReadOnlyList<DriverAssignmentItemDto> OrderItems);
 
 public record DriverAssignmentItemDto(

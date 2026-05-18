@@ -579,14 +579,25 @@ public class DriverReadService : IDriverReadService
             .AsNoTracking()
             .FirstOrDefaultAsync(a => a.Id == assignment.Order.CustomerAddressId, cancellationToken);
 
+        var assignmentStatus = assignment.Status.ToString();
+        var homeState = ResolveAssignmentHomeState(assignment);
+        var otpPickupStatus = ResolveOtpStatus(assignment.RequiresPickupOtpVerification, assignment.IsPickupOtpVerified);
+        var otpDeliveryStatus = ResolveOtpStatus(assignment.RequiresDeliveryOtpVerification, assignment.IsDeliveryOtpVerified);
+        var arrivalState = ResolveArrivalState(assignment);
+        var paymentMethod = assignment.Order.PaymentMethod.ToString();
+
         return new DriverAssignmentDetailDto(
             assignment.Id,
             assignment.OrderId,
             assignment.Order.OrderNumber,
-            assignment.Status.ToString(),
-            ResolveAssignmentHomeState(assignment),
+            assignmentStatus,
+            ResolveAssignmentStatusLabel(assignmentStatus),
+            homeState,
+            ResolveHomeStateLabel(homeState),
             ResolveAllowedActions(assignment, assignment.Order.Status),
-            assignment.Order.Vendor.BusinessNameEn,
+            IsArabic()
+                ? (assignment.Order.Vendor.BusinessNameAr ?? assignment.Order.Vendor.BusinessNameEn)
+                : (assignment.Order.Vendor.BusinessNameEn ?? assignment.Order.Vendor.BusinessNameAr),
             assignment.Order.VendorBranch?.AddressLine ?? assignment.Order.Vendor.NationalAddress ?? string.Empty,
             assignment.Order.VendorBranch?.Latitude,
             assignment.Order.VendorBranch?.Longitude,
@@ -596,14 +607,18 @@ public class DriverReadService : IDriverReadService
             customerAddress?.Latitude,
             customerAddress?.Longitude,
             customerAddress?.ContactPhone,
-            assignment.Order.PaymentMethod.ToString(),
+            paymentMethod,
+            ResolvePaymentMethodLabel(paymentMethod),
             ResolveCodAmount(assignment),
             assignment.RequiresPickupOtpVerification,
-            ResolveOtpStatus(assignment.RequiresPickupOtpVerification, assignment.IsPickupOtpVerified),
+            otpPickupStatus,
+            ResolveOtpStatusLabel(otpPickupStatus),
             assignment.RequiresDeliveryOtpVerification,
-            ResolveOtpStatus(assignment.RequiresDeliveryOtpVerification, assignment.IsDeliveryOtpVerified),
+            otpDeliveryStatus,
+            ResolveOtpStatusLabel(otpDeliveryStatus),
             assignment.IsInHandoffWindow ? assignment.PickupOtpCode : null,
-            ResolveArrivalState(assignment),
+            arrivalState,
+            ResolveArrivalStateLabel(arrivalState),
             assignment.Order.Items
                 .Select(item => new DriverAssignmentItemDto(item.ProductName, item.Quantity, item.UnitPrice, item.LineTotal))
                 .ToArray());
@@ -873,6 +888,56 @@ public class DriverReadService : IDriverReadService
 
     private static string ResolveAssignmentHomeState(DeliveryAssignment assignment) =>
         assignment.Status == AssignmentStatus.OfferSent ? "IncomingOffer" : "OnMission";
+
+    private static string ResolveAssignmentStatusLabel(string status) => status switch
+    {
+        "SearchingDriver" => IsArabic() ? "جاري البحث عن مندوب" : "Searching for driver",
+        "OfferSent"       => IsArabic() ? "عرض مرسل" : "Offer sent",
+        "Accepted"        => IsArabic() ? "مقبول" : "Accepted",
+        "ArrivedAtVendor" => IsArabic() ? "وصل للمتجر" : "Arrived at vendor",
+        "PickedUp"        => IsArabic() ? "تم الاستلام" : "Picked up",
+        "ArrivedAtCustomer" => IsArabic() ? "وصل للعميل" : "Arrived at customer",
+        "Delivered"       => IsArabic() ? "تم التوصيل" : "Delivered",
+        "Failed"          => IsArabic() ? "فشل التوصيل" : "Delivery failed",
+        "Cancelled"       => IsArabic() ? "ملغي" : "Cancelled",
+        "Rejected"        => IsArabic() ? "مرفوض" : "Rejected",
+        _                 => status
+    };
+
+    private static string ResolveHomeStateLabel(string homeState) => homeState switch
+    {
+        "IncomingOffer" => IsArabic() ? "عرض جديد" : "Incoming offer",
+        "OnMission"     => IsArabic() ? "في مهمة" : "On mission",
+        _               => homeState
+    };
+
+    private static string ResolveOtpStatusLabel(string otpStatus) => otpStatus switch
+    {
+        "not_required" => IsArabic() ? "غير مطلوب" : "Not required",
+        "pending"      => IsArabic() ? "في الانتظار" : "Pending",
+        "verified"     => IsArabic() ? "تم التحقق" : "Verified",
+        _              => otpStatus
+    };
+
+    private static string ResolveArrivalStateLabel(string arrivalState) => arrivalState switch
+    {
+        "en_route"           => IsArabic() ? "في الطريق" : "En route",
+        "arrived_at_vendor"  => IsArabic() ? "وصل للمتجر" : "Arrived at vendor",
+        "arrived_at_customer" => IsArabic() ? "وصل للعميل" : "Arrived at customer",
+        _                    => arrivalState
+    };
+
+    private static string ResolvePaymentMethodLabel(string paymentMethod) => paymentMethod switch
+    {
+        "CashOnDelivery" => IsArabic() ? "الدفع عند الاستلام" : "Cash on delivery",
+        "Online"         => IsArabic() ? "دفع إلكتروني" : "Online payment",
+        "Wallet"         => IsArabic() ? "المحفظة" : "Wallet",
+        _                => paymentMethod
+    };
+
+    private static bool IsArabic() =>
+        System.Globalization.CultureInfo.CurrentUICulture.TwoLetterISOLanguageName
+            .Equals("ar", StringComparison.OrdinalIgnoreCase);
 
     private static IReadOnlyList<string> ResolveAllowedActions(DeliveryAssignment assignment, OrderStatus orderStatus)
     {

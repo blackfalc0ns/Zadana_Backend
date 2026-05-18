@@ -75,7 +75,7 @@ public class ResendAssignmentOtpCommandHandler : IRequestHandler<ResendAssignmen
                 throw new BusinessRuleException("PICKUP_OTP_ALREADY_VERIFIED", "Pickup OTP has already been verified.");
             }
 
-            var pickupOtp = assignment.EnsurePickupOtp(OtpTtl);
+            var pickupOtp = assignment.RegeneratePickupOtp(OtpTtl);
             await _context.SaveChangesAsync(cancellationToken);
 
             if (assignment.Order.Vendor is not null)
@@ -104,7 +104,7 @@ public class ResendAssignmentOtpCommandHandler : IRequestHandler<ResendAssignmen
                 throw new BusinessRuleException("DELIVERY_OTP_ALREADY_VERIFIED", "Delivery OTP has already been verified.");
             }
 
-            var deliveryOtp = assignment.EnsureDeliveryOtp(OtpTtl);
+            var deliveryOtp = assignment.RegenerateDeliveryOtp(OtpTtl);
             await _context.SaveChangesAsync(cancellationToken);
 
             await _notificationService.SendToUserAsync(
