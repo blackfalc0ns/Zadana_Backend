@@ -130,6 +130,7 @@ builder.Services.AddSingleton<IAdminMasterProductBulkOperationQueue, AdminMaster
 builder.Services.AddSingleton<IVendorProductBulkOperationQueue, VendorProductBulkOperationQueue>();
 builder.Services.AddHostedService<CustomerPresenceSweepWorker>();
 builder.Services.AddHostedService<PendingPaymentExpirationWorker>();
+builder.Services.AddHostedService<PaymentProviderEventInboxWorker>();
 builder.Services.AddHostedService<DeliveryDispatchWorker>();
 builder.Services.AddHostedService<AdminBrandBulkOperationWorker>();
 builder.Services.AddHostedService<AdminMasterProductBulkOperationWorker>();

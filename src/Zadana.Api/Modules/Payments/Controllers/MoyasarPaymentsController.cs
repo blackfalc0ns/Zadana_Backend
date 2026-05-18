@@ -60,7 +60,11 @@ public class MoyasarPaymentsController(
                 instance: "/api/payments/moyasar/webhook");
         }
 
-        var secretValid = ValidateWebhookSecret(moyasar, payload);
+        var secretValid = MoyasarWebhookSecretValidator.Validate(
+            moyasar.WebhookSecret,
+            payload,
+            Request.Headers[MoyasarSignatureHeader].ToString(),
+            environment.IsDevelopment());
 
         // Untrusted source: tell Moyasar we will not process; do not retry forever.
         // 401 is the "stop, your credentials are wrong" signal. We still record the
@@ -152,48 +156,6 @@ public class MoyasarPaymentsController(
             result.AlreadyConfirmed));
     }
 
-    private bool ValidateWebhookSecret(MoyasarSettings moyasar, string payload)
-    {
-        if (string.IsNullOrWhiteSpace(moyasar.WebhookSecret))
-        {
-            // Development-only soft mode: accept anything so local testing isn't blocked.
-            return environment.IsDevelopment();
-        }
-
-        var providedSignature = Request.Headers[MoyasarSignatureHeader].ToString();
-
-        // Moyasar's webhook config sends a shared "secret_token" inside the JSON body OR
-        // as an HMAC-SHA256 header, depending on the dashboard configuration. We accept
-        // either. Both comparisons are constant-time.
-        if (!string.IsNullOrWhiteSpace(providedSignature))
-        {
-            var expected = Convert.ToHexString(
-                HMACSHA256.HashData(
-                    Encoding.UTF8.GetBytes(moyasar.WebhookSecret),
-                    Encoding.UTF8.GetBytes(payload))).ToLowerInvariant();
-
-            var provided = providedSignature.Trim().ToLowerInvariant();
-            return expected.Length == provided.Length
-                && CryptographicOperations.FixedTimeEquals(
-                    Encoding.ASCII.GetBytes(expected),
-                    Encoding.ASCII.GetBytes(provided));
-        }
-
-        // Body-token mode. We compare against the configured secret using a
-        // constant-time match so attackers can't time their way in.
-        var expectedTokenBytes = Encoding.UTF8.GetBytes(moyasar.WebhookSecret);
-        var marker = "\"secret_token\":\"";
-        var tokenStart = payload.IndexOf(marker, StringComparison.Ordinal);
-        if (tokenStart < 0) return false;
-        tokenStart += marker.Length;
-        var tokenEnd = payload.IndexOf('"', tokenStart);
-        if (tokenEnd < 0) return false;
-        var providedToken = payload.AsSpan(tokenStart, tokenEnd - tokenStart);
-        var providedTokenBytes = Encoding.UTF8.GetBytes(providedToken.ToString());
-        return providedTokenBytes.Length == expectedTokenBytes.Length
-            && CryptographicOperations.FixedTimeEquals(providedTokenBytes, expectedTokenBytes);
-    }
-
     private string? SerializeHeaders()
     {
         try
@@ -258,3 +220,87 @@ public record ConfirmCardPaymentResponse(
     Guid OrderId,
     string OrderStatus,
     bool AlreadyConfirmed);
+
+public static class MoyasarWebhookSecretValidator
+{
+    public static bool Validate(
+        string configuredSecret,
+        string payload,
+        string? providedSignature,
+        bool allowMissingSecret)
+    {
+        if (string.IsNullOrWhiteSpace(configuredSecret))
+        {
+            return allowMissingSecret;
+        }
+
+        if (!string.IsNullOrWhiteSpace(providedSignature)
+            && ValidateSignature(configuredSecret, payload, providedSignature))
+        {
+            return true;
+        }
+
+        return TryReadBodySecretToken(payload, out var providedToken)
+            && FixedTimeEquals(configuredSecret, providedToken);
+    }
+
+    private static bool ValidateSignature(string configuredSecret, string payload, string providedSignature)
+    {
+        var expected = Convert.ToHexString(
+            HMACSHA256.HashData(
+                Encoding.UTF8.GetBytes(configuredSecret),
+                Encoding.UTF8.GetBytes(payload))).ToLowerInvariant();
+
+        var provided = providedSignature.Trim().ToLowerInvariant();
+        const string sha256Prefix = "sha256=";
+        if (provided.StartsWith(sha256Prefix, StringComparison.OrdinalIgnoreCase))
+        {
+            provided = provided[sha256Prefix.Length..];
+        }
+
+        return FixedTimeEquals(expected, provided);
+    }
+
+    private static bool TryReadBodySecretToken(string payload, out string token)
+    {
+        token = string.Empty;
+        if (string.IsNullOrWhiteSpace(payload))
+        {
+            return false;
+        }
+
+        try
+        {
+            using var document = System.Text.Json.JsonDocument.Parse(payload);
+            if (document.RootElement.ValueKind != System.Text.Json.JsonValueKind.Object)
+            {
+                return false;
+            }
+
+            foreach (var property in document.RootElement.EnumerateObject())
+            {
+                if (string.Equals(property.Name, "secret_token", StringComparison.OrdinalIgnoreCase)
+                    && property.Value.ValueKind == System.Text.Json.JsonValueKind.String)
+                {
+                    token = property.Value.GetString() ?? string.Empty;
+                    return !string.IsNullOrWhiteSpace(token);
+                }
+            }
+        }
+        catch (System.Text.Json.JsonException)
+        {
+            return false;
+        }
+
+        return false;
+    }
+
+    private static bool FixedTimeEquals(string expected, string provided)
+    {
+        var expectedBytes = Encoding.UTF8.GetBytes(expected);
+        var providedBytes = Encoding.UTF8.GetBytes(provided);
+
+        return expectedBytes.Length == providedBytes.Length
+            && CryptographicOperations.FixedTimeEquals(expectedBytes, providedBytes);
+    }
+}

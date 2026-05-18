@@ -3,7 +3,6 @@ using FluentValidation;
 using MediatR;
 using Microsoft.EntityFrameworkCore;
 using Zadana.Application.Common.Interfaces;
-using Zadana.Application.Modules.Payments.Commands.ConfirmCardPayment;
 using Zadana.Application.Modules.Payments.DTOs;
 using Zadana.Domain.Modules.Payments.Entities;
 
@@ -11,8 +10,8 @@ namespace Zadana.Application.Modules.Payments.Commands.ProcessPaymentWebhook;
 
 /// <summary>
 /// Persists an inbound payment provider webhook into the durable
-/// <c>PaymentProviderEventInbox</c> (idempotent on Provider+EventId) and
-/// triggers verification through <see cref="ConfirmCardPaymentCommand"/>.
+/// <c>PaymentProviderEventInbox</c> (idempotent on Provider+EventId).
+/// A background worker performs the actual provider fetch and verification.
 /// </summary>
 public record ProcessPaymentWebhookCommand(
     string Provider,
@@ -32,12 +31,10 @@ public class ProcessPaymentWebhookCommandValidator : AbstractValidator<ProcessPa
 public class ProcessPaymentWebhookCommandHandler : IRequestHandler<ProcessPaymentWebhookCommand, PaymentWebhookProcessResultDto>
 {
     private readonly IApplicationDbContext _context;
-    private readonly ISender _sender;
 
-    public ProcessPaymentWebhookCommandHandler(IApplicationDbContext context, ISender sender)
+    public ProcessPaymentWebhookCommandHandler(IApplicationDbContext context)
     {
         _context = context;
-        _sender = sender;
     }
 
     public async Task<PaymentWebhookProcessResultDto> Handle(ProcessPaymentWebhookCommand request, CancellationToken cancellationToken)
@@ -95,30 +92,9 @@ public class ProcessPaymentWebhookCommandHandler : IRequestHandler<ProcessPaymen
             return new PaymentWebhookProcessResultDto("ignored", Guid.Empty, "ignored");
         }
 
-        inbox.MarkProcessing();
         await _context.SaveChangesAsync(cancellationToken);
 
-        try
-        {
-            var result = await _sender.Send(
-                new ConfirmCardPaymentCommand(
-                    PaymentId: null,
-                    ProviderPaymentId: providerPaymentId,
-                    ProviderName: request.Provider,
-                    CustomerDeviceId: null),
-                cancellationToken);
-
-            inbox.MarkProcessed();
-            await _context.SaveChangesAsync(cancellationToken);
-
-            return new PaymentWebhookProcessResultDto(result.Message, result.PaymentId, result.PaymentStatus);
-        }
-        catch (Exception ex)
-        {
-            inbox.MarkFailed(ex.Message);
-            await _context.SaveChangesAsync(cancellationToken);
-            throw;
-        }
+        return new PaymentWebhookProcessResultDto("queued", Guid.Empty, inbox.Status.ToString().ToLowerInvariant());
     }
 
     private static (string EventId, string EventType, string? ProviderPaymentId) ParseEnvelope(string provider, string payload)
