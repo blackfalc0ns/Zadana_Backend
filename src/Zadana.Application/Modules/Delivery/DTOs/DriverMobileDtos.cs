@@ -51,6 +51,7 @@ public record DriverCompletedOrdersListDto(
 public record DriverCompletedOrderListItemDto(
     Guid Id,
     string MerchantName,
+    string? MerchantImageUrl,
     string CustomerName,
     DateTime? CompletedAtUtc,
     string Status,

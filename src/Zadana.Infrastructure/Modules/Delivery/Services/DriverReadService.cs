@@ -685,6 +685,7 @@ public class DriverReadService : IDriverReadService
                     IsArabic()
                         ? (assignment.Order.Vendor.BusinessNameAr ?? assignment.Order.Vendor.BusinessNameEn)
                         : (assignment.Order.Vendor.BusinessNameEn ?? assignment.Order.Vendor.BusinessNameAr),
+                    assignment.Order.Vendor.LogoUrl,
                     customerAddress?.ContactName ?? "Customer",
                     ResolveCompletedAtUtc(assignment),
                     MapCompletedOrderStatus(assignment.Order.Status),
