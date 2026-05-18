@@ -24,8 +24,11 @@ public class BankTransferController(
     WalletProjectionUpdater walletProjectionUpdater) : ApiControllerBase
 {
     /// <summary>
-    /// Customer uploads bank transfer proof for a pending order.
+    /// Customer uploads bank transfer proof for a pending order. The order id
+    /// itself is the auth token at this stage; we tighten this once the
+    /// customer mobile app sends a JWT.
     /// </summary>
+    [AllowAnonymous]
     [HttpPost("orders/{orderId:guid}/bank-transfer-proof")]
     public async Task<IActionResult> UploadProof(
         Guid orderId,

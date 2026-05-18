@@ -67,6 +67,15 @@ public sealed class AccessAuthorizationConvention : IApplicationModelConvention
                 [PermissionKeys.Admin.FinancesView],
                 edit: [PermissionKeys.Admin.FinancesEdit],
                 approve: [PermissionKeys.Admin.FinancesApprove]),
+            ["BankTransfer"] = new(
+                [PermissionKeys.Admin.FinancesView],
+                edit: [PermissionKeys.Admin.FinancesEdit],
+                approve: [PermissionKeys.Admin.FinancesApprove],
+                overrides: new Dictionary<string, string[]>(StringComparer.Ordinal)
+                {
+                    ["ConfirmBankTransfer"] = [PermissionKeys.Admin.FinancesApprove],
+                    ["RejectBankTransfer"] = [PermissionKeys.Admin.FinancesApprove],
+                }),
             ["AdminSettlements"] = new(
                 [PermissionKeys.Admin.FinancesView],
                 edit: [PermissionKeys.Admin.FinancesEdit],
