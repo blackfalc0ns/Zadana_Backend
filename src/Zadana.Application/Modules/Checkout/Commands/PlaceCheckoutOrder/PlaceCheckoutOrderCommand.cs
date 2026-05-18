@@ -9,13 +9,14 @@ using Zadana.Application.Modules.Delivery.Interfaces;
 using Zadana.Application.Modules.Orders.Commands.PlaceOrder;
 using Zadana.Application.Modules.Orders.Events;
 using Zadana.Application.Modules.Orders.Support;
-using Zadana.Application.Modules.Payments.DTOs;
+using Zadana.Application.Modules.Payments.Gateways;
 using Zadana.Application.Modules.Payments.Interfaces;
 using Zadana.Application.Modules.Payments.Support;
 using Zadana.Domain.Modules.Orders.Enums;
 using Zadana.Domain.Modules.Payments.Entities;
 using Zadana.Domain.Modules.Payments.Enums;
 using Zadana.SharedKernel.Exceptions;
+using Zadana.SharedKernel.Finance;
 
 namespace Zadana.Application.Modules.Checkout.Commands.PlaceCheckoutOrder;
 
@@ -42,8 +43,10 @@ public class PlaceCheckoutOrderCommandValidator : AbstractValidator<PlaceCheckou
 
 public class PlaceCheckoutOrderCommandHandler : IRequestHandler<PlaceCheckoutOrderCommand, PlaceCheckoutOrderResultDto>
 {
+    private const string CardProvider = "Moyasar";
+
     private readonly IApplicationDbContext _context;
-    private readonly IPaymobGateway _paymobGateway;
+    private readonly IPaymentGatewayResolver _gatewayResolver;
     private readonly IDeliveryPricingService _deliveryPricingService;
     private readonly ISender _sender;
     private readonly IUnitOfWork _unitOfWork;
@@ -51,14 +54,14 @@ public class PlaceCheckoutOrderCommandHandler : IRequestHandler<PlaceCheckoutOrd
 
     public PlaceCheckoutOrderCommandHandler(
         IApplicationDbContext context,
-        IPaymobGateway paymobGateway,
+        IPaymentGatewayResolver gatewayResolver,
         IDeliveryPricingService deliveryPricingService,
         ISender sender,
         IUnitOfWork unitOfWork,
         IPublisher publisher)
     {
         _context = context;
-        _paymobGateway = paymobGateway;
+        _gatewayResolver = gatewayResolver;
         _deliveryPricingService = deliveryPricingService;
         _sender = sender;
         _unitOfWork = unitOfWork;
@@ -234,37 +237,51 @@ public class PlaceCheckoutOrderCommandHandler : IRequestHandler<PlaceCheckoutOrd
 
         if (paymentMethodCode == "card")
         {
-            if (!_paymobGateway.IsEnabled)
+            if (!_gatewayResolver.TryResolve(CardProvider, out var gateway) || gateway is null)
             {
-                throw new BusinessRuleException("PAYMENT_UNAVAILABLE", "Paymob checkout is disabled or not configured.");
+                throw new BusinessRuleException("PAYMENT_UNAVAILABLE", "Card checkout provider is disabled or not configured.");
             }
 
             try
             {
-                var session = await _paymobGateway.CreateCheckoutSessionAsync(
-                    new PaymobCheckoutSessionRequest(
-                        payment.Id,
-                        order.Id,
-                        order.OrderNumber,
-                        order.TotalAmount,
-                        CheckoutSupport.Currency,
-                        order.Items.Select(MapPaymobItem).ToArray(),
-                        PaymobBillingData.FirstName(user),
-                        PaymobBillingData.LastName(user),
-                        PaymobBillingData.Email(user),
-                        PaymobBillingData.Phone(user, address),
-                        PaymobBillingData.Street(address),
-                        PaymobBillingData.City(address),
-                        "EG"),
+                CurrencyPolicy.EnsureOfficial(order.Currency);
+                var idempotencyKey = $"payment-create:{order.Id:N}:{payment.Id:N}";
+                var session = await gateway.CreateSessionAsync(
+                    new CreatePaymentSessionCommand(
+                        OrderId: order.Id,
+                        PaymentId: payment.Id,
+                        Channel: PaymentMethodChannel.Card,
+                        Amount: order.TotalAmount,
+                        Currency: order.Currency,
+                        Description: $"Order {order.OrderNumber}",
+                        CallbackUrl: string.Empty,
+                        IdempotencyKey: idempotencyKey,
+                        Metadata: new Dictionary<string, string>
+                        {
+                            ["order_id"] = order.Id.ToString(),
+                            ["payment_id"] = payment.Id.ToString(),
+                            ["order_number"] = order.OrderNumber,
+                        },
+                        CustomerEmail: user.Email,
+                        CustomerPhone: user.PhoneNumber,
+                        CustomerFullName: user.FullName),
                     cancellationToken);
 
-                payment.MarkAsPending("Paymob", session.ProviderReference);
+                payment.ApplyProviderSession(
+                    providerName: session.ProviderName,
+                    providerMethod: "creditcard",
+                    providerPaymentId: session.ProviderPaymentId,
+                    providerInvoiceId: session.ProviderInvoiceId,
+                    idempotencyKey: idempotencyKey,
+                    rawCreateResponse: session.RawCreateResponse,
+                    currency: order.Currency);
+
                 paymentSession = new CheckoutPaymentSessionDto(
                     payment.Id,
-                    "paymob",
+                    session.ProviderName.ToLowerInvariant(),
                     CheckoutSupport.MapPaymentStatusToContractValue(payment.Status.ToString()),
-                    session.IframeUrl,
-                    session.ProviderReference);
+                    session.ClientAction,
+                    session.ProviderPaymentId ?? string.Empty);
             }
             catch
             {
@@ -347,11 +364,4 @@ public class PlaceCheckoutOrderCommandHandler : IRequestHandler<PlaceCheckoutOrd
             throw new BusinessRuleException("DELIVERY_SLOT_NOT_AVAILABLE", "Selected delivery slot is not available.");
         }
     }
-
-    private static PaymobOrderItemRequest MapPaymobItem(Zadana.Domain.Modules.Orders.Entities.OrderItem item) =>
-        new(
-            item.ProductName,
-            item.ProductName,
-            item.Quantity,
-            item.UnitPrice);
 }

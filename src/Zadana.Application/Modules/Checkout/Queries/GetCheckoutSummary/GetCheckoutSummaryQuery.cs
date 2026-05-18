@@ -19,17 +19,19 @@ public record GetCheckoutSummaryQuery(
 
 public class GetCheckoutSummaryQueryHandler : IRequestHandler<GetCheckoutSummaryQuery, CheckoutSummaryDto>
 {
+    private const string CardProvider = "Moyasar";
+
     private readonly IApplicationDbContext _context;
-    private readonly IPaymobGateway _paymobGateway;
+    private readonly IPaymentGatewayResolver _gatewayResolver;
     private readonly IDeliveryPricingService _deliveryPricingService;
 
     public GetCheckoutSummaryQueryHandler(
         IApplicationDbContext context,
-        IPaymobGateway paymobGateway,
+        IPaymentGatewayResolver gatewayResolver,
         IDeliveryPricingService deliveryPricingService)
     {
         _context = context;
-        _paymobGateway = paymobGateway;
+        _gatewayResolver = gatewayResolver;
         _deliveryPricingService = deliveryPricingService;
     }
 
@@ -100,7 +102,7 @@ public class GetCheckoutSummaryQueryHandler : IRequestHandler<GetCheckoutSummary
             CheckoutSupport.BuildAddressDto(address),
             CheckoutSupport.BuildAvailableAddressesList(allAddresses),
             CheckoutSupport.BuildDeliverySlots(request.DeliverySlotId),
-            CheckoutSupport.BuildPaymentMethods(_paymobGateway.IsEnabled),
+            CheckoutSupport.BuildPaymentMethods(_gatewayResolver.TryResolve(CardProvider, out var gateway) && gateway is not null && gateway.IsEnabled),
             CheckoutSupport.BuildPromoCodeDto(coupon, discount),
             deliveryAssessment.DeliveryCheck,
             new CheckoutEstimatedDeliveryWindowDto(

@@ -85,6 +85,8 @@ public class ApplicationDbContext : IdentityDbContext<User, IdentityRole<Guid>, 
     // Payments
     public DbSet<Payment> Payments => Set<Payment>();
     public DbSet<Refund> Refunds => Set<Refund>();
+    public DbSet<RefundAllocation> RefundAllocations => Set<RefundAllocation>();
+    public DbSet<PaymentProviderEventInbox> PaymentProviderEvents => Set<PaymentProviderEventInbox>();
 
     // Delivery
     public DbSet<Driver> Drivers => Set<Driver>();
@@ -110,6 +112,7 @@ public class ApplicationDbContext : IdentityDbContext<User, IdentityRole<Guid>, 
     public DbSet<VendorRecovery> VendorRecoveries => Set<VendorRecovery>();
     public DbSet<DriverPayoutMethod> DriverPayoutMethods => Set<DriverPayoutMethod>();
     public DbSet<DriverWithdrawalRequest> DriverWithdrawalRequests => Set<DriverWithdrawalRequest>();
+    public DbSet<WalletHold> WalletHolds => Set<WalletHold>();
 
     // Finances
     public DbSet<CityDeliveryPricingSettings> CityDeliveryPricingSettings => Set<CityDeliveryPricingSettings>();
@@ -119,6 +122,8 @@ public class ApplicationDbContext : IdentityDbContext<User, IdentityRole<Guid>, 
     public DbSet<FinancialEvent> FinancialEvents => Set<FinancialEvent>();
     public DbSet<JournalEntry> JournalEntries => Set<JournalEntry>();
     public DbSet<JournalLine> JournalLines => Set<JournalLine>();
+    public DbSet<PaymentGatewaySettlement> PaymentGatewaySettlements => Set<PaymentGatewaySettlement>();
+    public DbSet<PaymentGatewaySettlementItem> PaymentGatewaySettlementItems => Set<PaymentGatewaySettlementItem>();
 
     // Marketing & Social
     public DbSet<Coupon> Coupons => Set<Coupon>();

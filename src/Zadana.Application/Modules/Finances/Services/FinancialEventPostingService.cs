@@ -27,7 +27,7 @@ public sealed class FinancialEventPostingService
         Guid? settlementId = null,
         Guid? payoutId = null,
         Guid? refundId = null,
-        string currencyCode = "EGP",
+        string currencyCode = "SAR",
         Guid? correlationId = null,
         string? description = null,
         CancellationToken cancellationToken = default)

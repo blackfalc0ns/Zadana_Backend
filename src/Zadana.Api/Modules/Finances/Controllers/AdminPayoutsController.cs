@@ -11,7 +11,7 @@ namespace Zadana.Api.Modules.Finances.Controllers;
 [Authorize(Policy = "AdminOnly")]
 public sealed class AdminPayoutsController(
     IApplicationDbContext context,
-    PaymobPayoutOrchestrator payoutOrchestrator) : ControllerBase
+    PayoutOrchestrator payoutOrchestrator) : ControllerBase
 {
     [HttpGet]
     public async Task<ActionResult<AdminPayoutListDto>> GetPayouts(
@@ -118,6 +118,25 @@ public sealed class AdminPayoutsController(
         return NoContent();
     }
 
+    [HttpPost("{id:guid}/mark-paid")]
+    public async Task<ActionResult<AdminPayoutDto>> MarkPaid(
+        Guid id,
+        [FromBody] AdminMarkPayoutPaidRequest request,
+        CancellationToken cancellationToken)
+    {
+        if (request is null || string.IsNullOrWhiteSpace(request.TransferReference))
+        {
+            return BadRequest(new { error = "TRANSFER_REFERENCE_REQUIRED" });
+        }
+
+        var payout = await payoutOrchestrator.MarkPaidAsync(
+            id,
+            request.TransferReference,
+            request.ProviderTransferId,
+            cancellationToken);
+        return Ok(await LoadDtoAsync(payout.Id, cancellationToken));
+    }
+
     private async Task<AdminPayoutDto> LoadDtoAsync(Guid payoutId, CancellationToken cancellationToken)
     {
         return await context.Payouts
@@ -173,3 +192,7 @@ public sealed record AdminPayoutAttemptDto(
     string? TransferReference,
     string? FailureReason,
     DateTime CreatedAtUtc);
+
+public sealed record AdminMarkPayoutPaidRequest(
+    string TransferReference,
+    string? ProviderTransferId);

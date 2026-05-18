@@ -2038,7 +2038,7 @@ namespace Zadana.Infrastructure.Migrations
                         .ValueGeneratedOnAdd()
                         .HasMaxLength(3)
                         .HasColumnType("nvarchar(3)")
-                        .HasDefaultValue("EGP");
+                        .HasDefaultValue("SAR");
 
                     b.Property<string>("Description")
                         .HasMaxLength(500)
@@ -2101,7 +2101,7 @@ namespace Zadana.Infrastructure.Migrations
                         .ValueGeneratedOnAdd()
                         .HasMaxLength(3)
                         .HasColumnType("nvarchar(3)")
-                        .HasDefaultValue("EGP");
+                        .HasDefaultValue("SAR");
 
                     b.Property<Guid>("FinancialEventId")
                         .HasColumnType("uniqueidentifier");
@@ -2160,7 +2160,7 @@ namespace Zadana.Infrastructure.Migrations
                         .ValueGeneratedOnAdd()
                         .HasMaxLength(3)
                         .HasColumnType("nvarchar(3)")
-                        .HasDefaultValue("EGP");
+                        .HasDefaultValue("SAR");
 
                     b.Property<decimal>("DebitAmount")
                         .HasPrecision(18, 2)
@@ -2203,6 +2203,145 @@ namespace Zadana.Infrastructure.Migrations
                         .HasDatabaseName("IX_JournalLines_AccountOwner");
 
                     b.ToTable("JournalLines", (string)null);
+                });
+
+            modelBuilder.Entity("Zadana.Domain.Modules.Finances.Entities.PaymentGatewaySettlement", b =>
+                {
+                    b.Property<Guid>("Id")
+                        .ValueGeneratedOnAdd()
+                        .HasColumnType("uniqueidentifier");
+
+                    b.Property<DateTime>("CreatedAtUtc")
+                        .HasColumnType("datetime2");
+
+                    b.Property<string>("CurrencyCode")
+                        .IsRequired()
+                        .ValueGeneratedOnAdd()
+                        .HasMaxLength(3)
+                        .HasColumnType("nvarchar(3)")
+                        .HasDefaultValue("SAR");
+
+                    b.Property<decimal>("FeeAmount")
+                        .HasPrecision(18, 2)
+                        .HasColumnType("decimal(18,2)");
+
+                    b.Property<Guid?>("FinancialEventId")
+                        .HasColumnType("uniqueidentifier");
+
+                    b.Property<decimal>("GrossAmount")
+                        .HasPrecision(18, 2)
+                        .HasColumnType("decimal(18,2)");
+
+                    b.Property<decimal>("NetAmount")
+                        .HasPrecision(18, 2)
+                        .HasColumnType("decimal(18,2)");
+
+                    b.Property<string>("Notes")
+                        .HasMaxLength(1000)
+                        .HasColumnType("nvarchar(1000)");
+
+                    b.Property<string>("ProviderName")
+                        .IsRequired()
+                        .HasMaxLength(40)
+                        .HasColumnType("nvarchar(40)");
+
+                    b.Property<string>("ProviderSettlementId")
+                        .IsRequired()
+                        .HasMaxLength(200)
+                        .HasColumnType("nvarchar(200)");
+
+                    b.Property<string>("RawFileOrJson")
+                        .HasColumnType("nvarchar(max)");
+
+                    b.Property<DateTime>("SettlementDate")
+                        .HasColumnType("datetime2");
+
+                    b.Property<string>("Status")
+                        .IsRequired()
+                        .HasMaxLength(30)
+                        .HasColumnType("nvarchar(30)");
+
+                    b.Property<DateTime>("UpdatedAtUtc")
+                        .HasColumnType("datetime2");
+
+                    b.HasKey("Id");
+
+                    b.HasIndex("ProviderName", "ProviderSettlementId")
+                        .IsUnique()
+                        .HasDatabaseName("IX_PaymentGatewaySettlements_Provider_Id");
+
+                    b.ToTable("PaymentGatewaySettlements", (string)null);
+                });
+
+            modelBuilder.Entity("Zadana.Domain.Modules.Finances.Entities.PaymentGatewaySettlementItem", b =>
+                {
+                    b.Property<Guid>("Id")
+                        .ValueGeneratedOnAdd()
+                        .HasColumnType("uniqueidentifier");
+
+                    b.Property<DateTime>("CreatedAtUtc")
+                        .HasColumnType("datetime2");
+
+                    b.Property<string>("CurrencyCode")
+                        .IsRequired()
+                        .ValueGeneratedOnAdd()
+                        .HasMaxLength(3)
+                        .HasColumnType("nvarchar(3)")
+                        .HasDefaultValue("SAR");
+
+                    b.Property<decimal>("FeeAmount")
+                        .HasPrecision(18, 2)
+                        .HasColumnType("decimal(18,2)");
+
+                    b.Property<decimal>("GrossAmount")
+                        .HasPrecision(18, 2)
+                        .HasColumnType("decimal(18,2)");
+
+                    b.Property<string>("MatchNote")
+                        .HasMaxLength(500)
+                        .HasColumnType("nvarchar(500)");
+
+                    b.Property<string>("MatchStatus")
+                        .IsRequired()
+                        .HasMaxLength(30)
+                        .HasColumnType("nvarchar(30)");
+
+                    b.Property<string>("Metadata")
+                        .HasColumnType("nvarchar(max)");
+
+                    b.Property<decimal>("NetAmount")
+                        .HasPrecision(18, 2)
+                        .HasColumnType("decimal(18,2)");
+
+                    b.Property<Guid?>("OrderId")
+                        .HasColumnType("uniqueidentifier");
+
+                    b.Property<Guid?>("PaymentId")
+                        .HasColumnType("uniqueidentifier");
+
+                    b.Property<DateTime?>("ProviderCreatedAtUtc")
+                        .HasColumnType("datetime2");
+
+                    b.Property<string>("ProviderPaymentId")
+                        .IsRequired()
+                        .HasMaxLength(200)
+                        .HasColumnType("nvarchar(200)");
+
+                    b.Property<Guid>("SettlementId")
+                        .HasColumnType("uniqueidentifier");
+
+                    b.Property<DateTime>("UpdatedAtUtc")
+                        .HasColumnType("datetime2");
+
+                    b.HasKey("Id");
+
+                    b.HasIndex("OrderId")
+                        .HasDatabaseName("IX_PaymentGatewaySettlementItems_OrderId");
+
+                    b.HasIndex("SettlementId", "ProviderPaymentId")
+                        .HasDatabaseName("IX_PaymentGatewaySettlementItems_Settlement_PaymentId");
+
+                    b.ToTable("PaymentGatewaySettlementItems", (string)null);
                 });
 
             modelBuilder.Entity("Zadana.Domain.Modules.Finances.Entities.RegionDeliveryPricingSettings", b =>
@@ -4045,11 +4184,21 @@ namespace Zadana.Infrastructure.Migrations
                         .HasPrecision(18, 2)
                         .HasColumnType("decimal(18,2)");
 
+                    b.Property<string>("CommissionPolicySnapshot")
+                        .HasColumnType("nvarchar(max)");
+
                     b.Property<Guid?>("CouponId")
                         .HasColumnType("uniqueidentifier");
 
                     b.Property<DateTime>("CreatedAtUtc")
                         .HasColumnType("datetime2");
+
+                    b.Property<string>("Currency")
+                        .IsRequired()
+                        .ValueGeneratedOnAdd()
+                        .HasMaxLength(3)
+                        .HasColumnType("nvarchar(3)")
+                        .HasDefaultValue("SAR");
 
                     b.Property<Guid>("CustomerAddressId")
                         .HasColumnType("uniqueidentifier");
@@ -4086,6 +4235,12 @@ namespace Zadana.Infrastructure.Migrations
                     b.Property<decimal>("DistanceDeliveryFee")
                         .HasPrecision(18, 2)
                         .HasColumnType("decimal(18,2)");
+
+                    b.Property<decimal>("DriverCommissionAmount")
+                        .ValueGeneratedOnAdd()
+                        .HasPrecision(18, 2)
+                        .HasColumnType("decimal(18,2)")
+                        .HasDefaultValue(0m);
 
                     b.Property<decimal>("DriverToVendorDistanceKm")
                         .HasPrecision(18, 2)
@@ -4148,12 +4303,31 @@ namespace Zadana.Infrastructure.Migrations
                     b.Property<DateTime>("PlacedAtUtc")
                         .HasColumnType("datetime2");
 
+                    b.Property<string>("PricingMode")
+                        .IsRequired()
+                        .ValueGeneratedOnAdd()
+                        .HasMaxLength(16)
+                        .HasColumnType("nvarchar(16)")
+                        .HasDefaultValue("live");
+
                     b.Property<Guid?>("PricingOriginDriverId")
                         .HasColumnType("uniqueidentifier");
 
                     b.Property<string>("PricingOriginType")
                         .HasMaxLength(50)
                         .HasColumnType("nvarchar(50)");
+
+                    b.Property<decimal>("ProductGross")
+                        .ValueGeneratedOnAdd()
+                        .HasPrecision(18, 2)
+                        .HasColumnType("decimal(18,2)")
+                        .HasDefaultValue(0m);
+
+                    b.Property<decimal>("ProductNet")
+                        .ValueGeneratedOnAdd()
+                        .HasPrecision(18, 2)
+                        .HasColumnType("decimal(18,2)")
+                        .HasDefaultValue(0m);
 
                     b.Property<decimal?>("QuotedDistanceKm")
                         .HasPrecision(18, 2)
@@ -4171,6 +4345,9 @@ namespace Zadana.Infrastructure.Migrations
                     b.Property<decimal>("SurgeDeliveryFee")
                         .HasPrecision(18, 2)
                         .HasColumnType("decimal(18,2)");
+
+                    b.Property<string>("TaxPolicySnapshot")
+                        .HasColumnType("nvarchar(max)");
 
                     b.Property<decimal>("TotalAmount")
                         .HasPrecision(18, 2)
@@ -4193,6 +4370,12 @@ namespace Zadana.Infrastructure.Migrations
 
                     b.Property<Guid?>("VendorBranchId")
                         .HasColumnType("uniqueidentifier");
+
+                    b.Property<decimal>("VendorCommissionAmount")
+                        .ValueGeneratedOnAdd()
+                        .HasPrecision(18, 2)
+                        .HasColumnType("decimal(18,2)")
+                        .HasDefaultValue(0m);
 
                     b.Property<Guid>("VendorId")
                         .HasColumnType("uniqueidentifier");
@@ -4642,8 +4825,19 @@ namespace Zadana.Infrastructure.Migrations
                     b.Property<DateTime>("CreatedAtUtc")
                         .HasColumnType("datetime2");
 
+                    b.Property<string>("Currency")
+                        .IsRequired()
+                        .ValueGeneratedOnAdd()
+                        .HasMaxLength(3)
+                        .HasColumnType("nvarchar(3)")
+                        .HasDefaultValue("SAR");
+
                     b.Property<DateTime?>("FailedAtUtc")
                         .HasColumnType("datetime2");
+
+                    b.Property<string>("IdempotencyKey")
+                        .HasMaxLength(160)
+                        .HasColumnType("nvarchar(160)");
 
                     b.Property<string>("Method")
                         .IsRequired()
@@ -4656,13 +4850,35 @@ namespace Zadana.Infrastructure.Migrations
                     b.Property<DateTime?>("PaidAtUtc")
                         .HasColumnType("datetime2");
 
+                    b.Property<string>("ProviderInvoiceId")
+                        .HasMaxLength(200)
+                        .HasColumnType("nvarchar(200)");
+
+                    b.Property<string>("ProviderMethod")
+                        .HasMaxLength(40)
+                        .HasColumnType("nvarchar(40)");
+
                     b.Property<string>("ProviderName")
                         .HasMaxLength(100)
                         .HasColumnType("nvarchar(100)");
 
+                    b.Property<string>("ProviderReferenceNumber")
+                        .HasMaxLength(120)
+                        .HasColumnType("nvarchar(120)");
+
+                    b.Property<string>("ProviderStatus")
+                        .HasMaxLength(40)
+                        .HasColumnType("nvarchar(40)");
+
                     b.Property<string>("ProviderTransactionId")
                         .HasMaxLength(200)
                         .HasColumnType("nvarchar(200)");
+
+                    b.Property<string>("RawCreateResponse")
+                        .HasColumnType("nvarchar(max)");
+
+                    b.Property<string>("RawFetchResponse")
+                        .HasColumnType("nvarchar(max)");
 
                     b.Property<string>("Status")
                         .IsRequired()
@@ -4674,9 +4890,95 @@ namespace Zadana.Infrastructure.Migrations
 
                     b.HasKey("Id");
 
+                    b.HasIndex("IdempotencyKey")
+                        .IsUnique()
+                        .HasDatabaseName("IX_Payments_IdempotencyKey")
+                        .HasFilter("[IdempotencyKey] IS NOT NULL");
+
                     b.HasIndex("OrderId");
 
+                    b.HasIndex("ProviderName", "ProviderTransactionId")
+                        .HasDatabaseName("IX_Payments_Provider_Transaction")
+                        .HasFilter("[ProviderTransactionId] IS NOT NULL");
+
                     b.ToTable("Payments", (string)null);
+                });
+
+            modelBuilder.Entity("Zadana.Domain.Modules.Payments.Entities.PaymentProviderEventInbox", b =>
+                {
+                    b.Property<Guid>("Id")
+                        .ValueGeneratedOnAdd()
+                        .HasColumnType("uniqueidentifier");
+
+                    b.Property<DateTime>("CreatedAtUtc")
+                        .HasColumnType("datetime2");
+
+                    b.Property<string>("EventType")
+                        .IsRequired()
+                        .HasMaxLength(120)
+                        .HasColumnType("nvarchar(120)");
+
+                    b.Property<string>("FailureReason")
+                        .HasMaxLength(1000)
+                        .HasColumnType("nvarchar(1000)");
+
+                    b.Property<string>("Headers")
+                        .HasColumnType("nvarchar(max)");
+
+                    b.Property<DateTime?>("ProcessedAtUtc")
+                        .HasColumnType("datetime2");
+
+                    b.Property<int>("ProcessingAttempts")
+                        .HasColumnType("int");
+
+                    b.Property<DateTime?>("ProcessingStartedAtUtc")
+                        .HasColumnType("datetime2");
+
+                    b.Property<string>("ProviderEventId")
+                        .IsRequired()
+                        .HasMaxLength(200)
+                        .HasColumnType("nvarchar(200)");
+
+                    b.Property<string>("ProviderName")
+                        .IsRequired()
+                        .HasMaxLength(40)
+                        .HasColumnType("nvarchar(40)");
+
+                    b.Property<string>("ProviderPaymentId")
+                        .HasMaxLength(200)
+                        .HasColumnType("nvarchar(200)");
+
+                    b.Property<string>("RawPayload")
+                        .IsRequired()
+                        .HasColumnType("nvarchar(max)");
+
+                    b.Property<DateTime>("ReceivedAtUtc")
+                        .HasColumnType("datetime2");
+
+                    b.Property<bool>("SecretValid")
+                        .HasColumnType("bit");
+
+                    b.Property<string>("Status")
+                        .IsRequired()
+                        .HasMaxLength(30)
+                        .HasColumnType("nvarchar(30)");
+
+                    b.Property<DateTime>("UpdatedAtUtc")
+                        .HasColumnType("datetime2");
+
+                    b.HasKey("Id");
+
+                    b.HasIndex("Status")
+                        .HasDatabaseName("IX_PaymentProviderEventInbox_Status");
+
+                    b.HasIndex("ProviderName", "ProviderEventId")
+                        .IsUnique()
+                        .HasDatabaseName("IX_PaymentProviderEventInbox_Provider_EventId");
+
+                    b.HasIndex("ProviderName", "ProviderPaymentId")
+                        .HasDatabaseName("IX_PaymentProviderEventInbox_Provider_PaymentId");
+
+                    b.ToTable("PaymentProviderEventInbox", (string)null);
                 });
 
             modelBuilder.Entity("Zadana.Domain.Modules.Payments.Entities.Refund", b =>
@@ -4689,6 +4991,19 @@ namespace Zadana.Infrastructure.Migrations
                         .HasPrecision(18, 2)
                         .HasColumnType("decimal(18,2)");
 
+                    b.Property<decimal>("ApprovedAmount")
+                        .ValueGeneratedOnAdd()
+                        .HasPrecision(18, 2)
+                        .HasColumnType("decimal(18,2)")
+                        .HasDefaultValue(0m);
+
+                    b.Property<string>("CompensationMethod")
+                        .IsRequired()
+                        .ValueGeneratedOnAdd()
+                        .HasMaxLength(30)
+                        .HasColumnType("nvarchar(30)")
+                        .HasDefaultValue("SameMethod");
+
                     b.Property<string>("CostBearer")
                         .HasMaxLength(50)
                         .HasColumnType("nvarchar(50)");
@@ -4696,11 +5011,39 @@ namespace Zadana.Infrastructure.Migrations
                     b.Property<DateTime>("CreatedAtUtc")
                         .HasColumnType("datetime2");
 
+                    b.Property<string>("Currency")
+                        .IsRequired()
+                        .ValueGeneratedOnAdd()
+                        .HasMaxLength(3)
+                        .HasColumnType("nvarchar(3)")
+                        .HasDefaultValue("SAR");
+
+                    b.Property<DateTime?>("FailedAtUtc")
+                        .HasColumnType("datetime2");
+
+                    b.Property<string>("LifecycleStatus")
+                        .IsRequired()
+                        .ValueGeneratedOnAdd()
+                        .HasMaxLength(30)
+                        .HasColumnType("nvarchar(30)")
+                        .HasDefaultValue("Requested");
+
                     b.Property<Guid?>("OrderSupportCaseId")
                         .HasColumnType("uniqueidentifier");
 
                     b.Property<Guid>("PaymentId")
                         .HasColumnType("uniqueidentifier");
+
+                    b.Property<string>("ProviderName")
+                        .HasMaxLength(40)
+                        .HasColumnType("nvarchar(40)");
+
+                    b.Property<string>("ProviderRefundId")
+                        .HasMaxLength(200)
+                        .HasColumnType("nvarchar(200)");
+
+                    b.Property<string>("RawProviderResponse")
+                        .HasColumnType("nvarchar(max)");
 
                     b.Property<string>("Reason")
                         .HasMaxLength(300)
@@ -4710,10 +5053,19 @@ namespace Zadana.Infrastructure.Migrations
                         .HasMaxLength(50)
                         .HasColumnType("nvarchar(50)");
 
+                    b.Property<decimal>("RequestedAmount")
+                        .ValueGeneratedOnAdd()
+                        .HasPrecision(18, 2)
+                        .HasColumnType("decimal(18,2)")
+                        .HasDefaultValue(0m);
+
                     b.Property<string>("Status")
                         .IsRequired()
                         .HasMaxLength(50)
                         .HasColumnType("nvarchar(50)");
+
+                    b.Property<DateTime?>("SucceededAtUtc")
+                        .HasColumnType("datetime2");
 
                     b.Property<DateTime>("UpdatedAtUtc")
                         .HasColumnType("datetime2");
@@ -4722,7 +5074,70 @@ namespace Zadana.Infrastructure.Migrations
 
                     b.HasIndex("PaymentId");
 
+                    b.HasIndex("ProviderName", "ProviderRefundId")
+                        .HasDatabaseName("IX_Refunds_Provider_RefundId")
+                        .HasFilter("[ProviderRefundId] IS NOT NULL");
+
                     b.ToTable("Refunds", (string)null);
+                });
+
+            modelBuilder.Entity("Zadana.Domain.Modules.Payments.Entities.RefundAllocation", b =>
+                {
+                    b.Property<Guid>("Id")
+                        .ValueGeneratedOnAdd()
+                        .HasColumnType("uniqueidentifier");
+
+                    b.Property<decimal>("CodFeeAmount")
+                        .HasPrecision(18, 2)
+                        .HasColumnType("decimal(18,2)");
+
+                    b.Property<DateTime>("CreatedAtUtc")
+                        .HasColumnType("datetime2");
+
+                    b.Property<string>("CurrencyCode")
+                        .IsRequired()
+                        .ValueGeneratedOnAdd()
+                        .HasMaxLength(3)
+                        .HasColumnType("nvarchar(3)")
+                        .HasDefaultValue("SAR");
+
+                    b.Property<decimal>("DeliveryAmount")
+                        .HasPrecision(18, 2)
+                        .HasColumnType("decimal(18,2)");
+
+                    b.Property<decimal>("DriverRecoveryAmount")
+                        .HasPrecision(18, 2)
+                        .HasColumnType("decimal(18,2)");
+
+                    b.Property<decimal>("PlatformAbsorbedAmount")
+                        .HasPrecision(18, 2)
+                        .HasColumnType("decimal(18,2)");
+
+                    b.Property<decimal>("ProductAmount")
+                        .HasPrecision(18, 2)
+                        .HasColumnType("decimal(18,2)");
+
+                    b.Property<Guid>("RefundId")
+                        .HasColumnType("uniqueidentifier");
+
+                    b.Property<DateTime>("UpdatedAtUtc")
+                        .HasColumnType("datetime2");
+
+                    b.Property<decimal>("VatAmount")
+                        .HasPrecision(18, 2)
+                        .HasColumnType("decimal(18,2)");
+
+                    b.Property<decimal>("VendorRecoveryAmount")
+                        .HasPrecision(18, 2)
+                        .HasColumnType("decimal(18,2)");
+
+                    b.HasKey("Id");
+
+                    b.HasIndex("RefundId")
+                        .IsUnique()
+                        .HasDatabaseName("IX_RefundAllocations_RefundId");
+
+                    b.ToTable("RefundAllocations", (string)null);
                 });
 
             modelBuilder.Entity("Zadana.Domain.Modules.Social.Entities.AdminAlertDispatch", b =>
@@ -5995,7 +6410,7 @@ namespace Zadana.Infrastructure.Migrations
                         .ValueGeneratedOnAdd()
                         .HasMaxLength(3)
                         .HasColumnType("nvarchar(3)")
-                        .HasDefaultValue("EGP");
+                        .HasDefaultValue("SAR");
 
                     b.Property<decimal>("CurrentBalance")
                         .ValueGeneratedOnAdd()
@@ -6032,6 +6447,100 @@ namespace Zadana.Infrastructure.Migrations
                         .HasDatabaseName("IX_Wallet_Owner");
 
                     b.ToTable("Wallet", (string)null);
+                });
+
+            modelBuilder.Entity("Zadana.Domain.Modules.Wallets.Entities.WalletHold", b =>
+                {
+                    b.Property<Guid>("Id")
+                        .ValueGeneratedOnAdd()
+                        .HasColumnType("uniqueidentifier");
+
+                    b.Property<decimal>("Amount")
+                        .HasPrecision(18, 2)
+                        .HasColumnType("decimal(18,2)");
+
+                    b.Property<DateTime?>("CancelledAtUtc")
+                        .HasColumnType("datetime2");
+
+                    b.Property<DateTime?>("ConsumedAtUtc")
+                        .HasColumnType("datetime2");
+
+                    b.Property<DateTime>("CreatedAtUtc")
+                        .HasColumnType("datetime2");
+
+                    b.Property<DateTime>("CreatedAtUtcOnHold")
+                        .HasColumnType("datetime2");
+
+                    b.Property<string>("CurrencyCode")
+                        .IsRequired()
+                        .ValueGeneratedOnAdd()
+                        .HasMaxLength(3)
+                        .HasColumnType("nvarchar(3)")
+                        .HasDefaultValue("SAR");
+
+                    b.Property<DateTime?>("ExpiresAtUtc")
+                        .HasColumnType("datetime2");
+
+                    b.Property<string>("FailureReason")
+                        .HasMaxLength(500)
+                        .HasColumnType("nvarchar(500)");
+
+                    b.Property<string>("IdempotencyKey")
+                        .IsRequired()
+                        .HasMaxLength(160)
+                        .HasColumnType("nvarchar(160)");
+
+                    b.Property<string>("Memo")
+                        .HasMaxLength(500)
+                        .HasColumnType("nvarchar(500)");
+
+                    b.Property<Guid>("OwnerId")
+                        .HasColumnType("uniqueidentifier");
+
+                    b.Property<string>("OwnerType")
+                        .IsRequired()
+                        .HasMaxLength(30)
+                        .HasColumnType("nvarchar(30)");
+
+                    b.Property<string>("Reason")
+                        .IsRequired()
+                        .HasMaxLength(30)
+                        .HasColumnType("nvarchar(30)");
+
+                    b.Property<Guid?>("ReferenceId")
+                        .HasColumnType("uniqueidentifier");
+
+                    b.Property<string>("ReferenceType")
+                        .HasMaxLength(80)
+                        .HasColumnType("nvarchar(80)");
+
+                    b.Property<DateTime?>("ReleasedAtUtc")
+                        .HasColumnType("datetime2");
+
+                    b.Property<string>("Status")
+                        .IsRequired()
+                        .HasMaxLength(30)
+                        .HasColumnType("nvarchar(30)");
+
+                    b.Property<DateTime>("UpdatedAtUtc")
+                        .HasColumnType("datetime2");
+
+                    b.Property<Guid?>("WalletId")
+                        .HasColumnType("uniqueidentifier");
+
+                    b.HasKey("Id");
+
+                    b.HasIndex("IdempotencyKey")
+                        .IsUnique()
+                        .HasDatabaseName("IX_WalletHolds_IdempotencyKey");
+
+                    b.HasIndex("ReferenceType", "ReferenceId")
+                        .HasDatabaseName("IX_WalletHolds_Reference");
+
+                    b.HasIndex("OwnerType", "OwnerId", "Status")
+                        .HasDatabaseName("IX_WalletHolds_Owner_Status");
+
+                    b.ToTable("WalletHolds", (string)null);
                 });
 
             modelBuilder.Entity("Zadana.Domain.Modules.Wallets.Entities.WalletTransaction", b =>
@@ -6635,6 +7144,17 @@ namespace Zadana.Infrastructure.Migrations
                     b.Navigation("JournalEntry");
                 });
 
+            modelBuilder.Entity("Zadana.Domain.Modules.Finances.Entities.PaymentGatewaySettlementItem", b =>
+                {
+                    b.HasOne("Zadana.Domain.Modules.Finances.Entities.PaymentGatewaySettlement", "Settlement")
+                        .WithMany("Items")
+                        .HasForeignKey("SettlementId")
+                        .OnDelete(DeleteBehavior.Cascade)
+                        .IsRequired();
+
+                    b.Navigation("Settlement");
+                });
+
             modelBuilder.Entity("Zadana.Domain.Modules.Geography.Entities.SaudiCity", b =>
                 {
                     b.HasOne("Zadana.Domain.Modules.Geography.Entities.SaudiRegion", "Region")
@@ -6981,6 +7501,17 @@ namespace Zadana.Infrastructure.Migrations
                     b.Navigation("Payment");
                 });
 
+            modelBuilder.Entity("Zadana.Domain.Modules.Payments.Entities.RefundAllocation", b =>
+                {
+                    b.HasOne("Zadana.Domain.Modules.Payments.Entities.Refund", "Refund")
+                        .WithMany()
+                        .HasForeignKey("RefundId")
+                        .OnDelete(DeleteBehavior.Cascade)
+                        .IsRequired();
+
+                    b.Navigation("Refund");
+                });
+
             modelBuilder.Entity("Zadana.Domain.Modules.Social.Entities.AdminAlertDispatch", b =>
                 {
                     b.HasOne("Zadana.Domain.Modules.Social.Entities.AdminAlertEvent", "Event")
@@ -7312,6 +7843,11 @@ namespace Zadana.Infrastructure.Migrations
             modelBuilder.Entity("Zadana.Domain.Modules.Finances.Entities.JournalEntry", b =>
                 {
                     b.Navigation("Lines");
+                });
+
+            modelBuilder.Entity("Zadana.Domain.Modules.Finances.Entities.PaymentGatewaySettlement", b =>
+                {
+                    b.Navigation("Items");
                 });
 
             modelBuilder.Entity("Zadana.Domain.Modules.Geography.Entities.SaudiRegion", b =>

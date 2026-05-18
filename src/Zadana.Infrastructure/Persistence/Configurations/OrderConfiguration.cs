@@ -44,6 +44,16 @@ public class OrderConfiguration : IEntityTypeConfiguration<Order>
         builder.Property(x => x.CodFee).HasPrecision(18, 2).IsRequired().HasDefaultValue(0);
         builder.Property(x => x.TotalAmount).HasPrecision(18, 2).IsRequired();
 
+        // Revised SAR-only financial snapshot.
+        builder.Property(x => x.ProductGross).HasPrecision(18, 2).IsRequired().HasDefaultValue(0);
+        builder.Property(x => x.ProductNet).HasPrecision(18, 2).IsRequired().HasDefaultValue(0);
+        builder.Property(x => x.VendorCommissionAmount).HasPrecision(18, 2).IsRequired().HasDefaultValue(0);
+        builder.Property(x => x.DriverCommissionAmount).HasPrecision(18, 2).IsRequired().HasDefaultValue(0);
+        builder.Property(x => x.Currency).HasMaxLength(3).IsRequired().HasDefaultValue("SAR");
+        builder.Property(x => x.PricingMode).HasMaxLength(16).IsRequired().HasDefaultValue("live");
+        builder.Property(x => x.TaxPolicySnapshot);
+        builder.Property(x => x.CommissionPolicySnapshot);
+
         builder.Property(x => x.Notes).HasMaxLength(1000);
 
         builder.HasOne(x => x.User)

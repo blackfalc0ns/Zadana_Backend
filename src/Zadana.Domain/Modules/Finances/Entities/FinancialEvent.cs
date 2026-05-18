@@ -12,7 +12,7 @@ public class FinancialEvent : BaseEntity
     public Guid? SettlementId { get; private set; }
     public Guid? PayoutId { get; private set; }
     public Guid? RefundId { get; private set; }
-    public string CurrencyCode { get; private set; } = "EGP";
+    public string CurrencyCode { get; private set; } = "SAR";
     public DateTime OccurredAtUtc { get; private set; }
     public string? Description { get; private set; }
 
@@ -27,7 +27,7 @@ public class FinancialEvent : BaseEntity
         Guid? settlementId = null,
         Guid? payoutId = null,
         Guid? refundId = null,
-        string currencyCode = "EGP",
+        string currencyCode = "SAR",
         Guid? correlationId = null,
         DateTime? occurredAtUtc = null,
         string? description = null)
@@ -53,7 +53,7 @@ public class FinancialEvent : BaseEntity
     {
         if (string.IsNullOrWhiteSpace(currencyCode))
         {
-            return "EGP";
+            return "SAR";
         }
 
         return currencyCode.Trim().ToUpperInvariant();

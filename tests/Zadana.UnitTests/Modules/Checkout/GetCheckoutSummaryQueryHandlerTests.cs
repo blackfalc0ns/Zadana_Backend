@@ -11,6 +11,7 @@ using Zadana.Domain.Modules.Orders.Enums;
 using Zadana.Domain.Modules.Vendors.Entities;
 using Zadana.SharedKernel.Exceptions;
 using Zadana.UnitTests.Common;
+using Zadana.UnitTests.TestHelpers;
 
 namespace Zadana.UnitTests.Modules.Checkout;
 
@@ -56,15 +57,14 @@ public class GetCheckoutSummaryQueryHandlerTests
         context.Carts.Add(cart);
         await context.SaveChangesAsync();
 
-        var paymobGateway = new Mock<Zadana.Application.Modules.Payments.Interfaces.IPaymobGateway>();
-        paymobGateway.SetupGet(gateway => gateway.IsEnabled).Returns(true);
+        var gatewayResolver = TestPaymentGatewayResolver.Enabled();
 
         var deliveryPricing = new Mock<IDeliveryPricingService>();
         deliveryPricing
             .Setup(service => service.QuoteAsync(branch.Id, address.Id, It.IsAny<CancellationToken>()))
             .ReturnsAsync(new DeliveryPriceQuote(5m, 2m, 0m, 7m, 3m, "zone", "Zone rule", 1m, 2m, 3m, 4m, "driver", "vendor", false, "manual", null, "locked", DateTime.UtcNow, 1, false));
 
-        var handler = new GetCheckoutSummaryQueryHandler(context, paymobGateway.Object, deliveryPricing.Object);
+        var handler = new GetCheckoutSummaryQueryHandler(context, gatewayResolver, deliveryPricing.Object);
 
         var result = await handler.Handle(
             new GetCheckoutSummaryQuery(customer.Id, vendor.Id, address.Id, null, "cash"),
@@ -125,15 +125,14 @@ public class GetCheckoutSummaryQueryHandlerTests
 
         await context.SaveChangesAsync();
 
-        var paymobGateway = new Mock<Zadana.Application.Modules.Payments.Interfaces.IPaymobGateway>();
-        paymobGateway.SetupGet(gateway => gateway.IsEnabled).Returns(true);
+        var gatewayResolver = TestPaymentGatewayResolver.Enabled();
 
         var deliveryPricing = new Mock<IDeliveryPricingService>();
         deliveryPricing
             .Setup(service => service.QuoteAsync(fastBranch.Id, address.Id, It.IsAny<CancellationToken>()))
             .ReturnsAsync(new DeliveryPriceQuote(5m, 2m, 0m, 7m, 3m, "zone", "Zone rule", 1m, 2m, 3m, 4m, "driver", "vendor", false, "manual", null, "locked", DateTime.UtcNow, 1, false));
 
-        var handler = new GetCheckoutSummaryQueryHandler(context, paymobGateway.Object, deliveryPricing.Object);
+        var handler = new GetCheckoutSummaryQueryHandler(context, gatewayResolver, deliveryPricing.Object);
 
         var result = await handler.Handle(
             new GetCheckoutSummaryQuery(customer.Id, vendor.Id, address.Id, null, "cash"),
@@ -195,15 +194,14 @@ public class GetCheckoutSummaryQueryHandlerTests
         context.Carts.Add(cart);
         await context.SaveChangesAsync();
 
-        var paymobGateway = new Mock<Zadana.Application.Modules.Payments.Interfaces.IPaymobGateway>();
-        paymobGateway.SetupGet(gateway => gateway.IsEnabled).Returns(true);
+        var gatewayResolver = TestPaymentGatewayResolver.Enabled();
 
         var deliveryPricing = new Mock<IDeliveryPricingService>();
         deliveryPricing
             .Setup(service => service.QuoteAsync(branch.Id, address.Id, It.IsAny<CancellationToken>()))
             .ReturnsAsync(new DeliveryPriceQuote(15m, 16.7m, 0m, 31.7m, 20.33m, "zone", "Zone rule", 1m, 20.33m, 3m, 28.7m, "driver", "vendor", false, "manual", null, "locked", DateTime.UtcNow, 1, false));
 
-        var handler = new GetCheckoutSummaryQueryHandler(context, paymobGateway.Object, deliveryPricing.Object);
+        var handler = new GetCheckoutSummaryQueryHandler(context, gatewayResolver, deliveryPricing.Object);
 
         var result = await handler.Handle(
             new GetCheckoutSummaryQuery(customer.Id, vendor.Id, address.Id, null, "cash"),
@@ -273,15 +271,14 @@ public class GetCheckoutSummaryQueryHandlerTests
 
         await context.SaveChangesAsync();
 
-        var paymobGateway = new Mock<Zadana.Application.Modules.Payments.Interfaces.IPaymobGateway>();
-        paymobGateway.SetupGet(gateway => gateway.IsEnabled).Returns(true);
+        var gatewayResolver = TestPaymentGatewayResolver.Enabled();
 
         var deliveryPricing = new Mock<IDeliveryPricingService>();
         deliveryPricing
             .Setup(service => service.QuoteAsync(branch.Id, address.Id, It.IsAny<CancellationToken>()))
             .ReturnsAsync(new DeliveryPriceQuote(5m, 2m, 0m, 7m, 3m, "zone", "Zone rule", 1m, 2m, 3m, 4m, "driver", "vendor", false, "manual", null, "locked", DateTime.UtcNow, 1, false));
 
-        var handler = new GetCheckoutSummaryQueryHandler(context, paymobGateway.Object, deliveryPricing.Object);
+        var handler = new GetCheckoutSummaryQueryHandler(context, gatewayResolver, deliveryPricing.Object);
 
         var result = await handler.Handle(
             new GetCheckoutSummaryQuery(customer.Id, vendor.Id, address.Id, null, "cash"),
@@ -333,11 +330,10 @@ public class GetCheckoutSummaryQueryHandlerTests
         context.VendorWorkspaceStates.Add(new VendorWorkspaceState(vendor.Id, "store-availability", "{\"manual_mode\":\"offline\"}"));
         await context.SaveChangesAsync();
 
-        var paymobGateway = new Mock<Zadana.Application.Modules.Payments.Interfaces.IPaymobGateway>();
-        paymobGateway.SetupGet(gateway => gateway.IsEnabled).Returns(true);
+        var gatewayResolver = TestPaymentGatewayResolver.Enabled();
 
         var deliveryPricing = new Mock<IDeliveryPricingService>();
-        var handler = new GetCheckoutSummaryQueryHandler(context, paymobGateway.Object, deliveryPricing.Object);
+        var handler = new GetCheckoutSummaryQueryHandler(context, gatewayResolver, deliveryPricing.Object);
 
         var act = () => handler.Handle(
             new GetCheckoutSummaryQuery(customer.Id, vendor.Id, address.Id, null, "cash"),
@@ -397,15 +393,14 @@ public class GetCheckoutSummaryQueryHandlerTests
         context.Carts.Add(cart);
         await context.SaveChangesAsync();
 
-        var paymobGateway = new Mock<Zadana.Application.Modules.Payments.Interfaces.IPaymobGateway>();
-        paymobGateway.SetupGet(gateway => gateway.IsEnabled).Returns(true);
+        var gatewayResolver = TestPaymentGatewayResolver.Enabled();
 
         var deliveryPricing = new Mock<IDeliveryPricingService>();
         deliveryPricing
             .Setup(service => service.QuoteAsync(branch.Id, address.Id, It.IsAny<CancellationToken>()))
             .ReturnsAsync(new DeliveryPriceQuote(15m, 16.7m, 0m, 31.7m, 20.33m, "zone", "Zone rule", 1m, 20.33m, 3m, 28.7m, "driver", "vendor", false, "manual", null, "locked", DateTime.UtcNow, 1, false));
 
-        var handler = new GetCheckoutSummaryQueryHandler(context, paymobGateway.Object, deliveryPricing.Object);
+        var handler = new GetCheckoutSummaryQueryHandler(context, gatewayResolver, deliveryPricing.Object);
 
         var result = await handler.Handle(
             new GetCheckoutSummaryQuery(customer.Id, vendor.Id, address.Id, null, "cash"),
@@ -497,3 +492,5 @@ public class GetCheckoutSummaryQueryHandlerTests
         property!.SetValue(target, value);
     }
 }
+
+

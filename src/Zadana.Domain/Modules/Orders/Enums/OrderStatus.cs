@@ -3,6 +3,7 @@ namespace Zadana.Domain.Modules.Orders.Enums;
 public enum OrderStatus
 {
     PendingPayment,
+    PendingBankConfirmation,
     Placed,
     PendingVendorAcceptance,
     VendorRejected,

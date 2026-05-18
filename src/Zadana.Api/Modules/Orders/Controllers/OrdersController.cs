@@ -16,7 +16,7 @@ using Zadana.Application.Modules.Orders.Queries.GetCustomerOrderDetail;
 using Zadana.Application.Modules.Orders.Queries.GetCustomerOrders;
 using Zadana.Application.Modules.Orders.Queries.GetCustomerOrderTracking;
 using Zadana.Application.Modules.Orders.Support;
-using Zadana.Application.Modules.Payments.Commands.RetryPaymobPayment;
+using Zadana.Application.Modules.Payments.Commands.RetryCardPayment;
 using Zadana.SharedKernel.Exceptions;
 
 namespace Zadana.Api.Modules.Orders.Controllers;
@@ -143,7 +143,7 @@ public class OrdersController : ApiControllerBase
         CancellationToken cancellationToken = default)
     {
         var userId = _currentUserService.UserId ?? throw new UnauthorizedException("USER_NOT_AUTHENTICATED");
-        var result = await Sender.Send(new RetryPaymobPaymentCommand(orderId, userId), cancellationToken);
+        var result = await Sender.Send(new RetryCardPaymentCommand(orderId, userId), cancellationToken);
 
         return Ok(new RetryOrderPaymentResponse(
             result.Message,

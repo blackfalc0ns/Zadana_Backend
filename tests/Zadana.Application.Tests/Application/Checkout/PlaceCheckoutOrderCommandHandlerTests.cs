@@ -92,7 +92,7 @@ public class PlaceCheckoutOrderCommandHandlerTests
 
         var handler = new PlaceCheckoutOrderCommandHandler(
             dbContext,
-            Mock.Of<IPaymobGateway>(),
+            TestPaymentGatewayResolver.Disabled(),
             deliveryPricingMock.Object,
             sender,
             dbContext,
@@ -187,7 +187,7 @@ public class PlaceCheckoutOrderCommandHandlerTests
 
         var handler = new PlaceCheckoutOrderCommandHandler(
             dbContext,
-            Mock.Of<IPaymobGateway>(),
+            TestPaymentGatewayResolver.Disabled(),
             deliveryPricingMock.Object,
             sender,
             dbContext,
@@ -257,3 +257,4 @@ public class PlaceCheckoutOrderCommandHandlerTests
         return new ApplicationDbContext(options, new AuditableEntityInterceptor());
     }
 }
+

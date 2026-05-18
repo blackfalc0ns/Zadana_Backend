@@ -21,7 +21,7 @@ namespace Zadana.Application.Modules.Checkout.Support;
 internal static class CheckoutSupport
 {
     public const string DefaultDeliverySlotId = "standard-30-45";
-    public const string Currency = "EGP";
+    public const string Currency = "SAR";
 
     public static async Task<Cart> GetRequiredCartAsync(
         IApplicationDbContext context,

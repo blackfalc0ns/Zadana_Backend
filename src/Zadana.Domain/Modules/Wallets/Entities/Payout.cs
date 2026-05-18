@@ -13,7 +13,7 @@ public class Payout : BaseEntity
     public string? DestinationSnapshot { get; private set; }
     public decimal Amount { get; private set; }
     public PayoutStatus Status { get; private set; }
-    public string ProviderName { get; private set; } = "Paymob";
+    public string ProviderName { get; private set; } = "Manual";
     public string? ProviderTransferId { get; private set; }
     public string? TransferReference { get; private set; }
     public string? FailureReason { get; private set; }
@@ -37,7 +37,7 @@ public class Payout : BaseEntity
         Amount = amount;
         VendorBankAccountId = vendorBankAccountId;
         DestinationType = vendorBankAccountId.HasValue ? PayoutDestinationType.VendorBankAccount : PayoutDestinationType.Manual;
-        ProviderName = "Paymob";
+        ProviderName = "Manual";
         Status = PayoutStatus.Pending;
     }
 

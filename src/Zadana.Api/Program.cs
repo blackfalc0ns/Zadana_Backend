@@ -146,23 +146,23 @@ builder.Services.AddOptions<Zadana.Infrastructure.Settings.ImageKitSettings>()
     .ValidateDataAnnotations()
     .ValidateOnStart();
 
-builder.Services.AddOptions<PaymobSettings>()
-    .Bind(builder.Configuration.GetSection(PaymobSettings.SectionName));
+builder.Services.AddOptions<Zadana.Infrastructure.Settings.MoyasarSettings>()
+    .Bind(builder.Configuration.GetSection(Zadana.Infrastructure.Settings.MoyasarSettings.SectionName));
 
 builder.Services.AddOptions<OneSignalSettings>()
     .Bind(builder.Configuration.GetSection(OneSignalSettings.SectionName));
 
-builder.Services.AddHttpClient<IPaymobGateway, PaymobGateway>((serviceProvider, client) =>
+// Provider-agnostic payment gateway abstraction (revised SAR-only workflow).
+// Moyasar is the sole online card gateway. The resolver hands callers the
+// right implementation by name and filters disabled gateways.
+builder.Services.AddHttpClient<Zadana.Infrastructure.Services.Payments.MoyasarPaymentGateway>((serviceProvider, client) =>
 {
-    var settings = serviceProvider.GetRequiredService<Microsoft.Extensions.Options.IOptions<PaymobSettings>>().Value;
-    client.BaseAddress = new Uri(string.IsNullOrWhiteSpace(settings.BaseUrl) ? "https://accept.paymob.com" : settings.BaseUrl);
+    var settings = serviceProvider.GetRequiredService<Microsoft.Extensions.Options.IOptions<Zadana.Infrastructure.Settings.MoyasarSettings>>().Value;
+    client.BaseAddress = new Uri(string.IsNullOrWhiteSpace(settings.BaseUrl) ? "https://api.moyasar.com/v1/" : settings.BaseUrl);
 });
-
-builder.Services.AddHttpClient<IPaymobPayoutGateway, PaymobPayoutGateway>((serviceProvider, client) =>
-{
-    var settings = serviceProvider.GetRequiredService<Microsoft.Extensions.Options.IOptions<PaymobSettings>>().Value;
-    client.BaseAddress = new Uri(string.IsNullOrWhiteSpace(settings.BaseUrl) ? "https://accept.paymob.com" : settings.BaseUrl);
-});
+builder.Services.AddTransient<Zadana.Application.Modules.Payments.Interfaces.IPaymentGateway>(sp =>
+    sp.GetRequiredService<Zadana.Infrastructure.Services.Payments.MoyasarPaymentGateway>());
+builder.Services.AddSingleton<Zadana.Application.Modules.Payments.Interfaces.IPaymentGatewayResolver, Zadana.Infrastructure.Services.Payments.PaymentGatewayResolver>();
 
 builder.Services.AddHttpClient<IOneSignalPushService, OneSignalPushService>((serviceProvider, client) =>
 {

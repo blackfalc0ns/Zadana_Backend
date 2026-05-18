@@ -38,7 +38,7 @@ public static class DependencyInjection
         services.AddScoped<IEmailCenterService, EmailCenterService>();
         services.AddScoped<FinancialEventPostingService>();
         services.AddScoped<WalletProjectionUpdater>();
-        services.AddScoped<PaymobPayoutOrchestrator>();
+        services.AddScoped<PayoutOrchestrator>();
         services.AddScoped<ICurrentVendorService, CurrentVendorService>();
         services.AddScoped<IOrderStatusNotificationDispatcher, OrderStatusNotificationDispatcher>();
         services.AddScoped<OrderInventoryWorkflowService>();

@@ -32,7 +32,7 @@ public class JournalLineConfiguration : IEntityTypeConfiguration<JournalLine>
         builder.Property(x => x.CurrencyCode)
             .HasMaxLength(3)
             .IsRequired()
-            .HasDefaultValue("EGP");
+            .HasDefaultValue("SAR");
 
         builder.Property(x => x.Memo)
             .HasMaxLength(500);

@@ -11,7 +11,7 @@ public class JournalLine : BaseEntity
     public Guid? OwnerId { get; private set; }
     public decimal DebitAmount { get; private set; }
     public decimal CreditAmount { get; private set; }
-    public string CurrencyCode { get; private set; } = "EGP";
+    public string CurrencyCode { get; private set; } = "SAR";
     public Guid? OrderId { get; private set; }
     public Guid? SettlementId { get; private set; }
     public Guid? PayoutId { get; private set; }
@@ -26,7 +26,7 @@ public class JournalLine : BaseEntity
         FinancialAccountCode accountCode,
         decimal debitAmount,
         decimal creditAmount,
-        string currencyCode = "EGP",
+        string currencyCode = "SAR",
         FinancialOwnerType? ownerType = null,
         Guid? ownerId = null,
         Guid? orderId = null,
@@ -61,7 +61,7 @@ public class JournalLine : BaseEntity
     {
         if (string.IsNullOrWhiteSpace(currencyCode))
         {
-            return "EGP";
+            return "SAR";
         }
 
         return currencyCode.Trim().ToUpperInvariant();

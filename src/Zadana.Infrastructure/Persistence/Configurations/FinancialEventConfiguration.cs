@@ -24,7 +24,7 @@ public class FinancialEventConfiguration : IEntityTypeConfiguration<FinancialEve
         builder.Property(x => x.CurrencyCode)
             .HasMaxLength(3)
             .IsRequired()
-            .HasDefaultValue("EGP");
+            .HasDefaultValue("SAR");
 
         builder.Property(x => x.Description)
             .HasMaxLength(500);

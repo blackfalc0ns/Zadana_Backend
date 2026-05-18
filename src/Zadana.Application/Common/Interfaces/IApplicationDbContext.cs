@@ -70,6 +70,8 @@ public interface IApplicationDbContext
     // Payments
     DbSet<Payment> Payments { get; }
     DbSet<Refund> Refunds { get; }
+    DbSet<RefundAllocation> RefundAllocations { get; }
+    DbSet<PaymentProviderEventInbox> PaymentProviderEvents { get; }
 
     // Delivery
     DbSet<Driver> Drivers { get; }
@@ -95,6 +97,7 @@ public interface IApplicationDbContext
     DbSet<VendorRecovery> VendorRecoveries { get; }
     DbSet<DriverPayoutMethod> DriverPayoutMethods { get; }
     DbSet<DriverWithdrawalRequest> DriverWithdrawalRequests { get; }
+    DbSet<WalletHold> WalletHolds { get; }
 
     // Finances
     DbSet<CityDeliveryPricingSettings> CityDeliveryPricingSettings { get; }
@@ -104,6 +107,8 @@ public interface IApplicationDbContext
     DbSet<FinancialEvent> FinancialEvents { get; }
     DbSet<JournalEntry> JournalEntries { get; }
     DbSet<JournalLine> JournalLines { get; }
+    DbSet<PaymentGatewaySettlement> PaymentGatewaySettlements { get; }
+    DbSet<PaymentGatewaySettlementItem> PaymentGatewaySettlementItems { get; }
 
     // Marketing & Social
     DbSet<Coupon> Coupons { get; }

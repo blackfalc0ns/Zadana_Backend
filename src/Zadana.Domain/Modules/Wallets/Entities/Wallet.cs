@@ -11,7 +11,7 @@ public class Wallet : BaseEntity
     public decimal CurrentBalance { get; private set; }
     public decimal PendingBalance { get; private set; }
     public decimal CodOwedBalance { get; private set; }
-    public string CurrencyCode { get; private set; } = "EGP";
+    public string CurrencyCode { get; private set; } = "SAR";
     public long LastJournalSequence { get; private set; }
 
     public ICollection<WalletTransaction> Transactions { get; private set; } = [];
@@ -25,7 +25,7 @@ public class Wallet : BaseEntity
         CurrentBalance = 0;
         PendingBalance = 0;
         CodOwedBalance = 0;
-        CurrencyCode = "EGP";
+        CurrencyCode = "SAR";
         LastJournalSequence = 0;
     }
 
@@ -68,12 +68,12 @@ public class Wallet : BaseEntity
         PendingBalance -= amount;
     }
 
-    public void SetProjectionBalances(decimal currentBalance, decimal pendingBalance, decimal codOwedBalance, long lastJournalSequence, string currencyCode = "EGP")
+    public void SetProjectionBalances(decimal currentBalance, decimal pendingBalance, decimal codOwedBalance, long lastJournalSequence, string currencyCode = "SAR")
     {
         CurrentBalance = currentBalance;
         PendingBalance = pendingBalance;
         CodOwedBalance = codOwedBalance;
         LastJournalSequence = lastJournalSequence;
-        CurrencyCode = string.IsNullOrWhiteSpace(currencyCode) ? "EGP" : currencyCode.Trim().ToUpperInvariant();
+        CurrencyCode = string.IsNullOrWhiteSpace(currencyCode) ? "SAR" : currencyCode.Trim().ToUpperInvariant();
     }
 }

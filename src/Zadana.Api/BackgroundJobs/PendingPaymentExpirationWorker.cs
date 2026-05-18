@@ -1,26 +1,32 @@
 using Microsoft.EntityFrameworkCore;
-using Microsoft.Extensions.Options;
 using Zadana.Application.Common.Interfaces;
 using Zadana.Domain.Modules.Orders.Enums;
 using Zadana.Domain.Modules.Payments.Enums;
-using Zadana.Infrastructure.Settings;
 
 namespace Zadana.Api.BackgroundJobs;
 
+/// <summary>
+/// Marks card payments as failed if the customer never completes the gateway
+/// flow within the configured window. Currency-agnostic; provider-agnostic.
+/// </summary>
 public class PendingPaymentExpirationWorker : BackgroundService
 {
     private static readonly TimeSpan TickInterval = TimeSpan.FromMinutes(1);
+    private static readonly TimeSpan DefaultExpiration = TimeSpan.FromMinutes(30);
     private static readonly TimeSpan MinimumExpiration = TimeSpan.FromMinutes(5);
 
     private readonly IServiceScopeFactory _scopeFactory;
     private readonly ILogger<PendingPaymentExpirationWorker> _logger;
+    private readonly IConfiguration _configuration;
 
     public PendingPaymentExpirationWorker(
         IServiceScopeFactory scopeFactory,
-        ILogger<PendingPaymentExpirationWorker> logger)
+        ILogger<PendingPaymentExpirationWorker> logger,
+        IConfiguration configuration)
     {
         _scopeFactory = scopeFactory;
         _logger = logger;
+        _configuration = configuration;
     }
 
     protected override async Task ExecuteAsync(CancellationToken stoppingToken)
@@ -52,8 +58,7 @@ public class PendingPaymentExpirationWorker : BackgroundService
     {
         await using var scope = _scopeFactory.CreateAsyncScope();
         var context = scope.ServiceProvider.GetRequiredService<IApplicationDbContext>();
-        var settings = scope.ServiceProvider.GetRequiredService<IOptions<PaymobSettings>>().Value;
-        var expiration = ResolveExpiration(settings);
+        var expiration = ResolveExpiration();
         var cutoff = DateTime.UtcNow.Subtract(expiration);
 
         var stalePayments = await context.Payments
@@ -75,23 +80,21 @@ public class PendingPaymentExpirationWorker : BackgroundService
 
         foreach (var payment in stalePayments)
         {
-            payment.MarkAsFailed("Paymob payment session expired before confirmation.");
+            payment.MarkAsFailed("Payment session expired before confirmation.");
         }
 
         await context.SaveChangesAsync(cancellationToken);
 
         _logger.LogInformation(
-            "Expired {Count} stale pending Paymob payments older than {ExpirationMinutes} minutes.",
+            "Expired {Count} stale pending card payments older than {ExpirationMinutes} minutes.",
             stalePayments.Count,
             expiration.TotalMinutes);
     }
 
-    private static TimeSpan ResolveExpiration(PaymobSettings settings)
+    private TimeSpan ResolveExpiration()
     {
-        var configured = settings.PaymentKeyExpirationSeconds > 0
-            ? TimeSpan.FromSeconds(settings.PaymentKeyExpirationSeconds)
-            : TimeSpan.FromMinutes(30);
-
+        var seconds = _configuration.GetValue<int?>("Payments:CardSessionExpirationSeconds") ?? 0;
+        var configured = seconds > 0 ? TimeSpan.FromSeconds(seconds) : DefaultExpiration;
         return configured < MinimumExpiration ? MinimumExpiration : configured.Add(TimeSpan.FromMinutes(2));
     }
 }

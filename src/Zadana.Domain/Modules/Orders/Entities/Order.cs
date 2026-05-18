@@ -48,6 +48,39 @@ public class Order : BaseEntity
     public decimal CodFee { get; private set; }
     public decimal TotalAmount { get; private set; }
     
+    /// <summary>
+    /// Gross product amount before any discount. Mirrors <see cref="Subtotal"/>
+    /// for orders created before the SAR-only revision; populated explicitly
+    /// for new orders. Used by the revenue-distribution formula
+    /// (<c>VendorNet = ProductNet - VendorCommissionAmount - VendorRecoveryApplied</c>).
+    /// </summary>
+    public decimal ProductGross { get; private set; }
+
+    /// <summary>
+    /// Net product amount after discount: <c>ProductGross - DiscountTotal</c>.
+    /// </summary>
+    public decimal ProductNet { get; private set; }
+
+    /// <summary>
+    /// Order currency. SAR for new orders; legacy data may carry a different value.
+    /// </summary>
+    public string Currency { get; private set; } = "SAR";
+
+    /// <summary>Vendor commission charged on this order. Pre-revision orders mirror <see cref="CommissionAmount"/>.</summary>
+    public decimal VendorCommissionAmount { get; private set; }
+
+    /// <summary>Driver commission charged on the delivery fee. 0 for legacy orders until backfilled.</summary>
+    public decimal DriverCommissionAmount { get; private set; }
+
+    /// <summary>How the price was determined: <c>live</c>, <c>quoted</c>, or <c>manual</c>.</summary>
+    public string PricingMode { get; private set; } = "live";
+
+    /// <summary>Snapshot of the tax policy at order creation (JSON). Null for legacy orders.</summary>
+    public string? TaxPolicySnapshot { get; private set; }
+
+    /// <summary>Snapshot of the commission policy at order creation (JSON). Null for legacy orders.</summary>
+    public string? CommissionPolicySnapshot { get; private set; }
+    
     public string? Notes { get; private set; }
     
     public DateTime PlacedAtUtc { get; private set; }
@@ -143,10 +176,47 @@ public class Order : BaseEntity
         Notes = notes?.Trim();
         VendorBranchId = vendorBranchId;
         CouponId = couponId;
+
+        // Revised SAR-only financial snapshot. Until call sites are upgraded
+        // to pass these explicitly, derive sensible defaults from the legacy
+        // inputs so the new ledger formula has consistent values to read.
+        ProductGross = subtotal;
+        ProductNet = Math.Max(0, subtotal - discountTotal);
+        VendorCommissionAmount = commissionAmount;
+        DriverCommissionAmount = 0m;
+        Currency = "SAR";
+        PricingMode = "live";
+        TaxPolicySnapshot = null;
+        CommissionPolicySnapshot = null;
         
         Status = OrderStatus.PendingPayment;
         PaymentStatus = Zadana.Domain.Modules.Payments.Enums.PaymentStatus.Initiated;
         PlacedAtUtc = DateTime.UtcNow;
+    }
+
+    public void ApplyFinancialSnapshot(
+        decimal productGross,
+        decimal productNet,
+        decimal vendorCommissionAmount,
+        decimal driverCommissionAmount,
+        string currency,
+        string pricingMode,
+        string? taxPolicySnapshot,
+        string? commissionPolicySnapshot)
+    {
+        if (productGross < 0 || productNet < 0 || vendorCommissionAmount < 0 || driverCommissionAmount < 0)
+        {
+            throw new ArgumentOutOfRangeException(nameof(productGross), "Financial snapshot amounts cannot be negative.");
+        }
+
+        ProductGross = productGross;
+        ProductNet = productNet;
+        VendorCommissionAmount = vendorCommissionAmount;
+        DriverCommissionAmount = driverCommissionAmount;
+        Currency = string.IsNullOrWhiteSpace(currency) ? "SAR" : currency.Trim().ToUpperInvariant();
+        PricingMode = string.IsNullOrWhiteSpace(pricingMode) ? "live" : pricingMode.Trim();
+        TaxPolicySnapshot = string.IsNullOrWhiteSpace(taxPolicySnapshot) ? null : taxPolicySnapshot;
+        CommissionPolicySnapshot = string.IsNullOrWhiteSpace(commissionPolicySnapshot) ? null : commissionPolicySnapshot;
     }
 
     public void RecordAssignedDriverDistance(decimal pickupDistanceKm)

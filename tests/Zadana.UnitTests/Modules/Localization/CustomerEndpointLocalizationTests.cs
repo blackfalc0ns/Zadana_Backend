@@ -51,6 +51,7 @@ using Zadana.Domain.Modules.Payments.Enums;
 using Zadana.Domain.Modules.Vendors.Entities;
 using Zadana.SharedKernel.Exceptions;
 using Zadana.UnitTests.Common;
+using Zadana.UnitTests.TestHelpers;
 
 namespace Zadana.UnitTests.Modules.Localization;
 
@@ -441,15 +442,14 @@ public class CustomerEndpointLocalizationTests
     private static GetCheckoutSummaryQueryHandler CreateCheckoutSummaryHandler(
         Zadana.Infrastructure.Persistence.ApplicationDbContext context)
     {
-        var paymobGateway = new Mock<IPaymobGateway>();
-        paymobGateway.SetupGet(x => x.IsEnabled).Returns(true);
+        var gatewayResolver = TestPaymentGatewayResolver.Enabled();
 
         var deliveryPricing = new Mock<IDeliveryPricingService>();
         deliveryPricing
             .Setup(x => x.QuoteAsync(It.IsAny<Guid>(), It.IsAny<Guid>(), It.IsAny<CancellationToken>()))
             .ReturnsAsync(new DeliveryPriceQuote(5m, 2m, 0m, 7m, 3m, "zone", "Zone rule", 1m, 2m, 3m, 4m, "driver", "vendor", false, "manual", null, "locked", DateTime.UtcNow, 1, false));
 
-        return new GetCheckoutSummaryQueryHandler(context, paymobGateway.Object, deliveryPricing.Object);
+        return new GetCheckoutSummaryQueryHandler(context, gatewayResolver, deliveryPricing.Object);
     }
 
     private static ApplyCheckoutPromoCodeResultDto CreateApplyPromoCodeResult() =>

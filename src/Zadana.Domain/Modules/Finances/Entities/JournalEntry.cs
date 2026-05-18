@@ -10,7 +10,7 @@ public class JournalEntry : BaseEntity
     public Guid FinancialEventId { get; private set; }
     public long SequenceNumber { get; private set; }
     public JournalEntryStatus Status { get; private set; }
-    public string CurrencyCode { get; private set; } = "EGP";
+    public string CurrencyCode { get; private set; } = "SAR";
     public DateTime PostedAtUtc { get; private set; }
     public string? Memo { get; private set; }
 
@@ -22,7 +22,7 @@ public class JournalEntry : BaseEntity
     public JournalEntry(
         Guid financialEventId,
         long sequenceNumber,
-        string currencyCode = "EGP",
+        string currencyCode = "SAR",
         DateTime? postedAtUtc = null,
         string? memo = null)
     {
@@ -69,7 +69,7 @@ public class JournalEntry : BaseEntity
     {
         if (string.IsNullOrWhiteSpace(currencyCode))
         {
-            return "EGP";
+            return "SAR";
         }
 
         return currencyCode.Trim().ToUpperInvariant();

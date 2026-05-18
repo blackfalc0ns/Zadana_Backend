@@ -8,7 +8,7 @@ public class PayoutAttempt
     public Guid PayoutId { get; private set; }
     public PayoutAttemptType AttemptType { get; private set; }
     public PayoutStatus Status { get; private set; }
-    public string ProviderName { get; private set; } = "Paymob";
+    public string ProviderName { get; private set; } = "Manual";
     public string? ProviderTransferId { get; private set; }
     public string? TransferReference { get; private set; }
     public string? FailureReason { get; private set; }
@@ -23,7 +23,7 @@ public class PayoutAttempt
         Guid payoutId,
         PayoutAttemptType attemptType,
         PayoutStatus status,
-        string providerName = "Paymob",
+        string providerName = "Manual",
         string? providerTransferId = null,
         string? transferReference = null,
         string? failureReason = null,
@@ -32,7 +32,7 @@ public class PayoutAttempt
         PayoutId = payoutId;
         AttemptType = attemptType;
         Status = status;
-        ProviderName = string.IsNullOrWhiteSpace(providerName) ? "Paymob" : providerName.Trim();
+        ProviderName = string.IsNullOrWhiteSpace(providerName) ? "Manual" : providerName.Trim();
         ProviderTransferId = string.IsNullOrWhiteSpace(providerTransferId) ? null : providerTransferId.Trim();
         TransferReference = string.IsNullOrWhiteSpace(transferReference) ? null : transferReference.Trim();
         FailureReason = string.IsNullOrWhiteSpace(failureReason) ? null : failureReason.Trim();

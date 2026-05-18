@@ -39,7 +39,7 @@ public class WalletConfiguration : IEntityTypeConfiguration<Wallet>
         builder.Property(w => w.CurrencyCode)
             .HasMaxLength(3)
             .IsRequired()
-            .HasDefaultValue("EGP");
+            .HasDefaultValue("SAR");
 
         builder.Property(w => w.LastJournalSequence)
             .IsRequired()
