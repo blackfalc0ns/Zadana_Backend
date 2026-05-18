@@ -980,8 +980,7 @@ public class DriverReadService : IDriverReadService
 
         var parts = new List<string>();
 
-        if (!string.IsNullOrWhiteSpace(address.AddressLine))
-            parts.Add(address.AddressLine.Trim());
+        AddAddressPart(parts, address.AddressLine);
 
         if (!string.IsNullOrWhiteSpace(address.BuildingNo))
             parts.Add(IsArabic() ? $"مبنى {address.BuildingNo.Trim()}" : $"Bldg {address.BuildingNo.Trim()}");
@@ -992,14 +991,46 @@ public class DriverReadService : IDriverReadService
         if (!string.IsNullOrWhiteSpace(address.ApartmentNo))
             parts.Add(IsArabic() ? $"شقة {address.ApartmentNo.Trim()}" : $"Apt {address.ApartmentNo.Trim()}");
 
-        if (!string.IsNullOrWhiteSpace(address.Area))
-            parts.Add(address.Area.Trim());
+        AddAddressPart(parts, address.Area);
 
-        if (!string.IsNullOrWhiteSpace(address.City))
-            parts.Add(address.City.Trim());
+        AddAddressPart(parts, address.City);
 
         return parts.Count > 0 ? string.Join("، ", parts) : string.Empty;
     }
+
+    private static void AddAddressPart(ICollection<string> parts, string? value)
+    {
+        if (string.IsNullOrWhiteSpace(value))
+        {
+            return;
+        }
+
+        var candidate = value.Trim();
+        var normalizedCandidate = NormalizeAddressPart(candidate);
+        if (string.IsNullOrWhiteSpace(normalizedCandidate))
+        {
+            return;
+        }
+
+        var alreadyIncluded = parts.Any(part =>
+        {
+            var normalizedPart = NormalizeAddressPart(part);
+            return normalizedPart.Contains(normalizedCandidate, StringComparison.OrdinalIgnoreCase) ||
+                   normalizedCandidate.Contains(normalizedPart, StringComparison.OrdinalIgnoreCase);
+        });
+
+        if (!alreadyIncluded)
+        {
+            parts.Add(candidate);
+        }
+    }
+
+    private static string NormalizeAddressPart(string value) =>
+        new(value
+            .Trim()
+            .ToLowerInvariant()
+            .Where(char.IsLetterOrDigit)
+            .ToArray());
 
     private static IReadOnlyList<string> ResolveAllowedActions(DeliveryAssignment assignment, OrderStatus orderStatus)
     {
