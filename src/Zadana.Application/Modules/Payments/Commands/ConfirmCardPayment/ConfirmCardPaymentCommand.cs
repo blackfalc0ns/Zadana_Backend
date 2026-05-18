@@ -1,8 +1,10 @@
 using FluentValidation;
 using MediatR;
 using Microsoft.EntityFrameworkCore;
+using Microsoft.Extensions.Logging;
 using Zadana.Application.Common.Interfaces;
 using Zadana.Application.Common.Localization;
+using Zadana.Application.Modules.Finances.Services;
 using Zadana.Application.Modules.Orders.Events;
 using Zadana.Application.Modules.Orders.Support;
 using Zadana.Application.Modules.Payments.DTOs;
@@ -41,17 +43,23 @@ public class ConfirmCardPaymentCommandHandler : IRequestHandler<ConfirmCardPayme
     private readonly IPaymentGatewayResolver _gatewayResolver;
     private readonly IUnitOfWork _unitOfWork;
     private readonly IPublisher _publisher;
+    private readonly OnlinePaymentCaptureService _captureService;
+    private readonly ILogger<ConfirmCardPaymentCommandHandler> _logger;
 
     public ConfirmCardPaymentCommandHandler(
         IApplicationDbContext context,
         IPaymentGatewayResolver gatewayResolver,
         IUnitOfWork unitOfWork,
-        IPublisher publisher)
+        IPublisher publisher,
+        OnlinePaymentCaptureService captureService,
+        ILogger<ConfirmCardPaymentCommandHandler> logger)
     {
         _context = context;
         _gatewayResolver = gatewayResolver;
         _unitOfWork = unitOfWork;
         _publisher = publisher;
+        _captureService = captureService;
+        _logger = logger;
     }
 
     public async Task<CardPaymentConfirmationResultDto> Handle(ConfirmCardPaymentCommand request, CancellationToken cancellationToken)
@@ -148,6 +156,30 @@ public class ConfirmCardPaymentCommandHandler : IRequestHandler<ConfirmCardPayme
             EnsureVendorAcceptanceTransition(order);
             OrderStatusHistoryTracking.TrackNewEntries(_context, order);
             await _unitOfWork.SaveChangesAsync(cancellationToken);
+        }
+
+        // Post the OnlinePaymentCaptured ledger event idempotently.
+        // Runs even on the "already confirmed" path so that any earlier failure
+        // to write the journal entry (e.g. transient DB error after MarkAsPaid)
+        // is healed on the next call without producing a duplicate posting.
+        try
+        {
+            await _captureService.PostCapturedAsync(
+                order,
+                payment,
+                details.ProviderName,
+                details.ProviderPaymentId,
+                cancellationToken);
+        }
+        catch (Exception ex)
+        {
+            // Capture posting must not roll back a confirmed payment. The order
+            // is already marked paid; surface the failure to ops via logs and
+            // let the next webhook retry / admin reconcile the ledger.
+            _logger.LogError(
+                ex,
+                "[ConfirmCardPayment] Capture posting failed for order {OrderId} payment {PaymentId}.",
+                order.Id, payment.Id);
         }
 
         await ClearCustomerCartAsync(order.UserId, customerDeviceId ?? payment.CheckoutDeviceId, cancellationToken);

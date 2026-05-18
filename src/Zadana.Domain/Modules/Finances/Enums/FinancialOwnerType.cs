@@ -5,5 +5,6 @@ public enum FinancialOwnerType
     Platform,
     Vendor,
     Driver,
-    Gateway
+    Gateway,
+    Customer
 }
