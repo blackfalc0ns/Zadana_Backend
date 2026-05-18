@@ -35,9 +35,13 @@ public record DriverAssignmentDetailDto(
 
 public record DriverAssignmentItemDto(
     string Name,
+    string? ImageUrl,
     int Quantity,
     decimal UnitPrice,
-    decimal LineTotal);
+    decimal LineTotal,
+    string? DisplaySize,
+    string? Unit,
+    string? StoreName);
 
 public record DriverCompletedOrdersListDto(
     IReadOnlyList<DriverCompletedOrderListItemDto> Items,

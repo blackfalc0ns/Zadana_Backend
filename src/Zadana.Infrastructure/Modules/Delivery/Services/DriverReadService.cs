@@ -567,6 +567,7 @@ public class DriverReadService : IDriverReadService
                 .ThenInclude(o => o.VendorBranch)
             .Include(a => a.Order)
                 .ThenInclude(o => o.Items)
+                    .ThenInclude(i => i.MasterProduct)
             .Include(a => a.Driver)
             .FirstOrDefaultAsync(a => a.Id == assignmentId && a.DriverId == driverId, cancellationToken);
 
@@ -620,7 +621,17 @@ public class DriverReadService : IDriverReadService
             arrivalState,
             ResolveArrivalStateLabel(arrivalState),
             assignment.Order.Items
-                .Select(item => new DriverAssignmentItemDto(item.ProductName, item.Quantity, item.UnitPrice, item.LineTotal))
+                .Select(item => new DriverAssignmentItemDto(
+                    ResolveItemName(item),
+                    item.SnapshotImageUrl,
+                    item.Quantity,
+                    item.UnitPrice,
+                    item.LineTotal,
+                    item.SnapshotDisplaySize,
+                    item.UnitName,
+                    IsArabic()
+                        ? (assignment.Order.Vendor.BusinessNameAr ?? assignment.Order.Vendor.BusinessNameEn)
+                        : (assignment.Order.Vendor.BusinessNameEn ?? assignment.Order.Vendor.BusinessNameAr)))
                 .ToArray());
     }
 
@@ -938,6 +949,18 @@ public class DriverReadService : IDriverReadService
     private static bool IsArabic() =>
         System.Globalization.CultureInfo.CurrentUICulture.TwoLetterISOLanguageName
             .Equals("ar", StringComparison.OrdinalIgnoreCase);
+
+    private static string ResolveItemName(Domain.Modules.Orders.Entities.OrderItem item)
+    {
+        if (item.MasterProduct is null)
+        {
+            return item.ProductName;
+        }
+
+        var preferred = IsArabic() ? item.MasterProduct.NameAr : item.MasterProduct.NameEn;
+        var fallback = IsArabic() ? item.MasterProduct.NameEn : item.MasterProduct.NameAr;
+        return preferred?.Trim() ?? fallback?.Trim() ?? item.ProductName;
+    }
 
     private static IReadOnlyList<string> ResolveAllowedActions(DeliveryAssignment assignment, OrderStatus orderStatus)
     {
