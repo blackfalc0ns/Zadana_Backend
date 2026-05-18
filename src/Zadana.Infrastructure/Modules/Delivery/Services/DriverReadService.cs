@@ -606,6 +606,7 @@ public class DriverReadService : IDriverReadService
             assignment.Order.Vendor.ContactPhone,
             customerAddress?.ContactName ?? "Customer",
             BuildFullCustomerAddress(customerAddress),
+            BuildAddressDetail(customerAddress),
             customerAddress?.Latitude,
             customerAddress?.Longitude,
             customerAddress?.ContactPhone,
@@ -999,6 +1000,22 @@ public class DriverReadService : IDriverReadService
             parts.Add(address.City.Trim());
 
         return parts.Count > 0 ? string.Join("، ", parts) : string.Empty;
+    }
+
+    private static DriverAddressDetailDto? BuildAddressDetail(Domain.Modules.Identity.Entities.CustomerAddress? address)
+    {
+        if (address is null)
+        {
+            return null;
+        }
+
+        return new DriverAddressDetailDto(
+            address.AddressLine?.Trim(),
+            address.BuildingNo?.Trim(),
+            address.FloorNo?.Trim(),
+            address.ApartmentNo?.Trim(),
+            address.Area?.Trim(),
+            address.City?.Trim());
     }
 
     private static IReadOnlyList<string> ResolveAllowedActions(DeliveryAssignment assignment, OrderStatus orderStatus)
