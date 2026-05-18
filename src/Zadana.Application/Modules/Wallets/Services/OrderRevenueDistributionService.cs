@@ -228,33 +228,14 @@ public class OrderRevenueDistributionService
         }
         else
         {
-            // For online orders with a prior OnlinePaymentCaptured event, debit
-            // CustomerAdvance (the liability recognised at capture time) instead
-            // of GatewayReceivable. This keeps the ledger consistent with the
-            // revised SAR-only workflow (section 8.2). For legacy orders without
-            // a capture event, fall back to GatewayReceivable for backward compat.
-            var hasCaptureEvent = _context.FinancialEvents
-                .AsNoTracking()
-                .Any(e => e.OrderId == orderId && e.EventType == FinancialEventType.OnlinePaymentCaptured);
-
-            var debitAccount = hasCaptureEvent
-                ? FinancialAccountCode.CustomerAdvance
-                : FinancialAccountCode.GatewayReceivable;
-
-            var debitOwnerType = hasCaptureEvent
-                ? FinancialOwnerType.Customer
-                : FinancialOwnerType.Gateway;
-
             lines.Add(new JournalLineDraft(
-                debitAccount,
+                FinancialAccountCode.GatewayReceivable,
                 postingTotal,
                 0m,
-                debitOwnerType,
+                FinancialOwnerType.Gateway,
                 null,
                 orderId,
-                Memo: hasCaptureEvent
-                    ? $"Customer advance cleared on delivery for order {orderId}"
-                    : $"Online payment receivable for order {orderId}"));
+                Memo: $"Online payment receivable for order {orderId}"));
         }
 
         if (vendorNet > 0)
