@@ -487,3 +487,4 @@ $RECYCLE.BIN/
 *.swp
 **/temp-test-build/
 **/temp-build/
+test-publish/
