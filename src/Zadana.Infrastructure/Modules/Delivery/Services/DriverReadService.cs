@@ -604,7 +604,7 @@ public class DriverReadService : IDriverReadService
             assignment.Order.VendorBranch?.Longitude,
             assignment.Order.Vendor.ContactPhone,
             customerAddress?.ContactName ?? "Customer",
-            customerAddress?.AddressLine ?? string.Empty,
+            BuildFullCustomerAddress(customerAddress),
             customerAddress?.Latitude,
             customerAddress?.Longitude,
             customerAddress?.ContactPhone,
@@ -680,14 +680,16 @@ public class DriverReadService : IDriverReadService
 
                 return new DriverCompletedOrderListItemDto(
                     assignment.OrderId,
-                    assignment.Order.Vendor.BusinessNameEn,
+                    IsArabic()
+                        ? (assignment.Order.Vendor.BusinessNameAr ?? assignment.Order.Vendor.BusinessNameEn)
+                        : (assignment.Order.Vendor.BusinessNameEn ?? assignment.Order.Vendor.BusinessNameAr),
                     customerAddress?.ContactName ?? "Customer",
                     ResolveCompletedAtUtc(assignment),
                     MapCompletedOrderStatus(assignment.Order.Status),
                     ResolveCodAmount(assignment),
                     ResolveDistanceKm(assignment.Order, customerAddress),
                     assignment.Order.PaymentMethod.ToString(),
-                    customerAddress?.AddressLine ?? string.Empty,
+                    BuildFullCustomerAddress(customerAddress),
                     assignment.Order.Items
                         .Select(item => new DriverCompletedOrderItemDto(item.ProductName, item.Quantity, item.UnitPrice, item.LineTotal))
                         .ToArray());
@@ -732,12 +734,14 @@ public class DriverReadService : IDriverReadService
             assignment.OrderId,
             assignment.Id,
             assignment.Order.OrderNumber,
-            assignment.Order.Vendor.BusinessNameEn,
+            IsArabic()
+                ? (assignment.Order.Vendor.BusinessNameAr ?? assignment.Order.Vendor.BusinessNameEn)
+                : (assignment.Order.Vendor.BusinessNameEn ?? assignment.Order.Vendor.BusinessNameAr),
             assignment.Order.Vendor.ContactPhone,
             customerAddress?.ContactName ?? "Customer",
             customerAddress?.ContactPhone,
             assignment.Order.VendorBranch?.AddressLine ?? assignment.Order.Vendor.NationalAddress ?? string.Empty,
-            customerAddress?.AddressLine ?? string.Empty,
+            BuildFullCustomerAddress(customerAddress),
             MapCompletedOrderStatus(assignment.Order.Status),
             assignment.Order.PaymentMethod.ToString(),
             ResolveCodAmount(assignment),
@@ -960,6 +964,36 @@ public class DriverReadService : IDriverReadService
         var preferred = IsArabic() ? item.MasterProduct.NameAr : item.MasterProduct.NameEn;
         var fallback = IsArabic() ? item.MasterProduct.NameEn : item.MasterProduct.NameAr;
         return preferred?.Trim() ?? fallback?.Trim() ?? item.ProductName;
+    }
+
+    private static string BuildFullCustomerAddress(Domain.Modules.Identity.Entities.CustomerAddress? address)
+    {
+        if (address is null)
+        {
+            return string.Empty;
+        }
+
+        var parts = new List<string>();
+
+        if (!string.IsNullOrWhiteSpace(address.AddressLine))
+            parts.Add(address.AddressLine.Trim());
+
+        if (!string.IsNullOrWhiteSpace(address.BuildingNo))
+            parts.Add(IsArabic() ? $"مبنى {address.BuildingNo.Trim()}" : $"Bldg {address.BuildingNo.Trim()}");
+
+        if (!string.IsNullOrWhiteSpace(address.FloorNo))
+            parts.Add(IsArabic() ? $"طابق {address.FloorNo.Trim()}" : $"Floor {address.FloorNo.Trim()}");
+
+        if (!string.IsNullOrWhiteSpace(address.ApartmentNo))
+            parts.Add(IsArabic() ? $"شقة {address.ApartmentNo.Trim()}" : $"Apt {address.ApartmentNo.Trim()}");
+
+        if (!string.IsNullOrWhiteSpace(address.Area))
+            parts.Add(address.Area.Trim());
+
+        if (!string.IsNullOrWhiteSpace(address.City))
+            parts.Add(address.City.Trim());
+
+        return parts.Count > 0 ? string.Join("، ", parts) : string.Empty;
     }
 
     private static IReadOnlyList<string> ResolveAllowedActions(DeliveryAssignment assignment, OrderStatus orderStatus)
