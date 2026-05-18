@@ -29,7 +29,16 @@ public record CategoryProductItemDto(
     [property: JsonPropertyName("unit")] string? Unit,
     [property: JsonPropertyName("is_discounted")] bool IsDiscounted);
 
+public record CategoryProductsCategoryInfoDto(
+    [property: JsonPropertyName("id")] Guid Id,
+    [property: JsonPropertyName("name")] string Name);
+
+public record CategoryProductsBreadcrumbDto(
+    [property: JsonPropertyName("category")] CategoryProductsCategoryInfoDto? Category,
+    [property: JsonPropertyName("subcategory")] CategoryProductsCategoryInfoDto? Subcategory);
+
 public record CategoryProductsDto(
+    [property: JsonPropertyName("breadcrumb")] CategoryProductsBreadcrumbDto? Breadcrumb,
     [property: JsonPropertyName("applied_filters")] CategoryProductsAppliedFiltersDto AppliedFilters,
     [property: JsonPropertyName("total")] int Total,
     [property: JsonPropertyName("page")] int Page,

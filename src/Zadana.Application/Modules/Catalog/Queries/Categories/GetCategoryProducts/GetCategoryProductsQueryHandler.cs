@@ -76,6 +76,7 @@ public class GetCategoryProductsQueryHandler : IRequestHandler<GetCategoryProduc
         HashSet<Guid>? categoryScopeIds = null;
         Guid? effectiveCategoryId = request.CategoryId;
         Guid? effectiveSubcategoryId = request.SubcategoryId;
+        CategoryProductsBreadcrumbDto? breadcrumb = null;
 
         if (request.CategoryId.HasValue || request.SubcategoryId.HasValue)
         {
@@ -90,6 +91,8 @@ public class GetCategoryProductsQueryHandler : IRequestHandler<GetCategoryProduc
                     category.IsActive))
                 .ToListAsync(cancellationToken);
 
+            var categoriesById = categories.ToDictionary(c => c.Id);
+
             if (request.SubcategoryId.HasValue)
             {
                 var subcategoryScope = ResolveScope(request.SubcategoryId.Value, categories)
@@ -99,6 +102,21 @@ public class GetCategoryProductsQueryHandler : IRequestHandler<GetCategoryProduc
 
                 var subcategoryParentId = subcategoryScope.Category.ParentCategoryId;
                 effectiveCategoryId ??= subcategoryParentId ?? request.SubcategoryId.Value;
+
+                // Build breadcrumb: category -> subcategory
+                var subcategoryInfo = new CategoryProductsCategoryInfoDto(
+                    subcategoryScope.Category.Id,
+                    PickLocalized(subcategoryScope.Category.NameAr, subcategoryScope.Category.NameEn));
+
+                CategoryProductsCategoryInfoDto? categoryInfo = null;
+                if (subcategoryParentId.HasValue && categoriesById.TryGetValue(subcategoryParentId.Value, out var parentCategory))
+                {
+                    categoryInfo = new CategoryProductsCategoryInfoDto(
+                        parentCategory.Id,
+                        PickLocalized(parentCategory.NameAr, parentCategory.NameEn));
+                }
+
+                breadcrumb = new CategoryProductsBreadcrumbDto(categoryInfo, subcategoryInfo);
 
                 if (request.CategoryId.HasValue)
                 {
@@ -117,6 +135,13 @@ public class GetCategoryProductsQueryHandler : IRequestHandler<GetCategoryProduc
                     ?? throw new NotFoundException(nameof(Category), request.CategoryId.Value);
 
                 categoryScopeIds = categoryScope.ActiveSubtreeIds.ToHashSet();
+
+                // Build breadcrumb: category only
+                var categoryInfo = new CategoryProductsCategoryInfoDto(
+                    categoryScope.Category.Id,
+                    PickLocalized(categoryScope.Category.NameAr, categoryScope.Category.NameEn));
+
+                breadcrumb = new CategoryProductsBreadcrumbDto(categoryInfo, null);
             }
         }
 
@@ -225,6 +250,7 @@ public class GetCategoryProductsQueryHandler : IRequestHandler<GetCategoryProduc
             .ToList();
 
         return new CategoryProductsDto(
+            breadcrumb,
             new CategoryProductsAppliedFiltersDto(
                 effectiveCategoryId,
                 effectiveSubcategoryId,
