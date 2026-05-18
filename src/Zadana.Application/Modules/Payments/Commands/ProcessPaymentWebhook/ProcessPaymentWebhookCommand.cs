@@ -6,7 +6,6 @@ using Zadana.Application.Common.Interfaces;
 using Zadana.Application.Modules.Payments.Commands.ConfirmCardPayment;
 using Zadana.Application.Modules.Payments.DTOs;
 using Zadana.Domain.Modules.Payments.Entities;
-using Zadana.SharedKernel.Exceptions;
 
 namespace Zadana.Application.Modules.Payments.Commands.ProcessPaymentWebhook;
 
@@ -77,9 +76,16 @@ public class ProcessPaymentWebhookCommandHandler : IRequestHandler<ProcessPaymen
 
         if (!request.SecretValid)
         {
+            // Record the audit trail. The HTTP-layer controller is responsible for
+            // returning the right status (401) to the caller; this command must not
+            // throw because the caller is reporting on a verified-failure path that
+            // is allowed and expected (signature mismatch, missing config, replay).
             inbox.MarkFailed("Webhook signature was not validated.");
             await _context.SaveChangesAsync(cancellationToken);
-            throw new BusinessRuleException("PAYMENT_WEBHOOK_INVALID_SIGNATURE", "Webhook signature could not be validated.");
+            return new PaymentWebhookProcessResultDto(
+                "signature_invalid",
+                Guid.Empty,
+                "rejected");
         }
 
         if (string.IsNullOrWhiteSpace(providerPaymentId))

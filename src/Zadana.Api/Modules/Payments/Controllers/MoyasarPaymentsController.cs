@@ -16,9 +16,8 @@ namespace Zadana.Api.Modules.Payments.Controllers;
 
 /// <summary>
 /// Endpoints exposed to Moyasar for callback (return URL) and webhook delivery.
-/// Both routes write the inbound notification through the
-/// <c>PaymentProviderEventInbox</c> + <see cref="ProcessPaymentWebhookCommand"/>
-/// pipeline so processing is idempotent and auditable.
+/// Webhooks are written to <c>PaymentProviderEventInbox</c> for idempotency
+/// and audit; processing is delegated to <see cref="ProcessPaymentWebhookCommand"/>.
 /// </summary>
 [Route("api/payments/moyasar")]
 [Tags("Payments")]
@@ -43,10 +42,50 @@ public class MoyasarPaymentsController(
         var payload = await reader.ReadToEndAsync(cancellationToken);
         Request.Body.Position = 0;
 
-        var secretValid = ValidateWebhookSecret(moyasar, payload);
-        if (!secretValid && !environment.IsDevelopment())
+        // Config guard: in non-development, a missing WebhookSecret is a deployment
+        // problem (not the caller's fault). Tell ops, return 503 so Moyasar retries
+        // once the config is fixed.
+        if (string.IsNullOrWhiteSpace(moyasar.WebhookSecret) && !environment.IsDevelopment())
         {
-            await NotifyIntegrationFailureAsync("Moyasar webhook signature validation failed.", payload, cancellationToken);
+            await NotifyIntegrationFailureAsync(
+                "Moyasar:WebhookSecret is not configured.",
+                payload,
+                cancellationToken);
+
+            return Problem(
+                title: "Moyasar webhook is not configured",
+                detail: "Moyasar webhook secret is not configured on the server. Contact administrator.",
+                statusCode: StatusCodes.Status503ServiceUnavailable,
+                type: "https://moyasar.runasp.net/errors/PAYMENT_WEBHOOK_NOT_CONFIGURED",
+                instance: "/api/payments/moyasar/webhook");
+        }
+
+        var secretValid = ValidateWebhookSecret(moyasar, payload);
+
+        // Untrusted source: tell Moyasar we will not process; do not retry forever.
+        // 401 is the "stop, your credentials are wrong" signal. We still record the
+        // attempt in the inbox for audit so ops can spot stuffing attempts.
+        if (!secretValid)
+        {
+            await Sender.Send(
+                new ProcessPaymentWebhookCommand(
+                    Provider: "Moyasar",
+                    Payload: payload,
+                    SecretValid: false,
+                    Headers: SerializeHeaders()),
+                cancellationToken);
+
+            await NotifyIntegrationFailureAsync(
+                "Moyasar webhook signature validation failed.",
+                payload,
+                cancellationToken);
+
+            return Problem(
+                title: "Webhook signature invalid",
+                detail: "Webhook signature could not be validated.",
+                statusCode: StatusCodes.Status401Unauthorized,
+                type: "https://moyasar.runasp.net/errors/PAYMENT_WEBHOOK_INVALID_SIGNATURE",
+                instance: "/api/payments/moyasar/webhook");
         }
 
         try
@@ -55,15 +94,25 @@ public class MoyasarPaymentsController(
                 new ProcessPaymentWebhookCommand(
                     Provider: "Moyasar",
                     Payload: payload,
-                    SecretValid: secretValid || environment.IsDevelopment(),
+                    SecretValid: true,
                     Headers: SerializeHeaders()),
                 cancellationToken);
 
-            return Ok(new { processed = true, result.PaymentId, result.Status, result.Message });
+            return Ok(new
+            {
+                processed = true,
+                paymentId = result.PaymentId,
+                status = result.Status,
+                message = result.Message,
+            });
         }
         catch (Exception ex)
         {
-            await NotifyIntegrationFailureAsync($"Moyasar webhook processing failed: {ex.Message}", payload, cancellationToken);
+            await NotifyIntegrationFailureAsync(
+                $"Moyasar webhook processing failed: {ex.Message}",
+                payload,
+                cancellationToken);
+
             throw;
         }
     }
@@ -77,7 +126,12 @@ public class MoyasarPaymentsController(
     {
         if (request is null || string.IsNullOrWhiteSpace(request.Id))
         {
-            return BadRequest(new { error = "MOYASAR_PAYMENT_ID_REQUIRED" });
+            return Problem(
+                title: "Moyasar payment id is required",
+                detail: "The Moyasar 'id' query parameter is missing. Make sure the Moyasar form was configured with a callback that propagates the payment id.",
+                statusCode: StatusCodes.Status400BadRequest,
+                type: "https://moyasar.runasp.net/errors/MOYASAR_PAYMENT_ID_REQUIRED",
+                instance: "/api/payments/moyasar/verify");
         }
 
         var result = await Sender.Send(
@@ -102,25 +156,42 @@ public class MoyasarPaymentsController(
     {
         if (string.IsNullOrWhiteSpace(moyasar.WebhookSecret))
         {
-            return false;
+            // Development-only soft mode: accept anything so local testing isn't blocked.
+            return environment.IsDevelopment();
         }
 
         var providedSignature = Request.Headers[MoyasarSignatureHeader].ToString();
 
-        // Moyasar's webhook config sends a shared "secret_token" inside the JSON body OR as an HMAC header,
-        // depending on the dashboard configuration. We accept either. Body-token comparison is constant-time.
+        // Moyasar's webhook config sends a shared "secret_token" inside the JSON body OR
+        // as an HMAC-SHA256 header, depending on the dashboard configuration. We accept
+        // either. Both comparisons are constant-time.
         if (!string.IsNullOrWhiteSpace(providedSignature))
         {
             var expected = Convert.ToHexString(
                 HMACSHA256.HashData(
                     Encoding.UTF8.GetBytes(moyasar.WebhookSecret),
                     Encoding.UTF8.GetBytes(payload))).ToLowerInvariant();
-            return CryptographicOperations.FixedTimeEquals(
-                Encoding.ASCII.GetBytes(expected),
-                Encoding.ASCII.GetBytes(providedSignature.Trim().ToLowerInvariant()));
+
+            var provided = providedSignature.Trim().ToLowerInvariant();
+            return expected.Length == provided.Length
+                && CryptographicOperations.FixedTimeEquals(
+                    Encoding.ASCII.GetBytes(expected),
+                    Encoding.ASCII.GetBytes(provided));
         }
 
-        return payload.Contains($"\"secret_token\":\"{moyasar.WebhookSecret}\"", StringComparison.Ordinal);
+        // Body-token mode. We compare against the configured secret using a
+        // constant-time match so attackers can't time their way in.
+        var expectedTokenBytes = Encoding.UTF8.GetBytes(moyasar.WebhookSecret);
+        var marker = "\"secret_token\":\"";
+        var tokenStart = payload.IndexOf(marker, StringComparison.Ordinal);
+        if (tokenStart < 0) return false;
+        tokenStart += marker.Length;
+        var tokenEnd = payload.IndexOf('"', tokenStart);
+        if (tokenEnd < 0) return false;
+        var providedToken = payload.AsSpan(tokenStart, tokenEnd - tokenStart);
+        var providedTokenBytes = Encoding.UTF8.GetBytes(providedToken.ToString());
+        return providedTokenBytes.Length == expectedTokenBytes.Length
+            && CryptographicOperations.FixedTimeEquals(providedTokenBytes, expectedTokenBytes);
     }
 
     private string? SerializeHeaders()
