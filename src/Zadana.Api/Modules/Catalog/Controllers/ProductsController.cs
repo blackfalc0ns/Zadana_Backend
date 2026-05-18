@@ -14,7 +14,7 @@ public class ProductsController : ApiControllerBase
 {
     [HttpGet("search")]
     public async Task<ActionResult<SearchProductsResponseDto>> SearchProducts(
-        [FromQuery(Name = "query")] string query,
+        [FromQuery(Name = "query")] string? query = null,
         [FromQuery(Name = "category_id")] Guid? categoryId = null,
         [FromQuery(Name = "brand_id")] Guid? brandId = null,
         [FromQuery(Name = "min_price")] decimal? minPrice = null,

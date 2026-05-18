@@ -39,12 +39,7 @@ public class SearchProductsQueryHandler : IRequestHandler<SearchProductsQuery, S
 
     public async Task<SearchProductsResponseDto> Handle(SearchProductsQuery request, CancellationToken cancellationToken)
     {
-        var normalizedQuery = request.Query.Trim();
-        if (string.IsNullOrWhiteSpace(normalizedQuery))
-        {
-            return new SearchProductsResponseDto(string.Empty, 0, NormalizePage(request.Page), NormalizePerPage(request.PerPage), []);
-        }
-
+        var normalizedQuery = request.Query?.Trim() ?? string.Empty;
         var page = NormalizePage(request.Page);
         var perPage = NormalizePerPage(request.PerPage);
         var baseResponse = await _cache.GetOrCreateAsync(
@@ -89,6 +84,7 @@ public class SearchProductsQueryHandler : IRequestHandler<SearchProductsQuery, S
                 (!request.MinPrice.HasValue || product.SellingPrice >= request.MinPrice.Value) &&
                 (!request.MaxPrice.HasValue || product.SellingPrice <= request.MaxPrice.Value) &&
                 (
+                    string.IsNullOrWhiteSpace(normalizedQuery) ||
                     product.MasterProduct.NameAr.Contains(normalizedQuery) ||
                     product.MasterProduct.NameEn.Contains(normalizedQuery) ||
                     (!string.IsNullOrWhiteSpace(product.CustomNameAr) && product.CustomNameAr.Contains(normalizedQuery)) ||
@@ -163,7 +159,7 @@ public class SearchProductsQueryHandler : IRequestHandler<SearchProductsQuery, S
                     reviewStats?.ReviewCount ?? 0,
                     product.VariantGroupId);
             })
-            .GroupBy(product => product.VariantGroupId)
+            .GroupBy(product => GetProductGroupKey(product.VariantGroupId, product.Id))
             .Select(group => group
                 .OrderBy(product => product.SellingPrice)
                 .ThenByDescending(product => product.CreatedAtUtc)
@@ -175,7 +171,7 @@ public class SearchProductsQueryHandler : IRequestHandler<SearchProductsQuery, S
 
         // Compute variant counts per variant group
         var variantCountByGroupId = rawProducts
-            .GroupBy(p => p.VariantGroupId)
+            .GroupBy(p => GetProductGroupKey(p.VariantGroupId, p.MasterProductId))
             .ToDictionary(g => g.Key, g => g.Select(p => p.MasterProductId).Distinct().Count());
 
         var items = sortedProducts
@@ -183,7 +179,8 @@ public class SearchProductsQueryHandler : IRequestHandler<SearchProductsQuery, S
             .Take(perPage)
             .Select(product =>
             {
-                var variantCount = variantCountByGroupId.GetValueOrDefault(product.VariantGroupId, 1);
+                var productGroupKey = GetProductGroupKey(product.VariantGroupId, product.Id);
+                var variantCount = variantCountByGroupId.GetValueOrDefault(productGroupKey, 1);
                 return MapToProductItem(product, false, variantCount);
             })
             .ToList();
@@ -298,6 +295,9 @@ public class SearchProductsQueryHandler : IRequestHandler<SearchProductsQuery, S
 
     private static string? NormalizeText(string? value) =>
         string.IsNullOrWhiteSpace(value) ? null : value.Trim();
+
+    private static Guid GetProductGroupKey(Guid variantGroupId, Guid masterProductId) =>
+        variantGroupId != default ? variantGroupId : masterProductId;
 
     private sealed record RawSearchProduct(
         Guid Id,

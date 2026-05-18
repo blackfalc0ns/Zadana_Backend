@@ -92,6 +92,7 @@ public class GetProductDetailsQueryHandler : IRequestHandler<GetProductDetailsQu
         var defaultOffer = directOffer ?? visibleOffersForProduct.FirstOrDefault() ?? allOffersForProduct.First();
         var sourceOffersForProduct = visibleOffersForProduct.Count > 0 ? visibleOffersForProduct : allOffersForProduct;
         var variantGroupId = defaultOffer.VariantGroupId;
+        var variantGroupKey = GetProductGroupKey(variantGroupId, defaultOffer.MasterProductId);
         var isExplicitlyOfflineSelection = directOffer is not null && !directOffer.IsVisibleInCatalog;
         var isAvailableForPurchase = !isExplicitlyOfflineSelection && visibleOffersForProduct.Count > 0;
         var isOnlineNow = isExplicitlyOfflineSelection ? directOffer!.IsOnlineNow : defaultOffer.IsOnlineNow;
@@ -125,7 +126,7 @@ public class GetProductDetailsQueryHandler : IRequestHandler<GetProductDetailsQu
                 .ToList();
 
         var variantGroupOffers = offers
-            .Where(offer => offer.VariantGroupId == variantGroupId)
+            .Where(offer => GetProductGroupKey(offer.VariantGroupId, offer.MasterProductId) == variantGroupKey)
             .ToList();
 
         var variantOffersByMasterProduct = variantGroupOffers
@@ -176,14 +177,10 @@ public class GetProductDetailsQueryHandler : IRequestHandler<GetProductDetailsQu
             .ThenBy(option => option.NameAr, StringComparer.CurrentCultureIgnoreCase)
             .ToList();
 
-        var currentProductGroupKey = variantGroupId != default
-            ? variantGroupId
-            : masterProductId;
-
         var similarOfferRows = visibleOffers
             .Where(offer => offer.CategoryId == defaultOffer.CategoryId)
-            .Where(offer => (offer.VariantGroupId != default ? offer.VariantGroupId : offer.MasterProductId) != currentProductGroupKey)
-            .GroupBy(offer => offer.VariantGroupId != default ? offer.VariantGroupId : offer.MasterProductId)
+            .Where(offer => GetProductGroupKey(offer.VariantGroupId, offer.MasterProductId) != variantGroupKey)
+            .GroupBy(offer => GetProductGroupKey(offer.VariantGroupId, offer.MasterProductId))
             .Select(group => group
                 .OrderBy(offer => offer.Price)
                 .ThenByDescending(offer => offer.CreatedAtUtc)
@@ -368,6 +365,9 @@ public class GetProductDetailsQueryHandler : IRequestHandler<GetProductDetailsQu
 
     private static string? NormalizeText(string? value) =>
         string.IsNullOrWhiteSpace(value) ? null : value.Trim();
+
+    private static Guid GetProductGroupKey(Guid variantGroupId, Guid masterProductId) =>
+        variantGroupId != default ? variantGroupId : masterProductId;
 
     private sealed record RawVisibleOfferRow(
         Guid VendorProductId,

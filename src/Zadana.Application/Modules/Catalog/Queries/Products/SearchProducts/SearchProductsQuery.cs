@@ -4,7 +4,7 @@ using Zadana.Application.Modules.Catalog.DTOs;
 namespace Zadana.Application.Modules.Catalog.Queries.Products.SearchProducts;
 
 public record SearchProductsQuery(
-    string Query,
+    string? Query,
     Guid? CategoryId,
     Guid? BrandId,
     decimal? MinPrice,

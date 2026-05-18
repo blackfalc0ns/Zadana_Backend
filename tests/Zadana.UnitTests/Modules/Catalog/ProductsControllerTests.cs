@@ -6,6 +6,7 @@ using Moq;
 using Zadana.Api.Modules.Catalog.Controllers;
 using Zadana.Application.Modules.Catalog.DTOs;
 using Zadana.Application.Modules.Catalog.Queries.Products.GetProductDetails;
+using Zadana.Application.Modules.Catalog.Queries.Products.SearchProducts;
 
 namespace Zadana.UnitTests.Modules.Catalog;
 
@@ -29,6 +30,24 @@ public class ProductsControllerTests
                 RequestServices = provider
             }
         };
+    }
+
+    [Fact]
+    public async Task SearchProducts_WhenQueryIsMissing_SendsNullableSearchQuery()
+    {
+        var dto = new SearchProductsResponseDto(string.Empty, 0, 1, 20, []);
+        _senderMock.Setup(x => x.Send(It.IsAny<SearchProductsQuery>(), It.IsAny<CancellationToken>()))
+            .ReturnsAsync(dto);
+
+        var result = await _controller.SearchProducts(cancellationToken: CancellationToken.None);
+
+        var okResult = result.Result.Should().BeOfType<OkObjectResult>().Subject;
+        okResult.Value.Should().BeEquivalentTo(dto);
+        _senderMock.Verify(
+            x => x.Send(
+                It.Is<SearchProductsQuery>(query => query.Query == null && query.Page == 1 && query.PerPage == 20),
+                It.IsAny<CancellationToken>()),
+            Times.Once);
     }
 
     [Fact]

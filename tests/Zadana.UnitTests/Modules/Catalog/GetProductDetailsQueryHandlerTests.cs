@@ -113,6 +113,46 @@ public class GetProductDetailsQueryHandlerTests
         result.DefaultVendorProductId.Should().Be(setup.PrimaryVendorProduct.Id);
     }
 
+    [Fact]
+    public async Task Handle_WhenProductsHaveNoVariantGroup_DoesNotListUnrelatedProductsAsVariants()
+    {
+        using var scope = new CultureScope("en");
+        await using var context = TestDbContextFactory.Create();
+
+        var category = new Category("cat-ar", "Category", null, null, 1);
+        context.Categories.Add(category);
+        await context.SaveChangesAsync();
+
+        var first = new MasterProduct("alpha-ar", "Alpha Milk", "alpha-milk", category.Id);
+        var second = new MasterProduct("beta-ar", "Beta Bread", "beta-bread", category.Id);
+        first.Publish();
+        second.Publish();
+        context.MasterProducts.AddRange(first, second);
+        await context.SaveChangesAsync();
+
+        var vendor = CreateActiveVendor("Store One", "store-logo.png");
+        context.Vendors.Add(vendor);
+        await context.SaveChangesAsync();
+
+        context.VendorProducts.AddRange(
+            new VendorProduct(vendor.Id, first.Id, 10m, 10),
+            new VendorProduct(vendor.Id, second.Id, 12m, 10));
+        await context.SaveChangesAsync();
+
+        var handler = new GetProductDetailsQueryHandler(
+            context,
+            TestServiceFactory.CreateAppCache(),
+            TestServiceFactory.CreateCatalogReadCacheService(context),
+            TestServiceFactory.CreateCachingOptions());
+
+        var result = await handler.Handle(new GetProductDetailsQuery(first.Id), CancellationToken.None);
+
+        result.VariantOptions.Should().ContainSingle();
+        result.VariantOptions[0].Id.Should().Be(first.Id);
+        result.SimilarProducts.Should().ContainSingle();
+        result.SimilarProducts[0].Id.Should().Be(second.Id);
+    }
+
     private static async Task<ProductScenario> SeedProductScenarioAsync(Infrastructure.Persistence.ApplicationDbContext context)
     {
         var category = new Category("milk-ar", "Milk", null, null, 1);
