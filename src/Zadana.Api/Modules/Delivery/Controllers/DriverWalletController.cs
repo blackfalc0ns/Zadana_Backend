@@ -225,6 +225,13 @@ public class DriverWalletController : ApiControllerBase
             throw new BadRequestException("INVALID_REQUEST_BODY", "Request body is required.");
         }
 
+        if (request.Amount <= 0)
+        {
+            throw new BadRequestException(
+                "INVALID_WITHDRAWAL_AMOUNT",
+                "Withdrawal amount must be greater than zero.");
+        }
+
         var driver = await GetDriverAsync(currentUserService, driverRepository, cancellationToken);
         var wallet = await GetOrCreateWalletAsync(context, driver.Id, cancellationToken);
 
