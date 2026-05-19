@@ -42,6 +42,8 @@ public class GetVendorPayoutsQueryHandler : IRequestHandler<GetVendorPayoutsQuer
                 Origin = item.Settlement.Origin.ToString(),
                 Status = item.Status.ToString(),
                 item.TransferReference,
+                item.ProviderName,
+                item.ProviderTransferId,
                 item.CreatedAtUtc,
                 item.ProcessedAtUtc,
                 SourceOrderId = item.Settlement.Items
@@ -75,7 +77,9 @@ public class GetVendorPayoutsQueryHandler : IRequestHandler<GetVendorPayoutsQuer
                 item.BankName,
                 item.AccountHolderName,
                 item.Iban,
-                item.SwiftCode))
+                item.SwiftCode,
+                item.ProviderName,
+                item.ProviderTransferId))
             .ToList();
 
         return new PaginatedList<AdminVendorPayoutDto>(payoutDtos, totalCount, request.Page, request.PageSize);

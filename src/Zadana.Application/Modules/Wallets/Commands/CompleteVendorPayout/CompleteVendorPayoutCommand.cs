@@ -4,7 +4,7 @@ using Microsoft.EntityFrameworkCore;
 using Microsoft.Extensions.Localization;
 using Zadana.Application.Common.Interfaces;
 using Zadana.Application.Common.Localization;
-using Zadana.Application.Modules.Wallets.Services;
+using Zadana.Application.Modules.Finances.Services;
 using Zadana.Domain.Modules.Wallets.Enums;
 using Zadana.SharedKernel.Exceptions;
 
@@ -27,14 +27,14 @@ public class CompleteVendorPayoutCommandValidator : AbstractValidator<CompleteVe
 public class CompleteVendorPayoutCommandHandler : IRequestHandler<CompleteVendorPayoutCommand, Guid>
 {
     private readonly IApplicationDbContext _context;
-    private readonly VendorPayoutWalletService _vendorPayoutWalletService;
+    private readonly PayoutOrchestrator _payoutOrchestrator;
 
     public CompleteVendorPayoutCommandHandler(
         IApplicationDbContext context,
-        VendorPayoutWalletService vendorPayoutWalletService)
+        PayoutOrchestrator payoutOrchestrator)
     {
         _context = context;
-        _vendorPayoutWalletService = vendorPayoutWalletService;
+        _payoutOrchestrator = payoutOrchestrator;
     }
 
     public async Task<Guid> Handle(CompleteVendorPayoutCommand request, CancellationToken cancellationToken)
@@ -55,25 +55,21 @@ public class CompleteVendorPayoutCommandHandler : IRequestHandler<CompleteVendor
             return payout.Id;
         }
 
+        if (string.IsNullOrWhiteSpace(request.TransferReference))
+        {
+            throw new BusinessRuleException("TRANSFER_REFERENCE_REQUIRED", "Transfer reference is required for manual vendor payout completion.");
+        }
+
         if (payout.Status is PayoutStatus.Cancelled or PayoutStatus.Failed)
         {
             throw new BusinessRuleException("PAYOUT_INVALID_STATUS", $"Cannot complete payout from status {payout.Status}.");
         }
 
-        payout.MarkAsPaid(string.IsNullOrWhiteSpace(request.TransferReference)
-            ? $"MANUAL-{payout.Id.ToString("N")[..8].ToUpperInvariant()}"
-            : request.TransferReference.Trim());
-        payout.Settlement.MarkAsSettled();
-
-        await _vendorPayoutWalletService.SettleHoldAsync(
-            request.VendorId,
-            payout.SettlementId,
+        await _payoutOrchestrator.MarkPaidAsync(
             payout.Id,
-            payout.Amount,
-            $"Vendor payout completed {payout.Id}",
-            cancellationToken);
+            request.TransferReference.Trim(),
+            cancellationToken: cancellationToken);
 
-        await _context.SaveChangesAsync(cancellationToken);
         return payout.Id;
     }
 }

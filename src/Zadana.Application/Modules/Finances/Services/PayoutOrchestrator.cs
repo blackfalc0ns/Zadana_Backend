@@ -1,3 +1,4 @@
+using System.Net.Http;
 using Microsoft.EntityFrameworkCore;
 using Microsoft.Extensions.Options;
 using Zadana.Application.Common.Interfaces;
@@ -8,15 +9,10 @@ using Zadana.Domain.Modules.Finances.Enums;
 using Zadana.Domain.Modules.Wallets.Entities;
 using Zadana.Domain.Modules.Wallets.Enums;
 using Zadana.SharedKernel.Exceptions;
+using Zadana.SharedKernel.Finance;
 
 namespace Zadana.Application.Modules.Finances.Services;
 
-/// <summary>
-/// Provider-agnostic payout orchestrator. When an <see cref="IPayoutGateway"/>
-/// is registered and enabled it forwards the payout to the gateway; otherwise
-/// it records the trigger as a manual operation that admins can complete by
-/// calling <see cref="MarkPaidAsync"/>.
-/// </summary>
 public sealed class PayoutOrchestrator
 {
     private readonly IApplicationDbContext _context;
@@ -42,31 +38,31 @@ public sealed class PayoutOrchestrator
         _adminAlertService = adminAlertService;
     }
 
+    public bool HasEnabledGateway => GetEnabledGateway() is not null;
+
     public async Task<Payout> TriggerAsync(Guid payoutId, Guid? processedByUserId = null, bool isRetry = false, CancellationToken cancellationToken = default)
     {
-        var payout = await _context.Payouts
-            .Include(item => item.Settlement)
-            .FirstOrDefaultAsync(item => item.Id == payoutId, cancellationToken)
-            ?? throw new NotFoundException("Payout", payoutId);
+        var payout = await LoadPayoutAsync(payoutId, cancellationToken);
 
-        if (payout.Status is PayoutStatus.Paid or PayoutStatus.Cancelled)
+        if (payout.Status == PayoutStatus.Paid ||
+            (payout.Status == PayoutStatus.Cancelled && !isRetry))
         {
             throw new BusinessRuleException("PAYOUT_ALREADY_CLOSED", "Closed payouts cannot be triggered.");
         }
 
-        payout.MarkAsProcessing();
-        payout.Settlement.MarkAsProcessing();
-        _context.PayoutAttempts.Add(new PayoutAttempt(
-            payout.Id,
-            isRetry ? PayoutAttemptType.Retry : PayoutAttemptType.Trigger,
-            PayoutStatus.Processing));
+        if (!isRetry && payout.Status is PayoutStatus.Queued or PayoutStatus.Processing)
+        {
+            return payout;
+        }
 
-        var gateway = _payoutGateways.FirstOrDefault(g => g.IsEnabled);
+        var gateway = GetEnabledGateway();
 
         if (gateway is null)
         {
-            // Manual mode - admin will mark it paid using MarkPaidAsync once the bank transfer settles.
-            payout.MarkQueued();
+            payout.MarkAsProcessing();
+            payout.Settlement.MarkAsProcessing();
+            await MarkLinkedDriverWithdrawalProcessingAsync(payout.Id, cancellationToken);
+            payout.MarkQueued(providerName: "Manual");
             _context.PayoutAttempts.Add(new PayoutAttempt(
                 payout.Id,
                 isRetry ? PayoutAttemptType.Retry : PayoutAttemptType.Trigger,
@@ -80,92 +76,491 @@ public sealed class PayoutOrchestrator
             return payout;
         }
 
+        CreatePayoutCommand? command = null;
+        var providerSubmitAttempted = false;
+
         try
         {
-            var result = await gateway.CreatePayoutAsync(
-                new CreatePayoutCommand(
-                    PayoutId: payout.Id,
-                    OwnerId: payout.Settlement.OwnerId,
-                    OwnerType: payout.Settlement.OwnerType.ToString(),
-                    Amount: payout.Amount,
-                    Currency: "SAR",
-                    IdempotencyKey: $"payout:{payout.Id:N}",
-                    BeneficiaryName: null,
-                    BeneficiaryIban: null,
-                    BeneficiaryBankCode: null,
-                    Reference: payout.TransferReference ?? payout.Id.ToString("N"),
-                    Metadata: null),
-                cancellationToken);
+            command = await BuildGatewayCommandAsync(payout, cancellationToken);
+            ValidateGatewayCommand(command);
 
-            var accepted = string.Equals(result.ProviderStatus, "queued", StringComparison.OrdinalIgnoreCase)
-                || string.Equals(result.ProviderStatus, "accepted", StringComparison.OrdinalIgnoreCase)
-                || string.Equals(result.ProviderStatus, "processing", StringComparison.OrdinalIgnoreCase)
-                || string.Equals(result.ProviderStatus, "paid", StringComparison.OrdinalIgnoreCase);
+            payout.MarkAsProcessing(
+                providerName: gateway.ProviderName,
+                providerSequenceNumber: command.SequenceNumber);
+            payout.Settlement.MarkAsProcessing();
+            await MarkLinkedDriverWithdrawalProcessingAsync(payout.Id, cancellationToken);
 
             _context.PayoutAttempts.Add(new PayoutAttempt(
                 payout.Id,
                 isRetry ? PayoutAttemptType.Retry : PayoutAttemptType.Trigger,
-                accepted ? PayoutStatus.Queued : PayoutStatus.Failed,
+                PayoutStatus.Processing,
+                providerName: gateway.ProviderName,
+                transferReference: payout.TransferReference));
+
+            // Persist the sequence before the external POST. If the process dies
+            // after Moyasar accepts the request, retries reuse the same sequence.
+            await _context.SaveChangesAsync(cancellationToken);
+
+            providerSubmitAttempted = true;
+            var result = await gateway.CreatePayoutAsync(command, cancellationToken);
+
+            _context.PayoutAttempts.Add(new PayoutAttempt(
+                payout.Id,
+                isRetry ? PayoutAttemptType.Retry : PayoutAttemptType.Trigger,
+                MapProviderStatus(result.ProviderStatus),
                 providerName: result.ProviderName,
                 providerTransferId: result.ProviderTransferId,
                 transferReference: payout.TransferReference,
                 failureReason: result.FailureMessage,
                 rawPayload: result.RawResponse));
 
-            if (accepted)
+            if (IsPaid(result.ProviderStatus))
             {
-                payout.MarkQueued(result.ProviderTransferId);
+                await MarkPaidCoreAsync(
+                    payout,
+                    result.ProviderSequenceNumber ?? command.SequenceNumber ?? payout.ProviderSequenceNumber ?? payout.Id.ToString("N"),
+                    result.ProviderTransferId,
+                    result.ProviderName,
+                    result.ProviderSequenceNumber ?? command.SequenceNumber,
+                    cancellationToken);
+            }
+            else if (result.IsTransient || IsPending(result.ProviderStatus) || IsUnknown(result.ProviderStatus))
+            {
+                ApplyProviderPendingStatus(
+                    payout,
+                    IsUnknown(result.ProviderStatus) ? "processing" : result.ProviderStatus,
+                    result.ProviderTransferId,
+                    result.ProviderName,
+                    result.ProviderSequenceNumber ?? command.SequenceNumber);
+                await _context.SaveChangesAsync(cancellationToken);
+
+                if (result.IsTransient || IsUnknown(result.ProviderStatus))
+                {
+                    await SendPayoutRequiresReviewAlertAsync(
+                        payout,
+                        result.FailureMessage ?? "Moyasar returned an unknown payout state.",
+                        cancellationToken);
+                }
             }
             else
             {
-                payout.MarkAsFailed(result.FailureMessage);
-                payout.Settlement.MarkPayoutFailed();
-            }
-
-            await _context.SaveChangesAsync(cancellationToken);
-
-            if (!accepted)
-            {
+                await MarkFailedCoreAsync(
+                    payout,
+                    result.FailureMessage ?? $"Provider returned status '{result.ProviderStatus}'.",
+                    result.ProviderTransferId,
+                    result.ProviderName,
+                    result.ProviderSequenceNumber ?? command.SequenceNumber,
+                    cancellationToken);
                 await SendPayoutFailedAlertAsync(payout, result.FailureMessage, cancellationToken);
             }
 
             return payout;
         }
+        catch (OperationCanceledException) when (cancellationToken.IsCancellationRequested)
+        {
+            throw;
+        }
+        catch (Exception ex) when (IsTransientIntegrationException(ex))
+        {
+            await MarkPayoutUnknownAsync(
+                payout,
+                gateway.ProviderName,
+                command?.SequenceNumber ?? payout.ProviderSequenceNumber ?? BuildSequenceNumber(payout.Id),
+                ex.Message,
+                isRetry,
+                cancellationToken);
+            await SendPayoutRequiresReviewAlertAsync(payout, ex.Message, cancellationToken);
+            return payout;
+        }
         catch (Exception ex)
         {
+            if (providerSubmitAttempted)
+            {
+                await MarkPayoutUnknownAsync(
+                    payout,
+                    gateway.ProviderName,
+                    command?.SequenceNumber ?? payout.ProviderSequenceNumber ?? BuildSequenceNumber(payout.Id),
+                    ex.Message,
+                    isRetry,
+                    cancellationToken);
+                await SendPayoutRequiresReviewAlertAsync(
+                    payout,
+                    $"Provider submit was attempted, but local finalization failed: {ex.Message}",
+                    cancellationToken);
+                return payout;
+            }
+
             payout.MarkAsFailed(ex.Message);
             payout.Settlement.MarkPayoutFailed();
+            await MarkLinkedDriverWithdrawalFailedAsync(payout.Id, ex.Message, cancellationToken);
             await _context.SaveChangesAsync(cancellationToken);
             await SendPayoutIntegrationFailureAlertAsync(payout, ex, cancellationToken);
             throw;
         }
     }
 
-    /// <summary>
-    /// Marks a payout as paid. Used by:
-    /// <list type="bullet">
-    ///   <item>Provider webhooks once a real <see cref="IPayoutGateway"/> reports success.</item>
-    ///   <item>Admin "manual mark paid" actions when payouts run outside of any gateway.</item>
-    /// </list>
-    /// Posts the journal entry and updates the wallet projection.
-    /// </summary>
+    public async Task<Payout> RefreshStatusAsync(Guid payoutId, CancellationToken cancellationToken = default)
+    {
+        var payout = await LoadPayoutAsync(payoutId, cancellationToken);
+
+        if (payout.Status is PayoutStatus.Paid or PayoutStatus.Cancelled)
+        {
+            return payout;
+        }
+
+        if (string.IsNullOrWhiteSpace(payout.ProviderTransferId) ||
+            string.Equals(payout.ProviderName, "Manual", StringComparison.OrdinalIgnoreCase))
+        {
+            return payout;
+        }
+
+        var gateway = GetEnabledGateway(payout.ProviderName) ?? GetEnabledGateway();
+        if (gateway is null)
+        {
+            return payout;
+        }
+
+        var details = await gateway.FetchPayoutAsync(payout.ProviderTransferId, cancellationToken);
+
+        _context.PayoutAttempts.Add(new PayoutAttempt(
+            payout.Id,
+            PayoutAttemptType.ProviderCallback,
+            MapProviderStatus(details.ProviderStatus),
+            providerName: details.ProviderName,
+            providerTransferId: details.ProviderTransferId,
+            transferReference: payout.TransferReference,
+            failureReason: details.FailureMessage,
+            rawPayload: details.RawResponse));
+
+        if (IsPaid(details.ProviderStatus))
+        {
+            await MarkPaidCoreAsync(
+                payout,
+                details.ProviderSequenceNumber ?? details.ProviderTransferId,
+                details.ProviderTransferId,
+                details.ProviderName,
+                details.ProviderSequenceNumber,
+                cancellationToken);
+        }
+        else if (IsPending(details.ProviderStatus) || IsUnknown(details.ProviderStatus))
+        {
+            ApplyProviderPendingStatus(
+                payout,
+                IsUnknown(details.ProviderStatus) ? "processing" : details.ProviderStatus,
+                details.ProviderTransferId,
+                details.ProviderName,
+                details.ProviderSequenceNumber);
+            await _context.SaveChangesAsync(cancellationToken);
+
+            if (IsUnknown(details.ProviderStatus))
+            {
+                await SendPayoutRequiresReviewAlertAsync(
+                    payout,
+                    details.FailureMessage ?? "Moyasar returned an unknown payout state.",
+                    cancellationToken);
+            }
+        }
+        else
+        {
+            await MarkFailedCoreAsync(
+                payout,
+                details.FailureMessage ?? $"Provider returned status '{details.ProviderStatus}'.",
+                details.ProviderTransferId,
+                details.ProviderName,
+                details.ProviderSequenceNumber,
+                cancellationToken);
+            await SendPayoutFailedAlertAsync(payout, details.FailureMessage, cancellationToken);
+        }
+
+        return payout;
+    }
+
+    public async Task<Payout?> ApplyProviderStatusAsync(
+        PayoutGatewayDetails details,
+        CancellationToken cancellationToken = default)
+    {
+        var providerTransferId = string.IsNullOrWhiteSpace(details.ProviderTransferId)
+            ? null
+            : details.ProviderTransferId.Trim();
+        var providerSequenceNumber = string.IsNullOrWhiteSpace(details.ProviderSequenceNumber)
+            ? null
+            : details.ProviderSequenceNumber.Trim();
+
+        if (providerTransferId is null && providerSequenceNumber is null)
+        {
+            throw new BusinessRuleException("PAYOUT_PROVIDER_REFERENCE_REQUIRED", "Provider payout id or sequence number is required.");
+        }
+
+        var payout = await _context.Payouts
+            .Include(item => item.Settlement)
+            .Include(item => item.VendorBankAccount)
+            .FirstOrDefaultAsync(
+                item =>
+                    (providerTransferId != null && item.ProviderTransferId == providerTransferId) ||
+                    (providerSequenceNumber != null && item.ProviderSequenceNumber == providerSequenceNumber),
+                cancellationToken);
+
+        if (payout is null)
+        {
+            return null;
+        }
+
+        if (payout.Status is PayoutStatus.Paid or PayoutStatus.Cancelled)
+        {
+            return payout;
+        }
+
+        _context.PayoutAttempts.Add(new PayoutAttempt(
+            payout.Id,
+            PayoutAttemptType.ProviderCallback,
+            MapProviderStatus(details.ProviderStatus),
+            providerName: details.ProviderName,
+            providerTransferId: providerTransferId,
+            transferReference: payout.TransferReference,
+            failureReason: details.FailureMessage,
+            rawPayload: details.RawResponse));
+
+        if (IsPaid(details.ProviderStatus))
+        {
+            await MarkPaidCoreAsync(
+                payout,
+                providerSequenceNumber ?? providerTransferId ?? payout.Id.ToString("N"),
+                providerTransferId,
+                details.ProviderName,
+                providerSequenceNumber,
+                cancellationToken);
+        }
+        else if (IsPending(details.ProviderStatus) || IsUnknown(details.ProviderStatus))
+        {
+            ApplyProviderPendingStatus(
+                payout,
+                IsUnknown(details.ProviderStatus) ? "processing" : details.ProviderStatus,
+                providerTransferId,
+                details.ProviderName,
+                providerSequenceNumber);
+            await _context.SaveChangesAsync(cancellationToken);
+
+            if (IsUnknown(details.ProviderStatus))
+            {
+                await SendPayoutRequiresReviewAlertAsync(
+                    payout,
+                    details.FailureMessage ?? "Moyasar webhook returned an unknown payout state.",
+                    cancellationToken);
+            }
+        }
+        else
+        {
+            await MarkFailedCoreAsync(
+                payout,
+                details.FailureMessage ?? $"Provider returned status '{details.ProviderStatus}'.",
+                providerTransferId,
+                details.ProviderName,
+                providerSequenceNumber,
+                cancellationToken);
+            await SendPayoutFailedAlertAsync(payout, details.FailureMessage, cancellationToken);
+        }
+
+        return payout;
+    }
+
     public async Task<Payout> MarkPaidAsync(
         Guid payoutId,
         string transferReference,
         string? providerTransferId = null,
         CancellationToken cancellationToken = default)
     {
-        var payout = await _context.Payouts
-            .Include(item => item.Settlement)
-            .FirstOrDefaultAsync(item => item.Id == payoutId, cancellationToken)
-            ?? throw new NotFoundException("Payout", payoutId);
+        var payout = await LoadPayoutAsync(payoutId, cancellationToken);
 
         if (payout.Status == PayoutStatus.Paid)
         {
             return payout;
         }
 
-        payout.MarkAsPaid(transferReference);
+        await MarkPaidCoreAsync(
+            payout,
+            transferReference,
+            providerTransferId ?? payout.ProviderTransferId,
+            payout.ProviderName,
+            payout.ProviderSequenceNumber,
+            cancellationToken);
+
+        return payout;
+    }
+
+    public async Task CancelAsync(Guid payoutId, CancellationToken cancellationToken = default)
+    {
+        var payout = await LoadPayoutAsync(payoutId, cancellationToken);
+
+        if (payout.Status == PayoutStatus.Paid)
+        {
+            throw new BusinessRuleException("PAYOUT_ALREADY_PAID", "Paid payouts cannot be cancelled.");
+        }
+
+        payout.Cancel();
+        payout.Settlement.Hold();
+        await CancelLinkedDriverWithdrawalAsync(payout.Id, "Payout cancelled.", cancellationToken);
+        _context.PayoutAttempts.Add(new PayoutAttempt(payout.Id, PayoutAttemptType.Cancel, PayoutStatus.Cancelled));
+        await _context.SaveChangesAsync(cancellationToken);
+    }
+
+    private async Task<Payout> LoadPayoutAsync(Guid payoutId, CancellationToken cancellationToken)
+    {
+        return await _context.Payouts
+            .Include(item => item.Settlement)
+            .Include(item => item.VendorBankAccount)
+            .FirstOrDefaultAsync(item => item.Id == payoutId, cancellationToken)
+            ?? throw new NotFoundException("Payout", payoutId);
+    }
+
+    private async Task<CreatePayoutCommand> BuildGatewayCommandAsync(Payout payout, CancellationToken cancellationToken)
+    {
+        return payout.Settlement.OwnerType switch
+        {
+            SettlementOwnerType.Vendor => await BuildVendorGatewayCommandAsync(payout, cancellationToken),
+            SettlementOwnerType.Driver => await BuildDriverGatewayCommandAsync(payout, cancellationToken),
+            _ => throw new BusinessRuleException("UNSUPPORTED_PAYOUT_OWNER", "Unsupported payout owner.")
+        };
+    }
+
+    private async Task<CreatePayoutCommand> BuildVendorGatewayCommandAsync(Payout payout, CancellationToken cancellationToken)
+    {
+        var bankAccount = payout.VendorBankAccount ??
+            (payout.VendorBankAccountId.HasValue
+                ? await _context.VendorBankAccounts
+                    .AsNoTracking()
+                    .FirstOrDefaultAsync(item => item.Id == payout.VendorBankAccountId.Value, cancellationToken)
+                : null)
+            ?? throw new BusinessRuleException("VENDOR_BANK_ACCOUNT_REQUIRED", "Vendor bank account is required before sending payout.");
+
+        var vendor = await _context.Vendors
+            .AsNoTracking()
+            .Where(item => item.Id == payout.Settlement.OwnerId)
+            .Select(item => new { item.ContactPhone, item.City })
+            .FirstOrDefaultAsync(cancellationToken)
+            ?? throw new NotFoundException("Vendor", payout.Settlement.OwnerId);
+
+        return BuildCommand(
+            payout,
+            bankAccount.AccountHolderName,
+            bankAccount.IBAN,
+            bankAccount.BankName,
+            vendor.ContactPhone,
+            vendor.City,
+            purpose: null,
+            metadata: new Dictionary<string, string>
+            {
+                ["payout_id"] = payout.Id.ToString(),
+                ["settlement_id"] = payout.SettlementId.ToString(),
+                ["vendor_id"] = payout.Settlement.OwnerId.ToString()
+            });
+    }
+
+    private async Task<CreatePayoutCommand> BuildDriverGatewayCommandAsync(Payout payout, CancellationToken cancellationToken)
+    {
+        var withdrawal = await _context.DriverWithdrawalRequests
+            .AsNoTracking()
+            .Include(item => item.DriverPayoutMethod)
+            .FirstOrDefaultAsync(item => item.PayoutId == payout.Id, cancellationToken)
+            ?? throw new BusinessRuleException("DRIVER_WITHDRAWAL_REQUIRED", "Driver payout must be linked to a withdrawal request.");
+
+        if (withdrawal.DriverPayoutMethod.MethodType != DriverPayoutMethodType.BankAccount)
+        {
+            throw new BusinessRuleException("DRIVER_BANK_ACCOUNT_REQUIRED", "Only bank account withdrawal methods can be paid through Moyasar payouts.");
+        }
+
+        var driver = await _context.Drivers
+            .AsNoTracking()
+            .Include(item => item.User)
+            .FirstOrDefaultAsync(item => item.Id == withdrawal.DriverId, cancellationToken)
+            ?? throw new NotFoundException("Driver", withdrawal.DriverId);
+
+        return BuildCommand(
+            payout,
+            withdrawal.DriverPayoutMethod.AccountHolderName,
+            withdrawal.DriverPayoutMethod.AccountIdentifier,
+            withdrawal.DriverPayoutMethod.ProviderName,
+            driver.User.PhoneNumber,
+            driver.City,
+            purpose: null,
+            metadata: new Dictionary<string, string>
+            {
+                ["payout_id"] = payout.Id.ToString(),
+                ["settlement_id"] = payout.SettlementId.ToString(),
+                ["driver_id"] = withdrawal.DriverId.ToString(),
+                ["withdrawal_id"] = withdrawal.Id.ToString()
+            });
+    }
+
+    private static CreatePayoutCommand BuildCommand(
+        Payout payout,
+        string beneficiaryName,
+        string beneficiaryIban,
+        string? bankCode,
+        string? mobile,
+        string? city,
+        string? purpose,
+        IReadOnlyDictionary<string, string> metadata)
+    {
+        var sequenceNumber = payout.ProviderSequenceNumber ?? BuildSequenceNumber(payout.Id);
+
+        return new CreatePayoutCommand(
+            PayoutId: payout.Id,
+            OwnerId: payout.Settlement.OwnerId,
+            OwnerType: payout.Settlement.OwnerType.ToString(),
+            Amount: payout.Amount,
+            Currency: CurrencyPolicy.OfficialCurrency,
+            IdempotencyKey: $"payout:{payout.Id:N}",
+            BeneficiaryName: beneficiaryName,
+            BeneficiaryIban: beneficiaryIban,
+            BeneficiaryBankCode: bankCode,
+            Reference: payout.TransferReference ?? sequenceNumber,
+            Metadata: metadata,
+            BeneficiaryMobile: mobile,
+            BeneficiaryCountry: null,
+            BeneficiaryCity: city,
+            Purpose: purpose,
+            SequenceNumber: sequenceNumber,
+            Comment: $"Zadana payout {payout.Id:N}");
+    }
+
+    private static void ValidateGatewayCommand(CreatePayoutCommand command)
+    {
+        if (string.IsNullOrWhiteSpace(command.BeneficiaryName))
+        {
+            throw new BusinessRuleException("PAYOUT_BENEFICIARY_NAME_REQUIRED", "Beneficiary account holder name is required.");
+        }
+
+        if (string.IsNullOrWhiteSpace(command.BeneficiaryIban))
+        {
+            throw new BusinessRuleException("PAYOUT_BENEFICIARY_IBAN_REQUIRED", "Beneficiary IBAN is required.");
+        }
+
+        if (string.IsNullOrWhiteSpace(command.BeneficiaryMobile))
+        {
+            throw new BusinessRuleException("PAYOUT_BENEFICIARY_MOBILE_REQUIRED", "Beneficiary mobile number is required.");
+        }
+
+        var iban = new string(command.BeneficiaryIban.Where(ch => !char.IsWhiteSpace(ch)).ToArray()).ToUpperInvariant();
+        var country = string.IsNullOrWhiteSpace(command.BeneficiaryCountry)
+            ? "SA"
+            : command.BeneficiaryCountry.Trim().ToUpperInvariant();
+
+        if (country == "SA" &&
+            (iban.Length != 24 || !iban.StartsWith("SA", StringComparison.OrdinalIgnoreCase) || iban.Skip(2).Any(ch => !char.IsDigit(ch))))
+        {
+            throw new BusinessRuleException("PAYOUT_BENEFICIARY_IBAN_INVALID", "Beneficiary IBAN must be a valid Saudi IBAN.");
+        }
+    }
+
+    private async Task MarkPaidCoreAsync(
+        Payout payout,
+        string transferReference,
+        string? providerTransferId,
+        string? providerName,
+        string? providerSequenceNumber,
+        CancellationToken cancellationToken)
+    {
+        payout.MarkAsPaid(transferReference, providerTransferId, providerName, providerSequenceNumber);
         payout.Settlement.MarkPaidOut();
         _context.PayoutAttempts.Add(new PayoutAttempt(
             payout.Id,
@@ -178,26 +573,128 @@ public sealed class PayoutOrchestrator
             rawPayload: null));
 
         await PostPayoutPaidAsync(payout, cancellationToken);
+        await MarkLinkedDriverWithdrawalPaidAsync(payout.Id, transferReference, cancellationToken);
         await _context.SaveChangesAsync(cancellationToken);
-        return payout;
     }
 
-    public async Task CancelAsync(Guid payoutId, CancellationToken cancellationToken = default)
+    private async Task MarkFailedCoreAsync(
+        Payout payout,
+        string failureReason,
+        string? providerTransferId,
+        string? providerName,
+        string? providerSequenceNumber,
+        CancellationToken cancellationToken)
     {
-        var payout = await _context.Payouts
-            .Include(item => item.Settlement)
-            .FirstOrDefaultAsync(item => item.Id == payoutId, cancellationToken)
-            ?? throw new NotFoundException("Payout", payoutId);
+        payout.MarkAsFailed(failureReason, providerTransferId, providerName, providerSequenceNumber);
+        payout.Settlement.MarkPayoutFailed();
+        await MarkLinkedDriverWithdrawalFailedAsync(payout.Id, failureReason, cancellationToken);
+        await _context.SaveChangesAsync(cancellationToken);
+    }
 
-        if (payout.Status == PayoutStatus.Paid)
+    private async Task MarkPayoutUnknownAsync(
+        Payout payout,
+        string providerName,
+        string providerSequenceNumber,
+        string reason,
+        bool isRetry,
+        CancellationToken cancellationToken)
+    {
+        payout.MarkAsProcessing(
+            providerName: providerName,
+            providerSequenceNumber: providerSequenceNumber);
+        payout.Settlement.MarkAsProcessing();
+        await MarkLinkedDriverWithdrawalProcessingAsync(payout.Id, cancellationToken);
+
+        _context.PayoutAttempts.Add(new PayoutAttempt(
+            payout.Id,
+            isRetry ? PayoutAttemptType.Retry : PayoutAttemptType.Trigger,
+            PayoutStatus.Processing,
+            providerName: providerName,
+            providerTransferId: payout.ProviderTransferId,
+            transferReference: payout.TransferReference,
+            failureReason: $"Unknown provider state: {reason}"));
+
+        await _context.SaveChangesAsync(cancellationToken);
+    }
+
+    private async Task MarkLinkedDriverWithdrawalProcessingAsync(Guid payoutId, CancellationToken cancellationToken)
+    {
+        var withdrawal = await _context.DriverWithdrawalRequests
+            .FirstOrDefaultAsync(item => item.PayoutId == payoutId, cancellationToken);
+
+        if (withdrawal is not null && withdrawal.Status != DriverWithdrawalStatus.Paid)
         {
-            throw new BusinessRuleException("PAYOUT_ALREADY_PAID", "Paid payouts cannot be cancelled.");
+            withdrawal.MarkProcessing();
+        }
+    }
+
+    private async Task MarkLinkedDriverWithdrawalPaidAsync(Guid payoutId, string transferReference, CancellationToken cancellationToken)
+    {
+        var withdrawal = await _context.DriverWithdrawalRequests
+            .FirstOrDefaultAsync(item => item.PayoutId == payoutId, cancellationToken);
+
+        if (withdrawal is null)
+        {
+            return;
         }
 
-        payout.Cancel();
-        payout.Settlement.Hold();
-        _context.PayoutAttempts.Add(new PayoutAttempt(payout.Id, PayoutAttemptType.Cancel, PayoutStatus.Cancelled));
-        await _context.SaveChangesAsync(cancellationToken);
+        withdrawal.MarkPaid(transferReference);
+        var holds = await LoadActiveWithdrawalHoldsAsync(withdrawal, cancellationToken);
+        foreach (var hold in holds)
+        {
+            hold.Consume();
+        }
+    }
+
+    private async Task MarkLinkedDriverWithdrawalFailedAsync(Guid payoutId, string failureReason, CancellationToken cancellationToken)
+    {
+        var withdrawal = await _context.DriverWithdrawalRequests
+            .FirstOrDefaultAsync(item => item.PayoutId == payoutId, cancellationToken);
+
+        if (withdrawal is null)
+        {
+            return;
+        }
+
+        withdrawal.MarkFailed(failureReason);
+        var holds = await LoadActiveWithdrawalHoldsAsync(withdrawal, cancellationToken);
+        foreach (var hold in holds)
+        {
+            hold.Cancel(failureReason);
+        }
+    }
+
+    private async Task CancelLinkedDriverWithdrawalAsync(Guid payoutId, string reason, CancellationToken cancellationToken)
+    {
+        var withdrawal = await _context.DriverWithdrawalRequests
+            .FirstOrDefaultAsync(item => item.PayoutId == payoutId, cancellationToken);
+
+        if (withdrawal is null)
+        {
+            return;
+        }
+
+        withdrawal.Cancel(reason);
+        var holds = await LoadActiveWithdrawalHoldsAsync(withdrawal, cancellationToken);
+        foreach (var hold in holds)
+        {
+            hold.Cancel(reason);
+        }
+    }
+
+    private async Task<List<WalletHold>> LoadActiveWithdrawalHoldsAsync(
+        DriverWithdrawalRequest withdrawal,
+        CancellationToken cancellationToken)
+    {
+        return await _context.WalletHolds
+            .Where(item =>
+                item.OwnerType == WalletOwnerType.Driver &&
+                item.OwnerId == withdrawal.DriverId &&
+                item.Reason == WalletHoldReason.Withdrawal &&
+                item.Status == WalletHoldStatus.Active &&
+                item.ReferenceType == "DriverWithdrawalRequest" &&
+                item.ReferenceId == withdrawal.Id)
+            .ToListAsync(cancellationToken);
     }
 
     private async Task PostPayoutPaidAsync(Payout payout, CancellationToken cancellationToken)
@@ -215,7 +712,7 @@ public sealed class PayoutOrchestrator
 
         var result = await _postingService.PostAsync(
             eventType,
-            $"payout-paid:{payout.Id:N}:{payout.ProviderTransferId ?? payout.TransferReference}",
+            $"payout-paid:{payout.Id:N}:{payout.ProviderTransferId ?? payout.ProviderSequenceNumber ?? payout.TransferReference}",
             [
                 new JournalLineDraft(
                     payableAccount,
@@ -238,11 +735,122 @@ public sealed class PayoutOrchestrator
             ],
             settlementId: settlement.Id,
             payoutId: payout.Id,
-            currencyCode: "SAR",
+            currencyCode: CurrencyPolicy.OfficialCurrency,
             description: $"Payout paid {payout.Id}",
             cancellationToken: cancellationToken);
 
         await _walletProjectionUpdater.ApplyJournalEntryAsync(result.JournalEntryId, cancellationToken);
+    }
+
+    private IPayoutGateway? GetEnabledGateway(string? providerName = null)
+    {
+        var enabled = _payoutGateways.Where(gateway => gateway.IsEnabled);
+
+        if (!string.IsNullOrWhiteSpace(providerName))
+        {
+            return enabled.FirstOrDefault(gateway =>
+                string.Equals(gateway.ProviderName, providerName, StringComparison.OrdinalIgnoreCase));
+        }
+
+        return enabled.FirstOrDefault();
+    }
+
+    private static bool IsPaid(string status) =>
+        string.Equals(status, "paid", StringComparison.OrdinalIgnoreCase);
+
+    private static bool IsPending(string status) =>
+        string.Equals(status, "queued", StringComparison.OrdinalIgnoreCase) ||
+        string.Equals(status, "initiated", StringComparison.OrdinalIgnoreCase) ||
+        string.Equals(status, "accepted", StringComparison.OrdinalIgnoreCase) ||
+        string.Equals(status, "processing", StringComparison.OrdinalIgnoreCase);
+
+    private static bool IsUnknown(string status) =>
+        string.Equals(status, "unknown", StringComparison.OrdinalIgnoreCase);
+
+    private static bool IsTransientIntegrationException(Exception exception) =>
+        exception is TimeoutException ||
+        exception is HttpRequestException ||
+        exception is TaskCanceledException ||
+        (exception is ExternalServiceException &&
+            !exception.Message.Contains("400", StringComparison.OrdinalIgnoreCase) &&
+            !exception.Message.Contains("401", StringComparison.OrdinalIgnoreCase) &&
+            !exception.Message.Contains("403", StringComparison.OrdinalIgnoreCase) &&
+            !exception.Message.Contains("404", StringComparison.OrdinalIgnoreCase) &&
+            !exception.Message.Contains("422", StringComparison.OrdinalIgnoreCase));
+
+    private static PayoutStatus MapProviderStatus(string providerStatus)
+    {
+        if (IsPaid(providerStatus))
+        {
+            return PayoutStatus.Paid;
+        }
+
+        if (!IsPending(providerStatus) && !IsUnknown(providerStatus))
+        {
+            return PayoutStatus.Failed;
+        }
+
+        return string.Equals(providerStatus, "queued", StringComparison.OrdinalIgnoreCase)
+            ? PayoutStatus.Queued
+            : PayoutStatus.Processing;
+    }
+
+    private static void ApplyProviderPendingStatus(
+        Payout payout,
+        string providerStatus,
+        string? providerTransferId,
+        string? providerName,
+        string? providerSequenceNumber)
+    {
+        if (string.Equals(providerStatus, "queued", StringComparison.OrdinalIgnoreCase))
+        {
+            payout.MarkQueued(providerTransferId, providerName, providerSequenceNumber);
+            return;
+        }
+
+        payout.MarkAsProcessing(providerTransferId, providerName, providerSequenceNumber);
+    }
+
+    private static string BuildSequenceNumber(Guid payoutId)
+    {
+        var digits = new string(payoutId.ToString("N").Where(char.IsDigit).ToArray());
+        if (digits.Length >= 16)
+        {
+            return digits[..16];
+        }
+
+        return digits.PadRight(16, '0');
+    }
+
+    private Task SendPayoutRequiresReviewAlertAsync(Payout payout, string reason, CancellationToken cancellationToken)
+    {
+        var normalizedReason = string.IsNullOrWhiteSpace(reason)
+            ? "Payout status is unknown and needs reconciliation."
+            : reason.Trim();
+
+        return _adminAlertService.SendAsync(
+            new AdminAlertRequest(
+                AdminAlertTypes.PayoutRequiresReview,
+                AdminAlertCategories.Settlements,
+                AdminAlertPriorities.High,
+                "Payout requires review",
+                "Payout requires review",
+                $"Payout {payout.Id} for {payout.Amount:N2} needs provider reconciliation. Reason: {normalizedReason}",
+                $"Payout {payout.Id} for {payout.Amount:N2} needs provider reconciliation. Reason: {normalizedReason}",
+                payout.Id,
+                "/finances/payouts",
+                new
+                {
+                    payoutId = payout.Id,
+                    settlementId = payout.SettlementId,
+                    amount = payout.Amount,
+                    status = payout.Status.ToString(),
+                    providerName = payout.ProviderName,
+                    providerTransferId = payout.ProviderTransferId,
+                    providerSequenceNumber = payout.ProviderSequenceNumber,
+                    reason = normalizedReason
+                }),
+            cancellationToken);
     }
 
     private Task SendPayoutFailedAlertAsync(Payout payout, string? failureReason, CancellationToken cancellationToken)
@@ -254,9 +862,9 @@ public sealed class PayoutOrchestrator
                 AdminAlertTypes.SettlementFailed,
                 AdminAlertCategories.Settlements,
                 AdminAlertPriorities.Critical,
-                "فشل تحويل تسوية",
                 "Settlement payout failed",
-                $"فشل تحويل تسوية بقيمة {payout.Amount:N2}. السبب: {reason}",
+                "Settlement payout failed",
+                $"A settlement payout for {payout.Amount:N2} failed. Reason: {reason}",
                 $"A settlement payout for {payout.Amount:N2} failed. Reason: {reason}",
                 payout.Id,
                 "/finances/settlements",
@@ -266,6 +874,7 @@ public sealed class PayoutOrchestrator
                     settlementId = payout.SettlementId,
                     amount = payout.Amount,
                     providerTransferId = payout.ProviderTransferId,
+                    providerSequenceNumber = payout.ProviderSequenceNumber,
                     transferReference = payout.TransferReference,
                     failureReason = reason
                 }),
@@ -279,9 +888,9 @@ public sealed class PayoutOrchestrator
                 AdminAlertTypes.SystemIntegrationFailure,
                 AdminAlertCategories.System,
                 AdminAlertPriorities.Critical,
-                "فشل تكامل تحويل التسوية",
                 "Payout integration failure",
-                $"حدث خطأ أثناء إرسال تحويل للتسوية {payout.SettlementId}.",
+                "Payout integration failure",
+                $"Payout trigger failed for settlement {payout.SettlementId}.",
                 $"Payout trigger failed for settlement {payout.SettlementId}.",
                 payout.Id,
                 "/finances/settlements",

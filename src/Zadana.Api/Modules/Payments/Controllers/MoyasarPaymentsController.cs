@@ -1,5 +1,6 @@
 using System.Security.Cryptography;
 using System.Text;
+using System.Text.Json;
 using Microsoft.AspNetCore.Authorization;
 using Microsoft.AspNetCore.Mvc;
 using Microsoft.AspNetCore.RateLimiting;
@@ -8,9 +9,12 @@ using Microsoft.Extensions.Options;
 using Zadana.Api.Controllers;
 using Zadana.Api.Security;
 using Zadana.Application.Common.Interfaces;
+using Zadana.Application.Modules.Finances.Services;
 using Zadana.Application.Modules.Payments.Commands.ConfirmCardPayment;
 using Zadana.Application.Modules.Payments.Commands.ProcessPaymentWebhook;
+using Zadana.Application.Modules.Payments.Gateways;
 using Zadana.Infrastructure.Settings;
+using Zadana.SharedKernel.Finance;
 
 namespace Zadana.Api.Modules.Payments.Controllers;
 
@@ -25,6 +29,7 @@ public class MoyasarPaymentsController(
     IOptions<MoyasarSettings> settings,
     IWebHostEnvironment environment,
     IAdminAlertService adminAlertService,
+    PayoutOrchestrator payoutOrchestrator,
     ILogger<MoyasarPaymentsController> logger) : ApiControllerBase
 {
     private const string DeviceIdHeader = "X-Device-Id";
@@ -122,6 +127,80 @@ public class MoyasarPaymentsController(
     }
 
     [AllowAnonymous]
+    [HttpPost("payouts/webhook")]
+    [EnableRateLimiting(RateLimitPolicyNames.PaymentCallbacks)]
+    public async Task<IActionResult> ReceivePayoutWebhook(CancellationToken cancellationToken = default)
+    {
+        var moyasar = settings.Value;
+
+        Request.EnableBuffering();
+        using var reader = new StreamReader(Request.Body, Encoding.UTF8, leaveOpen: true);
+        var payload = await reader.ReadToEndAsync(cancellationToken);
+        Request.Body.Position = 0;
+
+        if (string.IsNullOrWhiteSpace(moyasar.WebhookSecret) && !environment.IsDevelopment())
+        {
+            await NotifyIntegrationFailureAsync(
+                "Moyasar:WebhookSecret is not configured for payout webhook.",
+                payload,
+                cancellationToken);
+
+            return Problem(
+                title: "Moyasar payout webhook is not configured",
+                detail: "Moyasar webhook secret is not configured on the server. Contact administrator.",
+                statusCode: StatusCodes.Status503ServiceUnavailable,
+                type: "https://moyasar.runasp.net/errors/PAYOUT_WEBHOOK_NOT_CONFIGURED",
+                instance: "/api/payments/moyasar/payouts/webhook");
+        }
+
+        var secretValid = MoyasarWebhookSecretValidator.Validate(
+            moyasar.WebhookSecret,
+            payload,
+            Request.Headers[MoyasarSignatureHeader].ToString(),
+            environment.IsDevelopment());
+
+        if (!secretValid)
+        {
+            await NotifyIntegrationFailureAsync(
+                "Moyasar payout webhook signature validation failed.",
+                payload,
+                cancellationToken);
+
+            return Problem(
+                title: "Webhook signature invalid",
+                detail: "Webhook signature could not be validated.",
+                statusCode: StatusCodes.Status401Unauthorized,
+                type: "https://moyasar.runasp.net/errors/PAYOUT_WEBHOOK_INVALID_SIGNATURE",
+                instance: "/api/payments/moyasar/payouts/webhook");
+        }
+
+        if (!TryParsePayoutWebhook(payload, out var details, out var parseError))
+        {
+            await NotifyIntegrationFailureAsync(
+                $"Moyasar payout webhook payload could not be parsed: {parseError}",
+                payload,
+                cancellationToken);
+
+            return BadRequest(new
+            {
+                processed = false,
+                message = parseError
+            });
+        }
+
+        var payout = await payoutOrchestrator.ApplyProviderStatusAsync(details, cancellationToken);
+
+        return Ok(new
+        {
+            processed = payout is not null,
+            payoutId = payout?.Id,
+            status = payout?.Status.ToString() ?? details.ProviderStatus,
+            providerTransferId = details.ProviderTransferId,
+            providerSequenceNumber = details.ProviderSequenceNumber
+        });
+    }
+
+    [AllowAnonymous]
     [HttpGet("verify")]
     [EnableRateLimiting(RateLimitPolicyNames.PaymentCallbacks)]
     public async Task<ActionResult<ConfirmCardPaymentResponse>> Verify(
@@ -204,6 +283,108 @@ public class MoyasarPaymentsController(
         {
             logger.LogError(alertException, "Failed to dispatch Moyasar integration failure admin alert.");
         }
+    }
+
+    private static bool TryParsePayoutWebhook(
+        string payload,
+        out PayoutGatewayDetails details,
+        out string? error)
+    {
+        details = null!;
+        error = null;
+
+        if (string.IsNullOrWhiteSpace(payload))
+        {
+            error = "Payload is empty.";
+            return false;
+        }
+
+        try
+        {
+            using var document = JsonDocument.Parse(payload);
+            var root = document.RootElement;
+            var providerTransferId =
+                ReadJsonString(root, "id") ??
+                ReadJsonString(root, "data", "id") ??
+                ReadJsonString(root, "payout", "id");
+            var providerSequenceNumber =
+                ReadJsonString(root, "sequence_number") ??
+                ReadJsonString(root, "data", "sequence_number") ??
+                ReadJsonString(root, "payout", "sequence_number");
+
+            if (string.IsNullOrWhiteSpace(providerTransferId) &&
+                string.IsNullOrWhiteSpace(providerSequenceNumber))
+            {
+                error = "Provider payout id or sequence_number is required.";
+                return false;
+            }
+
+            var status =
+                ReadJsonString(root, "status") ??
+                ReadJsonString(root, "data", "status") ??
+                ReadJsonString(root, "payout", "status") ??
+                "unknown";
+            var amountMinor =
+                ReadJsonInt64(root, "amount") ??
+                ReadJsonInt64(root, "data", "amount") ??
+                ReadJsonInt64(root, "payout", "amount") ??
+                0L;
+            var currency =
+                ReadJsonString(root, "currency") ??
+                ReadJsonString(root, "data", "currency") ??
+                ReadJsonString(root, "payout", "currency") ??
+                CurrencyPolicy.OfficialCurrency;
+            var failureMessage =
+                ReadJsonString(root, "failure_reason") ??
+                ReadJsonString(root, "data", "failure_reason") ??
+                ReadJsonString(root, "payout", "failure_reason") ??
+                ReadJsonString(root, "message") ??
+                ReadJsonString(root, "data", "message");
+
+            details = new PayoutGatewayDetails(
+                "Moyasar",
+                providerTransferId ?? string.Empty,
+                status,
+                CurrencyPolicy.FromMinorUnits(amountMinor, currency),
+                currency.ToUpperInvariant(),
+                CompletedAtUtc: null,
+                FailureMessage: string.IsNullOrWhiteSpace(failureMessage) ? null : failureMessage,
+                RawResponse: payload,
+                ProviderSequenceNumber: providerSequenceNumber);
+            return true;
+        }
+        catch (JsonException ex)
+        {
+            error = ex.Message;
+            return false;
+        }
+    }
+
+    private static string? ReadJsonString(JsonElement root, params string[] path)
+    {
+        var current = root;
+        foreach (var segment in path)
+        {
+            if (current.ValueKind != JsonValueKind.Object ||
+                !current.TryGetProperty(segment, out current))
+            {
+                return null;
+            }
+        }
+
+        return current.ValueKind switch
+        {
+            JsonValueKind.String => current.GetString(),
+            JsonValueKind.Number => current.GetRawText(),
+            JsonValueKind.Null or JsonValueKind.Undefined => null,
+            _ => current.GetRawText()
+        };
+    }
+
+    private static long? ReadJsonInt64(JsonElement root, params string[] path)
+    {
+        var raw = ReadJsonString(root, path);
+        return long.TryParse(raw, out var value) ? value : null;
     }
 }
 

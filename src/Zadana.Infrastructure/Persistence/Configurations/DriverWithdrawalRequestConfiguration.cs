@@ -39,7 +39,13 @@ public class DriverWithdrawalRequestConfiguration : IEntityTypeConfiguration<Dri
             .HasForeignKey(x => x.DriverPayoutMethodId)
             .OnDelete(DeleteBehavior.Restrict);
 
+        builder.HasOne(x => x.Payout)
+            .WithMany()
+            .HasForeignKey(x => x.PayoutId)
+            .OnDelete(DeleteBehavior.SetNull);
+
         builder.HasIndex(x => x.DriverId);
         builder.HasIndex(x => x.WalletId);
+        builder.HasIndex(x => x.PayoutId);
     }
 }

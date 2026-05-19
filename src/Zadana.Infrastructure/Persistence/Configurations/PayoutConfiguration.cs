@@ -18,6 +18,7 @@ public class PayoutConfiguration : IEntityTypeConfiguration<Payout>
         builder.Property(x => x.DestinationSnapshot).HasMaxLength(2000);
         builder.Property(x => x.ProviderName).HasMaxLength(50).IsRequired();
         builder.Property(x => x.ProviderTransferId).HasMaxLength(200);
+        builder.Property(x => x.ProviderSequenceNumber).HasMaxLength(32);
         builder.Property(x => x.TransferReference).HasMaxLength(200);
         builder.Property(x => x.FailureReason).HasMaxLength(1000);
 

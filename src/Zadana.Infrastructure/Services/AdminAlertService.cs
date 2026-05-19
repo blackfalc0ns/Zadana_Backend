@@ -129,10 +129,19 @@ public sealed class AdminAlertService : IAdminAlertService
     private static string BuildDedupeKey(AdminAlertRequest request) =>
         $"{request.Type.Trim().ToLowerInvariant()}|{request.ReferenceId?.ToString("N") ?? "none"}|{request.TargetUrl.Trim().ToLowerInvariant()}";
 
-    private static TimeSpan ResolveDedupeWindow(AdminAlertRequest request) =>
-        string.Equals(request.Type, AdminAlertTypes.SystemIntegrationFailure, StringComparison.OrdinalIgnoreCase) ||
-        string.Equals(request.Type, AdminAlertTypes.SystemOneSignalFailure, StringComparison.OrdinalIgnoreCase)
-            ? TimeSpan.FromMinutes(1)
-            : TimeSpan.FromMinutes(5);
-}
+    private static TimeSpan ResolveDedupeWindow(AdminAlertRequest request)
+    {
+        if (string.Equals(request.Type, AdminAlertTypes.PayoutRequiresReview, StringComparison.OrdinalIgnoreCase))
+        {
+            return TimeSpan.FromHours(6);
+        }
 
+        if (string.Equals(request.Type, AdminAlertTypes.SystemIntegrationFailure, StringComparison.OrdinalIgnoreCase) ||
+            string.Equals(request.Type, AdminAlertTypes.SystemOneSignalFailure, StringComparison.OrdinalIgnoreCase))
+        {
+            return TimeSpan.FromMinutes(1);
+        }
+
+        return TimeSpan.FromMinutes(5);
+    }
+}

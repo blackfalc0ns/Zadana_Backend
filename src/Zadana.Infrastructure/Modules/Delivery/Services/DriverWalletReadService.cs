@@ -55,12 +55,14 @@ public sealed class DriverWalletReadService : IDriverWalletReadService
             .ToListAsync(cancellationToken);
 
         var withdrawalSummary = await BuildWithdrawalSummaryAsync(driver.Id, cancellationToken);
-        var netWithdrawable = Math.Max(0m, wallet.CurrentBalance - wallet.CodOwedBalance - wallet.PendingBalance);
+        var activeWithdrawalHolds = await SumActiveWithdrawalHoldsAsync(driver.Id, cancellationToken);
+        var pendingBalance = wallet.PendingBalance + activeWithdrawalHolds;
+        var netWithdrawable = Math.Max(0m, wallet.CurrentBalance - wallet.CodOwedBalance - pendingBalance);
 
         return new DriverWalletSummaryDto(
             wallet.CurrentBalance,
             netWithdrawable,
-            wallet.PendingBalance,
+            pendingBalance,
             wallet.CodOwedBalance,
             netWithdrawable,
             todayEarnings,
@@ -89,7 +91,7 @@ public sealed class DriverWalletReadService : IDriverWalletReadService
 
         return new DriverWalletRealtimePayload(
             wallet.CurrentBalance,
-            wallet.PendingBalance,
+            wallet.PendingBalance + await SumActiveWithdrawalHoldsAsync(driver.Id, cancellationToken),
             withdrawalSummary,
             recentTransactions);
     }
@@ -147,6 +149,20 @@ public sealed class DriverWalletReadService : IDriverWalletReadService
         var totalRequests = await query.CountAsync(cancellationToken);
 
         return new DriverWithdrawalSummaryDto(pendingCount, pendingAmount, totalRequests);
+    }
+
+    private async Task<decimal> SumActiveWithdrawalHoldsAsync(
+        Guid driverId,
+        CancellationToken cancellationToken)
+    {
+        return await _context.WalletHolds
+            .AsNoTracking()
+            .Where(item =>
+                item.OwnerType == WalletOwnerType.Driver &&
+                item.OwnerId == driverId &&
+                item.Reason == WalletHoldReason.Withdrawal &&
+                item.Status == WalletHoldStatus.Active)
+            .SumAsync(item => (decimal?)item.Amount, cancellationToken) ?? 0m;
     }
 
     private static Expression<Func<WalletTransaction, DriverWalletTransactionDto>> MapTransaction() =>

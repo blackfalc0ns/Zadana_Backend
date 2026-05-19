@@ -48,6 +48,7 @@ public static class AdminAlertTypes
     public const string RefundRequested = "refund.requested";
     public const string SettlementRequested = "settlement.requested";
     public const string SettlementFailed = "settlement.failed";
+    public const string PayoutRequiresReview = "payout.requires_review";
     public const string SupportCriticalCreated = "support.critical_created";
     public const string SystemIntegrationFailure = "system.integration_failure";
     public const string SystemOneSignalFailure = "system.onesignal_failure";

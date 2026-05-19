@@ -31,4 +31,6 @@ public record AdminVendorPayoutDto(
     string? BankName,
     string? AccountHolderName,
     string? Iban,
-    string? SwiftCode);
+    string? SwiftCode,
+    string? ProviderName = null,
+    string? ProviderTransferId = null);

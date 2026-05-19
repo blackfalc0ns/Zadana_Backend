@@ -59,7 +59,10 @@ public record AdminDriverWithdrawalRequestDto(
     string? FailureReason,
     DateTime CreatedAtUtc,
     DateTime? ProcessedAtUtc,
-    AdminDriverPayoutMethodDto? PayoutMethod);
+    AdminDriverPayoutMethodDto? PayoutMethod,
+    Guid? PayoutId = null,
+    string? ProviderName = null,
+    string? ProviderTransferId = null);
 
 public record AdminDriverPayoutMethodDto(
     Guid Id,

@@ -33,4 +33,28 @@ public class MoyasarSettings
 
     /// <summary>Currency the gateway is allowed to accept. Must be SAR.</summary>
     public string Currency { get; set; } = "SAR";
+
+    /// <summary>Outbound transfer settings for Moyasar Payouts.</summary>
+    public MoyasarPayoutSettings Payouts { get; set; } = new();
+}
+
+public class MoyasarPayoutSettings
+{
+    public bool Enabled { get; set; }
+
+    public string SourceId { get; set; } = string.Empty;
+
+    public string DefaultCountry { get; set; } = "SA";
+
+    public string DefaultCity { get; set; } = "Riyadh";
+
+    public string VendorPurpose { get; set; } = "payment_to_merchant";
+
+    public string DriverPurpose { get; set; } = "payroll_benefits";
+
+    public int PollingIntervalSeconds { get; set; } = 300;
+
+    public int UnknownRetryDelaySeconds { get; set; } = 120;
+
+    public int ProcessingAlertAfterMinutes { get; set; } = 60;
 }

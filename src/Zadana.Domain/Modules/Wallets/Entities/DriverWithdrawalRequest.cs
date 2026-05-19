@@ -9,6 +9,7 @@ public class DriverWithdrawalRequest : BaseEntity
     public Guid DriverId { get; private set; }
     public Guid WalletId { get; private set; }
     public Guid DriverPayoutMethodId { get; private set; }
+    public Guid? PayoutId { get; private set; }
     public decimal Amount { get; private set; }
     public DriverWithdrawalStatus Status { get; private set; }
     public string? TransferReference { get; private set; }
@@ -17,6 +18,7 @@ public class DriverWithdrawalRequest : BaseEntity
 
     public Wallet Wallet { get; private set; } = null!;
     public DriverPayoutMethod DriverPayoutMethod { get; private set; } = null!;
+    public Payout? Payout { get; private set; }
 
     private DriverWithdrawalRequest() { }
 
@@ -32,6 +34,16 @@ public class DriverWithdrawalRequest : BaseEntity
         DriverPayoutMethodId = driverPayoutMethodId;
         Amount = amount;
         Status = DriverWithdrawalStatus.Pending;
+    }
+
+    public void LinkPayout(Guid payoutId)
+    {
+        if (PayoutId.HasValue && PayoutId.Value != payoutId)
+        {
+            throw new BusinessRuleException("WITHDRAWAL_PAYOUT_ALREADY_LINKED", "Withdrawal is already linked to another payout.");
+        }
+
+        PayoutId = payoutId;
     }
 
     public void MarkProcessing()

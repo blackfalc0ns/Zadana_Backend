@@ -131,6 +131,7 @@ builder.Services.AddSingleton<IVendorProductBulkOperationQueue, VendorProductBul
 builder.Services.AddHostedService<CustomerPresenceSweepWorker>();
 builder.Services.AddHostedService<PendingPaymentExpirationWorker>();
 builder.Services.AddHostedService<PaymentProviderEventInboxWorker>();
+builder.Services.AddHostedService<PayoutStatusSyncWorker>();
 builder.Services.AddHostedService<DeliveryDispatchWorker>();
 builder.Services.AddHostedService<AdminBrandBulkOperationWorker>();
 builder.Services.AddHostedService<AdminMasterProductBulkOperationWorker>();
@@ -164,6 +165,13 @@ builder.Services.AddHttpClient<Zadana.Infrastructure.Services.Payments.MoyasarPa
 builder.Services.AddTransient<Zadana.Application.Modules.Payments.Interfaces.IPaymentGateway>(sp =>
     sp.GetRequiredService<Zadana.Infrastructure.Services.Payments.MoyasarPaymentGateway>());
 builder.Services.AddSingleton<Zadana.Application.Modules.Payments.Interfaces.IPaymentGatewayResolver, Zadana.Infrastructure.Services.Payments.PaymentGatewayResolver>();
+builder.Services.AddHttpClient<Zadana.Infrastructure.Services.Payments.MoyasarPayoutGateway>((serviceProvider, client) =>
+{
+    var settings = serviceProvider.GetRequiredService<Microsoft.Extensions.Options.IOptions<Zadana.Infrastructure.Settings.MoyasarSettings>>().Value;
+    client.BaseAddress = new Uri(string.IsNullOrWhiteSpace(settings.BaseUrl) ? "https://api.moyasar.com/v1/" : settings.BaseUrl);
+});
+builder.Services.AddTransient<Zadana.Application.Modules.Payments.Interfaces.IPayoutGateway>(sp =>
+    sp.GetRequiredService<Zadana.Infrastructure.Services.Payments.MoyasarPayoutGateway>());
 
 builder.Services.AddHttpClient<IOneSignalPushService, OneSignalPushService>((serviceProvider, client) =>
 {

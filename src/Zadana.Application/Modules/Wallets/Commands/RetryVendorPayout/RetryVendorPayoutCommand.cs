@@ -4,7 +4,7 @@ using Microsoft.EntityFrameworkCore;
 using Microsoft.Extensions.Localization;
 using Zadana.Application.Common.Interfaces;
 using Zadana.Application.Common.Localization;
-using Zadana.Application.Modules.Wallets.Services;
+using Zadana.Application.Modules.Finances.Services;
 using Zadana.Domain.Modules.Wallets.Enums;
 using Zadana.SharedKernel.Exceptions;
 
@@ -24,14 +24,14 @@ public class RetryVendorPayoutCommandValidator : AbstractValidator<RetryVendorPa
 public class RetryVendorPayoutCommandHandler : IRequestHandler<RetryVendorPayoutCommand, Guid>
 {
     private readonly IApplicationDbContext _context;
-    private readonly VendorPayoutWalletService _vendorPayoutWalletService;
+    private readonly PayoutOrchestrator _payoutOrchestrator;
 
     public RetryVendorPayoutCommandHandler(
         IApplicationDbContext context,
-        VendorPayoutWalletService vendorPayoutWalletService)
+        PayoutOrchestrator payoutOrchestrator)
     {
         _context = context;
-        _vendorPayoutWalletService = vendorPayoutWalletService;
+        _payoutOrchestrator = payoutOrchestrator;
     }
 
     public async Task<Guid> Handle(RetryVendorPayoutCommand request, CancellationToken cancellationToken)
@@ -53,22 +53,10 @@ public class RetryVendorPayoutCommandHandler : IRequestHandler<RetryVendorPayout
             throw new BusinessRuleException("PAYOUT_INVALID_STATUS", $"Cannot retry payout from status {payout.Status}.");
         }
 
-        await _vendorPayoutWalletService.EnsureHoldAsync(
-            request.VendorId,
-            payout.SettlementId,
-            payout.Amount,
-            "PayoutRetryHold",
-            $"Hold restored for payout retry {payout.Id}",
-            cancellationToken);
-
-        payout.MarkAsProcessing();
-        if (payout.Settlement.Status != SettlementStatus.Settled)
-        {
-            payout.Settlement.MarkAsProcessing();
-        }
-
-        await _context.SaveChangesAsync(cancellationToken);
-
+        await _payoutOrchestrator.TriggerAsync(
+            payout.Id,
+            isRetry: true,
+            cancellationToken: cancellationToken);
         return payout.Id;
     }
 }

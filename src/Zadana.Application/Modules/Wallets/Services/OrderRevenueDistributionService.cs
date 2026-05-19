@@ -21,6 +21,7 @@ public class OrderRevenueDistributionService
     private readonly VendorRecoveryService? _vendorRecoveryService;
     private readonly FinancialEventPostingService _financialEventPostingService;
     private readonly WalletProjectionUpdater _walletProjectionUpdater;
+    private readonly PayoutOrchestrator? _payoutOrchestrator;
     private readonly ILogger<OrderRevenueDistributionService> _logger;
 
     public OrderRevenueDistributionService(
@@ -30,7 +31,8 @@ public class OrderRevenueDistributionService
         FinancialEventPostingService financialEventPostingService,
         WalletProjectionUpdater walletProjectionUpdater,
         ILogger<OrderRevenueDistributionService> logger,
-        VendorRecoveryService? vendorRecoveryService = null)
+        VendorRecoveryService? vendorRecoveryService = null,
+        PayoutOrchestrator? payoutOrchestrator = null)
     {
         _context = context;
         _settings = settings.Value;
@@ -39,6 +41,7 @@ public class OrderRevenueDistributionService
         _walletProjectionUpdater = walletProjectionUpdater;
         _logger = logger;
         _vendorRecoveryService = vendorRecoveryService;
+        _payoutOrchestrator = payoutOrchestrator;
     }
 
     /// <summary>
@@ -180,8 +183,9 @@ public class OrderRevenueDistributionService
         // 8. Handle per-order direct payout for vendor
         if (vendor.FinancialLifecycleMode == VendorFinancialLifecycleMode.PerOrderDirectPayout && vendorNet > 0)
         {
-            await CreateDirectPayoutAsync(vendor.Id, orderId, order, vendorNet, driverNet, platformNet, cancellationToken);
+            var payoutId = await CreateDirectPayoutAsync(vendor.Id, orderId, order, vendorNet, driverNet, platformNet, cancellationToken);
             await _context.SaveChangesAsync(cancellationToken);
+            await TryAutoTriggerPayoutAsync(payoutId, cancellationToken);
         }
 
         _logger.LogInformation("[RevenueDistribution] Order {OrderId} distributed successfully.", orderId);
@@ -277,7 +281,7 @@ public class OrderRevenueDistributionService
         return lines;
     }
 
-    private async Task CreateDirectPayoutAsync(
+    private async Task<Guid?> CreateDirectPayoutAsync(
         Guid vendorId,
         Guid orderId,
         dynamic order,
@@ -297,7 +301,7 @@ public class OrderRevenueDistributionService
         if (primaryBankAccount is null)
         {
             _logger.LogWarning("[RevenueDistribution] No bank account for vendor {VendorId}. Payout skipped.", vendorId);
-            return;
+            return null;
         }
 
         var settlement = new Settlement(vendorId, null, SettlementOrigin.DirectPerOrder);
@@ -318,6 +322,25 @@ public class OrderRevenueDistributionService
             "PayoutHold",
             $"Hold for direct payout on order {orderId}",
             cancellationToken);
+
+        return payout.Id;
+    }
+
+    private async Task TryAutoTriggerPayoutAsync(Guid? payoutId, CancellationToken cancellationToken)
+    {
+        if (!payoutId.HasValue || _payoutOrchestrator?.HasEnabledGateway != true)
+        {
+            return;
+        }
+
+        try
+        {
+            await _payoutOrchestrator.TriggerAsync(payoutId.Value, cancellationToken: cancellationToken);
+        }
+        catch (Exception ex)
+        {
+            _logger.LogError(ex, "[RevenueDistribution] Failed to auto-trigger payout {PayoutId}.", payoutId.Value);
+        }
     }
 
     private static bool IsEligible(OrderStatus status, PaymentMethodType paymentMethod, PaymentStatus paymentStatus)

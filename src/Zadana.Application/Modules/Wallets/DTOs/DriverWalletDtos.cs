@@ -57,4 +57,7 @@ public record DriverWithdrawalRequestDto(
     string? FailureReason,
     DateTime CreatedAtUtc,
     DateTime? ProcessedAtUtc,
-    DriverPayoutMethodDto PaymentMethod);
+    DriverPayoutMethodDto PaymentMethod,
+    Guid? PayoutId = null,
+    string? ProviderName = null,
+    string? ProviderTransferId = null);

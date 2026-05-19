@@ -15,6 +15,7 @@ public class Payout : BaseEntity
     public PayoutStatus Status { get; private set; }
     public string ProviderName { get; private set; } = "Manual";
     public string? ProviderTransferId { get; private set; }
+    public string? ProviderSequenceNumber { get; private set; }
     public string? TransferReference { get; private set; }
     public string? FailureReason { get; private set; }
     public Guid? ProcessedByUserId { get; private set; }
@@ -47,19 +48,44 @@ public class Payout : BaseEntity
         DestinationSnapshot = string.IsNullOrWhiteSpace(destinationSnapshot) ? null : destinationSnapshot.Trim();
     }
 
-    public void MarkQueued(string? providerTransferId = null)
+    public void MarkQueued(
+        string? providerTransferId = null,
+        string? providerName = null,
+        string? providerSequenceNumber = null)
     {
         Status = PayoutStatus.Queued;
+        ProviderName = string.IsNullOrWhiteSpace(providerName) ? ProviderName : providerName.Trim();
         ProviderTransferId = string.IsNullOrWhiteSpace(providerTransferId) ? ProviderTransferId : providerTransferId.Trim();
+        ProviderSequenceNumber = string.IsNullOrWhiteSpace(providerSequenceNumber) ? ProviderSequenceNumber : providerSequenceNumber.Trim();
         TriggeredAtUtc = DateTime.UtcNow;
+        CompletedAtUtc = null;
         FailureReason = null;
     }
 
-    public void MarkAsProcessing() => Status = PayoutStatus.Processing;
+    public void MarkAsProcessing(
+        string? providerTransferId = null,
+        string? providerName = null,
+        string? providerSequenceNumber = null)
+    {
+        Status = PayoutStatus.Processing;
+        ProviderName = string.IsNullOrWhiteSpace(providerName) ? ProviderName : providerName.Trim();
+        ProviderTransferId = string.IsNullOrWhiteSpace(providerTransferId) ? ProviderTransferId : providerTransferId.Trim();
+        ProviderSequenceNumber = string.IsNullOrWhiteSpace(providerSequenceNumber) ? ProviderSequenceNumber : providerSequenceNumber.Trim();
+        TriggeredAtUtc ??= DateTime.UtcNow;
+        CompletedAtUtc = null;
+        FailureReason = null;
+    }
 
-    public void MarkAsPaid(string transferReference)
+    public void MarkAsPaid(
+        string transferReference,
+        string? providerTransferId = null,
+        string? providerName = null,
+        string? providerSequenceNumber = null)
     {
         Status = PayoutStatus.Paid;
+        ProviderName = string.IsNullOrWhiteSpace(providerName) ? ProviderName : providerName.Trim();
+        ProviderTransferId = string.IsNullOrWhiteSpace(providerTransferId) ? ProviderTransferId : providerTransferId.Trim();
+        ProviderSequenceNumber = string.IsNullOrWhiteSpace(providerSequenceNumber) ? ProviderSequenceNumber : providerSequenceNumber.Trim();
         TransferReference = transferReference.Trim();
         CompletedAtUtc = DateTime.UtcNow;
         ProcessedAtUtc = DateTime.UtcNow;
@@ -86,9 +112,16 @@ public class Payout : BaseEntity
         Amount -= amount;
     }
 
-    public void MarkAsFailed(string? failureReason = null)
+    public void MarkAsFailed(
+        string? failureReason = null,
+        string? providerTransferId = null,
+        string? providerName = null,
+        string? providerSequenceNumber = null)
     {
         Status = PayoutStatus.Failed;
+        ProviderName = string.IsNullOrWhiteSpace(providerName) ? ProviderName : providerName.Trim();
+        ProviderTransferId = string.IsNullOrWhiteSpace(providerTransferId) ? ProviderTransferId : providerTransferId.Trim();
+        ProviderSequenceNumber = string.IsNullOrWhiteSpace(providerSequenceNumber) ? ProviderSequenceNumber : providerSequenceNumber.Trim();
         FailureReason = string.IsNullOrWhiteSpace(failureReason) ? null : failureReason.Trim();
         CompletedAtUtc = DateTime.UtcNow;
     }

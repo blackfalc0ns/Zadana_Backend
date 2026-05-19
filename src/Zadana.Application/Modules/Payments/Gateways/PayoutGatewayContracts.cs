@@ -14,14 +14,22 @@ public sealed record CreatePayoutCommand(
     string? BeneficiaryIban,
     string? BeneficiaryBankCode,
     string? Reference,
-    IReadOnlyDictionary<string, string>? Metadata = null);
+    IReadOnlyDictionary<string, string>? Metadata = null,
+    string? BeneficiaryMobile = null,
+    string? BeneficiaryCountry = null,
+    string? BeneficiaryCity = null,
+    string? Purpose = null,
+    string? SequenceNumber = null,
+    string? Comment = null);
 
 public sealed record PayoutGatewayResult(
     string ProviderName,
     string? ProviderTransferId,
     string ProviderStatus,
     string? FailureMessage = null,
-    string? RawResponse = null);
+    string? RawResponse = null,
+    string? ProviderSequenceNumber = null,
+    bool IsTransient = false);
 
 public sealed record PayoutGatewayDetails(
     string ProviderName,
@@ -31,4 +39,5 @@ public sealed record PayoutGatewayDetails(
     string Currency,
     DateTime? CompletedAtUtc = null,
     string? FailureMessage = null,
-    string? RawResponse = null);
+    string? RawResponse = null,
+    string? ProviderSequenceNumber = null);

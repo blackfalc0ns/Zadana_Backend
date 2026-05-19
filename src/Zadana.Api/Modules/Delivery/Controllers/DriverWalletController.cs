@@ -261,7 +261,8 @@ public class DriverWalletController : ApiControllerBase
                 "يجب تسوية مبالغ الدفع عند الاستلام المستحقة قبل طلب السحب | Settle outstanding COD cash before requesting a withdrawal.");
         }
 
-        var netWithdrawable = wallet.CurrentBalance - wallet.CodOwedBalance;
+        var activeWithdrawalHolds = await SumActiveWithdrawalHoldsAsync(context, driver.Id, cancellationToken);
+        var netWithdrawable = wallet.CurrentBalance - wallet.CodOwedBalance - wallet.PendingBalance - activeWithdrawalHolds;
         if (netWithdrawable < request.Amount)
         {
             throw new BusinessRuleException("INSUFFICIENT_WITHDRAWABLE_BALANCE", "مبلغ السحب يتجاوز الصافي المتاح بعد خصم الدفع عند الاستلام | Withdrawal amount exceeds net available balance after COD obligations.");
@@ -269,6 +270,16 @@ public class DriverWalletController : ApiControllerBase
 
         var withdrawal = new DriverWithdrawalRequest(driver.Id, wallet.Id, payoutMethod.Id, request.Amount);
         context.DriverWithdrawalRequests.Add(withdrawal);
+        context.WalletHolds.Add(new WalletHold(
+            WalletOwnerType.Driver,
+            driver.Id,
+            withdrawal.Amount,
+            WalletHoldReason.Withdrawal,
+            $"driver-withdrawal:{withdrawal.Id:N}",
+            walletId: wallet.Id,
+            referenceType: "DriverWithdrawalRequest",
+            referenceId: withdrawal.Id,
+            memo: "Driver withdrawal request submitted"));
         await context.SaveChangesAsync(cancellationToken);
 
         var data = DriverNotificationDataBuilder.Build(
@@ -337,6 +348,7 @@ public class DriverWalletController : ApiControllerBase
         var query = context.DriverWithdrawalRequests
             .AsNoTracking()
             .Include(w => w.DriverPayoutMethod)
+            .Include(w => w.Payout)
             .Where(w => w.DriverId == driver.Id)
             .OrderByDescending(w => w.CreatedAtUtc);
 
@@ -497,5 +509,21 @@ public class DriverWalletController : ApiControllerBase
             withdrawal.FailureReason,
             withdrawal.CreatedAtUtc,
             withdrawal.ProcessedAtUtc,
-            MapPayoutMethodDto(payoutMethod));
+            MapPayoutMethodDto(payoutMethod),
+            withdrawal.PayoutId,
+            withdrawal.Payout?.ProviderName,
+            withdrawal.Payout?.ProviderTransferId);
+
+    private static async Task<decimal> SumActiveWithdrawalHoldsAsync(
+        IApplicationDbContext context,
+        Guid driverId,
+        CancellationToken cancellationToken) =>
+        await context.WalletHolds
+            .AsNoTracking()
+            .Where(item =>
+                item.OwnerType == WalletOwnerType.Driver &&
+                item.OwnerId == driverId &&
+                item.Reason == WalletHoldReason.Withdrawal &&
+                item.Status == WalletHoldStatus.Active)
+            .SumAsync(item => (decimal?)item.Amount, cancellationToken) ?? 0m;
 }

@@ -2,6 +2,7 @@ using Microsoft.AspNetCore.Authorization;
 using Microsoft.AspNetCore.Mvc;
 using Microsoft.EntityFrameworkCore;
 using Microsoft.Extensions.Options;
+using System.Text.Json;
 using Zadana.Api.Controllers;
 using Zadana.Application.Common.Interfaces;
 using Zadana.Application.Common.Settings;
@@ -299,6 +300,7 @@ public class AdminWalletsController : ApiControllerBase
 
         var query = context.DriverWithdrawalRequests.AsNoTracking()
             .Include(w => w.DriverPayoutMethod)
+            .Include(w => w.Payout)
             .AsQueryable();
 
         if (!string.IsNullOrWhiteSpace(status) && Enum.TryParse<Zadana.Domain.Modules.Wallets.Enums.DriverWithdrawalStatus>(status, true, out var parsedStatus))
@@ -340,7 +342,10 @@ public class AdminWalletsController : ApiControllerBase
                     w.DriverPayoutMethod.AccountHolderName,
                     w.DriverPayoutMethod.ProviderName ?? string.Empty,
                     w.DriverPayoutMethod.MaskedLabel
-                )
+                ),
+                w.PayoutId,
+                w.Payout?.ProviderName,
+                w.Payout?.ProviderTransferId
             );
         }).ToList();
 
@@ -357,9 +362,13 @@ public class AdminWalletsController : ApiControllerBase
         [FromServices] IOptions<FinancialSettingsOptions> financialSettings,
         [FromServices] INotificationService notificationService,
         [FromServices] IOneSignalPushService oneSignalPushService,
-        CancellationToken cancellationToken = default)
+        CancellationToken cancellationToken = default,
+        [FromServices] PayoutOrchestrator? payoutOrchestrator = null)
     {
         var withdrawal = await context.DriverWithdrawalRequests
+            .Include(w => w.Wallet)
+            .Include(w => w.DriverPayoutMethod)
+            .Include(w => w.Payout)
             .FirstOrDefaultAsync(w => w.Id == id, cancellationToken)
             ?? throw new NotFoundException("DriverWithdrawalRequest", id);
 
@@ -371,35 +380,44 @@ public class AdminWalletsController : ApiControllerBase
 
         if (request.IsApproved)
         {
-            withdrawal.MarkPaid(request.TransferReference);
+            if (payoutOrchestrator is null)
+            {
+                throw new BusinessRuleException("PAYOUT_ORCHESTRATOR_REQUIRED", "Payout orchestration service is required.");
+            }
 
-            var posting = await financialEventPostingService.PostAsync(
-                FinancialEventType.DriverPayoutPaid,
-                $"driver-withdrawal-paid:{withdrawal.Id:N}",
-                [
-                    new JournalLineDraft(
-                        FinancialAccountCode.DriverPayable,
-                        withdrawal.Amount,
-                        0m,
-                        FinancialOwnerType.Driver,
-                        withdrawal.DriverId,
-                        Memo: $"Driver withdrawal paid {withdrawal.Id}"),
-                    new JournalLineDraft(
-                        FinancialAccountCode.PlatformCash,
-                        0m,
-                        withdrawal.Amount,
-                        FinancialOwnerType.Platform,
-                        financialSettings.Value.PlatformWalletOwnerId,
-                        Memo: $"Driver withdrawal platform cash {withdrawal.Id}")
-                ],
-                description: $"Driver withdrawal paid {withdrawal.Id}",
-                cancellationToken: cancellationToken);
+            if (withdrawal.DriverPayoutMethod.MethodType != DriverPayoutMethodType.BankAccount)
+            {
+                throw new BusinessRuleException("DRIVER_BANK_ACCOUNT_REQUIRED", "Only bank account withdrawal methods can be paid through bank transfer.");
+            }
 
-            await walletProjectionUpdater.ApplyJournalEntryAsync(posting.JournalEntryId, cancellationToken);
+            if (!payoutOrchestrator.HasEnabledGateway && string.IsNullOrWhiteSpace(request.TransferReference))
+            {
+                throw new BusinessRuleException(
+                    "PAYOUT_GATEWAY_UNAVAILABLE",
+                    "Moyasar payouts are not enabled. Provide a transfer reference for manual processing.");
+            }
+
+            var payout = await EnsureDriverWithdrawalPayoutAsync(context, withdrawal, cancellationToken);
+            await EnsureDriverWithdrawalHoldAsync(context, withdrawal, cancellationToken);
+            withdrawal.MarkProcessing();
+            await context.SaveChangesAsync(cancellationToken);
+
+            if (payoutOrchestrator.HasEnabledGateway)
+            {
+                await payoutOrchestrator.TriggerAsync(payout.Id, cancellationToken: cancellationToken);
+            }
+            else
+            {
+                await payoutOrchestrator.MarkPaidAsync(
+                    payout.Id,
+                    request.TransferReference!,
+                    cancellationToken: cancellationToken);
+            }
         }
         else
         {
             withdrawal.MarkFailed(request.FailureReason ?? "Rejected by admin");
+            await CancelDriverWithdrawalHoldsAsync(context, withdrawal, request.FailureReason ?? "Rejected by admin", cancellationToken);
         }
 
         await context.SaveChangesAsync(cancellationToken);
@@ -412,15 +430,36 @@ public class AdminWalletsController : ApiControllerBase
 
         if (driverUserId != Guid.Empty)
         {
-            var eventName = request.IsApproved ? "wallet.withdrawal_paid" : "wallet.withdrawal_rejected";
+            var approvedAndPaid = request.IsApproved && withdrawal.Status == DriverWithdrawalStatus.Paid;
+            var approvedAndProcessing = request.IsApproved && withdrawal.Status == DriverWithdrawalStatus.Processing;
+            var approvedAndFailed = request.IsApproved && withdrawal.Status == DriverWithdrawalStatus.Failed;
+            var eventName = approvedAndPaid
+                ? "wallet.withdrawal_paid"
+                : approvedAndProcessing
+                    ? "wallet.withdrawal_processing"
+                    : approvedAndFailed
+                        ? "wallet.withdrawal_failed"
+                        : "wallet.withdrawal_rejected";
             var titleAr = request.IsApproved ? "تم تحويل مبلغ السحب" : "تم رفض طلب السحب";
-            var titleEn = request.IsApproved ? "Withdrawal paid" : "Withdrawal rejected";
+            var titleEn = approvedAndPaid
+                ? "Withdrawal paid"
+                : approvedAndProcessing
+                    ? "Withdrawal transfer started"
+                    : approvedAndFailed
+                        ? "Withdrawal transfer failed"
+                        : "Withdrawal rejected";
+            titleAr = titleEn;
             var bodyAr = request.IsApproved
                 ? $"تمت معالجة طلب السحب رقم #{withdrawal.Id} بنجاح."
                 : $"تم رفض طلب السحب رقم #{withdrawal.Id}.";
-            var bodyEn = request.IsApproved
+            var bodyEn = approvedAndPaid
                 ? $"Your withdrawal request #{withdrawal.Id} was paid successfully."
-                : $"Your withdrawal request #{withdrawal.Id} was rejected.";
+                : approvedAndProcessing
+                    ? $"Your withdrawal request #{withdrawal.Id} is being transferred."
+                    : approvedAndFailed
+                        ? $"Your withdrawal request #{withdrawal.Id} transfer failed. Please contact support."
+                        : $"Your withdrawal request #{withdrawal.Id} was rejected.";
+            bodyAr = bodyEn;
 
             var data = DriverNotificationDataBuilder.Build(
                 screen: "wallet",
@@ -466,5 +505,109 @@ public class AdminWalletsController : ApiControllerBase
         }
 
         return NoContent();
+    }
+
+    private static async Task<Payout> EnsureDriverWithdrawalPayoutAsync(
+        IApplicationDbContext context,
+        DriverWithdrawalRequest withdrawal,
+        CancellationToken cancellationToken)
+    {
+        if (withdrawal.PayoutId.HasValue)
+        {
+            return await context.Payouts
+                .FirstAsync(item => item.Id == withdrawal.PayoutId.Value, cancellationToken);
+        }
+
+        var settlement = new Settlement(null, withdrawal.DriverId);
+        settlement.UpdateTotals(withdrawal.Amount, 0m);
+        settlement.Approve();
+
+        var payout = new Payout(settlement.Id, withdrawal.Amount);
+        payout.PrepareDestination(
+            PayoutDestinationType.DriverPayoutMethod,
+            JsonSerializer.Serialize(new
+            {
+                withdrawal.DriverPayoutMethodId,
+                withdrawal.DriverPayoutMethod.MethodType,
+                withdrawal.DriverPayoutMethod.AccountHolderName,
+                withdrawal.DriverPayoutMethod.ProviderName,
+                withdrawal.DriverPayoutMethod.MaskedLabel
+            }));
+
+        withdrawal.LinkPayout(payout.Id);
+        context.Settlements.Add(settlement);
+        context.Payouts.Add(payout);
+        return payout;
+    }
+
+    private static async Task EnsureDriverWithdrawalHoldAsync(
+        IApplicationDbContext context,
+        DriverWithdrawalRequest withdrawal,
+        CancellationToken cancellationToken)
+    {
+        var exists = await context.WalletHolds.AnyAsync(
+            item =>
+                item.OwnerType == WalletOwnerType.Driver &&
+                item.OwnerId == withdrawal.DriverId &&
+                item.Reason == WalletHoldReason.Withdrawal &&
+                item.ReferenceType == "DriverWithdrawalRequest" &&
+                item.ReferenceId == withdrawal.Id &&
+                item.Status == WalletHoldStatus.Active,
+            cancellationToken);
+
+        if (exists)
+        {
+            return;
+        }
+
+        var activeHolds = await context.WalletHolds
+            .AsNoTracking()
+            .Where(item =>
+                item.OwnerType == WalletOwnerType.Driver &&
+                item.OwnerId == withdrawal.DriverId &&
+                item.Reason == WalletHoldReason.Withdrawal &&
+                item.Status == WalletHoldStatus.Active)
+            .SumAsync(item => (decimal?)item.Amount, cancellationToken) ?? 0m;
+
+        var wallet = withdrawal.Wallet ??
+            await context.Wallets.FirstAsync(item => item.Id == withdrawal.WalletId, cancellationToken);
+        var available = wallet.CurrentBalance - wallet.CodOwedBalance - wallet.PendingBalance - activeHolds;
+        if (available < withdrawal.Amount)
+        {
+            throw new BusinessRuleException("INSUFFICIENT_WITHDRAWABLE_BALANCE", "Withdrawal amount exceeds available balance.");
+        }
+
+        context.WalletHolds.Add(new WalletHold(
+            WalletOwnerType.Driver,
+            withdrawal.DriverId,
+            withdrawal.Amount,
+            WalletHoldReason.Withdrawal,
+            $"driver-withdrawal:{withdrawal.Id:N}",
+            walletId: wallet.Id,
+            referenceType: "DriverWithdrawalRequest",
+            referenceId: withdrawal.Id,
+            memo: "Driver withdrawal approved for transfer"));
+    }
+
+    private static async Task CancelDriverWithdrawalHoldsAsync(
+        IApplicationDbContext context,
+        DriverWithdrawalRequest withdrawal,
+        string reason,
+        CancellationToken cancellationToken)
+    {
+        var holds = await context.WalletHolds
+            .Where(item =>
+                item.OwnerType == WalletOwnerType.Driver &&
+                item.OwnerId == withdrawal.DriverId &&
+                item.Reason == WalletHoldReason.Withdrawal &&
+                item.Status == WalletHoldStatus.Active &&
+                item.ReferenceType == "DriverWithdrawalRequest" &&
+                item.ReferenceId == withdrawal.Id)
+            .ToListAsync(cancellationToken);
+
+        foreach (var hold in holds)
+        {
+            hold.Cancel(reason);
+        }
     }
 }
