@@ -275,4 +275,15 @@ public record CheckoutOrderPaymentResponse(
     [property: JsonPropertyName("provider_reference")] string ProviderReference,
     [property: JsonPropertyName("provider_config")]
     [property: JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingNull)]
-    object? ProviderConfig = null);
+    object? ProviderConfig = null,
+    [property: JsonPropertyName("payment_flow")]
+    [property: JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingNull)]
+    string? PaymentFlow = null,
+    [property: JsonPropertyName("is_paid")] bool IsPaid = false,
+    [property: JsonPropertyName("requires_customer_action")] bool RequiresCustomerAction = true,
+    [property: JsonPropertyName("customer_action")]
+    [property: JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingNull)]
+    string? CustomerAction = null,
+    [property: JsonPropertyName("confirmation_mode")]
+    [property: JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingNull)]
+    string? ConfirmationMode = null);

@@ -354,4 +354,9 @@ public record CheckoutPaymentSessionDto(
     string Status,
     string IframeUrl,
     string ProviderReference,
-    object? ProviderConfig = null);
+    object? ProviderConfig = null,
+    string? PaymentFlow = null,
+    bool IsPaid = false,
+    bool RequiresCustomerAction = true,
+    string? CustomerAction = null,
+    string? ConfirmationMode = null);

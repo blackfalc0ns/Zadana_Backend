@@ -150,7 +150,12 @@ public class RetryCardPaymentCommandHandler : IRequestHandler<RetryCardPaymentCo
                     CheckoutSupport.MapPaymentStatusToContractValue(retryPayment.Status.ToString()),
                     BuildClientHint(session),
                     session.ProviderPaymentId ?? string.Empty,
-                    session.ProviderConfig));
+                    session.ProviderConfig,
+                    PaymentFlow: "online_gateway",
+                    IsPaid: false,
+                    RequiresCustomerAction: true,
+                    CustomerAction: "render_payment_form",
+                    ConfirmationMode: "provider_payment_id"));
         }
         catch
         {

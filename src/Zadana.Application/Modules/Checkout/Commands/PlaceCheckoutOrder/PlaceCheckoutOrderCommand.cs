@@ -296,7 +296,12 @@ public class PlaceCheckoutOrderCommandHandler : IRequestHandler<PlaceCheckoutOrd
                     CheckoutSupport.MapPaymentStatusToContractValue(payment.Status.ToString()),
                     session.ClientAction,
                     session.ProviderPaymentId ?? string.Empty,
-                    session.ProviderConfig);
+                    session.ProviderConfig,
+                    PaymentFlow: "online_gateway",
+                    IsPaid: false,
+                    RequiresCustomerAction: true,
+                    CustomerAction: "render_payment_form",
+                    ConfirmationMode: "provider_payment_id");
             }
             catch
             {
@@ -357,7 +362,12 @@ public class PlaceCheckoutOrderCommandHandler : IRequestHandler<PlaceCheckoutOrd
                     currency = order.Currency,
                     expiresAtUtc,
                     webhookDriven = true
-                });
+                },
+                PaymentFlow: "manual_bank_transfer",
+                IsPaid: false,
+                RequiresCustomerAction: true,
+                CustomerAction: "show_bank_transfer_instructions",
+                ConfirmationMode: "bank_transfer_webhook");
         }
         else
         {
