@@ -2,6 +2,7 @@ using Microsoft.AspNetCore.Authorization;
 using Microsoft.AspNetCore.Mvc;
 using Microsoft.EntityFrameworkCore;
 using Microsoft.Extensions.Options;
+using Microsoft.Extensions.Logging;
 using MediatR;
 using Zadana.Api.Controllers;
 using Zadana.Application.Common.Interfaces;
@@ -28,7 +29,8 @@ public class BankTransferController(
     WalletProjectionUpdater walletProjectionUpdater,
     IPublisher publisher,
     IOptions<BankTransferSettingsOptions> settings,
-    IWebHostEnvironment environment) : ApiControllerBase
+    IWebHostEnvironment environment,
+    ILogger<BankTransferController> logger) : ApiControllerBase
 {
     private const string WebhookSecretHeader = "X-BankTransfer-Secret";
 
@@ -262,51 +264,75 @@ public class BankTransferController(
         await context.SaveChangesAsync(cancellationToken);
 
         var idempotencyKey = $"bank-transfer-confirmed:{payment.Id:N}";
-        var posting = await postingService.PostAsync(
-            FinancialEventType.BankTransferConfirmed,
-            idempotencyKey,
-            [
-                new JournalLineDraft(
-                    FinancialAccountCode.PlatformCash,
-                    order.TotalAmount,
-                    0m,
-                    FinancialOwnerType.Platform,
-                    Guid.Parse("00000000-0000-0000-0000-000000000001"),
-                    order.Id,
-                    Memo: $"Bank transfer confirmed for order {order.OrderNumber}"),
-                new JournalLineDraft(
-                    FinancialAccountCode.CustomerAdvance,
-                    0m,
-                    order.TotalAmount,
-                    FinancialOwnerType.Customer,
-                    order.UserId,
-                    order.Id,
-                    Memo: $"Customer advance on bank transfer for order {order.OrderNumber}"),
-            ],
-            orderId: order.Id,
-            currencyCode: CurrencyPolicy.OfficialCurrency,
-            description: $"Bank transfer confirmed for order {order.OrderNumber}",
-            cancellationToken: cancellationToken);
-
-        if (!posting.WasAlreadyPosted)
+        Guid? journalEntryId = null;
+        try
         {
-            await walletProjectionUpdater.ApplyJournalEntryAsync(posting.JournalEntryId, cancellationToken);
+            var posting = await postingService.PostAsync(
+                FinancialEventType.BankTransferConfirmed,
+                idempotencyKey,
+                [
+                    new JournalLineDraft(
+                        FinancialAccountCode.PlatformCash,
+                        order.TotalAmount,
+                        0m,
+                        FinancialOwnerType.Platform,
+                        Guid.Parse("00000000-0000-0000-0000-000000000001"),
+                        order.Id,
+                        Memo: $"Bank transfer confirmed for order {order.OrderNumber}"),
+                    new JournalLineDraft(
+                        FinancialAccountCode.CustomerAdvance,
+                        0m,
+                        order.TotalAmount,
+                        FinancialOwnerType.Customer,
+                        order.UserId,
+                        order.Id,
+                        Memo: $"Customer advance on bank transfer for order {order.OrderNumber}"),
+                ],
+                orderId: order.Id,
+                currencyCode: CurrencyPolicy.OfficialCurrency,
+                description: $"Bank transfer confirmed for order {order.OrderNumber}",
+                cancellationToken: cancellationToken);
+
+            journalEntryId = posting.JournalEntryId;
+            if (!posting.WasAlreadyPosted)
+            {
+                await walletProjectionUpdater.ApplyJournalEntryAsync(posting.JournalEntryId, cancellationToken);
+            }
+        }
+        catch (Exception ex)
+        {
+            logger.LogError(
+                ex,
+                "[BankTransfer] Ledger posting failed after confirming order {OrderId} payment {PaymentId}.",
+                order.Id,
+                payment.Id);
         }
 
         if (oldStatus != order.Status)
         {
-            await publisher.Publish(
-                new OrderStatusChangedNotification(
+            try
+            {
+                await publisher.Publish(
+                    new OrderStatusChangedNotification(
+                        order.Id,
+                        order.UserId,
+                        order.VendorId,
+                        order.OrderNumber,
+                        oldStatus,
+                        order.Status,
+                        NotifyCustomer: true,
+                        NotifyVendor: true,
+                        ActorRole: actorRole),
+                    cancellationToken);
+            }
+            catch (Exception ex)
+            {
+                logger.LogError(
+                    ex,
+                    "[BankTransfer] Status notification failed after confirming order {OrderId} payment {PaymentId}.",
                     order.Id,
-                    order.UserId,
-                    order.VendorId,
-                    order.OrderNumber,
-                    oldStatus,
-                    order.Status,
-                    NotifyCustomer: true,
-                    NotifyVendor: true,
-                    ActorRole: actorRole),
-                cancellationToken);
+                    payment.Id);
+            }
         }
 
         return new BankTransferConfirmationResult(
@@ -315,7 +341,7 @@ public class BankTransferController(
             order.Id,
             order.Status.ToString(),
             payment.Status.ToString(),
-            posting.JournalEntryId);
+            journalEntryId);
     }
 
     private void ValidateWebhookSecret()

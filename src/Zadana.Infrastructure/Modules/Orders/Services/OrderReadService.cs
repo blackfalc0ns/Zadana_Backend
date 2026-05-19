@@ -1442,7 +1442,7 @@ public class OrderReadService : IOrderReadService
     private static string MapStatus(OrderStatus status) =>
         status switch
         {
-            OrderStatus.PendingPayment or OrderStatus.Placed or OrderStatus.PendingVendorAcceptance => "pending",
+            OrderStatus.PendingPayment or OrderStatus.PendingBankConfirmation or OrderStatus.Placed or OrderStatus.PendingVendorAcceptance => "pending",
             OrderStatus.Accepted or OrderStatus.Preparing or OrderStatus.ReadyForPickup or
             OrderStatus.DriverAssignmentInProgress or OrderStatus.DriverAssigned or
             OrderStatus.PickedUp or OrderStatus.OnTheWay => "processing",
