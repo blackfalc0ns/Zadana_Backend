@@ -1,8 +1,10 @@
 using FluentValidation;
 using MediatR;
 using Microsoft.EntityFrameworkCore;
+using Microsoft.Extensions.Options;
 using Zadana.Application.Common.Interfaces;
 using Zadana.Application.Common.Localization;
+using Zadana.Application.Common.Settings;
 using Zadana.Application.Modules.Checkout.DTOs;
 using Zadana.Application.Modules.Checkout.Support;
 using Zadana.Application.Modules.Delivery.Interfaces;
@@ -44,6 +46,15 @@ public class PlaceCheckoutOrderCommandValidator : AbstractValidator<PlaceCheckou
 public class PlaceCheckoutOrderCommandHandler : IRequestHandler<PlaceCheckoutOrderCommand, PlaceCheckoutOrderResultDto>
 {
     private const string CardProvider = "Moyasar";
+    private sealed record BankTransferAccount(
+        string ProviderName,
+        string BankName,
+        string AccountHolderName,
+        string Iban,
+        string? AccountNumber,
+        string CountryCode,
+        string City,
+        int ExpirationMinutes);
 
     private readonly IApplicationDbContext _context;
     private readonly IPaymentGatewayResolver _gatewayResolver;
@@ -51,6 +62,7 @@ public class PlaceCheckoutOrderCommandHandler : IRequestHandler<PlaceCheckoutOrd
     private readonly ISender _sender;
     private readonly IUnitOfWork _unitOfWork;
     private readonly IPublisher _publisher;
+    private readonly BankTransferSettingsOptions _bankTransferSettings;
 
     public PlaceCheckoutOrderCommandHandler(
         IApplicationDbContext context,
@@ -58,7 +70,8 @@ public class PlaceCheckoutOrderCommandHandler : IRequestHandler<PlaceCheckoutOrd
         IDeliveryPricingService deliveryPricingService,
         ISender sender,
         IUnitOfWork unitOfWork,
-        IPublisher publisher)
+        IPublisher publisher,
+        IOptions<BankTransferSettingsOptions>? bankTransferSettings = null)
     {
         _context = context;
         _gatewayResolver = gatewayResolver;
@@ -66,6 +79,7 @@ public class PlaceCheckoutOrderCommandHandler : IRequestHandler<PlaceCheckoutOrd
         _sender = sender;
         _unitOfWork = unitOfWork;
         _publisher = publisher;
+        _bankTransferSettings = bankTransferSettings?.Value ?? new BankTransferSettingsOptions();
     }
 
     public async Task<PlaceCheckoutOrderResultDto> Handle(PlaceCheckoutOrderCommand request, CancellationToken cancellationToken)
@@ -299,10 +313,51 @@ public class PlaceCheckoutOrderCommandHandler : IRequestHandler<PlaceCheckoutOrd
         }
         else if (paymentMethodCode == "bank")
         {
-            payment.MarkAsPending("BankTransfer", $"BANK-{order.OrderNumber}");
-            order.ChangeStatus(OrderStatus.Placed, null, "Bank transfer selected");
-            order.ChangeStatus(OrderStatus.PendingVendorAcceptance, null, "Awaiting bank transfer confirmation");
+            var bankTransferAccount = await ResolveBankTransferAccountAsync(cancellationToken);
+
+            var bankReference = CreateBankTransferReference(order.OrderNumber, payment.Id);
+            var expiresAtUtc = DateTime.UtcNow.AddMinutes(Math.Max(bankTransferAccount.ExpirationMinutes, 5));
+            payment.MarkAsPending(bankTransferAccount.ProviderName, bankReference);
+            payment.ApplyProviderFetch(
+                providerStatus: "awaiting_bank_transfer",
+                providerReferenceNumber: bankReference,
+                rawFetchResponse: System.Text.Json.JsonSerializer.Serialize(new
+                {
+                    bankName = bankTransferAccount.BankName,
+                    accountHolderName = bankTransferAccount.AccountHolderName,
+                    iban = bankTransferAccount.Iban,
+                    accountNumber = bankTransferAccount.AccountNumber,
+                    countryCode = bankTransferAccount.CountryCode,
+                    city = bankTransferAccount.City,
+                    reference = bankReference,
+                    amount = order.TotalAmount,
+                    currency = order.Currency,
+                    expiresAtUtc,
+                }));
+
+            order.ChangeStatus(OrderStatus.PendingBankConfirmation, null, "Awaiting automatic bank transfer confirmation");
             OrderStatusHistoryTracking.TrackNewEntries(_context, order);
+
+            paymentSession = new CheckoutPaymentSessionDto(
+                payment.Id,
+                bankTransferAccount.ProviderName.ToLowerInvariant(),
+                CheckoutSupport.MapPaymentStatusToContractValue(payment.Status.ToString()),
+                "ShowBankTransferInstructions",
+                bankReference,
+                new
+                {
+                    bankName = bankTransferAccount.BankName,
+                    accountHolderName = bankTransferAccount.AccountHolderName,
+                    iban = bankTransferAccount.Iban,
+                    accountNumber = bankTransferAccount.AccountNumber,
+                    countryCode = bankTransferAccount.CountryCode,
+                    city = bankTransferAccount.City,
+                    reference = bankReference,
+                    amount = order.TotalAmount,
+                    currency = order.Currency,
+                    expiresAtUtc,
+                    webhookDriven = true
+                });
         }
         else
         {
@@ -312,7 +367,7 @@ public class PlaceCheckoutOrderCommandHandler : IRequestHandler<PlaceCheckoutOrd
         await _unitOfWork.SaveChangesAsync(cancellationToken);
 
         // Publish notification for order placement
-        if (paymentMethodCode is "cash" or "bank")
+        if (paymentMethodCode is "cash")
         {
             await _publisher.Publish(
                 new OrderStatusChangedNotification(
@@ -364,5 +419,67 @@ public class PlaceCheckoutOrderCommandHandler : IRequestHandler<PlaceCheckoutOrd
         {
             throw new BusinessRuleException("DELIVERY_SLOT_NOT_AVAILABLE", "Selected delivery slot is not available.");
         }
+    }
+
+    private async Task<BankTransferAccount> ResolveBankTransferAccountAsync(CancellationToken cancellationToken)
+    {
+        var platformAccount = await _context.PlatformBankAccounts
+            .AsNoTracking()
+            .Where(account => account.IsActive)
+            .OrderByDescending(account => account.UpdatedAtUtc)
+            .ThenByDescending(account => account.CreatedAtUtc)
+            .FirstOrDefaultAsync(cancellationToken);
+
+        if (platformAccount is not null)
+        {
+            if (!platformAccount.IsBankTransferEnabled ||
+                (string.IsNullOrWhiteSpace(platformAccount.IBAN) &&
+                 string.IsNullOrWhiteSpace(platformAccount.AccountNumber)))
+            {
+                throw new BusinessRuleException(
+                    "BANK_TRANSFER_UNAVAILABLE",
+                    "Platform bank transfer account is not configured.");
+            }
+
+            return new BankTransferAccount(
+                _bankTransferSettings.ProviderName,
+                platformAccount.BankName,
+                platformAccount.AccountHolderName,
+                platformAccount.IBAN,
+                platformAccount.AccountNumber,
+                platformAccount.CountryCode,
+                platformAccount.City,
+                _bankTransferSettings.ExpirationMinutes);
+        }
+
+        if (!_bankTransferSettings.Enabled ||
+            (string.IsNullOrWhiteSpace(_bankTransferSettings.Iban) &&
+             string.IsNullOrWhiteSpace(_bankTransferSettings.AccountNumber)))
+        {
+            throw new BusinessRuleException(
+                "BANK_TRANSFER_UNAVAILABLE",
+                "Bank transfer payment is not configured.");
+        }
+
+        return new BankTransferAccount(
+            _bankTransferSettings.ProviderName,
+            _bankTransferSettings.BankName,
+            _bankTransferSettings.AccountHolderName,
+            _bankTransferSettings.Iban,
+            _bankTransferSettings.AccountNumber,
+            "SA",
+            "Riyadh",
+            _bankTransferSettings.ExpirationMinutes);
+    }
+
+    private static string CreateBankTransferReference(string orderNumber, Guid paymentId)
+    {
+        var cleanOrderNumber = new string(orderNumber.Where(char.IsLetterOrDigit).ToArray()).ToUpperInvariant();
+        if (cleanOrderNumber.Length > 12)
+        {
+            cleanOrderNumber = cleanOrderNumber[^12..];
+        }
+
+        return $"ZDN{cleanOrderNumber}{paymentId.ToString("N")[..8]}";
     }
 }

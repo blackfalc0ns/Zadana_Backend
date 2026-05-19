@@ -143,6 +143,9 @@ builder.Services.AddHostedService<VendorSettlementCycleWorker>();
 builder.Services.AddOptions<FinancialSettingsOptions>()
     .Bind(builder.Configuration.GetSection(FinancialSettingsOptions.SectionName));
 
+builder.Services.AddOptions<BankTransferSettingsOptions>()
+    .Bind(builder.Configuration.GetSection(BankTransferSettingsOptions.SectionName));
+
 builder.Services.AddOptions<Zadana.Infrastructure.Settings.ImageKitSettings>()
     .Bind(builder.Configuration.GetSection(Zadana.Infrastructure.Settings.ImageKitSettings.SectionName))
     .ValidateDataAnnotations()

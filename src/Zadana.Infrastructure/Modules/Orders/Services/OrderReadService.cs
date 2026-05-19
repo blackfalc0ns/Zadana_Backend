@@ -379,7 +379,8 @@ public class OrderReadService : IOrderReadService
             .Where(order =>
                 order.VendorId == vendorId &&
                 order.Status != OrderStatus.PendingPayment &&
-                (order.PaymentMethod != PaymentMethodType.Card ||
+                ((order.PaymentMethod != PaymentMethodType.Card &&
+                  order.PaymentMethod != PaymentMethodType.BankTransfer) ||
                  order.PaymentStatus == PaymentStatus.Paid ||
                  order.PaymentStatus == PaymentStatus.Refunded ||
                  order.PaymentStatus == PaymentStatus.PartiallyRefunded));
@@ -437,7 +438,8 @@ public class OrderReadService : IOrderReadService
                 item.VendorId == vendorId &&
                 item.Id == orderId &&
                 item.Status != OrderStatus.PendingPayment &&
-                (item.PaymentMethod != PaymentMethodType.Card ||
+                ((item.PaymentMethod != PaymentMethodType.Card &&
+                  item.PaymentMethod != PaymentMethodType.BankTransfer) ||
                  item.PaymentStatus == PaymentStatus.Paid ||
                  item.PaymentStatus == PaymentStatus.Refunded ||
                  item.PaymentStatus == PaymentStatus.PartiallyRefunded))

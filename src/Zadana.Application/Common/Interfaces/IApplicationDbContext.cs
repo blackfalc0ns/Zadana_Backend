@@ -98,6 +98,7 @@ public interface IApplicationDbContext
     DbSet<DriverPayoutMethod> DriverPayoutMethods { get; }
     DbSet<DriverWithdrawalRequest> DriverWithdrawalRequests { get; }
     DbSet<WalletHold> WalletHolds { get; }
+    DbSet<PlatformBankAccount> PlatformBankAccounts { get; }
 
     // Finances
     DbSet<CityDeliveryPricingSettings> CityDeliveryPricingSettings { get; }

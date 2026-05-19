@@ -61,6 +61,28 @@ public class VendorOrderReadServiceTests
     }
 
     [Fact]
+    public async Task GetVendorWorkspaceOrdersAsync_ShouldExcludeBankTransferOrdersUntilPaymentIsPaid()
+    {
+        await using var dbContext = CreateDbContext();
+        var customer = CreateCustomer();
+        var vendor = CreateVendor();
+        var vendorId = vendor.Id;
+
+        dbContext.Users.Add(customer);
+        dbContext.Vendors.Add(vendor);
+        dbContext.Orders.Add(CreateOrder(customer.Id, vendorId, OrderStatus.PendingBankConfirmation, "ORD-BANK-PENDING", markPaid: false, paymentMethod: PaymentMethodType.BankTransfer));
+        dbContext.Orders.Add(CreateOrder(customer.Id, vendorId, OrderStatus.PendingVendorAcceptance, "ORD-BANK-PAID", paymentMethod: PaymentMethodType.BankTransfer));
+        await dbContext.SaveChangesAsync();
+
+        var service = new OrderReadService(dbContext);
+
+        var result = await service.GetVendorWorkspaceOrdersAsync(vendorId, null, null, null, 1, 20);
+
+        result.Items.Should().ContainSingle();
+        result.Items[0].OrderNumber.Should().Be("ORD-BANK-PAID");
+    }
+
+    [Fact]
     public async Task GetVendorOrderDetailAsync_ShouldReturnNullForPendingPaymentOrder()
     {
         await using var dbContext = CreateDbContext();
@@ -98,6 +120,27 @@ public class VendorOrderReadServiceTests
         var service = new OrderReadService(dbContext);
 
         var result = await service.GetVendorOrderDetailAsync(vendorId, pendingCardOrder.Id);
+
+        result.Should().BeNull();
+    }
+
+    [Fact]
+    public async Task GetVendorOrderDetailAsync_ShouldReturnNullForUnpaidBankTransferOrder()
+    {
+        await using var dbContext = CreateDbContext();
+        var customer = CreateCustomer();
+        var vendor = CreateVendor();
+        var vendorId = vendor.Id;
+        var pendingBankOrder = CreateOrder(customer.Id, vendorId, OrderStatus.PendingBankConfirmation, "ORD-HIDDEN-BANK", markPaid: false, paymentMethod: PaymentMethodType.BankTransfer);
+
+        dbContext.Users.Add(customer);
+        dbContext.Vendors.Add(vendor);
+        dbContext.Orders.Add(pendingBankOrder);
+        await dbContext.SaveChangesAsync();
+
+        var service = new OrderReadService(dbContext);
+
+        var result = await service.GetVendorOrderDetailAsync(vendorId, pendingBankOrder.Id);
 
         result.Should().BeNull();
     }
@@ -196,9 +239,15 @@ public class VendorOrderReadServiceTests
             nationalAddress: "Olaya");
     }
 
-    private static Order CreateOrder(Guid userId, Guid vendorId, OrderStatus status, string orderNumber, bool markPaid = true)
+    private static Order CreateOrder(
+        Guid userId,
+        Guid vendorId,
+        OrderStatus status,
+        string orderNumber,
+        bool markPaid = true,
+        PaymentMethodType paymentMethod = PaymentMethodType.Card)
     {
-        var order = new Order(orderNumber, userId, vendorId, Guid.NewGuid(), PaymentMethodType.Card, 100m, 0m, 10m, 10m, 0m, 0m, null, null, null, 0m, 0m, 0m, 0m, null, null, false, null, null, null, null, 1, false, 5m);
+        var order = new Order(orderNumber, userId, vendorId, Guid.NewGuid(), paymentMethod, 100m, 0m, 10m, 10m, 0m, 0m, null, null, null, 0m, 0m, 0m, 0m, null, null, false, null, null, null, null, 1, false, 5m);
         order.Items.Add(new OrderItem(order.Id, Guid.NewGuid(), Guid.NewGuid(), "Fresh Item", 2, 50m));
 
         if (status != OrderStatus.PendingPayment)

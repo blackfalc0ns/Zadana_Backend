@@ -113,6 +113,7 @@ public class ApplicationDbContext : IdentityDbContext<User, IdentityRole<Guid>, 
     public DbSet<DriverPayoutMethod> DriverPayoutMethods => Set<DriverPayoutMethod>();
     public DbSet<DriverWithdrawalRequest> DriverWithdrawalRequests => Set<DriverWithdrawalRequest>();
     public DbSet<WalletHold> WalletHolds => Set<WalletHold>();
+    public DbSet<PlatformBankAccount> PlatformBankAccounts => Set<PlatformBankAccount>();
 
     // Finances
     public DbSet<CityDeliveryPricingSettings> CityDeliveryPricingSettings => Set<CityDeliveryPricingSettings>();

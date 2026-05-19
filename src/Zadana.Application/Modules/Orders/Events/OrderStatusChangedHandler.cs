@@ -157,7 +157,7 @@ public class OrderStatusChangedHandler : INotificationHandler<OrderStatusChanged
             .FirstOrDefaultAsync(cancellationToken);
 
         return order is null ||
-               order.PaymentMethod != PaymentMethodType.Card ||
+               order.PaymentMethod is not (PaymentMethodType.Card or PaymentMethodType.BankTransfer) ||
                order.PaymentStatus == PaymentStatus.Paid ||
                order.PaymentStatus == PaymentStatus.Refunded ||
                order.PaymentStatus == PaymentStatus.PartiallyRefunded;

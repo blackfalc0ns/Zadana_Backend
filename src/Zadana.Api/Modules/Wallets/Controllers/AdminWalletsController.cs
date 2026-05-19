@@ -13,6 +13,7 @@ using Zadana.Domain.Modules.Finances.Enums;
 using Zadana.Domain.Modules.Social.Enums;
 using Zadana.Domain.Modules.Wallets.Entities;
 using Zadana.Domain.Modules.Wallets.Enums;
+using Zadana.Infrastructure.Settings;
 using Zadana.SharedKernel.Exceptions;
 
 namespace Zadana.Api.Modules.Wallets.Controllers;
@@ -22,6 +23,80 @@ namespace Zadana.Api.Modules.Wallets.Controllers;
 [Authorize(Policy = "AdminOnly")]
 public class AdminWalletsController : ApiControllerBase
 {
+    [HttpGet("platform-account")]
+    public async Task<ActionResult<AdminPlatformBankAccountDto>> GetPlatformAccount(
+        [FromServices] IApplicationDbContext context,
+        [FromServices] IOptions<BankTransferSettingsOptions> bankTransferSettings,
+        [FromServices] IOptions<MoyasarSettings> moyasarSettings,
+        CancellationToken cancellationToken = default)
+    {
+        var account = await context.PlatformBankAccounts
+            .AsNoTracking()
+            .Where(item => item.IsActive)
+            .OrderByDescending(item => item.UpdatedAtUtc)
+            .ThenByDescending(item => item.CreatedAtUtc)
+            .FirstOrDefaultAsync(cancellationToken);
+
+        return Ok(account is null
+            ? BuildPlatformAccountFallback(bankTransferSettings.Value, moyasarSettings.Value)
+            : MapPlatformAccount(account));
+    }
+
+    [HttpPut("platform-account")]
+    public async Task<ActionResult<AdminPlatformBankAccountDto>> UpsertPlatformAccount(
+        [FromBody] AdminUpsertPlatformBankAccountRequest request,
+        [FromServices] IApplicationDbContext context,
+        CancellationToken cancellationToken = default)
+    {
+        var account = await context.PlatformBankAccounts
+            .Where(item => item.IsActive)
+            .OrderByDescending(item => item.UpdatedAtUtc)
+            .ThenByDescending(item => item.CreatedAtUtc)
+            .FirstOrDefaultAsync(cancellationToken);
+
+        if (account is null)
+        {
+            account = new PlatformBankAccount(
+                request.BankName,
+                request.AccountHolderName,
+                request.Iban,
+                request.AccountNumber,
+                request.CountryCode ?? "SA",
+                request.City ?? "Riyadh",
+                request.IsBankTransferEnabled,
+                request.IsMoyasarPayoutsEnabled,
+                request.MoyasarPayoutSourceId,
+                request.Notes);
+            context.PlatformBankAccounts.Add(account);
+        }
+        else
+        {
+            account.Update(
+                request.BankName,
+                request.AccountHolderName,
+                request.Iban,
+                request.AccountNumber,
+                request.CountryCode ?? "SA",
+                request.City ?? "Riyadh",
+                request.IsBankTransferEnabled,
+                request.IsMoyasarPayoutsEnabled,
+                request.MoyasarPayoutSourceId,
+                request.Notes);
+        }
+
+        var otherActiveAccounts = await context.PlatformBankAccounts
+            .Where(item => item.IsActive && item.Id != account.Id)
+            .ToListAsync(cancellationToken);
+        foreach (var other in otherActiveAccounts)
+        {
+            other.Deactivate();
+        }
+
+        await context.SaveChangesAsync(cancellationToken);
+
+        return Ok(MapPlatformAccount(account));
+    }
+
     [HttpGet]
     public async Task<ActionResult<AdminWalletListDto>> GetWallets(
         [FromServices] IApplicationDbContext context,
@@ -363,7 +438,8 @@ public class AdminWalletsController : ApiControllerBase
         [FromServices] INotificationService notificationService,
         [FromServices] IOneSignalPushService oneSignalPushService,
         CancellationToken cancellationToken = default,
-        [FromServices] PayoutOrchestrator? payoutOrchestrator = null)
+        [FromServices] PayoutOrchestrator? payoutOrchestrator = null,
+        [FromServices] IOptions<MoyasarSettings>? moyasarSettings = null)
     {
         var withdrawal = await context.DriverWithdrawalRequests
             .Include(w => w.Wallet)
@@ -390,7 +466,11 @@ public class AdminWalletsController : ApiControllerBase
                 throw new BusinessRuleException("DRIVER_BANK_ACCOUNT_REQUIRED", "Only bank account withdrawal methods can be paid through bank transfer.");
             }
 
-            if (!payoutOrchestrator.HasEnabledGateway && string.IsNullOrWhiteSpace(request.TransferReference))
+            var hasConfiguredPayoutGateway = payoutOrchestrator.HasEnabledGateway &&
+                (moyasarSettings is null ||
+                 await HasConfiguredPayoutSourceAsync(context, moyasarSettings.Value, cancellationToken));
+
+            if (!hasConfiguredPayoutGateway && string.IsNullOrWhiteSpace(request.TransferReference))
             {
                 throw new BusinessRuleException(
                     "PAYOUT_GATEWAY_UNAVAILABLE",
@@ -402,7 +482,7 @@ public class AdminWalletsController : ApiControllerBase
             withdrawal.MarkProcessing();
             await context.SaveChangesAsync(cancellationToken);
 
-            if (payoutOrchestrator.HasEnabledGateway)
+            if (hasConfiguredPayoutGateway)
             {
                 await payoutOrchestrator.TriggerAsync(payout.Id, cancellationToken: cancellationToken);
             }
@@ -538,6 +618,80 @@ public class AdminWalletsController : ApiControllerBase
         context.Settlements.Add(settlement);
         context.Payouts.Add(payout);
         return payout;
+    }
+
+    private static AdminPlatformBankAccountDto BuildPlatformAccountFallback(
+        BankTransferSettingsOptions bankTransfer,
+        MoyasarSettings moyasar)
+    {
+        var canReceive = bankTransfer.Enabled &&
+            (!string.IsNullOrWhiteSpace(bankTransfer.Iban) || !string.IsNullOrWhiteSpace(bankTransfer.AccountNumber));
+        var canSend = moyasar.Payouts.Enabled && !string.IsNullOrWhiteSpace(moyasar.Payouts.SourceId);
+
+        return new AdminPlatformBankAccountDto(
+            null,
+            bankTransfer.BankName,
+            bankTransfer.AccountHolderName,
+            bankTransfer.Iban,
+            bankTransfer.AccountNumber,
+            moyasar.Payouts.DefaultCountry,
+            moyasar.Payouts.DefaultCity,
+            false,
+            bankTransfer.Enabled,
+            moyasar.Payouts.Enabled,
+            moyasar.Payouts.SourceId,
+            "Loaded from appsettings fallback. Save this form to manage the platform account from database.",
+            null,
+            canReceive,
+            canSend);
+    }
+
+    private static AdminPlatformBankAccountDto MapPlatformAccount(PlatformBankAccount account)
+    {
+        var canReceive = account.IsActive &&
+            account.IsBankTransferEnabled &&
+            (!string.IsNullOrWhiteSpace(account.IBAN) || !string.IsNullOrWhiteSpace(account.AccountNumber));
+        var canSend = account.IsActive &&
+            account.IsMoyasarPayoutsEnabled &&
+            !string.IsNullOrWhiteSpace(account.MoyasarPayoutSourceId);
+
+        return new AdminPlatformBankAccountDto(
+            account.Id,
+            account.BankName,
+            account.AccountHolderName,
+            account.IBAN,
+            account.AccountNumber,
+            account.CountryCode,
+            account.City,
+            account.IsActive,
+            account.IsBankTransferEnabled,
+            account.IsMoyasarPayoutsEnabled,
+            account.MoyasarPayoutSourceId,
+            account.Notes,
+            account.UpdatedAtUtc,
+            canReceive,
+            canSend);
+    }
+
+    private static async Task<bool> HasConfiguredPayoutSourceAsync(
+        IApplicationDbContext context,
+        MoyasarSettings moyasarSettings,
+        CancellationToken cancellationToken)
+    {
+        if (await context.PlatformBankAccounts
+                .AsNoTracking()
+                .AnyAsync(
+                    item =>
+                        item.IsActive &&
+                        item.IsMoyasarPayoutsEnabled &&
+                        item.MoyasarPayoutSourceId != null &&
+                        item.MoyasarPayoutSourceId != string.Empty,
+                    cancellationToken))
+        {
+            return true;
+        }
+
+        return moyasarSettings.Payouts.Enabled && !string.IsNullOrWhiteSpace(moyasarSettings.Payouts.SourceId);
     }
 
     private static async Task EnsureDriverWithdrawalHoldAsync(

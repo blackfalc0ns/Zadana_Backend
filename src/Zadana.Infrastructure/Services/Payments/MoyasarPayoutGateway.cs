@@ -5,6 +5,8 @@ using System.Text;
 using System.Text.Json;
 using Microsoft.Extensions.Logging;
 using Microsoft.Extensions.Options;
+using Microsoft.EntityFrameworkCore;
+using Zadana.Application.Common.Interfaces;
 using Zadana.Application.Modules.Payments.Gateways;
 using Zadana.Application.Modules.Payments.Interfaces;
 using Zadana.Infrastructure.Settings;
@@ -20,17 +22,20 @@ public sealed class MoyasarPayoutGateway : IPayoutGateway
     private static readonly JsonSerializerOptions JsonOpts = new(JsonSerializerDefaults.Web);
 
     private readonly HttpClient _httpClient;
+    private readonly IApplicationDbContext? _context;
     private readonly MoyasarSettings _settings;
     private readonly ILogger<MoyasarPayoutGateway> _logger;
 
     public MoyasarPayoutGateway(
         HttpClient httpClient,
         IOptions<MoyasarSettings> settings,
-        ILogger<MoyasarPayoutGateway> logger)
+        ILogger<MoyasarPayoutGateway> logger,
+        IApplicationDbContext? context = null)
     {
         _httpClient = httpClient;
         _settings = settings.Value;
         _logger = logger;
+        _context = context;
 
         if (!string.IsNullOrWhiteSpace(_settings.SecretKey))
         {
@@ -41,10 +46,30 @@ public sealed class MoyasarPayoutGateway : IPayoutGateway
 
     public string ProviderName => Provider;
 
-    public bool IsEnabled =>
-        _settings.Payouts.Enabled
-        && !string.IsNullOrWhiteSpace(_settings.SecretKey)
-        && !string.IsNullOrWhiteSpace(_settings.Payouts.SourceId);
+    public bool IsEnabled
+    {
+        get
+        {
+            if (string.IsNullOrWhiteSpace(_settings.SecretKey))
+            {
+                return false;
+            }
+
+            if (_settings.Payouts.Enabled && !string.IsNullOrWhiteSpace(_settings.Payouts.SourceId))
+            {
+                return true;
+            }
+
+            return _context is not null &&
+                _context.PlatformBankAccounts
+                    .AsNoTracking()
+                    .Any(item =>
+                        item.IsActive &&
+                        item.IsMoyasarPayoutsEnabled &&
+                        item.MoyasarPayoutSourceId != null &&
+                        item.MoyasarPayoutSourceId != string.Empty);
+        }
+    }
 
     public async Task<PayoutGatewayResult> CreatePayoutAsync(CreatePayoutCommand command, CancellationToken cancellationToken)
     {
@@ -76,10 +101,11 @@ public sealed class MoyasarPayoutGateway : IPayoutGateway
         var sequenceNumber = string.IsNullOrWhiteSpace(command.SequenceNumber)
             ? BuildSequenceNumber(command.PayoutId)
             : command.SequenceNumber.Trim();
+        var sourceId = await ResolvePayoutSourceIdAsync(cancellationToken);
 
         var payload = new
         {
-            source_id = _settings.Payouts.SourceId,
+            source_id = sourceId,
             sequence_number = sequenceNumber,
             amount = CurrencyPolicy.ToMinorUnits(command.Amount, command.Currency),
             purpose = ResolvePurpose(command),
@@ -177,8 +203,36 @@ public sealed class MoyasarPayoutGateway : IPayoutGateway
     {
         if (!IsEnabled)
         {
-            throw new BusinessRuleException("PAYOUT_GATEWAY_UNAVAILABLE", "Moyasar payouts are disabled or missing required configuration.");
+            throw new BusinessRuleException("PAYOUT_GATEWAY_UNAVAILABLE", "Moyasar payouts are missing required secret key configuration.");
         }
+    }
+
+    private async Task<string> ResolvePayoutSourceIdAsync(CancellationToken cancellationToken)
+    {
+        if (_context is not null)
+        {
+            var platformSourceId = await _context.PlatformBankAccounts
+                .AsNoTracking()
+                .Where(item => item.IsActive && item.IsMoyasarPayoutsEnabled && item.MoyasarPayoutSourceId != null && item.MoyasarPayoutSourceId != "")
+                .OrderByDescending(item => item.UpdatedAtUtc)
+                .ThenByDescending(item => item.CreatedAtUtc)
+                .Select(item => item.MoyasarPayoutSourceId)
+                .FirstOrDefaultAsync(cancellationToken);
+
+            if (!string.IsNullOrWhiteSpace(platformSourceId))
+            {
+                return platformSourceId.Trim();
+            }
+        }
+
+        if (_settings.Payouts.Enabled && !string.IsNullOrWhiteSpace(_settings.Payouts.SourceId))
+        {
+            return _settings.Payouts.SourceId.Trim();
+        }
+
+        throw new BusinessRuleException(
+            "MOYASAR_PAYOUT_SOURCE_REQUIRED",
+            "Moyasar payout source id is required. Configure the platform payout account first.");
     }
 
     private string ResolvePurpose(CreatePayoutCommand command)

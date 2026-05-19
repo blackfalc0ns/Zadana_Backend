@@ -75,3 +75,32 @@ public record AdminProcessWithdrawalRequest(
     [Required] bool IsApproved,
     string? TransferReference,
     string? FailureReason);
+
+public record AdminPlatformBankAccountDto(
+    Guid? Id,
+    string BankName,
+    string AccountHolderName,
+    string Iban,
+    string? AccountNumber,
+    string CountryCode,
+    string City,
+    bool IsActive,
+    bool IsBankTransferEnabled,
+    bool IsMoyasarPayoutsEnabled,
+    string? MoyasarPayoutSourceId,
+    string? Notes,
+    DateTime? UpdatedAtUtc,
+    bool CanReceiveBankTransfers,
+    bool CanSendMoyasarPayouts);
+
+public record AdminUpsertPlatformBankAccountRequest(
+    [Required] [MaxLength(200)] string BankName,
+    [Required] [MaxLength(200)] string AccountHolderName,
+    [Required] [MaxLength(34)] string Iban,
+    [MaxLength(64)] string? AccountNumber,
+    [MaxLength(2)] string? CountryCode,
+    [MaxLength(100)] string? City,
+    bool IsBankTransferEnabled,
+    bool IsMoyasarPayoutsEnabled,
+    [MaxLength(100)] string? MoyasarPayoutSourceId,
+    [MaxLength(500)] string? Notes);

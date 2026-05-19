@@ -158,11 +158,12 @@ public class VendorUpdateOrderStatusCommandHandler : IRequestHandler<VendorUpdat
 
     private static void EnsureVendorCanActOnPayment(PaymentMethodType paymentMethod, PaymentStatus paymentStatus)
     {
-        if (paymentMethod == PaymentMethodType.Card && paymentStatus != PaymentStatus.Paid)
+        if (paymentMethod is (PaymentMethodType.Card or PaymentMethodType.BankTransfer) &&
+            paymentStatus != PaymentStatus.Paid)
         {
             throw new BusinessRuleException(
                 "ORDER_PAYMENT_NOT_CONFIRMED",
-                "Card payment must be confirmed before the vendor can process this order.");
+                "Payment must be confirmed before the vendor can process this order.");
         }
     }
 }

@@ -1,10 +1,14 @@
 using Microsoft.AspNetCore.Identity;
 using Microsoft.EntityFrameworkCore;
+using Microsoft.Extensions.Options;
+using Zadana.Application.Common.Settings;
 using Zadana.Domain.Modules.Catalog.Entities;
 using Zadana.Domain.Modules.Catalog.Enums;
 using Zadana.Domain.Modules.Identity.Constants;
 using Zadana.Domain.Modules.Identity.Entities;
 using Zadana.Domain.Modules.Identity.Enums;
+using Zadana.Domain.Modules.Wallets.Entities;
+using Zadana.Infrastructure.Settings;
 
 namespace Zadana.Infrastructure.Persistence;
 
@@ -16,15 +20,21 @@ public class ApplicationDbContextInitialiser
     private readonly ApplicationDbContext _context;
     private readonly UserManager<User> _userManager;
     private readonly RoleManager<IdentityRole<Guid>> _roleManager;
+    private readonly BankTransferSettingsOptions _bankTransferSettings;
+    private readonly MoyasarSettings _moyasarSettings;
 
     public ApplicationDbContextInitialiser(
         ApplicationDbContext context,
         UserManager<User> userManager,
-        RoleManager<IdentityRole<Guid>> roleManager)
+        RoleManager<IdentityRole<Guid>> roleManager,
+        IOptions<BankTransferSettingsOptions>? bankTransferSettings = null,
+        IOptions<MoyasarSettings>? moyasarSettings = null)
     {
         _context = context;
         _userManager = userManager;
         _roleManager = roleManager;
+        _bankTransferSettings = bankTransferSettings?.Value ?? new BankTransferSettingsOptions();
+        _moyasarSettings = moyasarSettings?.Value ?? new MoyasarSettings();
     }
 
     public async Task InitialiseAsync()
@@ -54,6 +64,45 @@ public class ApplicationDbContextInitialiser
         await SeedSuperAdminAsync();
         await SeedSuperAdminAccessScopeAsync();
         await SeedUnitsOfMeasureAsync();
+        await SeedPlatformBankAccountAsync();
+    }
+
+    private async Task SeedPlatformBankAccountAsync()
+    {
+        if (await _context.PlatformBankAccounts.AnyAsync(account => account.IsActive))
+        {
+            return;
+        }
+
+        var iban = string.IsNullOrWhiteSpace(_bankTransferSettings.Iban)
+            ? "SA0380000000608010167519"
+            : _bankTransferSettings.Iban;
+        var accountNumber = string.IsNullOrWhiteSpace(_bankTransferSettings.AccountNumber)
+            ? "608010167519"
+            : _bankTransferSettings.AccountNumber;
+        var bankName = string.IsNullOrWhiteSpace(_bankTransferSettings.BankName)
+            ? "Test Bank"
+            : _bankTransferSettings.BankName;
+        var accountHolderName = string.IsNullOrWhiteSpace(_bankTransferSettings.AccountHolderName)
+            ? "Zadana Test Account"
+            : _bankTransferSettings.AccountHolderName;
+
+        var enableMoyasarPayouts = _moyasarSettings.Payouts.Enabled &&
+            !string.IsNullOrWhiteSpace(_moyasarSettings.Payouts.SourceId);
+
+        _context.PlatformBankAccounts.Add(new PlatformBankAccount(
+            bankName,
+            accountHolderName,
+            iban,
+            accountNumber,
+            _moyasarSettings.Payouts.DefaultCountry,
+            _moyasarSettings.Payouts.DefaultCity,
+            isBankTransferEnabled: true,
+            isMoyasarPayoutsEnabled: enableMoyasarPayouts,
+            moyasarPayoutSourceId: enableMoyasarPayouts ? _moyasarSettings.Payouts.SourceId : null,
+            notes: "Seeded testing platform bank account."));
+
+        await _context.SaveChangesAsync();
     }
 
     private async Task SeedUnitsOfMeasureAsync()

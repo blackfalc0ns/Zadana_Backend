@@ -248,6 +248,40 @@ public class VendorUpdateOrderStatusCommandHandlerTests
             .Where(exception => exception.ErrorCode == "ORDER_PAYMENT_NOT_CONFIRMED");
     }
 
+    [Fact]
+    public async Task Handle_WhenBankTransferPaymentIsNotConfirmed_ShouldRejectVendorAction()
+    {
+        await using var dbContext = CreateDbContext();
+        var customer = CreateCustomer();
+        var vendorId = Guid.NewGuid();
+        var order = CreateOrder(
+            customer.Id,
+            vendorId,
+            OrderStatus.PendingVendorAcceptance,
+            "ORD-UNPAID-BANK",
+            markPaid: false,
+            paymentMethod: PaymentMethodType.BankTransfer);
+
+        dbContext.Users.Add(customer);
+        dbContext.Orders.Add(order);
+        await dbContext.SaveChangesAsync();
+
+        var handler = new VendorUpdateOrderStatusCommandHandler(
+            dbContext,
+            dbContext,
+            Mock.Of<IPublisher>(),
+            Mock.Of<IOrderStatusNotificationDispatcher>(),
+            Mock.Of<IDeliveryDispatchService>());
+
+        Func<Task> act = async () => await handler.Handle(
+            new VendorUpdateOrderStatusCommand(order.Id, vendorId, OrderStatus.Accepted, "vendor accepted"),
+            CancellationToken.None);
+
+        await act.Should()
+            .ThrowAsync<BusinessRuleException>()
+            .Where(exception => exception.ErrorCode == "ORDER_PAYMENT_NOT_CONFIRMED");
+    }
+
     private static ApplicationDbContext CreateDbContext()
     {
         var options = new DbContextOptionsBuilder<ApplicationDbContext>()
@@ -260,9 +294,15 @@ public class VendorUpdateOrderStatusCommandHandlerTests
     private static User CreateCustomer() =>
         new("Customer User", "customer.vendorstatus@test.com", "01000000111", UserRole.Customer);
 
-    private static Order CreateOrder(Guid userId, Guid vendorId, OrderStatus status, string orderNumber, bool markPaid = true)
+    private static Order CreateOrder(
+        Guid userId,
+        Guid vendorId,
+        OrderStatus status,
+        string orderNumber,
+        bool markPaid = true,
+        PaymentMethodType paymentMethod = PaymentMethodType.Card)
     {
-        var order = new Order(orderNumber, userId, vendorId, Guid.NewGuid(), PaymentMethodType.Card, 120m, 0m, 15m, 15m, 0m, 0m, null, null, null, 0m, 0m, 0m, 0m, null, null, false, null, null, null, null, 1, false, 5m);
+        var order = new Order(orderNumber, userId, vendorId, Guid.NewGuid(), paymentMethod, 120m, 0m, 15m, 15m, 0m, 0m, null, null, null, 0m, 0m, 0m, 0m, null, null, false, null, null, null, null, 1, false, 5m);
         order.Items.Add(new OrderItem(order.Id, Guid.NewGuid(), Guid.NewGuid(), "Status Item", 1, 120m));
 
         if (status != OrderStatus.PendingPayment)

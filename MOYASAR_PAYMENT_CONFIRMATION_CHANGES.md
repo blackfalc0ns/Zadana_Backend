@@ -93,6 +93,103 @@ Body:
 
 الهدف: حتى لو حصل race condition أو status اتقدمت بالغلط، fulfillment عند التاجر لا يبدأ قبل تأكيد الدفع من Zadana.
 
+## Automatic Bank Transfer برقم الحساب
+
+تم تعديل فلو `payment_method = bank` ليكون جاهزا للتأكيد التلقائي بدل رفع إثبات يدوي فقط.
+
+### إعدادات السيرفر
+
+أضف بيانات حساب المنصة في `BankTransfer`:
+
+```json
+{
+  "BankTransfer": {
+    "Enabled": true,
+    "ProviderName": "BankTransfer",
+    "BankName": "Your Bank",
+    "AccountHolderName": "Zadana Platform",
+    "Iban": "SA...",
+    "AccountNumber": "...",
+    "WebhookSecret": "secret-from-bank-provider",
+    "ExpirationMinutes": 1440
+  }
+}
+```
+
+### إنشاء طلب bank
+
+عند إنشاء طلب بطريقة `bank`، الطلب يظل:
+
+```json
+{
+  "status": "pending",
+  "payment_status": "pending"
+}
+```
+
+وفي قاعدة البيانات يكون `OrderStatus = PendingBankConfirmation`، ولا يظهر للتاجر.
+
+Response يحتوي `payment.provider_config` لعرض بيانات التحويل للعميل:
+
+```json
+{
+  "payment": {
+    "provider": "banktransfer",
+    "status": "pending",
+    "iframe_url": "ShowBankTransferInstructions",
+    "provider_reference": "ZDN...",
+    "provider_config": {
+      "bankName": "Your Bank",
+      "accountHolderName": "Zadana Platform",
+      "iban": "SA...",
+      "accountNumber": "...",
+      "reference": "ZDN...",
+      "amount": 125.0,
+      "currency": "SAR",
+      "expiresAtUtc": "2026-05-20T10:00:00Z",
+      "webhookDriven": true
+    }
+  }
+}
+```
+
+### تأكيد التحويل تلقائيا
+
+مزود البنك أو Virtual IBAN provider يستدعي:
+
+```http
+POST /api/payments/bank-transfer/webhook
+X-BankTransfer-Secret: <BankTransfer:WebhookSecret>
+Content-Type: application/json
+```
+
+```json
+{
+  "reference": "ZDN...",
+  "transactionId": "bank-transaction-id",
+  "amount": 125.0,
+  "currency": "SAR",
+  "status": "paid",
+  "paidAtUtc": "2026-05-19T10:10:00Z"
+}
+```
+
+الحالات المقبولة كنجاح:
+
+- `paid`
+- `settled`
+- `confirmed`
+- `completed`
+
+بعد webhook ناجح:
+
+- `PaymentStatus = Paid`
+- `OrderStatus = PendingVendorAcceptance`
+- يتم posting للـ ledger
+- يتبعت الطلب للتاجر
+
+ملاحظة مهمة: هذا الفلو جاهز لاستقبال webhook من مزود حقيقي. لا يوجد خصم تلقائي من حساب العميل بمجرد كتابة رقم الحساب؛ لازم بنك أو مزود Virtual IBAN/Open Banking يرسل إشعار التحويل الوارد.
+
 ## Flow الموبايل المطلوب
 
 ### 1. إنشاء الطلب
