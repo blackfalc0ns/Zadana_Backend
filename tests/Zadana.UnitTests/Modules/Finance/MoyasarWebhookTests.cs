@@ -1,4 +1,5 @@
 using FluentAssertions;
+using System.Text.Json;
 using Zadana.Api.Modules.Payments.Controllers;
 using Zadana.Application.Modules.Payments.Commands.ProcessPaymentWebhook;
 using Zadana.Domain.Modules.Payments.Enums;
@@ -75,10 +76,24 @@ public class MoyasarWebhookTests
 
         result.Message.Should().Be("queued");
         result.Status.Should().Be("received");
+        result.ProviderPaymentId.Should().Be(providerPaymentId);
 
         var inbox = context.PaymentProviderEvents.Single();
         inbox.ProviderPaymentId.Should().Be(providerPaymentId);
         inbox.Status.Should().Be(PaymentProviderEventStatus.Received);
         inbox.ProcessingAttempts.Should().Be(0);
+    }
+
+    [Theory]
+    [InlineData("""{ "id": "pay_123" }""")]
+    [InlineData("""{ "provider_payment_id": "pay_123" }""")]
+    [InlineData("""{ "providerPaymentId": "pay_123" }""")]
+    public void ConfirmPaymentRequest_ResolvesProviderPaymentIdAliases(string json)
+    {
+        var request = JsonSerializer.Deserialize<MoyasarConfirmPaymentRequest>(
+            json,
+            new JsonSerializerOptions(JsonSerializerDefaults.Web));
+
+        request!.EffectiveProviderPaymentId.Should().Be("pay_123");
     }
 }

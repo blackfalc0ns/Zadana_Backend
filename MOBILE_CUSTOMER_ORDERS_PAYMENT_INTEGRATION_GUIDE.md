@@ -1,584 +1,444 @@
-# Mobile Customer Orders & Payment Integration Guide
+# دليل ربط تطبيق العميل مع الدفع عبر Moyasar
 
-هذا الملف مخصص لمبرمج الموبايل لدمج شاشة الطلبات والدفع والإلغاء والحذف بشكل واضح وعملي مع الباك الحالي.
+آخر تحديث: 2026-05-19
 
-## الهدف
+هذا الملف هو المرجع الحالي لتطبيق العميل بعد إزالة منطق Paymob من مسار الدفع. الربط الآن يعتمد على Moyasar فقط للطلبات المدفوعة بالبطاقة، مع بقاء الكاش والتحويل البنكي كما هما.
 
-هذا الدليل يغطي:
+## الخلاصة
 
-- عرض طلبات المستخدم
-- التعامل مع الطلبات التي لم يكتمل دفعها
-- `Retry Payment`
-- `Delete Order`
-- `Cancel Order`
-- `Cancellation Reasons`
-- كيف يحدد التطبيق أي زر يظهر للمستخدم
+- لا تستخدم أي endpoint أو iframe خاص بـ Paymob.
+- لا تفتح `payment.iframe_url` كرابط. في الربط الحالي قيمته تكون `RenderMoyasarForm` كإشارة للتطبيق أن يرسم نموذج Moyasar.
+- اقرأ إعدادات Moyasar من `payment.provider_config` القادمة من الباك إند.
+- التطبيق يستخدم `publishableKey` فقط. أي `SecretKey` أو `WebhookSecret` يظل على السيرفر فقط.
+- لا تعتبر الطلب مدفوعا إلا بعد تأكيد الباك إند، ثم اعمل refresh للطلب.
 
-## قاعدة العمل الأساسية
+## مصادر Moyasar الرسمية
 
-### 1. الطلب الأونلاين لا يظهر للتاجر قبل نجاح الدفع
+- Card Payment Basic Integration: https://docs.moyasar.com/guides/card-payments/basic-integration/
+- Form Configuration: https://docs.moyasar.com/guides/references/form-configuration/
+- API Authentication: https://docs.moyasar.com/api/authentication/
+- Webhooks: https://docs.moyasar.com/guides/dashboard/setting-up-webhooks/
 
-لو الطلب `Card` ولم يكتمل الدفع:
+المهم من المصادر:
 
-- يظل الطلب في `PendingPayment`
-- لا يظهر للتاجر
-- لا يصل للتاجر كـ new order
+- Moyasar Form يحتاج `publishable_api_key`, `amount`, `currency`, `description`, `callback_url`, `methods`.
+- `amount` يكون بالوحدة الصغيرة للعملة، يعني `125 SAR` ترسل `12500`.
+- بعد الدفع يرجع Moyasar إلى `callback_url` ويضيف `id` الخاص بالدفع.
+- الباك إند فقط هو الذي يجلب الدفع من Moyasar ويتأكد من `status`, `amount`, `currency`, و `metadata`.
+- Webhook endpoint يجب أن يكون HTTPS ومعه Secret Token.
 
-بعد نجاح الدفع فقط:
+## ملفات الباك إند المرتبطة
 
-- يتحول إلى `PendingVendorAcceptance`
-- يبدأ يظهر للتاجر
+- `src/Zadana.Api/Modules/Orders/Controllers/OrdersController.cs`
+- `src/Zadana.Api/Modules/Payments/Controllers/MoyasarPaymentsController.cs`
+- `src/Zadana.Application/Modules/Checkout/Commands/PlaceCheckoutOrder/PlaceCheckoutOrderCommand.cs`
+- `src/Zadana.Application/Modules/Payments/Commands/RetryCardPayment/RetryCardPaymentCommand.cs`
+- `src/Zadana.Infrastructure/Services/Payments/MoyasarPaymentGateway.cs`
+- `src/Zadana.Infrastructure/Settings/MoyasarSettings.cs`
 
-### 2. عند المستخدم توجد 3 أفعال مختلفة
+## إعدادات السيرفر
 
-- `Retry Payment`
-  فقط عندما يكون الطلب `Card` وما زال في `PendingPayment`
-- `Delete Order`
-  فقط عندما يكون الطلب غير مدفوع وما زال في `PendingPayment`
-- `Cancel Order`
-  فقط بعد خروج الطلب من `PendingPayment` وقبل الوصول إلى `ReadyForPickup`
-
-## Base Rules For Mobile
-
-التطبيق لا يجب أن يستنتج المنطق من الحالة وحدها.
-
-اعتمد على الفلاجس القادمة من الباك:
-
-- `can_retry_payment`
-- `can_delete`
-- `can_cancel`
-
-### عرض الأزرار
-
-- لو `can_retry_payment = true` اعرض زر `إعادة محاولة الدفع`
-- لو `can_delete = true` اعرض زر `حذف الطلب`
-- لو `can_cancel = true` اعرض زر `إلغاء الطلب`
-
-إذا كانت القيمة `false` لا تعرض الزر.
-
-## Auth & Headers
-
-كل endpoints الخاصة بالعميل تحتاج:
-
-- `Authorization: Bearer <token>`
-
-وعند إنشاء الطلب أو تأكيد الدفع أو إعادة المحاولة يفضل الاستمرار على:
-
-- `X-Device-Id: <device-id>`
-
-خصوصًا في flows المرتبطة بالكارت وPaymob.
-
-## Main Endpoints
-
-### 1. Get Active Orders
-
-`GET /api/orders/active`
-
-### 2. Get Completed Orders
-
-`GET /api/orders/completed`
-
-### 3. Get Return Orders
-
-`GET /api/orders/returns`
-
-### 4. Get Order Details
-
-`GET /api/orders/{orderId}`
-
-### 5. Retry Payment
-
-`POST /api/orders/{orderId}/retry-payment`
-
-يعيد فتح Paymob session جديدة لنفس الطلب.
-
-### 6. Delete Unpaid Pending Order
-
-`DELETE /api/orders/{orderId}`
-
-يحذف الطلب نهائيًا فقط إذا كان:
-
-- `PendingPayment`
-- غير مدفوع
-- لم يصل للتاجر
-
-### 7. Cancel Order
-
-`POST /api/orders/{orderId}/cancel`
-
-### 8. Get Cancellation Reasons
-
-`GET /api/orders/cancellation-reasons`
-
-يعيد قائمة الأسباب الجاهزة لاستخدامها في bottom sheet أو modal الإلغاء.
-
-## Order Response Fields Important For Mobile
-
-هذه الحقول مهمة جدًا في:
-
-- `GET /api/orders/active`
-- `GET /api/orders/{orderId}`
-
-### Fields
-
-- `status`
-- `payment_status`
-- `payment_method`
-- `can_retry_payment`
-- `can_delete`
-- `can_cancel`
-
-### Example
+القسم المستخدم في `appsettings`:
 
 ```json
 {
-  "id": "11111111-1111-1111-1111-111111111111",
-  "created_at": "2026-04-21T10:00:00Z",
-  "total_price": 125.0,
-  "status": "pending",
-  "payment_status": "pending",
-  "payment_method": "card",
-  "can_retry_payment": true,
-  "can_delete": true,
-  "can_cancel": false,
-  "items_count": 2,
-  "items": [
-    {
-      "id": "22222222-2222-2222-2222-222222222222",
-      "name": "Brake Pads",
-      "quantity": 1,
-      "price": 125.0
-    }
-  ]
+  "Moyasar": {
+    "Enabled": true,
+    "BaseUrl": "https://api.moyasar.com/v1/",
+    "PublishableKey": "pk_live_or_test",
+    "SecretKey": "sk_live_or_test",
+    "WebhookSecret": "secret-from-moyasar-dashboard",
+    "CallbackUrl": "https://your-api.com/api/payments/moyasar/verify",
+    "EnabledMethods": ["creditcard"],
+    "SupportedNetworks": ["mada", "visa", "mastercard"],
+    "Currency": "SAR"
+  }
 }
 ```
 
-## Meanings Of Order Fields
+في الإنتاج يفضل تمرير القيم من environment variables أو user secrets:
 
-### `status`
+- `Moyasar__Enabled=true`
+- `Moyasar__PublishableKey=...`
+- `Moyasar__SecretKey=...`
+- `Moyasar__WebhookSecret=...`
+- `Moyasar__CallbackUrl=https://your-api.com/api/payments/moyasar/verify`
 
-القيمة المعروضة للموبايل هي status مبسط:
+## Endpoints التي يستخدمها تطبيق العميل
 
-- `pending`
-- `processing`
-- `delivered`
-- `returning`
-- `cancelled`
+كل endpoints الخاصة بالعميل تحتاج:
 
-### `payment_status`
+```http
+Authorization: Bearer <token>
+X-Device-Id: <stable-device-id>
+Accept-Language: ar
+```
 
-- `pending`
-- `paid`
-- `failed`
+`X-Device-Id` مهم في الدفع لأن الباك إند يستخدمه في تنظيف الكارت بعد تأكيد الدفع.
 
-### `payment_method`
+### 1. ملخص الدفع
 
-- `card`
-- `cash`
-- `bank`
+```http
+GET /api/checkout/summary?payment_method=card
+```
 
-## Button Decision Matrix
+استخدمه قبل إتمام الطلب للتأكد أن `card` متاح داخل `payment_methods`.
 
-### Case A: Pending unpaid card order
+### 2. إنشاء طلب بطاقة
 
-غالبًا:
+```http
+POST /api/orders
+```
 
-- `status = pending`
-- `payment_status = pending` أو `failed`
-- `payment_method = card`
-- `can_retry_payment = true`
-- `can_delete = true`
-- `can_cancel = false`
+Body:
 
-الموبايل يعرض:
+```json
+{
+  "vendor_id": "11111111-1111-1111-1111-111111111111",
+  "address_id": "22222222-2222-2222-2222-222222222222",
+  "delivery_slot_id": "asap",
+  "payment_method": "card",
+  "promo_code": null,
+  "notes": null
+}
+```
 
-- `Retry Payment`
-- `Delete Order`
+Response عند الدفع بالبطاقة:
 
-ولا يعرض:
+```json
+{
+  "message": "تم إنشاء الطلب بنجاح",
+  "order": {
+    "id": "33333333-3333-3333-3333-333333333333",
+    "created_at": "2026-05-19T10:00:00Z",
+    "status": "pending_payment",
+    "payment_method": "card",
+    "payment_status": "pending",
+    "total_price": 125.0
+  },
+  "payment": {
+    "id": "44444444-4444-4444-4444-444444444444",
+    "provider": "moyasar",
+    "status": "pending",
+    "iframe_url": "RenderMoyasarForm",
+    "provider_reference": "",
+    "provider_config": {
+      "publishableKey": "pk_test_or_live",
+      "amount": 12500,
+      "currency": "SAR",
+      "description": "Order ORD-000001",
+      "callbackUrl": "https://your-api.com/api/payments/moyasar/verify",
+      "methods": ["creditcard"],
+      "supportedNetworks": ["mada", "visa", "mastercard"],
+      "metadata": {
+        "order_id": "33333333-3333-3333-3333-333333333333",
+        "payment_id": "44444444-4444-4444-4444-444444444444",
+        "order_number": "ORD-000001"
+      }
+    }
+  }
+}
+```
 
-- `Cancel Order`
+### 3. Retry Payment
 
-### Case B: Paid order waiting vendor response
+```http
+POST /api/orders/{orderId}/retry-payment
+```
 
-غالبًا:
+استخدمه فقط عندما يرجع الطلب:
 
-- `status = processing`
-- `payment_status = paid`
-- `can_retry_payment = false`
-- `can_delete = false`
-- `can_cancel = true`
+```json
+{
+  "can_retry_payment": true
+}
+```
 
-الموبايل يعرض:
-
-- `Cancel Order`
-
-### Case C: Order in preparing
-
-- `can_cancel = true`
-
-### Case D: Order reached ready for pickup or later
-
-- `can_cancel = false`
-
-لا تعرض زر الإلغاء.
-
-## Retry Payment Flow
-
-### When To Call
-
-استدعِ:
-
-`POST /api/orders/{orderId}/retry-payment`
-
-فقط إذا:
-
-- `can_retry_payment = true`
-
-### Response Example
+Response نفس شكل `payment` في إنشاء الطلب:
 
 ```json
 {
   "message": "payment retry session created successfully",
   "payment": {
-    "id": "33333333-3333-3333-3333-333333333333",
-    "provider": "paymob",
+    "id": "55555555-5555-5555-5555-555555555555",
+    "provider": "moyasar",
     "status": "pending",
-    "iframe_url": "https://accept.paymob.com/api/acceptance/iframes/xxx?payment_token=yyy",
-    "provider_reference": "provider-ref-123"
+    "iframe_url": "RenderMoyasarForm",
+    "provider_reference": "",
+    "provider_config": {
+      "publishableKey": "pk_test_or_live",
+      "amount": 12500,
+      "currency": "SAR",
+      "description": "Order ORD-000001",
+      "callbackUrl": "https://your-api.com/api/payments/moyasar/verify",
+      "methods": ["creditcard"],
+      "supportedNetworks": ["mada", "visa", "mastercard"],
+      "metadata": {
+        "order_id": "33333333-3333-3333-3333-333333333333",
+        "payment_id": "55555555-5555-5555-5555-555555555555",
+        "order_number": "ORD-000001",
+        "retry_of": "44444444-4444-4444-4444-444444444444"
+      }
+    }
   }
 }
 ```
 
-### Mobile Behavior
+## Rendering Moyasar Form داخل التطبيق
 
-بعد نجاح الـ endpoint:
+لا تمرر `provider_config` كما هو مباشرة إلى `Moyasar.init` لأن الباك إند يرجعه بصيغة camelCase، بينما Moyasar Form يستخدم بعض المفاتيح بصيغة snake_case.
 
-1. افتح `iframe_url`
-2. أكمل Paymob flow
-3. بعد الرجوع من الدفع:
-   اعمل refresh للطلب أو لقائمة الطلبات
+استخدم هذا mapping:
 
-### Frontend Responsibility In Retry Payment
+| Backend field | Moyasar field |
+| --- | --- |
+| `publishableKey` | `publishable_api_key` |
+| `callbackUrl` | `callback_url` |
+| `supportedNetworks` | `supported_networks` |
+| `amount` | `amount` |
+| `currency` | `currency` |
+| `description` | `description` |
+| `methods` | `methods` |
+| `metadata` | `metadata` |
 
-الفرونت **لا ينشئ** رابط الدفع، ولا يكون مسؤولًا عن تكوين token أو iframe path.
+HTML مناسب للـ WebView:
 
-مسؤولية الفرونت هنا فقط:
+```html
+<!doctype html>
+<html lang="ar" dir="rtl">
+<head>
+  <meta charset="utf-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1" />
+  <link rel="stylesheet" href="https://cdn.moyasar.com/mpf/1.15.0/moyasar.css" />
+  <script src="https://cdn.moyasar.com/mpf/1.15.0/moyasar.js"></script>
+</head>
+<body>
+  <div class="mysr-form"></div>
+  <script>
+    const cfg = window.__ZADANA_MOYASAR_CONFIG__;
 
-1. يقرأ `payment.iframe_url` من response
-2. يفتح الرابط داخل:
-   - `WebView`
-   - أو browser/custom tab حسب قرار التطبيق
-3. يراقب الرجوع من شاشة الدفع أو success callback/deep link
-4. بعد الرجوع يعمل:
-   - `GET /api/orders/{orderId}`
-   - أو `GET /api/orders/active`
-5. يحدّث الـ UI حسب القيم الجديدة القادمة من الباك:
-   - `payment_status`
-   - `can_retry_payment`
-   - `can_delete`
-   - `can_cancel`
+    function notifyNativePaymentId(providerPaymentId, source) {
+      if (!providerPaymentId) return;
 
-### What Frontend Should Not Do
+      const message = JSON.stringify({
+        type: 'moyasar_provider_payment_id',
+        providerPaymentId,
+        source
+      });
 
-- لا ينشئ payment link محليًا
-- لا يخزّن منطق تكوين Paymob URL داخل التطبيق
-- لا يفترض نجاح الدفع بمجرد فتح `iframe_url`
-- لا يغير حالة الطلب محليًا بدون refresh من الباك
+      window.ReactNativeWebView?.postMessage(message);
+      window.webkit?.messageHandlers?.moyasar?.postMessage(message);
+    }
 
-### Recommended Mobile UX
+    Moyasar.init({
+      element: '.mysr-form',
+      amount: cfg.amount,
+      currency: cfg.currency,
+      description: cfg.description,
+      publishable_api_key: cfg.publishableKey,
+      callback_url: cfg.callbackUrl,
+      supported_networks: cfg.supportedNetworks,
+      methods: cfg.methods,
+      metadata: cfg.metadata,
+      language: 'ar',
+      on_completed: async function (payment) {
+        window.__ZADANA_MOYASAR_PAYMENT_ID__ = payment.id;
+        notifyNativePaymentId(payment.id, 'on_completed');
+        // احفظ payment.id محليا للتشخيص فقط.
+        // لا تغير حالة الطلب إلى paid من التطبيق.
+      },
+      on_failure: function (error) {
+        // اعرض رسالة فشل مناسبة ثم اسمح للمستخدم بالمحاولة مرة أخرى.
+      }
+    });
+  </script>
+</body>
+</html>
+```
 
-- عند الضغط على `Retry Payment`:
-  - اعرض loading
-  - استدعِ `POST /api/orders/{orderId}/retry-payment`
-  - لو رجع `iframe_url` افتح شاشة الدفع مباشرة
-- لو فشل الـ endpoint:
-  - اعرض رسالة الخطأ القادمة من الباك
-- بعد إغلاق شاشة الدفع أو الرجوع منها:
-  - اعرض loading قصير
-  - أعد جلب الطلب
-  - لو `payment_status = paid` أخفِ `Retry Payment` و`Delete Order`
-  - لو `payment_status = failed` و`can_retry_payment = true` أظهر `Retry Payment` مرة أخرى
+## تأكيد الدفع مع الباك إند
 
-### Important
+قيمة Moyasar `payment.id` هي provider payment id. هذه ليست نفس قيمة Zadana `payment.id` الموجودة في response إنشاء الطلب.
 
-هذا الـ retry:
+التطبيق يجب أن يستدعي Zadana بعد وصول الـ WebView إلى `callbackUrl`. ويمكنه أيضا استدعاء نفس endpoint باستخدام id المحفوظ من `on_completed(payment)` لو المستخدم أغلق WebView قبل اكتمال callback:
 
-- لا ينشئ order جديد
-- يعمل على نفس `orderId`
-
-## Delete Order Flow
-
-### When To Call
-
-استدعِ:
-
-`DELETE /api/orders/{orderId}`
-
-فقط إذا:
-
-- `can_delete = true`
-
-### Response Example
+```http
+POST /api/payments/moyasar/confirm
+Content-Type: application/json
+X-Device-Id: <same-device-id-used-for-checkout>
+```
 
 ```json
 {
-  "message": "order deleted successfully",
-  "order_id": "11111111-1111-1111-1111-111111111111",
-  "deleted": true
+  "id": "<moyasar_payment_id>"
 }
 ```
 
-### Mobile Behavior
+الحقول المقبولة في body هي `id` أو `provider_payment_id` أو `providerPaymentId`.
 
-بعد النجاح:
+قواعد مهمة:
 
-- احذف الطلب من القائمة المحلية
-- أو اعمل refetch لقائمة `active`
+- `on_completed(payment)` ممكن يحصل قبل نتيجة 3DS/callback النهائية، لذلك response التأكيد قد يظل `pending`.
+- استدعِ confirm مرة أخرى بعد أن يحتوي callback navigation على `?id=<moyasar_payment_id>`، أو عند إغلاق WebView ومعك id محفوظ.
+- لا تعرض نجاح الدفع إلا عندما يرجع الباك إند `"paymentStatus": "paid"`.
+- بعد confirm اعمل refresh باستخدام `GET /api/orders/{orderId}` أو `GET /api/orders/active`.
 
-## Cancel Order Flow
+لو التطبيق Flutter أو React Native:
 
-### Step 1: Load reasons
+1. ابن صفحة HTML محلية أو route داخل WebView.
+2. ضع `provider_config` داخل `window.__ZADANA_MOYASAR_CONFIG__`.
+3. افتح WebView.
+4. راقب navigation إلى `callbackUrl`.
+5. عند ظهور `.../api/payments/moyasar/verify?id=<moyasar_payment_id>` أغلق شاشة الدفع أو اتركها تكمل ثم اعمل refresh من الباك إند.
 
-استدعِ:
+## ماذا يحدث بعد callback
 
-`GET /api/orders/cancellation-reasons`
+Moyasar يرجع إلى:
 
-### Response Example
-
-```json
-[
-  {
-    "code": "changed_my_mind",
-    "label_ar": "غيرت رأيي",
-    "label_en": "Changed my mind",
-    "requires_note": false
-  },
-  {
-    "code": "ordered_by_mistake",
-    "label_ar": "طلبت بالخطأ",
-    "label_en": "Ordered by mistake",
-    "requires_note": false
-  },
-  {
-    "code": "price_too_high",
-    "label_ar": "السعر مرتفع",
-    "label_en": "Price is too high",
-    "requires_note": false
-  },
-  {
-    "code": "want_to_modify_order",
-    "label_ar": "أريد تعديل الطلب",
-    "label_en": "I want to modify the order",
-    "requires_note": false
-  },
-  {
-    "code": "address_not_suitable",
-    "label_ar": "العنوان غير مناسب",
-    "label_en": "Address is not suitable",
-    "requires_note": false
-  },
-  {
-    "code": "other",
-    "label_ar": "أخرى",
-    "label_en": "Other",
-    "requires_note": true
-  }
-]
+```http
+GET /api/payments/moyasar/verify?id=<moyasar_payment_id>
 ```
 
-### Step 2: Submit cancel
+هذا endpoint لا يحتاج token لأنه callback عام. الباك إند:
 
-استدعِ:
+1. يجلب الدفع من Moyasar باستخدام `SecretKey`.
+2. يتأكد من `amount` و `currency`.
+3. يتأكد من `metadata.order_id`.
+4. لو الحالة paid/captured:
+   - يجعل `PaymentStatus = Paid`
+   - ينقل الطلب إلى `PendingVendorAcceptance`
+   - ينظف الكارت
+   - يرسل إشعار للتاجر والعميل
+5. لو الحالة failed/voided:
+   - يجعل محاولة الدفع فاشلة
+   - يظل الطلب قابل للـ retry/delete حسب flags الباك إند
 
-`POST /api/orders/{orderId}/cancel`
-
-### Request Example With Predefined Reason
+Response المتوقع:
 
 ```json
 {
-  "reason_code": "changed_my_mind",
-  "note": null
+  "message": "Payment confirmed successfully",
+  "paymentId": "44444444-4444-4444-4444-444444444444",
+  "paymentStatus": "paid",
+  "userId": "66666666-6666-6666-6666-666666666666",
+  "orderId": "33333333-3333-3333-3333-333333333333",
+  "orderStatus": "pending_vendor_acceptance",
+  "alreadyConfirmed": false
 }
 ```
 
-### Request Example With Other
+بعد أي callback أو إغلاق WebView، التطبيق يستدعي:
+
+```http
+GET /api/orders/{orderId}
+```
+
+أو:
+
+```http
+GET /api/orders/active
+```
+
+ثم يحدث الواجهة بناء على القيم القادمة من السيرفر.
+
+## Webhook الخاص بميسر
+
+لا يستخدمه تطبيق العميل مباشرة.
+
+إعداد Moyasar Dashboard:
+
+- Endpoint: `https://your-api.com/api/payments/moyasar/webhook`
+- HTTP Method: `POST`
+- Secret Token: نفس قيمة `Moyasar:WebhookSecret`
+- Events مفضلة:
+  - `payment_paid`
+  - `payment_faild`
+  - `payment_refunded`
+  - `payment_voided`
+  - `payment_authorized`
+  - `payment_captured`
+  - `payment_verified`
+
+الباك إند يسجل الـ webhook في `PaymentProviderEventInbox` ثم worker يؤكد الدفع بشكل idempotent.
+
+## قواعد واجهة الطلبات
+
+اعتمد على flags من الباك إند ولا تستنتج من status فقط:
+
+- `can_retry_payment`
+- `can_delete`
+- `can_cancel`
+
+### طلب بطاقة لم يتم دفعه
+
+غالبا:
 
 ```json
 {
-  "reason_code": "other",
-  "note": "أحتاج تغيير المدينة والعنوان بالكامل"
+  "status": "pending",
+  "payment_status": "pending",
+  "payment_method": "card",
+  "can_retry_payment": true,
+  "can_delete": true,
+  "can_cancel": false
 }
 ```
 
-### Backward Compatibility
+اعرض:
 
-الباك ما زال يقبل `reason` النصي كحل fallback:
+- إعادة محاولة الدفع
+- حذف الطلب
+
+لا تعرض:
+
+- إلغاء الطلب
+
+### طلب تم دفعه وينتظر التاجر
+
+غالبا:
 
 ```json
 {
-  "reason": "Custom reason from legacy client",
-  "note": null
+  "status": "processing",
+  "payment_status": "paid",
+  "payment_method": "card",
+  "can_retry_payment": false,
+  "can_delete": false,
+  "can_cancel": true
 }
 ```
 
-لكن للموبايل الجديد يفضل دائمًا استخدام:
+اعرض إلغاء الطلب فقط لو `can_cancel = true`.
 
-- `reason_code`
-- `note`
+## ممنوعات مهمة
 
-### Response Example
+- ممنوع استخدام `/api/payments/paymob/*`.
+- ممنوع فتح `accept.paymob.com`.
+- ممنوع تكوين payment token داخل التطبيق.
+- ممنوع إرسال بيانات البطاقة إلى الباك إند.
+- ممنوع تخزين `SecretKey` أو `WebhookSecret` داخل التطبيق.
+- ممنوع اعتبار `on_completed` نجاح نهائي. النجاح النهائي يأتي من refresh بعد تأكيد الباك إند.
+- ممنوع إنشاء order جديد عند retry. استخدم نفس `orderId`.
 
-```json
-{
-  "message": "order cancelled successfully",
-  "order": {
-    "id": "11111111-1111-1111-1111-111111111111",
-    "status": "cancelled"
-  }
-}
-```
+## أخطاء متوقعة
 
-## Validation Rules For Cancel
+| Code | المعنى | تصرف التطبيق |
+| --- | --- | --- |
+| `PAYMENT_UNAVAILABLE` | Moyasar غير مفعل أو مفاتيحه ناقصة | اعرض رسالة وحافظ على الطلب |
+| `PAYMENT_METHOD_NOT_SUPPORTED` | طريقة دفع غير مدعومة حاليا | ارجع لاختيار طريقة دفع أخرى |
+| `ORDER_PAYMENT_RETRY_NOT_ALLOWED` | الطلب لم يعد يقبل retry | اعمل refresh واخفي الزر |
+| `ORDER_ALREADY_PAID` | الدفع مؤكد بالفعل | اعمل refresh واخفي retry/delete |
+| `PAYMENT_AMOUNT_MISMATCH` | مبلغ Moyasar لا يطابق الطلب | اعرض خطأ عام وبلغ الدعم |
+| `PAYMENT_ORDER_MISMATCH` | metadata لا تطابق الطلب | اعرض خطأ عام وبلغ الدعم |
 
-### Allowed
+## Acceptance checklist
 
-الإلغاء مسموح فقط عندما:
-
-- `can_cancel = true`
-
-عمليًا قبل الوصول إلى:
-
-- `ReadyForPickup`
-
-### Not Allowed
-
-إذا الطلب وصل إلى:
-
-- `ReadyForPickup`
-- `DriverAssigned`
-- `PickedUp`
-- `OnTheWay`
-- `Delivered`
-
-فلا تعرض زر الإلغاء.
-
-### For `other`
-
-إذا:
-
-- `reason_code = other`
-
-فيجب إرسال:
-
-- `note`
-
-ولو لم يتم إرسالها، سيُرفض الطلب من الباك.
-
-## Suggested Mobile UX
-
-### In orders list
-
-- اعرض CTA حسب الفلاجس
-- لا تعتمد فقط على `status`
-
-### In order details
-
-- لو `payment_status = failed` و`can_retry_payment = true`
-  اعرض banner أو card فيها:
-  - `فشل الدفع`
-  - `إعادة المحاولة`
-  - `حذف الطلب`
-
-### In cancel modal / bottom sheet
-
-- حمّل الأسباب من `cancellation-reasons`
-- اعرض radio list
-- لو `requires_note = true`
-  فعّل textarea وأجعلها required
-
-## Expected Common Errors
-
-### Retry payment
-
-- `ORDER_PAYMENT_RETRY_NOT_ALLOWED`
-- `ORDER_ALREADY_PAID`
-- `PAYMENT_UNAVAILABLE`
-
-### Delete order
-
-- `ORDER_DELETE_NOT_ALLOWED`
-- `ORDER_ALREADY_PAID`
-- `ORDER_NOT_PENDING_PAYMENT`
-
-### Cancel order
-
-- `ORDER_CANNOT_BE_CANCELLED`
-
-## Recommended Client-Side Handling
-
-### On `ORDER_PAYMENT_RETRY_NOT_ALLOWED`
-
-- اعمل refresh للطلب
-- أخفِ زر retry
-
-### On `ORDER_DELETE_NOT_ALLOWED`
-
-- اعمل refresh للقائمة
-- أخفِ زر delete
-
-### On `ORDER_CANNOT_BE_CANCELLED`
-
-- اعمل refresh للطلب
-- أخفِ زر cancel
-
-## Real Integration Sequence
-
-### Online card order scenario
-
-1. المستخدم يعمل `Place Order`
-2. الباك ينشئ order في `PendingPayment`
-3. الموبايل يفتح `payment.iframe_url`
-4. لو الدفع فشل أو خرج المستخدم:
-   - الطلب يظل عند المستخدم
-   - يظهر `Retry Payment`
-   - يظهر `Delete Order`
-   - لا يظهر للتاجر
-5. لو retry نجح:
-   - الطلب يتحول إلى `PendingVendorAcceptance`
-   - يبدأ يظهر للتاجر
-   - يختفي `Retry/Delete`
-   - قد يظهر `Cancel Order` إذا كان ما زال قبل `ReadyForPickup`
-
-## Endpoints Summary
-
-### Customer Orders
-
-- `GET /api/orders/active`
-- `GET /api/orders/completed`
-- `GET /api/orders/returns`
-- `GET /api/orders/{orderId}`
-- `GET /api/orders/{orderId}/tracking`
-- `GET /api/orders/cancellation-reasons`
-- `POST /api/orders/{orderId}/cancel`
-- `POST /api/orders/{orderId}/retry-payment`
-- `DELETE /api/orders/{orderId}`
-
-## Implementation Notes For Mobile Developer
-
-- اعتمد على server flags
-- لا تعمل hardcode لمنطق الأزرار
-- استخدم `reason_code` في الإلغاء
-- استخدم `note` فقط عند الحاجة أو عند `other`
-- بعد أي action:
-  - اعمل refresh للطلب
-  - أو refetch للقائمة
-
-## Reference Files
-
-- [OrdersController.cs](/d:/fullstack%20project/Zadana/Zadana-Backend/src/Zadana.Api/Modules/Orders/Controllers/OrdersController.cs)
-- [MyOrdersRequests.cs](/d:/fullstack%20project/Zadana/Zadana-Backend/src/Zadana.Api/Modules/Orders/Requests/MyOrdersRequests.cs)
-- [OrderReadService.cs](/d:/fullstack%20project/Zadana/Zadana-Backend/src/Zadana.Infrastructure/Modules/Orders/Services/OrderReadService.cs)
-- [CancelCustomerOrderCommand.cs](/d:/fullstack%20project/Zadana/Zadana-Backend/src/Zadana.Application/Modules/Orders/Commands/CancelCustomerOrder/CancelCustomerOrderCommand.cs)
-- [RetryPaymobPaymentCommand.cs](/d:/fullstack%20project/Zadana/Zadana-Backend/src/Zadana.Application/Modules/Payments/Commands/RetryPaymobPayment/RetryPaymobPaymentCommand.cs)
-- [DeleteCustomerOrderCommand.cs](/d:/fullstack%20project/Zadana/Zadana-Backend/src/Zadana.Application/Modules/Orders/Commands/DeleteCustomerOrder/DeleteCustomerOrderCommand.cs)
+- إنشاء طلب `payment_method=card` يرجع `payment.provider = moyasar`.
+- `payment.iframe_url` لا يستخدم كرابط.
+- WebView يرسم Moyasar Form باستخدام `provider_config`.
+- نجاح الدفع يجعل التطبيق يعمل refresh ولا يغير الحالة محليا.
+- بعد النجاح يختفي retry/delete.
+- عند فشل أو خروج المستخدم يظهر retry/delete حسب flags.
+- retry payment يعمل على نفس `orderId`.
+- لا يوجد أي Paymob URL أو token أو endpoint داخل تطبيق العميل.
+- لا توجد مفاتيح سرية داخل تطبيق العميل.

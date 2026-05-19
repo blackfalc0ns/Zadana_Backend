@@ -1,15 +1,13 @@
 {
   "feature": "retry_payment",
-  "purpose": "Mobile handoff for retrying payment on the same order.",
+  "provider": "moyasar",
+  "purpose": "Mobile handoff for retrying Moyasar payment on the same pending unpaid card order.",
   "business_rules": {
     "available_only_when": {
       "can_retry_payment": true,
       "order_status": "PendingPayment",
       "payment_method": "card",
-      "payment_status": [
-        "pending",
-        "failed"
-      ]
+      "payment_status": ["pending", "failed"]
     },
     "not_allowed_when": [
       "order already paid",
@@ -17,9 +15,9 @@
       "payment method is not card"
     ],
     "important_notes": [
-      "The backend creates the payment session.",
-      "The backend returns payment.iframe_url.",
-      "The frontend must not generate the payment URL manually.",
+      "The backend creates the payment session config.",
+      "The frontend renders Moyasar Form using payment.provider_config.",
+      "payment.iframe_url is an action hint, not a URL.",
       "Retry payment works on the same orderId and does not create a new order.",
       "The order stays hidden from the vendor until payment succeeds."
     ]
@@ -28,7 +26,6 @@
     "method": "POST",
     "path": "/api/orders/{orderId}/retry-payment",
     "body_required": false,
-    "body_note": "This endpoint does not require a request body. The mobile app only sends the orderId in the path plus the required headers.",
     "headers": [
       {
         "name": "Authorization",
@@ -47,28 +44,31 @@
         "name": "orderId",
         "type": "uuid",
         "required": true,
-        "source_for_mobile": "Read it from the selected order item returned by GET /api/orders/active or from GET /api/orders/{orderId}."
+        "source_for_mobile": "Read it from GET /api/orders/active or GET /api/orders/{orderId}."
       }
     ],
-    "request_body": null,
     "response_example": {
       "message": "payment retry session created successfully",
       "payment": {
         "id": "33333333-3333-3333-3333-333333333333",
-        "iframe_url": "https://accept.paymob.com/api/acceptance/iframes/xxx?payment_token=yyy",
-        "provider": "paymob",
-        "provider_reference": "provider-ref-123",
-        "status": "pending"
-      }
-    },
-    "response_contract": {
-      "message": "string | null",
-      "payment": {
-        "id": "string(uuid)",
-        "iframe_url": "string | null",
-        "provider": "string | null",
-        "provider_reference": "string | null",
-        "status": "string | null"
+        "provider": "moyasar",
+        "status": "pending",
+        "iframe_url": "RenderMoyasarForm",
+        "provider_reference": "",
+        "provider_config": {
+          "publishableKey": "pk_test_or_live",
+          "amount": 12500,
+          "currency": "SAR",
+          "description": "Order ORD-000001",
+          "callbackUrl": "https://your-api.com/api/payments/moyasar/verify",
+          "methods": ["creditcard"],
+          "supportedNetworks": ["mada", "visa", "mastercard"],
+          "metadata": {
+            "order_id": "11111111-1111-1111-1111-111111111111",
+            "payment_id": "33333333-3333-3333-3333-333333333333",
+            "order_number": "ORD-000001"
+          }
+        }
       }
     }
   },
@@ -76,9 +76,10 @@
     "steps": [
       "Show loading when user taps Retry Payment.",
       "Call POST /api/orders/{orderId}/retry-payment.",
-      "Read payment.iframe_url from response.",
-      "Open payment.iframe_url in WebView or Custom Tab.",
-      "Wait for the user to return from the payment flow.",
+      "Read payment.provider_config from response.",
+      "Render Moyasar Form in WebView or supported native wrapper.",
+      "Map publishableKey/callbackUrl/supportedNetworks to Moyasar snake_case configuration names.",
+      "Wait for user callback or payment screen close.",
       "Refresh the order details or active orders list from backend.",
       "Update UI using backend values only."
     ],
@@ -93,10 +94,12 @@
     ]
   },
   "frontend_must_not": [
-    "Do not construct Paymob URL manually.",
-    "Do not generate payment token locally.",
+    "Do not use Paymob URLs or endpoints.",
+    "Do not open payment.iframe_url as a URL when it equals RenderMoyasarForm.",
+    "Do not generate a payment token locally.",
     "Do not mark the order as paid locally.",
-    "Do not create a new order for retry."
+    "Do not create a new order for retry.",
+    "Do not store Moyasar secret keys in the app."
   ],
   "related_fields_from_order_api": [
     "payment_status",
@@ -109,19 +112,6 @@
     "ORDER_PAYMENT_RETRY_NOT_ALLOWED",
     "ORDER_ALREADY_PAID",
     "PAYMENT_UNAVAILABLE"
-  ],
-  "recommended_error_handling": {
-    "ORDER_PAYMENT_RETRY_NOT_ALLOWED": [
-      "Refresh the order from backend.",
-      "Hide retry button if can_retry_payment becomes false."
-    ],
-    "ORDER_ALREADY_PAID": [
-      "Refresh the order from backend.",
-      "Hide retry button."
-    ],
-    "PAYMENT_UNAVAILABLE": [
-      "Show error message.",
-      "Keep the current screen state."
-    ]
-  }
+  ]
 }
+

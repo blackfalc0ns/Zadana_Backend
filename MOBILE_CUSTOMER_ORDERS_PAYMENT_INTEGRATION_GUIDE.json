@@ -1,9 +1,11 @@
 {
-  "document_name": "Mobile Customer Orders and Payment Integration Guide",
-  "version": "1.0.0",
-  "updated_at_utc": "2026-04-21T00:00:00Z",
-  "purpose": "Structured integration guide for mobile developers to implement customer orders, retry payment, delete order, cancel order, and cancellation reasons using backend-driven flags and flows.",
+  "document_name": "Mobile Customer Orders and Moyasar Payment Integration Guide",
+  "version": "2.0.0",
+  "updated_at_utc": "2026-05-19T00:00:00Z",
+  "provider": "moyasar",
+  "purpose": "Structured integration guide for mobile developers to implement customer orders, Moyasar card payment, retry payment, delete order, cancel order, and cancellation reasons using backend-driven flags.",
   "core_rules": {
+    "legacy_paymob_removed": true,
     "vendor_visibility": {
       "pending_payment_orders_visible_to_vendor": false,
       "visible_after_payment_success_status": "PendingVendorAcceptance"
@@ -13,7 +15,8 @@
       "can_retry_payment",
       "can_delete",
       "can_cancel"
-    ]
+    ],
+    "moyasar_payment_rule": "Render Moyasar Form using payment.provider_config. Do not treat payment.iframe_url as a URL."
   },
   "auth": {
     "required_headers": [
@@ -28,299 +31,125 @@
         "required": false,
         "recommended_for": [
           "place order",
-          "payment confirmation",
           "retry payment"
         ]
       }
     ]
   },
-  "mobile_ui_rules": {
-    "show_retry_payment_when": {
-      "can_retry_payment": true
-    },
-    "show_delete_order_when": {
-      "can_delete": true
-    },
-    "show_cancel_order_when": {
-      "can_cancel": true
-    },
-    "hide_button_when_flag_is_false": true
+  "moyasar_provider_config_mapping": {
+    "publishableKey": "publishable_api_key",
+    "callbackUrl": "callback_url",
+    "supportedNetworks": "supported_networks",
+    "amount": "amount",
+    "currency": "currency",
+    "description": "description",
+    "methods": "methods",
+    "metadata": "metadata"
   },
-  "order_response_fields": {
-    "important_fields": [
-      "status",
-      "payment_status",
-      "payment_method",
-      "can_retry_payment",
-      "can_delete",
-      "can_cancel"
-    ],
-    "status_values": [
-      "pending",
-      "processing",
-      "delivered",
-      "returning",
-      "cancelled"
-    ],
-    "payment_status_values": [
-      "pending",
-      "paid",
-      "failed"
-    ],
-    "payment_method_values": [
-      "card",
-      "cash",
-      "bank"
-    ]
-  },
-  "decision_matrix": [
-    {
-      "case": "pending_unpaid_card_order",
-      "conditions": {
-        "status": "pending",
-        "payment_status": [
-          "pending",
-          "failed"
-        ],
-        "payment_method": "card",
-        "can_retry_payment": true,
-        "can_delete": true,
-        "can_cancel": false
-      },
-      "show_buttons": [
-        "retry_payment",
-        "delete_order"
-      ],
-      "hide_buttons": [
-        "cancel_order"
-      ]
-    },
-    {
-      "case": "paid_waiting_vendor_response",
-      "conditions": {
-        "status": "processing",
-        "payment_status": "paid",
-        "can_retry_payment": false,
-        "can_delete": false,
-        "can_cancel": true
-      },
-      "show_buttons": [
-        "cancel_order"
-      ]
-    },
-    {
-      "case": "preparing_order",
-      "conditions": {
-        "can_cancel": true
-      },
-      "show_buttons": [
-        "cancel_order"
-      ]
-    },
-    {
-      "case": "ready_for_pickup_or_later",
-      "conditions": {
-        "can_cancel": false
-      },
-      "show_buttons": []
+  "payment_session_response_example": {
+    "payment": {
+      "id": "33333333-3333-3333-3333-333333333333",
+      "provider": "moyasar",
+      "status": "pending",
+      "iframe_url": "RenderMoyasarForm",
+      "provider_reference": "",
+      "provider_config": {
+        "publishableKey": "pk_test_or_live",
+        "amount": 12500,
+        "currency": "SAR",
+        "description": "Order ORD-000001",
+        "callbackUrl": "https://your-api.com/api/payments/moyasar/verify",
+        "methods": ["creditcard"],
+        "supportedNetworks": ["mada", "visa", "mastercard"],
+        "metadata": {
+          "order_id": "11111111-1111-1111-1111-111111111111",
+          "payment_id": "33333333-3333-3333-3333-333333333333",
+          "order_number": "ORD-000001"
+        }
+      }
     }
+  },
+  "frontend_must_not": [
+    "use /api/payments/paymob/*",
+    "open accept.paymob.com",
+    "construct payment URLs manually",
+    "send card data to Zadana backend",
+    "store Moyasar SecretKey or WebhookSecret in the app",
+    "mark the order as paid locally",
+    "create a new order for retry"
   ],
-  "frontend_responsibility": {
-    "retry_payment": {
-      "backend_responsible_for": [
-        "creating the payment session",
-        "generating iframe_url",
-        "returning payment metadata"
-      ],
-      "frontend_responsible_for": [
-        "calling POST /api/orders/{orderId}/retry-payment",
-        "reading payment.iframe_url from response",
-        "opening iframe_url in WebView or Custom Tab",
-        "waiting for user to return from payment screen",
-        "refreshing the order or active orders list from backend",
-        "updating UI based on backend flags and statuses"
-      ],
-      "frontend_must_not": [
-        "construct Paymob URL manually",
-        "generate payment token locally",
-        "assume payment success just because iframe_url opened",
-        "change order status locally without backend refresh"
-      ]
-    }
-  },
   "endpoints": [
     {
-      "name": "get_active_orders",
+      "name": "get_checkout_summary",
       "method": "GET",
-      "path": "/api/orders/active",
-      "purpose": "Fetch active customer orders."
+      "path": "/api/checkout/summary?payment_method=card",
+      "purpose": "Check payment methods, delivery, and totals before placing a card order."
     },
     {
-      "name": "get_completed_orders",
-      "method": "GET",
-      "path": "/api/orders/completed",
-      "purpose": "Fetch completed customer orders."
-    },
-    {
-      "name": "get_return_orders",
-      "method": "GET",
-      "path": "/api/orders/returns",
-      "purpose": "Fetch return orders."
-    },
-    {
-      "name": "get_order_details",
-      "method": "GET",
-      "path": "/api/orders/{orderId}",
-      "purpose": "Fetch full order details."
-    },
-    {
-      "name": "get_order_tracking",
-      "method": "GET",
-      "path": "/api/orders/{orderId}/tracking",
-      "purpose": "Fetch tracking details for an order."
+      "name": "place_order",
+      "method": "POST",
+      "path": "/api/orders",
+      "purpose": "Create an order. For card orders, the response includes Moyasar provider_config.",
+      "request_example": {
+        "vendor_id": "11111111-1111-1111-1111-111111111111",
+        "address_id": "22222222-2222-2222-2222-222222222222",
+        "delivery_slot_id": "asap",
+        "payment_method": "card",
+        "promo_code": null,
+        "notes": null
+      }
     },
     {
       "name": "retry_payment",
       "method": "POST",
       "path": "/api/orders/{orderId}/retry-payment",
-      "purpose": "Create a new Paymob checkout session for the same pending unpaid card order.",
+      "purpose": "Create a new Moyasar payment form config for the same pending unpaid card order.",
       "call_only_when": {
         "can_retry_payment": true
-      },
-      "response_example": {
-        "message": "payment retry session created successfully",
-        "payment": {
-          "id": "33333333-3333-3333-3333-333333333333",
-          "iframe_url": "https://accept.paymob.com/api/acceptance/iframes/xxx?payment_token=yyy",
-          "provider": "paymob",
-          "provider_reference": "provider-ref-123",
-          "status": "pending"
-        }
-      },
-      "mobile_behavior": [
-        "Show loading.",
-        "Call the endpoint.",
-        "If iframe_url exists, open it immediately.",
-        "After returning from payment, refresh the order or active orders list.",
-        "If payment_status becomes paid, hide retry and delete actions.",
-        "If payment_status is failed and can_retry_payment is true, show retry again."
-      ]
+      }
+    },
+    {
+      "name": "moyasar_verify_callback",
+      "method": "GET",
+      "path": "/api/payments/moyasar/verify?id={moyasar_payment_id}",
+      "purpose": "Moyasar callback. Backend verifies payment with Moyasar, then mobile refreshes the order."
+    },
+    {
+      "name": "get_active_orders",
+      "method": "GET",
+      "path": "/api/orders/active",
+      "purpose": "Refresh active customer orders after payment."
+    },
+    {
+      "name": "get_order_details",
+      "method": "GET",
+      "path": "/api/orders/{orderId}",
+      "purpose": "Refresh a specific order after payment."
     },
     {
       "name": "delete_unpaid_pending_order",
       "method": "DELETE",
       "path": "/api/orders/{orderId}",
-      "purpose": "Permanently delete an unpaid pending order.",
       "call_only_when": {
         "can_delete": true
-      },
-      "response_example": {
-        "message": "order deleted successfully",
-        "order_id": "11111111-1111-1111-1111-111111111111",
-        "deleted": true
-      },
-      "mobile_behavior": [
-        "Remove the order from the local list.",
-        "Or refetch active orders from backend."
-      ]
-    },
-    {
-      "name": "get_cancellation_reasons",
-      "method": "GET",
-      "path": "/api/orders/cancellation-reasons",
-      "purpose": "Fetch predefined cancellation reasons for the bottom sheet or modal.",
-      "response_example": [
-        {
-          "code": "changed_my_mind",
-          "label_ar": "غيرت رأيي",
-          "label_en": "Changed my mind",
-          "requires_note": false
-        },
-        {
-          "code": "ordered_by_mistake",
-          "label_ar": "طلبت بالخطأ",
-          "label_en": "Ordered by mistake",
-          "requires_note": false
-        },
-        {
-          "code": "price_too_high",
-          "label_ar": "السعر مرتفع",
-          "label_en": "Price is too high",
-          "requires_note": false
-        },
-        {
-          "code": "want_to_modify_order",
-          "label_ar": "أريد تعديل الطلب",
-          "label_en": "I want to modify the order",
-          "requires_note": false
-        },
-        {
-          "code": "address_not_suitable",
-          "label_ar": "العنوان غير مناسب",
-          "label_en": "Address is not suitable",
-          "requires_note": false
-        },
-        {
-          "code": "other",
-          "label_ar": "أخرى",
-          "label_en": "Other",
-          "requires_note": true
-        }
-      ]
+      }
     },
     {
       "name": "cancel_order",
       "method": "POST",
       "path": "/api/orders/{orderId}/cancel",
-      "purpose": "Cancel an order before it reaches ReadyForPickup.",
       "call_only_when": {
         "can_cancel": true
-      },
-      "request_examples": {
-        "predefined_reason": {
-          "reason_code": "changed_my_mind",
-          "note": null
-        },
-        "other_reason": {
-          "reason_code": "other",
-          "note": "أحتاج تغيير المدينة والعنوان بالكامل"
-        },
-        "legacy_fallback": {
-          "reason": "Custom reason from legacy client",
-          "note": null
-        }
-      },
-      "response_example": {
-        "message": "order cancelled successfully",
-        "order": {
-          "id": "11111111-1111-1111-1111-111111111111",
-          "status": "cancelled"
-        }
       }
     }
   ],
-  "cancel_order_rules": {
-    "allowed_only_when": {
-      "can_cancel": true,
-      "before_status": "ReadyForPickup"
-    },
-    "not_allowed_from_statuses": [
-      "ReadyForPickup",
-      "DriverAssigned",
-      "PickedUp",
-      "OnTheWay",
-      "Delivered"
-    ],
-    "reason_rules": {
-      "preferred_fields": [
-        "reason_code",
-        "note"
-      ],
-      "note_required_when_reason_code_is": "other",
-      "legacy_reason_fallback_supported": true
-    }
-  },
   "expected_common_errors": {
+    "payment": [
+      "PAYMENT_UNAVAILABLE",
+      "PAYMENT_METHOD_NOT_SUPPORTED",
+      "PAYMENT_AMOUNT_MISMATCH",
+      "PAYMENT_ORDER_MISMATCH"
+    ],
     "retry_payment": [
       "ORDER_PAYMENT_RETRY_NOT_ALLOWED",
       "ORDER_ALREADY_PAID",
@@ -335,30 +164,13 @@
       "ORDER_CANNOT_BE_CANCELLED"
     ]
   },
-  "recommended_client_handling": {
-    "ORDER_PAYMENT_RETRY_NOT_ALLOWED": [
-      "Refresh the order.",
-      "Hide retry button."
-    ],
-    "ORDER_DELETE_NOT_ALLOWED": [
-      "Refresh the active orders list.",
-      "Hide delete button."
-    ],
-    "ORDER_CANNOT_BE_CANCELLED": [
-      "Refresh the order.",
-      "Hide cancel button."
-    ]
-  },
-  "integration_sequence": {
-    "online_card_order_scenario": [
-      "User places order.",
-      "Backend creates the order in PendingPayment.",
-      "Mobile opens payment.iframe_url.",
-      "If payment fails or user exits, the order remains visible only to the customer with Retry Payment and Delete Order actions.",
-      "The order is still hidden from the vendor at this point.",
-      "If retry succeeds, the order moves to PendingVendorAcceptance.",
-      "The order becomes visible to the vendor.",
-      "Retry and Delete disappear, and Cancel Order may appear if still before ReadyForPickup."
-    ]
-  }
+  "acceptance_checklist": [
+    "Card place-order response returns payment.provider = moyasar.",
+    "The app renders Moyasar Form from provider_config.",
+    "The app does not use Paymob URLs or endpoints.",
+    "The app refreshes order state after callback or WebView close.",
+    "Retry payment uses the same orderId.",
+    "Secret keys are never shipped in the app."
+  ]
 }
+

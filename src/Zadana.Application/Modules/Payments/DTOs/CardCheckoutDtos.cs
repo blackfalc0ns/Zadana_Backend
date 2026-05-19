@@ -84,7 +84,8 @@ public sealed record CardPaymentConfirmationResultDto
 public sealed record PaymentWebhookProcessResultDto(
     string Message,
     Guid PaymentId,
-    string Status);
+    string Status,
+    string? ProviderPaymentId = null);
 
 internal static class CardPaymentDtoLocalization
 {

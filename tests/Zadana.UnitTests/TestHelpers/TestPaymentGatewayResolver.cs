@@ -4,7 +4,7 @@ using Zadana.Application.Modules.Payments.Interfaces;
 namespace Zadana.UnitTests.TestHelpers;
 
 /// <summary>
-/// Minimal stub used by handler tests after the Paymob removal. Returns a
+/// Minimal stub used by handler tests after the legacy gateway removal. Returns a
 /// fake "Moyasar" gateway that reports <see cref="IPaymentGateway.IsEnabled"/>
 /// as configured. The fake throws on <c>CreateSession/Fetch/Refund</c> so any
 /// test that accidentally exercises the network path will fail loud.

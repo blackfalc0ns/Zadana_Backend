@@ -94,7 +94,11 @@ public class ProcessPaymentWebhookCommandHandler : IRequestHandler<ProcessPaymen
 
         await _context.SaveChangesAsync(cancellationToken);
 
-        return new PaymentWebhookProcessResultDto("queued", Guid.Empty, inbox.Status.ToString().ToLowerInvariant());
+        return new PaymentWebhookProcessResultDto(
+            "queued",
+            Guid.Empty,
+            inbox.Status.ToString().ToLowerInvariant(),
+            providerPaymentId);
     }
 
     private static (string EventId, string EventType, string? ProviderPaymentId) ParseEnvelope(string provider, string payload)

@@ -1,6 +1,7 @@
 using System.Security.Cryptography;
 using System.Text;
 using System.Text.Json;
+using System.Text.Json.Serialization;
 using Microsoft.AspNetCore.Authorization;
 using Microsoft.AspNetCore.Mvc;
 using Microsoft.AspNetCore.RateLimiting;
@@ -12,6 +13,7 @@ using Zadana.Application.Common.Interfaces;
 using Zadana.Application.Modules.Finances.Services;
 using Zadana.Application.Modules.Payments.Commands.ConfirmCardPayment;
 using Zadana.Application.Modules.Payments.Commands.ProcessPaymentWebhook;
+using Zadana.Application.Modules.Payments.DTOs;
 using Zadana.Application.Modules.Payments.Gateways;
 using Zadana.Infrastructure.Settings;
 using Zadana.SharedKernel.Finance;
@@ -107,12 +109,35 @@ public class MoyasarPaymentsController(
                     Headers: SerializeHeaders()),
                 cancellationToken);
 
+            CardPaymentConfirmationResultDto? confirmation = null;
+            if (!string.IsNullOrWhiteSpace(result.ProviderPaymentId))
+            {
+                try
+                {
+                    // Webhooks are the safety net when the mobile WebView does
+                    // not complete the callback navigation. Confirm inline, then
+                    // leave the durable inbox row for the worker/idempotency path.
+                    confirmation = await ConfirmProviderPaymentAsync(result.ProviderPaymentId, cancellationToken);
+                }
+                catch (Exception ex)
+                {
+                    logger.LogWarning(
+                        ex,
+                        "Moyasar webhook queued but inline confirmation failed for provider payment {ProviderPaymentId}.",
+                        result.ProviderPaymentId);
+                }
+            }
+
             return Ok(new
             {
                 processed = true,
-                paymentId = result.PaymentId,
-                status = result.Status,
-                message = result.Message,
+                paymentId = confirmation?.PaymentId ?? result.PaymentId,
+                providerPaymentId = result.ProviderPaymentId,
+                paymentStatus = confirmation?.PaymentStatus,
+                orderId = confirmation?.OrderId,
+                orderStatus = confirmation?.OrderStatus,
+                status = confirmation?.PaymentStatus ?? result.Status,
+                message = confirmation?.Message ?? result.Message,
             });
         }
         catch (Exception ex)
@@ -207,7 +232,8 @@ public class MoyasarPaymentsController(
         [FromQuery] MoyasarReturnRequest? request,
         CancellationToken cancellationToken = default)
     {
-        if (request is null || string.IsNullOrWhiteSpace(request.Id))
+        var providerPaymentId = request?.EffectiveProviderPaymentId;
+        if (string.IsNullOrWhiteSpace(providerPaymentId))
         {
             return Problem(
                 title: "Moyasar payment id is required",
@@ -217,22 +243,32 @@ public class MoyasarPaymentsController(
                 instance: "/api/payments/moyasar/verify");
         }
 
-        var result = await Sender.Send(
-            new ConfirmCardPaymentCommand(
-                PaymentId: null,
-                ProviderPaymentId: request.Id,
-                ProviderName: "Moyasar",
-                CustomerDeviceId: ResolveDeviceIdHeader()),
-            cancellationToken);
+        var result = await ConfirmProviderPaymentAsync(providerPaymentId, cancellationToken);
 
-        return Ok(new ConfirmCardPaymentResponse(
-            result.Message,
-            result.PaymentId,
-            result.PaymentStatus,
-            result.UserId,
-            result.OrderId,
-            result.OrderStatus,
-            result.AlreadyConfirmed));
+        return Ok(MapConfirmation(result));
+    }
+
+    [AllowAnonymous]
+    [HttpPost("confirm")]
+    [EnableRateLimiting(RateLimitPolicyNames.PaymentCallbacks)]
+    public async Task<ActionResult<ConfirmCardPaymentResponse>> Confirm(
+        [FromBody] MoyasarConfirmPaymentRequest? request,
+        CancellationToken cancellationToken = default)
+    {
+        var providerPaymentId = request?.EffectiveProviderPaymentId;
+        if (string.IsNullOrWhiteSpace(providerPaymentId))
+        {
+            return Problem(
+                title: "Moyasar payment id is required",
+                detail: "Send the Moyasar provider payment id returned by callback_url or on_completed(payment).",
+                statusCode: StatusCodes.Status400BadRequest,
+                type: "https://moyasar.runasp.net/errors/MOYASAR_PAYMENT_ID_REQUIRED",
+                instance: "/api/payments/moyasar/confirm");
+        }
+
+        var result = await ConfirmProviderPaymentAsync(providerPaymentId, cancellationToken);
+
+        return Ok(MapConfirmation(result));
     }
 
     private string? SerializeHeaders()
@@ -255,6 +291,27 @@ public class MoyasarPaymentsController(
         var deviceId = Request.Headers[DeviceIdHeader].ToString();
         return string.IsNullOrWhiteSpace(deviceId) ? null : deviceId.Trim();
     }
+
+    private Task<CardPaymentConfirmationResultDto> ConfirmProviderPaymentAsync(
+        string providerPaymentId,
+        CancellationToken cancellationToken) =>
+        Sender.Send(
+            new ConfirmCardPaymentCommand(
+                PaymentId: null,
+                ProviderPaymentId: providerPaymentId,
+                ProviderName: "Moyasar",
+                CustomerDeviceId: ResolveDeviceIdHeader()),
+            cancellationToken);
+
+    private static ConfirmCardPaymentResponse MapConfirmation(CardPaymentConfirmationResultDto result) =>
+        new(
+            result.Message,
+            result.PaymentId,
+            result.PaymentStatus,
+            result.UserId,
+            result.OrderId,
+            result.OrderStatus,
+            result.AlreadyConfirmed);
 
     private async Task NotifyIntegrationFailureAsync(string reason, string? payload, CancellationToken cancellationToken)
     {
@@ -390,8 +447,48 @@ public class MoyasarPaymentsController(
 
 public record MoyasarReturnRequest(
     [property: FromQuery(Name = "id")] string? Id,
+    [property: FromQuery(Name = "provider_payment_id")] string? ProviderPaymentId,
     [property: FromQuery(Name = "status")] string? Status,
-    [property: FromQuery(Name = "message")] string? Message);
+    [property: FromQuery(Name = "message")] string? Message)
+{
+    public string? EffectiveProviderPaymentId =>
+        FirstNonEmpty(Id, ProviderPaymentId);
+
+    private static string? FirstNonEmpty(params string?[] values) =>
+        values.FirstOrDefault(value => !string.IsNullOrWhiteSpace(value))?.Trim();
+}
+
+public sealed class MoyasarConfirmPaymentRequest
+{
+    [JsonPropertyName("id")]
+    public string? Id { get; init; }
+
+    [JsonPropertyName("provider_payment_id")]
+    public string? ProviderPaymentId { get; init; }
+
+    [JsonExtensionData]
+    public Dictionary<string, JsonElement>? ExtensionData { get; init; }
+
+    [JsonIgnore]
+    public string? EffectiveProviderPaymentId =>
+        FirstNonEmpty(
+            Id,
+            ProviderPaymentId,
+            ReadString("providerPaymentId"));
+
+    private string? ReadString(string key)
+    {
+        if (ExtensionData is null || !ExtensionData.TryGetValue(key, out var value))
+        {
+            return null;
+        }
+
+        return value.ValueKind == JsonValueKind.String ? value.GetString() : null;
+    }
+
+    private static string? FirstNonEmpty(params string?[] values) =>
+        values.FirstOrDefault(value => !string.IsNullOrWhiteSpace(value))?.Trim();
+}
 
 public record ConfirmCardPaymentResponse(
     string Message,

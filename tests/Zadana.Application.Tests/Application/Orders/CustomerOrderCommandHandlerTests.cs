@@ -102,7 +102,7 @@ public class CustomerOrderCommandHandlerTests
         var user = CreateUser();
         var order = CreateOrder(user.Id, OrderStatus.PendingPayment, "ORD-DELETE-001");
         var payment = new Zadana.Domain.Modules.Payments.Entities.Payment(order.Id, PaymentMethodType.Card, order.TotalAmount);
-        payment.MarkAsPending("Paymob", "provider-delete-1");
+        payment.MarkAsPending("Moyasar", "provider-delete-1");
 
         dbContext.Users.Add(user);
         dbContext.Orders.Add(order);
