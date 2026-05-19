@@ -9,6 +9,7 @@ using Zadana.Application.Common.Interfaces;
 using Zadana.Application.Common.Settings;
 using Zadana.Application.Modules.Finances.Services;
 using Zadana.Application.Modules.Orders.Events;
+using Zadana.Application.Modules.Orders.Support;
 using Zadana.Domain.Modules.Finances.Enums;
 using Zadana.Domain.Modules.Orders.Enums;
 using Zadana.Domain.Modules.Payments.Enums;
@@ -259,6 +260,7 @@ public class BankTransferController(
         if (order.Status is OrderStatus.PendingBankConfirmation or OrderStatus.PendingPayment)
         {
             order.ChangeStatus(OrderStatus.PendingVendorAcceptance, null, $"Bank transfer confirmed by {actorRole}");
+            OrderStatusHistoryTracking.TrackNewEntries(context, order);
         }
 
         await context.SaveChangesAsync(cancellationToken);

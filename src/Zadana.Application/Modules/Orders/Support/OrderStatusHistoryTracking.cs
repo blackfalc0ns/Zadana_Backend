@@ -4,7 +4,7 @@ using Zadana.Domain.Modules.Orders.Entities;
 
 namespace Zadana.Application.Modules.Orders.Support;
 
-internal static class OrderStatusHistoryTracking
+public static class OrderStatusHistoryTracking
 {
     public static void TrackNewEntries(IApplicationDbContext context, Order order)
     {
