@@ -7,7 +7,10 @@ using Zadana.Domain.Modules.Catalog.Enums;
 using Zadana.Domain.Modules.Identity.Constants;
 using Zadana.Domain.Modules.Identity.Entities;
 using Zadana.Domain.Modules.Identity.Enums;
+using Zadana.Domain.Modules.Vendors.Entities;
+using Zadana.Domain.Modules.Vendors.Enums;
 using Zadana.Domain.Modules.Wallets.Entities;
+using Zadana.Domain.Modules.Wallets.Enums;
 using Zadana.Infrastructure.Settings;
 
 namespace Zadana.Infrastructure.Persistence;
@@ -16,6 +19,15 @@ public class ApplicationDbContextInitialiser
 {
     private const string DefaultAdminEmail = "admin@system.com";
     private const string DefaultAdminPassword = "Admin@123";
+    private const string TestPlatformIban = "SA0380000000608010167519";
+    private const string TestPlatformAccountNumber = "608010167519";
+    private const string TestVendorPayoutIban = "SA8280000000608010164545";
+    private static readonly string[] TestDriverPayoutIbans =
+    [
+        "SA5580000000608010164546",
+        "SA2880000000608010164547",
+        "SA9880000000608010164548"
+    ];
 
     private readonly ApplicationDbContext _context;
     private readonly UserManager<User> _userManager;
@@ -65,6 +77,7 @@ public class ApplicationDbContextInitialiser
         await SeedSuperAdminAccessScopeAsync();
         await SeedUnitsOfMeasureAsync();
         await SeedPlatformBankAccountAsync();
+        await RepairTestingBankAccountsAsync();
     }
 
     private async Task SeedPlatformBankAccountAsync()
@@ -75,10 +88,10 @@ public class ApplicationDbContextInitialiser
         }
 
         var iban = string.IsNullOrWhiteSpace(_bankTransferSettings.Iban)
-            ? "SA0380000000608010167519"
+            ? TestPlatformIban
             : _bankTransferSettings.Iban;
         var accountNumber = string.IsNullOrWhiteSpace(_bankTransferSettings.AccountNumber)
-            ? "608010167519"
+            ? TestPlatformAccountNumber
             : _bankTransferSettings.AccountNumber;
         var bankName = string.IsNullOrWhiteSpace(_bankTransferSettings.BankName)
             ? "Test Bank"
@@ -103,6 +116,201 @@ public class ApplicationDbContextInitialiser
             notes: "Seeded testing platform bank account."));
 
         await _context.SaveChangesAsync();
+    }
+
+    private async Task RepairTestingBankAccountsAsync()
+    {
+        var superAdminId = await _context.Users
+            .Where(user => user.Email == DefaultAdminEmail)
+            .Select(user => user.Id)
+            .FirstOrDefaultAsync();
+
+        await RepairPlatformBankAccountAsync();
+        await RepairPerOrderVendorBankAccountsAsync(superAdminId);
+        await SeedDriverTestingPayoutMethodsAsync();
+
+        await _context.SaveChangesAsync();
+    }
+
+    private async Task RepairPlatformBankAccountAsync()
+    {
+        var account = await _context.PlatformBankAccounts
+            .Where(item => item.IsActive)
+            .OrderByDescending(item => item.CreatedAtUtc)
+            .FirstOrDefaultAsync();
+
+        if (account is null)
+        {
+            return;
+        }
+
+        var iban = IsValidSaudiIban(account.IBAN) ? account.IBAN : TestPlatformIban;
+        var accountNumber = string.IsNullOrWhiteSpace(account.AccountNumber)
+            ? TestPlatformAccountNumber
+            : account.AccountNumber;
+
+        account.Update(
+            string.IsNullOrWhiteSpace(account.BankName) ? "Test Bank" : account.BankName,
+            string.IsNullOrWhiteSpace(account.AccountHolderName) ? "Zadana Test Account" : account.AccountHolderName,
+            iban,
+            accountNumber,
+            string.IsNullOrWhiteSpace(account.CountryCode) ? _moyasarSettings.Payouts.DefaultCountry : account.CountryCode,
+            string.IsNullOrWhiteSpace(account.City) ? _moyasarSettings.Payouts.DefaultCity : account.City,
+            account.IsBankTransferEnabled,
+            account.IsMoyasarPayoutsEnabled,
+            account.MoyasarPayoutSourceId,
+            account.Notes ?? "Testing platform bank account.");
+    }
+
+    private async Task RepairPerOrderVendorBankAccountsAsync(Guid verifiedBy)
+    {
+        var perOrderVendors = await _context.Vendors
+            .Include(vendor => vendor.BankAccounts)
+            .Where(vendor => vendor.FinancialLifecycleMode == VendorFinancialLifecycleMode.PerOrderDirectPayout)
+            .ToListAsync();
+
+        foreach (var vendor in perOrderVendors)
+        {
+            var primary = vendor.BankAccounts
+                .OrderByDescending(account => account.IsPrimary)
+                .ThenByDescending(account => account.CreatedAtUtc)
+                .FirstOrDefault();
+
+            if (primary is null)
+            {
+                primary = new VendorBankAccount(
+                    vendor.Id,
+                    "Test Bank",
+                    ResolveVendorAccountHolderName(vendor),
+                    TestVendorPayoutIban,
+                    "RJHISARI");
+                _context.VendorBankAccounts.Add(primary);
+            }
+            else if (!IsValidSaudiIban(primary.IBAN))
+            {
+                primary.UpdateDetails(
+                    string.IsNullOrWhiteSpace(primary.BankName) ? "Test Bank" : primary.BankName,
+                    string.IsNullOrWhiteSpace(primary.AccountHolderName) ? ResolveVendorAccountHolderName(vendor) : primary.AccountHolderName,
+                    TestVendorPayoutIban,
+                    string.IsNullOrWhiteSpace(primary.SwiftCode) ? "RJHISARI" : primary.SwiftCode);
+            }
+
+            if (primary.Status == BankAccountStatus.PendingVerification && verifiedBy != Guid.Empty)
+            {
+                primary.Verify(verifiedBy);
+            }
+
+            if (primary.Status == BankAccountStatus.Verified && !primary.IsPrimary)
+            {
+                foreach (var other in vendor.BankAccounts.Where(account => account.Id != primary.Id && account.IsPrimary))
+                {
+                    other.UnsetPrimary();
+                }
+
+                primary.SetAsPrimary();
+            }
+        }
+    }
+
+    private async Task SeedDriverTestingPayoutMethodsAsync()
+    {
+        var drivers = await _context.Drivers
+            .Include(driver => driver.User)
+            .OrderBy(driver => driver.User.Email)
+            .ToListAsync();
+
+        for (var index = 0; index < drivers.Count; index++)
+        {
+            var driver = drivers[index];
+            var existingMethods = await _context.DriverPayoutMethods
+                .Where(method => method.DriverId == driver.Id)
+                .ToListAsync();
+
+            var primaryBankMethod = existingMethods
+                .FirstOrDefault(method => method.MethodType == DriverPayoutMethodType.BankAccount && method.IsPrimary)
+                ?? existingMethods.FirstOrDefault(method => method.MethodType == DriverPayoutMethodType.BankAccount);
+
+            var iban = TestDriverPayoutIbans[index % TestDriverPayoutIbans.Length];
+            var holderName = string.IsNullOrWhiteSpace(driver.User.FullName)
+                ? driver.User.Email ?? "Zadana Test Driver"
+                : driver.User.FullName;
+
+            if (primaryBankMethod is null)
+            {
+                foreach (var method in existingMethods.Where(method => method.IsPrimary))
+                {
+                    method.UnsetPrimary();
+                }
+
+                _context.DriverPayoutMethods.Add(new DriverPayoutMethod(
+                    driver.Id,
+                    DriverPayoutMethodType.BankAccount,
+                    holderName,
+                    iban,
+                    "Test Bank",
+                    isPrimary: true));
+                continue;
+            }
+
+            if (!IsValidSaudiIban(primaryBankMethod.AccountIdentifier))
+            {
+                primaryBankMethod.UpdateDetails(
+                    DriverPayoutMethodType.BankAccount,
+                    holderName,
+                    iban,
+                    string.IsNullOrWhiteSpace(primaryBankMethod.ProviderName) ? "Test Bank" : primaryBankMethod.ProviderName);
+            }
+
+            foreach (var method in existingMethods.Where(method => method.Id != primaryBankMethod.Id && method.IsPrimary))
+            {
+                method.UnsetPrimary();
+            }
+
+            primaryBankMethod.SetPrimary();
+        }
+    }
+
+    private static string ResolveVendorAccountHolderName(Vendor vendor) =>
+        string.IsNullOrWhiteSpace(vendor.OwnerName)
+            ? vendor.BusinessNameEn
+            : vendor.OwnerName;
+
+    private static bool IsValidSaudiIban(string? iban)
+    {
+        if (string.IsNullOrWhiteSpace(iban))
+        {
+            return false;
+        }
+
+        var clean = new string(iban.Where(char.IsLetterOrDigit).ToArray()).ToUpperInvariant();
+        return clean.Length == 24
+            && clean.StartsWith("SA", StringComparison.OrdinalIgnoreCase)
+            && clean.Skip(2).All(char.IsDigit)
+            && PassesIbanChecksum(clean);
+    }
+
+    private static bool PassesIbanChecksum(string iban)
+    {
+        var rearranged = iban[4..] + iban[..4];
+        var remainder = 0;
+
+        foreach (var ch in rearranged)
+        {
+            if (char.IsDigit(ch))
+            {
+                remainder = (remainder * 10 + (ch - '0')) % 97;
+                continue;
+            }
+
+            if (char.IsLetter(ch))
+            {
+                var value = char.ToUpperInvariant(ch) - 'A' + 10;
+                remainder = (remainder * 10 + (value / 10)) % 97;
+                remainder = (remainder * 10 + (value % 10)) % 97;
+            }
+        }
+
+        return remainder == 1;
     }
 
     private async Task SeedUnitsOfMeasureAsync()
