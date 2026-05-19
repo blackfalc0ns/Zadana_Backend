@@ -376,7 +376,13 @@ public class OrderReadService : IOrderReadService
     {
         var query = _dbContext.Orders
             .AsNoTracking()
-            .Where(order => order.VendorId == vendorId && order.Status != OrderStatus.PendingPayment);
+            .Where(order =>
+                order.VendorId == vendorId &&
+                order.Status != OrderStatus.PendingPayment &&
+                (order.PaymentMethod != PaymentMethodType.Card ||
+                 order.PaymentStatus == PaymentStatus.Paid ||
+                 order.PaymentStatus == PaymentStatus.Refunded ||
+                 order.PaymentStatus == PaymentStatus.PartiallyRefunded));
 
         if (!string.IsNullOrWhiteSpace(search))
         {
@@ -427,7 +433,14 @@ public class OrderReadService : IOrderReadService
                 .ThenInclude(item => item.MasterProduct)
             .Include(item => item.StatusHistory)
             .Include(item => item.Vendor)
-            .Where(item => item.VendorId == vendorId && item.Id == orderId && item.Status != OrderStatus.PendingPayment)
+            .Where(item =>
+                item.VendorId == vendorId &&
+                item.Id == orderId &&
+                item.Status != OrderStatus.PendingPayment &&
+                (item.PaymentMethod != PaymentMethodType.Card ||
+                 item.PaymentStatus == PaymentStatus.Paid ||
+                 item.PaymentStatus == PaymentStatus.Refunded ||
+                 item.PaymentStatus == PaymentStatus.PartiallyRefunded))
             .FirstOrDefaultAsync(cancellationToken);
 
         if (order is null)

@@ -77,6 +77,14 @@ public class OrderStatusChangedHandler : INotificationHandler<OrderStatusChanged
             return;
         }
 
+        if (!await IsVendorNotificationAllowedAsync(notification.OrderId, cancellationToken))
+        {
+            _logger.LogWarning(
+                "Skipping vendor notification for order {OrderId}: card payment is not confirmed for vendor fulfillment.",
+                notification.OrderId);
+            return;
+        }
+
         var vendorRecipient = await _context.Vendors
             .AsNoTracking()
             .Where(vendor => vendor.Id == notification.VendorId)
@@ -134,6 +142,25 @@ public class OrderStatusChangedHandler : INotificationHandler<OrderStatusChanged
             data,
             targetUrl,
             cancellationToken);
+    }
+
+    private async Task<bool> IsVendorNotificationAllowedAsync(Guid orderId, CancellationToken cancellationToken)
+    {
+        var order = await _context.Orders
+            .AsNoTracking()
+            .Where(item => item.Id == orderId)
+            .Select(item => new
+            {
+                item.PaymentMethod,
+                item.PaymentStatus
+            })
+            .FirstOrDefaultAsync(cancellationToken);
+
+        return order is null ||
+               order.PaymentMethod != PaymentMethodType.Card ||
+               order.PaymentStatus == PaymentStatus.Paid ||
+               order.PaymentStatus == PaymentStatus.Refunded ||
+               order.PaymentStatus == PaymentStatus.PartiallyRefunded;
     }
 
     private async Task SendRealtimeToAssignedDriverAsync(

@@ -7,6 +7,7 @@ using Zadana.Application.Common.Localization;
 using Zadana.Application.Modules.Delivery.Interfaces;
 using Zadana.Application.Modules.Orders.Events;
 using Zadana.Domain.Modules.Orders.Enums;
+using Zadana.Domain.Modules.Payments.Enums;
 using Zadana.SharedKernel.Exceptions;
 
 namespace Zadana.Application.Modules.Orders.Commands.VendorUpdateOrderStatus;
@@ -73,6 +74,8 @@ public class VendorUpdateOrderStatusCommandHandler : IRequestHandler<VendorUpdat
         // dispatch state before the vendor UI refreshes.
         if (IsIdempotentReadyTransition(order.Status, request.NewStatus))
         {
+            EnsureVendorCanActOnPayment(order.PaymentMethod, order.PaymentStatus);
+
             if (request.NewStatus == OrderStatus.ReadyForPickup)
             {
                 await _deliveryDispatchService.TryAutoDispatchAsync(order.Id, cancellationToken: cancellationToken);
@@ -85,6 +88,7 @@ public class VendorUpdateOrderStatusCommandHandler : IRequestHandler<VendorUpdat
         }
 
         ValidateTransition(order.Status, request.NewStatus);
+        EnsureVendorCanActOnPayment(order.PaymentMethod, order.PaymentStatus);
 
         var oldStatus = order.Status;
         order.ChangeStatus(request.NewStatus, null, request.Note);
@@ -151,4 +155,14 @@ public class VendorUpdateOrderStatusCommandHandler : IRequestHandler<VendorUpdat
         current == target ||
         (target == OrderStatus.ReadyForPickup &&
          current is OrderStatus.DriverAssignmentInProgress or OrderStatus.DriverAssigned);
+
+    private static void EnsureVendorCanActOnPayment(PaymentMethodType paymentMethod, PaymentStatus paymentStatus)
+    {
+        if (paymentMethod == PaymentMethodType.Card && paymentStatus != PaymentStatus.Paid)
+        {
+            throw new BusinessRuleException(
+                "ORDER_PAYMENT_NOT_CONFIRMED",
+                "Card payment must be confirmed before the vendor can process this order.");
+        }
+    }
 }
