@@ -104,3 +104,8 @@ public record AdminUpsertPlatformBankAccountRequest(
     bool IsMoyasarPayoutsEnabled,
     [MaxLength(100)] string? MoyasarPayoutSourceId,
     [MaxLength(500)] string? Notes);
+
+public record AdminCreateMoyasarPayoutSourceRequest(
+    string? CompanyCode,
+    string? Certificate,
+    string? PrivateKey);

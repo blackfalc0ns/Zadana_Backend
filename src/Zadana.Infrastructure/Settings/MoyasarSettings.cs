@@ -44,6 +44,8 @@ public class MoyasarPayoutSettings
 
     public string SourceId { get; set; } = string.Empty;
 
+    public MoyasarPayoutAccountSettings PayoutAccount { get; set; } = new();
+
     public string DefaultCountry { get; set; } = "SA";
 
     public string DefaultCity { get; set; } = "Riyadh";
@@ -57,4 +59,13 @@ public class MoyasarPayoutSettings
     public int UnknownRetryDelaySeconds { get; set; } = 120;
 
     public int ProcessingAlertAfterMinutes { get; set; } = 60;
+}
+
+public class MoyasarPayoutAccountSettings
+{
+    public string CompanyCode { get; set; } = string.Empty;
+
+    public string Certificate { get; set; } = string.Empty;
+
+    public string PrivateKey { get; set; } = string.Empty;
 }

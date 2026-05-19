@@ -2,6 +2,9 @@ using Microsoft.AspNetCore.Authorization;
 using Microsoft.AspNetCore.Mvc;
 using Microsoft.EntityFrameworkCore;
 using Microsoft.Extensions.Options;
+using System.Net.Http.Json;
+using System.Net.Http.Headers;
+using System.Text;
 using System.Text.Json;
 using Zadana.Api.Controllers;
 using Zadana.Application.Common.Interfaces;
@@ -23,6 +26,8 @@ namespace Zadana.Api.Modules.Wallets.Controllers;
 [Authorize(Policy = "AdminOnly")]
 public class AdminWalletsController : ApiControllerBase
 {
+    private static readonly JsonSerializerOptions MoyasarJsonOptions = new(JsonSerializerDefaults.Web);
+
     [HttpGet("platform-account")]
     public async Task<ActionResult<AdminPlatformBankAccountDto>> GetPlatformAccount(
         [FromServices] IApplicationDbContext context,
@@ -91,6 +96,97 @@ public class AdminWalletsController : ApiControllerBase
         {
             other.Deactivate();
         }
+
+        await context.SaveChangesAsync(cancellationToken);
+
+        return Ok(MapPlatformAccount(account));
+    }
+
+    [HttpPost("platform-account/moyasar-payout-source")]
+    public async Task<ActionResult<AdminPlatformBankAccountDto>> CreateMoyasarPayoutSource(
+        [FromBody] AdminCreateMoyasarPayoutSourceRequest? request,
+        [FromServices] IApplicationDbContext context,
+        [FromServices] IHttpClientFactory httpClientFactory,
+        [FromServices] IOptions<MoyasarSettings> moyasarSettings,
+        CancellationToken cancellationToken = default)
+    {
+        var settings = moyasarSettings.Value;
+        if (string.IsNullOrWhiteSpace(settings.SecretKey))
+        {
+            throw new BusinessRuleException("MOYASAR_SECRET_KEY_REQUIRED", "Moyasar secret key is required before creating payout source account.");
+        }
+
+        var account = await context.PlatformBankAccounts
+            .Where(item => item.IsActive)
+            .OrderByDescending(item => item.UpdatedAtUtc)
+            .ThenByDescending(item => item.CreatedAtUtc)
+            .FirstOrDefaultAsync(cancellationToken)
+            ?? throw new BusinessRuleException("PLATFORM_BANK_ACCOUNT_REQUIRED", "Platform bank account is required before enabling Moyasar payouts.");
+
+        var companyCode = FirstNonEmpty(request?.CompanyCode, settings.Payouts.PayoutAccount.CompanyCode);
+        var certificate = FirstNonEmpty(request?.Certificate, settings.Payouts.PayoutAccount.Certificate);
+        var privateKey = FirstNonEmpty(request?.PrivateKey, settings.Payouts.PayoutAccount.PrivateKey);
+
+        if (string.IsNullOrWhiteSpace(companyCode) ||
+            string.IsNullOrWhiteSpace(certificate) ||
+            string.IsNullOrWhiteSpace(privateKey))
+        {
+            throw new BusinessRuleException(
+                "MOYASAR_PAYOUT_ACCOUNT_CREDENTIALS_REQUIRED",
+                "Moyasar payout account credentials are required: company_code, cert, and key.");
+        }
+
+        var httpClient = httpClientFactory.CreateClient();
+        httpClient.BaseAddress = new Uri(string.IsNullOrWhiteSpace(settings.BaseUrl) ? "https://api.moyasar.com/v1/" : settings.BaseUrl);
+        httpClient.DefaultRequestHeaders.Authorization = new AuthenticationHeaderValue(
+            "Basic",
+            Convert.ToBase64String(Encoding.UTF8.GetBytes(settings.SecretKey + ":")));
+
+        var payload = new
+        {
+            account_type = "bank",
+            properties = new
+            {
+                iban = account.IBAN
+            },
+            credentials = new
+            {
+                company_code = companyCode,
+                cert = certificate,
+                key = privateKey
+            }
+        };
+
+        using var response = await httpClient.PostAsJsonAsync("payout_accounts", payload, MoyasarJsonOptions, cancellationToken);
+        var rawResponse = await response.Content.ReadAsStringAsync(cancellationToken);
+        if (!response.IsSuccessStatusCode)
+        {
+            throw new BusinessRuleException(
+                "MOYASAR_PAYOUT_ACCOUNT_CREATE_FAILED",
+                $"Moyasar payout account creation failed: {ExtractMoyasarError(rawResponse)}");
+        }
+
+        using var document = JsonDocument.Parse(rawResponse);
+        var sourceId = document.RootElement.TryGetProperty("id", out var idElement)
+            ? idElement.GetString()
+            : null;
+
+        if (string.IsNullOrWhiteSpace(sourceId))
+        {
+            throw new BusinessRuleException("MOYASAR_PAYOUT_ACCOUNT_ID_MISSING", "Moyasar did not return a payout source id.");
+        }
+
+        account.Update(
+            account.BankName,
+            account.AccountHolderName,
+            account.IBAN,
+            account.AccountNumber,
+            account.CountryCode,
+            account.City,
+            account.IsBankTransferEnabled,
+            isMoyasarPayoutsEnabled: true,
+            moyasarPayoutSourceId: sourceId,
+            account.Notes);
 
         await context.SaveChangesAsync(cancellationToken);
 
@@ -763,5 +859,38 @@ public class AdminWalletsController : ApiControllerBase
         {
             hold.Cancel(reason);
         }
+    }
+
+    private static string FirstNonEmpty(params string?[] values) =>
+        values.FirstOrDefault(value => !string.IsNullOrWhiteSpace(value))?.Trim() ?? string.Empty;
+
+    private static string ExtractMoyasarError(string rawResponse)
+    {
+        if (string.IsNullOrWhiteSpace(rawResponse))
+        {
+            return "empty provider response";
+        }
+
+        try
+        {
+            using var document = JsonDocument.Parse(rawResponse);
+            if (document.RootElement.TryGetProperty("message", out var message) &&
+                message.ValueKind == JsonValueKind.String &&
+                !string.IsNullOrWhiteSpace(message.GetString()))
+            {
+                return message.GetString()!;
+            }
+
+            if (document.RootElement.TryGetProperty("errors", out var errors) &&
+                errors.ValueKind != JsonValueKind.Null)
+            {
+                return errors.ToString();
+            }
+        }
+        catch (JsonException)
+        {
+        }
+
+        return rawResponse.Length <= 500 ? rawResponse : rawResponse[..500];
     }
 }
