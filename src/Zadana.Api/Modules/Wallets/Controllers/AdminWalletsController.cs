@@ -562,6 +562,11 @@ public class AdminWalletsController : ApiControllerBase
                 throw new BusinessRuleException("DRIVER_BANK_ACCOUNT_REQUIRED", "Only bank account withdrawal methods can be paid through bank transfer.");
             }
 
+            if (!IsValidSaudiIban(withdrawal.DriverPayoutMethod.AccountIdentifier))
+            {
+                throw new BusinessRuleException("DRIVER_BANK_IBAN_INVALID", "Driver bank account must be a valid Saudi IBAN.");
+            }
+
             var hasConfiguredPayoutGateway = payoutOrchestrator.HasEnabledGateway &&
                 (moyasarSettings is null ||
                  await HasConfiguredPayoutSourceAsync(context, moyasarSettings.Value, cancellationToken));
@@ -863,6 +868,19 @@ public class AdminWalletsController : ApiControllerBase
 
     private static string FirstNonEmpty(params string?[] values) =>
         values.FirstOrDefault(value => !string.IsNullOrWhiteSpace(value))?.Trim() ?? string.Empty;
+
+    private static bool IsValidSaudiIban(string? iban)
+    {
+        if (string.IsNullOrWhiteSpace(iban))
+        {
+            return false;
+        }
+
+        var clean = new string(iban.Where(char.IsLetterOrDigit).ToArray()).ToUpperInvariant();
+        return clean.Length == 24 &&
+            clean.StartsWith("SA", StringComparison.OrdinalIgnoreCase) &&
+            clean.Skip(2).All(char.IsDigit);
+    }
 
     private static string ExtractMoyasarError(string rawResponse)
     {

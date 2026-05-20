@@ -2,16 +2,23 @@ using Microsoft.AspNetCore.Authorization;
 using Microsoft.AspNetCore.Mvc;
 using Microsoft.EntityFrameworkCore;
 using Zadana.Application.Common.Interfaces;
+using Zadana.Application.Modules.Finances.Services;
+using Zadana.Application.Modules.Wallets.Services;
 using Zadana.Domain.Modules.Finances.Enums;
+using Zadana.Domain.Modules.Vendors.Enums;
 using Zadana.Domain.Modules.Wallets.Entities;
 using Zadana.Domain.Modules.Wallets.Enums;
+using Zadana.SharedKernel.Exceptions;
 
 namespace Zadana.Api.Modules.Finances.Controllers;
 
 [ApiController]
 [Route("api/admin/settlements")]
 [Authorize(Policy = "AdminOnly")]
-public sealed class AdminSettlementsController(IApplicationDbContext context) : ControllerBase
+public sealed class AdminSettlementsController(
+    IApplicationDbContext context,
+    PayoutOrchestrator payoutOrchestrator,
+    VendorPayoutWalletService vendorPayoutWalletService) : ControllerBase
 {
     [HttpGet]
     public async Task<ActionResult<AdminSettlementListDto>> GetSettlements(
@@ -147,12 +154,37 @@ public sealed class AdminSettlementsController(IApplicationDbContext context) : 
     }
 
     [HttpPost("{id:guid}/approve")]
-    public async Task<IActionResult> Approve(Guid id, [FromBody] SettlementResolutionRequest? request, CancellationToken cancellationToken)
+    public async Task<ActionResult<AdminSettlementDetailDto>> Approve(Guid id, [FromBody] SettlementResolutionRequest? request, CancellationToken cancellationToken)
     {
-        var settlement = await LoadSettlementAsync(id, cancellationToken);
-        settlement.Approve(ParseResolution(request?.ResolutionType));
+        var settlement = await LoadSettlementForApprovalAsync(id, cancellationToken);
+        var resolution = ParseResolution(request?.ResolutionType);
+        settlement.Approve(resolution);
+
+        Payout? payout = null;
+        if (settlement.NetAmount > 0 && settlement.ResolutionType == SettlementResolutionType.BankPayout)
+        {
+            payout = await EnsureSettlementPayoutAsync(settlement, cancellationToken);
+
+            if (settlement.OwnerType == SettlementOwnerType.Vendor)
+            {
+                await vendorPayoutWalletService.EnsureHoldAsync(
+                    settlement.OwnerId,
+                    settlement.Id,
+                    payout.Amount,
+                    "AdminSettlementApproval",
+                    $"Hold for approved settlement {settlement.Id}",
+                    cancellationToken);
+            }
+        }
+
         await context.SaveChangesAsync(cancellationToken);
-        return NoContent();
+
+        if (payout is not null && request?.TriggerPayout != false)
+        {
+            await payoutOrchestrator.TriggerAsync(payout.Id, cancellationToken: cancellationToken);
+        }
+
+        return Ok(await LoadDetailDtoAsync(settlement.Id, cancellationToken));
     }
 
     [HttpPost("{id:guid}/hold")]
@@ -186,8 +218,98 @@ public sealed class AdminSettlementsController(IApplicationDbContext context) : 
         await context.Settlements.FirstOrDefaultAsync(item => item.Id == id, cancellationToken)
         ?? throw new KeyNotFoundException($"Settlement {id} was not found.");
 
+    private async Task<Settlement> LoadSettlementForApprovalAsync(Guid id, CancellationToken cancellationToken) =>
+        await context.Settlements
+            .Include(item => item.Payouts)
+            .FirstOrDefaultAsync(item => item.Id == id, cancellationToken)
+        ?? throw new KeyNotFoundException($"Settlement {id} was not found.");
+
+    private async Task<Payout> EnsureSettlementPayoutAsync(Settlement settlement, CancellationToken cancellationToken)
+    {
+        var existingPayout = settlement.Payouts
+            .OrderByDescending(item => item.CreatedAtUtc)
+            .FirstOrDefault(item => item.Status is not PayoutStatus.Cancelled);
+
+        if (existingPayout is not null)
+        {
+            return existingPayout;
+        }
+
+        Guid? vendorBankAccountId = null;
+        if (settlement.OwnerType == SettlementOwnerType.Vendor)
+        {
+            var bankAccount = await context.VendorBankAccounts
+                .AsNoTracking()
+                .Where(item =>
+                    item.VendorId == settlement.OwnerId &&
+                    item.IsPrimary &&
+                    item.Status == BankAccountStatus.Verified)
+                .OrderByDescending(item => item.VerifiedAtUtc)
+                .ThenByDescending(item => item.CreatedAtUtc)
+                .FirstOrDefaultAsync(cancellationToken)
+                ?? throw new BusinessRuleException(
+                    "VENDOR_VERIFIED_BANK_ACCOUNT_REQUIRED",
+                    "Vendor must have a verified primary bank account before approving bank payout settlement.");
+
+            if (!IsValidSaudiIban(bankAccount.IBAN))
+            {
+                throw new BusinessRuleException(
+                    "VENDOR_BANK_IBAN_INVALID",
+                    "Vendor primary bank account must be a valid Saudi IBAN before approving bank payout settlement.");
+            }
+
+            vendorBankAccountId = bankAccount.Id;
+        }
+
+        var payout = new Payout(settlement.Id, settlement.NetAmount, vendorBankAccountId);
+        context.Payouts.Add(payout);
+        return payout;
+    }
+
+    private async Task<AdminSettlementDetailDto> LoadDetailDtoAsync(Guid id, CancellationToken cancellationToken)
+    {
+        var settlement = await context.Settlements
+            .AsNoTracking()
+            .Include(item => item.Items)
+            .Include(item => item.Payouts)
+            .FirstAsync(item => item.Id == id, cancellationToken);
+
+        return new AdminSettlementDetailDto(
+            ToDto(settlement),
+            settlement.Items.Select(item => new AdminSettlementItemDto(
+                item.Id,
+                item.LineType.ToString(),
+                item.SourceId,
+                item.OrderId,
+                item.Amount,
+                item.Commission,
+                item.Refund,
+                item.Adjustment,
+                item.Recovery,
+                item.NetAmount)).ToList(),
+            settlement.Payouts.Select(item => new AdminSettlementPayoutDto(
+                item.Id,
+                item.Amount,
+                item.Status.ToString(),
+                item.ProviderTransferId,
+                item.TransferReference)).ToList());
+    }
+
     private static SettlementResolutionType? ParseResolution(string? value) =>
         Enum.TryParse<SettlementResolutionType>(value, true, out var parsed) ? parsed : null;
+
+    private static bool IsValidSaudiIban(string? iban)
+    {
+        if (string.IsNullOrWhiteSpace(iban))
+        {
+            return false;
+        }
+
+        var clean = new string(iban.Where(char.IsLetterOrDigit).ToArray()).ToUpperInvariant();
+        return clean.Length == 24 &&
+            clean.StartsWith("SA", StringComparison.OrdinalIgnoreCase) &&
+            clean.Skip(2).All(char.IsDigit);
+    }
 
     private static AdminSettlementDto ToDto(Settlement settlement) =>
         new(
@@ -212,7 +334,7 @@ public sealed record GenerateSettlementRequest(
     DateTime PeriodFrom,
     DateTime PeriodTo);
 
-public sealed record SettlementResolutionRequest(string? ResolutionType);
+public sealed record SettlementResolutionRequest(string? ResolutionType, bool? TriggerPayout = true);
 
 public sealed record AdminSettlementListDto(
     IReadOnlyList<AdminSettlementDto> Items,

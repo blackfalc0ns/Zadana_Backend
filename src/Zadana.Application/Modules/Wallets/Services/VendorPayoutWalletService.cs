@@ -27,7 +27,37 @@ public class VendorPayoutWalletService
         string description,
         CancellationToken cancellationToken)
     {
-        await Task.CompletedTask;
+        if (amount <= 0)
+        {
+            return;
+        }
+
+        var wallet = await GetOrCreateVendorWalletAsync(vendorId, cancellationToken);
+        var exists = await _context.WalletHolds.AnyAsync(
+            hold =>
+                hold.OwnerType == WalletOwnerType.Vendor &&
+                hold.OwnerId == vendorId &&
+                hold.Reason == WalletHoldReason.Payout &&
+                hold.ReferenceType == "Settlement" &&
+                hold.ReferenceId == settlementId &&
+                hold.Status == WalletHoldStatus.Active,
+            cancellationToken);
+
+        if (exists)
+        {
+            return;
+        }
+
+        _context.WalletHolds.Add(new WalletHold(
+            WalletOwnerType.Vendor,
+            vendorId,
+            amount,
+            WalletHoldReason.Payout,
+            $"vendor-payout-hold:{vendorId:N}:{settlementId:N}",
+            walletId: wallet.Id,
+            referenceType: "Settlement",
+            referenceId: settlementId,
+            memo: description));
     }
 
     public async Task ReleaseHoldAsync(
@@ -38,7 +68,11 @@ public class VendorPayoutWalletService
         string description,
         CancellationToken cancellationToken)
     {
-        await Task.CompletedTask;
+        var holds = await LoadActiveSettlementHoldsAsync(vendorId, settlementId, cancellationToken);
+        foreach (var hold in holds)
+        {
+            hold.Release(description);
+        }
     }
 
     public async Task SettleHoldAsync(
@@ -49,7 +83,11 @@ public class VendorPayoutWalletService
         string description,
         CancellationToken cancellationToken)
     {
-        await Task.CompletedTask;
+        var holds = await LoadActiveSettlementHoldsAsync(vendorId, settlementId, cancellationToken);
+        foreach (var hold in holds)
+        {
+            hold.Consume();
+        }
     }
 
     public async Task<Guid?> RecoverFromHoldAsync(
@@ -60,14 +98,59 @@ public class VendorPayoutWalletService
         string description,
         CancellationToken cancellationToken)
     {
-        await Task.CompletedTask;
-        return null;
+        var wallet = await GetOrCreateVendorWalletAsync(vendorId, cancellationToken);
+        var exists = await _context.WalletTransactions.AnyAsync(
+            txn => txn.ReferenceType == "VendorHoldRecovery" && txn.ReferenceId == recoveryId,
+            cancellationToken);
+
+        if (exists)
+        {
+            return null;
+        }
+
+        var transaction = new WalletTransaction(
+            wallet.Id,
+            WalletTxnType.Debit,
+            amount,
+            "OUT",
+            settlementId: settlementId,
+            referenceType: "VendorHoldRecovery",
+            referenceId: recoveryId,
+            description: description);
+
+        _context.WalletTransactions.Add(transaction);
+        return transaction.Id;
     }
 
-    private Task<Wallet?> GetVendorWalletAsync(Guid vendorId, CancellationToken cancellationToken) =>
-        _context.Wallets.FirstOrDefaultAsync(
-            wallet => wallet.OwnerType == WalletOwnerType.Vendor && wallet.OwnerId == vendorId,
+    private async Task<Wallet> GetOrCreateVendorWalletAsync(Guid vendorId, CancellationToken cancellationToken)
+    {
+        var wallet = await _context.Wallets.FirstOrDefaultAsync(
+            item => item.OwnerType == WalletOwnerType.Vendor && item.OwnerId == vendorId,
             cancellationToken);
+
+        if (wallet is not null)
+        {
+            return wallet;
+        }
+
+        wallet = new Wallet(WalletOwnerType.Vendor, vendorId);
+        _context.Wallets.Add(wallet);
+        return wallet;
+    }
+
+    private Task<List<WalletHold>> LoadActiveSettlementHoldsAsync(
+        Guid vendorId,
+        Guid settlementId,
+        CancellationToken cancellationToken) =>
+        _context.WalletHolds
+            .Where(hold =>
+                hold.OwnerType == WalletOwnerType.Vendor &&
+                hold.OwnerId == vendorId &&
+                hold.Reason == WalletHoldReason.Payout &&
+                hold.ReferenceType == "Settlement" &&
+                hold.ReferenceId == settlementId &&
+                hold.Status == WalletHoldStatus.Active)
+            .ToListAsync(cancellationToken);
 
     private Task<bool> HasSettlementTxnAsync(
         Guid walletId,

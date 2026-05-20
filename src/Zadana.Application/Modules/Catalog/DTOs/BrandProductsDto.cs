@@ -24,7 +24,8 @@ public record BrandProductItemDto(
     [property: JsonPropertyName("discount")] string? Discount,
     [property: JsonPropertyName("is_favorite")] bool IsFavorite,
     [property: JsonPropertyName("unit")] string? Unit,
-    [property: JsonPropertyName("is_discounted")] bool IsDiscounted);
+    [property: JsonPropertyName("is_discounted")] bool IsDiscounted,
+    [property: JsonPropertyName("show_price_on_card")] bool ShowPriceOnCard = true);
 
 public record BrandProductsDto(
     [property: JsonPropertyName("applied_filters")] BrandProductsAppliedFiltersDto AppliedFilters,

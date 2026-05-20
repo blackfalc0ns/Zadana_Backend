@@ -34,6 +34,7 @@ public record MasterProductDto(
     string? DisplaySizeAr,
     string? DisplaySizeEn,
     string Status,
+    bool ShowPriceOnCard,
     bool IsInVendorStore,
     ICollection<MasterProductImageDto> Images,
     DateTime? CreatedAtUtc = null,

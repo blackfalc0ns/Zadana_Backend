@@ -115,7 +115,8 @@ public class SearchProductsQueryHandler : IRequestHandler<SearchProductsQuery, S
                     .ThenBy(image => image.DisplayOrder)
                     .Select(image => image.Url)
                     .FirstOrDefault(),
-                product.MasterProduct.VariantGroupId))
+                product.MasterProduct.VariantGroupId,
+                product.MasterProduct.ShowPriceOnCard))
             .ToListAsync(cancellationToken);
 
         var availabilityDecisions = await VendorCustomerAvailabilityPolicy.LoadDecisionsAsync(
@@ -157,7 +158,8 @@ public class SearchProductsQueryHandler : IRequestHandler<SearchProductsQuery, S
                     salesCount,
                     reviewStats?.AverageRating,
                     reviewStats?.ReviewCount ?? 0,
-                    product.VariantGroupId);
+                    product.VariantGroupId,
+                    product.ShowPriceOnCard);
             })
             .GroupBy(product => GetProductGroupKey(product.VariantGroupId, product.Id))
             .Select(group => group
@@ -254,7 +256,8 @@ public class SearchProductsQueryHandler : IRequestHandler<SearchProductsQuery, S
             isFavorite,
             product.Unit,
             isDiscounted,
-            variantCount);
+            variantCount,
+            product.ShowPriceOnCard);
     }
 
     private static decimal CalculateDiscountRate(SearchProductSource product)
@@ -317,7 +320,8 @@ public class SearchProductsQueryHandler : IRequestHandler<SearchProductsQuery, S
         string? MeasurementUnitEn,
         string? MeasurementUnitSymbol,
         string? ImageUrl,
-        Guid VariantGroupId);
+        Guid VariantGroupId,
+        bool ShowPriceOnCard);
 
     private sealed record SearchProductSource(
         Guid Id,
@@ -341,5 +345,6 @@ public class SearchProductsQueryHandler : IRequestHandler<SearchProductsQuery, S
         int SalesCount,
         decimal? Rating,
         int ReviewCount,
-        Guid VariantGroupId = default);
+        Guid VariantGroupId = default,
+        bool ShowPriceOnCard = true);
 }

@@ -209,6 +209,11 @@ public class ApplicationDbContextInitialiser
 
                 primary.SetAsPrimary();
             }
+
+            if (primary.Status == BankAccountStatus.Verified && IsValidSaudiIban(primary.IBAN))
+            {
+                vendor.UpdateFinanceSettings(VendorFinancialLifecycleMode.PerOrderDirectPayout);
+            }
         }
     }
 

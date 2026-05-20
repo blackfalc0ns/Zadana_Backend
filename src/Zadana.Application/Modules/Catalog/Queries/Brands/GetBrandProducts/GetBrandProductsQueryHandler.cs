@@ -132,7 +132,8 @@ public class GetBrandProductsQueryHandler : IRequestHandler<GetBrandProductsQuer
                     .OrderByDescending(image => image.IsPrimary)
                     .ThenBy(image => image.DisplayOrder)
                     .Select(image => image.Url)
-                    .FirstOrDefault()))
+                    .FirstOrDefault(),
+                product.MasterProduct.ShowPriceOnCard))
             .ToListAsync(cancellationToken);
 
         var availabilityDecisions = await VendorCustomerAvailabilityPolicy.LoadDecisionsAsync(
@@ -173,7 +174,8 @@ public class GetBrandProductsQueryHandler : IRequestHandler<GetBrandProductsQuer
                     product.ImageUrl,
                     salesCount,
                     reviewStats?.AverageRating,
-                    reviewStats?.ReviewCount ?? 0);
+                    reviewStats?.ReviewCount ?? 0,
+                    product.ShowPriceOnCard);
             })
             .GroupBy(product => product.Id)
             .Select(group => group
@@ -256,7 +258,8 @@ public class GetBrandProductsQueryHandler : IRequestHandler<GetBrandProductsQuer
             FormatDiscount(product),
             isFavorite,
             product.Unit,
-            isDiscounted);
+            isDiscounted,
+            product.ShowPriceOnCard);
     }
 
     private static string? NormalizeText(string? value) =>
@@ -332,7 +335,8 @@ public class GetBrandProductsQueryHandler : IRequestHandler<GetBrandProductsQuer
         string? MeasurementUnitAr,
         string? MeasurementUnitEn,
         string? MeasurementUnitSymbol,
-        string? ImageUrl);
+        string? ImageUrl,
+        bool ShowPriceOnCard);
 
     private sealed record BrandProductSource(
         Guid Id,
@@ -355,5 +359,6 @@ public class GetBrandProductsQueryHandler : IRequestHandler<GetBrandProductsQuer
         string? ImageUrl,
         int SalesCount,
         decimal? Rating,
-        int ReviewCount);
+        int ReviewCount,
+        bool ShowPriceOnCard = true);
 }

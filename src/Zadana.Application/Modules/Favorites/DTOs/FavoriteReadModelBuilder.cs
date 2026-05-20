@@ -72,7 +72,8 @@ internal static class FavoriteReadModelBuilder
                     .OrderByDescending(image => image.IsPrimary)
                     .ThenBy(image => image.DisplayOrder)
                     .Select(image => image.Url)
-                    .FirstOrDefault()))
+                    .FirstOrDefault(),
+                product.MasterProduct.ShowPriceOnCard))
             .ToListAsync(cancellationToken);
 
         var availabilityDecisions = await VendorCustomerAvailabilityPolicy.LoadDecisionsAsync(
@@ -110,7 +111,8 @@ internal static class FavoriteReadModelBuilder
                         reviewStats?.ReviewCount ?? 0,
                         decision.IsOnlineNow,
                         decision.IsPurchasable,
-                        decision.ReasonCode),
+                        decision.ReasonCode,
+                        offer.ShowPriceOnCard),
                     SalesCount = salesCount
                 };
             })

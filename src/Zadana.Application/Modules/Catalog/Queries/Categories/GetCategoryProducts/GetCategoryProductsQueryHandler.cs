@@ -188,7 +188,8 @@ public class GetCategoryProductsQueryHandler : IRequestHandler<GetCategoryProduc
                     .ThenBy(image => image.DisplayOrder)
                     .Select(image => image.Url)
                     .FirstOrDefault(),
-                product.MasterProduct.VariantGroupId))
+                product.MasterProduct.VariantGroupId,
+                product.MasterProduct.ShowPriceOnCard))
             .ToListAsync(cancellationToken);
 
         var availabilityDecisions = await VendorCustomerAvailabilityPolicy.LoadDecisionsAsync(
@@ -231,7 +232,8 @@ public class GetCategoryProductsQueryHandler : IRequestHandler<GetCategoryProduc
                     salesCount,
                     reviewStats?.AverageRating,
                     reviewStats?.ReviewCount ?? 0,
-                    product.VariantGroupId);
+                    product.VariantGroupId,
+                    product.ShowPriceOnCard);
             })
             .GroupBy(product => product.VariantGroupId != default ? product.VariantGroupId : product.Id)
             .Select(group => group
@@ -334,7 +336,8 @@ public class GetCategoryProductsQueryHandler : IRequestHandler<GetCategoryProduc
             FormatDiscount(product),
             isFavorite,
             product.Unit,
-            isDiscounted);
+            isDiscounted,
+            product.ShowPriceOnCard);
     }
 
     private static decimal CalculateDiscountRate(CategoryProductSource product)
@@ -443,7 +446,8 @@ public class GetCategoryProductsQueryHandler : IRequestHandler<GetCategoryProduc
         string? MeasurementUnitEn,
         string? MeasurementUnitSymbol,
         string? ImageUrl,
-        Guid VariantGroupId = default);
+        Guid VariantGroupId = default,
+        bool ShowPriceOnCard = true);
 
     private sealed record CategoryProductSource(
         Guid Id,
@@ -468,5 +472,6 @@ public class GetCategoryProductsQueryHandler : IRequestHandler<GetCategoryProduc
         int SalesCount,
         decimal? Rating,
         int ReviewCount,
-        Guid VariantGroupId = default);
+        Guid VariantGroupId = default,
+        bool ShowPriceOnCard = true);
 }

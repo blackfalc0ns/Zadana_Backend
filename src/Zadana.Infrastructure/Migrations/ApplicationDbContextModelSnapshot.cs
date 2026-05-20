@@ -740,6 +740,11 @@ namespace Zadana.Infrastructure.Migrations
                         .HasMaxLength(300)
                         .HasColumnType("nvarchar(300)");
 
+                    b.Property<bool>("ShowPriceOnCard")
+                        .ValueGeneratedOnAdd()
+                        .HasColumnType("bit")
+                        .HasDefaultValue(true);
+
                     b.Property<string>("Status")
                         .IsRequired()
                         .HasMaxLength(20)

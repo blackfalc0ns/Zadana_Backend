@@ -36,7 +36,8 @@ public record HomeProductCardDto(
     [property: JsonPropertyName("is_favorite")] bool IsFavorite,
     [property: JsonPropertyName("is_featured")] bool IsFeatured,
     [property: JsonPropertyName("unit")] string? Unit,
-    [property: JsonPropertyName("is_discounted")] bool IsDiscounted);
+    [property: JsonPropertyName("is_discounted")] bool IsDiscounted,
+    [property: JsonPropertyName("show_price_on_card")] bool ShowPriceOnCard = true);
 
 public record HomeBrandCardDto(
     [property: JsonPropertyName("id")] Guid Id,

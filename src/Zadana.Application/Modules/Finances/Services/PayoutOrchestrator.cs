@@ -5,6 +5,7 @@ using Zadana.Application.Common.Interfaces;
 using Zadana.Application.Common.Settings;
 using Zadana.Application.Modules.Payments.Gateways;
 using Zadana.Application.Modules.Payments.Interfaces;
+using Zadana.Application.Modules.Wallets.Services;
 using Zadana.Domain.Modules.Finances.Enums;
 using Zadana.Domain.Modules.Wallets.Entities;
 using Zadana.Domain.Modules.Wallets.Enums;
@@ -19,6 +20,7 @@ public sealed class PayoutOrchestrator
     private readonly IEnumerable<IPayoutGateway> _payoutGateways;
     private readonly FinancialEventPostingService _postingService;
     private readonly WalletProjectionUpdater _walletProjectionUpdater;
+    private readonly VendorPayoutWalletService _vendorPayoutWalletService;
     private readonly FinancialSettingsOptions _settings;
     private readonly IAdminAlertService _adminAlertService;
 
@@ -27,6 +29,7 @@ public sealed class PayoutOrchestrator
         IEnumerable<IPayoutGateway> payoutGateways,
         FinancialEventPostingService postingService,
         WalletProjectionUpdater walletProjectionUpdater,
+        VendorPayoutWalletService vendorPayoutWalletService,
         IOptions<FinancialSettingsOptions> settings,
         IAdminAlertService adminAlertService)
     {
@@ -34,6 +37,7 @@ public sealed class PayoutOrchestrator
         _payoutGateways = payoutGateways;
         _postingService = postingService;
         _walletProjectionUpdater = walletProjectionUpdater;
+        _vendorPayoutWalletService = vendorPayoutWalletService;
         _settings = settings.Value;
         _adminAlertService = adminAlertService;
     }
@@ -54,6 +58,8 @@ public sealed class PayoutOrchestrator
         {
             return payout;
         }
+
+        EnsureSettlementCanBeTriggered(payout);
 
         var gateway = GetEnabledGateway();
 
@@ -192,6 +198,7 @@ public sealed class PayoutOrchestrator
 
             payout.MarkAsFailed(ex.Message);
             payout.Settlement.MarkPayoutFailed();
+            await ReleaseVendorHoldIfApplicableAsync(payout, ex.Message, cancellationToken);
             await MarkLinkedDriverWithdrawalFailedAsync(payout.Id, ex.Message, cancellationToken);
             await _context.SaveChangesAsync(cancellationToken);
             await SendPayoutIntegrationFailureAlertAsync(payout, ex, cancellationToken);
@@ -573,6 +580,7 @@ public sealed class PayoutOrchestrator
             rawPayload: null));
 
         await PostPayoutPaidAsync(payout, cancellationToken);
+        await SettleVendorHoldIfApplicableAsync(payout, cancellationToken);
         await MarkLinkedDriverWithdrawalPaidAsync(payout.Id, transferReference, cancellationToken);
         await _context.SaveChangesAsync(cancellationToken);
     }
@@ -587,6 +595,7 @@ public sealed class PayoutOrchestrator
     {
         payout.MarkAsFailed(failureReason, providerTransferId, providerName, providerSequenceNumber);
         payout.Settlement.MarkPayoutFailed();
+        await ReleaseVendorHoldIfApplicableAsync(payout, failureReason, cancellationToken);
         await MarkLinkedDriverWithdrawalFailedAsync(payout.Id, failureReason, cancellationToken);
         await _context.SaveChangesAsync(cancellationToken);
     }
@@ -626,6 +635,23 @@ public sealed class PayoutOrchestrator
         {
             withdrawal.MarkProcessing();
         }
+    }
+
+    private static void EnsureSettlementCanBeTriggered(Payout payout)
+    {
+        if (payout.Settlement.Origin == SettlementOrigin.DirectPerOrder)
+        {
+            return;
+        }
+
+        if (payout.Settlement.Status is SettlementStatus.Approved or SettlementStatus.PayoutFailed)
+        {
+            return;
+        }
+
+        throw new BusinessRuleException(
+            "SETTLEMENT_APPROVAL_REQUIRED",
+            "Scheduled and manual settlements must be approved by finance before payout can be triggered.");
     }
 
     private async Task MarkLinkedDriverWithdrawalPaidAsync(Guid payoutId, string transferReference, CancellationToken cancellationToken)
@@ -695,6 +721,41 @@ public sealed class PayoutOrchestrator
                 item.ReferenceType == "DriverWithdrawalRequest" &&
                 item.ReferenceId == withdrawal.Id)
             .ToListAsync(cancellationToken);
+    }
+
+    private async Task SettleVendorHoldIfApplicableAsync(Payout payout, CancellationToken cancellationToken)
+    {
+        if (payout.Settlement.OwnerType != SettlementOwnerType.Vendor)
+        {
+            return;
+        }
+
+        await _vendorPayoutWalletService.SettleHoldAsync(
+            payout.Settlement.OwnerId,
+            payout.SettlementId,
+            payout.Id,
+            payout.Amount,
+            $"Payout paid {payout.Id}",
+            cancellationToken);
+    }
+
+    private async Task ReleaseVendorHoldIfApplicableAsync(
+        Payout payout,
+        string reason,
+        CancellationToken cancellationToken)
+    {
+        if (payout.Settlement.OwnerType != SettlementOwnerType.Vendor)
+        {
+            return;
+        }
+
+        await _vendorPayoutWalletService.ReleaseHoldAsync(
+            payout.Settlement.OwnerId,
+            payout.SettlementId,
+            payout.Amount,
+            "PayoutFailedRelease",
+            reason,
+            cancellationToken);
     }
 
     private async Task PostPayoutPaidAsync(Payout payout, CancellationToken cancellationToken)

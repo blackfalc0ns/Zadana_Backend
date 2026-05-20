@@ -292,7 +292,7 @@ public class OrderRevenueDistributionService
     {
         var primaryBankAccount = await _context.VendorBankAccounts
             .AsNoTracking()
-            .Where(b => b.VendorId == vendorId)
+            .Where(b => b.VendorId == vendorId && b.IsPrimary && b.Status == BankAccountStatus.Verified)
             .OrderByDescending(b => b.IsPrimary)
             .ThenByDescending(b => b.VerifiedAtUtc)
             .ThenByDescending(b => b.CreatedAtUtc)
@@ -300,7 +300,13 @@ public class OrderRevenueDistributionService
 
         if (primaryBankAccount is null)
         {
-            _logger.LogWarning("[RevenueDistribution] No bank account for vendor {VendorId}. Payout skipped.", vendorId);
+            _logger.LogWarning("[RevenueDistribution] No verified primary bank account for vendor {VendorId}. Payout skipped.", vendorId);
+            return null;
+        }
+
+        if (!IsValidSaudiIban(primaryBankAccount.IBAN))
+        {
+            _logger.LogWarning("[RevenueDistribution] Invalid Saudi IBAN for vendor {VendorId}. Payout skipped.", vendorId);
             return null;
         }
 
@@ -324,6 +330,19 @@ public class OrderRevenueDistributionService
             cancellationToken);
 
         return payout.Id;
+    }
+
+    private static bool IsValidSaudiIban(string? iban)
+    {
+        if (string.IsNullOrWhiteSpace(iban))
+        {
+            return false;
+        }
+
+        var clean = new string(iban.Where(char.IsLetterOrDigit).ToArray()).ToUpperInvariant();
+        return clean.Length == 24 &&
+            clean.StartsWith("SA", StringComparison.OrdinalIgnoreCase) &&
+            clean.Skip(2).All(char.IsDigit);
     }
 
     private async Task TryAutoTriggerPayoutAsync(Guid? payoutId, CancellationToken cancellationToken)

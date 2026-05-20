@@ -90,6 +90,7 @@ public class DriverWalletController : ApiControllerBase
         EnsurePayoutMethodRequest(request);
         var driver = await GetDriverAsync(currentUserService, driverRepository, cancellationToken);
         var methodType = ParseMethodType(request!.Type);
+        EnsureSupportedBankPayoutMethod(methodType, request.AccountIdentifier);
         var existingMethods = await context.DriverPayoutMethods
             .Where(m => m.DriverId == driver.Id)
             .ToListAsync(cancellationToken);
@@ -132,8 +133,11 @@ public class DriverWalletController : ApiControllerBase
             .FirstOrDefaultAsync(m => m.Id == id && m.DriverId == driver.Id, cancellationToken)
             ?? throw new NotFoundException("DriverPayoutMethod", id);
 
+        var methodType = ParseMethodType(request!.Type);
+        EnsureSupportedBankPayoutMethod(methodType, request.AccountIdentifier);
+
         payoutMethod.UpdateDetails(
-            ParseMethodType(request!.Type),
+            methodType,
             request.AccountHolderName,
             request.AccountIdentifier,
             request.ProviderName);
@@ -199,6 +203,8 @@ public class DriverWalletController : ApiControllerBase
         var payoutMethod = methods.FirstOrDefault(m => m.Id == id)
             ?? throw new NotFoundException("DriverPayoutMethod", id);
 
+        EnsureSupportedBankPayoutMethod(payoutMethod.MethodType, payoutMethod.AccountIdentifier);
+
         foreach (var method in methods)
         {
             method.UnsetPrimary();
@@ -260,6 +266,8 @@ public class DriverWalletController : ApiControllerBase
         {
             throw new BusinessRuleException("DRIVER_PAYOUT_METHOD_REQUIRED", "أضف طريقة سحب أساسية قبل طلب السحب | Add a primary payout method before requesting a withdrawal.");
         }
+
+        EnsureSupportedBankPayoutMethod(payoutMethod.MethodType, payoutMethod.AccountIdentifier);
 
         if (wallet.CodOwedBalance > 0)
         {
@@ -440,6 +448,36 @@ public class DriverWalletController : ApiControllerBase
         }
 
         return methodType;
+    }
+
+    private static void EnsureSupportedBankPayoutMethod(DriverPayoutMethodType methodType, string accountIdentifier)
+    {
+        if (methodType != DriverPayoutMethodType.BankAccount)
+        {
+            throw new BusinessRuleException(
+                "DRIVER_BANK_ACCOUNT_REQUIRED",
+                "Only bank account payout methods are supported for withdrawals.");
+        }
+
+        if (!IsValidSaudiIban(accountIdentifier))
+        {
+            throw new BusinessRuleException(
+                "DRIVER_BANK_IBAN_INVALID",
+                "Driver bank account must be a valid Saudi IBAN.");
+        }
+    }
+
+    private static bool IsValidSaudiIban(string? iban)
+    {
+        if (string.IsNullOrWhiteSpace(iban))
+        {
+            return false;
+        }
+
+        var clean = new string(iban.Where(char.IsLetterOrDigit).ToArray()).ToUpperInvariant();
+        return clean.Length == 24 &&
+            clean.StartsWith("SA", StringComparison.OrdinalIgnoreCase) &&
+            clean.Skip(2).All(char.IsDigit);
     }
 
     private static void EnsurePayoutMethodRequest(CreateDriverPayoutMethodRequest? request)

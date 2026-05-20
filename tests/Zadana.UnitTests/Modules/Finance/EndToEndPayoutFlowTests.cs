@@ -23,6 +23,7 @@ using Zadana.Domain.Modules.Vendors.Entities;
 using Zadana.Domain.Modules.Vendors.Enums;
 using Zadana.Domain.Modules.Wallets.Entities;
 using Zadana.Domain.Modules.Wallets.Enums;
+using Zadana.SharedKernel.Exceptions;
 using Zadana.SharedKernel.Finance;
 using Zadana.UnitTests.Common;
 
@@ -142,6 +143,43 @@ public class EndToEndPayoutFlowTests
         gateway.CreatedCommands.Select(item => item.OwnerType).Should().Contain(["Vendor", "Driver"]);
     }
 
+    [Fact]
+    public async Task Scheduled_vendor_payout_requires_admin_approval_before_trigger()
+    {
+        await using var context = TestDbContextFactory.Create();
+        var gateway = new FakePaidPayoutGateway();
+        var orchestrator = CreatePayoutOrchestrator(context, gateway);
+
+        var vendor = CreatePerOrderVendor();
+        vendor.UpdateFinanceSettings(VendorFinancialLifecycleMode.Weekly);
+        var vendorBank = CreateVerifiedPrimaryBankAccount(vendor.Id, "Vendor Owner");
+        var settlement = new Settlement(vendor.Id, null, SettlementOrigin.ScheduledCycle);
+        settlement.UpdateTotals(100m, 0m);
+        var payout = new Payout(settlement.Id, settlement.NetAmount, vendorBank.Id);
+
+        context.Vendors.Add(vendor);
+        context.VendorBankAccounts.Add(vendorBank);
+        context.Settlements.Add(settlement);
+        context.Payouts.Add(payout);
+        await context.SaveChangesAsync();
+
+        await orchestrator.Awaiting(item => item.TriggerAsync(payout.Id))
+            .Should()
+            .ThrowAsync<BusinessRuleException>()
+            .WithMessage("*approved*");
+
+        gateway.CreatedCommands.Should().BeEmpty();
+
+        settlement.Approve();
+        await context.SaveChangesAsync();
+
+        await orchestrator.TriggerAsync(payout.Id);
+
+        var refreshedPayout = await context.Payouts.SingleAsync(item => item.Id == payout.Id);
+        refreshedPayout.Status.Should().Be(PayoutStatus.Paid);
+        gateway.CreatedCommands.Should().ContainSingle();
+    }
+
     private static PayoutOrchestrator CreatePayoutOrchestrator(
         IApplicationDbContext context,
         IPayoutGateway gateway)
@@ -149,12 +187,16 @@ public class EndToEndPayoutFlowTests
         var postingService = new FinancialEventPostingService(
             context,
             NullLogger<FinancialEventPostingService>.Instance);
+        var vendorPayoutWalletService = new VendorPayoutWalletService(
+            context,
+            NullLogger<VendorPayoutWalletService>.Instance);
 
         return new PayoutOrchestrator(
             context,
             [gateway],
             postingService,
             new WalletProjectionUpdater(context),
+            vendorPayoutWalletService,
             Options.Create(new FinancialSettingsOptions()),
             new NoOpAdminAlertService());
     }

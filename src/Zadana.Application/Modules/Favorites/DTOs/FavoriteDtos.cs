@@ -18,7 +18,8 @@ public record FavoriteItemDto(
     [property: JsonPropertyName("is_discounted")] bool IsDiscounted,
     [property: JsonPropertyName("is_online_now")] bool IsOnlineNow = true,
     [property: JsonPropertyName("is_available_for_purchase")] bool IsAvailableForPurchase = true,
-    [property: JsonPropertyName("unavailable_reason")] string? UnavailableReason = null);
+    [property: JsonPropertyName("unavailable_reason")] string? UnavailableReason = null,
+    [property: JsonPropertyName("show_price_on_card")] bool ShowPriceOnCard = true);
 
 public record FavoritesSummaryDto(
     [property: JsonPropertyName("items_count")] int ItemsCount);
@@ -52,7 +53,8 @@ internal sealed record FavoriteOfferRow(
     decimal? CompareAtPrice,
     string? UnitAr,
     string? UnitEn,
-    string? ImageUrl);
+    string? ImageUrl,
+    bool ShowPriceOnCard);
 
 internal sealed record FavoriteItemSource(
     Guid MasterProductId,
@@ -73,7 +75,8 @@ internal sealed record FavoriteItemSource(
     int ReviewCount,
     bool IsOnlineNow = true,
     bool IsAvailableForPurchase = true,
-    string? UnavailableReason = null)
+    string? UnavailableReason = null,
+    bool ShowPriceOnCard = true)
 {
     public bool IsDiscounted => CompareAtPrice.HasValue && CompareAtPrice.Value > SellingPrice;
 }
@@ -99,7 +102,8 @@ internal static class FavoriteProjectionMapper
             item.IsDiscounted,
             item.IsOnlineNow,
             item.IsAvailableForPurchase,
-            item.UnavailableReason);
+            item.UnavailableReason,
+            item.ShowPriceOnCard);
     }
 
     public static string PickLocalized(string? arabic, string? english)

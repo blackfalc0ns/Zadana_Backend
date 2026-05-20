@@ -79,6 +79,20 @@ public class AdminUpdateVendorFinanceSettingsCommandHandler : IRequestHandler<Ad
                     "PrimaryBankAccountRequiredForDirectPayout",
                     "A primary bank account is required before enabling direct per-order payouts.");
             }
+
+            if (primaryBankAccount.Status != BankAccountStatus.Verified)
+            {
+                throw new BusinessRuleException(
+                    "VerifiedPrimaryBankAccountRequiredForDirectPayout",
+                    "A verified primary bank account is required before enabling direct per-order payouts.");
+            }
+
+            if (!IsValidSaudiIban(primaryBankAccount.IBAN))
+            {
+                throw new BusinessRuleException(
+                    "ValidSaudiIbanRequiredForDirectPayout",
+                    "A valid Saudi IBAN is required before enabling direct per-order payouts.");
+            }
         }
 
         vendor.UpdateFinanceSettings(mode, request.PayoutCycle);
@@ -108,4 +122,17 @@ public class AdminUpdateVendorFinanceSettingsCommandHandler : IRequestHandler<Ad
             "per_order_direct_payout" => VendorFinancialLifecycleMode.PerOrderDirectPayout,
             _ => VendorFinancialLifecycleMode.Weekly
         };
+
+    private static bool IsValidSaudiIban(string? iban)
+    {
+        if (string.IsNullOrWhiteSpace(iban))
+        {
+            return false;
+        }
+
+        var clean = new string(iban.Where(char.IsLetterOrDigit).ToArray()).ToUpperInvariant();
+        return clean.Length == 24 &&
+            clean.StartsWith("SA", StringComparison.OrdinalIgnoreCase) &&
+            clean.Skip(2).All(char.IsDigit);
+    }
 }

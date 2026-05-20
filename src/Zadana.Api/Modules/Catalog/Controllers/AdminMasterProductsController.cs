@@ -7,6 +7,7 @@ using Zadana.Application.Common.Models;
 using Zadana.Application.Modules.Catalog.Commands.AdminMasterProducts.BulkCreateMasterProducts;
 using Zadana.Application.Modules.Catalog.Commands.CreateMasterProduct;
 using Zadana.Application.Modules.Catalog.Commands.DeleteMasterProduct;
+using Zadana.Application.Modules.Catalog.Commands.SetMasterProductCardPriceVisibility;
 using Zadana.Application.Modules.Catalog.Commands.UpdateMasterProduct;
 using Zadana.Application.Modules.Catalog.DTOs;
 using Zadana.Application.Modules.Catalog.Queries.GetMasterProductById;
@@ -173,6 +174,15 @@ public class AdminMasterProductsController : ApiControllerBase
         return NoContent();
     }
 
+    [HttpPatch("{id}/card-price-visibility")]
+    public async Task<ActionResult> SetCardPriceVisibility(
+        Guid id,
+        [FromBody] SetCardPriceVisibilityRequest request)
+    {
+        await Sender.Send(new SetMasterProductCardPriceVisibilityCommand(id, request.ShowPriceOnCard));
+        return NoContent();
+    }
+
     [HttpDelete("{id}")]
     public async Task<ActionResult> DeleteProduct(Guid id)
     {
@@ -194,6 +204,8 @@ public class AdminMasterProductsController : ApiControllerBase
 public record BulkCreateMasterProductsRequest(
     string IdempotencyKey,
     IReadOnlyList<BulkCreateMasterProductItemRequest> Items);
+
+public record SetCardPriceVisibilityRequest(bool ShowPriceOnCard);
 
 public record BulkCreateMasterProductItemRequest(
     string NameAr,

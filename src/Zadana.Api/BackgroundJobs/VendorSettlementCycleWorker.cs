@@ -5,7 +5,6 @@ using Microsoft.Extensions.Logging;
 using Microsoft.Extensions.Options;
 using Zadana.Application.Common.Interfaces;
 using Zadana.Application.Common.Settings;
-using Zadana.Application.Modules.Finances.Services;
 using Zadana.Application.Modules.Wallets.Services;
 using Zadana.Domain.Modules.Vendors.Enums;
 using Zadana.Domain.Modules.Wallets.Entities;
@@ -53,7 +52,6 @@ public sealed class VendorSettlementCycleWorker : BackgroundService
         var context = scope.ServiceProvider.GetRequiredService<IApplicationDbContext>();
         var settings = scope.ServiceProvider.GetRequiredService<IOptions<FinancialSettingsOptions>>().Value;
         var vendorPayoutWalletService = scope.ServiceProvider.GetRequiredService<VendorPayoutWalletService>();
-        var payoutOrchestrator = scope.ServiceProvider.GetRequiredService<PayoutOrchestrator>();
 
         var today = DateTime.UtcNow;
         
@@ -85,7 +83,7 @@ public sealed class VendorSettlementCycleWorker : BackgroundService
         {
             try
             {
-                await ProcessVendorSettlementAsync(context, vendorPayoutWalletService, payoutOrchestrator, vendor.Id, cancellationToken);
+                await ProcessVendorSettlementAsync(context, vendorPayoutWalletService, vendor.Id, cancellationToken);
             }
             catch (Exception ex)
             {
@@ -97,7 +95,6 @@ public sealed class VendorSettlementCycleWorker : BackgroundService
     private async Task ProcessVendorSettlementAsync(
         IApplicationDbContext context,
         VendorPayoutWalletService vendorPayoutWalletService,
-        PayoutOrchestrator payoutOrchestrator,
         Guid vendorId,
         CancellationToken cancellationToken)
     {
@@ -125,15 +122,15 @@ public sealed class VendorSettlementCycleWorker : BackgroundService
 
         var primaryBankAccount = await context.VendorBankAccounts
             .AsNoTracking()
-            .Where(b => b.VendorId == vendorId)
+            .Where(b => b.VendorId == vendorId && b.IsPrimary && b.Status == BankAccountStatus.Verified)
             .OrderByDescending(b => b.IsPrimary)
             .ThenByDescending(b => b.VerifiedAtUtc)
             .ThenByDescending(b => b.CreatedAtUtc)
             .FirstOrDefaultAsync(cancellationToken);
 
-        if (primaryBankAccount is null)
+        if (primaryBankAccount is null || !IsValidSaudiIban(primaryBankAccount.IBAN))
         {
-            _logger.LogWarning("Vendor {VendorId} has pending settlement but no active bank account.", vendorId);
+            _logger.LogWarning("Vendor {VendorId} has pending settlement but no verified primary Saudi IBAN.", vendorId);
             return;
         }
 
@@ -178,18 +175,23 @@ public sealed class VendorSettlementCycleWorker : BackgroundService
             cancellationToken);
 
         await context.SaveChangesAsync(cancellationToken);
-        _logger.LogInformation("Created scheduled settlement {SettlementId} for vendor {VendorId} amount {Amount}", settlement.Id, vendorId, amountToSettle);
+        _logger.LogInformation(
+            "Created scheduled settlement {SettlementId} for vendor {VendorId} amount {Amount}; waiting for admin approval.",
+            settlement.Id,
+            vendorId,
+            amountToSettle);
+    }
 
-        if (payoutOrchestrator.HasEnabledGateway)
+    private static bool IsValidSaudiIban(string? iban)
+    {
+        if (string.IsNullOrWhiteSpace(iban))
         {
-            try
-            {
-                await payoutOrchestrator.TriggerAsync(payout.Id, cancellationToken: cancellationToken);
-            }
-            catch (Exception ex)
-            {
-                _logger.LogError(ex, "Failed to auto-trigger scheduled payout {PayoutId}", payout.Id);
-            }
+            return false;
         }
+
+        var clean = new string(iban.Where(char.IsLetterOrDigit).ToArray()).ToUpperInvariant();
+        return clean.Length == 24 &&
+            clean.StartsWith("SA", StringComparison.OrdinalIgnoreCase) &&
+            clean.Skip(2).All(char.IsDigit);
     }
 }

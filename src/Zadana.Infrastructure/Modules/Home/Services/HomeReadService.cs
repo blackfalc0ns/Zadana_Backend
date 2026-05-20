@@ -20,7 +20,7 @@ namespace Zadana.Infrastructure.Modules.Home.Services;
 
 public class HomeReadService : IHomeReadService
 {
-    private const string HomePayloadVersion = "v6";
+    private const string HomePayloadVersion = "v7";
     private const int DefaultBannerTake = 5;
     private const int DefaultCategoryTake = 8;
     private const int DefaultBrandTake = 10;
@@ -454,7 +454,8 @@ public class HomeReadService : IHomeReadService
                                 ? (vp.MasterProduct.Brand != null ? vp.MasterProduct.Brand.NameEn : null)
                                 : null,
                             vp.MasterProduct.Brand != null ? vp.MasterProduct.Brand.LogoUrl : null,
-                            vp.MasterProduct.VariantGroupId))
+                            vp.MasterProduct.VariantGroupId,
+                            vp.MasterProduct.ShowPriceOnCard))
                         .ToArrayAsync(token);
                 }
                 catch (Exception ex) when (IsMissingDatabaseObject(ex))
@@ -509,7 +510,8 @@ public class HomeReadService : IHomeReadService
                     1,
                     PickLocalizedNullable(x.BrandNameAr, x.BrandNameEn),
                     x.BrandLogo,
-                    x.VariantGroupId);
+                    x.VariantGroupId,
+                    x.ShowPriceOnCard);
             })
             .GroupBy(x => x.VariantGroupId != default ? x.VariantGroupId : x.MasterProductId)
             .Select(group =>
@@ -1020,7 +1022,8 @@ public class HomeReadService : IHomeReadService
             isFavorite,
             isFeatured,
             product.Unit,
-            isDiscounted);
+            isDiscounted,
+            product.ShowPriceOnCard);
     }
 
     private async Task<Dictionary<HomeContentSectionType, bool>> LoadSectionSettingsAsync(CancellationToken cancellationToken)
@@ -1260,7 +1263,8 @@ public class HomeReadService : IHomeReadService
         int StoreCount,
         string? BrandName,
         string? BrandLogo,
-        Guid VariantGroupId = default);
+        Guid VariantGroupId = default,
+        bool ShowPriceOnCard = true);
 
     private sealed record ActiveFeaturedPlacement(
         FeaturedPlacementType PlacementType,

@@ -331,7 +331,7 @@ public class VendorWorkspaceController : ApiControllerBase
             .FirstOrDefaultAsync(cancellationToken);
 
         var availableBalance = vendorWallet?.CurrentBalance ?? 0m;
-        var pendingSettlement = settlements.Where(settlement => settlement.Status is SettlementStatus.Pending or SettlementStatus.Processing).Sum(settlement => settlement.NetAmount);
+        var pendingSettlement = settlements.Where(settlement => settlement.Status is SettlementStatus.Pending or SettlementStatus.PendingReview or SettlementStatus.Processing).Sum(settlement => settlement.NetAmount);
         var holdAmount = vendorWallet?.PendingBalance ?? 0m;
         
         var financialLifecycleModeStr = vendorDetails.ToString();
@@ -770,7 +770,7 @@ public class VendorWorkspaceController : ApiControllerBase
         // Finance Snapshot
         var settlements = await _dbContext.Settlements
             .AsNoTracking()
-            .Where(s => s.VendorId == vendorId && (s.Status == SettlementStatus.Pending || s.Status == SettlementStatus.Processing))
+            .Where(s => s.VendorId == vendorId && (s.Status == SettlementStatus.Pending || s.Status == SettlementStatus.PendingReview || s.Status == SettlementStatus.Processing))
             .ToListAsync(cancellationToken);
             
         var pendingSettlement = settlements.Sum(s => s.NetAmount);
@@ -951,7 +951,7 @@ public class VendorWorkspaceController : ApiControllerBase
         var fees = deliveredOrders.Sum(order => order.CommissionAmount);
         var vendorNetRevenue = deliveredOrders.Sum(order => Math.Max((order.TotalAmount - order.DeliveryFee) - order.CommissionAmount, 0m));
         var pendingSettlement = settlements
-            .Where(settlement => settlement.Status is SettlementStatus.Pending or SettlementStatus.Processing)
+            .Where(settlement => settlement.Status is SettlementStatus.Pending or SettlementStatus.PendingReview or SettlementStatus.Processing)
             .Sum(settlement => settlement.NetAmount);
         var availableBalance = vendorWallet?.CurrentBalance ?? 0m;
         var holdAmount = vendorWallet?.PendingBalance ?? 0m;
@@ -1158,7 +1158,7 @@ public class VendorWorkspaceController : ApiControllerBase
         IReadOnlyCollection<dynamic> settlements)
     {
         var pendingDate = settlements
-            .Where(settlement => settlement.Status is SettlementStatus.Pending or SettlementStatus.Processing)
+            .Where(settlement => settlement.Status is SettlementStatus.Pending or SettlementStatus.PendingReview or SettlementStatus.Processing)
             .OrderBy(settlement => settlement.CreatedAtUtc)
             .Select(settlement => (DateTime?)(settlement.ProcessedAtUtc ?? settlement.CreatedAtUtc))
             .FirstOrDefault();

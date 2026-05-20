@@ -173,7 +173,9 @@ internal sealed class GetAdminDashboardOverviewQueryHandler(
                 var pendingProductRequests = await dbContext.ProductRequests.CountAsync(p => p.Status == ApprovalStatus.Pending, cancellationToken);
                 var pendingBrandRequests = await dbContext.BrandRequests.CountAsync(p => p.Status == ApprovalStatus.Pending, cancellationToken);
                 var pendingCategoryRequests = await dbContext.CategoryRequests.CountAsync(p => p.Status == ApprovalStatus.Pending, cancellationToken);
-                var pendingSettlements = await dbContext.Settlements.CountAsync(s => s.Status == SettlementStatus.Pending, cancellationToken);
+                var pendingSettlements = await dbContext.Settlements.CountAsync(
+                    s => s.Status == SettlementStatus.Pending || s.Status == SettlementStatus.PendingReview,
+                    cancellationToken);
                 var failedSettlements = await dbContext.Settlements.CountAsync(s => s.Status == SettlementStatus.Failed, cancellationToken);
                 var settledNetAmount = await dbContext.Settlements
             .Where(s => s.ProcessedAtUtc.HasValue && s.ProcessedAtUtc.Value >= start && s.Status == SettlementStatus.Settled)

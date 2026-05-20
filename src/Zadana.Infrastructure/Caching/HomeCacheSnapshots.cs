@@ -49,7 +49,8 @@ public sealed record HomeCatalogProductSnapshot(
     string? BrandNameAr,
     string? BrandNameEn,
     string? BrandLogo,
-    Guid VariantGroupId = default);
+    Guid VariantGroupId = default,
+    bool ShowPriceOnCard = true);
 
 public sealed record HomeContentSectionSettingSnapshot(HomeContentSectionType SectionType, bool IsEnabled);
 

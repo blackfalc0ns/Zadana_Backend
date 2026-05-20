@@ -21,6 +21,7 @@ public class MasterProduct : BaseEntity
     public Guid? ProductTypeId { get; private set; }
     public Guid? PartId { get; private set; }
     public ProductStatus Status { get; private set; }
+    public bool ShowPriceOnCard { get; private set; } = true;
 
     // Navigation
     public Category Category { get; private set; } = null!;
@@ -69,6 +70,7 @@ public class MasterProduct : BaseEntity
         DescriptionEn = descriptionEn?.Trim();
         Barcode = barcode?.Trim();
         Status = ProductStatus.Draft;
+        ShowPriceOnCard = true;
     }
 
     public MasterProduct(
@@ -136,6 +138,7 @@ public class MasterProduct : BaseEntity
     public void ChangeProductType(Guid? productTypeId) => ProductTypeId = productTypeId;
     public void ChangePart(Guid? partId) => PartId = partId;
     public void SetStatus(ProductStatus status) => Status = status;
+    public void SetCardPriceVisibility(bool showPriceOnCard) => ShowPriceOnCard = showPriceOnCard;
 
     public void AddImage(string url, string? altText = null, int displayOrder = 0, bool isPrimary = false)
     {

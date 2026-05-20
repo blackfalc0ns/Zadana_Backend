@@ -50,6 +50,7 @@ public static class MasterProductDisplayDto
             BuildDisplaySize(product.PackageType?.NameAr, product.MeasurementValue, measurementUnit?.NameAr, measurementUnit?.Symbol, true),
             BuildDisplaySize(product.PackageType?.NameEn, product.MeasurementValue, measurementUnit?.NameEn, measurementUnit?.Symbol, false),
             product.Status.ToString(),
+            product.ShowPriceOnCard,
             isInVendorStore,
             product.Images.Select(i => new MasterProductImageDto(i.Url, i.AltText, i.DisplayOrder, i.IsPrimary)).ToList(),
             product.CreatedAtUtc,

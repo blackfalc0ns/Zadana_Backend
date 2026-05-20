@@ -41,6 +41,10 @@ public class MasterProductConfiguration : IEntityTypeConfiguration<MasterProduct
             .HasMaxLength(20)
             .HasConversion<string>();
 
+        builder.Property(p => p.ShowPriceOnCard)
+            .IsRequired()
+            .HasDefaultValue(true);
+
         // Relationships
         builder.HasOne(p => p.Category)
             .WithMany(c => c.MasterProducts)

@@ -208,7 +208,8 @@ public class GetProductDetailsQueryHandler : IRequestHandler<GetProductDetailsQu
                     FormatDiscount(offer.Price, offer.OldPrice),
                     false,
                     offer.Unit,
-                    offer.IsDiscounted);
+                    offer.IsDiscounted,
+                    offer.ShowPriceOnCard);
             })
             .ToList();
 
@@ -275,7 +276,8 @@ public class GetProductDetailsQueryHandler : IRequestHandler<GetProductDetailsQu
                     .OrderByDescending(image => image.IsPrimary)
                     .ThenBy(image => image.DisplayOrder)
                     .Select(image => image.Url)
-                    .ToList()))
+                    .ToList(),
+                product.MasterProduct.ShowPriceOnCard))
             .ToListAsync(cancellationToken);
 
         var availabilityDecisions = await VendorCustomerAvailabilityPolicy.LoadDecisionsAsync(
@@ -329,7 +331,8 @@ public class GetProductDetailsQueryHandler : IRequestHandler<GetProductDetailsQu
                     decision.IsVisibleInCatalog,
                     decision.IsPurchasable,
                     decision.IsOnlineNow,
-                    decision.ReasonCode);
+                    decision.ReasonCode,
+                    offer.ShowPriceOnCard);
             })
             .ToList();
     }
@@ -391,7 +394,8 @@ public class GetProductDetailsQueryHandler : IRequestHandler<GetProductDetailsQu
         string? MeasurementUnitSymbol,
         string? DescriptionAr,
         string? DescriptionEn,
-        List<string> Images);
+        List<string> Images,
+        bool ShowPriceOnCard);
 
     private sealed record VisibleOfferRow(
         Guid VendorProductId,
@@ -425,7 +429,8 @@ public class GetProductDetailsQueryHandler : IRequestHandler<GetProductDetailsQu
         bool IsVisibleInCatalog,
         bool IsPurchasable,
         bool IsOnlineNow,
-        string? UnavailableReason)
+        string? UnavailableReason,
+        bool ShowPriceOnCard)
     {
         public string? ImageUrl => Images.FirstOrDefault();
         public bool IsDiscounted => OldPrice.HasValue && OldPrice.Value > Price;
