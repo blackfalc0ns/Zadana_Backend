@@ -413,15 +413,6 @@ public class IdentityAccountService : IIdentityAccountService
             return new OtpDispatchResult(OtpDispatchStatus.UserNotFound);
         }
 
-        if (!user.CanResendOtp())
-        {
-            var secondsRemaining = Math.Max(0, 60 - (int)(DateTime.UtcNow - user.LastOtpSentAt!.Value).TotalSeconds);
-            return new OtpDispatchResult(
-                OtpDispatchStatus.CooldownActive,
-                Map(user),
-                CooldownSecondsRemaining: secondsRemaining);
-        }
-
         var otpCode = user.GeneratePasswordResetOtp();
         var updateResult = await PersistUserAsync(user);
         if (!updateResult.Succeeded)
