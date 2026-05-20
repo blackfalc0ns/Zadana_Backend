@@ -74,12 +74,7 @@ public class ResendEmailService : IEmailService
                 subject = emailRequest.Subject,
                 html = emailRequest.HtmlBody,
                 text = string.IsNullOrWhiteSpace(emailRequest.TextBody) ? null : emailRequest.TextBody,
-                headers = emailRequest.Metadata is { Count: > 0 }
-                    ? emailRequest.Metadata.ToDictionary(
-                        item => $"X-Zadana-{item.Key}",
-                        item => item.Value,
-                        StringComparer.OrdinalIgnoreCase)
-                    : null
+                headers = BuildHeaders(emailRequest)
             };
 
             var httpRequest = new HttpRequestMessage(HttpMethod.Post, "https://api.resend.com/emails");
@@ -122,6 +117,29 @@ public class ResendEmailService : IEmailService
         var normalized = from.Trim();
         var markerIndex = normalized.IndexOf('<');
         return markerIndex > 0 ? normalized[..markerIndex].Trim().Trim('"') : null;
+    }
+
+    private static IReadOnlyDictionary<string, string>? BuildHeaders(SendEmailRequest emailRequest)
+    {
+        var headers = new Dictionary<string, string>(StringComparer.OrdinalIgnoreCase);
+
+        if (emailRequest.Metadata is { Count: > 0 })
+        {
+            foreach (var item in emailRequest.Metadata)
+            {
+                headers[$"X-Zadana-{item.Key}"] = item.Value;
+            }
+        }
+
+        if (emailRequest.Headers is { Count: > 0 })
+        {
+            foreach (var item in emailRequest.Headers)
+            {
+                headers[item.Key] = item.Value;
+            }
+        }
+
+        return headers.Count > 0 ? headers : null;
     }
 
     private static string? ExtractEmailAddress(string? from)

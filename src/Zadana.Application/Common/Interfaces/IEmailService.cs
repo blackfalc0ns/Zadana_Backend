@@ -9,7 +9,8 @@ public sealed record SendEmailRequest(
     string? ReplyTo = null,
     string[]? Cc = null,
     string[]? Bcc = null,
-    IReadOnlyDictionary<string, string>? Metadata = null);
+    IReadOnlyDictionary<string, string>? Metadata = null,
+    IReadOnlyDictionary<string, string>? Headers = null);
 
 public sealed record EmailSendResult(
     string Provider,

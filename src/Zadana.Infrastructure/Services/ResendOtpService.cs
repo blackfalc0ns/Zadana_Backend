@@ -63,7 +63,11 @@ public class ResendOtpService : IOtpService
                     body,
                     TextBody: textBody,
                     From: $"{_emailSettings.FromName} Support <{_emailSettings.SupportEmail}>",
-                    ReplyTo: _emailSettings.SupportEmail),
+                    ReplyTo: _emailSettings.SupportEmail,
+                    Headers: new Dictionary<string, string>
+                    {
+                        ["X-Entity-Ref-ID"] = $"zadna-otp-{Guid.NewGuid():N}"
+                    }),
                 cancellationToken);
 
             if (!result.Success)
