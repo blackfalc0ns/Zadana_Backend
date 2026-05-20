@@ -7,7 +7,6 @@ using Zadana.Infrastructure.Modules.Identity.Services;
 using Zadana.Infrastructure.Services;
 using Zadana.Infrastructure.Email;
 using Microsoft.Extensions.Configuration;
-using Resend;
 
 namespace Zadana.Infrastructure.Modules.Identity;
 

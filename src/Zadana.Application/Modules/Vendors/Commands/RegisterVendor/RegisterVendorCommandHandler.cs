@@ -94,6 +94,8 @@ public class RegisterVendorCommandHandler : IRequestHandler<RegisterVendorComman
             bankAccount.MarkAsPreferredForSetup();
             _vendorRepository.AddBankAccount(bankAccount);
 
+            user = await _registrationWorkflow.SendRegistrationOtpAsync(user, cancellationToken);
+
             var authResponse = await _registrationWorkflow.BuildAuthResponseAsync(
                 user,
                 cancellationToken: cancellationToken);

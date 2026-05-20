@@ -102,6 +102,9 @@ public sealed class AccessAuthorizationConvention : IApplicationModelConvention
                 [PermissionKeys.Admin.MarketingView],
                 create: [PermissionKeys.Admin.MarketingEdit],
                 edit: [PermissionKeys.Admin.MarketingEdit]),
+            ["AdminMarketingProductCardPriceVisibility"] = new(
+                [PermissionKeys.Admin.MarketingView],
+                edit: [PermissionKeys.Admin.MarketingEdit]),
             ["AdminOrderCases"] = new(
                 [PermissionKeys.Admin.DisputesView],
                 create: [PermissionKeys.Admin.DisputesEdit],

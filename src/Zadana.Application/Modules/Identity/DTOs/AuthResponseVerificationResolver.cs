@@ -5,6 +5,9 @@ namespace Zadana.Application.Modules.Identity.DTOs;
 
 public static class AuthResponseVerificationResolver
 {
+    public static bool Resolve(IdentityAccountSnapshot account, DriverOperationalStatusDto? driverStatus) =>
+        account.EmailConfirmed && Resolve(account.Role, driverStatus);
+
     public static bool Resolve(UserRole role, DriverOperationalStatusDto? driverStatus) =>
         role != UserRole.Driver || driverStatus?.IsOperational == true;
 }

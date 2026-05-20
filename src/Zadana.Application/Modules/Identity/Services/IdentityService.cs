@@ -112,7 +112,7 @@ public class IdentityService : IIdentityService
             }
         }
 
-        var isVerified = AuthResponseVerificationResolver.Resolve(user.Role, driverStatus);
+        var isVerified = AuthResponseVerificationResolver.Resolve(user, driverStatus);
 
         return new AuthResponseDto(tokens, userDto, IsVerified: isVerified, DriverStatus: driverStatus);
     }

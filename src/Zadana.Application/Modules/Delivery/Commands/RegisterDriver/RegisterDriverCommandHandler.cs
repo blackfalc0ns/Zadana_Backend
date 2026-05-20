@@ -99,6 +99,8 @@ public class RegisterDriverCommandHandler : IRequestHandler<RegisterDriverComman
 
             user = await EnsureDriverAccessScopeAsync(user, driver.Id, cancellationToken);
 
+            user = await _registrationWorkflow.SendRegistrationOtpAsync(user, cancellationToken);
+
             var authResponse = await _registrationWorkflow.BuildAuthResponseAsync(
                 user,
                 DriverOperationalStatusFactory.Create(driver),

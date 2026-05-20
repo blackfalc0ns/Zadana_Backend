@@ -9,6 +9,10 @@ public interface IRegistrationWorkflow
         CreateIdentityAccountRequest request,
         CancellationToken cancellationToken = default);
 
+    Task<IdentityAccountSnapshot> SendRegistrationOtpAsync(
+        IdentityAccountSnapshot account,
+        CancellationToken cancellationToken = default);
+
     Task<AuthResponseDto> BuildAuthResponseAsync(
         IdentityAccountSnapshot account,
         DriverOperationalStatusDto? driverStatus = null,

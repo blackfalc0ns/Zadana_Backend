@@ -36,12 +36,14 @@ public class ResendOtpService : IOtpService
                 { "Year", DateTime.UtcNow.Year.ToString() }
             };
             var body = await _templateService.RenderTemplateAsync("OtpEmail", placeholders);
+            var textBody = $"Your Zadna verification code is {otpCode}. It expires soon. Do not share this code with anyone.";
 
             var result = await _emailService.SendEmailAsync(
                 new SendEmailRequest(
                     [emailAddress],
                     subject,
-                    body),
+                    body,
+                    TextBody: textBody),
                 cancellationToken);
 
             if (!result.Success)

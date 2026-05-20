@@ -49,6 +49,7 @@ public class ResendEmailService : IEmailService
                 reply_to = string.IsNullOrWhiteSpace(emailRequest.ReplyTo) ? null : emailRequest.ReplyTo.Trim(),
                 subject = emailRequest.Subject,
                 html = emailRequest.HtmlBody,
+                text = string.IsNullOrWhiteSpace(emailRequest.TextBody) ? null : emailRequest.TextBody,
                 headers = emailRequest.Metadata is { Count: > 0 }
                     ? emailRequest.Metadata.ToDictionary(
                         item => $"X-Zadana-{item.Key}",

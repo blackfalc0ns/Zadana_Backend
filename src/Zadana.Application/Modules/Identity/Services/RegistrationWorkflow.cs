@@ -17,19 +17,22 @@ public class RegistrationWorkflow : IRegistrationWorkflow
     private readonly IRefreshTokenStore _refreshTokenStore;
     private readonly IJwtTokenService _jwtTokenService;
     private readonly IStringLocalizer<SharedResource> _localizer;
+    private readonly IOtpService _otpService;
 
     public RegistrationWorkflow(
         IIdentityAccountService identityAccountService,
         IAccessControlService accessControlService,
         IRefreshTokenStore refreshTokenStore,
         IJwtTokenService jwtTokenService,
-        IStringLocalizer<SharedResource> localizer)
+        IStringLocalizer<SharedResource> localizer,
+        IOtpService otpService)
     {
         _identityAccountService = identityAccountService;
         _accessControlService = accessControlService;
         _refreshTokenStore = refreshTokenStore;
         _jwtTokenService = jwtTokenService;
         _localizer = localizer;
+        _otpService = otpService;
     }
 
     public async Task<IdentityAccountSnapshot> RegisterAccountAsync(
@@ -52,6 +55,35 @@ public class RegistrationWorkflow : IRegistrationWorkflow
         return createResult.Account;
     }
 
+    public async Task<IdentityAccountSnapshot> SendRegistrationOtpAsync(
+        IdentityAccountSnapshot account,
+        CancellationToken cancellationToken = default)
+    {
+        var otpResult = await _identityAccountService.GenerateRegistrationOtpAsync(account.Id, cancellationToken);
+
+        if (otpResult.Status == OtpDispatchStatus.UserNotFound)
+        {
+            throw new BusinessRuleException("USER_NOT_FOUND", _localizer["USER_NOT_FOUND", account.Email ?? account.Id.ToString()]);
+        }
+
+        if (otpResult.Status == OtpDispatchStatus.Failed)
+        {
+            var errors = string.Join(", ", otpResult.Errors ?? []);
+            throw new BusinessRuleException("IDENTITY_OPERATION_FAILED", $"{_localizer["IDENTITY_OPERATION_FAILED"]}: {errors}");
+        }
+
+        if (otpResult.Status != OtpDispatchStatus.Succeeded ||
+            otpResult.Account == null ||
+            string.IsNullOrWhiteSpace(otpResult.Account.Email) ||
+            string.IsNullOrWhiteSpace(otpResult.OtpCode))
+        {
+            throw new BusinessRuleException("OTP_GENERATION_FAILED", _localizer["IDENTITY_OPERATION_FAILED"]);
+        }
+
+        await _otpService.SendOtpEmailAsync(otpResult.Account.Email, otpResult.OtpCode, cancellationToken);
+        return otpResult.Account;
+    }
+
     public async Task<AuthResponseDto> BuildAuthResponseAsync(
         IdentityAccountSnapshot account,
         DriverOperationalStatusDto? driverStatus = null,
@@ -69,7 +101,7 @@ public class RegistrationWorkflow : IRegistrationWorkflow
             account.MustChangePassword,
             Access: await _accessControlService.GetEffectiveAccessAsync(account.Id, cancellationToken));
 
-        var isVerified = AuthResponseVerificationResolver.Resolve(account.Role, driverStatus);
+        var isVerified = AuthResponseVerificationResolver.Resolve(account, driverStatus);
 
         return new AuthResponseDto(tokens, userDto, IsVerified: isVerified, DriverStatus: driverStatus);
     }

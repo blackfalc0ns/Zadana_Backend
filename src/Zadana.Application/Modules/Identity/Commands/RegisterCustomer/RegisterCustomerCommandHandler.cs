@@ -86,8 +86,11 @@ public class RegisterCustomerCommandHandler : IRequestHandler<RegisterCustomerCo
             address.SetAsDefault();
 
             _context.CustomerAddresses.Add(address);
+            user = await _registrationWorkflow.SendRegistrationOtpAsync(user, cancellationToken);
+            var authResponse = await _registrationWorkflow.BuildAuthResponseAsync(user, cancellationToken: cancellationToken);
             await _unitOfWork.SaveChangesAsync(cancellationToken);
-            return await _registrationWorkflow.BuildAuthResponseAsync(user, cancellationToken: cancellationToken);
+
+            return authResponse;
         }
         catch
         {

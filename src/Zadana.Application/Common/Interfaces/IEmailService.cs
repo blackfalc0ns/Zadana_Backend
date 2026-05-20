@@ -4,6 +4,7 @@ public sealed record SendEmailRequest(
     string[] To,
     string Subject,
     string HtmlBody,
+    string? TextBody = null,
     string? From = null,
     string? ReplyTo = null,
     string[]? Cc = null,

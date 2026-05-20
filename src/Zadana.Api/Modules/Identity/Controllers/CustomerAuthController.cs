@@ -54,6 +54,16 @@ public class CustomerAuthController : IdentityAuthControllerBase
         RefreshTokenAsync(request);
 
     [EnableRateLimiting(RateLimitPolicyNames.Auth)]
+    [HttpPost("verify-otp")]
+    public Task<IActionResult> VerifyOtp([FromBody] VerifyOtpRequest request) =>
+        VerifyOtpAsync(request);
+
+    [EnableRateLimiting(RateLimitPolicyNames.Auth)]
+    [HttpPost("resend-otp")]
+    public Task<IActionResult> ResendOtp([FromBody] ResendOtpRequest request) =>
+        ResendOtpAsync(request);
+
+    [EnableRateLimiting(RateLimitPolicyNames.Auth)]
     [HttpPost("forgot-password")]
     public Task<IActionResult> ForgotPassword([FromBody] ForgotPasswordRequest request) =>
         ForgotPasswordAsync(request);

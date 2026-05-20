@@ -7,8 +7,10 @@ using Zadana.Application.Modules.Identity.Commands.ForgotPassword;
 using Zadana.Application.Modules.Identity.Commands.Login;
 using Zadana.Application.Modules.Identity.Commands.Logout;
 using Zadana.Application.Modules.Identity.Commands.RefreshToken;
+using Zadana.Application.Modules.Identity.Commands.ResendOtp;
 using Zadana.Application.Modules.Identity.Commands.ResetPassword;
 using Zadana.Application.Modules.Identity.Commands.UpdateCurrentUserProfile;
+using Zadana.Application.Modules.Identity.Commands.VerifyOtp;
 using Zadana.Application.Modules.Identity.Queries.GetCurrentUser;
 using Zadana.Domain.Modules.Identity.Enums;
 
@@ -32,6 +34,18 @@ public abstract class IdentityAuthControllerBase : ApiControllerBase
     protected async Task<IActionResult> RefreshTokenAsync(RefreshTokenRequest request)
     {
         var result = await Sender.Send(new RefreshTokenCommand(request.RefreshToken));
+        return Ok(result);
+    }
+
+    protected async Task<IActionResult> VerifyOtpAsync(VerifyOtpRequest request)
+    {
+        var result = await Sender.Send(new VerifyOtpCommand(request.Identifier, request.OtpCode));
+        return Ok(result);
+    }
+
+    protected async Task<IActionResult> ResendOtpAsync(ResendOtpRequest request)
+    {
+        var result = await Sender.Send(new ResendOtpCommand(request.Identifier));
         return Ok(result);
     }
 

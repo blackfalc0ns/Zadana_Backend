@@ -29,6 +29,16 @@ public class DriverAuthController : IdentityAuthControllerBase
         ForgotPasswordAsync(request);
 
     [EnableRateLimiting(RateLimitPolicyNames.Auth)]
+    [HttpPost("verify-otp")]
+    public Task<IActionResult> VerifyOtp([FromBody] VerifyOtpRequest request) =>
+        VerifyOtpAsync(request);
+
+    [EnableRateLimiting(RateLimitPolicyNames.Auth)]
+    [HttpPost("resend-otp")]
+    public Task<IActionResult> ResendOtp([FromBody] ResendOtpRequest request) =>
+        ResendOtpAsync(request);
+
+    [EnableRateLimiting(RateLimitPolicyNames.Auth)]
     [HttpPost("reset-password")]
     public Task<IActionResult> ResetPassword([FromBody] ResetPasswordRequest request) =>
         ResetPasswordAsync(request);

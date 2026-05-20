@@ -63,7 +63,8 @@ public class VerifyOtpCommandHandler : IRequestHandler<VerifyOtpCommand, AuthRes
         _refreshTokenStore.Add(new NewRefreshToken(user.Id, tokens.RefreshToken, DateTime.UtcNow.AddDays(7)));
         await _unitOfWork.SaveChangesAsync(cancellationToken);
         var userDto = new CurrentUserDto(user.Id, user.FullName, user.Email, user.PhoneNumber, user.Role.ToString(), user.MustChangePassword);
+        var isVerified = AuthResponseVerificationResolver.Resolve(user, driverStatus: null);
 
-        return new AuthResponseDto(tokens, userDto, true, _localizer["AccountVerifiedSuccessfully"]);
+        return new AuthResponseDto(tokens, userDto, isVerified, _localizer["AccountVerifiedSuccessfully"]);
     }
 }
