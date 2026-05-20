@@ -80,6 +80,14 @@ public class User : IdentityUser<Guid>
         UpdatedAtUtc = DateTime.UtcNow;
     }
 
+    public void UpdateProfilePhoto(string? profilePhotoUrl)
+    {
+        ProfilePhotoUrl = string.IsNullOrWhiteSpace(profilePhotoUrl)
+            ? null
+            : profilePhotoUrl.Trim();
+        UpdatedAtUtc = DateTime.UtcNow;
+    }
+
     public void VerifyEmail() => EmailConfirmed = true;
     public void VerifyPhone() => PhoneNumberConfirmed = true;
 

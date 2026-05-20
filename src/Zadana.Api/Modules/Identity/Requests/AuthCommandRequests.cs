@@ -16,3 +16,5 @@ public record ChangeTemporaryPasswordRequest(string CurrentPassword, string NewP
 public record ChangePasswordRequest(string CurrentPassword, string NewPassword);
 
 public record UpdateProfileRequest(string FullName, string Email, string Phone);
+
+public record UpdateProfilePhotoRequest(string ProfilePhotoUrl);

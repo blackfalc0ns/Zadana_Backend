@@ -77,6 +77,8 @@ public class IdentityService : IIdentityService
             throw new UnauthorizedException(_localizer["AccountLoginDenied", user.AccountStatus]);
         }
 
+        EnsureEmailVerified(user);
+
         user = await EnsureDriverAccessScopeAsync(user, cancellationToken);
 
         var tokens = await _jwtTokenService.GenerateTokenPairAsync(user, cancellationToken);
@@ -98,7 +100,7 @@ public class IdentityService : IIdentityService
 
         var favoritesCount = await _context.CustomerFavorites.CountAsync(x => x.UserId == user.Id, cancellationToken);
         var access = await _accessControlService.GetEffectiveAccessAsync(user.Id, cancellationToken);
-        var userDto = new CurrentUserDto(user.Id, user.FullName, user.Email, user.PhoneNumber, user.Role.ToString(), user.MustChangePassword, favoritesCount, access);
+        var userDto = new CurrentUserDto(user.Id, user.FullName, user.Email, user.PhoneNumber, user.Role.ToString(), user.MustChangePassword, favoritesCount, access, user.ProfilePhotoUrl);
         DriverOperationalStatusDto? driverStatus = null;
 
         if (user.Role == UserRole.Driver)
@@ -135,6 +137,8 @@ public class IdentityService : IIdentityService
         {
             throw new UnauthorizedException(_localizer["UserAccountNotActive"]);
         }
+
+        EnsureEmailVerified(tokenEntity.User);
 
         var refreshedUser = tokenEntity.User.Role == UserRole.Driver
             ? await EnsureDriverAccessScopeAsync(tokenEntity.User, cancellationToken)
@@ -177,6 +181,8 @@ public class IdentityService : IIdentityService
             throw new UnauthorizedException(_localizer["UserNotFound"]);
         }
 
+        EnsureEmailVerified(user);
+
         var recordActivityResult = await _identityAccountService.RecordActivityAsync(user.Id, cancellationToken);
         if (!recordActivityResult.Succeeded)
         {
@@ -188,7 +194,15 @@ public class IdentityService : IIdentityService
 
         var favoritesCount = await _context.CustomerFavorites.CountAsync(x => x.UserId == user.Id, cancellationToken);
         var access = await _accessControlService.GetEffectiveAccessAsync(user.Id, cancellationToken);
-        return new CurrentUserDto(user.Id, user.FullName, user.Email, user.PhoneNumber, user.Role.ToString(), user.MustChangePassword, favoritesCount, access);
+        return new CurrentUserDto(user.Id, user.FullName, user.Email, user.PhoneNumber, user.Role.ToString(), user.MustChangePassword, favoritesCount, access, user.ProfilePhotoUrl);
+    }
+
+    private void EnsureEmailVerified(IdentityAccountSnapshot user)
+    {
+        if (!user.EmailConfirmed)
+        {
+            throw new UnauthorizedException(_localizer["AccountEmailNotVerified"]);
+        }
     }
 
     private async Task<IdentityAccountSnapshot> EnsureDriverAccessScopeAsync(
@@ -278,6 +292,7 @@ public class IdentityService : IIdentityService
             userEntity.ArchivedAtUtc,
             userEntity.EmailConfirmed,
             userEntity.PhoneNumberConfirmed,
-            userEntity.MustChangePassword);
+            userEntity.MustChangePassword,
+            userEntity.ProfilePhotoUrl);
     }
 }

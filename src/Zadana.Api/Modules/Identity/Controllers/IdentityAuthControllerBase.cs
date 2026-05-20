@@ -10,6 +10,7 @@ using Zadana.Application.Modules.Identity.Commands.RefreshToken;
 using Zadana.Application.Modules.Identity.Commands.ResendOtp;
 using Zadana.Application.Modules.Identity.Commands.ResetPassword;
 using Zadana.Application.Modules.Identity.Commands.UpdateCurrentUserProfile;
+using Zadana.Application.Modules.Identity.Commands.UpdateCurrentUserProfilePhoto;
 using Zadana.Application.Modules.Identity.Commands.VerifyOtp;
 using Zadana.Application.Modules.Identity.Queries.GetCurrentUser;
 using Zadana.Domain.Modules.Identity.Enums;
@@ -80,6 +81,18 @@ public abstract class IdentityAuthControllerBase : ApiControllerBase
             request.Email,
             request.Phone));
 
+        return Ok(result);
+    }
+
+    protected async Task<IActionResult> UpdateCurrentUserProfilePhotoAsync(UpdateProfilePhotoRequest request)
+    {
+        var result = await Sender.Send(new UpdateCurrentUserProfilePhotoCommand(request.ProfilePhotoUrl));
+        return Ok(result);
+    }
+
+    protected async Task<IActionResult> DeleteCurrentUserProfilePhotoAsync()
+    {
+        var result = await Sender.Send(new UpdateCurrentUserProfilePhotoCommand(null));
         return Ok(result);
     }
 }

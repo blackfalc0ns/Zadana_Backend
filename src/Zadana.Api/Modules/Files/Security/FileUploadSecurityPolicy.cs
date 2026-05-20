@@ -19,6 +19,7 @@ public static class FileUploadSecurityPolicy
             [NormalizeDirectory("uploads/vendors/commercial-register")] = Create("uploads/vendors/commercial-register", allowAnonymous: true),
             [NormalizeDirectory("uploads/vendors/tax-certificates")] = Create("uploads/vendors/tax-certificates", allowAnonymous: true),
             [NormalizeDirectory("uploads/vendors/licenses")] = Create("uploads/vendors/licenses", allowAnonymous: true),
+            [NormalizeDirectory("uploads/users/profile")] = Create("uploads/users/profile", allowAnonymous: false),
             [NormalizeDirectory("drivers/national-id")] = Create("drivers/national-id", allowAnonymous: true),
             [NormalizeDirectory("drivers/license")] = Create("drivers/license", allowAnonymous: true),
             [NormalizeDirectory("drivers/vehicle")] = Create("drivers/vehicle", allowAnonymous: true),

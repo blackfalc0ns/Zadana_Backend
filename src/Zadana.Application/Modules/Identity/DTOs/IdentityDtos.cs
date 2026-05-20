@@ -25,7 +25,8 @@ public record CurrentUserDto(
     string Role,
     bool MustChangePassword = false,
     int FavoritesCount = 0,
-    EffectiveAccessDto? Access = null);
+    EffectiveAccessDto? Access = null,
+    string? ProfilePhotoUrl = null);
 
 public record AuthResponseDto(
     TokenPairDto? Tokens,
@@ -47,7 +48,8 @@ public record IdentityAccountSnapshot(
     DateTime? ArchivedAtUtc,
     bool EmailConfirmed,
     bool PhoneNumberConfirmed,
-    bool MustChangePassword);
+    bool MustChangePassword,
+    string? ProfilePhotoUrl = null);
 
 public record CreateIdentityAccountRequest(
     string FullName,

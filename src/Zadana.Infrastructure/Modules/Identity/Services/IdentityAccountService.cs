@@ -182,6 +182,21 @@ public class IdentityAccountService : IIdentityAccountService
         return await PersistUserAsync(user);
     }
 
+    public async Task<IdentityOperationResult> UpdateProfilePhotoAsync(
+        Guid userId,
+        string? profilePhotoUrl,
+        CancellationToken cancellationToken = default)
+    {
+        var user = await _userManager.FindByIdAsync(userId.ToString());
+        if (user == null)
+        {
+            return new IdentityOperationResult(false, ["User account was not found."]);
+        }
+
+        user.UpdateProfilePhoto(profilePhotoUrl);
+        return await PersistUserAsync(user);
+    }
+
     public async Task<IdentityOperationResult> UpdateRoleAsync(
         Guid userId,
         UserRole role,
@@ -496,5 +511,6 @@ public class IdentityAccountService : IIdentityAccountService
             user.ArchivedAtUtc,
             user.EmailConfirmed,
             user.PhoneNumberConfirmed,
-            user.MustChangePassword);
+            user.MustChangePassword,
+            user.ProfilePhotoUrl);
 }

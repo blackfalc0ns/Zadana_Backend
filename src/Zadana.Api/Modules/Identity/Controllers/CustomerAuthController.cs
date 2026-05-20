@@ -87,4 +87,14 @@ public class CustomerAuthController : IdentityAuthControllerBase
     [HttpPut("me")]
     public Task<IActionResult> UpdateCurrentUser([FromBody] UpdateProfileRequest request) =>
         UpdateCurrentUserAsync(request);
+
+    [Authorize(Policy = "CustomerOnly")]
+    [HttpPut("me/profile-photo")]
+    public Task<IActionResult> UpdateCurrentUserProfilePhoto([FromBody] UpdateProfilePhotoRequest request) =>
+        UpdateCurrentUserProfilePhotoAsync(request);
+
+    [Authorize(Policy = "CustomerOnly")]
+    [HttpDelete("me/profile-photo")]
+    public Task<IActionResult> DeleteCurrentUserProfilePhoto() =>
+        DeleteCurrentUserProfilePhotoAsync();
 }

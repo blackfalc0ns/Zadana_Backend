@@ -62,4 +62,14 @@ public class VendorAuthController : IdentityAuthControllerBase
     [HttpPut("me")]
     public Task<IActionResult> UpdateCurrentUser([FromBody] UpdateProfileRequest request) =>
         UpdateCurrentUserAsync(request);
+
+    [Authorize(Policy = "VendorOnly")]
+    [HttpPut("me/profile-photo")]
+    public Task<IActionResult> UpdateCurrentUserProfilePhoto([FromBody] UpdateProfilePhotoRequest request) =>
+        UpdateCurrentUserProfilePhotoAsync(request);
+
+    [Authorize(Policy = "VendorOnly")]
+    [HttpDelete("me/profile-photo")]
+    public Task<IActionResult> DeleteCurrentUserProfilePhoto() =>
+        DeleteCurrentUserProfilePhotoAsync();
 }

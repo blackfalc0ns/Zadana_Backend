@@ -89,6 +89,26 @@ public class RegistrationWorkflow : IRegistrationWorkflow
         DriverOperationalStatusDto? driverStatus = null,
         CancellationToken cancellationToken = default)
     {
+        if (!account.EmailConfirmed)
+        {
+            var pendingUserDto = new CurrentUserDto(
+                account.Id,
+                account.FullName,
+                account.Email,
+                account.PhoneNumber,
+                account.Role.ToString(),
+                account.MustChangePassword,
+                Access: await _accessControlService.GetEffectiveAccessAsync(account.Id, cancellationToken),
+                ProfilePhotoUrl: account.ProfilePhotoUrl);
+
+            return new AuthResponseDto(
+                Tokens: null,
+                User: pendingUserDto,
+                IsVerified: false,
+                Message: _localizer["AccountEmailNotVerified"],
+                DriverStatus: driverStatus);
+        }
+
         var tokens = await _jwtTokenService.GenerateTokenPairAsync(account, cancellationToken);
         _refreshTokenStore.Add(new NewRefreshToken(account.Id, tokens.RefreshToken, DateTime.UtcNow.Add(RefreshTokenLifetime)));
 
@@ -99,7 +119,8 @@ public class RegistrationWorkflow : IRegistrationWorkflow
             account.PhoneNumber,
             account.Role.ToString(),
             account.MustChangePassword,
-            Access: await _accessControlService.GetEffectiveAccessAsync(account.Id, cancellationToken));
+            Access: await _accessControlService.GetEffectiveAccessAsync(account.Id, cancellationToken),
+            ProfilePhotoUrl: account.ProfilePhotoUrl);
 
         var isVerified = AuthResponseVerificationResolver.Resolve(account, driverStatus);
 
