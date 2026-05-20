@@ -1,6 +1,7 @@
 using System.ComponentModel.DataAnnotations;
 using Microsoft.Extensions.Logging;
 using Microsoft.Extensions.Options;
+using System.Net.Mail;
 using System.Net.Http.Json;
 using System.Text.Json;
 using Zadana.Application.Common.Interfaces;
@@ -16,6 +17,24 @@ public class ResendEmailSettings
     public string FromEmail { get; set; } = string.Empty;
     [Required]
     public string FromName { get; set; } = string.Empty;
+    [Required]
+    [EmailAddress]
+    public string SupportEmail { get; set; } = string.Empty;
+    [Required]
+    [EmailAddress]
+    public string HelloEmail { get; set; } = string.Empty;
+    [Required]
+    [EmailAddress]
+    public string InfoEmail { get; set; } = string.Empty;
+    [Required]
+    [EmailAddress]
+    public string ContactEmail { get; set; } = string.Empty;
+    [Required]
+    [Url]
+    public string LogoUrl { get; set; } = string.Empty;
+    [Required]
+    [Url]
+    public string OtpHeroImageUrl { get; set; } = string.Empty;
 }
 
 public class ResendEmailService : IEmailService
@@ -36,9 +55,14 @@ public class ResendEmailService : IEmailService
         try
         {
             var fromName = ExtractDisplayName(emailRequest.From) ?? _settings.FromName;
+            var requestedFromEmail = ExtractEmailAddress(emailRequest.From);
+            var fromEmail = IsAllowedFromEmail(requestedFromEmail)
+                ? requestedFromEmail!
+                : _settings.FromEmail;
+
             var from = string.IsNullOrWhiteSpace(fromName)
-                ? _settings.FromEmail
-                : $"{fromName} <{_settings.FromEmail}>";
+                ? fromEmail
+                : $"{fromName} <{fromEmail}>";
 
             var requestBody = new
             {
@@ -98,6 +122,45 @@ public class ResendEmailService : IEmailService
         var normalized = from.Trim();
         var markerIndex = normalized.IndexOf('<');
         return markerIndex > 0 ? normalized[..markerIndex].Trim().Trim('"') : null;
+    }
+
+    private static string? ExtractEmailAddress(string? from)
+    {
+        if (string.IsNullOrWhiteSpace(from))
+        {
+            return null;
+        }
+
+        try
+        {
+            return new MailAddress(from.Trim()).Address.Trim().ToLowerInvariant();
+        }
+        catch (FormatException)
+        {
+            return null;
+        }
+    }
+
+    private bool IsAllowedFromEmail(string? email)
+    {
+        if (string.IsNullOrWhiteSpace(email))
+        {
+            return false;
+        }
+
+        var allowed = new[]
+        {
+            _settings.FromEmail,
+            _settings.SupportEmail,
+            _settings.HelloEmail,
+            _settings.InfoEmail,
+            _settings.ContactEmail
+        };
+
+        return allowed
+            .Where(item => !string.IsNullOrWhiteSpace(item))
+            .Select(item => item.Trim())
+            .Contains(email.Trim(), StringComparer.OrdinalIgnoreCase);
     }
 
     private sealed class ResendEmailResponse

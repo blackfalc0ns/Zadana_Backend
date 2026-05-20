@@ -17,6 +17,24 @@ namespace Zadana.Application.Modules.EmailCenter.Services;
 public sealed class EmailCenterService : IEmailCenterService
 {
     private static readonly JsonSerializerOptions JsonOptions = new(JsonSerializerDefaults.Web);
+    private const string EmailLogoUrl = "https://ik.imagekit.io/fnyx4x87z/tr:w-320/logo/%D8%B4%D8%B9%D8%A7%D8%B1%20%281%29.png?updatedAt=1779282648767";
+    private static readonly IReadOnlyDictionary<string, string> LegacyEmailAddressMap =
+        new Dictionary<string, string>(StringComparer.OrdinalIgnoreCase)
+        {
+            ["ops@zadana.sa"] = "support@zadna0.com",
+            ["support@zadana.sa"] = "support@zadna0.com",
+            ["security@zadana.sa"] = "support@zadna0.com",
+            ["access.control@zadana.sa"] = "support@zadna0.com",
+            ["security.audit@zadana.sa"] = "contact@zadna0.com",
+            ["vendors@zadana.sa"] = "contact@zadna0.com",
+            ["vendor.success@zadana.sa"] = "hello@zadna0.com",
+            ["ops.leads@zadana.sa"] = "support@zadna0.com",
+            ["vendor.helpdesk@zadana.sa"] = "support@zadna0.com",
+            ["finance@zadana.sa"] = "info@zadna0.com",
+            ["settlements@zadana.sa"] = "info@zadna0.com",
+            ["finance.control@zadana.sa"] = "contact@zadna0.com",
+            ["driver.payments@zadana.sa"] = "info@zadna0.com"
+        };
 
     private readonly IApplicationDbContext _context;
     private readonly IEmailService _emailService;
@@ -444,15 +462,30 @@ public sealed class EmailCenterService : IEmailCenterService
 
     private async Task EnsureSeedDataAsync(CancellationToken cancellationToken)
     {
-        if (await _context.EmailSenderProfileConfigs.AnyAsync(cancellationToken) &&
-            await _context.EmailWorkflowRuleConfigs.AnyAsync(cancellationToken))
-        {
-            return;
-        }
+        var defaultProfiles = EmailCenterDefaults.BuildSenderProfiles();
+        var existingProfiles = await _context.EmailSenderProfileConfigs
+            .ToDictionaryAsync(x => x.ProfileKey, StringComparer.OrdinalIgnoreCase, cancellationToken);
 
-        if (!await _context.EmailSenderProfileConfigs.AnyAsync(cancellationToken))
+        foreach (var defaultProfile in defaultProfiles)
         {
-            _context.EmailSenderProfileConfigs.AddRange(EmailCenterDefaults.BuildSenderProfiles());
+            if (existingProfiles.TryGetValue(defaultProfile.ProfileKey, out var existingProfile))
+            {
+                if (existingProfile.IsReadOnly)
+                {
+                    existingProfile.UpdateSystemDefaults(
+                        defaultProfile.Name,
+                        defaultProfile.Address,
+                        defaultProfile.ReplyTo,
+                        defaultProfile.DescriptionKey,
+                        defaultProfile.Locale,
+                        defaultProfile.IsDefault,
+                        defaultProfile.Status);
+                }
+
+                continue;
+            }
+
+            _context.EmailSenderProfileConfigs.Add(defaultProfile);
         }
 
         if (!await _context.EmailWorkflowRuleConfigs.AnyAsync(cancellationToken))
@@ -460,7 +493,53 @@ public sealed class EmailCenterService : IEmailCenterService
             _context.EmailWorkflowRuleConfigs.AddRange(EmailCenterDefaults.BuildWorkflowRules());
         }
 
+        await SyncLegacyEmailRuleAddressesAsync(cancellationToken);
+
         await _context.SaveChangesAsync(cancellationToken);
+    }
+
+    private async Task SyncLegacyEmailRuleAddressesAsync(CancellationToken cancellationToken)
+    {
+        var rules = await _context.EmailWorkflowRuleConfigs.ToListAsync(cancellationToken);
+        foreach (var rule in rules)
+        {
+            var routeJson = ReplaceLegacyEmailAddresses(rule.RouteJson);
+            if (string.Equals(routeJson, rule.RouteJson, StringComparison.Ordinal))
+            {
+                continue;
+            }
+
+            rule.Update(
+                rule.TitleKey,
+                rule.SubtitleKey,
+                rule.CategoryKey,
+                rule.CadenceLabelKey,
+                rule.TriggerNotesKey,
+                rule.Enabled,
+                rule.SenderProfileKey,
+                rule.AudienceType,
+                rule.PanelScope,
+                rule.PersonaTargetsJson,
+                rule.EntityScopeJson,
+                rule.BranchScopeMode,
+                rule.RecipientTargetsJson,
+                routeJson,
+                rule.TemplateJson,
+                rule.AutomationState,
+                rule.EventKey,
+                rule.UpdatedByUserId);
+        }
+    }
+
+    private static string ReplaceLegacyEmailAddresses(string value)
+    {
+        var result = value;
+        foreach (var (legacyEmail, currentEmail) in LegacyEmailAddressMap)
+        {
+            result = result.Replace(legacyEmail, currentEmail, StringComparison.OrdinalIgnoreCase);
+        }
+
+        return result;
     }
 
     private void EnsureStrictScope(EmailWorkflowRuleDto rule)
@@ -917,14 +996,20 @@ public sealed class EmailCenterService : IEmailCenterService
     {
         var actionUrl = string.IsNullOrWhiteSpace(targetUrl) ? null : targetUrl.Trim();
         var builder = new StringBuilder();
-        builder.Append("""
-            <div style="font-family:Arial,sans-serif;line-height:1.7;color:#0f172a">
+        builder.Append($"""
+            <div style="font-family:Arial,sans-serif;line-height:1.7;color:#132126;background:#ffffff;border:1px solid #c7e3e7;border-radius:12px;overflow:hidden">
+              <div style="background:#007f92;padding:26px 24px;text-align:center">
+                <div style="display:inline-block;background:#ffffff;border:1px solid #d7edf0;border-bottom:4px solid #f08010;border-radius:12px;padding:16px 24px 14px">
+                <img src="{EmailLogoUrl}" width="168" alt="Zadna" style="display:block;width:168px;max-width:168px;height:auto;border:0;margin:0 auto" />
+                </div>
+              </div>
+              <div style="padding:28px">
         """);
 
         if (!string.IsNullOrWhiteSpace(titleEn))
         {
             builder.Append($"""
-              <h2 style="margin:0 0 12px;color:#0f766e">{titleEn}</h2>
+              <h2 style="margin:0 0 12px;color:#073843;font-size:24px;line-height:1.25">{titleEn}</h2>
             """);
         }
 
@@ -945,7 +1030,7 @@ public sealed class EmailCenterService : IEmailCenterService
             if (!string.IsNullOrWhiteSpace(titleAr))
             {
                 builder.Append($"""
-                <h3 style="margin:0 0 8px;color:#0f766e">{titleAr}</h3>
+                <h3 style="margin:0 0 8px;color:#073843;font-size:20px;line-height:1.35">{titleAr}</h3>
                 """);
             }
 
@@ -963,14 +1048,14 @@ public sealed class EmailCenterService : IEmailCenterService
         {
             builder.Append($"""
               <p style="margin-top:20px">
-                <a href="{actionUrl}" style="display:inline-block;background:#0f766e;color:#fff;text-decoration:none;padding:10px 16px;border-radius:12px">
+                <a href="{actionUrl}" style="display:inline-block;background:#007f92;color:#fff;text-decoration:none;padding:10px 16px;border-radius:10px;border-bottom:3px solid #f08010">
                   Open related workspace
                 </a>
               </p>
             """);
         }
 
-        builder.Append("</div>");
+        builder.Append("</div></div>");
         return builder.ToString();
     }
 
@@ -1317,27 +1402,27 @@ internal static class EmailCenterDefaults
     [
         new EmailSenderProfileConfig(
             "ops-primary",
-            "Operations Primary",
-            "ops@zadana.sa",
-            "support@zadana.sa",
+            "Zadna Support",
+            "support@zadna0.com",
+            "support@zadna0.com",
             "EMAIL_CENTER.PROFILES.OPS_PRIMARY",
             "bilingual",
             true,
             "primary"),
         new EmailSenderProfileConfig(
             "vendor-network",
-            "Vendor Network Desk",
-            "vendors@zadana.sa",
-            "vendors@zadana.sa",
+            "Zadna Hello",
+            "hello@zadna0.com",
+            "contact@zadna0.com",
             "EMAIL_CENTER.PROFILES.VENDOR_NETWORK",
             "bilingual",
             false,
             "secondary"),
         new EmailSenderProfileConfig(
             "finance-digest",
-            "Finance Digest",
-            "finance@zadana.sa",
-            "settlements@zadana.sa",
+            "Zadna Info",
+            "info@zadna0.com",
+            "contact@zadna0.com",
             "EMAIL_CENTER.PROFILES.FINANCE_DIGEST",
             "english",
             false,
@@ -1363,7 +1448,7 @@ internal static class EmailCenterDefaults
                 new EmailEntityScopeDto(null, null, null),
                 "all_branches",
                 new EmailRecipientTargetSelectionDto(["primary_account_email"], ["assigned_super_admin_manager"], []),
-                new EmailRecipientRouteDto(["security@zadana.sa"], [], [], ["access.control@zadana.sa"], ["security.audit@zadana.sa"], [], "Access Control Desk", "Security Governance"),
+                new EmailRecipientRouteDto(["support@zadna0.com"], [], [], ["support@zadna0.com"], ["contact@zadna0.com"], [], "Access Control Desk", "Security Governance"),
                 new EmailTemplatePreviewDto(
                     new Dictionary<string, string> { ["en"] = "Your Zadana access is ready", ["ar"] = "تم تجهيز وصولك في زادانا" },
                     new Dictionary<string, string> { ["en"] = "Your super admin access invitation is ready. Complete onboarding before the expiry date.", ["ar"] = "دعوة الوصول الخاصة بك جاهزة. يرجى إكمال التفعيل قبل تاريخ الانتهاء." },
@@ -1384,7 +1469,7 @@ internal static class EmailCenterDefaults
                 new EmailEntityScopeDto(null, null, null),
                 "specific_branch",
                 new EmailRecipientTargetSelectionDto(["branch_manager", "vendor_owner"], ["assigned_super_admin_manager"], []),
-                new EmailRecipientRouteDto([], ["vendor.success@zadana.sa"], [], ["vendors@zadana.sa"], ["ops.leads@zadana.sa"], [], "Vendor Success Hub", "Marketplace Operations"),
+                new EmailRecipientRouteDto([], ["hello@zadna0.com"], [], ["contact@zadna0.com"], ["support@zadna0.com"], [], "Vendor Success Hub", "Marketplace Operations"),
                 new EmailTemplatePreviewDto(
                     new Dictionary<string, string> { ["en"] = "Branch access onboarding", ["ar"] = "تهيئة وصول الفرع" },
                     new Dictionary<string, string> { ["en"] = "Branch team access has been prepared. Review role scope and complete activation.", ["ar"] = "تم تجهيز وصول فريق الفرع. يرجى مراجعة نطاق الدور واستكمال التفعيل." },
@@ -1405,7 +1490,7 @@ internal static class EmailCenterDefaults
                 new EmailEntityScopeDto(null, null, null),
                 "specific_branch",
                 new EmailRecipientTargetSelectionDto(["branch_manager", "branch_staff"], ["vendor_company_manager"], []),
-                new EmailRecipientRouteDto([], [], [], ["vendor.helpdesk@zadana.sa"], ["security.audit@zadana.sa"], [], "Vendor Identity Support", "Vendor Security Desk"),
+                new EmailRecipientRouteDto([], [], [], ["support@zadna0.com"], ["contact@zadna0.com"], [], "Vendor Identity Support", "Vendor Security Desk"),
                 new EmailTemplatePreviewDto(
                     new Dictionary<string, string> { ["en"] = "Reset requested for branch credentials", ["ar"] = "تم طلب إعادة تعيين بيانات الفرع" },
                     new Dictionary<string, string> { ["en"] = "A secure password reset was requested for the branch account.", ["ar"] = "تم طلب إعادة تعيين آمن لبيانات الفرع." },
@@ -1426,7 +1511,7 @@ internal static class EmailCenterDefaults
                 new EmailEntityScopeDto(null, null, null),
                 "all_branches",
                 new EmailRecipientTargetSelectionDto(["vendor_finance"], ["vendor_owner", "vendor_company_manager"], ["assigned_super_admin_manager"]),
-                new EmailRecipientRouteDto(["settlements@zadana.sa"], [], [], ["finance@zadana.sa"], ["finance.control@zadana.sa"], [], "Finance Operations", "CFO Office"),
+                new EmailRecipientRouteDto(["info@zadna0.com"], [], [], ["info@zadna0.com"], ["contact@zadna0.com"], [], "Finance Operations", "CFO Office"),
                 new EmailTemplatePreviewDto(
                     new Dictionary<string, string> { ["en"] = "Vendor finance digest", ["ar"] = "ملخص مالية التاجر" },
                     new Dictionary<string, string> { ["en"] = "Daily finance digest for the selected vendor scope.", ["ar"] = "ملخص مالي يومي لنطاق التاجر المحدد." },
@@ -1468,7 +1553,7 @@ internal static class EmailCenterDefaults
                 new EmailEntityScopeDto(null, null, null),
                 "all_branches",
                 new EmailRecipientTargetSelectionDto(["driver_account"], [], []),
-                new EmailRecipientRouteDto([], [], [], ["driver.payments@zadana.sa"], [], [], "Driver Finance Desk", "Driver Finance Lead"),
+                new EmailRecipientRouteDto([], [], [], ["info@zadna0.com"], [], [], "Driver Finance Desk", "Driver Finance Lead"),
                 new EmailTemplatePreviewDto(
                     new Dictionary<string, string> { ["en"] = "Driver payout alert", ["ar"] = "تنبيه دفعة المندوب" },
                     new Dictionary<string, string> { ["en"] = "A payout-related update is available for your driver account.", ["ar"] = "هناك تحديث متعلق بالدفعات على حساب المندوب الخاص بك." },
@@ -1489,7 +1574,7 @@ internal static class EmailCenterDefaults
                 new EmailEntityScopeDto(null, null, null),
                 "all_branches",
                 new EmailRecipientTargetSelectionDto(["customer_account"], [], []),
-                new EmailRecipientRouteDto([], [], [], ["support@zadana.sa"], [], [], "Customer Experience", "Support Escalation Desk"),
+                new EmailRecipientRouteDto([], [], [], ["support@zadna0.com"], [], [], "Customer Experience", "Support Escalation Desk"),
                 new EmailTemplatePreviewDto(
                     new Dictionary<string, string> { ["en"] = "Customer support escalation", ["ar"] = "تصعيد دعم العميل" },
                     new Dictionary<string, string> { ["en"] = "There is an update on your support escalation. Open the app for details.", ["ar"] = "يوجد تحديث على تصعيد الدعم الخاص بك. افتح التطبيق للاطلاع على التفاصيل." },
@@ -1510,7 +1595,7 @@ internal static class EmailCenterDefaults
                 new EmailEntityScopeDto(null, null, null),
                 "all_branches",
                 new EmailRecipientTargetSelectionDto(["customer_account"], [], []),
-                new EmailRecipientRouteDto([], [], [], ["support@zadana.sa"], [], [], "Identity Support", "Customer Security Desk"),
+                new EmailRecipientRouteDto([], [], [], ["support@zadna0.com"], [], [], "Identity Support", "Customer Security Desk"),
                 new EmailTemplatePreviewDto(
                     new Dictionary<string, string> { ["en"] = "Customer account recovery", ["ar"] = "استعادة حساب العميل" },
                     new Dictionary<string, string> { ["en"] = "A recovery action was requested for your customer account.", ["ar"] = "تم طلب إجراء استعادة لحساب العميل الخاص بك." },
@@ -1569,7 +1654,7 @@ internal static class EmailCenterDefaults
                 new EmailEntityScopeDto(null, null, null),
                 "all_branches",
                 new EmailRecipientTargetSelectionDto(["vendor_owner"], [], []),
-                new EmailRecipientRouteDto([], [], [], ["vendors@zadana.sa"], [], [], "Vendor Operations", "Marketplace Operations"),
+                new EmailRecipientRouteDto([], [], [], ["contact@zadna0.com"], [], [], "Vendor Operations", "Marketplace Operations"),
                 new EmailTemplatePreviewDto(
                     new Dictionary<string, string>
                     {

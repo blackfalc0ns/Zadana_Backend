@@ -51,7 +51,7 @@ public class ForgotPasswordCommandHandler : IRequestHandler<ForgotPasswordComman
 
         if (!string.IsNullOrWhiteSpace(user.Email))
         {
-            await _otpService.SendOtpEmailAsync(user.Email, otpResult.OtpCode, cancellationToken);
+            await _otpService.SendOtpEmailAsync(user.Email, otpResult.OtpCode, cancellationToken, validityMinutes: 15);
         }
     }
 }

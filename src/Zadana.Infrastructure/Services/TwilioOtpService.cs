@@ -49,10 +49,18 @@ public class TwilioOtpService : IOtpService
         }
     }
 
-    public async Task SendOtpEmailAsync(string emailAddress, string otpCode, CancellationToken cancellationToken = default)
+    public async Task SendOtpEmailAsync(
+        string emailAddress,
+        string otpCode,
+        CancellationToken cancellationToken = default,
+        int validityMinutes = 5)
     {
         // Twilio SMS service - email OTP is handled by the Resend email service separately
-        _logger.LogInformation("Email OTP for {Email} is handled by the email service. Code: {Code}", emailAddress, otpCode);
+        _logger.LogInformation(
+            "Email OTP for {Email} is handled by the email service. Code: {Code}. Valid for {ValidityMinutes} minutes.",
+            emailAddress,
+            otpCode,
+            validityMinutes);
         await Task.CompletedTask;
     }
 

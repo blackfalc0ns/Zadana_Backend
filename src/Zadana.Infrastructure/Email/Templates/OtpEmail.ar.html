@@ -3,103 +3,218 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>&#1585;&#1605;&#1586; &#1575;&#1604;&#1578;&#1581;&#1602;&#1602; &#1605;&#1606; &#1586;&#1575;&#1583;&#1606;&#1575;</title>
     <style>
         body {
-            font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif, 'Cairo', 'Tajawal';
-            background-color: #f8fafc;
-            color: #1e293b;
             margin: 0;
             padding: 0;
-            line-height: 1.6;
+            background: #edf7f8;
+            color: #132126;
+            font-family: Tahoma, Arial, sans-serif;
+            line-height: 1.7;
         }
-        .container {
-            max-width: 600px;
-            margin: 40px auto;
-            background-color: #ffffff;
+        .preheader {
+            display: none;
+            max-height: 0;
+            overflow: hidden;
+            opacity: 0;
+            color: transparent;
+        }
+        .shell {
+            width: 100%;
+            background: #edf7f8;
+            padding: 28px 12px;
+        }
+        .card {
+            max-width: 640px;
+            margin: 0 auto;
+            background: #ffffff;
+            border: 1px solid #c7e3e7;
             border-radius: 12px;
             overflow: hidden;
-            box-shadow: 0 4px 6px -1px rgba(0, 0, 0, 0.1), 0 2px 4px -1px rgba(0, 0, 0, 0.06);
         }
-        .header {
-            background-color: #0f172a;
-            padding: 30px 20px;
+        .hero {
+            background: #007f92;
+            padding: 30px 28px 26px;
             text-align: center;
         }
-        .header h1 {
+        .logo-panel {
+            display: inline-block;
+            background: #ffffff;
+            border: 1px solid #d7edf0;
+            border-bottom: 4px solid #f08010;
+            border-radius: 12px;
+            padding: 18px 26px 16px;
+        }
+        .logo-panel img {
+            display: block;
+            width: 190px;
+            max-width: 190px;
+            height: auto;
+            border: 0;
+            margin: 0 auto;
+        }
+        .hero-title {
+            margin: 18px 0 0;
             color: #ffffff;
-            margin: 0;
-            font-size: 24px;
+            font-size: 14px;
             font-weight: 700;
+        }
+        .hero-art {
+            margin: 26px 0 0;
+            border: 1px solid #c7e3e7;
+            border-radius: 12px;
+            overflow: hidden;
+            background: #f7fbfc;
+        }
+        .hero-art img {
+            display: block;
+            width: 100%;
+            max-width: 100%;
+            height: auto;
+            border: 0;
         }
         .content {
-            padding: 40px 30px;
+            padding: 34px 36px 30px;
+        }
+        .eyebrow {
+            display: inline-block;
+            margin: 0 0 14px;
+            padding: 6px 10px;
+            border: 1px solid #b8dfe5;
+            border-radius: 999px;
+            color: #007f92;
+            background: #f2fbfc;
+            font-size: 12px;
+            font-weight: 800;
+        }
+        h1 {
+            margin: 0 0 12px;
+            color: #073843;
+            font-size: 28px;
+            line-height: 1.35;
+            font-weight: 800;
+        }
+        p {
+            margin: 0 0 16px;
+            color: #405257;
+            font-size: 15px;
+        }
+        .code-wrap {
+            margin: 28px 0;
+            padding: 20px;
+            border: 2px solid #f08010;
+            border-radius: 12px;
+            background: #fff8ef;
+        }
+        .code-label {
+            margin: 0 0 10px;
+            color: #9b4d05;
+            font-size: 12px;
+            font-weight: 800;
             text-align: center;
         }
-        .greeting {
-            font-size: 20px;
-            font-weight: 600;
-            margin-bottom: 20px;
-            color: #0f172a;
+        .code {
+            direction: ltr;
+            color: #007f92;
+            font-size: 44px;
+            font-weight: 800;
+            letter-spacing: 11px;
+            line-height: 1.15;
+            text-align: center;
         }
-        .message {
-            font-size: 16px;
-            color: #475569;
-            margin-bottom: 30px;
-        }
-        .otp-container {
-            background-color: #f1f5f9;
-            border: 2px dashed #cbd5e1;
-            border-radius: 8px;
-            padding: 20px;
-            margin: 20px auto;
-            max-width: 300px;
-        }
-        .otp-code {
-            font-size: 32px;
-            font-weight: 700;
-            color: #2563eb;
-            letter-spacing: 6px;
-            margin: 0;
-        }
-        .warning {
+        .security-row {
+            margin: 22px 0 0;
+            padding: 15px 16px;
+            border-radius: 10px;
+            background: #f1fafb;
+            border: 1px solid #c7e3e7;
+            color: #21484f;
             font-size: 14px;
-            color: #64748b;
-            margin-top: 30px;
+        }
+        .expiry-note {
+            margin: 0 0 18px;
+            padding: 13px 15px;
+            border-radius: 10px;
+            background: #f1fafb;
+            border: 1px solid #c7e3e7;
+            color: #21484f;
+            font-size: 14px;
+            font-weight: 700;
+        }
+        .notice {
+            margin: 14px 0 0;
+            padding: 14px 16px;
+            border-radius: 10px;
+            background: #fff7ed;
+            border: 1px solid #f4c891;
+            color: #71410d;
+            font-size: 14px;
+        }
+        .detail {
+            border-top: 1px solid #e2eef0;
+            margin-top: 26px;
+            padding-top: 18px;
+        }
+        .detail p {
+            margin-bottom: 8px;
+            color: #6a7c82;
+            font-size: 13px;
         }
         .footer {
-            background-color: #f8fafc;
-            padding: 20px;
+            max-width: 640px;
+            margin: 16px auto 0;
+            color: #71868c;
+            font-size: 12px;
             text-align: center;
-            border-top: 1px solid #e2e8f0;
-            font-size: 13px;
-            color: #94a3b8;
         }
-        .footer p { margin: 5px 0; }
+        a {
+            color: #007f92;
+        }
+        @media screen and (max-width: 520px) {
+            .shell { padding: 18px 8px; }
+            .hero { padding: 24px 18px 22px; }
+            .content { padding: 28px 22px 24px; }
+            .logo-panel { padding: 15px 20px 13px; }
+            .logo-panel img { width: 166px; max-width: 166px; }
+            h1 { font-size: 24px; }
+            .code { font-size: 36px; letter-spacing: 7px; }
+        }
     </style>
 </head>
 <body>
-    <div class="container">
-        <div class="header">
-            <h1>زادانا - Zadana</h1>
-        </div>
-        <div class="content">
-            <div class="greeting">أهلاً بك 👋</div>
-            <div class="message">
-                لقد تلقينا طلباً للتحقق من حسابك. يرجى استخدام رمز التفعيل أدناه لإتمام العملية. هذا الرمز صالح لفترة قصيرة فقط.
+    <div class="preheader">&#1585;&#1605;&#1586; &#1575;&#1604;&#1578;&#1581;&#1602;&#1602; &#1604;&#1605;&#1585;&#1577; &#1608;&#1575;&#1581;&#1583;&#1577; &#1605;&#1606; &#1586;&#1575;&#1583;&#1606;&#1575; &#1607;&#1608; {{OtpCode}}.</div>
+    <div class="shell">
+        <div class="card">
+            <div class="hero">
+                <div class="logo-panel">
+                    <img src="{{LogoUrl}}" width="190" alt="Zadna" style="display:block;width:190px;max-width:190px;height:auto;border:0;margin:0 auto;">
+                </div>
+                <div class="hero-title">&#1571;&#1605;&#1575;&#1606; &#1575;&#1604;&#1581;&#1587;&#1575;&#1576;</div>
             </div>
-            
-            <div class="otp-container">
-                <p class="otp-code">{{OtpCode}}</p>
-            </div>
-            
-            <div class="warning">
-                إذا لم تقم بهذا الطلب، يمكنك تجاهل هذه الرسالة بأمان. لا تقم بمشاركة هذا الرمز مع أي شخص.
+            <div class="content">
+                <div class="hero-art">
+                    <img src="{{OtpHeroImageUrl}}" width="568" alt="Zadna security verification" style="display:block;width:100%;max-width:100%;height:auto;border:0;">
+                </div>
+                <div class="eyebrow">&#1585;&#1605;&#1586; &#1604;&#1605;&#1585;&#1577; &#1608;&#1575;&#1581;&#1583;&#1577;</div>
+                <h1>&#1571;&#1603;&#1617;&#1583; &#1581;&#1587;&#1575;&#1576;&#1603; &#1601;&#1610; &#1586;&#1575;&#1583;&#1606;&#1575;</h1>
+                <p>&#1605;&#1585;&#1581;&#1576;&#1611;&#1575;&#1548;</p>
+                <p>&#1575;&#1587;&#1578;&#1582;&#1583;&#1605; &#1585;&#1605;&#1586; &#1575;&#1604;&#1578;&#1581;&#1602;&#1602; &#1575;&#1604;&#1578;&#1575;&#1604;&#1610; &#1604;&#1573;&#1603;&#1605;&#1575;&#1604; &#1578;&#1571;&#1603;&#1610;&#1583; &#1581;&#1587;&#1575;&#1576;&#1603; &#1601;&#1610; &#1586;&#1575;&#1583;&#1606;&#1575; &#1576;&#1571;&#1605;&#1575;&#1606;.</p>
+                <div class="code-wrap">
+                    <p class="code-label">&#1585;&#1605;&#1586; &#1575;&#1604;&#1578;&#1581;&#1602;&#1602;</p>
+                    <div class="code">{{OtpCode}}</div>
+                </div>
+                <div class="expiry-note">&#1607;&#1584;&#1575; &#1575;&#1604;&#1585;&#1605;&#1586; &#1589;&#1575;&#1604;&#1581; &#1604;&#1605;&#1583;&#1577; {{ValidityMinutes}} &#1583;&#1602;&#1575;&#1574;&#1602; &#1601;&#1602;&#1591;.</div>
+                <p>&#1607;&#1584;&#1575; &#1575;&#1604;&#1585;&#1605;&#1586; &#1589;&#1575;&#1604;&#1581; &#1604;&#1601;&#1578;&#1585;&#1577; &#1602;&#1589;&#1610;&#1585;&#1577; &#1608;&#1604;&#1575; &#1610;&#1615;&#1587;&#1578;&#1582;&#1583;&#1605; &#1573;&#1604;&#1575; &#1583;&#1575;&#1582;&#1604; &#1586;&#1575;&#1583;&#1606;&#1575;. &#1604;&#1575; &#1578;&#1588;&#1575;&#1585;&#1603;&#1607; &#1605;&#1593; &#1571;&#1610; &#1588;&#1582;&#1589;.</p>
+                <div class="security-row">&#1586;&#1575;&#1583;&#1606;&#1575; &#1604;&#1606; &#1578;&#1591;&#1604;&#1576; &#1605;&#1606;&#1603; &#1573;&#1585;&#1587;&#1575;&#1604; &#1607;&#1584;&#1575; &#1575;&#1604;&#1585;&#1605;&#1586; &#1593;&#1576;&#1585; &#1575;&#1604;&#1607;&#1575;&#1578;&#1601; &#1571;&#1608; &#1575;&#1604;&#1605;&#1581;&#1575;&#1583;&#1579;&#1577; &#1571;&#1608; &#1575;&#1604;&#1576;&#1585;&#1610;&#1583;.</div>
+                <div class="notice">&#1573;&#1584;&#1575; &#1604;&#1605; &#1578;&#1591;&#1604;&#1576; &#1607;&#1584;&#1575; &#1575;&#1604;&#1585;&#1605;&#1586;&#1548; &#1610;&#1605;&#1603;&#1606;&#1603; &#1578;&#1580;&#1575;&#1607;&#1604; &#1607;&#1584;&#1607; &#1575;&#1604;&#1585;&#1587;&#1575;&#1604;&#1577; &#1571;&#1608; &#1575;&#1604;&#1578;&#1608;&#1575;&#1589;&#1604; &#1605;&#1593; &#1583;&#1593;&#1605; &#1586;&#1575;&#1583;&#1606;&#1575;.</div>
+                <div class="detail">
+                    <p>&#1578;&#1605; &#1575;&#1604;&#1573;&#1585;&#1587;&#1575;&#1604; &#1573;&#1604;&#1609;: <a href="mailto:{{EmailAddress}}">{{EmailAddress}}</a></p>
+                    <p>&#1575;&#1604;&#1583;&#1593;&#1605;: <a href="mailto:{{SupportEmail}}">{{SupportEmail}}</a></p>
+                </div>
             </div>
         </div>
-        <div class="footer">
-            <p>&copy; {{Year}} زادانا. جميع الحقوق محفوظة.</p>
-            <p>هذه رسالة تلقائية، يرجى عدم الرد عليها.</p>
-        </div>
+        <div class="footer">Copyright {{Year}} Zadna. &#1585;&#1587;&#1575;&#1604;&#1577; &#1571;&#1605;&#1575;&#1606; &#1578;&#1604;&#1602;&#1575;&#1574;&#1610;&#1577;.</div>
     </div>
 </body>
 </html>

@@ -37,4 +37,22 @@ public class EmailSenderProfileConfig : BaseEntity
         Status = status.Trim().ToLowerInvariant();
         IsReadOnly = isReadOnly;
     }
+
+    public void UpdateSystemDefaults(
+        string name,
+        string address,
+        string replyTo,
+        string descriptionKey,
+        string locale,
+        bool isDefault,
+        string status)
+    {
+        Name = name.Trim();
+        Address = address.Trim().ToLowerInvariant();
+        ReplyTo = replyTo.Trim().ToLowerInvariant();
+        DescriptionKey = descriptionKey.Trim();
+        Locale = locale.Trim().ToLowerInvariant();
+        IsDefault = isDefault;
+        Status = status.Trim().ToLowerInvariant();
+    }
 }

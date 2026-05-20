@@ -12,13 +12,18 @@ public class MockOtpService : IOtpService
         _logger = logger;
     }
 
-    public Task SendOtpEmailAsync(string emailAddress, string otpCode, CancellationToken cancellationToken = default)
+    public Task SendOtpEmailAsync(
+        string emailAddress,
+        string otpCode,
+        CancellationToken cancellationToken = default,
+        int validityMinutes = 5)
     {
         // In a real app, integrate SendGrid, AWS SES, SMTP, etc.
         _logger.LogInformation("=========================================");
         _logger.LogInformation("📧 MOCK EMAIL PROVIDER");
         _logger.LogInformation("To: {Email}", emailAddress);
         _logger.LogInformation("Your Zadana Verification Code is: {Code}", otpCode);
+        _logger.LogInformation("Code validity: {ValidityMinutes} minutes", validityMinutes);
         _logger.LogInformation("=========================================");
         
         return Task.CompletedTask;
