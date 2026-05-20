@@ -73,7 +73,7 @@ public class ZadanaWebFactory : WebApplicationFactory<Program>
             return Task.CompletedTask;
         }
 
-        public Task SendOtpEmailAsync(string emailAddress, string otpCode, CancellationToken cancellationToken = default)
+        public Task SendOtpEmailAsync(string emailAddress, string otpCode, CancellationToken cancellationToken = default, int validityMinutes = 5)
         {
             return Task.CompletedTask;
         }
