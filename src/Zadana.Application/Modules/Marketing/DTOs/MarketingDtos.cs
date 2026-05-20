@@ -66,6 +66,13 @@ public record HomeContentSectionSettingDto(
     string SectionType,
     bool IsEnabled);
 
+public record ProductCardPriceVisibilitySettingDto(
+    bool ShowPriceOnCard,
+    int TotalProducts,
+    int VisibleProducts,
+    int HiddenProducts,
+    bool IsMixed);
+
 public record CouponVendorAdminDto(
     Guid VendorId,
     string VendorNameAr,
