@@ -4639,6 +4639,9 @@ namespace Zadana.Infrastructure.Migrations
                     b.Property<DateTime?>("DriverRespondedAtUtc")
                         .HasColumnType("datetime2");
 
+                    b.Property<Guid?>("DriverId")
+                        .HasColumnType("uniqueidentifier");
+
                     b.Property<string>("DriverResponse")
                         .HasMaxLength(2000)
                         .HasColumnType("nvarchar(2000)");
@@ -4655,7 +4658,7 @@ namespace Zadana.Infrastructure.Migrations
                         .HasMaxLength(2000)
                         .HasColumnType("nvarchar(2000)");
 
-                    b.Property<Guid>("OrderId")
+                    b.Property<Guid?>("OrderId")
                         .HasColumnType("uniqueidentifier");
 
                     b.Property<string>("Priority")
@@ -4708,6 +4711,8 @@ namespace Zadana.Infrastructure.Migrations
                         .HasColumnType("nvarchar(2000)");
 
                     b.HasKey("Id");
+
+                    b.HasIndex("DriverId", "Type", "Status");
 
                     b.HasIndex("OrderId", "Status");
 
@@ -7541,8 +7546,7 @@ namespace Zadana.Infrastructure.Migrations
                     b.HasOne("Zadana.Domain.Modules.Orders.Entities.Order", "Order")
                         .WithMany("SupportCases")
                         .HasForeignKey("OrderId")
-                        .OnDelete(DeleteBehavior.Cascade)
-                        .IsRequired();
+                        .OnDelete(DeleteBehavior.Cascade);
 
                     b.Navigation("Order");
                 });

@@ -55,7 +55,12 @@ public sealed class DriverHomeReadService : IDriverHomeReadService
         }
 
         var commitment = await _driverCommitmentPolicyService.GetDriverSummaryAsync(driver.Id, cancellationToken);
-        var operationalStatus = DriverOperationalStatusFactory.Create(driver, commitment);
+        var operationalStatus = DriverOperationalStatusFactory.Create(
+            driver,
+            commitment,
+            driver.User.IsLoginLocked,
+            driver.User.LockedAtUtc,
+            driver.User.LockReason);
 
         // Query the offer BEFORE processing expirations so the driver sees
         // the offer even if it expired moments ago (the countdown UI handles it).

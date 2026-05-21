@@ -11,14 +11,25 @@ public sealed record DriverDisputeRequest(
     [property: JsonPropertyName("reason_code")] string? ReasonCode,
     [property: JsonPropertyName("message")] string Message);
 
+public sealed record DriverAccountAppealRequest(
+    [property: JsonPropertyName("identifier")] string? Identifier,
+    [property: JsonPropertyName("reason_code")] string? ReasonCode,
+    [property: JsonPropertyName("message")] string Message,
+    [property: JsonPropertyName("attachments")] List<DriverSupportAttachmentInput>? Attachments);
+
+public sealed record DriverAccountAppealAcceptedResponse(
+    [property: JsonPropertyName("message")] string Message,
+    [property: JsonPropertyName("message_ar")] string MessageAr,
+    [property: JsonPropertyName("message_en")] string MessageEn);
+
 public sealed record DriverSupportAttachmentInput(
     [property: JsonPropertyName("file_name")] string FileName,
     [property: JsonPropertyName("file_url")] string FileUrl);
 
 public sealed record DriverSupportCaseResponse(
     [property: JsonPropertyName("id")] Guid Id,
-    [property: JsonPropertyName("order_id")] Guid OrderId,
-    [property: JsonPropertyName("order_number")] string OrderNumber,
+    [property: JsonPropertyName("order_id")] Guid? OrderId,
+    [property: JsonPropertyName("order_number")] string? OrderNumber,
     [property: JsonPropertyName("type")] string Type,
     [property: JsonPropertyName("type_label_ar")] string TypeLabelAr,
     [property: JsonPropertyName("type_label_en")] string TypeLabelEn,
@@ -48,8 +59,8 @@ public sealed record DriverSupportCasesListResponse(
 
 public sealed record DriverSupportCaseListItemResponse(
     [property: JsonPropertyName("id")] Guid Id,
-    [property: JsonPropertyName("order_id")] Guid OrderId,
-    [property: JsonPropertyName("order_number")] string OrderNumber,
+    [property: JsonPropertyName("order_id")] Guid? OrderId,
+    [property: JsonPropertyName("order_number")] string? OrderNumber,
     [property: JsonPropertyName("type")] string Type,
     [property: JsonPropertyName("type_label_ar")] string TypeLabelAr,
     [property: JsonPropertyName("type_label_en")] string TypeLabelEn,
@@ -70,8 +81,8 @@ public sealed record DriverSupportCaseListItemResponse(
 
 public sealed record DriverSupportCaseDetailResponse(
     [property: JsonPropertyName("id")] Guid Id,
-    [property: JsonPropertyName("order_id")] Guid OrderId,
-    [property: JsonPropertyName("order_number")] string OrderNumber,
+    [property: JsonPropertyName("order_id")] Guid? OrderId,
+    [property: JsonPropertyName("order_number")] string? OrderNumber,
     [property: JsonPropertyName("type")] string Type,
     [property: JsonPropertyName("type_label_ar")] string TypeLabelAr,
     [property: JsonPropertyName("type_label_en")] string TypeLabelEn,

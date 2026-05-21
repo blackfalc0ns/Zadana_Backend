@@ -49,7 +49,7 @@ public class VendorOrderCasesController : ApiControllerBase
         var query = _dbContext.OrderSupportCases
             .AsNoTracking()
             .Include(c => c.Order)
-            .Where(c => c.Order.VendorId == vendorId);
+            .Where(c => c.Order != null && c.Order.VendorId == vendorId);
 
         if (!string.IsNullOrWhiteSpace(status))
         {
@@ -79,7 +79,7 @@ public class VendorOrderCasesController : ApiControllerBase
             {
                 var pattern = $"%{trimmedSearch}%";
                 query = query.Where(c =>
-                    EF.Functions.Like(c.Order.OrderNumber, pattern) ||
+                    EF.Functions.Like(c.Order!.OrderNumber, pattern) ||
                     (c.ReasonCode != null && EF.Functions.Like(c.ReasonCode, pattern)) ||
                     EF.Functions.Like(c.Message, pattern));
             }
@@ -94,7 +94,7 @@ public class VendorOrderCasesController : ApiControllerBase
             {
                 c.Id,
                 c.OrderId,
-                OrderNumber = c.Order.OrderNumber,
+                OrderNumber = c.Order!.OrderNumber,
                 Type = c.Type,
                 Status = c.Status,
                 Priority = c.Priority,
@@ -132,7 +132,7 @@ public class VendorOrderCasesController : ApiControllerBase
         var items = cases
             .Select(c => new VendorOrderCaseListItemResponse(
                 c.Id,
-                c.OrderId,
+                c.OrderId!.Value,
                 c.OrderNumber,
                 c.Type.ToString(),
                 c.Status.ToString(),
@@ -172,7 +172,7 @@ public class VendorOrderCasesController : ApiControllerBase
             .Include(c => c.Order)
             .Include(c => c.Attachments)
             .Include(c => c.Activities)
-            .Where(c => c.Id == caseId && c.Order.VendorId == vendorId)
+            .Where(c => c.Id == caseId && c.Order != null && c.Order.VendorId == vendorId)
             .FirstOrDefaultAsync(cancellationToken)
             ?? throw new NotFoundException("OrderSupportCase", caseId);
 
@@ -214,8 +214,8 @@ public class VendorOrderCasesController : ApiControllerBase
 
         return Ok(new VendorOrderCaseDetailResponse(
             supportCase.Id,
-            supportCase.OrderId,
-            supportCase.Order.OrderNumber,
+            supportCase.OrderId!.Value,
+            supportCase.Order!.OrderNumber,
             supportCase.Type.ToString(),
             supportCase.Status.ToString(),
             supportCase.Priority.ToString(),
@@ -279,7 +279,7 @@ public class VendorOrderCasesController : ApiControllerBase
         // Verify the case belongs to this vendor
         var caseExists = await _dbContext.OrderSupportCases
             .AsNoTracking()
-            .AnyAsync(c => c.Id == caseId && c.Order.VendorId == vendorId, cancellationToken);
+            .AnyAsync(c => c.Id == caseId && c.Order != null && c.Order.VendorId == vendorId, cancellationToken);
 
         if (!caseExists)
         {

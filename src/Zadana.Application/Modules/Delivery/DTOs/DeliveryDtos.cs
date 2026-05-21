@@ -36,7 +36,24 @@ public record DriverOperationalStatusDto(
     string? RestrictionMessageAr = null,
     string? RestrictionMessageEn = null,
     string? ReviewNoteAr = null,
-    string? ReviewNoteEn = null);
+    string? ReviewNoteEn = null,
+    bool IsLoginLocked = false,
+    DateTime? LockedAtUtc = null,
+    string? LockReason = null,
+    DriverAllowedCapabilitiesDto? AllowedCapabilities = null,
+    DriverSupportCtaDto? SupportCta = null);
+
+public record DriverAllowedCapabilitiesDto(
+    bool CanAccessSupport,
+    bool CanEditProfile,
+    bool CanAccessWallet,
+    bool CanReceiveOffers);
+
+public record DriverSupportCtaDto(
+    string Endpoint,
+    string ReasonType,
+    string LabelAr,
+    string LabelEn);
 
 public record DriverCommitmentSummaryDto(
     int AcceptedOffers,
@@ -248,6 +265,9 @@ public record AdminDriverDetailDto(
     DateTime? ReviewedAtUtc,
     string? ReviewNote,
     string? SuspensionReason,
+    bool IsLoginLocked,
+    DateTime? LockedAtUtc,
+    string? LockReason,
     AdminDriverProfileReadinessDto ProfileReadiness,
 
     // Documents

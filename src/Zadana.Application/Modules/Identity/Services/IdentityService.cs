@@ -67,13 +67,27 @@ public class IdentityService : IIdentityService
             throw new UnauthorizedException(_localizer["UnauthorizedAppAccess"]);
         }
 
-        if (user.AccountStatus != AccountStatus.Active)
+        if (user.IsLoginLocked)
         {
+            if (user.Role == UserRole.Driver)
+            {
+                throw new UnauthorizedException(
+                    "Driver login is locked. Use /api/drivers/account-support/appeals to contact support.",
+                    "DRIVER_LOGIN_LOCKED");
+            }
+
             throw new UnauthorizedException(_localizer["AccountLoginDenied", user.AccountStatus]);
         }
 
-        if (user.IsLoginLocked)
+        if (user.AccountStatus != AccountStatus.Active)
         {
+            if (user.Role == UserRole.Driver)
+            {
+                throw new UnauthorizedException(
+                    "Driver account is not active. Use /api/drivers/account-support/appeals to contact support.",
+                    "DRIVER_ACCOUNT_BLOCKED");
+            }
+
             throw new UnauthorizedException(_localizer["AccountLoginDenied", user.AccountStatus]);
         }
 
@@ -110,7 +124,10 @@ public class IdentityService : IIdentityService
 
             if (driver is not null)
             {
-                driverStatus = DriverOperationalStatusFactory.Create(driver);
+                driverStatus = DriverOperationalStatusFactory.Create(
+                    driver,
+                    isLoginLocked: user.IsLoginLocked,
+                    lockedAtUtc: user.LockedAtUtc);
             }
         }
 

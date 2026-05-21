@@ -18,6 +18,16 @@ public static class OrderSupportCaseReasonCatalog
         new("other", "أخرى", "Other", true)
     ];
 
+    private static readonly IReadOnlyList<OrderSupportCaseReasonOption> DriverAccountOptions =
+    [
+        new("account_banned", "Ø§Ù„Ø­Ø³Ø§Ø¨ Ù…Ø­Ø¸ÙˆØ±", "Account banned", true),
+        new("account_suspended", "Ø§Ù„Ø­Ø³Ø§Ø¨ Ù…ÙˆÙ‚ÙˆÙ", "Account suspended", true),
+        new("login_locked", "ØªØ³Ø¬ÙŠÙ„ Ø§Ù„Ø¯Ø®ÙˆÙ„ Ù…Ù‚ÙÙ„", "Login locked", true),
+        new("under_review", "Ø§Ù„Ø­Ø³Ø§Ø¨ Ù‚ÙŠØ¯ Ø§Ù„Ù…Ø±Ø§Ø¬Ø¹Ø©", "Account under review", true),
+        new("documents_required", "Ù…Ø³ØªÙ†Ø¯Ø§Øª Ù…Ø·Ù„ÙˆØ¨Ø©", "Documents required", true),
+        new("other", "Ø£Ø®Ø±Ù‰", "Other", true)
+    ];
+
     private static readonly IReadOnlyList<OrderSupportCaseReasonOption> CustomerComplaintOptions =
     [
         new("late_delivery", "تأخر التوصيل", "Late delivery", false),
@@ -43,6 +53,7 @@ public static class OrderSupportCaseReasonCatalog
         {
             "driver_report" => DriverReportOptions,
             "driver_dispute" => DriverDisputeOptions,
+            "driver_account" => DriverAccountOptions,
             "complaint" => CustomerComplaintOptions,
             "return_request" => CustomerReturnOptions,
             _ => []
@@ -66,6 +77,7 @@ public static class OrderSupportCaseReasonCatalog
         {
             "report" or "driver_report" => "driver_report",
             "dispute" or "driver_dispute" => "driver_dispute",
+            "driver_account" or "driver_account_appeal" => "driver_account",
             "complaint" => "complaint",
             "return" or "return_request" => "return_request",
             _ => string.Empty

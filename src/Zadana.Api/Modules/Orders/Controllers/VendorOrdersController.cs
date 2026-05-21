@@ -165,6 +165,9 @@ public class VendorOrdersController : ApiControllerBase
             dto.PickupOtp,
             dto.CanConfirmPickup,
             dto.PickupOtpStatus,
+            dto.VendorLocation,
+            dto.CustomerLocation,
+            dto.DriverLiveLocation,
             dto.Items.Select(item => new VendorOrderItemResponse(
                 item.Id,
                 item.ProductName,
@@ -220,6 +223,9 @@ public record VendorOrderDetailResponse(
     string? PickupOtp,
     bool CanConfirmPickup,
     string PickupOtpStatus,
+    GeoPointDto? VendorLocation,
+    GeoPointDto? CustomerLocation,
+    DriverLiveLocationDto? DriverLiveLocation,
     List<VendorOrderItemResponse> Items,
     List<VendorOrderTimelineResponse> Timeline);
 public record AssignedDriverSummaryResponse(

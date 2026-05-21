@@ -283,6 +283,14 @@ public class DriverReadService : IDriverReadService
                 i.ReviewerName, i.LinkedOrderId, i.Summary, i.CreatedAtUtc))
             .ToArrayAsync(cancellationToken);
 
+        var accountSupportCases = await _context.OrderSupportCases
+            .AsNoTracking()
+            .Include(c => c.Activities)
+            .Where(c => c.DriverId == driverId && c.Type == OrderSupportCaseType.DriverAccountAppeal)
+            .OrderByDescending(c => c.UpdatedAtUtc)
+            .Take(10)
+            .ToArrayAsync(cancellationToken);
+
         // Recent assignments
         var recentAssignmentRows = await _context.DeliveryAssignments
             .Where(a => a.DriverId == driverId)
@@ -458,6 +466,7 @@ public class DriverReadService : IDriverReadService
         var support = BuildAdminSupportSection(
             notes,
             incidents,
+            accountSupportCases,
             missingRequirements,
             wallet?.PendingBalance ?? 0);
         var documentHealth = BuildDocumentHealth(documents);
@@ -536,6 +545,9 @@ public class DriverReadService : IDriverReadService
             ReviewedAtUtc: driver.ReviewedAtUtc,
             ReviewNote: driver.ReviewNote,
             SuspensionReason: driver.SuspensionReason,
+            IsLoginLocked: driver.User.IsLoginLocked,
+            LockedAtUtc: driver.User.LockedAtUtc,
+            LockReason: driver.User.LockReason,
             ProfileReadiness: profileReadiness,
             Documents: documents,
             Notes: notes,
@@ -1381,6 +1393,7 @@ public class DriverReadService : IDriverReadService
     private static AdminDriverSupportSectionDto BuildAdminSupportSection(
         AdminDriverNoteDto[] notes,
         AdminDriverIncidentDto[] incidents,
+        OrderSupportCase[] accountSupportCases,
         IReadOnlyCollection<string> missingRequirements,
         decimal pendingBalance)
     {
@@ -1401,20 +1414,65 @@ public class DriverReadService : IDriverReadService
             followUps.Add(new AdminDriverSupportFollowUpDto("clear_finance_hold", "this_week", "warning"));
         }
 
+        var tickets = accountSupportCases
+            .Select(supportCase => new AdminDriverSupportTicketDto(
+                supportCase.Id,
+                "DRIVER_ACCOUNT_APPEAL",
+                MapDriverAccountSupportStatus(supportCase.Status),
+                supportCase.Priority.ToString().ToUpperInvariant(),
+                supportCase.AssignedAdminId.HasValue ? "Assigned admin" : "Driver operations",
+                supportCase.UpdatedAtUtc,
+                null))
+            .ToArray();
+
+        var chatMessages = accountSupportCases
+            .SelectMany(supportCase => supportCase.Activities)
+            .Where(activity =>
+                !activity.IsInternalOnly &&
+                !string.IsNullOrWhiteSpace(activity.Note) &&
+                activity.IsVisibleToRole("driver"))
+            .OrderByDescending(activity => activity.CreatedAtUtc)
+            .Take(12)
+            .OrderBy(activity => activity.CreatedAtUtc)
+            .Select(activity => new AdminDriverSupportChatMessageDto(
+                string.Equals(activity.ActorRole, "driver", StringComparison.OrdinalIgnoreCase) ? "driver" : "support",
+                activity.Note!,
+                activity.CreatedAtUtc))
+            .ToArray();
+
+        var lastUpdateAtUtc = accountSupportCases
+            .Select(supportCase => (DateTime?)supportCase.UpdatedAtUtc)
+            .Concat(notes.Select(note => (DateTime?)note.CreatedAtUtc))
+            .Concat(incidents.Select(incident => (DateTime?)incident.CreatedAtUtc))
+            .Where(value => value.HasValue)
+            .DefaultIfEmpty(null)
+            .Max();
+
+        var unresolvedSupportCases = accountSupportCases.Count(supportCase => supportCase.IsActive);
+        var openIncidents = incidents.Count(i => !string.Equals(i.Status, DriverIncidentStatus.Resolved.ToString(), StringComparison.OrdinalIgnoreCase));
+
         return new AdminDriverSupportSectionDto(
             notes.Length,
-            0,
+            tickets.Length,
             followUps.Count,
             incidents.Count(i => string.Equals(i.Severity, DriverIncidentSeverity.Critical.ToString(), StringComparison.OrdinalIgnoreCase)),
-            incidents.Count(i => !string.Equals(i.Status, DriverIncidentStatus.Resolved.ToString(), StringComparison.OrdinalIgnoreCase)),
-            notes.FirstOrDefault()?.CreatedAtUtc,
-            notes.FirstOrDefault()?.AuthorName ?? incidents.FirstOrDefault()?.ReviewerName,
-            "operations",
-            false,
-            [],
-            [],
+            openIncidents + unresolvedSupportCases,
+            lastUpdateAtUtc,
+            notes.FirstOrDefault()?.AuthorName ?? incidents.FirstOrDefault()?.ReviewerName ?? "Driver operations",
+            "driver_ops",
+            unresolvedSupportCases > 0,
+            tickets,
+            chatMessages,
             followUps.ToArray());
     }
+
+    private static string MapDriverAccountSupportStatus(OrderSupportCaseStatus status) =>
+        status switch
+        {
+            OrderSupportCaseStatus.InReview or OrderSupportCaseStatus.Approved => "IN_PROGRESS",
+            OrderSupportCaseStatus.Resolved or OrderSupportCaseStatus.Rejected => "RESOLVED",
+            _ => "WAITING"
+        };
 
     private static AdminDriverDocumentDto[] BuildAdminDriverDocuments(Driver driver)
     {

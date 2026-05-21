@@ -22,7 +22,7 @@ public class DriverWalletControllerTests
     {
         await using var context = TestDbContextFactory.Create();
         var controller = new DriverWalletController();
-        var driver = new Driver(Guid.NewGuid(), null, null, null);
+        var driver = CreateApprovedDriver();
         var currentUserService = Mock.Of<ICurrentUserService>(service => service.UserId == driver.UserId);
         var driverRepository = CreateDriverRepository(driver);
 
@@ -42,7 +42,7 @@ public class DriverWalletControllerTests
     {
         await using var context = TestDbContextFactory.Create();
         var controller = new DriverWalletController();
-        var driver = new Driver(Guid.NewGuid(), null, null, null);
+        var driver = CreateApprovedDriver();
         var currentUserService = Mock.Of<ICurrentUserService>(service => service.UserId == driver.UserId);
         var driverRepository = CreateDriverRepository(driver);
 
@@ -62,7 +62,7 @@ public class DriverWalletControllerTests
     {
         await using var context = TestDbContextFactory.Create();
         var controller = new DriverWalletController();
-        var driver = new Driver(Guid.NewGuid(), null, null, null);
+        var driver = CreateApprovedDriver();
         var currentUserService = Mock.Of<ICurrentUserService>(service => service.UserId == driver.UserId);
         var driverRepository = CreateDriverRepository(driver);
 
@@ -92,7 +92,7 @@ public class DriverWalletControllerTests
         await using var context = TestDbContextFactory.Create();
         var controller = new DriverWalletController();
         var notificationService = Mock.Of<INotificationService>();
-        var driver = new Driver(Guid.NewGuid(), null, null, null);
+        var driver = CreateApprovedDriver();
         var currentUserService = Mock.Of<ICurrentUserService>(service => service.UserId == driver.UserId);
         var driverRepository = CreateDriverRepository(driver);
 
@@ -122,6 +122,13 @@ public class DriverWalletControllerTests
             .Setup(item => item.GetByUserIdAsync(driver.UserId, It.IsAny<CancellationToken>()))
             .ReturnsAsync(driver);
         return repository;
+    }
+
+    private static Driver CreateApprovedDriver()
+    {
+        var driver = new Driver(Guid.NewGuid(), null, null, null);
+        driver.Approve(Guid.NewGuid(), "approved for wallet tests");
+        return driver;
     }
 }
 

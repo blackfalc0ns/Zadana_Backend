@@ -31,6 +31,11 @@ public class VendorRecoveryService
             return null;
         }
 
+        var order = supportCase.Order
+            ?? throw new InvalidOperationException("Return support cases must be linked to an order.");
+        var orderId = supportCase.OrderId
+            ?? throw new InvalidOperationException("Return support cases must be linked to an order.");
+
         var vendorResponsibilityAmount = ResolveVendorResponsibilityAmount(approvedAmount, costBearer);
         if (vendorResponsibilityAmount <= 0m)
         {
@@ -41,8 +46,8 @@ public class VendorRecoveryService
             .FirstOrDefaultAsync(item => item.OrderSupportCaseId == supportCase.Id, cancellationToken);
 
         var recovery = existingRecovery ?? new VendorRecovery(
-            supportCase.Order.VendorId,
-            supportCase.OrderId,
+            order.VendorId,
+            orderId,
             supportCase.Id,
             vendorResponsibilityAmount,
             $"Vendor recovery staged for support case {supportCase.Id}.");
@@ -61,7 +66,7 @@ public class VendorRecoveryService
         var settlementItem = await _context.SettlementItems
             .Include(item => item.Settlement)
                 .ThenInclude(settlement => settlement.Payouts)
-            .Where(item => item.OrderId == supportCase.OrderId && item.Settlement.VendorId == supportCase.Order.VendorId)
+            .Where(item => item.OrderId == orderId && item.Settlement.VendorId == order.VendorId)
             .OrderByDescending(item => item.Settlement.CreatedAtUtc)
             .FirstOrDefaultAsync(cancellationToken);
 
@@ -86,11 +91,11 @@ public class VendorRecoveryService
                 payout?.ReduceAmount(holdRecoveryAmount);
 
                 var walletTransactionId = await _vendorPayoutWalletService.RecoverFromHoldAsync(
-                    supportCase.Order.VendorId,
+                    order.VendorId,
                     settlement.Id,
                     recovery.Id,
                     holdRecoveryAmount,
-                    $"Vendor recovery captured from held payout for order {supportCase.Order.OrderNumber}.",
+                    $"Vendor recovery captured from held payout for order {order.OrderNumber}.",
                     cancellationToken);
 
                 recovery.ApplyRecovery(

@@ -72,7 +72,12 @@ public class DriversController : ApiControllerBase
             ?? throw new NotFoundException("Driver", userId);
 
         var commitment = await driverCommitmentPolicyService.GetDriverSummaryAsync(driver.Id, cancellationToken);
-        return Ok(DriverOperationalStatusFactory.Create(driver, commitment));
+        return Ok(DriverOperationalStatusFactory.Create(
+            driver,
+            commitment,
+            driver.User.IsLoginLocked,
+            driver.User.LockedAtUtc,
+            driver.User.LockReason));
     }
 
     [HttpGet("home")]
@@ -131,7 +136,12 @@ public class DriversController : ApiControllerBase
         var driver = await driverRepository.GetByUserIdAsync(userId, cancellationToken)
             ?? throw new NotFoundException("Driver", userId);
         var commitment = await driverCommitmentPolicyService.GetDriverSummaryAsync(driver.Id, cancellationToken);
-        var operationalStatus = DriverOperationalStatusFactory.Create(driver, commitment);
+        var operationalStatus = DriverOperationalStatusFactory.Create(
+            driver,
+            commitment,
+            driver.User.IsLoginLocked,
+            driver.User.LockedAtUtc,
+            driver.User.LockReason);
 
         if (!driver.CanReceiveOrders)
         {

@@ -32,7 +32,14 @@ public class OrderSupportCaseConfiguration : IEntityTypeConfiguration<OrderSuppo
         builder.Property(x => x.ResolutionCode).HasMaxLength(100);
         builder.Property(x => x.AwaitingResponseFromRole).HasMaxLength(20);
 
+        builder.HasOne(x => x.Order)
+            .WithMany(x => x.SupportCases)
+            .HasForeignKey(x => x.OrderId)
+            .OnDelete(DeleteBehavior.Cascade)
+            .IsRequired(false);
+
         builder.HasIndex(x => new { x.OrderId, x.Status });
+        builder.HasIndex(x => new { x.DriverId, x.Type, x.Status });
 
         builder.HasMany(x => x.Attachments)
             .WithOne(x => x.OrderSupportCase)

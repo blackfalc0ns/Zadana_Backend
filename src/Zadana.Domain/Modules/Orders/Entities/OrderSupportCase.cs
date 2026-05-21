@@ -6,7 +6,8 @@ namespace Zadana.Domain.Modules.Orders.Entities;
 
 public class OrderSupportCase : BaseEntity
 {
-    public Guid OrderId { get; private set; }
+    public Guid? OrderId { get; private set; }
+    public Guid? DriverId { get; private set; }
     public Guid CustomerUserId { get; private set; }
     public OrderSupportCaseType Type { get; private set; }
     public OrderSupportCaseStatus Status { get; private set; }
@@ -36,7 +37,7 @@ public class OrderSupportCase : BaseEntity
     public string? ResolutionCode { get; private set; }
     public string? AwaitingResponseFromRole { get; private set; }
 
-    public Order Order { get; private set; } = null!;
+    public Order? Order { get; private set; }
     public ICollection<OrderSupportCaseAttachment> Attachments { get; private set; } = [];
     public ICollection<OrderSupportCaseActivity> Activities { get; private set; } = [];
 
@@ -73,6 +74,7 @@ public class OrderSupportCase : BaseEntity
             OrderSupportCaseType.ReturnRequest => "Return request submitted",
             OrderSupportCaseType.DriverReport => "Driver issue reported",
             OrderSupportCaseType.DriverDispute => "Driver dispute submitted",
+            OrderSupportCaseType.DriverAccountAppeal => "Driver account appeal submitted",
             _ => "Complaint submitted"
         };
 
@@ -85,6 +87,35 @@ public class OrderSupportCase : BaseEntity
             visibleToCustomer: InitiatorRole == "customer",
             messageType: "case_opened",
             audience: ResolveAudienceForRole(InitiatorRole));
+    }
+
+    public OrderSupportCase(
+        Guid driverId,
+        Guid requesterUserId,
+        string? reasonCode,
+        string message,
+        DateTime? slaDueAtUtc = null)
+    {
+        DriverId = driverId;
+        CustomerUserId = requesterUserId;
+        Type = OrderSupportCaseType.DriverAccountAppeal;
+        Status = OrderSupportCaseStatus.Submitted;
+        Priority = OrderSupportCasePriority.High;
+        Queue = OrderSupportCaseQueue.DriverOps;
+        ReasonCode = string.IsNullOrWhiteSpace(reasonCode) ? null : reasonCode.Trim();
+        Message = message.Trim();
+        SlaDueAtUtc = slaDueAtUtc;
+        InitiatorRole = "driver";
+
+        AddActivity(
+            "submitted",
+            "Driver account appeal submitted",
+            Message,
+            requesterUserId,
+            "driver",
+            visibleToCustomer: false,
+            messageType: "case_opened",
+            audience: "driver");
     }
 
     public bool IsClosed => Status is OrderSupportCaseStatus.Rejected or OrderSupportCaseStatus.Resolved;

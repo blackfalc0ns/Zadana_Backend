@@ -770,13 +770,15 @@ public class OrderReadService : IOrderReadService
 
         if (vendorId.HasValue)
         {
-            casesQuery = casesQuery.Where(item => item.Order.VendorId == vendorId.Value);
+            casesQuery = casesQuery.Where(item => item.Order != null && item.Order.VendorId == vendorId.Value);
         }
 
         if (driverId.HasValue)
         {
             casesQuery = casesQuery.Where(item =>
-                _dbContext.DeliveryAssignments.Any(assignment => assignment.OrderId == item.OrderId && assignment.DriverId == driverId.Value));
+                item.DriverId == driverId.Value ||
+                (item.OrderId.HasValue &&
+                 _dbContext.DeliveryAssignments.Any(assignment => assignment.OrderId == item.OrderId.Value && assignment.DriverId == driverId.Value)));
         }
 
         casesQuery = ApplyAdminSupportCaseFilters(casesQuery, search, type, status, priority, queue, initiatorRole);
@@ -821,7 +823,11 @@ public class OrderReadService : IOrderReadService
             .Join(cases, id => id, supportCase => supportCase.Id, (_, supportCase) => supportCase)
             .ToList();
 
-        var orderIds = orderedCases.Select(item => item.OrderId).Distinct().ToList();
+        var orderIds = orderedCases
+            .Where(item => item.OrderId.HasValue)
+            .Select(item => item.OrderId!.Value)
+            .Distinct()
+            .ToList();
         var paymentMap = await LoadPaymentMapAsync(orderIds, cancellationToken);
         var refundMap = await LoadRefundMapAsync(orderIds, cancellationToken);
         var recoveryMap = await LoadVendorRecoveryMapAsync(caseIds, cancellationToken);
@@ -835,8 +841,8 @@ public class OrderReadService : IOrderReadService
         var paged = orderedCases
             .Select(item => BuildAdminSupportCaseListItem(
                 item,
-                paymentMap.GetValueOrDefault(item.OrderId),
-                refundMap.GetValueOrDefault(item.OrderId),
+                item.OrderId.HasValue ? paymentMap.GetValueOrDefault(item.OrderId.Value) : null,
+                item.OrderId.HasValue ? refundMap.GetValueOrDefault(item.OrderId.Value) : null,
                 recoveryMap.GetValueOrDefault(item.Id),
                 couponSupportMap))
             .ToList();
@@ -867,15 +873,15 @@ public class OrderReadService : IOrderReadService
 
             if (Guid.TryParse(normalizedSearch, out var parsedId))
             {
-                query = query.Where(item => item.Id == parsedId || item.OrderId == parsedId);
+                query = query.Where(item => item.Id == parsedId || item.OrderId == parsedId || item.DriverId == parsedId);
             }
             else
             {
                 query = query.Where(item =>
-                    EF.Functions.Like(item.Order.User.FullName, pattern) ||
-                    (item.Order.User.Email != null && EF.Functions.Like(item.Order.User.Email, pattern)) ||
-                    EF.Functions.Like(item.Order.Vendor.BusinessNameAr, pattern) ||
-                    (item.Order.Vendor.BusinessNameEn != null && EF.Functions.Like(item.Order.Vendor.BusinessNameEn, pattern)) ||
+                    (item.Order != null && EF.Functions.Like(item.Order.User.FullName, pattern)) ||
+                    (item.Order != null && item.Order.User.Email != null && EF.Functions.Like(item.Order.User.Email, pattern)) ||
+                    (item.Order != null && EF.Functions.Like(item.Order.Vendor.BusinessNameAr, pattern)) ||
+                    (item.Order != null && item.Order.Vendor.BusinessNameEn != null && EF.Functions.Like(item.Order.Vendor.BusinessNameEn, pattern)) ||
                     (item.ReasonCode != null && EF.Functions.Like(item.ReasonCode, pattern)) ||
                     EF.Functions.Like(item.Message, pattern));
             }
@@ -891,6 +897,7 @@ public class OrderReadService : IOrderReadService
                 "complaint" => query.Where(item => item.Type == OrderSupportCaseType.Complaint),
                 "driver_report" => query.Where(item => item.Type == OrderSupportCaseType.DriverReport),
                 "driver_dispute" => query.Where(item => item.Type == OrderSupportCaseType.DriverDispute),
+                "driver_account" or "driver_account_appeal" => query.Where(item => item.Type == OrderSupportCaseType.DriverAccountAppeal),
                 _ => query
             };
         }
@@ -959,15 +966,19 @@ public class OrderReadService : IOrderReadService
             return null;
         }
 
-        var payment = await _dbContext.Payments
-            .AsNoTracking()
-            .OrderByDescending(item => item.CreatedAtUtc)
-            .FirstOrDefaultAsync(item => item.OrderId == supportCase.OrderId, cancellationToken);
+        var payment = supportCase.OrderId.HasValue
+            ? await _dbContext.Payments
+                .AsNoTracking()
+                .OrderByDescending(item => item.CreatedAtUtc)
+                .FirstOrDefaultAsync(item => item.OrderId == supportCase.OrderId.Value, cancellationToken)
+            : null;
 
-        var refunds = await _dbContext.Refunds
-            .AsNoTracking()
-            .Where(item => item.Payment.OrderId == supportCase.OrderId)
-            .ToListAsync(cancellationToken);
+        var refunds = supportCase.OrderId.HasValue
+            ? await _dbContext.Refunds
+                .AsNoTracking()
+                .Where(item => item.Payment.OrderId == supportCase.OrderId.Value)
+                .ToListAsync(cancellationToken)
+            : new List<Refund>();
 
         var recovery = await _dbContext.VendorRecoveries
             .AsNoTracking()
@@ -1498,6 +1509,7 @@ public class OrderReadService : IOrderReadService
             OrderSupportCaseType.ReturnRequest => "return_request",
             OrderSupportCaseType.DriverReport => "driver_report",
             OrderSupportCaseType.DriverDispute => "driver_dispute",
+            OrderSupportCaseType.DriverAccountAppeal => "driver_account",
             _ => "complaint"
         };
 
@@ -2239,7 +2251,7 @@ public class OrderReadService : IOrderReadService
             "vendor"
         };
 
-        if (supportCase.Type is OrderSupportCaseType.DriverReport or OrderSupportCaseType.DriverDispute ||
+        if (supportCase.Type is OrderSupportCaseType.DriverReport or OrderSupportCaseType.DriverDispute or OrderSupportCaseType.DriverAccountAppeal ||
             supportCase.Activities.Any(activity => string.Equals(activity.ActorRole, "driver", StringComparison.OrdinalIgnoreCase)) ||
             !string.IsNullOrWhiteSpace(supportCase.DriverResponse))
         {
@@ -2285,7 +2297,8 @@ public class OrderReadService : IOrderReadService
         var amount = supportCase.ApprovedRefundAmount
             ?? supportCase.RequestedRefundAmount
             ?? refunds?.OrderByDescending(item => item.CreatedAtUtc).FirstOrDefault()?.Amount
-            ?? order.TotalAmount;
+            ?? order?.TotalAmount
+            ?? 0m;
 
         var createdAt = supportCase.CreatedAtUtc.ToLocalTime().ToString("g", CultureInfo.InvariantCulture);
         var sla = supportCase.SlaDueAtUtc.HasValue
@@ -2294,11 +2307,11 @@ public class OrderReadService : IOrderReadService
 
         return new AdminOrderSupportCaseListItemDto(
             supportCase.Id,
-            order.Id,
-            order.Id.ToString(),
-            order.User.FullName,
-            order.User.Email ?? string.Empty,
-            order.Vendor.BusinessNameAr,
+            order?.Id,
+            order?.Id.ToString() ?? $"driver-account:{supportCase.DriverId}",
+            order?.User.FullName ?? "Driver account",
+            order?.User.Email ?? string.Empty,
+            order?.Vendor.BusinessNameAr ?? "Driver operations",
             MapSupportCaseType(supportCase.Type),
             ResolveDisplaySupportCaseTypeLabel(supportCase, couponSupportMap),
             supportCase.ReasonCode,
@@ -2317,10 +2330,10 @@ public class OrderReadService : IOrderReadService
             createdAt,
             sla,
             supportCase.CustomerVisibleNote ?? supportCase.DecisionNotes ?? supportCase.Message,
-            MapPaymentMethod(order.PaymentMethod),
-            BuildPaymentMask(payment, order),
-            BuildCustomerSummary(order, supportCase),
-            BuildMerchantSummary(order, supportCase),
+            order is null ? "account" : MapPaymentMethod(order.PaymentMethod),
+            order is null ? "N/A" : BuildPaymentMask(payment, order),
+            order is null ? BuildDriverAccountSummary(supportCase) : BuildCustomerSummary(order, supportCase),
+            order is null ? "Driver operations is handling this account support case." : BuildMerchantSummary(order, supportCase),
             MapSupportCaseCompensationType(supportCase.CompensationType),
             MapSupportCaseSettlementStatus(supportCase, couponSupportMap),
             MapVendorRecoveryStatus(recovery?.Status),
@@ -2479,6 +2492,11 @@ public class OrderReadService : IOrderReadService
         L(
             $"التاجر {order.Vendor.BusinessNameAr} يتم التعامل مع الحالة الخاصة به حاليًا عبر مسار {ResolveQueueLabel(supportCase.Queue)}.",
             $"Merchant {order.Vendor.BusinessNameAr} is currently handled through the {ResolveQueueLabel(supportCase.Queue)} queue.");
+
+    private static string BuildDriverAccountSummary(OrderSupportCase supportCase) =>
+        L(
+            $"Ø§Ù„Ù…Ù†Ø¯ÙˆØ¨ ÙØªØ­ Ø·Ù„Ø¨ Ø¯Ø¹Ù… Ù„Ø­Ø³Ø§Ø¨Ù‡ Ø¹Ø¨Ø± Ù…Ø³Ø§Ø± {ResolveQueueLabel(supportCase.Queue)}.",
+            $"Driver opened an account support case through the {ResolveQueueLabel(supportCase.Queue)} queue.");
 
     private async Task<Dictionary<Guid, CouponSupportSnapshot>> LoadCouponSupportMapAsync(
         IReadOnlyCollection<Guid> couponIds,

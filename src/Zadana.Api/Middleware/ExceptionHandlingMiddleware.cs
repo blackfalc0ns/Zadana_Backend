@@ -192,6 +192,7 @@ public class ExceptionHandlingMiddleware
             NotFoundException notFoundException => notFoundException.ErrorCode,
             ExternalServiceException externalServiceException => externalServiceException.ErrorCode,
             ForbiddenAccessException forbiddenAccessException => forbiddenAccessException.ErrorCode,
+            UnauthorizedException unauthorizedException => unauthorizedException.ErrorCode,
             _ => null
         };
 

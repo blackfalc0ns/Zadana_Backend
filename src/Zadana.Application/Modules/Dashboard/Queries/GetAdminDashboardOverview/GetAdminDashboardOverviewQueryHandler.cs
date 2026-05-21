@@ -206,7 +206,9 @@ internal sealed class GetAdminDashboardOverviewQueryHandler(
         var filteredSupportCases = supportCases
             .Where(supportCase =>
             {
-                var linkedOrder = filteredOrders.FirstOrDefault(order => order.Id == supportCase.OrderId);
+                var linkedOrder = supportCase.OrderId.HasValue
+                    ? filteredOrders.FirstOrDefault(order => order.Id == supportCase.OrderId.Value)
+                    : null;
                 return linkedOrder is not null;
             })
             .ToList();
@@ -1158,7 +1160,8 @@ internal sealed class GetAdminDashboardOverviewQueryHandler(
         var pendingVendors = vendors.Count(v => v.Status == VendorStatus.PendingReview);
         var suspendedVendors = vendors.Count(v => v.Status == VendorStatus.Suspended || v.LockedAtUtc.HasValue);
         var topIssues = supportCases
-            .Join(orders, c => c.OrderId, o => o.Id, (c, o) => new { SupportCase = c, o.VendorId })
+            .Where(c => c.OrderId.HasValue)
+            .Join(orders, c => c.OrderId!.Value, o => o.Id, (c, o) => new { SupportCase = c, o.VendorId })
             .GroupBy(item => item.VendorId)
             .Select(group => new
             {
@@ -1893,7 +1896,7 @@ internal sealed class GetAdminDashboardOverviewQueryHandler(
 
     private sealed record SupportCaseRow(
         Guid Id,
-        Guid OrderId,
+        Guid? OrderId,
         OrderSupportCaseStatus Status,
         OrderSupportCasePriority Priority,
         OrderSupportCaseQueue Queue,

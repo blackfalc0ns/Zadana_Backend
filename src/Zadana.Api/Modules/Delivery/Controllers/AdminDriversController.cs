@@ -19,6 +19,7 @@ using Zadana.Application.Modules.Delivery.Commands.UnbanDriver;
 using Zadana.Application.Modules.Delivery.Commands.UnblockDriverLocationUpdates;
 using Zadana.Application.Modules.Delivery.DTOs;
 using Zadana.Application.Modules.Delivery.Interfaces;
+using Zadana.Application.Modules.Identity.Interfaces;
 using Zadana.SharedKernel.Exceptions;
 
 namespace Zadana.Api.Modules.Delivery.Controllers;
@@ -30,6 +31,7 @@ public class AdminDriversController : ApiControllerBase
 {
     private readonly IDriverReadService _driverReadService;
     private readonly IApplicationDbContext _context;
+    private readonly IIdentityAccountService _identityAccountService;
     private readonly INotificationService _notificationService;
     private readonly IOneSignalPushService _oneSignalPushService;
     private readonly ILogger<AdminDriversController> _logger;
@@ -37,12 +39,14 @@ public class AdminDriversController : ApiControllerBase
     public AdminDriversController(
         IDriverReadService driverReadService,
         IApplicationDbContext context,
+        IIdentityAccountService identityAccountService,
         INotificationService notificationService,
         IOneSignalPushService oneSignalPushService,
         ILogger<AdminDriversController> logger)
     {
         _driverReadService = driverReadService;
         _context = context;
+        _identityAccountService = identityAccountService;
         _notificationService = notificationService;
         _oneSignalPushService = oneSignalPushService;
         _logger = logger;
@@ -296,6 +300,55 @@ public class AdminDriversController : ApiControllerBase
         return Ok(new { message = "Driver unbanned successfully" });
     }
 
+    [HttpPost("{id:guid}/login-lock")]
+    public async Task<IActionResult> LockDriverLogin(
+        Guid id,
+        [FromBody] DriverLoginLockRequest? request,
+        CancellationToken cancellationToken = default)
+    {
+        var driver = await _context.Drivers.FirstOrDefaultAsync(item => item.Id == id, cancellationToken)
+            ?? throw new NotFoundException("Driver", id);
+
+        var reason = string.IsNullOrWhiteSpace(request?.Reason)
+            ? "Locked by admin"
+            : request.Reason.Trim();
+
+        var result = await _identityAccountService.LockLoginAsync(driver.UserId, reason, cancellationToken);
+        if (!result.Succeeded)
+        {
+            throw new BusinessRuleException("DRIVER_LOGIN_LOCK_FAILED", string.Join(", ", result.Errors ?? []));
+        }
+
+        driver.Suspend(reason);
+        await _context.SaveChangesAsync(cancellationToken);
+
+        return Ok(new { message = "Driver login locked successfully", messageAr = "تم قفل دخول المندوب بنجاح" });
+    }
+
+    [HttpPost("{id:guid}/login-unlock")]
+    public async Task<IActionResult> UnlockDriverLogin(
+        Guid id,
+        CancellationToken cancellationToken = default)
+    {
+        var driver = await _context.Drivers.FirstOrDefaultAsync(item => item.Id == id, cancellationToken)
+            ?? throw new NotFoundException("Driver", id);
+
+        var result = await _identityAccountService.UnlockLoginAsync(driver.UserId, cancellationToken);
+        if (!result.Succeeded)
+        {
+            throw new BusinessRuleException("DRIVER_LOGIN_UNLOCK_FAILED", string.Join(", ", result.Errors ?? []));
+        }
+
+        if (driver.CanReactivate)
+        {
+            driver.Reactivate();
+        }
+
+        await _context.SaveChangesAsync(cancellationToken);
+
+        return Ok(new { message = "Driver login unlocked successfully", messageAr = "تم فتح دخول المندوب بنجاح" });
+    }
+
     [HttpPost("{id:guid}/restrictions/clear")]
     public async Task<IActionResult> ClearDriverRestrictions(
         Guid id,
@@ -372,6 +425,7 @@ public record ReviewDriverRequest(string Action, string? Note);
 public record RejectDriverDocumentRequest(string Reason);
 public record SuspendDriverRequest(string? Reason);
 public record BanDriverRequest(string? Reason);
+public record DriverLoginLockRequest(string? Reason);
 public record ClearDriverRestrictionsRequest(string? Note);
 public record BlockDriverLocationUpdatesRequest(string? Reason);
 public record AddDriverNoteRequest(string Message);

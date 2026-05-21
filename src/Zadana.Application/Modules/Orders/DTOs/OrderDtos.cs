@@ -271,7 +271,7 @@ public record OrderSupportCaseSummaryDto(
 
 public record OrderSupportCaseDto(
     Guid Id,
-    Guid OrderId,
+    Guid? OrderId,
     string Type,
     string TypeLabel,
     string Status,
@@ -360,7 +360,7 @@ public record AdminOrderSupportCasesListDto(
 
 public record AdminOrderSupportCaseListItemDto(
     Guid Id,
-    Guid OrderId,
+    Guid? OrderId,
     string OrderDisplayId,
     string CustomerName,
     string CustomerEmail,

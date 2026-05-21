@@ -8,7 +8,10 @@ public static class DriverOperationalStatusFactory
 {
     public static DriverOperationalStatusDto Create(
         Driver driver,
-        DriverCommitmentSummaryDto? commitment = null)
+        DriverCommitmentSummaryDto? commitment = null,
+        bool isLoginLocked = false,
+        DateTime? lockedAtUtc = null,
+        string? lockReason = null)
     {
         commitment ??= new DriverCommitmentSummaryDto(
             AcceptedOffers: 0,
@@ -23,17 +26,18 @@ public static class DriverOperationalStatusFactory
             LastOfferResponseAtUtc: null,
             RestrictionMessageEn: null);
 
-        var gateMessageAr = ResolveMessageAr(driver);
-        var gateMessageEn = ResolveMessageEn(driver);
+        var gateStatus = ResolveGateStatus(driver, isLoginLocked);
+        var gateMessageAr = ResolveMessageAr(driver, isLoginLocked);
+        var gateMessageEn = ResolveMessageEn(driver, isLoginLocked);
         var messageAr = commitment.RestrictionMessage ?? gateMessageAr;
         var messageEn = commitment.RestrictionMessageEn ?? gateMessageEn;
-        var canReceiveOrders = driver.CanReceiveOrders;
+        var canReceiveOrders = !isLoginLocked && driver.CanReceiveOrders;
         var canReceiveOffers = canReceiveOrders && commitment.CanReceiveOffers;
+        var canEditProfile = !isLoginLocked && driver.Status != AccountStatus.Banned;
 
-        return
-        new(
+        return new DriverOperationalStatusDto(
             DriverId: driver.Id,
-            GateStatus: ResolveGateStatus(driver),
+            GateStatus: gateStatus,
             IsOperational: canReceiveOffers,
             CanReceiveOrders: canReceiveOrders,
             CanGoAvailable: canReceiveOffers,
@@ -55,43 +59,60 @@ public static class DriverOperationalStatusFactory
             RestrictionMessageAr: commitment.RestrictionMessage,
             RestrictionMessageEn: commitment.RestrictionMessageEn,
             ReviewNoteAr: ResolveReviewNoteAr(driver.ReviewNote),
-            ReviewNoteEn: ResolveReviewNoteEn(driver.ReviewNote));
+            ReviewNoteEn: ResolveReviewNoteEn(driver.ReviewNote),
+            IsLoginLocked: isLoginLocked,
+            LockedAtUtc: lockedAtUtc,
+            LockReason: lockReason,
+            AllowedCapabilities: new DriverAllowedCapabilitiesDto(
+                CanAccessSupport: true,
+                CanEditProfile: canEditProfile,
+                CanAccessWallet: canReceiveOrders,
+                CanReceiveOffers: canReceiveOffers),
+            SupportCta: new DriverSupportCtaDto(
+                Endpoint: isLoginLocked ? "/api/drivers/account-support/appeals" : "/api/drivers/support/account-appeals",
+                ReasonType: ResolveSupportReasonType(gateStatus),
+                LabelAr: "تواصل مع دعم حساب المندوب",
+                LabelEn: "Contact driver account support"));
     }
 
-    public static string ResolveGateStatus(Driver driver) =>
-        driver.HasExpiredRequiredDocuments()
-            ? "ExpiredDocuments"
-            : driver.VerificationStatus switch
+    public static string ResolveGateStatus(Driver driver, bool isLoginLocked = false) =>
+        isLoginLocked
+            ? "LoginLocked"
+            : driver.HasExpiredRequiredDocuments()
+                ? "ExpiredDocuments"
+                : driver.VerificationStatus switch
+                {
+                    DriverVerificationStatus.NeedsDocuments => "NeedsDocuments",
+                    DriverVerificationStatus.UnderReview => "UnderReview",
+                    DriverVerificationStatus.Rejected => "Rejected",
+                    DriverVerificationStatus.Approved when driver.Status == AccountStatus.Active => "Operational",
+                    DriverVerificationStatus.Approved when driver.Status == AccountStatus.Suspended => "Suspended",
+                    DriverVerificationStatus.Approved when driver.Status == AccountStatus.Banned => "Banned",
+                    DriverVerificationStatus.Approved when driver.Status == AccountStatus.Pending => "PendingActivation",
+                    DriverVerificationStatus.Approved when driver.Status == AccountStatus.Inactive => "Inactive",
+                    _ => "Unavailable"
+                };
+
+    public static string ResolveMessageAr(Driver driver, bool isLoginLocked = false) =>
+        ResolveGateStatus(driver, isLoginLocked) switch
         {
-            DriverVerificationStatus.NeedsDocuments => "NeedsDocuments",
-            DriverVerificationStatus.UnderReview => "UnderReview",
-            DriverVerificationStatus.Rejected => "Rejected",
-            DriverVerificationStatus.Approved when driver.Status == AccountStatus.Active => "Operational",
-            DriverVerificationStatus.Approved when driver.Status == AccountStatus.Suspended => "Suspended",
-            DriverVerificationStatus.Approved when driver.Status == AccountStatus.Banned => "Banned",
-            DriverVerificationStatus.Approved when driver.Status == AccountStatus.Pending => "PendingActivation",
-            DriverVerificationStatus.Approved when driver.Status == AccountStatus.Inactive => "Inactive",
-            _ => "Unavailable"
+            "LoginLocked" => "تسجيل الدخول مقفل لهذا الحساب. يمكنك التواصل مع دعم حساب المندوب.",
+            "NeedsDocuments" => "ملف المندوب يحتاج استكمال المستندات المطلوبة قبل المراجعة.",
+            "UnderReview" => "ملف المندوب قيد مراجعة الإدارة حاليًا.",
+            "Rejected" => "تم رفض ملف المندوب من الإدارة.",
+            "ExpiredDocuments" => "حساب المندوب مغلق حتى يتم تجديد المستندات المنتهية.",
+            "Suspended" => "حساب المندوب موقوف.",
+            "Banned" => "حساب المندوب محظور.",
+            "Operational" => "تم اعتماد المندوب ويمكنه استقبال الطلبات.",
+            "PendingActivation" => "تم اعتماد المندوب لكن الحساب ما زال في انتظار التفعيل.",
+            "Inactive" => "تم اعتماد المندوب لكن الحساب غير نشط حاليًا.",
+            _ => "حالة تشغيل المندوب غير متاحة حاليًا."
         };
 
-    public static string ResolveMessageAr(Driver driver) =>
-        ResolveGateStatus(driver) switch
+    public static string ResolveMessageEn(Driver driver, bool isLoginLocked = false) =>
+        ResolveGateStatus(driver, isLoginLocked) switch
         {
-            "NeedsDocuments" => "ملف السائق ينتظر استكمال المستندات المطلوبة قبل المراجعة.",
-            "UnderReview" => "ملف السائق قيد مراجعة الإدارة حاليًا.",
-            "Rejected" => "تم رفض ملف السائق من الإدارة.",
-            "ExpiredDocuments" => "حساب السائق مغلق حتى يتم تجديد المستندات المنتهية.",
-            "Suspended" => "حساب السائق موقوف.",
-            "Banned" => "حساب السائق محظور.",
-            "Operational" => "تم اعتماد السائق ويمكنه استقبال الطلبات.",
-            "PendingActivation" => "تم اعتماد السائق لكن الحساب ما زال في انتظار التفعيل.",
-            "Inactive" => "تم اعتماد السائق لكن الحساب غير نشط حاليًا.",
-            _ => "حالة تشغيل السائق غير متاحة حاليًا."
-        };
-
-    public static string ResolveMessageEn(Driver driver) =>
-        ResolveGateStatus(driver) switch
-        {
+            "LoginLocked" => "Login is locked for this account. You can contact driver account support.",
             "NeedsDocuments" => "Driver profile is waiting for required documents before review.",
             "UnderReview" => "Driver profile is currently under admin review.",
             "Rejected" => "Driver profile was rejected by admin.",
@@ -112,8 +133,8 @@ public static class DriverOperationalStatusFactory
             "documents approved and pending final account approval" => "تم اعتماد المستندات والملف في انتظار الموافقة النهائية على الحساب.",
             "expired_required_documents" => "يوجد مستند مطلوب منتهي الصلاحية. يرجى تجديد المستندات.",
             "additional documents required" => "مطلوب استكمال مستندات إضافية.",
-            "driver account approved" => "تم اعتماد حساب السائق.",
-            "driver application rejected" => "تم رفض طلب تسجيل السائق.",
+            "driver account approved" => "تم اعتماد حساب المندوب.",
+            "driver application rejected" => "تم رفض طلب تسجيل المندوب.",
             _ => note
         };
 
@@ -128,6 +149,17 @@ public static class DriverOperationalStatusFactory
             "driver account approved" => "Driver account approved.",
             "driver application rejected" => "Driver application rejected.",
             _ => note
+        };
+
+    private static string ResolveSupportReasonType(string gateStatus) =>
+        gateStatus switch
+        {
+            "LoginLocked" => "login_locked",
+            "Banned" => "account_banned",
+            "Suspended" => "account_suspended",
+            "UnderReview" => "under_review",
+            "NeedsDocuments" or "ExpiredDocuments" => "documents_required",
+            _ => "other"
         };
 
     private static string? NormalizeReviewNote(string? note) =>

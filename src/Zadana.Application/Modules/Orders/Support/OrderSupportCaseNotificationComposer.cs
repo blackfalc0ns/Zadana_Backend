@@ -57,6 +57,7 @@ internal static class OrderSupportCaseNotificationComposer
             OrderSupportCaseType.ReturnRequest => "return_request",
             OrderSupportCaseType.DriverReport => "driver_report",
             OrderSupportCaseType.DriverDispute => "driver_dispute",
+            OrderSupportCaseType.DriverAccountAppeal => "driver_account",
             _ => "complaint"
         };
 

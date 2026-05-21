@@ -25,6 +25,14 @@ public interface IOrderSupportCaseWorkflowService
         string? customerVisibleNote,
         CancellationToken cancellationToken = default);
 
+    Task<OrderSupportCase> CreateDriverAccountAppealAsync(
+        Guid driverId,
+        Guid driverUserId,
+        string? reasonCode,
+        string message,
+        IReadOnlyList<OrderSupportCaseAttachmentInput>? attachments,
+        CancellationToken cancellationToken = default);
+
     Task<OrderSupportCase> AssignAsync(
         Guid caseId,
         Guid actorUserId,
@@ -100,6 +108,14 @@ public interface IOrderSupportCaseWorkflowService
     Task<OrderSupportCase> AddDriverResponseAsync(
         Guid caseId,
         Guid orderId,
+        Guid driverUserId,
+        string response,
+        IReadOnlyList<OrderSupportCaseAttachmentInput>? attachments,
+        CancellationToken cancellationToken = default);
+
+    Task<OrderSupportCase> AddDriverAccountAppealMessageAsync(
+        Guid caseId,
+        Guid driverId,
         Guid driverUserId,
         string response,
         IReadOnlyList<OrderSupportCaseAttachmentInput>? attachments,

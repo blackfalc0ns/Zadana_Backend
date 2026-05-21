@@ -5,7 +5,8 @@ public enum OrderSupportCaseType
     Complaint,
     ReturnRequest,
     DriverReport,
-    DriverDispute
+    DriverDispute,
+    DriverAccountAppeal
 }
 
 public enum OrderSupportCaseStatus

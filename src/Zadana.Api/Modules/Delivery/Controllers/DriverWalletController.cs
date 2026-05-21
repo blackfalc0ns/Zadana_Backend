@@ -24,10 +24,12 @@ public class DriverWalletController : ApiControllerBase
     [HttpGet]
     public async Task<ActionResult<DriverWalletSummaryDto>> GetWallet(
         [FromServices] ICurrentUserService currentUserService,
+        [FromServices] IDriverRepository driverRepository,
         [FromServices] IDriverWalletReadService driverWalletReadService,
         CancellationToken cancellationToken = default)
     {
         var userId = currentUserService.UserId ?? throw new UnauthorizedException("DRIVER_NOT_AUTHENTICATED");
+        await GetDriverAsync(currentUserService, driverRepository, cancellationToken);
         return Ok(await driverWalletReadService.GetWalletSummaryAsync(userId, cancellationToken));
     }
 
@@ -386,8 +388,17 @@ public class DriverWalletController : ApiControllerBase
         CancellationToken cancellationToken)
     {
         var userId = currentUserService.UserId ?? throw new UnauthorizedException("DRIVER_NOT_AUTHENTICATED");
-        return await driverRepository.GetByUserIdAsync(userId, cancellationToken)
+        var driver = await driverRepository.GetByUserIdAsync(userId, cancellationToken)
             ?? throw new NotFoundException("Driver", userId);
+
+        if (driver.User?.IsLoginLocked == true || !driver.CanReceiveOrders)
+        {
+            throw new BusinessRuleException(
+                "DRIVER_WALLET_ACCESS_BLOCKED",
+                "Wallet access is available after the driver account is active and approved.");
+        }
+
+        return driver;
     }
 
     private static async Task<Wallet> GetOrCreateWalletAsync(

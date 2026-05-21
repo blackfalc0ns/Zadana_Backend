@@ -1,8 +1,10 @@
 using Microsoft.AspNetCore.Authorization;
 using Microsoft.AspNetCore.Mvc;
+using Microsoft.AspNetCore.RateLimiting;
 using Microsoft.EntityFrameworkCore;
 using Zadana.Api.Controllers;
 using Zadana.Api.Modules.Delivery.Requests;
+using Zadana.Api.Security;
 using Zadana.Application.Common.Interfaces;
 using Zadana.Application.Modules.Delivery.Interfaces;
 using Zadana.Application.Modules.Orders.Interfaces;
@@ -148,6 +150,102 @@ public class DriverSupportController : ApiControllerBase
             supportCase.CreatedAtUtc));
     }
 
+    [HttpPost("account-appeals")]
+    public async Task<ActionResult<DriverSupportCaseResponse>> CreateAccountAppeal(
+        [FromBody] DriverAccountAppealRequest? request,
+        CancellationToken cancellationToken = default)
+    {
+        if (request is null || string.IsNullOrWhiteSpace(request.Message))
+        {
+            throw new BadRequestException("INVALID_REQUEST_BODY", "Message is required.");
+        }
+
+        var (driverId, userId) = await ResolveDriverAsync(cancellationToken);
+        var supportCase = await _workflowService.CreateDriverAccountAppealAsync(
+            driverId,
+            userId,
+            request.ReasonCode,
+            request.Message,
+            request.Attachments?.Select(a => new OrderSupportCaseAttachmentInput(a.FileName, a.FileUrl)).ToList(),
+            cancellationToken);
+
+        return Ok(MapDriverSupportCase(supportCase));
+    }
+
+    [HttpGet("account-cases")]
+    public async Task<ActionResult<DriverSupportCasesListResponse>> GetMyAccountCases(
+        [FromQuery] int page = 1,
+        [FromQuery] int pageSize = 20,
+        CancellationToken cancellationToken = default)
+    {
+        var (driverId, userId) = await ResolveDriverAsync(cancellationToken);
+        page = Math.Max(1, page);
+        pageSize = Math.Clamp(pageSize, 1, 50);
+
+        var query = _dbContext.OrderSupportCases
+            .AsNoTracking()
+            .Where(c =>
+                c.DriverId == driverId &&
+                c.CustomerUserId == userId &&
+                c.Type == OrderSupportCaseType.DriverAccountAppeal)
+            .OrderByDescending(c => c.CreatedAtUtc);
+
+        var total = await query.CountAsync(cancellationToken);
+        var cases = await query
+            .Skip((page - 1) * pageSize)
+            .Take(pageSize)
+            .ToListAsync(cancellationToken);
+
+        var items = cases.Select(MapDriverSupportCaseListItem).ToList();
+        return Ok(new DriverSupportCasesListResponse(items, page, pageSize, total));
+    }
+
+    [HttpGet("account-cases/{caseId:guid}")]
+    public async Task<ActionResult<DriverSupportCaseDetailResponse>> GetAccountCaseDetail(
+        Guid caseId,
+        CancellationToken cancellationToken = default)
+    {
+        var (driverId, userId) = await ResolveDriverAsync(cancellationToken);
+
+        var supportCase = await _dbContext.OrderSupportCases
+            .AsNoTracking()
+            .Include(c => c.Attachments)
+            .Include(c => c.Activities)
+            .Where(c =>
+                c.Id == caseId &&
+                c.DriverId == driverId &&
+                c.CustomerUserId == userId &&
+                c.Type == OrderSupportCaseType.DriverAccountAppeal)
+            .FirstOrDefaultAsync(cancellationToken)
+            ?? throw new NotFoundException("OrderSupportCase", caseId);
+
+        return Ok(MapDriverSupportCaseDetail(supportCase));
+    }
+
+    [HttpPost("account-cases/{caseId:guid}/messages")]
+    public async Task<ActionResult<DriverSupportCaseResponse>> SendAccountCaseMessage(
+        Guid caseId,
+        [FromBody] DriverReportIssueRequest? request,
+        CancellationToken cancellationToken = default)
+    {
+        if (request is null || string.IsNullOrWhiteSpace(request.Message))
+        {
+            throw new BadRequestException("INVALID_REQUEST_BODY", "Message is required.");
+        }
+
+        var (driverId, userId) = await ResolveDriverAsync(cancellationToken);
+
+        var supportCase = await _workflowService.AddDriverAccountAppealMessageAsync(
+            caseId,
+            driverId,
+            userId,
+            request.Message,
+            request.Attachments?.Select(a => new OrderSupportCaseAttachmentInput(a.FileName, a.FileUrl)).ToList(),
+            cancellationToken);
+
+        return Ok(MapDriverSupportCase(supportCase));
+    }
+
     /// <summary>
     /// Get all support cases opened by this driver.
     /// </summary>
@@ -178,7 +276,7 @@ public class DriverSupportController : ApiControllerBase
             .Select(c => new DriverSupportCaseListItemResponse(
                 c.Id,
                 c.OrderId,
-                c.Order.OrderNumber,
+                c.Order!.OrderNumber,
                 ToApiType(c.Type),
                 GetTypeLabelAr(c.Type),
                 GetTypeLabelEn(c.Type),
@@ -216,7 +314,9 @@ public class DriverSupportController : ApiControllerBase
             .Include(c => c.Order)
             .Include(c => c.Attachments)
             .Include(c => c.Activities)
-            .Where(c => c.Id == caseId && c.CustomerUserId == userId)
+            .Where(c => c.Id == caseId &&
+                        c.CustomerUserId == userId &&
+                        (c.Type == OrderSupportCaseType.DriverReport || c.Type == OrderSupportCaseType.DriverDispute))
             .FirstOrDefaultAsync(cancellationToken)
             ?? throw new NotFoundException("OrderSupportCase", caseId);
 
@@ -243,7 +343,7 @@ public class DriverSupportController : ApiControllerBase
         return Ok(new DriverSupportCaseDetailResponse(
             supportCase.Id,
             supportCase.OrderId,
-            supportCase.Order.OrderNumber,
+            supportCase.Order!.OrderNumber,
             ToApiType(supportCase.Type),
             GetTypeLabelAr(supportCase.Type),
             GetTypeLabelEn(supportCase.Type),
@@ -340,12 +440,107 @@ public class DriverSupportController : ApiControllerBase
         return (driver.Id, userId);
     }
 
+    private static DriverSupportCaseResponse MapDriverSupportCase(OrderSupportCase supportCase) =>
+        new(
+            supportCase.Id,
+            supportCase.OrderId,
+            supportCase.Order?.OrderNumber,
+            ToApiType(supportCase.Type),
+            GetTypeLabelAr(supportCase.Type),
+            GetTypeLabelEn(supportCase.Type),
+            ToApiStatus(supportCase.Status),
+            GetStatusLabelAr(supportCase.Status),
+            GetStatusLabelEn(supportCase.Status),
+            ToApiPriority(supportCase.Priority),
+            GetPriorityLabelAr(supportCase.Priority),
+            GetPriorityLabelEn(supportCase.Priority),
+            supportCase.ReasonCode,
+            GetReasonLabelAr(supportCase.Type, supportCase.ReasonCode),
+            GetReasonLabelEn(supportCase.Type, supportCase.ReasonCode),
+            supportCase.Message,
+            supportCase.CreatedAtUtc);
+
+    private static DriverSupportCaseListItemResponse MapDriverSupportCaseListItem(OrderSupportCase supportCase) =>
+        new(
+            supportCase.Id,
+            supportCase.OrderId,
+            supportCase.Order?.OrderNumber,
+            ToApiType(supportCase.Type),
+            GetTypeLabelAr(supportCase.Type),
+            GetTypeLabelEn(supportCase.Type),
+            ToApiStatus(supportCase.Status),
+            GetStatusLabelAr(supportCase.Status),
+            GetStatusLabelEn(supportCase.Status),
+            ToApiPriority(supportCase.Priority),
+            GetPriorityLabelAr(supportCase.Priority),
+            GetPriorityLabelEn(supportCase.Priority),
+            supportCase.ReasonCode,
+            GetReasonLabelAr(supportCase.Type, supportCase.ReasonCode),
+            GetReasonLabelEn(supportCase.Type, supportCase.ReasonCode),
+            supportCase.Message,
+            supportCase.CustomerVisibleNote,
+            supportCase.CreatedAtUtc,
+            supportCase.UpdatedAtUtc,
+            supportCase.ClosedAtUtc);
+
+    private static DriverSupportCaseDetailResponse MapDriverSupportCaseDetail(OrderSupportCase supportCase)
+    {
+        var activities = supportCase.Activities
+            .OrderByDescending(a => a.CreatedAtUtc)
+            .Select(a => new DriverSupportCaseActivityResponse(
+                ToApiAction(a.Action),
+                GetActionLabelAr(a.Action),
+                GetActionLabelEn(a.Action),
+                a.Title,
+                GetActivityTitleAr(a),
+                GetActivityTitleEn(a),
+                a.Note,
+                NormalizeRole(a.ActorRole),
+                GetRoleLabelAr(a.ActorRole),
+                GetRoleLabelEn(a.ActorRole),
+                a.CreatedAtUtc))
+            .ToList();
+
+        var attachments = supportCase.Attachments
+            .Select(a => new DriverSupportCaseAttachmentResponse(a.FileName, a.FileUrl))
+            .ToList();
+
+        return new DriverSupportCaseDetailResponse(
+            supportCase.Id,
+            supportCase.OrderId,
+            supportCase.Order?.OrderNumber,
+            ToApiType(supportCase.Type),
+            GetTypeLabelAr(supportCase.Type),
+            GetTypeLabelEn(supportCase.Type),
+            ToApiStatus(supportCase.Status),
+            GetStatusLabelAr(supportCase.Status),
+            GetStatusLabelEn(supportCase.Status),
+            ToApiPriority(supportCase.Priority),
+            GetPriorityLabelAr(supportCase.Priority),
+            GetPriorityLabelEn(supportCase.Priority),
+            ToApiQueue(supportCase.Queue),
+            GetQueueLabelAr(supportCase.Queue),
+            GetQueueLabelEn(supportCase.Queue),
+            supportCase.ReasonCode,
+            GetReasonLabelAr(supportCase.Type, supportCase.ReasonCode),
+            GetReasonLabelEn(supportCase.Type, supportCase.ReasonCode),
+            supportCase.Message,
+            supportCase.CustomerVisibleNote,
+            supportCase.DecisionNotes,
+            supportCase.CreatedAtUtc,
+            supportCase.UpdatedAtUtc,
+            supportCase.ClosedAtUtc,
+            attachments,
+            activities);
+    }
+
     private static string ToApiType(OrderSupportCaseType type) =>
         type switch
         {
             OrderSupportCaseType.ReturnRequest => "return_request",
             OrderSupportCaseType.DriverReport => "driver_report",
             OrderSupportCaseType.DriverDispute => "driver_dispute",
+            OrderSupportCaseType.DriverAccountAppeal => "driver_account",
             _ => "complaint"
         };
 
@@ -386,6 +581,7 @@ public class DriverSupportController : ApiControllerBase
         OrderSupportCaseType.DriverReport => "Operational report",
         OrderSupportCaseType.DriverDispute => "Financial dispute",
         OrderSupportCaseType.ReturnRequest => "Return request",
+        OrderSupportCaseType.DriverAccountAppeal => "Driver account support",
         _ => "Complaint"
     };
 

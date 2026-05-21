@@ -229,7 +229,7 @@ public class VendorWorkspaceController : ApiControllerBase
 
         var disputes = await _dbContext.OrderSupportCases
             .AsNoTracking()
-            .Where(item => item.Order.VendorId == vendorId)
+            .Where(item => item.Order != null && item.Order.VendorId == vendorId)
             .Select(item => new
             {
                 item.Id,
@@ -646,7 +646,7 @@ public class VendorWorkspaceController : ApiControllerBase
 
         var openDisputesCount = await _dbContext.OrderSupportCases
             .AsNoTracking()
-            .Where(c => c.Order.VendorId == vendorId && c.Status != OrderSupportCaseStatus.Rejected && c.Status != OrderSupportCaseStatus.Resolved)
+            .Where(c => c.Order != null && c.Order.VendorId == vendorId && c.Status != OrderSupportCaseStatus.Rejected && c.Status != OrderSupportCaseStatus.Resolved)
             .CountAsync(cancellationToken);
 
         var unrepliedLowReviewsCount = await _dbContext.Reviews
