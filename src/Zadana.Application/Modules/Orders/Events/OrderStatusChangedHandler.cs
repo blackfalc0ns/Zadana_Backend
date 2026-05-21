@@ -279,6 +279,19 @@ public class OrderStatusChangedHandler : INotificationHandler<OrderStatusChanged
                 NotificationPriorities.High,
                 OneSignalPushRequestKind.Standard),
 
+                OrderStatus.Preparing => CreateDriverAssignmentNotification(
+                    notification,
+                    assignmentId,
+                    driverUserId,
+                    screen,
+                    "assignment.vendor_preparing",
+                "التاجر بدأ تحضير الطلب",
+                "Vendor is preparing the order",
+                $"التاجر بدأ تحضير الطلب رقم #{notification.OrderNumber}.",
+                $"The vendor started preparing order #{notification.OrderNumber}.",
+                NotificationPriorities.Normal,
+                OneSignalPushRequestKind.Standard),
+
                 OrderStatus.ReadyForPickup => CreateDriverAssignmentNotification(
                     notification,
                     assignmentId,
@@ -290,7 +303,20 @@ public class OrderStatusChangedHandler : INotificationHandler<OrderStatusChanged
                 $"الطلب رقم #{notification.OrderNumber} أصبح جاهزًا للاستلام من التاجر.",
                 $"Order #{notification.OrderNumber} is now ready for pickup.",
                 NotificationPriorities.High,
-                OneSignalPushRequestKind.Standard),
+                OneSignalPushRequestKind.HeadsUp),
+
+                OrderStatus.DeliveryFailed => CreateDriverAssignmentNotification(
+                    notification,
+                    assignmentId,
+                    driverUserId,
+                    screen,
+                    "assignment.delivery_failed",
+                "تعذر تسليم الطلب",
+                "Delivery failed",
+                $"تعذر تسليم الطلب رقم #{notification.OrderNumber}.",
+                $"Delivery failed for order #{notification.OrderNumber}.",
+                NotificationPriorities.Critical,
+                OneSignalPushRequestKind.HeadsUp),
 
                 OrderStatus.Cancelled => CreateDriverAssignmentNotification(
                     notification,

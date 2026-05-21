@@ -41,15 +41,20 @@ public static class DriverExpiryLockNotificationDispatcher
                 expiredDocuments
             });
 
+        const string titleAr = "تم إيقاف حسابك لانتهاء مستنداتك";
+        const string titleEn = "Your account was locked due to expired documents";
+        const string bodyAr = "تم إيقاف حساب المندوب مؤقتا لأن بعض مستندات الهوية أو الرخص منتهية. حدث المستندات لإعادة التفعيل.";
+        const string bodyEn = "Your driver account was temporarily locked because one or more required documents expired. Renew the documents to reactivate your account.";
+
         try
         {
             await notificationService.SendToUserAsync(
                 driver.UserId,
                 new NotificationDispatchRequest(
-                    "تم إيقاف حسابك لانتهاء مستنداتك",
-                    "Your account was locked due to expired documents",
-                    "تم إيقاف حساب المندوب مؤقتًا لأن بعض مستندات الهوية أو الرخص منتهية. حدّث المستندات لإعادة التفعيل.",
-                    "Your driver account was temporarily locked because one or more required documents expired. Renew the documents to reactivate your account.",
+                    titleAr,
+                    titleEn,
+                    bodyAr,
+                    bodyEn,
                     NotificationTypes.DriverAccountUpdated,
                     NotificationCategories.Account,
                     NotificationPriorities.Critical,
@@ -74,10 +79,10 @@ public static class DriverExpiryLockNotificationDispatcher
             await oneSignalPushService.SendMobileNotificationAsync(
                 OneSignalMobilePushRequest.CreateHeadsUp(
                     driver.UserId.ToString(),
-                    "تم إيقاف حسابك لانتهاء مستنداتك",
-                    "Driver account locked due to expired documents",
-                    "تم إيقاف حساب المندوب مؤقتًا لأن بعض المستندات المطلوبة انتهت صلاحيتها. يرجى تحديثها للعودة للعمل.",
-                    "Your driver account was temporarily locked because required documents have expired. Please renew them to return to work.",
+                    titleAr,
+                    titleEn,
+                    bodyAr,
+                    bodyEn,
                     NotificationTypes.DriverAccountUpdated,
                     driver.Id,
                     data,

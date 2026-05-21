@@ -64,7 +64,7 @@ public class UnbanDriverCommandHandler : IRequestHandler<UnbanDriverCommand>
         const string titleAr = "تم فك حظر حساب المندوب";
         const string titleEn = "Driver account unbanned";
         const string bodyAr = "تم فك حظر حسابك كمندوب. يمكنك العودة إلى وضع الاستعداد عند توفر شروط التشغيل.";
-        const string bodyEn = "Your driver account ban was lifted. You can return to standby mode.";
+        const string bodyEn = "Your driver account ban was lifted. You can return to standby mode when operating requirements are met.";
 
         await _notificationService.SendToUserAsync(
             driver.UserId,
@@ -92,6 +92,7 @@ public class UnbanDriverCommandHandler : IRequestHandler<UnbanDriverCommand>
                 NotificationTypes.DriverAccountUpdated,
                 driver.Id,
                 data,
+                targetUrl: "/account-status",
                 category: NotificationCategories.Account,
                 targetApplication: OneSignalApplicationTarget.Driver),
             cancellationToken);

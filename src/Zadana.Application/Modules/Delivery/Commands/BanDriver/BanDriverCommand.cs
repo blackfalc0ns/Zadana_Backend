@@ -49,7 +49,7 @@ public class BanDriverCommandHandler : IRequestHandler<BanDriverCommand>
         const string titleAr = "تم حظر حساب المندوب";
         const string titleEn = "Driver account banned";
         const string bodyAr = "تم حظر حسابك كمندوب ولا يمكنك استقبال عروض توصيل جديدة. يمكنك التواصل مع الدعم لمراجعة الحالة.";
-        const string bodyEn = "Your driver account was banned and cannot receive new delivery offers.";
+        const string bodyEn = "Your driver account was banned and cannot receive new delivery offers. You can contact support to review the case.";
 
         await _notificationService.SendToUserAsync(
             driver.UserId,
@@ -77,6 +77,7 @@ public class BanDriverCommandHandler : IRequestHandler<BanDriverCommand>
                 NotificationTypes.DriverAccountUpdated,
                 driver.Id,
                 data,
+                targetUrl: "/account-status",
                 category: NotificationCategories.Account,
                 targetApplication: OneSignalApplicationTarget.Driver),
             cancellationToken);

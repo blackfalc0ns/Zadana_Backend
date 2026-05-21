@@ -235,6 +235,20 @@ public class DeliveryDispatchService : IDeliveryDispatchService
                     assignment.OrderId,
                     data),
                 cancellationToken);
+
+            await _oneSignalPushService.SendMobileNotificationAsync(
+                OneSignalMobilePushRequest.CreateStandard(
+                    driverUserId.ToString(),
+                    "انتهت مهلة عرض التوصيل",
+                    "Delivery offer expired",
+                    $"انتهت مهلة الرد على طلب التوصيل رقم #{assignment.Order.OrderNumber}.",
+                    $"The response window for delivery order #{assignment.Order.OrderNumber} has expired.",
+                    NotificationTypes.DriverDeliveryOffer,
+                    assignment.OrderId,
+                    data,
+                    category: NotificationCategories.Dispatch,
+                    targetApplication: OneSignalApplicationTarget.Driver),
+                cancellationToken);
         }
 
         if (timedOutDriverIds.Count > 0)

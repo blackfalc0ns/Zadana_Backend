@@ -1028,6 +1028,7 @@ public sealed class OrderSupportCaseWorkflowService : IOrderSupportCaseWorkflowS
             "approved" => "Your account support case has been reviewed.",
             _ => "Your account support case was updated."
         };
+        (titleAr, titleEn, bodyAr, bodyEn) = BuildDriverAccountSupportNotification(action);
         var data = $"{{\"caseId\":\"{supportCase.Id}\",\"driverId\":\"{supportCase.DriverId}\",\"type\":\"driver_account\",\"action\":\"{action}\"}}";
 
         await _notificationService.SendToUserAsync(
@@ -1056,7 +1057,89 @@ public sealed class OrderSupportCaseWorkflowService : IOrderSupportCaseWorkflowS
         await _notificationService.SendDriverHomeUpdatedAsync(
             supportCase.CustomerUserId,
             cancellationToken);
+
+        var pushKind = action is "request_evidence" or "admin_message" or "escalated"
+            ? OneSignalPushRequestKind.HeadsUp
+            : OneSignalPushRequestKind.Standard;
+
+        var pushRequest = pushKind == OneSignalPushRequestKind.HeadsUp
+            ? OneSignalMobilePushRequest.CreateHeadsUp(
+                supportCase.CustomerUserId.ToString(),
+                titleAr,
+                titleEn,
+                bodyAr,
+                bodyEn,
+                NotificationTypes.OrderSupportCaseChanged,
+                supportCase.Id,
+                data,
+                targetUrl: $"/support/cases/{supportCase.Id}",
+                category: NotificationCategories.Support,
+                targetApplication: OneSignalApplicationTarget.Driver)
+            : OneSignalMobilePushRequest.CreateStandard(
+                supportCase.CustomerUserId.ToString(),
+                titleAr,
+                titleEn,
+                bodyAr,
+                bodyEn,
+                NotificationTypes.OrderSupportCaseChanged,
+                supportCase.Id,
+                data,
+                targetUrl: $"/support/cases/{supportCase.Id}",
+                category: NotificationCategories.Support,
+                targetApplication: OneSignalApplicationTarget.Driver);
+
+        await pushRequest.DispatchAsync(_oneSignalPushService, cancellationToken);
     }
+
+    private static (string TitleAr, string TitleEn, string BodyAr, string BodyEn) BuildDriverAccountSupportNotification(string action) =>
+        action switch
+        {
+            "request_evidence" => (
+                "مطلوب معلومات إضافية",
+                "More information required",
+                "فريق الدعم يحتاج معلومات إضافية لمراجعة حسابك.",
+                "Support needs more information to review your account."),
+            "assigned" => (
+                "بدأت مراجعة طلب الدعم",
+                "Support case under review",
+                "بدأ فريق الدعم مراجعة طلب دعم حسابك.",
+                "Support has started reviewing your account support case."),
+            "escalated" => (
+                "تم تصعيد طلب الدعم",
+                "Support case escalated",
+                "تم تصعيد طلب دعم حسابك للمراجعة.",
+                "Your account support case was escalated for review."),
+            "reopened" => (
+                "تمت إعادة فتح طلب الدعم",
+                "Support case reopened",
+                "تمت إعادة فتح طلب دعم حسابك.",
+                "Your account support case has been reopened."),
+            "resolved" => (
+                "تم إغلاق طلب الدعم",
+                "Support case resolved",
+                "تم إغلاق طلب دعم حسابك بعد المراجعة.",
+                "Your account support case has been resolved."),
+            "rejected" => (
+                "تم رفض طلب الدعم",
+                "Support case rejected",
+                "تم رفض طلب دعم حسابك بعد المراجعة.",
+                "Your account support case was rejected after review."),
+            "approved" => (
+                "تمت مراجعة طلب الدعم",
+                "Support case reviewed",
+                "تمت مراجعة طلب دعم حسابك.",
+                "Your account support case has been reviewed."),
+            "admin_message" or "note_added" => (
+                "رسالة جديدة من الدعم",
+                "New support message",
+                "توجد رسالة جديدة من فريق الدعم بخصوص حسابك.",
+                "There is a new support message about your account."),
+            _ => (
+                "تحديث على طلب دعم الحساب",
+                "Account support case update",
+                "تم تحديث طلب دعم حسابك.",
+                "Your account support case was updated.")
+        };
 
     private async Task NotifyCustomerAsync(
         Order order,
@@ -1349,6 +1432,18 @@ public sealed class OrderSupportCaseWorkflowService : IOrderSupportCaseWorkflowS
                 status
             });
 
+        var localizedEnvelope = BuildLocalizedDriverSupportNotification(
+            normalizedAction,
+            driverUserId,
+            order.OrderNumber,
+            supportCase.Id,
+            data);
+
+        if (localizedEnvelope is not null)
+        {
+            return localizedEnvelope;
+        }
+
         return normalizedAction switch
         {
             "created" => BuildDriverSupportNotification(
@@ -1453,6 +1548,107 @@ public sealed class OrderSupportCaseWorkflowService : IOrderSupportCaseWorkflowS
             _ => null
         };
     }
+
+    private static DriverSupportNotificationEnvelope? BuildLocalizedDriverSupportNotification(
+        string action,
+        Guid driverUserId,
+        string orderNumber,
+        Guid supportCaseId,
+        string data) =>
+        action switch
+        {
+            "created" => BuildDriverSupportNotification(
+                driverUserId,
+                "تم إنشاء بلاغ على الطلب",
+                "Support case created",
+                $"تم إنشاء بلاغ على الطلب رقم #{orderNumber}.",
+                $"A support case was created for order #{orderNumber}.",
+                NotificationPriorities.Normal,
+                OneSignalPushRequestKind.Standard,
+                supportCaseId,
+                data),
+            "request_evidence" => BuildDriverSupportNotification(
+                driverUserId,
+                "مطلوب تقديم معلومات إضافية",
+                "More information required",
+                $"تحتاج قضية الطلب رقم #{orderNumber} إلى رد أو معلومات إضافية منك.",
+                $"Order case #{orderNumber} needs a response or additional evidence from you.",
+                NotificationPriorities.High,
+                OneSignalPushRequestKind.HeadsUp,
+                supportCaseId,
+                data),
+            "admin_message" => BuildDriverSupportNotification(
+                driverUserId,
+                "رسالة جديدة بخصوص الطلب",
+                "New support message",
+                $"توجد رسالة دعم جديدة بخصوص الطلب رقم #{orderNumber}.",
+                $"There is a new support message about order #{orderNumber}.",
+                NotificationPriorities.High,
+                OneSignalPushRequestKind.HeadsUp,
+                supportCaseId,
+                data),
+            "assigned" => BuildDriverSupportNotification(
+                driverUserId,
+                "بدأت مراجعة البلاغ",
+                "Support case under review",
+                $"بدأ فريق الدعم مراجعة بلاغ الطلب رقم #{orderNumber}.",
+                $"Support has started reviewing the case for order #{orderNumber}.",
+                NotificationPriorities.Normal,
+                OneSignalPushRequestKind.Standard,
+                supportCaseId,
+                data),
+            "escalated" => BuildDriverSupportNotification(
+                driverUserId,
+                "تم تصعيد البلاغ",
+                "Support case escalated",
+                $"تم تصعيد بلاغ الطلب رقم #{orderNumber} للمراجعة.",
+                $"The support case for order #{orderNumber} was escalated for review.",
+                NotificationPriorities.High,
+                OneSignalPushRequestKind.HeadsUp,
+                supportCaseId,
+                data),
+            "approved" => BuildDriverSupportNotification(
+                driverUserId,
+                "تمت الموافقة على البلاغ",
+                "Support case approved",
+                $"تمت الموافقة على قرار البلاغ الخاص بالطلب رقم #{orderNumber}.",
+                $"The support case decision for order #{orderNumber} was approved.",
+                NotificationPriorities.High,
+                OneSignalPushRequestKind.Standard,
+                supportCaseId,
+                data),
+            "rejected" => BuildDriverSupportNotification(
+                driverUserId,
+                "تم رفض البلاغ",
+                "Support case rejected",
+                $"تم رفض البلاغ الخاص بالطلب رقم #{orderNumber}.",
+                $"The support case for order #{orderNumber} was rejected.",
+                NotificationPriorities.High,
+                OneSignalPushRequestKind.Standard,
+                supportCaseId,
+                data),
+            "resolved" => BuildDriverSupportNotification(
+                driverUserId,
+                "تم إغلاق البلاغ",
+                "Support case resolved",
+                $"تم إغلاق البلاغ الخاص بالطلب رقم #{orderNumber}.",
+                $"The support case for order #{orderNumber} was resolved.",
+                NotificationPriorities.Normal,
+                OneSignalPushRequestKind.Standard,
+                supportCaseId,
+                data),
+            "reopened" => BuildDriverSupportNotification(
+                driverUserId,
+                "تمت إعادة فتح البلاغ",
+                "Support case reopened",
+                $"تمت إعادة فتح بلاغ الطلب رقم #{orderNumber}.",
+                $"The support case for order #{orderNumber} has been reopened.",
+                NotificationPriorities.Normal,
+                OneSignalPushRequestKind.Standard,
+                supportCaseId,
+                data),
+            _ => null
+        };
 
     private static DriverSupportNotificationEnvelope BuildDriverSupportNotification(
         Guid driverUserId,

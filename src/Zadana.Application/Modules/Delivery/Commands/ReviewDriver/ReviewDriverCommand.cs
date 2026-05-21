@@ -169,6 +169,7 @@ public class ReviewDriverCommandHandler : IRequestHandler<ReviewDriverCommand>
                     NotificationTypes.DriverAccountUpdated,
                     driverId,
                     data,
+                    targetUrl: "/account-status",
                     category: NotificationCategories.Account,
                     targetApplication: OneSignalApplicationTarget.Driver),
                 cancellationToken);
@@ -184,21 +185,21 @@ public class ReviewDriverCommandHandler : IRequestHandler<ReviewDriverCommand>
         {
             "approve" => (
                 "account.approve",
+                "تم اعتماد حساب المندوب",
                 "Driver account approved",
-                "Driver account approved",
-                "Your driver account was approved. You can continue working from the app.",
+                "تم اعتماد حسابك كمندوب. يمكنك الآن متابعة العمل من التطبيق.",
                 "Your driver account was approved. You can continue working from the app."),
             "request-docs" => (
                 "account.request_docs",
+                "مطلوب استكمال مستندات",
                 "Additional documents required",
-                "Additional documents required",
-                "Please review your account and upload the required documents.",
+                "راجع حالة حسابك وارفع المستندات المطلوبة لاستكمال المراجعة.",
                 "Please review your account and upload the required documents."),
             _ => (
                 "account.reject",
+                "تم رفض طلب المندوب",
                 "Driver application rejected",
-                "Driver application rejected",
-                "Your current driver application was rejected. Review the team note in the app.",
+                "تم رفض طلبك الحالي كمندوب. راجع ملاحظة الفريق داخل التطبيق.",
                 "Your current driver application was rejected. Review the team note in the app.")
         };
 

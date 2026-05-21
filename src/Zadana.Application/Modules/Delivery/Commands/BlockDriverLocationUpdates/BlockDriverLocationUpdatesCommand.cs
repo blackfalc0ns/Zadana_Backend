@@ -77,6 +77,7 @@ public class BlockDriverLocationUpdatesCommandHandler : IRequestHandler<BlockDri
                 NotificationTypes.DriverAccountUpdated,
                 driver.Id,
                 data,
+                targetUrl: "/account-status",
                 category: NotificationCategories.Account,
                 targetApplication: OneSignalApplicationTarget.Driver),
             cancellationToken);

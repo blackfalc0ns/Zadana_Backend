@@ -54,7 +54,37 @@ public sealed class OneSignalPushService : IOneSignalPushService
             cancellationToken,
             request.TargetApplication);
 
-        return results[0];
+        var result = results[0];
+
+        // Fallback: if skipped because no registered devices matched, retry without the device requirement.
+        // This ensures push delivery even when the driver app hasn't registered a device record in the DB.
+        if (result.Skipped && !result.Sent)
+        {
+            _logger.LogWarning(
+                "[PUSH-FALLBACK] No registered device found for {ExternalUserId} (category={Category}). Retrying without device requirement.",
+                request.ExternalUserId,
+                request.Category);
+
+            var fallbackResults = await SendToExternalUsersCoreAsync(
+                [request.ExternalUserId],
+                request.TitleAr,
+                request.TitleEn,
+                request.BodyAr,
+                request.BodyEn,
+                request.Type,
+                request.ReferenceId,
+                request.Data,
+                request.TargetUrl,
+                request.Profile,
+                request.Category,
+                requireRegisteredDevices: false,
+                cancellationToken,
+                request.TargetApplication);
+
+            return fallbackResults[0];
+        }
+
+        return result;
     }
 
     public async Task<OneSignalPushDispatchResult> SendMobileNotificationDirectAsync(
@@ -314,7 +344,7 @@ public sealed class OneSignalPushService : IOneSignalPushService
         };
         request.Headers.TryAddWithoutValidation(
             "Authorization",
-            $"key {preparedPayload.RestApiKey.Trim()}");
+            $"Key {preparedPayload.RestApiKey.Trim()}");
 
         try
         {
@@ -455,40 +485,14 @@ public sealed class OneSignalPushService : IOneSignalPushService
         string fallback,
         string? preferredLocale)
     {
-        var normalizedPreferredLocale = NormalizeLocale(preferredLocale);
-        if (normalizedPreferredLocale is not null)
+        var englishText = FirstNonEmpty(english, arabic, fallback);
+        var arabicText = FirstNonEmpty(arabic, english, fallback);
+
+        return new Dictionary<string, string>
         {
-            var selected = normalizedPreferredLocale == "ar"
-                ? FirstNonEmpty(arabic, english, fallback)
-                : FirstNonEmpty(english, arabic, fallback);
-
-            // Duplicate the chosen text across both keys so the app gets the same
-            // content regardless of the underlying device OS locale.
-            return new Dictionary<string, string>
-            {
-                ["ar"] = selected,
-                ["en"] = selected
-            };
-        }
-
-        var content = new Dictionary<string, string>();
-
-        if (!string.IsNullOrWhiteSpace(english))
-        {
-            content["en"] = english;
-        }
-
-        if (!string.IsNullOrWhiteSpace(arabic))
-        {
-            content["ar"] = arabic;
-        }
-
-        if (content.Count == 0)
-        {
-            content["en"] = fallback;
-        }
-
-        return content;
+            ["en"] = englishText,
+            ["ar"] = arabicText
+        };
     }
 
     private async Task<IReadOnlyList<LocalizedRecipientBatch>> ResolveRecipientsByLocaleAsync(

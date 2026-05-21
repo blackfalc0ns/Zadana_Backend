@@ -92,6 +92,7 @@ public class ReactivateDriverCommandHandler : IRequestHandler<ReactivateDriverCo
                 NotificationTypes.DriverAccountUpdated,
                 driver.Id,
                 data,
+                targetUrl: "/account-status",
                 category: NotificationCategories.Account,
                 targetApplication: OneSignalApplicationTarget.Driver),
             cancellationToken);
