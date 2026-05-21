@@ -1,6 +1,7 @@
 using FluentValidation;
 using Microsoft.Extensions.Localization;
 using Zadana.Application.Common.Localization;
+using Zadana.Application.Common.Validation;
 
 namespace Zadana.Application.Modules.Delivery.Commands.RegisterDriver;
 
@@ -16,6 +17,7 @@ public class RegisterDriverCommandValidator : AbstractValidator<RegisterDriverCo
         RuleFor(x => x.Email)
             .NotEmpty().WithMessage(localizer["RequiredField"].Value)
             .EmailAddress().WithMessage(localizer["InvalidEmail"].Value)
+            .Must(EmailValidationRules.HasComTopLevelDomain).WithMessage(localizer["InvalidEmail"].Value)
             .MaximumLength(255).WithMessage(localizer["MaxLength"].Value)
             .WithName(localizer["Email"].Value);
         RuleFor(x => x.Phone)

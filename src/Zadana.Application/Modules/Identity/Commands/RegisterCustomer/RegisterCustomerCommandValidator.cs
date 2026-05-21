@@ -1,6 +1,7 @@
 using FluentValidation;
 using Microsoft.Extensions.Localization;
 using Zadana.Application.Common.Localization;
+using Zadana.Application.Common.Validation;
 
 namespace Zadana.Application.Modules.Identity.Commands.RegisterCustomer;
 
@@ -16,6 +17,7 @@ public class RegisterCustomerCommandValidator : AbstractValidator<RegisterCustom
         RuleFor(x => x.Email)
             .NotEmpty().WithMessage(localizer["RequiredField"].Value)
             .EmailAddress().WithMessage(localizer["InvalidEmail"].Value)
+            .Must(EmailValidationRules.HasComTopLevelDomain).WithMessage(localizer["InvalidEmail"].Value)
             .MaximumLength(255).WithMessage(localizer["MaxLength"].Value)
             .WithName(localizer["Email"].Value);
 

@@ -1,6 +1,7 @@
 using FluentValidation;
 using Microsoft.Extensions.Localization;
 using Zadana.Application.Common.Localization;
+using Zadana.Application.Common.Validation;
 
 namespace Zadana.Application.Modules.Identity.Commands.VerifyOtp;
 
@@ -21,7 +22,7 @@ public class VerifyOtpCommandValidator : AbstractValidator<VerifyOtpCommand>
     }
 
     private static bool IsEmail(string? value) =>
-        !string.IsNullOrWhiteSpace(value) && value.Contains('@');
+        EmailValidationRules.IsValidComEmail(value);
 
     private static bool IsPhone(string? value) =>
         !string.IsNullOrWhiteSpace(value) &&

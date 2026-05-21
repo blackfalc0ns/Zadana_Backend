@@ -1,7 +1,10 @@
 using MediatR;
+using Microsoft.EntityFrameworkCore;
 using Zadana.Application.Common.Interfaces;
+using Zadana.Application.Modules.Delivery.DTOs;
 using Zadana.Application.Modules.Identity.DTOs;
 using Zadana.Application.Modules.Identity.Interfaces;
+using Zadana.Domain.Modules.Identity.Enums;
 using Zadana.SharedKernel.Exceptions;
 using Zadana.Application.Common.Localization;
 using Microsoft.Extensions.Localization;
@@ -14,6 +17,8 @@ public class VerifyOtpCommandHandler : IRequestHandler<VerifyOtpCommand, AuthRes
     private readonly IRefreshTokenStore _refreshTokenStore;
     private readonly IUnitOfWork _unitOfWork;
     private readonly IJwtTokenService _jwtTokenService;
+    private readonly IAccessControlService _accessControlService;
+    private readonly IApplicationDbContext _context;
     private readonly IStringLocalizer<SharedResource> _localizer;
 
     public VerifyOtpCommandHandler(
@@ -21,12 +26,16 @@ public class VerifyOtpCommandHandler : IRequestHandler<VerifyOtpCommand, AuthRes
         IRefreshTokenStore refreshTokenStore,
         IUnitOfWork unitOfWork,
         IJwtTokenService jwtTokenService,
+        IAccessControlService accessControlService,
+        IApplicationDbContext context,
         IStringLocalizer<SharedResource> localizer)
     {
         _identityAccountService = identityAccountService;
         _refreshTokenStore = refreshTokenStore;
         _unitOfWork = unitOfWork;
         _jwtTokenService = jwtTokenService;
+        _accessControlService = accessControlService;
+        _context = context;
         _localizer = localizer;
     }
 
@@ -62,9 +71,35 @@ public class VerifyOtpCommandHandler : IRequestHandler<VerifyOtpCommand, AuthRes
         var tokens = await _jwtTokenService.GenerateTokenPairAsync(user, cancellationToken);
         _refreshTokenStore.Add(new NewRefreshToken(user.Id, tokens.RefreshToken, DateTime.UtcNow.AddDays(7)));
         await _unitOfWork.SaveChangesAsync(cancellationToken);
-        var userDto = new CurrentUserDto(user.Id, user.FullName, user.Email, user.PhoneNumber, user.Role.ToString(), user.MustChangePassword, ProfilePhotoUrl: user.ProfilePhotoUrl);
-        var isVerified = AuthResponseVerificationResolver.Resolve(user, driverStatus: null);
 
-        return new AuthResponseDto(tokens, userDto, isVerified, _localizer["AccountVerifiedSuccessfully"]);
+        DriverOperationalStatusDto? driverStatus = null;
+        if (user.Role == UserRole.Driver)
+        {
+            var driver = await _context.Drivers
+                .FirstOrDefaultAsync(d => d.UserId == user.Id, cancellationToken);
+
+            if (driver is not null)
+            {
+                driverStatus = DriverOperationalStatusFactory.Create(
+                    driver,
+                    isLoginLocked: user.IsLoginLocked,
+                    lockedAtUtc: user.LockedAtUtc);
+            }
+        }
+
+        var access = await _accessControlService.GetEffectiveAccessAsync(user.Id, cancellationToken);
+        var userDto = new CurrentUserDto(
+            user.Id,
+            user.FullName,
+            user.Email,
+            user.PhoneNumber,
+            user.Role.ToString(),
+            user.MustChangePassword,
+            Access: access,
+            ProfilePhotoUrl: user.ProfilePhotoUrl);
+
+        var isVerified = AuthResponseVerificationResolver.Resolve(user, driverStatus);
+
+        return new AuthResponseDto(tokens, userDto, isVerified, _localizer["AccountVerifiedSuccessfully"], driverStatus);
     }
 }
