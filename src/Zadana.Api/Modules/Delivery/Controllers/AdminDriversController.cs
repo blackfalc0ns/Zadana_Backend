@@ -322,6 +322,20 @@ public class AdminDriversController : ApiControllerBase
         driver.Suspend(reason);
         await _context.SaveChangesAsync(cancellationToken);
 
+        // Notify the driver via push notification
+        await _oneSignalPushService.SendMobileNotificationAsync(
+            OneSignalMobilePushRequest.CreateHeadsUp(
+                driver.UserId.ToString(),
+                "تم قفل تسجيل الدخول",
+                "Login locked",
+                "تم قفل تسجيل دخولك. استخدم نموذج الدعم للاعتراض.",
+                "Your login has been locked. Use the support form to appeal.",
+                "driver_account_updated",
+                driver.Id,
+                category: "account",
+                targetApplication: OneSignalApplicationTarget.Driver),
+            cancellationToken);
+
         return Ok(new { message = "Driver login locked successfully", messageAr = "تم قفل دخول المندوب بنجاح" });
     }
 
@@ -345,6 +359,20 @@ public class AdminDriversController : ApiControllerBase
         }
 
         await _context.SaveChangesAsync(cancellationToken);
+
+        // Notify the driver via push notification
+        await _oneSignalPushService.SendMobileNotificationAsync(
+            OneSignalMobilePushRequest.CreateHeadsUp(
+                driver.UserId.ToString(),
+                "تم فتح تسجيل الدخول",
+                "Login unlocked",
+                "تم فتح تسجيل دخولك بنجاح. يمكنك الآن استخدام التطبيق.",
+                "Your login has been unlocked. You can now use the app.",
+                "driver_account_updated",
+                driver.Id,
+                category: "account",
+                targetApplication: OneSignalApplicationTarget.Driver),
+            cancellationToken);
 
         return Ok(new { message = "Driver login unlocked successfully", messageAr = "تم فتح دخول المندوب بنجاح" });
     }
