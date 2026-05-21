@@ -308,6 +308,15 @@ public sealed class OrderSupportCaseWorkflowService : IOrderSupportCaseWorkflowS
             await NotifySpecificAdminAsync(supportCase.Order, supportCase, supportCase.AssignedAdminId.Value, "assigned", cancellationToken);
         }
 
+        if (supportCase.Order is null)
+        {
+            await NotifyDriverAccountDriverAsync(supportCase, "assigned", cancellationToken);
+        }
+        else
+        {
+            await NotifyActiveDriverAsync(supportCase.Order, supportCase, "assigned", cancellationToken);
+        }
+
         return supportCase;
     }
 
@@ -406,6 +415,15 @@ public sealed class OrderSupportCaseWorkflowService : IOrderSupportCaseWorkflowS
         if (!string.IsNullOrWhiteSpace(customerVisibleNote) && supportCase.Order is not null)
         {
             await NotifyCustomerAsync(supportCase.Order, supportCase, "escalated", cancellationToken);
+        }
+
+        if (supportCase.Order is null)
+        {
+            await NotifyDriverAccountDriverAsync(supportCase, "escalated", cancellationToken);
+        }
+        else
+        {
+            await NotifyActiveDriverAsync(supportCase.Order, supportCase, "escalated", cancellationToken);
         }
 
         return supportCase;
@@ -548,6 +566,28 @@ public sealed class OrderSupportCaseWorkflowService : IOrderSupportCaseWorkflowS
         supportCase.Reopen(actorUserId, note);
         StagePendingCaseArtifacts(supportCase);
         await _unitOfWork.SaveChangesAsync(cancellationToken);
+
+        if (supportCase.Order is null)
+        {
+            await NotifyDriverAccountAdminsAsync(supportCase, "reopened", actorUserId, cancellationToken);
+            await NotifyDriverAccountDriverAsync(supportCase, "reopened", cancellationToken);
+        }
+        else
+        {
+            await NotifyAdminRecipientsAsync(
+                supportCase.Order,
+                supportCase,
+                "reopened",
+                actorUserId,
+                notifyEscalatedTeam: false,
+                notifyCurrentReviewer: true,
+                cancellationToken);
+
+            await NotifyCustomerAsync(supportCase.Order, supportCase, "reopened", cancellationToken);
+            await NotifyVendorSupportCaseAsync(supportCase.Order, supportCase, "reopened", cancellationToken);
+            await NotifyActiveDriverAsync(supportCase.Order, supportCase, "reopened", cancellationToken);
+        }
+
         return supportCase;
     }
 
@@ -980,6 +1020,9 @@ public sealed class OrderSupportCaseWorkflowService : IOrderSupportCaseWorkflowS
         var bodyEn = action switch
         {
             "request_evidence" => "Support needs more information to review your account.",
+            "assigned" => "Support has started reviewing your account support case.",
+            "escalated" => "Your account support case was escalated for review.",
+            "reopened" => "Your account support case has been reopened.",
             "resolved" => "Your account support case has been resolved.",
             "rejected" => "Your account support case was rejected after review.",
             "approved" => "Your account support case has been reviewed.",
@@ -1309,6 +1352,28 @@ public sealed class OrderSupportCaseWorkflowService : IOrderSupportCaseWorkflowS
                 supportCase.Id,
                 data),
 
+            "assigned" => BuildDriverSupportNotification(
+                driverUserId,
+                "بدأت مراجعة البلاغ",
+                "Support case under review",
+                $"بدأ فريق الدعم مراجعة بلاغ الطلب رقم #{order.OrderNumber}.",
+                $"Support has started reviewing the case for order #{order.OrderNumber}.",
+                NotificationPriorities.Normal,
+                OneSignalPushRequestKind.Standard,
+                supportCase.Id,
+                data),
+
+            "escalated" => BuildDriverSupportNotification(
+                driverUserId,
+                "تم تصعيد البلاغ",
+                "Support case escalated",
+                $"تم تصعيد بلاغ الطلب رقم #{order.OrderNumber} للمراجعة.",
+                $"The support case for order #{order.OrderNumber} was escalated for review.",
+                NotificationPriorities.High,
+                OneSignalPushRequestKind.HeadsUp,
+                supportCase.Id,
+                data),
+
             "approved" => BuildDriverSupportNotification(
                 driverUserId,
                 "تمت الموافقة على البلاغ",
@@ -1337,6 +1402,17 @@ public sealed class OrderSupportCaseWorkflowService : IOrderSupportCaseWorkflowS
                 "Support case resolved",
                 $"تم إغلاق البلاغ الخاص بالطلب رقم #{order.OrderNumber}.",
                 $"The support case for order #{order.OrderNumber} was resolved.",
+                NotificationPriorities.Normal,
+                OneSignalPushRequestKind.Standard,
+                supportCase.Id,
+                data),
+
+            "reopened" => BuildDriverSupportNotification(
+                driverUserId,
+                "تم إعادة فتح البلاغ",
+                "Support case reopened",
+                $"تم إعادة فتح بلاغ الطلب رقم #{order.OrderNumber}.",
+                $"The support case for order #{order.OrderNumber} has been reopened.",
                 NotificationPriorities.Normal,
                 OneSignalPushRequestKind.Standard,
                 supportCase.Id,
