@@ -52,7 +52,8 @@ public class DriverArrivalStateCommandHandlerTests
             dbContext,
             new DriverRepository(dbContext),
             Mock.Of<IDriverReadService>(),
-            notificationService.Object);
+            notificationService.Object,
+            Mock.Of<IOrderTrackingRealtimeNotifier>());
 
         var result = await handler.Handle(
             new UpdateDriverArrivalStateCommand(order.Id, driverUser.Id, "arrived_at_vendor"),
@@ -109,7 +110,8 @@ public class DriverArrivalStateCommandHandlerTests
             dbContext,
             new DriverRepository(dbContext),
             Mock.Of<IDriverReadService>(),
-            notificationService.Object);
+            notificationService.Object,
+            Mock.Of<IOrderTrackingRealtimeNotifier>());
 
         var result = await handler.Handle(
             new UpdateDriverArrivalStateCommand(order.Id, driverUser.Id, "arrived_at_customer"),
