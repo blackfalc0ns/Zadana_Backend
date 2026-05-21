@@ -361,7 +361,7 @@ public class AdminDriversController : ApiControllerBase
         await _context.SaveChangesAsync(cancellationToken);
 
         // Notify the driver via push notification
-        await _oneSignalPushService.SendMobileNotificationAsync(
+        await _oneSignalPushService.SendMobileNotificationDirectAsync(
             OneSignalMobilePushRequest.CreateHeadsUp(
                 driver.UserId.ToString(),
                 "تم فتح تسجيل الدخول",
