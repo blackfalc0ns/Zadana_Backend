@@ -1040,6 +1040,22 @@ public sealed class OrderSupportCaseWorkflowService : IOrderSupportCaseWorkflowS
             supportCase.Id,
             data,
             cancellationToken);
+
+        await _notificationService.SendDriverSupportCaseChangedToUserAsync(
+            driverUserId: supportCase.CustomerUserId,
+            caseId: supportCase.Id,
+            driverId: supportCase.DriverId,
+            orderId: null,
+            orderNumber: null,
+            type: OrderSupportCaseNotificationComposer.ToApiValue(supportCase.Type),
+            status: OrderSupportCaseNotificationComposer.ToApiValue(supportCase.Status),
+            action: action,
+            targetUrl: $"/support/cases/{supportCase.Id}",
+            cancellationToken: cancellationToken);
+
+        await _notificationService.SendDriverHomeUpdatedAsync(
+            supportCase.CustomerUserId,
+            cancellationToken);
     }
 
     private async Task NotifyCustomerAsync(
@@ -1291,6 +1307,22 @@ public sealed class OrderSupportCaseWorkflowService : IOrderSupportCaseWorkflowS
             OrderSupportCaseNotificationComposer.ToApiValue(supportCase.Status),
             action,
             $"/orders/{order.Id}/cases/{supportCase.Id}",
+            cancellationToken);
+
+        await _notificationService.SendDriverSupportCaseChangedToUserAsync(
+            driverUserId: driverUserId,
+            caseId: supportCase.Id,
+            driverId: null,
+            orderId: order.Id,
+            orderNumber: order.OrderNumber,
+            type: OrderSupportCaseNotificationComposer.ToApiValue(supportCase.Type),
+            status: OrderSupportCaseNotificationComposer.ToApiValue(supportCase.Status),
+            action: action,
+            targetUrl: $"/orders/{order.Id}/cases/{supportCase.Id}",
+            cancellationToken: cancellationToken);
+
+        await _notificationService.SendDriverHomeUpdatedAsync(
+            driverUserId,
             cancellationToken);
 
         await envelope.PushRequest.DispatchAsync(_oneSignalPushService, cancellationToken);

@@ -243,6 +243,47 @@ public sealed class NotificationService : INotificationService
         }
     }
 
+    public async Task SendDriverSupportCaseChangedToUserAsync(
+        Guid driverUserId,
+        Guid caseId,
+        Guid? driverId,
+        Guid? orderId,
+        string? orderNumber,
+        string type,
+        string status,
+        string action,
+        string? targetUrl = null,
+        CancellationToken cancellationToken = default)
+    {
+        try
+        {
+            var payload = new DriverSupportCaseChangedRealtimePayload(
+                caseId,
+                driverId,
+                orderId,
+                orderNumber,
+                type,
+                status,
+                action,
+                string.IsNullOrWhiteSpace(targetUrl)
+                    ? orderId.HasValue ? $"/orders/{orderId}/cases/{caseId}" : $"/support/cases/{caseId}"
+                    : targetUrl,
+                DateTime.UtcNow);
+
+            await _hubContext.Clients
+                .Group(NotificationHub.GetUserGroup(driverUserId))
+                .SendAsync(NotificationHub.ReceiveDriverSupportCaseChangedMethod, payload, cancellationToken);
+        }
+        catch (Exception ex)
+        {
+            _logger.LogError(
+                ex,
+                "Failed to send driver support-case SignalR event to user {UserId} for case {CaseId}",
+                driverUserId,
+                caseId);
+        }
+    }
+
     public async Task SendDeliveryOfferToDriverAsync(
         Guid driverUserId,
         Guid assignmentId,

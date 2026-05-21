@@ -13,6 +13,7 @@ public class NotificationHub : Hub
     public const string ReceiveBroadcastMethod = "ReceiveBroadcast";
     public const string ReceiveOrderStatusChangedMethod = "ReceiveOrderStatusChanged";
     public const string ReceiveOrderSupportCaseChangedMethod = "ReceiveOrderSupportCaseChanged";
+    public const string ReceiveDriverSupportCaseChangedMethod = "ReceiveDriverSupportCaseChanged";
     public const string ReceiveDriverArrivalStateChangedMethod = "ReceiveDriverArrivalStateChanged";
     public const string ReceiveDeliveryOfferMethod = "ReceiveDeliveryOffer";
     public const string ReceiveAssignmentUpdatedMethod = "ReceiveAssignmentUpdated";

@@ -518,6 +518,19 @@ public class DriverCommitmentPolicyService : IDriverCommitmentPolicyService
             CancellationToken cancellationToken = default) =>
             Task.CompletedTask;
 
+        public Task SendDriverSupportCaseChangedToUserAsync(
+            Guid driverUserId,
+            Guid caseId,
+            Guid? driverId,
+            Guid? orderId,
+            string? orderNumber,
+            string type,
+            string status,
+            string action,
+            string? targetUrl = null,
+            CancellationToken cancellationToken = default) =>
+            Task.CompletedTask;
+
         public Task SendDeliveryOfferToDriverAsync(
             Guid driverUserId,
             Guid assignmentId,

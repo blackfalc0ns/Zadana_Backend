@@ -76,6 +76,18 @@ public interface INotificationService
         string? targetUrl = null,
         CancellationToken cancellationToken = default);
 
+    Task SendDriverSupportCaseChangedToUserAsync(
+        Guid driverUserId,
+        Guid caseId,
+        Guid? driverId,
+        Guid? orderId,
+        string? orderNumber,
+        string type,
+        string status,
+        string action,
+        string? targetUrl = null,
+        CancellationToken cancellationToken = default);
+
     /// <summary>
     /// Send a real-time delivery offer event to a driver via SignalR so the mobile app
     /// can instantly display the offer countdown UI.
