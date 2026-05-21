@@ -1,4 +1,4 @@
-using Microsoft.EntityFrameworkCore;
+﻿using Microsoft.EntityFrameworkCore;
 using Zadana.Application.Common.Interfaces;
 using Zadana.Application.Modules.Delivery.Support;
 using Zadana.Application.Modules.Orders.Interfaces;
@@ -606,10 +606,8 @@ public sealed class OrderSupportCaseWorkflowService : IOrderSupportCaseWorkflowS
         if (supportCase.Order is null)
         {
             await NotifyDriverAccountAdminsAsync(supportCase, "note_added", actorUserId, cancellationToken);
-            if (visibleToCustomer)
-            {
-                await NotifyDriverAccountDriverAsync(supportCase, "note_added", cancellationToken);
-            }
+            // Always notify the driver for account support notes (they are the "customer" in this context)
+            await NotifyDriverAccountDriverAsync(supportCase, "note_added", cancellationToken);
 
             return supportCase;
         }
@@ -753,10 +751,8 @@ public sealed class OrderSupportCaseWorkflowService : IOrderSupportCaseWorkflowS
         if (supportCase.Order is null)
         {
             await NotifyDriverAccountAdminsAsync(supportCase, "admin_message", actorUserId, cancellationToken);
-            if (AudienceIncludes(audience, "driver"))
-            {
-                await NotifyDriverAccountDriverAsync(supportCase, "admin_message", cancellationToken);
-            }
+            // Always notify the driver for account support cases regardless of audience parameter
+            await NotifyDriverAccountDriverAsync(supportCase, "admin_message", cancellationToken);
 
             return supportCase;
         }
@@ -949,8 +945,8 @@ public sealed class OrderSupportCaseWorkflowService : IOrderSupportCaseWorkflowS
         var targetUrl = $"/disputes?caseId={supportCase.Id}";
         var titleEn = action == "created" ? "Driver account support case" : "Driver account case updated";
         var bodyEn = $"{driverName} has a driver account support case that needs review.";
-        var titleAr = action == "created" ? "حالة دعم لحساب مندوب" : "تحديث على حالة حساب مندوب";
-        var bodyAr = $"يوجد طلب دعم لحساب المندوب {driverName} يحتاج إلى مراجعة.";
+        var titleAr = action == "created" ? "???? ??? ????? ?????" : "????? ??? ???? ???? ?????";
+        var bodyAr = $"???? ??? ??? ????? ??????? {driverName} ????? ??? ??????.";
 
         if (_adminAlertService is not null)
         {
@@ -1058,9 +1054,9 @@ public sealed class OrderSupportCaseWorkflowService : IOrderSupportCaseWorkflowS
             supportCase.CustomerUserId,
             cancellationToken);
 
-        var pushKind = action is "request_evidence" or "admin_message" or "escalated"
+        var pushKind = action is "request_evidence" or "admin_message" or "escalated" or "resolved" or "rejected" or "approved" or "note_added" or "reopened" or "assigned"
             ? OneSignalPushRequestKind.HeadsUp
-            : OneSignalPushRequestKind.Standard;
+            : OneSignalPushRequestKind.HeadsUp;
 
         var pushRequest = pushKind == OneSignalPushRequestKind.HeadsUp
             ? OneSignalMobilePushRequest.CreateHeadsUp(
@@ -1453,7 +1449,7 @@ public sealed class OrderSupportCaseWorkflowService : IOrderSupportCaseWorkflowS
                 $"تم إنشاء بلاغ على الطلب رقم #{order.OrderNumber}.",
                 $"A support case was created for order #{order.OrderNumber}.",
                 NotificationPriorities.Normal,
-                OneSignalPushRequestKind.Standard,
+                OneSignalPushRequestKind.HeadsUp,
                 supportCase.Id,
                 data),
 
@@ -1486,7 +1482,7 @@ public sealed class OrderSupportCaseWorkflowService : IOrderSupportCaseWorkflowS
                 $"بدأ فريق الدعم مراجعة بلاغ الطلب رقم #{order.OrderNumber}.",
                 $"Support has started reviewing the case for order #{order.OrderNumber}.",
                 NotificationPriorities.Normal,
-                OneSignalPushRequestKind.Standard,
+                OneSignalPushRequestKind.HeadsUp,
                 supportCase.Id,
                 data),
 
@@ -1508,7 +1504,7 @@ public sealed class OrderSupportCaseWorkflowService : IOrderSupportCaseWorkflowS
                 $"تمت الموافقة على قرار البلاغ الخاص بالطلب رقم #{order.OrderNumber}.",
                 $"The support case decision for order #{order.OrderNumber} was approved.",
                 NotificationPriorities.High,
-                OneSignalPushRequestKind.Standard,
+                OneSignalPushRequestKind.HeadsUp,
                 supportCase.Id,
                 data),
 
@@ -1519,7 +1515,7 @@ public sealed class OrderSupportCaseWorkflowService : IOrderSupportCaseWorkflowS
                 $"تم رفض البلاغ الخاص بالطلب رقم #{order.OrderNumber}.",
                 $"The support case for order #{order.OrderNumber} was rejected.",
                 NotificationPriorities.High,
-                OneSignalPushRequestKind.Standard,
+                OneSignalPushRequestKind.HeadsUp,
                 supportCase.Id,
                 data),
 
@@ -1530,7 +1526,7 @@ public sealed class OrderSupportCaseWorkflowService : IOrderSupportCaseWorkflowS
                 $"تم إغلاق البلاغ الخاص بالطلب رقم #{order.OrderNumber}.",
                 $"The support case for order #{order.OrderNumber} was resolved.",
                 NotificationPriorities.Normal,
-                OneSignalPushRequestKind.Standard,
+                OneSignalPushRequestKind.HeadsUp,
                 supportCase.Id,
                 data),
 
@@ -1541,7 +1537,7 @@ public sealed class OrderSupportCaseWorkflowService : IOrderSupportCaseWorkflowS
                 $"تم إعادة فتح بلاغ الطلب رقم #{order.OrderNumber}.",
                 $"The support case for order #{order.OrderNumber} has been reopened.",
                 NotificationPriorities.Normal,
-                OneSignalPushRequestKind.Standard,
+                OneSignalPushRequestKind.HeadsUp,
                 supportCase.Id,
                 data),
 
@@ -1564,7 +1560,7 @@ public sealed class OrderSupportCaseWorkflowService : IOrderSupportCaseWorkflowS
                 $"تم إنشاء بلاغ على الطلب رقم #{orderNumber}.",
                 $"A support case was created for order #{orderNumber}.",
                 NotificationPriorities.Normal,
-                OneSignalPushRequestKind.Standard,
+                OneSignalPushRequestKind.HeadsUp,
                 supportCaseId,
                 data),
             "request_evidence" => BuildDriverSupportNotification(
@@ -1594,7 +1590,7 @@ public sealed class OrderSupportCaseWorkflowService : IOrderSupportCaseWorkflowS
                 $"بدأ فريق الدعم مراجعة بلاغ الطلب رقم #{orderNumber}.",
                 $"Support has started reviewing the case for order #{orderNumber}.",
                 NotificationPriorities.Normal,
-                OneSignalPushRequestKind.Standard,
+                OneSignalPushRequestKind.HeadsUp,
                 supportCaseId,
                 data),
             "escalated" => BuildDriverSupportNotification(
@@ -1614,7 +1610,7 @@ public sealed class OrderSupportCaseWorkflowService : IOrderSupportCaseWorkflowS
                 $"تمت الموافقة على قرار البلاغ الخاص بالطلب رقم #{orderNumber}.",
                 $"The support case decision for order #{orderNumber} was approved.",
                 NotificationPriorities.High,
-                OneSignalPushRequestKind.Standard,
+                OneSignalPushRequestKind.HeadsUp,
                 supportCaseId,
                 data),
             "rejected" => BuildDriverSupportNotification(
@@ -1624,7 +1620,7 @@ public sealed class OrderSupportCaseWorkflowService : IOrderSupportCaseWorkflowS
                 $"تم رفض البلاغ الخاص بالطلب رقم #{orderNumber}.",
                 $"The support case for order #{orderNumber} was rejected.",
                 NotificationPriorities.High,
-                OneSignalPushRequestKind.Standard,
+                OneSignalPushRequestKind.HeadsUp,
                 supportCaseId,
                 data),
             "resolved" => BuildDriverSupportNotification(
@@ -1634,7 +1630,7 @@ public sealed class OrderSupportCaseWorkflowService : IOrderSupportCaseWorkflowS
                 $"تم إغلاق البلاغ الخاص بالطلب رقم #{orderNumber}.",
                 $"The support case for order #{orderNumber} was resolved.",
                 NotificationPriorities.Normal,
-                OneSignalPushRequestKind.Standard,
+                OneSignalPushRequestKind.HeadsUp,
                 supportCaseId,
                 data),
             "reopened" => BuildDriverSupportNotification(
@@ -1644,7 +1640,7 @@ public sealed class OrderSupportCaseWorkflowService : IOrderSupportCaseWorkflowS
                 $"تمت إعادة فتح بلاغ الطلب رقم #{orderNumber}.",
                 $"The support case for order #{orderNumber} has been reopened.",
                 NotificationPriorities.Normal,
-                OneSignalPushRequestKind.Standard,
+                OneSignalPushRequestKind.HeadsUp,
                 supportCaseId,
                 data),
             _ => null

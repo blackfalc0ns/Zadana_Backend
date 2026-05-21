@@ -314,4 +314,4 @@ public sealed record AdminOrderSupportCaseNoteRequest(
 
 public sealed record AdminOrderSupportCaseMessageRequest(
     string Message,
-    string Audience = "customer,vendor");
+    string Audience = "customer,vendor,driver");
