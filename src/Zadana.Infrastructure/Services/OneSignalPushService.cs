@@ -738,6 +738,7 @@ public sealed class OneSignalPushService : IOneSignalPushService
 
         payload["priority"] = priority;
         payload["android_accent_color"] = DefaultMobileAccentColor;
+        payload["android_visibility"] = 1;
         payload["content_available"] = true;
         payload["mutable_content"] = true;
         payload["isAndroid"] = true;
