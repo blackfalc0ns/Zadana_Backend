@@ -1,10 +1,13 @@
 using FluentAssertions;
 using Microsoft.EntityFrameworkCore;
+using Microsoft.Extensions.Logging.Abstractions;
+using Zadana.Application.Common.Interfaces;
 using Zadana.Application.Modules.Delivery.Commands.UpdateDriverLocation;
 using Zadana.Domain.Modules.Delivery.Entities;
 using Zadana.Domain.Modules.Delivery.Enums;
 using Zadana.Domain.Modules.Identity.Entities;
 using Zadana.Domain.Modules.Identity.Enums;
+using Zadana.Domain.Modules.Orders.Enums;
 using Zadana.Infrastructure.Persistence;
 using Zadana.Infrastructure.Persistence.Interceptors;
 using Zadana.SharedKernel.Exceptions;
@@ -25,7 +28,11 @@ public class UpdateDriverLocationCommandHandlerTests
         dbContext.Drivers.Add(driver);
         await dbContext.SaveChangesAsync();
 
-        var handler = new UpdateDriverLocationCommandHandler(dbContext, dbContext);
+        var handler = new UpdateDriverLocationCommandHandler(
+            dbContext,
+            dbContext,
+            new FakeOrderTrackingRealtimeNotifier(),
+            NullLogger<UpdateDriverLocationCommandHandler>.Instance);
 
         await handler.Handle(
             new UpdateDriverLocationCommand(driver.Id, 24.7136m, 46.6753m, 14.5m),
@@ -50,7 +57,11 @@ public class UpdateDriverLocationCommandHandlerTests
         dbContext.Drivers.Add(driver);
         await dbContext.SaveChangesAsync();
 
-        var handler = new UpdateDriverLocationCommandHandler(dbContext, dbContext);
+        var handler = new UpdateDriverLocationCommandHandler(
+            dbContext,
+            dbContext,
+            new FakeOrderTrackingRealtimeNotifier(),
+            NullLogger<UpdateDriverLocationCommandHandler>.Instance);
 
         var act = () => handler.Handle(
             new UpdateDriverLocationCommand(driver.Id, 24.7136m, 46.6753m, 10m),
@@ -67,5 +78,34 @@ public class UpdateDriverLocationCommandHandlerTests
             .Options;
 
         return new ApplicationDbContext(options, new AuditableEntityInterceptor());
+    }
+
+    private sealed class FakeOrderTrackingRealtimeNotifier : IOrderTrackingRealtimeNotifier
+    {
+        public Task BroadcastDriverLocationAsync(
+            Guid orderId,
+            Guid driverId,
+            decimal latitude,
+            decimal longitude,
+            decimal? accuracyMeters,
+            DateTime recordedAtUtc,
+            CancellationToken cancellationToken = default) => Task.CompletedTask;
+
+        public Task BroadcastOrderStatusChangedAsync(
+            Guid orderId,
+            string orderNumber,
+            Guid vendorId,
+            OrderStatus oldStatus,
+            OrderStatus newStatus,
+            string? actorRole,
+            CancellationToken cancellationToken = default) => Task.CompletedTask;
+
+        public Task BroadcastDriverArrivalStateAsync(
+            Guid orderId,
+            string orderNumber,
+            string arrivalState,
+            string driverName,
+            string? actorRole,
+            CancellationToken cancellationToken = default) => Task.CompletedTask;
     }
 }

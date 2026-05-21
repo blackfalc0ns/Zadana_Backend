@@ -124,6 +124,7 @@ builder.Services.AddSingleton<CustomerPresenceService>();
 builder.Services.AddSingleton<ICustomerPresenceService>(provider => provider.GetRequiredService<CustomerPresenceService>());
 builder.Services.AddSingleton<NotificationService>();
 builder.Services.AddSingleton<Zadana.Application.Common.Interfaces.INotificationService>(provider => provider.GetRequiredService<NotificationService>());
+builder.Services.AddSingleton<Zadana.Application.Common.Interfaces.IOrderTrackingRealtimeNotifier, OrderTrackingRealtimeNotifier>();
 builder.Services.AddScoped<IAdminAlertService, AdminAlertService>();
 builder.Services.AddSingleton<IAdminBrandBulkOperationQueue, AdminBrandBulkOperationQueue>();
 builder.Services.AddSingleton<IAdminMasterProductBulkOperationQueue, AdminMasterProductBulkOperationQueue>();
@@ -358,7 +359,8 @@ builder.Services.AddAuthentication(options =>
             var path = context.HttpContext.Request.Path;
             if (!string.IsNullOrWhiteSpace(accessToken) &&
                 (path.StartsWithSegments(CustomerPresenceHub.HubRoute) ||
-                 path.StartsWithSegments(NotificationHub.HubRoute)))
+                 path.StartsWithSegments(NotificationHub.HubRoute) ||
+                 path.StartsWithSegments(OrderTrackingHub.HubRoute)))
             {
                 context.Token = accessToken;
             }
@@ -474,6 +476,7 @@ app.UseMiddleware<SystemLogMiddleware>();
 app.MapControllers();
 app.MapHub<CustomerPresenceHub>(CustomerPresenceHub.HubRoute);
 app.MapHub<NotificationHub>(NotificationHub.HubRoute);
+app.MapHub<OrderTrackingHub>(OrderTrackingHub.HubRoute);
 
 if (shouldSeedOnStartup)
 {

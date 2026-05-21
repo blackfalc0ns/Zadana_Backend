@@ -1,7 +1,9 @@
 using MediatR;
+using Microsoft.EntityFrameworkCore;
+using Microsoft.Extensions.Logging;
 using Zadana.Application.Common.Interfaces;
-using Zadana.Application.Modules.Delivery.Interfaces;
 using Zadana.Domain.Modules.Delivery.Entities;
+using Zadana.Domain.Modules.Delivery.Enums;
 using Zadana.SharedKernel.Exceptions;
 
 namespace Zadana.Application.Modules.Delivery.Commands.UpdateDriverLocation;
@@ -10,11 +12,19 @@ public class UpdateDriverLocationCommandHandler : IRequestHandler<UpdateDriverLo
 {
     private readonly IApplicationDbContext _context;
     private readonly IUnitOfWork _unitOfWork;
+    private readonly IOrderTrackingRealtimeNotifier _orderTrackingRealtimeNotifier;
+    private readonly ILogger<UpdateDriverLocationCommandHandler> _logger;
 
-    public UpdateDriverLocationCommandHandler(IApplicationDbContext context, IUnitOfWork unitOfWork)
+    public UpdateDriverLocationCommandHandler(
+        IApplicationDbContext context,
+        IUnitOfWork unitOfWork,
+        IOrderTrackingRealtimeNotifier orderTrackingRealtimeNotifier,
+        ILogger<UpdateDriverLocationCommandHandler> logger)
     {
         _context = context;
         _unitOfWork = unitOfWork;
+        _orderTrackingRealtimeNotifier = orderTrackingRealtimeNotifier;
+        _logger = logger;
     }
 
     public async Task<Unit> Handle(UpdateDriverLocationCommand request, CancellationToken cancellationToken)
@@ -33,6 +43,57 @@ public class UpdateDriverLocationCommandHandler : IRequestHandler<UpdateDriverLo
         _context.DriverLocations.Add(location);
         await _unitOfWork.SaveChangesAsync(cancellationToken);
 
+        await BroadcastToActiveOrdersAsync(driver.Id, location, cancellationToken);
+
         return Unit.Value;
+    }
+
+    private async Task BroadcastToActiveOrdersAsync(
+        Guid driverId,
+        DriverLocation location,
+        CancellationToken cancellationToken)
+    {
+        // The driver may be carrying more than one assignment in the same trip,
+        // so push the location to every active order they are servicing.
+        var activeOrderIds = await _context.DeliveryAssignments
+            .AsNoTracking()
+            .Where(a =>
+                a.DriverId == driverId &&
+                a.Status != AssignmentStatus.SearchingDriver &&
+                a.Status != AssignmentStatus.OfferSent &&
+                a.Status != AssignmentStatus.Rejected &&
+                a.Status != AssignmentStatus.Cancelled &&
+                a.Status != AssignmentStatus.Delivered &&
+                a.Status != AssignmentStatus.Failed)
+            .Select(a => a.OrderId)
+            .ToListAsync(cancellationToken);
+
+        if (activeOrderIds.Count == 0)
+        {
+            return;
+        }
+
+        foreach (var orderId in activeOrderIds)
+        {
+            try
+            {
+                await _orderTrackingRealtimeNotifier.BroadcastDriverLocationAsync(
+                    orderId,
+                    driverId,
+                    location.Latitude,
+                    location.Longitude,
+                    location.AccuracyMeters,
+                    location.RecordedAtUtc,
+                    cancellationToken);
+            }
+            catch (Exception ex)
+            {
+                _logger.LogWarning(
+                    ex,
+                    "Failed to broadcast driver {DriverId} location to order {OrderId} subscribers.",
+                    driverId,
+                    orderId);
+            }
+        }
     }
 }

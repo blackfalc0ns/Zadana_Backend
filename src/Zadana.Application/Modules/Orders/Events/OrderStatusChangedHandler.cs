@@ -22,6 +22,7 @@ public class OrderStatusChangedHandler : INotificationHandler<OrderStatusChanged
     private readonly IOneSignalPushService _oneSignalPushService;
     private readonly IOrderStatusNotificationDispatcher _orderStatusNotificationDispatcher;
     private readonly OrderRevenueDistributionService _revenueDistributionService;
+    private readonly IOrderTrackingRealtimeNotifier _orderTrackingRealtimeNotifier;
     private readonly ILogger<OrderStatusChangedHandler> _logger;
 
     public OrderStatusChangedHandler(
@@ -30,6 +31,7 @@ public class OrderStatusChangedHandler : INotificationHandler<OrderStatusChanged
         IOneSignalPushService oneSignalPushService,
         IOrderStatusNotificationDispatcher orderStatusNotificationDispatcher,
         OrderRevenueDistributionService revenueDistributionService,
+        IOrderTrackingRealtimeNotifier orderTrackingRealtimeNotifier,
         ILogger<OrderStatusChangedHandler> logger)
     {
         _notificationService = notificationService;
@@ -37,12 +39,25 @@ public class OrderStatusChangedHandler : INotificationHandler<OrderStatusChanged
         _oneSignalPushService = oneSignalPushService;
         _orderStatusNotificationDispatcher = orderStatusNotificationDispatcher;
         _revenueDistributionService = revenueDistributionService;
+        _orderTrackingRealtimeNotifier = orderTrackingRealtimeNotifier;
         _logger = logger;
     }
 
     public async Task Handle(OrderStatusChangedNotification notification, CancellationToken cancellationToken)
     {
         await _revenueDistributionService.DistributeAsync(notification.OrderId, cancellationToken);
+
+        // Broadcast the status change to everyone tracking the order in real time
+        // (customer, vendor, driver, admin). Failures here are logged inside the notifier
+        // and never break the rest of the dispatch pipeline.
+        await _orderTrackingRealtimeNotifier.BroadcastOrderStatusChangedAsync(
+            notification.OrderId,
+            notification.OrderNumber,
+            notification.VendorId,
+            notification.OldStatus,
+            notification.NewStatus,
+            notification.ActorRole,
+            cancellationToken);
 
         var targetUrl = OrderStatusNotificationComposer.ResolveTargetUrl(notification.OrderId);
         var action = OrderStatusNotificationComposer.ResolveAction(notification.NewStatus);

@@ -41,19 +41,22 @@ public class UpdateDriverArrivalStateCommandHandler : IRequestHandler<UpdateDriv
     private readonly IDriverRepository _driverRepository;
     private readonly IDriverReadService _driverReadService;
     private readonly INotificationService _notificationService;
+    private readonly IOrderTrackingRealtimeNotifier _orderTrackingRealtimeNotifier;
 
     public UpdateDriverArrivalStateCommandHandler(
         IApplicationDbContext context,
         IUnitOfWork unitOfWork,
         IDriverRepository driverRepository,
         IDriverReadService driverReadService,
-        INotificationService notificationService)
+        INotificationService notificationService,
+        IOrderTrackingRealtimeNotifier orderTrackingRealtimeNotifier)
     {
         _context = context;
         _unitOfWork = unitOfWork;
         _driverRepository = driverRepository;
         _driverReadService = driverReadService;
         _notificationService = notificationService;
+        _orderTrackingRealtimeNotifier = orderTrackingRealtimeNotifier;
     }
 
     public async Task<DriverArrivalStateResultDto> Handle(UpdateDriverArrivalStateCommand request, CancellationToken cancellationToken)
@@ -140,6 +143,17 @@ public class UpdateDriverArrivalStateCommandHandler : IRequestHandler<UpdateDriv
             driver.User.FullName,
             "driver",
             $"/orders/{assignment.OrderId}",
+            cancellationToken);
+
+        // Push the same arrival state event to the dedicated order tracking channel
+        // so any party (admin / vendor / customer / driver) subscribed to the order
+        // gets the update without going through their personal user feed.
+        await _orderTrackingRealtimeNotifier.BroadcastDriverArrivalStateAsync(
+            assignment.OrderId,
+            assignment.Order.OrderNumber,
+            normalizedState,
+            driver.User.FullName,
+            "driver",
             cancellationToken);
 
         // Push full assignment detail to the driver so their order detail screen refreshes in real-time

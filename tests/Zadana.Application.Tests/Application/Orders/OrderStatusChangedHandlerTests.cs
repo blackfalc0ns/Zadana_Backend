@@ -40,12 +40,14 @@ public class OrderStatusChangedHandlerTests
         
         var loggerMock = new Mock<Microsoft.Extensions.Logging.ILogger<OrderStatusChangedHandler>>();
         
+        var orderTrackingNotifierMock = new Mock<IOrderTrackingRealtimeNotifier>();
         var handler = new OrderStatusChangedHandler(
             notificationServiceMock.Object,
             dbContext,
             pushServiceMock.Object,
             dispatcherMock.Object,
             revenueDistributionServiceMock.Object,
+            orderTrackingNotifierMock.Object,
             loggerMock.Object);
 
         await handler.Handle(
@@ -125,12 +127,14 @@ public class OrderStatusChangedHandlerTests
         
         var loggerMock = new Mock<Microsoft.Extensions.Logging.ILogger<OrderStatusChangedHandler>>();
         
+        var orderTrackingNotifierMock = new Mock<IOrderTrackingRealtimeNotifier>();
         var handler = new OrderStatusChangedHandler(
             notificationServiceMock.Object,
             dbContext,
             pushServiceMock.Object,
             dispatcherMock.Object,
             revenueDistributionServiceMock.Object,
+            orderTrackingNotifierMock.Object,
             loggerMock.Object);
 
         await handler.Handle(
@@ -210,12 +214,14 @@ public class OrderStatusChangedHandlerTests
         
         var loggerMock = new Mock<Microsoft.Extensions.Logging.ILogger<OrderStatusChangedHandler>>();
         
+        var orderTrackingNotifierMock = new Mock<IOrderTrackingRealtimeNotifier>();
         var handler = new OrderStatusChangedHandler(
             notificationServiceMock.Object,
             dbContext,
             pushServiceMock.Object,
             dispatcherMock.Object,
             revenueDistributionServiceMock.Object,
+            orderTrackingNotifierMock.Object,
             loggerMock.Object);
 
         await handler.Handle(
@@ -288,12 +294,14 @@ public class OrderStatusChangedHandlerTests
         
         var loggerMock = new Mock<Microsoft.Extensions.Logging.ILogger<OrderStatusChangedHandler>>();
         
+        var orderTrackingNotifierMock = new Mock<IOrderTrackingRealtimeNotifier>();
         var handler = new OrderStatusChangedHandler(
             notificationServiceMock.Object,
             dbContext,
             pushServiceMock.Object,
             dispatcherMock.Object,
             revenueDistributionServiceMock.Object,
+            orderTrackingNotifierMock.Object,
             loggerMock.Object);
         var customerId = Guid.NewGuid();
         var vendorId = Guid.NewGuid();
@@ -365,12 +373,14 @@ public class OrderStatusChangedHandlerTests
         
         var loggerMock = new Mock<Microsoft.Extensions.Logging.ILogger<OrderStatusChangedHandler>>();
         
+        var orderTrackingNotifierMock = new Mock<IOrderTrackingRealtimeNotifier>();
         var handler = new OrderStatusChangedHandler(
             notificationServiceMock.Object,
             dbContext,
             pushServiceMock.Object,
             dispatcherMock.Object,
             revenueDistributionServiceMock.Object,
+            orderTrackingNotifierMock.Object,
             loggerMock.Object);
 
         await handler.Handle(
@@ -419,12 +429,14 @@ public class OrderStatusChangedHandlerTests
         
         var loggerMock = new Mock<Microsoft.Extensions.Logging.ILogger<OrderStatusChangedHandler>>();
         
+        var orderTrackingNotifierMock = new Mock<IOrderTrackingRealtimeNotifier>();
         var handler = new OrderStatusChangedHandler(
             notificationServiceMock.Object,
             dbContext,
             pushServiceMock.Object,
             dispatcherMock.Object,
             revenueDistributionServiceMock.Object,
+            orderTrackingNotifierMock.Object,
             loggerMock.Object);
 
         await handler.Handle(
