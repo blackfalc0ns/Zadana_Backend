@@ -45,9 +45,9 @@ public class UnblockDriverLocationUpdatesCommandHandler : IRequestHandler<Unbloc
                 locationUpdatesBlocked = driver.IsLocationUpdatesBlocked
             });
 
-        const string titleAr = "Location updates restored";
+        const string titleAr = "تمت إعادة تفعيل تحديثات الموقع";
         const string titleEn = "Location updates restored";
-        const string bodyAr = "Your location updates were restored and everything is back to normal.";
+        const string bodyAr = "تمت إعادة تفعيل تحديثات موقعك وعادت الأمور إلى الوضع الطبيعي.";
         const string bodyEn = "Your location updates were restored and everything is back to normal.";
 
         await _notificationService.SendToUserAsync(

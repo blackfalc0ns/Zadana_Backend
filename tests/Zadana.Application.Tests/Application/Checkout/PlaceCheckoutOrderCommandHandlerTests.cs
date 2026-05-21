@@ -137,13 +137,13 @@ public class PlaceCheckoutOrderCommandHandlerTests
 
         var customer = new User("Checkout Bank Customer", "checkout.bank.customer@test.com", "01000000230", UserRole.Customer);
         var vendorUser = new User("Checkout Bank Vendor", "checkout.bank.vendor@test.com", "01000000231", UserRole.Vendor);
-        var category = new Category("Ù‚Ø·Ø¹ ØºÙŠØ§Ø±", "Parts");
-        var product = new MasterProduct("ÙÙ„ØªØ±", "Filter", "filter-bank-test", category.Id);
+        var category = new Category("قطع غيار", "Parts");
+        var product = new MasterProduct("فلتر", "Filter", "filter-bank-test", category.Id);
         product.Publish();
 
         var vendor = new Zadana.Domain.Modules.Vendors.Entities.Vendor(
             vendorUser.Id,
-            "Ù…ØªØ¬Ø± Ø§Ù„ØªØ­ÙˆÙŠÙ„",
+            "متجر التحويل",
             "Bank Checkout Store",
             "Parts",
             "1234567892",

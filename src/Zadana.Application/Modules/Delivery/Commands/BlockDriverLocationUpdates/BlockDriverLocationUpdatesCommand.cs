@@ -46,9 +46,9 @@ public class BlockDriverLocationUpdatesCommandHandler : IRequestHandler<BlockDri
                 locationUpdatesBlocked = driver.IsLocationUpdatesBlocked
             });
 
-        const string titleAr = "Location updates blocked";
+        const string titleAr = "تم إيقاف تحديثات الموقع";
         const string titleEn = "Location updates blocked";
-        const string bodyAr = "Your location updates were temporarily blocked by the team.";
+        const string bodyAr = "تم إيقاف تحديثات موقعك مؤقتًا من قبل فريق التشغيل.";
         const string bodyEn = "Your location updates were temporarily blocked by the team.";
 
         await _notificationService.SendToUserAsync(

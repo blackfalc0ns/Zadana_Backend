@@ -497,7 +497,7 @@ public class OrderReadService : IOrderReadService
                 ? "verified"
                 : "pending";
 
-        // â”€â”€ Live Tracking: vendor, customer, and driver locations â”€â”€
+        // Live Tracking: vendor, customer, and driver locations
         GeoPointDto? vendorLocation = null;
         Console.WriteLine($"[TRACKING] OrderId={order.Id} VendorBranchId={order.VendorBranchId} VendorId={order.VendorId} CustomerAddressId={order.CustomerAddressId}");
         if (order.VendorBranchId.HasValue)
@@ -605,7 +605,7 @@ public class OrderReadService : IOrderReadService
         var normalizedPage = page <= 0 ? 1 : page;
         var normalizedPageSize = pageSize <= 0 ? 10 : pageSize;
 
-        // â”€â”€ 1. Build IQueryable with server-side filters â”€â”€
+        // 1. Build IQueryable with server-side filters
         var query = _dbContext.Orders
             .AsNoTracking()
             .Include(order => order.User)
@@ -650,7 +650,7 @@ public class OrderReadService : IOrderReadService
             };
         }
 
-        // â”€â”€ 2. Count + KPI summary â”€â”€
+        // 2. Count + KPI summary
         var totalCount = await query.CountAsync(cancellationToken);
 
         var allOrders = _dbContext.Orders.AsNoTracking();
@@ -669,7 +669,7 @@ public class OrderReadService : IOrderReadService
 
         var summary = new AdminOrdersSummaryDto(kpi?.Total ?? 0, kpi?.Active ?? 0, kpi?.Late ?? 0, kpi?.PayIssues ?? 0, kpi?.Refunds ?? 0);
 
-        // â”€â”€ 3. Paginate in SQL â”€â”€
+        // 3. Paginate in SQL
         var totalPages = Math.Max(1, (int)Math.Ceiling(totalCount / (double)normalizedPageSize));
         var safePage = Math.Min(normalizedPage, totalPages);
 
@@ -684,7 +684,7 @@ public class OrderReadService : IOrderReadService
             return new AdminOrdersListDto([], safePage, normalizedPageSize, totalCount, totalPages, safePage > 1, safePage < totalPages, summary);
         }
 
-        // â”€â”€ 4. Load related data only for the page â”€â”€
+        // 4. Load related data only for the page
         var ids = pagedOrders.Select(o => o.Id).ToList();
         var addressMap = await LoadAddressMapAsync(ids, cancellationToken);
         var paymentMap = await LoadPaymentMapAsync(ids, cancellationToken);
@@ -1533,6 +1533,7 @@ public class OrderReadService : IOrderReadService
             OrderSupportCaseType.ReturnRequest => L("طلب استرجاع", "Return request"),
             OrderSupportCaseType.DriverReport => L("بلاغ تشغيلي", "Operational report"),
             OrderSupportCaseType.DriverDispute => L("نزاع مالي", "Financial dispute"),
+            OrderSupportCaseType.DriverAccountAppeal => L("دعم حساب المندوب", "Driver account support"),
             _ => L("شكوى", "Complaint")
         };
 
@@ -1552,7 +1553,7 @@ public class OrderReadService : IOrderReadService
         {
             OrderSupportCaseStatus.Submitted => L("مفتوحة", "Open"),
             OrderSupportCaseStatus.InReview => L("قيد المراجعة", "Under review"),
-            OrderSupportCaseStatus.AwaitingCustomerEvidence => L("بانتظار العميل", "Awaiting customer"),
+            OrderSupportCaseStatus.AwaitingCustomerEvidence => L("بانتظار رد", "Awaiting response"),
             OrderSupportCaseStatus.Approved => L("معتمدة", "Approved"),
             OrderSupportCaseStatus.Rejected => L("مرفوضة", "Rejected"),
             _ => L("مغلقة", "Resolved")
@@ -2485,17 +2486,17 @@ public class OrderReadService : IOrderReadService
 
     private static string BuildCustomerSummary(Order order, OrderSupportCase supportCase) =>
         L(
-            $"العميل {order.User.FullName} فتح {ResolveSupportCaseTypeLabel(supportCase.Type)} للطلب رقم {order.OrderNumber}.",
+            $"'D9EJD {order.User.FullName} A*- {ResolveSupportCaseTypeLabel(supportCase.Type)} DD7D( 1BE {order.OrderNumber}.",
             $"Customer {order.User.FullName} opened a {ResolveSupportCaseTypeLabel(supportCase.Type).ToLowerInvariant()} for order {order.OrderNumber}.");
 
     private static string BuildMerchantSummary(Order order, OrderSupportCase supportCase) =>
         L(
-            $"التاجر {order.Vendor.BusinessNameAr} يتم التعامل مع الحالة الخاصة به حاليًا عبر مسار {ResolveQueueLabel(supportCase.Queue)}.",
+            $"'D*',1 {order.Vendor.BusinessNameAr} J*E 'D*9'ED E9 'D-'D) 'D.'5) (G -'DJK' 9(1 E3'1 {ResolveQueueLabel(supportCase.Queue)}.",
             $"Merchant {order.Vendor.BusinessNameAr} is currently handled through the {ResolveQueueLabel(supportCase.Queue)} queue.");
 
     private static string BuildDriverAccountSummary(OrderSupportCase supportCase) =>
         L(
-            $"Ø§Ù„Ù…Ù†Ø¯ÙˆØ¨ ÙØªØ­ Ø·Ù„Ø¨ Ø¯Ø¹Ù… Ù„Ø­Ø³Ø§Ø¨Ù‡ Ø¹Ø¨Ø± Ù…Ø³Ø§Ø± {ResolveQueueLabel(supportCase.Queue)}.",
+            $"المندوب فتح طلب دعم لحسابه عبر مسار {ResolveQueueLabel(supportCase.Queue)}.",
             $"Driver opened an account support case through the {ResolveQueueLabel(supportCase.Queue)} queue.");
 
     private async Task<Dictionary<Guid, CouponSupportSnapshot>> LoadCouponSupportMapAsync(
@@ -2732,7 +2733,7 @@ public class OrderReadService : IOrderReadService
         [
             L($"سبب التطابق: {matchedCandidate.DispatchMatchReason}", $"Match reason: {matchedCandidate.DispatchMatchReason}"),
             L($"درجة الالتزام: {matchedCandidate.CommitmentScore:0.0}", $"Commitment score: {matchedCandidate.CommitmentScore:0.0}"),
-            L($"حداثة GPS: {(matchedCandidate.GpsFresh ? "مباشر" : "قديم")}", $"GPS freshness: {(matchedCandidate.GpsFresh ? "live" : "stale")}"),
+            L($"-/'+) GPS: {(matchedCandidate.GpsFresh ? "E('41" : "B/JE")}", $"GPS freshness: {(matchedCandidate.GpsFresh ? "live" : "stale")}"),
             L($"نطاق المسافة: {matchedCandidate.DistanceBucket}", $"Distance bucket: {matchedCandidate.DistanceBucket}"),
             L($"المسافة: {matchedCandidate.DistanceKm:0.0} كم", $"Distance: {matchedCandidate.DistanceKm:0.0} km"),
             L($"الطلبات النشطة: {matchedCandidate.ActiveOrders}", $"Active orders: {matchedCandidate.ActiveOrders}"),

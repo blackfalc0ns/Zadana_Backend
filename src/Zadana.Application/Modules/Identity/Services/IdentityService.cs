@@ -216,7 +216,7 @@ public class IdentityService : IIdentityService
 
     private void EnsureEmailVerified(IdentityAccountSnapshot user)
     {
-        if (!user.EmailConfirmed)
+        if (user.Role == UserRole.Customer && !user.EmailConfirmed)
         {
             throw new UnauthorizedException(_localizer["AccountEmailNotVerified"]);
         }

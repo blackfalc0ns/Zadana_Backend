@@ -573,6 +573,7 @@ public class DriverSupportController : ApiControllerBase
         OrderSupportCaseType.DriverReport => "بلاغ تشغيلي",
         OrderSupportCaseType.DriverDispute => "نزاع مالي",
         OrderSupportCaseType.ReturnRequest => "طلب استرجاع",
+        OrderSupportCaseType.DriverAccountAppeal => "دعم حساب المندوب",
         _ => "شكوى"
     };
 

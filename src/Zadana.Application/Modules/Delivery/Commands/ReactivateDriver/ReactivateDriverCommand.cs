@@ -61,9 +61,9 @@ public class ReactivateDriverCommandHandler : IRequestHandler<ReactivateDriverCo
                 verificationStatus = driver.VerificationStatus.ToString()
             });
 
-        const string titleAr = "Driver account reactivated";
+        const string titleAr = "تمت إعادة تفعيل حساب المندوب";
         const string titleEn = "Driver account reactivated";
-        const string bodyAr = "Your driver account was reactivated and you can return to work.";
+        const string bodyAr = "تمت إعادة تفعيل حسابك كمندوب ويمكنك العودة للعمل.";
         const string bodyEn = "Your driver account was reactivated and you can return to work.";
 
         await _notificationService.SendToUserAsync(

@@ -90,7 +90,7 @@ public class DriverProfileController : ApiControllerBase
         {
             if (!DriverVehicleTypeMapper.TryParse(request.VehicleType, out var resolvedVehicleType))
             {
-                throw new BusinessRuleException("INVALID_VEHICLE_TYPE", "Ù†ÙˆØ¹ Ø§Ù„Ù…Ø±ÙƒØ¨Ø© ØºÙŠØ± Ù…Ø¯Ø¹ÙˆÙ… | Unsupported vehicle type.");
+                throw new BusinessRuleException("INVALID_VEHICLE_TYPE", "نوع المركبة غير مدعوم | Unsupported vehicle type.");
             }
 
             parsedVehicleType = resolvedVehicleType;
@@ -117,7 +117,7 @@ public class DriverProfileController : ApiControllerBase
             var regionEntity = await context.SaudiRegions
                 .AsNoTracking()
                 .FirstOrDefaultAsync(r => r.Code == normalizedRegion, cancellationToken)
-                ?? throw new BusinessRuleException("INVALID_REGION", "Ø§Ù„Ù…Ù†Ø·Ù‚Ø© Ø§Ù„Ù…Ø®ØªØ§Ø±Ø© ØºÙŠØ± Ù…ÙˆØ¬ÙˆØ¯Ø© | Selected region does not exist.");
+                ?? throw new BusinessRuleException("INVALID_REGION", "المنطقة المختارة غير موجودة | Selected region does not exist.");
 
             if (!string.IsNullOrWhiteSpace(request.City))
             {
@@ -128,7 +128,7 @@ public class DriverProfileController : ApiControllerBase
 
                 if (!cityExists)
                 {
-                    throw new BusinessRuleException("INVALID_CITY", "Ø§Ù„Ù…Ø¯ÙŠÙ†Ø© Ø§Ù„Ù…Ø®ØªØ§Ø±Ø© Ù„Ø§ ØªØªØ¨Ø¹ Ø§Ù„Ù…Ù†Ø·Ù‚Ø© Ø§Ù„Ù…Ø­Ø¯Ø¯Ø© | Selected city does not belong to the chosen region.");
+                    throw new BusinessRuleException("INVALID_CITY", "المدينة المختارة لا تتبع المنطقة المحددة | Selected city does not belong to the chosen region.");
                 }
             }
 

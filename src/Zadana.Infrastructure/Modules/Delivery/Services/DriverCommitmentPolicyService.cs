@@ -322,13 +322,17 @@ public class DriverCommitmentPolicyService : IDriverCommitmentPolicyService
                 : "performance.forced_offline";
 
         var titleAr = suspensionCandidateTriggered
+            ? "مراجعة تشغيلية مطلوبة"
+            : "تم إيقاف استقبال العروض مؤقتًا";
+        var titleEn = suspensionCandidateTriggered
             ? "Operational review required"
             : "Offer reception paused";
-        var titleEn = titleAr;
         var bodyAr = suspensionCandidateTriggered
+            ? "بسبب تكرار الرفض أو انتهاء مهلة الرد على العروض، تم تحويل حسابك إلى المراجعة التشغيلية."
+            : "تم إيقاف استقبال العروض الجديدة مؤقتًا بسبب الالتزام الأخير بالعروض.";
+        var bodyEn = suspensionCandidateTriggered
             ? "Repeated rejections or offer timeouts moved your account to operational review."
             : "New offers were paused temporarily because of recent offer compliance.";
-        var bodyEn = bodyAr;
 
         var data = DriverNotificationDataBuilder.Build(
             screen: "account_status",

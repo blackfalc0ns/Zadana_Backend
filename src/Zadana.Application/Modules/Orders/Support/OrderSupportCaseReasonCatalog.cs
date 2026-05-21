@@ -20,12 +20,12 @@ public static class OrderSupportCaseReasonCatalog
 
     private static readonly IReadOnlyList<OrderSupportCaseReasonOption> DriverAccountOptions =
     [
-        new("account_banned", "Ø§Ù„Ø­Ø³Ø§Ø¨ Ù…Ø­Ø¸ÙˆØ±", "Account banned", true),
-        new("account_suspended", "Ø§Ù„Ø­Ø³Ø§Ø¨ Ù…ÙˆÙ‚ÙˆÙ", "Account suspended", true),
-        new("login_locked", "ØªØ³Ø¬ÙŠÙ„ Ø§Ù„Ø¯Ø®ÙˆÙ„ Ù…Ù‚ÙÙ„", "Login locked", true),
-        new("under_review", "Ø§Ù„Ø­Ø³Ø§Ø¨ Ù‚ÙŠØ¯ Ø§Ù„Ù…Ø±Ø§Ø¬Ø¹Ø©", "Account under review", true),
-        new("documents_required", "Ù…Ø³ØªÙ†Ø¯Ø§Øª Ù…Ø·Ù„ÙˆØ¨Ø©", "Documents required", true),
-        new("other", "Ø£Ø®Ø±Ù‰", "Other", true)
+        new("account_banned", "الحساب محظور", "Account banned", true),
+        new("account_suspended", "الحساب موقوف", "Account suspended", true),
+        new("login_locked", "تسجيل الدخول مقفل", "Login locked", true),
+        new("under_review", "الحساب قيد المراجعة", "Account under review", true),
+        new("documents_required", "مستندات مطلوبة", "Documents required", true),
+        new("other", "أخرى", "Other", true)
     ];
 
     private static readonly IReadOnlyList<OrderSupportCaseReasonOption> CustomerComplaintOptions =

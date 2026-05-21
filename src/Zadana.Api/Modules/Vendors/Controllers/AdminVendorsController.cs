@@ -74,7 +74,7 @@ public class AdminVendorsController : ApiControllerBase
     }
 
     /// <summary>
-    /// Ø¹Ø±Ø¶ Ù‚Ø§Ø¦Ù…Ø© Ø§Ù„ØªØ¬Ø§Ø± Ù…Ø¹ Ø§Ù„ØªØµÙÙŠØ© ÙˆØ§Ù„Ø¨Ø­Ø« ÙˆØ§Ù„ØªØ±Ù‚ÙŠÙ…
+    /// عرض قائمة التجار مع التصفية والبحث والترقيم
     /// </summary>
     [HttpGet]
     public async Task<IActionResult> GetAllVendors(
@@ -88,7 +88,7 @@ public class AdminVendorsController : ApiControllerBase
     }
 
     /// <summary>
-    /// Ø¹Ø±Ø¶ ØªÙØ§ØµÙŠÙ„ ØªØ§Ø¬Ø± Ù…Ø¹ÙŠÙ†
+    /// عرض تفاصيل تاجر معين
     /// </summary>
     [HttpGet("{vendorId:guid}")]
     public async Task<IActionResult> GetVendorDetail(Guid vendorId)
@@ -344,7 +344,7 @@ public class AdminVendorsController : ApiControllerBase
     }
 
     /// <summary>
-    /// Ø§Ù„Ù…ÙˆØ§ÙÙ‚Ø© Ø¹Ù„Ù‰ ØªØ§Ø¬Ø± ÙˆØªØ­Ø¯ÙŠØ¯ Ù†Ø³Ø¨Ø© Ø§Ù„Ø¹Ù…ÙˆÙ„Ø©
+    /// الموافقة على تاجر وتحديد نسبة العمولة
     /// </summary>
     [HttpPost("{vendorId:guid}/approve")]
     public async Task<IActionResult> ApproveVendor(Guid vendorId, [FromBody] ApproveVendorRequest request)
@@ -354,7 +354,7 @@ public class AdminVendorsController : ApiControllerBase
     }
 
     /// <summary>
-    /// Ø±ÙØ¶ ØªØ§Ø¬Ø± Ù…Ø¹ Ø°ÙƒØ± Ø§Ù„Ø³Ø¨Ø¨
+    /// رفض تاجر مع ذكر السبب
     /// </summary>
     [HttpPost("{vendorId:guid}/reject")]
     public async Task<IActionResult> RejectVendor(Guid vendorId, [FromBody] RejectVendorRequest request)
@@ -364,7 +364,7 @@ public class AdminVendorsController : ApiControllerBase
     }
 
     /// <summary>
-    /// ØªØ¹Ù„ÙŠÙ‚ ØªØ§Ø¬Ø± Ù†Ø´Ø·
+    /// تعليق تاجر نشط
     /// </summary>
     [HttpPost("{vendorId:guid}/suspend")]
     public async Task<IActionResult> SuspendVendor(Guid vendorId, [FromBody] SuspendVendorRequest request)

@@ -653,9 +653,9 @@ public class DeliveryDispatchService : IDeliveryDispatchService
         await _notificationService.SendToUserAsync(
             best.Driver.UserId,
             new NotificationDispatchRequest(
-                "??? ???? ???????",
+                "عرض توصيل جديد",
                 "New delivery offer",
-                $"???? ??? ????? ???? ?? {order.Vendor?.BusinessNameAr ?? best.Driver.User.FullName} ???? ???? ???? ????? ?????.",
+                $"لديك عرض توصيل جديد من {order.Vendor?.BusinessNameAr ?? best.Driver.User.FullName} ويجب الرد خلال ثوان قليلة.",
                 "You have a new delivery offer and need to respond within a few seconds.",
                 NotificationTypes.DriverDeliveryOffer,
                 NotificationCategories.Dispatch,

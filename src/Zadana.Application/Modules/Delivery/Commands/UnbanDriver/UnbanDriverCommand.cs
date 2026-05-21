@@ -61,9 +61,9 @@ public class UnbanDriverCommandHandler : IRequestHandler<UnbanDriverCommand>
                 verificationStatus = driver.VerificationStatus.ToString()
             });
 
-        const string titleAr = "Driver account unbanned";
+        const string titleAr = "تم فك حظر حساب المندوب";
         const string titleEn = "Driver account unbanned";
-        const string bodyAr = "Your driver account ban was lifted. You can return to standby mode.";
+        const string bodyAr = "تم فك حظر حسابك كمندوب. يمكنك العودة إلى وضع الاستعداد عند توفر شروط التشغيل.";
         const string bodyEn = "Your driver account ban was lifted. You can return to standby mode.";
 
         await _notificationService.SendToUserAsync(
