@@ -1,0 +1,213 @@
+{
+  "document_name": "Mobile Realtime Order Tracking Handoff",
+  "version": "1.0.0",
+  "updated_at_utc": "2026-05-21T00:00:00Z",
+  "purpose": "Real-time order tracking handoff for mobile apps. Customer and driver apps subscribe to a per-order SignalR group on /hubs/order-tracking and receive live driver location updates plus order status and arrival events. The same hub powers vendor and admin web dashboards.",
+  "audience": ["customer-mobile", "driver-mobile"],
+  "connection_requirements": {
+    "transport": "SignalR (WebSockets, ServerSentEvents, LongPolling auto-fallback)",
+    "auth_required": true,
+    "auth_type": "Bearer <access_token>",
+    "hub_url_rule": "If API base URL is https://api.example.com/api then the SignalR hub URL is https://api.example.com/hubs/order-tracking",
+    "signalr_auth_note": "Pass the access token via accessTokenFactory. The hub also accepts ?access_token=<jwt> query string for SDKs that do not support factories."
+  },
+  "environments": {
+    "development": {
+      "api_base_url": "http://localhost:5298/api",
+      "signalr_base_url": "http://localhost:5298",
+      "hub_url": "http://localhost:5298/hubs/order-tracking"
+    },
+    "production": {
+      "api_base_url": "https://zadana.runasp.net/api",
+      "signalr_base_url": "https://zadana.runasp.net",
+      "hub_url": "https://zadana.runasp.net/hubs/order-tracking"
+    }
+  },
+  "authorization": {
+    "policy": "Authenticated users only. Subscription to a specific order is validated server-side.",
+    "rules": [
+      {
+        "role": "Customer",
+        "subscribe_allowed_when": "Order.UserId == currentUserId"
+      },
+      {
+        "role": "Driver",
+        "subscribe_allowed_when": "An active DeliveryAssignment exists where Driver.UserId == currentUserId and AssignmentStatus is not Rejected/Cancelled"
+      },
+      {
+        "role": "Vendor or VendorStaff",
+        "subscribe_allowed_when": "Order.Vendor.UserId == currentUserId"
+      },
+      {
+        "role": "Admin or SuperAdmin",
+        "subscribe_allowed_when": "Always allowed"
+      }
+    ],
+    "denied_response": "HubException with message FORBIDDEN_ORDER_TRACKING"
+  },
+  "client_invocations": [
+    {
+      "method": "SubscribeToOrder",
+      "direction": "client_to_server",
+      "args": [
+        { "name": "orderId", "type": "string (Guid)", "required": true }
+      ],
+      "behavior": "Adds the connection to the order-{orderIdN} group after authorization check. Idempotent for the same orderId.",
+      "errors": ["UNAUTHENTICATED", "INVALID_ORDER_ID", "FORBIDDEN_ORDER_TRACKING"]
+    },
+    {
+      "method": "UnsubscribeFromOrder",
+      "direction": "client_to_server",
+      "args": [
+        { "name": "orderId", "type": "string (Guid)", "required": true }
+      ],
+      "behavior": "Removes the connection from the order group. Safe to call even if not subscribed."
+    }
+  ],
+  "events": [
+    {
+      "event_name": "ReceiveDriverLocation",
+      "direction": "server_to_client",
+      "subscribe_method": "connection.on('ReceiveDriverLocation', handler)",
+      "subscribe_params": [],
+      "auth_required": true,
+      "trigger": "The assigned driver called POST /api/drivers/location",
+      "frequency_hint": "Approximately the rate at which the driver app posts location (recommended every 4-6 seconds while serving an order)",
+      "payload_sample": {
+        "orderId": "22222222-2222-2222-2222-222222222222",
+        "driverId": "44444444-4444-4444-4444-444444444444",
+        "latitude": 24.7136,
+        "longitude": 46.6753,
+        "accuracyMeters": 12.5,
+        "recordedAtUtc": "2026-05-21T14:32:18.512Z"
+      },
+      "payload_schema": {
+        "orderId": "string (Guid)",
+        "driverId": "string (Guid)",
+        "latitude": "number (decimal degrees, -90..90)",
+        "longitude": "number (decimal degrees, -180..180)",
+        "accuracyMeters": "number | null",
+        "recordedAtUtc": "string (ISO-8601 UTC)"
+      }
+    },
+    {
+      "event_name": "ReceiveOrderTrackingStatusChanged",
+      "direction": "server_to_client",
+      "subscribe_method": "connection.on('ReceiveOrderTrackingStatusChanged', handler)",
+      "subscribe_params": [],
+      "auth_required": true,
+      "trigger": "Order status transition published by the OrderStatusChangedNotification pipeline (vendor accept, driver pickup, delivery, cancellation, etc.)",
+      "payload_sample": {
+        "orderId": "22222222-2222-2222-2222-222222222222",
+        "orderNumber": "12345",
+        "vendorId": "33333333-3333-3333-3333-333333333333",
+        "oldStatus": "ReadyForPickup",
+        "newStatus": "PickedUp",
+        "actorRole": "driver",
+        "action": "status_changed",
+        "targetUrl": "/orders/22222222-2222-2222-2222-222222222222",
+        "changedAtUtc": "2026-05-21T14:33:01Z"
+      },
+      "status_values": [
+        "PendingPayment",
+        "PendingBankConfirmation",
+        "Placed",
+        "PendingVendorAcceptance",
+        "VendorRejected",
+        "Accepted",
+        "Preparing",
+        "ReadyForPickup",
+        "DriverAssignmentInProgress",
+        "DriverAssigned",
+        "PickedUp",
+        "OnTheWay",
+        "Delivered",
+        "DeliveryFailed",
+        "Cancelled",
+        "Refunded"
+      ],
+      "actor_role_values": ["customer", "vendor", "driver", "admin", "system", "payment_gateway"]
+    },
+    {
+      "event_name": "ReceiveOrderTrackingArrivalState",
+      "direction": "server_to_client",
+      "subscribe_method": "connection.on('ReceiveOrderTrackingArrivalState', handler)",
+      "subscribe_params": [],
+      "auth_required": true,
+      "trigger": "Driver invoked POST /api/drivers/orders/{orderId}/arrived-at-vendor or arrived-at-customer",
+      "payload_sample": {
+        "orderId": "22222222-2222-2222-2222-222222222222",
+        "orderNumber": "12345",
+        "arrivalState": "arrived_at_vendor",
+        "driverName": "أحمد علي",
+        "actorRole": "driver",
+        "targetUrl": "/orders/22222222-2222-2222-2222-222222222222",
+        "changedAtUtc": "2026-05-21T14:31:00Z"
+      },
+      "arrival_state_values": ["arrived_at_vendor", "arrived_at_customer"]
+    }
+  ],
+  "rest_endpoints": [
+    {
+      "name": "Driver login",
+      "method": "POST",
+      "path": "/api/drivers/auth/login",
+      "auth": "anonymous",
+      "request": { "identifier": "phone or email", "password": "..." },
+      "response": "AccessToken, RefreshToken, expiry"
+    },
+    {
+      "name": "Customer login",
+      "method": "POST",
+      "path": "/api/customers/auth/login",
+      "auth": "anonymous"
+    },
+    {
+      "name": "Driver location update (push)",
+      "method": "POST",
+      "path": "/api/drivers/location",
+      "auth": "Bearer <driver_token>",
+      "request": {
+        "latitude": "decimal -90..90",
+        "longitude": "decimal -180..180",
+        "accuracyMeters": "decimal | null"
+      },
+      "side_effect": "Persists DriverLocation row and broadcasts ReceiveDriverLocation to every active order group for that driver"
+    },
+    {
+      "name": "Customer order tracking snapshot",
+      "method": "GET",
+      "path": "/api/orders/{orderId}/tracking",
+      "auth": "Bearer <customer_token>",
+      "purpose": "Initial payload when opening the tracking screen. After the first call, rely on SignalR events for live updates."
+    }
+  ],
+  "client_lifecycle": [
+    "1. Authenticate and obtain access token via REST",
+    "2. Open OrderDetail / Tracking screen with orderId",
+    "3. GET /api/orders/{orderId}/tracking to render the initial map and current status",
+    "4. Build and start the SignalR hub connection",
+    "5. invoke('SubscribeToOrder', orderId)",
+    "6. on('ReceiveDriverLocation') -> update only the driver marker (no full re-render)",
+    "7. on('ReceiveOrderTrackingStatusChanged') -> update banner + optionally re-fetch tracking",
+    "8. on('ReceiveOrderTrackingArrivalState') -> show transient toast",
+    "9. On screen leave: invoke('UnsubscribeFromOrder', orderId), keep connection alive",
+    "10. On logout / app dispose: stop the hub connection"
+  ],
+  "best_practices": [
+    "Always re-subscribe to every active orderId in onreconnected callback. The hub forgets group memberships after a disconnect.",
+    "Throttle map marker updates to at most 1 fps to avoid jitter even if the backend sends faster bursts.",
+    "Treat recordedAtUtc older than 60 seconds as stale. Mark the live indicator in a warning color and stop animating the marker.",
+    "Do not poll /tracking when SignalR is connected. Use it only as a fallback after 30 seconds of confirmed disconnection.",
+    "Catch HubException FORBIDDEN_ORDER_TRACKING and stop retry loops. The user is not allowed to track this order.",
+    "Pass the same Bearer JWT used for REST. Do not embed it in the URL; use accessTokenFactory whenever the SDK supports it."
+  ],
+  "reference_files": {
+    "backend_hub": "Zadana-Backend/src/Zadana.Api/Realtime/OrderTrackingHub.cs",
+    "backend_notifier": "Zadana-Backend/src/Zadana.Api/Realtime/OrderTrackingRealtimeNotifier.cs",
+    "backend_payload_contract": "Zadana-Backend/src/Zadana.Api/Realtime/Contracts/OrderTrackingDriverLocationPayload.cs",
+    "web_admin_client": "Zadana-Frontend/superadmin-panel/src/app/features/orders/services/order-tracking-realtime.service.ts",
+    "web_vendor_client": "Zadana-Frontend/vendor-panel/src/app/features/orders/services/order-tracking-realtime.service.ts"
+  },
+  "human_readable_guide": "MOBILE_REALTIME_ORDER_TRACKING_HANDOFF_AR.md"
+}

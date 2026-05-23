@@ -1,9 +1,11 @@
 using Microsoft.AspNetCore.Authorization;
 using Microsoft.AspNetCore.Mvc;
+using Microsoft.EntityFrameworkCore;
 using Zadana.Api.Controllers;
 using Zadana.Application.Common.Interfaces;
 using Zadana.Application.Modules.Orders.DTOs;
 using Zadana.Application.Modules.Orders.Interfaces;
+using Zadana.Domain.Modules.Orders.Enums;
 using Zadana.SharedKernel.Exceptions;
 
 namespace Zadana.Api.Modules.Orders.Controllers;
@@ -16,15 +18,18 @@ public class AdminOrderCasesController : ApiControllerBase
     private readonly ICurrentUserService _currentUserService;
     private readonly IOrderReadService _orderReadService;
     private readonly IOrderSupportCaseWorkflowService _orderSupportCaseWorkflowService;
+    private readonly IApplicationDbContext _dbContext;
 
     public AdminOrderCasesController(
         ICurrentUserService currentUserService,
         IOrderReadService orderReadService,
-        IOrderSupportCaseWorkflowService orderSupportCaseWorkflowService)
+        IOrderSupportCaseWorkflowService orderSupportCaseWorkflowService,
+        IApplicationDbContext dbContext)
     {
         _currentUserService = currentUserService;
         _orderReadService = orderReadService;
         _orderSupportCaseWorkflowService = orderSupportCaseWorkflowService;
+        _dbContext = dbContext;
     }
 
     [HttpGet]
@@ -270,6 +275,55 @@ public class AdminOrderCasesController : ApiControllerBase
         return await _orderReadService.GetAdminOrderSupportCaseDetailAsync(caseId, cancellationToken)
             ?? throw new NotFoundException("OrderSupportCase", caseId);
     }
+
+    [HttpGet("stats")]
+    public async Task<ActionResult<AdminOrderCaseStatsResponse>> GetStats(CancellationToken cancellationToken = default)
+    {
+        var now = DateTime.UtcNow;
+        var activeCases = _dbContext.OrderSupportCases
+            .Where(c => c.Status != OrderSupportCaseStatus.Rejected && c.Status != OrderSupportCaseStatus.Resolved);
+
+        var totalOpen = await activeCases.CountAsync(cancellationToken);
+
+        var byStatus = await _dbContext.OrderSupportCases
+            .GroupBy(c => c.Status)
+            .Select(g => new AdminCaseCountByLabel(g.Key.ToString(), g.Count()))
+            .ToListAsync(cancellationToken);
+
+        var byPriority = await activeCases
+            .GroupBy(c => c.Priority)
+            .Select(g => new AdminCaseCountByLabel(g.Key.ToString(), g.Count()))
+            .ToListAsync(cancellationToken);
+
+        var byQueue = await activeCases
+            .GroupBy(c => c.Queue)
+            .Select(g => new AdminCaseCountByLabel(g.Key.ToString(), g.Count()))
+            .ToListAsync(cancellationToken);
+
+        var byType = await activeCases
+            .GroupBy(c => c.Type)
+            .Select(g => new AdminCaseCountByLabel(g.Key.ToString(), g.Count()))
+            .ToListAsync(cancellationToken);
+
+        var slaBreachedCount = await activeCases
+            .Where(c => c.SlaDueAtUtc != null && c.SlaDueAtUtc < now)
+            .CountAsync(cancellationToken);
+
+        var avgResolutionHours = await _dbContext.OrderSupportCases
+            .Where(c => c.ClosedAtUtc != null)
+            .Select(c => EF.Functions.DateDiffHour(c.CreatedAtUtc, c.ClosedAtUtc!.Value))
+            .DefaultIfEmpty(0)
+            .AverageAsync(cancellationToken);
+
+        return Ok(new AdminOrderCaseStatsResponse(
+            totalOpen,
+            slaBreachedCount,
+            Math.Round(avgResolutionHours, 1),
+            byStatus,
+            byPriority,
+            byQueue,
+            byType));
+    }
 }
 
 public sealed record AdminOrderSupportCaseAssignRequest(
@@ -315,3 +369,14 @@ public sealed record AdminOrderSupportCaseNoteRequest(
 public sealed record AdminOrderSupportCaseMessageRequest(
     string Message,
     string Audience = "customer,vendor,driver");
+
+public sealed record AdminOrderCaseStatsResponse(
+    int TotalOpen,
+    int SlaBreachedCount,
+    double AvgResolutionHours,
+    List<AdminCaseCountByLabel> ByStatus,
+    List<AdminCaseCountByLabel> ByPriority,
+    List<AdminCaseCountByLabel> ByQueue,
+    List<AdminCaseCountByLabel> ByType);
+
+public sealed record AdminCaseCountByLabel(string Label, int Count);

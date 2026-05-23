@@ -1,8 +1,11 @@
-﻿using Microsoft.EntityFrameworkCore;
+using Microsoft.EntityFrameworkCore;
+using Microsoft.Extensions.Logging;
 using Zadana.Application.Common.Interfaces;
 using Zadana.Application.Modules.Delivery.Support;
 using Zadana.Application.Modules.Orders.Interfaces;
 using Zadana.Application.Modules.Orders.Support;
+using Zadana.Application.Modules.Payments.Gateways;
+using Zadana.Application.Modules.Payments.Interfaces;
 using Zadana.Application.Modules.Wallets.Services;
 using Zadana.Domain.Modules.Identity.Enums;
 using Zadana.Domain.Modules.Marketing.Entities;
@@ -18,6 +21,8 @@ namespace Zadana.Application.Modules.Orders.Services;
 
 public sealed class OrderSupportCaseWorkflowService : IOrderSupportCaseWorkflowService
 {
+    private const int ReturnWindowDays = 14;
+
     private readonly IApplicationDbContext _context;
     private readonly IUnitOfWork _unitOfWork;
     private readonly INotificationService _notificationService;
@@ -25,6 +30,8 @@ public sealed class OrderSupportCaseWorkflowService : IOrderSupportCaseWorkflowS
     private readonly IAdminAlertService? _adminAlertService;
     private readonly VendorRecoveryService? _vendorRecoveryService;
     private readonly OrderInventoryWorkflowService _orderInventoryWorkflowService;
+    private readonly IPaymentGatewayResolver? _gatewayResolver;
+    private readonly ILogger<OrderSupportCaseWorkflowService>? _logger;
 
     public OrderSupportCaseWorkflowService(
         IApplicationDbContext context,
@@ -33,7 +40,9 @@ public sealed class OrderSupportCaseWorkflowService : IOrderSupportCaseWorkflowS
         IOneSignalPushService oneSignalPushService,
         IAdminAlertService? adminAlertService = null,
         VendorRecoveryService? vendorRecoveryService = null,
-        OrderInventoryWorkflowService? orderInventoryWorkflowService = null)
+        OrderInventoryWorkflowService? orderInventoryWorkflowService = null,
+        IPaymentGatewayResolver? gatewayResolver = null,
+        ILogger<OrderSupportCaseWorkflowService>? logger = null)
     {
         _context = context;
         _unitOfWork = unitOfWork;
@@ -42,6 +51,8 @@ public sealed class OrderSupportCaseWorkflowService : IOrderSupportCaseWorkflowS
         _adminAlertService = adminAlertService;
         _vendorRecoveryService = vendorRecoveryService;
         _orderInventoryWorkflowService = orderInventoryWorkflowService ?? new OrderInventoryWorkflowService(context);
+        _gatewayResolver = gatewayResolver;
+        _logger = logger;
     }
 
     public async Task<OrderSupportCase> CreateCustomerCaseAsync(
@@ -87,6 +98,7 @@ public sealed class OrderSupportCaseWorkflowService : IOrderSupportCaseWorkflowS
                 ?? throw new NotFoundException("Order", orderId);
 
             ValidateCustomerCreateEligibility(order, supportCaseType);
+            await ValidateCustomerCaseLimitsAsync(customerUserId, orderId, supportCaseType, cancellationToken);
         }
 
         var initiatorRole = isDriverInitiated ? "driver" : "customer";
@@ -476,6 +488,14 @@ public sealed class OrderSupportCaseWorkflowService : IOrderSupportCaseWorkflowS
                     costBearer,
                     cancellationToken);
             }
+
+            // Stage driver recovery when driver bears the cost
+            if (string.Equals(costBearer?.Trim(), "driver", StringComparison.OrdinalIgnoreCase)
+                && approvedAmount.HasValue
+                && approvedAmount.Value > 0)
+            {
+                await StageDriverRecoveryAsync(supportCase, approvedAmount.Value, cancellationToken);
+            }
         }
 
         StagePendingCaseArtifacts(supportCase);
@@ -832,6 +852,106 @@ public sealed class OrderSupportCaseWorkflowService : IOrderSupportCaseWorkflowS
         {
             throw new BusinessRuleException("ORDER_RETURN_NOT_ALLOWED", "Return requests can only be created for delivered orders.");
         }
+
+        // Enforce return window policy
+        var deliveredAt = order.DeliveredAtUtc ?? order.UpdatedAtUtc;
+        if (DateTime.UtcNow > deliveredAt.AddDays(ReturnWindowDays))
+        {
+            throw new BusinessRuleException("RETURN_WINDOW_EXPIRED",
+                $"Return requests must be submitted within {ReturnWindowDays} days of delivery.");
+        }
+    }
+
+    private async Task StageDriverRecoveryAsync(
+        OrderSupportCase supportCase,
+        decimal amount,
+        CancellationToken cancellationToken)
+    {
+        if (supportCase.OrderId is null)
+        {
+            return;
+        }
+
+        // Find the driver assigned to this order
+        var assignment = await _context.DeliveryAssignments
+            .AsNoTracking()
+            .Where(a => a.OrderId == supportCase.OrderId.Value)
+            .OrderByDescending(a => a.CreatedAtUtc)
+            .FirstOrDefaultAsync(cancellationToken);
+
+        if (assignment is null || !assignment.DriverId.HasValue)
+        {
+            _logger?.LogWarning(
+                "No driver assignment found for Order {OrderId} — skipping driver recovery for Case {CaseId}.",
+                supportCase.OrderId, supportCase.Id);
+            return;
+        }
+
+        // Check for existing recovery on this case
+        var existingRecovery = await _context.DriverRecoveries
+            .FirstOrDefaultAsync(r => r.OrderSupportCaseId == supportCase.Id, cancellationToken);
+
+        if (existingRecovery is not null)
+        {
+            _logger?.LogWarning(
+                "DriverRecovery already exists for Case {CaseId} — skipping duplicate.",
+                supportCase.Id);
+            return;
+        }
+
+        var recovery = new Domain.Modules.Wallets.Entities.DriverRecovery(
+            assignment.DriverId.Value,
+            supportCase.OrderId.Value,
+            supportCase.Id,
+            amount,
+            $"Auto-staged from support case approval. CostBearer=driver.");
+
+        _context.DriverRecoveries.Add(recovery);
+
+        _logger?.LogInformation(
+            "DriverRecovery staged: Driver={DriverId}, Order={OrderId}, Case={CaseId}, Amount={Amount}",
+            assignment.DriverId.Value, supportCase.OrderId, supportCase.Id, amount);
+    }
+
+    private async Task ValidateCustomerCaseLimitsAsync(
+        Guid customerUserId,
+        Guid orderId,
+        OrderSupportCaseType supportCaseType,
+        CancellationToken cancellationToken)
+    {
+        const int maxOpenCasesPerCustomer = 5;
+
+        // Rate limit: max open cases per customer
+        var openCasesCount = await _context.OrderSupportCases
+            .CountAsync(c =>
+                c.CustomerUserId == customerUserId &&
+                c.Status != OrderSupportCaseStatus.Rejected &&
+                c.Status != OrderSupportCaseStatus.Resolved,
+                cancellationToken);
+
+        if (openCasesCount >= maxOpenCasesPerCustomer)
+        {
+            throw new BusinessRuleException("MAX_OPEN_CASES_EXCEEDED",
+                $"You have reached the maximum of {maxOpenCasesPerCustomer} open support cases.");
+        }
+
+        // Duplicate guard: no open return_request on same order
+        if (supportCaseType == OrderSupportCaseType.ReturnRequest)
+        {
+            var hasOpenReturn = await _context.OrderSupportCases
+                .AnyAsync(c =>
+                    c.OrderId == orderId &&
+                    c.Type == OrderSupportCaseType.ReturnRequest &&
+                    c.Status != OrderSupportCaseStatus.Rejected &&
+                    c.Status != OrderSupportCaseStatus.Resolved,
+                    cancellationToken);
+
+            if (hasOpenReturn)
+            {
+                throw new BusinessRuleException("DUPLICATE_RETURN_REQUEST",
+                    "A return request is already open for this order.");
+            }
+        }
     }
 
     private static bool CanMergeCustomerInitiatedCase(
@@ -866,8 +986,22 @@ public sealed class OrderSupportCaseWorkflowService : IOrderSupportCaseWorkflowS
 
         var order = supportCase.Order
             ?? throw new BusinessRuleException("ORDER_REQUIRED_FOR_REFUND", "Return support cases must be linked to an order.");
-        var boundedAmount = Math.Min(approvedAmount.Value, order.TotalAmount);
 
+        // ── Double-refund protection ──────────────────────────────────────
+        var previousRefundsTotal = await _context.Refunds
+            .Where(r => r.Payment.OrderId == order.Id && r.LifecycleStatus == RefundStatus.Succeeded)
+            .SumAsync(r => (decimal?)r.ApprovedAmount ?? 0m, cancellationToken);
+
+        var maxRefundable = order.TotalAmount - previousRefundsTotal;
+        if (maxRefundable <= 0m)
+        {
+            throw new BusinessRuleException("ORDER_FULLY_REFUNDED",
+                "This order has already been fully refunded.");
+        }
+
+        var boundedAmount = Math.Min(Math.Min(approvedAmount.Value, order.TotalAmount), maxRefundable);
+
+        // ── Coupon compensation path (COD orders) ────────────────────────
         if (compensationDecision.CompensationType == OrderSupportCaseCompensationType.CouponCompensation)
         {
             order.UpdatePaymentStatus(boundedAmount >= order.TotalAmount
@@ -884,17 +1018,18 @@ public sealed class OrderSupportCaseWorkflowService : IOrderSupportCaseWorkflowS
             return;
         }
 
+        // ── Payment fallback — reject if no confirmed payment found ──────
         var payment = await _context.Payments
             .OrderByDescending(item => item.CreatedAtUtc)
             .FirstOrDefaultAsync(item => item.OrderId == order.Id, cancellationToken);
 
         if (payment is null)
         {
-            payment = new Payment(order.Id, order.PaymentMethod, order.TotalAmount);
-            payment.MarkAsPaid();
-            _context.Payments.Add(payment);
+            throw new BusinessRuleException("NO_PAYMENT_FOUND",
+                "Cannot issue a refund: no confirmed payment found for this order.");
         }
 
+        // ── Create or update Refund record ────────────────────────────────
         var refund = await _context.Refunds
             .OrderByDescending(item => item.CreatedAtUtc)
             .FirstOrDefaultAsync(item => item.OrderSupportCaseId == supportCase.Id, cancellationToken);
@@ -909,7 +1044,62 @@ public sealed class OrderSupportCaseWorkflowService : IOrderSupportCaseWorkflowS
             refund.UpdateDecision(boundedAmount, decisionNotes, compensationDecision.RefundMethod, costBearer, supportCase.Id);
         }
 
-        refund.Process();
+        // ── Gateway refund — call Moyasar for card payments ──────────────
+        if (payment.Method == PaymentMethodType.Card &&
+            !string.IsNullOrWhiteSpace(payment.ProviderTransactionId) &&
+            !string.IsNullOrWhiteSpace(payment.ProviderName) &&
+            _gatewayResolver is not null)
+        {
+            if (_gatewayResolver.TryResolve(payment.ProviderName, out var gateway) && gateway!.IsEnabled)
+            {
+                try
+                {
+                    var refundResult = await gateway.RefundAsync(
+                        new RefundGatewayCommand(
+                            refund.Id,
+                            payment.ProviderTransactionId,
+                            boundedAmount,
+                            payment.Currency,
+                            Guid.NewGuid().ToString("N"),
+                            decisionNotes),
+                        cancellationToken);
+
+                    if (refundResult.ProviderRefundId is not null &&
+                        refundResult.ProviderStatus is not "failed")
+                    {
+                        refund.Process();
+                        _logger?.LogInformation(
+                            "Gateway refund succeeded for Refund {RefundId}, provider={Provider}, providerRefundId={ProviderRefundId}",
+                            refund.Id, refundResult.ProviderName, refundResult.ProviderRefundId);
+                    }
+                    else
+                    {
+                        refund.Fail(refundResult.FailureMessage);
+                        _logger?.LogWarning(
+                            "Gateway refund failed for Refund {RefundId}: {Reason}",
+                            refund.Id, refundResult.FailureMessage);
+                        // Don't change order status — refund failed at gateway
+                        return;
+                    }
+                }
+                catch (Exception ex)
+                {
+                    refund.Fail(ex.Message);
+                    _logger?.LogError(ex, "Gateway refund exception for Refund {RefundId}", refund.Id);
+                    return;
+                }
+            }
+            else
+            {
+                // Gateway not available — process manually
+                refund.Process();
+            }
+        }
+        else
+        {
+            // COD / Manual / no provider — mark as processed directly
+            refund.Process();
+        }
 
         order.UpdatePaymentStatus(boundedAmount >= order.TotalAmount
             ? PaymentStatus.Refunded
@@ -922,6 +1112,75 @@ public sealed class OrderSupportCaseWorkflowService : IOrderSupportCaseWorkflowS
         }
 
         await _orderInventoryWorkflowService.ApplyRestockAsync(order.Id, "refund_approved", cancellationToken);
+
+        // ── Create RefundAllocation breakdown ────────────────────────────
+        var existingAllocation = await _context.RefundAllocations
+            .FirstOrDefaultAsync(a => a.RefundId == refund.Id, cancellationToken);
+
+        if (existingAllocation is null)
+        {
+            var allocation = BuildRefundAllocation(refund.Id, boundedAmount, order, costBearer);
+            _context.RefundAllocations.Add(allocation);
+
+            _logger?.LogInformation(
+                "RefundAllocation created for Refund {RefundId}: Product={ProductAmt}, Delivery={DeliveryAmt}, VAT={VatAmt}, CodFee={CodFeeAmt}, Bearer={CostBearer}",
+                refund.Id, allocation.ProductAmount, allocation.DeliveryAmount, allocation.VatAmount, allocation.CodFeeAmount, costBearer);
+        }
+
+        // ── Auto-resolve case after successful refund ────────────────────
+        if (supportCase.Status == OrderSupportCaseStatus.Approved)
+        {
+            supportCase.Resolve(actorUserId, "Auto-resolved after successful refund processing.");
+        }
+    }
+
+    private static RefundAllocation BuildRefundAllocation(Guid refundId, decimal refundAmount, Order order, string? costBearer)
+    {
+        // Calculate proportional breakdown based on order composition
+        var orderTotal = order.TotalAmount;
+        if (orderTotal <= 0) orderTotal = refundAmount; // safety
+
+        var ratio = refundAmount / orderTotal;
+        var productAmount = Math.Round((order.Subtotal - order.DiscountTotal) * ratio, 2);
+        var deliveryAmount = Math.Round(order.DeliveryFee * ratio, 2);
+        var vatAmount = Math.Round(order.VatAmount * ratio, 2);
+        var codFeeAmount = Math.Round(order.CodFee * ratio, 2);
+
+        // Adjust rounding difference into productAmount
+        var linesTotal = productAmount + deliveryAmount + vatAmount + codFeeAmount;
+        var roundingDiff = refundAmount - linesTotal;
+        productAmount += roundingDiff;
+
+        // Assign cost bearer slices
+        var normalizedBearer = (costBearer ?? "vendor").Trim().ToLowerInvariant();
+        decimal platformAbsorbed = 0, vendorRecovery = 0, driverRecovery = 0;
+
+        switch (normalizedBearer)
+        {
+            case "platform":
+                platformAbsorbed = refundAmount;
+                break;
+            case "driver":
+                driverRecovery = refundAmount;
+                break;
+            case "shared":
+                vendorRecovery = Math.Round(refundAmount * 0.5m, 2);
+                platformAbsorbed = refundAmount - vendorRecovery;
+                break;
+            default: // "vendor"
+                vendorRecovery = refundAmount;
+                break;
+        }
+
+        return new RefundAllocation(
+            refundId,
+            productAmount,
+            deliveryAmount,
+            vatAmount,
+            codFeeAmount,
+            platformAbsorbed,
+            vendorRecovery,
+            driverRecovery);
     }
 
     private async Task NotifyDriverAccountAdminsAsync(
@@ -1250,11 +1509,18 @@ public sealed class OrderSupportCaseWorkflowService : IOrderSupportCaseWorkflowS
             return;
         }
 
-        const string titleAr = "تحديث في نزاع طلب";
-        const string titleEn = "Order support case updated";
-        var bodyAr = $"تم تحديث حالة النزاع الخاصة بالطلب #{order.OrderNumber}.";
-        var bodyEn = $"The support case for order #{order.OrderNumber} has been updated.";
-        var targetUrl = $"/disputes/{supportCase.Id}";
+        var isComplaint = supportCase.Type == OrderSupportCaseType.Complaint;
+        var titleAr = isComplaint ? "تحديث في دعم طلب" : "تحديث في نزاع طلب";
+        var titleEn = isComplaint ? "Order support updated" : "Order support case updated";
+        var bodyAr = isComplaint
+            ? $"تم تحديث حالة الدعم الخاصة بالطلب #{order.OrderNumber}."
+            : $"تم تحديث حالة النزاع الخاصة بالطلب #{order.OrderNumber}.";
+        var bodyEn = isComplaint
+            ? $"The support case for order #{order.OrderNumber} has been updated."
+            : $"The dispute for order #{order.OrderNumber} has been updated.";
+        var targetUrl = isComplaint
+            ? $"/support?view=support&legacyCaseId={supportCase.Id}"
+            : $"/disputes/{supportCase.Id}";
         var data = $$"""
 {"action":"{{action}}","orderId":"{{order.Id}}","orderNumber":"{{order.OrderNumber}}","caseId":"{{supportCase.Id}}","type":"{{OrderSupportCaseNotificationComposer.ToApiValue(supportCase.Type)}}","status":"{{OrderSupportCaseNotificationComposer.ToApiValue(supportCase.Status)}}","targetUrl":"{{targetUrl}}"}
 """;
@@ -1813,18 +2079,26 @@ public sealed class OrderSupportCaseWorkflowService : IOrderSupportCaseWorkflowS
 
         if (action == "created")
         {
-            return supportCase.Type == OrderSupportCaseType.ReturnRequest
-                ? AdminAlertTypes.RefundRequested
-                : AdminAlertTypes.DisputeCreated;
+            return supportCase.Type switch
+            {
+                OrderSupportCaseType.ReturnRequest => AdminAlertTypes.RefundRequested,
+                OrderSupportCaseType.Complaint => AdminAlertTypes.SupportCreated,
+                _ => AdminAlertTypes.DisputeCreated
+            };
         }
 
-        return AdminAlertTypes.DisputeEscalated;
+        return supportCase.Type == OrderSupportCaseType.Complaint
+            ? AdminAlertTypes.SupportUpdated
+            : AdminAlertTypes.DisputeEscalated;
     }
 
     private static string ResolveAdminAlertCategory(OrderSupportCase supportCase) =>
-        supportCase.Type == OrderSupportCaseType.ReturnRequest
-            ? AdminAlertCategories.Refunds
-            : AdminAlertCategories.Disputes;
+        supportCase.Type switch
+        {
+            OrderSupportCaseType.ReturnRequest => AdminAlertCategories.Refunds,
+            OrderSupportCaseType.Complaint => AdminAlertCategories.Support,
+            _ => AdminAlertCategories.Disputes
+        };
 
     private static string ResolveAdminAlertPriority(OrderSupportCasePriority priority) =>
         priority switch

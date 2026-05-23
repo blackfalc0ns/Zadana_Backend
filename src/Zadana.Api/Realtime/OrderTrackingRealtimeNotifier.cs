@@ -37,9 +37,14 @@ public sealed class OrderTrackingRealtimeNotifier : IOrderTrackingRealtimeNotifi
                 accuracyMeters,
                 recordedAtUtc);
 
+            var groupName = OrderTrackingHub.GetOrderGroup(orderId);
             await _hubContext.Clients
-                .Group(OrderTrackingHub.GetOrderGroup(orderId))
+                .Group(groupName)
                 .SendAsync(OrderTrackingHub.ReceiveDriverLocationMethod, payload, cancellationToken);
+
+            _logger.LogInformation(
+                "[OrderTrackingHub] Sent ReceiveDriverLocation to group {Group} (orderId={OrderId}, driverId={DriverId}).",
+                groupName, orderId, driverId);
         }
         catch (Exception ex)
         {

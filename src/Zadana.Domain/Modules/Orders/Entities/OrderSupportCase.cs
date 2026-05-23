@@ -205,8 +205,17 @@ public class OrderSupportCase : BaseEntity
             isInternalOnly: string.IsNullOrWhiteSpace(customerVisibleNote));
     }
 
+    private const int MaxReopenCount = 3;
+
     public void Reopen(Guid actorUserId, string? note)
     {
+        var reopenCount = Activities.Count(a => a.Action == "reopened");
+        if (reopenCount >= MaxReopenCount)
+        {
+            throw new BusinessRuleException("MAX_REOPEN_EXCEEDED",
+                $"This case has already been reopened {MaxReopenCount} times.");
+        }
+
         Status = OrderSupportCaseStatus.InReview;
         ClosedAtUtc = null;
 
@@ -222,6 +231,11 @@ public class OrderSupportCase : BaseEntity
             isInternalOnly: true);
     }
 
+    private static readonly HashSet<string> ValidCostBearers = new(StringComparer.OrdinalIgnoreCase)
+    {
+        "vendor", "platform", "driver", "shared"
+    };
+
     public void Approve(
         Guid actorUserId,
         decimal? approvedRefundAmount,
@@ -233,6 +247,17 @@ public class OrderSupportCase : BaseEntity
         string? customerVisibleNote)
     {
         EnsureNotClosed("CASE_APPROVAL_NOT_ALLOWED");
+
+        if (Status == OrderSupportCaseStatus.Approved)
+        {
+            throw new BusinessRuleException("CASE_ALREADY_APPROVED", "This case has already been approved.");
+        }
+
+        if (!string.IsNullOrWhiteSpace(costBearer) && !ValidCostBearers.Contains(costBearer.Trim()))
+        {
+            throw new BusinessRuleException("INVALID_COST_BEARER",
+                $"Cost bearer must be one of: {string.Join(", ", ValidCostBearers)}.");
+        }
 
         Status = OrderSupportCaseStatus.Approved;
         ApprovedRefundAmount = NormalizeAmount(approvedRefundAmount);
@@ -283,6 +308,11 @@ public class OrderSupportCase : BaseEntity
             return;
         }
 
+        if (Status == OrderSupportCaseStatus.Rejected)
+        {
+            throw new BusinessRuleException("CASE_RESOLVE_NOT_ALLOWED", "Cannot resolve a rejected case.");
+        }
+
         Status = OrderSupportCaseStatus.Resolved;
         ClosedAtUtc = DateTime.UtcNow;
         AwaitingResponseFromRole = null;
@@ -304,11 +334,15 @@ public class OrderSupportCase : BaseEntity
 
         if (visibleToCustomer)
         {
-            CustomerVisibleNote = note.Trim();
+            CustomerVisibleNote = string.IsNullOrWhiteSpace(CustomerVisibleNote)
+                ? note.Trim()
+                : $"{CustomerVisibleNote}\n---\n{note.Trim()}";
         }
         else
         {
-            DecisionNotes = note.Trim();
+            DecisionNotes = string.IsNullOrWhiteSpace(DecisionNotes)
+                ? note.Trim()
+                : $"{DecisionNotes}\n---\n{note.Trim()}";
         }
 
         AddActivity(

@@ -47,6 +47,8 @@ public class VendorOrdersController : ApiControllerBase
     }
 
     [HttpGet("{orderId:guid}")]
+    [ProducesResponseType(typeof(VendorOrderDetailResponse), StatusCodes.Status200OK)]
+    [ProducesResponseType(StatusCodes.Status404NotFound)]
     public async Task<ActionResult<VendorOrderDetailResponse>> GetOrderById(Guid orderId, CancellationToken cancellationToken = default)
     {
         var vendorId = await _currentVendorService.GetRequiredVendorIdAsync(cancellationToken);
@@ -159,7 +161,8 @@ public class VendorOrdersController : ApiControllerBase
                     dto.AssignedDriver.Name,
                     dto.AssignedDriver.PhoneNumber,
                     dto.AssignedDriver.VehicleType,
-                    dto.AssignedDriver.PlateNumber),
+                    dto.AssignedDriver.PlateNumber,
+                    dto.AssignedDriver.ImageUrl),
             dto.DriverArrivalState,
             dto.DriverArrivalUpdatedAtUtc,
             dto.PickupOtp,
@@ -171,9 +174,12 @@ public class VendorOrdersController : ApiControllerBase
             dto.Items.Select(item => new VendorOrderItemResponse(
                 item.Id,
                 item.ProductName,
+                item.ProductNameAr,
+                item.ProductNameEn,
                 item.Quantity,
                 item.UnitPrice,
-                item.LineTotal)).ToList(),
+                item.LineTotal,
+                item.ImageUrl)).ToList(),
             dto.Timeline.Select(item => new VendorOrderTimelineResponse(
                 item.Status,
                 item.Label,
@@ -233,13 +239,17 @@ public record AssignedDriverSummaryResponse(
     string Name,
     string? PhoneNumber,
     string VehicleType,
-    string PlateNumber);
+    string PlateNumber,
+    string? ImageUrl = null);
 public record VendorOrderItemResponse(
     Guid Id,
     string ProductName,
+    string ProductNameAr,
+    string ProductNameEn,
     int Quantity,
     decimal UnitPrice,
-    decimal LineTotal);
+    decimal LineTotal,
+    string? ImageUrl = null);
 public record VendorOrderTimelineResponse(
     string Status,
     string Label,

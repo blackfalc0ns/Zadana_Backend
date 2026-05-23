@@ -23,8 +23,10 @@ public class User : IdentityUser<Guid>
     
     public string? OtpCode { get; private set; }
     public DateTime? OtpExpiryTime { get; private set; }
+    public int OtpAttempts { get; private set; }
     public string? PasswordResetOtp { get; private set; }
     public DateTime? PasswordResetOtpExpiry { get; private set; }
+    public int PasswordResetOtpAttempts { get; private set; }
     public DateTime? LastLoginAtUtc { get; private set; }
     public DateTime? LastOtpSentAt { get; private set; }
     public DateTime? LastSeenAtUtc { get; private set; }
@@ -219,14 +221,21 @@ public class User : IdentityUser<Guid>
     public bool IsArchived() => ArchivedAtUtc.HasValue;
 
     // --- OTP Domain Behavior ---
+    // OTP code is now stored as a SHA-256 hash; the plaintext is generated
+    // here, returned to the caller (so it can be sent via SMS/email) and
+    // immediately discarded. Random.Shared internally uses a thread-safe,
+    // cryptographically-strong source on .NET 9.
+    private const int MaxOtpAttempts = 5;
+
     public string GenerateOtp()
     {
-        // Generate a 4-digit code (simple string randomizer)
-        var random = new Random();
-        OtpCode = random.Next(1000, 9999).ToString();
-        OtpExpiryTime = DateTime.UtcNow.AddMinutes(5); // Valid for 5 minutes
+        var code = GenerateNumericCode(4);
+        OtpCode = HashOtp(code);
+        OtpExpiryTime = DateTime.UtcNow.AddMinutes(5);
+        OtpAttempts = 0;
         LastOtpSentAt = DateTime.UtcNow;
-        return OtpCode;
+        UpdatedAtUtc = DateTime.UtcNow;
+        return code;
     }
 
     public bool CanResendOtp()
@@ -241,28 +250,53 @@ public class User : IdentityUser<Guid>
             return false;
 
         if (DateTime.UtcNow > OtpExpiryTime.Value)
-            return false; // Expired
+        {
+            // Expired — clear so a new OTP must be requested.
+            OtpCode = null;
+            OtpExpiryTime = null;
+            OtpAttempts = 0;
+            UpdatedAtUtc = DateTime.UtcNow;
+            return false;
+        }
 
-        if (OtpCode != code.Trim())
-            return false; // Incorrect
+        if (OtpAttempts >= MaxOtpAttempts)
+        {
+            // Too many failed attempts — invalidate the OTP entirely.
+            OtpCode = null;
+            OtpExpiryTime = null;
+            OtpAttempts = 0;
+            UpdatedAtUtc = DateTime.UtcNow;
+            return false;
+        }
 
-        // Success: Clear the OTP and mark as verified
+        var providedHash = HashOtp(code?.Trim() ?? string.Empty);
+        if (!FixedTimeEquals(OtpCode, providedHash))
+        {
+            OtpAttempts++;
+            UpdatedAtUtc = DateTime.UtcNow;
+            return false;
+        }
+
+        // Success: clear OTP state and mark phone confirmed (legacy behavior).
         OtpCode = null;
         OtpExpiryTime = null;
-        PhoneNumberConfirmed = true; // Assuming OTP is primarily for Phone in this scenario
+        OtpAttempts = 0;
+        PhoneNumberConfirmed = true;
         UpdatedAtUtc = DateTime.UtcNow;
-        
+
         return true;
     }
 
     // --- Password Reset Domain Behavior ---
     public string GeneratePasswordResetOtp()
     {
-        var random = new Random();
-        PasswordResetOtp = random.Next(1000, 9999).ToString();
-        PasswordResetOtpExpiry = DateTime.UtcNow.AddMinutes(15); // Valid for 15 minutes
+        var code = GenerateNumericCode(4);
+        PasswordResetOtp = HashOtp(code);
+        PasswordResetOtpExpiry = DateTime.UtcNow.AddMinutes(15);
+        PasswordResetOtpAttempts = 0;
         LastOtpSentAt = DateTime.UtcNow;
-        return PasswordResetOtp;
+        UpdatedAtUtc = DateTime.UtcNow;
+        return code;
     }
 
     public bool VerifyPasswordResetOtp(string code)
@@ -271,16 +305,61 @@ public class User : IdentityUser<Guid>
             return false;
 
         if (DateTime.UtcNow > PasswordResetOtpExpiry.Value)
-            return false; // Expired
+        {
+            PasswordResetOtp = null;
+            PasswordResetOtpExpiry = null;
+            PasswordResetOtpAttempts = 0;
+            UpdatedAtUtc = DateTime.UtcNow;
+            return false;
+        }
 
-        if (PasswordResetOtp != code.Trim())
-            return false; // Incorrect
+        if (PasswordResetOtpAttempts >= MaxOtpAttempts)
+        {
+            PasswordResetOtp = null;
+            PasswordResetOtpExpiry = null;
+            PasswordResetOtpAttempts = 0;
+            UpdatedAtUtc = DateTime.UtcNow;
+            return false;
+        }
 
-        // Success: Clear the Reset OTP
+        var providedHash = HashOtp(code?.Trim() ?? string.Empty);
+        if (!FixedTimeEquals(PasswordResetOtp, providedHash))
+        {
+            PasswordResetOtpAttempts++;
+            UpdatedAtUtc = DateTime.UtcNow;
+            return false;
+        }
+
         PasswordResetOtp = null;
         PasswordResetOtpExpiry = null;
+        PasswordResetOtpAttempts = 0;
         UpdatedAtUtc = DateTime.UtcNow;
-        
+
         return true;
+    }
+
+    private static string GenerateNumericCode(int length)
+    {
+        // RandomNumberGenerator.GetInt32 is uniform and CSPRNG-backed.
+        var min = (int)Math.Pow(10, length - 1);
+        var max = (int)Math.Pow(10, length);
+        var value = System.Security.Cryptography.RandomNumberGenerator.GetInt32(min, max);
+        return value.ToString(System.Globalization.CultureInfo.InvariantCulture);
+    }
+
+    private static string HashOtp(string code)
+    {
+        var bytes = System.Text.Encoding.UTF8.GetBytes(code);
+        var hash = System.Security.Cryptography.SHA256.HashData(bytes);
+        return Convert.ToHexString(hash);
+    }
+
+    private static bool FixedTimeEquals(string? a, string? b)
+    {
+        if (a is null || b is null) return false;
+        var ba = System.Text.Encoding.ASCII.GetBytes(a);
+        var bb = System.Text.Encoding.ASCII.GetBytes(b);
+        return ba.Length == bb.Length &&
+               System.Security.Cryptography.CryptographicOperations.FixedTimeEquals(ba, bb);
     }
 }

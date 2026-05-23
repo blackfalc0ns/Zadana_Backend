@@ -161,7 +161,10 @@ public record CustomerRefundStatusResponse(
     [property: JsonPropertyName("refund_status")] string? RefundStatus,
     [property: JsonPropertyName("customer_note")] string? CustomerNote,
     [property: JsonPropertyName("created_at")] DateTime? CreatedAt,
-    [property: JsonPropertyName("updated_at")] DateTime? UpdatedAt);
+    [property: JsonPropertyName("updated_at")] DateTime? UpdatedAt,
+    [property: JsonPropertyName("refund_lifecycle_status")] string? RefundLifecycleStatus,
+    [property: JsonPropertyName("refund_provider")] string? RefundProvider,
+    [property: JsonPropertyName("refund_failure_message")] string? RefundFailureMessage);
 
 public record CustomerReplyRequest(
     [property: JsonPropertyName("message")] string Message,

@@ -1,0 +1,11 @@
+#!/usr/bin/env sh
+# Pre-commit hook: run the PowerShell secret scanner.
+# Activate locally with: git config core.hooksPath .githooks
+
+if command -v pwsh >/dev/null 2>&1; then
+  pwsh -NoLogo -NoProfile -ExecutionPolicy Bypass -File scripts/pre-commit-secret-check.ps1
+elif command -v powershell >/dev/null 2>&1; then
+  powershell -NoLogo -NoProfile -ExecutionPolicy Bypass -File scripts/pre-commit-secret-check.ps1
+else
+  echo "PowerShell not found; skipping secret scan." >&2
+fi

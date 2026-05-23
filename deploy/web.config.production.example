@@ -1,0 +1,109 @@
+<?xml version="1.0" encoding="utf-8"?>
+<!--
+  ============================================================
+   web.config الإنتاجي الكامل لـ Zadana على runasp.net
+  ============================================================
+
+  كيف تستخدمه:
+  1. افتح File Manager في لوحة runasp.net.
+  2. اذهب إلى مجلد التطبيق المنشور.
+  3. حذف web.config الموجود.
+  4. ارفع هذا الملف باسم web.config.
+  5. عدّل القيم المحاطة بـ << ... >> لقيمك الفعلية.
+  6. احفظ الملف.
+  7. لوحة runasp.net → Application → Restart.
+
+  ⚠️ لا ترفع هذا الملف إلى git ولا تشاركه عبر شبكة غير مشفرة.
+
+  ⚠️ للحصول على قيم آمنة لـ JwtSettings__Secret و BankTransfer__WebhookSecret
+     شغّل: pwsh scripts/rotate-secrets.ps1 -Format env
+
+  ⚠️ بقية المفاتيح (Moyasar, Resend, ImageKit, OneSignal, MS SQL password)
+     يجب أن تُدوَّر من لوحات المزودين أولاً قبل وضعها هنا.
+-->
+<configuration>
+  <location path="." inheritInChildApplications="false">
+    <system.webServer>
+      <handlers>
+        <add name="aspNetCore" path="*" verb="*" modules="AspNetCoreModuleV2" resourceType="Unspecified" />
+      </handlers>
+      <aspNetCore processPath="dotnet"
+                  arguments=".\Zadana.Api.dll"
+                  stdoutLogEnabled="true"
+                  stdoutLogFile=".\logs\stdout"
+                  hostingModel="inprocess">
+        <environmentVariables>
+          <environmentVariable name="ASPNETCORE_ENVIRONMENT" value="Production" />
+
+          <!-- ===== Database ===== -->
+          <environmentVariable
+            name="ConnectionStrings__DefaultConnection"
+            value="Server=db47624.public.databaseasp.net,1433;Database=db47624;User Id=db47624;Password=&lt;&lt;NEW_DB_PASSWORD&gt;&gt;;Encrypt=True;TrustServerCertificate=False;MultipleActiveResultSets=True;Connection Timeout=30;" />
+
+          <!-- ===== JWT ===== -->
+          <environmentVariable
+            name="JwtSettings__Secret"
+            value="&lt;&lt;BASE64_64_BYTES_FROM_rotate-secrets.ps1&gt;&gt;" />
+          <environmentVariable name="JwtSettings__Issuer"   value="ZadanaApi" />
+          <environmentVariable name="JwtSettings__Audience" value="ZadanaClients" />
+
+          <!-- ===== DataProtection (يحفظ المفاتيح بعد restart) ===== -->
+          <environmentVariable name="DataProtection__KeysPath" value="App_Data\keys" />
+
+          <!-- ===== Email (Resend) ===== -->
+          <environmentVariable name="ResendSettings__ApiKey"     value="&lt;&lt;NEW_RESEND_API_KEY&gt;&gt;" />
+          <environmentVariable name="ResendSettings__FromEmail"  value="support@zadna0.com" />
+          <environmentVariable name="ResendSettings__FromName"   value="Zadna" />
+
+          <!-- ===== ImageKit ===== -->
+          <environmentVariable name="ImageKit__PublicKey"   value="&lt;&lt;NEW_IMAGEKIT_PUBLIC_KEY&gt;&gt;" />
+          <environmentVariable name="ImageKit__PrivateKey"  value="&lt;&lt;NEW_IMAGEKIT_PRIVATE_KEY&gt;&gt;" />
+          <environmentVariable name="ImageKit__UrlEndpoint" value="https://ik.imagekit.io/your-id" />
+
+          <!-- ===== Moyasar (Payments) ===== -->
+          <environmentVariable name="Moyasar__PublishableKey" value="&lt;&lt;NEW_MOYASAR_PUBLISHABLE_KEY&gt;&gt;" />
+          <environmentVariable name="Moyasar__SecretKey"      value="&lt;&lt;NEW_MOYASAR_SECRET_KEY&gt;&gt;" />
+          <environmentVariable name="Moyasar__WebhookSecret"  value="&lt;&lt;NEW_MOYASAR_WEBHOOK_SECRET&gt;&gt;" />
+          <environmentVariable name="Moyasar__CallbackUrl"    value="https://zadana.runasp.net/api/payments/moyasar/verify" />
+
+          <!-- ===== Bank Transfer ===== -->
+          <environmentVariable name="BankTransfer__BankName"          value="اسم البنك" />
+          <environmentVariable name="BankTransfer__AccountHolderName" value="اسم صاحب الحساب" />
+          <environmentVariable name="BankTransfer__Iban"              value="SA0380000000608010167519" />
+          <environmentVariable name="BankTransfer__AccountNumber"     value="608010167519" />
+          <environmentVariable name="BankTransfer__WebhookSecret"     value="&lt;&lt;HEX_FROM_rotate-secrets.ps1&gt;&gt;" />
+
+          <!-- ===== OneSignal Push ===== -->
+          <environmentVariable name="OneSignal__AppId"              value="e557da4e-947b-468b-ab5b-37c552c35dca" />
+          <environmentVariable name="OneSignal__RestApiKey"         value="&lt;&lt;NEW_ONESIGNAL_REST_API_KEY&gt;&gt;" />
+          <environmentVariable name="OneSignal__DriverAppId"        value="1eead1ea-3d6f-4f2a-8bc5-c681d71b55f6" />
+          <environmentVariable name="OneSignal__DriverRestApiKey"   value="&lt;&lt;NEW_DRIVER_REST_API_KEY&gt;&gt;" />
+          <environmentVariable name="OneSignal__AdminWebAppId"      value="c32e801d-7fa0-46f3-bd0a-564af78dbddf" />
+          <environmentVariable name="OneSignal__AdminWebRestApiKey" value="&lt;&lt;NEW_ADMIN_REST_API_KEY&gt;&gt;" />
+          <environmentVariable name="OneSignal__AdminDefaultWebUrl" value="https://zadan-super-panel.vercel.app/" />
+          <environmentVariable name="OneSignal__DefaultWebUrl"      value="https://zadana-vendor-panel.vercel.app/" />
+
+          <!-- ===== Twilio (إذا تستخدمه) ===== -->
+          <environmentVariable name="TwilioSettings__AccountSid" value="&lt;&lt;TWILIO_SID_OR_LEAVE_DEFAULT&gt;&gt;" />
+          <environmentVariable name="TwilioSettings__AuthToken"  value="&lt;&lt;TWILIO_TOKEN_OR_LEAVE_DEFAULT&gt;&gt;" />
+          <environmentVariable name="TwilioSettings__FromNumber" value="+1234567890" />
+
+          <!-- ===== Seeding (اتركه فارغاً لتعطيل seeding endpoints) ===== -->
+          <environmentVariable name="Seeding__ManagementKey" value="" />
+
+          <!-- ===== Redis (اختياري للـ caching) ===== -->
+          <!--
+          <environmentVariable name="Caching__Redis__ConnectionString" value="your-redis-host:6379,password=...,ssl=True" />
+          -->
+
+        </environmentVariables>
+      </aspNetCore>
+      <httpErrors errorMode="DetailedLocalOnly" />
+      <httpProtocol>
+        <customHeaders>
+          <remove name="X-Powered-By" />
+        </customHeaders>
+      </httpProtocol>
+    </system.webServer>
+  </location>
+</configuration>

@@ -1,5 +1,6 @@
 using Microsoft.AspNetCore.Authorization;
 using Microsoft.AspNetCore.Mvc;
+using Microsoft.EntityFrameworkCore;
 using System.Globalization;
 using Zadana.Api.Controllers;
 using Zadana.Api.Modules.Orders.Requests;
@@ -30,15 +31,18 @@ public class OrdersController : ApiControllerBase
     private readonly ICurrentUserService _currentUserService;
     private readonly IOrderReadService _orderReadService;
     private readonly IOrderSupportCaseWorkflowService _orderSupportCaseWorkflowService;
+    private readonly IApplicationDbContext _dbContext;
 
     public OrdersController(
         ICurrentUserService currentUserService,
         IOrderReadService orderReadService,
-        IOrderSupportCaseWorkflowService orderSupportCaseWorkflowService)
+        IOrderSupportCaseWorkflowService orderSupportCaseWorkflowService,
+        IApplicationDbContext dbContext)
     {
         _currentUserService = currentUserService;
         _orderReadService = orderReadService;
         _orderSupportCaseWorkflowService = orderSupportCaseWorkflowService;
+        _dbContext = dbContext;
     }
 
     [HttpGet("active")]
@@ -291,7 +295,28 @@ public class OrdersController : ApiControllerBase
         if (activeCase is null)
         {
             return Ok(new CustomerRefundStatusResponse(
-                orderId, false, null, null, null, null, null, null, null, null, null, false, null, null, null, null));
+                orderId, false, null, null, null, null, null, null, null, null, null, false, null, null, null, null,
+                null, null, null));
+        }
+
+        // Enrich with actual refund lifecycle data
+        string? refundLifecycleStatus = null;
+        string? refundProviderName = null;
+        string? refundFailureMessage = null;
+
+        var refund = await _dbContext.Refunds
+            .AsNoTracking()
+            .Where(r => r.OrderSupportCaseId == activeCase.Id)
+            .OrderByDescending(r => r.CreatedAtUtc)
+            .FirstOrDefaultAsync(cancellationToken);
+
+        if (refund is not null)
+        {
+            refundLifecycleStatus = refund.LifecycleStatus.ToString().ToLowerInvariant();
+            refundProviderName = refund.ProviderName;
+            refundFailureMessage = refund.LifecycleStatus == Domain.Modules.Payments.Enums.RefundStatus.Failed
+                ? refund.RawProviderResponse
+                : null;
         }
 
         return Ok(new CustomerRefundStatusResponse(
@@ -310,7 +335,10 @@ public class OrdersController : ApiControllerBase
             activeCase.ApprovedRefundAmount.HasValue ? "approved" : "pending",
             activeCase.CustomerVisibleNote,
             activeCase.CreatedAt,
-            activeCase.UpdatedAt));
+            activeCase.UpdatedAt,
+            refundLifecycleStatus,
+            refundProviderName,
+            refundFailureMessage));
     }
 
     [HttpPost("{orderId:guid}/cases/{caseId:guid}/reply")]

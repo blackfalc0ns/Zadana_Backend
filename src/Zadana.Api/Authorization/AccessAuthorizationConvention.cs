@@ -125,6 +125,9 @@ public sealed class AccessAuthorizationConvention : IApplicationModelConvention
             ["AdminVendorWorkspaceState"] = new(
                 [PermissionKeys.Admin.VendorsView],
                 edit: [PermissionKeys.Admin.VendorsEdit]),
+            ["AdminVendorSupportTickets"] = new(
+                [PermissionKeys.Admin.VendorsView],
+                edit: [PermissionKeys.Admin.VendorsEdit]),
             ["AdminWallets"] = new(
                 [PermissionKeys.Admin.WalletsView],
                 edit: [PermissionKeys.Admin.WalletsEdit],
@@ -172,6 +175,10 @@ public sealed class AccessAuthorizationConvention : IApplicationModelConvention
                 create: [PermissionKeys.Vendor.OffersEdit],
                 edit: [PermissionKeys.Vendor.OffersEdit]),
             ["VendorOrderCases"] = new(
+                [PermissionKeys.Vendor.SupportView],
+                create: [PermissionKeys.Vendor.SupportEdit],
+                edit: [PermissionKeys.Vendor.SupportEdit]),
+            ["VendorSupportTickets"] = new(
                 [PermissionKeys.Vendor.SupportView],
                 create: [PermissionKeys.Vendor.SupportEdit],
                 edit: [PermissionKeys.Vendor.SupportEdit]),

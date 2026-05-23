@@ -3,7 +3,9 @@ using System.Text.Json;
 using System.Text.Json.Serialization;
 using System.Threading.RateLimiting;
 using Microsoft.AspNetCore.Authentication.JwtBearer;
+using Microsoft.AspNetCore.DataProtection;
 using Microsoft.AspNetCore.Diagnostics.HealthChecks;
+using Microsoft.AspNetCore.HttpOverrides;
 using Microsoft.AspNetCore.Identity;
 using Microsoft.AspNetCore.Localization;
 using Microsoft.AspNetCore.OutputCaching;
@@ -55,7 +57,60 @@ if (builder.Environment.IsDevelopment())
     builder.Configuration.AddUserSecrets<Program>(optional: true, reloadOnChange: true);
 }
 
+// Allow developers to keep secrets out of source control by overriding any
+// setting via appsettings.Local.json (gitignored) or environment variables.
+// Order: appsettings.json -> appsettings.{env}.json -> appsettings.Local.json
+//        -> user-secrets (Development) -> environment variables.
+builder.Configuration.AddJsonFile("appsettings.Local.json", optional: true, reloadOnChange: true);
+builder.Configuration.AddEnvironmentVariables(prefix: "ZADANA_");
+builder.Configuration.AddEnvironmentVariables();
+
 var jwtSecret = builder.Configuration.GetRequiredSetting("JwtSettings:Secret");
+
+// Production hardening: refuse to start if critical settings are still
+// placeholders or default values that have ever been committed.
+if (builder.Environment.IsProduction())
+{
+    var requiredProductionSettings = new[]
+    {
+        "JwtSettings:Secret",
+        "ImageKit:PrivateKey",
+        "Moyasar:SecretKey",
+        "Moyasar:WebhookSecret",
+        "ResendSettings:ApiKey",
+        "BankTransfer:WebhookSecret"
+    };
+
+    var missing = requiredProductionSettings
+        .Where(key => Zadana.Api.Configuration.ConfigurationGuardExtensions.IsPlaceholder(builder.Configuration[key]))
+        .ToArray();
+
+    if (missing.Length > 0)
+    {
+        throw new InvalidOperationException(
+            "Production startup blocked: the following required secrets are not configured (set them via environment variables): " +
+            string.Join(", ", missing));
+    }
+
+    // JWT Secret length: HS256 needs at least 32 bytes of entropy.
+    if (System.Text.Encoding.UTF8.GetByteCount(jwtSecret) < 32)
+    {
+        throw new InvalidOperationException(
+            "Production startup blocked: JwtSettings:Secret must be at least 32 bytes (use a 64-byte random value).");
+    }
+
+    // Connection string must enforce TLS to the database. Some shared
+    // hosting providers (databaseasp.net, runasp.net) ship with self-signed
+    // certificates, so TrustServerCertificate=True is allowed; what we
+    // strictly forbid is unencrypted SQL traffic over the wire.
+    var prodConn = builder.Configuration.GetConnectionString("DefaultConnection") ?? string.Empty;
+    if (prodConn.Contains("Encrypt=False", StringComparison.OrdinalIgnoreCase))
+    {
+        throw new InvalidOperationException(
+            "Production startup blocked: ConnectionStrings:DefaultConnection must use Encrypt=True. " +
+            "If your DB provider uses a self-signed certificate, also set TrustServerCertificate=True.");
+    }
+}
 var cachingSettingsSection = builder.Configuration.GetSection(CachingSettings.SectionName);
 var cachingSettings = cachingSettingsSection.Get<CachingSettings>() ?? new CachingSettings();
 var redisConnectionString = cachingSettings.Redis.ConnectionString;
@@ -73,7 +128,11 @@ builder.Services.AddOptions<CachingSettings>()
 
 if (!builder.Environment.IsEnvironment("Testing"))
 {
-    builder.Services.AddSingleton<AuditableEntityInterceptor>();
+    // Register the interceptor with an explicit factory that injects the
+    // root service provider so it can resolve a scoped ICurrentUserService
+    // at SaveChanges time without taking a hard dependency on HttpContext.
+    builder.Services.AddSingleton<AuditableEntityInterceptor>(sp =>
+        new AuditableEntityInterceptor(sp));
     builder.Services.AddDbContext<ApplicationDbContext>((sp, options) =>
     {
         options.UseSqlServer(
@@ -93,6 +152,18 @@ if (!builder.Environment.IsEnvironment("Testing"))
             options.EnableSensitiveDataLogging();
             options.EnableDetailedErrors();
         }
+    });
+
+    // Replace the default DbContext factory with one that wires the
+    // IDataProtectionProvider so PII columns are encrypted at rest.
+    builder.Services.AddScoped(provider =>
+    {
+        var options = provider.GetRequiredService<DbContextOptions<ApplicationDbContext>>();
+        var interceptor = provider.GetRequiredService<AuditableEntityInterceptor>();
+        var dataProtection = provider.GetService<Microsoft.AspNetCore.DataProtection.IDataProtectionProvider>();
+        return dataProtection is not null
+            ? new ApplicationDbContext(options, interceptor, dataProtection)
+            : new ApplicationDbContext(options, interceptor);
     });
     builder.Services.AddScoped<ApplicationDbContextInitialiser>();
 }
@@ -140,6 +211,7 @@ builder.Services.AddHostedService<VendorProductBulkOperationWorker>();
 builder.Services.AddHostedService<AdminAlertOutboxWorker>();
 builder.Services.AddHostedService<NotificationCleanupWorker>();
 builder.Services.AddHostedService<VendorSettlementCycleWorker>();
+builder.Services.AddHostedService<SupportCaseSlaWorker>();
 
 builder.Services.AddOptions<FinancialSettingsOptions>()
     .Bind(builder.Configuration.GetSection(FinancialSettingsOptions.SectionName));
@@ -193,6 +265,7 @@ else
 }
 
 builder.Services.AddHttpContextAccessor();
+builder.Services.AddSingleton<RegistrationUploadTokenService>();
 builder.Services.AddMemoryCache();
 if (useRedisCaching)
 {
@@ -233,14 +306,67 @@ builder.Services.AddOutputCache(options =>
 });
 builder.Services.AddIdentity<User, IdentityRole<Guid>>(options =>
 {
+    // Password policy: keep backward-compatible (existing users with 8 chars
+    // continue to work), but enforce slightly stronger rules for new ones.
+    options.Password.RequireDigit = true;
+    options.Password.RequireLowercase = true;
+    options.Password.RequireUppercase = false;
     options.Password.RequireNonAlphanumeric = false;
     options.Password.RequiredLength = 8;
+    options.Password.RequiredUniqueChars = 1;
+
+    // Lockout: unchanged behavior, keep existing thresholds.
     options.Lockout.AllowedForNewUsers = true;
     options.Lockout.MaxFailedAccessAttempts = 5;
     options.Lockout.DefaultLockoutTimeSpan = TimeSpan.FromMinutes(15);
+
+    // User policy
+    options.User.RequireUniqueEmail = true;
 })
 .AddEntityFrameworkStores<ApplicationDbContext>()
 .AddDefaultTokenProviders();
+
+// DataProtection: persist keys to disk so cookies, anti-forgery tokens, and
+// any encrypted state survive process restarts and multi-instance deploys.
+// In Production we expect a writable persistent volume mounted at the path
+// "DataProtection:KeysPath" (overridable via env var). Falls back to the
+// content root in Development.
+var dataProtectionKeysPath = builder.Configuration["DataProtection:KeysPath"];
+if (string.IsNullOrWhiteSpace(dataProtectionKeysPath))
+{
+    dataProtectionKeysPath = Path.Combine(builder.Environment.ContentRootPath, "App_Data", "keys");
+}
+
+try
+{
+    Directory.CreateDirectory(dataProtectionKeysPath);
+
+    builder.Services
+        .AddDataProtection()
+        .SetApplicationName("Zadana.Api")
+        .PersistKeysToFileSystem(new DirectoryInfo(dataProtectionKeysPath));
+}
+catch (Exception ex)
+{
+    // Fail open in environments where the keys directory cannot be created
+    // (e.g., read-only filesystems). Keys remain in-memory and rotate per restart.
+    Console.Error.WriteLine($"[DataProtection] Failed to persist keys to '{dataProtectionKeysPath}': {ex.Message}");
+    builder.Services
+        .AddDataProtection()
+        .SetApplicationName("Zadana.Api");
+}
+
+// Forwarded headers: when running behind a reverse proxy / IIS / Azure App Service,
+// trust X-Forwarded-For/Proto so RemoteIp and IsHttps reflect the real client.
+// We clear KnownNetworks/KnownProxies lists in non-Development to allow the
+// hosting platform's loopback proxy to forward; restrict further if needed.
+builder.Services.Configure<ForwardedHeadersOptions>(options =>
+{
+    options.ForwardedHeaders = ForwardedHeaders.XForwardedFor | ForwardedHeaders.XForwardedProto | ForwardedHeaders.XForwardedHost;
+    options.ForwardLimit = 2;
+    options.KnownNetworks.Clear();
+    options.KnownProxies.Clear();
+});
 
 builder.Services.AddRateLimiter(options =>
 {
@@ -320,11 +446,19 @@ builder.Services.AddCors(options =>
             return;
         }
 
-        if (allowedOrigins is { Length: > 0 })
+        // Production: only allow non-loopback HTTPS origins from configuration.
+        // localhost / 127.0.0.1 entries in production config are filtered out
+        // because they widen the surface without serving any real client.
+        var productionOrigins = (allowedOrigins ?? Array.Empty<string>())
+            .Where(IsProductionAllowedOrigin)
+            .Distinct(StringComparer.OrdinalIgnoreCase)
+            .ToArray();
+
+        if (productionOrigins.Length > 0)
         {
-            policy.WithOrigins(allowedOrigins)
-                .AllowAnyHeader()
-                .AllowAnyMethod()
+            policy.WithOrigins(productionOrigins)
+                .WithHeaders("Authorization", "Content-Type", "Accept", "Accept-Language", "X-Device-Id", "X-Seeding-Key", "X-Moyasar-Signature", "X-BankTransfer-Secret", "X-Forwarded-For")
+                .WithMethods("GET", "POST", "PUT", "PATCH", "DELETE", "OPTIONS")
                 .AllowCredentials();
             return;
         }
@@ -349,7 +483,11 @@ builder.Services.AddAuthentication(options =>
         ValidateIssuerSigningKey = true,
         ValidIssuer = builder.Configuration["JwtSettings:Issuer"],
         ValidAudience = builder.Configuration["JwtSettings:Audience"],
-        IssuerSigningKey = new SymmetricSecurityKey(Encoding.UTF8.GetBytes(jwtSecret))
+        IssuerSigningKey = new SymmetricSecurityKey(Encoding.UTF8.GetBytes(jwtSecret)),
+        // Tighten clock skew (default is 5 minutes) so revoked / expired tokens
+        // stop being accepted shortly after expiry. 30s allows clients with mild
+        // clock drift to still succeed.
+        ClockSkew = TimeSpan.FromSeconds(30)
     };
     options.Events = new JwtBearerEvents
     {
@@ -448,8 +586,28 @@ if (!app.Environment.IsEnvironment("Testing"))
 
 app.UseMiddleware<ExceptionHandlingMiddleware>();
 
-app.UseSwagger();
-app.UseSwaggerUI();
+// Forwarded headers must run before any middleware that inspects scheme / IP
+// (CORS, rate limiter, redirection). Without this, X-Forwarded-* are ignored
+// when the API runs behind IIS / reverse proxies / Azure App Service.
+app.UseForwardedHeaders();
+
+// HTTPS hardening for non-development environments. UseHsts is a no-op in dev.
+if (!app.Environment.IsDevelopment())
+{
+    app.UseHsts();
+}
+
+// Security headers on every response (no-op for already-set headers).
+app.UseMiddleware<SecurityHeadersMiddleware>();
+
+// Swagger is only exposed outside Production to reduce reconnaissance surface.
+// Set Swagger:EnableInProduction=true to override (e.g., for staging-like envs).
+var enableSwaggerInProduction = app.Configuration.GetValue<bool>("Swagger:EnableInProduction");
+if (!app.Environment.IsProduction() || enableSwaggerInProduction)
+{
+    app.UseSwagger();
+    app.UseSwaggerUI();
+}
 
 app.UseHttpsRedirection();
 app.UseStaticFiles();
@@ -467,9 +625,12 @@ localizationOptions.RequestCultureProviders =
 
 app.UseRequestLocalization(localizationOptions);
 app.UseCors("Frontend");
+
+// Authentication must run before the rate limiter so that authenticated users
+// are partitioned by userId (instead of all sharing the IP-based bucket).
+app.UseAuthentication();
 app.UseRateLimiter();
 app.UseOutputCache();
-app.UseAuthentication();
 app.UseMiddleware<TemporaryPasswordMiddleware>();
 app.UseAuthorization();
 app.UseMiddleware<SystemLogMiddleware>();
@@ -607,7 +768,10 @@ static bool IsAuthorizedSeedRequest(HttpContext httpContext, string? expectedKey
         return false;
     }
 
-    return string.Equals(providedKey.ToString(), expectedKey, StringComparison.Ordinal);
+    var expectedBytes = Encoding.UTF8.GetBytes(expectedKey);
+    var providedBytes = Encoding.UTF8.GetBytes(providedKey.ToString());
+    return expectedBytes.Length == providedBytes.Length
+        && System.Security.Cryptography.CryptographicOperations.FixedTimeEquals(expectedBytes, providedBytes);
 }
 
 static bool IsAllowedDevelopmentOrigin(string? origin, string[]? configuredOrigins)
@@ -633,6 +797,36 @@ static bool IsAllowedDevelopmentOrigin(string? origin, string[]? configuredOrigi
            uri.Host.Equals("::1", StringComparison.OrdinalIgnoreCase);
 }
 
+// Filters loopback and non-https entries from a configured origin list.
+// Used to defensively scrub localhost/dev origins out of Production CORS even
+// if they were left in appsettings by mistake.
+static bool IsProductionAllowedOrigin(string? origin)
+{
+    if (string.IsNullOrWhiteSpace(origin))
+    {
+        return false;
+    }
+
+    if (!Uri.TryCreate(origin, UriKind.Absolute, out var uri))
+    {
+        return false;
+    }
+
+    if (!string.Equals(uri.Scheme, Uri.UriSchemeHttps, StringComparison.OrdinalIgnoreCase))
+    {
+        return false;
+    }
+
+    if (uri.Host.Equals("localhost", StringComparison.OrdinalIgnoreCase) ||
+        uri.Host.Equals("127.0.0.1", StringComparison.OrdinalIgnoreCase) ||
+        uri.Host.Equals("::1", StringComparison.OrdinalIgnoreCase))
+    {
+        return false;
+    }
+
+    return true;
+}
+
 static string ResolveRateLimitKey(HttpContext context)
 {
     if (context.User.Identity?.IsAuthenticated == true)
@@ -644,17 +838,16 @@ static string ResolveRateLimitKey(HttpContext context)
         }
     }
 
-    var forwardedFor = context.Request.Headers["X-Forwarded-For"].ToString();
-    if (!string.IsNullOrWhiteSpace(forwardedFor))
+    // After UseForwardedHeaders, RemoteIpAddress reflects the real client IP
+    // when running behind a trusted proxy. We no longer trust the raw
+    // X-Forwarded-For header here because it can be spoofed by clients.
+    var remoteIp = context.Connection.RemoteIpAddress?.ToString();
+    if (!string.IsNullOrWhiteSpace(remoteIp))
     {
-        var firstAddress = forwardedFor.Split(',', StringSplitOptions.RemoveEmptyEntries | StringSplitOptions.TrimEntries).FirstOrDefault();
-        if (!string.IsNullOrWhiteSpace(firstAddress))
-        {
-            return $"ip:{firstAddress}";
-        }
+        return $"ip:{remoteIp}";
     }
 
-    return $"ip:{context.Connection.RemoteIpAddress}";
+    return "ip:unknown";
 }
 
 static void LogStartupExceptionSafely(IServiceProvider services, Exception exception, string message)

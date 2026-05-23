@@ -35,6 +35,8 @@ public interface IApplicationDbContext
     DbSet<VendorDocumentReview> VendorDocumentReviews { get; }
     DbSet<VendorProfileReviewItem> VendorProfileReviewItems { get; }
     DbSet<VendorWorkspaceState> VendorWorkspaceStates { get; }
+    DbSet<VendorSupportTicket> VendorSupportTickets { get; }
+    DbSet<VendorSupportTicketMessage> VendorSupportTicketMessages { get; }
 
     // Catalog
     DbSet<Category> Categories { get; }
@@ -95,6 +97,7 @@ public interface IApplicationDbContext
     DbSet<Payout> Payouts { get; }
     DbSet<PayoutAttempt> PayoutAttempts { get; }
     DbSet<VendorRecovery> VendorRecoveries { get; }
+    DbSet<DriverRecovery> DriverRecoveries { get; }
     DbSet<DriverPayoutMethod> DriverPayoutMethods { get; }
     DbSet<DriverWithdrawalRequest> DriverWithdrawalRequests { get; }
     DbSet<WalletHold> WalletHolds { get; }

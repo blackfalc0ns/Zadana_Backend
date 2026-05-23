@@ -12,7 +12,9 @@ namespace Zadana.Api.Modules.Files.Controllers;
 
 [Route("api/files")]
 [Tags("Common Systems (Files)")]
-public class FilesController(ICurrentUserService currentUserService) : ApiControllerBase
+public class FilesController(
+    ICurrentUserService currentUserService,
+    RegistrationUploadTokenService registrationTokenService) : ApiControllerBase
 {
     [HttpPost("upload")]
     [AllowAnonymous]
@@ -46,6 +48,20 @@ public class FilesController(ICurrentUserService currentUserService) : ApiContro
             (string.IsNullOrWhiteSpace(currentUserService.Role) || !rule.AllowedRoles.Contains(currentUserService.Role)))
         {
             return Forbid();
+        }
+
+        // For anonymous-allowed but PII-sensitive directories, require a
+        // short-lived registration upload token to keep random callers out.
+        // Authenticated users skip this check (their JWT is enough).
+        if (rule.AllowAnonymous && !currentUserService.IsAuthenticated && rule.RequiresRegistrationToken)
+        {
+            var token = Request.Headers[RegistrationUploadTokenService.HeaderName].ToString();
+            if (!registrationTokenService.TryValidate(token, RegistrationUploadTokenService.PurposeRegistration, out var failureReason))
+            {
+                throw new UnauthorizedException(
+                    "A valid registration upload token is required for this directory.",
+                    failureReason ?? "REGISTRATION_TOKEN_INVALID");
+            }
         }
 
         using var stream = file.OpenReadStream();

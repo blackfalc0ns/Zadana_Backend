@@ -6,6 +6,33 @@
 # dotenv files
 .env
 
+# Local overrides for application settings (used for secrets like JWT keys
+# and database passwords during local development). Do not commit.
+src/**/appsettings.Local.json
+**/appsettings.Local.json
+
+# DataProtection keys (machine-specific, not for source control).
+src/Zadana.Api/App_Data/
+**/App_Data/keys/
+
+# Build artifacts and temp folders that may contain compiled secrets.
+temp_build/
+.tmp-build/
+temp-build/
+.temp/
+.codex-build/
+publish/
+test-publish/
+**/temp_*/
+**/tmp_*/
+**/tmp-*/
+
+# Production deployment files (contain real secrets, never commit).
+deploy/web.config.production
+deploy/appsettings.Production.json
+deploy/secrets.env
+deploy/.generated-secrets.txt
+
 # Postman update script (contains API keys)
 update-postman.ps1
 

@@ -36,20 +36,31 @@ public class BankTransferController(
     private const string WebhookSecretHeader = "X-BankTransfer-Secret";
 
     /// <summary>
-    /// Customer uploads bank transfer proof for a pending order. The order id
-    /// itself is the auth token at this stage; we tighten this once the
-    /// customer mobile app sends a JWT.
+    /// Customer uploads bank transfer proof for a pending order.
+    /// Authenticated customers must own the order; unauthenticated callers are
+    /// rejected. This closes the IDOR risk where any caller knowing an order
+    /// id could mutate the order's payment record.
     /// </summary>
-    [AllowAnonymous]
+    [Authorize(Policy = "CustomerOnly")]
     [HttpPost("orders/{orderId:guid}/bank-transfer-proof")]
     public async Task<IActionResult> UploadProof(
         Guid orderId,
         [FromBody] BankTransferProofRequest request,
+        [FromServices] ICurrentUserService currentUserService,
         CancellationToken cancellationToken)
     {
+        var userId = currentUserService.UserId
+            ?? throw new UnauthorizedException("USER_NOT_AUTHENTICATED");
+
         var order = await context.Orders
             .FirstOrDefaultAsync(x => x.Id == orderId, cancellationToken)
             ?? throw new NotFoundException("Order", orderId);
+
+        if (order.UserId != userId)
+        {
+            // Do not reveal whether the order exists or belongs to someone else.
+            throw new NotFoundException("Order", orderId);
+        }
 
         if (order.PaymentMethod != PaymentMethodType.BankTransfer)
         {
@@ -362,12 +373,20 @@ public class BankTransferController(
         }
 
         var providedSecret = Request.Headers[WebhookSecretHeader].ToString();
-        if (!string.Equals(configuredSecret.Trim(), providedSecret?.Trim(), StringComparison.Ordinal))
+        if (!FixedTimeEqualsString(configuredSecret.Trim(), providedSecret?.Trim() ?? string.Empty))
         {
             throw new BusinessRuleException(
                 "BANK_TRANSFER_WEBHOOK_INVALID_SECRET",
                 "Bank transfer webhook secret is invalid.");
         }
+    }
+
+    private static bool FixedTimeEqualsString(string expected, string provided)
+    {
+        var expectedBytes = System.Text.Encoding.UTF8.GetBytes(expected);
+        var providedBytes = System.Text.Encoding.UTF8.GetBytes(provided);
+        return expectedBytes.Length == providedBytes.Length
+            && System.Security.Cryptography.CryptographicOperations.FixedTimeEquals(expectedBytes, providedBytes);
     }
 
     private static bool IsPaidWebhookStatus(string? status) =>

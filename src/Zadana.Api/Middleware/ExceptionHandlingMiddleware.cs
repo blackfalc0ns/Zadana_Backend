@@ -44,11 +44,15 @@ public class ExceptionHandlingMiddleware
         }
         catch (Exception ex)
         {
+            // Log the full exception (with stack trace) using the structured
+            // logger; do not interpolate StackTrace into the message template
+            // because that produces enormous log lines and duplicates the
+            // exception details that the logger already records.
             _logger.LogError(
                 ex,
-                "An unhandled exception has occurred: {Message}. StackTrace: {StackTrace}",
-                ex.Message,
-                ex.StackTrace);
+                "Unhandled exception while processing {Method} {Path}",
+                context.Request.Method,
+                context.Request.Path);
 
             var localizer = context.RequestServices.GetRequiredService<IStringLocalizer<SharedResource>>();
             await HandleExceptionAsync(context, ex, localizer);

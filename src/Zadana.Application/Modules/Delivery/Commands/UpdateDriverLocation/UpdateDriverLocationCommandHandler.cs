@@ -43,6 +43,10 @@ public class UpdateDriverLocationCommandHandler : IRequestHandler<UpdateDriverLo
         _context.DriverLocations.Add(location);
         await _unitOfWork.SaveChangesAsync(cancellationToken);
 
+        _logger.LogInformation(
+            "[DriverTracking] Persisted location for driver {DriverId} at ({Lat},{Lng}) acc={Acc}m. Looking for active assignments...",
+            driver.Id, request.Latitude, request.Longitude, request.AccuracyMeters);
+
         await BroadcastToActiveOrdersAsync(driver.Id, location, cancellationToken);
 
         return Unit.Value;
@@ -70,8 +74,15 @@ public class UpdateDriverLocationCommandHandler : IRequestHandler<UpdateDriverLo
 
         if (activeOrderIds.Count == 0)
         {
+            _logger.LogInformation(
+                "[DriverTracking] Driver {DriverId} has NO active assignments. Location was saved but no broadcast was sent.",
+                driverId);
             return;
         }
+
+        _logger.LogInformation(
+            "[DriverTracking] Driver {DriverId} has {Count} active order(s). Broadcasting to: {OrderIds}",
+            driverId, activeOrderIds.Count, string.Join(", ", activeOrderIds));
 
         foreach (var orderId in activeOrderIds)
         {
@@ -85,12 +96,16 @@ public class UpdateDriverLocationCommandHandler : IRequestHandler<UpdateDriverLo
                     location.AccuracyMeters,
                     location.RecordedAtUtc,
                     cancellationToken);
+
+                _logger.LogInformation(
+                    "[DriverTracking] Broadcast sent for order {OrderId} (group: order-{OrderIdN}).",
+                    orderId, orderId.ToString("N"));
             }
             catch (Exception ex)
             {
                 _logger.LogWarning(
                     ex,
-                    "Failed to broadcast driver {DriverId} location to order {OrderId} subscribers.",
+                    "[DriverTracking] Failed to broadcast driver {DriverId} location to order {OrderId} subscribers.",
                     driverId,
                     orderId);
             }

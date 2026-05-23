@@ -6,7 +6,8 @@ public sealed record FileUploadSecurityRule(
     string Directory,
     bool AllowAnonymous,
     long MaxFileSizeBytes,
-    IReadOnlySet<string> AllowedRoles);
+    IReadOnlySet<string> AllowedRoles,
+    bool RequiresRegistrationToken);
 
 public static class FileUploadSecurityPolicy
 {
@@ -15,25 +16,56 @@ public static class FileUploadSecurityPolicy
     private static readonly IReadOnlyDictionary<string, FileUploadSecurityRule> Rules =
         new Dictionary<string, FileUploadSecurityRule>(StringComparer.OrdinalIgnoreCase)
         {
-            [NormalizeDirectory("uploads/vendors/logos")] = Create("uploads/vendors/logos", allowAnonymous: true),
-            [NormalizeDirectory("uploads/vendors/commercial-register")] = Create("uploads/vendors/commercial-register", allowAnonymous: true),
-            [NormalizeDirectory("uploads/vendors/tax-certificates")] = Create("uploads/vendors/tax-certificates", allowAnonymous: true),
-            [NormalizeDirectory("uploads/vendors/licenses")] = Create("uploads/vendors/licenses", allowAnonymous: true),
-            [NormalizeDirectory("uploads/users/profile")] = Create("uploads/users/profile", allowAnonymous: false),
-            [NormalizeDirectory("drivers/national-id")] = Create("drivers/national-id", allowAnonymous: true),
-            [NormalizeDirectory("drivers/license")] = Create("drivers/license", allowAnonymous: true),
-            [NormalizeDirectory("drivers/vehicle")] = Create("drivers/vehicle", allowAnonymous: true),
-            [NormalizeDirectory("drivers/profile")] = Create("drivers/profile", allowAnonymous: true),
-            [NormalizeDirectory("drivers/proofs")] = Create("drivers/proofs", allowAnonymous: false, UserRole.Driver),
-            [NormalizeDirectory("uploads/catalog/brand-requests")] = Create("uploads/catalog/brand-requests", allowAnonymous: false, UserRole.Vendor, UserRole.VendorStaff),
-            [NormalizeDirectory("uploads/catalog/category-requests")] = Create("uploads/catalog/category-requests", allowAnonymous: false, UserRole.Vendor, UserRole.VendorStaff),
-            [NormalizeDirectory("uploads/catalog/categories")] = Create("uploads/catalog/categories", allowAnonymous: true),
-            [NormalizeDirectory("uploads/catalog/brands")] = Create("uploads/catalog/brands", allowAnonymous: true),
-            [NormalizeDirectory("uploads/catalog/products")] = Create("uploads/catalog/products", allowAnonymous: true),
-            [NormalizeDirectory("categories")] = Create("uploads/catalog/categories", allowAnonymous: true),
-            [NormalizeDirectory("brands")] = Create("uploads/catalog/brands", allowAnonymous: true),
-            [NormalizeDirectory("products")] = Create("uploads/catalog/products", allowAnonymous: true),
-            [NormalizeDirectory("catalog")] = Create("uploads/catalog/products", allowAnonymous: true)
+            // Public-ish branding; no token required.
+            [NormalizeDirectory("uploads/vendors/logos")] =
+                CreatePublicAnonymous("uploads/vendors/logos"),
+
+            // PII-sensitive vendor docs: anonymous allowed (during signup),
+            // but caller MUST present a registration upload token.
+            [NormalizeDirectory("uploads/vendors/commercial-register")] =
+                CreateRegistrationOnly("uploads/vendors/commercial-register"),
+            [NormalizeDirectory("uploads/vendors/tax-certificates")] =
+                CreateRegistrationOnly("uploads/vendors/tax-certificates"),
+            [NormalizeDirectory("uploads/vendors/licenses")] =
+                CreateRegistrationOnly("uploads/vendors/licenses"),
+
+            [NormalizeDirectory("uploads/users/profile")] =
+                CreateAuthenticated("uploads/users/profile"),
+
+            // PII-sensitive driver docs: anonymous + token required.
+            [NormalizeDirectory("drivers/national-id")] =
+                CreateRegistrationOnly("drivers/national-id"),
+            [NormalizeDirectory("drivers/license")] =
+                CreateRegistrationOnly("drivers/license"),
+            [NormalizeDirectory("drivers/vehicle")] =
+                CreateRegistrationOnly("drivers/vehicle"),
+            [NormalizeDirectory("drivers/profile")] =
+                CreateRegistrationOnly("drivers/profile"),
+
+            [NormalizeDirectory("drivers/proofs")] =
+                CreateAuthenticatedRoles("drivers/proofs", UserRole.Driver),
+
+            [NormalizeDirectory("uploads/catalog/brand-requests")] =
+                CreateAuthenticatedRoles("uploads/catalog/brand-requests", UserRole.Vendor, UserRole.VendorStaff),
+            [NormalizeDirectory("uploads/catalog/category-requests")] =
+                CreateAuthenticatedRoles("uploads/catalog/category-requests", UserRole.Vendor, UserRole.VendorStaff),
+
+            [NormalizeDirectory("uploads/catalog/categories")] =
+                CreatePublicAnonymous("uploads/catalog/categories"),
+            [NormalizeDirectory("uploads/catalog/brands")] =
+                CreatePublicAnonymous("uploads/catalog/brands"),
+            [NormalizeDirectory("uploads/catalog/products")] =
+                CreatePublicAnonymous("uploads/catalog/products"),
+
+            // Aliases (kept for mobile backward compatibility).
+            [NormalizeDirectory("categories")] =
+                CreatePublicAnonymous("uploads/catalog/categories"),
+            [NormalizeDirectory("brands")] =
+                CreatePublicAnonymous("uploads/catalog/brands"),
+            [NormalizeDirectory("products")] =
+                CreatePublicAnonymous("uploads/catalog/products"),
+            [NormalizeDirectory("catalog")] =
+                CreatePublicAnonymous("uploads/catalog/products")
         };
 
     public static string NormalizeDirectory(string? directory)
@@ -41,6 +73,12 @@ public static class FileUploadSecurityPolicy
         var normalized = (directory ?? string.Empty)
             .Replace('\\', '/')
             .Trim();
+
+        // Reject path-traversal attempts up front.
+        if (normalized.Contains("..", StringComparison.Ordinal))
+        {
+            return string.Empty;
+        }
 
         while (normalized.Contains("//", StringComparison.Ordinal))
         {
@@ -55,14 +93,37 @@ public static class FileUploadSecurityPolicy
         return Rules.TryGetValue(NormalizeDirectory(directory), out rule!);
     }
 
-    private static FileUploadSecurityRule Create(string directory, bool allowAnonymous, params UserRole[] allowedRoles)
-    {
-        return new FileUploadSecurityRule(
+    private static FileUploadSecurityRule CreatePublicAnonymous(string directory) =>
+        new(
             NormalizeDirectory(directory),
-            allowAnonymous,
+            AllowAnonymous: true,
+            DefaultMaxFileSizeBytes,
+            new HashSet<string>(StringComparer.OrdinalIgnoreCase),
+            RequiresRegistrationToken: false);
+
+    private static FileUploadSecurityRule CreateRegistrationOnly(string directory) =>
+        new(
+            NormalizeDirectory(directory),
+            AllowAnonymous: true,
+            DefaultMaxFileSizeBytes,
+            new HashSet<string>(StringComparer.OrdinalIgnoreCase),
+            RequiresRegistrationToken: true);
+
+    private static FileUploadSecurityRule CreateAuthenticated(string directory) =>
+        new(
+            NormalizeDirectory(directory),
+            AllowAnonymous: false,
+            DefaultMaxFileSizeBytes,
+            new HashSet<string>(StringComparer.OrdinalIgnoreCase),
+            RequiresRegistrationToken: false);
+
+    private static FileUploadSecurityRule CreateAuthenticatedRoles(string directory, params UserRole[] allowedRoles) =>
+        new(
+            NormalizeDirectory(directory),
+            AllowAnonymous: false,
             DefaultMaxFileSizeBytes,
             allowedRoles
                 .Select(role => role.ToString())
-                .ToHashSet(StringComparer.OrdinalIgnoreCase));
-    }
+                .ToHashSet(StringComparer.OrdinalIgnoreCase),
+            RequiresRegistrationToken: false);
 }

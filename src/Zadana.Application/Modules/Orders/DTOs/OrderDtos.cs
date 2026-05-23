@@ -20,6 +20,8 @@ public record OrderItemDto(
     Guid VendorProductId,
     Guid MasterProductId,
     string ProductName,
+    string ProductNameAr,
+    string ProductNameEn,
     int Quantity,
     decimal UnitPrice,
     decimal LineTotal,
@@ -116,7 +118,8 @@ public record AssignedDriverSummaryDto(
     string Name,
     string? PhoneNumber,
     string VehicleType,
-    string PlateNumber);
+    string PlateNumber,
+    string? ImageUrl = null);
 
 public record VendorOrderTimelineItemDto(
     string Status,

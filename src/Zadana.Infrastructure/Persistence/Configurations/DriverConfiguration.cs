@@ -18,9 +18,9 @@ public class DriverConfiguration : IEntityTypeConfiguration<Driver>
                 vehicleType => DriverVehicleTypeMapper.ToStorageValue(vehicleType),
                 value => DriverVehicleTypeMapper.ParseOrNull(value))
             .HasMaxLength(100);
-        builder.Property(x => x.NationalId).HasMaxLength(100);
-        builder.Property(x => x.LicenseNumber).HasMaxLength(100);
-        builder.Property(x => x.VehicleLicenseNumber).HasMaxLength(100);
+        builder.Property(x => x.NationalId).HasMaxLength(512);
+        builder.Property(x => x.LicenseNumber).HasMaxLength(512);
+        builder.Property(x => x.VehicleLicenseNumber).HasMaxLength(512);
         builder.Property(x => x.Address).HasMaxLength(500);
         builder.Property(x => x.NationalIdFrontImageUrl).HasMaxLength(500);
         builder.Property(x => x.NationalIdBackImageUrl).HasMaxLength(500);

@@ -19,11 +19,11 @@ public class VendorBankAccountConfiguration : IEntityTypeConfiguration<VendorBan
 
         builder.Property(a => a.AccountHolderName)
             .IsRequired()
-            .HasMaxLength(200);
+            .HasMaxLength(512);
 
         builder.Property(a => a.IBAN)
             .IsRequired()
-            .HasMaxLength(34);
+            .HasMaxLength(512);
 
         builder.Property(a => a.SwiftCode)
             .HasMaxLength(11);

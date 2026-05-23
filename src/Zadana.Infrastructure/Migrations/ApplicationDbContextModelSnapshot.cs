@@ -735,15 +735,15 @@ namespace Zadana.Infrastructure.Migrations
                     b.Property<Guid?>("ProductTypeId")
                         .HasColumnType("uniqueidentifier");
 
-                    b.Property<string>("Slug")
-                        .IsRequired()
-                        .HasMaxLength(300)
-                        .HasColumnType("nvarchar(300)");
-
                     b.Property<bool>("ShowPriceOnCard")
                         .ValueGeneratedOnAdd()
                         .HasColumnType("bit")
                         .HasDefaultValue(true);
+
+                    b.Property<string>("Slug")
+                        .IsRequired()
+                        .HasMaxLength(300)
+                        .HasColumnType("nvarchar(300)");
 
                     b.Property<string>("Status")
                         .IsRequired()
@@ -2784,9 +2784,12 @@ namespace Zadana.Infrastructure.Migrations
                         .HasColumnType("datetime2");
 
                     b.Property<string>("Token")
-                        .IsRequired()
                         .HasMaxLength(512)
                         .HasColumnType("nvarchar(512)");
+
+                    b.Property<string>("TokenHash")
+                        .HasMaxLength(128)
+                        .HasColumnType("nvarchar(128)");
 
                     b.Property<DateTime>("UpdatedAtUtc")
                         .HasColumnType("datetime2");
@@ -2794,11 +2797,22 @@ namespace Zadana.Infrastructure.Migrations
                     b.Property<Guid>("UserId")
                         .HasColumnType("uniqueidentifier");
 
+                    b.Property<bool>("WasReused")
+                        .ValueGeneratedOnAdd()
+                        .HasColumnType("bit")
+                        .HasDefaultValue(false);
+
                     b.HasKey("Id");
 
                     b.HasIndex("Token")
                         .IsUnique()
-                        .HasDatabaseName("IX_RefreshToken_Token");
+                        .HasDatabaseName("IX_RefreshToken_Token")
+                        .HasFilter("[Token] IS NOT NULL");
+
+                    b.HasIndex("TokenHash")
+                        .IsUnique()
+                        .HasDatabaseName("IX_RefreshToken_TokenHash")
+                        .HasFilter("[TokenHash] IS NOT NULL");
 
                     b.HasIndex("UserId")
                         .HasDatabaseName("IX_RefreshToken_UserId");
@@ -3073,19 +3087,31 @@ namespace Zadana.Infrastructure.Migrations
                         .HasColumnType("nvarchar(256)");
 
                     b.Property<string>("OtpCode")
-                        .HasColumnType("nvarchar(max)");
+                        .HasMaxLength(128)
+                        .HasColumnType("nvarchar(128)");
 
                     b.Property<DateTime?>("OtpExpiryTime")
                         .HasColumnType("datetime2");
+
+                    b.Property<int>("OtpAttempts")
+                        .ValueGeneratedOnAdd()
+                        .HasColumnType("int")
+                        .HasDefaultValue(0);
 
                     b.Property<string>("PasswordHash")
                         .HasColumnType("nvarchar(max)");
 
                     b.Property<string>("PasswordResetOtp")
-                        .HasColumnType("nvarchar(max)");
+                        .HasMaxLength(128)
+                        .HasColumnType("nvarchar(128)");
 
                     b.Property<DateTime?>("PasswordResetOtpExpiry")
                         .HasColumnType("datetime2");
+
+                    b.Property<int>("PasswordResetOtpAttempts")
+                        .ValueGeneratedOnAdd()
+                        .HasColumnType("int")
+                        .HasDefaultValue(0);
 
                     b.Property<int>("PermissionVersion")
                         .ValueGeneratedOnAdd()
@@ -4636,11 +4662,11 @@ namespace Zadana.Infrastructure.Migrations
                         .HasMaxLength(2000)
                         .HasColumnType("nvarchar(2000)");
 
-                    b.Property<DateTime?>("DriverRespondedAtUtc")
-                        .HasColumnType("datetime2");
-
                     b.Property<Guid?>("DriverId")
                         .HasColumnType("uniqueidentifier");
+
+                    b.Property<DateTime?>("DriverRespondedAtUtc")
+                        .HasColumnType("datetime2");
 
                     b.Property<string>("DriverResponse")
                         .HasMaxLength(2000)
@@ -4712,9 +4738,9 @@ namespace Zadana.Infrastructure.Migrations
 
                     b.HasKey("Id");
 
-                    b.HasIndex("DriverId", "Type", "Status");
-
                     b.HasIndex("OrderId", "Status");
+
+                    b.HasIndex("DriverId", "Type", "Status");
 
                     b.ToTable("OrderSupportCases", (string)null);
                 });
@@ -5903,6 +5929,120 @@ namespace Zadana.Infrastructure.Migrations
                         .HasDatabaseName("IX_VendorProfileReviewItems_VendorId_Code");
 
                     b.ToTable("VendorProfileReviewItems", (string)null);
+                });
+
+            modelBuilder.Entity("Zadana.Domain.Modules.Vendors.Entities.VendorSupportTicket", b =>
+                {
+                    b.Property<Guid>("Id")
+                        .ValueGeneratedOnAdd()
+                        .HasColumnType("uniqueidentifier");
+
+                    b.Property<Guid?>("AssignedAdminId")
+                        .HasColumnType("uniqueidentifier");
+
+                    b.Property<DateTime?>("AssignedAtUtc")
+                        .HasColumnType("datetime2");
+
+                    b.Property<string>("Category")
+                        .IsRequired()
+                        .HasMaxLength(50)
+                        .HasColumnType("nvarchar(50)");
+
+                    b.Property<DateTime?>("ClosedAtUtc")
+                        .HasColumnType("datetime2");
+
+                    b.Property<DateTime>("CreatedAtUtc")
+                        .HasColumnType("datetime2");
+
+                    b.Property<Guid>("CreatedByUserId")
+                        .HasColumnType("uniqueidentifier");
+
+                    b.Property<DateTime?>("FirstResponseAtUtc")
+                        .HasColumnType("datetime2");
+
+                    b.Property<string>("LastMessagePreview")
+                        .IsRequired()
+                        .HasMaxLength(200)
+                        .HasColumnType("nvarchar(200)");
+
+                    b.Property<Guid?>("OrderId")
+                        .HasColumnType("uniqueidentifier");
+
+                    b.Property<string>("Priority")
+                        .IsRequired()
+                        .HasMaxLength(30)
+                        .HasColumnType("nvarchar(30)");
+
+                    b.Property<string>("Reference")
+                        .IsRequired()
+                        .HasMaxLength(40)
+                        .HasColumnType("nvarchar(40)");
+
+                    b.Property<string>("Status")
+                        .IsRequired()
+                        .HasMaxLength(30)
+                        .HasColumnType("nvarchar(30)");
+
+                    b.Property<string>("Subject")
+                        .IsRequired()
+                        .HasMaxLength(300)
+                        .HasColumnType("nvarchar(300)");
+
+                    b.Property<DateTime>("UpdatedAtUtc")
+                        .HasColumnType("datetime2");
+
+                    b.Property<Guid>("VendorId")
+                        .HasColumnType("uniqueidentifier");
+
+                    b.HasKey("Id");
+
+                    b.HasIndex("OrderId");
+
+                    b.HasIndex("Reference")
+                        .IsUnique();
+
+                    b.HasIndex("VendorId", "UpdatedAtUtc");
+
+                    b.HasIndex("VendorId", "Status", "UpdatedAtUtc");
+
+                    b.ToTable("VendorSupportTickets", (string)null);
+                });
+
+            modelBuilder.Entity("Zadana.Domain.Modules.Vendors.Entities.VendorSupportTicketMessage", b =>
+                {
+                    b.Property<Guid>("Id")
+                        .ValueGeneratedOnAdd()
+                        .HasColumnType("uniqueidentifier");
+
+                    b.Property<string>("AuthorRole")
+                        .IsRequired()
+                        .HasMaxLength(20)
+                        .HasColumnType("nvarchar(20)");
+
+                    b.Property<Guid?>("AuthorUserId")
+                        .HasColumnType("uniqueidentifier");
+
+                    b.Property<string>("Body")
+                        .IsRequired()
+                        .HasMaxLength(2000)
+                        .HasColumnType("nvarchar(2000)");
+
+                    b.Property<DateTime>("CreatedAtUtc")
+                        .HasColumnType("datetime2");
+
+                    b.Property<DateTime>("UpdatedAtUtc")
+                        .HasColumnType("datetime2");
+
+                    b.Property<Guid>("VendorSupportTicketId")
+                        .HasColumnType("uniqueidentifier");
+
+                    b.HasKey("Id");
+
+                    b.HasIndex("AuthorUserId");
+
+                    b.HasIndex("VendorSupportTicketId", "CreatedAtUtc");
+
+                    b.ToTable("VendorSupportTicketMessages", (string)null);
                 });
 
             modelBuilder.Entity("Zadana.Domain.Modules.Vendors.Entities.VendorWorkspaceState", b =>
@@ -7719,6 +7859,35 @@ namespace Zadana.Infrastructure.Migrations
                     b.Navigation("Vendor");
                 });
 
+            modelBuilder.Entity("Zadana.Domain.Modules.Vendors.Entities.VendorSupportTicket", b =>
+                {
+                    b.HasOne("Zadana.Domain.Modules.Orders.Entities.Order", "Order")
+                        .WithMany()
+                        .HasForeignKey("OrderId")
+                        .OnDelete(DeleteBehavior.SetNull);
+
+                    b.HasOne("Zadana.Domain.Modules.Vendors.Entities.Vendor", "Vendor")
+                        .WithMany()
+                        .HasForeignKey("VendorId")
+                        .OnDelete(DeleteBehavior.Cascade)
+                        .IsRequired();
+
+                    b.Navigation("Order");
+
+                    b.Navigation("Vendor");
+                });
+
+            modelBuilder.Entity("Zadana.Domain.Modules.Vendors.Entities.VendorSupportTicketMessage", b =>
+                {
+                    b.HasOne("Zadana.Domain.Modules.Vendors.Entities.VendorSupportTicket", "VendorSupportTicket")
+                        .WithMany("Messages")
+                        .HasForeignKey("VendorSupportTicketId")
+                        .OnDelete(DeleteBehavior.Cascade)
+                        .IsRequired();
+
+                    b.Navigation("VendorSupportTicket");
+                });
+
             modelBuilder.Entity("Zadana.Domain.Modules.Vendors.Entities.VendorWorkspaceState", b =>
                 {
                     b.HasOne("Zadana.Domain.Modules.Vendors.Entities.Vendor", "Vendor")
@@ -8032,6 +8201,11 @@ namespace Zadana.Infrastructure.Migrations
             modelBuilder.Entity("Zadana.Domain.Modules.Vendors.Entities.VendorBranch", b =>
                 {
                     b.Navigation("OperatingHours");
+                });
+
+            modelBuilder.Entity("Zadana.Domain.Modules.Vendors.Entities.VendorSupportTicket", b =>
+                {
+                    b.Navigation("Messages");
                 });
 
             modelBuilder.Entity("Zadana.Domain.Modules.Wallets.Entities.Payout", b =>

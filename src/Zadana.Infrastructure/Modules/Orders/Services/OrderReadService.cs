@@ -105,6 +105,8 @@ public class OrderReadService : IOrderReadService
                 item.VendorProductId,
                 item.MasterProductId,
                 item.ProductName,
+                item.MasterProduct?.NameAr ?? item.ProductName,
+                item.MasterProduct?.NameEn ?? item.ProductName,
                 item.Quantity,
                 item.UnitPrice,
                 item.LineTotal,
@@ -530,7 +532,7 @@ public class OrderReadService : IOrderReadService
         }
 
         DriverLiveLocationDto? driverLiveLocation = null;
-        if (assignment?.DriverId != null)
+        if (assignment?.DriverId != null && order.Status == OrderStatus.DriverAssigned)
         {
             var latestLocation = await _dbContext.DriverLocations
                 .AsNoTracking()
@@ -576,6 +578,8 @@ public class OrderReadService : IOrderReadService
                 item.VendorProductId,
                 item.MasterProductId,
                 item.ProductName,
+                item.MasterProduct?.NameAr ?? item.ProductName,
+                item.MasterProduct?.NameEn ?? item.ProductName,
                 item.Quantity,
                 item.UnitPrice,
                 item.LineTotal,
@@ -882,14 +886,18 @@ public class OrderReadService : IOrderReadService
             }
         }
 
-        if (!string.IsNullOrWhiteSpace(type) &&
-            !string.Equals(type, "ALL", StringComparison.OrdinalIgnoreCase))
+        if (string.IsNullOrWhiteSpace(type) ||
+            string.Equals(type, "ALL", StringComparison.OrdinalIgnoreCase))
+        {
+            query = query.Where(item => item.Type != OrderSupportCaseType.Complaint);
+        }
+        else
         {
             var normalizedType = type.Trim().ToLowerInvariant();
             query = normalizedType switch
             {
                 "return_request" => query.Where(item => item.Type == OrderSupportCaseType.ReturnRequest),
-                "complaint" => query.Where(item => item.Type == OrderSupportCaseType.Complaint),
+                "complaint" or "support" => query.Where(item => item.Type == OrderSupportCaseType.Complaint),
                 "driver_report" => query.Where(item => item.Type == OrderSupportCaseType.DriverReport),
                 "driver_dispute" => query.Where(item => item.Type == OrderSupportCaseType.DriverDispute),
                 "driver_account" or "driver_account_appeal" => query.Where(item => item.Type == OrderSupportCaseType.DriverAccountAppeal),
@@ -1426,7 +1434,8 @@ public class OrderReadService : IOrderReadService
             assignment.Driver.User.FullName,
             assignment.Driver.User.PhoneNumber,
             assignment.Driver.VehicleType?.ToString() ?? "Unknown",
-            string.IsNullOrWhiteSpace(assignment.Driver.LicenseNumber) ? "N/A" : assignment.Driver.LicenseNumber);
+            string.IsNullOrWhiteSpace(assignment.Driver.LicenseNumber) ? "N/A" : assignment.Driver.LicenseNumber,
+            assignment.Driver.PersonalPhotoUrl ?? assignment.Driver.User.ProfilePhotoUrl);
     }
 
     private static string ResolveArrivalState(DeliveryAssignment? assignment) =>
@@ -3054,3 +3063,4 @@ public class OrderReadService : IOrderReadService
         OutForDelivery
     }
 }
+

@@ -49,7 +49,11 @@ public static class AdminAlertTypes
     public const string SettlementRequested = "settlement.requested";
     public const string SettlementFailed = "settlement.failed";
     public const string PayoutRequiresReview = "payout.requires_review";
+    public const string SupportCreated = "support.created";
+    public const string SupportUpdated = "support.updated";
     public const string SupportCriticalCreated = "support.critical_created";
+    public const string VendorSupportTicketCreated = "support.ticket_created";
+    public const string VendorSupportTicketUpdated = "support.ticket_updated";
     public const string SystemIntegrationFailure = "system.integration_failure";
     public const string SystemOneSignalFailure = "system.onesignal_failure";
 }

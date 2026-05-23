@@ -5,6 +5,7 @@ using System.Globalization;
 using System.Text.RegularExpressions;
 using Zadana.Api.Controllers;
 using Zadana.Application.Common.Interfaces;
+using Zadana.Application.Modules.Files.Commands.UploadFile;
 using Zadana.Application.Modules.Orders.Interfaces;
 using Zadana.Domain.Modules.Orders.Enums;
 using Zadana.SharedKernel.Exceptions;
@@ -51,6 +52,14 @@ public class VendorOrderCasesController : ApiControllerBase
             .Include(c => c.Order)
             .Where(c => c.Order != null && c.Order.VendorId == vendorId);
 
+        var hasExplicitTypeFilter = !string.IsNullOrWhiteSpace(type) &&
+            !string.Equals(type, "all", StringComparison.OrdinalIgnoreCase);
+
+        if (!hasExplicitTypeFilter)
+        {
+            query = query.Where(c => c.Type != OrderSupportCaseType.Complaint);
+        }
+
         if (!string.IsNullOrWhiteSpace(status))
         {
             if (Enum.TryParse<OrderSupportCaseStatus>(status, ignoreCase: true, out var parsedStatus))
@@ -59,7 +68,7 @@ public class VendorOrderCasesController : ApiControllerBase
             }
         }
 
-        if (!string.IsNullOrWhiteSpace(type))
+        if (hasExplicitTypeFilter)
         {
             if (Enum.TryParse<OrderSupportCaseType>(type, ignoreCase: true, out var parsedType))
             {
@@ -306,6 +315,37 @@ public class VendorOrderCasesController : ApiControllerBase
         CancellationToken cancellationToken = default) =>
         Respond(caseId, request, cancellationToken);
 
+    [HttpPost("{caseId:guid}/attachments")]
+    public async Task<ActionResult<VendorOrderCaseAttachmentUploadResponse>> UploadAttachment(
+        Guid caseId,
+        IFormFile file,
+        CancellationToken cancellationToken = default)
+    {
+        if (file is null || file.Length == 0)
+        {
+            throw new BadRequestException("INVALID_FILE", "File is empty.");
+        }
+
+        var vendorId = await _currentVendorService.GetRequiredVendorIdAsync(cancellationToken);
+
+        var caseExists = await _dbContext.OrderSupportCases
+            .AsNoTracking()
+            .AnyAsync(c => c.Id == caseId && c.Order != null && c.Order.VendorId == vendorId, cancellationToken);
+
+        if (!caseExists)
+        {
+            throw new NotFoundException("OrderSupportCase", caseId);
+        }
+
+        await using var stream = file.OpenReadStream();
+        var fileDto = new FileUploadDto(file.FileName, file.ContentType, stream);
+        var fileUrl = await Sender.Send(
+            new UploadFileCommand($"orders/support-cases/{caseId:D}", fileDto),
+            cancellationToken);
+
+        return Ok(new VendorOrderCaseAttachmentUploadResponse(file.FileName, fileUrl));
+    }
+
     private static List<VendorOrderCaseParticipantResponse> BuildParticipants(Zadana.Domain.Modules.Orders.Entities.OrderSupportCase supportCase)
     {
         var participants = new List<VendorOrderCaseParticipantResponse>
@@ -512,3 +552,4 @@ public sealed record VendorOrderCaseActivityResponse(Guid Id, string Action, str
 public sealed record VendorOrderCaseMessageResponse(Guid Id, string Action, string MessageType, string Title, string? Body, string AuthorRole, List<string> VisibleTo, bool IsInternalOnly, DateTime CreatedAt, List<VendorOrderCaseAttachmentResponse> Attachments);
 public sealed record VendorOrderCaseParticipantResponse(string Role, bool IsInitiator, bool IsAwaitingResponse);
 public sealed record VendorOrderCaseRespondResponse(Guid CaseId, string Response, DateTime RespondedAt, string CaseStatus);
+public sealed record VendorOrderCaseAttachmentUploadResponse(string FileName, string FileUrl);

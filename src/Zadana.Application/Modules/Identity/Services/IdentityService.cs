@@ -140,7 +140,23 @@ public class IdentityService : IIdentityService
     {
         var tokenEntity = await _refreshTokenStore.GetByTokenWithUserAsync(refreshToken, cancellationToken);
 
-        if (tokenEntity == null || !tokenEntity.IsActive || tokenEntity.User == null)
+        if (tokenEntity == null || tokenEntity.User == null)
+        {
+            throw new UnauthorizedException(_localizer["InvalidRefreshToken"]);
+        }
+
+        // Reuse detection: if a token that was already revoked is presented
+        // again, treat it as a stolen token and burn every active refresh
+        // token for that user. The legitimate user will be forced to re-login,
+        // but the attacker (or stolen device) loses access immediately.
+        if (tokenEntity.IsRevoked)
+        {
+            await _refreshTokenStore.RevokeAllByUserAsync(tokenEntity.UserId, cancellationToken);
+            await _unitOfWork.SaveChangesAsync(cancellationToken);
+            throw new UnauthorizedException(_localizer["InvalidRefreshToken"]);
+        }
+
+        if (!tokenEntity.IsActive)
         {
             throw new UnauthorizedException(_localizer["InvalidRefreshToken"]);
         }

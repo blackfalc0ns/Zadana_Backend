@@ -368,7 +368,8 @@ public class CustomerEndpointLocalizationTests
         var controller = new OrdersController(
             Mock.Of<Zadana.Application.Common.Interfaces.ICurrentUserService>(),
             Mock.Of<IOrderReadService>(),
-            Mock.Of<IOrderSupportCaseWorkflowService>());
+            Mock.Of<IOrderSupportCaseWorkflowService>(),
+            Mock.Of<Zadana.Application.Common.Interfaces.IApplicationDbContext>());
 
         using (new CultureScope("en"))
         {

@@ -1,3 +1,4 @@
+using Microsoft.AspNetCore.DataProtection;
 using Microsoft.AspNetCore.Identity;
 using Microsoft.AspNetCore.Identity.EntityFrameworkCore;
 using Microsoft.EntityFrameworkCore;
@@ -13,6 +14,7 @@ using Zadana.Domain.Modules.Vendors.Entities;
 using Zadana.Domain.Modules.Wallets.Entities;
 using Zadana.Domain.Modules.Finances.Entities;
 using Zadana.Application.Common.Interfaces;
+using Zadana.Infrastructure.Persistence.Encryption;
 using Zadana.Infrastructure.Persistence.Interceptors;
 
 namespace Zadana.Infrastructure.Persistence;
@@ -20,6 +22,7 @@ namespace Zadana.Infrastructure.Persistence;
 public class ApplicationDbContext : IdentityDbContext<User, IdentityRole<Guid>, Guid>, IApplicationDbContext, IUnitOfWork
 {
     private readonly AuditableEntityInterceptor _auditableInterceptor;
+    private readonly IDataProtectionProvider? _dataProtectionProvider;
 
     public ApplicationDbContext(
         DbContextOptions<ApplicationDbContext> options,
@@ -27,6 +30,16 @@ public class ApplicationDbContext : IdentityDbContext<User, IdentityRole<Guid>, 
         : base(options)
     {
         _auditableInterceptor = auditableInterceptor;
+    }
+
+    public ApplicationDbContext(
+        DbContextOptions<ApplicationDbContext> options,
+        AuditableEntityInterceptor auditableInterceptor,
+        IDataProtectionProvider dataProtectionProvider)
+        : base(options)
+    {
+        _auditableInterceptor = auditableInterceptor;
+        _dataProtectionProvider = dataProtectionProvider;
     }
 
     // Identity
@@ -50,6 +63,8 @@ public class ApplicationDbContext : IdentityDbContext<User, IdentityRole<Guid>, 
     public DbSet<VendorDocumentReview> VendorDocumentReviews => Set<VendorDocumentReview>();
     public DbSet<VendorProfileReviewItem> VendorProfileReviewItems => Set<VendorProfileReviewItem>();
     public DbSet<VendorWorkspaceState> VendorWorkspaceStates => Set<VendorWorkspaceState>();
+    public DbSet<VendorSupportTicket> VendorSupportTickets => Set<VendorSupportTicket>();
+    public DbSet<VendorSupportTicketMessage> VendorSupportTicketMessages => Set<VendorSupportTicketMessage>();
 
     // Catalog
     public DbSet<Category> Categories => Set<Category>();
@@ -110,6 +125,7 @@ public class ApplicationDbContext : IdentityDbContext<User, IdentityRole<Guid>, 
     public DbSet<Payout> Payouts => Set<Payout>();
     public DbSet<PayoutAttempt> PayoutAttempts => Set<PayoutAttempt>();
     public DbSet<VendorRecovery> VendorRecoveries => Set<VendorRecovery>();
+    public DbSet<DriverRecovery> DriverRecoveries => Set<DriverRecovery>();
     public DbSet<DriverPayoutMethod> DriverPayoutMethods => Set<DriverPayoutMethod>();
     public DbSet<DriverWithdrawalRequest> DriverWithdrawalRequests => Set<DriverWithdrawalRequest>();
     public DbSet<WalletHold> WalletHolds => Set<WalletHold>();
@@ -155,5 +171,24 @@ public class ApplicationDbContext : IdentityDbContext<User, IdentityRole<Guid>, 
     {
         modelBuilder.ApplyConfigurationsFromAssembly(typeof(ApplicationDbContext).Assembly);
         base.OnModelCreating(modelBuilder);
+
+        // PII encryption at rest. Skipped when no provider is wired (tests
+        // / design-time tooling) so EnsureCreated keeps working.
+        if (_dataProtectionProvider is not null)
+        {
+            var converter = PiiProtector.CreateConverter(_dataProtectionProvider);
+
+            modelBuilder.Entity<Driver>()
+                .Property(d => d.NationalId).HasConversion(converter);
+            modelBuilder.Entity<Driver>()
+                .Property(d => d.LicenseNumber).HasConversion(converter);
+            modelBuilder.Entity<Driver>()
+                .Property(d => d.VehicleLicenseNumber).HasConversion(converter);
+
+            modelBuilder.Entity<VendorBankAccount>()
+                .Property(a => a.IBAN).HasConversion(converter);
+            modelBuilder.Entity<VendorBankAccount>()
+                .Property(a => a.AccountHolderName).HasConversion(converter);
+        }
     }
 }

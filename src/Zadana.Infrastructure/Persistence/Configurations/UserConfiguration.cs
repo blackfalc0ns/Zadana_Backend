@@ -62,6 +62,17 @@ public class UserConfiguration : IEntityTypeConfiguration<User>
         builder.Property(u => u.TemporaryPasswordIssuedAtUtc);
         builder.Property(u => u.LastPasswordChangedAtUtc);
 
+        // OTP fields. The codes are now stored as SHA-256 hex digests
+        // (64 chars) rather than the raw 4-digit code.
+        builder.Property(u => u.OtpCode)
+            .HasMaxLength(128);
+        builder.Property(u => u.OtpAttempts)
+            .HasDefaultValue(0);
+        builder.Property(u => u.PasswordResetOtp)
+            .HasMaxLength(128);
+        builder.Property(u => u.PasswordResetOtpAttempts)
+            .HasDefaultValue(0);
+
         builder.HasMany(u => u.RefreshTokens)
             .WithOne(r => r.User)
             .HasForeignKey(r => r.UserId)

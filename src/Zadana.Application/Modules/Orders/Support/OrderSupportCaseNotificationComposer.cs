@@ -49,7 +49,13 @@ internal static class OrderSupportCaseNotificationComposer
         });
 
     public static string ResolveTargetUrl(Guid orderId, Guid caseId) => $"/orders/{orderId}/cases/{caseId}";
-    public static string ResolveAdminTargetUrl(Guid caseId) => $"/disputes?focus={caseId}";
+    public static string ResolveAdminTargetUrl(Guid caseId, OrderSupportCaseType type) =>
+        type switch
+        {
+            OrderSupportCaseType.Complaint => "/notifications?category=support",
+            OrderSupportCaseType.ReturnRequest => $"/finances/refunds?focus={caseId}",
+            _ => $"/disputes?focus={caseId}"
+        };
 
     public static string ToApiValue(OrderSupportCaseType type) =>
         type switch
@@ -79,7 +85,7 @@ internal static class OrderSupportCaseNotificationComposer
         OrderSupportCasePriority priority,
         string action)
     {
-        var targetUrl = ResolveAdminTargetUrl(caseId);
+        var targetUrl = ResolveAdminTargetUrl(caseId, type);
         var notificationType = action switch
         {
             "created" => NotificationTypes.AdminOrderSupportCaseCreated,
@@ -89,7 +95,14 @@ internal static class OrderSupportCaseNotificationComposer
 
         var queueLabel = queue.ToString();
         var priorityLabel = priority.ToString().ToLowerInvariant();
-        var typeLabel = type == OrderSupportCaseType.ReturnRequest ? "return request" : "complaint";
+        var typeLabel = type switch
+        {
+            OrderSupportCaseType.ReturnRequest => "return request",
+            OrderSupportCaseType.Complaint => "support case",
+            OrderSupportCaseType.DriverReport => "driver report",
+            OrderSupportCaseType.DriverDispute => "driver dispute",
+            _ => "support case"
+        };
 
         var (titleAr, titleEn, bodyAr, bodyEn) = action switch
         {
