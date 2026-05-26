@@ -45,7 +45,7 @@ public sealed class OrderStatusNotificationDispatcher : IOrderStatusNotification
 
         try
         {
-            await _notificationService.PersistToUserAsync(
+            await _notificationService.SendToUserAsync(
                 request.UserId,
                 composed.TitleAr,
                 composed.TitleEn,

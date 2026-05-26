@@ -63,6 +63,7 @@ internal static class OrderStatusNotificationComposer
         newStatus switch
         {
             OrderStatus.PendingVendorAcceptance => "placed",
+            OrderStatus.OnTheWay => "on_the_way",
             OrderStatus.Cancelled => "cancelled",
             _ => "status_changed"
         };

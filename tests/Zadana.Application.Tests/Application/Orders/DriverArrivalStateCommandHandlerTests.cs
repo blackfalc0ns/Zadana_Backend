@@ -53,6 +53,7 @@ public class DriverArrivalStateCommandHandlerTests
             new DriverRepository(dbContext),
             Mock.Of<IDriverReadService>(),
             notificationService.Object,
+            Mock.Of<IOneSignalPushService>(),
             Mock.Of<IOrderTrackingRealtimeNotifier>());
 
         var result = await handler.Handle(
@@ -80,6 +81,18 @@ public class DriverArrivalStateCommandHandlerTests
     {
         await using var dbContext = CreateDbContext();
         var notificationService = new Mock<INotificationService>();
+        var pushService = new Mock<IOneSignalPushService>();
+        pushService
+            .Setup(service => service.SendMobileNotificationAsync(
+                It.IsAny<OneSignalMobilePushRequest>(),
+                It.IsAny<CancellationToken>()))
+            .ReturnsAsync(new OneSignalPushDispatchResult(
+                Attempted: true,
+                Sent: true,
+                Skipped: false,
+                ProviderStatusCode: 200,
+                ProviderNotificationId: "arrival-push-id",
+                Reason: null));
 
         var customer = new User("Customer User", "arrival.customer2@test.com", "01000000134", UserRole.Customer);
         var vendorUser = new User("Vendor User", "arrival.vendor2@test.com", "01000000135", UserRole.Vendor);
@@ -111,6 +124,7 @@ public class DriverArrivalStateCommandHandlerTests
             new DriverRepository(dbContext),
             Mock.Of<IDriverReadService>(),
             notificationService.Object,
+            pushService.Object,
             Mock.Of<IOrderTrackingRealtimeNotifier>());
 
         var result = await handler.Handle(
@@ -121,6 +135,24 @@ public class DriverArrivalStateCommandHandlerTests
         assignment.Status.Should().Be(AssignmentStatus.ArrivedAtCustomer);
         assignment.ArrivedAtCustomerAtUtc.Should().NotBeNull();
         notificationService.Verify(
+            service => service.SendToUserAsync(
+                customer.Id,
+                It.IsAny<string>(),
+                "Driver arrived at delivery location",
+                It.IsAny<string>(),
+                It.Is<string>(body => body.Contains("ORD-ARR-002")),
+                "driver-arrival",
+                order.Id,
+                It.Is<string?>(data =>
+                    data != null &&
+                    data.Contains("\"arrivalState\":\"arrived_at_customer\"") &&
+                    data.Contains("\"screen\":\"order_tracking\"") &&
+                    data.Contains("\"presentation\":\"popup\"") &&
+                    data.Contains("\"popupType\":\"driver_arrival_state_changed\"") &&
+                    data.Contains("\"showPopup\":true")),
+                It.IsAny<CancellationToken>()),
+            Times.Once);
+        notificationService.Verify(
             service => service.SendDriverArrivalStateChangedToUserAsync(
                 customer.Id,
                 order.Id,
@@ -129,6 +161,24 @@ public class DriverArrivalStateCommandHandlerTests
                 driverUser.FullName,
                 "driver",
                 It.IsAny<string?>(),
+                It.IsAny<CancellationToken>()),
+            Times.Once);
+        pushService.Verify(
+            service => service.SendMobileNotificationAsync(
+                It.Is<OneSignalMobilePushRequest>(request =>
+                    request.ExternalUserId == customer.Id.ToString() &&
+                    request.TitleEn == "Driver arrived at delivery location" &&
+                    request.BodyEn.Contains("ORD-ARR-002") &&
+                    request.Type == "driver-arrival" &&
+                    request.ReferenceId == order.Id &&
+                    request.Profile == OneSignalPushProfile.MobileHeadsUp &&
+                    request.TargetApplication == OneSignalApplicationTarget.Customer &&
+                    request.TargetUrl == $"/orders/{order.Id}" &&
+                    request.Data != null &&
+                    request.Data.Contains("\"arrivalState\":\"arrived_at_customer\"") &&
+                    request.Data.Contains("\"presentation\":\"popup\"") &&
+                    request.Data.Contains("\"popupType\":\"driver_arrival_state_changed\"") &&
+                    request.Data.Contains("\"showPopup\":true")),
                 It.IsAny<CancellationToken>()),
             Times.Once);
     }

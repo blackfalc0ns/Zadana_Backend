@@ -14,4 +14,6 @@ public sealed record OrderStatusChangedRealtimePayload(
     [property: JsonPropertyName("changedAtUtc")] DateTime ChangedAtUtc,
     [property: JsonPropertyName("presentation")] string Presentation = "popup",
     [property: JsonPropertyName("popupType")] string PopupType = "order_status_changed",
-    [property: JsonPropertyName("showPopup")] bool ShowPopup = true);
+    [property: JsonPropertyName("showPopup")] bool ShowPopup = true,
+    [property: JsonPropertyName("oldStatusRaw")] string? OldStatusRaw = null,
+    [property: JsonPropertyName("newStatusRaw")] string? NewStatusRaw = null);

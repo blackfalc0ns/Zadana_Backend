@@ -1,3 +1,4 @@
+using System.Text.Json;
 using FluentValidation;
 using MediatR;
 using Microsoft.EntityFrameworkCore;
@@ -41,6 +42,7 @@ public class UpdateDriverArrivalStateCommandHandler : IRequestHandler<UpdateDriv
     private readonly IDriverRepository _driverRepository;
     private readonly IDriverReadService _driverReadService;
     private readonly INotificationService _notificationService;
+    private readonly IOneSignalPushService _oneSignalPushService;
     private readonly IOrderTrackingRealtimeNotifier _orderTrackingRealtimeNotifier;
 
     public UpdateDriverArrivalStateCommandHandler(
@@ -49,6 +51,7 @@ public class UpdateDriverArrivalStateCommandHandler : IRequestHandler<UpdateDriv
         IDriverRepository driverRepository,
         IDriverReadService driverReadService,
         INotificationService notificationService,
+        IOneSignalPushService oneSignalPushService,
         IOrderTrackingRealtimeNotifier orderTrackingRealtimeNotifier)
     {
         _context = context;
@@ -56,6 +59,7 @@ public class UpdateDriverArrivalStateCommandHandler : IRequestHandler<UpdateDriv
         _driverRepository = driverRepository;
         _driverReadService = driverReadService;
         _notificationService = notificationService;
+        _oneSignalPushService = oneSignalPushService;
         _orderTrackingRealtimeNotifier = orderTrackingRealtimeNotifier;
     }
 
@@ -124,6 +128,15 @@ public class UpdateDriverArrivalStateCommandHandler : IRequestHandler<UpdateDriv
 
         await _unitOfWork.SaveChangesAsync(cancellationToken);
 
+        var targetUrl = $"/orders/{assignment.OrderId}";
+        var notificationData = BuildArrivalNotificationData(
+            assignment.OrderId,
+            assignment.Order.OrderNumber,
+            normalizedState,
+            driver.User.FullName,
+            "driver",
+            targetUrl);
+
         await _notificationService.SendToUserAsync(
             recipientUserId,
             titleAr,
@@ -132,7 +145,7 @@ public class UpdateDriverArrivalStateCommandHandler : IRequestHandler<UpdateDriv
             bodyEn,
             "driver-arrival",
             assignment.OrderId,
-            $"arrivalState={normalizedState}",
+            notificationData,
             cancellationToken);
 
         await _notificationService.SendDriverArrivalStateChangedToUserAsync(
@@ -142,8 +155,24 @@ public class UpdateDriverArrivalStateCommandHandler : IRequestHandler<UpdateDriv
             normalizedState,
             driver.User.FullName,
             "driver",
-            $"/orders/{assignment.OrderId}",
+            targetUrl,
             cancellationToken);
+
+        if (normalizedState == "arrived_at_customer")
+        {
+            await OneSignalMobilePushRequest.CreateHeadsUp(
+                    recipientUserId.ToString(),
+                    titleAr,
+                    titleEn,
+                    bodyAr,
+                    bodyEn,
+                    "driver-arrival",
+                    assignment.OrderId,
+                    notificationData,
+                    targetUrl,
+                    category: "order")
+                .DispatchAsync(_oneSignalPushService, cancellationToken);
+        }
 
         // Push the same arrival state event to the dedicated order tracking channel
         // so any party (admin / vendor / customer / driver) subscribed to the order
@@ -176,4 +205,27 @@ public class UpdateDriverArrivalStateCommandHandler : IRequestHandler<UpdateDriv
             messageEn,
             updatedDetail);
     }
+
+    private static string BuildArrivalNotificationData(
+        Guid orderId,
+        string orderNumber,
+        string arrivalState,
+        string driverName,
+        string actorRole,
+        string targetUrl) =>
+        JsonSerializer.Serialize(new
+        {
+            orderId,
+            orderNumber,
+            arrivalState,
+            driverName,
+            actorRole,
+            targetUrl,
+            category = "order",
+            screen = "order_tracking",
+            presentation = "popup",
+            popupType = "driver_arrival_state_changed",
+            showPopup = true,
+            eventName = $"driver.arrival.{arrivalState}"
+        });
 }

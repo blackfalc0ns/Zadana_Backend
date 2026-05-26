@@ -20,7 +20,7 @@ public class OrderStatusNotificationDispatcherTests
         var vendorId = Guid.NewGuid();
 
         notificationServiceMock
-            .Setup(service => service.PersistToUserAsync(
+            .Setup(service => service.SendToUserAsync(
                 It.IsAny<Guid>(),
                 It.IsAny<string>(),
                 It.IsAny<string>(),
@@ -72,7 +72,7 @@ public class OrderStatusNotificationDispatcherTests
         result.PushProviderStatusCode.Should().Be(200);
 
         notificationServiceMock.Verify(
-            service => service.PersistToUserAsync(
+            service => service.SendToUserAsync(
                 userId,
                 It.IsAny<string>(),
                 "Order Accepted",

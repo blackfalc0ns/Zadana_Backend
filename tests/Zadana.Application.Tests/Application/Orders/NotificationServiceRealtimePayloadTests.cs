@@ -41,11 +41,14 @@ public class NotificationServiceRealtimePayloadTests
         payload.Presentation.Should().Be("popup");
         payload.PopupType.Should().Be("order_status_changed");
         payload.ShowPopup.Should().BeTrue();
+        payload.OldStatusRaw.Should().Be(nameof(OrderStatus.PickedUp));
+        payload.NewStatusRaw.Should().Be(nameof(OrderStatus.OnTheWay));
 
         var json = JsonSerializer.Serialize(payload);
         json.Should().Contain("\"orderId\"");
         json.Should().Contain("\"orderNumber\"");
         json.Should().Contain("\"newStatus\":\"out_for_delivery\"");
+        json.Should().Contain("\"newStatusRaw\":\"OnTheWay\"");
         json.Should().Contain("\"presentation\":\"popup\"");
         json.Should().Contain("\"popupType\":\"order_status_changed\"");
         json.Should().Contain("\"showPopup\":true");
@@ -76,12 +79,18 @@ public class NotificationServiceRealtimePayloadTests
         payload.OrderNumber.Should().Be("ORD-REALTIME-002");
         payload.ArrivalState.Should().Be("arrived_at_customer");
         payload.DriverName.Should().Be("Driver User");
+        payload.Presentation.Should().Be("popup");
+        payload.PopupType.Should().Be("driver_arrival_state_changed");
+        payload.ShowPopup.Should().BeTrue();
 
         var json = JsonSerializer.Serialize(payload);
         json.Should().Contain("\"orderId\"");
         json.Should().Contain("\"orderNumber\"");
         json.Should().Contain("\"arrivalState\":\"arrived_at_customer\"");
         json.Should().Contain("\"driverName\":\"Driver User\"");
+        json.Should().Contain("\"presentation\":\"popup\"");
+        json.Should().Contain("\"popupType\":\"driver_arrival_state_changed\"");
+        json.Should().Contain("\"showPopup\":true");
         json.Should().Contain("\"changedAtUtc\"");
         json.Should().NotContain("\"OrderId\"");
     }

@@ -155,7 +155,12 @@ public sealed class NotificationService : INotificationService
                 actorRole,
                 string.IsNullOrWhiteSpace(action) ? "status_changed" : action,
                 string.IsNullOrWhiteSpace(targetUrl) ? $"/orders/{orderId}" : targetUrl,
-                DateTime.UtcNow);
+                DateTime.UtcNow,
+                "popup",
+                "order_status_changed",
+                true,
+                oldStatus,
+                newStatus);
 
             await _hubContext.Clients
                 .Group(NotificationHub.GetUserGroup(userId))
@@ -190,7 +195,10 @@ public sealed class NotificationService : INotificationService
                 driverName,
                 actorRole,
                 string.IsNullOrWhiteSpace(targetUrl) ? $"/orders/{orderId}" : targetUrl,
-                DateTime.UtcNow);
+                DateTime.UtcNow,
+                "popup",
+                "driver_arrival_state_changed",
+                true);
 
             await _hubContext.Clients
                 .Group(NotificationHub.GetUserGroup(userId))
