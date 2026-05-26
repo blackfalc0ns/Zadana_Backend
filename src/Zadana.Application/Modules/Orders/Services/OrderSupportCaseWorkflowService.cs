@@ -1455,7 +1455,7 @@ public sealed class OrderSupportCaseWorkflowService : IOrderSupportCaseWorkflowS
         var targetUrl = OrderSupportCaseNotificationComposer.ResolveTargetUrl(order.Id, supportCase.Id);
         var expiresAt = coupon.EndsAtUtc?.ToString("yyyy-MM-dd") ?? DateTime.UtcNow.AddDays(30).ToString("yyyy-MM-dd");
         var data = $$"""
-{"orderId":"{{order.Id}}","caseId":"{{supportCase.Id}}","orderNumber":"{{order.OrderNumber}}","type":"{{OrderSupportCaseNotificationComposer.ToApiValue(supportCase.Type)}}","status":"{{OrderSupportCaseNotificationComposer.ToApiValue(supportCase.Status)}}","action":"approved","targetUrl":"{{targetUrl}}","compensationType":"coupon_compensation","couponCode":"{{coupon.Code}}","couponValue":{{approvedAmount}},"couponExpiresAt":"{{coupon.EndsAtUtc?.ToString("O")}}"}
+{"orderId":"{{order.Id}}","caseId":"{{supportCase.Id}}","orderNumber":"{{order.OrderNumber}}","type":"{{OrderSupportCaseNotificationComposer.ToApiValue(supportCase.Type)}}","status":"{{OrderSupportCaseNotificationComposer.ToApiValue(supportCase.Status)}}","action":"approved","targetUrl":"{{targetUrl}}","category":"support","screen":"support_case_detail","presentation":"popup","popupType":"support_case_status_update","showPopup":true,"eventName":"support.approved","compensationType":"coupon_compensation","couponCode":"{{coupon.Code}}","couponValue":{{approvedAmount}},"couponExpiresAt":"{{coupon.EndsAtUtc?.ToString("O")}}"}
 """;
 
         const string titleAr = "تمت الموافقة على الاسترجاع ككوبون";
@@ -1522,7 +1522,7 @@ public sealed class OrderSupportCaseWorkflowService : IOrderSupportCaseWorkflowS
             ? $"/support?view=support&legacyCaseId={supportCase.Id}"
             : $"/disputes/{supportCase.Id}";
         var data = $$"""
-{"action":"{{action}}","orderId":"{{order.Id}}","orderNumber":"{{order.OrderNumber}}","caseId":"{{supportCase.Id}}","type":"{{OrderSupportCaseNotificationComposer.ToApiValue(supportCase.Type)}}","status":"{{OrderSupportCaseNotificationComposer.ToApiValue(supportCase.Status)}}","targetUrl":"{{targetUrl}}"}
+{"action":"{{action}}","orderId":"{{order.Id}}","orderNumber":"{{order.OrderNumber}}","caseId":"{{supportCase.Id}}","type":"{{OrderSupportCaseNotificationComposer.ToApiValue(supportCase.Type)}}","status":"{{OrderSupportCaseNotificationComposer.ToApiValue(supportCase.Status)}}","targetUrl":"{{targetUrl}}","category":"support","screen":"support_case_detail","presentation":"popup","popupType":"support_case_status_update","showPopup":true,"eventName":"support.{{action}}"}
 """;
 
         await _notificationService.SendToUserAsync(

@@ -141,6 +141,58 @@ public class OrderSupportCaseWorkflowNotificationTests
             Times.Once);
     }
 
+    [Fact]
+    public async Task ResolveAsync_WhenCustomerSupportCaseStatusChanges_ShouldMarkNotificationAsPopup()
+    {
+        await using var dbContext = CreateDbContext();
+        var customer = new User("Customer User", "customer.popup.case@test.com", "01000000206", UserRole.Customer);
+        var vendorUser = new User("Vendor User", "vendor.popup.case@test.com", "01000000207", UserRole.Vendor);
+        var vendor = CreateVendor(vendorUser.Id);
+        var order = CreateOrder(customer.Id, vendor.Id, OrderStatus.Delivered, "ORD-POPUP-001");
+        var supportCase = new OrderSupportCase(
+            order.Id,
+            customer.Id,
+            OrderSupportCaseType.Complaint,
+            OrderSupportCasePriority.Medium,
+            OrderSupportCaseQueue.Support,
+            "damaged_item",
+            "Order item arrived damaged.",
+            initiatorRole: "customer");
+
+        dbContext.Users.AddRange(customer, vendorUser);
+        dbContext.Vendors.Add(vendor);
+        dbContext.Orders.Add(order);
+        dbContext.OrderSupportCases.Add(supportCase);
+        await dbContext.SaveChangesAsync();
+
+        var notificationServiceMock = CreateNotificationServiceMock();
+        var workflowService = CreateWorkflowService(dbContext, notificationServiceMock);
+
+        await workflowService.ResolveAsync(
+            supportCase.Id,
+            Guid.NewGuid(),
+            "Resolved by support.",
+            CancellationToken.None);
+
+        notificationServiceMock.Verify(
+            service => service.SendToUserAsync(
+                customer.Id,
+                It.IsAny<string>(),
+                It.Is<string>(title => title.Contains("resolved", StringComparison.OrdinalIgnoreCase)),
+                It.IsAny<string>(),
+                It.IsAny<string>(),
+                NotificationTypes.OrderSupportCaseChanged,
+                supportCase.Id,
+                It.Is<string>(data =>
+                    data.Contains("\"presentation\":\"popup\"", StringComparison.Ordinal) &&
+                    data.Contains("\"popupType\":\"support_case_status_update\"", StringComparison.Ordinal) &&
+                    data.Contains("\"showPopup\":true", StringComparison.Ordinal) &&
+                    data.Contains("\"screen\":\"support_case_detail\"", StringComparison.Ordinal) &&
+                    data.Contains("\"eventName\":\"support.resolved\"", StringComparison.Ordinal)),
+                It.IsAny<CancellationToken>()),
+            Times.Once);
+    }
+
     private static OrderSupportCaseWorkflowService CreateWorkflowService(
         ApplicationDbContext dbContext,
         Mock<INotificationService> notificationServiceMock,

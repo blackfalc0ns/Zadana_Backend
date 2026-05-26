@@ -45,7 +45,13 @@ internal static class OrderSupportCaseNotificationComposer
             type = ToApiValue(type),
             status = ToApiValue(status),
             action,
-            targetUrl
+            targetUrl,
+            category = "support",
+            screen = "support_case_detail",
+            presentation = "popup",
+            popupType = "support_case_status_update",
+            showPopup = true,
+            eventName = $"support.{action}"
         });
 
     public static string ResolveTargetUrl(Guid orderId, Guid caseId) => $"/orders/{orderId}/cases/{caseId}";

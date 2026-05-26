@@ -10,4 +10,7 @@ public sealed record OrderSupportCaseChangedRealtimePayload(
     [property: JsonPropertyName("status")] string Status,
     [property: JsonPropertyName("action")] string Action,
     [property: JsonPropertyName("targetUrl")] string TargetUrl,
-    [property: JsonPropertyName("changedAtUtc")] DateTime ChangedAtUtc);
+    [property: JsonPropertyName("changedAtUtc")] DateTime ChangedAtUtc,
+    [property: JsonPropertyName("presentation")] string Presentation,
+    [property: JsonPropertyName("popupType")] string PopupType,
+    [property: JsonPropertyName("showPopup")] bool ShowPopup);
