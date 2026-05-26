@@ -53,8 +53,15 @@ jobs:
 
       - name: Remove server-local files from deploy package
         shell: pwsh
+        env:
+          PRODUCTION_WEB_CONFIG: ${{ secrets.PRODUCTION_WEB_CONFIG }}
         run: |
-          Remove-Item -LiteralPath "$env:PUBLISH_DIR\web.config" -Force -ErrorAction SilentlyContinue
+          if ([string]::IsNullOrWhiteSpace($env:PRODUCTION_WEB_CONFIG)) {
+            Remove-Item -LiteralPath "$env:PUBLISH_DIR\web.config" -Force -ErrorAction SilentlyContinue
+          } else {
+            Set-Content -Path "$env:PUBLISH_DIR\web.config" -Value $env:PRODUCTION_WEB_CONFIG -Encoding UTF8
+          }
+
           Remove-Item -LiteralPath "$env:PUBLISH_DIR\appsettings.Local.json" -Force -ErrorAction SilentlyContinue
           Remove-Item -LiteralPath "$env:PUBLISH_DIR\publish" -Recurse -Force -ErrorAction SilentlyContinue
           New-Item -Path "$env:PUBLISH_DIR\logs" -ItemType Directory -Force | Out-Null
