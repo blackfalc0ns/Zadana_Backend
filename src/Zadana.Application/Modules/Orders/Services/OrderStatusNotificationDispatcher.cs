@@ -1,6 +1,7 @@
 using Microsoft.Extensions.Logging;
 using Zadana.Application.Common.Interfaces;
 using Zadana.Application.Modules.Orders.Support;
+using Zadana.Domain.Modules.Orders.Enums;
 
 namespace Zadana.Application.Modules.Orders.Services;
 
@@ -105,7 +106,9 @@ public sealed class OrderStatusNotificationDispatcher : IOrderStatusNotification
         OneSignalPushDispatchResult pushResult;
         try
         {
-            pushResult = await pushRequest.DispatchAsync(_oneSignalPushService, cancellationToken);
+            pushResult = request.NewStatus == OrderStatus.OnTheWay
+                ? await _oneSignalPushService.SendMobileNotificationDirectAsync(pushRequest, cancellationToken)
+                : await pushRequest.DispatchAsync(_oneSignalPushService, cancellationToken);
         }
         catch (Exception ex)
         {

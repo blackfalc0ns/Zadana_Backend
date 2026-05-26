@@ -170,7 +170,8 @@ public class UpdateDriverArrivalStateCommandHandler : IRequestHandler<UpdateDriv
 
         if (normalizedState == "arrived_at_customer")
         {
-            await OneSignalMobilePushRequest.CreateHeadsUp(
+            var pushResult = await _oneSignalPushService.SendMobileNotificationDirectAsync(
+                OneSignalMobilePushRequest.CreateHeadsUp(
                     recipientUserId.ToString(),
                     titleAr,
                     titleEn,
@@ -180,8 +181,20 @@ public class UpdateDriverArrivalStateCommandHandler : IRequestHandler<UpdateDriv
                     assignment.OrderId,
                     notificationData,
                     targetUrl,
-                    category: "order")
-                .DispatchAsync(_oneSignalPushService, cancellationToken);
+                    category: "order"),
+                cancellationToken);
+
+            if (!pushResult.Sent)
+            {
+                _logger.LogWarning(
+                    "Customer driver-arrival push was not sent for order {OrderId} user {UserId}. Attempted: {Attempted}. Skipped: {Skipped}. ProviderStatusCode: {ProviderStatusCode}. Reason: {Reason}",
+                    assignment.OrderId,
+                    recipientUserId,
+                    pushResult.Attempted,
+                    pushResult.Skipped,
+                    pushResult.ProviderStatusCode,
+                    pushResult.Reason);
+            }
 
             await DispatchCustomerArrivalEmailAsync(assignment.OrderId, assignment.Order.OrderNumber, assignment.Order.VendorId, cancellationToken);
         }
