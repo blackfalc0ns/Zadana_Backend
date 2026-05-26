@@ -93,6 +93,20 @@ public class NotificationDevicesController : ApiControllerBase
         return Ok(Map(device));
     }
 
+    [HttpGet("preferences")]
+    public async Task<ActionResult<NotificationDeviceResponse>> GetPreferences(
+        [FromQuery(Name = "deviceId")] string? deviceId = null,
+        [FromQuery(Name = "deviceToken")] string? deviceToken = null,
+        CancellationToken cancellationToken = default)
+    {
+        var userId = RequireUserId();
+        var device = await Sender.Send(
+            new GetNotificationDevicePreferencesQuery(userId, deviceId, deviceToken),
+            cancellationToken);
+
+        return Ok(Map(device));
+    }
+
     [HttpPost("unregister")]
     public async Task<ActionResult<NotificationDeviceUnregisterResponse>> Unregister(
         [FromBody] UnregisterNotificationDeviceRequest request,

@@ -7,6 +7,11 @@ namespace Zadana.Application.Modules.Social.Queries;
 
 public record GetNotificationDevicesQuery(Guid UserId) : IRequest<IReadOnlyList<NotificationDeviceDto>>;
 
+public record GetNotificationDevicePreferencesQuery(
+    Guid UserId,
+    string? DeviceId,
+    string? DeviceToken) : IRequest<NotificationDeviceDto>;
+
 public class GetNotificationDevicesQueryHandler : IRequestHandler<GetNotificationDevicesQuery, IReadOnlyList<NotificationDeviceDto>>
 {
     private readonly IApplicationDbContext _context;
@@ -46,5 +51,24 @@ public class GetNotificationDevicesQueryHandler : IRequestHandler<GetNotificatio
                 x.LastRegisteredAtUtc,
                 x.LastSeenAtUtc))
             .ToListAsync(cancellationToken);
+    }
+}
+
+public class GetNotificationDevicePreferencesQueryHandler : IRequestHandler<GetNotificationDevicePreferencesQuery, NotificationDeviceDto>
+{
+    private readonly IApplicationDbContext _context;
+
+    public GetNotificationDevicePreferencesQueryHandler(IApplicationDbContext context) => _context = context;
+
+    public async Task<NotificationDeviceDto> Handle(GetNotificationDevicePreferencesQuery request, CancellationToken cancellationToken)
+    {
+        var device = await NotificationDeviceCommandHelpers.FindOwnedDeviceAsync(
+            _context,
+            request.UserId,
+            request.DeviceId,
+            request.DeviceToken,
+            cancellationToken);
+
+        return RegisterNotificationDeviceCommandHandler.Map(device);
     }
 }

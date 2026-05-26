@@ -17,6 +17,12 @@ PUT /api/drivers/notifications/preferences
 PUT /api/drivers/notifications/devices/preferences
 ```
 
+ولقراءة إعدادات الجهاز الحالي قبل عرض شاشة الإعدادات استخدم:
+
+```http
+GET /api/drivers/notifications/devices/preferences?deviceId={deviceId}&deviceToken={deviceToken}
+```
+
 ## متى تستدعي endpoint الجديد؟
 
 استخدمه عند تغيير أي إعداد إشعارات في شاشة إعدادات المندوب:
@@ -187,4 +193,3 @@ POST /api/drivers/notifications/devices/register
 - لو تغير FCM token، ناد `register` مرة أخرى ثم ناد `devices/preferences` إذا احتجت تثبيت التفضيلات.
 - لو رجع `404 NotificationDevice`، سجل الجهاز أولا.
 - لو رجع `400 DEVICE_IDENTIFIER_REQUIRED`، ابعت `deviceId` أو `deviceToken`.
-
