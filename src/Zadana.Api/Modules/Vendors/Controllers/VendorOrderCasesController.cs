@@ -327,21 +327,22 @@ public class VendorOrderCasesController : ApiControllerBase
         }
 
         var vendorId = await _currentVendorService.GetRequiredVendorIdAsync(cancellationToken);
+        var vendorUserId = _currentUserService.UserId
+            ?? throw new UnauthorizedException("USER_NOT_AUTHENTICATED");
 
-        var caseExists = await _dbContext.OrderSupportCases
-            .AsNoTracking()
-            .AnyAsync(c => c.Id == caseId && c.Order != null && c.Order.VendorId == vendorId, cancellationToken);
-
-        if (!caseExists)
-        {
-            throw new NotFoundException("OrderSupportCase", caseId);
-        }
+        var supportCase = await _dbContext.OrderSupportCases
+            .Include(c => c.Attachments)
+            .FirstOrDefaultAsync(c => c.Id == caseId && c.Order != null && c.Order.VendorId == vendorId, cancellationToken)
+            ?? throw new NotFoundException("OrderSupportCase", caseId);
 
         await using var stream = file.OpenReadStream();
         var fileDto = new FileUploadDto(file.FileName, file.ContentType, stream);
         var fileUrl = await Sender.Send(
             new UploadFileCommand($"orders/support-cases/{caseId:D}", fileDto),
             cancellationToken);
+
+        supportCase.AddAttachment(file.FileName, fileUrl, vendorUserId);
+        await _dbContext.SaveChangesAsync(cancellationToken);
 
         return Ok(new VendorOrderCaseAttachmentUploadResponse(file.FileName, fileUrl));
     }

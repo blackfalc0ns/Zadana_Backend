@@ -24,6 +24,8 @@ internal sealed class FakeCurrentUserService : ICurrentUserService
     public string? GuestDeviceId { get; }
     public string? Role { get; }
     public bool IsAuthenticated { get; }
+    public string? AccessTokenJti => null;
+    public DateTime? AccessTokenExpiresAtUtc => null;
 
     public string? GetDeviceInfo() => _deviceInfo;
 }

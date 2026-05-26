@@ -439,10 +439,18 @@ namespace Zadana.Infrastructure.Migrations
                     b.Property<DateTime>("CreatedAtUtc")
                         .HasColumnType("datetime2");
 
+                    b.Property<DateTime?>("DeletedAtUtc")
+                        .HasColumnType("datetime2");
+
                     b.Property<bool>("IsActive")
                         .ValueGeneratedOnAdd()
                         .HasColumnType("bit")
                         .HasDefaultValue(true);
+
+                    b.Property<bool>("IsDeleted")
+                        .ValueGeneratedOnAdd()
+                        .HasColumnType("bit")
+                        .HasDefaultValue(false);
 
                     b.Property<string>("LogoUrl")
                         .HasMaxLength(1000)
@@ -572,6 +580,9 @@ namespace Zadana.Infrastructure.Migrations
                     b.Property<DateTime>("CreatedAtUtc")
                         .HasColumnType("datetime2");
 
+                    b.Property<DateTime?>("DeletedAtUtc")
+                        .HasColumnType("datetime2");
+
                     b.Property<int>("DisplayOrder")
                         .ValueGeneratedOnAdd()
                         .HasColumnType("int")
@@ -584,6 +595,11 @@ namespace Zadana.Infrastructure.Migrations
                         .ValueGeneratedOnAdd()
                         .HasColumnType("bit")
                         .HasDefaultValue(true);
+
+                    b.Property<bool>("IsDeleted")
+                        .ValueGeneratedOnAdd()
+                        .HasColumnType("bit")
+                        .HasDefaultValue(false);
 
                     b.Property<string>("NameAr")
                         .IsRequired()
@@ -702,6 +718,9 @@ namespace Zadana.Infrastructure.Migrations
                     b.Property<DateTime>("CreatedAtUtc")
                         .HasColumnType("datetime2");
 
+                    b.Property<DateTime?>("DeletedAtUtc")
+                        .HasColumnType("datetime2");
+
                     b.Property<string>("DescriptionAr")
                         .HasMaxLength(2000)
                         .HasColumnType("nvarchar(2000)");
@@ -709,6 +728,11 @@ namespace Zadana.Infrastructure.Migrations
                     b.Property<string>("DescriptionEn")
                         .HasMaxLength(2000)
                         .HasColumnType("nvarchar(2000)");
+
+                    b.Property<bool>("IsDeleted")
+                        .ValueGeneratedOnAdd()
+                        .HasColumnType("bit")
+                        .HasDefaultValue(false);
 
                     b.Property<Guid?>("MeasurementUnitId")
                         .HasColumnType("uniqueidentifier");
@@ -1635,8 +1659,8 @@ namespace Zadana.Infrastructure.Migrations
                         .HasColumnType("nvarchar(500)");
 
                     b.Property<string>("LicenseNumber")
-                        .HasMaxLength(100)
-                        .HasColumnType("nvarchar(100)");
+                        .HasMaxLength(512)
+                        .HasColumnType("nvarchar(512)");
 
                     b.Property<string>("LocationUpdatesBlockReason")
                         .HasMaxLength(500)
@@ -1649,8 +1673,8 @@ namespace Zadana.Infrastructure.Migrations
                         .HasColumnType("uniqueidentifier");
 
                     b.Property<string>("NationalId")
-                        .HasMaxLength(100)
-                        .HasColumnType("nvarchar(100)");
+                        .HasMaxLength(512)
+                        .HasColumnType("nvarchar(512)");
 
                     b.Property<string>("NationalIdBackImageUrl")
                         .HasMaxLength(500)
@@ -1662,6 +1686,10 @@ namespace Zadana.Infrastructure.Migrations
                     b.Property<string>("NationalIdFrontImageUrl")
                         .HasMaxLength(500)
                         .HasColumnType("nvarchar(500)");
+
+                    b.Property<string>("NationalIdHash")
+                        .HasMaxLength(64)
+                        .HasColumnType("nvarchar(64)");
 
                     b.Property<string>("PersonalPhotoUrl")
                         .HasMaxLength(500)
@@ -1704,8 +1732,8 @@ namespace Zadana.Infrastructure.Migrations
                         .HasColumnType("datetime2");
 
                     b.Property<string>("VehicleLicenseNumber")
-                        .HasMaxLength(100)
-                        .HasColumnType("nvarchar(100)");
+                        .HasMaxLength(512)
+                        .HasColumnType("nvarchar(512)");
 
                     b.Property<string>("VehicleType")
                         .HasMaxLength(100)
@@ -1717,6 +1745,10 @@ namespace Zadana.Infrastructure.Migrations
                         .HasColumnType("nvarchar(50)");
 
                     b.HasKey("Id");
+
+                    b.HasIndex("NationalIdHash")
+                        .HasDatabaseName("IX_Drivers_NationalIdHash")
+                        .HasFilter("[NationalIdHash] IS NOT NULL");
 
                     b.HasIndex("UserId");
 
@@ -1823,6 +1855,34 @@ namespace Zadana.Infrastructure.Migrations
                     b.ToTable("DriverIncidents", (string)null);
                 });
 
+            modelBuilder.Entity("Zadana.Domain.Modules.Delivery.Entities.DriverLatestLocation", b =>
+                {
+                    b.Property<Guid>("DriverId")
+                        .HasColumnType("uniqueidentifier");
+
+                    b.Property<decimal?>("AccuracyMeters")
+                        .HasPrecision(8, 2)
+                        .HasColumnType("decimal(8,2)");
+
+                    b.Property<decimal>("Latitude")
+                        .HasPrecision(10, 7)
+                        .HasColumnType("decimal(10,7)");
+
+                    b.Property<decimal>("Longitude")
+                        .HasPrecision(10, 7)
+                        .HasColumnType("decimal(10,7)");
+
+                    b.Property<DateTime>("RecordedAtUtc")
+                        .HasColumnType("datetime2");
+
+                    b.Property<DateTime>("UpdatedAtUtc")
+                        .HasColumnType("datetime2");
+
+                    b.HasKey("DriverId");
+
+                    b.ToTable("DriverLatestLocations", (string)null);
+                });
+
             modelBuilder.Entity("Zadana.Domain.Modules.Delivery.Entities.DriverLocation", b =>
                 {
                     b.Property<Guid>("Id")
@@ -1849,7 +1909,9 @@ namespace Zadana.Infrastructure.Migrations
 
                     b.HasKey("Id");
 
-                    b.HasIndex("DriverId");
+                    b.HasIndex("DriverId", "RecordedAtUtc")
+                        .IsDescending(false, true)
+                        .HasDatabaseName("IX_DriverLocations_DriverId_RecordedAt_Desc");
 
                     b.ToTable("DriverLocations", (string)null);
                 });
@@ -2776,9 +2838,7 @@ namespace Zadana.Infrastructure.Migrations
                         .HasColumnType("datetime2");
 
                     b.Property<bool>("IsRevoked")
-                        .ValueGeneratedOnAdd()
-                        .HasColumnType("bit")
-                        .HasDefaultValue(false);
+                        .HasColumnType("bit");
 
                     b.Property<DateTime?>("RevokedAtUtc")
                         .HasColumnType("datetime2");
@@ -2814,10 +2874,9 @@ namespace Zadana.Infrastructure.Migrations
                         .HasDatabaseName("IX_RefreshToken_TokenHash")
                         .HasFilter("[TokenHash] IS NOT NULL");
 
-                    b.HasIndex("UserId")
-                        .HasDatabaseName("IX_RefreshToken_UserId");
+                    b.HasIndex("UserId");
 
-                    b.ToTable("RefreshToken", (string)null);
+                    b.ToTable("RefreshTokens");
                 });
 
             modelBuilder.Entity("Zadana.Domain.Modules.Identity.Entities.RoleDefinition", b =>
@@ -3086,6 +3145,11 @@ namespace Zadana.Infrastructure.Migrations
                         .HasMaxLength(256)
                         .HasColumnType("nvarchar(256)");
 
+                    b.Property<int>("OtpAttempts")
+                        .ValueGeneratedOnAdd()
+                        .HasColumnType("int")
+                        .HasDefaultValue(0);
+
                     b.Property<string>("OtpCode")
                         .HasMaxLength(128)
                         .HasColumnType("nvarchar(128)");
@@ -3093,7 +3157,10 @@ namespace Zadana.Infrastructure.Migrations
                     b.Property<DateTime?>("OtpExpiryTime")
                         .HasColumnType("datetime2");
 
-                    b.Property<int>("OtpAttempts")
+                    b.Property<DateTime?>("OtpLockedUntilUtc")
+                        .HasColumnType("datetime2");
+
+                    b.Property<int>("OtpLockoutCount")
                         .ValueGeneratedOnAdd()
                         .HasColumnType("int")
                         .HasDefaultValue(0);
@@ -3105,13 +3172,13 @@ namespace Zadana.Infrastructure.Migrations
                         .HasMaxLength(128)
                         .HasColumnType("nvarchar(128)");
 
-                    b.Property<DateTime?>("PasswordResetOtpExpiry")
-                        .HasColumnType("datetime2");
-
                     b.Property<int>("PasswordResetOtpAttempts")
                         .ValueGeneratedOnAdd()
                         .HasColumnType("int")
                         .HasDefaultValue(0);
+
+                    b.Property<DateTime?>("PasswordResetOtpExpiry")
+                        .HasColumnType("datetime2");
 
                     b.Property<int>("PermissionVersion")
                         .ValueGeneratedOnAdd()
@@ -5713,8 +5780,8 @@ namespace Zadana.Infrastructure.Migrations
 
                     b.Property<string>("AccountHolderName")
                         .IsRequired()
-                        .HasMaxLength(200)
-                        .HasColumnType("nvarchar(200)");
+                        .HasMaxLength(512)
+                        .HasColumnType("nvarchar(512)");
 
                     b.Property<string>("BankName")
                         .IsRequired()
@@ -5726,8 +5793,8 @@ namespace Zadana.Infrastructure.Migrations
 
                     b.Property<string>("IBAN")
                         .IsRequired()
-                        .HasMaxLength(34)
-                        .HasColumnType("nvarchar(34)");
+                        .HasMaxLength(512)
+                        .HasColumnType("nvarchar(512)");
 
                     b.Property<bool>("IsPrimary")
                         .ValueGeneratedOnAdd()
@@ -6129,6 +6196,68 @@ namespace Zadana.Infrastructure.Migrations
                     b.HasIndex("DriverId");
 
                     b.ToTable("DriverPayoutMethods", (string)null);
+                });
+
+            modelBuilder.Entity("Zadana.Domain.Modules.Wallets.Entities.DriverRecovery", b =>
+                {
+                    b.Property<Guid>("Id")
+                        .ValueGeneratedOnAdd()
+                        .HasColumnType("uniqueidentifier");
+
+                    b.Property<DateTime>("CreatedAtUtc")
+                        .HasColumnType("datetime2");
+
+                    b.Property<Guid>("DriverId")
+                        .HasColumnType("uniqueidentifier");
+
+                    b.Property<string>("Notes")
+                        .HasMaxLength(1000)
+                        .HasColumnType("nvarchar(1000)");
+
+                    b.Property<Guid>("OrderId")
+                        .HasColumnType("uniqueidentifier");
+
+                    b.Property<Guid>("OrderSupportCaseId")
+                        .HasColumnType("uniqueidentifier");
+
+                    b.Property<decimal>("OutstandingAmount")
+                        .HasPrecision(18, 2)
+                        .HasColumnType("decimal(18,2)");
+
+                    b.Property<Guid?>("PayoutId")
+                        .HasColumnType("uniqueidentifier");
+
+                    b.Property<decimal>("RecoveredAmount")
+                        .HasPrecision(18, 2)
+                        .HasColumnType("decimal(18,2)");
+
+                    b.Property<string>("Source")
+                        .HasMaxLength(50)
+                        .HasColumnType("nvarchar(50)");
+
+                    b.Property<string>("Status")
+                        .IsRequired()
+                        .HasMaxLength(50)
+                        .HasColumnType("nvarchar(50)");
+
+                    b.Property<decimal>("TargetAmount")
+                        .HasPrecision(18, 2)
+                        .HasColumnType("decimal(18,2)");
+
+                    b.Property<DateTime>("UpdatedAtUtc")
+                        .HasColumnType("datetime2");
+
+                    b.Property<Guid?>("WalletTransactionId")
+                        .HasColumnType("uniqueidentifier");
+
+                    b.HasKey("Id");
+
+                    b.HasIndex("OrderSupportCaseId")
+                        .IsUnique();
+
+                    b.HasIndex("DriverId", "Status");
+
+                    b.ToTable("DriverRecoveries", (string)null);
                 });
 
             modelBuilder.Entity("Zadana.Domain.Modules.Wallets.Entities.DriverWithdrawalRequest", b =>
@@ -6834,6 +6963,11 @@ namespace Zadana.Infrastructure.Migrations
 
                     b.HasIndex("WalletId");
 
+                    b.HasIndex("ReferenceType", "ReferenceId")
+                        .IsUnique()
+                        .HasDatabaseName("UX_WalletTransactions_JournalLineReference")
+                        .HasFilter("[ReferenceType] = 'JournalLine' AND [ReferenceId] IS NOT NULL");
+
                     b.ToTable("WalletTransactions", (string)null);
                 });
 
@@ -7321,6 +7455,17 @@ namespace Zadana.Infrastructure.Migrations
                     b.HasOne("Zadana.Domain.Modules.Delivery.Entities.Driver", "Driver")
                         .WithMany("Incidents")
                         .HasForeignKey("DriverId")
+                        .OnDelete(DeleteBehavior.Cascade)
+                        .IsRequired();
+
+                    b.Navigation("Driver");
+                });
+
+            modelBuilder.Entity("Zadana.Domain.Modules.Delivery.Entities.DriverLatestLocation", b =>
+                {
+                    b.HasOne("Zadana.Domain.Modules.Delivery.Entities.Driver", "Driver")
+                        .WithOne()
+                        .HasForeignKey("Zadana.Domain.Modules.Delivery.Entities.DriverLatestLocation", "DriverId")
                         .OnDelete(DeleteBehavior.Cascade)
                         .IsRequired();
 

@@ -35,4 +35,8 @@ public interface IEmailCenterService
         Vendor vendor,
         VendorCommunicationMessage message,
         CancellationToken cancellationToken = default);
+
+    Task<EmailDispatchOperationResult> DispatchSystemEventEmailAsync(
+        EmailSystemEventDispatchRequest request,
+        CancellationToken cancellationToken = default);
 }

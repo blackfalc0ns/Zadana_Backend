@@ -31,6 +31,7 @@ public sealed class AccessAuthorizationConvention : IApplicationModelConvention
             ["AdminCategoryRequests"] = CreateCatalogAdminRule(),
             ["AdminMasterProducts"] = CreateCatalogAdminRule(),
             ["AdminProductRequests"] = CreateCatalogAdminRule(),
+            ["AdminProductTypes"] = CreateCatalogAdminRule(),
             ["AdminUnits"] = CreateCatalogAdminRule(),
             ["AdminDeliveryPricing"] = new(
                 [PermissionKeys.Admin.DeliverySettingsView],
@@ -128,6 +129,15 @@ public sealed class AccessAuthorizationConvention : IApplicationModelConvention
             ["AdminVendorSupportTickets"] = new(
                 [PermissionKeys.Admin.VendorsView],
                 edit: [PermissionKeys.Admin.VendorsEdit]),
+            ["AdminVendorBankAccounts"] = new(
+                [PermissionKeys.Admin.VendorsView],
+                edit: [PermissionKeys.Admin.VendorsEdit],
+                approve: [PermissionKeys.Admin.VendorsApprove]),
+            ["AdminVendorBranches"] = new(
+                [PermissionKeys.Admin.VendorsView],
+                create: [PermissionKeys.Admin.VendorsEdit],
+                edit: [PermissionKeys.Admin.VendorsEdit],
+                approve: [PermissionKeys.Admin.VendorsApprove]),
             ["AdminWallets"] = new(
                 [PermissionKeys.Admin.WalletsView],
                 edit: [PermissionKeys.Admin.WalletsEdit],

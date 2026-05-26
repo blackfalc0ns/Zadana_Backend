@@ -24,18 +24,28 @@ public class GetBrandsQueryHandler : IRequestHandler<GetBrandsQuery, List<BrandD
             query = query.Where(b => b.IsActive);
         }
 
+        // Safety cap: use SearchBrands for paginated large result sets
         var brands = await query
             .Include(b => b.Category)
             .Include(b => b.BrandCategories)
                 .ThenInclude(link => link.Category)
-            .Include(b => b.MasterProducts)
             .OrderBy(b => b.NameEn)
+            .Take(1000)
             .ToListAsync(cancellationToken);
 
-        return brands.Select(MapBrand).ToList();
+        // Efficient count via grouped query instead of loading all MasterProducts
+        var brandIds = brands.Select(b => b.Id).ToList();
+        var productCountsByBrand = await _context.MasterProducts
+            .AsNoTracking()
+            .Where(p => p.BrandId.HasValue && brandIds.Contains(p.BrandId!.Value))
+            .GroupBy(p => p.BrandId!.Value)
+            .Select(g => new { BrandId = g.Key, Count = g.Count() })
+            .ToDictionaryAsync(x => x.BrandId, x => x.Count, cancellationToken);
+
+        return brands.Select(b => MapBrand(b, productCountsByBrand)).ToList();
     }
 
-    private static BrandDto MapBrand(Brand brand)
+    private static BrandDto MapBrand(Brand brand, IReadOnlyDictionary<Guid, int> productCounts)
     {
         var categories = brand.BrandCategories
             .Where(link => link.Category is not null)
@@ -51,6 +61,8 @@ public class GetBrandsQueryHandler : IRequestHandler<GetBrandsQuery, List<BrandD
                 brand.Category?.NameEn));
         }
 
+        productCounts.TryGetValue(brand.Id, out var masterProductCount);
+
         return new BrandDto(
             brand.Id,
             brand.NameAr,
@@ -63,7 +75,7 @@ public class GetBrandsQueryHandler : IRequestHandler<GetBrandsQuery, List<BrandD
             brand.Category?.NameAr,
             brand.Category?.NameEn,
             brand.IsActive,
-            brand.MasterProducts.Count,
+            masterProductCount,
             brand.CreatedAtUtc,
             brand.UpdatedAtUtc);
     }

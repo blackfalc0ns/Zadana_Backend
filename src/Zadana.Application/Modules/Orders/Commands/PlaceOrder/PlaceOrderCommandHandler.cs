@@ -1,7 +1,10 @@
 using MediatR;
+using Microsoft.Extensions.Options;
+using System.Text.Json;
 using Microsoft.Extensions.Localization;
 using Zadana.Application.Common.Interfaces;
 using Zadana.Application.Common.Localization;
+using Zadana.Application.Common.Settings;
 using Zadana.Application.Modules.Catalog.DTOs;
 using Zadana.Application.Modules.Orders.Interfaces;
 using Zadana.Domain.Modules.Orders.Entities;
@@ -15,15 +18,18 @@ public class PlaceOrderCommandHandler : IRequestHandler<PlaceOrderCommand, Guid>
     private readonly IOrderRepository _orderRepository;
     private readonly IStringLocalizer<SharedResource> _localizer;
     private readonly IUnitOfWork _unitOfWork;
+    private readonly FinancialSettingsOptions _financialSettings;
 
     public PlaceOrderCommandHandler(
         IOrderRepository orderRepository,
         IStringLocalizer<SharedResource> localizer,
-        IUnitOfWork unitOfWork)
+        IUnitOfWork unitOfWork,
+        IOptions<FinancialSettingsOptions>? financialSettings = null)
     {
         _orderRepository = orderRepository;
         _localizer = localizer;
         _unitOfWork = unitOfWork;
+        _financialSettings = financialSettings?.Value ?? new FinancialSettingsOptions();
     }
 
     public async Task<Guid> Handle(PlaceOrderCommand request, CancellationToken cancellationToken)
@@ -38,6 +44,13 @@ public class PlaceOrderCommandHandler : IRequestHandler<PlaceOrderCommand, Guid>
         if (!Enum.TryParse<PaymentMethodType>(request.PaymentMethod, true, out var paymentMethod))
         {
             throw new BusinessRuleException("INVALID_PAYMENT", _localizer["INVALID_PAYMENT"]);
+        }
+
+        if (paymentMethod is PaymentMethodType.Wallet or PaymentMethodType.Mada or PaymentMethodType.ApplePay)
+        {
+            throw new BusinessRuleException(
+                "PAYMENT_METHOD_NOT_SUPPORTED",
+                $"{paymentMethod} is not supported as a standalone order payment method.");
         }
 
         var masterProductIds = cart.Items.Select(item => item.MasterProductId).Distinct().ToArray();
@@ -115,12 +128,14 @@ public class PlaceOrderCommandHandler : IRequestHandler<PlaceOrderCommand, Guid>
 
         if (reusableOrder is not null)
         {
+            ApplyOrderFinancialSnapshot(reusableOrder, subtotal, cart.DiscountTotal, commissionAmount, request);
+
             if (request.ClearCartAfterPlacement)
             {
                 _orderRepository.RemoveCart(cart);
-                await _unitOfWork.SaveChangesAsync(cancellationToken);
             }
 
+            await _unitOfWork.SaveChangesAsync(cancellationToken);
             return reusableOrder.Id;
         }
 
@@ -161,6 +176,7 @@ public class PlaceOrderCommandHandler : IRequestHandler<PlaceOrderCommand, Guid>
             vendorBranchId: request.VendorBranchId,
             couponId: request.CouponId
         );
+        ApplyOrderFinancialSnapshot(order, subtotal, cart.DiscountTotal, commissionAmount, request);
 
         _orderRepository.AddOrder(order);
 
@@ -209,5 +225,43 @@ public class PlaceOrderCommandHandler : IRequestHandler<PlaceOrderCommand, Guid>
         await _unitOfWork.SaveChangesAsync(cancellationToken);
 
         return order.Id;
+    }
+
+    private void ApplyOrderFinancialSnapshot(
+        Order order,
+        decimal subtotal,
+        decimal discountTotal,
+        decimal vendorCommissionAmount,
+        PlaceOrderCommand request)
+    {
+        var productNet = Math.Max(0m, subtotal - discountTotal);
+        var driverCommissionAmount = decimal.Round(
+            Math.Max(order.DeliveryFee, 0m) * _financialSettings.DriverCommissionRatePercent / 100m,
+            2,
+            MidpointRounding.AwayFromZero);
+
+        var taxPolicySnapshot = JsonSerializer.Serialize(new
+        {
+            vat_amount = request.VatAmount,
+            cod_fee = request.CodFee,
+            cod_fee_applied = request.CodFee > 0m,
+        });
+
+        var commissionPolicySnapshot = JsonSerializer.Serialize(new
+        {
+            vendor_commission_amount = vendorCommissionAmount,
+            driver_commission_rate_percent = _financialSettings.DriverCommissionRatePercent,
+            driver_commission_amount = driverCommissionAmount,
+        });
+
+        order.ApplyFinancialSnapshot(
+            productGross: subtotal,
+            productNet: productNet,
+            vendorCommissionAmount: vendorCommissionAmount,
+            driverCommissionAmount: driverCommissionAmount,
+            currency: "SAR",
+            pricingMode: request.DeliveryPricingMode ?? "live",
+            taxPolicySnapshot: taxPolicySnapshot,
+            commissionPolicySnapshot: commissionPolicySnapshot);
     }
 }

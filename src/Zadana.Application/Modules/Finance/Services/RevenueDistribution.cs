@@ -30,7 +30,10 @@ public sealed record RevenueDistribution(
 /// </summary>
 public static class RevenueDistributionCalculator
 {
-    public static RevenueDistribution Compute(Order order, decimal vendorRecoveryApplied = 0m)
+    public static RevenueDistribution Compute(
+        Order order,
+        decimal vendorRecoveryApplied = 0m,
+        decimal? legacyDriverCommissionAmount = null)
     {
         ArgumentNullException.ThrowIfNull(order);
 
@@ -48,16 +51,16 @@ public static class RevenueDistributionCalculator
             CurrencyPolicy.EnsureOfficial(order.Currency);
         }
 
-        var productNet = order.ProductNet > 0 ? order.ProductNet : Math.Max(0, order.Subtotal - order.DiscountTotal);
-        var vendorComm = order.VendorCommissionAmount > 0 ? order.VendorCommissionAmount : order.CommissionAmount;
-        var driverComm = order.DriverCommissionAmount;
-        var deliveryFee = order.DeliveryFee;
-        var vat = order.VatAmount;
-        var cod = order.CodFee;
+        var productNet = RoundMoney(order.ProductNet > 0 ? order.ProductNet : Math.Max(0, order.Subtotal - order.DiscountTotal));
+        var vendorComm = RoundMoney(order.VendorCommissionAmount > 0 ? order.VendorCommissionAmount : order.CommissionAmount);
+        var driverComm = RoundMoney(order.DriverCommissionAmount > 0 ? order.DriverCommissionAmount : legacyDriverCommissionAmount ?? 0m);
+        var deliveryFee = RoundMoney(order.DeliveryFee);
+        var vat = RoundMoney(order.VatAmount);
+        var cod = RoundMoney(order.CodFee);
 
-        var vendorNet = productNet - vendorComm - vendorRecoveryApplied;
-        var driverNet = deliveryFee - driverComm;
-        var platformRevenue = vendorComm + driverComm + cod + vendorRecoveryApplied;
+        var vendorNet = RoundMoney(productNet - vendorComm - vendorRecoveryApplied);
+        var driverNet = RoundMoney(deliveryFee - driverComm);
+        var platformRevenue = RoundMoney(vendorComm + driverComm + cod + vendorRecoveryApplied);
         var tax = vat;
 
         var distribution = new RevenueDistribution(vendorNet, driverNet, platformRevenue, tax, vendorRecoveryApplied);
@@ -79,4 +82,7 @@ public static class RevenueDistributionCalculator
 
         return distribution;
     }
+
+    private static decimal RoundMoney(decimal value) =>
+        decimal.Round(value, 2, MidpointRounding.AwayFromZero);
 }

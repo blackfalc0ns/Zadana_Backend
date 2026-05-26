@@ -4,6 +4,7 @@ using Microsoft.EntityFrameworkCore;
 using Zadana.Api.Controllers;
 using Zadana.Application.Common.Interfaces;
 using Zadana.Application.Common.Localization;
+using Zadana.Application.Modules.Social.Commands;
 using Zadana.Application.Modules.Social.Queries;
 using Zadana.Domain.Modules.Identity.Enums;
 using Zadana.Domain.Modules.Social.Enums;
@@ -76,6 +77,22 @@ public class AdminNotificationsController : ApiControllerBase
         var userId = _currentUserService.UserId ?? throw new UnauthorizedException("USER_NOT_AUTHENTICATED");
         var count = await Sender.Send(new MarkAllNotificationsReadCommand(userId), cancellationToken);
         return Ok(new { message_ar = LocalizedMessages.GetAr(LocalizedMessages.AllNotificationsMarkedRead), message_en = LocalizedMessages.GetEn(LocalizedMessages.AllNotificationsMarkedRead), count });
+    }
+
+    [HttpDelete("{id:guid}")]
+    public async Task<ActionResult> DeleteNotification(Guid id, CancellationToken cancellationToken = default)
+    {
+        var userId = _currentUserService.UserId ?? throw new UnauthorizedException("USER_NOT_AUTHENTICATED");
+        await Sender.Send(new DeleteNotificationCommand(id, userId), cancellationToken);
+        return NoContent();
+    }
+
+    [HttpDelete]
+    public async Task<ActionResult> DeleteAllNotifications(CancellationToken cancellationToken = default)
+    {
+        var userId = _currentUserService.UserId ?? throw new UnauthorizedException("USER_NOT_AUTHENTICATED");
+        var count = await Sender.Send(new DeleteAllNotificationsCommand(userId), cancellationToken);
+        return Ok(new { count, message_ar = "تم حذف جميع الإشعارات", message_en = "All notifications deleted" });
     }
 
     [HttpGet("preferences")]

@@ -35,7 +35,16 @@ public class CartControllerTests
         _localizerMock.Setup(x => x[It.IsAny<string>()])
             .Returns((string key) => new LocalizedString(key, key));
 
-        _controller = new CartController(_currentUserServiceMock.Object, _localizerMock.Object);
+        var configurationDict = new Dictionary<string, string?>
+        {
+            ["JwtSettings:Secret"] = "test-secret-key-with-enough-bytes-for-hmac-sha256-tests"
+        };
+        var configuration = new Microsoft.Extensions.Configuration.ConfigurationBuilder()
+            .Add(new Microsoft.Extensions.Configuration.Memory.MemoryConfigurationSource { InitialData = configurationDict })
+            .Build();
+        var signer = new Zadana.Api.Security.GuestCartSigner(configuration);
+
+        _controller = new CartController(_currentUserServiceMock.Object, _localizerMock.Object, signer);
 
         var services = new ServiceCollection();
         services.AddSingleton(_senderMock.Object);

@@ -45,6 +45,13 @@ public class MasterProductConfiguration : IEntityTypeConfiguration<MasterProduct
             .IsRequired()
             .HasDefaultValue(true);
 
+        builder.Property(p => p.IsDeleted)
+            .IsRequired()
+            .HasDefaultValue(false);
+
+        builder.Property(p => p.DeletedAtUtc)
+            .IsRequired(false);
+
         // Relationships
         builder.HasOne(p => p.Category)
             .WithMany(c => c.MasterProducts)

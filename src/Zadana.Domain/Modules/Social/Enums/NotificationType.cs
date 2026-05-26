@@ -7,6 +7,8 @@ public static class NotificationTypes
     public const string OrderPlaced = "order_placed";
     public const string OrderCancelled = "order_cancelled";
     public const string VendorNewOrder = "vendor_new_order";
+    public const string VendorAccountUpdated = "vendor_account_updated";
+    public const string VendorSettlementPaid = "vendor_settlement_paid";
     public const string OrderSupportCaseChanged = "order_support_case_changed";
     public const string OrderSupportCase = "order_support_case";
     public const string VendorSupportTicketChanged = "vendor_support_ticket_changed";

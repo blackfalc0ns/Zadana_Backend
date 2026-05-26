@@ -24,6 +24,7 @@ public class VendorAuthController : IdentityAuthControllerBase
         LoginAsync(request, UserRole.Vendor, UserRole.VendorStaff);
 
     [EnableRateLimiting(RateLimitPolicyNames.Auth)]
+    [BotChallenge]
     [HttpPost("forgot-password")]
     public Task<IActionResult> ForgotPassword([FromBody] ForgotPasswordRequest request) =>
         ForgotPasswordAsync(request);

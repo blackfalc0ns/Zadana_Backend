@@ -285,7 +285,8 @@ internal static class CheckoutSupport
         IDeliveryPricingService deliveryPricingService,
         Guid? vendorBranchId,
         CustomerAddress? address,
-        CancellationToken cancellationToken)
+        CancellationToken cancellationToken,
+        decimal? orderSubtotal = null)
     {
         if (address is null)
         {
@@ -301,7 +302,7 @@ internal static class CheckoutSupport
                 "Delivery pricing could not be determined because the vendor branch is unknown.");
         }
 
-        return await deliveryPricingService.QuoteAsync(vendorBranchId.Value, address.Id, cancellationToken);
+        return await deliveryPricingService.QuoteAsync(vendorBranchId.Value, address.Id, cancellationToken, orderSubtotal);
     }
 
     public static async Task<CheckoutDeliveryAssessment> EvaluateDeliveryAsync(
@@ -309,7 +310,8 @@ internal static class CheckoutSupport
         IDeliveryPricingService deliveryPricingService,
         Guid? vendorBranchId,
         CustomerAddress? address,
-        CancellationToken cancellationToken)
+        CancellationToken cancellationToken,
+        decimal? orderSubtotal = null)
     {
         if (address is null)
         {
@@ -367,7 +369,7 @@ internal static class CheckoutSupport
 
         try
         {
-            var quote = await deliveryPricingService.QuoteAsync(branch.Id, address.Id, cancellationToken);
+            var quote = await deliveryPricingService.QuoteAsync(branch.Id, address.Id, cancellationToken, orderSubtotal);
             if (IsOutsideBranchRadius(branch, address, quote))
             {
                 return new CheckoutDeliveryAssessment(
@@ -623,10 +625,11 @@ internal static class CheckoutSupport
         paymentMethodCode?.Trim().ToLowerInvariant() switch
         {
             null or "" => null,
-            "card" or "credit_card" or "creditcard" or "debit_card" or "debitcard" => "card",
+            "card" or "credit_card" or "creditcard" or "debit_card" or "debitcard" or "mada" => "card",
             "cash" or "cash_on_delivery" or "cashondelivery" or "cod" => "cash",
             "bank" or "bank_transfer" or "banktransfer" => "bank",
             "apple_pay" or "applepay" => "apple_pay",
+            "wallet" => throw new BusinessRuleException("PAYMENT_METHOD_NOT_SUPPORTED", "Wallet payment is not supported yet."),
             _ => throw new BusinessRuleException("PAYMENT_METHOD_NOT_SUPPORTED", "Selected payment method is not supported.")
         };
 
@@ -935,6 +938,18 @@ internal static class CheckoutSupport
             "الخبر" or "خبر" or "khobar" or "alkhobar" => "khobar",
             "الظهران" or "ظهران" or "dhahran" => "dhahran",
             "الجبيل" or "جبيل" or "jubail" or "jubel" => "jubail",
+            "القطيف" or "قطيف" or "qatif" or "alqatif" => "qatif",
+            "الاحساء" or "الأحساء" or "احساء" or "أحساء" or "الهفوف" or "هفوف" or "ahsa" or "alahsa" or "alhasa" or "hofuf" or "alhofuf" => "ahsa",
+            "حفرالباطن" or "حفر" or "hafr" or "hafralbatn" or "hafr_al_batin" or "hafralbatin" => "hafralbatin",
+            "رأستنورة" or "راستنورة" or "رأستنوره" or "rastanura" or "rastanorah" => "rastanura",
+            "الخفجي" or "خفجي" or "khafji" or "alkhafji" => "khafji",
+            "بقيق" or "buqayq" or "abqaiq" => "abqaiq",
+            "النعيرية" or "نعيرية" or "nairyah" or "nuayriyah" => "nairyah",
+            "سيهات" or "saihat" or "sayhat" => "saihat",
+            "تاروت" or "tarut" or "tarout" => "tarut",
+            "صفوى" or "صفوا" or "safwa" => "safwa",
+            "العوامية" or "عوامية" or "awamiyah" => "awamiyah",
+            "رحيمة" or "rahima" or "rahimah" => "rahima",
             "الطائف" or "طائف" or "taif" => "taif",
             "تبوك" or "tabuk" => "tabuk",
             "ابها" or "أبها" or "abha" => "abha",

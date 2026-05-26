@@ -24,6 +24,7 @@ public class DriverAuthController : IdentityAuthControllerBase
         LoginAsync(request, UserRole.Driver);
 
     [EnableRateLimiting(RateLimitPolicyNames.Auth)]
+    [BotChallenge]
     [HttpPost("forgot-password")]
     public Task<IActionResult> ForgotPassword([FromBody] ForgotPasswordRequest request) =>
         ForgotPasswordAsync(request);

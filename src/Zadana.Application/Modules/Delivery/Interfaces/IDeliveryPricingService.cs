@@ -5,7 +5,8 @@ public interface IDeliveryPricingService
     Task<DeliveryPriceQuote> QuoteAsync(
         Guid vendorBranchId,
         Guid customerAddressId,
-        CancellationToken cancellationToken = default);
+        CancellationToken cancellationToken = default,
+        decimal? orderSubtotal = null);
 }
 
 public sealed record DeliveryPriceQuote(

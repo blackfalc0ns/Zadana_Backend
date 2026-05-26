@@ -3,6 +3,7 @@ using System.Text;
 using System.Text.Json;
 using System.Text.Json.Nodes;
 using Microsoft.EntityFrameworkCore;
+using Zadana.Api.BackgroundJobs;
 using Zadana.Domain.Modules.Identity.Entities;
 using Zadana.Infrastructure.Persistence;
 
@@ -30,16 +31,16 @@ public sealed class SystemLogMiddleware
 
     private const int MaxLoggedBodyCharacters = 16000;
     private readonly RequestDelegate _next;
-    private readonly IServiceScopeFactory _scopeFactory;
+    private readonly ISystemLogQueue _queue;
     private readonly ILogger<SystemLogMiddleware> _logger;
 
     public SystemLogMiddleware(
         RequestDelegate next,
-        IServiceScopeFactory scopeFactory,
+        ISystemLogQueue queue,
         ILogger<SystemLogMiddleware> logger)
     {
         _next = next;
-        _scopeFactory = scopeFactory;
+        _queue = queue;
         _logger = logger;
     }
 
@@ -68,24 +69,20 @@ public sealed class SystemLogMiddleware
         {
             try
             {
-                await PersistLogAsync(context, requestBody, capturedException, CancellationToken.None);
+                EnqueueLog(context, requestBody, capturedException);
             }
             catch (Exception logException)
             {
-                _logger.LogWarning(logException, "Failed to persist system log entry for {Method} {Path}", request.Method, request.Path);
+                _logger.LogWarning(logException, "Failed to enqueue system log entry for {Method} {Path}", request.Method, request.Path);
             }
         }
     }
 
-    private async Task PersistLogAsync(
+    private void EnqueueLog(
         HttpContext context,
         string? requestBody,
-        Exception? capturedException,
-        CancellationToken cancellationToken)
+        Exception? capturedException)
     {
-        await using var scope = _scopeFactory.CreateAsyncScope();
-        var dbContext = scope.ServiceProvider.GetRequiredService<ApplicationDbContext>();
-
         var request = context.Request;
         var sourceApp = ResolveSourceApp(request.Path, context.User);
         var module = ResolveModule(request.Path);
@@ -105,7 +102,7 @@ public sealed class SystemLogMiddleware
         var summary = BuildSummary(request.Method, module, sourceApp, statusCode, targetEntityId);
         var metadataJson = BuildMetadataJson(context, module);
 
-        dbContext.SystemLogEntries.Add(new SystemLogEntry(
+        var entry = new SystemLogEntry(
             sourceApp: sourceApp,
             module: module,
             action: action,
@@ -126,9 +123,11 @@ public sealed class SystemLogMiddleware
             queryString: string.IsNullOrWhiteSpace(request.QueryString.Value) ? null : request.QueryString.Value,
             requestPayloadJson: requestBody,
             metadataJson: metadataJson,
-            errorMessage: capturedException?.Message));
+            errorMessage: capturedException?.Message);
 
-        await dbContext.SaveChangesAsync(cancellationToken);
+        // Bounded queue with DropOldest — under sustained overload we lose
+        // the oldest pending entries instead of blocking the request thread.
+        _queue.TryEnqueue(entry);
     }
 
     private static bool ShouldLog(HttpRequest request)

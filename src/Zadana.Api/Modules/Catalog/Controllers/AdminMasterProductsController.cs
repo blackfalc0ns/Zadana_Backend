@@ -1,10 +1,12 @@
-﻿using Microsoft.AspNetCore.Authorization;
+using Microsoft.AspNetCore.Authorization;
 using Microsoft.AspNetCore.Mvc;
+using Microsoft.EntityFrameworkCore;
 using Zadana.Api.Controllers;
 using Zadana.Api.Modules.Catalog.Requests;
 using Zadana.Application.Common.Interfaces;
 using Zadana.Application.Common.Models;
 using Zadana.Application.Modules.Catalog.Commands.AdminMasterProducts.BulkCreateMasterProducts;
+using Zadana.Application.Modules.Catalog.Commands.BulkDeleteMasterProducts;
 using Zadana.Application.Modules.Catalog.Commands.CreateMasterProduct;
 using Zadana.Application.Modules.Catalog.Commands.DeleteMasterProduct;
 using Zadana.Application.Modules.Catalog.Commands.SetMasterProductCardPriceVisibility;
@@ -25,10 +27,14 @@ namespace Zadana.Api.Modules.Catalog.Controllers;
 public class AdminMasterProductsController : ApiControllerBase
 {
     private readonly ICurrentUserService _currentUserService;
+    private readonly IApplicationDbContext _context;
 
-    public AdminMasterProductsController(ICurrentUserService currentUserService)
+    public AdminMasterProductsController(
+        ICurrentUserService currentUserService,
+        IApplicationDbContext context)
     {
         _currentUserService = currentUserService;
+        _context = context;
     }
 
     [HttpGet]
@@ -190,6 +196,15 @@ public class AdminMasterProductsController : ApiControllerBase
         return NoContent();
     }
 
+    [HttpPost("bulk-delete")]
+    public async Task<ActionResult<BulkDeleteResult>> BulkDeleteProducts(
+        [FromBody] BulkDeleteRequest request,
+        CancellationToken cancellationToken = default)
+    {
+        var result = await Sender.Send(new BulkDeleteMasterProductsCommand(request.Ids), cancellationToken);
+        return Ok(result);
+    }
+
     [HttpGet("{id}/vendors")]
     public async Task<ActionResult<PaginatedList<ProductVendorSnapshotDto>>> GetProductVendors(
         Guid id,
@@ -198,6 +213,45 @@ public class AdminMasterProductsController : ApiControllerBase
     {
         var result = await Sender.Send(new Zadana.Application.Modules.Catalog.Queries.GetProductVendors.GetProductVendorsQuery(id, pageNumber, pageSize));
         return Ok(result);
+    }
+
+    /// <summary>List soft-deleted products (admin only). Bypasses the global soft-delete filter.</summary>
+    [HttpGet("deleted")]
+    public async Task<ActionResult> GetDeletedProducts(
+        [FromQuery] int pageNumber = 1,
+        [FromQuery] int pageSize = 20,
+        CancellationToken cancellationToken = default)
+    {
+        var query = _context.MasterProducts
+            .IgnoreQueryFilters()
+            .Where(p => p.IsDeleted)
+            .OrderByDescending(p => p.DeletedAtUtc);
+
+        var total = await query.CountAsync(cancellationToken);
+        var items = await query
+            .Skip((pageNumber - 1) * pageSize)
+            .Take(pageSize)
+            .Select(p => new { p.Id, p.NameAr, p.NameEn, p.Slug, p.DeletedAtUtc, p.CategoryId, p.BrandId })
+            .ToListAsync(cancellationToken);
+
+        return Ok(new { items, total, pageNumber, pageSize, hasMore = (pageNumber * pageSize) < total });
+    }
+
+    /// <summary>Restore a soft-deleted product.</summary>
+    [HttpPatch("{id}/restore")]
+    public async Task<ActionResult> RestoreProduct(Guid id, CancellationToken cancellationToken = default)
+    {
+        var product = await _context.MasterProducts
+            .IgnoreQueryFilters()
+            .FirstOrDefaultAsync(p => p.Id == id && p.IsDeleted, cancellationToken);
+
+        if (product is null)
+            return NotFound(new { error = "PRODUCT_NOT_FOUND_OR_NOT_DELETED" });
+
+        product.Restore();
+        await _context.SaveChangesAsync(cancellationToken);
+
+        return Ok(new { message_ar = "تمت استعادة المنتج بنجاح", message_en = "Product restored successfully", id });
     }
 }
 
@@ -230,3 +284,5 @@ public record BulkCreateMasterProductImageRequest(
     int DisplayOrder,
     bool IsPrimary);
 
+/// <summary>Shared request body for bulk-delete endpoints.</summary>
+public record BulkDeleteRequest(IReadOnlyList<Guid> Ids);

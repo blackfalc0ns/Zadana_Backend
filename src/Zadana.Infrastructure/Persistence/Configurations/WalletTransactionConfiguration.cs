@@ -18,6 +18,11 @@ public class WalletTransactionConfiguration : IEntityTypeConfiguration<WalletTra
         builder.Property(x => x.ReferenceType).HasMaxLength(100);
         builder.Property(x => x.Description).HasMaxLength(500);
 
+        builder.HasIndex(x => new { x.ReferenceType, x.ReferenceId })
+            .IsUnique()
+            .HasFilter("[ReferenceType] = 'JournalLine' AND [ReferenceId] IS NOT NULL")
+            .HasDatabaseName("UX_WalletTransactions_JournalLineReference");
+
         builder.HasOne(x => x.Wallet)
             .WithMany(w => w.Transactions)
             .HasForeignKey(x => x.WalletId)

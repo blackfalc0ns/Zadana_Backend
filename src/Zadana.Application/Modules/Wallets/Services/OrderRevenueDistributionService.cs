@@ -3,8 +3,10 @@ using Microsoft.Extensions.Logging;
 using Microsoft.Extensions.Options;
 using Zadana.Application.Common.Interfaces;
 using Zadana.Application.Common.Settings;
+using Zadana.Application.Modules.Finance.Services;
 using Zadana.Application.Modules.Finances.Services;
 using Zadana.Domain.Modules.Finances.Enums;
+using Zadana.Domain.Modules.Orders.Entities;
 using Zadana.Domain.Modules.Orders.Enums;
 using Zadana.Domain.Modules.Payments.Enums;
 using Zadana.Domain.Modules.Vendors.Enums;
@@ -53,20 +55,7 @@ public class OrderRevenueDistributionService
         // 1. Load order
         var order = await _context.Orders
             .AsNoTracking()
-            .Where(o => o.Id == orderId)
-            .Select(o => new
-            {
-                o.Id,
-                o.OrderNumber,
-                o.VendorId,
-                o.Status,
-                o.PaymentMethod,
-                o.PaymentStatus,
-                o.TotalAmount,
-                o.DeliveryFee,
-                o.CommissionAmount
-            })
-            .FirstOrDefaultAsync(cancellationToken);
+            .FirstOrDefaultAsync(o => o.Id == orderId, cancellationToken);
 
         if (order is null)
         {
@@ -121,45 +110,41 @@ public class OrderRevenueDistributionService
             .FirstOrDefaultAsync(cancellationToken);
 
         // 6. Calculate revenue split
-        var driverCommissionRate = _settings.DriverCommissionRatePercent;
+        var legacyDriverCommission = ResolveLegacyDriverCommission(order);
+        var initialDistribution = RevenueDistributionCalculator.Compute(
+            order,
+            legacyDriverCommissionAmount: legacyDriverCommission);
+        var vendorRecoveryApplied = 0m;
 
-        var vendorGross = order.TotalAmount - order.DeliveryFee;
-        var vendorCommission = Math.Max(order.CommissionAmount, 0m);
-        var vendorNet = vendorGross - vendorCommission;
-
-        var driverGross = order.DeliveryFee;
-        var driverCommission = Math.Round(driverGross * driverCommissionRate / 100m, 2);
-        var driverNet = driverGross - driverCommission;
-
-        var platformNet = vendorCommission + driverCommission;
-
-        if (_vendorRecoveryService is not null && vendorNet > 0m)
+        if (_vendorRecoveryService is not null && initialDistribution.VendorNet > 0m)
         {
-            var recoveredFromOutstanding = await _vendorRecoveryService.ApplyOutstandingRecoveriesAsync(
+            vendorRecoveryApplied = await _vendorRecoveryService.ApplyOutstandingRecoveriesAsync(
                 vendor.Id,
                 orderId,
-                vendorNet,
+                initialDistribution.VendorNet,
                 cancellationToken);
-
-            if (recoveredFromOutstanding > 0m)
-            {
-                vendorNet -= recoveredFromOutstanding;
-                platformNet += recoveredFromOutstanding;
-            }
         }
 
+        var distribution = RevenueDistributionCalculator.Compute(
+            order,
+            vendorRecoveryApplied,
+            legacyDriverCommission);
+
         _logger.LogInformation(
-            "[RevenueDistribution] Order {OrderId}: VendorNet={VendorNet}, DriverNet={DriverNet}, PlatformNet={PlatformNet}",
-            orderId, vendorNet, driverNet, platformNet);
+            "[RevenueDistribution] Order {OrderId}: VendorNet={VendorNet}, DriverNet={DriverNet}, PlatformNet={PlatformNet}, TaxPayable={TaxPayable}",
+            orderId,
+            distribution.VendorNet,
+            distribution.DriverNet,
+            distribution.PlatformRevenue,
+            distribution.TaxPayable);
 
         // 7. Post ledger-first journal, then update wallet projections from the posted entry.
         var postingLines = BuildDeliveredOrderPostingLines(
             orderId,
+            order.UserId,
             vendor.Id,
             driverAssignment?.DriverId,
-            vendorNet,
-            driverNet,
-            platformNet,
+            distribution,
             order.PaymentMethod);
 
         if (postingLines.Count == 0)
@@ -181,9 +166,9 @@ public class OrderRevenueDistributionService
         await _walletProjectionUpdater.ApplyJournalEntryAsync(postingResult.JournalEntryId, cancellationToken);
 
         // 8. Handle per-order direct payout for vendor
-        if (vendor.FinancialLifecycleMode == VendorFinancialLifecycleMode.PerOrderDirectPayout && vendorNet > 0)
+        if (vendor.FinancialLifecycleMode == VendorFinancialLifecycleMode.PerOrderDirectPayout && distribution.VendorNet > 0)
         {
-            var payoutId = await CreateDirectPayoutAsync(vendor.Id, orderId, order, vendorNet, driverNet, platformNet, cancellationToken);
+            var payoutId = await CreateDirectPayoutAsync(vendor.Id, orderId, order, distribution, cancellationToken);
             await _context.SaveChangesAsync(cancellationToken);
             await TryAutoTriggerPayoutAsync(payoutId, cancellationToken);
         }
@@ -193,20 +178,26 @@ public class OrderRevenueDistributionService
 
     private IReadOnlyCollection<JournalLineDraft> BuildDeliveredOrderPostingLines(
         Guid orderId,
+        Guid customerId,
         Guid vendorId,
         Guid? driverId,
-        decimal vendorNet,
-        decimal driverNet,
-        decimal platformNet,
+        RevenueDistribution distribution,
         PaymentMethodType paymentMethod)
     {
         var lines = new List<JournalLineDraft>();
-        var postingTotal = vendorNet + platformNet;
-
-        if (driverNet > 0 && driverId is not null)
+        var driverNet = distribution.DriverNet;
+        var platformRevenue = distribution.PlatformRevenue;
+        if (driverNet > 0 && driverId is null)
         {
-            postingTotal += driverNet;
+            _logger.LogWarning(
+                "[RevenueDistribution] Order {OrderId} has no assigned driver; moving driver net {DriverNet} to platform revenue.",
+                orderId,
+                driverNet);
+            platformRevenue += driverNet;
+            driverNet = 0m;
         }
+
+        var postingTotal = distribution.VendorNet + driverNet + platformRevenue + distribution.TaxPayable;
 
         if (postingTotal <= 0)
         {
@@ -233,21 +224,21 @@ public class OrderRevenueDistributionService
         else
         {
             lines.Add(new JournalLineDraft(
-                FinancialAccountCode.GatewayReceivable,
+                FinancialAccountCode.CustomerAdvance,
                 postingTotal,
                 0m,
-                FinancialOwnerType.Gateway,
-                null,
+                FinancialOwnerType.Customer,
+                customerId,
                 orderId,
-                Memo: $"Online payment receivable for order {orderId}"));
+                Memo: $"Customer advance cleared for order {orderId}"));
         }
 
-        if (vendorNet > 0)
+        if (distribution.VendorNet > 0)
         {
             lines.Add(new JournalLineDraft(
                 FinancialAccountCode.VendorPayable,
                 0m,
-                vendorNet,
+                distribution.VendorNet,
                 FinancialOwnerType.Vendor,
                 vendorId,
                 orderId,
@@ -266,16 +257,28 @@ public class OrderRevenueDistributionService
                 Memo: $"Driver payable for order {orderId}"));
         }
 
-        if (platformNet > 0)
+        if (platformRevenue > 0)
         {
             lines.Add(new JournalLineDraft(
                 FinancialAccountCode.PlatformRevenue,
                 0m,
-                platformNet,
+                platformRevenue,
                 FinancialOwnerType.Platform,
                 _settings.PlatformWalletOwnerId,
                 orderId,
                 Memo: $"Platform revenue for order {orderId}"));
+        }
+
+        if (distribution.TaxPayable > 0)
+        {
+            lines.Add(new JournalLineDraft(
+                FinancialAccountCode.TaxPayable,
+                0m,
+                distribution.TaxPayable,
+                FinancialOwnerType.Platform,
+                _settings.PlatformWalletOwnerId,
+                orderId,
+                Memo: $"Tax payable for order {orderId}"));
         }
 
         return lines;
@@ -284,10 +287,8 @@ public class OrderRevenueDistributionService
     private async Task<Guid?> CreateDirectPayoutAsync(
         Guid vendorId,
         Guid orderId,
-        dynamic order,
-        decimal vendorNet,
-        decimal driverNet,
-        decimal platformNet,
+        Order order,
+        RevenueDistribution distribution,
         CancellationToken cancellationToken)
     {
         var primaryBankAccount = await _context.VendorBankAccounts
@@ -311,20 +312,23 @@ public class OrderRevenueDistributionService
         }
 
         var settlement = new Settlement(vendorId, null, SettlementOrigin.DirectPerOrder);
-        settlement.UpdateTotals(order.TotalAmount - order.DeliveryFee, order.CommissionAmount);
+        settlement.UpdateTotals(
+            order.ProductNet,
+            order.VendorCommissionAmount > 0m ? order.VendorCommissionAmount : order.CommissionAmount,
+            recovery: distribution.VendorRecoveryApplied);
         _context.Settlements.Add(settlement);
 
         _context.SettlementItems.Add(new SettlementItem(
-            settlement.Id, orderId, vendorNet, driverNet, platformNet,
+            settlement.Id, orderId, distribution.VendorNet, distribution.DriverNet, distribution.PlatformRevenue,
             order.PaymentMethod == PaymentMethodType.CashOnDelivery ? order.TotalAmount : 0m));
 
-        var payout = new Payout(settlement.Id, vendorNet, primaryBankAccount.Id);
+        var payout = new Payout(settlement.Id, distribution.VendorNet, primaryBankAccount.Id);
         _context.Payouts.Add(payout);
 
         await _vendorPayoutWalletService.EnsureHoldAsync(
             vendorId,
             settlement.Id,
-            vendorNet,
+            distribution.VendorNet,
             "PayoutHold",
             $"Hold for direct payout on order {orderId}",
             cancellationToken);
@@ -360,6 +364,19 @@ public class OrderRevenueDistributionService
         {
             _logger.LogError(ex, "[RevenueDistribution] Failed to auto-trigger payout {PayoutId}.", payoutId.Value);
         }
+    }
+
+    private decimal ResolveLegacyDriverCommission(Order order)
+    {
+        if (order.DriverCommissionAmount > 0m || !string.IsNullOrWhiteSpace(order.CommissionPolicySnapshot))
+        {
+            return order.DriverCommissionAmount;
+        }
+
+        return decimal.Round(
+            Math.Max(order.DeliveryFee, 0m) * _settings.DriverCommissionRatePercent / 100m,
+            2,
+            MidpointRounding.AwayFromZero);
     }
 
     private static bool IsEligible(OrderStatus status, PaymentMethodType paymentMethod, PaymentStatus paymentStatus)

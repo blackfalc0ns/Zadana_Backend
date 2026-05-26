@@ -24,6 +24,7 @@ public class DeliveryDispatchService : IDeliveryDispatchService
     private static readonly TimeSpan OfferTtl = TimeSpan.FromSeconds(60);
     private static readonly TimeSpan PickupOtpTtl = TimeSpan.FromHours(12);
     private const int MaxAutoOfferAttempts = 3;
+    private const decimal PricingReviewDeviationThresholdPercent = 25m;
     private static readonly ConcurrentDictionary<Guid, SemaphoreSlim> DispatchLocks = new();
 
     private readonly IApplicationDbContext _context;
@@ -33,6 +34,7 @@ public class DeliveryDispatchService : IDeliveryDispatchService
     private readonly INotificationService _notificationService;
     private readonly IDriverCommitmentPolicyService _driverCommitmentPolicyService;
     private readonly IOneSignalPushService _oneSignalPushService;
+    private readonly IAdminAlertService? _adminAlertService;
 
     public DeliveryDispatchService(
         IApplicationDbContext context,
@@ -41,7 +43,8 @@ public class DeliveryDispatchService : IDeliveryDispatchService
         IPublisher publisher,
         INotificationService notificationService,
         IDriverCommitmentPolicyService driverCommitmentPolicyService,
-        IOneSignalPushService oneSignalPushService)
+        IOneSignalPushService oneSignalPushService,
+        IAdminAlertService? adminAlertService = null)
     {
         _context = context;
         _unitOfWork = unitOfWork;
@@ -50,6 +53,7 @@ public class DeliveryDispatchService : IDeliveryDispatchService
         _notificationService = notificationService;
         _driverCommitmentPolicyService = driverCommitmentPolicyService;
         _oneSignalPushService = oneSignalPushService;
+        _adminAlertService = adminAlertService;
     }
 
     public async Task<DispatchDecisionDto?> TryAutoDispatchAsync(
@@ -328,6 +332,7 @@ public class DeliveryDispatchService : IDeliveryDispatchService
         }
 
         await _unitOfWork.SaveChangesAsync(cancellationToken);
+        await SendPricingReviewAlertIfNeededAsync(assignment, cancellationToken);
 
         await _publisher.Publish(
             new OrderStatusChangedNotification(
@@ -367,6 +372,52 @@ public class DeliveryDispatchService : IDeliveryDispatchService
             assignment.Status.ToString(),
             LocalizedMessages.GetAr(LocalizedMessages.OfferAccepted),
             LocalizedMessages.GetEn(LocalizedMessages.OfferAccepted));
+    }
+
+    private async Task SendPricingReviewAlertIfNeededAsync(
+        DeliveryAssignment assignment,
+        CancellationToken cancellationToken)
+    {
+        if (_adminAlertService is null ||
+            assignment.Order.ActualDispatchDeviationPercent is not decimal deviation ||
+            deviation < PricingReviewDeviationThresholdPercent)
+        {
+            return;
+        }
+
+        try
+        {
+            await _adminAlertService.SendAsync(
+                new AdminAlertRequest(
+                    AdminAlertTypes.DeliveryPricingReviewRequired,
+                    AdminAlertCategories.Delivery,
+                    AdminAlertPriorities.High,
+                    "مراجعة سعر التوصيل مطلوبة",
+                    "Delivery pricing review required",
+                    $"المسافة الفعلية للمندوب على الطلب #{assignment.Order.OrderNumber} انحرفت بنسبة {deviation:N2}%.",
+                    $"Assigned driver distance for order #{assignment.Order.OrderNumber} deviated by {deviation:N2}%.",
+                    assignment.OrderId,
+                    $"/admin/orders/{assignment.OrderId}",
+                    new
+                    {
+                        assignmentId = assignment.Id,
+                        orderId = assignment.OrderId,
+                        orderNumber = assignment.Order.OrderNumber,
+                        quotedDriverToVendorDistanceKm = assignment.Order.DriverToVendorDistanceKm,
+                        actualAssignedDriverPickupDistanceKm = assignment.Order.ActualAssignedDriverPickupDistanceKm,
+                        deviationPercent = deviation,
+                        thresholdPercent = PricingReviewDeviationThresholdPercent
+                    },
+                    SuppressPush: true),
+                cancellationToken);
+        }
+        catch (Exception ex)
+        {
+            _logger.LogWarning(
+                ex,
+                "Failed to enqueue delivery pricing review alert for order {OrderId}.",
+                assignment.OrderId);
+        }
     }
 
     public async Task<DriverOfferActionResultDto> RejectOfferAsync(

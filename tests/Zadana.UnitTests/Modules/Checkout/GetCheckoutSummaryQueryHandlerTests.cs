@@ -61,7 +61,7 @@ public class GetCheckoutSummaryQueryHandlerTests
 
         var deliveryPricing = new Mock<IDeliveryPricingService>();
         deliveryPricing
-            .Setup(service => service.QuoteAsync(branch.Id, address.Id, It.IsAny<CancellationToken>()))
+            .Setup(service => service.QuoteAsync(branch.Id, address.Id, It.IsAny<CancellationToken>(), It.IsAny<decimal?>()))
             .ReturnsAsync(new DeliveryPriceQuote(5m, 2m, 0m, 7m, 3m, "zone", "Zone rule", 1m, 2m, 3m, 4m, "driver", "vendor", false, "manual", null, "locked", DateTime.UtcNow, 1, false));
 
         var handler = new GetCheckoutSummaryQueryHandler(context, gatewayResolver, deliveryPricing.Object);
@@ -74,7 +74,7 @@ public class GetCheckoutSummaryQueryHandlerTests
         result.DeliveryCheck.Status.Should().Be("deliverable");
         result.DeliveryCheck.CanProceedToCheckout.Should().BeTrue();
         result.DeliveryQuote.TotalFee.Should().Be(7m);
-        deliveryPricing.Verify(service => service.QuoteAsync(branch.Id, address.Id, It.IsAny<CancellationToken>()), Times.Once);
+        deliveryPricing.Verify(service => service.QuoteAsync(branch.Id, address.Id, It.IsAny<CancellationToken>(), It.IsAny<decimal?>()), Times.Once);
     }
 
     [Fact]
@@ -129,7 +129,7 @@ public class GetCheckoutSummaryQueryHandlerTests
 
         var deliveryPricing = new Mock<IDeliveryPricingService>();
         deliveryPricing
-            .Setup(service => service.QuoteAsync(fastBranch.Id, address.Id, It.IsAny<CancellationToken>()))
+            .Setup(service => service.QuoteAsync(fastBranch.Id, address.Id, It.IsAny<CancellationToken>(), It.IsAny<decimal?>()))
             .ReturnsAsync(new DeliveryPriceQuote(5m, 2m, 0m, 7m, 3m, "zone", "Zone rule", 1m, 2m, 3m, 4m, "driver", "vendor", false, "manual", null, "locked", DateTime.UtcNow, 1, false));
 
         var handler = new GetCheckoutSummaryQueryHandler(context, gatewayResolver, deliveryPricing.Object);
@@ -198,7 +198,7 @@ public class GetCheckoutSummaryQueryHandlerTests
 
         var deliveryPricing = new Mock<IDeliveryPricingService>();
         deliveryPricing
-            .Setup(service => service.QuoteAsync(branch.Id, address.Id, It.IsAny<CancellationToken>()))
+            .Setup(service => service.QuoteAsync(branch.Id, address.Id, It.IsAny<CancellationToken>(), It.IsAny<decimal?>()))
             .ReturnsAsync(new DeliveryPriceQuote(15m, 16.7m, 0m, 31.7m, 20.33m, "zone", "Zone rule", 1m, 20.33m, 3m, 28.7m, "driver", "vendor", false, "manual", null, "locked", DateTime.UtcNow, 1, false));
 
         var handler = new GetCheckoutSummaryQueryHandler(context, gatewayResolver, deliveryPricing.Object);
@@ -275,7 +275,7 @@ public class GetCheckoutSummaryQueryHandlerTests
 
         var deliveryPricing = new Mock<IDeliveryPricingService>();
         deliveryPricing
-            .Setup(service => service.QuoteAsync(branch.Id, address.Id, It.IsAny<CancellationToken>()))
+            .Setup(service => service.QuoteAsync(branch.Id, address.Id, It.IsAny<CancellationToken>(), It.IsAny<decimal?>()))
             .ReturnsAsync(new DeliveryPriceQuote(5m, 2m, 0m, 7m, 3m, "zone", "Zone rule", 1m, 2m, 3m, 4m, "driver", "vendor", false, "manual", null, "locked", DateTime.UtcNow, 1, false));
 
         var handler = new GetCheckoutSummaryQueryHandler(context, gatewayResolver, deliveryPricing.Object);
@@ -397,7 +397,7 @@ public class GetCheckoutSummaryQueryHandlerTests
 
         var deliveryPricing = new Mock<IDeliveryPricingService>();
         deliveryPricing
-            .Setup(service => service.QuoteAsync(branch.Id, address.Id, It.IsAny<CancellationToken>()))
+            .Setup(service => service.QuoteAsync(branch.Id, address.Id, It.IsAny<CancellationToken>(), It.IsAny<decimal?>()))
             .ReturnsAsync(new DeliveryPriceQuote(15m, 16.7m, 0m, 31.7m, 20.33m, "zone", "Zone rule", 1m, 20.33m, 3m, 28.7m, "driver", "vendor", false, "manual", null, "locked", DateTime.UtcNow, 1, false));
 
         var handler = new GetCheckoutSummaryQueryHandler(context, gatewayResolver, deliveryPricing.Object);

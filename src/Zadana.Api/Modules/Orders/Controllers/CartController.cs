@@ -26,13 +26,16 @@ public class CartController : ApiControllerBase
 
     private readonly ICurrentUserService _currentUserService;
     private readonly IStringLocalizer<SharedResource> _localizer;
+    private readonly Zadana.Api.Security.GuestCartSigner _guestCartSigner;
 
     public CartController(
         ICurrentUserService currentUserService,
-        IStringLocalizer<SharedResource> localizer)
+        IStringLocalizer<SharedResource> localizer,
+        Zadana.Api.Security.GuestCartSigner guestCartSigner)
     {
         _currentUserService = currentUserService;
         _localizer = localizer;
+        _guestCartSigner = guestCartSigner;
     }
 
     [HttpGet]
@@ -166,12 +169,33 @@ public class CartController : ApiControllerBase
         }
 
         var guestId = Request.Headers[GuestDeviceHeader].ToString();
-        if (!string.IsNullOrWhiteSpace(guestId))
+        if (string.IsNullOrWhiteSpace(guestId))
         {
-            return CartActor.Create(null, guestId.Trim());
+            return null;
         }
 
-        return null;
+        // Cart mutations (POST/PATCH/DELETE) require a signed device id so a
+        // bad actor can't guess another guest's id and tamper with their cart.
+        // Read-only GETs accept an unsigned id for backward compatibility but
+        // the mobile app should always sign once the device-token endpoint is
+        // wired in.
+        var signature = Request.Headers[Zadana.Api.Security.GuestCartSigner.SignatureHeader].ToString();
+        var isMutation = HttpMethods.IsPost(Request.Method) ||
+                         HttpMethods.IsPatch(Request.Method) ||
+                         HttpMethods.IsDelete(Request.Method) ||
+                         HttpMethods.IsPut(Request.Method);
+
+        if (isMutation)
+        {
+            if (string.IsNullOrWhiteSpace(signature) || !_guestCartSigner.Verify(guestId, signature))
+            {
+                throw new UnauthorizedException(
+                    "Mutating the guest cart requires a signed device id. POST /api/cart/guest-token first.",
+                    "GUEST_CART_SIGNATURE_REQUIRED");
+            }
+        }
+
+        return CartActor.Create(null, guestId.Trim());
     }
 
     private CartActor GetRequiredCartActor()

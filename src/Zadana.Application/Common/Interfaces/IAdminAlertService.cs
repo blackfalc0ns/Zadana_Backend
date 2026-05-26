@@ -49,6 +49,8 @@ public static class AdminAlertTypes
     public const string SettlementRequested = "settlement.requested";
     public const string SettlementFailed = "settlement.failed";
     public const string PayoutRequiresReview = "payout.requires_review";
+    public const string DeliveryPricingReviewRequired = "delivery.pricing_review_required";
+    public const string DeliveryDispatchStuck = "delivery.dispatch_stuck";
     public const string SupportCreated = "support.created";
     public const string SupportUpdated = "support.updated";
     public const string SupportCriticalCreated = "support.critical_created";
@@ -66,6 +68,7 @@ public static class AdminAlertCategories
     public const string Disputes = "disputes";
     public const string Refunds = "refunds";
     public const string Settlements = "settlements";
+    public const string Delivery = "delivery";
     public const string Support = "support";
     public const string System = "system";
 }

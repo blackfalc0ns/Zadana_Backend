@@ -24,6 +24,8 @@ public class User : IdentityUser<Guid>
     public string? OtpCode { get; private set; }
     public DateTime? OtpExpiryTime { get; private set; }
     public int OtpAttempts { get; private set; }
+    public int OtpLockoutCount { get; private set; }
+    public DateTime? OtpLockedUntilUtc { get; private set; }
     public string? PasswordResetOtp { get; private set; }
     public DateTime? PasswordResetOtpExpiry { get; private set; }
     public int PasswordResetOtpAttempts { get; private set; }
@@ -226,9 +228,21 @@ public class User : IdentityUser<Guid>
     // immediately discarded. Random.Shared internally uses a thread-safe,
     // cryptographically-strong source on .NET 9.
     private const int MaxOtpAttempts = 5;
+    private const int OtpExhaustionLockoutThreshold = 3;
+    private static readonly TimeSpan OtpAccountLockoutDuration = TimeSpan.FromMinutes(60);
+
+    public bool IsOtpAccountLocked()
+    {
+        return OtpLockedUntilUtc.HasValue && OtpLockedUntilUtc.Value > DateTime.UtcNow;
+    }
 
     public string GenerateOtp()
     {
+        if (IsOtpAccountLocked())
+        {
+            throw new InvalidOperationException("OTP_ACCOUNT_LOCKED");
+        }
+
         var code = GenerateNumericCode(4);
         OtpCode = HashOtp(code);
         OtpExpiryTime = DateTime.UtcNow.AddMinutes(5);
@@ -246,26 +260,25 @@ public class User : IdentityUser<Guid>
 
     public bool VerifyOtp(string code)
     {
+        if (IsOtpAccountLocked())
+        {
+            return false;
+        }
+
         if (string.IsNullOrWhiteSpace(OtpCode) || OtpExpiryTime == null)
             return false;
 
         if (DateTime.UtcNow > OtpExpiryTime.Value)
         {
             // Expired — clear so a new OTP must be requested.
-            OtpCode = null;
-            OtpExpiryTime = null;
-            OtpAttempts = 0;
-            UpdatedAtUtc = DateTime.UtcNow;
+            ExhaustOtp();
             return false;
         }
 
         if (OtpAttempts >= MaxOtpAttempts)
         {
             // Too many failed attempts — invalidate the OTP entirely.
-            OtpCode = null;
-            OtpExpiryTime = null;
-            OtpAttempts = 0;
-            UpdatedAtUtc = DateTime.UtcNow;
+            ExhaustOtp();
             return false;
         }
 
@@ -273,6 +286,10 @@ public class User : IdentityUser<Guid>
         if (!FixedTimeEquals(OtpCode, providedHash))
         {
             OtpAttempts++;
+            if (OtpAttempts >= MaxOtpAttempts)
+            {
+                ExhaustOtp();
+            }
             UpdatedAtUtc = DateTime.UtcNow;
             return false;
         }
@@ -281,10 +298,26 @@ public class User : IdentityUser<Guid>
         OtpCode = null;
         OtpExpiryTime = null;
         OtpAttempts = 0;
+        OtpLockoutCount = 0;
+        OtpLockedUntilUtc = null;
         PhoneNumberConfirmed = true;
         UpdatedAtUtc = DateTime.UtcNow;
 
         return true;
+    }
+
+    private void ExhaustOtp()
+    {
+        OtpCode = null;
+        OtpExpiryTime = null;
+        OtpAttempts = 0;
+        OtpLockoutCount++;
+        if (OtpLockoutCount >= OtpExhaustionLockoutThreshold)
+        {
+            OtpLockedUntilUtc = DateTime.UtcNow.Add(OtpAccountLockoutDuration);
+            OtpLockoutCount = 0;
+        }
+        UpdatedAtUtc = DateTime.UtcNow;
     }
 
     // --- Password Reset Domain Behavior ---

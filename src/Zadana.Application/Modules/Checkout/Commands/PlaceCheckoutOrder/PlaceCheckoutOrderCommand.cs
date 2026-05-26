@@ -114,7 +114,8 @@ public class PlaceCheckoutOrderCommandHandler : IRequestHandler<PlaceCheckoutOrd
             _deliveryPricingService,
             pricing.VendorBranchId,
             address,
-            cancellationToken);
+            cancellationToken,
+            pricing.Subtotal);
         if (!deliveryAssessment.DeliveryCheck.CanProceedToCheckout)
         {
             throw deliveryAssessment.DeliveryCheck.Status switch

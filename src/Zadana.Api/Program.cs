@@ -15,6 +15,9 @@ using Microsoft.EntityFrameworkCore;
 using Microsoft.Extensions.Diagnostics.HealthChecks;
 using Microsoft.IdentityModel.Tokens;
 using Microsoft.OpenApi.Models;
+using OpenTelemetry.Metrics;
+using OpenTelemetry.Resources;
+using OpenTelemetry.Trace;
 using Zadana.Api.Authorization;
 using Zadana.Api.Configuration;
 using Zadana.Api.BackgroundJobs;
@@ -50,6 +53,12 @@ using Zadana.Infrastructure.Settings;
 
 var builder = WebApplication.CreateBuilder(args);
 
+// Prevent background service exceptions from crashing the host
+builder.Services.Configure<HostOptions>(options =>
+{
+    options.BackgroundServiceExceptionBehavior = BackgroundServiceExceptionBehavior.Ignore;
+});
+
 // In local development, re-apply user secrets after the default providers so
 // stale environment variables do not override freshly rotated local secrets.
 if (builder.Environment.IsDevelopment())
@@ -78,7 +87,8 @@ if (builder.Environment.IsProduction())
         "Moyasar:SecretKey",
         "Moyasar:WebhookSecret",
         "ResendSettings:ApiKey",
-        "BankTransfer:WebhookSecret"
+        "BankTransfer:WebhookSecret",
+        "Security:SearchableHashKey"
     };
 
     var missing = requiredProductionSettings
@@ -128,13 +138,18 @@ builder.Services.AddOptions<CachingSettings>()
 
 if (!builder.Environment.IsEnvironment("Testing"))
 {
-    // Register the interceptor with an explicit factory that injects the
-    // root service provider so it can resolve a scoped ICurrentUserService
-    // at SaveChanges time without taking a hard dependency on HttpContext.
+    // Register the interceptor as a singleton — it doesn't hold per-request
+    // state and resolves the current user via a child scope when needed,
+    // which makes it safe to reuse across pooled DbContext instances.
     builder.Services.AddSingleton<AuditableEntityInterceptor>(sp =>
         new AuditableEntityInterceptor(sp));
-    builder.Services.AddDbContext<ApplicationDbContext>((sp, options) =>
+
+    // DbContext pooling reuses change-tracker / model-cache state across
+    // requests, eliminating per-request allocations and dramatically lowering
+    // CPU under load. poolSize=256 prevents pool exhaustion under spikes.
+    builder.Services.AddDbContextPool<ApplicationDbContext>((sp, options) =>
     {
+        var interceptor = sp.GetRequiredService<AuditableEntityInterceptor>();
         options.UseSqlServer(
             builder.Configuration.GetRequiredConnectionString("DefaultConnection"),
             sqlOptions =>
@@ -147,24 +162,15 @@ if (!builder.Environment.IsEnvironment("Testing"))
                 sqlOptions.CommandTimeout(60);
             });
 
+        options.AddInterceptors(interceptor);
+
         if (builder.Environment.IsDevelopment())
         {
             options.EnableSensitiveDataLogging();
             options.EnableDetailedErrors();
         }
-    });
+    }, poolSize: 256);
 
-    // Replace the default DbContext factory with one that wires the
-    // IDataProtectionProvider so PII columns are encrypted at rest.
-    builder.Services.AddScoped(provider =>
-    {
-        var options = provider.GetRequiredService<DbContextOptions<ApplicationDbContext>>();
-        var interceptor = provider.GetRequiredService<AuditableEntityInterceptor>();
-        var dataProtection = provider.GetService<Microsoft.AspNetCore.DataProtection.IDataProtectionProvider>();
-        return dataProtection is not null
-            ? new ApplicationDbContext(options, interceptor, dataProtection)
-            : new ApplicationDbContext(options, interceptor);
-    });
     builder.Services.AddScoped<ApplicationDbContextInitialiser>();
 }
 
@@ -181,6 +187,7 @@ builder.Services.AddScoped<IDriverHomeReadService, Zadana.Infrastructure.Modules
 builder.Services.AddScoped<IDriverWalletReadService, Zadana.Infrastructure.Modules.Delivery.Services.DriverWalletReadService>();
 builder.Services.AddScoped<IDriverCommitmentPolicyService, Zadana.Infrastructure.Modules.Delivery.Services.DriverCommitmentPolicyService>();
 builder.Services.AddScoped<IDeliveryDispatchService, Zadana.Infrastructure.Modules.Delivery.Services.DeliveryDispatchService>();
+builder.Services.AddSingleton<Zadana.Infrastructure.Modules.Delivery.Services.DeliveryPricingCacheService>();
 builder.Services.AddScoped<IDeliveryPricingService, Zadana.Infrastructure.Modules.Delivery.Services.DeliveryPricingService>();
 builder.Services.AddScoped<IProductRequestRepository, ProductRequestRepository>();
 builder.Services.AddScoped<IProductRequestReadService, ProductRequestReadService>();
@@ -211,7 +218,19 @@ builder.Services.AddHostedService<VendorProductBulkOperationWorker>();
 builder.Services.AddHostedService<AdminAlertOutboxWorker>();
 builder.Services.AddHostedService<NotificationCleanupWorker>();
 builder.Services.AddHostedService<VendorSettlementCycleWorker>();
+builder.Services.AddHostedService<VendorWeeklySummaryEmailWorker>();
 builder.Services.AddHostedService<SupportCaseSlaWorker>();
+
+// SystemLog pipeline: middleware enqueues into a bounded channel, the
+// worker drains and writes batches to SQL. This removes the per-request DB
+// INSERT from the hot path under load.
+builder.Services.AddSingleton<ISystemLogQueue, SystemLogQueue>();
+builder.Services.AddHostedService<SystemLogPersistenceWorker>();
+
+// One-shot startup backfill that hashes any existing Driver.NationalId
+// records into the new NationalIdHash column. Idempotent and gated by
+// Security:RunNationalIdHashBackfill so it can be disabled after first run.
+builder.Services.AddHostedService<DriverNationalIdHashBackfillTask>();
 
 builder.Services.AddOptions<FinancialSettingsOptions>()
     .Bind(builder.Configuration.GetSection(FinancialSettingsOptions.SectionName));
@@ -237,6 +256,15 @@ builder.Services.AddHttpClient<Zadana.Infrastructure.Services.Payments.MoyasarPa
 {
     var settings = serviceProvider.GetRequiredService<Microsoft.Extensions.Options.IOptions<Zadana.Infrastructure.Settings.MoyasarSettings>>().Value;
     client.BaseAddress = new Uri(string.IsNullOrWhiteSpace(settings.BaseUrl) ? "https://api.moyasar.com/v1/" : settings.BaseUrl);
+})
+.AddStandardResilienceHandler(o =>
+{
+    o.AttemptTimeout.Timeout = TimeSpan.FromSeconds(8);
+    o.TotalRequestTimeout.Timeout = TimeSpan.FromSeconds(25);
+    o.Retry.MaxRetryAttempts = 2;
+    o.CircuitBreaker.SamplingDuration = TimeSpan.FromSeconds(30);
+    o.CircuitBreaker.FailureRatio = 0.5;
+    o.CircuitBreaker.MinimumThroughput = 10;
 });
 builder.Services.AddTransient<Zadana.Application.Modules.Payments.Interfaces.IPaymentGateway>(sp =>
     sp.GetRequiredService<Zadana.Infrastructure.Services.Payments.MoyasarPaymentGateway>());
@@ -245,6 +273,12 @@ builder.Services.AddHttpClient<Zadana.Infrastructure.Services.Payments.MoyasarPa
 {
     var settings = serviceProvider.GetRequiredService<Microsoft.Extensions.Options.IOptions<Zadana.Infrastructure.Settings.MoyasarSettings>>().Value;
     client.BaseAddress = new Uri(string.IsNullOrWhiteSpace(settings.BaseUrl) ? "https://api.moyasar.com/v1/" : settings.BaseUrl);
+})
+.AddStandardResilienceHandler(o =>
+{
+    o.AttemptTimeout.Timeout = TimeSpan.FromSeconds(8);
+    o.TotalRequestTimeout.Timeout = TimeSpan.FromSeconds(25);
+    o.Retry.MaxRetryAttempts = 2;
 });
 builder.Services.AddTransient<Zadana.Application.Modules.Payments.Interfaces.IPayoutGateway>(sp =>
     sp.GetRequiredService<Zadana.Infrastructure.Services.Payments.MoyasarPayoutGateway>());
@@ -253,6 +287,12 @@ builder.Services.AddHttpClient<IOneSignalPushService, OneSignalPushService>((ser
 {
     var settings = serviceProvider.GetRequiredService<Microsoft.Extensions.Options.IOptions<OneSignalSettings>>().Value;
     client.BaseAddress = new Uri(string.IsNullOrWhiteSpace(settings.BaseUrl) ? "https://api.onesignal.com" : settings.BaseUrl);
+})
+.AddStandardResilienceHandler(o =>
+{
+    o.AttemptTimeout.Timeout = TimeSpan.FromSeconds(5);
+    o.TotalRequestTimeout.Timeout = TimeSpan.FromSeconds(15);
+    o.Retry.MaxRetryAttempts = 2;
 });
 
 if (builder.Environment.IsEnvironment("Testing"))
@@ -266,6 +306,20 @@ else
 
 builder.Services.AddHttpContextAccessor();
 builder.Services.AddSingleton<RegistrationUploadTokenService>();
+builder.Services.AddSingleton<Zadana.Api.Security.GuestCartSigner>();
+
+// Bot challenge (CAPTCHA) — Cloudflare Turnstile by default. Disabled when
+// BotChallenge:SecretKey is not configured so dev/local flows still work.
+builder.Services.AddHttpClient<Zadana.Application.Common.Interfaces.IBotChallengeService, Zadana.Infrastructure.Services.TurnstileBotChallengeService>();
+
+// JWT revocation list (used by JwtRevocationMiddleware + logout / admin ban).
+builder.Services.AddScoped<Zadana.Application.Common.Interfaces.IJwtRevocationStore,
+    Zadana.Infrastructure.Modules.Identity.Services.JwtRevocationStore>();
+
+// PII access audit (every read/write of NationalId, IBAN, etc. is logged).
+builder.Services.AddScoped<Zadana.Application.Common.Interfaces.IPiiAccessAuditService,
+    Zadana.Infrastructure.Modules.Identity.Services.PiiAccessAuditService>();
+
 builder.Services.AddMemoryCache();
 if (useRedisCaching)
 {
@@ -303,6 +357,31 @@ builder.Services.AddOutputCache(options =>
     options.AddPolicy(OutputCachePolicyNames.CatalogMetadata, policy =>
         policy.Expire(cachingSettings.Durations.PublicCatalogMetadata)
             .SetVaryByHeader("Accept-Language"));
+
+    // Public catalog browse: anonymous & authenticated requests for the same
+    // filters return identical data, so we cache aggressively for 60s.
+    // Authenticated requests still flow through because OutputCache only
+    // caches anonymous traffic by default. NoCache() is overridden via
+    // SetVaryByQuery so personalized fields are not leaked.
+    options.AddPolicy(OutputCachePolicyNames.PublicCatalogBrowse, policy =>
+        policy
+            .Expire(TimeSpan.FromSeconds(60))
+            .SetVaryByQuery(
+                "categoryId", "subcategoryId", "brandId", "productTypeId",
+                "partId", "quantityId", "packageTypeId", "minPrice", "maxPrice",
+                "sort", "page", "perPage", "search", "query")
+            .SetVaryByHeader("Accept-Language")
+            .Tag("catalog-browse"));
+
+    // Home feed for anonymous customers — heavy aggregate query, but the
+    // payload is identical for every guest so a short shared cache wins.
+    options.AddPolicy(OutputCachePolicyNames.HomePublic, policy =>
+        policy
+            .Expire(TimeSpan.FromSeconds(cachingSettings.Durations.HomePublic.TotalSeconds > 0
+                ? cachingSettings.Durations.HomePublic.TotalSeconds
+                : 120))
+            .SetVaryByHeader("Accept-Language")
+            .Tag("home-public"));
 });
 builder.Services.AddIdentity<User, IdentityRole<Guid>>(options =>
 {
@@ -381,35 +460,76 @@ builder.Services.AddRateLimiter(options =>
         }, cancellationToken);
     };
 
+    // Global limiter is configurable so load-test environments can lift the
+    // ceiling temporarily. In Production we *force* it on regardless of the
+    // setting — never run prod without a global cap.
+    var globalLimiterDisabled = !builder.Environment.IsProduction()
+        && builder.Configuration.GetValue<bool>("RateLimiter:DisableGlobal");
+    var globalLimiterPermitsPerSecond = builder.Configuration
+        .GetValue<int?>("RateLimiter:GlobalPermitsPerSecond") ?? 200;
+
+    if (!globalLimiterDisabled)
+    {
+        // Global limiter shields every endpoint that doesn't opt into a stricter
+        // policy. Token bucket gives bursty traffic some headroom while capping
+        // sustained abuse from a single user / IP.
+        options.GlobalLimiter = PartitionedRateLimiter.Create<HttpContext, string>(httpContext =>
+        {
+            var path = httpContext.Request.Path.Value ?? string.Empty;
+            // SignalR negotiate / hub traffic is long-lived and sensitive to
+            // throttling — let the hub-level back-pressure handle it instead.
+            if (path.StartsWith("/hubs/", StringComparison.OrdinalIgnoreCase) ||
+                path.StartsWith("/health", StringComparison.OrdinalIgnoreCase) ||
+                path.StartsWith("/metrics", StringComparison.OrdinalIgnoreCase))
+            {
+                return RateLimitPartition.GetNoLimiter("unbounded");
+            }
+
+            return RateLimitPartition.GetTokenBucketLimiter(
+                ResolveRateLimitKey(httpContext),
+                _ => new TokenBucketRateLimiterOptions
+                {
+                    TokenLimit = globalLimiterPermitsPerSecond,
+                    TokensPerPeriod = globalLimiterPermitsPerSecond,
+                    ReplenishmentPeriod = TimeSpan.FromSeconds(1),
+                    AutoReplenishment = true,
+                    QueueLimit = 0
+                });
+        });
+    }
+
     options.AddPolicy(RateLimitPolicyNames.Auth, httpContext =>
-        RateLimitPartition.GetFixedWindowLimiter(
+        RateLimitPartition.GetSlidingWindowLimiter(
             ResolveRateLimitKey(httpContext),
-            _ => new FixedWindowRateLimiterOptions
+            _ => new SlidingWindowRateLimiterOptions
             {
                 PermitLimit = 12,
                 Window = TimeSpan.FromMinutes(1),
+                SegmentsPerWindow = 6,
                 QueueLimit = 0,
                 AutoReplenishment = true
             }));
 
     options.AddPolicy(RateLimitPolicyNames.FileUploads, httpContext =>
-        RateLimitPartition.GetFixedWindowLimiter(
+        RateLimitPartition.GetSlidingWindowLimiter(
             ResolveRateLimitKey(httpContext),
-            _ => new FixedWindowRateLimiterOptions
+            _ => new SlidingWindowRateLimiterOptions
             {
                 PermitLimit = 20,
                 Window = TimeSpan.FromMinutes(10),
+                SegmentsPerWindow = 10,
                 QueueLimit = 0,
                 AutoReplenishment = true
             }));
 
     options.AddPolicy(RateLimitPolicyNames.PaymentCallbacks, httpContext =>
-        RateLimitPartition.GetFixedWindowLimiter(
+        RateLimitPartition.GetSlidingWindowLimiter(
             ResolveRateLimitKey(httpContext),
-            _ => new FixedWindowRateLimiterOptions
+            _ => new SlidingWindowRateLimiterOptions
             {
                 PermitLimit = 120,
                 Window = TimeSpan.FromMinutes(1),
+                SegmentsPerWindow = 6,
                 QueueLimit = 0,
                 AutoReplenishment = true
             }));
@@ -431,6 +551,23 @@ builder.Services.ConfigureApplicationCookie(options =>
 });
 
 builder.Services.AddIdentityInfrastructure(builder.Configuration);
+
+// Antiforgery (CSRF) protection for cookie-authenticated admin endpoints.
+// The SPA bootstraps by calling GET /api/admin/auth/csrf, which sets a
+// non-HttpOnly XSRF-TOKEN cookie. Subsequent state-changing requests must
+// echo it via the X-XSRF-TOKEN header for AntiForgery to validate them.
+builder.Services.AddAntiforgery(options =>
+{
+    options.HeaderName = "X-XSRF-TOKEN";
+    options.Cookie.Name = builder.Environment.IsProduction() ? "__Host-XSRF-AF" : "XSRF-AF";
+    options.Cookie.HttpOnly = true;
+    options.Cookie.SameSite = SameSiteMode.Strict;
+    options.Cookie.SecurePolicy = builder.Environment.IsProduction()
+        ? CookieSecurePolicy.Always
+        : CookieSecurePolicy.SameAsRequest;
+    options.Cookie.Path = "/";
+    options.SuppressXFrameOptionsHeader = false;
+});
 
 var allowedOrigins = builder.Configuration.GetSection("Cors:AllowedOrigins").Get<string[]>();
 builder.Services.AddCors(options =>
@@ -457,7 +594,7 @@ builder.Services.AddCors(options =>
         if (productionOrigins.Length > 0)
         {
             policy.WithOrigins(productionOrigins)
-                .WithHeaders("Authorization", "Content-Type", "Accept", "Accept-Language", "X-Device-Id", "X-Seeding-Key", "X-Moyasar-Signature", "X-BankTransfer-Secret", "X-Forwarded-For")
+                .WithHeaders("Authorization", "Content-Type", "Accept", "Accept-Language", "X-Device-Id", "X-Seeding-Key", "X-Moyasar-Signature", "X-BankTransfer-Secret", "X-Forwarded-For", "X-XSRF-TOKEN")
                 .WithMethods("GET", "POST", "PUT", "PATCH", "DELETE", "OPTIONS")
                 .AllowCredentials();
             return;
@@ -528,7 +665,48 @@ builder.Services.AddControllers(options =>
     {
         options.SuppressModelStateInvalidFilter = true;
     });
-builder.Services.AddSignalR();
+
+builder.Services.AddSignalR(o =>
+{
+    // Tighter limits prevent slow / abusive clients from exhausting server
+    // resources under load. Keep alive intervals match mobile defaults.
+    o.EnableDetailedErrors = builder.Environment.IsDevelopment();
+    o.MaximumReceiveMessageSize = 32 * 1024; // 32 KB
+    o.StreamBufferCapacity = 10;
+    o.KeepAliveInterval = TimeSpan.FromSeconds(15);
+    o.ClientTimeoutInterval = TimeSpan.FromSeconds(30);
+    o.HandshakeTimeout = TimeSpan.FromSeconds(15);
+});
+
+// Wire the Redis backplane so SignalR scales out across multiple API
+// instances without users missing notifications. Without this, hubs only
+// broadcast to clients connected to the same process.
+if (useRedisCaching)
+{
+    builder.Services
+        .AddSignalR()
+        .AddStackExchangeRedis(redisConnectionString!, options =>
+        {
+            options.Configuration.ChannelPrefix =
+                StackExchange.Redis.RedisChannel.Literal($"{cachingSettings.Redis.InstanceName}:signalr");
+        });
+}
+
+// Response compression (Brotli + Gzip) cuts bandwidth on JSON / SignalR
+// long-poll payloads by 60-80%. Safe with HTTPS because EnableForHttps is
+// scoped to API responses (no static asset secrets).
+builder.Services.AddResponseCompression(options =>
+{
+    options.EnableForHttps = true;
+    options.Providers.Add<Microsoft.AspNetCore.ResponseCompression.BrotliCompressionProvider>();
+    options.Providers.Add<Microsoft.AspNetCore.ResponseCompression.GzipCompressionProvider>();
+    options.MimeTypes = Microsoft.AspNetCore.ResponseCompression.ResponseCompressionDefaults.MimeTypes
+        .Concat(new[] { "application/json", "application/problem+json", "text/event-stream" });
+});
+builder.Services.Configure<Microsoft.AspNetCore.ResponseCompression.BrotliCompressionProviderOptions>(
+    o => o.Level = System.IO.Compression.CompressionLevel.Fastest);
+builder.Services.Configure<Microsoft.AspNetCore.ResponseCompression.GzipCompressionProviderOptions>(
+    o => o.Level = System.IO.Compression.CompressionLevel.Fastest);
 
 builder.Services.AddEndpointsApiExplorer();
 builder.Services.AddSwaggerGen(c =>
@@ -564,7 +742,88 @@ builder.Services.AddHealthChecks()
         failureStatus: HealthStatus.Unhealthy,
         tags: ["ready", "cache"]);
 
+// OpenTelemetry: traces + metrics for ASP.NET Core, HttpClient, EF Core,
+// Redis and the .NET runtime. Metrics are exposed at /metrics in Prometheus
+// format so an external scraper (Prometheus / Grafana Cloud / Azure Monitor)
+// can pull them. Tracing exporter is OTLP — set OTEL_EXPORTER_OTLP_ENDPOINT
+// to enable it; otherwise traces are simply collected in-process.
+var otelServiceName = builder.Configuration["OpenTelemetry:ServiceName"] ?? "zadana-api";
+var otelServiceNamespace = builder.Configuration["OpenTelemetry:ServiceNamespace"] ?? "zadana";
+var otlpEndpoint = builder.Configuration["OpenTelemetry:OtlpEndpoint"]
+    ?? Environment.GetEnvironmentVariable("OTEL_EXPORTER_OTLP_ENDPOINT");
+
+builder.Services.AddOpenTelemetry()
+    .ConfigureResource(resource => resource
+        .AddService(serviceName: otelServiceName, serviceNamespace: otelServiceNamespace,
+            serviceVersion: typeof(Program).Assembly.GetName().Version?.ToString() ?? "1.0.0")
+        .AddAttributes(new[]
+        {
+            new KeyValuePair<string, object>("deployment.environment", builder.Environment.EnvironmentName)
+        }))
+    .WithTracing(tracing =>
+    {
+        tracing
+            .AddAspNetCoreInstrumentation(o =>
+            {
+                // Don't trace the noisy infrastructure endpoints — they
+                // would dominate the trace budget without adding signal.
+                o.Filter = ctx => !ctx.Request.Path.StartsWithSegments("/health")
+                                  && !ctx.Request.Path.StartsWithSegments("/metrics");
+            })
+            .AddHttpClientInstrumentation()
+            .AddEntityFrameworkCoreInstrumentation(o =>
+            {
+                o.SetDbStatementForText = builder.Environment.IsDevelopment();
+                o.SetDbStatementForStoredProcedure = false;
+            });
+
+        if (!string.IsNullOrWhiteSpace(otlpEndpoint))
+        {
+            tracing.AddOtlpExporter(o => o.Endpoint = new Uri(otlpEndpoint));
+        }
+    })
+    .WithMetrics(metrics =>
+    {
+        metrics
+            .AddAspNetCoreInstrumentation()
+            .AddHttpClientInstrumentation()
+            .AddRuntimeInstrumentation()
+            .AddPrometheusExporter();
+    });
+
 var app = builder.Build();
+
+// Wire DataProtection into the pooled DbContext model so PII columns are
+// encrypted at rest. DataProtection is a process-wide singleton, so this is
+// safe to set once and reuse across every pooled context instance.
+ApplicationDbContext.AmbientDataProtectionProvider =
+    app.Services.GetService<Microsoft.AspNetCore.DataProtection.IDataProtectionProvider>();
+
+// Searchable-hash key is required for indexed lookup of NationalId / IBAN
+// (the values themselves are encrypted at rest and therefore not searchable).
+// In Production the key MUST come from configuration; in dev we derive a
+// stable per-machine key so EnsureCreated / migrations still work.
+var searchableHashKeyBase64 = app.Configuration["Security:SearchableHashKey"];
+byte[] searchableHashKey;
+if (!string.IsNullOrWhiteSpace(searchableHashKeyBase64))
+{
+    searchableHashKey = Convert.FromBase64String(searchableHashKeyBase64);
+}
+else if (app.Environment.IsProduction())
+{
+    throw new InvalidOperationException(
+        "Production startup blocked: Security:SearchableHashKey must be configured (32-byte base64 value).");
+}
+else
+{
+    // Development fallback: deterministic per-machine via DataProtection so
+    // search results stay consistent across restarts on the same dev box.
+    var devProvider = app.Services.GetRequiredService<Microsoft.AspNetCore.DataProtection.IDataProtectionProvider>();
+    var protector = devProvider.CreateProtector("Zadana.SearchableHash.DevKey");
+    searchableHashKey = System.Security.Cryptography.SHA256.HashData(
+        protector.Protect(System.Text.Encoding.UTF8.GetBytes("zadana-dev-searchable-hash")));
+}
+Zadana.Domain.Modules.Identity.Services.SearchableHashProvider.Configure(searchableHashKey);
 var shouldSeedOnStartup = app.Environment.IsDevelopment() || app.Configuration.GetValue<bool>("Seeding:EnableOnStartup");
 var shouldResetOnStartup = app.Configuration.GetValue<bool>("Seeding:ResetOnStartup");
 var allowRemoteSeedEndpoints = app.Environment.IsDevelopment() || app.Configuration.GetValue<bool>("Seeding:EnableRemoteEndpointsOnNonDevelopment");
@@ -585,6 +844,10 @@ if (!app.Environment.IsEnvironment("Testing"))
 }
 
 app.UseMiddleware<ExceptionHandlingMiddleware>();
+
+// Response compression must run early so the compression provider can wrap
+// the response stream before downstream middleware writes to it.
+app.UseResponseCompression();
 
 // Forwarded headers must run before any middleware that inspects scheme / IP
 // (CORS, rate limiter, redirection). Without this, X-Forwarded-* are ignored
@@ -629,6 +892,11 @@ app.UseCors("Frontend");
 // Authentication must run before the rate limiter so that authenticated users
 // are partitioned by userId (instead of all sharing the IP-based bucket).
 app.UseAuthentication();
+
+// JWT revocation check: rejects tokens that were explicitly revoked or
+// implicitly invalidated by an admin / refresh-token-reuse-detection event.
+app.UseMiddleware<JwtRevocationMiddleware>();
+
 app.UseRateLimiter();
 app.UseOutputCache();
 app.UseMiddleware<TemporaryPasswordMiddleware>();
@@ -753,6 +1021,10 @@ app.MapHealthChecks("/health/ready", new HealthCheckOptions
     Predicate = check => check.Tags.Contains("ready"),
     ResponseWriter = WriteHealthResponseAsync
 });
+
+// Prometheus scraping endpoint. Default route is /metrics. In production,
+// restrict access via reverse-proxy IP allow-list (Prometheus only).
+app.MapPrometheusScrapingEndpoint();
 
 app.Run();
 

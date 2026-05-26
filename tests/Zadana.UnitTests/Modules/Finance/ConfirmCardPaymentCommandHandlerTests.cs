@@ -2,6 +2,8 @@ using FluentAssertions;
 using MediatR;
 using Microsoft.EntityFrameworkCore;
 using Microsoft.Extensions.Logging.Abstractions;
+using Moq;
+using Zadana.Application.Modules.EmailCenter.Interfaces;
 using Zadana.Application.Modules.Finances.Services;
 using Zadana.Application.Modules.Payments.Commands.ConfirmCardPayment;
 using Zadana.Application.Modules.Payments.Gateways;
@@ -76,6 +78,7 @@ public class ConfirmCardPaymentCommandHandlerTests
             context,
             new NoOpPublisher(),
             captureService,
+            Mock.Of<IEmailCenterService>(),
             NullLogger<ConfirmCardPaymentCommandHandler>.Instance);
     }
 

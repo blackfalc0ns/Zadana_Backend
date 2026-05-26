@@ -36,6 +36,8 @@ public class VendorWorkspaceFinanceControllerTests
         snapshot.Kpis.Single(kpi => kpi.Id == "vendor-profit").Value.Should().Be(30m);
         snapshot.Kpis.Single(kpi => kpi.Id == "platform-fees").Value.Should().Be(15m);
         snapshot.Kpis.Single(kpi => kpi.Id == "vendor-net").Value.Should().Be(85m);
+        snapshot.HoldAmount.Should().Be(80m);
+        snapshot.AvailableBalance.Should().Be(370m);
         snapshot.Ledger.Should().ContainSingle(entry => entry.Reference == "TODAY-TXN");
         snapshot.Ledger.Should().NotContain(entry => entry.Reference == "OLD-TXN");
         snapshot.Trend.Should().HaveCount(8);
@@ -106,6 +108,12 @@ public class VendorWorkspaceFinanceControllerTests
         var wallet = new Wallet(WalletOwnerType.Vendor, vendorId);
         wallet.Credit(500m);
         wallet.Hold(50m);
+        var activeHold = new WalletHold(
+            WalletOwnerType.Vendor,
+            vendorId,
+            30m,
+            WalletHoldReason.Payout,
+            $"vendor-finance-test:{vendorId:N}");
 
         var todayTransaction = new WalletTransaction(wallet.Id, WalletTxnType.Payout, 80m, "OUT", referenceType: "TODAY-TXN", description: "Today payout");
         SetPrivateProperty(todayTransaction, nameof(WalletTransaction.CreatedAtUtc), DateTime.UtcNow.Date.AddHours(14));
@@ -128,6 +136,7 @@ public class VendorWorkspaceFinanceControllerTests
         context.Orders.AddRange(deliveredToday, deliveredLastWeek);
         context.OrderItems.AddRange(todayItem, oldItem);
         context.Wallets.Add(wallet);
+        context.WalletHolds.Add(activeHold);
         context.WalletTransactions.AddRange(todayTransaction, oldTransaction);
         context.Settlements.Add(settlement);
         context.Payouts.Add(payout);

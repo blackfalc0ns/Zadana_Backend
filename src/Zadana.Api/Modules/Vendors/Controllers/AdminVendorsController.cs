@@ -1,4 +1,4 @@
-﻿using Microsoft.AspNetCore.Authorization;
+using Microsoft.AspNetCore.Authorization;
 using Microsoft.AspNetCore.Mvc;
 using Microsoft.EntityFrameworkCore;
 using Microsoft.Extensions.Localization;
@@ -119,18 +119,11 @@ public class AdminVendorsController : ApiControllerBase
         return Ok(result);
     }
 
-    [HttpPost("{vendorId:guid}/notifications/test")]
-    public async Task<ActionResult<AdminVendorNotificationResponse>> SendVendorNotification(
-        Guid vendorId,
-        [FromBody] AdminSendVendorNotificationRequest? request,
-        CancellationToken cancellationToken = default)
-    {
-        request ??= new AdminSendVendorNotificationRequest();
-        return await SendVendorMessageInternal(vendorId, request, cancellationToken);
-    }
-
+    /// <summary>
+    /// Send notification to vendor (test or production)
+    /// </summary>
     [HttpPost("{vendorId:guid}/notifications/send")]
-    public async Task<ActionResult<AdminVendorNotificationResponse>> SendVendorMessage(
+    public async Task<ActionResult<AdminVendorNotificationResponse>> SendVendorNotification(
         Guid vendorId,
         [FromBody] AdminSendVendorNotificationRequest? request,
         CancellationToken cancellationToken = default)
@@ -528,5 +521,23 @@ public class AdminVendorsController : ApiControllerBase
 
         return Ok(result);
     }
+
+    /// <summary>
+    /// تعديل نسبة عمولة التاجر
+    /// </summary>
+    [HttpPut("{vendorId:guid}/commission-rate")]
+    public async Task<IActionResult> UpdateCommissionRate(
+        Guid vendorId,
+        [FromBody] UpdateCommissionRateRequest request)
+    {
+        var vendor = await _context.Vendors.FindAsync(vendorId)
+            ?? throw new NotFoundException("Vendor", vendorId);
+
+        vendor.UpdateCommissionRate(request.CommissionRate);
+        await _context.SaveChangesAsync(default);
+
+        return Ok(new { Message = "Commission rate updated.", vendor.CommissionRate });
+    }
 }
 
+public record UpdateCommissionRateRequest(decimal CommissionRate);

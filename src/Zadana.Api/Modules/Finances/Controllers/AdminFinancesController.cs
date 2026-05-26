@@ -25,7 +25,8 @@ public class AdminFinancesController(
     IMediator mediator,
     IApplicationDbContext context,
     FinancialEventPostingService financialEventPostingService,
-    WalletProjectionUpdater walletProjectionUpdater) : ControllerBase
+    WalletProjectionUpdater walletProjectionUpdater,
+    RevenueReconciliationService revenueReconciliationService) : ControllerBase
 {
     [HttpGet("dashboard/snapshot")]
     [ProducesResponseType(typeof(AdminFinanceDashboardDto), StatusCodes.Status200OK)]
@@ -322,6 +323,24 @@ public class AdminFinancesController(
     public async Task<ActionResult<WalletProjectionReconciliationReport>> GetReconciliationReport(CancellationToken cancellationToken)
     {
         return Ok(await walletProjectionUpdater.BuildReconciliationReportAsync(cancellationToken));
+    }
+
+    [HttpGet("revenue-reconciliation/preview")]
+    [ProducesResponseType(typeof(RevenueReconciliationPreviewDto), StatusCodes.Status200OK)]
+    public async Task<ActionResult<RevenueReconciliationPreviewDto>> PreviewRevenueReconciliation(
+        [FromQuery] int maxOrders = 500,
+        CancellationToken cancellationToken = default)
+    {
+        return Ok(await revenueReconciliationService.PreviewAsync(maxOrders, cancellationToken));
+    }
+
+    [HttpPost("revenue-reconciliation/apply")]
+    [ProducesResponseType(typeof(RevenueReconciliationApplyResultDto), StatusCodes.Status200OK)]
+    public async Task<ActionResult<RevenueReconciliationApplyResultDto>> ApplyRevenueReconciliation(
+        [FromBody] RevenueReconciliationApplyRequest? request,
+        CancellationToken cancellationToken = default)
+    {
+        return Ok(await revenueReconciliationService.ApplyAsync(request?.MaxOrders ?? 500, cancellationToken));
     }
 
     private static AdminLedgerEntryDto ToDto(Zadana.Domain.Modules.Finances.Entities.JournalEntry entry)

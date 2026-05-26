@@ -78,6 +78,7 @@ public interface IApplicationDbContext
     // Delivery
     DbSet<Driver> Drivers { get; }
     DbSet<DriverLocation> DriverLocations { get; }
+    DbSet<DriverLatestLocation> DriverLatestLocations { get; }
     DbSet<DeliveryAssignment> DeliveryAssignments { get; }
     DbSet<DeliveryOfferAttempt> DeliveryOfferAttempts { get; }
     DbSet<DeliveryProof> DeliveryProofs { get; }

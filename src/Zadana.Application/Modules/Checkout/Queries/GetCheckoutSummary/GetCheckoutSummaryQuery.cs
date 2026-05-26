@@ -52,7 +52,8 @@ public class GetCheckoutSummaryQueryHandler : IRequestHandler<GetCheckoutSummary
             _deliveryPricingService,
             pricing.VendorBranchId,
             address,
-            cancellationToken);
+            cancellationToken,
+            pricing.Subtotal);
         var deliveryQuote = deliveryAssessment.DeliveryCheck.IsDeliverable
             ? deliveryAssessment.DeliveryQuote
             : CheckoutSupport.BuildNoPricingQuote();

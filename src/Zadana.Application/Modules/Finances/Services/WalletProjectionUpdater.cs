@@ -8,6 +8,8 @@ namespace Zadana.Application.Modules.Finances.Services;
 
 public sealed class WalletProjectionUpdater
 {
+    private const int MaxProjectionAttempts = 2;
+
     private readonly IApplicationDbContext _context;
 
     public WalletProjectionUpdater(IApplicationDbContext context)
@@ -16,6 +18,22 @@ public sealed class WalletProjectionUpdater
     }
 
     public async Task ApplyJournalEntryAsync(Guid journalEntryId, CancellationToken cancellationToken = default)
+    {
+        for (var attempt = 1; attempt <= MaxProjectionAttempts; attempt++)
+        {
+            try
+            {
+                await ApplyJournalEntryCoreAsync(journalEntryId, cancellationToken);
+                return;
+            }
+            catch (DbUpdateException) when (attempt < MaxProjectionAttempts && _context is DbContext dbContext)
+            {
+                dbContext.ChangeTracker.Clear();
+            }
+        }
+    }
+
+    private async Task ApplyJournalEntryCoreAsync(Guid journalEntryId, CancellationToken cancellationToken)
     {
         var entry = await _context.JournalEntries
             .AsNoTracking()
@@ -43,18 +61,19 @@ public sealed class WalletProjectionUpdater
             var owner = ownerLines.Key;
             var wallet = await GetOrCreateWalletAsync(owner.OwnerType, owner.OwnerId, cancellationToken);
 
-            if (wallet.LastJournalSequence >= entry.SequenceNumber)
-            {
-                continue;
-            }
-
             var currentBalance = wallet.CurrentBalance;
             var pendingBalance = wallet.PendingBalance;
             var codOwedBalance = wallet.CodOwedBalance;
+            var appliedAnyLine = false;
 
             foreach (var item in ownerLines)
             {
                 var line = item.Line;
+                if (await WalletTransactionExistsAsync(line.Id, cancellationToken))
+                {
+                    continue;
+                }
+
                 switch (line.AccountCode)
                 {
                     case FinancialAccountCode.VendorPayable:
@@ -67,19 +86,22 @@ public sealed class WalletProjectionUpdater
                         codOwedBalance += line.DebitAmount - line.CreditAmount;
                         break;
                 }
+
+                AddWalletTransaction(wallet.Id, line);
+                appliedAnyLine = true;
+            }
+
+            if (!appliedAnyLine)
+            {
+                continue;
             }
 
             wallet.SetProjectionBalances(
                 currentBalance,
                 pendingBalance,
                 codOwedBalance,
-                entry.SequenceNumber,
+                Math.Max(wallet.LastJournalSequence, entry.SequenceNumber),
                 entry.CurrencyCode);
-
-            foreach (var item in ownerLines)
-            {
-                await EnsureWalletTransactionAsync(wallet.Id, item.Line, cancellationToken);
-            }
         }
 
         await _context.SaveChangesAsync(cancellationToken);
@@ -200,20 +222,17 @@ public sealed class WalletProjectionUpdater
             or FinancialAccountCode.PlatformRevenue
             or FinancialAccountCode.ManualAdjustment;
 
-    private async Task EnsureWalletTransactionAsync(
-        Guid walletId,
-        Domain.Modules.Finances.Entities.JournalLine line,
+    private Task<bool> WalletTransactionExistsAsync(
+        Guid journalLineId,
         CancellationToken cancellationToken)
     {
-        var exists = await _context.WalletTransactions.AnyAsync(
-            item => item.ReferenceType == "JournalLine" && item.ReferenceId == line.Id,
+        return _context.WalletTransactions.AnyAsync(
+            item => item.ReferenceType == "JournalLine" && item.ReferenceId == journalLineId,
             cancellationToken);
+    }
 
-        if (exists)
-        {
-            return;
-        }
-
+    private void AddWalletTransaction(Guid walletId, Domain.Modules.Finances.Entities.JournalLine line)
+    {
         var amount = Math.Max(line.DebitAmount, line.CreditAmount);
         if (amount <= 0)
         {

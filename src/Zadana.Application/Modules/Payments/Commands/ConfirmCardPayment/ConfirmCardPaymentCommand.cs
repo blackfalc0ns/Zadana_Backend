@@ -4,6 +4,9 @@ using Microsoft.EntityFrameworkCore;
 using Microsoft.Extensions.Logging;
 using Zadana.Application.Common.Interfaces;
 using Zadana.Application.Common.Localization;
+using Zadana.Application.Modules.EmailCenter;
+using Zadana.Application.Modules.EmailCenter.DTOs;
+using Zadana.Application.Modules.EmailCenter.Interfaces;
 using Zadana.Application.Modules.Finances.Services;
 using Zadana.Application.Modules.Orders.Events;
 using Zadana.Application.Modules.Orders.Support;
@@ -45,6 +48,7 @@ public class ConfirmCardPaymentCommandHandler : IRequestHandler<ConfirmCardPayme
     private readonly IUnitOfWork _unitOfWork;
     private readonly IPublisher _publisher;
     private readonly OnlinePaymentCaptureService _captureService;
+    private readonly IEmailCenterService _emailCenterService;
     private readonly ILogger<ConfirmCardPaymentCommandHandler> _logger;
 
     public ConfirmCardPaymentCommandHandler(
@@ -53,6 +57,7 @@ public class ConfirmCardPaymentCommandHandler : IRequestHandler<ConfirmCardPayme
         IUnitOfWork unitOfWork,
         IPublisher publisher,
         OnlinePaymentCaptureService captureService,
+        IEmailCenterService emailCenterService,
         ILogger<ConfirmCardPaymentCommandHandler> logger)
     {
         _context = context;
@@ -60,6 +65,7 @@ public class ConfirmCardPaymentCommandHandler : IRequestHandler<ConfirmCardPayme
         _unitOfWork = unitOfWork;
         _publisher = publisher;
         _captureService = captureService;
+        _emailCenterService = emailCenterService;
         _logger = logger;
     }
 
@@ -134,6 +140,7 @@ public class ConfirmCardPaymentCommandHandler : IRequestHandler<ConfirmCardPayme
             }
 
             await _unitOfWork.SaveChangesAsync(cancellationToken);
+            await DispatchPaymentFailureEmailAsync(order, details.FailureMessage, cancellationToken);
 
             return BuildResult(
                 payment,
@@ -223,6 +230,57 @@ public class ConfirmCardPaymentCommandHandler : IRequestHandler<ConfirmCardPayme
             alreadyConfirmed ? LocalizedMessages.GetAr(LocalizedMessages.PaymentAlreadyConfirmed) : LocalizedMessages.GetAr(LocalizedMessages.PaymentConfirmedSuccess),
             alreadyConfirmed ? LocalizedMessages.GetEn(LocalizedMessages.PaymentAlreadyConfirmed) : LocalizedMessages.GetEn(LocalizedMessages.PaymentConfirmedSuccess),
             alreadyConfirmed);
+    }
+
+    private async Task DispatchPaymentFailureEmailAsync(
+        Domain.Modules.Orders.Entities.Order order,
+        string? failureMessage,
+        CancellationToken cancellationToken)
+    {
+        try
+        {
+            var emailData = await _context.Orders
+                .AsNoTracking()
+                .Where(item => item.Id == order.Id)
+                .Select(item => new
+                {
+                    item.OrderNumber,
+                    CustomerName = item.User.FullName,
+                    CustomerEmail = item.User.Email,
+                    VendorName = string.IsNullOrWhiteSpace(item.Vendor.BusinessNameEn)
+                        ? item.Vendor.BusinessNameAr
+                        : item.Vendor.BusinessNameEn
+                })
+                .FirstOrDefaultAsync(cancellationToken);
+
+            if (emailData is null)
+            {
+                return;
+            }
+
+            await _emailCenterService.DispatchSystemEventEmailAsync(
+                new EmailSystemEventDispatchRequest(
+                    EventKey: EmailEventKeys.CustomerOrderImportantUpdate,
+                    AudienceType: "customers",
+                    To: string.IsNullOrWhiteSpace(emailData.CustomerEmail) ? [] : [emailData.CustomerEmail],
+                    Variables: new Dictionary<string, string>
+                    {
+                        ["customer_name"] = string.IsNullOrWhiteSpace(emailData.CustomerName) ? "Customer" : emailData.CustomerName,
+                        ["order_number"] = emailData.OrderNumber,
+                        ["vendor_name"] = emailData.VendorName,
+                        ["update_message"] = string.IsNullOrWhiteSpace(failureMessage)
+                            ? $"Payment failed for order {emailData.OrderNumber}. Please retry payment from the app."
+                            : $"Payment failed for order {emailData.OrderNumber}: {failureMessage}"
+                    },
+                    TargetUrl: OrderStatusNotificationComposer.ResolveTargetUrl(order.Id),
+                    EntityId: order.Id,
+                    VendorId: order.VendorId),
+                cancellationToken);
+        }
+        catch (Exception ex)
+        {
+            _logger.LogWarning(ex, "[ConfirmCardPayment] Failed to dispatch payment failure email for order {OrderId}.", order.Id);
+        }
     }
 
     private async Task<Domain.Modules.Payments.Entities.Payment?> TryResolvePaymentAsync(

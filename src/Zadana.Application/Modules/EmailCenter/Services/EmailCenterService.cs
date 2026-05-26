@@ -2,6 +2,7 @@ using System.Text;
 using System.Text.Json;
 using Microsoft.EntityFrameworkCore;
 using Zadana.Application.Common.Interfaces;
+using Zadana.Application.Modules.EmailCenter;
 using Zadana.Application.Modules.EmailCenter.DTOs;
 using Zadana.Application.Modules.EmailCenter.Interfaces;
 using Zadana.Application.Modules.Vendors.Interfaces;
@@ -17,7 +18,7 @@ namespace Zadana.Application.Modules.EmailCenter.Services;
 public sealed class EmailCenterService : IEmailCenterService
 {
     private static readonly JsonSerializerOptions JsonOptions = new(JsonSerializerDefaults.Web);
-    private const string EmailLogoUrl = "https://ik.imagekit.io/fnyx4x87z/tr:w-320/logo/%D8%B4%D8%B9%D8%A7%D8%B1%20%281%29.png?updatedAt=1779282648767";
+    private const string EmailLogoUrl = "https://ik.imagekit.io/fnyx4x87z/logo/%D8%B4%D9%81%D8%A7%D9%81%20(4).png";
     private static readonly IReadOnlyDictionary<string, string> LegacyEmailAddressMap =
         new Dictionary<string, string>(StringComparer.OrdinalIgnoreCase)
         {
@@ -215,7 +216,7 @@ public sealed class EmailCenterService : IEmailCenterService
             throw new BusinessRuleException("EMAIL_CENTER_SUBJECT_REQUIRED", "The email subject is required for test send.");
         }
 
-        var sendResult = await _emailService.SendEmailAsync(
+        var sendResult = await SendEmailSafelyAsync(
             BuildManagedEmailRequest(normalized, senderProfile, resolved, targetUrl: "/email-center"),
             cancellationToken);
 
@@ -296,6 +297,127 @@ public sealed class EmailCenterService : IEmailCenterService
         return items.Select(MapDispatchLog).ToList();
     }
 
+    public async Task<EmailDispatchOperationResult> DispatchSystemEventEmailAsync(
+        EmailSystemEventDispatchRequest request,
+        CancellationToken cancellationToken = default)
+    {
+        await EnsureSeedDataAsync(cancellationToken);
+
+        var eventKey = NormalizeOptional(request.EventKey);
+        if (string.IsNullOrWhiteSpace(eventKey))
+        {
+            return new EmailDispatchOperationResult(false, false, true, request.Source, null, null, "Email event key is required.");
+        }
+
+        var source = string.IsNullOrWhiteSpace(request.Source) ? "system_event" : request.Source.Trim().ToLowerInvariant();
+        var audienceType = string.IsNullOrWhiteSpace(request.AudienceType) ? "system" : request.AudienceType.Trim();
+
+        var ruleEntity = await _context.EmailWorkflowRuleConfigs
+            .AsNoTracking()
+            .FirstOrDefaultAsync(
+                x => x.EventKey != null && x.EventKey == eventKey,
+                cancellationToken);
+
+        if (ruleEntity is null)
+        {
+            return await LogSystemEventSkipAsync(
+                rule: null,
+                ruleKey: null,
+                ruleLabel: HumanizeEventKey(eventKey),
+                audienceType: audienceType,
+                eventKey: eventKey,
+                source: source,
+                entityId: request.EntityId,
+                vendorId: request.VendorId,
+                branchId: request.BranchId,
+                subject: HumanizeEventKey(eventKey),
+                reason: "No live email rule is configured for this event.",
+                cancellationToken);
+        }
+
+        var rule = MapRule(ruleEntity, lastDispatch: null);
+        if (!rule.Enabled)
+        {
+            return await LogSystemEventSkipAsync(rule, eventKey, source, request, "Email automation rule is disabled.", cancellationToken);
+        }
+
+        if (!string.Equals(rule.AutomationState, "live", StringComparison.OrdinalIgnoreCase))
+        {
+            return await LogSystemEventSkipAsync(rule, eventKey, source, request, "Email automation is set to manual only.", cancellationToken);
+        }
+
+        if (!EmailEventKeys.LiveEmailEvents.Contains(eventKey))
+        {
+            return await LogSystemEventSkipAsync(rule, eventKey, source, request, "Email event is outside the reduced live email policy.", cancellationToken);
+        }
+
+        if (await HasDuplicateDispatchAsync(
+                eventKey,
+                request.EntityId,
+                request.VendorId,
+                request.BranchId,
+                request.DuplicateWindowStartUtc,
+                request.DuplicateWindowEndUtc,
+                cancellationToken))
+        {
+            return await LogSystemEventSkipAsync(rule, eventKey, source, request, "Duplicate email event already has a dispatch log.", cancellationToken);
+        }
+
+        var resolved = new EmailResolvedRecipientsDto(
+            NormalizeEmails(request.To ?? Array.Empty<string>()),
+            NormalizeEmails(request.Cc ?? Array.Empty<string>()),
+            NormalizeEmails(request.Bcc ?? Array.Empty<string>()),
+            []);
+
+        if (CombineRecipients(resolved).Count == 0)
+        {
+            return await LogSystemEventSkipAsync(rule, eventKey, source, request, "No recipients were resolved for this email event.", cancellationToken);
+        }
+
+        var senderProfile = await GetSenderProfileAsync(rule.SenderProfileId, cancellationToken);
+        var variables = NormalizeVariables(request.Variables);
+        var targetUrl = RenderTemplate(request.TargetUrl ?? string.Empty, variables);
+        var sendResult = await SendEmailSafelyAsync(
+            BuildManagedEmailRequest(
+                rule,
+                senderProfile,
+                resolved,
+                string.IsNullOrWhiteSpace(targetUrl) ? null : targetUrl,
+                variables),
+            cancellationToken);
+
+        var subject = RenderTemplate(
+            rule.Template.Subject.GetValueOrDefault("en") ??
+            rule.Template.Subject.GetValueOrDefault("ar") ??
+            rule.TitleKey,
+            variables);
+
+        var dispatchLog = CreateDispatchLog(
+            rule: rule,
+            resolved: resolved,
+            subject: subject,
+            source: source,
+            sendResult: sendResult,
+            reasonOverride: sendResult.FailureReason,
+            eventKey: eventKey,
+            entityId: request.EntityId,
+            vendorId: request.VendorId,
+            branchId: request.BranchId,
+            isTestSend: false);
+
+        _context.EmailDispatchLogs.Add(dispatchLog);
+        await _context.SaveChangesAsync(cancellationToken);
+
+        return new EmailDispatchOperationResult(
+            Attempted: true,
+            Sent: sendResult.Success,
+            Skipped: false,
+            Source: source,
+            Provider: sendResult.Provider,
+            ProviderMessageId: sendResult.ProviderMessageId,
+            Reason: sendResult.FailureReason);
+    }
+
     public async Task<EmailDispatchOperationResult> DispatchVendorEmailAsync(
         Vendor vendor,
         VendorCommunicationMessage message,
@@ -306,6 +428,16 @@ public sealed class EmailCenterService : IEmailCenterService
         var eventKey = string.IsNullOrWhiteSpace(message.EmailEventKey)
             ? message.Type
             : message.EmailEventKey.Trim();
+
+        if (!string.Equals(eventKey, EmailEventKeys.VendorApproved, StringComparison.OrdinalIgnoreCase) &&
+            !string.Equals(eventKey, EmailEventKeys.VendorPasswordReset, StringComparison.OrdinalIgnoreCase))
+        {
+            return await LogVendorLifecycleSkipAsync(
+                vendor,
+                eventKey,
+                "Vendor lifecycle email is outside the reduced live email policy.",
+                cancellationToken);
+        }
 
         var ruleEntity = await _context.EmailWorkflowRuleConfigs
             .AsNoTracking()
@@ -355,7 +487,7 @@ public sealed class EmailCenterService : IEmailCenterService
                     Reason: "Vendor has no email address for lifecycle communication.");
             }
 
-            var legacySendResult = await _emailService.SendEmailAsync(
+            var legacySendResult = await SendEmailSafelyAsync(
                 BuildLegacyVendorEmailRequest(vendor, message, defaultProfile, legacyRecipients),
                 cancellationToken);
 
@@ -425,7 +557,7 @@ public sealed class EmailCenterService : IEmailCenterService
         }
 
         var senderProfile = await GetSenderProfileAsync(effectiveRule.SenderProfileId, cancellationToken);
-        var sendResult = await _emailService.SendEmailAsync(
+        var sendResult = await SendEmailSafelyAsync(
             BuildManagedEmailRequest(
                 effectiveRule,
                 senderProfile,
@@ -493,9 +625,83 @@ public sealed class EmailCenterService : IEmailCenterService
             _context.EmailWorkflowRuleConfigs.AddRange(EmailCenterDefaults.BuildWorkflowRules());
         }
 
+        await SyncReducedEmailRulesAsync(cancellationToken);
         await SyncLegacyEmailRuleAddressesAsync(cancellationToken);
 
         await _context.SaveChangesAsync(cancellationToken);
+    }
+
+    private async Task SyncReducedEmailRulesAsync(CancellationToken cancellationToken)
+    {
+        var defaults = EmailCenterDefaults.BuildWorkflowRules()
+            .ToDictionary(rule => rule.RuleKey, StringComparer.OrdinalIgnoreCase);
+        var rules = await _context.EmailWorkflowRuleConfigs.ToListAsync(cancellationToken);
+        var existingByKey = rules.ToDictionary(rule => rule.RuleKey, StringComparer.OrdinalIgnoreCase);
+
+        foreach (var defaultRule in defaults.Values)
+        {
+            if (existingByKey.TryGetValue(defaultRule.RuleKey, out var existingRule))
+            {
+                existingRule.Update(
+                    defaultRule.TitleKey,
+                    defaultRule.SubtitleKey,
+                    defaultRule.CategoryKey,
+                    defaultRule.CadenceLabelKey,
+                    defaultRule.TriggerNotesKey,
+                    defaultRule.Enabled,
+                    defaultRule.SenderProfileKey,
+                    defaultRule.AudienceType,
+                    defaultRule.PanelScope,
+                    defaultRule.PersonaTargetsJson,
+                    defaultRule.EntityScopeJson,
+                    defaultRule.BranchScopeMode,
+                    defaultRule.RecipientTargetsJson,
+                    defaultRule.RouteJson,
+                    defaultRule.TemplateJson,
+                    defaultRule.AutomationState,
+                    defaultRule.EventKey,
+                    existingRule.UpdatedByUserId);
+                continue;
+            }
+
+            _context.EmailWorkflowRuleConfigs.Add(defaultRule);
+            rules.Add(defaultRule);
+        }
+
+        foreach (var rule in rules)
+        {
+            if (string.IsNullOrWhiteSpace(rule.EventKey) ||
+                EmailEventKeys.LiveEmailEvents.Contains(rule.EventKey))
+            {
+                continue;
+            }
+
+            if (!rule.Enabled &&
+                string.Equals(rule.AutomationState, "manual_only", StringComparison.OrdinalIgnoreCase))
+            {
+                continue;
+            }
+
+            rule.Update(
+                rule.TitleKey,
+                rule.SubtitleKey,
+                rule.CategoryKey,
+                rule.CadenceLabelKey,
+                rule.TriggerNotesKey,
+                false,
+                rule.SenderProfileKey,
+                rule.AudienceType,
+                rule.PanelScope,
+                rule.PersonaTargetsJson,
+                rule.EntityScopeJson,
+                rule.BranchScopeMode,
+                rule.RecipientTargetsJson,
+                rule.RouteJson,
+                rule.TemplateJson,
+                "manual_only",
+                rule.EventKey,
+                rule.UpdatedByUserId);
+        }
     }
 
     private async Task SyncLegacyEmailRuleAddressesAsync(CancellationToken cancellationToken)
@@ -930,6 +1136,24 @@ public sealed class EmailCenterService : IEmailCenterService
         return MapSenderProfile(profile);
     }
 
+    private async Task<EmailSendResult> SendEmailSafelyAsync(
+        SendEmailRequest request,
+        CancellationToken cancellationToken)
+    {
+        try
+        {
+            return await _emailService.SendEmailAsync(request, cancellationToken);
+        }
+        catch (OperationCanceledException) when (cancellationToken.IsCancellationRequested)
+        {
+            throw;
+        }
+        catch (Exception ex)
+        {
+            return new EmailSendResult("unknown", false, null, ex.Message);
+        }
+    }
+
     private void EnsureSenderProfileExists(string senderProfileId)
     {
         if (!_context.EmailSenderProfileConfigs.Any(x => x.ProfileKey == senderProfileId))
@@ -953,7 +1177,16 @@ public sealed class EmailCenterService : IEmailCenterService
         return new SendEmailRequest(
             recipients.To.ToArray(),
             string.IsNullOrWhiteSpace(subjectEn) ? subjectAr : subjectEn,
-            BuildBilingualEmailHtml(subjectEn, bodyEn, subjectAr, bodyAr, targetUrl),
+            BuildBilingualEmailHtml(
+                subjectEn,
+                bodyEn,
+                subjectAr,
+                bodyAr,
+                targetUrl,
+                rule.Template.HeroImageUrl,
+                rule.Template.CtaLabel,
+                rule.Template.HeroImageUrlAr,
+                rule.Template.HeroImageUrlEn),
             From: $"{senderProfile.Name} <{senderProfile.Address}>",
             ReplyTo: senderProfile.ReplyTo,
             Cc: recipients.Cc.ToArray(),
@@ -992,31 +1225,49 @@ public sealed class EmailCenterService : IEmailCenterService
         string bodyEn,
         string titleAr,
         string bodyAr,
-        string? targetUrl)
+        string? targetUrl,
+        string? heroImageUrl = null,
+        string? ctaLabel = null,
+        string? heroImageUrlAr = null,
+        string? heroImageUrlEn = null)
     {
         var actionUrl = string.IsNullOrWhiteSpace(targetUrl) ? null : targetUrl.Trim();
+        var fallbackHeroUrl = string.IsNullOrWhiteSpace(heroImageUrl) ? null : heroImageUrl.Trim();
+        var heroUrlEn = string.IsNullOrWhiteSpace(heroImageUrlEn) ? fallbackHeroUrl : heroImageUrlEn.Trim();
+        var heroUrlAr = string.IsNullOrWhiteSpace(heroImageUrlAr) ? fallbackHeroUrl : heroImageUrlAr.Trim();
+        var actionLabel = string.IsNullOrWhiteSpace(ctaLabel) ? "Open related workspace" : ctaLabel.Trim();
         var builder = new StringBuilder();
         builder.Append($"""
-            <div style="font-family:Arial,sans-serif;line-height:1.7;color:#132126;background:#ffffff;border:1px solid #c7e3e7;border-radius:12px;overflow:hidden">
-              <div style="background:#007f92;padding:26px 24px;text-align:center">
-                <div style="display:inline-block;background:#ffffff;border:1px solid #d7edf0;border-bottom:4px solid #f08010;border-radius:12px;padding:16px 24px 14px">
-                <img src="{EmailLogoUrl}" width="168" alt="Zadna" style="display:block;width:168px;max-width:168px;height:auto;border:0;margin:0 auto" />
+            <div style="font-family:Arial,sans-serif;line-height:1.55;color:#132126;background:#edf7f8;padding:12px 8px">
+              <div style="max-width:560px;margin:0 auto;background:#ffffff;border:1px solid #c7e3e7;border-radius:10px;overflow:hidden">
+                <div style="background:#007f92;padding:9px 12px;text-align:center">
+                  <img src="{EmailLogoUrl}" width="72" alt="Zadna" style="display:block;width:72px;max-width:72px;height:auto;border:0;margin:0 auto" />
                 </div>
-              </div>
-              <div style="padding:28px">
+                <div style="padding:18px 20px 18px">
         """);
+
+        if (!string.IsNullOrWhiteSpace(heroUrlEn))
+        {
+            builder.Append($"""
+              <div style="max-width:440px;margin:0 auto 16px;border:1px solid #c7e3e7;border-radius:10px;overflow:hidden;background:#f7fbfc">
+                <img src="{heroUrlEn}" width="440" alt="Zadna update" style="display:block;width:100%;max-width:440px;height:auto;border:0;margin:0 auto" />
+              </div>
+            """);
+        }
 
         if (!string.IsNullOrWhiteSpace(titleEn))
         {
             builder.Append($"""
-              <h2 style="margin:0 0 12px;color:#073843;font-size:24px;line-height:1.25">{titleEn}</h2>
+              <h2 style="margin:0 0 10px;color:#073843;font-size:18px;line-height:1.25">{titleEn}</h2>
             """);
         }
 
         if (!string.IsNullOrWhiteSpace(bodyEn))
         {
             builder.Append($"""
-              <p>{bodyEn}</p>
+              <div style="margin:12px 0 0;padding:12px 14px;background:#f7fbfc;border:1px solid #c7e3e7;border-radius:8px">
+                <p style="margin:0;color:#132126">{bodyEn}</p>
+              </div>
             """);
         }
 
@@ -1027,17 +1278,29 @@ public sealed class EmailCenterService : IEmailCenterService
               <div dir="rtl" style="font-family:Tahoma,Arial,sans-serif">
             """);
 
+            if (!string.IsNullOrWhiteSpace(heroUrlAr)
+                && !string.Equals(heroUrlAr, heroUrlEn, StringComparison.OrdinalIgnoreCase))
+            {
+                builder.Append($"""
+                <div style="max-width:440px;margin:0 auto 16px;border:1px solid #c7e3e7;border-radius:10px;overflow:hidden;background:#f7fbfc">
+                  <img src="{heroUrlAr}" width="440" alt="تحديث من زادنا" style="display:block;width:100%;max-width:440px;height:auto;border:0;margin:0 auto" />
+                </div>
+                """);
+            }
+
             if (!string.IsNullOrWhiteSpace(titleAr))
             {
                 builder.Append($"""
-                <h3 style="margin:0 0 8px;color:#073843;font-size:20px;line-height:1.35">{titleAr}</h3>
+                <h3 style="margin:0 0 8px;color:#073843;font-size:18px;line-height:1.35">{titleAr}</h3>
                 """);
             }
 
             if (!string.IsNullOrWhiteSpace(bodyAr))
             {
                 builder.Append($"""
-                <p>{bodyAr}</p>
+                <div style="margin:12px 0 0;padding:12px 14px;background:#f7fbfc;border:1px solid #c7e3e7;border-radius:8px">
+                  <p style="margin:0;color:#132126">{bodyAr}</p>
+                </div>
                 """);
             }
 
@@ -1049,13 +1312,13 @@ public sealed class EmailCenterService : IEmailCenterService
             builder.Append($"""
               <p style="margin-top:20px">
                 <a href="{actionUrl}" style="display:inline-block;background:#007f92;color:#fff;text-decoration:none;padding:10px 16px;border-radius:10px;border-bottom:3px solid #f08010">
-                  Open related workspace
+                  {actionLabel}
                 </a>
               </p>
             """);
         }
 
-        builder.Append("</div></div>");
+        builder.Append("</div></div></div>");
         return builder.ToString();
     }
 
@@ -1070,6 +1333,38 @@ public sealed class EmailCenterService : IEmailCenterService
         foreach (var item in variables)
         {
             result = result.Replace(item.Key, item.Value, StringComparison.OrdinalIgnoreCase);
+        }
+
+        return result;
+    }
+
+    private static IReadOnlyDictionary<string, string> NormalizeVariables(IReadOnlyDictionary<string, string>? variables)
+    {
+        var result = new Dictionary<string, string>(StringComparer.OrdinalIgnoreCase);
+        if (variables is null)
+        {
+            return result;
+        }
+
+        foreach (var item in variables)
+        {
+            if (string.IsNullOrWhiteSpace(item.Key))
+            {
+                continue;
+            }
+
+            var key = item.Key.Trim();
+            if (!key.StartsWith("{{", StringComparison.Ordinal))
+            {
+                key = "{{" + key;
+            }
+
+            if (!key.EndsWith("}}", StringComparison.Ordinal))
+            {
+                key += "}}";
+            }
+
+            result[key] = item.Value ?? string.Empty;
         }
 
         return result;
@@ -1195,6 +1490,156 @@ public sealed class EmailCenterService : IEmailCenterService
 
         _context.EmailDispatchLogs.Add(log);
         await _context.SaveChangesAsync(cancellationToken);
+    }
+
+    private Task<EmailDispatchOperationResult> LogSystemEventSkipAsync(
+        EmailWorkflowRuleDto rule,
+        string eventKey,
+        string source,
+        EmailSystemEventDispatchRequest request,
+        string reason,
+        CancellationToken cancellationToken)
+    {
+        var variables = NormalizeVariables(request.Variables);
+        var subject = RenderTemplate(
+            rule.Template.Subject.GetValueOrDefault("en") ??
+            rule.Template.Subject.GetValueOrDefault("ar") ??
+            rule.TitleKey,
+            variables);
+
+        return LogSystemEventSkipAsync(
+            rule,
+            rule.Id,
+            rule.TitleKey,
+            rule.AudienceType,
+            eventKey,
+            source,
+            request.EntityId,
+            request.VendorId,
+            request.BranchId,
+            string.IsNullOrWhiteSpace(subject) ? rule.TitleKey : subject,
+            reason,
+            cancellationToken);
+    }
+
+    private async Task<EmailDispatchOperationResult> LogSystemEventSkipAsync(
+        EmailWorkflowRuleDto? rule,
+        string? ruleKey,
+        string ruleLabel,
+        string audienceType,
+        string eventKey,
+        string source,
+        Guid? entityId,
+        Guid? vendorId,
+        Guid? branchId,
+        string subject,
+        string reason,
+        CancellationToken cancellationToken)
+    {
+        var log = new EmailDispatchLog(
+            ruleKey,
+            ruleLabel,
+            audienceType,
+            source,
+            "skipped",
+            subject,
+            Serialize(Array.Empty<string>()),
+            Serialize(Array.Empty<string>()),
+            Serialize(Array.Empty<string>()),
+            null,
+            null,
+            reason,
+            eventKey,
+            _currentUserService.UserId,
+            entityId,
+            vendorId,
+            branchId,
+            false);
+
+        _context.EmailDispatchLogs.Add(log);
+        await _context.SaveChangesAsync(cancellationToken);
+
+        return new EmailDispatchOperationResult(
+            Attempted: false,
+            Sent: false,
+            Skipped: true,
+            Source: source,
+            Provider: null,
+            ProviderMessageId: null,
+            Reason: reason);
+    }
+
+    private async Task<EmailDispatchOperationResult> LogVendorLifecycleSkipAsync(
+        Vendor vendor,
+        string eventKey,
+        string reason,
+        CancellationToken cancellationToken)
+    {
+        var log = new EmailDispatchLog(
+            null,
+            HumanizeEventKey(eventKey),
+            "vendor_network",
+            "vendor_automation_live",
+            "skipped",
+            HumanizeEventKey(eventKey),
+            Serialize(Array.Empty<string>()),
+            Serialize(Array.Empty<string>()),
+            Serialize(Array.Empty<string>()),
+            null,
+            null,
+            reason,
+            eventKey,
+            _currentUserService.UserId,
+            vendor.UserId,
+            vendor.Id,
+            null,
+            false);
+
+        _context.EmailDispatchLogs.Add(log);
+        await _context.SaveChangesAsync(cancellationToken);
+
+        return new EmailDispatchOperationResult(false, false, true, "vendor_automation_live", null, null, reason);
+    }
+
+    private async Task<bool> HasDuplicateDispatchAsync(
+        string eventKey,
+        Guid? entityId,
+        Guid? vendorId,
+        Guid? branchId,
+        DateTime? duplicateWindowStartUtc,
+        DateTime? duplicateWindowEndUtc,
+        CancellationToken cancellationToken)
+    {
+        var query = _context.EmailDispatchLogs
+            .AsNoTracking()
+            .Where(x => !x.IsTestSend && x.EventKey == eventKey);
+
+        if (entityId.HasValue)
+        {
+            query = query.Where(x => x.EntityId == entityId.Value);
+        }
+
+        if (vendorId.HasValue)
+        {
+            query = query.Where(x => x.VendorId == vendorId.Value);
+        }
+
+        if (branchId.HasValue)
+        {
+            query = query.Where(x => x.BranchId == branchId.Value);
+        }
+
+        if (duplicateWindowStartUtc.HasValue)
+        {
+            query = query.Where(x => x.CreatedAtUtc >= duplicateWindowStartUtc.Value);
+        }
+
+        if (duplicateWindowEndUtc.HasValue)
+        {
+            query = query.Where(x => x.CreatedAtUtc < duplicateWindowEndUtc.Value);
+        }
+
+        return await query.AnyAsync(cancellationToken);
     }
 
     private static List<string> CombineRecipients(EmailResolvedRecipientsDto resolved) =>
@@ -1342,7 +1787,11 @@ public sealed class EmailCenterService : IEmailCenterService
                     .Where(x => !string.IsNullOrWhiteSpace(x))
                     .Select(x => x.Trim())
                     .Distinct(StringComparer.OrdinalIgnoreCase)
-                    .ToList()),
+                    .ToList(),
+                NormalizeOptional(draft.Template.HeroImageUrl),
+                NormalizeOptional(draft.Template.CtaLabel),
+                NormalizeOptional(draft.Template.HeroImageUrlAr),
+                NormalizeOptional(draft.Template.HeroImageUrlEn)),
             AutomationState = string.IsNullOrWhiteSpace(draft.AutomationState)
                 ? "manual_only"
                 : draft.AutomationState.Trim().ToLowerInvariant(),
@@ -1398,6 +1847,19 @@ public sealed class EmailCenterService : IEmailCenterService
 
 internal static class EmailCenterDefaults
 {
+    private const string OrderUpdateHeroImageUrlAr = "https://ik.imagekit.io/fnyx4x87z/email_tamplet/ChatGPT%20Image%20May%2025,%202026,%2004_26_04%20PM.png";
+    private const string OrderUpdateHeroImageUrlEn = "https://ik.imagekit.io/fnyx4x87z/email_tamplet/ChatGPT%20Image%20May%2025,%202026,%2004_27_36%20PM.png";
+    private const string VendorNewOrderHeroImageUrlAr = "https://ik.imagekit.io/fnyx4x87z/email_tamplet/ChatGPT%20Image%20May%2025,%202026,%2005_40_44%20PM.png";
+    private const string VendorNewOrderHeroImageUrlEn = "https://ik.imagekit.io/fnyx4x87z/email_tamplet/ChatGPT%20Image%20May%2025,%202026,%2004_17_35%20PM.png";
+    private const string VendorApprovedHeroImageUrlAr = "https://ik.imagekit.io/fnyx4x87z/email_tamplet/ChatGPT%20Image%20May%2025,%202026,%2004_35_00%20PM.png";
+    private const string VendorApprovedHeroImageUrlEn = "https://ik.imagekit.io/fnyx4x87z/email_tamplet/ChatGPT%20Image%20May%2025,%202026,%2004_45_14%20PM.png";
+    private const string DriverVerificationHeroImageUrlAr = "https://ik.imagekit.io/fnyx4x87z/email_tamplet/ChatGPT%20Image%20May%2025,%202026,%2004_49_56%20PM.png";
+    private const string DriverVerificationHeroImageUrlEn = "https://ik.imagekit.io/fnyx4x87z/email_tamplet/ChatGPT%20Image%20May%2025,%202026,%2004_49_36%20PM.png";
+    private const string SupportCaseHeroImageUrlAr = "https://ik.imagekit.io/fnyx4x87z/email_tamplet/ChatGPT%20Image%20May%2026,%202026,%2001_04_55%20PM.png";
+    private const string SupportCaseHeroImageUrlEn = "https://ik.imagekit.io/fnyx4x87z/email_tamplet/ChatGPT%20Image%20May%2026,%202026,%2001_04_45%20PM.png";
+    private const string VendorWeeklySummaryHeroImageUrlAr = "https://ik.imagekit.io/fnyx4x87z/email_tamplet/ChatGPT%20Image%20May%2026,%202026,%2002_07_18%20PM.png";
+    private const string VendorWeeklySummaryHeroImageUrlEn = "https://ik.imagekit.io/fnyx4x87z/email_tamplet/ChatGPT%20Image%20May%2026,%202026,%2002_10_42%20PM.png";
+
     public static IReadOnlyList<EmailSenderProfileConfig> BuildSenderProfiles() =>
     [
         new EmailSenderProfileConfig(
@@ -1433,6 +1895,136 @@ internal static class EmailCenterDefaults
     {
         var rules = new List<EmailWorkflowRuleConfig>
         {
+            BuildRule(
+                "customer-order-confirmed",
+                "Order confirmed",
+                "Receipt and order confirmation for customers.",
+                "Customer Orders",
+                "Instant",
+                "Sends only when an order is confirmed after payment/COD placement.",
+                true,
+                "ops-primary",
+                "customers",
+                "customer_app",
+                ["customer"],
+                new EmailEntityScopeDto(null, null, null),
+                "all_branches",
+                new EmailRecipientTargetSelectionDto([], [], []),
+                new EmailRecipientRouteDto([], [], [], ["support@zadna0.com"], [], [], "Customer Experience", "Orders Desk"),
+                new EmailTemplatePreviewDto(
+                    new Dictionary<string, string> { ["en"] = "Your Zadna order {{order_number}} is confirmed", ["ar"] = "تم تأكيد طلبك {{order_number}} من زادنا" },
+                    new Dictionary<string, string> { ["en"] = "Hi {{customer_name}}, your order from {{vendor_name}} is confirmed. Total: {{order_total}} {{currency}}.", ["ar"] = "أهلا {{customer_name}}، تم تأكيد طلبك من {{vendor_name}}. الإجمالي: {{order_total}} {{currency}}." },
+                    ["{{customer_name}}", "{{order_number}}", "{{vendor_name}}", "{{order_total}}", "{{currency}}"],
+                    OrderUpdateHeroImageUrlEn,
+                    "Track order",
+                    OrderUpdateHeroImageUrlAr,
+                    OrderUpdateHeroImageUrlEn),
+                "live",
+                EmailEventKeys.CustomerOrderConfirmed),
+            BuildRule(
+                "customer-order-out-for-delivery",
+                "Order out for delivery",
+                "Customer update when an order is on the way.",
+                "Customer Orders",
+                "Instant",
+                "Sends only when an order reaches OnTheWay.",
+                true,
+                "ops-primary",
+                "customers",
+                "customer_app",
+                ["customer"],
+                new EmailEntityScopeDto(null, null, null),
+                "all_branches",
+                new EmailRecipientTargetSelectionDto([], [], []),
+                new EmailRecipientRouteDto([], [], [], ["support@zadna0.com"], [], [], "Customer Experience", "Delivery Desk"),
+                new EmailTemplatePreviewDto(
+                    new Dictionary<string, string> { ["en"] = "Your order {{order_number}} is on the way", ["ar"] = "طلبك {{order_number}} خرج للتوصيل" },
+                    new Dictionary<string, string> { ["en"] = "Your order from {{vendor_name}} is now with the driver and heading to you.", ["ar"] = "طلبك من {{vendor_name}} أصبح مع المندوب وفي الطريق إليك." },
+                    ["{{order_number}}", "{{vendor_name}}"],
+                    OrderUpdateHeroImageUrlEn,
+                    "Track delivery",
+                    OrderUpdateHeroImageUrlAr,
+                    OrderUpdateHeroImageUrlEn),
+                "live",
+                EmailEventKeys.CustomerOrderOutForDelivery),
+            BuildRule(
+                "customer-order-important-update",
+                "Important order update",
+                "Customer email for cancellation, refund, delivery failure, or payment failure.",
+                "Customer Orders",
+                "Instant",
+                "Sends only for major order/payment changes.",
+                true,
+                "ops-primary",
+                "customers",
+                "customer_app",
+                ["customer"],
+                new EmailEntityScopeDto(null, null, null),
+                "all_branches",
+                new EmailRecipientTargetSelectionDto([], [], []),
+                new EmailRecipientRouteDto([], [], [], ["support@zadna0.com"], [], [], "Customer Experience", "Support Desk"),
+                new EmailTemplatePreviewDto(
+                    new Dictionary<string, string> { ["en"] = "Important update for order {{order_number}}", ["ar"] = "تحديث مهم بخصوص طلبك {{order_number}}" },
+                    new Dictionary<string, string> { ["en"] = "{{update_message}}", ["ar"] = "{{update_message}}" },
+                    ["{{order_number}}", "{{update_message}}"],
+                    OrderUpdateHeroImageUrlEn,
+                    "Open order",
+                    OrderUpdateHeroImageUrlAr,
+                    OrderUpdateHeroImageUrlEn),
+                "live",
+                EmailEventKeys.CustomerOrderImportantUpdate),
+            BuildRule(
+                "vendor-order-action-required",
+                "New order needs action",
+                "Vendor email only when an order is waiting for acceptance/preparation.",
+                "Vendor Orders",
+                "Instant",
+                "Sends only for PendingVendorAcceptance orders.",
+                true,
+                "vendor-network",
+                "vendor_network",
+                "vendor_panel",
+                ["vendor_owner"],
+                new EmailEntityScopeDto(null, null, null),
+                "all_branches",
+                new EmailRecipientTargetSelectionDto([], [], []),
+                new EmailRecipientRouteDto([], [], [], ["contact@zadna0.com"], [], [], "Vendor Operations", "Marketplace Operations"),
+                new EmailTemplatePreviewDto(
+                    new Dictionary<string, string> { ["en"] = "Order {{order_number}} needs your action", ["ar"] = "طلب {{order_number}} يحتاج إجراء منك" },
+                    new Dictionary<string, string> { ["en"] = "{{vendor_name}}, a new order is waiting for your confirmation. Total: {{order_total}} {{currency}}.", ["ar"] = "{{vendor_name}}، يوجد طلب جديد في انتظار تأكيدك. الإجمالي: {{order_total}} {{currency}}." },
+                    ["{{vendor_name}}", "{{order_number}}", "{{order_total}}", "{{currency}}"],
+                    VendorNewOrderHeroImageUrlEn,
+                    "Open order",
+                    VendorNewOrderHeroImageUrlAr,
+                    VendorNewOrderHeroImageUrlEn),
+                "live",
+                EmailEventKeys.VendorOrderActionRequired),
+            BuildRule(
+                "vendor-weekly-summary",
+                "Weekly vendor summary",
+                "Weekly digest of vendor sales, orders, cancellations, and top products.",
+                "Finance",
+                "Weekly",
+                "Sends Mondays at 09:00 Africa/Cairo when the vendor had order activity last week.",
+                true,
+                "finance-digest",
+                "vendor_network",
+                "vendor_panel",
+                ["vendor_owner"],
+                new EmailEntityScopeDto(null, null, null),
+                "all_branches",
+                new EmailRecipientTargetSelectionDto([], [], []),
+                new EmailRecipientRouteDto([], [], [], ["info@zadna0.com"], [], [], "Finance Operations", "Vendor Success"),
+                new EmailTemplatePreviewDto(
+                    new Dictionary<string, string> { ["en"] = "Your Zadna weekly summary: {{week_label}}", ["ar"] = "ملخص زادنا الأسبوعي: {{week_label}}" },
+                    new Dictionary<string, string> { ["en"] = "{{summary_body}}", ["ar"] = "{{summary_body}}" },
+                    ["{{vendor_name}}", "{{week_label}}", "{{summary_body}}"],
+                    VendorWeeklySummaryHeroImageUrlEn,
+                    "Open dashboard",
+                    VendorWeeklySummaryHeroImageUrlAr,
+                    VendorWeeklySummaryHeroImageUrlEn),
+                "live",
+                EmailEventKeys.VendorWeeklySummary),
             BuildRule(
                 "super-admin-access-invite",
                 "EMAIL_CENTER.EVENTS.SUPER_ADMIN_ACCESS_INVITE.TITLE",
@@ -1536,8 +2128,13 @@ internal static class EmailCenterDefaults
                 new EmailTemplatePreviewDto(
                     new Dictionary<string, string> { ["en"] = "Driver verification update", ["ar"] = "تحديث حالة توثيق المندوب" },
                     new Dictionary<string, string> { ["en"] = "Your driver verification status has changed. Open the driver app for details.", ["ar"] = "تم تحديث حالة توثيق المندوب. افتح التطبيق للاطلاع على التفاصيل." },
-                    ["{{driver_name}}", "{{status}}"]),
-                "manual_only"),
+                    ["{{driver_name}}", "{{status}}", "{{driver_note}}"],
+                    DriverVerificationHeroImageUrlEn,
+                    "Open driver app",
+                    DriverVerificationHeroImageUrlAr,
+                    DriverVerificationHeroImageUrlEn),
+                "live",
+                EmailEventKeys.DriverVerificationUpdate),
             BuildRule(
                 "driver-payout-alert",
                 "EMAIL_CENTER.EVENTS.DRIVER_PAYOUT_ALERT.TITLE",
@@ -1576,9 +2173,17 @@ internal static class EmailCenterDefaults
                 new EmailRecipientTargetSelectionDto(["customer_account"], [], []),
                 new EmailRecipientRouteDto([], [], [], ["support@zadna0.com"], [], [], "Customer Experience", "Support Escalation Desk"),
                 new EmailTemplatePreviewDto(
-                    new Dictionary<string, string> { ["en"] = "Customer support escalation", ["ar"] = "تصعيد دعم العميل" },
-                    new Dictionary<string, string> { ["en"] = "There is an update on your support escalation. Open the app for details.", ["ar"] = "يوجد تحديث على تصعيد الدعم الخاص بك. افتح التطبيق للاطلاع على التفاصيل." },
-                    ["{{case_number}}", "{{status}}"]),
+                    new Dictionary<string, string> { ["en"] = "Update on support case {{case_number}}", ["ar"] = "تحديث على طلب الدعم {{case_number}}" },
+                    new Dictionary<string, string>
+                    {
+                        ["en"] = "We have an update on your {{case_type}} for order {{order_number}}. Current status: {{status}}. {{support_message}} Next step: {{next_step}}",
+                        ["ar"] = "لدينا تحديث على {{case_type}} الخاص بطلبك {{order_number}}. الحالة الحالية: {{status}}. {{support_message}} الخطوة التالية: {{next_step}}"
+                    },
+                    ["{{case_number}}", "{{case_type}}", "{{order_number}}", "{{status}}", "{{support_message}}", "{{next_step}}"],
+                    SupportCaseHeroImageUrlEn,
+                    "Open support case",
+                    SupportCaseHeroImageUrlAr,
+                    SupportCaseHeroImageUrlEn),
                 "manual_only"),
             BuildRule(
                 "customer-account-recovery",
@@ -1615,30 +2220,36 @@ internal static class EmailCenterDefaults
     {
         var eventKeys = new[]
         {
-            "vendor_review_started",
-            "vendor_documents_requested",
-            "vendor_document_rejected",
-            "vendor_document_approved",
-            "vendor_approved",
-            "vendor_rejected",
-            "vendor_reactivated",
-            "vendor_suspended",
-            "vendor_archived",
-            "vendor_login_locked",
-            "vendor_login_unlocked",
-            "vendor_store_updated",
-            "vendor_owner_updated",
-            "vendor_contact_updated",
-            "vendor_hours_updated",
-            "vendor_notification_settings_updated",
-            "vendor_operations_settings_updated",
-            "vendor_legal_banking_updated",
-            "vendor_finance_settings_updated",
-            "vendor_password_reset"
+            EmailEventKeys.VendorApproved,
+            EmailEventKeys.VendorPasswordReset
         };
 
         foreach (var eventKey in eventKeys)
         {
+            var isVendorApproved = string.Equals(eventKey, EmailEventKeys.VendorApproved, StringComparison.OrdinalIgnoreCase);
+            var subject = isVendorApproved
+                ? new Dictionary<string, string>
+                {
+                    ["en"] = "Your Zadna vendor account is approved",
+                    ["ar"] = "تم تفعيل حساب التاجر في زادنا"
+                }
+                : new Dictionary<string, string>
+                {
+                    ["en"] = Humanize(eventKey),
+                    ["ar"] = Humanize(eventKey)
+                };
+            var body = isVendorApproved
+                ? new Dictionary<string, string>
+                {
+                    ["en"] = "{{vendor_name}}, your vendor account has been approved. You can now open your workspace and manage orders.",
+                    ["ar"] = "{{vendor_name}}، تم اعتماد حساب التاجر الخاص بك. يمكنك الآن فتح لوحة التحكم وإدارة الطلبات."
+                }
+                : new Dictionary<string, string>
+                {
+                    ["en"] = "This is an automated vendor account update from Zadana. Open your workspace for details.",
+                    ["ar"] = "هذا تحديث آلي على حساب التاجر من زادنا. افتح لوحة التاجر للاطلاع على التفاصيل."
+                };
+
             yield return BuildRule(
                 $"live-{eventKey}",
                 Humanize(eventKey),
@@ -1658,15 +2269,19 @@ internal static class EmailCenterDefaults
                 new EmailTemplatePreviewDto(
                     new Dictionary<string, string>
                     {
-                        ["en"] = Humanize(eventKey),
-                        ["ar"] = Humanize(eventKey)
+                        ["en"] = subject["en"],
+                        ["ar"] = subject["ar"]
                     },
                     new Dictionary<string, string>
                     {
-                        ["en"] = "This is an automated vendor account update from Zadana. Open your workspace for details.",
-                        ["ar"] = "هذا تحديث آلي على حساب التاجر من زادانا. افتح لوحة التاجر للاطلاع على التفاصيل."
+                        ["en"] = body["en"],
+                        ["ar"] = body["ar"]
                     },
-                    ["{{vendor_name}}", "{{target_url}}"]),
+                    ["{{vendor_name}}", "{{target_url}}"],
+                    isVendorApproved ? VendorApprovedHeroImageUrlEn : null,
+                    isVendorApproved ? "Open dashboard" : "Open workspace",
+                    isVendorApproved ? VendorApprovedHeroImageUrlAr : null,
+                    isVendorApproved ? VendorApprovedHeroImageUrlEn : null),
                 "live",
                 eventKey);
         }

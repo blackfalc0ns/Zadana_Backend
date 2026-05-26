@@ -12,6 +12,8 @@
             color: #132126;
             font-family: Tahoma, Arial, sans-serif;
             line-height: 1.55;
+            direction: rtl;
+            text-align: right;
         }
         .preheader {
             display: none;
@@ -63,6 +65,9 @@
         }
         .content {
             padding: 18px 20px 18px;
+            direction: rtl;
+            text-align: right;
+            unicode-bidi: embed;
         }
         .eyebrow {
             display: inline-block;
@@ -81,11 +86,15 @@
             font-size: 18px;
             line-height: 1.35;
             font-weight: 800;
+            direction: rtl;
+            text-align: right;
         }
         p {
             margin: 0 0 12px;
             color: #405257;
             font-size: 11px;
+            direction: rtl;
+            text-align: right;
         }
         .code-wrap {
             margin: 14px 0 12px;
@@ -118,6 +127,8 @@
             border: 1px solid #c7e3e7;
             color: #21484f;
             font-size: 11px;
+            direction: rtl;
+            text-align: right;
         }
         .expiry-note {
             margin: 0 0 10px;
@@ -128,6 +139,8 @@
             color: #21484f;
             font-size: 11px;
             font-weight: 700;
+            direction: rtl;
+            text-align: right;
         }
         .notice {
             margin: 12px 0 0;
@@ -137,11 +150,15 @@
             border: 1px solid #f4c891;
             color: #71410d;
             font-size: 11px;
+            direction: rtl;
+            text-align: right;
         }
         .detail {
             border-top: 1px solid #e2eef0;
             margin-top: 20px;
             padding-top: 14px;
+            direction: rtl;
+            text-align: right;
         }
         .detail p {
             margin-bottom: 8px;
@@ -169,36 +186,36 @@
         }
     </style>
 </head>
-<body>
-    <div class="preheader">&#1585;&#1605;&#1586; &#1575;&#1604;&#1578;&#1581;&#1602;&#1602; &#1604;&#1605;&#1585;&#1577; &#1608;&#1575;&#1581;&#1583;&#1577; &#1605;&#1606; &#1586;&#1575;&#1583;&#1606;&#1575; &#1607;&#1608; {{OtpCode}}.</div>
+<body dir="rtl" style="direction:rtl;text-align:right;">
+    <div class="preheader">{{OtpPreheader}}</div>
     <div class="shell">
         <div class="card">
             <div class="hero">
                 <img class="brand-logo" src="{{LogoUrl}}" width="72" alt="Zadna" style="display:block;width:72px;max-width:72px;height:auto;border:0;margin:0 auto;">
             </div>
-            <div class="content">
-                <div class="eyebrow">&#1585;&#1605;&#1586; &#1604;&#1605;&#1585;&#1577; &#1608;&#1575;&#1581;&#1583;&#1577;</div>
-                <h1>&#1571;&#1603;&#1617;&#1583; &#1581;&#1587;&#1575;&#1576;&#1603; &#1601;&#1610; &#1586;&#1575;&#1583;&#1606;&#1575;</h1>
-                <p>&#1605;&#1585;&#1581;&#1576;&#1611;&#1575;&#1548;</p>
-                <p>&#1575;&#1587;&#1578;&#1582;&#1583;&#1605; &#1585;&#1605;&#1586; &#1575;&#1604;&#1578;&#1581;&#1602;&#1602; &#1575;&#1604;&#1578;&#1575;&#1604;&#1610; &#1604;&#1573;&#1603;&#1605;&#1575;&#1604; &#1578;&#1571;&#1603;&#1610;&#1583; &#1581;&#1587;&#1575;&#1576;&#1603; &#1601;&#1610; &#1586;&#1575;&#1583;&#1606;&#1575; &#1576;&#1571;&#1605;&#1575;&#1606;.</p>
+            <div class="content" dir="rtl" style="direction:rtl;text-align:right;">
+                <div class="eyebrow">{{OtpEyebrow}}</div>
+                <h1 dir="rtl" style="direction:rtl;text-align:right;">{{OtpTitle}}</h1>
+                <p dir="rtl" style="direction:rtl;text-align:right;">{{OtpGreeting}}</p>
+                <p dir="rtl" style="direction:rtl;text-align:right;">{{OtpInstruction}}</p>
                 <div class="code-wrap">
-                    <p class="code-label">&#1585;&#1605;&#1586; &#1575;&#1604;&#1578;&#1581;&#1602;&#1602;</p>
+                    <p class="code-label">{{OtpCodeLabel}}</p>
                     <div class="code">{{OtpCode}}</div>
                 </div>
                 <div class="hero-art">
                     <img src="{{OtpHeroImageUrl}}" width="340" alt="Zadna security verification" style="display:block;width:100%;max-width:340px;height:auto;border:0;margin:0 auto;">
                 </div>
-                <div class="expiry-note">&#1607;&#1584;&#1575; &#1575;&#1604;&#1585;&#1605;&#1586; &#1589;&#1575;&#1604;&#1581; &#1604;&#1605;&#1583;&#1577; {{ValidityMinutes}} &#1583;&#1602;&#1575;&#1574;&#1602; &#1601;&#1602;&#1591;.</div>
-                <p>&#1607;&#1584;&#1575; &#1575;&#1604;&#1585;&#1605;&#1586; &#1589;&#1575;&#1604;&#1581; &#1604;&#1601;&#1578;&#1585;&#1577; &#1602;&#1589;&#1610;&#1585;&#1577; &#1608;&#1604;&#1575; &#1610;&#1615;&#1587;&#1578;&#1582;&#1583;&#1605; &#1573;&#1604;&#1575; &#1583;&#1575;&#1582;&#1604; &#1586;&#1575;&#1583;&#1606;&#1575;. &#1604;&#1575; &#1578;&#1588;&#1575;&#1585;&#1603;&#1607; &#1605;&#1593; &#1571;&#1610; &#1588;&#1582;&#1589;.</p>
-                <div class="security-row">&#1586;&#1575;&#1583;&#1606;&#1575; &#1604;&#1606; &#1578;&#1591;&#1604;&#1576; &#1605;&#1606;&#1603; &#1573;&#1585;&#1587;&#1575;&#1604; &#1607;&#1584;&#1575; &#1575;&#1604;&#1585;&#1605;&#1586; &#1593;&#1576;&#1585; &#1575;&#1604;&#1607;&#1575;&#1578;&#1601; &#1571;&#1608; &#1575;&#1604;&#1605;&#1581;&#1575;&#1583;&#1579;&#1577; &#1571;&#1608; &#1575;&#1604;&#1576;&#1585;&#1610;&#1583;.</div>
-                <div class="notice">&#1573;&#1584;&#1575; &#1604;&#1605; &#1578;&#1591;&#1604;&#1576; &#1607;&#1584;&#1575; &#1575;&#1604;&#1585;&#1605;&#1586;&#1548; &#1610;&#1605;&#1603;&#1606;&#1603; &#1578;&#1580;&#1575;&#1607;&#1604; &#1607;&#1584;&#1607; &#1575;&#1604;&#1585;&#1587;&#1575;&#1604;&#1577; &#1571;&#1608; &#1575;&#1604;&#1578;&#1608;&#1575;&#1589;&#1604; &#1605;&#1593; &#1583;&#1593;&#1605; &#1586;&#1575;&#1583;&#1606;&#1575;.</div>
-                <div class="detail">
-                    <p>&#1578;&#1605; &#1575;&#1604;&#1573;&#1585;&#1587;&#1575;&#1604; &#1573;&#1604;&#1609;: <a href="mailto:{{EmailAddress}}">{{EmailAddress}}</a></p>
-                    <p>&#1575;&#1604;&#1583;&#1593;&#1605;: <a href="mailto:{{SupportEmail}}">{{SupportEmail}}</a></p>
+                <div class="expiry-note" dir="rtl" style="direction:rtl;text-align:right;">{{OtpExpiryNote}}</div>
+                <p dir="rtl" style="direction:rtl;text-align:right;">{{OtpUsageNote}}</p>
+                <div class="security-row" dir="rtl" style="direction:rtl;text-align:right;">{{OtpSecurityNote}}</div>
+                <div class="notice" dir="rtl" style="direction:rtl;text-align:right;">{{OtpNotice}}</div>
+                <div class="detail" dir="rtl" style="direction:rtl;text-align:right;">
+                    <p dir="rtl" style="direction:rtl;text-align:right;">&#1578;&#1605; &#1575;&#1604;&#1573;&#1585;&#1587;&#1575;&#1604; &#1573;&#1604;&#1609;: <a href="mailto:{{EmailAddress}}">{{EmailAddress}}</a></p>
+                    <p dir="rtl" style="direction:rtl;text-align:right;">&#1575;&#1604;&#1583;&#1593;&#1605;: <a href="mailto:{{SupportEmail}}">{{SupportEmail}}</a></p>
                 </div>
             </div>
         </div>
-        <div class="footer">Copyright {{Year}} Zadna. &#1585;&#1587;&#1575;&#1604;&#1577; &#1571;&#1605;&#1575;&#1606; &#1578;&#1604;&#1602;&#1575;&#1574;&#1610;&#1577;.</div>
+        <div class="footer">{{OtpFooter}}</div>
     </div>
 </body>
 </html>

@@ -3,6 +3,9 @@ using Microsoft.EntityFrameworkCore;
 using Moq;
 using Zadana.Application.Common.Interfaces;
 using Zadana.Application.Common.Settings;
+using Zadana.Application.Modules.EmailCenter;
+using Zadana.Application.Modules.EmailCenter.DTOs;
+using Zadana.Application.Modules.EmailCenter.Interfaces;
 using Zadana.Application.Modules.Finances.Services;
 using Zadana.Application.Modules.Orders.Events;
 using Zadana.Application.Modules.Wallets.Services;
@@ -48,6 +51,7 @@ public class OrderStatusChangedHandlerTests
             dispatcherMock.Object,
             revenueDistributionServiceMock.Object,
             orderTrackingNotifierMock.Object,
+            Mock.Of<IEmailCenterService>(),
             loggerMock.Object);
 
         await handler.Handle(
@@ -135,6 +139,7 @@ public class OrderStatusChangedHandlerTests
             dispatcherMock.Object,
             revenueDistributionServiceMock.Object,
             orderTrackingNotifierMock.Object,
+            Mock.Of<IEmailCenterService>(),
             loggerMock.Object);
 
         await handler.Handle(
@@ -222,6 +227,7 @@ public class OrderStatusChangedHandlerTests
             dispatcherMock.Object,
             revenueDistributionServiceMock.Object,
             orderTrackingNotifierMock.Object,
+            Mock.Of<IEmailCenterService>(),
             loggerMock.Object);
 
         await handler.Handle(
@@ -302,6 +308,7 @@ public class OrderStatusChangedHandlerTests
             dispatcherMock.Object,
             revenueDistributionServiceMock.Object,
             orderTrackingNotifierMock.Object,
+            Mock.Of<IEmailCenterService>(),
             loggerMock.Object);
         var customerId = Guid.NewGuid();
         var vendorId = Guid.NewGuid();
@@ -381,6 +388,7 @@ public class OrderStatusChangedHandlerTests
             dispatcherMock.Object,
             revenueDistributionServiceMock.Object,
             orderTrackingNotifierMock.Object,
+            Mock.Of<IEmailCenterService>(),
             loggerMock.Object);
 
         await handler.Handle(
@@ -400,6 +408,72 @@ public class OrderStatusChangedHandlerTests
         dispatcherMock.Verify(
             service => service.DispatchCustomerAsync(It.IsAny<OrderStatusCustomerNotificationRequest>(), It.IsAny<CancellationToken>()),
             Times.Never);
+    }
+
+    [Fact]
+    public async Task Handle_WhenCustomerNotificationAlreadySentForImportantStatus_ShouldStillDispatchEmail()
+    {
+        await using var dbContext = CreateDbContext();
+        var customer = new User("Customer User", "customer.important.email@test.com", "01000000201", UserRole.Customer);
+        var vendorUser = CreateVendorUser();
+        var vendor = CreateVendor(vendorUser.Id, newOrdersNotificationsEnabled: false);
+        var order = CreateOrder(customer.Id, vendor.Id, OrderStatus.PendingVendorAcceptance, "ORD-CUSTOMER-EMAIL-001");
+
+        dbContext.Users.AddRange(customer, vendorUser);
+        dbContext.Vendors.Add(vendor);
+        dbContext.Orders.Add(order);
+        await dbContext.SaveChangesAsync();
+
+        var notificationServiceMock = new Mock<INotificationService>();
+        var pushServiceMock = CreatePushServiceMock();
+        var dispatcherMock = CreateDispatcherMock();
+        var revenueDistributionServiceMock = CreateRevenueDistributionServiceMock(dbContext);
+        var emailCenterMock = new Mock<IEmailCenterService>();
+        emailCenterMock
+            .Setup(service => service.DispatchSystemEventEmailAsync(
+                It.IsAny<EmailSystemEventDispatchRequest>(),
+                It.IsAny<CancellationToken>()))
+            .ReturnsAsync(new EmailDispatchOperationResult(true, true, false, "system_event", "fake", "message-id", null));
+
+        var loggerMock = new Mock<Microsoft.Extensions.Logging.ILogger<OrderStatusChangedHandler>>();
+        var orderTrackingNotifierMock = new Mock<IOrderTrackingRealtimeNotifier>();
+        var handler = new OrderStatusChangedHandler(
+            notificationServiceMock.Object,
+            dbContext,
+            pushServiceMock.Object,
+            dispatcherMock.Object,
+            revenueDistributionServiceMock.Object,
+            orderTrackingNotifierMock.Object,
+            emailCenterMock.Object,
+            loggerMock.Object);
+
+        await handler.Handle(
+            new OrderStatusChangedNotification(
+                order.Id,
+                customer.Id,
+                vendor.Id,
+                order.OrderNumber,
+                OrderStatus.PendingVendorAcceptance,
+                OrderStatus.Cancelled,
+                NotifyCustomer: true,
+                NotifyVendor: false,
+                ActorRole: "admin",
+                CustomerNotificationAlreadySent: true),
+            CancellationToken.None);
+
+        dispatcherMock.Verify(
+            service => service.DispatchCustomerAsync(It.IsAny<OrderStatusCustomerNotificationRequest>(), It.IsAny<CancellationToken>()),
+            Times.Never);
+
+        emailCenterMock.Verify(
+            service => service.DispatchSystemEventEmailAsync(
+                It.Is<EmailSystemEventDispatchRequest>(request =>
+                    request.EventKey == EmailEventKeys.CustomerOrderImportantUpdate &&
+                    request.EntityId == order.Id &&
+                    request.VendorId == vendor.Id &&
+                    request.To.Contains(customer.Email)),
+                It.IsAny<CancellationToken>()),
+            Times.Once);
     }
 
     [Fact]
@@ -437,6 +511,7 @@ public class OrderStatusChangedHandlerTests
             dispatcherMock.Object,
             revenueDistributionServiceMock.Object,
             orderTrackingNotifierMock.Object,
+            Mock.Of<IEmailCenterService>(),
             loggerMock.Object);
 
         await handler.Handle(
@@ -502,7 +577,8 @@ public class OrderStatusChangedHandlerTests
             financialEventPostingService,
             walletProjectionUpdater,
             new Mock<Microsoft.Extensions.Logging.ILogger<OrderRevenueDistributionService>>().Object,
-            (VendorRecoveryService?)null);
+            (VendorRecoveryService)null!,
+            (PayoutOrchestrator)null!);
     }
 
     private static Mock<IOneSignalPushService> CreatePushServiceMock()

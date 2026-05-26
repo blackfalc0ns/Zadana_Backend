@@ -198,7 +198,9 @@ public class EndToEndPayoutFlowTests
             new WalletProjectionUpdater(context),
             vendorPayoutWalletService,
             Options.Create(new FinancialSettingsOptions()),
-            new NoOpAdminAlertService());
+            new NoOpAdminAlertService(),
+            Mock.Of<INotificationService>(),
+            Mock.Of<IOneSignalPushService>());
     }
 
     private static Vendor CreatePerOrderVendor()

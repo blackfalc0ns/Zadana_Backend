@@ -1,5 +1,7 @@
 using System.Globalization;
 using Microsoft.EntityFrameworkCore;
+using Zadana.Application.Common.Caching;
+using Zadana.Application.Common.Interfaces;
 using Zadana.Application.Common.Models;
 using Zadana.Application.Modules.Catalog.DTOs;
 using Zadana.Application.Modules.Delivery.DTOs;
@@ -26,16 +28,42 @@ public class OrderReadService : IOrderReadService
 {
     private readonly ApplicationDbContext _dbContext;
     private readonly IDriverCommitmentPolicyService _driverCommitmentPolicyService;
+    private readonly IAppCache? _cache;
 
-    public OrderReadService(ApplicationDbContext dbContext, IDriverCommitmentPolicyService driverCommitmentPolicyService)
+    private static readonly AppCacheEntryOptions AdminKpiCacheOptions = new(
+        Expiration: TimeSpan.FromSeconds(30),
+        LocalExpiration: TimeSpan.FromSeconds(15));
+
+    private const string AdminOrdersKpiCacheTag = "orders:admin:kpi";
+
+    public OrderReadService(
+        ApplicationDbContext dbContext,
+        IDriverCommitmentPolicyService driverCommitmentPolicyService,
+        IAppCache? cache = null)
     {
         _dbContext = dbContext;
         _driverCommitmentPolicyService = driverCommitmentPolicyService;
+        _cache = cache;
     }
 
     /// <summary>Returns Arabic or English text based on the current request culture.</summary>
     private static string L(string ar, string en) =>
         CultureInfo.CurrentUICulture.TwoLetterISOLanguageName == "ar" ? ar : en;
+
+    /// <summary>
+    /// Escapes characters that have meaning inside a SQL LIKE pattern so a
+    /// user-supplied search term cannot accidentally widen the match. Used
+    /// together with <see cref="EF.Functions.Like(DbFunctions, string, string)"/>
+    /// to keep search queries seek-friendly without LOWER() hacks.
+    /// </summary>
+    private static string EscapeLike(string value)
+    {
+        if (string.IsNullOrEmpty(value)) return string.Empty;
+        return value
+            .Replace("[", "[[]", StringComparison.Ordinal)
+            .Replace("%", "[%]", StringComparison.Ordinal)
+            .Replace("_", "[_]", StringComparison.Ordinal);
+    }
 
     public OrderReadService(ApplicationDbContext dbContext)
         : this(dbContext, NoOpDriverCommitmentPolicyService.Instance)
@@ -168,6 +196,7 @@ public class OrderReadService : IOrderReadService
     {
         var order = await _dbContext.Orders
             .AsNoTracking()
+            .AsSplitQuery()
             .Include(order => order.Items)
                 .ThenInclude(item => item.MasterProduct)
             .Include(order => order.SupportCases)
@@ -184,6 +213,7 @@ public class OrderReadService : IOrderReadService
     {
         var order = await _dbContext.Orders
             .AsNoTracking()
+            .AsSplitQuery()
             .Include(x => x.StatusHistory)
             .Include(x => x.SupportCases)
             .Where(x => x.Id == orderId && x.UserId == userId)
@@ -330,11 +360,15 @@ public class OrderReadService : IOrderReadService
 
         if (!string.IsNullOrWhiteSpace(search))
         {
-            var normalizedSearch = search.Trim().ToLower();
+            // Avoid LOWER() on indexed columns — SQL Server's default
+            // case-insensitive collation makes LIKE seek-friendly already.
+            // OrderNumber is a unique index, so prefer StartsWith to leverage it.
+            var s = search.Trim();
+            var like = $"%{EscapeLike(s)}%";
             query = query.Where(order =>
-                order.OrderNumber.ToLower().Contains(normalizedSearch) ||
-                order.User.FullName.ToLower().Contains(normalizedSearch) ||
-                (order.User.PhoneNumber != null && order.User.PhoneNumber.ToLower().Contains(normalizedSearch)));
+                EF.Functions.Like(order.OrderNumber, $"{EscapeLike(s)}%") ||
+                EF.Functions.Like(order.User.FullName, like) ||
+                (order.User.PhoneNumber != null && EF.Functions.Like(order.User.PhoneNumber, like)));
         }
 
         if (!string.IsNullOrWhiteSpace(status) && Enum.TryParse<OrderStatus>(status, true, out var parsedStatus))
@@ -389,11 +423,12 @@ public class OrderReadService : IOrderReadService
 
         if (!string.IsNullOrWhiteSpace(search))
         {
-            var normalizedSearch = search.Trim().ToLower();
+            var s = search.Trim();
+            var like = $"%{EscapeLike(s)}%";
             query = query.Where(order =>
-                order.OrderNumber.ToLower().Contains(normalizedSearch) ||
-                order.User.FullName.ToLower().Contains(normalizedSearch) ||
-                (order.User.PhoneNumber != null && order.User.PhoneNumber.ToLower().Contains(normalizedSearch)));
+                EF.Functions.Like(order.OrderNumber, $"{EscapeLike(s)}%") ||
+                EF.Functions.Like(order.User.FullName, like) ||
+                (order.User.PhoneNumber != null && EF.Functions.Like(order.User.PhoneNumber, like)));
         }
 
         if (!string.IsNullOrWhiteSpace(status) && Enum.TryParse<OrderStatus>(status, true, out var parsedStatus))
@@ -431,6 +466,7 @@ public class OrderReadService : IOrderReadService
     {
         var order = await _dbContext.Orders
             .AsNoTracking()
+            .AsSplitQuery()
             .Include(item => item.User)
             .Include(item => item.Items)
                 .ThenInclude(item => item.MasterProduct)
@@ -534,18 +570,16 @@ public class OrderReadService : IOrderReadService
         DriverLiveLocationDto? driverLiveLocation = null;
         if (assignment?.DriverId != null && order.Status == OrderStatus.DriverAssigned)
         {
-            var latestLocation = await _dbContext.DriverLocations
+            // Hot path served by the DriverLatestLocations table — primary
+            // key seek on DriverId, no scan / sort over the audit history.
+            var latestLocation = await _dbContext.DriverLatestLocations
                 .AsNoTracking()
                 .Where(l => l.DriverId == assignment.DriverId.Value)
-                .OrderByDescending(l => l.RecordedAtUtc)
+                .Select(l => new DriverLiveLocationDto(l.Latitude, l.Longitude, l.AccuracyMeters, l.RecordedAtUtc))
                 .FirstOrDefaultAsync(cancellationToken);
             if (latestLocation is not null)
             {
-                driverLiveLocation = new DriverLiveLocationDto(
-                    latestLocation.Latitude,
-                    latestLocation.Longitude,
-                    latestLocation.AccuracyMeters,
-                    latestLocation.RecordedAtUtc);
+                driverLiveLocation = latestLocation;
             }
         }
 
@@ -607,6 +641,7 @@ public class OrderReadService : IOrderReadService
         // 1. Build IQueryable with server-side filters
         var query = _dbContext.Orders
             .AsNoTracking()
+            .AsSplitQuery()
             .Include(order => order.User)
             .Include(order => order.Vendor)
             .Include(order => order.VendorBranch)
@@ -615,13 +650,14 @@ public class OrderReadService : IOrderReadService
 
         if (!string.IsNullOrWhiteSpace(search))
         {
-            var s = search.Trim().ToLower();
+            var s = search.Trim();
+            var like = $"%{EscapeLike(s)}%";
             query = query.Where(order =>
-                order.OrderNumber.ToLower().Contains(s) ||
-                order.User.FullName.ToLower().Contains(s) ||
-                (order.User.PhoneNumber != null && order.User.PhoneNumber.ToLower().Contains(s)) ||
-                order.Vendor.BusinessNameAr.ToLower().Contains(s) ||
-                order.Vendor.BusinessNameEn.ToLower().Contains(s));
+                EF.Functions.Like(order.OrderNumber, $"{EscapeLike(s)}%") ||
+                EF.Functions.Like(order.User.FullName, like) ||
+                (order.User.PhoneNumber != null && EF.Functions.Like(order.User.PhoneNumber, like)) ||
+                EF.Functions.Like(order.Vendor.BusinessNameAr, like) ||
+                EF.Functions.Like(order.Vendor.BusinessNameEn, like));
         }
 
         if (!string.IsNullOrWhiteSpace(status) && !string.Equals(status, "ALL", StringComparison.OrdinalIgnoreCase))
@@ -649,24 +685,12 @@ public class OrderReadService : IOrderReadService
             };
         }
 
-        // 2. Count + KPI summary
+        // 2. Count + KPI summary. The KPI scans the full Orders table, which
+        // is expensive — cache it for 30s. Filter counts (totalCount) stay
+        // live since they reflect the user's current filter selection.
         var totalCount = await query.CountAsync(cancellationToken);
 
-        var allOrders = _dbContext.Orders.AsNoTracking();
-        var cutoffKpi = DateTime.UtcNow.AddMinutes(-45);
-        var kpi = await allOrders
-            .GroupBy(o => 1)
-            .Select(g => new
-            {
-                Total = g.Count(),
-                Active = g.Count(o => o.Status != OrderStatus.Cancelled && o.Status != OrderStatus.Delivered),
-                Late = g.Count(o => o.PlacedAtUtc < cutoffKpi && o.Status != OrderStatus.Cancelled && o.Status != OrderStatus.Delivered),
-                PayIssues = g.Count(o => o.PaymentStatus == PaymentStatus.Failed || o.PaymentStatus == PaymentStatus.Pending || o.PaymentStatus == PaymentStatus.PendingCollection),
-                Refunds = g.Count(o => o.PaymentStatus == PaymentStatus.Refunded || o.PaymentStatus == PaymentStatus.PartiallyRefunded)
-            })
-            .FirstOrDefaultAsync(cancellationToken);
-
-        var summary = new AdminOrdersSummaryDto(kpi?.Total ?? 0, kpi?.Active ?? 0, kpi?.Late ?? 0, kpi?.PayIssues ?? 0, kpi?.Refunds ?? 0);
+        var summary = await GetAdminOrdersKpiSummaryAsync(cancellationToken);
 
         // 3. Paginate in SQL
         var totalPages = Math.Max(1, (int)Math.Ceiling(totalCount / (double)normalizedPageSize));
@@ -697,12 +721,53 @@ public class OrderReadService : IOrderReadService
         return new AdminOrdersListDto(items, safePage, normalizedPageSize, totalCount, totalPages, safePage > 1, safePage < totalPages, summary);
     }
 
+    /// <summary>
+    /// Returns the admin orders KPI summary. The query scans the full Orders
+    /// table, so it's cached for 30s in the distributed cache (HybridCache
+    /// uses an in-memory tier first, falling back to Redis). Cache miss runs
+    /// the same aggregate query that lived inline before.
+    /// </summary>
+    private async Task<AdminOrdersSummaryDto> GetAdminOrdersKpiSummaryAsync(CancellationToken cancellationToken)
+    {
+        if (_cache is null)
+        {
+            return await ComputeAdminOrdersKpiAsync(cancellationToken);
+        }
+
+        return await _cache.GetOrCreateAsync(
+            AppCacheKeys.Build("orders", "admin", "kpi", "v1"),
+            ComputeAdminOrdersKpiAsync,
+            AdminKpiCacheOptions,
+            tags: new[] { AdminOrdersKpiCacheTag },
+            cancellationToken: cancellationToken);
+    }
+
+    private async Task<AdminOrdersSummaryDto> ComputeAdminOrdersKpiAsync(CancellationToken cancellationToken)
+    {
+        var allOrders = _dbContext.Orders.AsNoTracking();
+        var cutoffKpi = DateTime.UtcNow.AddMinutes(-45);
+        var kpi = await allOrders
+            .GroupBy(o => 1)
+            .Select(g => new
+            {
+                Total = g.Count(),
+                Active = g.Count(o => o.Status != OrderStatus.Cancelled && o.Status != OrderStatus.Delivered),
+                Late = g.Count(o => o.PlacedAtUtc < cutoffKpi && o.Status != OrderStatus.Cancelled && o.Status != OrderStatus.Delivered),
+                PayIssues = g.Count(o => o.PaymentStatus == PaymentStatus.Failed || o.PaymentStatus == PaymentStatus.Pending || o.PaymentStatus == PaymentStatus.PendingCollection),
+                Refunds = g.Count(o => o.PaymentStatus == PaymentStatus.Refunded || o.PaymentStatus == PaymentStatus.PartiallyRefunded)
+            })
+            .FirstOrDefaultAsync(cancellationToken);
+
+        return new AdminOrdersSummaryDto(kpi?.Total ?? 0, kpi?.Active ?? 0, kpi?.Late ?? 0, kpi?.PayIssues ?? 0, kpi?.Refunds ?? 0);
+    }
+
     public async Task<AdminOrderDetailDto?> GetAdminOrderDetailAsync(
         Guid orderId,
         CancellationToken cancellationToken = default)
     {
         var order = await _dbContext.Orders
             .AsNoTracking()
+            .AsSplitQuery()
             .Include(item => item.User)
             .Include(item => item.Items)
                 .ThenInclude(item => item.MasterProduct)
@@ -728,10 +793,11 @@ public class OrderReadService : IOrderReadService
         DriverLiveLocationDto? driverLiveLocation = null;
         if (assignment?.DriverId is not null)
         {
-            var latestLocation = await _dbContext.DriverLocations
+            // PK seek on DriverLatestLocations replaces a top-1 indexed scan
+            // over the full DriverLocations history.
+            var latestLocation = await _dbContext.DriverLatestLocations
                 .AsNoTracking()
                 .Where(loc => loc.DriverId == assignment.DriverId.Value)
-                .OrderByDescending(loc => loc.RecordedAtUtc)
                 .Select(loc => new DriverLiveLocationDto(loc.Latitude, loc.Longitude, loc.AccuracyMeters, loc.RecordedAtUtc))
                 .FirstOrDefaultAsync(cancellationToken);
             driverLiveLocation = latestLocation;
@@ -2277,7 +2343,8 @@ public class OrderReadService : IOrderReadService
     {
         if (supportCase.Status is OrderSupportCaseStatus.Rejected or OrderSupportCaseStatus.Resolved)
         {
-            return viewerRole == "admin" ? ["reopen"] : [];
+            var reopenCount = supportCase.Activities.Count(a => a.Action == "reopened");
+            return viewerRole == "admin" && reopenCount < 3 ? ["reopen"] : [];
         }
 
         return viewerRole switch

@@ -66,11 +66,11 @@ internal static class DeliveryDispatchScoring
         var sameRegionCity = !string.IsNullOrWhiteSpace(driver.Region)
             && !string.IsNullOrWhiteSpace(driver.City)
             && string.Equals(driver.Region, context.PickupRegion, StringComparison.OrdinalIgnoreCase)
-            && string.Equals(driver.City, context.PickupCity, StringComparison.OrdinalIgnoreCase);
+            && CityMatchesNormalized(driver.City, context.PickupCity);
 
         var sameCity = !sameRegionCity
             && !string.IsNullOrWhiteSpace(context.PickupCity)
-            && string.Equals(driver.City, context.PickupCity, StringComparison.OrdinalIgnoreCase);
+            && CityMatchesNormalized(driver.City, context.PickupCity);
 
         var inPickupZone = gpsFresh
             && latestLocation is not null
@@ -231,4 +231,52 @@ internal static class DeliveryDispatchScoring
             < 70m => "rejection-penalty",
             _ => null
         };
+
+    private static bool CityMatchesNormalized(string? left, string? right)
+    {
+        var normalizedLeft = NormalizeCityForDispatch(left);
+        var normalizedRight = NormalizeCityForDispatch(right);
+
+        return !string.IsNullOrWhiteSpace(normalizedLeft)
+            && string.Equals(normalizedLeft, normalizedRight, StringComparison.OrdinalIgnoreCase);
+    }
+
+    private static string? NormalizeCityForDispatch(string? city)
+    {
+        if (string.IsNullOrWhiteSpace(city))
+        {
+            return null;
+        }
+
+        var normalized = city.Trim().ToLowerInvariant()
+            .Replace(" ", string.Empty)
+            .Replace("-", string.Empty)
+            .Replace("_", string.Empty);
+
+        return normalized switch
+        {
+            // المنطقة الشرقية (Eastern Province)
+            "الدمام" or "دمام" or "dammam" => "dammam",
+            "الخبر" or "خبر" or "khobar" or "alkhobar" => "khobar",
+            "الظهران" or "ظهران" or "dhahran" => "dhahran",
+            "الجبيل" or "جبيل" or "jubail" or "jubel" => "jubail",
+            "القطيف" or "قطيف" or "qatif" or "alqatif" => "qatif",
+            "الاحساء" or "الأحساء" or "احساء" or "أحساء" or "الهفوف" or "هفوف" or "ahsa" or "alahsa" or "alhasa" or "hofuf" or "alhofuf" => "ahsa",
+            "حفرالباطن" or "حفر" or "hafr" or "hafralbatn" or "hafr_al_batin" or "hafralbatin" => "hafralbatin",
+            "رأستنورة" or "راستنورة" or "رأستنوره" or "rastanura" or "rastanorah" => "rastanura",
+            "الخفجي" or "خفجي" or "khafji" or "alkhafji" => "khafji",
+            "بقيق" or "buqayq" or "abqaiq" => "abqaiq",
+            "النعيرية" or "نعيرية" or "nairyah" or "nuayriyah" => "nairyah",
+            "سيهات" or "saihat" or "sayhat" => "saihat",
+            "تاروت" or "tarut" or "tarout" => "tarut",
+            "صفوى" or "صفوا" or "safwa" => "safwa",
+            "العوامية" or "عوامية" or "awamiyah" => "awamiyah",
+            "رحيمة" or "rahima" or "rahimah" => "rahima",
+
+            // مدن أخرى (للتوافق)
+            "الرياض" or "رياض" or "riyadh" => "riyadh",
+            "جدة" or "جده" or "jeddah" => "jeddah",
+            _ => normalized
+        };
+    }
 }

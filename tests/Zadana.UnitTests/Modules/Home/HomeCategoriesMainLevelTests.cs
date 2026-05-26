@@ -51,6 +51,8 @@ public class HomeCategoriesMainLevelTests
         public string? GuestDeviceId => null;
         public string? Role => null;
         public bool IsAuthenticated => false;
+        public string? AccessTokenJti => null;
+        public DateTime? AccessTokenExpiresAtUtc => null;
         public string? GetDeviceInfo() => "test";
     }
 }

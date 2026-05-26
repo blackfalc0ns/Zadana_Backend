@@ -19,6 +19,7 @@ public class DriverConfiguration : IEntityTypeConfiguration<Driver>
                 value => DriverVehicleTypeMapper.ParseOrNull(value))
             .HasMaxLength(100);
         builder.Property(x => x.NationalId).HasMaxLength(512);
+        builder.Property(x => x.NationalIdHash).HasMaxLength(64);
         builder.Property(x => x.LicenseNumber).HasMaxLength(512);
         builder.Property(x => x.VehicleLicenseNumber).HasMaxLength(512);
         builder.Property(x => x.Address).HasMaxLength(500);
@@ -41,6 +42,12 @@ public class DriverConfiguration : IEntityTypeConfiguration<Driver>
 
         builder.HasIndex(x => new { x.City, x.Status })
             .HasDatabaseName("IX_Drivers_City_Status");
+
+        // Indexed lookup for hashed PII. NationalIdHash is computed by the
+        // domain entity from the trimmed NationalId via SearchableHashProvider.
+        builder.HasIndex(x => x.NationalIdHash)
+            .HasDatabaseName("IX_Drivers_NationalIdHash")
+            .HasFilter("[NationalIdHash] IS NOT NULL");
 
         builder.HasOne(x => x.User)
             .WithMany()

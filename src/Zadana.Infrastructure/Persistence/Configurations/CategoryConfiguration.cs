@@ -28,6 +28,13 @@ public class CategoryConfiguration : IEntityTypeConfiguration<Category>
             .IsRequired()
             .HasDefaultValue(true);
 
+        builder.Property(c => c.IsDeleted)
+            .IsRequired()
+            .HasDefaultValue(false);
+
+        builder.Property(c => c.DeletedAtUtc)
+            .IsRequired(false);
+
         // Self-referencing relationship
         builder.HasOne(c => c.ParentCategory)
             .WithMany(c => c.SubCategories)

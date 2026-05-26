@@ -28,6 +28,13 @@ public class VendorBranch : BaseEntity
         string contactPhone,
         decimal deliveryRadiusKm)
     {
+        if (latitude < -90 || latitude > 90)
+            throw new InvalidOperationException("Latitude must be between -90 and 90.");
+        if (longitude < -180 || longitude > 180)
+            throw new InvalidOperationException("Longitude must be between -180 and 180.");
+        if (deliveryRadiusKm <= 0)
+            throw new InvalidOperationException("Delivery radius must be greater than zero.");
+
         VendorId = vendorId;
         Name = name.Trim();
         AddressLine = addressLine.Trim();

@@ -21,25 +21,52 @@ namespace Zadana.Infrastructure.Persistence;
 
 public class ApplicationDbContext : IdentityDbContext<User, IdentityRole<Guid>, Guid>, IApplicationDbContext, IUnitOfWork
 {
-    private readonly AuditableEntityInterceptor _auditableInterceptor;
-    private readonly IDataProtectionProvider? _dataProtectionProvider;
-
-    public ApplicationDbContext(
-        DbContextOptions<ApplicationDbContext> options,
-        AuditableEntityInterceptor auditableInterceptor)
+    /// <summary>
+    /// The single public constructor required by <see cref="DbContextPool{TContext}"/>.
+    /// Interceptors are wired via <see cref="DbContextOptionsBuilder.AddInterceptors"/>
+    /// at registration time. The static <see cref="AmbientDataProtectionProvider"/>
+    /// is set once at startup and reused by every pooled instance, so PII column
+    /// converters keep working without flowing per-request state through the context.
+    /// </summary>
+    public ApplicationDbContext(DbContextOptions<ApplicationDbContext> options)
         : base(options)
     {
-        _auditableInterceptor = auditableInterceptor;
     }
 
-    public ApplicationDbContext(
+    /// <summary>
+    /// Backwards-compatible constructor for tests and design-time tooling that
+    /// build the context manually. Marked <c>internal</c> so the DbContext pool
+    /// (which requires exactly one public constructor) is not confused by it.
+    /// Test projects access it via <c>[assembly: InternalsVisibleTo]</c>.
+    /// </summary>
+    internal ApplicationDbContext(
+        DbContextOptions<ApplicationDbContext> options,
+        AuditableEntityInterceptor auditableInterceptor)
+        : this(BuildOptionsWithInterceptor(options, auditableInterceptor))
+    {
+    }
+
+    /// <summary>
+    /// Backwards-compatible overload kept for callers that previously passed a
+    /// <see cref="IDataProtectionProvider"/> directly. Equivalent to setting
+    /// <see cref="AmbientDataProtectionProvider"/> at startup.
+    /// </summary>
+    internal ApplicationDbContext(
         DbContextOptions<ApplicationDbContext> options,
         AuditableEntityInterceptor auditableInterceptor,
         IDataProtectionProvider dataProtectionProvider)
-        : base(options)
+        : this(BuildOptionsWithInterceptor(options, auditableInterceptor))
     {
-        _auditableInterceptor = auditableInterceptor;
-        _dataProtectionProvider = dataProtectionProvider;
+        AmbientDataProtectionProvider ??= dataProtectionProvider;
+    }
+
+    private static DbContextOptions<ApplicationDbContext> BuildOptionsWithInterceptor(
+        DbContextOptions<ApplicationDbContext> options,
+        AuditableEntityInterceptor interceptor)
+    {
+        var builder = new DbContextOptionsBuilder<ApplicationDbContext>(options);
+        builder.AddInterceptors(interceptor);
+        return builder.Options;
     }
 
     // Identity
@@ -106,6 +133,7 @@ public class ApplicationDbContext : IdentityDbContext<User, IdentityRole<Guid>, 
     // Delivery
     public DbSet<Driver> Drivers => Set<Driver>();
     public DbSet<DriverLocation> DriverLocations => Set<DriverLocation>();
+    public DbSet<DriverLatestLocation> DriverLatestLocations => Set<DriverLatestLocation>();
     public DbSet<DeliveryAssignment> DeliveryAssignments => Set<DeliveryAssignment>();
     public DbSet<DeliveryOfferAttempt> DeliveryOfferAttempts => Set<DeliveryOfferAttempt>();
     public DbSet<DeliveryProof> DeliveryProofs => Set<DeliveryProof>();
@@ -162,21 +190,32 @@ public class ApplicationDbContext : IdentityDbContext<User, IdentityRole<Guid>, 
     public DbSet<SaudiRegion> SaudiRegions => Set<SaudiRegion>();
     public DbSet<SaudiCity> SaudiCities => Set<SaudiCity>();
 
-    protected override void OnConfiguring(DbContextOptionsBuilder optionsBuilder)
-    {
-        optionsBuilder.AddInterceptors(_auditableInterceptor);
-    }
+    /// <summary>
+    /// Ambient DataProtection provider used by <see cref="OnModelCreating"/>
+    /// to wire PII column converters. Set once at application startup before
+    /// the first request — DataProtection is a process-wide singleton, so it
+    /// is safe to reuse across pooled DbContext instances.
+    /// </summary>
+    public static IDataProtectionProvider? AmbientDataProtectionProvider { get; set; }
 
     protected override void OnModelCreating(ModelBuilder modelBuilder)
     {
         modelBuilder.ApplyConfigurationsFromAssembly(typeof(ApplicationDbContext).Assembly);
         base.OnModelCreating(modelBuilder);
 
+        // Global soft-delete filter for catalog entities
+        modelBuilder.Entity<Zadana.Domain.Modules.Catalog.Entities.MasterProduct>()
+            .HasQueryFilter(e => !e.IsDeleted);
+        modelBuilder.Entity<Zadana.Domain.Modules.Catalog.Entities.Brand>()
+            .HasQueryFilter(e => !e.IsDeleted);
+        modelBuilder.Entity<Zadana.Domain.Modules.Catalog.Entities.Category>()
+            .HasQueryFilter(e => !e.IsDeleted);
+
         // PII encryption at rest. Skipped when no provider is wired (tests
         // / design-time tooling) so EnsureCreated keeps working.
-        if (_dataProtectionProvider is not null)
+        if (AmbientDataProtectionProvider is not null)
         {
-            var converter = PiiProtector.CreateConverter(_dataProtectionProvider);
+            var converter = PiiProtector.CreateConverter(AmbientDataProtectionProvider);
 
             modelBuilder.Entity<Driver>()
                 .Property(d => d.NationalId).HasConversion(converter);
@@ -190,5 +229,21 @@ public class ApplicationDbContext : IdentityDbContext<User, IdentityRole<Guid>, 
             modelBuilder.Entity<VendorBankAccount>()
                 .Property(a => a.AccountHolderName).HasConversion(converter);
         }
+    }
+
+    /// <summary>
+    /// Intercepts <see cref="EntityState.Deleted"/> entries that implement
+    /// <see cref="ISoftDeletable"/> and converts them to soft deletes instead.
+    /// </summary>
+    public override async Task<int> SaveChangesAsync(CancellationToken cancellationToken = default)
+    {
+        foreach (var entry in ChangeTracker.Entries<Zadana.SharedKernel.Primitives.ISoftDeletable>()
+                     .Where(e => e.State == EntityState.Deleted))
+        {
+            entry.State = EntityState.Modified;
+            entry.Entity.SoftDelete();
+        }
+
+        return await base.SaveChangesAsync(cancellationToken);
     }
 }

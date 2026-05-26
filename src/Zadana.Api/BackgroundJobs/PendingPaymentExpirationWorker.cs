@@ -1,5 +1,8 @@
 using Microsoft.EntityFrameworkCore;
 using Zadana.Application.Common.Interfaces;
+using Zadana.Application.Modules.EmailCenter;
+using Zadana.Application.Modules.EmailCenter.DTOs;
+using Zadana.Application.Modules.EmailCenter.Interfaces;
 using Zadana.Domain.Modules.Orders.Enums;
 using Zadana.Domain.Modules.Payments.Enums;
 
@@ -58,6 +61,7 @@ public class PendingPaymentExpirationWorker : BackgroundService
     {
         await using var scope = _scopeFactory.CreateAsyncScope();
         var context = scope.ServiceProvider.GetRequiredService<IApplicationDbContext>();
+        var emailCenterService = scope.ServiceProvider.GetRequiredService<IEmailCenterService>();
         var expiration = ResolveExpiration();
         var cutoff = DateTime.UtcNow.Subtract(expiration);
 
@@ -85,6 +89,11 @@ public class PendingPaymentExpirationWorker : BackgroundService
 
         await context.SaveChangesAsync(cancellationToken);
 
+        foreach (var payment in stalePayments)
+        {
+            await DispatchPaymentExpiredEmailAsync(context, emailCenterService, payment.Order.Id, cancellationToken);
+        }
+
         _logger.LogInformation(
             "Expired {Count} stale pending card payments older than {ExpirationMinutes} minutes.",
             stalePayments.Count,
@@ -96,5 +105,57 @@ public class PendingPaymentExpirationWorker : BackgroundService
         var seconds = _configuration.GetValue<int?>("Payments:CardSessionExpirationSeconds") ?? 0;
         var configured = seconds > 0 ? TimeSpan.FromSeconds(seconds) : DefaultExpiration;
         return configured < MinimumExpiration ? MinimumExpiration : configured.Add(TimeSpan.FromMinutes(2));
+    }
+
+    private async Task DispatchPaymentExpiredEmailAsync(
+        IApplicationDbContext context,
+        IEmailCenterService emailCenterService,
+        Guid orderId,
+        CancellationToken cancellationToken)
+    {
+        try
+        {
+            var emailData = await context.Orders
+                .AsNoTracking()
+                .Where(item => item.Id == orderId)
+                .Select(item => new
+                {
+                    item.Id,
+                    item.OrderNumber,
+                    item.VendorId,
+                    CustomerName = item.User.FullName,
+                    CustomerEmail = item.User.Email,
+                    VendorName = string.IsNullOrWhiteSpace(item.Vendor.BusinessNameEn)
+                        ? item.Vendor.BusinessNameAr
+                        : item.Vendor.BusinessNameEn
+                })
+                .FirstOrDefaultAsync(cancellationToken);
+
+            if (emailData is null)
+            {
+                return;
+            }
+
+            await emailCenterService.DispatchSystemEventEmailAsync(
+                new EmailSystemEventDispatchRequest(
+                    EventKey: EmailEventKeys.CustomerOrderImportantUpdate,
+                    AudienceType: "customers",
+                    To: string.IsNullOrWhiteSpace(emailData.CustomerEmail) ? [] : [emailData.CustomerEmail],
+                    Variables: new Dictionary<string, string>
+                    {
+                        ["customer_name"] = string.IsNullOrWhiteSpace(emailData.CustomerName) ? "Customer" : emailData.CustomerName,
+                        ["order_number"] = emailData.OrderNumber,
+                        ["vendor_name"] = emailData.VendorName,
+                        ["update_message"] = $"Payment session expired for order {emailData.OrderNumber}. Please retry payment from the app."
+                    },
+                    TargetUrl: $"/orders/{emailData.Id}",
+                    EntityId: emailData.Id,
+                    VendorId: emailData.VendorId),
+                cancellationToken);
+        }
+        catch (Exception ex)
+        {
+            _logger.LogWarning(ex, "Failed to dispatch pending payment expiration email for order {OrderId}.", orderId);
+        }
     }
 }

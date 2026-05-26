@@ -68,6 +68,9 @@ public class UserConfiguration : IEntityTypeConfiguration<User>
             .HasMaxLength(128);
         builder.Property(u => u.OtpAttempts)
             .HasDefaultValue(0);
+        builder.Property(u => u.OtpLockoutCount)
+            .HasDefaultValue(0);
+        builder.Property(u => u.OtpLockedUntilUtc);
         builder.Property(u => u.PasswordResetOtp)
             .HasMaxLength(128);
         builder.Property(u => u.PasswordResetOtpAttempts)

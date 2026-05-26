@@ -41,6 +41,30 @@ public class UpdateDriverLocationCommandHandler : IRequestHandler<UpdateDriverLo
 
         var location = new DriverLocation(driver.Id, request.Latitude, request.Longitude, request.AccuracyMeters);
         _context.DriverLocations.Add(location);
+
+        // Maintain the single-row latest projection alongside the audit table.
+        // Customers and the admin order detail page query this row directly,
+        // turning a top-1 indexed scan into a primary-key seek.
+        var latest = await _context.DriverLatestLocations
+            .FirstOrDefaultAsync(x => x.DriverId == driver.Id, cancellationToken);
+        if (latest is null)
+        {
+            _context.DriverLatestLocations.Add(new DriverLatestLocation(
+                driver.Id,
+                request.Latitude,
+                request.Longitude,
+                request.AccuracyMeters,
+                location.RecordedAtUtc));
+        }
+        else
+        {
+            latest.Update(
+                request.Latitude,
+                request.Longitude,
+                request.AccuracyMeters,
+                location.RecordedAtUtc);
+        }
+
         await _unitOfWork.SaveChangesAsync(cancellationToken);
 
         _logger.LogInformation(

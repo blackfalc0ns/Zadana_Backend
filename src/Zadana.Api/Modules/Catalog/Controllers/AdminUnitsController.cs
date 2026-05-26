@@ -1,10 +1,12 @@
-﻿using Microsoft.AspNetCore.Authorization;
+using Microsoft.AspNetCore.Authorization;
 using Microsoft.AspNetCore.Mvc;
 using Zadana.Api.Controllers;
 using Zadana.Api.Modules.Catalog.Requests;
 using Zadana.Application.Modules.Catalog.Commands.Units.CreateUnit;
+using Zadana.Application.Modules.Catalog.Commands.Units.DeleteUnit;
 using Zadana.Application.Modules.Catalog.Commands.Units.UpdateUnit;
 using Zadana.Application.Modules.Catalog.DTOs;
+using Zadana.Application.Modules.Catalog.Queries.Units.GetUnitById;
 using Zadana.Application.Modules.Catalog.Queries.Units.GetUnits;
 
 namespace Zadana.Api.Modules.Catalog.Controllers;
@@ -18,6 +20,13 @@ public class AdminUnitsController : ApiControllerBase
     public async Task<ActionResult<List<UnitOfMeasureDto>>> GetUnits([FromQuery] bool includeInactive = false)
     {
         var result = await Sender.Send(new GetUnitsQuery(includeInactive));
+        return Ok(result);
+    }
+
+    [HttpGet("{id:guid}")]
+    public async Task<ActionResult<UnitOfMeasureDto>> GetUnit(Guid id)
+    {
+        var result = await Sender.Send(new GetUnitByIdQuery(id));
         return Ok(result);
     }
 
@@ -41,6 +50,13 @@ public class AdminUnitsController : ApiControllerBase
 
         await Sender.Send(command);
         return Ok();
+    }
+
+    [HttpDelete("{id:guid}")]
+    public async Task<ActionResult> DeleteUnit(Guid id)
+    {
+        await Sender.Send(new DeleteUnitCommand(id));
+        return NoContent();
     }
 }
 

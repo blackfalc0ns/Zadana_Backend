@@ -49,7 +49,8 @@ public class ApplyCheckoutPromoCodeCommandHandler : IRequestHandler<ApplyCheckou
             _deliveryPricingService,
             pricing.VendorBranchId,
             address,
-            cancellationToken);
+            cancellationToken,
+            pricing.Subtotal);
         var discount = CheckoutSupport.CalculateDiscountAmount(coupon, pricing.Subtotal);
         var financeBreakdown = await CheckoutSupport.ResolveFinanceBreakdownAsync(
             _context,

@@ -1,9 +1,10 @@
 using Zadana.Domain.Modules.Catalog.Enums;
+using Zadana.SharedKernel.Exceptions;
 using Zadana.SharedKernel.Primitives;
 
 namespace Zadana.Domain.Modules.Catalog.Entities;
 
-public class MasterProduct : BaseEntity
+public class MasterProduct : BaseEntity, ISoftDeletable
 {
     public string NameAr { get; private set; } = null!;
     public string NameEn { get; private set; } = null!;
@@ -22,6 +23,12 @@ public class MasterProduct : BaseEntity
     public Guid? PartId { get; private set; }
     public ProductStatus Status { get; private set; }
     public bool ShowPriceOnCard { get; private set; } = true;
+
+    // Soft delete
+    public bool IsDeleted { get; private set; }
+    public DateTime? DeletedAtUtc { get; private set; }
+    public void SoftDelete() { IsDeleted = true; DeletedAtUtc = DateTime.UtcNow; }
+    public void Restore()    { IsDeleted = false; DeletedAtUtc = null; }
 
     // Navigation
     public Category Category { get; private set; } = null!;
@@ -54,6 +61,15 @@ public class MasterProduct : BaseEntity
         Guid? partId = null,
         Guid? variantGroupId = null)
     {
+        if (string.IsNullOrWhiteSpace(nameAr))
+            throw new BusinessRuleException("INVALID_PRODUCT_NAME", "Arabic product name is required.");
+        if (string.IsNullOrWhiteSpace(nameEn))
+            throw new BusinessRuleException("INVALID_PRODUCT_NAME", "English product name is required.");
+        if (string.IsNullOrWhiteSpace(slug))
+            throw new BusinessRuleException("INVALID_PRODUCT_SLUG", "Product slug is required.");
+        if (categoryId == Guid.Empty)
+            throw new BusinessRuleException("INVALID_CATEGORY", "Category is required.");
+
         NameAr = nameAr.Trim();
         NameEn = nameEn.Trim();
         Slug = slug.Trim();
@@ -137,11 +153,23 @@ public class MasterProduct : BaseEntity
     public void ChangeVariantGroup(Guid variantGroupId) => VariantGroupId = variantGroupId;
     public void ChangeProductType(Guid? productTypeId) => ProductTypeId = productTypeId;
     public void ChangePart(Guid? partId) => PartId = partId;
-    public void SetStatus(ProductStatus status) => Status = status;
+    public void SetStatus(ProductStatus status)
+    {
+        if (Status == ProductStatus.Discontinued && status != ProductStatus.Discontinued)
+            throw new BusinessRuleException("PRODUCT_DISCONTINUED", "Cannot change status of a discontinued product.");
+
+        if (status == ProductStatus.Draft && Status != ProductStatus.Draft)
+            throw new BusinessRuleException("INVALID_STATUS_TRANSITION", "Cannot revert a product back to Draft.");
+
+        Status = status;
+    }
     public void SetCardPriceVisibility(bool showPriceOnCard) => ShowPriceOnCard = showPriceOnCard;
 
     public void AddImage(string url, string? altText = null, int displayOrder = 0, bool isPrimary = false)
     {
+        if (Images.Count >= 20)
+            throw new BusinessRuleException("MAX_IMAGES_EXCEEDED", "Maximum 20 images per product.");
+
         Images.Add(new MasterProductImage(Id, url, altText, displayOrder, isPrimary));
     }
 

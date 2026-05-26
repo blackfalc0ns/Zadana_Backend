@@ -789,6 +789,8 @@ public class HomeReadServiceTests
         public string? GuestDeviceId { get; }
         public string? Role => IsAuthenticated ? "Customer" : null;
         public bool IsAuthenticated { get; }
+        public string? AccessTokenJti => null;
+        public DateTime? AccessTokenExpiresAtUtc => null;
         public string? GetDeviceInfo() => "test";
     }
 

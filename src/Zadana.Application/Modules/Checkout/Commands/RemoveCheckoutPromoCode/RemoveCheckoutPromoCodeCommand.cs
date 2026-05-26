@@ -37,7 +37,8 @@ public class RemoveCheckoutPromoCodeCommandHandler : IRequestHandler<RemoveCheck
             _deliveryPricingService,
             pricing.VendorBranchId,
             address,
-            cancellationToken);
+            cancellationToken,
+            pricing.Subtotal);
         var financeBreakdown = await CheckoutSupport.ResolveFinanceBreakdownAsync(
             _context,
             address,

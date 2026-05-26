@@ -15,19 +15,23 @@ public class DeliveryPricingService : IDeliveryPricingService
 {
     private readonly IApplicationDbContext _context;
     private readonly IDriverCommitmentPolicyService _driverCommitmentPolicyService;
+    private readonly DeliveryPricingCacheService _pricingCache;
 
     public DeliveryPricingService(
         IApplicationDbContext context,
-        IDriverCommitmentPolicyService driverCommitmentPolicyService)
+        IDriverCommitmentPolicyService driverCommitmentPolicyService,
+        DeliveryPricingCacheService pricingCache)
     {
         _context = context;
         _driverCommitmentPolicyService = driverCommitmentPolicyService;
+        _pricingCache = pricingCache;
     }
 
     public async Task<DeliveryPriceQuote> QuoteAsync(
         Guid vendorBranchId,
         Guid customerAddressId,
-        CancellationToken cancellationToken = default)
+        CancellationToken cancellationToken = default,
+        decimal? orderSubtotal = null)
     {
         var branch = await _context.VendorBranches
             .Include(item => item.Vendor)
@@ -38,34 +42,17 @@ public class DeliveryPricingService : IDeliveryPricingService
             .FirstOrDefaultAsync(item => item.Id == customerAddressId, cancellationToken)
             ?? throw new NotFoundException("CustomerAddress", customerAddressId);
 
-        var pricingRules = await _context.DeliveryPricingRules
-            .AsNoTracking()
-            .Include(item => item.DeliveryZone)
-            .Include(item => item.SurgeWindows)
-            .Where(item => item.IsActive)
-            .OrderByDescending(item => item.DeliveryZoneId != null)
-            .ToListAsync(cancellationToken);
+        var pricingRules = await _pricingCache.GetPricingRulesAsync(cancellationToken);
 
-        var zoneFinanceSettings = await _context.ZoneFinanceSettings
-            .AsNoTracking()
-            .ToDictionaryAsync(item => item.DeliveryZoneId, cancellationToken);
+        var zoneFinanceSettings = await _pricingCache.GetZoneFinanceSettingsAsync(cancellationToken);
 
-        var cityPricingSettings = await _context.CityDeliveryPricingSettings
-            .AsNoTracking()
-            .ToListAsync(cancellationToken);
+        var cityPricingSettings = await _pricingCache.GetCityPricingSettingsAsync(cancellationToken);
 
-        var regionPricingSettings = await _context.RegionDeliveryPricingSettings
-            .AsNoTracking()
-            .ToListAsync(cancellationToken);
+        var regionPricingSettings = await _pricingCache.GetRegionPricingSettingsAsync(cancellationToken);
 
-        var deliveryDefaults = await _context.DeliveryPricingDefaults
-            .AsNoTracking()
-            .FirstOrDefaultAsync(cancellationToken);
+        var deliveryDefaults = await _pricingCache.GetDeliveryDefaultsAsync(cancellationToken);
 
-        var cities = await _context.SaudiCities
-            .AsNoTracking()
-            .Include(item => item.Region)
-            .ToListAsync(cancellationToken);
+        var cities = await _pricingCache.GetCitiesAsync(cancellationToken);
 
         var zones = pricingRules
             .Where(rule => rule.DeliveryZone != null)
@@ -124,20 +111,24 @@ public class DeliveryPricingService : IDeliveryPricingService
         var driverToVendorLeg = QuoteLeg(vendorLegSettings, driverToVendorDistanceKm);
         var vendorToCustomerLeg = QuoteLeg(customerLegSettings, vendorToCustomerDistanceKm);
 
-        var totalFee = decimal.Round(driverToVendorLeg.TotalFee + vendorToCustomerLeg.TotalFee, 2, MidpointRounding.AwayFromZero);
+        var baseFee = decimal.Round(driverToVendorLeg.BaseFee + vendorToCustomerLeg.BaseFee, 2, MidpointRounding.AwayFromZero);
+        var distanceFee = decimal.Round(driverToVendorLeg.DistanceFee + vendorToCustomerLeg.DistanceFee, 2, MidpointRounding.AwayFromZero);
+        var surgeFee = decimal.Round(driverToVendorLeg.SurgeFee + vendorToCustomerLeg.SurgeFee, 2, MidpointRounding.AwayFromZero);
+        var totalFee = decimal.Round(baseFee + distanceFee + surgeFee, 2, MidpointRounding.AwayFromZero);
         var totalDistanceKm = decimal.Round(driverToVendorDistanceKm + vendorToCustomerDistanceKm, 2, MidpointRounding.AwayFromZero);
         var pricingMode = driverOrigin.Mode;
         var totalClamp = ResolveTotalClamp(deliveryDefaults);
         totalFee = ApplyTotalClamp(totalFee, totalClamp.MinTotalDeliveryFee, totalClamp.MaxTotalDeliveryFee);
+        ApplyTotalAdjustment(totalFee, ref baseFee, ref distanceFee, ref surgeFee);
         var hasAnomalyWarning =
             (totalClamp.MaxQuotedDistanceKm > 0m && totalDistanceKm > totalClamp.MaxQuotedDistanceKm) ||
-            (totalClamp.WarningSubtotalRatioThreshold > 0m && totalClamp.WarningSubtotalRatioThreshold < 1m && totalFee > 0m);
+            ShouldWarnForSubtotalRatio(totalFee, orderSubtotal, totalClamp.WarningSubtotalRatioThreshold);
         var quoteLockedAtUtc = DateTime.UtcNow;
 
         return new DeliveryPriceQuote(
-            driverToVendorLeg.TotalFee,
-            vendorToCustomerLeg.TotalFee,
-            0m,
+            baseFee,
+            distanceFee,
+            surgeFee,
             totalFee,
             totalDistanceKm,
             pricingMode,
@@ -546,17 +537,36 @@ public class DeliveryPricingService : IDeliveryPricingService
 
         return normalized switch
         {
+            // المنطقة الشرقية (Eastern Province)
+            "الدمام" or "دمام" or "dammam" => "dammam",
+            "الخبر" or "خبر" or "khobar" or "alkhobar" => "khobar",
+            "الظهران" or "ظهران" or "dhahran" => "dhahran",
+            "الجبيل" or "جبيل" or "jubail" or "jubel" => "jubail",
+            "القطيف" or "قطيف" or "qatif" or "alqatif" => "qatif",
+            "الاحساء" or "الأحساء" or "احساء" or "أحساء" or "الهفوف" or "هفوف" or "ahsa" or "alahsa" or "alhasa" or "hofuf" or "alhofuf" => "ahsa",
+            "حفرالباطن" or "حفر" or "hafr" or "hafralbatn" or "hafr_al_batin" or "hafralbatin" => "hafralbatin",
+            "رأستنورة" or "راستنورة" or "رأستنوره" or "rastanura" or "rastanorah" => "rastanura",
+            "الخفجي" or "خفجي" or "khafji" or "alkhafji" => "khafji",
+            "بقيق" or "buqayq" or "abqaiq" => "abqaiq",
+            "النعيرية" or "نعيرية" or "nairyah" or "nuayriyah" => "nairyah",
+            "سيهات" or "saihat" or "sayhat" => "saihat",
+            "تاروت" or "tarut" or "tarout" => "tarut",
+            "صفوى" or "صفوا" or "safwa" => "safwa",
+            "العوامية" or "عوامية" or "awamiyah" => "awamiyah",
+            "رحيمة" or "rahima" or "rahimah" => "rahima",
+
+            // مدن أخرى (للتوافق مع البيانات القديمة)
             "الرياض" or "رياض" or "riyadh" => "riyadh",
             "جدة" or "جده" or "jeddah" => "jeddah",
-            "الخبر" or "خبر" or "khobar" or "alkhobar" => "khobar",
-            "الدمام" or "دمام" or "dammam" => "dammam",
             _ => normalized
         };
     }
 
+    private static readonly TimeZoneInfo SaudiTimeZone = TimeZoneInfo.FindSystemTimeZoneById("Arab Standard Time");
+
     private static decimal ResolveActiveSurgeMultiplier(IReadOnlyCollection<DeliveryPricingSurgeWindow> windows)
     {
-        var now = DateTime.Now.TimeOfDay;
+        var now = TimeZoneInfo.ConvertTimeFromUtc(DateTime.UtcNow, SaudiTimeZone).TimeOfDay;
 
         foreach (var window in windows.Where(item => item.IsActive).OrderBy(item => item.StartLocalTime))
         {
@@ -639,6 +649,52 @@ public class DeliveryPricingService : IDeliveryPricingService
         }
 
         return decimal.Round(result, 2, MidpointRounding.AwayFromZero);
+    }
+
+    private static void ApplyTotalAdjustment(
+        decimal targetTotal,
+        ref decimal baseFee,
+        ref decimal distanceFee,
+        ref decimal surgeFee)
+    {
+        var currentTotal = decimal.Round(baseFee + distanceFee + surgeFee, 2, MidpointRounding.AwayFromZero);
+        var delta = decimal.Round(targetTotal - currentTotal, 2, MidpointRounding.AwayFromZero);
+        if (delta == 0m)
+        {
+            return;
+        }
+
+        if (delta > 0m)
+        {
+            distanceFee += delta;
+            return;
+        }
+
+        var remainingReduction = Math.Abs(delta);
+        var distanceReduction = Math.Min(distanceFee, remainingReduction);
+        distanceFee -= distanceReduction;
+        remainingReduction -= distanceReduction;
+
+        var surgeReduction = Math.Min(surgeFee, remainingReduction);
+        surgeFee -= surgeReduction;
+        remainingReduction -= surgeReduction;
+
+        if (remainingReduction > 0m)
+        {
+            baseFee = Math.Max(0m, baseFee - remainingReduction);
+        }
+    }
+
+    private static bool ShouldWarnForSubtotalRatio(
+        decimal totalFee,
+        decimal? orderSubtotal,
+        decimal warningSubtotalRatioThreshold)
+    {
+        return warningSubtotalRatioThreshold > 0m &&
+            warningSubtotalRatioThreshold < 1m &&
+            orderSubtotal.HasValue &&
+            orderSubtotal.Value > 0m &&
+            totalFee > orderSubtotal.Value * warningSubtotalRatioThreshold;
     }
 
     private sealed record PricingOriginPoint(decimal Latitude, decimal Longitude, string Mode, string Source, Guid? DriverId);

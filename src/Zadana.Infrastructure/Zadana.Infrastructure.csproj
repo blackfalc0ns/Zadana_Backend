@@ -1,6 +1,11 @@
 <Project Sdk="Microsoft.NET.Sdk">
 
   <ItemGroup>
+    <InternalsVisibleTo Include="Zadana.UnitTests" />
+    <InternalsVisibleTo Include="Zadana.Application.Tests" />
+  </ItemGroup>
+
+  <ItemGroup>
     <ProjectReference Include="..\Zadana.Application\Zadana.Application.csproj" />
     <ProjectReference Include="..\Zadana.Domain\Zadana.Domain.csproj" />
     <ProjectReference Include="..\Zadana.SharedKernel\Zadana.SharedKernel.csproj" />

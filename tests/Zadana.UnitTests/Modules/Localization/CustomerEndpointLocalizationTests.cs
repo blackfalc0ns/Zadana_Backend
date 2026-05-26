@@ -447,7 +447,7 @@ public class CustomerEndpointLocalizationTests
 
         var deliveryPricing = new Mock<IDeliveryPricingService>();
         deliveryPricing
-            .Setup(x => x.QuoteAsync(It.IsAny<Guid>(), It.IsAny<Guid>(), It.IsAny<CancellationToken>()))
+            .Setup(x => x.QuoteAsync(It.IsAny<Guid>(), It.IsAny<Guid>(), It.IsAny<CancellationToken>(), It.IsAny<decimal?>()))
             .ReturnsAsync(new DeliveryPriceQuote(5m, 2m, 0m, 7m, 3m, "zone", "Zone rule", 1m, 2m, 3m, 4m, "driver", "vendor", false, "manual", null, "locked", DateTime.UtcNow, 1, false));
 
         return new GetCheckoutSummaryQueryHandler(context, gatewayResolver, deliveryPricing.Object);

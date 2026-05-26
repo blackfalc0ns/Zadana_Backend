@@ -21,6 +21,7 @@ public class IdentityService : IIdentityService
     private readonly IAccessControlService _accessControlService;
     private readonly IApplicationDbContext _context;
     private readonly IStringLocalizer<SharedResource> _localizer;
+    private readonly IJwtRevocationStore _jwtRevocationStore;
 
     public IdentityService(
         IIdentityAccountService identityAccountService,
@@ -30,7 +31,8 @@ public class IdentityService : IIdentityService
         ICurrentUserService currentUserService,
         IAccessControlService accessControlService,
         IApplicationDbContext context,
-        IStringLocalizer<SharedResource> localizer)
+        IStringLocalizer<SharedResource> localizer,
+        IJwtRevocationStore jwtRevocationStore)
     {
         _identityAccountService = identityAccountService;
         _refreshTokenStore = refreshTokenStore;
@@ -40,6 +42,7 @@ public class IdentityService : IIdentityService
         _accessControlService = accessControlService;
         _context = context;
         _localizer = localizer;
+        _jwtRevocationStore = jwtRevocationStore;
     }
 
     public async Task<AuthResponseDto> LoginAsync(string identifier, string password, UserRole[]? expectedRoles = null, CancellationToken cancellationToken = default)
@@ -153,6 +156,16 @@ public class IdentityService : IIdentityService
         {
             await _refreshTokenStore.RevokeAllByUserAsync(tokenEntity.UserId, cancellationToken);
             await _unitOfWork.SaveChangesAsync(cancellationToken);
+
+            // Also blanket-revoke every JWT this user holds. The
+            // JwtRevocationMiddleware will reject any access token issued at
+            // or before this moment, so the attacker can't keep using a
+            // valid-but-stolen access token until its natural expiry.
+            await _jwtRevocationStore.RevokeAllForUserAsync(
+                tokenEntity.UserId,
+                DateTime.UtcNow,
+                cancellationToken);
+
             throw new UnauthorizedException(_localizer["InvalidRefreshToken"]);
         }
 
@@ -197,6 +210,15 @@ public class IdentityService : IIdentityService
         {
             await _refreshTokenStore.RevokeAsync(refreshToken, cancellationToken);
             await _unitOfWork.SaveChangesAsync(cancellationToken);
+        }
+
+        // Also revoke the in-flight access token (the JTI is on the current
+        // claims principal). This stops a leaked access token from outliving
+        // a logout call up to its natural expiry.
+        var jti = _currentUserService.AccessTokenJti;
+        if (!string.IsNullOrEmpty(jti) && _currentUserService.AccessTokenExpiresAtUtc.HasValue)
+        {
+            await _jwtRevocationStore.RevokeAsync(jti, _currentUserService.AccessTokenExpiresAtUtc.Value, cancellationToken);
         }
     }
 

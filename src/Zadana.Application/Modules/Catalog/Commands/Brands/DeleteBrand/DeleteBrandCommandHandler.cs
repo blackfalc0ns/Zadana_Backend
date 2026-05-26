@@ -24,7 +24,7 @@ public class DeleteBrandCommandHandler : IRequestHandler<DeleteBrandCommand>
 
         if (brand is null)
         {
-            return;
+            throw new NotFoundException("Brand", request.Id);
         }
 
         var hasProducts = await _context.MasterProducts

@@ -29,6 +29,12 @@ public class VendorBankAccount : BaseEntity
         string iban,
         string? swiftCode = null)
     {
+        if (string.IsNullOrWhiteSpace(bankName))
+            throw new BusinessRuleException("INVALID_BANK_NAME", "Bank name is required.");
+        if (string.IsNullOrWhiteSpace(accountHolderName))
+            throw new BusinessRuleException("INVALID_ACCOUNT_HOLDER", "Account holder name is required.");
+        ValidateIban(iban);
+
         VendorId = vendorId;
         BankName = bankName.Trim();
         AccountHolderName = accountHolderName.Trim();
@@ -44,6 +50,12 @@ public class VendorBankAccount : BaseEntity
         string iban,
         string? swiftCode = null)
     {
+        if (string.IsNullOrWhiteSpace(bankName))
+            throw new BusinessRuleException("INVALID_BANK_NAME", "Bank name is required.");
+        if (string.IsNullOrWhiteSpace(accountHolderName))
+            throw new BusinessRuleException("INVALID_ACCOUNT_HOLDER", "Account holder name is required.");
+        ValidateIban(iban);
+
         BankName = bankName.Trim();
         AccountHolderName = accountHolderName.Trim();
         IBAN = iban.Trim().ToUpperInvariant();
@@ -74,7 +86,6 @@ public class VendorBankAccount : BaseEntity
         RejectionReason = reason;
     }
 
-    // Only verified accounts can be set as primary
     public void SetAsPrimary()
     {
         if (Status != BankAccountStatus.Verified)
@@ -87,6 +98,20 @@ public class VendorBankAccount : BaseEntity
 
     public void MarkAsPreferredForSetup()
     {
+        // During initial setup, allow setting as primary without verification
         IsPrimary = true;
+    }
+
+    private static void ValidateIban(string iban)
+    {
+        if (string.IsNullOrWhiteSpace(iban))
+            throw new BusinessRuleException("INVALID_IBAN", "IBAN is required.");
+
+        var normalized = iban.Trim().ToUpperInvariant().Replace(" ", "");
+        if (normalized.Length < 15 || normalized.Length > 34)
+            throw new BusinessRuleException("INVALID_IBAN_LENGTH", "IBAN must be between 15 and 34 characters.");
+
+        if (!System.Text.RegularExpressions.Regex.IsMatch(normalized, @"^[A-Z]{2}[0-9]{2}[A-Z0-9]+$"))
+            throw new BusinessRuleException("INVALID_IBAN_FORMAT", "IBAN format is invalid. Must start with 2 letters followed by 2 digits.");
     }
 }

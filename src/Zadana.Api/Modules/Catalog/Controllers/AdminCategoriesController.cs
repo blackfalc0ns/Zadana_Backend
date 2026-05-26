@@ -1,7 +1,9 @@
-﻿using Microsoft.AspNetCore.Authorization;
+using Microsoft.AspNetCore.Authorization;
 using Microsoft.AspNetCore.Mvc;
+using Microsoft.EntityFrameworkCore;
 using Zadana.Api.Controllers;
 using Zadana.Api.Modules.Catalog.Requests;
+using Zadana.Application.Common.Interfaces;
 using Zadana.Application.Modules.Catalog.Commands.Categories.CreateCategory;
 using Zadana.Application.Modules.Catalog.Commands.Categories.DeleteCategory;
 using Zadana.Application.Modules.Catalog.Commands.Categories.UpdateCategory;
@@ -17,6 +19,13 @@ namespace Zadana.Api.Modules.Catalog.Controllers;
 [Tags("Catalog (Admins)")]
 public class AdminCategoriesController : ApiControllerBase
 {
+    private readonly IApplicationDbContext _context;
+
+    public AdminCategoriesController(IApplicationDbContext context)
+    {
+        _context = context;
+    }
+
     [HttpGet]
     public async Task<ActionResult<List<CategoryDto>>> GetCategories([FromQuery] bool includeInactive = false)
     {
@@ -94,6 +103,43 @@ public class AdminCategoriesController : ApiControllerBase
     {
         await Sender.Send(new DeleteCategoryCommand(id));
         return NoContent();
+    }
+
+    [HttpGet("deleted")]
+    public async Task<ActionResult> GetDeletedCategories(
+        [FromQuery] int pageNumber = 1,
+        [FromQuery] int pageSize = 20,
+        CancellationToken cancellationToken = default)
+    {
+        var query = _context.Categories
+            .IgnoreQueryFilters()
+            .Where(c => c.IsDeleted)
+            .OrderByDescending(c => c.DeletedAtUtc);
+
+        var total = await query.CountAsync(cancellationToken);
+        var items = await query
+            .Skip((pageNumber - 1) * pageSize)
+            .Take(pageSize)
+            .Select(c => new { c.Id, c.NameAr, c.NameEn, c.ParentCategoryId, c.DeletedAtUtc })
+            .ToListAsync(cancellationToken);
+
+        return Ok(new { items, total, pageNumber, pageSize, hasMore = (pageNumber * pageSize) < total });
+    }
+
+    [HttpPatch("{id}/restore")]
+    public async Task<ActionResult> RestoreCategory(Guid id, CancellationToken cancellationToken = default)
+    {
+        var category = await _context.Categories
+            .IgnoreQueryFilters()
+            .FirstOrDefaultAsync(c => c.Id == id && c.IsDeleted, cancellationToken);
+
+        if (category is null)
+            return NotFound(new { error = "CATEGORY_NOT_FOUND_OR_NOT_DELETED" });
+
+        category.Restore();
+        await _context.SaveChangesAsync(cancellationToken);
+
+        return Ok(new { message_ar = "تمت استعادة التصنيف بنجاح", message_en = "Category restored successfully", id });
     }
 }
 

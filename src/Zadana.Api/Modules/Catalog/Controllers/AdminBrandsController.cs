@@ -1,5 +1,6 @@
 using Microsoft.AspNetCore.Authorization;
 using Microsoft.AspNetCore.Mvc;
+using Microsoft.EntityFrameworkCore;
 using Zadana.Api.Controllers;
 using Zadana.Api.Modules.Catalog.Requests;
 using Zadana.Application.Common.Interfaces;
@@ -7,6 +8,8 @@ using Zadana.Application.Modules.Catalog.Commands.Brands.BulkCreateBrands;
 using Zadana.Application.Modules.Catalog.Commands.Brands.CreateBrand;
 using Zadana.Application.Modules.Catalog.Commands.Brands.DeleteBrand;
 using Zadana.Application.Modules.Catalog.Commands.Brands.UpdateBrand;
+using Zadana.Application.Modules.Catalog.Commands.BulkDeleteBrands;
+using Zadana.Application.Modules.Catalog.Commands.BulkDeleteMasterProducts;
 using Zadana.Application.Modules.Catalog.DTOs;
 using Zadana.Application.Modules.Catalog.Queries.Brands.GetAdminBrandBulkOperation;
 using Zadana.Application.Modules.Catalog.Queries.Brands.GetAdminBrandBulkOperationItems;
@@ -23,10 +26,14 @@ namespace Zadana.Api.Modules.Catalog.Controllers;
 public class AdminBrandsController : ApiControllerBase
 {
     private readonly ICurrentUserService _currentUserService;
+    private readonly IApplicationDbContext _context;
 
-    public AdminBrandsController(ICurrentUserService currentUserService)
+    public AdminBrandsController(
+        ICurrentUserService currentUserService,
+        IApplicationDbContext context)
     {
         _currentUserService = currentUserService;
+        _context = context;
     }
 
     [HttpGet]
@@ -137,6 +144,52 @@ public class AdminBrandsController : ApiControllerBase
     {
         await Sender.Send(new DeleteBrandCommand(id));
         return NoContent();
+    }
+
+    [HttpPost("bulk-delete")]
+    public async Task<ActionResult<BulkDeleteResult>> BulkDeleteBrands(
+        [FromBody] BulkDeleteRequest request,
+        CancellationToken cancellationToken = default)
+    {
+        var result = await Sender.Send(new BulkDeleteBrandsCommand(request.Ids), cancellationToken);
+        return Ok(result);
+    }
+
+    [HttpGet("deleted")]
+    public async Task<ActionResult> GetDeletedBrands(
+        [FromQuery] int pageNumber = 1,
+        [FromQuery] int pageSize = 20,
+        CancellationToken cancellationToken = default)
+    {
+        var query = _context.Brands
+            .IgnoreQueryFilters()
+            .Where(b => b.IsDeleted)
+            .OrderByDescending(b => b.DeletedAtUtc);
+
+        var total = await query.CountAsync(cancellationToken);
+        var items = await query
+            .Skip((pageNumber - 1) * pageSize)
+            .Take(pageSize)
+            .Select(b => new { b.Id, b.NameAr, b.NameEn, b.LogoUrl, b.DeletedAtUtc })
+            .ToListAsync(cancellationToken);
+
+        return Ok(new { items, total, pageNumber, pageSize, hasMore = (pageNumber * pageSize) < total });
+    }
+
+    [HttpPatch("{id:guid}/restore")]
+    public async Task<ActionResult> RestoreBrand(Guid id, CancellationToken cancellationToken = default)
+    {
+        var brand = await _context.Brands
+            .IgnoreQueryFilters()
+            .FirstOrDefaultAsync(b => b.Id == id && b.IsDeleted, cancellationToken);
+
+        if (brand is null)
+            return NotFound(new { error = "BRAND_NOT_FOUND_OR_NOT_DELETED" });
+
+        brand.Restore();
+        await _context.SaveChangesAsync(cancellationToken);
+
+        return Ok(new { message_ar = "تمت استعادة البراند بنجاح", message_en = "Brand restored successfully", id });
     }
 }
 

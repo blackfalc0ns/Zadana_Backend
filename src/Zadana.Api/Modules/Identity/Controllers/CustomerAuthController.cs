@@ -20,6 +20,7 @@ public class CustomerAuthController : IdentityAuthControllerBase
     }
 
     [EnableRateLimiting(RateLimitPolicyNames.Auth)]
+    [BotChallenge]
     [HttpPost("register")]
     public async Task<IActionResult> Register([FromBody] RegisterCustomerRequest request)
     {
@@ -64,6 +65,7 @@ public class CustomerAuthController : IdentityAuthControllerBase
         ResendOtpAsync(request);
 
     [EnableRateLimiting(RateLimitPolicyNames.Auth)]
+    [BotChallenge]
     [HttpPost("forgot-password")]
     public Task<IActionResult> ForgotPassword([FromBody] ForgotPasswordRequest request) =>
         ForgotPasswordAsync(request);

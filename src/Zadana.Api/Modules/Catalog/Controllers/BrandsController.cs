@@ -40,6 +40,7 @@ public class BrandsController : ApiControllerBase
     }
 
     [HttpGet("{brandId:guid}/products")]
+    [OutputCache(PolicyName = OutputCachePolicyNames.PublicCatalogBrowse)]
     public async Task<ActionResult<BrandProductsDto>> GetProducts(
         Guid brandId,
         [FromQuery(Name = "category_id")] Guid? categoryId,

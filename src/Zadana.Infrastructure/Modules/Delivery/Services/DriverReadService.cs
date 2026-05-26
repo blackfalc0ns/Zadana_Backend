@@ -47,11 +47,21 @@ public class DriverReadService : IDriverReadService
 
         if (!string.IsNullOrWhiteSpace(search))
         {
-            var term = search.Trim().ToLower();
+            // Avoid LOWER() to keep these searches index-friendly. The default
+            // collation is case-insensitive, so LIKE handles this directly.
+            var term = search.Trim();
+            var like = $"%{term.Replace("[", "[[]").Replace("%", "[%]").Replace("_", "[_]")}%";
+
+            // Try to look up by NationalId via the searchable hash so admins
+            // can search the encrypted column directly. Equality search only —
+            // partial matches on encrypted PII are not supported by design.
+            var nationalIdHash = Zadana.Domain.Modules.Identity.Services
+                .SearchableHashProvider.Compute(term);
+
             query = query.Where(d =>
-                d.User.FullName.ToLower().Contains(term) ||
-                d.User.PhoneNumber!.Contains(term) ||
-                d.NationalId!.Contains(term));
+                EF.Functions.Like(d.User.FullName, like) ||
+                (d.User.PhoneNumber != null && EF.Functions.Like(d.User.PhoneNumber, like)) ||
+                (nationalIdHash != null && d.NationalIdHash == nationalIdHash));
         }
 
         if (!string.IsNullOrWhiteSpace(city))

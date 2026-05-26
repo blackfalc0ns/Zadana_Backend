@@ -1,5 +1,7 @@
 ﻿using Microsoft.AspNetCore.Authorization;
 using Microsoft.AspNetCore.Mvc;
+using Microsoft.AspNetCore.OutputCaching;
+using Zadana.Api.Configuration;
 using Zadana.Api.Controllers;
 using Zadana.Application.Modules.Home.DTOs;
 using Zadana.Application.Modules.Home.Interfaces;
@@ -9,6 +11,7 @@ namespace Zadana.Api.Modules.Home.Controllers;
 [Route("api/home")]
 [AllowAnonymous]
 [Tags("Customer App API")]
+[OutputCache(PolicyName = OutputCachePolicyNames.HomePublic)]
 public class HomeController : ApiControllerBase
 {
     private readonly IHomeReadService _homeReadService;

@@ -1,6 +1,7 @@
 using Zadana.Domain.Modules.Delivery.Enums;
 using Zadana.Domain.Modules.Identity.Entities;
 using Zadana.Domain.Modules.Identity.Enums;
+using Zadana.Domain.Modules.Identity.Services;
 using Zadana.SharedKernel.Primitives;
 
 namespace Zadana.Domain.Modules.Delivery.Entities;
@@ -10,6 +11,13 @@ public class Driver : BaseEntity
     public Guid UserId { get; private set; }
     public DriverVehicleType? VehicleType { get; private set; }
     public string? NationalId { get; private set; }
+    /// <summary>
+    /// Deterministic HMAC-SHA256 of the trimmed NationalId, kept in sync by
+    /// <see cref="UpdateDetails"/> / the constructor. This column is indexed
+    /// so admin search can locate a driver by national id without scanning
+    /// the encrypted column (which is non-deterministic at rest).
+    /// </summary>
+    public string? NationalIdHash { get; private set; }
     public DateTime? NationalIdExpiryDate { get; private set; }
     public string? LicenseNumber { get; private set; }
     public DateTime? DriverLicenseExpiryDate { get; private set; }
@@ -89,6 +97,7 @@ public class Driver : BaseEntity
         UserId = userId;
         VehicleType = vehicleType;
         NationalId = nationalId?.Trim();
+        NationalIdHash = SearchableHashProvider.Compute(NationalId);
         NationalIdExpiryDate = nationalIdExpiryDate?.Date;
         LicenseNumber = licenseNumber?.Trim();
         DriverLicenseExpiryDate = driverLicenseExpiryDate?.Date;
@@ -118,6 +127,7 @@ public class Driver : BaseEntity
     {
         VehicleType = vehicleType;
         NationalId = nationalId?.Trim();
+        NationalIdHash = SearchableHashProvider.Compute(NationalId);
         LicenseNumber = licenseNumber?.Trim();
         NationalIdExpiryDate = nationalIdExpiryDate?.Date;
         DriverLicenseExpiryDate = driverLicenseExpiryDate?.Date;

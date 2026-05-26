@@ -29,9 +29,11 @@ public class UpdateCityDeliveryPricingSettingsCommandValidator : AbstractValidat
         RuleFor(x => x.ExtraKmFee).GreaterThanOrEqualTo(0);
         RuleFor(x => x.MinDeliveryFee).GreaterThanOrEqualTo(0);
         RuleFor(x => x.MaxDeliveryFee).GreaterThanOrEqualTo(0);
-        RuleFor(x => x.VatPercent).GreaterThanOrEqualTo(0);
+        RuleFor(x => x.VatPercent).InclusiveBetween(0, 100);
         RuleFor(x => x.CodFlatFee).GreaterThanOrEqualTo(0);
-        RuleFor(x => x.CodPercent).GreaterThanOrEqualTo(0);
+        RuleFor(x => x.CodPercent).InclusiveBetween(0, 100);
+        RuleFor(x => x).Must(x => x.MaxDeliveryFee <= 0 || x.MaxDeliveryFee >= x.MinDeliveryFee)
+            .WithMessage("MaxDeliveryFee must be zero or greater than or equal to MinDeliveryFee.");
         RuleFor(x => x.CodFeeType).Must(value => value is "flat" or "percent");
     }
 }

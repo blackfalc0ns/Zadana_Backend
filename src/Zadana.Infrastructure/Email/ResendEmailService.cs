@@ -35,6 +35,14 @@ public class ResendEmailSettings
     [Required]
     [Url]
     public string OtpHeroImageUrl { get; set; } = string.Empty;
+    [Url]
+    public string? OtpHeroImageUrlAr { get; set; }
+    [Url]
+    public string? OtpHeroImageUrlEn { get; set; }
+    [Url]
+    public string? PasswordResetHeroImageUrlAr { get; set; }
+    [Url]
+    public string? PasswordResetHeroImageUrlEn { get; set; }
 }
 
 public class ResendEmailService : IEmailService

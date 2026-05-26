@@ -8,6 +8,8 @@ namespace Zadana.Application.Modules.Finances.Services;
 
 public sealed class FinancialEventPostingService
 {
+    private const int MaxSequenceRetryAttempts = 3;
+
     private readonly IApplicationDbContext _context;
     private readonly ILogger<FinancialEventPostingService> _logger;
 
@@ -40,63 +42,81 @@ public sealed class FinancialEventPostingService
             return existing with { WasAlreadyPosted = true };
         }
 
-        var eventRecord = new FinancialEvent(
-            eventType,
-            normalizedIdempotencyKey,
-            orderId,
-            settlementId,
-            payoutId,
-            refundId,
-            currencyCode,
-            correlationId,
-            description: description);
-
-        var sequenceNumber = await GetNextSequenceNumberAsync(cancellationToken);
-        var journalEntry = new JournalEntry(eventRecord.Id, sequenceNumber, eventRecord.CurrencyCode, memo: description);
-
-        foreach (var draft in lines)
+        for (var attempt = 1; attempt <= MaxSequenceRetryAttempts; attempt++)
         {
-            journalEntry.AddLine(new JournalLine(
-                journalEntry.Id,
-                draft.AccountCode,
-                draft.DebitAmount,
-                draft.CreditAmount,
-                eventRecord.CurrencyCode,
-                draft.OwnerType,
-                draft.OwnerId,
-                draft.OrderId ?? orderId,
-                draft.SettlementId ?? settlementId,
-                draft.PayoutId ?? payoutId,
-                draft.Memo));
-        }
+            var eventRecord = new FinancialEvent(
+                eventType,
+                normalizedIdempotencyKey,
+                orderId,
+                settlementId,
+                payoutId,
+                refundId,
+                currencyCode,
+                correlationId,
+                description: description);
 
-        journalEntry.EnsureBalanced();
+            var sequenceNumber = await GetNextSequenceNumberAsync(cancellationToken);
+            var journalEntry = new JournalEntry(eventRecord.Id, sequenceNumber, eventRecord.CurrencyCode, memo: description);
 
-        _context.FinancialEvents.Add(eventRecord);
-        _context.JournalEntries.Add(journalEntry);
-        _context.JournalLines.AddRange(journalEntry.Lines);
-
-        try
-        {
-            await _context.SaveChangesAsync(cancellationToken);
-        }
-        catch (DbUpdateException)
-        {
-            var duplicate = await FindExistingPostingAsync(normalizedIdempotencyKey, cancellationToken);
-            if (duplicate is not null)
+            foreach (var draft in lines)
             {
-                _logger.LogInformation(
-                    "[FinancialPosting] Duplicate idempotency key {IdempotencyKey} resolved to existing journal entry {JournalEntryId}.",
-                    normalizedIdempotencyKey,
-                    duplicate.JournalEntryId);
-
-                return duplicate with { WasAlreadyPosted = true };
+                journalEntry.AddLine(new JournalLine(
+                    journalEntry.Id,
+                    draft.AccountCode,
+                    draft.DebitAmount,
+                    draft.CreditAmount,
+                    eventRecord.CurrencyCode,
+                    draft.OwnerType,
+                    draft.OwnerId,
+                    draft.OrderId ?? orderId,
+                    draft.SettlementId ?? settlementId,
+                    draft.PayoutId ?? payoutId,
+                    draft.Memo));
             }
 
-            throw;
+            journalEntry.EnsureBalanced();
+
+            _context.FinancialEvents.Add(eventRecord);
+            _context.JournalEntries.Add(journalEntry);
+            _context.JournalLines.AddRange(journalEntry.Lines);
+
+            try
+            {
+                await _context.SaveChangesAsync(cancellationToken);
+            }
+            catch (DbUpdateException ex)
+            {
+                DetachFailedPosting(eventRecord, journalEntry);
+
+                var duplicate = await FindExistingPostingAsync(normalizedIdempotencyKey, cancellationToken);
+                if (duplicate is not null)
+                {
+                    _logger.LogInformation(
+                        "[FinancialPosting] Duplicate idempotency key {IdempotencyKey} resolved to existing journal entry {JournalEntryId}.",
+                        normalizedIdempotencyKey,
+                        duplicate.JournalEntryId);
+
+                    return duplicate with { WasAlreadyPosted = true };
+                }
+
+                if (attempt >= MaxSequenceRetryAttempts)
+                {
+                    throw;
+                }
+
+                _logger.LogWarning(
+                    ex,
+                    "[FinancialPosting] Posting {IdempotencyKey} failed on attempt {Attempt}; retrying with a new sequence number.",
+                    normalizedIdempotencyKey,
+                    attempt);
+
+                continue;
+            }
+
+            return new FinancialPostingResult(eventRecord.Id, journalEntry.Id, sequenceNumber, false);
         }
 
-        return new FinancialPostingResult(eventRecord.Id, journalEntry.Id, sequenceNumber, false);
+        throw new InvalidOperationException("Financial posting retry loop exited unexpectedly.");
     }
 
     private async Task<FinancialPostingResult?> FindExistingPostingAsync(string idempotencyKey, CancellationToken cancellationToken)
@@ -135,5 +155,20 @@ public sealed class FinancialEventPostingService
         }
 
         return idempotencyKey.Trim();
+    }
+
+    private void DetachFailedPosting(FinancialEvent eventRecord, JournalEntry journalEntry)
+    {
+        if (_context is not DbContext dbContext)
+        {
+            return;
+        }
+
+        dbContext.Entry(eventRecord).State = EntityState.Detached;
+        dbContext.Entry(journalEntry).State = EntityState.Detached;
+        foreach (var line in journalEntry.Lines)
+        {
+            dbContext.Entry(line).State = EntityState.Detached;
+        }
     }
 }

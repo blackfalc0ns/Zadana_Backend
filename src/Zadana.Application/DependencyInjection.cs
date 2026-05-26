@@ -36,9 +36,11 @@ public static class DependencyInjection
         services.AddScoped<IAdminAccessValidationService, AdminAccessValidationService>();
         services.AddScoped<IAccessAuditService, AccessAuditService>();
         services.AddScoped<IEmailCenterService, EmailCenterService>();
+        services.AddScoped<IVendorWeeklySummaryEmailService, VendorWeeklySummaryEmailService>();
         services.AddScoped<FinancialEventPostingService>();
         services.AddScoped<WalletProjectionUpdater>();
         services.AddScoped<OnlinePaymentCaptureService>();
+        services.AddScoped<RevenueReconciliationService>();
         services.AddScoped<PayoutOrchestrator>();
         services.AddScoped<ICurrentVendorService, CurrentVendorService>();
         services.AddScoped<IOrderStatusNotificationDispatcher, OrderStatusNotificationDispatcher>();

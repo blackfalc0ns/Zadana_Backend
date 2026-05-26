@@ -41,7 +41,8 @@ public class GetCartDeliveryCheckQueryHandler : IRequestHandler<GetCartDeliveryC
             _deliveryPricingService,
             pricing.VendorBranchId,
             address,
-            cancellationToken);
+            cancellationToken,
+            pricing.Subtotal);
 
         var visibleQuote = deliveryAssessment.DeliveryCheck.IsDeliverable
             ? deliveryAssessment.DeliveryQuote

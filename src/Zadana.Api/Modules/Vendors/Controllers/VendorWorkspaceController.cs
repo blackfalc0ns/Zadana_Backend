@@ -330,9 +330,10 @@ public class VendorWorkspaceController : ApiControllerBase
             .Select(v => v.FinancialLifecycleMode)
             .FirstOrDefaultAsync(cancellationToken);
 
-        var availableBalance = vendorWallet?.CurrentBalance ?? 0m;
+        var activeHoldAmount = await GetActiveVendorHoldAmountAsync(vendorId, cancellationToken);
+        var holdAmount = (vendorWallet?.PendingBalance ?? 0m) + activeHoldAmount;
+        var availableBalance = Math.Max(0m, (vendorWallet?.CurrentBalance ?? 0m) - holdAmount);
         var pendingSettlement = settlements.Where(settlement => settlement.Status is SettlementStatus.Pending or SettlementStatus.PendingReview or SettlementStatus.Processing).Sum(settlement => settlement.NetAmount);
-        var holdAmount = vendorWallet?.PendingBalance ?? 0m;
         
         var financialLifecycleModeStr = vendorDetails.ToString();
         var nextSettlementAt = CalculateNextSettlementDate(vendorDetails);
@@ -953,8 +954,9 @@ public class VendorWorkspaceController : ApiControllerBase
         var pendingSettlement = settlements
             .Where(settlement => settlement.Status is SettlementStatus.Pending or SettlementStatus.PendingReview or SettlementStatus.Processing)
             .Sum(settlement => settlement.NetAmount);
-        var availableBalance = vendorWallet?.CurrentBalance ?? 0m;
-        var holdAmount = vendorWallet?.PendingBalance ?? 0m;
+        var activeHoldAmount = await GetActiveVendorHoldAmountAsync(vendorId, cancellationToken);
+        var holdAmount = (vendorWallet?.PendingBalance ?? 0m) + activeHoldAmount;
+        var availableBalance = Math.Max(0m, (vendorWallet?.CurrentBalance ?? 0m) - holdAmount);
 
         var trend = BuildFinanceTrend(normalizedPeriod, from, to, deliveredOrders, payouts);
         var ledger = vendorWalletTransactions
@@ -1669,6 +1671,17 @@ public class VendorWorkspaceController : ApiControllerBase
         return string.Join(' ', name
             .Split(' ', StringSplitOptions.RemoveEmptyEntries)
             .Select(part => part.Length <= 2 ? $"{part[0]}*" : $"{part[..Math.Min(2, part.Length)]}{new string('*', Math.Max(1, part.Length - 2))}"));
+    }
+
+    private async Task<decimal> GetActiveVendorHoldAmountAsync(Guid vendorId, CancellationToken cancellationToken)
+    {
+        return await _dbContext.WalletHolds
+            .AsNoTracking()
+            .Where(hold =>
+                hold.OwnerType == WalletOwnerType.Vendor &&
+                hold.OwnerId == vendorId &&
+                hold.Status == WalletHoldStatus.Active)
+            .SumAsync(hold => (decimal?)hold.Amount, cancellationToken) ?? 0m;
     }
 
     private sealed record FinanceTrendBucket(DateTime StartUtc, DateTime EndUtc, string Label);

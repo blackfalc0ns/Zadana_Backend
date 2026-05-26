@@ -46,6 +46,22 @@ public class CurrentUserService : ICurrentUserService
 
     public bool IsAuthenticated => _httpContextAccessor.HttpContext?.User?.Identity?.IsAuthenticated ?? false;
 
+    public string? AccessTokenJti =>
+        _httpContextAccessor.HttpContext?.User?.FindFirst(System.IdentityModel.Tokens.Jwt.JwtRegisteredClaimNames.Jti)?.Value;
+
+    public DateTime? AccessTokenExpiresAtUtc
+    {
+        get
+        {
+            var expClaim = _httpContextAccessor.HttpContext?.User?.FindFirst(System.IdentityModel.Tokens.Jwt.JwtRegisteredClaimNames.Exp)?.Value;
+            if (long.TryParse(expClaim, out var expUnix))
+            {
+                return DateTimeOffset.FromUnixTimeSeconds(expUnix).UtcDateTime;
+            }
+            return null;
+        }
+    }
+
     public string? GetDeviceInfo()
     {
         var request = _httpContextAccessor.HttpContext?.Request;

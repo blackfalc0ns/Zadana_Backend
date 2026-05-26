@@ -2,7 +2,7 @@ using Zadana.SharedKernel.Primitives;
 
 namespace Zadana.Domain.Modules.Catalog.Entities;
 
-public class Category : BaseEntity
+public class Category : BaseEntity, ISoftDeletable
 {
     public string NameAr { get; private set; } = null!;
     public string NameEn { get; private set; } = null!;
@@ -10,6 +10,12 @@ public class Category : BaseEntity
     public Guid? ParentCategoryId { get; private set; }
     public int DisplayOrder { get; private set; }
     public bool IsActive { get; private set; }
+
+    // Soft delete
+    public bool IsDeleted { get; private set; }
+    public DateTime? DeletedAtUtc { get; private set; }
+    public void SoftDelete() { IsDeleted = true; DeletedAtUtc = DateTime.UtcNow; }
+    public void Restore()    { IsDeleted = false; DeletedAtUtc = null; }
 
     // Navigation
     public Category? ParentCategory { get; private set; }

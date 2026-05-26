@@ -1,5 +1,7 @@
 using Microsoft.AspNetCore.Authorization;
 using Microsoft.AspNetCore.Mvc;
+using Microsoft.AspNetCore.OutputCaching;
+using Zadana.Api.Configuration;
 using Zadana.Api.Controllers;
 using Zadana.Application.Modules.Catalog.DTOs;
 using Zadana.Application.Modules.Catalog.Queries.Products.GetProductDetails;
@@ -13,6 +15,7 @@ namespace Zadana.Api.Modules.Catalog.Controllers;
 public class ProductsController : ApiControllerBase
 {
     [HttpGet("search")]
+    [OutputCache(PolicyName = OutputCachePolicyNames.PublicCatalogBrowse)]
     public async Task<ActionResult<SearchProductsResponseDto>> SearchProducts(
         [FromQuery(Name = "query")] string? query = null,
         [FromQuery(Name = "category_id")] Guid? categoryId = null,

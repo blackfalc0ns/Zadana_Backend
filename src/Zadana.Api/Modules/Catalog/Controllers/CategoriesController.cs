@@ -31,6 +31,7 @@ public class CategoriesController : ApiControllerBase
 
     [HttpGet("products")]
     [HttpGet("{categoryId:guid}/products")]
+    [OutputCache(PolicyName = OutputCachePolicyNames.PublicCatalogBrowse)]
     public async Task<ActionResult<CategoryProductsDto>> GetProducts(
         [FromQuery(Name = "categoryId")] Guid? queryCategoryId,
         [FromRoute] Guid? categoryId,

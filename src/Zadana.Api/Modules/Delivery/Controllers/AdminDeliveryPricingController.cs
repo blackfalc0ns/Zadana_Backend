@@ -34,6 +34,8 @@ public class AdminDeliveryPricingController : ApiControllerBase
         [FromServices] IApplicationDbContext context,
         CancellationToken cancellationToken = default)
     {
+        ValidateRequest(request);
+
         var rule = new DeliveryPricingRule(
             request.DeliveryZoneId,
             request.City,
@@ -69,6 +71,8 @@ public class AdminDeliveryPricingController : ApiControllerBase
         [FromServices] IApplicationDbContext context,
         CancellationToken cancellationToken = default)
     {
+        ValidateRequest(request);
+
         var rule = await context.DeliveryPricingRules
             .Include(item => item.SurgeWindows)
             .FirstOrDefaultAsync(item => item.Id == ruleId, cancellationToken)
@@ -112,6 +116,34 @@ public class AdminDeliveryPricingController : ApiControllerBase
         }
 
         return parsed;
+    }
+
+    private static void ValidateRequest(UpsertDeliveryPricingRuleRequest request)
+    {
+        if (request.BaseFee < 0m ||
+            request.IncludedKm < 0m ||
+            request.PerKmFee < 0m ||
+            request.MinFee < 0m ||
+            request.MaxFee < 0m)
+        {
+            throw new BusinessRuleException("INVALID_DELIVERY_PRICING", "Delivery pricing amounts cannot be negative.");
+        }
+
+        if (request.MaxFee > 0m && request.MaxFee < request.MinFee)
+        {
+            throw new BusinessRuleException("INVALID_DELIVERY_PRICING", "MaxFee must be zero or greater than or equal to MinFee.");
+        }
+
+        foreach (var window in request.SurgeWindows ?? [])
+        {
+            if (window.Multiplier < 1m)
+            {
+                throw new BusinessRuleException("INVALID_SURGE_MULTIPLIER", "Surge multiplier must be greater than or equal to 1.");
+            }
+
+            _ = ParseTime(window.StartLocalTime);
+            _ = ParseTime(window.EndLocalTime);
+        }
     }
 
     private static DeliveryPricingRuleDto MapRule(DeliveryPricingRule rule) =>

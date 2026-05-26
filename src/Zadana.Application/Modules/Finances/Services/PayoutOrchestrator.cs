@@ -7,6 +7,7 @@ using Zadana.Application.Modules.Payments.Gateways;
 using Zadana.Application.Modules.Payments.Interfaces;
 using Zadana.Application.Modules.Wallets.Services;
 using Zadana.Domain.Modules.Finances.Enums;
+using Zadana.Domain.Modules.Social.Enums;
 using Zadana.Domain.Modules.Wallets.Entities;
 using Zadana.Domain.Modules.Wallets.Enums;
 using Zadana.SharedKernel.Exceptions;
@@ -23,6 +24,8 @@ public sealed class PayoutOrchestrator
     private readonly VendorPayoutWalletService _vendorPayoutWalletService;
     private readonly FinancialSettingsOptions _settings;
     private readonly IAdminAlertService _adminAlertService;
+    private readonly INotificationService _notificationService;
+    private readonly IOneSignalPushService _oneSignalPushService;
 
     public PayoutOrchestrator(
         IApplicationDbContext context,
@@ -31,7 +34,9 @@ public sealed class PayoutOrchestrator
         WalletProjectionUpdater walletProjectionUpdater,
         VendorPayoutWalletService vendorPayoutWalletService,
         IOptions<FinancialSettingsOptions> settings,
-        IAdminAlertService adminAlertService)
+        IAdminAlertService adminAlertService,
+        INotificationService notificationService,
+        IOneSignalPushService oneSignalPushService)
     {
         _context = context;
         _payoutGateways = payoutGateways;
@@ -40,6 +45,8 @@ public sealed class PayoutOrchestrator
         _vendorPayoutWalletService = vendorPayoutWalletService;
         _settings = settings.Value;
         _adminAlertService = adminAlertService;
+        _notificationService = notificationService;
+        _oneSignalPushService = oneSignalPushService;
     }
 
     public bool HasEnabledGateway => GetEnabledGateway() is not null;
@@ -583,6 +590,9 @@ public sealed class PayoutOrchestrator
         await SettleVendorHoldIfApplicableAsync(payout, cancellationToken);
         await MarkLinkedDriverWithdrawalPaidAsync(payout.Id, transferReference, cancellationToken);
         await _context.SaveChangesAsync(cancellationToken);
+
+        // Notify driver or vendor that their settlement/payout is complete
+        await NotifyPayoutPaidAsync(payout, cancellationToken);
     }
 
     private async Task MarkFailedCoreAsync(
@@ -964,5 +974,101 @@ public sealed class PayoutOrchestrator
                     message = exception.Message
                 }),
             cancellationToken);
+    }
+
+    private async Task NotifyPayoutPaidAsync(Payout payout, CancellationToken cancellationToken)
+    {
+        try
+        {
+            var settlement = payout.Settlement;
+
+            if (settlement.OwnerType == SettlementOwnerType.Driver)
+            {
+                // Find the driver's user ID via linked withdrawal request
+                var driverUserId = await _context.DriverWithdrawalRequests
+                    .AsNoTracking()
+                    .Where(w => w.PayoutId == payout.Id)
+                    .Join(_context.Drivers.AsNoTracking(),
+                        w => w.DriverId,
+                        d => d.Id,
+                        (w, d) => d.UserId)
+                    .FirstOrDefaultAsync(cancellationToken);
+
+                if (driverUserId == Guid.Empty)
+                {
+                    return;
+                }
+
+                var data = $"{{\"payoutId\":\"{payout.Id}\",\"settlementId\":\"{payout.SettlementId}\",\"amount\":{payout.Amount},\"transferReference\":\"{payout.TransferReference}\",\"targetUrl\":\"/wallet\"}}";
+
+                await _notificationService.SendToUserAsync(
+                    driverUserId,
+                    "تم إتمام التحويل إلى حسابك البنكي",
+                    "Payout completed",
+                    $"تم تحويل مبلغ {payout.Amount:0.00} ريال إلى حسابك البنكي بنجاح.",
+                    $"A payout of {payout.Amount:0.00} SAR has been successfully transferred to your bank account.",
+                    NotificationTypes.DriverWalletUpdated,
+                    payout.Id,
+                    data,
+                    cancellationToken);
+
+                await _notificationService.SendDriverWalletUpdatedAsync(driverUserId, cancellationToken);
+
+                await _oneSignalPushService.SendToExternalUserAsync(
+                    driverUserId.ToString(),
+                    "تم إتمام التحويل إلى حسابك البنكي",
+                    "Payout completed",
+                    $"تم تحويل مبلغ {payout.Amount:0.00} ريال إلى حسابك البنكي بنجاح.",
+                    $"A payout of {payout.Amount:0.00} SAR has been successfully transferred to your bank account.",
+                    NotificationTypes.DriverWalletUpdated,
+                    payout.Id,
+                    data,
+                    "/wallet",
+                    OneSignalPushProfile.MobileStandard,
+                    cancellationToken);
+            }
+            else if (settlement.OwnerType == SettlementOwnerType.Vendor)
+            {
+                var vendorUserId = await _context.Vendors
+                    .AsNoTracking()
+                    .Where(v => v.Id == settlement.OwnerId)
+                    .Select(v => v.UserId)
+                    .FirstOrDefaultAsync(cancellationToken);
+
+                if (vendorUserId == Guid.Empty)
+                {
+                    return;
+                }
+
+                var data = $"{{\"payoutId\":\"{payout.Id}\",\"settlementId\":\"{payout.SettlementId}\",\"amount\":{payout.Amount},\"transferReference\":\"{payout.TransferReference}\",\"targetUrl\":\"/finances/settlements\"}}";
+
+                await _notificationService.SendToUserAsync(
+                    vendorUserId,
+                    "تم صرف مستحقاتك",
+                    "Settlement paid",
+                    $"تم تحويل مستحقاتك بمبلغ {payout.Amount:0.00} ريال إلى حسابك البنكي.",
+                    $"Your settlement of {payout.Amount:0.00} SAR has been transferred to your bank account.",
+                    NotificationTypes.VendorSettlementPaid,
+                    payout.Id,
+                    data,
+                    cancellationToken);
+
+                await _oneSignalPushService.SendToExternalUserAsync(
+                    vendorUserId.ToString(),
+                    "تم صرف مستحقاتك",
+                    "Settlement paid",
+                    $"تم تحويل مستحقاتك بمبلغ {payout.Amount:0.00} ريال إلى حسابك البنكي.",
+                    $"Your settlement of {payout.Amount:0.00} SAR has been transferred to your bank account.",
+                    NotificationTypes.VendorSettlementPaid,
+                    payout.Id,
+                    data,
+                    "/finances/settlements",
+                    cancellationToken);
+            }
+        }
+        catch
+        {
+            // Notification failures must never break the payout flow
+        }
     }
 }

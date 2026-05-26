@@ -137,6 +137,31 @@ public class PlaceOrderCommandHandlerTests
             .Where(e => e.ErrorCode == "VENDOR_MISSING_CART_PRODUCT");
     }
 
+    [Theory]
+    [InlineData("Wallet")]
+    [InlineData("Mada")]
+    [InlineData("ApplePay")]
+    public async Task Handle_WhenPaymentMethodRequiresDedicatedFundingFlow_ShouldThrowBusinessRuleException(string paymentMethod)
+    {
+        var userId = Guid.NewGuid();
+        var masterProduct = new MasterProduct("Name Ar", "Name En", "name-en", Guid.NewGuid());
+        var cart = new Cart(userId);
+        cart.Items.Add(new CartItem(cart.Id, masterProduct.Id, masterProduct.NameEn, 1));
+
+        _orderRepositoryMock
+            .Setup(repository => repository.GetCartForCheckoutAsync(userId, It.IsAny<CancellationToken>()))
+            .ReturnsAsync(cart);
+
+        var command = new PlaceOrderCommand(userId, Guid.NewGuid(), Guid.NewGuid(), paymentMethod, null, null, null, 0m, 0m, 0m, null, null, null, 0m, 0m, 0m, 0m);
+        var handler = CreateHandler();
+
+        var act = () => handler.Handle(command, CancellationToken.None);
+
+        await act.Should()
+            .ThrowAsync<BusinessRuleException>()
+            .Where(e => e.ErrorCode == "PAYMENT_METHOD_NOT_SUPPORTED");
+    }
+
     [Fact]
     public async Task Handle_WhenMatchingPendingCardOrderExists_ShouldReuseIt()
     {
@@ -231,7 +256,7 @@ public class PlaceOrderCommandHandlerTests
         result.Should().Be(existingOrder.Id);
         _orderRepositoryMock.Verify(repository => repository.AddOrder(It.IsAny<Order>()), Times.Never);
         _orderRepositoryMock.Verify(repository => repository.AddOrderItem(It.IsAny<OrderItem>()), Times.Never);
-        _unitOfWorkMock.Verify(unitOfWork => unitOfWork.SaveChangesAsync(It.IsAny<CancellationToken>()), Times.Never);
+        _unitOfWorkMock.Verify(unitOfWork => unitOfWork.SaveChangesAsync(It.IsAny<CancellationToken>()), Times.Once);
     }
 
     [Fact]

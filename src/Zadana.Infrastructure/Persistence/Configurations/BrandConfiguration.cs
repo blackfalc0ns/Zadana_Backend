@@ -33,6 +33,13 @@ public class BrandConfiguration : IEntityTypeConfiguration<Brand>
             .IsRequired()
             .HasDefaultValue(true);
 
+        builder.Property(b => b.IsDeleted)
+            .IsRequired()
+            .HasDefaultValue(false);
+
+        builder.Property(b => b.DeletedAtUtc)
+            .IsRequired(false);
+
         builder.HasOne(b => b.Category)
             .WithMany(c => c.Brands)
             .HasForeignKey(b => b.CategoryId)

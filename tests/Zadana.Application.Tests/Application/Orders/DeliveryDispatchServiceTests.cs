@@ -26,7 +26,8 @@ public class DeliveryDispatchServiceTests
         ApplicationDbContext dbContext,
         IPublisher? publisher = null,
         INotificationService? notificationService = null,
-        IOneSignalPushService? oneSignalPushService = null)
+        IOneSignalPushService? oneSignalPushService = null,
+        IAdminAlertService? adminAlertService = null)
     {
         var commitmentPolicyService = new DriverCommitmentPolicyService(dbContext, dbContext);
         return new DeliveryDispatchService(
@@ -36,7 +37,8 @@ public class DeliveryDispatchServiceTests
             publisher ?? Mock.Of<IPublisher>(),
             notificationService ?? Mock.Of<INotificationService>(),
             commitmentPolicyService,
-            oneSignalPushService ?? Mock.Of<IOneSignalPushService>());
+            oneSignalPushService ?? Mock.Of<IOneSignalPushService>(),
+            adminAlertService);
     }
 
     [Fact]
@@ -87,6 +89,35 @@ public class DeliveryDispatchServiceTests
         assignment.Status.Should().Be(AssignmentStatus.Accepted);
         assignment.PickupOtpCode.Should().NotBeNullOrWhiteSpace();
         assignment.PickupOtpExpiresAtUtc.Should().NotBeNull();
+    }
+
+    [Fact]
+    public async Task AcceptOfferAsync_WhenPickupDistanceDeviationIsHigh_ShouldCreatePricingReviewAlert()
+    {
+        await using var dbContext = CreateDbContext();
+        var scenario = await SeedDispatchScenarioAsync(dbContext);
+        SetPrivateProperty(scenario.Order, nameof(Order.DriverToVendorDistanceKm), 0.01m);
+        await dbContext.SaveChangesAsync();
+
+        var adminAlertServiceMock = new Mock<IAdminAlertService>();
+        adminAlertServiceMock
+            .Setup(service => service.SendAsync(It.IsAny<AdminAlertRequest>(), It.IsAny<CancellationToken>()))
+            .ReturnsAsync(new AdminAlertDispatchResult(0, 0, new OneSignalPushDispatchResult(false, false, true, null, null, null)));
+        var service = CreateDispatchService(dbContext, adminAlertService: adminAlertServiceMock.Object);
+
+        await service.TryAutoDispatchAsync(scenario.Order.Id, cancellationToken: CancellationToken.None);
+        var assignment = await dbContext.DeliveryAssignments.SingleAsync();
+
+        await service.AcceptOfferAsync(assignment.Id, scenario.SameZoneFreshDriver.Id, CancellationToken.None);
+
+        adminAlertServiceMock.Verify(
+            service => service.SendAsync(
+                It.Is<AdminAlertRequest>(request =>
+                    request.Type == AdminAlertTypes.DeliveryPricingReviewRequired &&
+                    request.Category == AdminAlertCategories.Delivery &&
+                    request.ReferenceId == scenario.Order.Id),
+                It.IsAny<CancellationToken>()),
+            Times.Once);
     }
 
     [Fact]
@@ -359,6 +390,13 @@ public class DeliveryDispatchServiceTests
             .Options;
 
         return new ApplicationDbContext(options, new AuditableEntityInterceptor());
+    }
+
+    private static void SetPrivateProperty<T>(object target, string propertyName, T value)
+    {
+        var property = target.GetType().GetProperty(propertyName, System.Reflection.BindingFlags.Instance | System.Reflection.BindingFlags.Public | System.Reflection.BindingFlags.NonPublic);
+        property.Should().NotBeNull();
+        property!.SetValue(target, value);
     }
 
     private sealed record DispatchScenario(

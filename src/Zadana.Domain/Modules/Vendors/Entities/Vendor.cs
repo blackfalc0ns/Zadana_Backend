@@ -88,6 +88,21 @@ public class Vendor : BaseEntity
         string? taxDocumentUrl = null,
         string? licenseDocumentUrl = null)
     {
+        if (userId == Guid.Empty)
+            throw new BusinessRuleException("INVALID_USER_ID", "User ID is required.");
+        if (string.IsNullOrWhiteSpace(businessNameAr))
+            throw new BusinessRuleException("INVALID_BUSINESS_NAME_AR", "Arabic business name is required.");
+        if (string.IsNullOrWhiteSpace(businessNameEn))
+            throw new BusinessRuleException("INVALID_BUSINESS_NAME_EN", "English business name is required.");
+        if (string.IsNullOrWhiteSpace(businessType))
+            throw new BusinessRuleException("INVALID_BUSINESS_TYPE", "Business type is required.");
+        if (string.IsNullOrWhiteSpace(commercialRegistrationNumber))
+            throw new BusinessRuleException("INVALID_CR_NUMBER", "Commercial registration number is required.");
+        if (string.IsNullOrWhiteSpace(contactEmail))
+            throw new BusinessRuleException("INVALID_CONTACT_EMAIL", "Contact email is required.");
+        if (string.IsNullOrWhiteSpace(contactPhone))
+            throw new BusinessRuleException("INVALID_CONTACT_PHONE", "Contact phone is required.");
+
         UserId = userId;
         BusinessNameAr = businessNameAr.Trim();
         BusinessNameEn = businessNameEn.Trim();
@@ -325,6 +340,18 @@ public class Vendor : BaseEntity
         UpdatedAtUtc = DateTime.UtcNow;
     }
 
+    public void UpdateCommissionRate(decimal commissionRate)
+    {
+        if (Status != VendorStatus.Active)
+            throw new BusinessRuleException("VendorNotActive", "لا يمكن تعديل العمولة إلا لتاجر نشط.|Commission rate can only be updated for active vendors.");
+
+        if (commissionRate < 0 || commissionRate > 100)
+            throw new BusinessRuleException("InvalidCommissionRate", "Commission rate must be between 0 and 100.");
+
+        CommissionRate = commissionRate;
+        UpdatedAtUtc = DateTime.UtcNow;
+    }
+
     public void Reject(string reason)
     {
         var normalizedReason = reason?.Trim();
@@ -385,12 +412,16 @@ public class Vendor : BaseEntity
 
     public void Lock(string reason)
     {
+        var normalizedReason = reason?.Trim();
+        if (string.IsNullOrWhiteSpace(normalizedReason))
+            throw new BusinessRuleException("VendorLockReasonRequired", "يجب إدخال سبب قفل واضح.|A clear lock reason is required.");
+
         if (Status == VendorStatus.PendingReview)
         {
             throw new BusinessRuleException("VendorInvalidStatusForLock", $"Status: {Status}");
         }
 
-        LockReason = reason.Trim();
+        LockReason = normalizedReason;
         LockedAtUtc = DateTime.UtcNow;
 
         if (Status == VendorStatus.Active)
@@ -421,12 +452,21 @@ public class Vendor : BaseEntity
 
     public void Archive(string reason)
     {
+        var normalizedReason = reason?.Trim();
+        if (string.IsNullOrWhiteSpace(normalizedReason))
+            throw new BusinessRuleException("VendorArchiveReasonRequired", "يجب إدخال سبب أرشفة واضح.|A clear archive reason is required.");
+
+        if (Status == VendorStatus.PendingReview || Status == VendorStatus.Rejected)
+            throw new BusinessRuleException(
+                "VendorInvalidStatusForArchive",
+                $"لا يمكن أرشفة التاجر بينما حالته الحالية هي {Status}.|Vendor cannot be archived while its current status is {Status}.");
+
         Status = VendorStatus.Suspended;
-        ArchiveReason = reason.Trim();
+        ArchiveReason = normalizedReason;
         ArchivedAtUtc = DateTime.UtcNow;
-        LockReason ??= reason.Trim();
+        LockReason ??= normalizedReason;
         LockedAtUtc ??= DateTime.UtcNow;
-        SuspensionReason ??= reason.Trim();
+        SuspensionReason ??= normalizedReason;
         SuspendedAtUtc ??= DateTime.UtcNow;
         LastStatusChangedAtUtc = DateTime.UtcNow;
         UpdatedAtUtc = DateTime.UtcNow;

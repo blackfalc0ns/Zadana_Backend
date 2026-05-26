@@ -91,4 +91,40 @@ public class LedgerWalletFlowTests
 
         context.WalletTransactions.Count().Should().Be(9);
     }
+
+    [Fact]
+    public async Task WalletProjection_ShouldApplyOlderEntryAfterNewerEntryWithoutDuplicatingLines()
+    {
+        await using var context = TestDbContextFactory.Create();
+        var postingService = new FinancialEventPostingService(
+            context,
+            Mock.Of<ILogger<FinancialEventPostingService>>());
+        var projectionUpdater = new WalletProjectionUpdater(context);
+
+        var vendorId = Guid.NewGuid();
+        var firstPosting = await postingService.PostAsync(
+            FinancialEventType.OnlinePaymentDelivered,
+            $"projection-order-first:{vendorId:N}",
+            [
+                new JournalLineDraft(FinancialAccountCode.CustomerAdvance, 50m, 0m, FinancialOwnerType.Customer, Guid.NewGuid()),
+                new JournalLineDraft(FinancialAccountCode.VendorPayable, 0m, 50m, FinancialOwnerType.Vendor, vendorId)
+            ]);
+
+        var secondPosting = await postingService.PostAsync(
+            FinancialEventType.OnlinePaymentDelivered,
+            $"projection-order-second:{vendorId:N}",
+            [
+                new JournalLineDraft(FinancialAccountCode.CustomerAdvance, 100m, 0m, FinancialOwnerType.Customer, Guid.NewGuid()),
+                new JournalLineDraft(FinancialAccountCode.VendorPayable, 0m, 100m, FinancialOwnerType.Vendor, vendorId)
+            ]);
+
+        await projectionUpdater.ApplyJournalEntryAsync(secondPosting.JournalEntryId);
+        await projectionUpdater.ApplyJournalEntryAsync(firstPosting.JournalEntryId);
+        await projectionUpdater.ApplyJournalEntryAsync(firstPosting.JournalEntryId);
+
+        var vendorWallet = context.Wallets.Single(wallet => wallet.OwnerType == WalletOwnerType.Vendor && wallet.OwnerId == vendorId);
+        vendorWallet.CurrentBalance.Should().Be(150m);
+        vendorWallet.LastJournalSequence.Should().Be(secondPosting.SequenceNumber);
+        context.WalletTransactions.Count(txn => txn.WalletId == vendorWallet.Id).Should().Be(2);
+    }
 }

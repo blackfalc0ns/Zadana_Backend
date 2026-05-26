@@ -90,7 +90,7 @@ public class PlaceCheckoutOrderCommandHandlerTests
 
         var deliveryPricingMock = new Mock<IDeliveryPricingService>();
         deliveryPricingMock
-            .Setup(service => service.QuoteAsync(branch.Id, address.Id, It.IsAny<CancellationToken>()))
+            .Setup(service => service.QuoteAsync(branch.Id, address.Id, It.IsAny<CancellationToken>(), It.IsAny<decimal?>()))
             .ReturnsAsync(new DeliveryPriceQuote(5m, 2m, 0m, 7m, 3m, "zone", "Zone rule", 1m, 2m, 3m, 4m, "driver", "vendor", false, "manual", null, "locked", DateTime.UtcNow, 1, false));
 
         var handler = new PlaceCheckoutOrderCommandHandler(
@@ -186,7 +186,7 @@ public class PlaceCheckoutOrderCommandHandlerTests
         var publisherMock = new Mock<IPublisher>();
         var deliveryPricingMock = new Mock<IDeliveryPricingService>();
         deliveryPricingMock
-            .Setup(service => service.QuoteAsync(branch.Id, address.Id, It.IsAny<CancellationToken>()))
+            .Setup(service => service.QuoteAsync(branch.Id, address.Id, It.IsAny<CancellationToken>(), It.IsAny<decimal?>()))
             .ReturnsAsync(new DeliveryPriceQuote(5m, 2m, 0m, 7m, 3m, "zone", "Zone rule", 1m, 2m, 3m, 4m, "driver", "vendor", false, "manual", null, "locked", DateTime.UtcNow, 1, false));
 
         var handler = new PlaceCheckoutOrderCommandHandler(
@@ -286,7 +286,7 @@ public class PlaceCheckoutOrderCommandHandlerTests
 
         var deliveryPricingMock = new Mock<IDeliveryPricingService>();
         deliveryPricingMock
-            .Setup(service => service.QuoteAsync(branch.Id, address.Id, It.IsAny<CancellationToken>()))
+            .Setup(service => service.QuoteAsync(branch.Id, address.Id, It.IsAny<CancellationToken>(), It.IsAny<decimal?>()))
             .ReturnsAsync(new DeliveryPriceQuote(10m, 5m, 0m, 15m, 20m, "zone", "Zone rule", 1m, 5m, 3m, 12m, "driver", "vendor", false, "manual", null, "locked", DateTime.UtcNow, 1, false));
 
         var handler = new PlaceCheckoutOrderCommandHandler(

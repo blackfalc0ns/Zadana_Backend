@@ -7,6 +7,9 @@ using MediatR;
 using Zadana.Api.Controllers;
 using Zadana.Application.Common.Interfaces;
 using Zadana.Application.Common.Settings;
+using Zadana.Application.Modules.EmailCenter;
+using Zadana.Application.Modules.EmailCenter.DTOs;
+using Zadana.Application.Modules.EmailCenter.Interfaces;
 using Zadana.Application.Modules.Finances.Services;
 using Zadana.Application.Modules.Orders.Events;
 using Zadana.Application.Modules.Orders.Support;
@@ -29,7 +32,9 @@ public class BankTransferController(
     FinancialEventPostingService postingService,
     WalletProjectionUpdater walletProjectionUpdater,
     IPublisher publisher,
+    IEmailCenterService emailCenterService,
     IOptions<BankTransferSettingsOptions> settings,
+    IOptions<FinancialSettingsOptions> financialSettings,
     IWebHostEnvironment environment,
     ILogger<BankTransferController> logger) : ApiControllerBase
 {
@@ -209,15 +214,17 @@ public class BankTransferController(
             throw new BusinessRuleException("PAYMENT_ALREADY_CONFIRMED", "Cannot reject an already confirmed payment.");
         }
 
-        payment.MarkAsFailed(request?.Reason ?? "Bank transfer rejected by admin.");
+        var rejectionReason = request?.Reason ?? "Bank transfer rejected by admin.";
+        payment.MarkAsFailed(rejectionReason);
 
         var order = payment.Order;
         if (order.Status is OrderStatus.PendingBankConfirmation or OrderStatus.PendingPayment)
         {
-            order.ChangeStatus(OrderStatus.Cancelled, null, request?.Reason ?? "Bank transfer rejected");
+            order.ChangeStatus(OrderStatus.Cancelled, null, rejectionReason);
         }
 
         await context.SaveChangesAsync(cancellationToken);
+        await DispatchBankTransferRejectedEmailAsync(order.Id, rejectionReason, cancellationToken);
 
         return Ok(new
         {
@@ -225,6 +232,57 @@ public class BankTransferController(
             paymentId,
             orderStatus = order.Status.ToString(),
         });
+    }
+
+    private async Task DispatchBankTransferRejectedEmailAsync(
+        Guid orderId,
+        string reason,
+        CancellationToken cancellationToken)
+    {
+        try
+        {
+            var emailData = await context.Orders
+                .AsNoTracking()
+                .Where(item => item.Id == orderId)
+                .Select(item => new
+                {
+                    item.Id,
+                    item.OrderNumber,
+                    item.VendorId,
+                    CustomerName = item.User.FullName,
+                    CustomerEmail = item.User.Email,
+                    VendorName = string.IsNullOrWhiteSpace(item.Vendor.BusinessNameEn)
+                        ? item.Vendor.BusinessNameAr
+                        : item.Vendor.BusinessNameEn
+                })
+                .FirstOrDefaultAsync(cancellationToken);
+
+            if (emailData is null)
+            {
+                return;
+            }
+
+            await emailCenterService.DispatchSystemEventEmailAsync(
+                new EmailSystemEventDispatchRequest(
+                    EventKey: EmailEventKeys.CustomerOrderImportantUpdate,
+                    AudienceType: "customers",
+                    To: string.IsNullOrWhiteSpace(emailData.CustomerEmail) ? [] : [emailData.CustomerEmail],
+                    Variables: new Dictionary<string, string>
+                    {
+                        ["customer_name"] = string.IsNullOrWhiteSpace(emailData.CustomerName) ? "Customer" : emailData.CustomerName,
+                        ["order_number"] = emailData.OrderNumber,
+                        ["vendor_name"] = emailData.VendorName,
+                        ["update_message"] = $"Bank transfer was rejected for order {emailData.OrderNumber}: {reason}"
+                    },
+                    TargetUrl: $"/orders/{emailData.Id}",
+                    EntityId: emailData.Id,
+                    VendorId: emailData.VendorId),
+                cancellationToken);
+        }
+        catch (Exception ex)
+        {
+            logger.LogWarning(ex, "Failed to dispatch bank-transfer rejection email for order {OrderId}.", orderId);
+        }
     }
 
     private async Task<BankTransferConfirmationResult> ConfirmBankPaymentAsync(
@@ -241,13 +299,18 @@ public class BankTransferController(
 
         if (payment.Status == PaymentStatus.Paid)
         {
+            var healedJournalEntryId = await TryPostBankTransferLedgerAsync(
+                payment,
+                payment.Order,
+                cancellationToken);
+
             return new BankTransferConfirmationResult(
                 "Already confirmed.",
                 payment.Id,
                 payment.Order.Id,
                 payment.Order.Status.ToString(),
                 payment.Status.ToString(),
-                null);
+                healedJournalEntryId);
         }
 
         if (payment.Status is not (PaymentStatus.Initiated or PaymentStatus.Pending))
@@ -276,50 +339,7 @@ public class BankTransferController(
 
         await context.SaveChangesAsync(cancellationToken);
 
-        var idempotencyKey = $"bank-transfer-confirmed:{payment.Id:N}";
-        Guid? journalEntryId = null;
-        try
-        {
-            var posting = await postingService.PostAsync(
-                FinancialEventType.BankTransferConfirmed,
-                idempotencyKey,
-                [
-                    new JournalLineDraft(
-                        FinancialAccountCode.PlatformCash,
-                        order.TotalAmount,
-                        0m,
-                        FinancialOwnerType.Platform,
-                        Guid.Parse("00000000-0000-0000-0000-000000000001"),
-                        order.Id,
-                        Memo: $"Bank transfer confirmed for order {order.OrderNumber}"),
-                    new JournalLineDraft(
-                        FinancialAccountCode.CustomerAdvance,
-                        0m,
-                        order.TotalAmount,
-                        FinancialOwnerType.Customer,
-                        order.UserId,
-                        order.Id,
-                        Memo: $"Customer advance on bank transfer for order {order.OrderNumber}"),
-                ],
-                orderId: order.Id,
-                currencyCode: CurrencyPolicy.OfficialCurrency,
-                description: $"Bank transfer confirmed for order {order.OrderNumber}",
-                cancellationToken: cancellationToken);
-
-            journalEntryId = posting.JournalEntryId;
-            if (!posting.WasAlreadyPosted)
-            {
-                await walletProjectionUpdater.ApplyJournalEntryAsync(posting.JournalEntryId, cancellationToken);
-            }
-        }
-        catch (Exception ex)
-        {
-            logger.LogError(
-                ex,
-                "[BankTransfer] Ledger posting failed after confirming order {OrderId} payment {PaymentId}.",
-                order.Id,
-                payment.Id);
-        }
+        var journalEntryId = await TryPostBankTransferLedgerAsync(payment, order, cancellationToken);
 
         if (oldStatus != order.Status)
         {
@@ -355,6 +375,59 @@ public class BankTransferController(
             order.Status.ToString(),
             payment.Status.ToString(),
             journalEntryId);
+    }
+
+    private async Task<Guid?> TryPostBankTransferLedgerAsync(
+        Zadana.Domain.Modules.Payments.Entities.Payment payment,
+        Zadana.Domain.Modules.Orders.Entities.Order order,
+        CancellationToken cancellationToken)
+    {
+        var idempotencyKey = $"bank-transfer-confirmed:{payment.Id:N}";
+        try
+        {
+            var posting = await postingService.PostAsync(
+                FinancialEventType.BankTransferConfirmed,
+                idempotencyKey,
+                [
+                    new JournalLineDraft(
+                        FinancialAccountCode.PlatformCash,
+                        order.TotalAmount,
+                        0m,
+                        FinancialOwnerType.Platform,
+                        financialSettings.Value.PlatformWalletOwnerId,
+                        order.Id,
+                        Memo: $"Bank transfer confirmed for order {order.OrderNumber}"),
+                    new JournalLineDraft(
+                        FinancialAccountCode.CustomerAdvance,
+                        0m,
+                        order.TotalAmount,
+                        FinancialOwnerType.Customer,
+                        order.UserId,
+                        order.Id,
+                        Memo: $"Customer advance on bank transfer for order {order.OrderNumber}"),
+                ],
+                orderId: order.Id,
+                currencyCode: CurrencyPolicy.OfficialCurrency,
+                description: $"Bank transfer confirmed for order {order.OrderNumber}",
+                cancellationToken: cancellationToken);
+
+            if (!posting.WasAlreadyPosted)
+            {
+                await walletProjectionUpdater.ApplyJournalEntryAsync(posting.JournalEntryId, cancellationToken);
+            }
+
+            return posting.JournalEntryId;
+        }
+        catch (Exception ex) when (ex is not OperationCanceledException)
+        {
+            logger.LogError(
+                ex,
+                "[BankTransfer] Ledger posting failed after confirming order {OrderId} payment {PaymentId}.",
+                order.Id,
+                payment.Id);
+
+            return null;
+        }
     }
 
     private void ValidateWebhookSecret()

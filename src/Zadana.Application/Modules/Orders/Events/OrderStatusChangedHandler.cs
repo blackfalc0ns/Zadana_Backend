@@ -2,6 +2,9 @@ using MediatR;
 using Microsoft.EntityFrameworkCore;
 using Microsoft.Extensions.Logging;
 using Zadana.Application.Common.Interfaces;
+using Zadana.Application.Modules.EmailCenter;
+using Zadana.Application.Modules.EmailCenter.DTOs;
+using Zadana.Application.Modules.EmailCenter.Interfaces;
 using Zadana.Application.Modules.Delivery.Support;
 using Zadana.Application.Modules.Orders.Support;
 using Zadana.Application.Modules.Wallets.Services;
@@ -23,6 +26,7 @@ public class OrderStatusChangedHandler : INotificationHandler<OrderStatusChanged
     private readonly IOrderStatusNotificationDispatcher _orderStatusNotificationDispatcher;
     private readonly OrderRevenueDistributionService _revenueDistributionService;
     private readonly IOrderTrackingRealtimeNotifier _orderTrackingRealtimeNotifier;
+    private readonly IEmailCenterService _emailCenterService;
     private readonly ILogger<OrderStatusChangedHandler> _logger;
 
     public OrderStatusChangedHandler(
@@ -32,6 +36,7 @@ public class OrderStatusChangedHandler : INotificationHandler<OrderStatusChanged
         IOrderStatusNotificationDispatcher orderStatusNotificationDispatcher,
         OrderRevenueDistributionService revenueDistributionService,
         IOrderTrackingRealtimeNotifier orderTrackingRealtimeNotifier,
+        IEmailCenterService emailCenterService,
         ILogger<OrderStatusChangedHandler> logger)
     {
         _notificationService = notificationService;
@@ -40,6 +45,7 @@ public class OrderStatusChangedHandler : INotificationHandler<OrderStatusChanged
         _orderStatusNotificationDispatcher = orderStatusNotificationDispatcher;
         _revenueDistributionService = revenueDistributionService;
         _orderTrackingRealtimeNotifier = orderTrackingRealtimeNotifier;
+        _emailCenterService = emailCenterService;
         _logger = logger;
     }
 
@@ -71,18 +77,23 @@ public class OrderStatusChangedHandler : INotificationHandler<OrderStatusChanged
             action,
             targetUrl);
 
-        if (notification.NotifyCustomer && !notification.CustomerNotificationAlreadySent)
+        if (notification.NotifyCustomer)
         {
-            await _orderStatusNotificationDispatcher.DispatchCustomerAsync(
-                new OrderStatusCustomerNotificationRequest(
-                    notification.UserId,
-                    notification.OrderId,
-                    notification.VendorId,
-                    notification.OrderNumber,
-                    notification.OldStatus,
-                    notification.NewStatus,
-                    notification.ActorRole),
-                cancellationToken);
+            if (!notification.CustomerNotificationAlreadySent)
+            {
+                await _orderStatusNotificationDispatcher.DispatchCustomerAsync(
+                    new OrderStatusCustomerNotificationRequest(
+                        notification.UserId,
+                        notification.OrderId,
+                        notification.VendorId,
+                        notification.OrderNumber,
+                        notification.OldStatus,
+                        notification.NewStatus,
+                        notification.ActorRole),
+                    cancellationToken);
+            }
+
+            await DispatchCustomerOrderEmailAsync(notification, cancellationToken);
         }
 
         await SendRealtimeToAssignedDriverAsync(notification, action, targetUrl, cancellationToken);
@@ -106,7 +117,12 @@ public class OrderStatusChangedHandler : INotificationHandler<OrderStatusChanged
             .Select(vendor => new
             {
                 vendor.UserId,
-                vendor.NewOrdersNotificationsEnabled
+                vendor.NewOrdersNotificationsEnabled,
+                vendor.EmailNotificationsEnabled,
+                vendor.OwnerEmail,
+                vendor.ContactEmail,
+                vendor.BusinessNameAr,
+                vendor.BusinessNameEn
             })
             .FirstOrDefaultAsync(cancellationToken);
 
@@ -114,6 +130,8 @@ public class OrderStatusChangedHandler : INotificationHandler<OrderStatusChanged
         {
             return;
         }
+
+        await DispatchVendorOrderActionEmailAsync(notification, vendorRecipient.EmailNotificationsEnabled, vendorRecipient.OwnerEmail, vendorRecipient.ContactEmail, vendorRecipient.BusinessNameAr, vendorRecipient.BusinessNameEn, cancellationToken);
 
         var (vendorTitleAr, vendorTitleEn, vendorBodyAr, vendorBodyEn, vendorType) =
             GetVendorNotificationContent(notification.NewStatus, notification.OrderNumber);
@@ -159,6 +177,128 @@ public class OrderStatusChangedHandler : INotificationHandler<OrderStatusChanged
             cancellationToken);
     }
 
+    private async Task DispatchCustomerOrderEmailAsync(
+        OrderStatusChangedNotification notification,
+        CancellationToken cancellationToken)
+    {
+        var eventKey = ResolveCustomerEmailEventKey(notification.NewStatus);
+        if (eventKey is null)
+        {
+            return;
+        }
+
+        try
+        {
+            var order = await _context.Orders
+                .AsNoTracking()
+                .Where(item => item.Id == notification.OrderId)
+                .Select(item => new
+                {
+                    item.OrderNumber,
+                    item.TotalAmount,
+                    item.Currency,
+                    item.PaymentMethod,
+                    item.PaymentStatus,
+                    CustomerName = item.User.FullName,
+                    CustomerEmail = item.User.Email,
+                    VendorName = string.IsNullOrWhiteSpace(item.Vendor.BusinessNameEn)
+                        ? item.Vendor.BusinessNameAr
+                        : item.Vendor.BusinessNameEn
+                })
+                .FirstOrDefaultAsync(cancellationToken);
+
+            if (order is null)
+            {
+                return;
+            }
+
+            if (eventKey == EmailEventKeys.CustomerOrderConfirmed &&
+                !IsCustomerConfirmationEmailAllowed(order.PaymentMethod, order.PaymentStatus))
+            {
+                return;
+            }
+
+            await _emailCenterService.DispatchSystemEventEmailAsync(
+                new EmailSystemEventDispatchRequest(
+                    EventKey: eventKey,
+                    AudienceType: "customers",
+                    To: NormalizeRecipient(order.CustomerEmail),
+                    Variables: new Dictionary<string, string>
+                    {
+                        ["customer_name"] = string.IsNullOrWhiteSpace(order.CustomerName) ? "Customer" : order.CustomerName,
+                        ["order_number"] = order.OrderNumber,
+                        ["vendor_name"] = order.VendorName,
+                        ["order_total"] = FormatMoney(order.TotalAmount),
+                        ["currency"] = string.IsNullOrWhiteSpace(order.Currency) ? "SAR" : order.Currency,
+                        ["update_message"] = BuildCustomerImportantUpdateMessage(notification.NewStatus, order.OrderNumber)
+                    },
+                    TargetUrl: OrderStatusNotificationComposer.ResolveTargetUrl(notification.OrderId),
+                    EntityId: notification.OrderId,
+                    VendorId: notification.VendorId),
+                cancellationToken);
+        }
+        catch (Exception ex)
+        {
+            _logger.LogWarning(ex, "Customer order email dispatch failed for order {OrderId}", notification.OrderId);
+        }
+    }
+
+    private async Task DispatchVendorOrderActionEmailAsync(
+        OrderStatusChangedNotification notification,
+        bool emailNotificationsEnabled,
+        string? ownerEmail,
+        string? contactEmail,
+        string businessNameAr,
+        string businessNameEn,
+        CancellationToken cancellationToken)
+    {
+        if (notification.NewStatus != OrderStatus.PendingVendorAcceptance || !emailNotificationsEnabled)
+        {
+            return;
+        }
+
+        try
+        {
+            var order = await _context.Orders
+                .AsNoTracking()
+                .Where(item => item.Id == notification.OrderId)
+                .Select(item => new
+                {
+                    item.OrderNumber,
+                    item.TotalAmount,
+                    item.Currency
+                })
+                .FirstOrDefaultAsync(cancellationToken);
+
+            if (order is null)
+            {
+                return;
+            }
+
+            var vendorName = string.IsNullOrWhiteSpace(businessNameEn) ? businessNameAr : businessNameEn;
+            await _emailCenterService.DispatchSystemEventEmailAsync(
+                new EmailSystemEventDispatchRequest(
+                    EventKey: EmailEventKeys.VendorOrderActionRequired,
+                    AudienceType: "vendor_network",
+                    To: NormalizeRecipient(ResolveFirstEmail(ownerEmail, contactEmail)),
+                    Variables: new Dictionary<string, string>
+                    {
+                        ["vendor_name"] = vendorName,
+                        ["order_number"] = order.OrderNumber,
+                        ["order_total"] = FormatMoney(order.TotalAmount),
+                        ["currency"] = string.IsNullOrWhiteSpace(order.Currency) ? "SAR" : order.Currency
+                    },
+                    TargetUrl: OrderStatusNotificationComposer.ResolveTargetUrl(notification.OrderId),
+                    EntityId: notification.OrderId,
+                    VendorId: notification.VendorId),
+                cancellationToken);
+        }
+        catch (Exception ex)
+        {
+            _logger.LogWarning(ex, "Vendor order-action email dispatch failed for order {OrderId}", notification.OrderId);
+        }
+    }
+
     private async Task<bool> IsVendorNotificationAllowedAsync(Guid orderId, CancellationToken cancellationToken)
     {
         var order = await _context.Orders
@@ -177,6 +317,36 @@ public class OrderStatusChangedHandler : INotificationHandler<OrderStatusChanged
                order.PaymentStatus == PaymentStatus.Refunded ||
                order.PaymentStatus == PaymentStatus.PartiallyRefunded;
     }
+
+    private static string? ResolveCustomerEmailEventKey(OrderStatus newStatus) =>
+        newStatus switch
+        {
+            OrderStatus.Placed or OrderStatus.PendingVendorAcceptance => EmailEventKeys.CustomerOrderConfirmed,
+            OrderStatus.OnTheWay => EmailEventKeys.CustomerOrderOutForDelivery,
+            OrderStatus.Cancelled or OrderStatus.VendorRejected or OrderStatus.DeliveryFailed or OrderStatus.Refunded => EmailEventKeys.CustomerOrderImportantUpdate,
+            _ => null
+        };
+
+    private static bool IsCustomerConfirmationEmailAllowed(PaymentMethodType paymentMethod, PaymentStatus paymentStatus) =>
+        paymentMethod is not (PaymentMethodType.Card or PaymentMethodType.BankTransfer) || paymentStatus == PaymentStatus.Paid;
+
+    private static string BuildCustomerImportantUpdateMessage(OrderStatus status, string orderNumber) =>
+        status switch
+        {
+            OrderStatus.Cancelled => $"Order {orderNumber} was cancelled. Open the app for details.",
+            OrderStatus.VendorRejected => $"Order {orderNumber} was not accepted by the vendor. Open the app for details.",
+            OrderStatus.DeliveryFailed => $"Delivery failed for order {orderNumber}. Our team will follow up if needed.",
+            OrderStatus.Refunded => $"Order {orderNumber} has been refunded.",
+            _ => $"There is an important update for order {orderNumber}."
+        };
+
+    private static string? ResolveFirstEmail(params string?[] values) =>
+        values.FirstOrDefault(value => !string.IsNullOrWhiteSpace(value))?.Trim();
+
+    private static IReadOnlyList<string> NormalizeRecipient(string? email) =>
+        string.IsNullOrWhiteSpace(email) ? [] : [email.Trim()];
+
+    private static string FormatMoney(decimal value) => value.ToString("0.##");
 
     private async Task SendRealtimeToAssignedDriverAsync(
         OrderStatusChangedNotification notification,

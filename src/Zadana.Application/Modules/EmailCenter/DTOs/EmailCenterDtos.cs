@@ -69,7 +69,11 @@ public record EmailRecipientRouteDto(
 public record EmailTemplatePreviewDto(
     Dictionary<string, string> Subject,
     Dictionary<string, string> Body,
-    List<string> Variables);
+    List<string> Variables,
+    string? HeroImageUrl = null,
+    string? CtaLabel = null,
+    string? HeroImageUrlAr = null,
+    string? HeroImageUrlEn = null);
 
 public record EmailDispatchSummaryDto(
     string Status,
@@ -126,3 +130,18 @@ public sealed record EmailDispatchOperationResult(
     string? Provider,
     string? ProviderMessageId,
     string? Reason);
+
+public sealed record EmailSystemEventDispatchRequest(
+    string EventKey,
+    string AudienceType,
+    IReadOnlyList<string> To,
+    IReadOnlyDictionary<string, string>? Variables = null,
+    string? TargetUrl = null,
+    Guid? EntityId = null,
+    Guid? VendorId = null,
+    Guid? BranchId = null,
+    IReadOnlyList<string>? Cc = null,
+    IReadOnlyList<string>? Bcc = null,
+    DateTime? DuplicateWindowStartUtc = null,
+    DateTime? DuplicateWindowEndUtc = null,
+    string Source = "system_event");
