@@ -8,6 +8,7 @@ using Zadana.Application.Common.Settings;
 using Zadana.Application.Modules.Checkout.Commands.PlaceCheckoutOrder;
 using Zadana.Application.Modules.Delivery.Interfaces;
 using Zadana.Application.Modules.Orders.Commands.PlaceOrder;
+using Zadana.Application.Modules.Orders.Events;
 using Zadana.Application.Modules.Orders.Interfaces;
 using Zadana.Application.Modules.Payments.Interfaces;
 using Zadana.Application.Tests.Helpers;
@@ -227,8 +228,17 @@ public class PlaceCheckoutOrderCommandHandlerTests
         savedOrder.PaymentStatus.Should().Be(PaymentStatus.Pending);
 
         publisherMock.Verify(
-            publisher => publisher.Publish(It.IsAny<INotification>(), It.IsAny<CancellationToken>()),
-            Times.Never);
+            publisher => publisher.Publish(
+                It.Is<OrderStatusChangedNotification>(notification =>
+                    notification.OrderId == savedOrder.Id &&
+                    notification.UserId == customer.Id &&
+                    notification.OldStatus == OrderStatus.PendingPayment &&
+                    notification.NewStatus == OrderStatus.PendingBankConfirmation &&
+                    notification.NotifyCustomer &&
+                    !notification.NotifyVendor &&
+                    notification.ActorRole == "customer"),
+                It.IsAny<CancellationToken>()),
+            Times.Once);
     }
 
     [Fact]

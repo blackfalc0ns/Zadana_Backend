@@ -1,6 +1,8 @@
+using MediatR;
 using Microsoft.EntityFrameworkCore;
 using Microsoft.Extensions.Logging;
 using Zadana.Application.Common.Interfaces;
+using Zadana.Application.Modules.Orders.Events;
 using Zadana.Application.Modules.Delivery.Support;
 using Zadana.Application.Modules.Orders.Interfaces;
 using Zadana.Application.Modules.Orders.Support;
@@ -32,6 +34,7 @@ public sealed class OrderSupportCaseWorkflowService : IOrderSupportCaseWorkflowS
     private readonly OrderInventoryWorkflowService _orderInventoryWorkflowService;
     private readonly IPaymentGatewayResolver? _gatewayResolver;
     private readonly ILogger<OrderSupportCaseWorkflowService>? _logger;
+    private readonly IPublisher? _publisher;
 
     public OrderSupportCaseWorkflowService(
         IApplicationDbContext context,
@@ -42,7 +45,8 @@ public sealed class OrderSupportCaseWorkflowService : IOrderSupportCaseWorkflowS
         VendorRecoveryService? vendorRecoveryService = null,
         OrderInventoryWorkflowService? orderInventoryWorkflowService = null,
         IPaymentGatewayResolver? gatewayResolver = null,
-        ILogger<OrderSupportCaseWorkflowService>? logger = null)
+        ILogger<OrderSupportCaseWorkflowService>? logger = null,
+        IPublisher? publisher = null)
     {
         _context = context;
         _unitOfWork = unitOfWork;
@@ -53,6 +57,7 @@ public sealed class OrderSupportCaseWorkflowService : IOrderSupportCaseWorkflowS
         _orderInventoryWorkflowService = orderInventoryWorkflowService ?? new OrderInventoryWorkflowService(context);
         _gatewayResolver = gatewayResolver;
         _logger = logger;
+        _publisher = publisher;
     }
 
     public async Task<OrderSupportCase> CreateCustomerCaseAsync(
@@ -458,6 +463,9 @@ public sealed class OrderSupportCaseWorkflowService : IOrderSupportCaseWorkflowS
         var compensationDecision = supportCase.Type == OrderSupportCaseType.ReturnRequest
             ? await ResolveCompensationDecisionAsync(supportCase, approvedAmount, refundMethod, cancellationToken)
             : null;
+        var oldOrderStatus = supportCase.Type == OrderSupportCaseType.ReturnRequest
+            ? supportCase.Order?.Status
+            : null;
 
         supportCase.Approve(
             actorUserId,
@@ -500,6 +508,11 @@ public sealed class OrderSupportCaseWorkflowService : IOrderSupportCaseWorkflowS
 
         StagePendingCaseArtifacts(supportCase);
         await _unitOfWork.SaveChangesAsync(cancellationToken);
+        await PublishOrderStatusChangedIfNeededAsync(
+            supportCase.Order,
+            oldOrderStatus,
+            actorRole: "admin",
+            cancellationToken);
 
         if (supportCase.Order is null)
         {
@@ -525,6 +538,43 @@ public sealed class OrderSupportCaseWorkflowService : IOrderSupportCaseWorkflowS
         await NotifyVendorSupportCaseAsync(supportCase.Order, supportCase, "approved", cancellationToken);
         await NotifyActiveDriverAsync(supportCase.Order, supportCase, "approved", cancellationToken);
         return supportCase;
+    }
+
+    private async Task PublishOrderStatusChangedIfNeededAsync(
+        Order? order,
+        OrderStatus? oldStatus,
+        string actorRole,
+        CancellationToken cancellationToken)
+    {
+        if (_publisher is null || order is null || !oldStatus.HasValue || oldStatus.Value == order.Status)
+        {
+            return;
+        }
+
+        try
+        {
+            await _publisher.Publish(
+                new OrderStatusChangedNotification(
+                    order.Id,
+                    order.UserId,
+                    order.VendorId,
+                    order.OrderNumber,
+                    oldStatus.Value,
+                    order.Status,
+                    NotifyCustomer: true,
+                    NotifyVendor: true,
+                    ActorRole: actorRole),
+                cancellationToken);
+        }
+        catch (Exception ex)
+        {
+            _logger?.LogError(
+                ex,
+                "Failed to publish order-status notification for support-case order {OrderId} transition {OldStatus}->{NewStatus}.",
+                order.Id,
+                oldStatus,
+                order.Status);
+        }
     }
 
     public async Task<OrderSupportCase> RejectAsync(

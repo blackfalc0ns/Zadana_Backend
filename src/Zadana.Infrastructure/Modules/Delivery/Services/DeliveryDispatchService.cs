@@ -123,15 +123,18 @@ public class DeliveryDispatchService : IDeliveryDispatchService
             _context.OrderStatusHistories.Add(order.StatusHistory.Last());
             await _unitOfWork.SaveChangesAsync(cancellationToken);
 
-            await _notificationService.SendOrderStatusChangedToUserAsync(
-                order.UserId,
-                order.Id,
-                order.OrderNumber,
-                order.VendorId,
-                oldStatus.ToString(),
-                order.Status.ToString(),
-                actorRole: "dispatch",
-                cancellationToken: cancellationToken);
+            await _publisher.Publish(
+                new OrderStatusChangedNotification(
+                    order.Id,
+                    order.UserId,
+                    order.VendorId,
+                    order.OrderNumber,
+                    oldStatus,
+                    order.Status,
+                    NotifyCustomer: true,
+                    NotifyVendor: false,
+                    ActorRole: "dispatch"),
+                cancellationToken);
         }
 
         return await OfferNextDriverAsync(order, assignment, cancellationToken);

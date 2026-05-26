@@ -84,7 +84,10 @@ public class OrderStatusNotificationDispatcherTests
                     data != null &&
                     data.Contains("\"newStatus\":\"Accepted\"") &&
                     data.Contains("\"oldStatus\":\"PendingVendorAcceptance\"") &&
-                    data.Contains("\"action\":\"status_changed\"")),
+                    data.Contains("\"action\":\"status_changed\"") &&
+                    data.Contains("\"presentation\":\"popup\"") &&
+                    data.Contains("\"popupType\":\"order_status_changed\"") &&
+                    data.Contains("\"showPopup\":true")),
                 It.IsAny<CancellationToken>()),
             Times.Once);
 
@@ -118,6 +121,9 @@ public class OrderStatusNotificationDispatcherTests
                     request.Data.Contains("\"newStatus\":\"Accepted\"") &&
                     request.Data.Contains("\"actorRole\":\"vendor\"") &&
                     request.Data.Contains("\"action\":\"status_changed\"") &&
+                    request.Data.Contains("\"presentation\":\"popup\"") &&
+                    request.Data.Contains("\"popupType\":\"order_status_changed\"") &&
+                    request.Data.Contains("\"showPopup\":true") &&
                     request.Data.Contains("\"targetUrl\":\"/orders/") &&
                     request.TargetUrl == $"/orders/{orderId}" &&
                     request.Profile == OneSignalPushProfile.MobileHeadsUp),

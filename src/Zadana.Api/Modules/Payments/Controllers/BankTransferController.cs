@@ -77,10 +77,14 @@ public class BankTransferController(
             throw new BusinessRuleException("ORDER_NOT_PENDING_BANK", "Order is not awaiting bank transfer confirmation.");
         }
 
+        OrderStatus? oldStatus = null;
+
         // Move to PendingBankConfirmation if still in PendingPayment
         if (order.Status == OrderStatus.PendingPayment)
         {
+            oldStatus = order.Status;
             order.ChangeStatus(OrderStatus.PendingBankConfirmation, null, "Bank transfer proof uploaded");
+            OrderStatusHistoryTracking.TrackNewEntries(context, order);
         }
 
         // Store proof metadata on the payment record
@@ -102,6 +106,17 @@ public class BankTransferController(
             }));
 
         await context.SaveChangesAsync(cancellationToken);
+
+        if (oldStatus.HasValue)
+        {
+            await PublishOrderStatusChangedAsync(
+                order,
+                oldStatus.Value,
+                order.Status,
+                notifyVendor: false,
+                actorRole: "customer",
+                cancellationToken);
+        }
 
         return Ok(new
         {
@@ -218,13 +233,27 @@ public class BankTransferController(
         payment.MarkAsFailed(rejectionReason);
 
         var order = payment.Order;
+        OrderStatus? oldStatus = null;
         if (order.Status is OrderStatus.PendingBankConfirmation or OrderStatus.PendingPayment)
         {
+            oldStatus = order.Status;
             order.ChangeStatus(OrderStatus.Cancelled, null, rejectionReason);
+            OrderStatusHistoryTracking.TrackNewEntries(context, order);
         }
 
         await context.SaveChangesAsync(cancellationToken);
         await DispatchBankTransferRejectedEmailAsync(order.Id, rejectionReason, cancellationToken);
+
+        if (oldStatus.HasValue)
+        {
+            await PublishOrderStatusChangedAsync(
+                order,
+                oldStatus.Value,
+                order.Status,
+                notifyVendor: false,
+                actorRole: "admin",
+                cancellationToken);
+        }
 
         return Ok(new
         {
@@ -375,6 +404,40 @@ public class BankTransferController(
             order.Status.ToString(),
             payment.Status.ToString(),
             journalEntryId);
+    }
+
+    private async Task PublishOrderStatusChangedAsync(
+        Zadana.Domain.Modules.Orders.Entities.Order order,
+        OrderStatus oldStatus,
+        OrderStatus newStatus,
+        bool notifyVendor,
+        string actorRole,
+        CancellationToken cancellationToken)
+    {
+        try
+        {
+            await publisher.Publish(
+                new OrderStatusChangedNotification(
+                    order.Id,
+                    order.UserId,
+                    order.VendorId,
+                    order.OrderNumber,
+                    oldStatus,
+                    newStatus,
+                    NotifyCustomer: true,
+                    NotifyVendor: notifyVendor,
+                    ActorRole: actorRole),
+                cancellationToken);
+        }
+        catch (Exception ex)
+        {
+            logger.LogError(
+                ex,
+                "[BankTransfer] Status notification failed for order {OrderId} transition {OldStatus}->{NewStatus}.",
+                order.Id,
+                oldStatus,
+                newStatus);
+        }
     }
 
     private async Task<Guid?> TryPostBankTransferLedgerAsync(

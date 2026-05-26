@@ -50,7 +50,13 @@ internal static class OrderStatusNotificationComposer
             newStatus = newStatus.ToString(),
             actorRole,
             action,
-            targetUrl
+            targetUrl,
+            category = "order",
+            screen = "order_tracking",
+            presentation = "popup",
+            popupType = "order_status_changed",
+            showPopup = true,
+            eventName = $"order.status.{newStatus.ToString().ToLowerInvariant()}"
         });
 
     public static string ResolveAction(OrderStatus newStatus) =>

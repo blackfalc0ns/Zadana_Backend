@@ -38,11 +38,17 @@ public class NotificationServiceRealtimePayloadTests
         payload.OrderNumber.Should().Be("ORD-REALTIME-001");
         payload.OldStatus.Should().Be("out_for_delivery");
         payload.NewStatus.Should().Be("out_for_delivery");
+        payload.Presentation.Should().Be("popup");
+        payload.PopupType.Should().Be("order_status_changed");
+        payload.ShowPopup.Should().BeTrue();
 
         var json = JsonSerializer.Serialize(payload);
         json.Should().Contain("\"orderId\"");
         json.Should().Contain("\"orderNumber\"");
         json.Should().Contain("\"newStatus\":\"out_for_delivery\"");
+        json.Should().Contain("\"presentation\":\"popup\"");
+        json.Should().Contain("\"popupType\":\"order_status_changed\"");
+        json.Should().Contain("\"showPopup\":true");
         json.Should().Contain("\"changedAtUtc\"");
         json.Should().NotContain("\"OrderId\"");
     }

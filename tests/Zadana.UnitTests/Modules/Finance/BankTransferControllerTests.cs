@@ -10,6 +10,7 @@ using Zadana.Api.Modules.Payments.Controllers;
 using Zadana.Application.Common.Settings;
 using Zadana.Application.Modules.EmailCenter.Interfaces;
 using Zadana.Application.Modules.Finances.Services;
+using Zadana.Application.Modules.Orders.Events;
 using Zadana.Domain.Modules.Finances.Enums;
 using Zadana.Domain.Modules.Orders.Entities;
 using Zadana.Domain.Modules.Orders.Enums;
@@ -72,9 +73,79 @@ public class BankTransferControllerTests
             line.OwnerId == platformOwnerId);
     }
 
+    [Fact]
+    public async Task UploadProof_WhenPendingPaymentOrder_ShouldPublishCustomerPopupStatusNotification()
+    {
+        await using var context = TestDbContextFactory.Create();
+        var order = CreateBankTransferOrder();
+        var payment = new Payment(order.Id, PaymentMethodType.BankTransfer, order.TotalAmount);
+        context.Orders.Add(order);
+        context.Payments.Add(payment);
+        await context.SaveChangesAsync();
+
+        var publisherMock = CreatePublisherMock();
+        var controller = CreateController(context, publisher: publisherMock.Object);
+
+        await controller.UploadProof(
+            order.Id,
+            new BankTransferProofRequest("https://example.com/proof.png", "BANK-REF-3", "Customer", "2026-05-26", order.TotalAmount),
+            new FakeCurrentUserService(order.UserId, isAuthenticated: true, role: "Customer"),
+            CancellationToken.None);
+
+        publisherMock.Verify(
+            publisher => publisher.Publish(
+                It.Is<OrderStatusChangedNotification>(notification =>
+                    notification.OrderId == order.Id &&
+                    notification.UserId == order.UserId &&
+                    notification.OldStatus == OrderStatus.PendingPayment &&
+                    notification.NewStatus == OrderStatus.PendingBankConfirmation &&
+                    notification.NotifyCustomer &&
+                    !notification.NotifyVendor &&
+                    notification.ActorRole == "customer"),
+                It.IsAny<CancellationToken>()),
+            Times.Once);
+    }
+
+    [Fact]
+    public async Task RejectBankTransfer_WhenPendingBankOrderCancelled_ShouldPublishCustomerPopupStatusNotification()
+    {
+        await using var context = TestDbContextFactory.Create();
+        var order = CreateBankTransferOrder();
+        var payment = new Payment(order.Id, PaymentMethodType.BankTransfer, order.TotalAmount);
+        context.Orders.Add(order);
+        context.Payments.Add(payment);
+        await context.SaveChangesAsync();
+        order.ChangeStatus(OrderStatus.PendingBankConfirmation, null, "Awaiting bank transfer confirmation");
+        context.OrderStatusHistories.Add(order.StatusHistory.Last());
+        await context.SaveChangesAsync();
+        context.ChangeTracker.Clear();
+
+        var publisherMock = CreatePublisherMock();
+        var controller = CreateController(context, publisher: publisherMock.Object);
+
+        await controller.RejectBankTransfer(
+            payment.Id,
+            new RejectBankTransferRequest("Proof rejected."),
+            CancellationToken.None);
+
+        publisherMock.Verify(
+            publisher => publisher.Publish(
+                It.Is<OrderStatusChangedNotification>(notification =>
+                    notification.OrderId == order.Id &&
+                    notification.UserId == order.UserId &&
+                    notification.OldStatus == OrderStatus.PendingBankConfirmation &&
+                    notification.NewStatus == OrderStatus.Cancelled &&
+                    notification.NotifyCustomer &&
+                    !notification.NotifyVendor &&
+                    notification.ActorRole == "admin"),
+                It.IsAny<CancellationToken>()),
+            Times.Once);
+    }
+
     private static BankTransferController CreateController(
         Zadana.Infrastructure.Persistence.ApplicationDbContext context,
-        Guid? platformOwnerId = null)
+        Guid? platformOwnerId = null,
+        IPublisher? publisher = null)
     {
         var postingService = new FinancialEventPostingService(
             context,
@@ -84,7 +155,7 @@ public class BankTransferControllerTests
             context,
             postingService,
             new WalletProjectionUpdater(context),
-            Mock.Of<IPublisher>(),
+            publisher ?? CreatePublisherMock().Object,
             Mock.Of<IEmailCenterService>(),
             Options.Create(new BankTransferSettingsOptions()),
             Options.Create(new FinancialSettingsOptions
@@ -93,6 +164,17 @@ public class BankTransferControllerTests
             }),
             Mock.Of<IWebHostEnvironment>(),
             NullLogger<BankTransferController>.Instance);
+    }
+
+    private static Mock<IPublisher> CreatePublisherMock()
+    {
+        var publisherMock = new Mock<IPublisher>();
+        publisherMock
+            .Setup(publisher => publisher.Publish(
+                It.IsAny<INotification>(),
+                It.IsAny<CancellationToken>()))
+            .Returns(Task.CompletedTask);
+        return publisherMock;
     }
 
     private static Order CreateBankTransferOrder() =>

@@ -143,6 +143,7 @@ public class AdminOrdersController : ApiControllerBase
         };
 
         order.ChangeStatus(newStatus, adminUserId, request.AdminNotes);
+        _dbContext.OrderStatusHistories.Add(order.StatusHistory.Last());
         await _dbContext.SaveChangesAsync(cancellationToken);
 
         // Dispatch customer push notification
@@ -260,12 +261,26 @@ public class AdminOrdersController : ApiControllerBase
 
         if (order.Status == OrderStatus.DriverAssigned)
         {
+            var oldStatus = order.Status;
             order.ChangeStatus(
                 OrderStatus.DriverAssignmentInProgress,
                 GetRequiredAdminUserId(),
                 "Dispatch recompute requested by admin.");
             _dbContext.OrderStatusHistories.Add(order.StatusHistory.Last());
             await _dbContext.SaveChangesAsync(cancellationToken);
+
+            await _publisher.Publish(
+                new OrderStatusChangedNotification(
+                    order.Id,
+                    order.UserId,
+                    order.VendorId,
+                    order.OrderNumber,
+                    oldStatus,
+                    order.Status,
+                    NotifyCustomer: true,
+                    NotifyVendor: true,
+                    ActorRole: "admin"),
+                cancellationToken);
         }
 
         await _dispatchService.TryAutoDispatchAsync(orderId, resetCycle: true, cancellationToken: cancellationToken);
@@ -295,6 +310,7 @@ public class AdminOrdersController : ApiControllerBase
         }
 
         order.ChangeStatus(OrderStatus.Cancelled, GetRequiredAdminUserId(), request.InternalNote ?? request.Details ?? "Cancelled by admin.");
+        _dbContext.OrderStatusHistories.Add(order.StatusHistory.Last());
 
         if (request.RefundType is "full" or "partial")
         {

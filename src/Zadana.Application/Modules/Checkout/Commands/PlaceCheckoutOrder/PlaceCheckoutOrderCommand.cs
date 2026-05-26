@@ -377,8 +377,8 @@ public class PlaceCheckoutOrderCommandHandler : IRequestHandler<PlaceCheckoutOrd
 
         await _unitOfWork.SaveChangesAsync(cancellationToken);
 
-        // Publish notification for order placement
-        if (paymentMethodCode is "cash")
+        // Publish notification for order placement or bank-transfer waiting state.
+        if (paymentMethodCode is "cash" or "bank")
         {
             await _publisher.Publish(
                 new OrderStatusChangedNotification(
@@ -389,7 +389,7 @@ public class PlaceCheckoutOrderCommandHandler : IRequestHandler<PlaceCheckoutOrd
                     OrderStatus.PendingPayment,
                     order.Status,
                     NotifyCustomer: true,
-                    NotifyVendor: true,
+                    NotifyVendor: paymentMethodCode is "cash",
                     ActorRole: "customer"),
                 cancellationToken);
         }
