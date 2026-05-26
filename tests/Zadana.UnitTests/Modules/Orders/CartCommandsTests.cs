@@ -104,6 +104,46 @@ public class CartCommandsTests
     }
 
     [Fact]
+    public async Task RemoveCartItem_PricesSingleRemainingProduct_WhenVendorIsNotProvided()
+    {
+        await using var context = TestDbContextFactory.Create();
+        var setup = await SeedCartWithTwoItemsAsync(context);
+
+        var handler = new RemoveCartItemCommandHandler(context, NullLogger<RemoveCartItemCommandHandler>.Instance);
+
+        var result = await handler.Handle(
+            new RemoveCartItemCommand(CartActor.Create(setup.UserId, null), setup.SecondCartItem.Id),
+            CancellationToken.None);
+
+        result.Summary.ItemsCount.Should().Be(1);
+        result.Summary.TotalQuantity.Should().Be(2);
+        result.Summary.Subtotal.Should().Be(120m);
+        result.Summary.DiscountAmount.Should().Be(20m);
+        result.Summary.TotalAmount.Should().Be(100m);
+        result.Summary.IsPricingAvailable.Should().BeTrue();
+    }
+
+    [Fact]
+    public async Task UpdateCartItemQuantity_PricesSingleProductCart_WhenVendorIsNotProvided()
+    {
+        await using var context = TestDbContextFactory.Create();
+        var setup = await SeedCartWithItemAsync(context);
+
+        var handler = new UpdateCartItemQuantityCommandHandler(context, NullLogger<UpdateCartItemQuantityCommandHandler>.Instance);
+
+        var result = await handler.Handle(
+            new UpdateCartItemQuantityCommand(CartActor.Create(setup.UserId, null), setup.CartItem.Id, 5),
+            CancellationToken.None);
+
+        result.Item.VendorPrices.Should().HaveCount(2);
+        result.Summary.TotalQuantity.Should().Be(5);
+        result.Summary.Subtotal.Should().Be(300m);
+        result.Summary.DiscountAmount.Should().Be(50m);
+        result.Summary.TotalAmount.Should().Be(250m);
+        result.Summary.IsPricingAvailable.Should().BeTrue();
+    }
+
+    [Fact]
     public async Task ClearCart_RemovesExistingCart()
     {
         await using var context = TestDbContextFactory.Create();

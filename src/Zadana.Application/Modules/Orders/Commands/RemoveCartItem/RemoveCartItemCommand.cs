@@ -86,9 +86,17 @@ public class RemoveCartItemCommandHandler : IRequestHandler<RemoveCartItemComman
         await _context.SaveChangesAsync(cancellationToken);
 
         var refreshedCart = await CartLookup.FindCartAsync(_context, actor, cancellationToken, includeItems: true, asTracking: false);
-        var summary = refreshedCart is null
-            ? new CartSummaryDto(0, 0, null, null, null)
-            : (await CartProjection.BuildCartDtoAsync(_context, refreshedCart, cancellationToken, request.VendorId)).Summary;
+        if (refreshedCart is null)
+        {
+            return new CartItemRemovalResponseDto(
+                LocalizedMessages.GetAr(LocalizedMessages.CartItemRemoved),
+                LocalizedMessages.GetEn(LocalizedMessages.CartItemRemoved),
+                new CartSummaryDto(0, 0, null, null, null));
+        }
+
+        var effectiveVendorId = request.VendorId
+            ?? await CartProjection.ResolveSingleProductPricingVendorIdAsync(_context, refreshedCart, cancellationToken);
+        var summary = (await CartProjection.BuildCartDtoAsync(_context, refreshedCart, cancellationToken, effectiveVendorId)).Summary;
 
         return new CartItemRemovalResponseDto(LocalizedMessages.GetAr(LocalizedMessages.CartItemRemoved), LocalizedMessages.GetEn(LocalizedMessages.CartItemRemoved), summary);
     }

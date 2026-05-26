@@ -264,6 +264,57 @@ internal static class CartProjection
             : null;
     }
 
+    public static async Task<Guid?> ResolveSingleProductPricingVendorIdAsync(
+        IApplicationDbContext context,
+        Cart cart,
+        CancellationToken cancellationToken)
+    {
+        var masterProductIds = cart.Items
+            .Select(item => item.MasterProductId)
+            .Distinct()
+            .ToArray();
+
+        if (masterProductIds.Length != 1)
+        {
+            return null;
+        }
+
+        var offers = await context.VendorProducts
+            .AsNoTracking()
+            .Where(product =>
+                product.MasterProductId == masterProductIds[0] &&
+                product.Status == VendorProductStatus.Active &&
+                product.IsAvailable &&
+                product.StockQuantity > 0 &&
+                product.MasterProduct.Status == ProductStatus.Active &&
+                product.Vendor.Status == VendorStatus.Active)
+            .Select(product => new
+            {
+                product.VendorId,
+                Price = product.SellingPrice,
+                product.CreatedAtUtc
+            })
+            .ToListAsync(cancellationToken);
+
+        if (offers.Count == 0)
+        {
+            return null;
+        }
+
+        var decisions = await VendorCustomerAvailabilityPolicy.LoadDecisionsAsync(
+            context,
+            offers.Select(offer => offer.VendorId),
+            cancellationToken);
+
+        return offers
+            .Where(offer => VendorCustomerAvailabilityPolicy.ResolveOrOffline(decisions, offer.VendorId).IsVisibleInCatalog)
+            .OrderBy(offer => offer.Price)
+            .ThenByDescending(offer => offer.CreatedAtUtc)
+            .ThenBy(offer => offer.VendorId)
+            .Select(offer => (Guid?)offer.VendorId)
+            .FirstOrDefault();
+    }
+
     public static Task<bool> HasVisibleOfferAsync(
         IApplicationDbContext context,
         Guid masterProductId,

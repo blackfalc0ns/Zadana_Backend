@@ -76,9 +76,14 @@ public class UpdateCartItemQuantityCommandHandler : IRequestHandler<UpdateCartIt
 
         await _context.SaveChangesAsync(cancellationToken);
 
+        var effectiveVendorId = request.VendorId
+            ?? await CartProjection.ResolveSingleProductPricingVendorIdAsync(_context, cart, cancellationToken);
         var cartDto = await CartProjection.BuildCartDtoAsync(_context, cart, cancellationToken, request.VendorId);
+        var summary = effectiveVendorId == request.VendorId
+            ? cartDto.Summary
+            : (await CartProjection.BuildCartDtoAsync(_context, cart, cancellationToken, effectiveVendorId)).Summary;
         var itemDto = cartDto.Items.Single(item => item.Id == cartItem.Id);
 
-        return new CartItemMutationResponseDto(LocalizedMessages.GetAr(LocalizedMessages.CartItemUpdated), LocalizedMessages.GetEn(LocalizedMessages.CartItemUpdated), itemDto, cartDto.Summary);
+        return new CartItemMutationResponseDto(LocalizedMessages.GetAr(LocalizedMessages.CartItemUpdated), LocalizedMessages.GetEn(LocalizedMessages.CartItemUpdated), itemDto, summary);
     }
 }
