@@ -4,6 +4,7 @@ public static class EmailEventKeys
 {
     public const string CustomerOrderConfirmed = "customer_order_confirmed";
     public const string CustomerOrderOutForDelivery = "customer_order_out_for_delivery";
+    public const string CustomerDriverArrivedAtDelivery = "customer_driver_arrived_at_delivery";
     public const string CustomerOrderImportantUpdate = "customer_order_important_update";
     public const string VendorApproved = "vendor_approved";
     public const string VendorOrderActionRequired = "vendor_order_action_required";
@@ -17,6 +18,7 @@ public static class EmailEventKeys
     {
         CustomerOrderConfirmed,
         CustomerOrderOutForDelivery,
+        CustomerDriverArrivedAtDelivery,
         CustomerOrderImportantUpdate,
         VendorApproved,
         VendorOrderActionRequired,
