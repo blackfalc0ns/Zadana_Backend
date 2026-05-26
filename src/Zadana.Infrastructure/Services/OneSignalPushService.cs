@@ -32,6 +32,71 @@ public sealed class OneSignalPushService : IOneSignalPushService
         _settings = settings.Value;
         _logger = logger;
         _scopeFactory = scopeFactory;
+
+        ValidateConfigurationAtStartup();
+    }
+
+    private void ValidateConfigurationAtStartup()
+    {
+        if (!_settings.Enabled)
+        {
+            _logger.LogInformation("[PUSH-CONFIG] OneSignal is disabled in configuration. Push notifications will be skipped.");
+            return;
+        }
+
+        var customerAppId = ResolveSettingValue("OneSignal__AppId", _settings.AppId);
+        var customerRestApiKey = ResolveSettingValue("OneSignal__RestApiKey", _settings.RestApiKey);
+
+        if (string.IsNullOrWhiteSpace(customerAppId) || string.IsNullOrWhiteSpace(customerRestApiKey))
+        {
+            _logger.LogError(
+                "[PUSH-CONFIG] OneSignal is enabled but Customer credentials are incomplete. " +
+                "OneSignal__AppId set: {HasAppId}. OneSignal__RestApiKey set: {HasRestApiKey}. " +
+                "All push notifications will fail.",
+                !string.IsNullOrWhiteSpace(customerAppId),
+                !string.IsNullOrWhiteSpace(customerRestApiKey));
+        }
+
+        WarnIfSeparateAppCredentialsInconsistent(
+            applicationName: "Driver",
+            appIdEnvVar: "OneSignal__DriverAppId",
+            appIdConfigured: _settings.DriverAppId,
+            restApiKeyEnvVar: "OneSignal__DriverRestApiKey",
+            restApiKeyConfigured: _settings.DriverRestApiKey);
+
+        WarnIfSeparateAppCredentialsInconsistent(
+            applicationName: "AdminWeb",
+            appIdEnvVar: "OneSignal__AdminWebAppId",
+            appIdConfigured: _settings.AdminWebAppId,
+            restApiKeyEnvVar: "OneSignal__AdminWebRestApiKey",
+            restApiKeyConfigured: _settings.AdminWebRestApiKey);
+    }
+
+    private void WarnIfSeparateAppCredentialsInconsistent(
+        string applicationName,
+        string appIdEnvVar,
+        string appIdConfigured,
+        string restApiKeyEnvVar,
+        string restApiKeyConfigured)
+    {
+        var hasAppId = !string.IsNullOrWhiteSpace(ResolveSettingValue(appIdEnvVar, appIdConfigured));
+        var hasRestApiKey = !string.IsNullOrWhiteSpace(ResolveSettingValue(restApiKeyEnvVar, restApiKeyConfigured));
+
+        if (hasAppId == hasRestApiKey)
+        {
+            return;
+        }
+
+        _logger.LogError(
+            "[PUSH-CONFIG] {ApplicationName} OneSignal credentials are inconsistent at startup. " +
+            "{AppIdEnvVar} set: {HasAppId}. {RestApiKeyEnvVar} set: {HasRestApiKey}. " +
+            "Both must be configured together (or both left empty to fall back to the Customer app). " +
+            "Until this is fixed, all dedicated push notifications for this app will be skipped to avoid 401 Access denied from OneSignal.",
+            applicationName,
+            appIdEnvVar,
+            hasAppId,
+            restApiKeyEnvVar,
+            hasRestApiKey);
     }
 
     public async Task<OneSignalPushDispatchResult> SendMobileNotificationAsync(
@@ -58,7 +123,10 @@ public sealed class OneSignalPushService : IOneSignalPushService
 
         // Fallback: if skipped because no registered devices matched, retry without the device requirement.
         // This ensures push delivery even when the driver app hasn't registered a device record in the DB.
-        if (result.Skipped && !result.Sent)
+        // Important: only retry when the skip reason is "no devices". Do NOT retry when the skip reason
+        // is a configuration error (missing AppId/RestApiKey) — that would just produce the same failure
+        // and pollute logs without any chance of success.
+        if (result.Skipped && !result.Sent && IsRetryableSkipReason(result.Reason))
         {
             _logger.LogWarning(
                 "[PUSH-FALLBACK] No registered device found for {ExternalUserId} (category={Category}). Retrying without device requirement.",
@@ -86,6 +154,10 @@ public sealed class OneSignalPushService : IOneSignalPushService
 
         return result;
     }
+
+    private static bool IsRetryableSkipReason(string? reason) =>
+        !string.IsNullOrWhiteSpace(reason) &&
+        reason.Contains("No active push-enabled devices", StringComparison.OrdinalIgnoreCase);
 
     public async Task<OneSignalPushDispatchResult> SendMobileNotificationDirectAsync(
         OneSignalMobilePushRequest request,
@@ -635,30 +707,89 @@ public sealed class OneSignalPushService : IOneSignalPushService
     {
         var customerAppId = ResolveSettingValue("OneSignal__AppId", _settings.AppId);
         var customerRestApiKey = ResolveSettingValue("OneSignal__RestApiKey", _settings.RestApiKey);
-        var driverAppId = FirstNonEmpty(
-            ResolveSettingValue("OneSignal__DriverAppId", _settings.DriverAppId),
-            customerAppId);
-        var driverRestApiKey = FirstNonEmpty(
-            ResolveSettingValue("OneSignal__DriverRestApiKey", _settings.DriverRestApiKey),
-            customerRestApiKey);
 
         if (targetApplication == OneSignalApplicationTarget.Driver)
         {
-            return (driverAppId, driverRestApiKey);
+            return ResolveSeparateAppConfiguration(
+                applicationName: "Driver",
+                appIdEnvVar: "OneSignal__DriverAppId",
+                appIdConfigured: _settings.DriverAppId,
+                restApiKeyEnvVar: "OneSignal__DriverRestApiKey",
+                restApiKeyConfigured: _settings.DriverRestApiKey,
+                fallbackAppId: customerAppId,
+                fallbackRestApiKey: customerRestApiKey);
         }
 
         if (targetApplication == OneSignalApplicationTarget.AdminWeb)
         {
-            return (
-                FirstNonEmpty(
-                    ResolveSettingValue("OneSignal__AdminWebAppId", _settings.AdminWebAppId),
-                    customerAppId),
-                FirstNonEmpty(
-                    ResolveSettingValue("OneSignal__AdminWebRestApiKey", _settings.AdminWebRestApiKey),
-                    customerRestApiKey));
+            return ResolveSeparateAppConfiguration(
+                applicationName: "AdminWeb",
+                appIdEnvVar: "OneSignal__AdminWebAppId",
+                appIdConfigured: _settings.AdminWebAppId,
+                restApiKeyEnvVar: "OneSignal__AdminWebRestApiKey",
+                restApiKeyConfigured: _settings.AdminWebRestApiKey,
+                fallbackAppId: customerAppId,
+                fallbackRestApiKey: customerRestApiKey);
         }
 
         return (customerAppId, customerRestApiKey);
+    }
+
+    /// <summary>
+    /// Resolves OneSignal credentials for a target application that has its own
+    /// dedicated OneSignal app (Driver or AdminWeb).
+    /// Prevents the dangerous silent fallback that mixes a Customer key with a
+    /// non-Customer App ID (which causes OneSignal to return 401 Access denied).
+    /// Returns empty strings to mark configuration as not-ready when credentials
+    /// are inconsistent, so dispatch is skipped with a clear, logged reason
+    /// instead of being silently rejected by OneSignal.
+    /// </summary>
+    private (string AppId, string RestApiKey) ResolveSeparateAppConfiguration(
+        string applicationName,
+        string appIdEnvVar,
+        string appIdConfigured,
+        string restApiKeyEnvVar,
+        string restApiKeyConfigured,
+        string fallbackAppId,
+        string fallbackRestApiKey)
+    {
+        var dedicatedAppId = ResolveSettingValue(appIdEnvVar, appIdConfigured);
+        var dedicatedRestApiKey = ResolveSettingValue(restApiKeyEnvVar, restApiKeyConfigured);
+
+        var hasDedicatedAppId = !string.IsNullOrWhiteSpace(dedicatedAppId);
+        var hasDedicatedRestApiKey = !string.IsNullOrWhiteSpace(dedicatedRestApiKey);
+
+        // Both dedicated values present: use the dedicated OneSignal app.
+        if (hasDedicatedAppId && hasDedicatedRestApiKey)
+        {
+            return (dedicatedAppId, dedicatedRestApiKey);
+        }
+
+        // Both dedicated values missing: fall back to the Customer app entirely.
+        // This is intentional and safe because both AppId and RestApiKey come from
+        // the same Customer pair, so OneSignal authorization will succeed.
+        if (!hasDedicatedAppId && !hasDedicatedRestApiKey)
+        {
+            return (fallbackAppId, fallbackRestApiKey);
+        }
+
+        // Inconsistent configuration: only one of (AppId, RestApiKey) is set.
+        // Mixing a dedicated AppId with the Customer RestApiKey (or vice versa)
+        // makes OneSignal reject the request with 401 Access denied, which silently
+        // drops background/killed-state push delivery and is very hard to diagnose.
+        // Return empty credentials so the caller skips dispatch with a logged reason.
+        _logger.LogError(
+            "[PUSH-CONFIG] {ApplicationName} OneSignal credentials are inconsistent. " +
+            "{AppIdEnvVar} set: {HasAppId}. {RestApiKeyEnvVar} set: {HasRestApiKey}. " +
+            "Both must be configured together (or both left empty to fall back to the Customer app). " +
+            "Skipping dispatch to avoid sending a request OneSignal will reject with 401.",
+            applicationName,
+            appIdEnvVar,
+            hasDedicatedAppId,
+            restApiKeyEnvVar,
+            hasDedicatedRestApiKey);
+
+        return (string.Empty, string.Empty);
     }
 
     private (string AppId, string RestApiKey) ResolveAppConfiguration(
