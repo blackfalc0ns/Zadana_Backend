@@ -4,19 +4,39 @@ on:
   push:
     branches:
       - main
+  workflow_dispatch:
 
 jobs:
   build-and-deploy:
-    runs-on: windows-latest
+    runs-on: windows-2022
+    env:
+      PUBLISH_DIR: ${{ github.workspace }}\publish
 
     steps:
       - name: Checkout code
         uses: actions/checkout@v4
 
-      - name: Setup .NET
-        uses: actions/setup-dotnet@v4
-        with:
-          dotnet-version: '9.0.x'
+      - name: Ensure .NET 9 SDK
+        shell: pwsh
+        run: |
+          $dotnetCommand = Get-Command dotnet -ErrorAction SilentlyContinue
+          $hasDotnet9 = $false
+
+          if ($dotnetCommand) {
+            $hasDotnet9 = [bool](dotnet --list-sdks | Where-Object { $_ -match '^9\.' } | Select-Object -First 1)
+          }
+
+          if (-not $hasDotnet9) {
+            $dotnetRoot = Join-Path $env:USERPROFILE ".dotnet"
+            Invoke-WebRequest -Uri "https://dot.net/v1/dotnet-install.ps1" -OutFile "dotnet-install.ps1"
+            ./dotnet-install.ps1 -Channel 9.0 -InstallDir $dotnetRoot
+            $env:PATH = "$dotnetRoot;$dotnetRoot\tools;$env:PATH"
+            "DOTNET_ROOT=$dotnetRoot" | Out-File -FilePath $env:GITHUB_ENV -Append
+            $dotnetRoot | Out-File -FilePath $env:GITHUB_PATH -Append
+            "$dotnetRoot\tools" | Out-File -FilePath $env:GITHUB_PATH -Append
+          }
+
+          dotnet --info
 
       - name: Restore dependencies
         run: dotnet restore
@@ -29,7 +49,16 @@ jobs:
         continue-on-error: true
 
       - name: Publish
-        run: dotnet publish src/Zadana.Api/Zadana.Api.csproj --configuration Release --output ./publish --runtime win-x86 --self-contained false
+        run: dotnet publish src/Zadana.Api/Zadana.Api.csproj --configuration Release --output "$env:PUBLISH_DIR" --runtime win-x86 --self-contained false
+
+      - name: Remove server-local files from deploy package
+        shell: pwsh
+        run: |
+          Remove-Item -LiteralPath "$env:PUBLISH_DIR\web.config" -Force -ErrorAction SilentlyContinue
+          Remove-Item -LiteralPath "$env:PUBLISH_DIR\appsettings.Local.json" -Force -ErrorAction SilentlyContinue
+          Remove-Item -LiteralPath "$env:PUBLISH_DIR\publish" -Recurse -Force -ErrorAction SilentlyContinue
+          New-Item -Path "$env:PUBLISH_DIR\logs" -ItemType Directory -Force | Out-Null
+          "Keep this directory so ASP.NET Core stdout logging can create startup logs." | Set-Content -Path "$env:PUBLISH_DIR\logs\.keep"
 
       - name: Deploy to MonsterASP
         shell: pwsh
@@ -39,7 +68,7 @@ jobs:
           & $msdeploy `
             -verb:sync `
             -allowUntrusted `
-            "-source:contentPath=${{ github.workspace }}\publish" `
+            "-source:contentPath=$env:PUBLISH_DIR" `
             "-dest:contentPath=site57375,computerName=https://site57375.siteasp.net:8172/MsDeploy.axd?site=site57375,username=site57375,password=${{ secrets.SERVER_PASSWORD }},AuthType='Basic'" `
             -enableRule:DoNotDeleteRule `
             -enableRule:AppOffline
