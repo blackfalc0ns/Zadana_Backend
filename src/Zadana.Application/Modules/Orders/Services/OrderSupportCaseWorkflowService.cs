@@ -227,6 +227,9 @@ public sealed class OrderSupportCaseWorkflowService : IOrderSupportCaseWorkflowS
 
             StagePendingCaseArtifacts(activeCase);
             await _unitOfWork.SaveChangesAsync(cancellationToken);
+            await NotifyCustomerIfExternalCaseAsync(order, activeCase, "admin_message", cancellationToken);
+            await NotifyVendorSupportCaseAsync(order, activeCase, "admin_message", cancellationToken);
+            await NotifyActiveDriverAsync(order, activeCase, "admin_message", cancellationToken);
             return activeCase;
         }
 
@@ -250,6 +253,8 @@ public sealed class OrderSupportCaseWorkflowService : IOrderSupportCaseWorkflowS
         }
 
         await _unitOfWork.SaveChangesAsync(cancellationToken);
+        await NotifyCustomerIfExternalCaseAsync(order, supportCase, "created", cancellationToken);
+        await NotifyVendorSupportCaseAsync(order, supportCase, "created", cancellationToken);
         await NotifyActiveDriverAsync(order, supportCase, "created", cancellationToken);
         return supportCase;
     }
@@ -331,6 +336,8 @@ public sealed class OrderSupportCaseWorkflowService : IOrderSupportCaseWorkflowS
         }
         else
         {
+            await NotifyCustomerIfExternalCaseAsync(supportCase.Order, supportCase, "assigned", cancellationToken);
+            await NotifyVendorSupportCaseAsync(supportCase.Order, supportCase, "assigned", cancellationToken);
             await NotifyActiveDriverAsync(supportCase.Order, supportCase, "assigned", cancellationToken);
         }
 
@@ -429,9 +436,10 @@ public sealed class OrderSupportCaseWorkflowService : IOrderSupportCaseWorkflowS
                 cancellationToken);
         }
 
-        if (!string.IsNullOrWhiteSpace(customerVisibleNote) && supportCase.Order is not null)
+        if (supportCase.Order is not null)
         {
-            await NotifyCustomerAsync(supportCase.Order, supportCase, "escalated", cancellationToken);
+            await NotifyCustomerIfExternalCaseAsync(supportCase.Order, supportCase, "escalated", cancellationToken);
+            await NotifyVendorSupportCaseAsync(supportCase.Order, supportCase, "escalated", cancellationToken);
         }
 
         if (supportCase.Order is null)
@@ -1334,7 +1342,10 @@ public sealed class OrderSupportCaseWorkflowService : IOrderSupportCaseWorkflowS
             _ => "Your account support case was updated."
         };
         (titleAr, titleEn, bodyAr, bodyEn) = BuildDriverAccountSupportNotification(action);
-        var data = $"{{\"caseId\":\"{supportCase.Id}\",\"driverId\":\"{supportCase.DriverId}\",\"type\":\"driver_account\",\"action\":\"{action}\"}}";
+        var targetUrl = $"/support/cases/{supportCase.Id}";
+        var data = $$"""
+{"caseId":"{{supportCase.Id}}","driverId":"{{supportCase.DriverId}}","type":"driver_account","status":"{{OrderSupportCaseNotificationComposer.ToApiValue(supportCase.Status)}}","action":"{{action}}","targetUrl":"{{targetUrl}}","category":"support","screen":"support_case_detail","presentation":"popup","popupType":"support_case_status_update","showPopup":true,"eventName":"support.{{action}}"}
+""";
 
         await _notificationService.SendToUserAsync(
             supportCase.CustomerUserId,
@@ -1356,7 +1367,7 @@ public sealed class OrderSupportCaseWorkflowService : IOrderSupportCaseWorkflowS
             type: OrderSupportCaseNotificationComposer.ToApiValue(supportCase.Type),
             status: OrderSupportCaseNotificationComposer.ToApiValue(supportCase.Status),
             action: action,
-            targetUrl: $"/support/cases/{supportCase.Id}",
+            targetUrl: targetUrl,
             cancellationToken: cancellationToken);
 
         await _notificationService.SendDriverHomeUpdatedAsync(
@@ -1377,7 +1388,7 @@ public sealed class OrderSupportCaseWorkflowService : IOrderSupportCaseWorkflowS
                 NotificationTypes.OrderSupportCaseChanged,
                 supportCase.Id,
                 data,
-                targetUrl: $"/support/cases/{supportCase.Id}",
+                targetUrl: targetUrl,
                 category: NotificationCategories.Support,
                 targetApplication: OneSignalApplicationTarget.Driver)
             : OneSignalMobilePushRequest.CreateStandard(
@@ -1389,7 +1400,7 @@ public sealed class OrderSupportCaseWorkflowService : IOrderSupportCaseWorkflowS
                 NotificationTypes.OrderSupportCaseChanged,
                 supportCase.Id,
                 data,
-                targetUrl: $"/support/cases/{supportCase.Id}",
+                targetUrl: targetUrl,
                 category: NotificationCategories.Support,
                 targetApplication: OneSignalApplicationTarget.Driver);
 
@@ -1445,6 +1456,25 @@ public sealed class OrderSupportCaseWorkflowService : IOrderSupportCaseWorkflowS
                 "تم تحديث طلب دعم حسابك.",
                 "Your account support case was updated.")
         };
+
+    private async Task NotifyCustomerIfExternalCaseAsync(
+        Order order,
+        OrderSupportCase supportCase,
+        string action,
+        CancellationToken cancellationToken)
+    {
+        if (!ShouldNotifyOrderCustomer(order, supportCase))
+        {
+            return;
+        }
+
+        await NotifyCustomerAsync(order, supportCase, action, cancellationToken);
+    }
+
+    private static bool ShouldNotifyOrderCustomer(Order order, OrderSupportCase supportCase) =>
+        supportCase.CustomerUserId == order.UserId ||
+        string.Equals(supportCase.InitiatorRole, "customer", StringComparison.OrdinalIgnoreCase) ||
+        supportCase.Type is OrderSupportCaseType.Complaint or OrderSupportCaseType.ReturnRequest;
 
     private async Task NotifyCustomerAsync(
         Order order,
@@ -1732,6 +1762,7 @@ public sealed class OrderSupportCaseWorkflowService : IOrderSupportCaseWorkflowS
         var normalizedAction = NormalizeToken(action);
         var type = OrderSupportCaseNotificationComposer.ToApiValue(supportCase.Type);
         var status = OrderSupportCaseNotificationComposer.ToApiValue(supportCase.Status);
+        var targetUrl = $"/orders/{order.Id}/cases/{supportCase.Id}";
         var data = DriverNotificationDataBuilder.Build(
             "support_case_detail",
             $"support.{normalizedAction}",
@@ -1741,7 +1772,13 @@ public sealed class OrderSupportCaseWorkflowService : IOrderSupportCaseWorkflowS
             {
                 orderNumber = order.OrderNumber,
                 type,
-                status
+                status,
+                targetUrl,
+                category = "support",
+                presentation = "popup",
+                popupType = "support_case_status_update",
+                showPopup = true,
+                eventName = $"support.{normalizedAction}"
             });
 
         var localizedEnvelope = BuildLocalizedDriverSupportNotification(
@@ -2479,7 +2516,7 @@ public sealed class OrderSupportCaseWorkflowService : IOrderSupportCaseWorkflowS
             notifyCurrentReviewer: true,
             cancellationToken);
 
-        await NotifyVendorAsync(supportCase.Order, supportCase, "customer_replied", cancellationToken);
+        await NotifyVendorSupportCaseAsync(supportCase.Order, supportCase, "customer_replied", cancellationToken);
 
         return supportCase;
     }

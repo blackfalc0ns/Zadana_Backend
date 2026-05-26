@@ -161,6 +161,26 @@ internal static class OrderSupportCaseNotificationComposer
     {
         return (type, status, action) switch
         {
+            (_, OrderSupportCaseStatus.InReview, "assigned") => (
+                "بدأت مراجعة الحالة",
+                "Case under review",
+                $"بدأ فريق الدعم مراجعة الحالة المرتبطة بطلب {orderNumber}.",
+                $"Support has started reviewing the case for order #{orderNumber}."),
+            (_, OrderSupportCaseStatus.InReview, "escalated") => (
+                "تم تصعيد الحالة",
+                "Case escalated",
+                $"تم تصعيد الحالة المرتبطة بطلب {orderNumber} للمراجعة.",
+                $"The case linked to order #{orderNumber} was escalated for review."),
+            (_, _, "admin_message") => (
+                "رسالة جديدة من الدعم",
+                "New support message",
+                $"توجد رسالة جديدة من الدعم بخصوص طلب {orderNumber}.",
+                $"There is a new support message about order #{orderNumber}."),
+            (_, _, "note_added") => (
+                "تمت إضافة ملاحظة",
+                "New support note",
+                $"تمت إضافة ملاحظة على الحالة المرتبطة بطلب {orderNumber}.",
+                $"A note was added to the case for order #{orderNumber}."),
             (_, OrderSupportCaseStatus.AwaitingCustomerEvidence, _) => (
                 "مطلوب مستندات إضافية",
                 "More evidence is required",

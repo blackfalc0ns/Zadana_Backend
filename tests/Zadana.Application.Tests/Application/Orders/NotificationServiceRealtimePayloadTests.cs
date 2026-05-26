@@ -86,6 +86,44 @@ public class NotificationServiceRealtimePayloadTests
         json.Should().NotContain("\"OrderId\"");
     }
 
+    [Fact]
+    public async Task SendDriverSupportCaseChangedToUserAsync_ShouldMarkRealtimePayloadAsPopup()
+    {
+        var userId = Guid.NewGuid();
+        var caseId = Guid.NewGuid();
+        var driverId = Guid.NewGuid();
+        var orderId = Guid.NewGuid();
+        var (service, sent) = CreateNotificationService(userId);
+
+        await service.SendDriverSupportCaseChangedToUserAsync(
+            userId,
+            caseId,
+            driverId,
+            orderId,
+            "ORD-SUPPORT-RT-001",
+            "driver_dispute",
+            "in_review",
+            "assigned",
+            $"/orders/{orderId}/cases/{caseId}",
+            CancellationToken.None);
+
+        sent.Method.Should().Be(NotificationHub.ReceiveDriverSupportCaseChangedMethod);
+        var payload = sent.Payload.Should().BeOfType<DriverSupportCaseChangedRealtimePayload>().Subject;
+        payload.CaseId.Should().Be(caseId);
+        payload.DriverId.Should().Be(driverId);
+        payload.OrderId.Should().Be(orderId);
+        payload.Presentation.Should().Be("popup");
+        payload.PopupType.Should().Be("support_case_status_update");
+        payload.ShowPopup.Should().BeTrue();
+
+        var json = JsonSerializer.Serialize(payload);
+        json.Should().Contain("\"caseId\"");
+        json.Should().Contain("\"presentation\":\"popup\"");
+        json.Should().Contain("\"popupType\":\"support_case_status_update\"");
+        json.Should().Contain("\"showPopup\":true");
+        json.Should().NotContain("\"CaseId\"");
+    }
+
     private static (NotificationService Service, SentSignalRMessage Sent) CreateNotificationService(Guid userId)
     {
         var sent = new SentSignalRMessage();

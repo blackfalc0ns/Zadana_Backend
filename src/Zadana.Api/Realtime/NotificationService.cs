@@ -271,7 +271,10 @@ public sealed class NotificationService : INotificationService
                 string.IsNullOrWhiteSpace(targetUrl)
                     ? orderId.HasValue ? $"/orders/{orderId}/cases/{caseId}" : $"/support/cases/{caseId}"
                     : targetUrl,
-                DateTime.UtcNow);
+                DateTime.UtcNow,
+                "popup",
+                "support_case_status_update",
+                true);
 
             await _hubContext.Clients
                 .Group(NotificationHub.GetUserGroup(driverUserId))

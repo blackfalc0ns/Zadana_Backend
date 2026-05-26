@@ -193,6 +193,130 @@ public class OrderSupportCaseWorkflowNotificationTests
             Times.Once);
     }
 
+    [Fact]
+    public async Task AssignAsync_WhenCustomerCaseMovesInReview_ShouldNotifyCustomerAsPopup()
+    {
+        await using var dbContext = CreateDbContext();
+        var customer = new User("Customer User", "customer.assign.case@test.com", "01000000208", UserRole.Customer);
+        var vendorUser = new User("Vendor User", "vendor.assign.case@test.com", "01000000209", UserRole.Vendor);
+        var vendor = CreateVendor(vendorUser.Id);
+        var order = CreateOrder(customer.Id, vendor.Id, OrderStatus.Delivered, "ORD-ASSIGN-001");
+        var supportCase = new OrderSupportCase(
+            order.Id,
+            customer.Id,
+            OrderSupportCaseType.ReturnRequest,
+            OrderSupportCasePriority.High,
+            OrderSupportCaseQueue.Finance,
+            "refund_request",
+            "Return requested.",
+            initiatorRole: "customer");
+
+        dbContext.Users.AddRange(customer, vendorUser);
+        dbContext.Vendors.Add(vendor);
+        dbContext.Orders.Add(order);
+        dbContext.OrderSupportCases.Add(supportCase);
+        await dbContext.SaveChangesAsync();
+
+        var notificationServiceMock = CreateNotificationServiceMock();
+        var workflowService = CreateWorkflowService(dbContext, notificationServiceMock);
+
+        await workflowService.AssignAsync(
+            supportCase.Id,
+            Guid.NewGuid(),
+            null,
+            "Assign to finance.",
+            "high",
+            null,
+            CancellationToken.None);
+
+        notificationServiceMock.Verify(
+            service => service.SendToUserAsync(
+                customer.Id,
+                It.IsAny<string>(),
+                It.Is<string>(title => title.Contains("review", StringComparison.OrdinalIgnoreCase)),
+                It.IsAny<string>(),
+                It.IsAny<string>(),
+                NotificationTypes.OrderSupportCaseChanged,
+                supportCase.Id,
+                It.Is<string>(data =>
+                    data.Contains("\"status\":\"in_review\"", StringComparison.Ordinal) &&
+                    data.Contains("\"presentation\":\"popup\"", StringComparison.Ordinal) &&
+                    data.Contains("\"popupType\":\"support_case_status_update\"", StringComparison.Ordinal) &&
+                    data.Contains("\"eventName\":\"support.assigned\"", StringComparison.Ordinal)),
+                It.IsAny<CancellationToken>()),
+            Times.Once);
+
+        notificationServiceMock.Verify(
+            service => service.SendOrderSupportCaseChangedToUserAsync(
+                customer.Id,
+                supportCase.Id,
+                order.Id,
+                order.OrderNumber,
+                "return_request",
+                "in_review",
+                "assigned",
+                $"/orders/{order.Id}/cases/{supportCase.Id}",
+                It.IsAny<CancellationToken>()),
+            Times.Once);
+    }
+
+    [Fact]
+    public async Task EscalateAsync_WithoutCustomerVisibleNote_ShouldStillNotifyCustomerAsPopup()
+    {
+        await using var dbContext = CreateDbContext();
+        var customer = new User("Customer User", "customer.escalate.case@test.com", "01000000210", UserRole.Customer);
+        var vendorUser = new User("Vendor User", "vendor.escalate.case@test.com", "01000000211", UserRole.Vendor);
+        var vendor = CreateVendor(vendorUser.Id);
+        var order = CreateOrder(customer.Id, vendor.Id, OrderStatus.Delivered, "ORD-ESCALATE-001");
+        var supportCase = new OrderSupportCase(
+            order.Id,
+            customer.Id,
+            OrderSupportCaseType.Complaint,
+            OrderSupportCasePriority.Medium,
+            OrderSupportCaseQueue.Support,
+            "damaged_item",
+            "Order item arrived damaged.",
+            initiatorRole: "customer");
+
+        dbContext.Users.AddRange(customer, vendorUser);
+        dbContext.Vendors.Add(vendor);
+        dbContext.Orders.Add(order);
+        dbContext.OrderSupportCases.Add(supportCase);
+        await dbContext.SaveChangesAsync();
+
+        var notificationServiceMock = CreateNotificationServiceMock();
+        var workflowService = CreateWorkflowService(dbContext, notificationServiceMock);
+
+        await workflowService.EscalateAsync(
+            supportCase.Id,
+            Guid.NewGuid(),
+            "risk",
+            "high",
+            "Internal escalation note.",
+            customerVisibleNote: null,
+            notifyEscalatedTeam: false,
+            notifyCurrentReviewer: false,
+            slaDueAtUtc: null,
+            CancellationToken.None);
+
+        notificationServiceMock.Verify(
+            service => service.SendToUserAsync(
+                customer.Id,
+                It.IsAny<string>(),
+                It.Is<string>(title => title.Contains("escalated", StringComparison.OrdinalIgnoreCase)),
+                It.IsAny<string>(),
+                It.IsAny<string>(),
+                NotificationTypes.OrderSupportCaseChanged,
+                supportCase.Id,
+                It.Is<string>(data =>
+                    data.Contains("\"status\":\"in_review\"", StringComparison.Ordinal) &&
+                    data.Contains("\"presentation\":\"popup\"", StringComparison.Ordinal) &&
+                    data.Contains("\"popupType\":\"support_case_status_update\"", StringComparison.Ordinal) &&
+                    data.Contains("\"eventName\":\"support.escalated\"", StringComparison.Ordinal)),
+                It.IsAny<CancellationToken>()),
+            Times.Once);
+    }
+
     private static OrderSupportCaseWorkflowService CreateWorkflowService(
         ApplicationDbContext dbContext,
         Mock<INotificationService> notificationServiceMock,
