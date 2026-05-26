@@ -79,3 +79,57 @@ jobs:
             "-dest:contentPath=site57375,computerName=https://site57375.siteasp.net:8172/MsDeploy.axd?site=site57375,username=site57375,password=${{ secrets.SERVER_PASSWORD }},AuthType='Basic'" `
             -enableRule:DoNotDeleteRule `
             -enableRule:AppOffline
+
+      - name: Verify live app and print stdout logs
+        if: always()
+        shell: pwsh
+        run: |
+          $healthUrl = "https://zadana.runasp.net/health"
+          $healthy = $false
+
+          Start-Sleep -Seconds 10
+          try {
+            $response = Invoke-WebRequest -Uri $healthUrl -UseBasicParsing -TimeoutSec 20
+            Write-Host "Health check: $($response.StatusCode) $($response.StatusDescription)"
+            Write-Host $response.Content
+            $healthy = $response.StatusCode -ge 200 -and $response.StatusCode -lt 300
+          } catch {
+            if ($_.Exception.Response) {
+              Write-Host "Health check failed: $([int]$_.Exception.Response.StatusCode) $($_.Exception.Response.StatusDescription)"
+            } else {
+              Write-Host "Health check failed: $($_.Exception.Message)"
+            }
+          }
+
+          $msdeploy = "C:\Program Files (x86)\IIS\Microsoft Web Deploy V3\msdeploy.exe"
+          $remoteLogs = Join-Path $env:RUNNER_TEMP "remote-logs"
+          Remove-Item -LiteralPath $remoteLogs -Recurse -Force -ErrorAction SilentlyContinue
+          New-Item -Path $remoteLogs -ItemType Directory -Force | Out-Null
+
+          try {
+            & $msdeploy `
+              -verb:sync `
+              -allowUntrusted `
+              "-source:contentPath=site57375\logs,computerName=https://site57375.siteasp.net:8172/MsDeploy.axd?site=site57375,username=site57375,password=${{ secrets.SERVER_PASSWORD }},AuthType='Basic'" `
+              "-dest:contentPath=$remoteLogs"
+          } catch {
+            Write-Host "Could not download remote logs: $($_.Exception.Message)"
+          }
+
+          $logs = Get-ChildItem -Path $remoteLogs -Recurse -File -ErrorAction SilentlyContinue |
+            Where-Object { $_.Name -like "stdout*" -or $_.Extension -eq ".log" } |
+            Sort-Object LastWriteTime -Descending |
+            Select-Object -First 5
+
+          if (-not $logs) {
+            Write-Host "No stdout logs found under remote logs folder."
+          }
+
+          foreach ($log in $logs) {
+            Write-Host "----- $($log.FullName) -----"
+            Get-Content -Path $log.FullName -Tail 200 -ErrorAction Continue
+          }
+
+          if (-not $healthy) {
+            exit 1
+          }
