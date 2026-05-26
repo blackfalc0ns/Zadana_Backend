@@ -34,6 +34,7 @@
                   hostingModel="inprocess">
         <environmentVariables>
           <environmentVariable name="ASPNETCORE_ENVIRONMENT" value="Production" />
+          <environmentVariable name="Caching__Redis__RequireInProduction" value="false" />
 
           <!-- ===== Database ===== -->
           <environmentVariable
