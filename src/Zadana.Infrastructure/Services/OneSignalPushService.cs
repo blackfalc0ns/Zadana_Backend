@@ -777,11 +777,27 @@ public sealed class OneSignalPushService : IOneSignalPushService
         // Mixing a dedicated AppId with the Customer RestApiKey (or vice versa)
         // makes OneSignal reject the request with 401 Access denied, which silently
         // drops background/killed-state push delivery and is very hard to diagnose.
-        // Return empty credentials so the caller skips dispatch with a logged reason.
+        // Fall back to the Customer pair as a whole if it is available, so mobile
+        // push delivery does not stop because of a partially configured dedicated app.
+        if (!string.IsNullOrWhiteSpace(fallbackAppId) && !string.IsNullOrWhiteSpace(fallbackRestApiKey))
+        {
+            _logger.LogWarning(
+                "[PUSH-CONFIG] {ApplicationName} OneSignal credentials are inconsistent. " +
+                "{AppIdEnvVar} set: {HasAppId}. {RestApiKeyEnvVar} set: {HasRestApiKey}. " +
+                "Falling back to the Customer OneSignal app pair.",
+                applicationName,
+                appIdEnvVar,
+                hasDedicatedAppId,
+                restApiKeyEnvVar,
+                hasDedicatedRestApiKey);
+
+            return (fallbackAppId, fallbackRestApiKey);
+        }
+
         _logger.LogError(
             "[PUSH-CONFIG] {ApplicationName} OneSignal credentials are inconsistent. " +
             "{AppIdEnvVar} set: {HasAppId}. {RestApiKeyEnvVar} set: {HasRestApiKey}. " +
-            "Both must be configured together (or both left empty to fall back to the Customer app). " +
+            "Both must be configured together, and Customer fallback credentials are unavailable. " +
             "Skipping dispatch to avoid sending a request OneSignal will reject with 401.",
             applicationName,
             appIdEnvVar,

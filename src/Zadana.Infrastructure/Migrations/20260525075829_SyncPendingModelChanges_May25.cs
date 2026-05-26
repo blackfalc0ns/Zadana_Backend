@@ -10,54 +10,43 @@ namespace Zadana.Infrastructure.Migrations
         /// <inheritdoc />
         protected override void Up(MigrationBuilder migrationBuilder)
         {
-            migrationBuilder.DropForeignKey(
-                name: "FK_RefreshToken_AspNetUsers_UserId",
-                table: "RefreshToken");
+            migrationBuilder.Sql(
+                """
+                IF OBJECT_ID(N'[dbo].[RefreshToken]', N'U') IS NOT NULL AND OBJECT_ID(N'[dbo].[RefreshTokens]', N'U') IS NULL
+                BEGIN
+                    IF OBJECT_ID(N'[dbo].[FK_RefreshToken_AspNetUsers_UserId]', N'F') IS NOT NULL
+                        ALTER TABLE [dbo].[RefreshToken] DROP CONSTRAINT [FK_RefreshToken_AspNetUsers_UserId];
 
-            migrationBuilder.DropPrimaryKey(
-                name: "PK_RefreshToken",
-                table: "RefreshToken");
+                    IF OBJECT_ID(N'[dbo].[PK_RefreshToken]', N'PK') IS NOT NULL
+                        ALTER TABLE [dbo].[RefreshToken] DROP CONSTRAINT [PK_RefreshToken];
 
-            migrationBuilder.RenameTable(
-                name: "RefreshToken",
-                newName: "RefreshTokens");
+                    EXEC sp_rename N'[dbo].[RefreshToken]', N'RefreshTokens';
 
-            migrationBuilder.RenameIndex(
-                name: "IX_RefreshToken_UserId",
-                table: "RefreshTokens",
-                newName: "IX_RefreshTokens_UserId");
+                    IF EXISTS (SELECT 1 FROM sys.indexes WHERE name = N'IX_RefreshToken_UserId' AND object_id = OBJECT_ID(N'[dbo].[RefreshTokens]'))
+                        EXEC sp_rename N'[dbo].[RefreshTokens].[IX_RefreshToken_UserId]', N'IX_RefreshTokens_UserId', N'INDEX';
+                END
 
-            migrationBuilder.AlterColumn<string>(
-                name: "Token",
-                table: "RefreshTokens",
-                type: "nvarchar(512)",
-                maxLength: 512,
-                nullable: true,
-                oldClrType: typeof(string),
-                oldType: "nvarchar(512)",
-                oldMaxLength: 512);
+                IF OBJECT_ID(N'[dbo].[RefreshTokens]', N'U') IS NOT NULL
+                BEGIN
+                    IF COL_LENGTH(N'[dbo].[RefreshTokens]', N'Token') IS NOT NULL
+                        ALTER TABLE [dbo].[RefreshTokens] ALTER COLUMN [Token] nvarchar(512) NULL;
 
-            migrationBuilder.AlterColumn<bool>(
-                name: "IsRevoked",
-                table: "RefreshTokens",
-                type: "bit",
-                nullable: false,
-                oldClrType: typeof(bool),
-                oldType: "bit",
-                oldDefaultValue: false);
+                    IF COL_LENGTH(N'[dbo].[RefreshTokens]', N'IsRevoked') IS NOT NULL
+                    BEGIN
+                        UPDATE [dbo].[RefreshTokens] SET [IsRevoked] = 0 WHERE [IsRevoked] IS NULL;
+                        ALTER TABLE [dbo].[RefreshTokens] ALTER COLUMN [IsRevoked] bit NOT NULL;
+                    END
 
-            migrationBuilder.AddPrimaryKey(
-                name: "PK_RefreshTokens",
-                table: "RefreshTokens",
-                column: "Id");
+                    IF OBJECT_ID(N'[dbo].[PK_RefreshTokens]', N'PK') IS NULL AND COL_LENGTH(N'[dbo].[RefreshTokens]', N'Id') IS NOT NULL
+                        ALTER TABLE [dbo].[RefreshTokens] ADD CONSTRAINT [PK_RefreshTokens] PRIMARY KEY ([Id]);
 
-            migrationBuilder.AddForeignKey(
-                name: "FK_RefreshTokens_AspNetUsers_UserId",
-                table: "RefreshTokens",
-                column: "UserId",
-                principalTable: "AspNetUsers",
-                principalColumn: "Id",
-                onDelete: ReferentialAction.Cascade);
+                    IF OBJECT_ID(N'[dbo].[FK_RefreshTokens_AspNetUsers_UserId]', N'F') IS NULL
+                       AND COL_LENGTH(N'[dbo].[RefreshTokens]', N'UserId') IS NOT NULL
+                       AND OBJECT_ID(N'[dbo].[AspNetUsers]', N'U') IS NOT NULL
+                        ALTER TABLE [dbo].[RefreshTokens] ADD CONSTRAINT [FK_RefreshTokens_AspNetUsers_UserId]
+                            FOREIGN KEY ([UserId]) REFERENCES [dbo].[AspNetUsers] ([Id]) ON DELETE CASCADE;
+                END
+                """);
         }
 
         /// <inheritdoc />
