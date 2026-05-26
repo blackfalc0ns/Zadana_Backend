@@ -399,6 +399,34 @@ public sealed class OneSignalPushService : IOneSignalPushService
                 }
 
                 var result = await SendPayloadAsync(preparedPayload, cancellationToken);
+                if (!result.Sent && HasProviderRecipientErrors(result.Reason))
+                {
+                    var subscriptionPayload = await BuildSubscriptionPayloadAsync(
+                        batch,
+                        sanitized,
+                        referenceId,
+                        resolvedTargetUrl,
+                        appConfiguration.AppId,
+                        appConfiguration.RestApiKey,
+                        profile,
+                        notificationEventId,
+                        Guid.NewGuid(),
+                        localeBatch.Locale,
+                        category,
+                        cancellationToken);
+
+                    if (subscriptionPayload is not null)
+                    {
+                        _logger.LogWarning(
+                            "[PUSH-FALLBACK] Retrying OneSignal push using registered subscription ids for ExternalIdBatch: {ExternalIdBatch}. SubscriptionCount: {SubscriptionCount}. Type: {Type}. ReferenceId: {ReferenceId}",
+                            preparedPayload.ExternalIdBatch,
+                            subscriptionPayload.ExternalUserCount,
+                            preparedPayload.Type,
+                            preparedPayload.ReferenceId);
+
+                        result = await SendPayloadAsync(subscriptionPayload, cancellationToken);
+                    }
+                }
                 results.Add(result);
             }
         }
@@ -451,6 +479,35 @@ public sealed class OneSignalPushService : IOneSignalPushService
                     Reason:
                         string.IsNullOrWhiteSpace(responseBody)
                             ? "OneSignal rejected the notification request."
+                            : responseBody);
+            }
+
+            if (HasProviderRecipientErrors(responseBody))
+            {
+                _logger.LogWarning(
+                    "[PUSH-DIAG] OneSignal push provider accepted request but reported recipient errors. ExternalUserCount: {ExternalUserCount}. ExternalIdBatch: {ExternalIdBatch}. Profile: {Profile}. Type: {Type}. ReferenceId: {ReferenceId}. NotificationEventId: {NotificationEventId}. PreferredLocale: {PreferredLocale}. Channel: {Channel}. DataKeys: {DataKeys}. StatusCode: {StatusCode}. ProviderNotificationId: {ProviderNotificationId}. ResponseBody: {ResponseBody}",
+                    preparedPayload.ExternalUserCount,
+                    preparedPayload.ExternalIdBatch,
+                    preparedPayload.Profile,
+                    preparedPayload.Type,
+                    preparedPayload.ReferenceId,
+                    preparedPayload.NotificationEventId,
+                    preparedPayload.PreferredLocale,
+                    preparedPayload.Channel,
+                    preparedPayload.DataKeys,
+                    statusCode,
+                    notificationId,
+                    responseBody);
+
+                return new OneSignalPushDispatchResult(
+                    Attempted: true,
+                    Sent: false,
+                    Skipped: false,
+                    ProviderStatusCode: statusCode,
+                    ProviderNotificationId: notificationId,
+                    Reason:
+                        string.IsNullOrWhiteSpace(responseBody)
+                            ? "OneSignal reported recipient errors."
                             : responseBody);
             }
 
@@ -549,6 +606,93 @@ public sealed class OneSignalPushService : IOneSignalPushService
             preferredLocale,
             ResolveChannel(payload),
             ResolveDataKeys(payload));
+    }
+
+    private async Task<PreparedOneSignalPayload?> BuildSubscriptionPayloadAsync(
+        IReadOnlyCollection<string> externalUserIds,
+        SanitizedNotificationPayload sanitized,
+        Guid? referenceId,
+        string? targetUrl,
+        string appId,
+        string restApiKey,
+        OneSignalPushProfile profile,
+        Guid notificationEventId,
+        Guid requestIdempotencyKey,
+        string? preferredLocale,
+        string? category,
+        CancellationToken cancellationToken)
+    {
+        var subscriptionIds = await ResolveSubscriptionIdsAsync(externalUserIds, category, cancellationToken);
+        if (subscriptionIds.Length == 0)
+        {
+            return null;
+        }
+
+        var payload = new Dictionary<string, object?>
+        {
+            ["app_id"] = appId,
+            ["idempotency_key"] = requestIdempotencyKey,
+            ["collapse_id"] = notificationEventId.ToString(),
+            ["target_channel"] = "push",
+            ["include_subscription_ids"] = subscriptionIds,
+            ["headings"] = BuildLocalizedContent(sanitized.TitleAr, sanitized.TitleEn, "Vendor notification", preferredLocale),
+            ["contents"] = BuildLocalizedContent(sanitized.BodyAr, sanitized.BodyEn, "You have a new vendor notification.", preferredLocale),
+            ["data"] = BuildAdditionalData(sanitized, referenceId, notificationEventId)
+        };
+
+        if (!string.IsNullOrWhiteSpace(targetUrl))
+        {
+            payload["web_url"] = targetUrl;
+        }
+
+        ApplyProfile(payload, profile);
+
+        return new PreparedOneSignalPayload(
+            payload,
+            appId,
+            subscriptionIds.Length,
+            string.Join(",", subscriptionIds),
+            restApiKey,
+            profile,
+            referenceId,
+            notificationEventId,
+            sanitized.Type,
+            preferredLocale,
+            ResolveChannel(payload),
+            ResolveDataKeys(payload));
+    }
+
+    private async Task<string[]> ResolveSubscriptionIdsAsync(
+        IReadOnlyCollection<string> externalUserIds,
+        string? category,
+        CancellationToken cancellationToken)
+    {
+        var userIds = externalUserIds
+            .Select(externalUserId => Guid.TryParse(externalUserId, out var userId) ? userId : Guid.Empty)
+            .Where(userId => userId != Guid.Empty)
+            .Distinct()
+            .ToArray();
+
+        if (userIds.Length == 0)
+        {
+            return [];
+        }
+
+        await using var scope = _scopeFactory.CreateAsyncScope();
+        var dbContext = scope.ServiceProvider.GetRequiredService<ApplicationDbContext>();
+        var query = dbContext.UserPushDevices
+            .AsNoTracking()
+            .Where(device => userIds.Contains(device.UserId) && device.IsActive && device.NotificationsEnabled);
+
+        query = ApplyCategoryFilter(query, category);
+
+        return await query
+            .OrderByDescending(device => device.LastSeenAtUtc)
+            .ThenByDescending(device => device.LastRegisteredAtUtc)
+            .Select(device => device.DeviceToken)
+            .Where(token => token != string.Empty)
+            .Distinct()
+            .ToArrayAsync(cancellationToken);
     }
 
     private static Dictionary<string, string> BuildLocalizedContent(
@@ -1019,6 +1163,25 @@ public sealed class OneSignalPushService : IOneSignalPushService
         }
 
         return null;
+    }
+
+    private static bool HasProviderRecipientErrors(string? responseBody)
+    {
+        if (string.IsNullOrWhiteSpace(responseBody))
+        {
+            return false;
+        }
+
+        try
+        {
+            using var json = JsonDocument.Parse(responseBody);
+            return json.RootElement.TryGetProperty("errors", out var errorsElement) &&
+                   errorsElement.ValueKind is not JsonValueKind.Null and not JsonValueKind.Undefined;
+        }
+        catch
+        {
+            return false;
+        }
     }
 
     private static string ResolveChannel(Dictionary<string, object?> payload)

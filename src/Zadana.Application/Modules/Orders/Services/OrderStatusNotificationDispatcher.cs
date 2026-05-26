@@ -106,7 +106,7 @@ public sealed class OrderStatusNotificationDispatcher : IOrderStatusNotification
         OneSignalPushDispatchResult pushResult;
         try
         {
-            pushResult = request.NewStatus == OrderStatus.OnTheWay
+            pushResult = request.NewStatus is OrderStatus.OnTheWay or OrderStatus.Delivered
                 ? await _oneSignalPushService.SendMobileNotificationDirectAsync(pushRequest, cancellationToken)
                 : await pushRequest.DispatchAsync(_oneSignalPushService, cancellationToken);
         }

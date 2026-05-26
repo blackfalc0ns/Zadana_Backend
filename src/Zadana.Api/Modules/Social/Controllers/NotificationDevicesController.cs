@@ -37,9 +37,14 @@ public class NotificationDevicesController : ApiControllerBase
         CancellationToken cancellationToken = default)
     {
         var userId = RequireUserId();
+        var pushToken = FirstNonEmpty(
+            request.OneSignalSubscriptionId,
+            request.SubscriptionId,
+            request.OneSignalId,
+            request.DeviceToken);
         var device = await Sender.Send(new RegisterNotificationDeviceCommand(
             userId,
-            request.DeviceToken,
+            pushToken,
             request.Platform,
             request.DeviceId,
             request.DeviceName,
@@ -119,6 +124,9 @@ public class NotificationDevicesController : ApiControllerBase
 
     private Guid RequireUserId() =>
         _currentUserService.UserId ?? throw new UnauthorizedException("USER_NOT_AUTHENTICATED");
+
+    private static string FirstNonEmpty(params string?[] values) =>
+        values.FirstOrDefault(value => !string.IsNullOrWhiteSpace(value))?.Trim() ?? string.Empty;
 
     private static NotificationDeviceResponse Map(NotificationDeviceDto dto) =>
         new(

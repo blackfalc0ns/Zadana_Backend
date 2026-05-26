@@ -1,3 +1,5 @@
+using System.Text.Json.Serialization;
+
 namespace Zadana.Api.Modules.Social.Requests;
 
 public record RegisterNotificationDeviceRequest(
@@ -7,6 +9,9 @@ public record RegisterNotificationDeviceRequest(
     string? DeviceName,
     string? AppVersion,
     string? Locale,
+    string? OneSignalSubscriptionId = null,
+    string? SubscriptionId = null,
+    [property: JsonPropertyName("onesignal_id")] string? OneSignalId = null,
     bool NotificationsEnabled = true,
     bool DispatchPushEnabled = true,
     bool AssignmentPushEnabled = true,

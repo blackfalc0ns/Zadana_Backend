@@ -6,9 +6,6 @@ using Microsoft.Extensions.Logging;
 using Zadana.Application.Common.Interfaces;
 using Zadana.Application.Common.Localization;
 using Zadana.Application.Modules.Delivery.Interfaces;
-using Zadana.Application.Modules.EmailCenter;
-using Zadana.Application.Modules.EmailCenter.DTOs;
-using Zadana.Application.Modules.EmailCenter.Interfaces;
 using Zadana.SharedKernel.Exceptions;
 
 namespace Zadana.Application.Modules.Delivery.Commands.UpdateDriverArrivalState;
@@ -48,7 +45,6 @@ public class UpdateDriverArrivalStateCommandHandler : IRequestHandler<UpdateDriv
     private readonly INotificationService _notificationService;
     private readonly IOneSignalPushService _oneSignalPushService;
     private readonly IOrderTrackingRealtimeNotifier _orderTrackingRealtimeNotifier;
-    private readonly IEmailCenterService _emailCenterService;
     private readonly ILogger<UpdateDriverArrivalStateCommandHandler> _logger;
 
     public UpdateDriverArrivalStateCommandHandler(
@@ -59,7 +55,6 @@ public class UpdateDriverArrivalStateCommandHandler : IRequestHandler<UpdateDriv
         INotificationService notificationService,
         IOneSignalPushService oneSignalPushService,
         IOrderTrackingRealtimeNotifier orderTrackingRealtimeNotifier,
-        IEmailCenterService emailCenterService,
         ILogger<UpdateDriverArrivalStateCommandHandler> logger)
     {
         _context = context;
@@ -69,7 +64,6 @@ public class UpdateDriverArrivalStateCommandHandler : IRequestHandler<UpdateDriv
         _notificationService = notificationService;
         _oneSignalPushService = oneSignalPushService;
         _orderTrackingRealtimeNotifier = orderTrackingRealtimeNotifier;
-        _emailCenterService = emailCenterService;
         _logger = logger;
     }
 
@@ -195,8 +189,6 @@ public class UpdateDriverArrivalStateCommandHandler : IRequestHandler<UpdateDriv
                     pushResult.ProviderStatusCode,
                     pushResult.Reason);
             }
-
-            await DispatchCustomerArrivalEmailAsync(assignment.OrderId, assignment.Order.OrderNumber, assignment.Order.VendorId, cancellationToken);
         }
 
         // Push the same arrival state event to the dedicated order tracking channel
@@ -253,52 +245,4 @@ public class UpdateDriverArrivalStateCommandHandler : IRequestHandler<UpdateDriv
             showPopup = true,
             eventName = $"driver.arrival.{arrivalState}"
         });
-
-    private async Task DispatchCustomerArrivalEmailAsync(
-        Guid orderId,
-        string orderNumber,
-        Guid vendorId,
-        CancellationToken cancellationToken)
-    {
-        try
-        {
-            var order = await _context.Orders
-                .AsNoTracking()
-                .Where(item => item.Id == orderId)
-                .Select(item => new
-                {
-                    CustomerName = item.User.FullName,
-                    CustomerEmail = item.User.Email,
-                    VendorName = string.IsNullOrWhiteSpace(item.Vendor.BusinessNameEn)
-                        ? item.Vendor.BusinessNameAr
-                        : item.Vendor.BusinessNameEn
-                })
-                .FirstOrDefaultAsync(cancellationToken);
-
-            if (order is null || string.IsNullOrWhiteSpace(order.CustomerEmail))
-            {
-                return;
-            }
-
-            await _emailCenterService.DispatchSystemEventEmailAsync(
-                new EmailSystemEventDispatchRequest(
-                    EventKey: EmailEventKeys.CustomerDriverArrivedAtDelivery,
-                    AudienceType: "customers",
-                    To: [order.CustomerEmail.Trim()],
-                    Variables: new Dictionary<string, string>
-                    {
-                        ["customer_name"] = string.IsNullOrWhiteSpace(order.CustomerName) ? "Customer" : order.CustomerName,
-                        ["order_number"] = orderNumber,
-                        ["vendor_name"] = order.VendorName
-                    },
-                    TargetUrl: $"/orders/{orderId}",
-                    EntityId: orderId,
-                    VendorId: vendorId),
-                cancellationToken);
-        }
-        catch (Exception ex)
-        {
-            _logger.LogWarning(ex, "Customer driver-arrival email dispatch failed for order {OrderId}", orderId);
-        }
-    }
 }

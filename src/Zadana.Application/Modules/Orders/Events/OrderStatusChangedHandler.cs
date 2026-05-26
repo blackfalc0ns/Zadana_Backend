@@ -322,7 +322,6 @@ public class OrderStatusChangedHandler : INotificationHandler<OrderStatusChanged
         newStatus switch
         {
             OrderStatus.Placed or OrderStatus.PendingVendorAcceptance => EmailEventKeys.CustomerOrderConfirmed,
-            OrderStatus.OnTheWay => EmailEventKeys.CustomerOrderOutForDelivery,
             OrderStatus.Cancelled or OrderStatus.VendorRejected or OrderStatus.DeliveryFailed or OrderStatus.Refunded => EmailEventKeys.CustomerOrderImportantUpdate,
             _ => null
         };
