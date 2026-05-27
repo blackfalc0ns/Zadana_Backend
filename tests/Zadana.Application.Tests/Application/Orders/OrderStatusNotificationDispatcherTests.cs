@@ -130,4 +130,68 @@ public class OrderStatusNotificationDispatcherTests
                 It.IsAny<CancellationToken>()),
             Times.Once);
     }
+
+    [Fact]
+    public async Task DispatchCustomerAsync_WhenOrderRefunded_ShouldUseRefundPopupContract()
+    {
+        var notificationServiceMock = new Mock<INotificationService>();
+        var pushServiceMock = new Mock<IOneSignalPushService>();
+        var orderId = Guid.NewGuid();
+        var userId = Guid.NewGuid();
+        var vendorId = Guid.NewGuid();
+
+        notificationServiceMock
+            .Setup(service => service.SendToUserAsync(
+                It.IsAny<Guid>(),
+                It.IsAny<string>(),
+                It.IsAny<string>(),
+                It.IsAny<string>(),
+                It.IsAny<string>(),
+                It.IsAny<string?>(),
+                It.IsAny<Guid?>(),
+                It.IsAny<string?>(),
+                It.IsAny<CancellationToken>()))
+            .Returns(Task.CompletedTask);
+
+        pushServiceMock
+            .Setup(service => service.SendMobileNotificationAsync(
+                It.IsAny<OneSignalMobilePushRequest>(),
+                It.IsAny<CancellationToken>()))
+            .ReturnsAsync(new OneSignalPushDispatchResult(true, true, false, 200, "push-id", null));
+
+        var dispatcher = new OrderStatusNotificationDispatcher(
+            notificationServiceMock.Object,
+            pushServiceMock.Object,
+            NullLogger<OrderStatusNotificationDispatcher>.Instance);
+
+        await dispatcher.DispatchCustomerAsync(
+            new OrderStatusCustomerNotificationRequest(
+                userId,
+                orderId,
+                vendorId,
+                "ORD-REFUND-001",
+                OrderStatus.Delivered,
+                OrderStatus.Refunded,
+                ActorRole: "support"),
+            CancellationToken.None);
+
+        pushServiceMock.Verify(
+            service => service.SendMobileNotificationAsync(
+                It.Is<OneSignalMobilePushRequest>(request =>
+                    request.ExternalUserId == userId.ToString() &&
+                    request.Type == NotificationTypes.OrderStatusChanged &&
+                    request.ReferenceId == orderId &&
+                    request.TargetUrl == $"/orders/{orderId}" &&
+                    request.Profile == OneSignalPushProfile.MobileHeadsUp &&
+                    request.TargetApplication == OneSignalApplicationTarget.Customer &&
+                    request.Data != null &&
+                    request.Data.Contains("\"presentation\":\"popup\"") &&
+                    request.Data.Contains("\"popupType\":\"order_refund_status_changed\"") &&
+                    request.Data.Contains("\"showPopup\":true") &&
+                    request.Data.Contains("\"eventName\":\"order.refund.refunded\"") &&
+                    request.Data.Contains("\"isRefund\":true") &&
+                    request.Data.Contains("\"refundStatus\":\"refunded\"")),
+                It.IsAny<CancellationToken>()),
+            Times.Once);
+    }
 }

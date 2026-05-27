@@ -701,10 +701,17 @@ public class DeliveryDispatchService : IDeliveryDispatchService
             @event: "dispatch.offer_new",
             orderId: order.Id,
             assignmentId: assignment.Id,
+            driverId: best.Driver.Id,
             extra: new
             {
                 target = "driver-offer",
                 legacyType = "driver-offer",
+                category = NotificationCategories.Dispatch,
+                action = "offer_new",
+                presentation = "popup",
+                popupType = "delivery_offer",
+                showPopup = true,
+                eventName = "dispatch.offer_new",
                 orderNumber = order.OrderNumber,
                 vendorName,
                 deliveryFee = order.DeliveryFee,

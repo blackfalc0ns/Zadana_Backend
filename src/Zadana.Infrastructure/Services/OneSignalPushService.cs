@@ -328,18 +328,24 @@ public sealed class OneSignalPushService : IOneSignalPushService
         var appConfiguration = targetApplication.HasValue
             ? ResolveAppConfiguration(targetApplication.Value)
             : ResolveAppConfiguration(profile, category);
+        var resolvedTargetApplication = targetApplication ?? ResolveTargetApplication(category);
 
         if (string.IsNullOrWhiteSpace(appConfiguration.AppId) || string.IsNullOrWhiteSpace(appConfiguration.RestApiKey))
         {
-            return [CreateSkippedResult("OneSignal AppId or RestApiKey is not configured.", normalizedExternalUserIds.Length)];
+            return [CreateSkippedResult(BuildMissingConfigurationReason(resolvedTargetApplication), normalizedExternalUserIds.Length)];
         }
 
         var sanitized = NotificationPayloadHelper.Sanitize(titleAr, titleEn, bodyAr, bodyEn, type, data);
         var resolvedTargetUrl = ShouldIncludeWebUrl(profile) ? ResolveTargetUrl(targetUrl, targetApplication) : null;
         var notificationEventId = Guid.NewGuid();
 
-        var recipientsByLocale = await ResolveRecipientsByLocaleAsync(
+        var recipientIdentity = await ResolvePushRecipientIdentityAsync(
             normalizedExternalUserIds,
+            resolvedTargetApplication,
+            cancellationToken);
+
+        var recipientsByLocale = await ResolveRecipientsByLocaleAsync(
+            recipientIdentity.LookupExternalUserIds,
             category,
             requireRegisteredDevices,
             cancellationToken);
@@ -360,8 +366,19 @@ public sealed class OneSignalPushService : IOneSignalPushService
 
         foreach (var localeBatch in recipientsByLocale)
         {
-            foreach (var batch in localeBatch.ExternalUserIds.Chunk(MaxExternalIdsPerRequest))
+            var localePushExternalUserIds = localeBatch.ExternalUserIds
+                .Select(recipientIdentity.ResolvePushExternalUserId)
+                .Distinct(StringComparer.Ordinal)
+                .ToArray();
+
+            foreach (var batch in localePushExternalUserIds.Chunk(MaxExternalIdsPerRequest))
             {
+                var pushBatch = batch.ToHashSet(StringComparer.Ordinal);
+                var lookupBatch = localeBatch.ExternalUserIds
+                    .Where(id => pushBatch.Contains(recipientIdentity.ResolvePushExternalUserId(id)))
+                    .Distinct(StringComparer.Ordinal)
+                    .ToArray();
+
                 var preparedPayload = BuildPayload(
                     batch,
                     sanitized,
@@ -402,7 +419,7 @@ public sealed class OneSignalPushService : IOneSignalPushService
                 if (!result.Sent && HasProviderRecipientErrors(result.Reason))
                 {
                     var subscriptionPayload = await BuildSubscriptionPayloadAsync(
-                        batch,
+                        lookupBatch,
                         sanitized,
                         referenceId,
                         resolvedTargetUrl,
@@ -413,6 +430,19 @@ public sealed class OneSignalPushService : IOneSignalPushService
                         Guid.NewGuid(),
                         localeBatch.Locale,
                         category,
+                        cancellationToken);
+
+                    subscriptionPayload ??= await BuildProviderSubscriptionPayloadAsync(
+                        batch.Concat(lookupBatch).Distinct(StringComparer.Ordinal).ToArray(),
+                        sanitized,
+                        referenceId,
+                        resolvedTargetUrl,
+                        appConfiguration.AppId,
+                        appConfiguration.RestApiKey,
+                        profile,
+                        notificationEventId,
+                        Guid.NewGuid(),
+                        localeBatch.Locale,
                         cancellationToken);
 
                     if (subscriptionPayload is not null)
@@ -432,6 +462,80 @@ public sealed class OneSignalPushService : IOneSignalPushService
         }
 
         return results;
+    }
+
+    private async Task<PushRecipientIdentity> ResolvePushRecipientIdentityAsync(
+        IReadOnlyCollection<string> externalUserIds,
+        OneSignalApplicationTarget targetApplication,
+        CancellationToken cancellationToken)
+    {
+        if (targetApplication != OneSignalApplicationTarget.Driver)
+        {
+            return PushRecipientIdentity.PassThrough(externalUserIds);
+        }
+
+        var parsedIds = externalUserIds
+            .Select(id => Guid.TryParse(id, out var parsedId)
+                ? new ParsedExternalUserId(id, parsedId)
+                : new ParsedExternalUserId(id, null))
+            .ToArray();
+
+        var guidIds = parsedIds
+            .Where(item => item.ParsedId.HasValue)
+            .Select(item => item.ParsedId!.Value)
+            .Distinct()
+            .ToArray();
+
+        if (guidIds.Length == 0)
+        {
+            return PushRecipientIdentity.PassThrough(externalUserIds);
+        }
+
+        await using var scope = _scopeFactory.CreateAsyncScope();
+        var dbContext = scope.ServiceProvider.GetRequiredService<ApplicationDbContext>();
+        var drivers = await dbContext.Drivers
+            .AsNoTracking()
+            .Where(driver => guidIds.Contains(driver.UserId) || guidIds.Contains(driver.Id))
+            .Select(driver => new DriverPushIdentity(driver.UserId, driver.Id))
+            .ToListAsync(cancellationToken);
+
+        var byUserId = drivers.ToDictionary(
+            item => item.UserId,
+            item => item,
+            EqualityComparer<Guid>.Default);
+        var byDriverId = drivers.ToDictionary(
+            item => item.DriverId,
+            item => item,
+            EqualityComparer<Guid>.Default);
+
+        var pushExternalUserIdByLookup = new Dictionary<string, string>(StringComparer.Ordinal);
+        var lookupExternalUserIds = new List<string>(parsedIds.Length);
+
+        foreach (var parsed in parsedIds)
+        {
+            if (parsed.ParsedId.HasValue && byUserId.TryGetValue(parsed.ParsedId.Value, out var byUserMatch))
+            {
+                var lookupExternalUserId = byUserMatch.UserId.ToString();
+                lookupExternalUserIds.Add(lookupExternalUserId);
+                pushExternalUserIdByLookup[lookupExternalUserId] = byUserMatch.DriverId.ToString();
+                continue;
+            }
+
+            if (parsed.ParsedId.HasValue && byDriverId.TryGetValue(parsed.ParsedId.Value, out var byDriverMatch))
+            {
+                var lookupExternalUserId = byDriverMatch.UserId.ToString();
+                lookupExternalUserIds.Add(lookupExternalUserId);
+                pushExternalUserIdByLookup[lookupExternalUserId] = byDriverMatch.DriverId.ToString();
+                continue;
+            }
+
+            lookupExternalUserIds.Add(parsed.RawId);
+            pushExternalUserIdByLookup[parsed.RawId] = parsed.RawId;
+        }
+
+        return new PushRecipientIdentity(
+            lookupExternalUserIds.Distinct(StringComparer.Ordinal).ToArray(),
+            pushExternalUserIdByLookup);
     }
 
     private async Task<OneSignalPushDispatchResult> SendPayloadAsync(
@@ -662,6 +766,138 @@ public sealed class OneSignalPushService : IOneSignalPushService
             ResolveDataKeys(payload));
     }
 
+    private async Task<PreparedOneSignalPayload?> BuildProviderSubscriptionPayloadAsync(
+        IReadOnlyCollection<string> externalUserIds,
+        SanitizedNotificationPayload sanitized,
+        Guid? referenceId,
+        string? targetUrl,
+        string appId,
+        string restApiKey,
+        OneSignalPushProfile profile,
+        Guid notificationEventId,
+        Guid requestIdempotencyKey,
+        string? preferredLocale,
+        CancellationToken cancellationToken)
+    {
+        var subscriptionIds = await ResolveProviderSubscriptionIdsAsync(
+            externalUserIds,
+            appId,
+            restApiKey,
+            cancellationToken);
+
+        if (subscriptionIds.Length == 0)
+        {
+            return null;
+        }
+
+        var payload = new Dictionary<string, object?>
+        {
+            ["app_id"] = appId,
+            ["idempotency_key"] = requestIdempotencyKey,
+            ["collapse_id"] = notificationEventId.ToString(),
+            ["target_channel"] = "push",
+            ["include_subscription_ids"] = subscriptionIds,
+            ["headings"] = BuildLocalizedContent(sanitized.TitleAr, sanitized.TitleEn, "Vendor notification", preferredLocale),
+            ["contents"] = BuildLocalizedContent(sanitized.BodyAr, sanitized.BodyEn, "You have a new vendor notification.", preferredLocale),
+            ["data"] = BuildAdditionalData(sanitized, referenceId, notificationEventId)
+        };
+
+        if (!string.IsNullOrWhiteSpace(targetUrl))
+        {
+            payload["web_url"] = targetUrl;
+        }
+
+        ApplyProfile(payload, profile);
+
+        return new PreparedOneSignalPayload(
+            payload,
+            appId,
+            subscriptionIds.Length,
+            string.Join(",", externalUserIds),
+            restApiKey,
+            profile,
+            referenceId,
+            notificationEventId,
+            sanitized.Type,
+            preferredLocale,
+            ResolveChannel(payload),
+            ResolveDataKeys(payload));
+    }
+
+    private async Task<string[]> ResolveProviderSubscriptionIdsAsync(
+        IReadOnlyCollection<string> externalUserIds,
+        string appId,
+        string restApiKey,
+        CancellationToken cancellationToken)
+    {
+        var subscriptionIds = new HashSet<string>(StringComparer.OrdinalIgnoreCase);
+
+        foreach (var externalUserId in externalUserIds.Where(id => !string.IsNullOrWhiteSpace(id)))
+        {
+            if (!Guid.TryParse(externalUserId.Trim(), out _))
+            {
+                continue;
+            }
+
+            var escapedAppId = Uri.EscapeDataString(appId);
+            var escapedExternalUserId = Uri.EscapeDataString(externalUserId.Trim());
+            using var request = new HttpRequestMessage(
+                HttpMethod.Get,
+                $"apps/{escapedAppId}/users/by/external_id/{escapedExternalUserId}");
+            request.Headers.TryAddWithoutValidation(
+                "Authorization",
+                $"Key {restApiKey.Trim()}");
+
+            using var response = await _httpClient.SendAsync(request, cancellationToken);
+            var responseBody = await response.Content.ReadAsStringAsync(cancellationToken);
+
+            if (!response.IsSuccessStatusCode)
+            {
+                _logger.LogWarning(
+                    "[PUSH-FALLBACK] Could not resolve OneSignal user subscriptions for ExternalUserId: {ExternalUserId}. StatusCode: {StatusCode}. ResponseBody: {ResponseBody}",
+                    externalUserId,
+                    (int)response.StatusCode,
+                    responseBody);
+                continue;
+            }
+
+            try
+            {
+                using var json = JsonDocument.Parse(responseBody);
+                if (!json.RootElement.TryGetProperty("subscriptions", out var subscriptions) ||
+                    subscriptions.ValueKind != JsonValueKind.Array)
+                {
+                    continue;
+                }
+
+                foreach (var subscription in subscriptions.EnumerateArray())
+                {
+                    if (!subscription.TryGetProperty("enabled", out var enabled) ||
+                        enabled.ValueKind != JsonValueKind.True ||
+                        !subscription.TryGetProperty("id", out var idElement))
+                    {
+                        continue;
+                    }
+
+                    var subscriptionId = idElement.GetString();
+                    if (IsValidOneSignalSubscriptionId(subscriptionId))
+                    {
+                        subscriptionIds.Add(subscriptionId!.Trim());
+                    }
+                }
+            }
+            catch (JsonException ex)
+            {
+                _logger.LogWarning(
+                    ex,
+                    "[PUSH-FALLBACK] Could not parse OneSignal user subscriptions for ExternalUserId: {ExternalUserId}.",
+                    externalUserId);
+            }
+        }
+
+        return subscriptionIds.ToArray();
+    }
+
     private async Task<string[]> ResolveSubscriptionIdsAsync(
         IReadOnlyCollection<string> externalUserIds,
         string? category,
@@ -686,14 +922,33 @@ public sealed class OneSignalPushService : IOneSignalPushService
 
         query = ApplyCategoryFilter(query, category);
 
-        return await query
+        var registeredTokens = await query
             .OrderByDescending(device => device.LastSeenAtUtc)
             .ThenByDescending(device => device.LastRegisteredAtUtc)
             .Select(device => device.DeviceToken)
             .Where(token => token != string.Empty)
-            .Distinct()
             .ToArrayAsync(cancellationToken);
+
+        var subscriptionIds = registeredTokens
+            .Select(token => token.Trim())
+            .Where(IsValidOneSignalSubscriptionId)
+            .Distinct(StringComparer.OrdinalIgnoreCase)
+            .ToArray();
+
+        var ignoredTokenCount = registeredTokens.Count(token => !IsValidOneSignalSubscriptionId(token));
+        if (ignoredTokenCount > 0)
+        {
+            _logger.LogWarning(
+                "[PUSH-FALLBACK] Ignored {IgnoredTokenCount} registered push device tokens because they are not valid OneSignal subscription UUIDs. " +
+                "The mobile app must register OneSignalSubscriptionId separately from the FCM/APNS device token.",
+                ignoredTokenCount);
+        }
+
+        return subscriptionIds;
     }
+
+    internal static bool IsValidOneSignalSubscriptionId(string? value) =>
+        !string.IsNullOrWhiteSpace(value) && Guid.TryParse(value.Trim(), out _);
 
     private static Dictionary<string, string> BuildLocalizedContent(
         string? arabic,
@@ -956,23 +1211,59 @@ public sealed class OneSignalPushService : IOneSignalPushService
         OneSignalPushProfile profile,
         string? category)
     {
-        var normalizedCategory = NormalizeCategory(category);
-        var targetApplication = normalizedCategory is "dispatch" or "assignment" or "support" or "wallet" or "account"
-            ? OneSignalApplicationTarget.Driver
-            : OneSignalApplicationTarget.Customer;
-
-        return ResolveAppConfiguration(targetApplication);
+        return ResolveAppConfiguration(ResolveTargetApplication(category));
     }
 
     private static string FirstNonEmpty(params string?[] values) =>
-        values.FirstOrDefault(value => !string.IsNullOrWhiteSpace(value)) ?? string.Empty;
+        values
+            .Select(NormalizeSettingValue)
+            .FirstOrDefault(value => !string.IsNullOrWhiteSpace(value)) ?? string.Empty;
 
-    private static string ResolveSettingValue(string environmentVariableName, string configuredValue) =>
-        FirstNonEmpty(
-            configuredValue,
-            Environment.GetEnvironmentVariable(environmentVariableName, EnvironmentVariableTarget.User),
-            Environment.GetEnvironmentVariable(environmentVariableName),
-            Environment.GetEnvironmentVariable(environmentVariableName, EnvironmentVariableTarget.Machine));
+    private string ResolveSettingValue(string environmentVariableName, string configuredValue) =>
+        _settings.UseEnvironmentVariableFallback
+            ? FirstNonEmpty(
+                configuredValue,
+                Environment.GetEnvironmentVariable(environmentVariableName),
+                Environment.GetEnvironmentVariable(environmentVariableName, EnvironmentVariableTarget.User),
+                Environment.GetEnvironmentVariable(environmentVariableName, EnvironmentVariableTarget.Machine))
+            : FirstNonEmpty(configuredValue);
+
+    private static OneSignalApplicationTarget ResolveTargetApplication(string? category)
+    {
+        var normalizedCategory = NormalizeCategory(category);
+        return normalizedCategory is "dispatch" or "assignment" or "support" or "wallet" or "account"
+            ? OneSignalApplicationTarget.Driver
+            : OneSignalApplicationTarget.Customer;
+    }
+
+    private static string BuildMissingConfigurationReason(OneSignalApplicationTarget targetApplication) =>
+        targetApplication switch
+        {
+            OneSignalApplicationTarget.Driver =>
+                "Driver OneSignal AppId or RestApiKey is not configured. Set OneSignal__DriverAppId and OneSignal__DriverRestApiKey, or configure OneSignal__AppId and OneSignal__RestApiKey as a fallback.",
+            OneSignalApplicationTarget.AdminWeb =>
+                "Admin web OneSignal AppId or RestApiKey is not configured. Set OneSignal__AdminWebAppId and OneSignal__AdminWebRestApiKey, or configure OneSignal__AppId and OneSignal__RestApiKey as a fallback.",
+            _ =>
+                "Customer OneSignal AppId or RestApiKey is not configured. Set OneSignal__AppId and OneSignal__RestApiKey."
+        };
+
+    private static string NormalizeSettingValue(string? value)
+    {
+        if (string.IsNullOrWhiteSpace(value))
+        {
+            return string.Empty;
+        }
+
+        var trimmed = value.Trim();
+        return IsPlaceholderValue(trimmed) ? string.Empty : trimmed;
+    }
+
+    private static bool IsPlaceholderValue(string value) =>
+        value.Contains("__SET_", StringComparison.OrdinalIgnoreCase) ||
+        value.Contains("CHANGE_ME", StringComparison.OrdinalIgnoreCase) ||
+        value.Contains("YOUR_", StringComparison.OrdinalIgnoreCase) ||
+        value.StartsWith("PUT_", StringComparison.OrdinalIgnoreCase) ||
+        (value.StartsWith("<<", StringComparison.Ordinal) && value.EndsWith(">>", StringComparison.Ordinal));
 
     private void ApplyProfile(Dictionary<string, object?> payload, OneSignalPushProfile profile)
     {
@@ -1260,6 +1551,25 @@ public sealed class OneSignalPushService : IOneSignalPushService
     private sealed record LocalizedRecipientBatch(
         string? Locale,
         string[] ExternalUserIds);
+
+    private sealed record ParsedExternalUserId(string RawId, Guid? ParsedId);
+
+    private sealed record DriverPushIdentity(Guid UserId, Guid DriverId);
+
+    private sealed record PushRecipientIdentity(
+        string[] LookupExternalUserIds,
+        IReadOnlyDictionary<string, string> PushExternalUserIdByLookupExternalUserId)
+    {
+        public static PushRecipientIdentity PassThrough(IReadOnlyCollection<string> externalUserIds) =>
+            new(
+                externalUserIds.ToArray(),
+                externalUserIds.ToDictionary(id => id, id => id, StringComparer.Ordinal));
+
+        public string ResolvePushExternalUserId(string lookupExternalUserId) =>
+            PushExternalUserIdByLookupExternalUserId.TryGetValue(lookupExternalUserId, out var pushExternalUserId)
+                ? pushExternalUserId
+                : lookupExternalUserId;
+    }
 
     private static string MaskSecretSuffix(string? secret)
     {

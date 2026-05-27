@@ -129,7 +129,7 @@ public class AdminDriversController : ApiControllerBase
             cancellationToken);
 
         var pushRequest = OneSignalMobilePushRequest.CreateHeadsUp(
-            driver.UserId.ToString(),
+            driver.Id.ToString(),
             titleAr,
             titleEn,
             bodyAr,
@@ -177,7 +177,7 @@ public class AdminDriversController : ApiControllerBase
             Message: "Driver notification queued successfully.",
             DriverId: driver.Id,
             UserId: driver.UserId,
-            ExternalId: driver.UserId.ToString(),
+            ExternalId: pushRequest.ExternalUserId,
             Type: type,
             InboxRequested: true,
             PushAttempted: pushResult.Attempted,
@@ -483,4 +483,3 @@ public record AdminDriverNotificationResponse(
     int? PushStatusCode,
     string? ProviderNotificationId,
     string? PushReason);
-

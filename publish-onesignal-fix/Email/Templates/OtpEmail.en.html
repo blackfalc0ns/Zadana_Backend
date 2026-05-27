@@ -1,0 +1,207 @@
+<!DOCTYPE html>
+<html lang="en" dir="ltr">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Zadna verification code</title>
+    <style>
+        body {
+            margin: 0;
+            padding: 0;
+            background: #edf7f8;
+            color: #132126;
+            font-family: Arial, Helvetica, sans-serif;
+            line-height: 1.45;
+        }
+        .preheader {
+            display: none;
+            max-height: 0;
+            overflow: hidden;
+            opacity: 0;
+            color: transparent;
+        }
+        .shell {
+            width: 100%;
+            background: #edf7f8;
+            padding: 12px 8px;
+        }
+        .card {
+            max-width: 560px;
+            margin: 0 auto;
+            background: #ffffff;
+            border: 1px solid #c7e3e7;
+            border-radius: 10px;
+            overflow: hidden;
+        }
+        .hero {
+            background: #007f92;
+            padding: 9px 12px;
+            text-align: center;
+        }
+        .brand-logo {
+            display: block;
+            width: 72px;
+            max-width: 72px;
+            height: auto;
+            border: 0;
+            margin: 0 auto;
+        }
+        .hero-art {
+            max-width: 340px;
+            margin: 12px auto 10px;
+            border: 1px solid #c7e3e7;
+            border-radius: 10px;
+            overflow: hidden;
+            background: #f7fbfc;
+        }
+        .hero-art img {
+            display: block;
+            width: 100%;
+            max-width: 100%;
+            height: auto;
+            border: 0;
+        }
+        .content {
+            padding: 18px 20px 18px;
+        }
+        .eyebrow {
+            display: inline-block;
+            margin: 0 0 8px;
+            padding: 5px 8px;
+            border: 1px solid #b8dfe5;
+            border-radius: 999px;
+            color: #007f92;
+            background: #f2fbfc;
+            font-size: 10px;
+            font-weight: 800;
+            letter-spacing: 0.3px;
+            text-transform: uppercase;
+        }
+        h1 {
+            margin: 0 0 10px;
+            color: #073843;
+            font-size: 18px;
+            line-height: 1.22;
+            font-weight: 800;
+        }
+        p {
+            margin: 0 0 12px;
+            color: #405257;
+            font-size: 11px;
+        }
+        .code-wrap {
+            margin: 14px 0 12px;
+            padding: 11px;
+            border: 2px solid #f08010;
+            border-radius: 10px;
+            background: #fff8ef;
+        }
+        .code-label {
+            margin: 0 0 8px;
+            color: #9b4d05;
+            font-size: 10px;
+            font-weight: 800;
+            text-align: center;
+            text-transform: uppercase;
+        }
+        .code {
+            direction: ltr;
+            color: #007f92;
+            font-size: 28px;
+            font-weight: 800;
+            letter-spacing: 6px;
+            line-height: 1.15;
+            text-align: center;
+        }
+        .security-row {
+            margin: 12px 0 0;
+            padding: 10px 11px;
+            border-radius: 10px;
+            background: #f1fafb;
+            border: 1px solid #c7e3e7;
+            color: #21484f;
+            font-size: 11px;
+        }
+        .expiry-note {
+            margin: 0 0 10px;
+            padding: 9px 10px;
+            border-radius: 10px;
+            background: #f1fafb;
+            border: 1px solid #c7e3e7;
+            color: #21484f;
+            font-size: 11px;
+            font-weight: 700;
+        }
+        .notice {
+            margin: 12px 0 0;
+            padding: 10px 11px;
+            border-radius: 10px;
+            background: #fff7ed;
+            border: 1px solid #f4c891;
+            color: #71410d;
+            font-size: 11px;
+        }
+        .detail {
+            border-top: 1px solid #e2eef0;
+            margin-top: 20px;
+            padding-top: 14px;
+        }
+        .detail p {
+            margin-bottom: 8px;
+            color: #6a7c82;
+            font-size: 11px;
+        }
+        .footer {
+            max-width: 560px;
+            margin: 12px auto 0;
+            color: #71868c;
+            font-size: 11px;
+            text-align: center;
+        }
+        a {
+            color: #007f92;
+        }
+        @media screen and (max-width: 520px) {
+            .shell { padding: 10px 6px; }
+            .hero { padding: 8px 10px; }
+            .content { padding: 16px 16px 16px; }
+            .brand-logo { width: 62px; max-width: 62px; }
+            h1 { font-size: 17px; }
+            p { font-size: 11px; }
+            .code { font-size: 25px; letter-spacing: 4px; }
+        }
+    </style>
+</head>
+<body>
+    <div class="preheader">{{OtpPreheader}}</div>
+    <div class="shell">
+        <div class="card">
+            <div class="hero">
+                <img class="brand-logo" src="{{LogoUrl}}" width="72" alt="Zadna" style="display:block;width:72px;max-width:72px;height:auto;border:0;margin:0 auto;">
+            </div>
+            <div class="content">
+                <div class="eyebrow">{{OtpEyebrow}}</div>
+                <h1>{{OtpTitle}}</h1>
+                <p>{{OtpGreeting}}</p>
+                <p>{{OtpInstruction}}</p>
+                <div class="code-wrap">
+                    <p class="code-label">{{OtpCodeLabel}}</p>
+                    <div class="code">{{OtpCode}}</div>
+                </div>
+                <div class="hero-art">
+                    <img src="{{OtpHeroImageUrl}}" width="340" alt="Zadna security verification" style="display:block;width:100%;max-width:340px;height:auto;border:0;margin:0 auto;">
+                </div>
+                <div class="expiry-note">{{OtpExpiryNote}}</div>
+                <p>{{OtpUsageNote}}</p>
+                <div class="security-row">{{OtpSecurityNote}}</div>
+                <div class="notice">{{OtpNotice}}</div>
+                <div class="detail">
+                    <p>Sent to: <a href="mailto:{{EmailAddress}}">{{EmailAddress}}</a></p>
+                    <p>Support: <a href="mailto:{{SupportEmail}}">{{SupportEmail}}</a></p>
+                </div>
+            </div>
+        </div>
+        <div class="footer">{{OtpFooter}}</div>
+    </div>
+</body>
+</html>

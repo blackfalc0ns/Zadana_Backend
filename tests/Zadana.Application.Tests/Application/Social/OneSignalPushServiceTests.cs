@@ -2,11 +2,15 @@ using System.Net;
 using System.Text;
 using System.Text.Json;
 using FluentAssertions;
+using Microsoft.EntityFrameworkCore;
 using Microsoft.Extensions.DependencyInjection;
 using Microsoft.Extensions.Logging;
 using Microsoft.Extensions.Logging.Abstractions;
 using Microsoft.Extensions.Options;
 using Zadana.Application.Common.Interfaces;
+using Zadana.Domain.Modules.Delivery.Entities;
+using Zadana.Infrastructure.Persistence;
+using Zadana.Infrastructure.Persistence.Interceptors;
 using Zadana.Infrastructure.Services;
 using Zadana.Infrastructure.Settings;
 
@@ -368,33 +372,319 @@ public class OneSignalPushServiceTests
             .Be(1);
     }
 
+    [Fact]
+    public async Task SendToExternalUserAsync_WithPlaceholderCredentials_ShouldSkipAsMissingConfiguration()
+    {
+        var handler = new RecordingHttpMessageHandler();
+        var service = CreateService(handler, configureSettings: settings =>
+        {
+            settings.AppId = "__SET_VIA_ENV__OneSignal__AppId";
+            settings.RestApiKey = "PUT_ONESIGNAL_REST_API_KEY_HERE";
+        });
+
+        var result = await service.SendToExternalUserAsync(
+            "customer-missing-config",
+            "Arabic title",
+            "Title",
+            "Arabic body",
+            "Body",
+            "customer_test",
+            null,
+            null,
+            null,
+            CancellationToken.None);
+
+        result.Skipped.Should().BeTrue();
+        result.Attempted.Should().BeFalse();
+        result.Reason.Should().Contain("Customer OneSignal AppId or RestApiKey is not configured");
+        handler.RequestBodies.Should().BeEmpty();
+    }
+
+    [Fact]
+    public async Task SendToExternalUsersAsync_WithDriverTargetAndMissingCredentials_ShouldReturnDriverSpecificReason()
+    {
+        var handler = new RecordingHttpMessageHandler();
+        var service = CreateService(handler, configureSettings: settings =>
+        {
+            settings.AppId = string.Empty;
+            settings.RestApiKey = string.Empty;
+            settings.DriverAppId = string.Empty;
+            settings.DriverRestApiKey = string.Empty;
+        });
+
+        var results = await service.SendToExternalUsersAsync(
+            ["driver-missing-config"],
+            "Arabic title",
+            "Title",
+            "Arabic body",
+            "Body",
+            "driver_test",
+            null,
+            null,
+            "/notifications",
+            OneSignalPushProfile.MobileHeadsUp,
+            OneSignalApplicationTarget.Driver,
+            CancellationToken.None);
+
+        results.Should().ContainSingle();
+        results[0].Skipped.Should().BeTrue();
+        results[0].Attempted.Should().BeFalse();
+        results[0].Reason.Should().Contain("Driver OneSignal AppId or RestApiKey is not configured");
+        results[0].Reason.Should().Contain("OneSignal__DriverAppId");
+        handler.RequestBodies.Should().BeEmpty();
+    }
+
+    [Fact]
+    public async Task SendToExternalUsersAsync_WithDriverTargetAndUserId_ShouldSendDriverIdAlias()
+    {
+        await using var dbContext = CreateDbContext();
+        var userId = Guid.Parse("1363aa39-64cb-42a8-9466-d2415f247c09");
+        var driver = new Driver(
+            userId,
+            vehicleType: null,
+            nationalId: null,
+            licenseNumber: null);
+        dbContext.Drivers.Add(driver);
+        await dbContext.SaveChangesAsync();
+
+        var handler = new RecordingHttpMessageHandler(HttpStatusCode.OK, """{"id":"driver-push"}""");
+        var service = CreateService(
+            handler,
+            scopeFactory: new DbContextServiceScopeFactory(dbContext),
+            configureSettings: settings =>
+            {
+                settings.DriverAppId = "driver-app-id";
+                settings.DriverRestApiKey = "driver-rest-key";
+            });
+
+        var results = await service.SendToExternalUsersAsync(
+            [userId.ToString()],
+            "عنوان",
+            "Driver title",
+            "نص",
+            "Driver body",
+            "driver_test",
+            null,
+            null,
+            "/notifications",
+            OneSignalPushProfile.MobileHeadsUp,
+            OneSignalApplicationTarget.Driver,
+            CancellationToken.None);
+
+        results.Should().ContainSingle(result => result.Sent);
+        handler.RequestBodies.Should().HaveCount(1);
+
+        using var document = JsonDocument.Parse(handler.RequestBodies[0]);
+        var externalIds = document.RootElement
+            .GetProperty("include_aliases")
+            .GetProperty("external_id")
+            .EnumerateArray()
+            .Select(item => item.GetString())
+            .ToArray();
+
+        externalIds.Should().Equal(driver.Id.ToString());
+        externalIds.Should().NotContain(userId.ToString());
+        document.RootElement.GetProperty("app_id").GetString().Should().Be("driver-app-id");
+    }
+
+    [Fact]
+    public async Task SendToExternalUsersAsync_WithDriverTargetAndDriverId_ShouldKeepDriverIdAlias()
+    {
+        await using var dbContext = CreateDbContext();
+        var userId = Guid.NewGuid();
+        var driver = new Driver(
+            userId,
+            vehicleType: null,
+            nationalId: null,
+            licenseNumber: null);
+        dbContext.Drivers.Add(driver);
+        await dbContext.SaveChangesAsync();
+
+        var handler = new RecordingHttpMessageHandler(HttpStatusCode.OK, """{"id":"driver-push"}""");
+        var service = CreateService(
+            handler,
+            scopeFactory: new DbContextServiceScopeFactory(dbContext),
+            configureSettings: settings =>
+            {
+                settings.DriverAppId = "driver-app-id";
+                settings.DriverRestApiKey = "driver-rest-key";
+            });
+
+        await service.SendToExternalUsersAsync(
+            [driver.Id.ToString()],
+            "عنوان",
+            "Driver title",
+            "نص",
+            "Driver body",
+            "driver_test",
+            null,
+            null,
+            "/notifications",
+            OneSignalPushProfile.MobileHeadsUp,
+            OneSignalApplicationTarget.Driver,
+            CancellationToken.None);
+
+        using var document = JsonDocument.Parse(handler.RequestBodies.Single());
+        document.RootElement
+            .GetProperty("include_aliases")
+            .GetProperty("external_id")
+            .EnumerateArray()
+            .Select(item => item.GetString())
+            .Should()
+            .Equal(driver.Id.ToString());
+    }
+
+    [Fact]
+    public async Task SendToExternalUsersAsync_WithDriverTargetRecipientErrors_ShouldFallbackToProviderSubscriptionIds()
+    {
+        await using var dbContext = CreateDbContext();
+        var userId = Guid.Parse("1363aa39-64cb-42a8-9466-d2415f247c09");
+        var driver = new Driver(
+            userId,
+            vehicleType: null,
+            nationalId: null,
+            licenseNumber: null);
+        dbContext.Drivers.Add(driver);
+        await dbContext.SaveChangesAsync();
+
+        var enabledSubscriptionId = Guid.Parse("f783fa4e-fd24-4258-824d-22996bc8681f");
+        var aliasErrorBody = JsonSerializer.Serialize(new
+        {
+            id = "alias-push",
+            errors = new
+            {
+                invalid_aliases = new Dictionary<string, string[]>
+                {
+                    ["external_id"] = [driver.Id.ToString()]
+                }
+            }
+        });
+        var providerUserBody = JsonSerializer.Serialize(new
+        {
+            identity = new
+            {
+                external_id = userId.ToString(),
+                onesignal_id = "dee28e12-3906-43bd-b49d-c4da7aa3784b"
+            },
+            subscriptions = new[]
+            {
+                new { id = enabledSubscriptionId.ToString(), enabled = true, type = "AndroidPush" },
+                new { id = "bdc466d9-d487-491c-96a5-3a04ba215489", enabled = false, type = "AndroidPush" }
+            }
+        });
+        var handler = new RecordingHttpMessageHandler(
+            HttpStatusCode.OK,
+            aliasErrorBody,
+            HttpStatusCode.NotFound,
+            """{"errors":[{"title":"driver alias not found"}]}""",
+            HttpStatusCode.OK,
+            providerUserBody,
+            HttpStatusCode.OK,
+            """{"id":"fallback-push"}""");
+        var service = CreateService(
+            handler,
+            scopeFactory: new DbContextServiceScopeFactory(dbContext),
+            configureSettings: settings =>
+            {
+                settings.DriverAppId = "driver-app-id";
+                settings.DriverRestApiKey = "driver-rest-key";
+            });
+
+        var results = await service.SendToExternalUsersAsync(
+            [userId.ToString()],
+            "عنوان",
+            "Driver title",
+            "نص",
+            "Driver body",
+            "driver_test",
+            null,
+            null,
+            "/notifications",
+            OneSignalPushProfile.MobileHeadsUp,
+            OneSignalApplicationTarget.Driver,
+            CancellationToken.None);
+
+        results.Should().ContainSingle(result =>
+            result.Sent &&
+            result.ProviderNotificationId == "fallback-push");
+        handler.RequestMethods.Should().Equal("POST", "GET", "GET", "POST");
+        handler.RequestUris[1].Should().Contain(driver.Id.ToString());
+        handler.RequestUris[2].Should().Contain(userId.ToString());
+
+        var firstPostBody = handler.RequestBodies[0];
+        using var firstPost = JsonDocument.Parse(firstPostBody);
+        firstPost.RootElement
+            .GetProperty("include_aliases")
+            .GetProperty("external_id")
+            .EnumerateArray()
+            .Select(item => item.GetString())
+            .Should()
+            .Equal(driver.Id.ToString());
+
+        var fallbackPostBody = handler.RequestBodies[3];
+        using var fallbackPost = JsonDocument.Parse(fallbackPostBody);
+        fallbackPost.RootElement
+            .GetProperty("include_subscription_ids")
+            .EnumerateArray()
+            .Select(item => item.GetString())
+            .Should()
+            .Equal(enabledSubscriptionId.ToString());
+    }
+
+    [Theory]
+    [InlineData("2c10f9d2-35f4-4c0d-8e44-38f10f0dced1", true)]
+    [InlineData(" 2c10f9d2-35f4-4c0d-8e44-38f10f0dced1 ", true)]
+    [InlineData("dc1VfjmgQBiTYWTnHuc1qL:APA91bHWB4lIeFx8SoSaJnsYsuWqoxc8dh7QD34MDrZ2NCtUylakoUvbnP_GPq6ErI77wjQFYJU6TenycA8JsvJ9jcc9o8pASFvEG8hMUWuUTH4K0U22QMQ", false)]
+    [InlineData("os_v2_app_d3vnd2r5n5hsvc6fy2a5og2v6ylj2wihmmjuoierhp6pa22xk6de2xtadq5apxj3rgki7ojhdhm5vmhysn6v4yhpobo64cr4ovffcpa", false)]
+    [InlineData("", false)]
+    [InlineData(null, false)]
+    public void IsValidOneSignalSubscriptionId_ShouldOnlyAcceptUuidValues(string? value, bool expected)
+    {
+        OneSignalPushService.IsValidOneSignalSubscriptionId(value).Should().Be(expected);
+    }
+
     private static OneSignalPushService CreateService(
         RecordingHttpMessageHandler handler,
-        ILogger<OneSignalPushService>? logger = null)
+        ILogger<OneSignalPushService>? logger = null,
+        Action<OneSignalSettings>? configureSettings = null,
+        IServiceScopeFactory? scopeFactory = null)
     {
         var httpClient = new HttpClient(handler)
         {
             BaseAddress = new Uri("https://api.onesignal.com/")
         };
 
+        var settings = new OneSignalSettings
+        {
+            Enabled = true,
+            AppId = "app-id",
+            RestApiKey = "rest-key",
+            UseEnvironmentVariableFallback = false,
+            BaseUrl = "https://api.onesignal.com",
+            DefaultWebUrl = "https://vendor.example/",
+            MobileHeadsUpAndroidChannelId = "zadana_heads_up_notifications",
+            MobileHeadsUpExistingAndroidChannelId = "zadana_heads_up_notifications",
+            MobileHeadsUpPriority = 10,
+            OrderUpdatesAndroidChannelId = "zadana_order_updates_realtime_v2",
+            OrderUpdatesExistingAndroidChannelId = "zadana_order_updates_realtime_v2",
+            OrderUpdatesPriority = 10
+        };
+        configureSettings?.Invoke(settings);
+
         return new OneSignalPushService(
             httpClient,
-            Options.Create(new OneSignalSettings
-            {
-                Enabled = true,
-                AppId = "app-id",
-                RestApiKey = "rest-key",
-                BaseUrl = "https://api.onesignal.com",
-                DefaultWebUrl = "https://vendor.example/",
-                MobileHeadsUpAndroidChannelId = "zadana_heads_up_notifications",
-                MobileHeadsUpExistingAndroidChannelId = "zadana_heads_up_notifications",
-                MobileHeadsUpPriority = 10,
-                OrderUpdatesAndroidChannelId = "zadana_order_updates_realtime_v2",
-                OrderUpdatesExistingAndroidChannelId = "zadana_order_updates_realtime_v2",
-                OrderUpdatesPriority = 10
-            }),
+            Options.Create(settings),
             logger ?? NullLogger<OneSignalPushService>.Instance,
-            new NoOpServiceScopeFactory());
+            scopeFactory ?? new NoOpServiceScopeFactory());
+    }
+
+    private static ApplicationDbContext CreateDbContext()
+    {
+        var options = new DbContextOptionsBuilder<ApplicationDbContext>()
+            .UseInMemoryDatabase(Guid.NewGuid().ToString())
+            .Options;
+
+        return new ApplicationDbContext(options, new AuditableEntityInterceptor());
     }
 
     private sealed class NoOpServiceScopeFactory : IServiceScopeFactory
@@ -405,6 +695,25 @@ public class OneSignalPushServiceTests
     private sealed class NoOpServiceScope : IServiceScope
     {
         public IServiceProvider ServiceProvider { get; } = new ServiceCollection().BuildServiceProvider();
+
+        public void Dispose()
+        {
+        }
+    }
+
+    private sealed class DbContextServiceScopeFactory(ApplicationDbContext dbContext) : IServiceScopeFactory
+    {
+        public IServiceScope CreateScope() => new DbContextServiceScope(dbContext);
+    }
+
+    private sealed class DbContextServiceScope(ApplicationDbContext dbContext) : IServiceScope, IServiceProvider
+    {
+        public IServiceProvider ServiceProvider => this;
+
+        public object? GetService(Type serviceType) =>
+            serviceType == typeof(ApplicationDbContext)
+                ? dbContext
+                : null;
 
         public void Dispose()
         {
@@ -427,10 +736,16 @@ public class OneSignalPushServiceTests
         }
 
         public List<string> RequestBodies { get; } = [];
+        public List<string> RequestMethods { get; } = [];
+        public List<string> RequestUris { get; } = [];
 
         protected override async Task<HttpResponseMessage> SendAsync(HttpRequestMessage request, CancellationToken cancellationToken)
         {
-            RequestBodies.Add(await request.Content!.ReadAsStringAsync(cancellationToken));
+            RequestMethods.Add(request.Method.Method);
+            RequestUris.Add(request.RequestUri?.ToString() ?? string.Empty);
+            RequestBodies.Add(request.Content is null
+                ? string.Empty
+                : await request.Content.ReadAsStringAsync(cancellationToken));
             return _responses.Dequeue();
         }
     }

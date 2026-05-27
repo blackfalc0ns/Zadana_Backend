@@ -5,9 +5,6 @@ using Moq;
 using Zadana.Application.Common.Interfaces;
 using Zadana.Application.Modules.Delivery.Commands.UpdateDriverArrivalState;
 using Zadana.Application.Modules.Delivery.Interfaces;
-using Zadana.Application.Modules.EmailCenter;
-using Zadana.Application.Modules.EmailCenter.DTOs;
-using Zadana.Application.Modules.EmailCenter.Interfaces;
 using Zadana.Domain.Modules.Delivery.Entities;
 using Zadana.Domain.Modules.Delivery.Enums;
 using Zadana.Domain.Modules.Identity.Entities;
@@ -59,7 +56,6 @@ public class DriverArrivalStateCommandHandlerTests
             notificationService.Object,
             Mock.Of<IOneSignalPushService>(),
             Mock.Of<IOrderTrackingRealtimeNotifier>(),
-            Mock.Of<IEmailCenterService>(),
             NullLogger<UpdateDriverArrivalStateCommandHandler>.Instance);
 
         var result = await handler.Handle(
@@ -88,9 +84,8 @@ public class DriverArrivalStateCommandHandlerTests
         await using var dbContext = CreateDbContext();
         var notificationService = new Mock<INotificationService>();
         var pushService = new Mock<IOneSignalPushService>();
-        var emailCenterService = new Mock<IEmailCenterService>();
         pushService
-            .Setup(service => service.SendMobileNotificationAsync(
+            .Setup(service => service.SendMobileNotificationDirectAsync(
                 It.IsAny<OneSignalMobilePushRequest>(),
                 It.IsAny<CancellationToken>()))
             .ReturnsAsync(new OneSignalPushDispatchResult(
@@ -99,18 +94,6 @@ public class DriverArrivalStateCommandHandlerTests
                 Skipped: false,
                 ProviderStatusCode: 200,
                 ProviderNotificationId: "arrival-push-id",
-                Reason: null));
-        emailCenterService
-            .Setup(service => service.DispatchSystemEventEmailAsync(
-                It.IsAny<EmailSystemEventDispatchRequest>(),
-                It.IsAny<CancellationToken>()))
-            .ReturnsAsync(new EmailDispatchOperationResult(
-                Attempted: true,
-                Sent: true,
-                Skipped: false,
-                Source: "system_event",
-                Provider: "test",
-                ProviderMessageId: "arrival-email-id",
                 Reason: null));
 
         var customer = new User("Customer User", "arrival.customer2@test.com", "01000000134", UserRole.Customer);
@@ -145,7 +128,6 @@ public class DriverArrivalStateCommandHandlerTests
             notificationService.Object,
             pushService.Object,
             Mock.Of<IOrderTrackingRealtimeNotifier>(),
-            emailCenterService.Object,
             NullLogger<UpdateDriverArrivalStateCommandHandler>.Instance);
 
         var result = await handler.Handle(
@@ -185,7 +167,7 @@ public class DriverArrivalStateCommandHandlerTests
                 It.IsAny<CancellationToken>()),
             Times.Once);
         pushService.Verify(
-            service => service.SendMobileNotificationAsync(
+            service => service.SendMobileNotificationDirectAsync(
                 It.Is<OneSignalMobilePushRequest>(request =>
                     request.ExternalUserId == customer.Id.ToString() &&
                     request.TitleEn == "Driver arrived at delivery location" &&
@@ -200,21 +182,6 @@ public class DriverArrivalStateCommandHandlerTests
                     request.Data.Contains("\"presentation\":\"popup\"") &&
                     request.Data.Contains("\"popupType\":\"driver_arrival_state_changed\"") &&
                     request.Data.Contains("\"showPopup\":true")),
-                It.IsAny<CancellationToken>()),
-            Times.Once);
-        emailCenterService.Verify(
-            service => service.DispatchSystemEventEmailAsync(
-                It.Is<EmailSystemEventDispatchRequest>(request =>
-                    request.EventKey == EmailEventKeys.CustomerDriverArrivedAtDelivery &&
-                    request.AudienceType == "customers" &&
-                    request.To.Single() == customer.Email &&
-                    request.EntityId == order.Id &&
-                    request.VendorId == vendor.Id &&
-                    request.TargetUrl == $"/orders/{order.Id}" &&
-                    request.Variables != null &&
-                    request.Variables["customer_name"] == customer.FullName &&
-                    request.Variables["order_number"] == order.OrderNumber &&
-                    request.Variables["vendor_name"] == vendor.BusinessNameEn),
                 It.IsAny<CancellationToken>()),
             Times.Once);
     }

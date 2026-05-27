@@ -24,6 +24,11 @@ public static class DriverNotificationDataBuilder
             ["withdrawalId"] = withdrawalId
         };
 
+        if (supportCaseId.HasValue)
+        {
+            data["caseId"] = supportCaseId.Value;
+        }
+
         if (driverId.HasValue)
         {
             data["driverId"] = driverId.Value;

@@ -36,23 +36,56 @@ internal static class OrderSupportCaseNotificationComposer
         OrderSupportCaseType type,
         OrderSupportCaseStatus status,
         string action,
-        string targetUrl) =>
-        JsonSerializer.Serialize(new
+        string targetUrl)
+    {
+        var typeValue = ToApiValue(type);
+        var statusValue = ToApiValue(status);
+        var isReturnRequest = type == OrderSupportCaseType.ReturnRequest;
+        var popupType = isReturnRequest
+            ? "return_request_status_update"
+            : "support_case_status_update";
+        var eventName = isReturnRequest
+            ? $"return.{action}"
+            : $"support.{action}";
+
+        var data = new Dictionary<string, object?>
         {
-            orderId,
-            caseId,
-            orderNumber,
-            type = ToApiValue(type),
-            status = ToApiValue(status),
-            action,
-            targetUrl,
-            category = "support",
-            screen = "support_case_detail",
-            presentation = "popup",
-            popupType = "support_case_status_update",
-            showPopup = true,
-            eventName = $"support.{action}"
-        });
+            ["orderId"] = orderId,
+            ["caseId"] = caseId,
+            ["orderNumber"] = orderNumber,
+            ["type"] = typeValue,
+            ["status"] = statusValue,
+            ["action"] = action,
+            ["targetUrl"] = targetUrl,
+            ["category"] = "support",
+            ["screen"] = "support_case_detail",
+            ["presentation"] = "popup",
+            ["popupType"] = popupType,
+            ["showPopup"] = true,
+            ["eventName"] = eventName
+        };
+
+        if (isReturnRequest)
+        {
+            data["isReturnRequest"] = true;
+            data["returnStatus"] = statusValue;
+            data["refundStatus"] = ResolveReturnRefundStatus(status, action);
+            data["returnPopupType"] = popupType;
+        }
+
+        return JsonSerializer.Serialize(data);
+    }
+
+    private static string ResolveReturnRefundStatus(OrderSupportCaseStatus status, string action) =>
+        status switch
+        {
+            OrderSupportCaseStatus.Approved => "approved",
+            OrderSupportCaseStatus.Rejected => "rejected",
+            OrderSupportCaseStatus.Resolved => "resolved",
+            OrderSupportCaseStatus.InReview => "in_review",
+            OrderSupportCaseStatus.AwaitingCustomerEvidence => "awaiting_customer_evidence",
+            _ => action
+        };
 
     public static string ResolveTargetUrl(Guid orderId, Guid caseId) => $"/orders/{orderId}/cases/{caseId}";
     public static string ResolveAdminTargetUrl(Guid caseId, OrderSupportCaseType type) =>

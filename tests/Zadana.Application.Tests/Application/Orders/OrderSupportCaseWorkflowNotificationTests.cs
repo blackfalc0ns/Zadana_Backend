@@ -105,7 +105,11 @@ public class OrderSupportCaseWorkflowNotificationTests
         await dbContext.SaveChangesAsync();
 
         var notificationServiceMock = CreateNotificationServiceMock();
-        var workflowService = CreateWorkflowService(dbContext, notificationServiceMock);
+        var pushServiceMock = CreatePushServiceMock();
+        var workflowService = CreateWorkflowService(
+            dbContext,
+            notificationServiceMock,
+            pushServiceMock: pushServiceMock);
 
         await workflowService.AddAdminPublicMessageAsync(
             supportCase.Id,
@@ -122,7 +126,28 @@ public class OrderSupportCaseWorkflowNotificationTests
                     request.Category == NotificationCategories.Support &&
                     request.Data != null &&
                     request.Data.Contains("\"screen\":\"support_case_detail\"", StringComparison.Ordinal) &&
-                    request.Data.Contains("\"event\":\"support.admin_message\"", StringComparison.Ordinal)),
+                    request.Data.Contains("\"event\":\"support.admin_message\"", StringComparison.Ordinal) &&
+                    request.Data.Contains($"\"caseId\":\"{supportCase.Id}\"", StringComparison.Ordinal) &&
+                    request.Data.Contains("\"presentation\":\"popup\"", StringComparison.Ordinal) &&
+                    request.Data.Contains("\"popupType\":\"support_case_status_update\"", StringComparison.Ordinal) &&
+                    request.Data.Contains("\"showPopup\":true", StringComparison.Ordinal)),
+                It.IsAny<CancellationToken>()),
+            Times.Once);
+
+        pushServiceMock.Verify(
+            service => service.SendMobileNotificationAsync(
+                It.Is<OneSignalMobilePushRequest>(request =>
+                    request.ExternalUserId == driverUser.Id.ToString() &&
+                    request.Type == NotificationTypes.OrderSupportCaseChanged &&
+                    request.ReferenceId == supportCase.Id &&
+                    request.Category == NotificationCategories.Support &&
+                    request.Profile == OneSignalPushProfile.MobileHeadsUp &&
+                    request.TargetApplication == OneSignalApplicationTarget.Driver &&
+                    request.Data != null &&
+                    request.Data.Contains($"\"caseId\":\"{supportCase.Id}\"", StringComparison.Ordinal) &&
+                    request.Data.Contains("\"presentation\":\"popup\"", StringComparison.Ordinal) &&
+                    request.Data.Contains("\"popupType\":\"support_case_status_update\"", StringComparison.Ordinal) &&
+                    request.Data.Contains("\"showPopup\":true", StringComparison.Ordinal)),
                 It.IsAny<CancellationToken>()),
             Times.Once);
 
@@ -166,7 +191,11 @@ public class OrderSupportCaseWorkflowNotificationTests
         await dbContext.SaveChangesAsync();
 
         var notificationServiceMock = CreateNotificationServiceMock();
-        var workflowService = CreateWorkflowService(dbContext, notificationServiceMock);
+        var pushServiceMock = CreatePushServiceMock();
+        var workflowService = CreateWorkflowService(
+            dbContext,
+            notificationServiceMock,
+            pushServiceMock: pushServiceMock);
 
         await workflowService.ResolveAsync(
             supportCase.Id,
@@ -189,6 +218,21 @@ public class OrderSupportCaseWorkflowNotificationTests
                     data.Contains("\"showPopup\":true", StringComparison.Ordinal) &&
                     data.Contains("\"screen\":\"support_case_detail\"", StringComparison.Ordinal) &&
                     data.Contains("\"eventName\":\"support.resolved\"", StringComparison.Ordinal)),
+                It.IsAny<CancellationToken>()),
+            Times.Once);
+
+        pushServiceMock.Verify(
+            service => service.SendMobileNotificationAsync(
+                It.Is<OneSignalMobilePushRequest>(request =>
+                    request.ExternalUserId == customer.Id.ToString() &&
+                    request.Type == NotificationTypes.OrderSupportCaseChanged &&
+                    request.ReferenceId == supportCase.Id &&
+                    request.Profile == OneSignalPushProfile.MobileHeadsUp &&
+                    request.TargetApplication == OneSignalApplicationTarget.Customer &&
+                    request.Data != null &&
+                    request.Data.Contains("\"presentation\":\"popup\"", StringComparison.Ordinal) &&
+                    request.Data.Contains("\"popupType\":\"support_case_status_update\"", StringComparison.Ordinal) &&
+                    request.Data.Contains("\"showPopup\":true", StringComparison.Ordinal)),
                 It.IsAny<CancellationToken>()),
             Times.Once);
     }
@@ -218,7 +262,11 @@ public class OrderSupportCaseWorkflowNotificationTests
         await dbContext.SaveChangesAsync();
 
         var notificationServiceMock = CreateNotificationServiceMock();
-        var workflowService = CreateWorkflowService(dbContext, notificationServiceMock);
+        var pushServiceMock = CreatePushServiceMock();
+        var workflowService = CreateWorkflowService(
+            dbContext,
+            notificationServiceMock,
+            pushServiceMock: pushServiceMock);
 
         await workflowService.AssignAsync(
             supportCase.Id,
@@ -241,8 +289,27 @@ public class OrderSupportCaseWorkflowNotificationTests
                 It.Is<string>(data =>
                     data.Contains("\"status\":\"in_review\"", StringComparison.Ordinal) &&
                     data.Contains("\"presentation\":\"popup\"", StringComparison.Ordinal) &&
-                    data.Contains("\"popupType\":\"support_case_status_update\"", StringComparison.Ordinal) &&
-                    data.Contains("\"eventName\":\"support.assigned\"", StringComparison.Ordinal)),
+                    data.Contains("\"popupType\":\"return_request_status_update\"", StringComparison.Ordinal) &&
+                    data.Contains("\"eventName\":\"return.assigned\"", StringComparison.Ordinal) &&
+                    data.Contains("\"isReturnRequest\":true", StringComparison.Ordinal) &&
+                    data.Contains("\"returnStatus\":\"in_review\"", StringComparison.Ordinal) &&
+                    data.Contains("\"refundStatus\":\"in_review\"", StringComparison.Ordinal)),
+                It.IsAny<CancellationToken>()),
+            Times.Once);
+
+        pushServiceMock.Verify(
+            service => service.SendMobileNotificationAsync(
+                It.Is<OneSignalMobilePushRequest>(request =>
+                    request.ExternalUserId == customer.Id.ToString() &&
+                    request.Type == NotificationTypes.OrderSupportCaseChanged &&
+                    request.ReferenceId == supportCase.Id &&
+                    request.Profile == OneSignalPushProfile.MobileHeadsUp &&
+                    request.TargetApplication == OneSignalApplicationTarget.Customer &&
+                    request.Data != null &&
+                    request.Data.Contains("\"presentation\":\"popup\"", StringComparison.Ordinal) &&
+                    request.Data.Contains("\"popupType\":\"return_request_status_update\"", StringComparison.Ordinal) &&
+                    request.Data.Contains("\"showPopup\":true", StringComparison.Ordinal) &&
+                    request.Data.Contains("\"isReturnRequest\":true", StringComparison.Ordinal)),
                 It.IsAny<CancellationToken>()),
             Times.Once);
 
@@ -320,7 +387,20 @@ public class OrderSupportCaseWorkflowNotificationTests
     private static OrderSupportCaseWorkflowService CreateWorkflowService(
         ApplicationDbContext dbContext,
         Mock<INotificationService> notificationServiceMock,
-        Mock<IAdminAlertService>? adminAlertServiceMock = null)
+        Mock<IAdminAlertService>? adminAlertServiceMock = null,
+        Mock<IOneSignalPushService>? pushServiceMock = null)
+    {
+        var resolvedPushServiceMock = pushServiceMock ?? CreatePushServiceMock();
+
+        return new OrderSupportCaseWorkflowService(
+            dbContext,
+            dbContext,
+            notificationServiceMock.Object,
+            resolvedPushServiceMock.Object,
+            adminAlertServiceMock?.Object);
+    }
+
+    private static Mock<IOneSignalPushService> CreatePushServiceMock()
     {
         var pushServiceMock = new Mock<IOneSignalPushService>();
         pushServiceMock
@@ -329,12 +409,7 @@ public class OrderSupportCaseWorkflowNotificationTests
                 It.IsAny<CancellationToken>()))
             .ReturnsAsync(new OneSignalPushDispatchResult(true, true, false, 200, "push-id", null));
 
-        return new OrderSupportCaseWorkflowService(
-            dbContext,
-            dbContext,
-            notificationServiceMock.Object,
-            pushServiceMock.Object,
-            adminAlertServiceMock?.Object);
+        return pushServiceMock;
     }
 
     private static Mock<INotificationService> CreateNotificationServiceMock()

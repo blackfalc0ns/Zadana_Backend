@@ -183,6 +183,11 @@ public class DeliveryDispatchServiceTests
                     request.ReferenceId == scenario.Order.Id &&
                     request.Data != null &&
                     request.Data.Contains("\"target\":\"driver-offer\"") &&
+                    request.Data.Contains("\"presentation\":\"popup\"") &&
+                    request.Data.Contains("\"popupType\":\"delivery_offer\"") &&
+                    request.Data.Contains("\"showPopup\":true") &&
+                    request.Data.Contains("\"eventName\":\"dispatch.offer_new\"") &&
+                    request.Data.Contains($"\"driverId\":\"{scenario.SameZoneFreshDriver.Id}\"") &&
                     request.Data.Contains(expectedPayloadPart) &&
                     request.Data.Contains(scenario.Order.Id.ToString())),
                 It.IsAny<CancellationToken>()),
@@ -199,6 +204,11 @@ public class DeliveryDispatchServiceTests
                     request.TargetUrl == null &&
                     request.Data != null &&
                     request.Data.Contains("\"target\":\"driver-offer\"") &&
+                    request.Data.Contains("\"presentation\":\"popup\"") &&
+                    request.Data.Contains("\"popupType\":\"delivery_offer\"") &&
+                    request.Data.Contains("\"showPopup\":true") &&
+                    request.Data.Contains("\"eventName\":\"dispatch.offer_new\"") &&
+                    request.Data.Contains($"\"driverId\":\"{scenario.SameZoneFreshDriver.Id}\"") &&
                     request.Data.Contains(expectedPayloadPart) &&
                     request.Data.Contains(scenario.Order.Id.ToString())),
                 It.IsAny<CancellationToken>()),

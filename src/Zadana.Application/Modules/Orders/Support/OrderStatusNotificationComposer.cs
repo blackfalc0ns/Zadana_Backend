@@ -40,24 +40,41 @@ internal static class OrderStatusNotificationComposer
         OrderStatus newStatus,
         string? actorRole,
         string action,
-        string targetUrl) =>
-        JsonSerializer.Serialize(new
+        string targetUrl)
+    {
+        var isRefundUpdate = newStatus == OrderStatus.Refunded;
+        var popupType = isRefundUpdate ? "order_refund_status_changed" : "order_status_changed";
+        var eventName = isRefundUpdate
+            ? "order.refund.refunded"
+            : $"order.status.{newStatus.ToString().ToLowerInvariant()}";
+
+        var data = new Dictionary<string, object?>
         {
-            orderId,
-            orderNumber,
-            vendorId,
-            oldStatus = oldStatus.ToString(),
-            newStatus = newStatus.ToString(),
-            actorRole,
-            action,
-            targetUrl,
-            category = "order",
-            screen = "order_tracking",
-            presentation = "popup",
-            popupType = "order_status_changed",
-            showPopup = true,
-            eventName = $"order.status.{newStatus.ToString().ToLowerInvariant()}"
-        });
+            ["orderId"] = orderId,
+            ["orderNumber"] = orderNumber,
+            ["vendorId"] = vendorId,
+            ["oldStatus"] = oldStatus.ToString(),
+            ["newStatus"] = newStatus.ToString(),
+            ["actorRole"] = actorRole,
+            ["action"] = action,
+            ["targetUrl"] = targetUrl,
+            ["category"] = "order",
+            ["screen"] = "order_tracking",
+            ["presentation"] = "popup",
+            ["popupType"] = popupType,
+            ["showPopup"] = true,
+            ["eventName"] = eventName
+        };
+
+        if (isRefundUpdate)
+        {
+            data["isRefund"] = true;
+            data["refundStatus"] = "refunded";
+            data["refundPopupType"] = popupType;
+        }
+
+        return JsonSerializer.Serialize(data);
+    }
 
     public static string ResolveAction(OrderStatus newStatus) =>
         newStatus switch

@@ -6,6 +6,7 @@ using Zadana.Application.Modules.Orders.Support;
 using Zadana.Application.Modules.Social.Support;
 using Zadana.Application.Modules.Wallets.Interfaces;
 using Zadana.Api.Realtime.Contracts;
+using Zadana.Domain.Modules.Orders.Enums;
 using Zadana.Domain.Modules.Social.Entities;
 using Zadana.Infrastructure.Persistence;
 
@@ -157,7 +158,7 @@ public sealed class NotificationService : INotificationService
                 string.IsNullOrWhiteSpace(targetUrl) ? $"/orders/{orderId}" : targetUrl,
                 DateTime.UtcNow,
                 "popup",
-                "order_status_changed",
+                ResolveOrderStatusPopupType(newStatus),
                 true,
                 oldStatus,
                 newStatus);
@@ -175,6 +176,12 @@ public sealed class NotificationService : INotificationService
                 orderId);
         }
     }
+
+    private static string ResolveOrderStatusPopupType(string newStatus) =>
+        string.Equals(newStatus, nameof(OrderStatus.Refunded), StringComparison.OrdinalIgnoreCase) ||
+        string.Equals(newStatus, "refunded", StringComparison.OrdinalIgnoreCase)
+            ? "order_refund_status_changed"
+            : "order_status_changed";
 
     public async Task SendDriverArrivalStateChangedToUserAsync(
         Guid userId,
@@ -237,7 +244,7 @@ public sealed class NotificationService : INotificationService
                 string.IsNullOrWhiteSpace(targetUrl) ? $"/orders/{orderId}/cases/{caseId}" : targetUrl,
                 DateTime.UtcNow,
                 "popup",
-                "support_case_status_update",
+                ResolveOrderSupportPopupType(type),
                 true);
 
             await _hubContext.Clients
@@ -253,6 +260,11 @@ public sealed class NotificationService : INotificationService
                 caseId);
         }
     }
+
+    private static string ResolveOrderSupportPopupType(string type) =>
+        string.Equals(type, "return_request", StringComparison.OrdinalIgnoreCase)
+            ? "return_request_status_update"
+            : "support_case_status_update";
 
     public async Task SendDriverSupportCaseChangedToUserAsync(
         Guid driverUserId,

@@ -96,6 +96,69 @@ public class NotificationServiceRealtimePayloadTests
     }
 
     [Fact]
+    public async Task SendOrderStatusChangedToUserAsync_WhenRefunded_ShouldUseRefundPopupType()
+    {
+        var userId = Guid.NewGuid();
+        var orderId = Guid.NewGuid();
+        var vendorId = Guid.NewGuid();
+        var (service, sent) = CreateNotificationService(userId);
+
+        await service.SendOrderStatusChangedToUserAsync(
+            userId,
+            orderId,
+            "ORD-REALTIME-REFUND-001",
+            vendorId,
+            nameof(OrderStatus.Delivered),
+            nameof(OrderStatus.Refunded),
+            "support",
+            "status_changed",
+            $"/orders/{orderId}",
+            CancellationToken.None);
+
+        sent.Method.Should().Be(NotificationHub.ReceiveOrderStatusChangedMethod);
+        var payload = sent.Payload.Should().BeOfType<OrderStatusChangedRealtimePayload>().Subject;
+        payload.PopupType.Should().Be("order_refund_status_changed");
+        payload.Presentation.Should().Be("popup");
+        payload.ShowPopup.Should().BeTrue();
+
+        var json = JsonSerializer.Serialize(payload);
+        json.Should().Contain("\"popupType\":\"order_refund_status_changed\"");
+        json.Should().Contain("\"showPopup\":true");
+    }
+
+    [Fact]
+    public async Task SendOrderSupportCaseChangedToUserAsync_WhenReturnRequest_ShouldUseReturnPopupType()
+    {
+        var userId = Guid.NewGuid();
+        var caseId = Guid.NewGuid();
+        var orderId = Guid.NewGuid();
+        var (service, sent) = CreateNotificationService(userId);
+
+        await service.SendOrderSupportCaseChangedToUserAsync(
+            userId,
+            caseId,
+            orderId,
+            "ORD-RETURN-RT-001",
+            "return_request",
+            "in_review",
+            "assigned",
+            $"/orders/{orderId}/cases/{caseId}",
+            CancellationToken.None);
+
+        sent.Method.Should().Be(NotificationHub.ReceiveOrderSupportCaseChangedMethod);
+        var payload = sent.Payload.Should().BeOfType<OrderSupportCaseChangedRealtimePayload>().Subject;
+        payload.CaseId.Should().Be(caseId);
+        payload.PopupType.Should().Be("return_request_status_update");
+        payload.Presentation.Should().Be("popup");
+        payload.ShowPopup.Should().BeTrue();
+
+        var json = JsonSerializer.Serialize(payload);
+        json.Should().Contain("\"caseId\"");
+        json.Should().Contain("\"popupType\":\"return_request_status_update\"");
+        json.Should().Contain("\"showPopup\":true");
+    }
+
+    [Fact]
     public async Task SendDriverSupportCaseChangedToUserAsync_ShouldMarkRealtimePayloadAsPopup()
     {
         var userId = Guid.NewGuid();
@@ -131,6 +194,43 @@ public class NotificationServiceRealtimePayloadTests
         json.Should().Contain("\"popupType\":\"support_case_status_update\"");
         json.Should().Contain("\"showPopup\":true");
         json.Should().NotContain("\"CaseId\"");
+    }
+
+    [Fact]
+    public async Task SendDeliveryOfferToDriverAsync_ShouldMarkRealtimePayloadAsPopup()
+    {
+        var userId = Guid.NewGuid();
+        var assignmentId = Guid.NewGuid();
+        var orderId = Guid.NewGuid();
+        var (service, sent) = CreateNotificationService(userId);
+
+        await service.SendDeliveryOfferToDriverAsync(
+            userId,
+            assignmentId,
+            orderId,
+            "ORD-OFFER-RT-001",
+            "Vendor",
+            15m,
+            120m,
+            100m,
+            "CashOnDelivery",
+            45,
+            CancellationToken.None);
+
+        sent.Method.Should().Be(NotificationHub.ReceiveDeliveryOfferMethod);
+        var payload = sent.Payload.Should().BeOfType<DeliveryOfferRealtimePayload>().Subject;
+        payload.AssignmentId.Should().Be(assignmentId);
+        payload.OrderId.Should().Be(orderId);
+        payload.Presentation.Should().Be("popup");
+        payload.PopupType.Should().Be("delivery_offer");
+        payload.ShowPopup.Should().BeTrue();
+        payload.EventName.Should().Be("dispatch.offer_new");
+
+        var json = JsonSerializer.Serialize(payload);
+        json.Should().Contain("\"presentation\":\"popup\"");
+        json.Should().Contain("\"popupType\":\"delivery_offer\"");
+        json.Should().Contain("\"showPopup\":true");
+        json.Should().Contain("\"eventName\":\"dispatch.offer_new\"");
     }
 
     private static (NotificationService Service, SentSignalRMessage Sent) CreateNotificationService(Guid userId)
