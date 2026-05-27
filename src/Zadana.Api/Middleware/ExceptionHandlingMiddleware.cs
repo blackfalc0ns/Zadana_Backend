@@ -72,6 +72,7 @@ public class ExceptionHandlingMiddleware
 
     private static ProblemDetails CreateProblemDetails(HttpContext context, Exception exception, IStringLocalizer<SharedResource> localizer)
     {
+        var isDevelopment = context.RequestServices.GetRequiredService<IWebHostEnvironment>().IsDevelopment();
         if (exception is ValidationException validationException)
         {
             var validationProblem = new ValidationProblemDetails(validationException.Errors)
@@ -103,6 +104,14 @@ public class ExceptionHandlingMiddleware
         }
 
         problemDetails.Extensions["traceId"] = context.TraceIdentifier;
+
+        if (isDevelopment && problemDetails.Status == (int)HttpStatusCode.InternalServerError)
+        {
+            problemDetails.Extensions["debugException"] = exception.GetType().FullName;
+            problemDetails.Extensions["debugMessage"] = exception.Message;
+            problemDetails.Extensions["debugStackTrace"] = exception.StackTrace;
+        }
+
         return problemDetails;
     }
 

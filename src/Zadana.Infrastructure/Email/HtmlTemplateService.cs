@@ -2,6 +2,7 @@ using System;
 using System.Collections.Generic;
 using System.Globalization;
 using System.IO;
+using System.Net;
 using System.Threading.Tasks;
 using Microsoft.Extensions.Logging;
 using Zadana.Application.Common.Interfaces;
@@ -46,7 +47,8 @@ public class HtmlTemplateService : ITemplateService
         // Replace all placeholders in the format {{Key}} with their respective Values
         foreach (var placeholder in placeholders)
         {
-            templateContent = templateContent.Replace("{{" + placeholder.Key + "}}", placeholder.Value);
+            var safeValue = WebUtility.HtmlEncode(placeholder.Value ?? string.Empty);
+            templateContent = templateContent.Replace("{{" + placeholder.Key + "}}", safeValue);
         }
 
         return templateContent;

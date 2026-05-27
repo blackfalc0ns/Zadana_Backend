@@ -55,6 +55,22 @@ public class UserConfiguration : IEntityTypeConfiguration<User>
         builder.Property(u => u.Longitude)
             .HasPrecision(9, 6);
 
+        builder.Property(u => u.PreferredLocale)
+            .HasMaxLength(10)
+            .HasDefaultValue("ar");
+
+        builder.Property(u => u.ReplyTo)
+            .HasMaxLength(200);
+
+        builder.Property(u => u.NotificationEmailsJson)
+            .HasMaxLength(1000);
+
+        builder.Property(u => u.EscalationEmailsJson)
+            .HasMaxLength(1000);
+
+        builder.Property(u => u.EmailOptInJson)
+            .HasMaxLength(1000);
+
         builder.Property(u => u.LastLoginAtUtc);
         builder.Property(u => u.LastSeenAtUtc);
         builder.Property(u => u.LockedAtUtc);

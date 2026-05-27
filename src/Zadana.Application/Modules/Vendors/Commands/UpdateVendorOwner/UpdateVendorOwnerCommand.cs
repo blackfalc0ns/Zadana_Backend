@@ -4,6 +4,7 @@ using Microsoft.Extensions.Localization;
 using Zadana.Application.Common.Interfaces;
 using Zadana.Application.Common.Localization;
 using Zadana.Application.Modules.Identity.Interfaces;
+using Zadana.Application.Modules.Identity.Services;
 using Zadana.Application.Modules.Vendors.DTOs;
 using Zadana.Application.Modules.Vendors.Interfaces;
 using Zadana.Application.Modules.Vendors.Support;
@@ -38,6 +39,7 @@ public class UpdateVendorOwnerCommandHandler : IRequestHandler<UpdateVendorOwner
     private readonly IUnitOfWork _unitOfWork;
     private readonly ICurrentUserService _currentUserService;
     private readonly IVendorReviewAuditService _vendorReviewAuditService;
+    private readonly IEmailVerificationSender _emailVerificationSender;
 
     public UpdateVendorOwnerCommandHandler(
         IVendorRepository vendorRepository,
@@ -45,7 +47,8 @@ public class UpdateVendorOwnerCommandHandler : IRequestHandler<UpdateVendorOwner
         IIdentityAccountService identityAccountService,
         IUnitOfWork unitOfWork,
         ICurrentUserService currentUserService,
-        IVendorReviewAuditService vendorReviewAuditService)
+        IVendorReviewAuditService vendorReviewAuditService,
+        IEmailVerificationSender emailVerificationSender)
     {
         _vendorRepository = vendorRepository;
         _vendorReadService = vendorReadService;
@@ -53,6 +56,7 @@ public class UpdateVendorOwnerCommandHandler : IRequestHandler<UpdateVendorOwner
         _unitOfWork = unitOfWork;
         _currentUserService = currentUserService;
         _vendorReviewAuditService = vendorReviewAuditService;
+        _emailVerificationSender = emailVerificationSender;
     }
 
     public async Task<VendorWorkspaceDto> Handle(UpdateVendorOwnerCommand request, CancellationToken cancellationToken)
@@ -74,6 +78,11 @@ public class UpdateVendorOwnerCommandHandler : IRequestHandler<UpdateVendorOwner
         if (!updateIdentityResult.Succeeded)
         {
             throw new BusinessRuleException("IDENTITY_UPDATE_FAILED", string.Join(", ", updateIdentityResult.Errors ?? []));
+        }
+
+        if (updateIdentityResult.EmailChanged)
+        {
+            await _emailVerificationSender.SendAsync(userId, cancellationToken);
         }
 
         await _unitOfWork.SaveChangesAsync(cancellationToken);

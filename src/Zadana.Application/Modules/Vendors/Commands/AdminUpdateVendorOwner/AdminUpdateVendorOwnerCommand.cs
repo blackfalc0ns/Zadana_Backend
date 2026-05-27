@@ -4,6 +4,7 @@ using Microsoft.Extensions.Localization;
 using Zadana.Application.Common.Interfaces;
 using Zadana.Application.Common.Localization;
 using Zadana.Application.Modules.Identity.Interfaces;
+using Zadana.Application.Modules.Identity.Services;
 using Zadana.Application.Modules.Vendors.DTOs;
 using Zadana.Application.Modules.Vendors.Interfaces;
 using Zadana.SharedKernel.Exceptions;
@@ -38,19 +39,22 @@ public class AdminUpdateVendorOwnerCommandHandler : IRequestHandler<AdminUpdateV
     private readonly IIdentityAccountService _identityAccountService;
     private readonly IVendorCommunicationService _vendorCommunicationService;
     private readonly IUnitOfWork _unitOfWork;
+    private readonly IEmailVerificationSender _emailVerificationSender;
 
     public AdminUpdateVendorOwnerCommandHandler(
         IVendorRepository vendorRepository,
         IVendorReadService vendorReadService,
         IIdentityAccountService identityAccountService,
         IVendorCommunicationService vendorCommunicationService,
-        IUnitOfWork unitOfWork)
+        IUnitOfWork unitOfWork,
+        IEmailVerificationSender emailVerificationSender)
     {
         _vendorRepository = vendorRepository;
         _vendorReadService = vendorReadService;
         _identityAccountService = identityAccountService;
         _vendorCommunicationService = vendorCommunicationService;
         _unitOfWork = unitOfWork;
+        _emailVerificationSender = emailVerificationSender;
     }
 
     public async Task<VendorDetailDto> Handle(AdminUpdateVendorOwnerCommand request, CancellationToken cancellationToken)
@@ -70,6 +74,11 @@ public class AdminUpdateVendorOwnerCommandHandler : IRequestHandler<AdminUpdateV
         if (!identityResult.Succeeded)
         {
             throw new BusinessRuleException("IDENTITY_UPDATE_FAILED", string.Join(", ", identityResult.Errors ?? []));
+        }
+
+        if (identityResult.EmailChanged)
+        {
+            await _emailVerificationSender.SendAsync(vendor.UserId, cancellationToken);
         }
 
         await _unitOfWork.SaveChangesAsync(cancellationToken);

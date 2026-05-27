@@ -155,7 +155,8 @@ public class AdminAccessController(IMediator mediator, IApplicationDbContext dbC
             request.Status,
             request.Notes,
             request.GrantedPermissions,
-            request.RevokedPermissions));
+            request.RevokedPermissions,
+            request.Communication));
 
         return Ok(result);
     }
@@ -306,7 +307,8 @@ public record UpdateAdminAccessUserRequest(
     string? Status,
     string? Notes,
     List<string> GrantedPermissions,
-    List<string> RevokedPermissions
+    List<string> RevokedPermissions,
+    DirectoryCommunicationProfileDto? Communication
 );
 
 public record ResetTemporaryPasswordRequest(string TemporaryPassword);

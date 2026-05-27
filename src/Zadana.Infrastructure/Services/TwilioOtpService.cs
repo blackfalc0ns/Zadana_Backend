@@ -57,9 +57,8 @@ public class TwilioOtpService : IOtpService
     {
         // Twilio SMS service - email OTP is handled by the Resend email service separately
         _logger.LogInformation(
-            "Email OTP for {Email} is handled by the email service. Code: {Code}. Valid for {ValidityMinutes} minutes.",
+            "Email OTP for {Email} is handled by the email service. Valid for {ValidityMinutes} minutes.",
             emailAddress,
-            otpCode,
             validityMinutes);
         await Task.CompletedTask;
     }

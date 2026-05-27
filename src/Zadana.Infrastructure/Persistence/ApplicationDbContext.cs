@@ -90,6 +90,7 @@ public class ApplicationDbContext : IdentityDbContext<User, IdentityRole<Guid>, 
     public DbSet<VendorDocumentReview> VendorDocumentReviews => Set<VendorDocumentReview>();
     public DbSet<VendorProfileReviewItem> VendorProfileReviewItems => Set<VendorProfileReviewItem>();
     public DbSet<VendorWorkspaceState> VendorWorkspaceStates => Set<VendorWorkspaceState>();
+    public DbSet<VendorStaffInvitation> VendorStaffInvitations => Set<VendorStaffInvitation>();
     public DbSet<VendorSupportTicket> VendorSupportTickets => Set<VendorSupportTicket>();
     public DbSet<VendorSupportTicketMessage> VendorSupportTicketMessages => Set<VendorSupportTicketMessage>();
 

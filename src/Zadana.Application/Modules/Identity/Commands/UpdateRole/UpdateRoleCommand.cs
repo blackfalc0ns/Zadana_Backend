@@ -2,6 +2,7 @@ using MediatR;
 using Microsoft.EntityFrameworkCore;
 using Zadana.Application.Common.Interfaces;
 using Zadana.Application.Modules.Identity.DTOs;
+using Zadana.Application.Modules.Identity.Services;
 using Zadana.Domain.Modules.Identity.Entities;
 using Zadana.SharedKernel.Exceptions;
 using Zadana.Domain.Modules.Identity.Enums;
@@ -41,6 +42,22 @@ public class UpdateRoleCommandHandler : IRequestHandler<UpdateRoleCommand, RoleD
         if (role.IsSystem)
         {
             throw new BadRequestException("CANNOT_UPDATE_SYSTEM_ROLE", "System roles cannot be modified.");
+        }
+
+        AccessRoleGuard.EnsureRoleMatchesPanelScope(request.IdentityRole, request.PanelScope);
+
+        var assignedUserIds = role.UserAccessScopes
+            .Where(scope => scope.IsActive)
+            .Select(scope => scope.UserId)
+            .Distinct()
+            .ToList();
+
+        if (assignedUserIds.Count > 0 &&
+            (role.IdentityRole != request.IdentityRole || role.PanelScope != request.PanelScope))
+        {
+            throw new BadRequestException(
+                "ROLE_ASSIGNMENT_SCOPE_LOCKED",
+                "Identity role and panel scope cannot be changed while the role is assigned to active users.");
         }
 
         role.Update(
@@ -83,11 +100,6 @@ public class UpdateRoleCommandHandler : IRequestHandler<UpdateRoleCommand, RoleD
             role.RolePermissions.Add(new RolePermission(role.Id, permissionDef.Id));
         }
 
-        var assignedUserIds = role.UserAccessScopes
-            .Where(scope => scope.IsActive)
-            .Select(scope => scope.UserId)
-            .Distinct()
-            .ToList();
         if (assignedUserIds.Count > 0)
         {
             var users = await _context.Users

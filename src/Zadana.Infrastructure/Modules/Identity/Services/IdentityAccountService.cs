@@ -167,6 +167,7 @@ public class IdentityAccountService : IIdentityAccountService
 
         var normalizedEmail = email.Trim().ToLowerInvariant();
         var normalizedPhone = phoneNumber.Trim();
+        var emailChanged = !string.Equals(user.Email, normalizedEmail, StringComparison.OrdinalIgnoreCase);
 
         var duplicateExists = await _userManager.Users.AnyAsync(
             candidate => candidate.Id != userId
@@ -179,7 +180,10 @@ public class IdentityAccountService : IIdentityAccountService
         }
 
         user.UpdateProfile(fullName, email, phoneNumber);
-        return await PersistUserAsync(user);
+        var updateResult = await PersistUserAsync(user);
+        return updateResult.Succeeded
+            ? new IdentityOperationResult(true, Account: Map(user), EmailChanged: emailChanged)
+            : updateResult;
     }
 
     public async Task<IdentityOperationResult> UpdateProfilePhotoAsync(
@@ -426,6 +430,15 @@ public class IdentityAccountService : IIdentityAccountService
         if (user == null)
         {
             return new OtpDispatchResult(OtpDispatchStatus.UserNotFound);
+        }
+
+        if (!user.CanResendOtp())
+        {
+            var secondsRemaining = Math.Max(0, 60 - (int)(DateTime.UtcNow - user.LastOtpSentAt!.Value).TotalSeconds);
+            return new OtpDispatchResult(
+                OtpDispatchStatus.CooldownActive,
+                Map(user),
+                CooldownSecondsRemaining: secondsRemaining);
         }
 
         var otpCode = user.GeneratePasswordResetOtp();

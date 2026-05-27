@@ -150,17 +150,54 @@ public static class AdminUserRecordProjector
             .AsNoTracking()
             .ToListAsync(cancellationToken);
 
+        var vendorScopeIds = scopes
+            .Where(s => s.ScopeType == AccessScopeType.VendorCompany && s.ScopeEntityId.HasValue)
+            .Select(s => s.ScopeEntityId!.Value)
+            .Distinct()
+            .ToList();
+
+        var branchScopeIds = scopes
+            .Where(s => s.ScopeType == AccessScopeType.VendorBranch && s.ScopeEntityId.HasValue)
+            .Select(s => s.ScopeEntityId!.Value)
+            .Distinct()
+            .ToList();
+
+        var entityAssignments = new Dictionary<Guid, EntityAssignmentInfo>();
+
+        if (vendorScopeIds.Count != 0)
+        {
+            var vendors = await context.Vendors
+                .AsNoTracking()
+                .Where(v => vendorScopeIds.Contains(v.Id))
+                .Select(v => new EntityAssignmentInfo(v.Id, string.IsNullOrEmpty(v.BusinessNameEn) ? v.BusinessNameAr : v.BusinessNameEn, v.Region, v.City, null, null))
+                .ToListAsync(cancellationToken);
+            foreach (var v in vendors) entityAssignments[v.Id] = v;
+        }
+
+        if (branchScopeIds.Count != 0)
+        {
+            var branches = await context.VendorBranches
+                .AsNoTracking()
+                .Where(b => branchScopeIds.Contains(b.Id))
+                .Select(b => new EntityAssignmentInfo(b.Id, b.Name, b.Vendor!.Region, b.Vendor.City, b.VendorId, string.IsNullOrEmpty(b.Vendor.BusinessNameEn) ? b.Vendor.BusinessNameAr : b.Vendor.BusinessNameEn))
+                .ToListAsync(cancellationToken);
+            foreach (var b in branches) entityAssignments[b.Id] = b;
+        }
+
         return users
-            .Select(user => BuildRecord(user, scopes, roles, overrides, permissions))
+            .Select(user => BuildRecord(user, scopes, roles, overrides, permissions, entityAssignments))
             .ToList();
     }
+
+    public record EntityAssignmentInfo(Guid Id, string Name, string? Region, string? City, Guid? ParentVendorId = null, string? ParentVendorName = null);
 
     private static AdminUserRecordDto BuildRecord(
         User user,
         List<UserAccessScope> scopes,
         List<RoleDefinition> roles,
         List<UserPermissionOverride> overrides,
-        List<PermissionDefinition> permissions)
+        List<PermissionDefinition> permissions,
+        Dictionary<Guid, EntityAssignmentInfo> entityAssignments)
     {
         var primaryScope = scopes
             .Where(s => s.UserId == user.Id)
@@ -219,6 +256,31 @@ public static class AdminUserRecordProjector
 
         var colorIndex = Math.Abs(user.Id.GetHashCode()) % Accents.Length;
 
+        var vendorId = primaryScope?.ScopeType == AccessScopeType.VendorCompany ? primaryScope.ScopeEntityId?.ToString() : null;
+        var vendorName = "";
+        var branchId = primaryScope?.ScopeType == AccessScopeType.VendorBranch ? primaryScope.ScopeEntityId?.ToString() : null;
+        var branchName = "";
+        var region = "";
+        var city = "";
+
+        if (primaryScope?.ScopeEntityId.HasValue == true && entityAssignments.TryGetValue(primaryScope.ScopeEntityId.Value, out var entityInfo))
+        {
+            if (primaryScope.ScopeType == AccessScopeType.VendorCompany)
+            {
+                vendorName = entityInfo.Name;
+                region = entityInfo.Region ?? "";
+                city = entityInfo.City ?? "";
+            }
+            else if (primaryScope.ScopeType == AccessScopeType.VendorBranch)
+            {
+                branchName = entityInfo.Name;
+                vendorId = entityInfo.ParentVendorId?.ToString();
+                vendorName = entityInfo.ParentVendorName ?? "";
+                region = entityInfo.Region ?? "";
+                city = entityInfo.City ?? "";
+            }
+        }
+
         return new AdminUserRecordDto(
             Id: user.Id,
             EntityId: primaryScope?.ScopeEntityId?.ToString(),
@@ -255,20 +317,26 @@ public static class AdminUserRecordProjector
             Assignment: new DirectoryAssignmentDto(
                 EntityId: primaryScope?.ScopeEntityId?.ToString(),
                 EntitySource: ResolveSource(panelScope),
-                VendorId: primaryScope?.ScopeType == AccessScopeType.VendorCompany ? primaryScope.ScopeEntityId?.ToString() : null,
-                VendorName: "",
-                BranchId: primaryScope?.ScopeType == AccessScopeType.VendorBranch ? primaryScope.ScopeEntityId?.ToString() : null,
-                BranchName: "",
-                Region: "",
-                City: ""
+                VendorId: vendorId,
+                VendorName: vendorName,
+                BranchId: branchId,
+                BranchName: branchName,
+                Region: region,
+                City: city
             ),
             Communication: new DirectoryCommunicationProfileDto(
                 PrimaryEmail: user.Email ?? "",
-                NotificationEmails: [],
-                ReplyTo: user.Email ?? "",
-                EscalationEmails: [],
-                PreferredLocale: "ar",
-                EmailOptIn: new { }
+                NotificationEmails: string.IsNullOrEmpty(user.NotificationEmailsJson) 
+                    ? [] 
+                    : System.Text.Json.JsonSerializer.Deserialize<List<string>>(user.NotificationEmailsJson) ?? [],
+                ReplyTo: user.ReplyTo ?? user.Email ?? "",
+                EscalationEmails: string.IsNullOrEmpty(user.EscalationEmailsJson) 
+                    ? [] 
+                    : System.Text.Json.JsonSerializer.Deserialize<List<string>>(user.EscalationEmailsJson) ?? [],
+                PreferredLocale: user.PreferredLocale ?? "ar",
+                EmailOptIn: string.IsNullOrEmpty(user.EmailOptInJson) 
+                    ? new Dictionary<string, bool>() 
+                    : System.Text.Json.JsonSerializer.Deserialize<Dictionary<string, bool>>(user.EmailOptInJson) ?? new Dictionary<string, bool>()
             ),
             FeatureToggles: [],
             EntityPath: $"/admin-users/{user.Id}",

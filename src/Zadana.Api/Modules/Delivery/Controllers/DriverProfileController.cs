@@ -7,6 +7,7 @@ using Zadana.Application.Common.Interfaces;
 using Zadana.Application.Modules.Delivery.DTOs;
 using Zadana.Application.Modules.Delivery.Interfaces;
 using Zadana.Application.Modules.Identity.Interfaces;
+using Zadana.Application.Modules.Identity.Services;
 using Zadana.Domain.Modules.Delivery.Enums;
 using Zadana.SharedKernel.Exceptions;
 
@@ -39,6 +40,7 @@ public class DriverProfileController : ApiControllerBase
         [FromServices] IApplicationDbContext context,
         [FromServices] IDriverReadService driverReadService,
         [FromServices] IAdminAlertService adminAlertService,
+        [FromServices] IEmailVerificationSender emailVerificationSender,
         CancellationToken cancellationToken = default)
     {
         var userId = currentUserService.UserId ?? throw new UnauthorizedException("DRIVER_NOT_AUTHENTICATED");
@@ -54,6 +56,11 @@ public class DriverProfileController : ApiControllerBase
             throw new BusinessRuleException(
                 "IDENTITY_PROFILE_UPDATE_FAILED",
                 string.Join(", ", updateResult.Errors ?? Array.Empty<string>()));
+        }
+
+        if (updateResult.EmailChanged)
+        {
+            await emailVerificationSender.SendAsync(userId, cancellationToken);
         }
 
         var driver = await driverRepository.GetByUserIdWithReviewsAsync(userId, cancellationToken)

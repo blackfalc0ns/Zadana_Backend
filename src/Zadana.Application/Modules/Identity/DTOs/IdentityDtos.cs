@@ -84,7 +84,9 @@ public record CredentialValidationResult(
 
 public record IdentityOperationResult(
     bool Succeeded,
-    IReadOnlyCollection<string>? Errors = null);
+    IReadOnlyCollection<string>? Errors = null,
+    IdentityAccountSnapshot? Account = null,
+    bool EmailChanged = false);
 
 public enum OtpDispatchStatus
 {

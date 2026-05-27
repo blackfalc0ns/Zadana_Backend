@@ -18,7 +18,7 @@ public class ResendOtpService : IOtpService
     private readonly ResendEmailSettings _emailSettings;
 
     public ResendOtpService(
-        IEmailService emailService, 
+        IEmailService emailService,
         ILogger<ResendOtpService> logger,
         IStringLocalizer<SharedResource> localizer,
         ITemplateService templateService,
@@ -50,17 +50,16 @@ public class ResendOtpService : IOtpService
                 { "LogoUrl", _emailSettings.LogoUrl },
                 { "OtpHeroImageUrl", ResolveOtpHeroImageUrl(isArabic, validityMinutes) },
                 { "ValidityMinutes", validityMinutes.ToString(CultureInfo.InvariantCulture) },
-                { "Year", DateTime.UtcNow.Year.ToString() }
+                { "Year", DateTime.UtcNow.Year.ToString(CultureInfo.InvariantCulture) }
             };
+
             foreach (var item in BuildOtpTemplateCopy(isArabic, isPasswordReset, otpCode, validityMinutes))
             {
                 placeholders[item.Key] = item.Value;
             }
 
             var body = await _templateService.RenderTemplateAsync("OtpEmail", placeholders);
-            var textBody = isArabic
-                ? $"رمز التحقق من زادنا هو {otpCode}. هذا الرمز صالح لمدة {validityMinutes} دقائق فقط. تم إرسال هذا الرمز إلى {emailAddress} لتأكيد حسابك. لا تشاركه مع أي شخص. إذا لم تطلب هذا الرمز، تواصل معنا على {_emailSettings.SupportEmail}."
-                : $"Your Zadna verification code is {otpCode}. This code is valid for {validityMinutes} minutes only. It was sent to {emailAddress} to confirm your account. Do not share it with anyone. If you did not request this code, contact {_emailSettings.SupportEmail}.";
+            var textBody = BuildTextBody(isArabic, isPasswordReset, emailAddress, otpCode, validityMinutes, _emailSettings.SupportEmail);
 
             var result = await _emailService.SendEmailAsync(
                 new SendEmailRequest(
@@ -110,6 +109,26 @@ public class ResendOtpService : IOtpService
             : "Reset your Zadna password";
     }
 
+    private static string BuildTextBody(
+        bool isArabic,
+        bool isPasswordReset,
+        string emailAddress,
+        string otpCode,
+        int validityMinutes,
+        string supportEmail)
+    {
+        if (isArabic)
+        {
+            return isPasswordReset
+                ? $"رمز إعادة تعيين كلمة السر من زادنا هو {otpCode}. هذا الرمز صالح لمدة {validityMinutes} دقيقة فقط. تم إرسال هذا الرمز إلى {emailAddress}. لا تشاركه مع أي شخص. إذا لم تطلب إعادة التعيين، تواصل معنا على {supportEmail}."
+                : $"رمز التحقق من زادنا هو {otpCode}. هذا الرمز صالح لمدة {validityMinutes} دقائق فقط. تم إرسال هذا الرمز إلى {emailAddress}. لا تشاركه مع أي شخص. إذا لم تطلب هذا الرمز، تواصل معنا على {supportEmail}.";
+        }
+
+        return isPasswordReset
+            ? $"Your Zadna password reset code is {otpCode}. This code is valid for {validityMinutes} minutes only. It was sent to {emailAddress}. Do not share it with anyone. If you did not request this reset, contact {supportEmail}."
+            : $"Your Zadna verification code is {otpCode}. This code is valid for {validityMinutes} minutes only. It was sent to {emailAddress}. Do not share it with anyone. If you did not request this code, contact {supportEmail}.";
+    }
+
     private static Dictionary<string, string> BuildOtpTemplateCopy(
         bool isArabic,
         bool isPasswordReset,
@@ -124,7 +143,7 @@ public class ResendOtpService : IOtpService
                     ["OtpPreheader"] = $"رمز إعادة تعيين كلمة السر من زادنا هو {otpCode}.",
                     ["OtpEyebrow"] = "رمز أمان",
                     ["OtpTitle"] = "إعادة تعيين كلمة السر",
-                    ["OtpGreeting"] = "مرحبًا،",
+                    ["OtpGreeting"] = "مرحباً،",
                     ["OtpInstruction"] = "استخدم رمز الأمان التالي لإعادة تعيين كلمة السر الخاصة بحسابك في زادنا.",
                     ["OtpCodeLabel"] = "رمز إعادة التعيين",
                     ["OtpExpiryNote"] = $"هذا الرمز صالح لمدة {validityMinutes} دقيقة فقط.",
@@ -137,12 +156,12 @@ public class ResendOtpService : IOtpService
                 {
                     ["OtpPreheader"] = $"رمز التحقق لمرة واحدة من زادنا هو {otpCode}.",
                     ["OtpEyebrow"] = "رمز لمرة واحدة",
-                    ["OtpTitle"] = "أكّد حسابك في زادنا",
-                    ["OtpGreeting"] = "مرحبًا،",
+                    ["OtpTitle"] = "أكد حسابك في زادنا",
+                    ["OtpGreeting"] = "مرحباً،",
                     ["OtpInstruction"] = "استخدم رمز التحقق التالي لإكمال تأكيد حسابك في زادنا بأمان.",
                     ["OtpCodeLabel"] = "رمز التحقق",
                     ["OtpExpiryNote"] = $"هذا الرمز صالح لمدة {validityMinutes} دقائق فقط.",
-                    ["OtpUsageNote"] = "هذا الرمز صالح لفترة قصيرة ولا يُستخدم إلا داخل زادنا. لا تشاركه مع أي شخص.",
+                    ["OtpUsageNote"] = "هذا الرمز صالح لفترة قصيرة ولا يستخدم إلا داخل زادنا. لا تشاركه مع أي شخص.",
                     ["OtpSecurityNote"] = "زادنا لن تطلب منك إرسال هذا الرمز عبر الهاتف أو المحادثة أو البريد.",
                     ["OtpNotice"] = "إذا لم تطلب هذا الرمز، يمكنك تجاهل هذه الرسالة أو التواصل مع دعم زادنا.",
                     ["OtpFooter"] = $"Copyright {DateTime.UtcNow.Year} Zadna. رسالة أمان تلقائية."

@@ -53,6 +53,13 @@ using Zadana.Infrastructure.Settings;
 
 var builder = WebApplication.CreateBuilder(args);
 
+// Remove EventLog provider on Windows — it gets disposed before BackgroundServices
+// finish during graceful shutdown, causing ObjectDisposedException crashes.
+builder.Logging.ClearProviders();
+builder.Logging.AddConsole();
+builder.Logging.AddDebug();
+builder.Logging.AddConfiguration(builder.Configuration.GetSection("Logging"));
+
 // Prevent background service exceptions from crashing the host
 builder.Services.Configure<HostOptions>(options =>
 {

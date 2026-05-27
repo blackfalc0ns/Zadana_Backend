@@ -1,4 +1,4 @@
-﻿using Microsoft.EntityFrameworkCore.Migrations;
+using Microsoft.EntityFrameworkCore.Migrations;
 
 #nullable disable
 
@@ -12,6 +12,9 @@ namespace Zadana.Infrastructure.Migrations
         {
             migrationBuilder.Sql(
                 """
+                IF EXISTS (SELECT 1 FROM sys.indexes WHERE name = N'IX_RefreshToken_Token' AND object_id = OBJECT_ID(N'[dbo].[RefreshToken]'))
+                    DROP INDEX [IX_RefreshToken_Token] ON [dbo].[RefreshToken];
+
                 IF OBJECT_ID(N'[dbo].[RefreshToken]', N'U') IS NOT NULL AND OBJECT_ID(N'[dbo].[RefreshTokens]', N'U') IS NULL
                 BEGIN
                     IF OBJECT_ID(N'[dbo].[FK_RefreshToken_AspNetUsers_UserId]', N'F') IS NOT NULL
@@ -25,6 +28,9 @@ namespace Zadana.Infrastructure.Migrations
                     IF EXISTS (SELECT 1 FROM sys.indexes WHERE name = N'IX_RefreshToken_UserId' AND object_id = OBJECT_ID(N'[dbo].[RefreshTokens]'))
                         EXEC sp_rename N'[dbo].[RefreshTokens].[IX_RefreshToken_UserId]', N'IX_RefreshTokens_UserId', N'INDEX';
                 END
+
+                IF EXISTS (SELECT 1 FROM sys.indexes WHERE name = N'IX_RefreshToken_Token' AND object_id = OBJECT_ID(N'[dbo].[RefreshTokens]'))
+                    DROP INDEX [IX_RefreshToken_Token] ON [dbo].[RefreshTokens];
 
                 IF OBJECT_ID(N'[dbo].[RefreshTokens]', N'U') IS NOT NULL
                 BEGIN
@@ -45,6 +51,9 @@ namespace Zadana.Infrastructure.Migrations
                        AND OBJECT_ID(N'[dbo].[AspNetUsers]', N'U') IS NOT NULL
                         ALTER TABLE [dbo].[RefreshTokens] ADD CONSTRAINT [FK_RefreshTokens_AspNetUsers_UserId]
                             FOREIGN KEY ([UserId]) REFERENCES [dbo].[AspNetUsers] ([Id]) ON DELETE CASCADE;
+
+                    IF NOT EXISTS (SELECT 1 FROM sys.indexes WHERE name = N'IX_RefreshToken_Token' AND object_id = OBJECT_ID(N'[dbo].[RefreshTokens]'))
+                        CREATE UNIQUE INDEX [IX_RefreshToken_Token] ON [dbo].[RefreshTokens] ([Token]) WHERE [Token] IS NOT NULL;
                 END
                 """);
         }

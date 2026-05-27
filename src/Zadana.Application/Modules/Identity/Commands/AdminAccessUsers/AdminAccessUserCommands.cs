@@ -38,7 +38,8 @@ public record UpdateAdminAccessUserCommand(
     string? Status,
     string? Notes,
     List<string> GrantedPermissions,
-    List<string> RevokedPermissions) : IRequest<AdminUserRecordDto>;
+    List<string> RevokedPermissions,
+    DirectoryCommunicationProfileDto? Communication) : IRequest<AdminUserRecordDto>;
 
 public record ResetAdminAccessUserTemporaryPasswordCommand(
     Guid UserId,
@@ -52,19 +53,22 @@ public sealed class CreateAdminAccessUserCommandHandler
     private readonly IAdminAccessValidationService _validationService;
     private readonly IAccessAuditService _auditService;
     private readonly IApplicationTransaction _transaction;
+    private readonly IEmailVerificationSender _emailVerificationSender;
 
     public CreateAdminAccessUserCommandHandler(
         IApplicationDbContext context,
         IIdentityAccountService identityAccountService,
         IAdminAccessValidationService validationService,
         IAccessAuditService auditService,
-        IApplicationTransaction transaction)
+        IApplicationTransaction transaction,
+        IEmailVerificationSender emailVerificationSender)
     {
         _context = context;
         _identityAccountService = identityAccountService;
         _validationService = validationService;
         _auditService = auditService;
         _transaction = transaction;
+        _emailVerificationSender = emailVerificationSender;
     }
 
     public async Task<AdminUserRecordDto> Handle(
@@ -126,6 +130,7 @@ public sealed class CreateAdminAccessUserCommandHandler
             _auditService.Add(user.Id, "password-reset-required", "Temporary password requires first-login change.");
 
             await _context.SaveChangesAsync(ct);
+            await _emailVerificationSender.SendAsync(user.Id, ct);
             return await ProjectUserAsync(_context, user.Id, ct);
         }, cancellationToken);
     }
@@ -147,6 +152,8 @@ public sealed class CreateAdminAccessUserCommandHandler
         {
             throw new BusinessRuleException("ROLE_INACTIVE", "The selected role is inactive.");
         }
+
+        AccessRoleGuard.EnsureRoleMatchesPanelScope(role.IdentityRole, role.PanelScope);
 
         return role;
     }
@@ -200,6 +207,7 @@ public sealed class UpdateAdminAccessUserCommandHandler
     private readonly IAdminAccessValidationService _validationService;
     private readonly IAccessAuditService _auditService;
     private readonly IApplicationTransaction _transaction;
+    private readonly IEmailVerificationSender _emailVerificationSender;
 
     public UpdateAdminAccessUserCommandHandler(
         IApplicationDbContext context,
@@ -207,7 +215,8 @@ public sealed class UpdateAdminAccessUserCommandHandler
         ICurrentUserService currentUserService,
         IAdminAccessValidationService validationService,
         IAccessAuditService auditService,
-        IApplicationTransaction transaction)
+        IApplicationTransaction transaction,
+        IEmailVerificationSender emailVerificationSender)
     {
         _context = context;
         _identityAccountService = identityAccountService;
@@ -215,6 +224,7 @@ public sealed class UpdateAdminAccessUserCommandHandler
         _validationService = validationService;
         _auditService = auditService;
         _transaction = transaction;
+        _emailVerificationSender = emailVerificationSender;
     }
 
     public async Task<AdminUserRecordDto> Handle(
@@ -286,6 +296,15 @@ public sealed class UpdateAdminAccessUserCommandHandler
                 ?? throw new NotFoundException(nameof(User), request.UserId);
 
             user.UpdateDirectoryProfile(request.Department, request.Team);
+            if (request.Communication is not null)
+            {
+                user.UpdateCommunicationProfile(
+                    request.Communication.PreferredLocale,
+                    request.Communication.ReplyTo,
+                    request.Communication.NotificationEmails,
+                    request.Communication.EscalationEmails,
+                    request.Communication.EmailOptIn);
+            }
             ApplyStatus(user, request.Status);
             await UpsertScopeAsync(user.Id, role.Id, request, normalizedScopeEntityId, ct);
             await ReplaceOverridesAsync(user.Id, grantedPermissions, revokedPermissions, ct);
@@ -299,6 +318,11 @@ public sealed class UpdateAdminAccessUserCommandHandler
                 Snapshot(user, role, request.PanelScope, request.ScopeType, normalizedScopeEntityId, grantedPermissions, revokedPermissions));
 
             await _context.SaveChangesAsync(ct);
+            if (profileResult.EmailChanged)
+            {
+                await _emailVerificationSender.SendAsync(user.Id, ct);
+            }
+
             return await CreateAdminAccessUserCommandHandler.ProjectUserAsync(_context, user.Id, ct);
         }, cancellationToken);
     }

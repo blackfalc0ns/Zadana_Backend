@@ -145,9 +145,13 @@ public class DeliveryDispatchWorker : BackgroundService
                                 stoppingToken);
                         }
                     }
+                    catch (OperationCanceledException) when (stoppingToken.IsCancellationRequested)
+                    {
+                        break;
+                    }
                     catch (Exception orderEx)
                     {
-                        _logger.LogWarning(orderEx,
+                        SafeLogWarning(orderEx,
                             "DeliveryDispatchWorker: failed to process order {OrderId}, skipping.",
                             stuckOrder.Id);
                     }
@@ -162,13 +166,37 @@ public class DeliveryDispatchWorker : BackgroundService
             }
             catch (Exception ex)
             {
-                _logger.LogError(ex, "DeliveryDispatchWorker encountered an error.");
+                SafeLogError(ex, "DeliveryDispatchWorker encountered an error.");
             }
 
             await Task.Delay(TickInterval, stoppingToken);
         }
 
-        _logger.LogInformation("DeliveryDispatchWorker stopped.");
+        SafeLogInformation("DeliveryDispatchWorker stopped.");
+    }
+
+    /// <summary>
+    /// Guards logging calls against disposed providers (e.g. EventLog during shutdown).
+    /// When the host is shutting down, the EventLog provider may already be disposed,
+    /// causing Logger.Log to throw AggregateException → ObjectDisposedException,
+    /// which can crash the BackgroundService.
+    /// </summary>
+    private void SafeLogWarning(Exception? ex, string message, params object[] args)
+    {
+        try { _logger.LogWarning(ex, message, args); }
+        catch { /* logger disposed during shutdown — swallow */ }
+    }
+
+    private void SafeLogError(Exception? ex, string message, params object[] args)
+    {
+        try { _logger.LogError(ex, message, args); }
+        catch { /* logger disposed during shutdown — swallow */ }
+    }
+
+    private void SafeLogInformation(string message, params object[] args)
+    {
+        try { _logger.LogInformation(message, args); }
+        catch { /* logger disposed during shutdown — swallow */ }
     }
 
     private async Task TrySendAdminAlertAsync(

@@ -1,6 +1,8 @@
 using System.IdentityModel.Tokens.Jwt;
 using System.Security.Claims;
+using Microsoft.EntityFrameworkCore;
 using Zadana.Application.Common.Interfaces;
+using Zadana.Domain.Modules.Identity.Enums;
 
 namespace Zadana.Api.Middleware;
 
@@ -23,7 +25,10 @@ public sealed class JwtRevocationMiddleware
         _next = next;
     }
 
-    public async Task InvokeAsync(HttpContext context, IJwtRevocationStore revocationStore)
+    public async Task InvokeAsync(
+        HttpContext context,
+        IJwtRevocationStore revocationStore,
+        IApplicationDbContext dbContext)
     {
         if (context.User.Identity?.IsAuthenticated != true)
         {
@@ -53,6 +58,44 @@ public sealed class JwtRevocationMiddleware
                 await Reject(context, "USER_TOKENS_REVOKED");
                 return;
             }
+
+            var userState = await dbContext.Users
+                .AsNoTracking()
+                .Where(user => user.Id == userId)
+                .Select(user => new
+                {
+                    user.PermissionVersion,
+                    user.AccountStatus,
+                    user.IsLoginLocked,
+                    user.EmailConfirmed
+                })
+                .FirstOrDefaultAsync(context.RequestAborted);
+
+            if (userState is null)
+            {
+                await Reject(context, "USER_NOT_FOUND", "The authenticated user no longer exists. Please sign in again.");
+                return;
+            }
+
+            if (userState.AccountStatus != AccountStatus.Active || userState.IsLoginLocked)
+            {
+                await Reject(context, "ACCOUNT_NOT_ACTIVE", "The account is not active. Please sign in again or contact support.");
+                return;
+            }
+
+            if (!userState.EmailConfirmed)
+            {
+                await Reject(context, "EMAIL_NOT_VERIFIED", "The account email is not verified. Please verify your email before continuing.");
+                return;
+            }
+
+            var tokenPermissionVersion = context.User.FindFirst("permission_version")?.Value;
+            if (!int.TryParse(tokenPermissionVersion, out var claimPermissionVersion) ||
+                claimPermissionVersion != userState.PermissionVersion)
+            {
+                await Reject(context, "TOKEN_STALE", "Your access permissions changed. Please sign in again.");
+                return;
+            }
         }
 
         await _next(context);
@@ -76,14 +119,14 @@ public sealed class JwtRevocationMiddleware
         return null;
     }
 
-    private static Task Reject(HttpContext context, string code)
+    private static Task Reject(HttpContext context, string code, string? message = null)
     {
         context.Response.StatusCode = StatusCodes.Status401Unauthorized;
         context.Response.ContentType = "application/json";
         return context.Response.WriteAsJsonAsync(new
         {
             code,
-            message = "The bearer token has been revoked. Please sign in again."
+            message = message ?? "The bearer token has been revoked. Please sign in again."
         }, context.RequestAborted);
     }
 }

@@ -3,6 +3,7 @@ using System;
 using Microsoft.EntityFrameworkCore;
 using Microsoft.EntityFrameworkCore.Infrastructure;
 using Microsoft.EntityFrameworkCore.Metadata;
+using Microsoft.EntityFrameworkCore.Migrations;
 using Microsoft.EntityFrameworkCore.Storage.ValueConversion;
 using Zadana.Infrastructure.Persistence;
 
@@ -11,9 +12,11 @@ using Zadana.Infrastructure.Persistence;
 namespace Zadana.Infrastructure.Migrations
 {
     [DbContext(typeof(ApplicationDbContext))]
-    partial class ApplicationDbContextModelSnapshot : ModelSnapshot
+    [Migration("20260527175554_AddUserCommunicationProfile")]
+    partial class AddUserCommunicationProfile
     {
-        protected override void BuildModel(ModelBuilder modelBuilder)
+        /// <inheritdoc />
+        protected override void BuildTargetModel(ModelBuilder modelBuilder)
         {
 #pragma warning disable 612, 618
             modelBuilder
@@ -2876,7 +2879,7 @@ namespace Zadana.Infrastructure.Migrations
 
                     b.HasIndex("UserId");
 
-                    b.ToTable("RefreshTokens", (string)null);
+                    b.ToTable("RefreshTokens");
                 });
 
             modelBuilder.Entity("Zadana.Domain.Modules.Identity.Entities.RoleDefinition", b =>
@@ -6021,102 +6024,6 @@ namespace Zadana.Infrastructure.Migrations
                     b.ToTable("VendorProfileReviewItems", (string)null);
                 });
 
-            modelBuilder.Entity("Zadana.Domain.Modules.Vendors.Entities.VendorStaffInvitation", b =>
-                {
-                    b.Property<Guid>("Id")
-                        .ValueGeneratedOnAdd()
-                        .HasColumnType("uniqueidentifier");
-
-                    b.Property<DateTime?>("AcceptedAtUtc")
-                        .HasColumnType("datetime2");
-
-                    b.Property<Guid?>("AcceptedUserId")
-                        .HasColumnType("uniqueidentifier");
-
-                    b.Property<string>("BranchIdsJson")
-                        .IsRequired()
-                        .HasColumnType("nvarchar(max)");
-
-                    b.Property<DateTime>("CreatedAtUtc")
-                        .HasColumnType("datetime2");
-
-                    b.Property<Guid>("CreatedByUserId")
-                        .HasColumnType("uniqueidentifier");
-
-                    b.Property<string>("Email")
-                        .IsRequired()
-                        .HasMaxLength(256)
-                        .HasColumnType("nvarchar(256)");
-
-                    b.Property<DateTime>("ExpiresAtUtc")
-                        .HasColumnType("datetime2");
-
-                    b.Property<string>("InviteMessage")
-                        .HasMaxLength(1000)
-                        .HasColumnType("nvarchar(1000)");
-
-                    b.Property<string>("LastSendFailureReason")
-                        .HasMaxLength(1000)
-                        .HasColumnType("nvarchar(1000)");
-
-                    b.Property<string>("PermissionsJson")
-                        .IsRequired()
-                        .HasColumnType("nvarchar(max)");
-
-                    b.Property<string>("ProviderMessageId")
-                        .HasMaxLength(200)
-                        .HasColumnType("nvarchar(200)");
-
-                    b.Property<DateTime?>("RevokedAtUtc")
-                        .HasColumnType("datetime2");
-
-                    b.Property<string>("RoleTemplate")
-                        .IsRequired()
-                        .HasMaxLength(64)
-                        .HasColumnType("nvarchar(64)");
-
-                    b.Property<int>("SendAttemptCount")
-                        .HasColumnType("int");
-
-                    b.Property<DateTime>("SentAtUtc")
-                        .HasColumnType("datetime2");
-
-                    b.Property<string>("Status")
-                        .IsRequired()
-                        .HasMaxLength(32)
-                        .HasColumnType("nvarchar(32)");
-
-                    b.Property<string>("TargetName")
-                        .IsRequired()
-                        .HasMaxLength(200)
-                        .HasColumnType("nvarchar(200)");
-
-                    b.Property<string>("TokenHash")
-                        .IsRequired()
-                        .HasMaxLength(128)
-                        .HasColumnType("nvarchar(128)");
-
-                    b.Property<string>("Type")
-                        .IsRequired()
-                        .HasMaxLength(32)
-                        .HasColumnType("nvarchar(32)");
-
-                    b.Property<DateTime>("UpdatedAtUtc")
-                        .HasColumnType("datetime2");
-
-                    b.Property<Guid>("VendorId")
-                        .HasColumnType("uniqueidentifier");
-
-                    b.HasKey("Id");
-
-                    b.HasIndex("TokenHash")
-                        .IsUnique();
-
-                    b.HasIndex("VendorId", "Email", "Status");
-
-                    b.ToTable("VendorStaffInvitations", (string)null);
-                });
-
             modelBuilder.Entity("Zadana.Domain.Modules.Vendors.Entities.VendorSupportTicket", b =>
                 {
                     b.Property<Guid>("Id")
@@ -8116,17 +8023,6 @@ namespace Zadana.Infrastructure.Migrations
                 {
                     b.HasOne("Zadana.Domain.Modules.Vendors.Entities.Vendor", "Vendor")
                         .WithMany("ProfileReviewItems")
-                        .HasForeignKey("VendorId")
-                        .OnDelete(DeleteBehavior.Cascade)
-                        .IsRequired();
-
-                    b.Navigation("Vendor");
-                });
-
-            modelBuilder.Entity("Zadana.Domain.Modules.Vendors.Entities.VendorStaffInvitation", b =>
-                {
-                    b.HasOne("Zadana.Domain.Modules.Vendors.Entities.Vendor", "Vendor")
-                        .WithMany()
                         .HasForeignKey("VendorId")
                         .OnDelete(DeleteBehavior.Cascade)
                         .IsRequired();

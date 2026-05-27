@@ -35,6 +35,7 @@ public interface IApplicationDbContext
     DbSet<VendorDocumentReview> VendorDocumentReviews { get; }
     DbSet<VendorProfileReviewItem> VendorProfileReviewItems { get; }
     DbSet<VendorWorkspaceState> VendorWorkspaceStates { get; }
+    DbSet<VendorStaffInvitation> VendorStaffInvitations { get; }
     DbSet<VendorSupportTicket> VendorSupportTickets { get; }
     DbSet<VendorSupportTicketMessage> VendorSupportTicketMessages { get; }
 

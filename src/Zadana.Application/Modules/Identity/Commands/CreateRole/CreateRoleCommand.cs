@@ -4,6 +4,7 @@ using Zadana.Application.Common.Interfaces;
 using Zadana.Domain.Modules.Identity.Entities;
 using Zadana.Domain.Modules.Identity.Enums;
 using Zadana.Application.Modules.Identity.DTOs;
+using Zadana.Application.Modules.Identity.Services;
 using Zadana.SharedKernel.Exceptions;
 
 namespace Zadana.Application.Modules.Identity.Commands.CreateRole;
@@ -28,6 +29,7 @@ public class CreateRoleCommandHandler : IRequestHandler<CreateRoleCommand, RoleD
     public async Task<RoleDefinitionDto> Handle(CreateRoleCommand request, CancellationToken cancellationToken)
     {
         var code = request.Name.ToLower().Replace(" ", "_");
+        AccessRoleGuard.EnsureRoleMatchesPanelScope(request.IdentityRole, request.PanelScope);
 
         if (await _context.RoleDefinitions.AnyAsync(r => r.Code == code, cancellationToken))
         {

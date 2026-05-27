@@ -68,6 +68,11 @@ public class VerifyOtpCommandHandler : IRequestHandler<VerifyOtpCommand, AuthRes
         }
 
         var user = verificationResult.Account;
+        if (user.IsLoginLocked || user.AccountStatus != AccountStatus.Active)
+        {
+            throw new UnauthorizedException(_localizer["AccountLoginDenied", user.AccountStatus]);
+        }
+
         var tokens = await _jwtTokenService.GenerateTokenPairAsync(user, cancellationToken);
         _refreshTokenStore.Add(new NewRefreshToken(user.Id, tokens.RefreshToken, DateTime.UtcNow.AddDays(7)));
         await _unitOfWork.SaveChangesAsync(cancellationToken);

@@ -35,6 +35,7 @@ public static class DependencyInjection
         services.AddScoped<Zadana.Application.Modules.Identity.Interfaces.IRegistrationWorkflow, Zadana.Application.Modules.Identity.Services.RegistrationWorkflow>();
         services.AddScoped<IAdminAccessValidationService, AdminAccessValidationService>();
         services.AddScoped<IAccessAuditService, AccessAuditService>();
+        services.AddScoped<IEmailVerificationSender, EmailVerificationSender>();
         services.AddScoped<IEmailCenterService, EmailCenterService>();
         services.AddScoped<IVendorWeeklySummaryEmailService, VendorWeeklySummaryEmailService>();
         services.AddScoped<FinancialEventPostingService>();

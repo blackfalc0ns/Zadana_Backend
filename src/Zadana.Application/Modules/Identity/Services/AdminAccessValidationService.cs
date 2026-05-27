@@ -51,6 +51,8 @@ public sealed class AdminAccessValidationService : IAdminAccessValidationService
         Guid userId,
         CancellationToken cancellationToken)
     {
+        AccessRoleGuard.EnsureRoleMatchesPanelScope(role.IdentityRole, role.PanelScope);
+
         if (role.PanelScope != panelScope)
         {
             throw new BadRequestException("ROLE_SCOPE_MISMATCH", "The selected role does not belong to the requested panel scope.");
@@ -184,8 +186,7 @@ public sealed class AdminAccessValidationService : IAdminAccessValidationService
         {
             var statusBlocksSelf = requestedStatus?.Trim().ToLowerInvariant() is "suspended" or "inactive";
             var downgradesSelf = targetRole == UserRole.SuperAdmin && newRole.IdentityRole != UserRole.SuperAdmin;
-            var revokesAccessSettings = revokedPermissions.Any(
-                x => string.Equals(x, PermissionKeys.Admin.UsersAccessManageSettings, StringComparison.OrdinalIgnoreCase));
+            var revokesAccessSettings = revokedPermissions.Any(IsAdministrativeAccessPermission);
 
             if (statusBlocksSelf || downgradesSelf || revokesAccessSettings)
             {
@@ -200,4 +201,11 @@ public sealed class AdminAccessValidationService : IAdminAccessValidationService
             .Select(x => x.Trim())
             .Distinct(StringComparer.OrdinalIgnoreCase)
             .ToList();
+
+    private static bool IsAdministrativeAccessPermission(string permission) =>
+        string.Equals(permission, PermissionKeys.Admin.UsersAccessView, StringComparison.OrdinalIgnoreCase) ||
+        string.Equals(permission, PermissionKeys.Admin.UsersAccessCreate, StringComparison.OrdinalIgnoreCase) ||
+        string.Equals(permission, PermissionKeys.Admin.UsersAccessEdit, StringComparison.OrdinalIgnoreCase) ||
+        string.Equals(permission, PermissionKeys.Admin.UsersAccessApprove, StringComparison.OrdinalIgnoreCase) ||
+        string.Equals(permission, PermissionKeys.Admin.UsersAccessManageSettings, StringComparison.OrdinalIgnoreCase);
 }

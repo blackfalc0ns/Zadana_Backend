@@ -43,6 +43,13 @@ public class User : IdentityUser<Guid>
     public decimal? Latitude { get; private set; }
     public decimal? Longitude { get; private set; }
 
+    // Communication Profile
+    public string PreferredLocale { get; private set; } = "ar";
+    public string? ReplyTo { get; private set; }
+    public string? NotificationEmailsJson { get; private set; }
+    public string? EscalationEmailsJson { get; private set; }
+    public string? EmailOptInJson { get; private set; }
+
     // Navigation
     public ICollection<RefreshToken> RefreshTokens { get; private set; } = [];
     public ICollection<UserPushDevice> PushDevices { get; private set; } = [];
@@ -99,6 +106,21 @@ public class User : IdentityUser<Guid>
     {
         Department = string.IsNullOrWhiteSpace(department) ? null : department.Trim();
         Team = string.IsNullOrWhiteSpace(team) ? null : team.Trim();
+        UpdatedAtUtc = DateTime.UtcNow;
+    }
+
+    public void UpdateCommunicationProfile(
+        string preferredLocale,
+        string? replyTo,
+        List<string>? notificationEmails,
+        List<string>? escalationEmails,
+        object? emailOptIn)
+    {
+        PreferredLocale = string.IsNullOrWhiteSpace(preferredLocale) ? "ar" : preferredLocale.Trim();
+        ReplyTo = string.IsNullOrWhiteSpace(replyTo) ? null : replyTo.Trim();
+        NotificationEmailsJson = notificationEmails != null ? System.Text.Json.JsonSerializer.Serialize(notificationEmails) : null;
+        EscalationEmailsJson = escalationEmails != null ? System.Text.Json.JsonSerializer.Serialize(escalationEmails) : null;
+        EmailOptInJson = emailOptIn != null ? System.Text.Json.JsonSerializer.Serialize(emailOptIn) : null;
         UpdatedAtUtc = DateTime.UtcNow;
     }
 
