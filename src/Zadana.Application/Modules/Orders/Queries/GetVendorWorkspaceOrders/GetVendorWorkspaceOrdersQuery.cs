@@ -7,6 +7,7 @@ namespace Zadana.Application.Modules.Orders.Queries.GetVendorWorkspaceOrders;
 
 public record GetVendorWorkspaceOrdersQuery(
     Guid VendorId,
+    Guid? BranchId,
     string? Search,
     string? Status,
     string? PaymentMethod,
@@ -25,6 +26,7 @@ public class GetVendorWorkspaceOrdersQueryHandler : IRequestHandler<GetVendorWor
     public Task<PaginatedList<VendorOrderListItemDto>> Handle(GetVendorWorkspaceOrdersQuery request, CancellationToken cancellationToken) =>
         _orderReadService.GetVendorWorkspaceOrdersAsync(
             request.VendorId,
+            request.BranchId,
             request.Search,
             request.Status,
             request.PaymentMethod,

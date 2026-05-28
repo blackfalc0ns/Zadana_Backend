@@ -11,21 +11,27 @@ namespace Zadana.UnitTests.Modules.Vendors.Queries;
 public class GetVendorProfileQueryHandlerTests
 {
     private readonly Mock<ICurrentUserService> _currentUserMock = new();
+    private readonly Mock<ICurrentVendorService> _currentVendorMock = new();
 
     [Fact]
     public async Task Handle_WithValidRequest_ReturnsWorkspaceDto()
     {
         var userId = Guid.NewGuid();
+        var vendorId = Guid.NewGuid();
         var expected = CreateWorkspaceDto();
 
         _currentUserMock.Setup(currentUser => currentUser.UserId).Returns(userId);
+        _currentUserMock.Setup(currentUser => currentUser.IsAuthenticated).Returns(true);
+        _currentVendorMock
+            .Setup(service => service.GetRequiredVendorIdAsync(It.IsAny<CancellationToken>()))
+            .ReturnsAsync(vendorId);
 
         var readService = new Mock<IVendorReadService>();
         readService
-            .Setup(service => service.GetWorkspaceByUserIdAsync(userId, It.IsAny<CancellationToken>()))
+            .Setup(service => service.GetWorkspaceByVendorIdAsync(vendorId, It.IsAny<CancellationToken>()))
             .ReturnsAsync(expected);
 
-        var handler = new GetVendorProfileQueryHandler(readService.Object, _currentUserMock.Object);
+        var handler = new GetVendorProfileQueryHandler(readService.Object, _currentUserMock.Object, _currentVendorMock.Object);
 
         var result = await handler.Handle(new GetVendorProfileQuery(), default);
 
@@ -103,9 +109,10 @@ public class GetVendorProfileQueryHandlerTests
     public async Task Handle_WithoutAuthenticatedUser_ThrowsUnauthorizedException()
     {
         _currentUserMock.Setup(currentUser => currentUser.UserId).Returns((Guid?)null);
+        _currentUserMock.Setup(currentUser => currentUser.IsAuthenticated).Returns(false);
 
         var readService = new Mock<IVendorReadService>();
-        var handler = new GetVendorProfileQueryHandler(readService.Object, _currentUserMock.Object);
+        var handler = new GetVendorProfileQueryHandler(readService.Object, _currentUserMock.Object, _currentVendorMock.Object);
 
         await Assert.ThrowsAsync<UnauthorizedException>(() =>
             handler.Handle(new GetVendorProfileQuery(), default));
@@ -115,14 +122,19 @@ public class GetVendorProfileQueryHandlerTests
     public async Task Handle_WhenUserNotVendor_ThrowsNotFoundException()
     {
         var userId = Guid.NewGuid();
+        var vendorId = Guid.NewGuid();
         _currentUserMock.Setup(currentUser => currentUser.UserId).Returns(userId);
+        _currentUserMock.Setup(currentUser => currentUser.IsAuthenticated).Returns(true);
+        _currentVendorMock
+            .Setup(service => service.GetRequiredVendorIdAsync(It.IsAny<CancellationToken>()))
+            .ReturnsAsync(vendorId);
 
         var readService = new Mock<IVendorReadService>();
         readService
-            .Setup(service => service.GetWorkspaceByUserIdAsync(userId, It.IsAny<CancellationToken>()))
+            .Setup(service => service.GetWorkspaceByVendorIdAsync(vendorId, It.IsAny<CancellationToken>()))
             .ReturnsAsync((VendorWorkspaceDto?)null);
 
-        var handler = new GetVendorProfileQueryHandler(readService.Object, _currentUserMock.Object);
+        var handler = new GetVendorProfileQueryHandler(readService.Object, _currentUserMock.Object, _currentVendorMock.Object);
 
         await Assert.ThrowsAsync<NotFoundException>(() =>
             handler.Handle(new GetVendorProfileQuery(), default));

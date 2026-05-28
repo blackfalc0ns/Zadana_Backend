@@ -5,6 +5,7 @@ namespace Zadana.Application.Modules.Catalog.Commands.VendorProducts.UpdateVendo
 public record UpdateVendorProductCommand(
     Guid Id,
     Guid VendorId,
+    Guid? BranchId,
     decimal SellingPrice,
     decimal? CompareAtPrice,
     decimal? CostPrice,

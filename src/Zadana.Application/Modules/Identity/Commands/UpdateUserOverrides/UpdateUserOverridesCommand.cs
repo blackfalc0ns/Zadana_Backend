@@ -120,7 +120,7 @@ public class UpdateUserOverridesCommandHandler : IRequestHandler<UpdateUserOverr
     private static List<string> Normalize(IEnumerable<string>? permissions) =>
         (permissions ?? [])
             .Where(permission => !string.IsNullOrWhiteSpace(permission))
-            .Select(permission => permission.Trim())
+            .Select(permission => permission.Trim().ToLowerInvariant())
             .Distinct(StringComparer.OrdinalIgnoreCase)
             .ToList();
 }

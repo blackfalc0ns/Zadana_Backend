@@ -6,7 +6,7 @@ using Zadana.SharedKernel.Exceptions;
 
 namespace Zadana.Application.Modules.Catalog.Queries.VendorProducts.GetVendorProductBulkOperation;
 
-public record GetVendorProductBulkOperationQuery(Guid OperationId, Guid VendorId) : IRequest<VendorProductBulkOperationDto>;
+public record GetVendorProductBulkOperationQuery(Guid OperationId, Guid VendorId, Guid? BranchId = null) : IRequest<VendorProductBulkOperationDto>;
 
 public class GetVendorProductBulkOperationQueryHandler : IRequestHandler<GetVendorProductBulkOperationQuery, VendorProductBulkOperationDto>
 {
@@ -21,7 +21,11 @@ public class GetVendorProductBulkOperationQueryHandler : IRequestHandler<GetVend
     {
         var operation = await _context.VendorProductBulkOperations
             .AsNoTracking()
-            .FirstOrDefaultAsync(x => x.Id == request.OperationId && x.VendorId == request.VendorId, cancellationToken)
+            .FirstOrDefaultAsync(x =>
+                x.Id == request.OperationId &&
+                x.VendorId == request.VendorId &&
+                (!request.BranchId.HasValue || x.Items.Any(item => item.VendorBranchId == request.BranchId.Value)),
+                cancellationToken)
             ?? throw new NotFoundException("VendorProductBulkOperation", request.OperationId);
 
         return new VendorProductBulkOperationDto(

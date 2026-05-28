@@ -59,6 +59,26 @@ public class BulkCreateVendorProductsCommandHandler : IRequestHandler<BulkCreate
             throw new ValidationException("Duplicate master products are not allowed in the same bulk request.");
         }
 
+        var branchIds = request.Items
+            .Where(item => item.BranchId.HasValue)
+            .Select(item => item.BranchId!.Value)
+            .Distinct()
+            .ToArray();
+
+        if (branchIds.Length > 0)
+        {
+            var validBranchIds = await _context.VendorBranches
+                .AsNoTracking()
+                .Where(branch => branch.VendorId == request.VendorId && branchIds.Contains(branch.Id))
+                .Select(branch => branch.Id)
+                .ToListAsync(cancellationToken);
+
+            if (validBranchIds.Count != branchIds.Length)
+            {
+                throw new ValidationException("One or more branch IDs do not belong to this vendor.");
+            }
+        }
+
         var items = request.Items
             .Select((item, index) => new VendorProductBulkOperationItem(
                 index + 1,

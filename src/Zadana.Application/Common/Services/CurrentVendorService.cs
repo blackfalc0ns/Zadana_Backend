@@ -25,6 +25,12 @@ public class CurrentVendorService : ICurrentVendorService
 
     public async Task<Guid?> TryGetVendorIdAsync(CancellationToken cancellationToken = default)
     {
+        var scope = await TryGetVendorScopeAsync(cancellationToken);
+        return scope?.VendorId;
+    }
+
+    public async Task<CurrentVendorScope?> TryGetVendorScopeAsync(CancellationToken cancellationToken = default)
+    {
         var userId = _currentUserService.UserId;
         if (userId is null || !_currentUserService.IsAuthenticated)
         {
@@ -33,7 +39,8 @@ public class CurrentVendorService : ICurrentVendorService
 
         if (_currentUserService.HasRole(UserRole.Vendor))
         {
-            return await _vendorReadService.GetVendorIdByUserIdAsync(userId.Value, cancellationToken);
+            var vendorId = await _vendorReadService.GetVendorIdByUserIdAsync(userId.Value, cancellationToken);
+            return vendorId.HasValue ? new CurrentVendorScope(vendorId.Value, null) : null;
         }
 
         if (!_currentUserService.HasRole(UserRole.VendorStaff))
@@ -65,7 +72,7 @@ public class CurrentVendorService : ICurrentVendorService
 
         if (scope.ScopeType == AccessScopeType.VendorCompany)
         {
-            return scopeEntityId;
+            return new CurrentVendorScope(scopeEntityId, null);
         }
 
         if (scope.ScopeType == AccessScopeType.VendorBranch)
@@ -73,7 +80,7 @@ public class CurrentVendorService : ICurrentVendorService
             return await _context.VendorBranches
                 .AsNoTracking()
                 .Where(branch => branch.Id == scopeEntityId)
-                .Select(branch => (Guid?)branch.VendorId)
+                .Select(branch => new CurrentVendorScope(branch.VendorId, branch.Id))
                 .FirstOrDefaultAsync(cancellationToken);
         }
 
@@ -100,5 +107,27 @@ public class CurrentVendorService : ICurrentVendorService
         }
 
         return vendorId.Value;
+    }
+
+    public async Task<CurrentVendorScope> GetRequiredVendorScopeAsync(CancellationToken cancellationToken = default)
+    {
+        if (!_currentUserService.IsAuthenticated || _currentUserService.UserId is null)
+        {
+            throw new UnauthorizedException("USER_NOT_AUTHENTICATED");
+        }
+
+        if (!_currentUserService.HasRole(UserRole.Vendor) &&
+            !_currentUserService.HasRole(UserRole.VendorStaff))
+        {
+            throw new UnauthorizedException("VENDORS_ONLY");
+        }
+
+        var scope = await TryGetVendorScopeAsync(cancellationToken);
+        if (scope is null)
+        {
+            throw new NotFoundException("Vendor", _currentUserService.UserId.Value);
+        }
+
+        return scope;
     }
 }

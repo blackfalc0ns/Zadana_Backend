@@ -202,5 +202,9 @@ public class VendorWorkspaceFinanceControllerTests
     {
         public Task<Guid?> TryGetVendorIdAsync(CancellationToken cancellationToken = default) => Task.FromResult<Guid?>(vendorId);
         public Task<Guid> GetRequiredVendorIdAsync(CancellationToken cancellationToken = default) => Task.FromResult(vendorId);
+        public Task<CurrentVendorScope?> TryGetVendorScopeAsync(CancellationToken cancellationToken = default) =>
+            Task.FromResult<CurrentVendorScope?>(new CurrentVendorScope(vendorId, null));
+        public Task<CurrentVendorScope> GetRequiredVendorScopeAsync(CancellationToken cancellationToken = default) =>
+            Task.FromResult(new CurrentVendorScope(vendorId, null));
     }
 }

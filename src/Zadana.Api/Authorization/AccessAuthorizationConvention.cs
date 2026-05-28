@@ -194,15 +194,15 @@ public sealed class AccessAuthorizationConvention : IApplicationModelConvention
                 edit: [PermissionKeys.Vendor.SupportEdit]),
             ["VendorWorkspace"] = new([PermissionKeys.Vendor.DashboardView]),
             ["VendorWorkspaceState"] = new(
-                [PermissionKeys.Vendor.SettingsView],
+                [PermissionKeys.Vendor.DashboardView],
                 edit: [PermissionKeys.Vendor.SettingsEdit]),
             ["Vendors"] = new(
-                [PermissionKeys.Vendor.SettingsView],
-                create: [PermissionKeys.Vendor.SettingsEdit],
-                edit: [PermissionKeys.Vendor.SettingsEdit]),
+                [PermissionKeys.Vendor.ProfileView],
+                create: [PermissionKeys.Vendor.ProfileEdit],
+                edit: [PermissionKeys.Vendor.ProfileEdit]),
             ["VendorNotifications"] = new(
                 [PermissionKeys.Vendor.NotificationsView],
-                edit: [PermissionKeys.Vendor.NotificationsEdit]),
+                edit: [PermissionKeys.Vendor.NotificationsView]),
             ["DriverAuth"] = new(
                 [PermissionKeys.Driver.AccountView],
                 edit: [PermissionKeys.Driver.AccountEdit],

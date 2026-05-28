@@ -4,7 +4,7 @@ using Zadana.Application.Modules.Orders.Interfaces;
 
 namespace Zadana.Application.Modules.Orders.Queries.GetVendorOrderDetail;
 
-public record GetVendorOrderDetailQuery(Guid VendorId, Guid OrderId) : IRequest<VendorOrderDetailDto?>;
+public record GetVendorOrderDetailQuery(Guid VendorId, Guid? BranchId, Guid OrderId) : IRequest<VendorOrderDetailDto?>;
 
 public class GetVendorOrderDetailQueryHandler : IRequestHandler<GetVendorOrderDetailQuery, VendorOrderDetailDto?>
 {
@@ -16,5 +16,5 @@ public class GetVendorOrderDetailQueryHandler : IRequestHandler<GetVendorOrderDe
     }
 
     public Task<VendorOrderDetailDto?> Handle(GetVendorOrderDetailQuery request, CancellationToken cancellationToken) =>
-        _orderReadService.GetVendorOrderDetailAsync(request.VendorId, request.OrderId, cancellationToken);
+        _orderReadService.GetVendorOrderDetailAsync(request.VendorId, request.BranchId, request.OrderId, cancellationToken);
 }

@@ -16,9 +16,25 @@ public class VendorBranchConfiguration : IEntityTypeConfiguration<VendorBranch>
             .IsRequired()
             .HasMaxLength(200);
 
+        builder.Property(b => b.Code)
+            .IsRequired()
+            .HasMaxLength(50);
+
+        builder.Property(b => b.IsPrimary)
+            .IsRequired()
+            .HasDefaultValue(false);
+
         builder.Property(b => b.AddressLine)
             .IsRequired()
             .HasMaxLength(500);
+
+        builder.Property(b => b.Region)
+            .IsRequired()
+            .HasMaxLength(100);
+
+        builder.Property(b => b.City)
+            .IsRequired()
+            .HasMaxLength(100);
 
         builder.Property(b => b.Latitude)
             .IsRequired()
@@ -31,6 +47,14 @@ public class VendorBranchConfiguration : IEntityTypeConfiguration<VendorBranch>
         builder.Property(b => b.ContactPhone)
             .IsRequired()
             .HasMaxLength(20);
+
+        builder.Property(b => b.ManagerName)
+            .IsRequired()
+            .HasMaxLength(200);
+
+        builder.Property(b => b.ManagerContact)
+            .IsRequired()
+            .HasMaxLength(200);
 
         builder.Property(b => b.DeliveryRadiusKm)
             .IsRequired()
@@ -49,5 +73,9 @@ public class VendorBranchConfiguration : IEntityTypeConfiguration<VendorBranch>
         // Indexes
         builder.HasIndex(b => b.VendorId)
             .HasDatabaseName("IX_VendorBranch_VendorId");
+
+        builder.HasIndex(b => new { b.VendorId, b.Code })
+            .IsUnique()
+            .HasDatabaseName("IX_VendorBranch_VendorId_Code");
     }
 }

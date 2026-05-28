@@ -5,4 +5,5 @@ namespace Zadana.Application.Modules.Catalog.Commands.VendorProducts.ChangeStatu
 public record ChangeVendorProductStatusCommand(
     Guid Id,
     Guid VendorId,
+    Guid? BranchId,
     bool IsActive) : IRequest;

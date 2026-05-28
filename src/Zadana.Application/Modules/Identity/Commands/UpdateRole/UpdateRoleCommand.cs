@@ -21,16 +21,25 @@ public record UpdateRoleCommand(
 public class UpdateRoleCommandHandler : IRequestHandler<UpdateRoleCommand, RoleDefinitionDto>
 {
     private readonly IApplicationDbContext _context;
+    private readonly IAdminAccessValidationService _validationService;
 
-    public UpdateRoleCommandHandler(IApplicationDbContext context)
+    public UpdateRoleCommandHandler(
+        IApplicationDbContext context,
+        IAdminAccessValidationService validationService)
     {
         _context = context;
+        _validationService = validationService;
     }
 
     public async Task<RoleDefinitionDto> Handle(UpdateRoleCommand request, CancellationToken cancellationToken)
     {
+        var roleName = NormalizeName(request.Name);
+        var description = NormalizeDescription(request.Description);
+        var permissions = NormalizePermissions(request.Permissions);
+
         var role = await _context.RoleDefinitions
             .Include(r => r.RolePermissions)
+            .ThenInclude(rp => rp.PermissionDefinition)
             .Include(r => r.UserAccessScopes)
             .FirstOrDefaultAsync(r => r.Id == request.Id, cancellationToken);
 
@@ -60,22 +69,10 @@ public class UpdateRoleCommandHandler : IRequestHandler<UpdateRoleCommand, RoleD
                 "Identity role and panel scope cannot be changed while the role is assigned to active users.");
         }
 
-        role.Update(
-            name: request.Name,
-            identityRole: request.IdentityRole,
-            panelScope: request.PanelScope,
-            isSystem: role.IsSystem,
-            isActive: role.IsActive,
-            description: request.Description
-        );
-
-        // Update permissions
-        _context.RolePermissions.RemoveRange(role.RolePermissions);
-        
         var permissionDefs = await _context.PermissionDefinitions
-            .Where(p => request.Permissions.Contains(p.Key))
+            .Where(p => permissions.Contains(p.Key))
             .ToListAsync(cancellationToken);
-        var invalidPermissions = request.Permissions
+        var invalidPermissions = permissions
             .Except(permissionDefs.Select(p => p.Key), StringComparer.OrdinalIgnoreCase)
             .ToList();
 
@@ -94,6 +91,35 @@ public class UpdateRoleCommandHandler : IRequestHandler<UpdateRoleCommand, RoleD
                 "INVALID_PERMISSION_SCOPE",
                 $"Permissions do not belong to the selected panel scope: {string.Join(", ", wrongScopePermissions)}");
         }
+
+        var currentPermissionKeys = role.RolePermissions
+            .Select(permission => permission.PermissionDefinition.Key)
+            .ToList();
+        var roleDefinitionIdentityRole = role.IdentityRole == UserRole.SuperAdmin ||
+            request.IdentityRole == UserRole.SuperAdmin
+                ? UserRole.SuperAdmin
+                : request.IdentityRole;
+        var roleDefinitionPermissions = currentPermissionKeys
+            .Concat(permissions)
+            .Distinct(StringComparer.OrdinalIgnoreCase)
+            .ToList();
+        await _validationService.EnsureCanManageRoleDefinitionAsync(
+            roleDefinitionIdentityRole,
+            request.PanelScope,
+            roleDefinitionPermissions,
+            cancellationToken);
+
+        role.Update(
+            name: roleName,
+            identityRole: request.IdentityRole,
+            panelScope: request.PanelScope,
+            isSystem: role.IsSystem,
+            isActive: role.IsActive,
+            description: description
+        );
+
+        // Update permissions
+        _context.RolePermissions.RemoveRange(role.RolePermissions);
 
         foreach (var permissionDef in permissionDefs)
         {
@@ -126,4 +152,43 @@ public class UpdateRoleCommandHandler : IRequestHandler<UpdateRoleCommand, RoleD
             UsersCount: role.UserAccessScopes.Count
         );
     }
+
+    private static string NormalizeName(string name)
+    {
+        if (string.IsNullOrWhiteSpace(name))
+        {
+            throw new BadRequestException("ROLE_NAME_REQUIRED", "Role name is required.");
+        }
+
+        var normalized = name.Trim();
+        if (normalized.Length > 200)
+        {
+            throw new BadRequestException("ROLE_NAME_TOO_LONG", "Role name must be 200 characters or fewer.");
+        }
+
+        return normalized;
+    }
+
+    private static string? NormalizeDescription(string? description)
+    {
+        if (string.IsNullOrWhiteSpace(description))
+        {
+            return null;
+        }
+
+        var normalized = description.Trim();
+        if (normalized.Length > 500)
+        {
+            throw new BadRequestException("ROLE_DESCRIPTION_TOO_LONG", "Role description must be 500 characters or fewer.");
+        }
+
+        return normalized;
+    }
+
+    private static List<string> NormalizePermissions(IEnumerable<string>? permissions) =>
+        (permissions ?? [])
+            .Where(permission => !string.IsNullOrWhiteSpace(permission))
+            .Select(permission => permission.Trim().ToLowerInvariant())
+            .Distinct(StringComparer.OrdinalIgnoreCase)
+            .ToList();
 }

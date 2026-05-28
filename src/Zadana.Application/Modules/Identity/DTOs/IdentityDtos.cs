@@ -10,7 +10,9 @@ public record AccessScopeDto(
     string ScopeType,
     Guid? ScopeEntityId,
     string RoleCode,
-    string RoleName);
+    string RoleName,
+    string? ScopeEntityName = null,
+    string? ScopeClassification = null);
 
 public record EffectiveAccessDto(
     int PermissionVersion,

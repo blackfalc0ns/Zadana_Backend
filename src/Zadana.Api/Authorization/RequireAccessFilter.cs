@@ -3,6 +3,7 @@ using Microsoft.AspNetCore.Mvc.Authorization;
 using Microsoft.AspNetCore.Mvc.Filters;
 using Zadana.Application.Common.Interfaces;
 using Zadana.Application.Modules.Identity.Interfaces;
+using Zadana.Api.Middleware;
 
 namespace Zadana.Api.Authorization;
 
@@ -49,6 +50,23 @@ public sealed class RequireAccessFilter : IAsyncAuthorizationFilter
         if (!int.TryParse(tokenPermissionVersion, out var claimPermissionVersion) ||
             claimPermissionVersion != access.PermissionVersion)
         {
+            var isDev = context.HttpContext.RequestServices
+                .GetRequiredService<IWebHostEnvironment>().IsDevelopment();
+            if (isDev)
+            {
+                context.Result = new ObjectResult(new
+                {
+                    code = "PERMISSION_VERSION_MISMATCH",
+                    message = "Token permission version does not match DB. Re-authenticate required.",
+                    debug_tokenVersion = tokenPermissionVersion ?? "null",
+                    debug_dbVersion = access.PermissionVersion,
+                    debug_userId = _currentUserService.UserId?.ToString() ?? "null"
+                })
+                {
+                    StatusCode = StatusCodes.Status401Unauthorized
+                };
+                return;
+            }
             context.Result = new ChallengeResult();
             return;
         }
@@ -58,17 +76,44 @@ public sealed class RequireAccessFilter : IAsyncAuthorizationFilter
             ? _permissions.All(grantedPermissions.Contains)
             : _permissions.Any(grantedPermissions.Contains);
 
+        // TEMP DEBUG: log permission check details
+        if (!isAuthorized)
+        {
+            var logger = context.HttpContext.RequestServices.GetRequiredService<ILogger<RequireAccessFilter>>();
+            logger.LogWarning(
+                "ACCESS DENIED for user {UserId}: required=[{Required}], granted=[{Granted}], permissionVersion=token:{TokenVersion}/db:{DbVersion}",
+                _currentUserService.UserId,
+                string.Join(",", _permissions),
+                string.Join(",", grantedPermissions.Take(20)),
+                context.HttpContext.User.FindFirst("permission_version")?.Value,
+                access.PermissionVersion);
+        }
+
         if (isAuthorized)
         {
             return;
         }
 
-        context.Result = new ObjectResult(new
+        var isDevelopment = context.HttpContext.RequestServices
+            .GetRequiredService<IWebHostEnvironment>().IsDevelopment();
+
+        var resultObj = new Dictionary<string, object>
         {
-            code = "ACCESS_DENIED",
-            message = "You do not have permission to perform this action.",
-            requiredPermissions = _permissions
-        })
+            ["code"] = "ACCESS_DENIED",
+            ["message"] = "You do not have permission to perform this action.",
+            ["requiredPermissions"] = _permissions
+        };
+
+        if (isDevelopment)
+        {
+            resultObj["debug_grantedPermissions"] = grantedPermissions.OrderBy(x => x, StringComparer.OrdinalIgnoreCase).ToArray();
+            resultObj["debug_tokenPermissionVersion"] = tokenPermissionVersion ?? "null";
+            resultObj["debug_dbPermissionVersion"] = access.PermissionVersion;
+            resultObj["debug_userId"] = _currentUserService.UserId?.ToString() ?? "null";
+            resultObj["debug_accessScope"] = access.ActiveScope?.RoleCode ?? "null";
+        }
+
+        context.Result = new ObjectResult(resultObj)
         {
             StatusCode = StatusCodes.Status403Forbidden
         };

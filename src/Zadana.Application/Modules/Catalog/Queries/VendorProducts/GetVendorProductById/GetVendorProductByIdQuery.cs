@@ -6,7 +6,7 @@ using Zadana.SharedKernel.Exceptions;
 
 namespace Zadana.Application.Modules.Catalog.Queries.VendorProducts.GetVendorProductById;
 
-public record GetVendorProductByIdQuery(Guid VendorId, Guid ProductId) : IRequest<VendorProductDto>;
+public record GetVendorProductByIdQuery(Guid VendorId, Guid ProductId, Guid? BranchId = null) : IRequest<VendorProductDto>;
 
 public class GetVendorProductByIdQueryHandler : IRequestHandler<GetVendorProductByIdQuery, VendorProductDto>
 {
@@ -30,7 +30,11 @@ public class GetVendorProductByIdQueryHandler : IRequestHandler<GetVendorProduct
             .Include(x => x.MasterProduct)
                 .ThenInclude(mp => mp.MeasurementUnit)
             .Include(x => x.Vendor)
-            .FirstOrDefaultAsync(x => x.Id == request.ProductId && x.VendorId == request.VendorId, cancellationToken);
+            .FirstOrDefaultAsync(x =>
+                x.Id == request.ProductId &&
+                x.VendorId == request.VendorId &&
+                (!request.BranchId.HasValue || x.VendorBranchId == request.BranchId.Value),
+                cancellationToken);
 
         if (vp == null)
             throw new NotFoundException("VendorProduct", request.ProductId);

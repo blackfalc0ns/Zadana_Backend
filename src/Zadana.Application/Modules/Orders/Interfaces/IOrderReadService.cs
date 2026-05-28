@@ -43,6 +43,7 @@ public interface IOrderReadService
         CancellationToken cancellationToken = default);
     Task<PaginatedList<VendorOrderListItemDto>> GetVendorWorkspaceOrdersAsync(
         Guid vendorId,
+        Guid? branchId,
         string? search,
         string? status,
         string? paymentMethod,
@@ -51,6 +52,7 @@ public interface IOrderReadService
         CancellationToken cancellationToken = default);
     Task<VendorOrderDetailDto?> GetVendorOrderDetailAsync(
         Guid vendorId,
+        Guid? branchId,
         Guid orderId,
         CancellationToken cancellationToken = default);
     Task<AdminOrdersListDto> GetAdminOrdersAsync(

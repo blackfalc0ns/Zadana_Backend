@@ -22,7 +22,11 @@ public class ChangeVendorProductStatusCommandHandler : IRequestHandler<ChangeVen
     public async Task Handle(ChangeVendorProductStatusCommand request, CancellationToken cancellationToken)
     {
         var vendorProduct = await _context.VendorProducts
-            .FirstOrDefaultAsync(vp => vp.Id == request.Id && vp.VendorId == request.VendorId, cancellationToken);
+            .FirstOrDefaultAsync(vp =>
+                vp.Id == request.Id &&
+                vp.VendorId == request.VendorId &&
+                (!request.BranchId.HasValue || vp.VendorBranchId == request.BranchId.Value),
+                cancellationToken);
 
         if (vendorProduct == null)
             throw new NotFoundException(nameof(VendorProduct), request.Id);

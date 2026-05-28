@@ -6,7 +6,7 @@ using Zadana.SharedKernel.Exceptions;
 
 namespace Zadana.Application.Modules.Catalog.Queries.VendorProducts.GetVendorProductBulkOperationItems;
 
-public record GetVendorProductBulkOperationItemsQuery(Guid OperationId, Guid VendorId) : IRequest<IReadOnlyList<VendorProductBulkOperationItemDto>>;
+public record GetVendorProductBulkOperationItemsQuery(Guid OperationId, Guid VendorId, Guid? BranchId = null) : IRequest<IReadOnlyList<VendorProductBulkOperationItemDto>>;
 
 public class GetVendorProductBulkOperationItemsQueryHandler : IRequestHandler<GetVendorProductBulkOperationItemsQuery, IReadOnlyList<VendorProductBulkOperationItemDto>>
 {
@@ -21,7 +21,11 @@ public class GetVendorProductBulkOperationItemsQueryHandler : IRequestHandler<Ge
     {
         var exists = await _context.VendorProductBulkOperations
             .AsNoTracking()
-            .AnyAsync(x => x.Id == request.OperationId && x.VendorId == request.VendorId, cancellationToken);
+            .AnyAsync(x =>
+                x.Id == request.OperationId &&
+                x.VendorId == request.VendorId &&
+                (!request.BranchId.HasValue || x.Items.Any(item => item.VendorBranchId == request.BranchId.Value)),
+                cancellationToken);
 
         if (!exists)
         {
@@ -30,7 +34,9 @@ public class GetVendorProductBulkOperationItemsQueryHandler : IRequestHandler<Ge
 
         return await _context.VendorProductBulkOperationItems
             .AsNoTracking()
-            .Where(x => x.OperationId == request.OperationId)
+            .Where(x =>
+                x.OperationId == request.OperationId &&
+                (!request.BranchId.HasValue || x.VendorBranchId == request.BranchId.Value))
             .Include(x => x.MasterProduct)
             .OrderBy(x => x.RowNumber)
             .Select(x => new VendorProductBulkOperationItemDto(

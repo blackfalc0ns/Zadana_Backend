@@ -6,8 +6,11 @@ using System.Text.Json;
 using Zadana.Api.Controllers;
 using Zadana.Application.Common.Interfaces;
 using Zadana.Application.Modules.Orders.Support;
+using Zadana.Domain.Modules.Catalog.Entities;
+using Zadana.Domain.Modules.Orders.Entities;
 using Zadana.Domain.Modules.Orders.Enums;
 using Zadana.Domain.Modules.Payments.Enums;
+using Zadana.Domain.Modules.Social.Entities;
 using Zadana.Domain.Modules.Wallets.Enums;
 using Zadana.Domain.Modules.Vendors.Enums;
 using Zadana.SharedKernel.Exceptions;
@@ -31,12 +34,15 @@ public class VendorWorkspaceController : ApiControllerBase
     [HttpGet("dashboard")]
     public async Task<ActionResult<VendorDashboardSnapshotResponse>> GetDashboard(CancellationToken cancellationToken)
     {
-        var vendorId = await _currentVendorService.GetRequiredVendorIdAsync(cancellationToken);
+        var scope = await _currentVendorService.GetRequiredVendorScopeAsync(cancellationToken);
+        var vendorId = scope.VendorId;
         var since = DateTime.UtcNow.AddDays(-30);
 
-        var orders = await _dbContext.Orders
-            .AsNoTracking()
-            .Where(order => order.VendorId == vendorId)
+        var orders = await ApplyBranchScope(
+                _dbContext.Orders
+                    .AsNoTracking()
+                    .Where(order => order.VendorId == vendorId),
+                scope)
             .OrderByDescending(order => order.PlacedAtUtc)
             .Select(order => new
             {
@@ -57,17 +63,25 @@ public class VendorWorkspaceController : ApiControllerBase
         var pendingOrders = orders.Count(order =>
             order.Status is OrderStatus.Placed or OrderStatus.PendingVendorAcceptance or OrderStatus.Accepted or OrderStatus.Preparing);
 
-        var lowStockCount = await _dbContext.VendorProducts
-            .AsNoTracking()
-            .CountAsync(product => product.VendorId == vendorId && product.StockQuantity > 0 && product.StockQuantity <= 5, cancellationToken);
+        var lowStockCount = await ApplyBranchScope(
+                _dbContext.VendorProducts
+                    .AsNoTracking()
+                    .Where(product => product.VendorId == vendorId),
+                scope)
+            .CountAsync(product => product.StockQuantity > 0 && product.StockQuantity <= 5, cancellationToken);
 
-        var activeProducts = await _dbContext.VendorProducts
-            .AsNoTracking()
-            .CountAsync(product => product.VendorId == vendorId && product.IsAvailable, cancellationToken);
+        var activeProducts = await ApplyBranchScope(
+                _dbContext.VendorProducts
+                    .AsNoTracking()
+                    .Where(product => product.VendorId == vendorId),
+                scope)
+            .CountAsync(product => product.IsAvailable, cancellationToken);
 
-        var recentReviews = await _dbContext.Reviews
-            .AsNoTracking()
-            .Where(review => review.VendorId == vendorId)
+        var recentReviews = await ApplyBranchScope(
+                _dbContext.Reviews
+                    .AsNoTracking()
+                    .Where(review => review.VendorId == vendorId),
+                scope)
             .OrderByDescending(review => review.CreatedAtUtc)
             .Take(3)
             .Select(review => new { review.Rating, review.CreatedAtUtc })
@@ -136,17 +150,21 @@ public class VendorWorkspaceController : ApiControllerBase
         [FromQuery] string period = "7d",
         CancellationToken cancellationToken = default)
     {
-        var vendorId = await _currentVendorService.GetRequiredVendorIdAsync(cancellationToken);
+        var scope = await _currentVendorService.GetRequiredVendorScopeAsync(cancellationToken);
+        var vendorId = scope.VendorId;
         var now = DateTime.UtcNow;
         var (normalizedPeriod, from, previousFrom) = ResolveDashboardPeriod(period, now);
 
-        var orders = await _dbContext.Orders
-            .AsNoTracking()
-            .Where(order => order.VendorId == vendorId && order.PlacedAtUtc >= from)
+        var orders = await ApplyBranchScope(
+                _dbContext.Orders
+                    .AsNoTracking()
+                    .Where(order => order.VendorId == vendorId && order.PlacedAtUtc >= from),
+                scope)
             .Select(order => new
             {
                 order.Id,
                 order.OrderNumber,
+                order.VendorBranchId,
                 order.Status,
                 order.PaymentStatus,
                 order.TotalAmount,
@@ -158,9 +176,11 @@ public class VendorWorkspaceController : ApiControllerBase
             })
             .ToListAsync(cancellationToken);
 
-        var previousOrders = await _dbContext.Orders
-            .AsNoTracking()
-            .Where(order => order.VendorId == vendorId && order.PlacedAtUtc >= previousFrom && order.PlacedAtUtc < from)
+        var previousOrders = await ApplyBranchScope(
+                _dbContext.Orders
+                    .AsNoTracking()
+                    .Where(order => order.VendorId == vendorId && order.PlacedAtUtc >= previousFrom && order.PlacedAtUtc < from),
+                scope)
             .Select(order => new
             {
                 order.Status,
@@ -169,9 +189,11 @@ public class VendorWorkspaceController : ApiControllerBase
             })
             .ToListAsync(cancellationToken);
 
-        var activeOrders = await _dbContext.Orders
-            .AsNoTracking()
-            .Where(order => order.VendorId == vendorId && order.Status != OrderStatus.Delivered && order.Status != OrderStatus.Cancelled && order.Status != OrderStatus.VendorRejected)
+        var activeOrders = await ApplyBranchScope(
+                _dbContext.Orders
+                    .AsNoTracking()
+                    .Where(order => order.VendorId == vendorId && order.Status != OrderStatus.Delivered && order.Status != OrderStatus.Cancelled && order.Status != OrderStatus.VendorRejected),
+                scope)
             .Select(order => new
             {
                 order.Id,
@@ -181,9 +203,11 @@ public class VendorWorkspaceController : ApiControllerBase
             })
             .ToListAsync(cancellationToken);
 
-        var vendorProducts = await _dbContext.VendorProducts
-            .AsNoTracking()
-            .Where(product => product.VendorId == vendorId)
+        var vendorProducts = await ApplyBranchScope(
+                _dbContext.VendorProducts
+                    .AsNoTracking()
+                    .Where(product => product.VendorId == vendorId),
+                scope)
             .Select(product => new
             {
                 product.Id,
@@ -201,7 +225,10 @@ public class VendorWorkspaceController : ApiControllerBase
 
         var orderItems = await _dbContext.OrderItems
             .AsNoTracking()
-            .Where(item => item.Order.VendorId == vendorId && item.Order.PlacedAtUtc >= from)
+            .Where(item =>
+                item.Order.VendorId == vendorId &&
+                item.Order.PlacedAtUtc >= from &&
+                (!scope.BranchId.HasValue || item.Order.VendorBranchId == scope.BranchId.Value))
             .Select(item => new
             {
                 item.VendorProductId,
@@ -213,9 +240,11 @@ public class VendorWorkspaceController : ApiControllerBase
             })
             .ToListAsync(cancellationToken);
 
-        var reviews = await _dbContext.Reviews
-            .AsNoTracking()
-            .Where(review => review.VendorId == vendorId)
+        var reviews = await ApplyBranchScope(
+                _dbContext.Reviews
+                    .AsNoTracking()
+                    .Where(review => review.VendorId == vendorId),
+                scope)
             .Select(review => new
             {
                 review.Id,
@@ -227,9 +256,11 @@ public class VendorWorkspaceController : ApiControllerBase
             })
             .ToListAsync(cancellationToken);
 
-        var disputes = await _dbContext.OrderSupportCases
-            .AsNoTracking()
-            .Where(item => item.Order != null && item.Order.VendorId == vendorId)
+        var disputes = await ApplyBranchScope(
+                _dbContext.OrderSupportCases
+                    .AsNoTracking()
+                    .Where(item => item.Order != null && item.Order.VendorId == vendorId),
+                scope)
             .Select(item => new
             {
                 item.Id,
@@ -275,8 +306,13 @@ public class VendorWorkspaceController : ApiControllerBase
 
         var branches = await _dbContext.VendorBranches
             .AsNoTracking()
-            .Where(branch => branch.VendorId == vendorId)
-            .Select(branch => new { branch.IsActive })
+            .Where(branch => branch.VendorId == vendorId && (!scope.BranchId.HasValue || branch.Id == scope.BranchId.Value))
+            .Select(branch => new
+            {
+                branch.Id,
+                branch.Name,
+                branch.IsActive
+            })
             .ToListAsync(cancellationToken);
 
         var offersStatePayload = await _dbContext.VendorWorkspaceStates
@@ -334,10 +370,53 @@ public class VendorWorkspaceController : ApiControllerBase
         var holdAmount = (vendorWallet?.PendingBalance ?? 0m) + activeHoldAmount;
         var availableBalance = Math.Max(0m, (vendorWallet?.CurrentBalance ?? 0m) - holdAmount);
         var pendingSettlement = settlements.Where(settlement => settlement.Status is SettlementStatus.Pending or SettlementStatus.PendingReview or SettlementStatus.Processing).Sum(settlement => settlement.NetAmount);
-        
+
         var financialLifecycleModeStr = vendorDetails.ToString();
         var nextSettlementAt = CalculateNextSettlementDate(vendorDetails);
         var etaProfile = await DeliveryEtaTelemetry.LoadOperationalProfileAsync(_dbContext, vendorId, null, null, null, cancellationToken);
+        var paidOrdersByBranch = paidOrders
+            .GroupBy(order => order.VendorBranchId)
+            .Select(group => new
+            {
+                BranchId = group.Key,
+                Revenue = group.Sum(order => order.TotalAmount),
+                OrdersCount = group.Count()
+            })
+            .ToList();
+
+        var branchRevenues = branches
+            .Select(branch =>
+            {
+                var branchMetrics = paidOrdersByBranch.FirstOrDefault(item => item.BranchId == branch.Id);
+                var revenue = branchMetrics?.Revenue ?? 0m;
+                var ordersCount = branchMetrics?.OrdersCount ?? 0;
+
+                return new VendorDashboardBranchRevenueResponse(
+                    branch.Id.ToString(),
+                    branch.Name,
+                    revenue,
+                    ordersCount,
+                    ordersCount > 0 ? revenue / ordersCount : 0m);
+            })
+            .OrderByDescending(branch => branch.Revenue)
+            .ThenBy(branch => branch.BranchName)
+            .ToList();
+
+        var mainBranchMetrics = !scope.BranchId.HasValue
+            ? paidOrdersByBranch.FirstOrDefault(item => item.BranchId == null)
+            : null;
+
+        if (mainBranchMetrics is not null)
+        {
+            branchRevenues.Insert(
+                0,
+                new VendorDashboardBranchRevenueResponse(
+                    "main",
+                    "الفرع الرئيسي",
+                    mainBranchMetrics.Revenue,
+                    mainBranchMetrics.OrdersCount,
+                    mainBranchMetrics.OrdersCount > 0 ? mainBranchMetrics.Revenue / mainBranchMetrics.OrdersCount : 0m));
+        }
 
         var prepTimes = orders
             .Where(o => o.AcceptedAtUtc.HasValue && o.ReadyAtUtc.HasValue)
@@ -555,6 +634,7 @@ public class VendorWorkspaceController : ApiControllerBase
                 holdAmount,
                 nextSettlementAt,
                 financialLifecycleModeStr,
+                branchRevenues,
                 BuildFinanceTrend(paidOrders, payouts).Select(point => new VendorDashboardDualTrendPointResponse(point.Label, point.Sales, point.Payout)).ToList(),
                 settlements.GroupBy(settlement => MapSettlementStatus(settlement.Status)).Select(group => new VendorDashboardBreakdownSliceResponse(group.Key, group.Key, group.Count())).ToList(),
                 vendorWalletTransactions
@@ -1684,6 +1764,26 @@ public class VendorWorkspaceController : ApiControllerBase
             .SumAsync(hold => (decimal?)hold.Amount, cancellationToken) ?? 0m;
     }
 
+    private static IQueryable<Order> ApplyBranchScope(IQueryable<Order> query, CurrentVendorScope scope) =>
+        scope.BranchId.HasValue
+            ? query.Where(order => order.VendorBranchId == scope.BranchId.Value)
+            : query;
+
+    private static IQueryable<VendorProduct> ApplyBranchScope(IQueryable<VendorProduct> query, CurrentVendorScope scope) =>
+        scope.BranchId.HasValue
+            ? query.Where(product => product.VendorBranchId == scope.BranchId.Value)
+            : query;
+
+    private static IQueryable<Review> ApplyBranchScope(IQueryable<Review> query, CurrentVendorScope scope) =>
+        scope.BranchId.HasValue
+            ? query.Where(review => review.Order.VendorBranchId == scope.BranchId.Value)
+            : query;
+
+    private static IQueryable<OrderSupportCase> ApplyBranchScope(IQueryable<OrderSupportCase> query, CurrentVendorScope scope) =>
+        scope.BranchId.HasValue
+            ? query.Where(item => item.Order != null && item.Order.VendorBranchId == scope.BranchId.Value)
+            : query;
+
     private sealed record FinanceTrendBucket(DateTime StartUtc, DateTime EndUtc, string Label);
 }
 
@@ -1936,11 +2036,19 @@ public record VendorDashboardFinanceSectionResponse(
     decimal HoldAmount,
     DateTime? NextSettlementAt,
     string FinancialLifecycleMode,
+    List<VendorDashboardBranchRevenueResponse> BranchRevenues,
     List<VendorDashboardDualTrendPointResponse> SalesVsPayoutsTrend,
     List<VendorDashboardBreakdownSliceResponse> SettlementStatusBreakdown,
     List<VendorDashboardBreakdownSliceResponse> LedgerTypeBreakdown,
     List<VendorDashboardSettlementListItemResponse> RecentSettlements,
     List<VendorDashboardLedgerListItemResponse> RecentLedgerEntries);
+
+public record VendorDashboardBranchRevenueResponse(
+    string BranchId,
+    string BranchName,
+    decimal Revenue,
+    int OrdersCount,
+    decimal AverageOrderValue);
 
 public record VendorDashboardDisputesSectionResponse(
     int OpenDisputes,

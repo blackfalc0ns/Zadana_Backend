@@ -10,7 +10,7 @@ namespace Zadana.Api.Modules.Catalog.Controllers;
 [Route("api/vendor/product-requests")]
 [Route("api/vendor/catalog/product-requests")]
 [Tags("Catalog (Vendors)")]
-[Authorize(Roles = "Vendor")]
+[Authorize(Policy = "VendorOnly")]
 public class VendorProductRequestsController : ApiControllerBase
 {
     [HttpPost]

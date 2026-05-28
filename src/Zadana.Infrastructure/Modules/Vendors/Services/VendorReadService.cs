@@ -197,6 +197,30 @@ public class VendorReadService : IVendorReadService
             return null;
         }
 
+        return await BuildWorkspaceAsync(vendor, cancellationToken);
+    }
+
+    public async Task<VendorWorkspaceDto?> GetWorkspaceByVendorIdAsync(Guid vendorId, CancellationToken cancellationToken = default)
+    {
+        var vendor = await _dbContext.Vendors
+            .AsNoTracking()
+            .Include(item => item.Branches)
+                .ThenInclude(branch => branch.OperatingHours)
+            .Include(item => item.BankAccounts)
+            .Include(item => item.DocumentReviews)
+            .Include(item => item.ProfileReviewItems)
+            .FirstOrDefaultAsync(item => item.Id == vendorId, cancellationToken);
+
+        if (vendor == null)
+        {
+            return null;
+        }
+
+        return await BuildWorkspaceAsync(vendor, cancellationToken);
+    }
+
+    private async Task<VendorWorkspaceDto?> BuildWorkspaceAsync(Vendor vendor, CancellationToken cancellationToken)
+    {
         var user = await _dbContext.Users
             .AsNoTracking()
             .FirstOrDefaultAsync(item => item.Id == vendor.UserId, cancellationToken);

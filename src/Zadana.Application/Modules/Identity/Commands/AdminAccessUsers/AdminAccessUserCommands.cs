@@ -103,6 +103,16 @@ public sealed class CreateAdminAccessUserCommandHandler
             var user = await _context.Users.FindAsync([createResult.Account.Id], ct)
                 ?? throw new NotFoundException(nameof(User), createResult.Account.Id);
 
+            await _validationService.EnsureCanMutateUserAccessAsync(
+                user.Id,
+                role.IdentityRole,
+                AccountStatus.Active.ToString(),
+                actorUserId: null,
+                newRole: role,
+                grantedPermissions: [],
+                revokedPermissions: [],
+                cancellationToken: ct);
+
             var normalizedScopeEntityId = await _validationService.NormalizeAndValidateScopeAsync(
                 role,
                 request.PanelScope,
@@ -196,6 +206,7 @@ public sealed class CreateAdminAccessUserCommandHandler
             GrantedPermissions = grantedPermissions.OrderBy(x => x).ToArray(),
             RevokedPermissions = revokedPermissions.OrderBy(x => x).ToArray()
         };
+
 }
 
 public sealed class UpdateAdminAccessUserCommandHandler
@@ -240,8 +251,8 @@ public sealed class UpdateAdminAccessUserCommandHandler
                 request.RoleDefinitionId,
                 ct);
 
-            var grantedPermissions = request.GrantedPermissions ?? [];
-            var revokedPermissions = request.RevokedPermissions ?? [];
+            var grantedPermissions = NormalizePermissions(request.GrantedPermissions);
+            var revokedPermissions = NormalizePermissions(request.RevokedPermissions);
             await _validationService.EnsureCanMutateUserAccessAsync(
                 user.Id,
                 user.Role,
@@ -422,6 +433,13 @@ public sealed class UpdateAdminAccessUserCommandHandler
             GrantedPermissions = grantedPermissions.OrderBy(x => x).ToArray(),
             RevokedPermissions = revokedPermissions.OrderBy(x => x).ToArray()
         };
+
+    private static List<string> NormalizePermissions(IEnumerable<string>? permissions) =>
+        (permissions ?? [])
+            .Where(permission => !string.IsNullOrWhiteSpace(permission))
+            .Select(permission => permission.Trim().ToLowerInvariant())
+            .Distinct(StringComparer.OrdinalIgnoreCase)
+            .ToList();
 }
 
 public sealed class ResetAdminAccessUserTemporaryPasswordCommandHandler
@@ -501,4 +519,5 @@ public sealed class ResetAdminAccessUserTemporaryPasswordCommandHandler
             return await CreateAdminAccessUserCommandHandler.ProjectUserAsync(_context, user.Id, ct);
         }, cancellationToken);
     }
+
 }

@@ -50,7 +50,7 @@ namespace Zadana.Infrastructure.Migrations
                        AND COL_LENGTH(N'[dbo].[RefreshTokens]', N'UserId') IS NOT NULL
                        AND OBJECT_ID(N'[dbo].[AspNetUsers]', N'U') IS NOT NULL
                         ALTER TABLE [dbo].[RefreshTokens] ADD CONSTRAINT [FK_RefreshTokens_AspNetUsers_UserId]
-                            FOREIGN KEY ([UserId]) REFERENCES [dbo].[AspNetUsers] ([Id]) ON DELETE CASCADE;
+                            FOREIGN KEY ([UserId]) REFERENCES [dbo].[AspNetUsers] ([Id]) ON DELETE NO ACTION;
 
                     IF NOT EXISTS (SELECT 1 FROM sys.indexes WHERE name = N'IX_RefreshToken_Token' AND object_id = OBJECT_ID(N'[dbo].[RefreshTokens]'))
                         CREATE UNIQUE INDEX [IX_RefreshToken_Token] ON [dbo].[RefreshTokens] ([Token]) WHERE [Token] IS NOT NULL;

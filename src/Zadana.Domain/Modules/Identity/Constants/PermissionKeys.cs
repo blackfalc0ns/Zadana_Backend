@@ -143,6 +143,13 @@ public static class PermissionKeys
         public const string ProfileView = "vendor_profile.view";
         public const string ProfileEdit = "vendor_profile.edit";
 
+        public static readonly string[] SessionBaseline =
+        [
+            AccountView,
+            ProfileView,
+            NotificationsView
+        ];
+
         public static readonly string[] Owner =
         [
             AccountView, AccountEdit, DashboardView,

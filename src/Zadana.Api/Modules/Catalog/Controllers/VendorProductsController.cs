@@ -17,7 +17,7 @@ using Zadana.Application.Modules.Catalog.Queries.VendorProducts.GetVendorProduct
 namespace Zadana.Api.Modules.Catalog.Controllers;
 
 [Route("api/vendor/products")]
-[Authorize(Roles = "Vendor")]
+[Authorize(Policy = "VendorOnly")]
 [Tags("Catalog (Vendors)")]
 public class VendorProductsController : ApiControllerBase
 {
@@ -37,8 +37,8 @@ public class VendorProductsController : ApiControllerBase
         [FromQuery] int pageNumber = 1,
         [FromQuery] int pageSize = 10)
     {
-        var vendorId = await _currentVendorService.GetRequiredVendorIdAsync(HttpContext.RequestAborted);
-        var query = new GetVendorProductsQuery(vendorId, categoryId, branchId, search, status, pageNumber, pageSize);
+        var scope = await _currentVendorService.GetRequiredVendorScopeAsync(HttpContext.RequestAborted);
+        var query = new GetVendorProductsQuery(scope.VendorId, categoryId, ResolveBranchFilter(scope, branchId), search, status, pageNumber, pageSize);
         var result = await Sender.Send(query);
         return Ok(result);
     }
@@ -46,17 +46,17 @@ public class VendorProductsController : ApiControllerBase
     [HttpGet("{id}")]
     public async Task<ActionResult<VendorProductDto>> GetProductById(Guid id)
     {
-        var vendorId = await _currentVendorService.GetRequiredVendorIdAsync(HttpContext.RequestAborted);
-        var result = await Sender.Send(new GetVendorProductByIdQuery(vendorId, id));
+        var scope = await _currentVendorService.GetRequiredVendorScopeAsync(HttpContext.RequestAborted);
+        var result = await Sender.Send(new GetVendorProductByIdQuery(scope.VendorId, id, scope.BranchId));
         return Ok(result);
     }
 
     [HttpPost]
     public async Task<ActionResult<Guid>> CreateProduct([FromBody] CreateVendorProductRequest request)
     {
-        var vendorId = await _currentVendorService.GetRequiredVendorIdAsync(HttpContext.RequestAborted);
+        var scope = await _currentVendorService.GetRequiredVendorScopeAsync(HttpContext.RequestAborted);
         var command = new CreateVendorProductCommand(
-            vendorId,
+            scope.VendorId,
             request.MasterProductId,
             request.SellingPrice,
             request.CompareAtPrice,
@@ -66,7 +66,7 @@ public class VendorProductsController : ApiControllerBase
             request.MinOrderQty,
             request.MaxOrderQty,
             request.Sku,
-            request.BranchId
+            ResolveBranchMutation(scope, request.BranchId)
         );
 
         var result = await Sender.Send(command);
@@ -76,9 +76,9 @@ public class VendorProductsController : ApiControllerBase
     [HttpPost("bulk")]
     public async Task<ActionResult<VendorProductBulkOperationDto>> CreateProductsBulk([FromBody] BulkCreateVendorProductsRequest request)
     {
-        var vendorId = await _currentVendorService.GetRequiredVendorIdAsync(HttpContext.RequestAborted);
+        var scope = await _currentVendorService.GetRequiredVendorScopeAsync(HttpContext.RequestAborted);
         var command = new BulkCreateVendorProductsCommand(
-            vendorId,
+            scope.VendorId,
             request.IdempotencyKey,
             request.Items.Select(item => new BulkCreateVendorProductItemInput(
                 item.MasterProductId,
@@ -87,7 +87,7 @@ public class VendorProductsController : ApiControllerBase
                 item.SellingPrice,
                 item.CompareAtPrice,
                 item.StockQty,
-                item.BranchId,
+                ResolveBranchMutation(scope, item.BranchId),
                 item.Sku,
                 item.MinOrderQty,
                 item.MaxOrderQty)).ToList());
@@ -99,26 +99,27 @@ public class VendorProductsController : ApiControllerBase
     [HttpGet("bulk/{operationId:guid}")]
     public async Task<ActionResult<VendorProductBulkOperationDto>> GetBulkOperation(Guid operationId)
     {
-        var vendorId = await _currentVendorService.GetRequiredVendorIdAsync(HttpContext.RequestAborted);
-        var result = await Sender.Send(new GetVendorProductBulkOperationQuery(operationId, vendorId));
+        var scope = await _currentVendorService.GetRequiredVendorScopeAsync(HttpContext.RequestAborted);
+        var result = await Sender.Send(new GetVendorProductBulkOperationQuery(operationId, scope.VendorId, scope.BranchId));
         return Ok(result);
     }
 
     [HttpGet("bulk/{operationId:guid}/items")]
     public async Task<ActionResult<IReadOnlyList<VendorProductBulkOperationItemDto>>> GetBulkOperationItems(Guid operationId)
     {
-        var vendorId = await _currentVendorService.GetRequiredVendorIdAsync(HttpContext.RequestAborted);
-        var result = await Sender.Send(new GetVendorProductBulkOperationItemsQuery(operationId, vendorId));
+        var scope = await _currentVendorService.GetRequiredVendorScopeAsync(HttpContext.RequestAborted);
+        var result = await Sender.Send(new GetVendorProductBulkOperationItemsQuery(operationId, scope.VendorId, scope.BranchId));
         return Ok(result);
     }
 
     [HttpPut("{id}")]
     public async Task<ActionResult> UpdateProduct(Guid id, [FromBody] UpdateVendorProductRequest request)
     {
-        var vendorId = await _currentVendorService.GetRequiredVendorIdAsync(HttpContext.RequestAborted);
+        var scope = await _currentVendorService.GetRequiredVendorScopeAsync(HttpContext.RequestAborted);
         var command = new UpdateVendorProductCommand(
             id,
-            vendorId,
+            scope.VendorId,
+            scope.BranchId,
             request.SellingPrice,
             request.CompareAtPrice,
             request.CostPrice,
@@ -137,8 +138,8 @@ public class VendorProductsController : ApiControllerBase
     [HttpPatch("{id}/status")]
     public async Task<ActionResult> ChangeStatus(Guid id, [FromBody] ChangeProductStatusRequest request)
     {
-        var vendorId = await _currentVendorService.GetRequiredVendorIdAsync(HttpContext.RequestAborted);
-        var command = new ChangeVendorProductStatusCommand(id, vendorId, request.IsActive);
+        var scope = await _currentVendorService.GetRequiredVendorScopeAsync(HttpContext.RequestAborted);
+        var command = new ChangeVendorProductStatusCommand(id, scope.VendorId, scope.BranchId, request.IsActive);
         await Sender.Send(command);
         return NoContent();
     }
@@ -146,10 +147,16 @@ public class VendorProductsController : ApiControllerBase
     [HttpDelete("{id}")]
     public async Task<ActionResult> DeleteProduct(Guid id)
     {
-        var vendorId = await _currentVendorService.GetRequiredVendorIdAsync(HttpContext.RequestAborted);
-        await Sender.Send(new DeleteVendorProductCommand(id, vendorId));
+        var scope = await _currentVendorService.GetRequiredVendorScopeAsync(HttpContext.RequestAborted);
+        await Sender.Send(new DeleteVendorProductCommand(id, scope.VendorId, scope.BranchId));
         return NoContent();
     }
+
+    private static Guid? ResolveBranchFilter(CurrentVendorScope scope, Guid? requestedBranchId) =>
+        scope.BranchId ?? requestedBranchId;
+
+    private static Guid? ResolveBranchMutation(CurrentVendorScope scope, Guid? requestedBranchId) =>
+        scope.BranchId ?? requestedBranchId;
 }
 
 public record CreateVendorProductRequest(

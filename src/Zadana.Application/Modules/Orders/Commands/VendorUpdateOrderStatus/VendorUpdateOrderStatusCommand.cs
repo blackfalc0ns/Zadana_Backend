@@ -15,6 +15,7 @@ namespace Zadana.Application.Modules.Orders.Commands.VendorUpdateOrderStatus;
 public record VendorUpdateOrderStatusCommand(
     Guid OrderId,
     Guid VendorId,
+    Guid? BranchId,
     OrderStatus NewStatus,
     string? Note) : IRequest<VendorUpdateOrderStatusResultDto>;
 
@@ -66,7 +67,11 @@ public class VendorUpdateOrderStatusCommandHandler : IRequestHandler<VendorUpdat
     {
         var order = await _context.Orders
             .Include(x => x.StatusHistory)
-            .FirstOrDefaultAsync(x => x.Id == request.OrderId && x.VendorId == request.VendorId, cancellationToken)
+            .FirstOrDefaultAsync(x =>
+                x.Id == request.OrderId &&
+                x.VendorId == request.VendorId &&
+                (!request.BranchId.HasValue || x.VendorBranchId == request.BranchId.Value),
+                cancellationToken)
             ?? throw new NotFoundException("Order", request.OrderId);
 
         // Idempotent: avoid duplicate status side effects, but still retry dispatch for ready orders.

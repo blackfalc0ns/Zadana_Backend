@@ -13,6 +13,7 @@ namespace Zadana.Application.Modules.Orders.Commands.ConfirmVendorPickupOtp;
 public record ConfirmVendorPickupOtpCommand(
     Guid OrderId,
     Guid VendorId,
+    Guid? BranchId,
     string OtpCode) : IRequest<VendorPickupOtpConfirmationDto>;
 
 public record VendorPickupOtpConfirmationDto(
@@ -53,7 +54,11 @@ public class ConfirmVendorPickupOtpCommandHandler : IRequestHandler<ConfirmVendo
     public async Task<VendorPickupOtpConfirmationDto> Handle(ConfirmVendorPickupOtpCommand request, CancellationToken cancellationToken)
     {
         var order = await _context.Orders
-            .FirstOrDefaultAsync(item => item.Id == request.OrderId && item.VendorId == request.VendorId, cancellationToken)
+            .FirstOrDefaultAsync(item =>
+                item.Id == request.OrderId &&
+                item.VendorId == request.VendorId &&
+                (!request.BranchId.HasValue || item.VendorBranchId == request.BranchId.Value),
+                cancellationToken)
             ?? throw new NotFoundException("Order", request.OrderId);
 
         var assignment = await _context.DeliveryAssignments

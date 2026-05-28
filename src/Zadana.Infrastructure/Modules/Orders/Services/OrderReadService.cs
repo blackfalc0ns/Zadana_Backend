@@ -403,6 +403,7 @@ public class OrderReadService : IOrderReadService
 
     public Task<PaginatedList<VendorOrderListItemDto>> GetVendorWorkspaceOrdersAsync(
         Guid vendorId,
+        Guid? branchId,
         string? search,
         string? status,
         string? paymentMethod,
@@ -420,6 +421,11 @@ public class OrderReadService : IOrderReadService
                  order.PaymentStatus == PaymentStatus.Paid ||
                  order.PaymentStatus == PaymentStatus.Refunded ||
                  order.PaymentStatus == PaymentStatus.PartiallyRefunded));
+
+        if (branchId.HasValue)
+        {
+            query = query.Where(order => order.VendorBranchId == branchId.Value);
+        }
 
         if (!string.IsNullOrWhiteSpace(search))
         {
@@ -461,6 +467,7 @@ public class OrderReadService : IOrderReadService
 
     public async Task<VendorOrderDetailDto?> GetVendorOrderDetailAsync(
         Guid vendorId,
+        Guid? branchId,
         Guid orderId,
         CancellationToken cancellationToken = default)
     {
@@ -475,6 +482,7 @@ public class OrderReadService : IOrderReadService
             .Where(item =>
                 item.VendorId == vendorId &&
                 item.Id == orderId &&
+                (!branchId.HasValue || item.VendorBranchId == branchId.Value) &&
                 item.Status != OrderStatus.PendingPayment &&
                 ((item.PaymentMethod != PaymentMethodType.Card &&
                   item.PaymentMethod != PaymentMethodType.BankTransfer) ||

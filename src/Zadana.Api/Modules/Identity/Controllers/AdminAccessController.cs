@@ -57,11 +57,34 @@ public class AdminAccessController(IMediator mediator, IApplicationDbContext dbC
 
     [HttpGet("roles/{id}")]
     [RequireAccess(PermissionKeys.Admin.UsersAccessView)]
-    public IActionResult GetRole(Guid id)
+    public async Task<IActionResult> GetRole(Guid id, CancellationToken cancellationToken)
     {
-        // For individual role, we can fetch all and filter or write a specific query
-        // Currently returning NotFound for simplicity as UI only needs GetRoles
-        return NotFound();
+        var role = await dbContext.RoleDefinitions
+            .AsNoTracking()
+            .Include(item => item.RolePermissions)
+            .ThenInclude(item => item.PermissionDefinition)
+            .Include(item => item.UserAccessScopes)
+            .FirstOrDefaultAsync(item => item.Id == id, cancellationToken);
+
+        if (role is null)
+        {
+            return NotFound();
+        }
+
+        return Ok(new RoleDefinitionDto(
+            role.Id,
+            role.Code,
+            role.Name,
+            role.Description,
+            role.IsSystem,
+            role.IsActive,
+            role.IdentityRole,
+            role.PanelScope,
+            role.RolePermissions
+                .Select(item => item.PermissionDefinition.Key)
+                .OrderBy(key => key, StringComparer.OrdinalIgnoreCase)
+                .ToList(),
+            role.UserAccessScopes.Count));
     }
 
     [HttpPost("roles")]
@@ -260,9 +283,55 @@ public class AdminAccessController(IMediator mediator, IApplicationDbContext dbC
 
     [HttpGet("audit")]
     [RequireAccess(PermissionKeys.Admin.UsersAccessView)]
-    public IActionResult GetAuditEvents()
+    public async Task<IActionResult> GetAuditEvents(
+        [FromQuery] Guid? targetUserId = null,
+        [FromQuery] Guid? actorUserId = null,
+        [FromQuery] string? action = null,
+        [FromQuery] int pageSize = 100,
+        CancellationToken cancellationToken = default)
     {
-        return Ok(Array.Empty<object>());
+        pageSize = Math.Clamp(pageSize, 1, 250);
+
+        var query = dbContext.AccessAuditLogs.AsNoTracking();
+        if (targetUserId.HasValue)
+        {
+            query = query.Where(log => log.TargetUserId == targetUserId.Value);
+        }
+
+        if (actorUserId.HasValue)
+        {
+            query = query.Where(log => log.ActorUserId == actorUserId.Value);
+        }
+
+        if (!string.IsNullOrWhiteSpace(action))
+        {
+            var normalizedAction = action.Trim();
+            query = query.Where(log => log.Action == normalizedAction);
+        }
+
+        var result = await (
+                from log in query
+                join actor in dbContext.Users.AsNoTracking()
+                    on log.ActorUserId equals (Guid?)actor.Id into actorJoin
+                from actor in actorJoin.DefaultIfEmpty()
+                orderby log.CreatedAtUtc descending
+                select new AccessAuditLogDto(
+                    log.Id,
+                    log.ActorUserId,
+                    actor != null ? actor.FullName : null,
+                    actor != null ? actor.Email : null,
+                    log.TargetUserId,
+                    log.Action,
+                    log.Summary,
+                    log.BeforeJson,
+                    log.AfterJson,
+                    log.CreatedAtUtc.ToString("o"),
+                    log.IpAddress,
+                    log.UserAgent))
+            .Take(pageSize)
+            .ToListAsync(cancellationToken);
+
+        return Ok(result);
     }
 }
 

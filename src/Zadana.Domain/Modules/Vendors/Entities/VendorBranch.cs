@@ -6,10 +6,16 @@ public class VendorBranch : BaseEntity
 {
     public Guid VendorId { get; private set; }
     public string Name { get; private set; } = null!;
+    public string Code { get; private set; } = null!;
+    public bool IsPrimary { get; private set; }
     public string AddressLine { get; private set; } = null!;
+    public string Region { get; private set; } = null!;
+    public string City { get; private set; } = null!;
     public decimal Latitude { get; private set; }
     public decimal Longitude { get; private set; }
     public string ContactPhone { get; private set; } = null!;
+    public string ManagerName { get; private set; } = null!;
+    public string ManagerContact { get; private set; } = null!;
     public decimal DeliveryRadiusKm { get; private set; }
     public bool IsActive { get; private set; }
 
@@ -22,10 +28,16 @@ public class VendorBranch : BaseEntity
     public VendorBranch(
         Guid vendorId,
         string name,
+        string code,
+        bool isPrimary,
         string addressLine,
+        string region,
+        string city,
         decimal latitude,
         decimal longitude,
         string contactPhone,
+        string managerName,
+        string managerContact,
         decimal deliveryRadiusKm)
     {
         if (latitude < -90 || latitude > 90)
@@ -37,12 +49,71 @@ public class VendorBranch : BaseEntity
 
         VendorId = vendorId;
         Name = name.Trim();
+        Code = code.Trim();
+        IsPrimary = isPrimary;
         AddressLine = addressLine.Trim();
+        Region = region.Trim();
+        City = city.Trim();
         Latitude = latitude;
         Longitude = longitude;
         ContactPhone = contactPhone.Trim();
+        ManagerName = managerName.Trim();
+        ManagerContact = managerContact.Trim();
         DeliveryRadiusKm = deliveryRadiusKm;
         IsActive = true;
+    }
+
+    public VendorBranch(
+        Guid vendorId,
+        string name,
+        string addressLine,
+        decimal latitude,
+        decimal longitude,
+        string contactPhone,
+        decimal deliveryRadiusKm)
+        : this(
+            vendorId,
+            name,
+            name,
+            false,
+            addressLine,
+            string.Empty,
+            string.Empty,
+            latitude,
+            longitude,
+            contactPhone,
+            string.Empty,
+            string.Empty,
+            deliveryRadiusKm)
+    {
+    }
+
+    public void Update(
+        string name,
+        string code,
+        bool isPrimary,
+        string addressLine,
+        string region,
+        string city,
+        decimal latitude,
+        decimal longitude,
+        string contactPhone,
+        string managerName,
+        string managerContact,
+        decimal deliveryRadiusKm)
+    {
+        Name = name.Trim();
+        Code = code.Trim();
+        IsPrimary = isPrimary;
+        AddressLine = addressLine.Trim();
+        Region = region.Trim();
+        City = city.Trim();
+        Latitude = latitude;
+        Longitude = longitude;
+        ContactPhone = contactPhone.Trim();
+        ManagerName = managerName.Trim();
+        ManagerContact = managerContact.Trim();
+        DeliveryRadiusKm = deliveryRadiusKm;
     }
 
     public void Update(
@@ -53,14 +124,22 @@ public class VendorBranch : BaseEntity
         string contactPhone,
         decimal deliveryRadiusKm)
     {
-        Name = name.Trim();
-        AddressLine = addressLine.Trim();
-        Latitude = latitude;
-        Longitude = longitude;
-        ContactPhone = contactPhone.Trim();
-        DeliveryRadiusKm = deliveryRadiusKm;
+        Update(
+            name,
+            Code,
+            IsPrimary,
+            addressLine,
+            Region,
+            City,
+            latitude,
+            longitude,
+            contactPhone,
+            ManagerName,
+            ManagerContact,
+            deliveryRadiusKm);
     }
 
+    public void SetPrimary(bool isPrimary) => IsPrimary = isPrimary;
     public void Deactivate() => IsActive = false;
     public void Activate() => IsActive = true;
 }

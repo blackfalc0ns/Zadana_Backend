@@ -33,9 +33,9 @@ public class VendorOrdersController : ApiControllerBase
         [FromQuery] int pageSize = 10,
         CancellationToken cancellationToken = default)
     {
-        var vendorId = await _currentVendorService.GetRequiredVendorIdAsync(cancellationToken);
+        var scope = await _currentVendorService.GetRequiredVendorScopeAsync(cancellationToken);
         var result = await Sender.Send(
-            new GetVendorWorkspaceOrdersQuery(vendorId, search, status, paymentMethod, page, pageSize),
+            new GetVendorWorkspaceOrdersQuery(scope.VendorId, scope.BranchId, search, status, paymentMethod, page, pageSize),
             cancellationToken);
 
         return Ok(new VendorOrdersListResponse(
@@ -51,8 +51,8 @@ public class VendorOrdersController : ApiControllerBase
     [ProducesResponseType(StatusCodes.Status404NotFound)]
     public async Task<ActionResult<VendorOrderDetailResponse>> GetOrderById(Guid orderId, CancellationToken cancellationToken = default)
     {
-        var vendorId = await _currentVendorService.GetRequiredVendorIdAsync(cancellationToken);
-        var result = await Sender.Send(new GetVendorOrderDetailQuery(vendorId, orderId), cancellationToken);
+        var scope = await _currentVendorService.GetRequiredVendorScopeAsync(cancellationToken);
+        var result = await Sender.Send(new GetVendorOrderDetailQuery(scope.VendorId, scope.BranchId, orderId), cancellationToken);
 
         if (result is null)
         {
@@ -66,9 +66,9 @@ public class VendorOrdersController : ApiControllerBase
     public async Task<ActionResult<VendorOrderStatusResponse>> AcceptOrder(
         Guid orderId, CancellationToken cancellationToken = default)
     {
-        var vendorId = await _currentVendorService.GetRequiredVendorIdAsync(cancellationToken);
+        var scope = await _currentVendorService.GetRequiredVendorScopeAsync(cancellationToken);
         var result = await Sender.Send(
-            new VendorUpdateOrderStatusCommand(orderId, vendorId, OrderStatus.Accepted, "Vendor accepted the order"),
+            new VendorUpdateOrderStatusCommand(orderId, scope.VendorId, scope.BranchId, OrderStatus.Accepted, "Vendor accepted the order"),
             cancellationToken);
         return Ok(MapResponse(result));
     }
@@ -79,9 +79,9 @@ public class VendorOrdersController : ApiControllerBase
         [FromBody] VendorOrderNoteRequest? request,
         CancellationToken cancellationToken = default)
     {
-        var vendorId = await _currentVendorService.GetRequiredVendorIdAsync(cancellationToken);
+        var scope = await _currentVendorService.GetRequiredVendorScopeAsync(cancellationToken);
         var result = await Sender.Send(
-            new VendorUpdateOrderStatusCommand(orderId, vendorId, OrderStatus.VendorRejected, request?.Note ?? "Vendor rejected the order"),
+            new VendorUpdateOrderStatusCommand(orderId, scope.VendorId, scope.BranchId, OrderStatus.VendorRejected, request?.Note ?? "Vendor rejected the order"),
             cancellationToken);
         return Ok(MapResponse(result));
     }
@@ -90,9 +90,9 @@ public class VendorOrdersController : ApiControllerBase
     public async Task<ActionResult<VendorOrderStatusResponse>> MarkPreparing(
         Guid orderId, CancellationToken cancellationToken = default)
     {
-        var vendorId = await _currentVendorService.GetRequiredVendorIdAsync(cancellationToken);
+        var scope = await _currentVendorService.GetRequiredVendorScopeAsync(cancellationToken);
         var result = await Sender.Send(
-            new VendorUpdateOrderStatusCommand(orderId, vendorId, OrderStatus.Preparing, "Vendor started preparing"),
+            new VendorUpdateOrderStatusCommand(orderId, scope.VendorId, scope.BranchId, OrderStatus.Preparing, "Vendor started preparing"),
             cancellationToken);
         return Ok(MapResponse(result));
     }
@@ -101,9 +101,9 @@ public class VendorOrdersController : ApiControllerBase
     public async Task<ActionResult<VendorOrderStatusResponse>> MarkReady(
         Guid orderId, CancellationToken cancellationToken = default)
     {
-        var vendorId = await _currentVendorService.GetRequiredVendorIdAsync(cancellationToken);
+        var scope = await _currentVendorService.GetRequiredVendorScopeAsync(cancellationToken);
         var result = await Sender.Send(
-            new VendorUpdateOrderStatusCommand(orderId, vendorId, OrderStatus.ReadyForPickup, "Order is ready for pickup"),
+            new VendorUpdateOrderStatusCommand(orderId, scope.VendorId, scope.BranchId, OrderStatus.ReadyForPickup, "Order is ready for pickup"),
             cancellationToken);
         return Ok(MapResponse(result));
     }
@@ -114,9 +114,9 @@ public class VendorOrdersController : ApiControllerBase
         [FromBody] VendorPickupOtpRequest request,
         CancellationToken cancellationToken = default)
     {
-        var vendorId = await _currentVendorService.GetRequiredVendorIdAsync(cancellationToken);
+        var scope = await _currentVendorService.GetRequiredVendorScopeAsync(cancellationToken);
         var result = await Sender.Send(
-            new ConfirmVendorPickupOtpCommand(orderId, vendorId, request.OtpCode),
+            new ConfirmVendorPickupOtpCommand(orderId, scope.VendorId, scope.BranchId, request.OtpCode),
             cancellationToken);
 
         return Ok(new VendorPickupOtpConfirmationResponse(result.OrderId, result.AssignmentId, result.Status, result.Message));

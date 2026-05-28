@@ -9,8 +9,11 @@ using Microsoft.EntityFrameworkCore;
 using Zadana.Api.Authorization;
 using Zadana.Api.Controllers;
 using Zadana.Application.Common.Interfaces;
+using Zadana.Application.Modules.Identity.Commands.UpdateUserOverrides;
+using Zadana.Application.Modules.Identity.Commands.UpdateUserScope;
 using Zadana.Application.Modules.Identity.DTOs;
 using Zadana.Application.Modules.Identity.Interfaces;
+using Zadana.Application.Modules.Identity.Queries.GetUserEffectiveAccess;
 using Zadana.Domain.Modules.Identity.Constants;
 using Zadana.Domain.Modules.Identity.Entities;
 using Zadana.Domain.Modules.Identity.Enums;
@@ -55,25 +58,147 @@ public class VendorAccessController : ApiControllerBase
     [Authorize(Policy = "VendorOnly")]
     [HttpGet("branches")]
     [RequireAccess(PermissionKeys.Vendor.BranchTeamView)]
-    public IActionResult GetBranches()
+    public async Task<IActionResult> GetBranches(CancellationToken cancellationToken)
     {
-        return Ok(Array.Empty<object>());
+        var scope = await _currentVendorService.GetRequiredVendorScopeAsync(cancellationToken);
+        var query = _context.VendorBranches
+            .AsNoTracking()
+            .Include(branch => branch.OperatingHours)
+            .Where(branch => branch.VendorId == scope.VendorId);
+
+        if (scope.BranchId.HasValue)
+        {
+            query = query.Where(branch => branch.Id == scope.BranchId.Value);
+        }
+
+        var branches = await query
+            .OrderByDescending(branch => branch.IsPrimary)
+            .ThenBy(branch => branch.CreatedAtUtc)
+            .ThenBy(branch => branch.Name)
+            .ToListAsync(cancellationToken);
+
+        return Ok(branches.Select(ToBranchResponse));
+    }
+
+    [Authorize(Policy = "VendorOnly")]
+    [HttpPost("branches")]
+    [RequireAccess(PermissionKeys.Vendor.BranchTeamCreate)]
+    public async Task<IActionResult> CreateBranch(
+        [FromBody] VendorBranchCreateRequest request,
+        CancellationToken cancellationToken)
+    {
+        var scope = await _currentVendorService.GetRequiredVendorScopeAsync(cancellationToken);
+        if (scope.BranchId.HasValue)
+        {
+            return Forbid();
+        }
+
+        var name = string.IsNullOrWhiteSpace(request.Name)
+            ? throw new BusinessRuleException("BRANCH_NAME_REQUIRED", "Branch name is required.")
+            : request.Name.Trim();
+        var addressLine = string.IsNullOrWhiteSpace(request.AddressLine)
+            ? throw new BusinessRuleException("BRANCH_ADDRESS_REQUIRED", "Branch address is required.")
+            : request.AddressLine.Trim();
+        var contactPhone = (request.Phone ?? string.Empty).Trim();
+        if (contactPhone.Length > 20)
+        {
+            contactPhone = contactPhone[..20];
+        }
+        var deliveryRadiusKm = request.DeliveryRadiusKm.GetValueOrDefault(5m);
+        if (deliveryRadiusKm <= 0)
+        {
+            deliveryRadiusKm = 5m;
+        }
+
+        var code = string.IsNullOrWhiteSpace(request.Code)
+            ? GenerateBranchCode(name)
+            : request.Code.Trim();
+        var managerName = string.IsNullOrWhiteSpace(request.ManagerName)
+            ? throw new BusinessRuleException("BRANCH_MANAGER_NAME_REQUIRED", "Branch manager name is required.")
+            : request.ManagerName.Trim();
+        var managerContact = string.IsNullOrWhiteSpace(request.ManagerContact)
+            ? throw new BusinessRuleException("BRANCH_MANAGER_CONTACT_REQUIRED", "Branch manager contact is required.")
+            : request.ManagerContact.Trim();
+        var region = string.IsNullOrWhiteSpace(request.Region)
+            ? throw new BusinessRuleException("BRANCH_REGION_REQUIRED", "Branch region is required.")
+            : request.Region.Trim();
+        var city = string.IsNullOrWhiteSpace(request.City)
+            ? throw new BusinessRuleException("BRANCH_CITY_REQUIRED", "Branch city is required.")
+            : request.City.Trim();
+        var isPrimary = request.IsPrimary || !await _context.VendorBranches
+            .AsNoTracking()
+            .AnyAsync(branch => branch.VendorId == scope.VendorId, cancellationToken);
+
+        var duplicateCodeExists = await _context.VendorBranches
+            .AsNoTracking()
+            .AnyAsync(branch => branch.VendorId == scope.VendorId && branch.Code == code, cancellationToken);
+        if (duplicateCodeExists)
+        {
+            throw new BusinessRuleException("BRANCH_CODE_CONFLICT", "Branch code is already in use.");
+        }
+
+        if (isPrimary)
+        {
+            var existingPrimary = await _context.VendorBranches
+                .Where(branch => branch.VendorId == scope.VendorId && branch.IsPrimary)
+                .ToListAsync(cancellationToken);
+
+            foreach (var existingBranch in existingPrimary)
+            {
+                existingBranch.SetPrimary(false);
+            }
+        }
+
+        var branch = new VendorBranch(
+            scope.VendorId,
+            name,
+            code,
+            isPrimary,
+            addressLine,
+            region,
+            city,
+            request.Latitude ?? 0,
+            request.Longitude ?? 0,
+            contactPhone,
+            managerName,
+            managerContact,
+            deliveryRadiusKm);
+
+        _context.VendorBranches.Add(branch);
+
+        foreach (var operatingHour in NormalizeOperatingHours(branch.Id, request.OperatingHours))
+        {
+            _context.BranchOperatingHours.Add(operatingHour);
+        }
+
+        await _context.SaveChangesAsync(cancellationToken);
+
+        branch = await _context.VendorBranches
+            .AsNoTracking()
+            .Include(item => item.OperatingHours)
+            .FirstAsync(item => item.Id == branch.Id, cancellationToken);
+
+        return Ok(ToBranchResponse(branch));
     }
 
     [Authorize(Policy = "VendorOnly")]
     [HttpGet("staff")]
     [RequireAccess(PermissionKeys.Vendor.BranchTeamView)]
-    public IActionResult GetStaff()
+    public async Task<IActionResult> GetStaff(CancellationToken cancellationToken)
     {
-        return Ok(Array.Empty<object>());
+        var scope = await _currentVendorService.GetRequiredVendorScopeAsync(cancellationToken);
+        var staff = await LoadStaffAsync(scope, cancellationToken);
+        return Ok(staff);
     }
 
     [Authorize(Policy = "VendorOnly")]
     [HttpGet("staff/{id:guid}")]
     [RequireAccess(PermissionKeys.Vendor.BranchTeamView)]
-    public IActionResult GetStaffMember(Guid id)
+    public async Task<IActionResult> GetStaffMember(Guid id, CancellationToken cancellationToken)
     {
-        return NotFound();
+        var scope = await _currentVendorService.GetRequiredVendorScopeAsync(cancellationToken);
+        var member = await FindStaffMemberAsync(scope, id, cancellationToken);
+        return Ok(member);
     }
 
     [Authorize(Policy = "VendorOnly")]
@@ -81,16 +206,20 @@ public class VendorAccessController : ApiControllerBase
     [RequireAccess(PermissionKeys.Vendor.BranchTeamView)]
     public async Task<IActionResult> GetInvitations(CancellationToken cancellationToken)
     {
-        var vendorId = await _currentVendorService.GetRequiredVendorIdAsync(cancellationToken);
-        await ExpireDueInvitationsAsync(vendorId, cancellationToken);
+        var scope = await _currentVendorService.GetRequiredVendorScopeAsync(cancellationToken);
+        await ExpireDueInvitationsAsync(scope.VendorId, cancellationToken);
 
         var invitations = await _context.VendorStaffInvitations
             .AsNoTracking()
-            .Where(invitation => invitation.VendorId == vendorId)
+            .Where(invitation => invitation.VendorId == scope.VendorId)
             .OrderByDescending(invitation => invitation.SentAtUtc)
             .ToListAsync(cancellationToken);
 
-        return Ok(invitations.Select(invitation => ToResponse(invitation, null)));
+        var filteredInvitations = scope.BranchId.HasValue
+            ? invitations.Where(invitation => ParseBranchIds(invitation.BranchIdsJson).Contains(scope.BranchId.Value))
+            : invitations;
+
+        return Ok(filteredInvitations.Select(invitation => ToResponse(invitation, null)));
     }
 
     [Authorize(Policy = "VendorOnly")]
@@ -98,13 +227,15 @@ public class VendorAccessController : ApiControllerBase
     [RequireAccess(PermissionKeys.Vendor.BranchTeamView)]
     public async Task<IActionResult> GetInvitation(Guid id, CancellationToken cancellationToken)
     {
-        var vendorId = await _currentVendorService.GetRequiredVendorIdAsync(cancellationToken);
-        await ExpireDueInvitationsAsync(vendorId, cancellationToken);
+        var scope = await _currentVendorService.GetRequiredVendorScopeAsync(cancellationToken);
+        await ExpireDueInvitationsAsync(scope.VendorId, cancellationToken);
 
         var invitation = await _context.VendorStaffInvitations
             .AsNoTracking()
-            .FirstOrDefaultAsync(item => item.Id == id && item.VendorId == vendorId, cancellationToken)
+            .FirstOrDefaultAsync(item => item.Id == id && item.VendorId == scope.VendorId, cancellationToken)
             ?? throw new NotFoundException("VendorStaffInvitation", id);
+
+        EnsureInvitationInScope(invitation, scope);
 
         return Ok(ToResponse(invitation, null));
     }
@@ -116,11 +247,13 @@ public class VendorAccessController : ApiControllerBase
         [FromBody] VendorStaffInvitationCreateRequest request,
         CancellationToken cancellationToken)
     {
-        var vendorId = await _currentVendorService.GetRequiredVendorIdAsync(cancellationToken);
+        var scope = await _currentVendorService.GetRequiredVendorScopeAsync(cancellationToken);
         var currentUserId = _currentUserService.UserId ?? throw new UnauthorizedException("USER_NOT_AUTHENTICATED");
-        var vendor = await RequireVendorAsync(vendorId, cancellationToken);
+        var vendor = await RequireVendorAsync(scope.VendorId, cancellationToken);
         var normalized = NormalizeCreateRequest(request);
-        await EnsureNotAlreadyStaffAsync(vendorId, normalized.Email, cancellationToken);
+        await EnsureInvitationBranchesAsync(scope.VendorId, normalized.BranchIds, cancellationToken);
+        EnsureBranchSelectionAllowed(normalized.BranchIds, scope);
+        await EnsureNotAlreadyStaffAsync(scope.VendorId, normalized.Email, cancellationToken);
 
         var now = DateTime.UtcNow;
         var token = GenerateToken();
@@ -131,7 +264,7 @@ public class VendorAccessController : ApiControllerBase
 
         var invitation = await _context.VendorStaffInvitations
             .FirstOrDefaultAsync(item =>
-                item.VendorId == vendorId &&
+                item.VendorId == scope.VendorId &&
                 item.Email == normalized.Email &&
                 item.Status != VendorStaffInvitation.StatusAccepted &&
                 item.Status != VendorStaffInvitation.StatusRevoked,
@@ -139,8 +272,8 @@ public class VendorAccessController : ApiControllerBase
 
         if (invitation is null)
         {
-            invitation = new VendorStaffInvitation(
-                vendorId,
+                invitation = new VendorStaffInvitation(
+                scope.VendorId,
                 currentUserId,
                 normalized.Type,
                 normalized.TargetName,
@@ -177,7 +310,7 @@ public class VendorAccessController : ApiControllerBase
         await _context.SaveChangesAsync(cancellationToken);
 
         var response = ToResponse(invitation, inviteLink);
-        return sendResult.Success ? Ok(response) : StatusCode(StatusCodes.Status502BadGateway, response);
+        return Ok(response);
     }
 
     [Authorize(Policy = "VendorOnly")]
@@ -185,9 +318,10 @@ public class VendorAccessController : ApiControllerBase
     [RequireAccess(PermissionKeys.Vendor.BranchTeamEdit)]
     public async Task<IActionResult> ResendInvitation(Guid id, CancellationToken cancellationToken)
     {
-        var vendorId = await _currentVendorService.GetRequiredVendorIdAsync(cancellationToken);
-        var vendor = await RequireVendorAsync(vendorId, cancellationToken);
-        var invitation = await RequireInvitationAsync(vendorId, id, cancellationToken);
+        var scope = await _currentVendorService.GetRequiredVendorScopeAsync(cancellationToken);
+        var vendor = await RequireVendorAsync(scope.VendorId, cancellationToken);
+        var invitation = await RequireInvitationAsync(scope.VendorId, id, cancellationToken);
+        EnsureInvitationInScope(invitation, scope);
 
         if (invitation.Status == VendorStaffInvitation.StatusAccepted)
         {
@@ -210,7 +344,7 @@ public class VendorAccessController : ApiControllerBase
         await _context.SaveChangesAsync(cancellationToken);
 
         var response = ToResponse(invitation, inviteLink);
-        return sendResult.Success ? Ok(response) : StatusCode(StatusCodes.Status502BadGateway, response);
+        return Ok(response);
     }
 
     [Authorize(Policy = "VendorOnly")]
@@ -218,11 +352,108 @@ public class VendorAccessController : ApiControllerBase
     [RequireAccess(PermissionKeys.Vendor.BranchTeamEdit)]
     public async Task<IActionResult> RevokeInvitation(Guid id, CancellationToken cancellationToken)
     {
-        var vendorId = await _currentVendorService.GetRequiredVendorIdAsync(cancellationToken);
-        var invitation = await RequireInvitationAsync(vendorId, id, cancellationToken);
+        var scope = await _currentVendorService.GetRequiredVendorScopeAsync(cancellationToken);
+        var invitation = await RequireInvitationAsync(scope.VendorId, id, cancellationToken);
+        EnsureInvitationInScope(invitation, scope);
         invitation.Revoke(DateTime.UtcNow);
         await _context.SaveChangesAsync(cancellationToken);
         return Ok(ToResponse(invitation, null));
+    }
+
+    [Authorize(Policy = "VendorOnly")]
+    [HttpDelete("staff/invitations/{id:guid}")]
+    [RequireAccess(PermissionKeys.Vendor.BranchTeamEdit)]
+    public async Task<IActionResult> DeleteInvitation(Guid id, CancellationToken cancellationToken)
+    {
+        var scope = await _currentVendorService.GetRequiredVendorScopeAsync(cancellationToken);
+        var invitation = await RequireInvitationAsync(scope.VendorId, id, cancellationToken);
+        EnsureInvitationInScope(invitation, scope);
+
+        _context.VendorStaffInvitations.Remove(invitation);
+        await _context.SaveChangesAsync(cancellationToken);
+
+        return NoContent();
+    }
+
+    [Authorize(Policy = "VendorOnly")]
+    [HttpDelete("branches/{id:guid}")]
+    [RequireAccess(PermissionKeys.Vendor.BranchTeamEdit)]
+    public async Task<IActionResult> DeleteBranch(Guid id, CancellationToken cancellationToken)
+    {
+        var scope = await _currentVendorService.GetRequiredVendorScopeAsync(cancellationToken);
+        if (scope.BranchId.HasValue)
+        {
+            return Forbid();
+        }
+
+        var branch = await _context.VendorBranches
+            .Include(item => item.OperatingHours)
+            .FirstOrDefaultAsync(item => item.Id == id && item.VendorId == scope.VendorId, cancellationToken)
+            ?? throw new NotFoundException("VendorBranch", id);
+
+        if (branch.IsPrimary)
+        {
+            throw new BusinessRuleException(
+                "PRIMARY_BRANCH_DELETE_FORBIDDEN",
+                "The primary branch cannot be deleted.");
+        }
+
+        var hasProducts = await _context.VendorProducts
+            .AsNoTracking()
+            .AnyAsync(item => item.VendorBranchId == branch.Id, cancellationToken);
+        if (hasProducts)
+        {
+            throw new BusinessRuleException(
+                "BRANCH_DELETE_BLOCKED_PRODUCTS",
+                "This branch cannot be deleted because products are assigned to it.");
+        }
+
+        var hasOrders = await _context.Orders
+            .AsNoTracking()
+            .AnyAsync(item => item.VendorBranchId == branch.Id, cancellationToken);
+        if (hasOrders)
+        {
+            throw new BusinessRuleException(
+                "BRANCH_DELETE_BLOCKED_ORDERS",
+                "This branch cannot be deleted because orders are assigned to it.");
+        }
+
+        var hasStaffScopes = await _context.UserAccessScopes
+            .AsNoTracking()
+            .AnyAsync(item =>
+                item.IsActive &&
+                item.PanelScope == PanelScope.VendorPanel &&
+                item.ScopeType == AccessScopeType.VendorBranch &&
+                item.ScopeEntityId == branch.Id,
+                cancellationToken);
+        if (hasStaffScopes)
+        {
+            throw new BusinessRuleException(
+                "BRANCH_DELETE_BLOCKED_STAFF",
+                "This branch cannot be deleted because staff members still have access to it.");
+        }
+
+        var invitations = await _context.VendorStaffInvitations
+            .AsNoTracking()
+            .Where(item => item.VendorId == scope.VendorId)
+            .ToListAsync(cancellationToken);
+        var hasInvitations = invitations.Any(item => ParseBranchIds(item.BranchIdsJson).Contains(branch.Id));
+        if (hasInvitations)
+        {
+            throw new BusinessRuleException(
+                "BRANCH_DELETE_BLOCKED_INVITATIONS",
+                "This branch cannot be deleted because invitations are still linked to it.");
+        }
+
+        if (branch.OperatingHours.Count > 0)
+        {
+            _context.BranchOperatingHours.RemoveRange(branch.OperatingHours);
+        }
+
+        _context.VendorBranches.Remove(branch);
+        await _context.SaveChangesAsync(cancellationToken);
+
+        return NoContent();
     }
 
     [AllowAnonymous]
@@ -287,42 +518,105 @@ public class VendorAccessController : ApiControllerBase
         var fullName = string.IsNullOrWhiteSpace(request.FullName)
             ? invitation.TargetName
             : request.FullName.Trim();
-        var createResult = await _identityAccountService.CreateAsync(
-            new CreateIdentityAccountRequest(
-                fullName,
-                invitation.Email,
-                BuildSyntheticStaffPhone(invitation.Id),
-                UserRole.VendorStaff,
-                request.Password),
-            cancellationToken);
+        var existingAccount = await _identityAccountService.FindByIdentifierAsync(invitation.Email, cancellationToken);
 
-        if (createResult.Status == IdentityCreateStatus.DuplicateEmailOrPhone)
+        User user;
+        if (existingAccount is not null)
         {
-            return Conflict(new { code = "USER_ALREADY_EXISTS", message = "An account already exists for this email." });
-        }
-
-        if (createResult.Status != IdentityCreateStatus.Succeeded || createResult.Account is null)
-        {
-            return BadRequest(new
+            if (existingAccount.Role != UserRole.VendorStaff)
             {
-                code = "IDENTITY_CREATE_FAILED",
-                message = string.Join(", ", createResult.Errors ?? ["Unable to create the staff account."])
-            });
+                return Conflict(new { code = "USER_ALREADY_EXISTS", message = "An account already exists for this email." });
+            }
+
+            var linkedVendorIds = await GetLinkedVendorIdsAsync(existingAccount.Id, cancellationToken);
+            if (linkedVendorIds.Any(vendorId => vendorId != invitation.VendorId))
+            {
+                return Conflict(new
+                {
+                    code = "STAFF_ACCOUNT_LINKED_TO_ANOTHER_VENDOR",
+                    message = "This staff account is already linked to another vendor."
+                });
+            }
+
+            var resetResult = await _identityAccountService.ResetPasswordByAdminAsync(existingAccount.Id, request.Password, cancellationToken);
+            if (!resetResult.Succeeded)
+            {
+                return BadRequest(new
+                {
+                    code = "IDENTITY_PASSWORD_RESET_FAILED",
+                    message = string.Join(", ", resetResult.Errors ?? ["Unable to prepare the staff account."])
+                });
+            }
+
+            await _identityAccountService.ActivateAsync(existingAccount.Id, cancellationToken);
+            await _identityAccountService.UnlockLoginAsync(existingAccount.Id, cancellationToken);
+
+            user = await _context.Users.FirstAsync(item => item.Id == existingAccount.Id, cancellationToken);
+            user.UpdateProfile(fullName, invitation.Email, BuildSyntheticStaffPhone(invitation.Id));
+        }
+        else
+        {
+            var createResult = await _identityAccountService.CreateAsync(
+                new CreateIdentityAccountRequest(
+                    fullName,
+                    invitation.Email,
+                    BuildSyntheticStaffPhone(invitation.Id),
+                    UserRole.VendorStaff,
+                    request.Password),
+                cancellationToken);
+
+            if (createResult.Status == IdentityCreateStatus.DuplicateEmailOrPhone)
+            {
+                return Conflict(new { code = "USER_ALREADY_EXISTS", message = "An account already exists for this email." });
+            }
+
+            if (createResult.Status != IdentityCreateStatus.Succeeded || createResult.Account is null)
+            {
+                return BadRequest(new
+                {
+                    code = "IDENTITY_CREATE_FAILED",
+                    message = string.Join(", ", createResult.Errors ?? ["Unable to create the staff account."])
+                });
+            }
+
+            user = await _context.Users.FirstAsync(item => item.Id == createResult.Account.Id, cancellationToken);
         }
 
-        var user = await _context.Users.FirstAsync(item => item.Id == createResult.Account.Id, cancellationToken);
         user.VerifyEmail();
         user.UpdateDirectoryProfile("Vendor team", invitation.RoleTemplate);
 
         var (scopeType, scopeEntityId) = await ResolveScopeAsync(invitation, cancellationToken);
-        _context.UserAccessScopes.Add(new UserAccessScope(
-            user.Id,
-            role.Id,
-            PanelScope.VendorPanel,
-            scopeType,
-            scopeEntityId,
-            $"Accepted vendor staff invitation {invitation.Id}."));
+        var existingScope = await _context.UserAccessScopes
+            .FirstOrDefaultAsync(item => item.UserId == user.Id && item.PanelScope == PanelScope.VendorPanel, cancellationToken);
 
+        if (existingScope is not null)
+        {
+            existingScope.Update(
+                role.Id,
+                PanelScope.VendorPanel,
+                scopeType,
+                scopeEntityId,
+                $"Accepted vendor staff invitation {invitation.Id}.");
+            existingScope.Activate();
+        }
+        else
+        {
+            _context.UserAccessScopes.Add(new UserAccessScope(
+                user.Id,
+                role.Id,
+                PanelScope.VendorPanel,
+                scopeType,
+                scopeEntityId,
+                $"Accepted vendor staff invitation {invitation.Id}."));
+        }
+
+        var existingOverrides = await _context.UserPermissionOverrides
+            .Where(item => item.UserId == user.Id)
+            .ToListAsync(cancellationToken);
+        if (existingOverrides.Count > 0)
+        {
+            _context.UserPermissionOverrides.RemoveRange(existingOverrides);
+        }
         ApplyPermissionOverrides(user.Id, invitation.PermissionsJson, roleCode);
         user.IncrementPermissionVersion();
         invitation.Accept(user.Id, now);
@@ -340,33 +634,330 @@ public class VendorAccessController : ApiControllerBase
     [Authorize(Policy = "VendorOnly")]
     [HttpPut("staff/{id:guid}/role")]
     [RequireAccess(PermissionKeys.Vendor.BranchTeamEdit)]
-    public IActionResult UpdateStaffRole(Guid id, [FromBody] object request)
+    public async Task<IActionResult> UpdateStaffRole(
+        Guid id,
+        [FromBody] VendorStaffRoleUpdateRequest request,
+        CancellationToken cancellationToken)
     {
-        return Ok();
+        var scope = await _currentVendorService.GetRequiredVendorScopeAsync(cancellationToken);
+        var member = await RequireMutableStaffMemberAsync(scope, id, cancellationToken);
+        var roleCode = ResolveRoleCode(request.RoleTemplate);
+        var role = await _context.RoleDefinitions
+            .Include(item => item.RolePermissions)
+                .ThenInclude(item => item.PermissionDefinition)
+            .FirstOrDefaultAsync(item => item.Code == roleCode && item.IsActive, cancellationToken)
+            ?? throw new BusinessRuleException("ROLE_NOT_CONFIGURED", $"Role {roleCode} is not configured.");
+
+        var userScope = await _context.UserAccessScopes
+            .FirstAsync(item => item.UserId == member.UserId && item.PanelScope == PanelScope.VendorPanel && item.IsActive, cancellationToken);
+        userScope.Update(
+            role.Id,
+            PanelScope.VendorPanel,
+            member.ScopeType,
+            member.ScopeEntityId,
+            member.Notes);
+
+        if (request.Permissions is not null)
+        {
+            var existingOverrides = await _context.UserPermissionOverrides
+                .Where(item => item.UserId == member.UserId)
+                .ToListAsync(cancellationToken);
+            if (existingOverrides.Count > 0)
+            {
+                _context.UserPermissionOverrides.RemoveRange(existingOverrides);
+            }
+
+            ApplyPermissionOverrides(member.UserId, JsonSerializer.Serialize(request.Permissions, JsonOptions), roleCode);
+        }
+
+        var user = await _context.Users.FirstAsync(item => item.Id == member.UserId, cancellationToken);
+        user.UpdateDirectoryProfile(user.Department, request.RoleTemplate);
+        user.IncrementPermissionVersion();
+        await _context.SaveChangesAsync(cancellationToken);
+
+        return Ok(await FindStaffMemberAsync(scope, id, cancellationToken));
     }
 
     [Authorize(Policy = "VendorOnly")]
     [HttpPut("staff/{id:guid}/scope")]
     [RequireAccess(PermissionKeys.Vendor.BranchTeamEdit)]
-    public IActionResult UpdateStaffScope(Guid id, [FromBody] object request)
+    public async Task<IActionResult> UpdateStaffScope(
+        Guid id,
+        [FromBody] VendorStaffScopeUpdateRequest request,
+        CancellationToken cancellationToken)
     {
-        return Ok();
+        var scope = await _currentVendorService.GetRequiredVendorScopeAsync(cancellationToken);
+        var member = await RequireMutableStaffMemberAsync(scope, id, cancellationToken);
+        await EnsureInvitationBranchesAsync(scope.VendorId, request.BranchIds, cancellationToken);
+        EnsureBranchSelectionAllowed(request.BranchIds, scope);
+
+        var branchId = Guid.Parse(request.BranchIds[0]);
+        await Sender.Send(new UpdateUserScopeCommand(
+            member.UserId,
+            member.RoleDefinitionId,
+            PanelScope.VendorPanel,
+            AccessScopeType.VendorBranch,
+            branchId,
+            member.Notes), cancellationToken);
+
+        return Ok(await FindStaffMemberAsync(scope, id, cancellationToken));
     }
 
     [Authorize(Policy = "VendorOnly")]
     [HttpPut("staff/{id:guid}/overrides")]
     [RequireAccess(PermissionKeys.Vendor.BranchTeamEdit)]
-    public IActionResult UpdateStaffOverrides(Guid id, [FromBody] object request)
+    public async Task<IActionResult> UpdateStaffOverrides(
+        Guid id,
+        [FromBody] VendorStaffOverridesUpdateRequest request,
+        CancellationToken cancellationToken)
     {
-        return Ok();
+        var scope = await _currentVendorService.GetRequiredVendorScopeAsync(cancellationToken);
+        var member = await RequireMutableStaffMemberAsync(scope, id, cancellationToken);
+        var grantedPermissions = ResolveRequestedPermissionKeys(request.Permissions ?? new Dictionary<string, Dictionary<string, bool>>());
+        grantedPermissions.UnionWith(PermissionKeys.Vendor.SessionBaseline);
+
+        var defaultPermissions = ResolveDefaultPermissionKeys(member.RoleCode).ToHashSet(StringComparer.OrdinalIgnoreCase);
+        var grantedOverrides = grantedPermissions.Except(defaultPermissions, StringComparer.OrdinalIgnoreCase).ToList();
+        var revokedOverrides = defaultPermissions.Except(grantedPermissions, StringComparer.OrdinalIgnoreCase).ToList();
+
+        await Sender.Send(new UpdateUserOverridesCommand(member.UserId, grantedOverrides, revokedOverrides), cancellationToken);
+
+        return Ok(await FindStaffMemberAsync(scope, id, cancellationToken));
+    }
+
+    [Authorize(Policy = "VendorOnly")]
+    [HttpPut("staff/{id:guid}/status")]
+    [RequireAccess(PermissionKeys.Vendor.BranchTeamEdit)]
+    public async Task<IActionResult> UpdateStaffStatus(
+        Guid id,
+        [FromBody] VendorStaffStatusUpdateRequest request,
+        CancellationToken cancellationToken)
+    {
+        var scope = await _currentVendorService.GetRequiredVendorScopeAsync(cancellationToken);
+        var member = await RequireMutableStaffMemberAsync(scope, id, cancellationToken);
+        var user = await _context.Users.FirstAsync(item => item.Id == member.UserId, cancellationToken);
+
+        if (string.Equals(request.Status, "suspended", StringComparison.OrdinalIgnoreCase))
+        {
+            user.LockLogin("Suspended by vendor branch/staff administration.");
+        }
+        else
+        {
+            user.Activate();
+            user.UnlockLogin();
+        }
+
+        user.IncrementPermissionVersion();
+        await _context.SaveChangesAsync(cancellationToken);
+
+        return Ok(await FindStaffMemberAsync(scope, id, cancellationToken));
+    }
+
+    [Authorize(Policy = "VendorOnly")]
+    [HttpDelete("staff/{id:guid}")]
+    [RequireAccess(PermissionKeys.Vendor.BranchTeamEdit)]
+    public async Task<IActionResult> DeleteStaff(Guid id, CancellationToken cancellationToken)
+    {
+        var scope = await _currentVendorService.GetRequiredVendorScopeAsync(cancellationToken);
+        var member = await RequireMutableStaffMemberAsync(scope, id, cancellationToken);
+
+        var relatedScopes = await _context.UserAccessScopes
+            .Where(item => item.UserId == member.UserId && item.PanelScope == PanelScope.VendorPanel)
+            .ToListAsync(cancellationToken);
+        foreach (var userScope in relatedScopes)
+        {
+            userScope.Deactivate();
+        }
+
+        var overrides = await _context.UserPermissionOverrides
+            .Where(item => item.UserId == member.UserId)
+            .ToListAsync(cancellationToken);
+        if (overrides.Count > 0)
+        {
+            _context.UserPermissionOverrides.RemoveRange(overrides);
+        }
+
+        var user = await _context.Users.FirstAsync(item => item.Id == member.UserId, cancellationToken);
+        user.LockLogin("Vendor staff access removed.");
+        user.IncrementPermissionVersion();
+
+        await _context.SaveChangesAsync(cancellationToken);
+        return NoContent();
     }
 
     [Authorize(Policy = "VendorOnly")]
     [HttpGet("staff/{id:guid}/effective-access")]
     [RequireAccess(PermissionKeys.Vendor.BranchTeamView)]
-    public IActionResult GetStaffEffectiveAccess(Guid id)
+    public async Task<IActionResult> GetStaffEffectiveAccess(Guid id, CancellationToken cancellationToken)
     {
-        return Ok();
+        var scope = await _currentVendorService.GetRequiredVendorScopeAsync(cancellationToken);
+        await RequireMutableStaffMemberAsync(scope, id, cancellationToken);
+        var result = await Sender.Send(new GetUserEffectiveAccessQuery(id), cancellationToken);
+        return Ok(result);
+    }
+
+    [Authorize(Policy = "VendorOnly")]
+    [HttpPut("branches/{id:guid}/status")]
+    [RequireAccess(PermissionKeys.Vendor.BranchTeamEdit)]
+    public async Task<IActionResult> UpdateBranchStatus(
+        Guid id,
+        [FromBody] VendorBranchStatusUpdateRequest request,
+        CancellationToken cancellationToken)
+    {
+        var scope = await RequireCompanyScopeForMutationAsync(cancellationToken);
+        var branch = await _context.VendorBranches
+            .Include(item => item.OperatingHours)
+            .FirstOrDefaultAsync(item => item.Id == id && item.VendorId == scope.VendorId, cancellationToken)
+            ?? throw new NotFoundException("VendorBranch", id);
+
+        if (branch.IsPrimary && string.Equals(request.Status, "archived", StringComparison.OrdinalIgnoreCase))
+        {
+            throw new BusinessRuleException("PRIMARY_BRANCH_DELETE_FORBIDDEN", "The primary branch cannot be archived.");
+        }
+
+        if (string.Equals(request.Status, "active", StringComparison.OrdinalIgnoreCase))
+        {
+            branch.Activate();
+        }
+        else
+        {
+            branch.Deactivate();
+        }
+
+        await _context.SaveChangesAsync(cancellationToken);
+        return Ok(ToBranchResponse(branch));
+    }
+
+    private async Task<IReadOnlyList<VendorStaffResponse>> LoadStaffAsync(
+        CurrentVendorScope currentScope,
+        CancellationToken cancellationToken)
+    {
+        var members = await LoadStaffMembersAsync(currentScope, cancellationToken);
+
+        return members.Select(ToStaffResponse).ToArray();
+    }
+
+    private async Task<VendorStaffResponse> FindStaffMemberAsync(
+        CurrentVendorScope currentScope,
+        Guid userId,
+        CancellationToken cancellationToken)
+    {
+        var member = await RequireMutableStaffMemberAsync(currentScope, userId, cancellationToken);
+        return ToStaffResponse(member);
+    }
+
+    private async Task<StaffMemberProjection> RequireMutableStaffMemberAsync(
+        CurrentVendorScope currentScope,
+        Guid userId,
+        CancellationToken cancellationToken)
+    {
+        var members = await LoadStaffMembersAsync(currentScope, cancellationToken);
+        var member = members.FirstOrDefault(item => item.UserId == userId);
+
+        return member ?? throw new NotFoundException("VendorStaff", userId);
+    }
+
+    private async Task<List<StaffMemberProjection>> LoadStaffMembersAsync(
+        CurrentVendorScope currentScope,
+        CancellationToken cancellationToken)
+    {
+        var relevantBranches = await _context.VendorBranches
+            .AsNoTracking()
+            .Where(branch => branch.VendorId == currentScope.VendorId)
+            .ToDictionaryAsync(branch => branch.Id, cancellationToken);
+
+        var scopes = await _context.UserAccessScopes
+            .AsNoTracking()
+            .Include(item => item.User)
+            .Include(item => item.RoleDefinition)
+                .ThenInclude(role => role.RolePermissions)
+                    .ThenInclude(rolePermission => rolePermission.PermissionDefinition)
+            .Where(item => item.PanelScope == PanelScope.VendorPanel && item.IsActive)
+            .ToListAsync(cancellationToken);
+
+        var filteredScopes = scopes
+            .Where(item =>
+                item.User.Role == UserRole.VendorStaff &&
+                ((item.ScopeType == AccessScopeType.VendorCompany && item.ScopeEntityId == currentScope.VendorId) ||
+                 (item.ScopeType == AccessScopeType.VendorBranch &&
+                  item.ScopeEntityId.HasValue &&
+                  relevantBranches.ContainsKey(item.ScopeEntityId.Value))))
+            .Where(item =>
+                !currentScope.BranchId.HasValue ||
+                (item.ScopeType == AccessScopeType.VendorBranch && item.ScopeEntityId == currentScope.BranchId.Value))
+            .ToList();
+
+        var userIds = filteredScopes.Select(item => item.UserId).Distinct().ToArray();
+        var overrides = await _context.UserPermissionOverrides
+            .AsNoTracking()
+            .Where(item => userIds.Contains(item.UserId) && item.IsActive)
+            .ToListAsync(cancellationToken);
+        var overridesByUserId = overrides
+            .GroupBy(item => item.UserId)
+            .ToDictionary(group => group.Key, group => group.ToList());
+
+        var members = filteredScopes
+            .Select(item =>
+            {
+                relevantBranches.TryGetValue(item.ScopeEntityId ?? Guid.Empty, out var branch);
+                overridesByUserId.TryGetValue(item.UserId, out var userOverrides);
+                return new StaffMemberProjection(
+                    item.UserId,
+                    item.User,
+                    item,
+                    branch,
+                    item.RoleDefinition,
+                    userOverrides ?? []);
+            })
+            .OrderBy(item => item.User.FullName, StringComparer.OrdinalIgnoreCase)
+            .ToList();
+
+        return members;
+    }
+
+    private async Task<CurrentVendorScope> RequireCompanyScopeForMutationAsync(CancellationToken cancellationToken)
+    {
+        var scope = await _currentVendorService.GetRequiredVendorScopeAsync(cancellationToken);
+        if (scope.BranchId.HasValue)
+        {
+            throw new UnauthorizedException("BRANCH_SCOPE_MUTATION_FORBIDDEN");
+        }
+
+        return scope;
+    }
+
+    private static void EnsureInvitationInScope(VendorStaffInvitation invitation, CurrentVendorScope scope)
+    {
+        if (!scope.BranchId.HasValue)
+        {
+            return;
+        }
+
+        var invitationBranchIds = ParseBranchIds(invitation.BranchIdsJson);
+        if (!invitationBranchIds.Contains(scope.BranchId.Value))
+        {
+            throw new UnauthorizedException("INVITATION_SCOPE_FORBIDDEN");
+        }
+    }
+
+    private static void EnsureBranchSelectionAllowed(IEnumerable<string> branchIds, CurrentVendorScope scope)
+    {
+        if (!scope.BranchId.HasValue)
+        {
+            return;
+        }
+
+        var selectedIds = branchIds
+            .Select(item => Guid.TryParse(item, out var parsed) ? parsed : (Guid?)null)
+            .Where(item => item.HasValue)
+            .Select(item => item!.Value)
+            .Distinct()
+            .ToArray();
+
+        if (selectedIds.Length != 1 || selectedIds[0] != scope.BranchId.Value)
+        {
+            throw new UnauthorizedException("BRANCH_SCOPE_MUTATION_FORBIDDEN");
+        }
     }
 
     private async Task<Vendor> RequireVendorAsync(Guid vendorId, CancellationToken cancellationToken) =>
@@ -417,6 +1008,32 @@ public class VendorAccessController : ApiControllerBase
         {
             throw new BusinessRuleException("STAFF_ALREADY_EXISTS", "This email already has access to this vendor.");
         }
+    }
+
+    private async Task<HashSet<Guid>> GetLinkedVendorIdsAsync(Guid userId, CancellationToken cancellationToken)
+    {
+        var companyVendorIds = await _context.UserAccessScopes
+            .AsNoTracking()
+            .Where(item =>
+                item.UserId == userId &&
+                item.PanelScope == PanelScope.VendorPanel &&
+                item.ScopeType == AccessScopeType.VendorCompany &&
+                item.ScopeEntityId.HasValue)
+            .Select(item => item.ScopeEntityId!.Value)
+            .ToListAsync(cancellationToken);
+
+        var branchVendorIds = await (
+            from scope in _context.UserAccessScopes.AsNoTracking()
+            join branch in _context.VendorBranches.AsNoTracking() on scope.ScopeEntityId equals branch.Id
+            where scope.UserId == userId &&
+                  scope.PanelScope == PanelScope.VendorPanel &&
+                  scope.ScopeType == AccessScopeType.VendorBranch
+            select branch.VendorId)
+            .ToListAsync(cancellationToken);
+
+        return companyVendorIds
+            .Concat(branchVendorIds)
+            .ToHashSet();
     }
 
     private async Task ExpireDueInvitationsAsync(Guid vendorId, CancellationToken cancellationToken)
@@ -535,31 +1152,155 @@ public class VendorAccessController : ApiControllerBase
             """;
     }
 
+    private static VendorStaffResponse ToStaffResponse(StaffMemberProjection member)
+    {
+        var effectivePermissions = BuildEffectivePermissions(member.RoleDefinition, member.Overrides);
+        var roleTemplate = ResolveRoleTemplate(member.User.Team, member.RoleCode);
+        var status = member.User.AccountStatus == AccountStatus.Active && !member.User.IsLoginLocked && member.Scope.IsActive
+            ? "active"
+            : "suspended";
+
+        return new VendorStaffResponse(
+            member.UserId,
+            member.User.FullName,
+            member.User.Email ?? string.Empty,
+            status,
+            roleTemplate,
+            member.Scope.ScopeEntityId.HasValue && member.Scope.ScopeType == AccessScopeType.VendorBranch
+                ? [member.Scope.ScopeEntityId.Value.ToString()]
+                : [],
+            member.User.LastSeenAtUtc ?? member.User.LastLoginAtUtc,
+            member.RoleCode,
+            member.RoleDefinition.Name,
+            BuildPermissionMatrix(effectivePermissions));
+    }
+
+    private static HashSet<string> BuildEffectivePermissions(RoleDefinition role, IReadOnlyCollection<UserPermissionOverride> overrides)
+    {
+        var permissions = role.RolePermissions
+            .Select(item => item.PermissionDefinition.Key)
+            .ToHashSet(StringComparer.OrdinalIgnoreCase);
+
+        foreach (var overrideEntry in overrides)
+        {
+            if (overrideEntry.Mode == PermissionOverrideMode.Grant)
+            {
+                permissions.Add(overrideEntry.PermissionKey);
+            }
+            else
+            {
+                permissions.Remove(overrideEntry.PermissionKey);
+            }
+        }
+
+        foreach (var permission in PermissionKeys.Vendor.SessionBaseline)
+        {
+            permissions.Add(permission);
+        }
+
+        return permissions;
+    }
+
+    private static Dictionary<string, Dictionary<string, bool>> BuildPermissionMatrix(IReadOnlySet<string> permissions)
+    {
+        var matrix = CreatePermissionMatrixSkeleton();
+        foreach (var module in matrix.Keys)
+        {
+            foreach (var action in matrix[module].Keys.ToArray())
+            {
+                matrix[module][action] = MapUiPermission(module, action).Any(permissions.Contains);
+            }
+        }
+
+        return matrix;
+    }
+
+    private static Dictionary<string, Dictionary<string, bool>> CreatePermissionMatrixSkeleton() =>
+        new(StringComparer.OrdinalIgnoreCase)
+        {
+            ["dashboard"] = CreateActionState(["view", "manage", "approve", "export"]),
+            ["products"] = CreateActionState(["view", "manage", "approve", "export"]),
+            ["inventory"] = CreateActionState(["view", "manage", "approve", "export"]),
+            ["orders"] = CreateActionState(["view", "manage", "approve", "export"]),
+            ["offers"] = CreateActionState(["view", "manage", "approve", "export"]),
+            ["branches_staff"] = CreateActionState(["view", "manage", "approve", "export"]),
+            ["profile"] = CreateActionState(["view", "manage", "approve", "export"]),
+            ["finance"] = CreateActionState(["view", "manage", "approve", "export"])
+        };
+
+    private static Dictionary<string, bool> CreateActionState(IEnumerable<string> actions) =>
+        actions.ToDictionary(action => action, _ => false, StringComparer.OrdinalIgnoreCase);
+
+    private static string ResolveRoleTemplate(string? team, string roleCode)
+    {
+        if (string.Equals(team, "branch_manager", StringComparison.OrdinalIgnoreCase) ||
+            string.Equals(team, "orders_clerk", StringComparison.OrdinalIgnoreCase) ||
+            string.Equals(team, "inventory_clerk", StringComparison.OrdinalIgnoreCase))
+        {
+            return team;
+        }
+
+        return string.Equals(roleCode, "vendor_branch_manager", StringComparison.OrdinalIgnoreCase)
+            ? "branch_manager"
+            : "orders_clerk";
+    }
+
     private async Task<(AccessScopeType ScopeType, Guid ScopeEntityId)> ResolveScopeAsync(
         VendorStaffInvitation invitation,
         CancellationToken cancellationToken)
     {
-        var branchIds = ReadBranchIds(invitation.BranchIdsJson)
-            .Select(item => Guid.TryParse(item, out var id) ? id : (Guid?)null)
-            .Where(item => item.HasValue)
-            .Select(item => item!.Value)
-            .Distinct()
-            .ToArray();
-
-        if (branchIds.Length == 1)
+        var branchIds = ParseBranchIds(invitation.BranchIdsJson);
+        if (branchIds.Length > 0)
         {
-            var branchId = branchIds[0];
-            var branchExists = await _context.VendorBranches
+            var validBranchIds = await _context.VendorBranches
                 .AsNoTracking()
-                .AnyAsync(branch => branch.Id == branchId && branch.VendorId == invitation.VendorId, cancellationToken);
+                .Where(branch => branch.VendorId == invitation.VendorId && branchIds.Contains(branch.Id))
+                .Select(branch => branch.Id)
+                .ToListAsync(cancellationToken);
 
-            if (branchExists)
+            var validBranchSet = validBranchIds.ToHashSet();
+            var branchId = branchIds.FirstOrDefault(validBranchSet.Contains);
+            if (branchId != Guid.Empty)
             {
                 return (AccessScopeType.VendorBranch, branchId);
             }
+
+            throw new BusinessRuleException(
+                "INVITATION_BRANCH_SCOPE_INVALID",
+                "The invitation branch scope is no longer valid. Create the invitation again for an existing branch.");
         }
 
         return (AccessScopeType.VendorCompany, invitation.VendorId);
+    }
+
+    private async Task EnsureInvitationBranchesAsync(
+        Guid vendorId,
+        IReadOnlyCollection<string> branchIds,
+        CancellationToken cancellationToken)
+    {
+        if (branchIds.Count != 1)
+        {
+            throw new BusinessRuleException(
+                "SINGLE_BRANCH_SCOPE_REQUIRED",
+                "Select exactly one branch for this invitation.");
+        }
+
+        var branchIdText = branchIds.First();
+        if (!Guid.TryParse(branchIdText, out var branchId))
+        {
+            throw new BusinessRuleException(
+                "INVALID_BRANCH_SCOPE",
+                "Invitation branch id is invalid.");
+        }
+
+        var exists = await _context.VendorBranches
+            .AsNoTracking()
+            .AnyAsync(branch => branch.Id == branchId && branch.VendorId == vendorId, cancellationToken);
+
+        if (!exists)
+        {
+            throw new NotFoundException("VendorBranch", branchId);
+        }
     }
 
     private void ApplyPermissionOverrides(Guid userId, string permissionsJson, string roleCode)
@@ -570,6 +1311,7 @@ public class VendorAccessController : ApiControllerBase
             return;
         }
 
+        requestedKeys.UnionWith(PermissionKeys.Vendor.SessionBaseline);
         var defaultKeys = ResolveDefaultPermissionKeys(roleCode).ToHashSet(StringComparer.OrdinalIgnoreCase);
 
         foreach (var key in requestedKeys.Except(defaultKeys, StringComparer.OrdinalIgnoreCase))
@@ -581,6 +1323,28 @@ public class VendorAccessController : ApiControllerBase
         {
             _context.UserPermissionOverrides.Add(new UserPermissionOverride(userId, key, PermissionOverrideMode.Revoke));
         }
+    }
+
+    private static HashSet<string> ResolveRequestedPermissionKeys(Dictionary<string, Dictionary<string, bool>> permissions)
+    {
+        var keys = new HashSet<string>(StringComparer.OrdinalIgnoreCase);
+        foreach (var module in permissions)
+        {
+            foreach (var action in module.Value)
+            {
+                if (!action.Value)
+                {
+                    continue;
+                }
+
+                foreach (var permission in MapUiPermission(module.Key, action.Key))
+                {
+                    keys.Add(permission);
+                }
+            }
+        }
+
+        return keys;
     }
 
     private static HashSet<string> ResolveRequestedPermissionKeys(string permissionsJson)
@@ -736,6 +1500,14 @@ public class VendorAccessController : ApiControllerBase
         }
     }
 
+    private static Guid[] ParseBranchIds(string branchIdsJson) =>
+        ReadBranchIds(branchIdsJson)
+            .Select(item => Guid.TryParse(item, out var id) ? id : (Guid?)null)
+            .Where(item => item.HasValue)
+            .Select(item => item!.Value)
+            .Distinct()
+            .ToArray();
+
     private static string ResolveVendorName(Vendor vendor) =>
         !string.IsNullOrWhiteSpace(vendor.BusinessNameAr)
             ? vendor.BusinessNameAr
@@ -745,6 +1517,113 @@ public class VendorAccessController : ApiControllerBase
         string.Equals(roleTemplate, "branch_manager", StringComparison.OrdinalIgnoreCase)
             ? "vendor_branch_manager"
             : "vendor_branch_staff";
+
+    private static VendorBranchResponse ToBranchResponse(VendorBranch branch) =>
+        new(
+            branch.Id,
+            branch.Name,
+            branch.Code,
+            branch.IsPrimary,
+            branch.IsActive ? "active" : "suspended",
+            branch.ContactPhone,
+            branch.ManagerName,
+            branch.ManagerContact,
+            branch.Region,
+            branch.City,
+            branch.AddressLine,
+            branch.Latitude,
+            branch.Longitude,
+            branch.DeliveryRadiusKm,
+            branch.OperatingHours.Count(hour => !hour.IsClosed),
+            branch.CreatedAtUtc,
+            branch.OperatingHours
+                .OrderBy(hour => DaySortIndex(hour.DayOfWeek))
+                .Select(ToOperatingHourResponse)
+                .ToArray());
+
+    private static VendorBranchOperatingHourResponse ToOperatingHourResponse(BranchOperatingHour operatingHour) =>
+        new(
+            DayNumberToKey(operatingHour.DayOfWeek),
+            operatingHour.OpenTime.ToString(@"hh\:mm"),
+            operatingHour.CloseTime.ToString(@"hh\:mm"),
+            !operatingHour.IsClosed);
+
+    private static string GenerateBranchCode(VendorBranch branch)
+    {
+        return GenerateBranchCode(branch.Name);
+    }
+
+    private static string GenerateBranchCode(string branchName)
+    {
+        var normalized = new string(branchName
+            .ToUpperInvariant()
+            .Select(ch => char.IsLetterOrDigit(ch) ? ch : '-')
+            .ToArray())
+            .Trim('-');
+
+        normalized = normalized.Length == 0 ? "BRANCH" : normalized[..Math.Min(normalized.Length, 12)];
+        return normalized;
+    }
+
+    private static IEnumerable<BranchOperatingHour> NormalizeOperatingHours(
+        Guid branchId,
+        IEnumerable<VendorBranchOperatingHourRequest>? hours)
+    {
+        var requestedHours = (hours ?? [])
+            .Select(hour => new BranchOperatingHour(
+                branchId,
+                DayKeyToNumber(hour.DayKey),
+                ParseTime(hour.From),
+                ParseTime(hour.To),
+                !hour.IsOpen))
+            .GroupBy(hour => hour.DayOfWeek)
+            .Select(group => group.First())
+            .ToDictionary(hour => hour.DayOfWeek);
+
+        for (var day = 0; day <= 6; day++)
+        {
+            if (requestedHours.TryGetValue(day, out var operatingHour))
+            {
+                yield return operatingHour;
+                continue;
+            }
+
+            yield return new BranchOperatingHour(branchId, day, TimeSpan.Zero, TimeSpan.Zero, isClosed: true);
+        }
+    }
+
+    private static TimeSpan ParseTime(string? value) =>
+        TimeSpan.TryParse(value, out var parsed) ? parsed : TimeSpan.Zero;
+
+    private static string DayNumberToKey(int dayOfWeek) => dayOfWeek switch
+    {
+        0 => "SETTINGS_PROFILE.DAYS.SUNDAY",
+        1 => "SETTINGS_PROFILE.DAYS.MONDAY",
+        2 => "SETTINGS_PROFILE.DAYS.TUESDAY",
+        3 => "SETTINGS_PROFILE.DAYS.WEDNESDAY",
+        4 => "SETTINGS_PROFILE.DAYS.THURSDAY",
+        5 => "SETTINGS_PROFILE.DAYS.FRIDAY",
+        _ => "SETTINGS_PROFILE.DAYS.SATURDAY"
+    };
+
+    private static int DayKeyToNumber(string? dayKey) => dayKey switch
+    {
+        "SETTINGS_PROFILE.DAYS.SUNDAY" => 0,
+        "SETTINGS_PROFILE.DAYS.MONDAY" => 1,
+        "SETTINGS_PROFILE.DAYS.TUESDAY" => 2,
+        "SETTINGS_PROFILE.DAYS.WEDNESDAY" => 3,
+        "SETTINGS_PROFILE.DAYS.THURSDAY" => 4,
+        "SETTINGS_PROFILE.DAYS.FRIDAY" => 5,
+        "SETTINGS_PROFILE.DAYS.SATURDAY" => 6,
+        _ => 6
+    };
+
+    private static int DaySortIndex(int dayOfWeek)
+    {
+        var order = new[] { 6, 0, 1, 2, 3, 4, 5 };
+        var index = Array.IndexOf(order, dayOfWeek);
+        return index < 0 ? order.Length : index;
+    }
 
     private static string BuildSyntheticStaffPhone(Guid invitationId) => $"staff-{invitationId:N}"[..38];
 
@@ -812,3 +1691,89 @@ public sealed record VendorStaffInvitationAcceptancePreview(
     string VendorName,
     string[] BranchIds,
     DateTime ExpiresAt);
+
+public sealed record VendorBranchCreateRequest(
+    string Name,
+    string? Code,
+    bool IsPrimary,
+    string AddressLine,
+    string? Phone,
+    string ManagerName,
+    string ManagerContact,
+    string? Region,
+    string? City,
+    decimal? Latitude,
+    decimal? Longitude,
+    decimal? DeliveryRadiusKm,
+    VendorBranchOperatingHourRequest[]? OperatingHours);
+
+public sealed record VendorBranchStatusUpdateRequest(string Status);
+
+public sealed record VendorBranchOperatingHourRequest(
+    string DayKey,
+    string From,
+    string To,
+    bool IsOpen);
+
+public sealed record VendorStaffRoleUpdateRequest(
+    string RoleTemplate,
+    Dictionary<string, Dictionary<string, bool>>? Permissions = null);
+
+public sealed record VendorStaffScopeUpdateRequest(string[] BranchIds);
+
+public sealed record VendorStaffOverridesUpdateRequest(
+    Dictionary<string, Dictionary<string, bool>>? Permissions);
+
+public sealed record VendorStaffStatusUpdateRequest(string Status);
+
+public sealed record VendorStaffResponse(
+    Guid Id,
+    string FullName,
+    string Contact,
+    string Status,
+    string RoleTemplate,
+    string[] BranchIds,
+    DateTime? LastActiveAt,
+    string RoleCode,
+    string RoleName,
+    Dictionary<string, Dictionary<string, bool>> Permissions);
+
+public sealed record VendorBranchResponse(
+    Guid Id,
+    string Name,
+    string Code,
+    bool IsPrimary,
+    string Status,
+    string Phone,
+    string ManagerName,
+    string ManagerContact,
+    string Region,
+    string City,
+    string AddressLine,
+    decimal Latitude,
+    decimal Longitude,
+    decimal DeliveryRadiusKm,
+    int WorkingDays,
+    DateTime CreatedAt,
+    VendorBranchOperatingHourResponse[] OperatingHours);
+
+public sealed record VendorBranchOperatingHourResponse(
+    string DayKey,
+    string From,
+    string To,
+    bool IsOpen);
+
+internal sealed record StaffMemberProjection(
+    Guid UserId,
+    User User,
+    UserAccessScope Scope,
+    VendorBranch? Branch,
+    RoleDefinition RoleDefinition,
+    IReadOnlyCollection<UserPermissionOverride> Overrides)
+{
+    public Guid RoleDefinitionId => Scope.RoleDefinitionId;
+    public AccessScopeType ScopeType => Scope.ScopeType;
+    public Guid? ScopeEntityId => Scope.ScopeEntityId;
+    public string RoleCode => RoleDefinition.Code;
+    public string? Notes => Scope.Notes;
+}

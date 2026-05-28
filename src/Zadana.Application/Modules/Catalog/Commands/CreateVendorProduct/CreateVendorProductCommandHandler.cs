@@ -48,6 +48,17 @@ public class CreateVendorProductCommandHandler : IRequestHandler<CreateVendorPro
             throw new BusinessRuleException("TRADE_PRICE_REQUIRED", "Trade price is required.");
         }
 
+        if (request.BranchId.HasValue)
+        {
+            var branchBelongsToVendor = await _context.VendorBranches
+                .AnyAsync(branch => branch.Id == request.BranchId.Value && branch.VendorId == request.VendorId, cancellationToken);
+
+            if (!branchBelongsToVendor)
+            {
+                throw new NotFoundException("VendorBranch", request.BranchId.Value);
+            }
+        }
+
         var vendorProduct = new VendorProduct(
             vendorId: request.VendorId,
             masterProductId: request.MasterProductId,
