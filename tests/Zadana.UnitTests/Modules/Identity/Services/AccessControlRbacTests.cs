@@ -75,7 +75,11 @@ public class AccessControlRbacTests
 
         await act.Should()
             .ThrowAsync<BusinessRuleException>()
-            .Where(exception => exception.ErrorCode == "SENSITIVE_ACCESS_CHANGE_REQUIRES_APPROVAL");
+            .Where(exception => exception.ErrorCode == "ACCESS_APPROVAL_REQUIRED");
+        context.AccessApprovalRequests.Should().ContainSingle(request =>
+            request.Status == AccessApprovalStatus.Pending &&
+            request.TargetUserId == target.Id &&
+            request.Action == "user-access-change");
     }
 
     [Fact]
@@ -162,7 +166,57 @@ public class AccessControlRbacTests
 
         await act.Should()
             .ThrowAsync<BusinessRuleException>()
-            .Where(exception => exception.ErrorCode == "SENSITIVE_ROLE_CHANGE_REQUIRES_MANAGE_SETTINGS");
+            .Where(exception => exception.ErrorCode == "ACCESS_APPROVAL_REQUIRED");
+        context.AccessApprovalRequests.Should().ContainSingle(request =>
+            request.Status == AccessApprovalStatus.Pending &&
+            request.Action == "role-definition-change");
+    }
+
+    [Fact]
+    public async Task UpdateRoleAsync_WhenConvertingUnassignedSuperAdminRoleWithManageSettings_Succeeds()
+    {
+        using var context = TestDbContextFactory.Create();
+        var manageSettingsPermission = AddPermission(context, PermissionKeys.Admin.UsersAccessManageSettings, isSensitive: true);
+        var actorRole = AddRole(
+            context,
+            "access_settings_manager",
+            UserRole.Admin,
+            PanelScope.SuperAdminPanel,
+            [manageSettingsPermission]);
+
+        var sensitivePermission = AddPermission(context, PermissionKeys.Admin.FinancesApprove, isSensitive: true);
+        var vendorPermission = AddPermission(
+            context,
+            PermissionKeys.Vendor.ProfileView,
+            PanelScope.VendorPanel);
+        var superAdminRole = AddRole(
+            context,
+            "unassigned_super_admin_role",
+            UserRole.SuperAdmin,
+            PanelScope.SuperAdminPanel,
+            [sensitivePermission]);
+
+        var actor = new User("Settings Manager", "settings-manager@example.com", "01000000006", UserRole.Admin);
+        context.Users.Add(actor);
+        context.UserAccessScopes.Add(new UserAccessScope(actor.Id, actorRole.Id, PanelScope.SuperAdminPanel, AccessScopeType.Global));
+        await context.SaveChangesAsync();
+
+        var handler = new UpdateRoleCommandHandler(
+            context,
+            CreateValidationService(context, actor.Id));
+
+        var result = await handler.Handle(
+            new UpdateRoleCommand(
+                superAdminRole.Id,
+                "Vendor Staff Role",
+                null,
+                UserRole.VendorStaff,
+                PanelScope.VendorPanel,
+                [vendorPermission.Key]),
+            CancellationToken.None);
+
+        result.IdentityRole.Should().Be(UserRole.VendorStaff);
+        result.PanelScope.Should().Be(PanelScope.VendorPanel);
     }
 
     private static PermissionDefinition AddPermission(

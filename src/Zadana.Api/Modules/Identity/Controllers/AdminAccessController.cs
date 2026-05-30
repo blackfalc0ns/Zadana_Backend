@@ -16,13 +16,20 @@ using Zadana.Application.Modules.Identity.Commands.AdminAccessUsers;
 using Zadana.Domain.Modules.Identity.Enums;
 using Zadana.Application.Modules.Identity.DTOs;
 using Zadana.Application.Common.Interfaces;
+using Zadana.Application.Modules.Identity.Services;
+using Zadana.Domain.Modules.Identity.Entities;
 using Microsoft.EntityFrameworkCore;
+using Zadana.SharedKernel.Exceptions;
 
 namespace Zadana.Api.Modules.Identity.Controllers;
 
 [Route("api/admin/access")]
 [Authorize]
-public class AdminAccessController(IMediator mediator, IApplicationDbContext dbContext) : ApiControllerBase
+public class AdminAccessController(
+    IMediator mediator,
+    IApplicationDbContext dbContext,
+    ICurrentUserService currentUserService,
+    IAccessAuditService auditService) : ApiControllerBase
 {
     [HttpGet("permissions")]
     [RequireAccess(PermissionKeys.Admin.UsersAccessView)]
@@ -262,23 +269,92 @@ public class AdminAccessController(IMediator mediator, IApplicationDbContext dbC
 
     [HttpGet("approvals")]
     [RequireAccess(PermissionKeys.Admin.UsersAccessApprove)]
-    public IActionResult GetApprovals()
+    public async Task<IActionResult> GetApprovals(
+        [FromQuery] AccessApprovalStatus? status = AccessApprovalStatus.Pending,
+        [FromQuery] Guid? requestedByUserId = null,
+        [FromQuery] Guid? targetUserId = null,
+        [FromQuery] int pageSize = 100,
+        CancellationToken cancellationToken = default)
     {
-        return Ok(Array.Empty<object>());
+        pageSize = Math.Clamp(pageSize, 1, 250);
+
+        var query = dbContext.AccessApprovalRequests.AsNoTracking();
+        if (status.HasValue)
+        {
+            query = query.Where(request => request.Status == status.Value);
+        }
+
+        if (requestedByUserId.HasValue)
+        {
+            query = query.Where(request => request.RequestedByUserId == requestedByUserId.Value);
+        }
+
+        if (targetUserId.HasValue)
+        {
+            query = query.Where(request => request.TargetUserId == targetUserId.Value);
+        }
+
+        var result = await ProjectApprovalRequests(query.OrderByDescending(request => request.CreatedAtUtc))
+            .Take(pageSize)
+            .ToListAsync(cancellationToken);
+
+        return Ok(result);
     }
 
     [HttpPost("approvals/{id}/approve")]
     [RequireAccess(PermissionKeys.Admin.UsersAccessApprove)]
-    public IActionResult ApproveRequest(Guid id)
+    public async Task<IActionResult> ApproveRequest(
+        Guid id,
+        [FromBody] AccessApprovalDecisionRequest? request,
+        CancellationToken cancellationToken)
     {
-        return Ok();
+        var approval = await dbContext.AccessApprovalRequests
+            .FirstOrDefaultAsync(item => item.Id == id, cancellationToken);
+        if (approval is null)
+        {
+            return NotFound();
+        }
+
+        EnsureCurrentUserCanDecideApproval(approval);
+        var before = SnapshotApproval(approval);
+        approval.Approve(currentUserService.UserId!.Value, request?.Note);
+        auditService.Add(
+            approval.TargetUserId ?? approval.RequestedByUserId,
+            "access-approval-approved",
+            $"Access approval request {approval.Action} was approved.",
+            before,
+            SnapshotApproval(approval));
+
+        await dbContext.SaveChangesAsync(cancellationToken);
+        return Ok(await ProjectApprovalRequestAsync(id, cancellationToken));
     }
 
     [HttpPost("approvals/{id}/reject")]
     [RequireAccess(PermissionKeys.Admin.UsersAccessApprove)]
-    public IActionResult RejectRequest(Guid id)
+    public async Task<IActionResult> RejectRequest(
+        Guid id,
+        [FromBody] AccessApprovalDecisionRequest? request,
+        CancellationToken cancellationToken)
     {
-        return Ok();
+        var approval = await dbContext.AccessApprovalRequests
+            .FirstOrDefaultAsync(item => item.Id == id, cancellationToken);
+        if (approval is null)
+        {
+            return NotFound();
+        }
+
+        EnsureCurrentUserCanDecideApproval(approval);
+        var before = SnapshotApproval(approval);
+        approval.Reject(currentUserService.UserId!.Value, request?.Note);
+        auditService.Add(
+            approval.TargetUserId ?? approval.RequestedByUserId,
+            "access-approval-rejected",
+            $"Access approval request {approval.Action} was rejected.",
+            before,
+            SnapshotApproval(approval));
+
+        await dbContext.SaveChangesAsync(cancellationToken);
+        return Ok(await ProjectApprovalRequestAsync(id, cancellationToken));
     }
 
     [HttpGet("audit")]
@@ -333,6 +409,72 @@ public class AdminAccessController(IMediator mediator, IApplicationDbContext dbC
 
         return Ok(result);
     }
+
+    private void EnsureCurrentUserCanDecideApproval(AccessApprovalRequest approval)
+    {
+        if (!currentUserService.UserId.HasValue)
+        {
+            throw new BusinessRuleException("APPROVER_REQUIRED", "An authenticated approver is required.");
+        }
+
+        if (approval.RequestedByUserId == currentUserService.UserId.Value)
+        {
+            throw new BusinessRuleException("SELF_APPROVAL_BLOCKED", "You cannot approve or reject your own access request.");
+        }
+    }
+
+    private async Task<AccessApprovalRequestDto?> ProjectApprovalRequestAsync(
+        Guid id,
+        CancellationToken cancellationToken) =>
+        await ProjectApprovalRequests(dbContext.AccessApprovalRequests.AsNoTracking().Where(item => item.Id == id))
+            .FirstOrDefaultAsync(cancellationToken);
+
+    private IQueryable<AccessApprovalRequestDto> ProjectApprovalRequests(IQueryable<AccessApprovalRequest> query) =>
+        from approval in query
+        join requestedBy in dbContext.Users.AsNoTracking()
+            on approval.RequestedByUserId equals requestedBy.Id
+        join target in dbContext.Users.AsNoTracking()
+            on approval.TargetUserId equals (Guid?)target.Id into targetJoin
+        from target in targetJoin.DefaultIfEmpty()
+        join decidedBy in dbContext.Users.AsNoTracking()
+            on approval.DecidedByUserId equals (Guid?)decidedBy.Id into decidedByJoin
+        from decidedBy in decidedByJoin.DefaultIfEmpty()
+        select new AccessApprovalRequestDto(
+            approval.Id,
+            approval.RequestedByUserId,
+            requestedBy.FullName,
+            requestedBy.Email,
+            approval.TargetUserId,
+            target != null ? target.FullName : null,
+            target != null ? target.Email : null,
+            approval.Action,
+            approval.Summary,
+            approval.PayloadHash,
+            approval.PayloadJson,
+            approval.Status.ToString(),
+            approval.CreatedAtUtc.ToString("o"),
+            approval.DecidedByUserId,
+            decidedBy != null ? decidedBy.FullName : null,
+            decidedBy != null ? decidedBy.Email : null,
+            approval.DecidedAtUtc == null ? null : approval.DecidedAtUtc.GetValueOrDefault().ToString("o"),
+            approval.DecisionNote,
+            approval.ConsumedAtUtc == null ? null : approval.ConsumedAtUtc.GetValueOrDefault().ToString("o"));
+
+    private static object SnapshotApproval(AccessApprovalRequest approval) => new
+    {
+        approval.Id,
+        approval.RequestedByUserId,
+        approval.TargetUserId,
+        approval.Action,
+        approval.Summary,
+        approval.PayloadHash,
+        Status = approval.Status.ToString(),
+        approval.CreatedAtUtc,
+        approval.DecidedByUserId,
+        approval.DecidedAtUtc,
+        approval.DecisionNote,
+        approval.ConsumedAtUtc
+    };
 }
 
 // Request DTOs
@@ -381,3 +523,5 @@ public record UpdateAdminAccessUserRequest(
 );
 
 public record ResetTemporaryPasswordRequest(string TemporaryPassword);
+
+public record AccessApprovalDecisionRequest(string? Note);

@@ -85,6 +85,27 @@ public record AccessAuditLogDto(
     string? IpAddress,
     string? UserAgent);
 
+public record AccessApprovalRequestDto(
+    Guid Id,
+    Guid RequestedByUserId,
+    string? RequestedByFullName,
+    string? RequestedByEmail,
+    Guid? TargetUserId,
+    string? TargetFullName,
+    string? TargetEmail,
+    string Action,
+    string Summary,
+    string PayloadHash,
+    string PayloadJson,
+    string Status,
+    string CreatedAtUtc,
+    Guid? DecidedByUserId,
+    string? DecidedByFullName,
+    string? DecidedByEmail,
+    string? DecidedAtUtc,
+    string? DecisionNote,
+    string? ConsumedAtUtc);
+
 public record SystemLogEntryDto(
     Guid Id,
     string OccurredAtUtc,

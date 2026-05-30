@@ -75,10 +75,19 @@ public sealed class CreateAdminAccessUserCommandHandler
         CreateAdminAccessUserCommand request,
         CancellationToken cancellationToken)
     {
+        var role = await LoadActiveRoleAsync(_context, request.RoleDefinitionId, cancellationToken);
+        await _validationService.EnsureCanMutateUserAccessAsync(
+            Guid.Empty,
+            role.IdentityRole,
+            AccountStatus.Active.ToString(),
+            actorUserId: null,
+            newRole: role,
+            grantedPermissions: [],
+            revokedPermissions: [],
+            cancellationToken);
+
         return await _transaction.ExecuteAsync(async ct =>
         {
-            var role = await LoadActiveRoleAsync(_context, request.RoleDefinitionId, ct);
-
             var createResult = await _identityAccountService.CreateAsync(
                 new CreateIdentityAccountRequest(
                     request.FullName,
@@ -102,16 +111,6 @@ public sealed class CreateAdminAccessUserCommandHandler
 
             var user = await _context.Users.FindAsync([createResult.Account.Id], ct)
                 ?? throw new NotFoundException(nameof(User), createResult.Account.Id);
-
-            await _validationService.EnsureCanMutateUserAccessAsync(
-                user.Id,
-                role.IdentityRole,
-                AccountStatus.Active.ToString(),
-                actorUserId: null,
-                newRole: role,
-                grantedPermissions: [],
-                revokedPermissions: [],
-                cancellationToken: ct);
 
             var normalizedScopeEntityId = await _validationService.NormalizeAndValidateScopeAsync(
                 role,
@@ -242,6 +241,25 @@ public sealed class UpdateAdminAccessUserCommandHandler
         UpdateAdminAccessUserCommand request,
         CancellationToken cancellationToken)
     {
+        var preflightUser = await _context.Users.FindAsync([request.UserId], cancellationToken)
+            ?? throw new NotFoundException(nameof(User), request.UserId);
+        var preflightRole = await CreateAdminAccessUserCommandHandler.LoadActiveRoleAsync(
+            _context,
+            request.RoleDefinitionId,
+            cancellationToken);
+        var grantedPermissions = NormalizePermissions(request.GrantedPermissions);
+        var revokedPermissions = NormalizePermissions(request.RevokedPermissions);
+
+        await _validationService.EnsureCanMutateUserAccessAsync(
+            preflightUser.Id,
+            preflightUser.Role,
+            request.Status,
+            _currentUserService.UserId,
+            preflightRole,
+            grantedPermissions,
+            revokedPermissions,
+            cancellationToken);
+
         return await _transaction.ExecuteAsync(async ct =>
         {
             var user = await _context.Users.FindAsync([request.UserId], ct)
@@ -251,17 +269,6 @@ public sealed class UpdateAdminAccessUserCommandHandler
                 request.RoleDefinitionId,
                 ct);
 
-            var grantedPermissions = NormalizePermissions(request.GrantedPermissions);
-            var revokedPermissions = NormalizePermissions(request.RevokedPermissions);
-            await _validationService.EnsureCanMutateUserAccessAsync(
-                user.Id,
-                user.Role,
-                request.Status,
-                _currentUserService.UserId,
-                role,
-                grantedPermissions,
-                revokedPermissions,
-                ct);
             var normalizedScopeEntityId = await _validationService.NormalizeAndValidateScopeAsync(
                 role,
                 request.PanelScope,

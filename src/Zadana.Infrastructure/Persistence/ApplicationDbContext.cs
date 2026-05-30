@@ -76,6 +76,7 @@ public class ApplicationDbContext : IdentityDbContext<User, IdentityRole<Guid>, 
     public DbSet<RolePermission> RolePermissions => Set<RolePermission>();
     public DbSet<UserAccessScope> UserAccessScopes => Set<UserAccessScope>();
     public DbSet<UserPermissionOverride> UserPermissionOverrides => Set<UserPermissionOverride>();
+    public DbSet<AccessApprovalRequest> AccessApprovalRequests => Set<AccessApprovalRequest>();
     public DbSet<AccessAuditLog> AccessAuditLogs => Set<AccessAuditLog>();
     public DbSet<SystemLogEntry> SystemLogEntries => Set<SystemLogEntry>();
     public DbSet<RefreshToken> RefreshTokens => Set<RefreshToken>();

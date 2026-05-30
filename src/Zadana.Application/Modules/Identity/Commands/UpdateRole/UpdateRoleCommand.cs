@@ -95,19 +95,18 @@ public class UpdateRoleCommandHandler : IRequestHandler<UpdateRoleCommand, RoleD
         var currentPermissionKeys = role.RolePermissions
             .Select(permission => permission.PermissionDefinition.Key)
             .ToList();
-        var roleDefinitionIdentityRole = role.IdentityRole == UserRole.SuperAdmin ||
-            request.IdentityRole == UserRole.SuperAdmin
-                ? UserRole.SuperAdmin
-                : request.IdentityRole;
+        var requiresElevatedRoleChange = role.IdentityRole == UserRole.SuperAdmin ||
+            request.IdentityRole == UserRole.SuperAdmin;
         var roleDefinitionPermissions = currentPermissionKeys
             .Concat(permissions)
             .Distinct(StringComparer.OrdinalIgnoreCase)
             .ToList();
         await _validationService.EnsureCanManageRoleDefinitionAsync(
-            roleDefinitionIdentityRole,
+            request.IdentityRole,
             request.PanelScope,
             roleDefinitionPermissions,
-            cancellationToken);
+            cancellationToken,
+            requiresElevatedRoleChange);
 
         role.Update(
             name: roleName,

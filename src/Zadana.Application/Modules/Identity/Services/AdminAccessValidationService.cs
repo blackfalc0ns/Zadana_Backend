@@ -1,4 +1,7 @@
 using Microsoft.EntityFrameworkCore;
+using System.Security.Cryptography;
+using System.Text;
+using System.Text.Json;
 using Zadana.Application.Common.Interfaces;
 using Zadana.Application.Modules.Identity.Interfaces;
 using Zadana.Domain.Modules.Identity.Constants;
@@ -28,7 +31,8 @@ public interface IAdminAccessValidationService
         UserRole identityRole,
         PanelScope panelScope,
         IReadOnlyCollection<string> permissions,
-        CancellationToken cancellationToken);
+        CancellationToken cancellationToken,
+        bool forceElevatedApproval = false);
 
     Task EnsureCanMutateUserAccessAsync(
         Guid targetUserId,
@@ -174,11 +178,13 @@ public sealed class AdminAccessValidationService : IAdminAccessValidationService
         UserRole identityRole,
         PanelScope panelScope,
         IReadOnlyCollection<string> permissions,
-        CancellationToken cancellationToken)
+        CancellationToken cancellationToken,
+        bool forceElevatedApproval = false)
     {
         AccessRoleGuard.EnsureRoleMatchesPanelScope(identityRole, panelScope);
 
-        if (!await RequiresElevatedAccessAsync(identityRole, permissions, cancellationToken))
+        if (!forceElevatedApproval &&
+            !await RequiresElevatedAccessAsync(identityRole, permissions, cancellationToken))
         {
             return;
         }
@@ -189,7 +195,17 @@ public sealed class AdminAccessValidationService : IAdminAccessValidationService
             ],
             "SENSITIVE_ROLE_CHANGE_REQUIRES_MANAGE_SETTINGS",
             "Managing super-admin roles or roles with sensitive permissions requires access-management settings permission.",
-            cancellationToken);
+            cancellationToken,
+            targetUserId: null,
+            approvalAction: "role-definition-change",
+            approvalSummary: "Role definition change requires approval.",
+            approvalPayload: new
+            {
+                IdentityRole = identityRole.ToString(),
+                PanelScope = panelScope.ToString(),
+                Permissions = Normalize(permissions).OrderBy(permission => permission, StringComparer.OrdinalIgnoreCase).ToArray(),
+                ForceElevatedApproval = forceElevatedApproval
+            });
     }
 
     public async Task EnsureCanMutateUserAccessAsync(
@@ -209,7 +225,9 @@ public sealed class AdminAccessValidationService : IAdminAccessValidationService
         if (isTargetSuperAdmin && (!targetWillRemainActive || !targetWillRemainSuperAdmin))
         {
             var activeSuperAdminCount = await _context.Users.CountAsync(
-                x => x.Role == UserRole.SuperAdmin && x.AccountStatus == AccountStatus.Active,
+                x => x.Role == UserRole.SuperAdmin &&
+                    x.AccountStatus == AccountStatus.Active &&
+                    !x.IsLoginLocked,
                 cancellationToken);
 
             if (activeSuperAdminCount <= 1)
@@ -245,7 +263,21 @@ public sealed class AdminAccessValidationService : IAdminAccessValidationService
                 ],
                 "SENSITIVE_ACCESS_CHANGE_REQUIRES_APPROVAL",
                 "Assigning super-admin access or sensitive permissions requires access approval permission.",
-                cancellationToken);
+                cancellationToken,
+                targetUserId,
+                approvalAction: "user-access-change",
+                approvalSummary: "User access change requires approval.",
+                approvalPayload: new
+                {
+                    TargetUserId = targetUserId,
+                    TargetRole = targetRole.ToString(),
+                    RequestedStatus = requestedStatus?.Trim().ToLowerInvariant(),
+                    RoleDefinitionId = newRole.Id,
+                    RoleCode = newRole.Code,
+                    NewIdentityRole = newRole.IdentityRole.ToString(),
+                    GrantedPermissions = Normalize(grantedPermissions).OrderBy(permission => permission, StringComparer.OrdinalIgnoreCase).ToArray(),
+                    RevokedPermissions = Normalize(revokedPermissions).OrderBy(permission => permission, StringComparer.OrdinalIgnoreCase).ToArray()
+                });
         }
 
         if (actorUserId.HasValue && actorUserId.Value == targetUserId)
@@ -300,7 +332,11 @@ public sealed class AdminAccessValidationService : IAdminAccessValidationService
         IReadOnlyCollection<string> requiredPermissions,
         string errorCode,
         string message,
-        CancellationToken cancellationToken)
+        CancellationToken cancellationToken,
+        Guid? targetUserId = null,
+        string? approvalAction = null,
+        string? approvalSummary = null,
+        object? approvalPayload = null)
     {
         if (!_currentUserService.UserId.HasValue)
         {
@@ -318,7 +354,74 @@ public sealed class AdminAccessValidationService : IAdminAccessValidationService
             return;
         }
 
+        if (!string.IsNullOrWhiteSpace(approvalAction) && approvalPayload is not null)
+        {
+            await EnsureApprovalRequestExistsOrConsumeApprovedAsync(
+                _currentUserService.UserId.Value,
+                targetUserId,
+                approvalAction,
+                approvalSummary ?? message,
+                approvalPayload,
+                cancellationToken);
+            return;
+        }
+
         throw new BusinessRuleException(errorCode, message);
+    }
+
+    private async Task EnsureApprovalRequestExistsOrConsumeApprovedAsync(
+        Guid requestedByUserId,
+        Guid? targetUserId,
+        string action,
+        string summary,
+        object payload,
+        CancellationToken cancellationToken)
+    {
+        var payloadJson = JsonSerializer.Serialize(payload, new JsonSerializerOptions(JsonSerializerDefaults.Web));
+        var payloadHash = Convert.ToHexString(SHA256.HashData(Encoding.UTF8.GetBytes(payloadJson)));
+
+        var approvedRequest = await _context.AccessApprovalRequests
+            .Where(request =>
+                request.RequestedByUserId == requestedByUserId &&
+                request.TargetUserId == targetUserId &&
+                request.Action == action &&
+                request.PayloadHash == payloadHash &&
+                request.Status == AccessApprovalStatus.Approved &&
+                request.ConsumedAtUtc == null)
+            .OrderBy(request => request.CreatedAtUtc)
+            .FirstOrDefaultAsync(cancellationToken);
+
+        if (approvedRequest is not null)
+        {
+            approvedRequest.Consume();
+            return;
+        }
+
+        var pendingRequestExists = await _context.AccessApprovalRequests.AnyAsync(
+            request =>
+                request.RequestedByUserId == requestedByUserId &&
+                request.TargetUserId == targetUserId &&
+                request.Action == action &&
+                request.PayloadHash == payloadHash &&
+                request.Status == AccessApprovalStatus.Pending,
+            cancellationToken);
+
+        if (!pendingRequestExists)
+        {
+            _context.AccessApprovalRequests.Add(new AccessApprovalRequest(
+                requestedByUserId,
+                targetUserId,
+                action,
+                summary,
+                payloadHash,
+                payloadJson));
+
+            await _context.SaveChangesAsync(cancellationToken);
+        }
+
+        throw new BusinessRuleException(
+            "ACCESS_APPROVAL_REQUIRED",
+            "This access change requires approval before it can be applied.");
     }
 
     private static bool IsAdministrativeAccessPermission(string permission) =>
