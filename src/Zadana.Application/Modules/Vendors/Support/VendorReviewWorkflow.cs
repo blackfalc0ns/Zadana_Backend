@@ -113,12 +113,33 @@ public static class VendorReviewWorkflow
                 "Cannot change compliance review for an archived vendor.");
         }
 
-        if (vendor.Status == VendorStatus.Suspended || vendor.SuspendedAtUtc.HasValue)
+        bool isExpired = vendor.CommercialRegistrationExpiryDate.HasValue &&
+                         vendor.CommercialRegistrationExpiryDate.Value.Date < DateTime.UtcNow.Date;
+
+        bool hasRejectedDocs = vendor.DocumentReviews.Any(r => 
+            RequiredDocumentTypes.Contains(r.Type) && r.Decision == VendorDocumentReviewDecision.Rejected);
+        
+        bool hasRejectedFields = vendor.ProfileReviewItems.Any(item => 
+            item.Status == VendorProfileReviewStatus.Rejected);
+
+        bool isComplianceIssue = isExpired || hasRejectedDocs || hasRejectedFields;
+
+        if (!isComplianceIssue)
         {
-            throw new BusinessRuleException(
-                "VendorReviewSuspended",
-                "Cannot change compliance review while the vendor account is suspended.");
-        }
+            if (vendor.Status == VendorStatus.Suspended || vendor.SuspendedAtUtc.HasValue)
+            {
+                throw new BusinessRuleException(
+                    "VendorReviewSuspended",
+                    "Cannot change compliance review while the vendor account is suspended.");
+            }
+
+            if (vendor.Status == VendorStatus.Active && vendor.ApprovedAtUtc.HasValue)
+            {
+                throw new BusinessRuleException(
+                    "VendorReviewClosed",
+                    "Compliance review is already closed because the vendor is approved.");
+                }
+            }
 
         if (vendor.LockedAtUtc.HasValue)
         {
@@ -126,16 +147,6 @@ public static class VendorReviewWorkflow
                 "VendorReviewLocked",
                 "Cannot change compliance review while the vendor account is locked.");
         }
-
-        if (vendor.Status == VendorStatus.Active && vendor.ApprovedAtUtc.HasValue)
-        {
-            throw new BusinessRuleException(
-                "VendorReviewClosed",
-                "Compliance review is already closed because the vendor is approved.");
-        }
-
-        // Rejected vendors are allowed to update their profile and resubmit for review.
-        // SubmitVendorReviewCommand transitions them back to PendingReview via ReopenForReview().
     }
 
     public static void EnsureDocumentCanBeReviewed(Vendor vendor, VendorDocumentType type)
