@@ -61,7 +61,7 @@ public class VendorUpdateOrderStatusCommandHandlerTests
             deliveryDispatchServiceMock.Object);
 
         var result = await handler.Handle(
-            new VendorUpdateOrderStatusCommand(order.Id, vendorId, newStatus, "vendor update note"),
+            new VendorUpdateOrderStatusCommand(order.Id, vendorId, null, newStatus, "vendor update note"),
             CancellationToken.None);
 
         result.OrderId.Should().Be(order.Id);
@@ -125,7 +125,7 @@ public class VendorUpdateOrderStatusCommandHandlerTests
             deliveryDispatchServiceMock.Object);
 
         var result = await handler.Handle(
-            new VendorUpdateOrderStatusCommand(order.Id, vendorId, OrderStatus.Accepted, null),
+            new VendorUpdateOrderStatusCommand(order.Id, vendorId, null, OrderStatus.Accepted, null),
             CancellationToken.None);
 
         result.Status.Should().Be(nameof(OrderStatus.Accepted));
@@ -163,7 +163,7 @@ public class VendorUpdateOrderStatusCommandHandlerTests
             deliveryDispatchServiceMock.Object);
 
         var result = await handler.Handle(
-            new VendorUpdateOrderStatusCommand(order.Id, vendorId, OrderStatus.ReadyForPickup, null),
+            new VendorUpdateOrderStatusCommand(order.Id, vendorId, null, OrderStatus.ReadyForPickup, null),
             CancellationToken.None);
 
         result.Status.Should().Be(nameof(OrderStatus.ReadyForPickup));
@@ -204,7 +204,7 @@ public class VendorUpdateOrderStatusCommandHandlerTests
             deliveryDispatchServiceMock.Object);
 
         var result = await handler.Handle(
-            new VendorUpdateOrderStatusCommand(order.Id, vendorId, OrderStatus.ReadyForPickup, null),
+            new VendorUpdateOrderStatusCommand(order.Id, vendorId, null, OrderStatus.ReadyForPickup, null),
             CancellationToken.None);
 
         result.Status.Should().Be(currentStatus.ToString());
@@ -240,7 +240,7 @@ public class VendorUpdateOrderStatusCommandHandlerTests
             Mock.Of<IDeliveryDispatchService>());
 
         Func<Task> act = async () => await handler.Handle(
-            new VendorUpdateOrderStatusCommand(order.Id, vendorId, OrderStatus.Accepted, "vendor accepted"),
+            new VendorUpdateOrderStatusCommand(order.Id, vendorId, null, OrderStatus.Accepted, "vendor accepted"),
             CancellationToken.None);
 
         await act.Should()
@@ -274,7 +274,7 @@ public class VendorUpdateOrderStatusCommandHandlerTests
             Mock.Of<IDeliveryDispatchService>());
 
         Func<Task> act = async () => await handler.Handle(
-            new VendorUpdateOrderStatusCommand(order.Id, vendorId, OrderStatus.Accepted, "vendor accepted"),
+            new VendorUpdateOrderStatusCommand(order.Id, vendorId, null, OrderStatus.Accepted, "vendor accepted"),
             CancellationToken.None);
 
         await act.Should()

@@ -58,6 +58,7 @@ public record VendorDetailDto(
     IReadOnlyList<VendorWorkspaceRequiredActionDto> RequiredActions,
     IReadOnlyList<VendorReviewDocumentDto> ReviewDocuments,
     IReadOnlyList<VendorReviewNoteDto> ReviewNotes,
+    IReadOnlyList<VendorRiskIndicatorDto> RiskIndicators,
     // Counts
     int BranchesCount,
     int BankAccountsCount);

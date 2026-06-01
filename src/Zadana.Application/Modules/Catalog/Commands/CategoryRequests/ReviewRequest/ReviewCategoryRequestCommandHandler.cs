@@ -1,6 +1,7 @@
 using MediatR;
 using Microsoft.EntityFrameworkCore;
 using Microsoft.Extensions.Localization;
+using Microsoft.Extensions.Logging;
 using Zadana.Application.Common.Caching;
 using Zadana.Application.Common.Extensions;
 using Zadana.Application.Common.Interfaces;
@@ -22,19 +23,28 @@ public class ReviewCategoryRequestCommandHandler : IRequestHandler<ReviewCategor
     private readonly ICurrentUserService _currentUserService;
     private readonly IIdentityAccountService _identityAccountService;
     private readonly IStringLocalizer<SharedResource> _localizer;
+    private readonly INotificationService _notificationService;
+    private readonly IFileStorageService _fileStorageService;
+    private readonly ILogger<ReviewCategoryRequestCommandHandler> _logger;
 
     public ReviewCategoryRequestCommandHandler(
         IApplicationDbContext context,
         ICacheInvalidator cacheInvalidator,
         ICurrentUserService currentUserService,
         IIdentityAccountService identityAccountService,
-        IStringLocalizer<SharedResource> localizer)
+        IStringLocalizer<SharedResource> localizer,
+        INotificationService notificationService,
+        IFileStorageService fileStorageService,
+        ILogger<ReviewCategoryRequestCommandHandler> logger)
     {
         _context = context;
         _cacheInvalidator = cacheInvalidator;
         _currentUserService = currentUserService;
         _identityAccountService = identityAccountService;
         _localizer = localizer;
+        _notificationService = notificationService;
+        _fileStorageService = fileStorageService;
+        _logger = logger;
     }
 
     public async Task<Guid?> Handle(ReviewCategoryRequestCommand request, CancellationToken cancellationToken)
@@ -65,22 +75,40 @@ public class ReviewCategoryRequestCommandHandler : IRequestHandler<ReviewCategor
                 categoryRequest.ParentCategoryId,
                 cancellationToken);
 
-            var category = new Category(
-                categoryRequest.NameAr,
-                categoryRequest.NameEn,
-                categoryRequest.ImageUrl,
-                approvedParentCategoryId,
-                categoryRequest.DisplayOrder);
+            var normalizedNameAr = CatalogRequestWorkflowSupport.NormalizeName(categoryRequest.NameAr);
+            var normalizedNameEn = CatalogRequestWorkflowSupport.NormalizeName(categoryRequest.NameEn);
+            var category = await _context.Categories
+                .FirstOrDefaultAsync(
+                    item => item.ParentCategoryId == approvedParentCategoryId &&
+                            item.NameAr.ToUpper() == normalizedNameAr &&
+                            item.NameEn.ToUpper() == normalizedNameEn,
+                    cancellationToken);
 
-            _context.Categories.Add(category);
+            if (category is null)
+            {
+                category = new Category(
+                    categoryRequest.NameAr,
+                    categoryRequest.NameEn,
+                    categoryRequest.ImageUrl,
+                    approvedParentCategoryId,
+                    categoryRequest.DisplayOrder);
+
+                _context.Categories.Add(category);
+            }
+            else if (!category.IsActive)
+            {
+                category.Activate();
+            }
+
             categoryRequest.Approve(reviewerName, category.Id);
-            _context.Notifications.Add(new Notification(
+            await _notificationService.SendToUserAsync(
                 categoryRequest.Vendor.UserId,
                 "تمت الموافقة على طلب الكتالوج",
                 "Catalog Request Approved",
                 $"تمت الموافقة على طلب الفئة '{categoryRequest.NameAr}'.",
                 $"Your category request '{categoryRequest.NameEn}' has been approved.",
-                "catalog_request_category"));
+                "catalog_request_category",
+                cancellationToken: cancellationToken);
 
             await _context.SaveChangesAsync(cancellationToken);
             await _cacheInvalidator.RemoveByTagsAsync(CacheInvalidationProfiles.CatalogReadModels, cancellationToken);
@@ -93,15 +121,30 @@ public class ReviewCategoryRequestCommandHandler : IRequestHandler<ReviewCategor
         }
 
         categoryRequest.Reject(request.RejectionReason, reviewerName);
-        _context.Notifications.Add(new Notification(
+        await _notificationService.SendToUserAsync(
             categoryRequest.Vendor.UserId,
             "تم رفض طلب الكتالوج",
             "Catalog Request Rejected",
             $"تم رفض طلب الفئة '{categoryRequest.NameAr}'. السبب: {request.RejectionReason}",
             $"Your category request '{categoryRequest.NameEn}' was rejected. Reason: {request.RejectionReason}",
-            "catalog_request_category"));
+            "catalog_request_category",
+            cancellationToken: cancellationToken);
 
         await _context.SaveChangesAsync(cancellationToken);
+
+        if (!string.IsNullOrWhiteSpace(categoryRequest.ImageUrl))
+        {
+            try
+            {
+                await _fileStorageService.DeleteAsync(categoryRequest.ImageUrl, cancellationToken);
+            }
+            catch (Exception ex)
+            {
+                _logger.LogWarning(ex, "Failed to delete image file {ImageUrl} for rejected category request {CategoryRequestId}",
+                    categoryRequest.ImageUrl, categoryRequest.Id);
+            }
+        }
+
         return null;
     }
 

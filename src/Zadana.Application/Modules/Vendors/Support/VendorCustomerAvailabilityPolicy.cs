@@ -32,7 +32,11 @@ public static class VendorCustomerAvailabilityPolicy
         var vendors = await context.Vendors
             .AsNoTracking()
             .Where(vendor => requestedIds.Contains(vendor.Id))
-            .Select(vendor => new VendorSnapshot(vendor.Id, vendor.Status, vendor.AcceptOrders))
+            .Select(vendor => new VendorSnapshot(
+                vendor.Id,
+                vendor.Status,
+                vendor.AcceptOrders,
+                vendor.CommercialRegistrationExpiryDate))
             .ToListAsync(cancellationToken);
 
         var workspaceStates = await context.VendorWorkspaceStates
@@ -125,6 +129,11 @@ public static class VendorCustomerAvailabilityPolicy
         if (vendor.Status != VendorStatus.Active)
         {
             return new VendorCustomerAvailabilityDecision(false, false, false, VendorInactiveReason, "Vendor is inactive.");
+        }
+
+        if (vendor.CommercialRegistrationExpiryDate.HasValue && vendor.CommercialRegistrationExpiryDate.Value.Date < DateTime.UtcNow.Date)
+        {
+            return new VendorCustomerAvailabilityDecision(false, false, false, "documents_expired", "Vendor registration documents have expired.");
         }
 
         if (string.Equals(manualMode, "offline", StringComparison.OrdinalIgnoreCase))
@@ -235,7 +244,7 @@ public static class VendorCustomerAvailabilityPolicy
         return DateTime.UtcNow;
     }
 
-    private sealed record VendorSnapshot(Guid Id, VendorStatus Status, bool AcceptOrders);
+    private sealed record VendorSnapshot(Guid Id, VendorStatus Status, bool AcceptOrders, DateTime? CommercialRegistrationExpiryDate);
 
     private sealed record WorkspaceStateSnapshot(Guid VendorId, string PayloadJson);
 

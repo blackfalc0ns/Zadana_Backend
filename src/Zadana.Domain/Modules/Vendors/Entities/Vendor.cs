@@ -319,7 +319,7 @@ public class Vendor : BaseEntity
             throw new BusinessRuleException("VendorAlreadyApproved", "التاجر معتمد بالفعل ولا يحتاج اعتمادًا جديدًا.|Vendor is already approved and does not need another approval.");
 
         if (Status != VendorStatus.PendingReview)
-            throw new BusinessRuleException("VendorInvalidStatusForApproval", $"لا يمكن اعتماد التاجر بينما حالته الحالية هي {Status}.|Vendor cannot be approved while its current status is {Status}.");
+            throw new BusinessRuleException("VendorInvalidStatusForApproval", $"لا يمكن اعتماد التاجر بينما حالته الحالية هي {Status}.|Vendor cannot be approved while its current status is {Status}.", Status);
 
         if (commissionRate < 0 || commissionRate > 100)
             throw new BusinessRuleException("InvalidCommissionRate", string.Empty);
@@ -366,7 +366,8 @@ public class Vendor : BaseEntity
         if (Status != VendorStatus.PendingReview)
             throw new BusinessRuleException(
                 "VendorInvalidStatusForRejection",
-                $"لا يمكن رفض التاجر بينما حالته الحالية هي {Status}.|Vendor cannot be rejected while its current status is {Status}.");
+                $"لا يمكن رفض التاجر بينما حالته الحالية هي {Status}.|Vendor cannot be rejected while its current status is {Status}.",
+                Status);
 
         Status = VendorStatus.Rejected;
         RejectionReason = normalizedReason;
@@ -400,7 +401,8 @@ public class Vendor : BaseEntity
         if (Status != VendorStatus.Active)
             throw new BusinessRuleException(
                 "VendorInvalidStatusForSuspension",
-                $"لا يمكن تعليق الحساب بينما حالته الحالية هي {Status}.|Vendor cannot be suspended while its current status is {Status}.");
+                $"لا يمكن تعليق الحساب بينما حالته الحالية هي {Status}.|Vendor cannot be suspended while its current status is {Status}.",
+                Status);
 
         Status = VendorStatus.Suspended;
         SuspensionReason = normalizedReason;
@@ -418,7 +420,7 @@ public class Vendor : BaseEntity
 
         if (Status == VendorStatus.PendingReview)
         {
-            throw new BusinessRuleException("VendorInvalidStatusForLock", $"Status: {Status}");
+            throw new BusinessRuleException("VendorInvalidStatusForLock", $"Status: {Status}", Status);
         }
 
         LockReason = normalizedReason;
@@ -459,7 +461,8 @@ public class Vendor : BaseEntity
         if (Status == VendorStatus.PendingReview || Status == VendorStatus.Rejected)
             throw new BusinessRuleException(
                 "VendorInvalidStatusForArchive",
-                $"لا يمكن أرشفة التاجر بينما حالته الحالية هي {Status}.|Vendor cannot be archived while its current status is {Status}.");
+                $"لا يمكن أرشفة التاجر بينما حالته الحالية هي {Status}.|Vendor cannot be archived while its current status is {Status}.",
+                Status);
 
         Status = VendorStatus.Suspended;
         ArchiveReason = normalizedReason;
@@ -477,7 +480,8 @@ public class Vendor : BaseEntity
         if (Status != VendorStatus.Suspended)
             throw new BusinessRuleException(
                 "VendorInvalidStatusForReactivation",
-                $"لا يمكن تشغيل الحساب إلا إذا كان معلقًا. الحالة الحالية هي {Status}.|Vendor can only be reactivated when it is suspended. Current status is {Status}.");
+                $"لا يمكن تشغيل الحساب إلا إذا كان معلقًا. الحالة الحالية هي {Status}.|Vendor can only be reactivated when it is suspended. Current status is {Status}.",
+                Status);
 
         Status = VendorStatus.Active;
         RejectionReason = null;

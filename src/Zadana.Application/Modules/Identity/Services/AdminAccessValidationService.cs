@@ -32,7 +32,8 @@ public interface IAdminAccessValidationService
         PanelScope panelScope,
         IReadOnlyCollection<string> permissions,
         CancellationToken cancellationToken,
-        bool forceElevatedApproval = false);
+        bool forceElevatedApproval = false,
+        string? approvalSubject = null);
 
     Task EnsureCanMutateUserAccessAsync(
         Guid targetUserId,
@@ -42,7 +43,8 @@ public interface IAdminAccessValidationService
         RoleDefinition newRole,
         IReadOnlyCollection<string> grantedPermissions,
         IReadOnlyCollection<string> revokedPermissions,
-        CancellationToken cancellationToken);
+        CancellationToken cancellationToken,
+        string? approvalSubject = null);
 }
 
 public sealed class AdminAccessValidationService : IAdminAccessValidationService
@@ -179,7 +181,8 @@ public sealed class AdminAccessValidationService : IAdminAccessValidationService
         PanelScope panelScope,
         IReadOnlyCollection<string> permissions,
         CancellationToken cancellationToken,
-        bool forceElevatedApproval = false)
+        bool forceElevatedApproval = false,
+        string? approvalSubject = null)
     {
         AccessRoleGuard.EnsureRoleMatchesPanelScope(identityRole, panelScope);
 
@@ -203,6 +206,7 @@ public sealed class AdminAccessValidationService : IAdminAccessValidationService
             {
                 IdentityRole = identityRole.ToString(),
                 PanelScope = panelScope.ToString(),
+                ApprovalSubject = approvalSubject,
                 Permissions = Normalize(permissions).OrderBy(permission => permission, StringComparer.OrdinalIgnoreCase).ToArray(),
                 ForceElevatedApproval = forceElevatedApproval
             });
@@ -216,7 +220,8 @@ public sealed class AdminAccessValidationService : IAdminAccessValidationService
         RoleDefinition newRole,
         IReadOnlyCollection<string> grantedPermissions,
         IReadOnlyCollection<string> revokedPermissions,
-        CancellationToken cancellationToken)
+        CancellationToken cancellationToken,
+        string? approvalSubject = null)
     {
         var isTargetSuperAdmin = targetRole == UserRole.SuperAdmin;
         var targetWillRemainActive = requestedStatus?.Trim().ToLowerInvariant() is not ("suspended" or "inactive");
@@ -271,6 +276,7 @@ public sealed class AdminAccessValidationService : IAdminAccessValidationService
                 {
                     TargetUserId = targetUserId,
                     TargetRole = targetRole.ToString(),
+                    ApprovalSubject = approvalSubject,
                     RequestedStatus = requestedStatus?.Trim().ToLowerInvariant(),
                     RoleDefinitionId = newRole.Id,
                     RoleCode = newRole.Code,

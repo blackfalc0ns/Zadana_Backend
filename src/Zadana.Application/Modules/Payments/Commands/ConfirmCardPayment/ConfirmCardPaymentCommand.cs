@@ -245,6 +245,7 @@ public class ConfirmCardPaymentCommandHandler : IRequestHandler<ConfirmCardPayme
                 .Select(item => new
                 {
                     item.OrderNumber,
+                    item.UserId,
                     CustomerName = item.User.FullName,
                     CustomerEmail = item.User.Email,
                     VendorName = string.IsNullOrWhiteSpace(item.Vendor.BusinessNameEn)
@@ -274,6 +275,7 @@ public class ConfirmCardPaymentCommandHandler : IRequestHandler<ConfirmCardPayme
                     },
                     TargetUrl: OrderStatusNotificationComposer.ResolveTargetUrl(order.Id),
                     EntityId: order.Id,
+                    RecipientEntityId: emailData.UserId,
                     VendorId: order.VendorId),
                 cancellationToken);
         }

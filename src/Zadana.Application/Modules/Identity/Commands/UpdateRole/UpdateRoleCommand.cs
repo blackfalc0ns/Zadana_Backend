@@ -3,9 +3,11 @@ using Microsoft.EntityFrameworkCore;
 using Zadana.Application.Common.Interfaces;
 using Zadana.Application.Modules.Identity.DTOs;
 using Zadana.Application.Modules.Identity.Services;
+using Zadana.Domain.Modules.Identity.Constants;
 using Zadana.Domain.Modules.Identity.Entities;
 using Zadana.SharedKernel.Exceptions;
 using Zadana.Domain.Modules.Identity.Enums;
+using Zadana.Domain.Modules.Identity.Services;
 
 namespace Zadana.Application.Modules.Identity.Commands.UpdateRole;
 
@@ -22,13 +24,16 @@ public class UpdateRoleCommandHandler : IRequestHandler<UpdateRoleCommand, RoleD
 {
     private readonly IApplicationDbContext _context;
     private readonly IAdminAccessValidationService _validationService;
+    private readonly ICurrentUserService _currentUserService;
 
     public UpdateRoleCommandHandler(
         IApplicationDbContext context,
-        IAdminAccessValidationService validationService)
+        IAdminAccessValidationService validationService,
+        ICurrentUserService currentUserService)
     {
         _context = context;
         _validationService = validationService;
+        _currentUserService = currentUserService;
     }
 
     public async Task<RoleDefinitionDto> Handle(UpdateRoleCommand request, CancellationToken cancellationToken)
@@ -106,7 +111,14 @@ public class UpdateRoleCommandHandler : IRequestHandler<UpdateRoleCommand, RoleD
             request.PanelScope,
             roleDefinitionPermissions,
             cancellationToken,
-            requiresElevatedRoleChange);
+            requiresElevatedRoleChange,
+            role.Id.ToString());
+
+        await EnsureActorWillKeepAdministrativeAccessAsync(
+            role.Id,
+            request.IdentityRole,
+            permissionDefs.Select(permission => permission.Key).ToList(),
+            cancellationToken);
 
         role.Update(
             name: roleName,
@@ -152,6 +164,127 @@ public class UpdateRoleCommandHandler : IRequestHandler<UpdateRoleCommand, RoleD
         );
     }
 
+    private async Task EnsureActorWillKeepAdministrativeAccessAsync(
+        Guid roleId,
+        UserRole requestedIdentityRole,
+        IReadOnlyCollection<string> requestedPermissions,
+        CancellationToken cancellationToken)
+    {
+        if (!_currentUserService.UserId.HasValue)
+        {
+            return;
+        }
+
+        var actorUser = await _context.Users
+            .AsNoTracking()
+            .FirstOrDefaultAsync(user => user.Id == _currentUserService.UserId.Value, cancellationToken);
+        if (actorUser is null)
+        {
+            return;
+        }
+
+        var actorScope = await _context.UserAccessScopes
+            .AsNoTracking()
+            .FirstOrDefaultAsync(
+                scope => scope.UserId == _currentUserService.UserId.Value && scope.IsActive,
+                cancellationToken);
+
+        if (actorScope is not null && actorScope.RoleDefinitionId != roleId)
+        {
+            return;
+        }
+
+        if (actorScope is null)
+        {
+            var currentFallbackRoleId = await ResolveActorFallbackRoleIdAsync(actorUser.Role, roleId: null, requestedIdentityRole: null, cancellationToken);
+            if (currentFallbackRoleId != roleId)
+            {
+                return;
+            }
+
+            var fallbackRoleAfterChange = await ResolveActorFallbackRoleIdAsync(actorUser.Role, roleId, requestedIdentityRole, cancellationToken);
+            if (fallbackRoleAfterChange != roleId)
+            {
+                return;
+            }
+        }
+
+        var effectivePermissions = requestedPermissions
+            .Where(IsAdministrativeAccessPermission)
+            .ToHashSet(StringComparer.OrdinalIgnoreCase);
+
+        var overrides = await _context.UserPermissionOverrides
+            .AsNoTracking()
+            .Where(overrideEntry => overrideEntry.UserId == _currentUserService.UserId.Value && overrideEntry.IsActive)
+            .ToListAsync(cancellationToken);
+
+        foreach (var overrideEntry in overrides.Where(entry => IsAdministrativeAccessPermission(entry.PermissionKey)))
+        {
+            if (overrideEntry.Mode == PermissionOverrideMode.Grant)
+            {
+                effectivePermissions.Add(overrideEntry.PermissionKey);
+                continue;
+            }
+
+            effectivePermissions.Remove(overrideEntry.PermissionKey);
+        }
+
+        if (effectivePermissions.Count == 0)
+        {
+            throw new BadRequestException(
+                "SELF_ACCESS_CHANGE_BLOCKED",
+                "You cannot remove your own administrative access through the active role definition.");
+        }
+    }
+
+    private async Task<Guid?> ResolveActorFallbackRoleIdAsync(
+        UserRole actorRole,
+        Guid? roleId,
+        UserRole? requestedIdentityRole,
+        CancellationToken cancellationToken)
+    {
+        var roles = await _context.RoleDefinitions
+            .AsNoTracking()
+            .Where(role => role.IsActive && role.IdentityRole == actorRole || role.Id == roleId)
+            .Select(role => new
+            {
+                role.Id,
+                role.Code,
+                role.IdentityRole,
+                role.IsActive,
+                role.IsSystem
+            })
+            .ToListAsync(cancellationToken);
+
+        var candidateRoles = roles
+            .Select(role => new
+            {
+                role.Id,
+                role.Code,
+                IdentityRole = role.Id == roleId && requestedIdentityRole.HasValue
+                    ? requestedIdentityRole.Value
+                    : role.IdentityRole,
+                role.IsActive,
+                role.IsSystem
+            })
+            .Where(role => role.IsActive && role.IdentityRole == actorRole)
+            .ToList();
+
+        var preferredCode = IdentityRoleDefaults.ResolvePreferredRoleCode(actorRole);
+        var preferred = candidateRoles.FirstOrDefault(role =>
+            string.Equals(role.Code, preferredCode, StringComparison.OrdinalIgnoreCase));
+        if (preferred is not null)
+        {
+            return preferred.Id;
+        }
+
+        return candidateRoles
+            .OrderByDescending(role => role.IsSystem)
+            .ThenBy(role => role.Code, StringComparer.OrdinalIgnoreCase)
+            .Select(role => (Guid?)role.Id)
+            .FirstOrDefault();
+    }
+
     private static string NormalizeName(string name)
     {
         if (string.IsNullOrWhiteSpace(name))
@@ -190,4 +323,16 @@ public class UpdateRoleCommandHandler : IRequestHandler<UpdateRoleCommand, RoleD
             .Select(permission => permission.Trim().ToLowerInvariant())
             .Distinct(StringComparer.OrdinalIgnoreCase)
             .ToList();
+
+    private static bool IsAdministrativeAccessPermission(string permission) =>
+        string.Equals(permission, PermissionKeys.Admin.UsersAccessView, StringComparison.OrdinalIgnoreCase) ||
+        string.Equals(permission, PermissionKeys.Admin.UsersAccessCreate, StringComparison.OrdinalIgnoreCase) ||
+        string.Equals(permission, PermissionKeys.Admin.UsersAccessEdit, StringComparison.OrdinalIgnoreCase) ||
+        string.Equals(permission, PermissionKeys.Admin.UsersAccessApprove, StringComparison.OrdinalIgnoreCase) ||
+        string.Equals(permission, PermissionKeys.Admin.UsersAccessManageSettings, StringComparison.OrdinalIgnoreCase) ||
+        string.Equals(permission, PermissionKeys.Admin.EmailCenterView, StringComparison.OrdinalIgnoreCase) ||
+        string.Equals(permission, PermissionKeys.Admin.EmailCenterEdit, StringComparison.OrdinalIgnoreCase) ||
+        string.Equals(permission, PermissionKeys.Admin.EmailCenterApprove, StringComparison.OrdinalIgnoreCase) ||
+        string.Equals(permission, PermissionKeys.Admin.EmailCenterManageSettings, StringComparison.OrdinalIgnoreCase);
+
 }

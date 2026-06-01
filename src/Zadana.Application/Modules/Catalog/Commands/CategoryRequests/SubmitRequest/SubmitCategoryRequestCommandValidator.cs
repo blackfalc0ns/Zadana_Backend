@@ -8,8 +8,8 @@ public class SubmitCategoryRequestCommandValidator : AbstractValidator<SubmitCat
 {
     public SubmitCategoryRequestCommandValidator(IStringLocalizer<SharedResource> localizer)
     {
-        RuleFor(x => x.NameAr).NotEmpty().MaximumLength(200).WithMessage(localizer["MaxLength"].Value);
-        RuleFor(x => x.NameEn).NotEmpty().MaximumLength(200).WithMessage(localizer["MaxLength"].Value);
+        RuleFor(x => x.NameAr).NotEmpty().MinimumLength(2).WithMessage(localizer["MinLength"].Value).MaximumLength(200).WithMessage(localizer["MaxLength"].Value);
+        RuleFor(x => x.NameEn).NotEmpty().MinimumLength(2).WithMessage(localizer["MinLength"].Value).MaximumLength(200).WithMessage(localizer["MaxLength"].Value);
         RuleFor(x => x.TargetLevel).NotEmpty().MaximumLength(50);
         RuleFor(x => x.DisplayOrder).GreaterThan(0);
         RuleFor(x => x.ImageUrl).MaximumLength(1000).WithMessage(localizer["ImageUrlTooLong"].Value);

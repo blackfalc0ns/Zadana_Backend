@@ -197,6 +197,7 @@ public class OrderStatusChangedHandler : INotificationHandler<OrderStatusChanged
                     item.OrderNumber,
                     item.TotalAmount,
                     item.Currency,
+                    item.UserId,
                     item.PaymentMethod,
                     item.PaymentStatus,
                     CustomerName = item.User.FullName,
@@ -234,6 +235,7 @@ public class OrderStatusChangedHandler : INotificationHandler<OrderStatusChanged
                     },
                     TargetUrl: OrderStatusNotificationComposer.ResolveTargetUrl(notification.OrderId),
                     EntityId: notification.OrderId,
+                    RecipientEntityId: order.UserId,
                     VendorId: notification.VendorId),
                 cancellationToken);
         }
@@ -266,7 +268,8 @@ public class OrderStatusChangedHandler : INotificationHandler<OrderStatusChanged
                 {
                     item.OrderNumber,
                     item.TotalAmount,
-                    item.Currency
+                    item.Currency,
+                    item.VendorBranchId
                 })
                 .FirstOrDefaultAsync(cancellationToken);
 
@@ -290,7 +293,8 @@ public class OrderStatusChangedHandler : INotificationHandler<OrderStatusChanged
                     },
                     TargetUrl: OrderStatusNotificationComposer.ResolveTargetUrl(notification.OrderId),
                     EntityId: notification.OrderId,
-                    VendorId: notification.VendorId),
+                    VendorId: notification.VendorId,
+                    BranchId: order.VendorBranchId),
                 cancellationToken);
         }
         catch (Exception ex)

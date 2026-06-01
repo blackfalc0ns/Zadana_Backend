@@ -27,7 +27,7 @@ public class AdminEmailCenterController : ApiControllerBase
     }
 
     [HttpPut("rules/{id}")]
-    [RequireAccess(PermissionKeys.Admin.EmailCenterEdit)]
+    [RequireAccess(true, PermissionKeys.Admin.EmailCenterEdit, PermissionKeys.Admin.EmailCenterManageSettings)]
     public async Task<ActionResult<EmailWorkflowRuleDto>> UpdateRule(
         string id,
         [FromBody] EmailWorkflowRuleDto request,
@@ -47,7 +47,7 @@ public class AdminEmailCenterController : ApiControllerBase
     }
 
     [HttpPost("rules/{id}/test-send")]
-    [RequireAccess(PermissionKeys.Admin.EmailCenterEdit)]
+    [RequireAccess(true, PermissionKeys.Admin.EmailCenterEdit, PermissionKeys.Admin.EmailCenterApprove)]
     public async Task<ActionResult<EmailTestSendResultDto>> TestSend(
         string id,
         [FromBody] EmailWorkflowRuleDto request,

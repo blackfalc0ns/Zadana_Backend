@@ -33,6 +33,20 @@ public class SubmitProductRequestCommandHandler : IRequestHandler<SubmitProductR
         var vendorId = await _currentVendorService.TryGetVendorIdAsync(cancellationToken)
             ?? throw new ForbiddenAccessException(_localizer["VENDOR_LOGIN_REQUIRED"]);
 
+        if (request.SuggestedBrandId.HasValue && request.RequestedBrand is not null)
+        {
+            throw new BusinessRuleException(
+                "PRODUCT_REQUEST_BRAND_CONFLICT",
+                "Choose either an existing brand or a new brand request, not both.");
+        }
+
+        if (request.SuggestedCategoryId.HasValue && request.RequestedCategory is not null)
+        {
+            throw new BusinessRuleException(
+                "PRODUCT_REQUEST_CATEGORY_CONFLICT",
+                "Choose either an existing category or a new category request, not both.");
+        }
+
         if (request.SuggestedCategoryId.HasValue
             && !await _context.Categories.AnyAsync(category => category.Id == request.SuggestedCategoryId.Value, cancellationToken))
         {
@@ -72,18 +86,19 @@ public class SubmitProductRequestCommandHandler : IRequestHandler<SubmitProductR
             throw new NotFoundException(nameof(UnitOfMeasure), request.SuggestedUnitOfMeasureId.Value);
         }
 
+        var normalizedNameAr = CatalogRequestWorkflowSupport.NormalizeName(request.SuggestedNameAr);
+        var normalizedNameEn = CatalogRequestWorkflowSupport.NormalizeName(request.SuggestedNameEn);
+
         BrandRequest? brandRequest = null;
         if (request.RequestedBrand is not null)
         {
-            var requestedBrandCategory = await _context.Categories
-                .AsNoTracking()
-                .FirstOrDefaultAsync(category => category.Id == request.RequestedBrand.CategoryId, cancellationToken)
-                ?? throw new NotFoundException(nameof(Category), request.RequestedBrand.CategoryId);
-
-            if (requestedBrandCategory.ParentCategoryId is null)
-            {
-                throw new BusinessRuleException("BRAND_CATEGORY_MUST_BE_NESTED", "The selected category is not valid for brand requests.");
-            }
+            await CatalogRequestWorkflowSupport.EnsureBrandRequestCanBeSubmittedAsync(
+                _context,
+                vendorId,
+                request.RequestedBrand.CategoryId,
+                request.RequestedBrand.NameAr,
+                request.RequestedBrand.NameEn,
+                cancellationToken);
 
             brandRequest = new BrandRequest(
                 vendorId,
@@ -98,57 +113,65 @@ public class SubmitProductRequestCommandHandler : IRequestHandler<SubmitProductR
         CategoryRequest? categoryRequest = null;
         if (request.RequestedCategory is not null)
         {
-            if (!CategoryHierarchyRules.TryParseTargetLevel(request.RequestedCategory.TargetLevel, out var targetLevel))
-            {
-                throw new BusinessRuleException("INVALID_CATEGORY_TARGET_LEVEL", "Invalid category target level.");
-            }
-
-            if (!CategoryHierarchyRules.IsValidLevel(targetLevel))
-            {
-                throw new BusinessRuleException("CATEGORY_LEVEL_NOT_SUPPORTED", "Category requests cannot exceed the fourth level.");
-            }
-
-            if (!CategoryHierarchyRules.IsRequestTargetLevel(targetLevel))
-            {
-                throw new BusinessRuleException("CATEGORY_LEVEL_NOT_SUPPORTED", "Only category and sub-category requests are supported.");
-            }
-
-            if (!request.RequestedCategory.ParentCategoryId.HasValue)
-            {
-                throw new BusinessRuleException("CATEGORY_PARENT_REQUIRED", "This category level requires a parent category.");
-            }
-
-            if (request.RequestedCategory.ParentCategoryId.HasValue)
-            {
-                var categories = await _context.Categories
-                    .AsNoTracking()
-                    .Select(category => new CategoryNode(category.Id, category.ParentCategoryId))
-                    .ToListAsync(cancellationToken);
-
-                var lookup = categories.ToDictionary(category => category.Id);
-
-                if (!lookup.TryGetValue(request.RequestedCategory.ParentCategoryId.Value, out var parent))
-                {
-                    throw new NotFoundException(nameof(Category), request.RequestedCategory.ParentCategoryId.Value);
-                }
-
-                var actualParentLevel = ResolveLevel(parent.Id, lookup);
-                if (!CategoryHierarchyRules.IsAllowedParentLevel(targetLevel, actualParentLevel))
-                {
-                    throw new BusinessRuleException("INVALID_CATEGORY_PARENT_LEVEL", "The selected parent category does not match the requested level.");
-                }
-            }
+            var targetLevelKey = await CatalogRequestWorkflowSupport.ValidateAndResolveCategoryTargetLevelAsync(
+                _context,
+                vendorId,
+                request.RequestedCategory.NameAr,
+                request.RequestedCategory.NameEn,
+                request.RequestedCategory.TargetLevel,
+                request.RequestedCategory.ParentCategoryId,
+                cancellationToken);
 
             categoryRequest = new CategoryRequest(
                 vendorId,
                 request.RequestedCategory.NameAr,
                 request.RequestedCategory.NameEn,
-                CategoryHierarchyRules.ToKey(targetLevel),
+                targetLevelKey,
                 request.RequestedCategory.ParentCategoryId,
                 request.RequestedCategory.DisplayOrder,
                 request.RequestedCategory.ImageUrl);
 
             _context.CategoryRequests.Add(categoryRequest);
+        }
+
+        var duplicatePendingRequestExists = await _context.ProductRequests
+            .AsNoTracking()
+            .AnyAsync(
+                item => item.VendorId == vendorId &&
+                        item.Status == Domain.Modules.Catalog.Enums.ApprovalStatus.Pending &&
+                        item.SuggestedCategoryId == request.SuggestedCategoryId &&
+                        item.SuggestedBrandId == request.SuggestedBrandId &&
+                        item.SuggestedUnitOfMeasureId == request.SuggestedUnitOfMeasureId &&
+                        item.SuggestedNameAr.ToUpper() == normalizedNameAr &&
+                        item.SuggestedNameEn.ToUpper() == normalizedNameEn,
+                cancellationToken);
+
+        if (duplicatePendingRequestExists)
+        {
+            throw new BusinessRuleException(
+                "PRODUCT_REQUEST_ALREADY_PENDING",
+                "A matching product request is already pending review.");
+        }
+
+        if (request.SuggestedCategoryId.HasValue)
+        {
+            var activeProductExists = await _context.MasterProducts
+                .AsNoTracking()
+                .AnyAsync(
+                    item => item.CategoryId == request.SuggestedCategoryId.Value &&
+                            item.BrandId == request.SuggestedBrandId &&
+                            item.UnitOfMeasureId == request.SuggestedUnitOfMeasureId &&
+                            item.Status == Domain.Modules.Catalog.Enums.ProductStatus.Active &&
+                            item.NameAr.ToUpper() == normalizedNameAr &&
+                            item.NameEn.ToUpper() == normalizedNameEn,
+                    cancellationToken);
+
+            if (activeProductExists)
+            {
+                throw new BusinessRuleException(
+                    "PRODUCT_ALREADY_EXISTS",
+                    "A matching catalog product already exists. Add it to your store instead of creating a new request.");
+            }
         }
 
         var productRequest = new ProductRequest(
@@ -184,20 +207,4 @@ public class SubmitProductRequestCommandHandler : IRequestHandler<SubmitProductR
 
         return productRequest.Id;
     }
-
-    private static int ResolveLevel(Guid categoryId, IReadOnlyDictionary<Guid, CategoryNode> lookup)
-    {
-        var currentId = categoryId;
-        var level = 0;
-
-        while (lookup.TryGetValue(currentId, out var node) && node.ParentCategoryId.HasValue)
-        {
-            level++;
-            currentId = node.ParentCategoryId.Value;
-        }
-
-        return level;
-    }
-
-    private sealed record CategoryNode(Guid Id, Guid? ParentCategoryId);
 }

@@ -70,6 +70,7 @@ public class GetVendorDetailQueryHandlerTests
             RequiredActions: [],
             ReviewDocuments: [],
             ReviewNotes: [],
+            RiskIndicators: [],
             BranchesCount: 2,
             BankAccountsCount: 1);
 

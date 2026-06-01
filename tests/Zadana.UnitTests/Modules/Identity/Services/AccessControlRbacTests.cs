@@ -152,7 +152,8 @@ public class AccessControlRbacTests
 
         var handler = new UpdateRoleCommandHandler(
             context,
-            CreateValidationService(context, actor.Id));
+            CreateValidationService(context, actor.Id),
+            new FakeCurrentUserService(actor.Id, isAuthenticated: true, role: UserRole.Admin.ToString()));
 
         var command = new UpdateRoleCommand(
             sensitiveRole.Id,
@@ -203,7 +204,8 @@ public class AccessControlRbacTests
 
         var handler = new UpdateRoleCommandHandler(
             context,
-            CreateValidationService(context, actor.Id));
+            CreateValidationService(context, actor.Id),
+            new FakeCurrentUserService(actor.Id, isAuthenticated: true, role: UserRole.Admin.ToString()));
 
         var result = await handler.Handle(
             new UpdateRoleCommand(
@@ -217,6 +219,83 @@ public class AccessControlRbacTests
 
         result.IdentityRole.Should().Be(UserRole.VendorStaff);
         result.PanelScope.Should().Be(PanelScope.VendorPanel);
+    }
+
+    [Fact]
+    public async Task UpdateRoleAsync_WhenActorWouldRemoveOwnAdministrativeAccess_Throws()
+    {
+        using var context = TestDbContextFactory.Create();
+        var usersAccessEdit = AddPermission(context, PermissionKeys.Admin.UsersAccessEdit, isSensitive: true);
+        var usersAccessView = AddPermission(context, PermissionKeys.Admin.UsersAccessView);
+        var dashboardView = AddPermission(context, PermissionKeys.Admin.DashboardView);
+        var actorRole = AddRole(
+            context,
+            "self_managed_access_role",
+            UserRole.Admin,
+            PanelScope.SuperAdminPanel,
+            [usersAccessEdit, usersAccessView]);
+
+        var actor = new User("Self Managed Admin", "self-managed@example.com", "01000000007", UserRole.Admin);
+        context.Users.Add(actor);
+        context.UserAccessScopes.Add(new UserAccessScope(actor.Id, actorRole.Id, PanelScope.SuperAdminPanel, AccessScopeType.Global));
+        await context.SaveChangesAsync();
+
+        var handler = new UpdateRoleCommandHandler(
+            context,
+            CreateValidationService(context, actor.Id),
+            new FakeCurrentUserService(actor.Id, isAuthenticated: true, role: UserRole.Admin.ToString()));
+
+        var act = () => handler.Handle(
+            new UpdateRoleCommand(
+                actorRole.Id,
+                "Self Managed Access Role",
+                null,
+                UserRole.Admin,
+                PanelScope.SuperAdminPanel,
+                [dashboardView.Key]),
+            CancellationToken.None);
+
+        await act.Should()
+            .ThrowAsync<BadRequestException>()
+            .Where(exception => exception.ErrorCode == "SELF_ACCESS_CHANGE_BLOCKED");
+    }
+
+    [Fact]
+    public async Task UpdateRoleAsync_WhenActorUsesFallbackRoleAndWouldLoseAdministrativeAccess_Throws()
+    {
+        using var context = TestDbContextFactory.Create();
+        var usersAccessEdit = AddPermission(context, PermissionKeys.Admin.UsersAccessEdit, isSensitive: true);
+        var usersAccessView = AddPermission(context, PermissionKeys.Admin.UsersAccessView);
+        var dashboardView = AddPermission(context, PermissionKeys.Admin.DashboardView);
+        var fallbackRole = AddRole(
+            context,
+            "admin_operations",
+            UserRole.Admin,
+            PanelScope.SuperAdminPanel,
+            [usersAccessEdit, usersAccessView]);
+
+        var actor = new User("Fallback Admin", "fallback-admin@example.com", "01000000008", UserRole.Admin);
+        context.Users.Add(actor);
+        await context.SaveChangesAsync();
+
+        var handler = new UpdateRoleCommandHandler(
+            context,
+            CreateValidationService(context, actor.Id),
+            new FakeCurrentUserService(actor.Id, isAuthenticated: true, role: UserRole.Admin.ToString()));
+
+        var act = () => handler.Handle(
+            new UpdateRoleCommand(
+                fallbackRole.Id,
+                "Admin Operations",
+                null,
+                UserRole.Admin,
+                PanelScope.SuperAdminPanel,
+                [dashboardView.Key]),
+            CancellationToken.None);
+
+        await act.Should()
+            .ThrowAsync<BadRequestException>()
+            .Where(exception => exception.ErrorCode == "SELF_ACCESS_CHANGE_BLOCKED");
     }
 
     private static PermissionDefinition AddPermission(

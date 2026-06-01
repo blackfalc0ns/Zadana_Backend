@@ -138,6 +138,7 @@ public class AdminVendorsControllerTests
             RequiredActions: [],
             ReviewDocuments: [],
             ReviewNotes: [],
+            RiskIndicators: [],
             BranchesCount: 0,
             BankAccountsCount: 0);
 

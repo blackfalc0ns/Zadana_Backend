@@ -1,6 +1,7 @@
 using MediatR;
 using Microsoft.EntityFrameworkCore;
 using Zadana.Application.Common.Interfaces;
+using Zadana.Application.Modules.Catalog.Common;
 using Zadana.Application.Common.Localization;
 using Microsoft.Extensions.Localization;
 using Zadana.Domain.Modules.Catalog.Entities;
@@ -32,15 +33,13 @@ public class SubmitBrandRequestCommandHandler : IRequestHandler<SubmitBrandReque
         var vendorId = await _currentVendorService.TryGetVendorIdAsync(cancellationToken)
             ?? throw new ForbiddenAccessException(_localizer["VENDOR_LOGIN_REQUIRED"]);
 
-        var category = await _context.Categories
-            .AsNoTracking()
-            .FirstOrDefaultAsync(item => item.Id == request.CategoryId, cancellationToken)
-            ?? throw new NotFoundException(nameof(Category), request.CategoryId);
-
-        if (category.ParentCategoryId is null)
-        {
-            throw new BusinessRuleException("BRAND_CATEGORY_MUST_BE_NESTED", _localizer["CATEGORY_PARENT_REQUIRED"]);
-        }
+        await CatalogRequestWorkflowSupport.EnsureBrandRequestCanBeSubmittedAsync(
+            _context,
+            vendorId,
+            request.CategoryId,
+            request.NameAr,
+            request.NameEn,
+            cancellationToken);
 
         var brandRequest = new BrandRequest(vendorId, request.CategoryId, request.NameAr, request.NameEn, request.LogoUrl);
         _context.BrandRequests.Add(brandRequest);

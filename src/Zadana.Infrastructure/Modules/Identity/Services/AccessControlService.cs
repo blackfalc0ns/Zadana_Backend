@@ -6,6 +6,7 @@ using Zadana.Application.Modules.Identity.Interfaces;
 using Zadana.Domain.Modules.Identity.Constants;
 using Zadana.Domain.Modules.Identity.Entities;
 using Zadana.Domain.Modules.Identity.Enums;
+using Zadana.Domain.Modules.Identity.Services;
 namespace Zadana.Infrastructure.Modules.Identity.Services;
 
 public class AccessControlService : IAccessControlService
@@ -63,7 +64,7 @@ public class AccessControlService : IAccessControlService
                 .Where(x => x.IdentityRole == user.Role && x.IsActive)
                 .OrderByDescending(x => x.IsSystem)
                 .ThenBy(x => x.Code)
-                .FirstOrDefaultAsync(x => x.Code == ResolvePreferredRoleCode(user.Role), cancellationToken)
+                .FirstOrDefaultAsync(x => x.Code == IdentityRoleDefaults.ResolvePreferredRoleCode(user.Role), cancellationToken)
             : null;
         fallbackRole ??= activeScope is null
             ? await _context.RoleDefinitions
@@ -119,7 +120,7 @@ public class AccessControlService : IAccessControlService
             panelScope.ToString(),
             scopeType.ToString(),
             activeScope?.ScopeEntityId,
-            role?.Code ?? ResolvePreferredRoleCode(user.Role),
+            role?.Code ?? IdentityRoleDefaults.ResolvePreferredRoleCode(user.Role),
             role?.Name ?? user.Role.ToString(),
             scopeEntityName,
             scopeClassification);
@@ -129,17 +130,6 @@ public class AccessControlService : IAccessControlService
             permissions.OrderBy(x => x, StringComparer.OrdinalIgnoreCase).ToArray(),
             scopeDto);
     }
-
-    private static string ResolvePreferredRoleCode(UserRole role) => role switch
-    {
-        UserRole.SuperAdmin => "super_admin_all",
-        UserRole.Admin => "admin_operations",
-        UserRole.Vendor => "vendor_owner",
-        UserRole.VendorStaff => "vendor_company_manager",
-        UserRole.Driver => "driver_account",
-        UserRole.Customer => "customer_account",
-        _ => "admin_operations"
-    };
 
     private static void ApplySessionBaselinePermissions(
         UserRole role,

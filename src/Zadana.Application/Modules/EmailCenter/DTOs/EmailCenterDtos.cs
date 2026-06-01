@@ -138,6 +138,7 @@ public sealed record EmailSystemEventDispatchRequest(
     IReadOnlyDictionary<string, string>? Variables = null,
     string? TargetUrl = null,
     Guid? EntityId = null,
+    Guid? RecipientEntityId = null,
     Guid? VendorId = null,
     Guid? BranchId = null,
     IReadOnlyList<string>? Cc = null,

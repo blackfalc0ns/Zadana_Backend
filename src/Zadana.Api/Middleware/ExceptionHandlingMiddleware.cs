@@ -147,9 +147,9 @@ public class ExceptionHandlingMiddleware
     {
         var message = exception switch
         {
-            BusinessRuleException bre => ResolveByErrorCode(bre.ErrorCode, bre.Message, context, localizer),
-            BadRequestException bad => ResolveByErrorCode(bad.ErrorCode, bad.Message, context, localizer),
-            NotFoundException nf => ResolveByErrorCode(nf.ErrorCode, nf.Message, context, localizer),
+            BusinessRuleException bre => ResolveByErrorCode(bre.ErrorCode, bre.Message, context, localizer, bre.Args),
+            BadRequestException bad => ResolveByErrorCode(bad.ErrorCode, bad.Message, context, localizer, bad.Args),
+            NotFoundException nf => ResolveByErrorCode(nf.ErrorCode, nf.Message, context, localizer, nf.Args),
             ExternalServiceException ext => ResolveByErrorCode(ext.ErrorCode, ext.Message, context, localizer),
             ForbiddenAccessException => exception.Message,
             UnauthorizedAccessException => exception.Message,
@@ -182,13 +182,40 @@ public class ExceptionHandlingMiddleware
         string errorCode,
         string fallbackMessage,
         HttpContext context,
-        IStringLocalizer<SharedResource> localizer)
+        IStringLocalizer<SharedResource> localizer,
+        object[]? args = null)
     {
         if (!string.IsNullOrWhiteSpace(errorCode))
         {
             var localized = GetLocalizedResource(errorCode, context, localizer);
             if (!string.Equals(localized, errorCode, StringComparison.Ordinal))
             {
+                if (args != null && args.Length > 0)
+                {
+                    try
+                    {
+                        var formattedArgs = args.Select(arg =>
+                        {
+                            if (arg is Enum enumVal)
+                            {
+                                var enumKey = $"{enumVal.GetType().Name}_{enumVal}";
+                                var localizedEnum = GetLocalizedResource(enumKey, context, localizer);
+                                if (!string.Equals(localizedEnum, enumKey, StringComparison.Ordinal))
+                                {
+                                    return localizedEnum;
+                                }
+                                return enumVal.ToString();
+                            }
+                            return arg?.ToString() ?? string.Empty;
+                        }).ToArray();
+
+                        return string.Format(localized, formattedArgs);
+                    }
+                    catch (FormatException)
+                    {
+                        return localized;
+                    }
+                }
                 return localized;
             }
         }

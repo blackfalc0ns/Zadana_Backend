@@ -1,10 +1,12 @@
 using MediatR;
 using Microsoft.EntityFrameworkCore;
 using Microsoft.Extensions.Localization;
+using Microsoft.Extensions.Logging;
 using Zadana.Application.Common.Caching;
 using Zadana.Application.Common.Extensions;
 using Zadana.Application.Common.Interfaces;
 using Zadana.Application.Common.Localization;
+using Zadana.Application.Modules.Catalog.Common;
 using Zadana.Application.Modules.Identity.Interfaces;
 using Zadana.Domain.Modules.Catalog.Entities;
 using Zadana.Domain.Modules.Catalog.Enums;
@@ -21,19 +23,28 @@ public class ReviewBrandRequestCommandHandler : IRequestHandler<ReviewBrandReque
     private readonly ICurrentUserService _currentUserService;
     private readonly IIdentityAccountService _identityAccountService;
     private readonly IStringLocalizer<SharedResource> _localizer;
+    private readonly INotificationService _notificationService;
+    private readonly IFileStorageService _fileStorageService;
+    private readonly ILogger<ReviewBrandRequestCommandHandler> _logger;
 
     public ReviewBrandRequestCommandHandler(
         IApplicationDbContext context,
         ICacheInvalidator cacheInvalidator,
         ICurrentUserService currentUserService,
         IIdentityAccountService identityAccountService,
-        IStringLocalizer<SharedResource> localizer)
+        IStringLocalizer<SharedResource> localizer,
+        INotificationService notificationService,
+        IFileStorageService fileStorageService,
+        ILogger<ReviewBrandRequestCommandHandler> logger)
     {
         _context = context;
         _cacheInvalidator = cacheInvalidator;
         _currentUserService = currentUserService;
         _identityAccountService = identityAccountService;
         _localizer = localizer;
+        _notificationService = notificationService;
+        _fileStorageService = fileStorageService;
+        _logger = logger;
     }
 
     public async Task<Guid?> Handle(ReviewBrandRequestCommand request, CancellationToken cancellationToken)
@@ -57,16 +68,52 @@ public class ReviewBrandRequestCommandHandler : IRequestHandler<ReviewBrandReque
 
         if (request.IsApproved)
         {
-            var brand = new Brand(brandRequest.NameAr, brandRequest.NameEn, brandRequest.LogoUrl, null, brandRequest.CategoryId);
-            _context.Brands.Add(brand);
+            var categoryExists = await _context.Categories
+                .AsNoTracking()
+                .AnyAsync(item => item.Id == brandRequest.CategoryId, cancellationToken);
+            if (!categoryExists)
+            {
+                throw new NotFoundException(nameof(Category), brandRequest.CategoryId);
+            }
+
+            var brand = await CatalogRequestWorkflowSupport.FindMatchingBrandAsync(
+                _context,
+                brandRequest.NameAr,
+                brandRequest.NameEn,
+                cancellationToken);
+
+            if (brand is null)
+            {
+                brand = new Brand(brandRequest.NameAr, brandRequest.NameEn, brandRequest.LogoUrl, null, brandRequest.CategoryId);
+                _context.Brands.Add(brand);
+            }
+            else
+            {
+                if (!brand.IsActive)
+                {
+                    brand.Activate();
+                }
+
+                if (string.IsNullOrWhiteSpace(brand.LogoUrl) && !string.IsNullOrWhiteSpace(brandRequest.LogoUrl))
+                {
+                    brand.Update(brand.NameAr, brand.NameEn, brandRequest.LogoUrl, brand.CoverImageUrl, brand.CategoryId);
+                }
+            }
+
+            if (!brand.BrandCategories.Any(link => link.CategoryId == brandRequest.CategoryId))
+            {
+                _context.BrandCategories.Add(new BrandCategory(brand.Id, brandRequest.CategoryId));
+            }
+
             brandRequest.Approve(reviewerName, brand.Id);
-            _context.Notifications.Add(new Notification(
+            await _notificationService.SendToUserAsync(
                 brandRequest.Vendor.UserId,
                 "تمت الموافقة على طلب الكتالوج",
                 "Catalog Request Approved",
                 $"تمت الموافقة على طلب العلامة التجارية '{brandRequest.NameAr}'.",
                 $"Your brand request '{brandRequest.NameEn}' has been approved.",
-                "catalog_request_brand"));
+                "catalog_request_brand",
+                cancellationToken: cancellationToken);
             await _context.SaveChangesAsync(cancellationToken);
             await _cacheInvalidator.RemoveByTagsAsync(CacheInvalidationProfiles.CatalogReadModels, cancellationToken);
             return brand.Id;
@@ -78,14 +125,29 @@ public class ReviewBrandRequestCommandHandler : IRequestHandler<ReviewBrandReque
         }
 
         brandRequest.Reject(request.RejectionReason, reviewerName);
-        _context.Notifications.Add(new Notification(
+        await _notificationService.SendToUserAsync(
             brandRequest.Vendor.UserId,
             "تم رفض طلب الكتالوج",
             "Catalog Request Rejected",
             $"تم رفض طلب العلامة التجارية '{brandRequest.NameAr}'. السبب: {request.RejectionReason}",
             $"Your brand request '{brandRequest.NameEn}' was rejected. Reason: {request.RejectionReason}",
-            "catalog_request_brand"));
+            "catalog_request_brand",
+            cancellationToken: cancellationToken);
         await _context.SaveChangesAsync(cancellationToken);
+
+        if (!string.IsNullOrWhiteSpace(brandRequest.LogoUrl))
+        {
+            try
+            {
+                await _fileStorageService.DeleteAsync(brandRequest.LogoUrl, cancellationToken);
+            }
+            catch (Exception ex)
+            {
+                _logger.LogWarning(ex, "Failed to delete logo file {LogoUrl} for rejected brand request {BrandRequestId}",
+                    brandRequest.LogoUrl, brandRequest.Id);
+            }
+        }
+
         return null;
     }
 

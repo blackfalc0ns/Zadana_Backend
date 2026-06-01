@@ -24,7 +24,7 @@ using Zadana.SharedKernel.Exceptions;
 namespace Zadana.Api.Modules.Identity.Controllers;
 
 [Route("api/admin/access")]
-[Authorize]
+[Authorize(Policy = "AdminOnly")]
 public class AdminAccessController(
     IMediator mediator,
     IApplicationDbContext dbContext,

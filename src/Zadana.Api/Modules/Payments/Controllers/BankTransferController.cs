@@ -277,6 +277,7 @@ public class BankTransferController(
                 {
                     item.Id,
                     item.OrderNumber,
+                    item.UserId,
                     item.VendorId,
                     CustomerName = item.User.FullName,
                     CustomerEmail = item.User.Email,
@@ -305,6 +306,7 @@ public class BankTransferController(
                     },
                     TargetUrl: $"/orders/{emailData.Id}",
                     EntityId: emailData.Id,
+                    RecipientEntityId: emailData.UserId,
                     VendorId: emailData.VendorId),
                 cancellationToken);
         }

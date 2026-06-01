@@ -60,7 +60,7 @@ public class OtpWorkflowCommandHandlerTests
             new OrderInventoryWorkflowService(dbContext));
 
         var result = await handler.Handle(
-            new ConfirmVendorPickupOtpCommand(order.Id, vendor.Id, assignment.PickupOtpCode!),
+            new ConfirmVendorPickupOtpCommand(order.Id, vendor.Id, null, assignment.PickupOtpCode!),
             CancellationToken.None);
 
         result.Status.Should().Be("picked_up");
@@ -130,7 +130,7 @@ public class OtpWorkflowCommandHandlerTests
             new OrderInventoryWorkflowService(dbContext));
 
         var result = await handler.Handle(
-            new ConfirmVendorPickupOtpCommand(order.Id, vendor.Id, currentAssignment.PickupOtpCode!),
+            new ConfirmVendorPickupOtpCommand(order.Id, vendor.Id, null, currentAssignment.PickupOtpCode!),
             CancellationToken.None);
 
         result.AssignmentId.Should().Be(currentAssignment.Id);

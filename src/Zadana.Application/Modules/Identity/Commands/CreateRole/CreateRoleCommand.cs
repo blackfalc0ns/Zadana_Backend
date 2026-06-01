@@ -80,7 +80,8 @@ public class CreateRoleCommandHandler : IRequestHandler<CreateRoleCommand, RoleD
             request.IdentityRole,
             request.PanelScope,
             permissions,
-            cancellationToken);
+            cancellationToken,
+            approvalSubject: code);
 
         foreach (var permissionDef in permissionDefs)
         {

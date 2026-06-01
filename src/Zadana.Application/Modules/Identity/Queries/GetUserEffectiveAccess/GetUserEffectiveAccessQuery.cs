@@ -4,6 +4,7 @@ using Zadana.Application.Common.Interfaces;
 using Zadana.Domain.Modules.Identity.Enums;
 using Zadana.SharedKernel.Exceptions;
 using Zadana.Domain.Modules.Identity.Entities;
+using Zadana.Domain.Modules.Identity.Services;
 
 namespace Zadana.Application.Modules.Identity.Queries.GetUserEffectiveAccess;
 
@@ -47,7 +48,7 @@ public class GetUserEffectiveAccessQueryHandler : IRequestHandler<GetUserEffecti
                 .Where(r => r.IdentityRole == user.Role && r.IsActive)
                 .OrderByDescending(r => r.IsSystem)
                 .ThenBy(r => r.Code)
-                .FirstOrDefaultAsync(r => r.Code == ResolvePreferredRoleCode(user.Role), cancellationToken)
+                .FirstOrDefaultAsync(r => r.Code == IdentityRoleDefaults.ResolvePreferredRoleCode(user.Role), cancellationToken)
             : null;
         fallbackRole ??= scope is null
             ? await _context.RoleDefinitions
@@ -101,7 +102,7 @@ public class GetUserEffectiveAccessQueryHandler : IRequestHandler<GetUserEffecti
 
         return new UserEffectiveAccessDto(
             UserId: request.UserId,
-            RoleCode: role?.Code ?? ResolvePreferredRoleCode(user.Role),
+            RoleCode: role?.Code ?? IdentityRoleDefaults.ResolvePreferredRoleCode(user.Role),
             RoleName: role?.Name ?? user.Role.ToString(),
             RolePermissions: rolePermissions,
             GrantedOverrides: granted,
@@ -109,15 +110,4 @@ public class GetUserEffectiveAccessQueryHandler : IRequestHandler<GetUserEffecti
             EffectivePermissions: effective
         );
     }
-
-    private static string ResolvePreferredRoleCode(UserRole role) => role switch
-    {
-        UserRole.SuperAdmin => "super_admin_all",
-        UserRole.Admin => "admin_operations",
-        UserRole.Vendor => "vendor_owner",
-        UserRole.VendorStaff => "vendor_company_manager",
-        UserRole.Driver => "driver_account",
-        UserRole.Customer => "customer_account",
-        _ => "admin_operations"
-    };
 }

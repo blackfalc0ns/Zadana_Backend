@@ -37,6 +37,12 @@ public class AdminAuthController : IdentityAuthControllerBase
         _antiforgery = antiforgery;
     }
 
+    private void ClearCsrfCookie()
+    {
+        var cookieName = _environment.IsProduction() ? "__Host-XSRF-AF" : "XSRF-AF";
+        Response.Cookies.Delete(cookieName);
+    }
+
     /// <summary>
     /// Issues a fresh anti-CSRF token to the caller. Always succeeds, even when
     /// the user is not yet authenticated; callers must hold this token to be
@@ -73,6 +79,7 @@ public class AdminAuthController : IdentityAuthControllerBase
     {
         var result = await Sender.Send(new LoginCommand(request.Identifier, request.Password, new[] { UserRole.Admin, UserRole.SuperAdmin }));
 
+        ClearCsrfCookie();
         WriteRefreshCookie(result.Tokens);
         return Ok(StripRefreshToken(result));
     }
@@ -90,6 +97,7 @@ public class AdminAuthController : IdentityAuthControllerBase
 
         var pair = await Sender.Send(new RefreshTokenCommand(refreshToken));
 
+        ClearCsrfCookie();
         AdminRefreshCookie.Write(
             Response,
             _environment,
@@ -112,6 +120,7 @@ public class AdminAuthController : IdentityAuthControllerBase
             await Sender.Send(new LogoutCommand(refreshToken));
         }
 
+        ClearCsrfCookie();
         AdminRefreshCookie.Clear(Response, _environment);
         return NoContent();
     }

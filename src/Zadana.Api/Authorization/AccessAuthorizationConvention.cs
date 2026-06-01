@@ -15,8 +15,10 @@ public sealed class AccessAuthorizationConvention : IApplicationModelConvention
                 edit: [PermissionKeys.Admin.AccountEdit],
                 overrides: new Dictionary<string, string[]>(StringComparer.Ordinal)
                 {
-                    ["Logout"] = [PermissionKeys.Admin.AccountEdit],
-                    ["GetCurrentUser"] = [PermissionKeys.Admin.AccountView],
+                    ["Logout"] = [],
+                    ["GetCurrentUser"] = [],
+                    ["ChangeTemporaryPassword"] = [],
+                    ["ChangePassword"] = [],
                     ["UpdateCurrentUser"] = [PermissionKeys.Admin.AccountEdit]
                 }),
             ["AdminAccess"] = new(
@@ -148,8 +150,8 @@ public sealed class AccessAuthorizationConvention : IApplicationModelConvention
                 edit: [PermissionKeys.Vendor.AccountEdit],
                 overrides: new Dictionary<string, string[]>(StringComparer.Ordinal)
                 {
-                    ["Logout"] = [PermissionKeys.Vendor.AccountEdit],
-                    ["GetCurrentUser"] = [PermissionKeys.Vendor.AccountView],
+                    ["Logout"] = [],
+                    ["GetCurrentUser"] = [],
                     ["UpdateCurrentUser"] = [PermissionKeys.Vendor.AccountEdit]
                 }),
             ["VendorAccess"] = new(
@@ -208,8 +210,8 @@ public sealed class AccessAuthorizationConvention : IApplicationModelConvention
                 edit: [PermissionKeys.Driver.AccountEdit],
                 overrides: new Dictionary<string, string[]>(StringComparer.Ordinal)
                 {
-                    ["Logout"] = [PermissionKeys.Driver.AccountEdit],
-                    ["GetCurrentUser"] = [PermissionKeys.Driver.AccountView],
+                    ["Logout"] = [],
+                    ["GetCurrentUser"] = [],
                     ["UpdateCurrentUser"] = [PermissionKeys.Driver.AccountEdit]
                 }),
             ["Drivers"] = new(
@@ -242,8 +244,8 @@ public sealed class AccessAuthorizationConvention : IApplicationModelConvention
                 edit: [PermissionKeys.Customer.AccountEdit],
                 overrides: new Dictionary<string, string[]>(StringComparer.Ordinal)
                 {
-                    ["Logout"] = [PermissionKeys.Customer.AccountEdit],
-                    ["GetCurrentUser"] = [PermissionKeys.Customer.AccountView],
+                    ["Logout"] = [],
+                    ["GetCurrentUser"] = [],
                     ["UpdateCurrentUser"] = [PermissionKeys.Customer.AccountEdit]
                 }),
             ["CustomerAddresses"] = new(

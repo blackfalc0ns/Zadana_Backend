@@ -257,6 +257,18 @@
   <data name="VendorInvalidStatusForReactivation" xml:space="preserve">
     <value>Vendor can only be reactivated from Suspended status. Current status: {0}.</value>
   </data>
+  <data name="VendorStatus_PendingReview" xml:space="preserve">
+    <value>Pending Review</value>
+  </data>
+  <data name="VendorStatus_Active" xml:space="preserve">
+    <value>Active</value>
+  </data>
+  <data name="VendorStatus_Rejected" xml:space="preserve">
+    <value>Rejected</value>
+  </data>
+  <data name="VendorStatus_Suspended" xml:space="preserve">
+    <value>Suspended</value>
+  </data>
   <data name="InvalidCommissionRate" xml:space="preserve">
     <value>Commission rate must be between 0 and 100.</value>
   </data>

@@ -254,6 +254,18 @@
   <data name="VendorInvalidStatusForReactivation" xml:space="preserve">
     <value>لا يمكن إعادة تفعيل التاجر إلا من حالة معلق. الحالة الحالية: {0}.</value>
   </data>
+  <data name="VendorStatus_PendingReview" xml:space="preserve">
+    <value>قيد المراجعة</value>
+  </data>
+  <data name="VendorStatus_Active" xml:space="preserve">
+    <value>نشط</value>
+  </data>
+  <data name="VendorStatus_Rejected" xml:space="preserve">
+    <value>مرفوض</value>
+  </data>
+  <data name="VendorStatus_Suspended" xml:space="preserve">
+    <value>معلق</value>
+  </data>
   <data name="InvalidCommissionRate" xml:space="preserve">
     <value>نسبة العمولة يجب أن تكون بين 0 و 100.</value>
   </data>

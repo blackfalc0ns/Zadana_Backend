@@ -84,7 +84,8 @@ public sealed class CreateAdminAccessUserCommandHandler
             newRole: role,
             grantedPermissions: [],
             revokedPermissions: [],
-            cancellationToken);
+            cancellationToken,
+            request.Email.Trim().ToLowerInvariant());
 
         return await _transaction.ExecuteAsync(async ct =>
         {
@@ -121,6 +122,7 @@ public sealed class CreateAdminAccessUserCommandHandler
                 ct);
 
             user.UpdateDirectoryProfile(request.Department, request.Team);
+            user.VerifyEmail();
             user.RequirePasswordChange();
             _context.UserAccessScopes.Add(new UserAccessScope(
                 user.Id,
@@ -258,7 +260,8 @@ public sealed class UpdateAdminAccessUserCommandHandler
             preflightRole,
             grantedPermissions,
             revokedPermissions,
-            cancellationToken);
+            cancellationToken,
+            preflightUser.Id.ToString());
 
         return await _transaction.ExecuteAsync(async ct =>
         {

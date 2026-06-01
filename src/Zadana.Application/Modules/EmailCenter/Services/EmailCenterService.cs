@@ -15,6 +15,7 @@ using Zadana.SharedKernel.Exceptions;
 
 namespace Zadana.Application.Modules.EmailCenter.Services;
 
+// Localized Email Center Service
 public sealed class EmailCenterService : IEmailCenterService
 {
     private static readonly JsonSerializerOptions JsonOptions = new(JsonSerializerDefaults.Web);
@@ -65,20 +66,6 @@ public sealed class EmailCenterService : IEmailCenterService
             .AsNoTracking()
             .OrderBy(x => x.AudienceType)
             .ThenBy(x => x.TitleKey)
-            .ToListAsync(cancellationToken);
-
-        var latestDispatchByRule = await _context.EmailDispatchLogs
-            .AsNoTracking()
-            .Where(x => x.RuleKey != null)
-            .GroupBy(x => x.RuleKey!)
-            .Select(group => group
-                .OrderByDescending(item => item.CreatedAtUtc)
-                .Select(item => new EmailDispatchSummaryDto(
-                    item.Status,
-                    item.Source,
-                    item.CreatedAtUtc,
-                    item.FailureReason))
-                .First())
             .ToListAsync(cancellationToken);
 
         var latestDispatchLookup = await _context.EmailDispatchLogs
@@ -351,6 +338,12 @@ public sealed class EmailCenterService : IEmailCenterService
             return await LogSystemEventSkipAsync(rule, eventKey, source, request, "Email event is outside the reduced live email policy.", cancellationToken);
         }
 
+        var scopeMismatchReason = GetSystemEventScopeMismatch(rule, request);
+        if (scopeMismatchReason is not null)
+        {
+            return await LogSystemEventSkipAsync(rule, eventKey, source, request, scopeMismatchReason, cancellationToken);
+        }
+
         if (await HasDuplicateDispatchAsync(
                 eventKey,
                 request.EntityId,
@@ -363,23 +356,20 @@ public sealed class EmailCenterService : IEmailCenterService
             return await LogSystemEventSkipAsync(rule, eventKey, source, request, "Duplicate email event already has a dispatch log.", cancellationToken);
         }
 
-        var resolved = new EmailResolvedRecipientsDto(
-            NormalizeEmails(request.To ?? Array.Empty<string>()),
-            NormalizeEmails(request.Cc ?? Array.Empty<string>()),
-            NormalizeEmails(request.Bcc ?? Array.Empty<string>()),
-            []);
+        var effectiveRule = ApplySystemEventRuntimeScope(rule, request);
+        var resolved = await ResolveSystemEventRecipientsAsync(effectiveRule, request, cancellationToken);
 
         if (CombineRecipients(resolved).Count == 0)
         {
-            return await LogSystemEventSkipAsync(rule, eventKey, source, request, "No recipients were resolved for this email event.", cancellationToken);
+            return await LogSystemEventSkipAsync(effectiveRule, eventKey, source, request, "No recipients were resolved for this email event.", cancellationToken);
         }
 
-        var senderProfile = await GetSenderProfileAsync(rule.SenderProfileId, cancellationToken);
+        var senderProfile = await GetSenderProfileAsync(effectiveRule.SenderProfileId, cancellationToken);
         var variables = NormalizeVariables(request.Variables);
         var targetUrl = RenderTemplate(request.TargetUrl ?? string.Empty, variables);
         var sendResult = await SendEmailSafelyAsync(
             BuildManagedEmailRequest(
-                rule,
+                effectiveRule,
                 senderProfile,
                 resolved,
                 string.IsNullOrWhiteSpace(targetUrl) ? null : targetUrl,
@@ -387,13 +377,13 @@ public sealed class EmailCenterService : IEmailCenterService
             cancellationToken);
 
         var subject = RenderTemplate(
-            rule.Template.Subject.GetValueOrDefault("en") ??
-            rule.Template.Subject.GetValueOrDefault("ar") ??
-            rule.TitleKey,
+            effectiveRule.Template.Subject.GetValueOrDefault("en") ??
+            effectiveRule.Template.Subject.GetValueOrDefault("ar") ??
+            effectiveRule.TitleKey,
             variables);
 
         var dispatchLog = CreateDispatchLog(
-            rule: rule,
+            rule: effectiveRule,
             resolved: resolved,
             subject: subject,
             source: source,
@@ -636,29 +626,47 @@ public sealed class EmailCenterService : IEmailCenterService
         var defaults = EmailCenterDefaults.BuildWorkflowRules()
             .ToDictionary(rule => rule.RuleKey, StringComparer.OrdinalIgnoreCase);
         var rules = await _context.EmailWorkflowRuleConfigs.ToListAsync(cancellationToken);
+
+        var obsoleteRules = rules.Where(r => !defaults.ContainsKey(r.RuleKey)).ToList();
+        if (obsoleteRules.Count > 0)
+        {
+            _context.EmailWorkflowRuleConfigs.RemoveRange(obsoleteRules);
+            rules = rules.Except(obsoleteRules).ToList();
+        }
+
         var existingByKey = rules.ToDictionary(rule => rule.RuleKey, StringComparer.OrdinalIgnoreCase);
 
         foreach (var defaultRule in defaults.Values)
         {
             if (existingByKey.TryGetValue(defaultRule.RuleKey, out var existingRule))
             {
+                var recipientTargetsJson = ShouldAdoptDefaultRecipientTargets(existingRule, defaultRule)
+                    ? defaultRule.RecipientTargetsJson
+                    : existingRule.RecipientTargetsJson;
+
+                var templateJson = existingRule.TemplateJson;
+                if (templateJson != null && (templateJson.Contains("Ø§") || templateJson.Contains("Ø£")))
+                {
+                    templateJson = defaultRule.TemplateJson;
+                }
+
                 existingRule.Update(
                     defaultRule.TitleKey,
                     defaultRule.SubtitleKey,
                     defaultRule.CategoryKey,
                     defaultRule.CadenceLabelKey,
                     defaultRule.TriggerNotesKey,
-                    defaultRule.Enabled,
-                    defaultRule.SenderProfileKey,
+                    existingRule.Enabled,
+                    existingRule.SenderProfileKey,
                     defaultRule.AudienceType,
                     defaultRule.PanelScope,
-                    defaultRule.PersonaTargetsJson,
-                    defaultRule.EntityScopeJson,
-                    defaultRule.BranchScopeMode,
-                    defaultRule.RecipientTargetsJson,
-                    defaultRule.RouteJson,
-                    defaultRule.TemplateJson,
-                    defaultRule.AutomationState,
+                    existingRule.PersonaTargetsJson,
+                    existingRule.EntityScopeJson,
+                    existingRule.BranchScopeMode,
+                    recipientTargetsJson,
+                    existingRule.RouteJson,
+                    templateJson,
+                    existingRule.AutomationState,
                     defaultRule.EventKey,
                     existingRule.UpdatedByUserId);
                 continue;
@@ -737,6 +745,41 @@ public sealed class EmailCenterService : IEmailCenterService
         }
     }
 
+    private static bool ShouldAdoptDefaultRecipientTargets(
+        EmailWorkflowRuleConfig existingRule,
+        EmailWorkflowRuleConfig defaultRule)
+    {
+        if (RecipientTargetsAreEmpty(defaultRule.RecipientTargetsJson) ||
+            !RecipientTargetsAreEmpty(existingRule.RecipientTargetsJson) ||
+            existingRule.UpdatedByUserId is not null)
+        {
+            return false;
+        }
+
+        var existingRoute = Deserialize<EmailRecipientRouteDto>(existingRule.RouteJson)
+                            ?? new EmailRecipientRouteDto([], [], [], [], [], [], string.Empty, string.Empty);
+        var defaultRoute = Deserialize<EmailRecipientRouteDto>(defaultRule.RouteJson)
+                           ?? new EmailRecipientRouteDto([], [], [], [], [], [], string.Empty, string.Empty);
+
+        return existingRoute.StaticTo.Count == 0 &&
+               existingRoute.FallbackTo.SequenceEqual(defaultRoute.FallbackTo, StringComparer.OrdinalIgnoreCase);
+    }
+
+    private static bool RecipientTargetsAreEmpty(string value)
+    {
+        var targets = Deserialize<EmailRecipientTargetSelectionDto>(value)
+                      ?? new EmailRecipientTargetSelectionDto([], [], []);
+
+        return RecipientTargetsAreEmpty(targets);
+    }
+
+    private static bool RecipientTargetsAreEmpty(EmailRecipientTargetSelectionDto targets)
+    {
+        return targets.To.Count == 0 &&
+               targets.Cc.Count == 0 &&
+               targets.Bcc.Count == 0;
+    }
+
     private static string ReplaceLegacyEmailAddresses(string value)
     {
         var result = value;
@@ -796,26 +839,27 @@ public sealed class EmailCenterService : IEmailCenterService
             EnsureStrictScope(rule);
         }
 
-        var directory = await LoadDirectoryRecipientsAsync(rule.AudienceType, cancellationToken);
+        var directory = await LoadRecipientDirectoryForRuleAsync(rule, cancellationToken);
         var scoped = directory
             .Where(entry => MatchesScope(entry, rule))
             .Where(entry => rule.PersonaTargets.Count == 0 || rule.PersonaTargets.Contains(entry.PersonaType))
             .ToList();
 
         var relatedRegion = runtimeVendor?.Region ?? scoped.FirstOrDefault(x => !string.IsNullOrWhiteSpace(x.Region))?.Region;
+        var effectiveRecipientTargets = GetEffectiveCustomerRecipientTargets(rule, scoped);
 
         var to = MergeRecipients(
-            ResolveTargetEmails(rule, scoped, directory, rule.RecipientTargets.To, relatedRegion),
+            ResolveTargetEmails(rule, scoped, directory, effectiveRecipientTargets.To, relatedRegion),
             rule.Route.StaticTo,
             rule.Route.FallbackTo);
 
         var cc = MergeRecipients(
-            ResolveTargetEmails(rule, scoped, directory, rule.RecipientTargets.Cc, relatedRegion),
+            ResolveTargetEmails(rule, scoped, directory, effectiveRecipientTargets.Cc, relatedRegion),
             rule.Route.StaticCc,
             rule.Route.FallbackCc);
 
         var bcc = MergeRecipients(
-            ResolveTargetEmails(rule, scoped, directory, rule.RecipientTargets.Bcc, relatedRegion),
+            ResolveTargetEmails(rule, scoped, directory, effectiveRecipientTargets.Bcc, relatedRegion),
             rule.Route.StaticBcc,
             rule.Route.FallbackBcc);
 
@@ -830,6 +874,107 @@ public sealed class EmailCenterService : IEmailCenterService
         }
 
         return new EmailResolvedRecipientsDto(to, cc, bcc, warnings);
+    }
+
+    private async Task<EmailResolvedRecipientsDto> ResolveSystemEventRecipientsAsync(
+        EmailWorkflowRuleDto rule,
+        EmailSystemEventDispatchRequest request,
+        CancellationToken cancellationToken)
+    {
+        var directory = await LoadRecipientDirectoryForRuleAsync(rule, cancellationToken);
+        var scoped = directory
+            .Where(entry => MatchesScope(entry, rule))
+            .Where(entry => rule.PersonaTargets.Count == 0 || rule.PersonaTargets.Contains(entry.PersonaType))
+            .ToList();
+
+        var relatedRegion = scoped.FirstOrDefault(x => !string.IsNullOrWhiteSpace(x.Region))?.Region;
+        var hasBoundedScope = HasBoundedSystemEventDirectoryScope(rule);
+        var includeRuntimeRecipients = !hasBoundedScope;
+        var effectiveRecipientTargets = GetEffectiveCustomerRecipientTargets(rule, scoped, request.To);
+
+        var to = MergeRecipients(
+            NormalizeEmails(includeRuntimeRecipients ? request.To ?? Array.Empty<string>() : Array.Empty<string>())
+                .Concat(ResolveTargetEmails(
+                    rule,
+                    scoped,
+                    directory,
+                    FilterSystemEventDirectoryTargets(rule, effectiveRecipientTargets.To),
+                    relatedRegion))
+                .ToList(),
+            rule.Route.StaticTo,
+            rule.Route.FallbackTo,
+            allowFallback: !hasBoundedScope);
+
+        var cc = MergeRecipients(
+            NormalizeEmails(includeRuntimeRecipients ? request.Cc ?? Array.Empty<string>() : Array.Empty<string>())
+                .Concat(ResolveTargetEmails(
+                    rule,
+                    scoped,
+                    directory,
+                    FilterSystemEventDirectoryTargets(rule, effectiveRecipientTargets.Cc),
+                    relatedRegion))
+                .ToList(),
+            rule.Route.StaticCc,
+            rule.Route.FallbackCc,
+            allowFallback: !hasBoundedScope);
+
+        var bcc = MergeRecipients(
+            NormalizeEmails(includeRuntimeRecipients ? request.Bcc ?? Array.Empty<string>() : Array.Empty<string>())
+                .Concat(ResolveTargetEmails(
+                    rule,
+                    scoped,
+                    directory,
+                    FilterSystemEventDirectoryTargets(rule, effectiveRecipientTargets.Bcc),
+                    relatedRegion))
+                .ToList(),
+            rule.Route.StaticBcc,
+            rule.Route.FallbackBcc,
+            allowFallback: !hasBoundedScope);
+
+        return new EmailResolvedRecipientsDto(to, cc, bcc, []);
+    }
+
+    private static EmailRecipientTargetSelectionDto GetEffectiveCustomerRecipientTargets(
+        EmailWorkflowRuleDto rule,
+        IReadOnlyList<DirectoryRecipientRecord> scoped,
+        IReadOnlyList<string>? runtimeTo = null)
+    {
+        if (!string.Equals(rule.AudienceType, "customers", StringComparison.OrdinalIgnoreCase) ||
+            ParseGuid(rule.EntityScope.EntityId) is null ||
+            !RecipientTargetsAreEmpty(rule.RecipientTargets) ||
+            !UsesLegacyCustomerFallbackRoute(rule.Route) ||
+            scoped.Count != 1)
+        {
+            return rule.RecipientTargets;
+        }
+
+        var normalizedRuntimeTo = NormalizeEmails(runtimeTo ?? Array.Empty<string>());
+        if (normalizedRuntimeTo.Count > 0 &&
+            !normalizedRuntimeTo.Contains(scoped[0].Email, StringComparer.OrdinalIgnoreCase))
+        {
+            return rule.RecipientTargets;
+        }
+
+        return new EmailRecipientTargetSelectionDto(["customer_account"], [], []);
+    }
+
+    private static bool UsesLegacyCustomerFallbackRoute(EmailRecipientRouteDto route) =>
+        route.StaticTo.Count == 0 &&
+        route.FallbackTo.Count == 1 &&
+        string.Equals(route.FallbackTo[0], "support@zadna0.com", StringComparison.OrdinalIgnoreCase);
+
+    private async Task<List<DirectoryRecipientRecord>> LoadRecipientDirectoryForRuleAsync(
+        EmailWorkflowRuleDto rule,
+        CancellationToken cancellationToken)
+    {
+        var directory = await LoadDirectoryRecipientsAsync(rule.AudienceType, cancellationToken);
+        if (!string.Equals(rule.AudienceType, "super_admin", StringComparison.OrdinalIgnoreCase) &&
+            IncludesAssignedAdminTarget(rule))
+        {
+            directory.AddRange(await LoadAdminRecipientsAsync(cancellationToken));
+        }
+
+        return directory;
     }
 
     private async Task<List<DirectoryRecipientRecord>> LoadDirectoryRecipientsAsync(string audienceType, CancellationToken cancellationToken)
@@ -1064,12 +1209,18 @@ public sealed class EmailCenterService : IEmailCenterService
     private static List<string> MergeRecipients(
         IReadOnlyList<string> dynamicRecipients,
         IReadOnlyList<string> staticRecipients,
-        IReadOnlyList<string> fallbackRecipients)
+        IReadOnlyList<string> fallbackRecipients,
+        bool allowFallback = true)
     {
         var merged = new HashSet<string>(dynamicRecipients.Concat(staticRecipients).Where(x => !string.IsNullOrWhiteSpace(x)).Select(x => x.Trim().ToLowerInvariant()));
         if (merged.Count > 0)
         {
             return merged.ToList();
+        }
+
+        if (!allowFallback)
+        {
+            return [];
         }
 
         return fallbackRecipients
@@ -1078,6 +1229,35 @@ public sealed class EmailCenterService : IEmailCenterService
             .Distinct(StringComparer.OrdinalIgnoreCase)
             .ToList();
     }
+
+    private static IReadOnlyList<string> FilterSystemEventDirectoryTargets(
+        EmailWorkflowRuleDto rule,
+        IReadOnlyList<string> targetIds)
+    {
+        var canUseAudienceDirectory = HasBoundedSystemEventDirectoryScope(rule);
+
+        return targetIds
+            .Where(targetId =>
+                string.Equals(targetId, "assigned_super_admin_manager", StringComparison.OrdinalIgnoreCase) ||
+                canUseAudienceDirectory)
+            .ToList();
+    }
+
+    private static bool HasBoundedSystemEventDirectoryScope(EmailWorkflowRuleDto rule)
+    {
+        return rule.AudienceType switch
+        {
+            "vendor_network" => ParseGuid(rule.EntityScope.VendorId) is not null,
+            "drivers" or "super_admin" or "customers" => ParseGuid(rule.EntityScope.EntityId) is not null,
+            _ => false
+        };
+    }
+
+    private static bool IncludesAssignedAdminTarget(EmailWorkflowRuleDto rule) =>
+        rule.RecipientTargets.To
+            .Concat(rule.RecipientTargets.Cc)
+            .Concat(rule.RecipientTargets.Bcc)
+            .Any(target => string.Equals(target, "assigned_super_admin_manager", StringComparison.OrdinalIgnoreCase));
 
     private static bool HasAmbiguousScope(EmailWorkflowRuleDto rule)
     {
@@ -1661,6 +1841,95 @@ public sealed class EmailCenterService : IEmailCenterService
         };
     }
 
+    private static EmailWorkflowRuleDto ApplySystemEventRuntimeScope(
+        EmailWorkflowRuleDto rule,
+        EmailSystemEventDispatchRequest request)
+    {
+        var entityId = rule.EntityScope.EntityId;
+        var scopedEntityId = ResolveSystemEventScopedEntityId(rule, request);
+        if (string.IsNullOrWhiteSpace(entityId) &&
+            (string.Equals(rule.AudienceType, "drivers", StringComparison.OrdinalIgnoreCase) ||
+             string.Equals(rule.AudienceType, "super_admin", StringComparison.OrdinalIgnoreCase) ||
+             string.Equals(rule.AudienceType, "customers", StringComparison.OrdinalIgnoreCase)))
+        {
+            entityId = scopedEntityId?.ToString();
+        }
+
+        return rule with
+        {
+            EntityScope = rule.EntityScope with
+            {
+                EntityId = entityId,
+                VendorId = rule.EntityScope.VendorId ?? request.VendorId?.ToString(),
+                BranchId = rule.EntityScope.BranchId ?? request.BranchId?.ToString()
+            }
+        };
+    }
+
+    private static string? GetSystemEventScopeMismatch(
+        EmailWorkflowRuleDto rule,
+        EmailSystemEventDispatchRequest request)
+    {
+        var scopedEntityId = ResolveSystemEventScopedEntityId(rule, request);
+
+        if (ParseGuid(rule.EntityScope.VendorId) is Guid configuredVendorId)
+        {
+            if (!request.VendorId.HasValue)
+            {
+                return "The live rule requires a specific vendor scope.";
+            }
+
+            if (configuredVendorId != request.VendorId.Value)
+            {
+                return "The live rule is scoped to another vendor.";
+            }
+        }
+
+        if (ParseGuid(rule.EntityScope.BranchId) is Guid configuredBranchId)
+        {
+            if (!request.BranchId.HasValue)
+            {
+                return "The live rule requires a specific branch scope.";
+            }
+
+            if (configuredBranchId != request.BranchId.Value)
+            {
+                return "The live rule is scoped to another branch.";
+            }
+        }
+
+        if ((string.Equals(rule.AudienceType, "drivers", StringComparison.OrdinalIgnoreCase) ||
+             string.Equals(rule.AudienceType, "super_admin", StringComparison.OrdinalIgnoreCase) ||
+             string.Equals(rule.AudienceType, "customers", StringComparison.OrdinalIgnoreCase)) &&
+            ParseGuid(rule.EntityScope.EntityId) is Guid configuredEntityId)
+        {
+            if (!scopedEntityId.HasValue)
+            {
+                return string.Equals(rule.AudienceType, "customers", StringComparison.OrdinalIgnoreCase)
+                    ? "The live rule requires a specific customer scope."
+                    : "The live rule requires a specific account scope.";
+            }
+
+            if (configuredEntityId != scopedEntityId.Value)
+            {
+                return string.Equals(rule.AudienceType, "customers", StringComparison.OrdinalIgnoreCase)
+                    ? "The live rule is scoped to another customer."
+                    : "The live rule is scoped to another account.";
+            }
+        }
+
+        return null;
+    }
+
+    private static Guid? ResolveSystemEventScopedEntityId(
+        EmailWorkflowRuleDto rule,
+        EmailSystemEventDispatchRequest request)
+    {
+        return string.Equals(rule.AudienceType, "customers", StringComparison.OrdinalIgnoreCase)
+            ? request.RecipientEntityId ?? request.EntityId
+            : request.EntityId;
+    }
+
     private static string HumanizeEventKey(string eventKey)
     {
         return string.Join(' ', eventKey
@@ -1897,11 +2166,11 @@ internal static class EmailCenterDefaults
         {
             BuildRule(
                 "customer-order-confirmed",
-                "Order confirmed",
-                "Receipt and order confirmation for customers.",
-                "Customer Orders",
-                "Instant",
-                "Sends only when an order is confirmed after payment/COD placement.",
+                "EMAIL_CENTER.EVENTS.CUSTOMER_ORDER_CONFIRMED.TITLE",
+                "EMAIL_CENTER.EVENTS.CUSTOMER_ORDER_CONFIRMED.SUBTITLE",
+                "EMAIL_CENTER.CATEGORIES.CUSTOMER_ORDERS",
+                "EMAIL_CENTER.CADENCE.INSTANT",
+                "EMAIL_CENTER.NOTES.CUSTOMER_ORDER_CONFIRMED",
                 true,
                 "ops-primary",
                 "customers",
@@ -1909,7 +2178,7 @@ internal static class EmailCenterDefaults
                 ["customer"],
                 new EmailEntityScopeDto(null, null, null),
                 "all_branches",
-                new EmailRecipientTargetSelectionDto([], [], []),
+                new EmailRecipientTargetSelectionDto(["customer_account"], [], []),
                 new EmailRecipientRouteDto([], [], [], ["support@zadna0.com"], [], [], "Customer Experience", "Orders Desk"),
                 new EmailTemplatePreviewDto(
                     new Dictionary<string, string> { ["en"] = "Your Zadna order {{order_number}} is confirmed", ["ar"] = "تم تأكيد طلبك {{order_number}} من زادنا" },
@@ -1923,11 +2192,11 @@ internal static class EmailCenterDefaults
                 EmailEventKeys.CustomerOrderConfirmed),
             BuildRule(
                 "customer-order-out-for-delivery",
-                "Order out for delivery",
-                "Customer update when an order is on the way.",
-                "Customer Orders",
-                "Instant",
-                "Sends only when an order reaches OnTheWay.",
+                "EMAIL_CENTER.EVENTS.CUSTOMER_ORDER_OUT_FOR_DELIVERY.TITLE",
+                "EMAIL_CENTER.EVENTS.CUSTOMER_ORDER_OUT_FOR_DELIVERY.SUBTITLE",
+                "EMAIL_CENTER.CATEGORIES.CUSTOMER_ORDERS",
+                "EMAIL_CENTER.CADENCE.INSTANT",
+                "EMAIL_CENTER.NOTES.CUSTOMER_ORDER_OUT_FOR_DELIVERY",
                 true,
                 "ops-primary",
                 "customers",
@@ -1935,7 +2204,7 @@ internal static class EmailCenterDefaults
                 ["customer"],
                 new EmailEntityScopeDto(null, null, null),
                 "all_branches",
-                new EmailRecipientTargetSelectionDto([], [], []),
+                new EmailRecipientTargetSelectionDto(["customer_account"], [], []),
                 new EmailRecipientRouteDto([], [], [], ["support@zadna0.com"], [], [], "Customer Experience", "Delivery Desk"),
                 new EmailTemplatePreviewDto(
                     new Dictionary<string, string> { ["en"] = "Your order {{order_number}} is on the way", ["ar"] = "طلبك {{order_number}} خرج للتوصيل" },
@@ -1949,11 +2218,11 @@ internal static class EmailCenterDefaults
                 EmailEventKeys.CustomerOrderOutForDelivery),
             BuildRule(
                 "customer-driver-arrived-at-delivery",
-                "Driver arrived at delivery location",
-                "Customer email when the driver arrives at the delivery address.",
-                "Customer Orders",
-                "Instant",
-                "Sends only when the driver marks arrived_at_customer.",
+                "EMAIL_CENTER.EVENTS.CUSTOMER_DRIVER_ARRIVED_AT_DELIVERY.TITLE",
+                "EMAIL_CENTER.EVENTS.CUSTOMER_DRIVER_ARRIVED_AT_DELIVERY.SUBTITLE",
+                "EMAIL_CENTER.CATEGORIES.CUSTOMER_ORDERS",
+                "EMAIL_CENTER.CADENCE.INSTANT",
+                "EMAIL_CENTER.NOTES.CUSTOMER_DRIVER_ARRIVED_AT_DELIVERY",
                 true,
                 "ops-primary",
                 "customers",
@@ -1961,11 +2230,11 @@ internal static class EmailCenterDefaults
                 ["customer"],
                 new EmailEntityScopeDto(null, null, null),
                 "all_branches",
-                new EmailRecipientTargetSelectionDto([], [], []),
+                new EmailRecipientTargetSelectionDto(["customer_account"], [], []),
                 new EmailRecipientRouteDto([], [], [], ["support@zadna0.com"], [], [], "Customer Experience", "Delivery Desk"),
                 new EmailTemplatePreviewDto(
-                    new Dictionary<string, string> { ["en"] = "Your driver has arrived for order {{order_number}}", ["ar"] = "Ø§Ù„Ù…Ù†Ø¯ÙˆØ¨ ÙˆØµÙ„ Ù„Ø·Ù„Ø¨Ùƒ {{order_number}}" },
-                    new Dictionary<string, string> { ["en"] = "Hi {{customer_name}}, the driver has arrived at your delivery address with your order from {{vendor_name}}. Please prepare your delivery OTP.", ["ar"] = "Ø£Ù‡Ù„Ø§ {{customer_name}}ØŒ Ø§Ù„Ù…Ù†Ø¯ÙˆØ¨ ÙˆØµÙ„ Ø¥Ù„Ù‰ Ø¹Ù†ÙˆØ§Ù† Ø§Ù„ØªØ³Ù„ÙŠÙ… Ø¨Ø·Ù„Ø¨Ùƒ Ù…Ù† {{vendor_name}}. ÙŠØ±Ø¬Ù‰ ØªØ¬Ù‡ÙŠØ² Ø±Ù…Ø² Ø§Ù„ØªØ³Ù„ÙŠÙ…." },
+                    new Dictionary<string, string> { ["en"] = "Your driver has arrived for order {{order_number}}", ["ar"] = "المندوب وصل لطلبك {{order_number}}" },
+                    new Dictionary<string, string> { ["en"] = "Hi {{customer_name}}, the driver has arrived at your delivery address with your order from {{vendor_name}}. Please prepare your delivery OTP.", ["ar"] = "أهلا {{customer_name}}، المندوب وصل إلى عنوان التسليم بطلبك من {{vendor_name}}. يرجى تجهيز رمز التسليم." },
                     ["{{customer_name}}", "{{order_number}}", "{{vendor_name}}"],
                     OrderUpdateHeroImageUrlEn,
                     "Open order",
@@ -1975,11 +2244,11 @@ internal static class EmailCenterDefaults
                 EmailEventKeys.CustomerDriverArrivedAtDelivery),
             BuildRule(
                 "customer-order-important-update",
-                "Important order update",
-                "Customer email for cancellation, refund, delivery failure, or payment failure.",
-                "Customer Orders",
-                "Instant",
-                "Sends only for major order/payment changes.",
+                "EMAIL_CENTER.EVENTS.CUSTOMER_ORDER_IMPORTANT_UPDATE.TITLE",
+                "EMAIL_CENTER.EVENTS.CUSTOMER_ORDER_IMPORTANT_UPDATE.SUBTITLE",
+                "EMAIL_CENTER.CATEGORIES.CUSTOMER_ORDERS",
+                "EMAIL_CENTER.CADENCE.INSTANT",
+                "EMAIL_CENTER.NOTES.CUSTOMER_ORDER_IMPORTANT_UPDATE",
                 true,
                 "ops-primary",
                 "customers",
@@ -1987,7 +2256,7 @@ internal static class EmailCenterDefaults
                 ["customer"],
                 new EmailEntityScopeDto(null, null, null),
                 "all_branches",
-                new EmailRecipientTargetSelectionDto([], [], []),
+                new EmailRecipientTargetSelectionDto(["customer_account"], [], []),
                 new EmailRecipientRouteDto([], [], [], ["support@zadna0.com"], [], [], "Customer Experience", "Support Desk"),
                 new EmailTemplatePreviewDto(
                     new Dictionary<string, string> { ["en"] = "Important update for order {{order_number}}", ["ar"] = "تحديث مهم بخصوص طلبك {{order_number}}" },
@@ -2001,11 +2270,11 @@ internal static class EmailCenterDefaults
                 EmailEventKeys.CustomerOrderImportantUpdate),
             BuildRule(
                 "vendor-order-action-required",
-                "New order needs action",
-                "Vendor email only when an order is waiting for acceptance/preparation.",
-                "Vendor Orders",
-                "Instant",
-                "Sends only for PendingVendorAcceptance orders.",
+                "EMAIL_CENTER.EVENTS.VENDOR_ORDER_ACTION_REQUIRED.TITLE",
+                "EMAIL_CENTER.EVENTS.VENDOR_ORDER_ACTION_REQUIRED.SUBTITLE",
+                "EMAIL_CENTER.CATEGORIES.VENDOR_ORDERS",
+                "EMAIL_CENTER.CADENCE.INSTANT",
+                "EMAIL_CENTER.NOTES.VENDOR_ORDER_ACTION_REQUIRED",
                 true,
                 "vendor-network",
                 "vendor_network",
@@ -2027,11 +2296,11 @@ internal static class EmailCenterDefaults
                 EmailEventKeys.VendorOrderActionRequired),
             BuildRule(
                 "vendor-weekly-summary",
-                "Weekly vendor summary",
-                "Weekly digest of vendor sales, orders, cancellations, and top products.",
-                "Finance",
-                "Weekly",
-                "Sends Mondays at 09:00 Africa/Cairo when the vendor had order activity last week.",
+                "EMAIL_CENTER.EVENTS.VENDOR_WEEKLY_SUMMARY.TITLE",
+                "EMAIL_CENTER.EVENTS.VENDOR_WEEKLY_SUMMARY.SUBTITLE",
+                "EMAIL_CENTER.CATEGORIES.FINANCE",
+                "EMAIL_CENTER.CADENCE.WEEKLY",
+                "EMAIL_CENTER.NOTES.VENDOR_WEEKLY_SUMMARY",
                 true,
                 "finance-digest",
                 "vendor_network",
@@ -2278,11 +2547,11 @@ internal static class EmailCenterDefaults
 
             yield return BuildRule(
                 $"live-{eventKey}",
-                Humanize(eventKey),
-                $"Live automation for {Humanize(eventKey)}",
-                "Vendor Lifecycle",
-                "Instant",
-                $"Automatically dispatches when the vendor event `{eventKey}` is triggered.",
+                $"EMAIL_CENTER.EVENTS.{eventKey.ToUpper()}.TITLE",
+                $"EMAIL_CENTER.EVENTS.{eventKey.ToUpper()}.SUBTITLE",
+                "EMAIL_CENTER.CATEGORIES.VENDOR_LIFECYCLE",
+                "EMAIL_CENTER.CADENCE.INSTANT",
+                $"EMAIL_CENTER.NOTES.{eventKey.ToUpper()}",
                 true,
                 "vendor-network",
                 "vendor_network",

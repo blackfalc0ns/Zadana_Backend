@@ -10,7 +10,9 @@ public sealed class TemporaryPasswordMiddleware
     [
         "/api/admin/auth/me",
         "/api/admin/auth/logout",
-        "/api/admin/auth/change-temporary-password"
+        "/api/admin/auth/change-temporary-password",
+        "/api/admin/auth/refresh-token",
+        "/api/admin/auth/csrf"
     ];
 
     private readonly RequestDelegate _next;

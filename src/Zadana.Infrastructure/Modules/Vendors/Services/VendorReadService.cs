@@ -59,7 +59,7 @@ public class VendorReadService : IVendorReadService
                 item.vendor.BusinessNameAr,
                 item.vendor.BusinessNameEn,
                 item.vendor.BusinessType,
-                NormalizeVendorStatus(item.vendor.Status),
+                item.vendor.Status == VendorStatus.Active && item.vendor.CommercialRegistrationExpiryDate.HasValue && item.vendor.CommercialRegistrationExpiryDate.Value.Date < DateTime.UtcNow.Date ? "Suspended" : NormalizeVendorStatus(item.vendor.Status),
                 item.vendor.OwnerName ?? (item.user != null ? item.user.FullName : item.vendor.ContactEmail),
                 item.vendor.ContactPhone,
                 item.vendor.CreatedAtUtc,
@@ -109,7 +109,9 @@ public class VendorReadService : IVendorReadService
             .OrderByDescending(item => item.CreatedAtUtc)
             .ToListAsync(cancellationToken);
 
-        return MapDetail(vendor, user, approvedByName, reviewNotifications);
+        var riskIndicators = await CalculateRiskIndicatorsAsync(vendor, cancellationToken);
+
+        return MapDetail(vendor, user, approvedByName, reviewNotifications, riskIndicators);
     }
 
     public async Task<VendorActivityLogPageDto?> GetActivityLogAsync(
@@ -292,7 +294,7 @@ public class VendorReadService : IVendorReadService
             vendor.PayoutCycle,
             vendor.FinancialLifecycleMode.ToString(),
             vendor.CommissionRate,
-            NormalizeVendorStatus(vendor.Status),
+            vendor.Status == VendorStatus.Active && vendor.CommercialRegistrationExpiryDate.HasValue && vendor.CommercialRegistrationExpiryDate.Value.Date < DateTime.UtcNow.Date ? "Suspended" : NormalizeVendorStatus(vendor.Status),
             user?.AccountStatus.ToString() ?? "Pending",
             user?.IsLoginLocked ?? false,
             user?.LockedAtUtc,
@@ -412,6 +414,13 @@ public class VendorReadService : IVendorReadService
                 item.DecisionNote ?? $"Please update {item.Code}.")))
             .ToList();
 
+        if (vendor.CommercialRegistrationExpiryDate.HasValue && vendor.CommercialRegistrationExpiryDate.Value.Date < DateTime.UtcNow.Date)
+        {
+            requiredActions.Add(new VendorWorkspaceRequiredActionDto(
+                VendorProfileReviewCatalog.Step5Commercial,
+                "لقد انتهت صلاحية السجل التجاري! يرجى تحديث تاريخ الانتهاء ورفع مستند ساري المفعول.|Commercial Registration has expired! Please update the expiry date and upload a valid document."));
+        }
+
         var canSubmitForReview = vendor.Status == VendorStatus.PendingReview
             && !vendor.ArchivedAtUtc.HasValue
             && missingRequired.Count == 0
@@ -429,7 +438,7 @@ public class VendorReadService : IVendorReadService
 
         return new WorkspaceReviewProjection(
             reviewState,
-            vendor.Status == VendorStatus.Active && vendor.ApprovedAtUtc.HasValue,
+            vendor.Status == VendorStatus.Active && vendor.ApprovedAtUtc.HasValue && (!vendor.CommercialRegistrationExpiryDate.HasValue || vendor.CommercialRegistrationExpiryDate.Value.Date >= DateTime.UtcNow.Date),
             assignedReviewerName,
             reviewSubmittedAtUtc,
             reviewStartedAtUtc,
@@ -539,6 +548,10 @@ public class VendorReadService : IVendorReadService
     {
         if (vendor.Status == VendorStatus.Active)
         {
+            if (vendor.CommercialRegistrationExpiryDate.HasValue && vendor.CommercialRegistrationExpiryDate.Value.Date < DateTime.UtcNow.Date)
+            {
+                return "Suspended";
+            }
             return "Verified";
         }
 
@@ -574,6 +587,10 @@ public class VendorReadService : IVendorReadService
     {
         if (vendor.Status == VendorStatus.Active)
         {
+            if (vendor.CommercialRegistrationExpiryDate.HasValue && vendor.CommercialRegistrationExpiryDate.Value.Date < DateTime.UtcNow.Date)
+            {
+                return "changes_requested";
+            }
             return "approved";
         }
 
@@ -656,7 +673,8 @@ public class VendorReadService : IVendorReadService
         Vendor vendor,
         User? user,
         string? approvedByName,
-        IReadOnlyList<Notification> reviewNotifications)
+        IReadOnlyList<Notification> reviewNotifications,
+        IReadOnlyList<VendorRiskIndicatorDto> riskIndicators)
     {
         var workspace = MapWorkspace(vendor, user, approvedByName, reviewNotifications);
         var reviewNotes = reviewNotifications
@@ -754,6 +772,7 @@ public class VendorReadService : IVendorReadService
             workspace.RequiredActions,
             reviewDocuments,
             reviewNotes,
+            riskIndicators,
             workspace.BranchesCount,
             workspace.BankAccountsCount);
     }
@@ -951,5 +970,117 @@ public class VendorReadService : IVendorReadService
         }
 
         return (parts[1], parts[2], parts[3]);
+    }
+
+    private async Task<IReadOnlyList<VendorRiskIndicatorDto>> CalculateRiskIndicatorsAsync(Vendor vendor, CancellationToken cancellationToken)
+    {
+        var indicators = new List<VendorRiskIndicatorDto>();
+
+        // 1. High cancellation rate
+        var thirtyDaysAgo = DateTime.UtcNow.AddDays(-30);
+        var ordersCount = await _dbContext.Orders
+            .CountAsync(o => o.VendorId == vendor.Id && o.PlacedAtUtc >= thirtyDaysAgo, cancellationToken);
+        
+        if (ordersCount > 0)
+        {
+            var cancelledOrdersCount = await _dbContext.Orders
+                .CountAsync(o => o.VendorId == vendor.Id 
+                    && o.PlacedAtUtc >= thirtyDaysAgo 
+                    && (o.Status == Zadana.Domain.Modules.Orders.Enums.OrderStatus.Cancelled 
+                        || o.Status == Zadana.Domain.Modules.Orders.Enums.OrderStatus.VendorRejected), 
+                    cancellationToken);
+            
+            var cancellationRate = (double)cancelledOrdersCount / ordersCount;
+            if (cancellationRate >= 0.10)
+            {
+                var percent = Math.Round(cancellationRate * 100);
+                var severity = cancellationRate >= 0.25 ? "high" : "medium";
+                var severityLabel = cancellationRate >= 0.25 ? "COMPLIANCE.SEVERITY.HIGH" : "COMPLIANCE.SEVERITY.MEDIUM";
+                
+                indicators.Add(new VendorRiskIndicatorDto(
+                    Id: "cancellation",
+                    TitleKey: "COMPLIANCE.RISK.HIGH_CANCELLATION",
+                    DescriptionKey: "COMPLIANCE.RISK.HIGH_CANCELLATION_DESC",
+                    Severity: severity,
+                    SeverityLabelKey: severityLabel,
+                    Icon: "error",
+                    TitleAr: "معدل الإلغاء مرتفع",
+                    TitleEn: "High Cancellation Rate",
+                    DescriptionAr: $"نسبة إلغاء الطلبات من قبل التاجر بلغت {percent}% خلال آخر ٣٠ يوماً.",
+                    DescriptionEn: $"Vendor cancellation rate reached {percent}% in last 30 days."
+                ));
+            }
+        }
+
+        // 2. Address Data Mismatch
+        var primaryBranch = vendor.Branches.FirstOrDefault(b => b.IsPrimary);
+        bool isAddressMismatch = false;
+        var national = vendor.NationalAddress?.Trim() ?? "";
+        var manual = primaryBranch?.AddressLine?.Trim() ?? "";
+
+        if (primaryBranch != null)
+        {
+            if (string.IsNullOrEmpty(national) || string.IsNullOrEmpty(manual))
+            {
+                isAddressMismatch = true;
+            }
+            else
+            {
+                var normalizedNational = national.Replace(" ", "").ToLowerInvariant();
+                var normalizedManual = manual.Replace(" ", "").ToLowerInvariant();
+                isAddressMismatch = normalizedNational != normalizedManual;
+            }
+        }
+        else
+        {
+            isAddressMismatch = true;
+        }
+
+        if (isAddressMismatch)
+        {
+            var nationalStr = string.IsNullOrEmpty(national) ? "غير مسجل" : national;
+            var manualStr = string.IsNullOrEmpty(manual) ? "غير مسجل" : manual;
+            var nationalStrEn = string.IsNullOrEmpty(national) ? "Not registered" : national;
+            var manualStrEn = string.IsNullOrEmpty(manual) ? "Not registered" : manual;
+
+            indicators.Add(new VendorRiskIndicatorDto(
+                Id: "address",
+                TitleKey: "COMPLIANCE.RISK.ADDRESS_MISMATCH",
+                DescriptionKey: "COMPLIANCE.RISK.ADDRESS_MISMATCH_DESC",
+                Severity: "medium",
+                SeverityLabelKey: "COMPLIANCE.SEVERITY.MEDIUM",
+                Icon: "report_problem",
+                TitleAr: "اختلاف في بيانات العنوان",
+                TitleEn: "Address Data Mismatch",
+                DescriptionAr: $"العنوان الوطني المسجل ({nationalStr}) يختلف عن عنوان الفرع الرئيسي ({manualStr}).",
+                DescriptionEn: $"Registered national address ({nationalStrEn}) differs from primary branch address ({manualStrEn})."
+            ));
+        }
+
+        // 3. Frequent IBAN Changes
+        var ibanChangesCount = await _dbContext.Notifications
+            .CountAsync(n => n.UserId == vendor.UserId && n.Type != null && n.Type.Contains("profile-banking-updated"), cancellationToken);
+
+        if (ibanChangesCount > 1 || vendor.BankAccounts.Count > 1)
+        {
+            var totalChanges = Math.Max(ibanChangesCount, vendor.BankAccounts.Count - 1);
+            var severity = totalChanges >= 3 ? "high" : "low";
+            var severityLabel = totalChanges >= 3 ? "COMPLIANCE.SEVERITY.HIGH" : "COMPLIANCE.SEVERITY.LOW";
+
+            indicators.Add(new VendorRiskIndicatorDto(
+                Id: "iban",
+                TitleKey: "COMPLIANCE.RISK.IBAN_CHANGES",
+                DescriptionKey: "COMPLIANCE.RISK.IBAN_CHANGES_DESC",
+                Severity: severity,
+                SeverityLabelKey: severityLabel,
+                Icon: "info",
+                TitleAr: "تغيير متكرر للآيبان",
+                TitleEn: "Frequent IBAN Changes",
+                DescriptionAr: $"تم تغيير الحساب البنكي {totalChanges} مرات منذ التسجيل.",
+                DescriptionEn: $"Bank account changed {totalChanges} times since registration."
+            ));
+        }
+
+        return indicators;
     }
 }

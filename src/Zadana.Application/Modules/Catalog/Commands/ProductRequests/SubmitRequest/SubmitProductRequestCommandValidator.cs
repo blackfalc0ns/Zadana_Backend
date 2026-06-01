@@ -10,11 +10,13 @@ public class SubmitProductRequestCommandValidator : AbstractValidator<SubmitProd
     {
         RuleFor(v => v.SuggestedNameAr)
             .NotEmpty().WithMessage(localizer["RequiredField"].Value)
+            .MinimumLength(3).WithMessage(localizer["MinLength"].Value)
             .MaximumLength(200).WithMessage(localizer["MaxLength"].Value)
             .WithName("SuggestedNameAr");
 
         RuleFor(v => v.SuggestedNameEn)
             .NotEmpty().WithMessage(localizer["RequiredField"].Value)
+            .MinimumLength(3).WithMessage(localizer["MinLength"].Value)
             .MaximumLength(200).WithMessage(localizer["MaxLength"].Value)
             .WithName("SuggestedNameEn");
 
@@ -42,10 +44,12 @@ public class SubmitProductRequestCommandValidator : AbstractValidator<SubmitProd
         {
             RuleFor(v => v.RequestedBrand!.NameAr)
                 .NotEmpty().WithMessage(localizer["RequiredField"].Value)
+                .MinimumLength(2).WithMessage(localizer["MinLength"].Value)
                 .MaximumLength(200).WithMessage(localizer["MaxLength"].Value);
 
             RuleFor(v => v.RequestedBrand!.NameEn)
                 .NotEmpty().WithMessage(localizer["RequiredField"].Value)
+                .MinimumLength(2).WithMessage(localizer["MinLength"].Value)
                 .MaximumLength(200).WithMessage(localizer["MaxLength"].Value);
 
             RuleFor(v => v.RequestedBrand!.LogoUrl)
@@ -57,10 +61,12 @@ public class SubmitProductRequestCommandValidator : AbstractValidator<SubmitProd
         {
             RuleFor(v => v.RequestedCategory!.NameAr)
                 .NotEmpty().WithMessage(localizer["RequiredField"].Value)
+                .MinimumLength(2).WithMessage(localizer["MinLength"].Value)
                 .MaximumLength(200).WithMessage(localizer["MaxLength"].Value);
 
             RuleFor(v => v.RequestedCategory!.NameEn)
                 .NotEmpty().WithMessage(localizer["RequiredField"].Value)
+                .MinimumLength(2).WithMessage(localizer["MinLength"].Value)
                 .MaximumLength(200).WithMessage(localizer["MaxLength"].Value);
 
             RuleFor(v => v.RequestedCategory!.TargetLevel)

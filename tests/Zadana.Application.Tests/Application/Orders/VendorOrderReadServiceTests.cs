@@ -32,7 +32,7 @@ public class VendorOrderReadServiceTests
 
         var service = new OrderReadService(dbContext);
 
-        var result = await service.GetVendorWorkspaceOrdersAsync(vendorId, null, null, null, 1, 20);
+        var result = await service.GetVendorWorkspaceOrdersAsync(vendorId, null, null, null, null, 1, 20);
 
         result.Items.Should().ContainSingle();
         result.Items[0].OrderNumber.Should().Be("ORD-VISIBLE");
@@ -54,7 +54,7 @@ public class VendorOrderReadServiceTests
 
         var service = new OrderReadService(dbContext);
 
-        var result = await service.GetVendorWorkspaceOrdersAsync(vendorId, null, null, null, 1, 20);
+        var result = await service.GetVendorWorkspaceOrdersAsync(vendorId, null, null, null, null, 1, 20);
 
         result.Items.Should().ContainSingle();
         result.Items[0].OrderNumber.Should().Be("ORD-CARD-PAID");
@@ -76,7 +76,7 @@ public class VendorOrderReadServiceTests
 
         var service = new OrderReadService(dbContext);
 
-        var result = await service.GetVendorWorkspaceOrdersAsync(vendorId, null, null, null, 1, 20);
+        var result = await service.GetVendorWorkspaceOrdersAsync(vendorId, null, null, null, null, 1, 20);
 
         result.Items.Should().ContainSingle();
         result.Items[0].OrderNumber.Should().Be("ORD-BANK-PAID");
@@ -98,7 +98,7 @@ public class VendorOrderReadServiceTests
 
         var service = new OrderReadService(dbContext);
 
-        var result = await service.GetVendorOrderDetailAsync(vendorId, pendingPaymentOrder.Id);
+        var result = await service.GetVendorOrderDetailAsync(vendorId, null, pendingPaymentOrder.Id);
 
         result.Should().BeNull();
     }
@@ -119,7 +119,7 @@ public class VendorOrderReadServiceTests
 
         var service = new OrderReadService(dbContext);
 
-        var result = await service.GetVendorOrderDetailAsync(vendorId, pendingCardOrder.Id);
+        var result = await service.GetVendorOrderDetailAsync(vendorId, null, pendingCardOrder.Id);
 
         result.Should().BeNull();
     }
@@ -140,7 +140,7 @@ public class VendorOrderReadServiceTests
 
         var service = new OrderReadService(dbContext);
 
-        var result = await service.GetVendorOrderDetailAsync(vendorId, pendingBankOrder.Id);
+        var result = await service.GetVendorOrderDetailAsync(vendorId, null, pendingBankOrder.Id);
 
         result.Should().BeNull();
     }
@@ -171,7 +171,7 @@ public class VendorOrderReadServiceTests
 
         var service = new OrderReadService(dbContext);
 
-        var result = await service.GetVendorOrderDetailAsync(vendorId, order.Id);
+        var result = await service.GetVendorOrderDetailAsync(vendorId, null, order.Id);
 
         result.Should().NotBeNull();
         result!.AssignedDriver.Should().NotBeNull();
@@ -206,7 +206,7 @@ public class VendorOrderReadServiceTests
         await dbContext.SaveChangesAsync();
 
         var service = new OrderReadService(dbContext);
-        var result = await service.GetVendorOrderDetailAsync(vendorId, order.Id);
+        var result = await service.GetVendorOrderDetailAsync(vendorId, null, order.Id);
 
         result.Should().NotBeNull();
         result!.DriverArrivalState.Should().Be("arrived_at_vendor");
