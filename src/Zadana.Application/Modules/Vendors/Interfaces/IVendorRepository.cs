@@ -9,6 +9,10 @@ public interface IVendorRepository
     Task<bool> ExistsAsync(Guid vendorId, CancellationToken cancellationToken = default);
     Task<VendorBranch?> GetPrimaryBranchAsync(Guid vendorId, CancellationToken cancellationToken = default);
     Task<VendorBankAccount?> GetPrimaryBankAccountAsync(Guid vendorId, CancellationToken cancellationToken = default);
+    Task ReplaceBranchOperatingHoursAsync(
+        Guid branchId,
+        IReadOnlyCollection<BranchOperatingHour> operatingHours,
+        CancellationToken cancellationToken = default);
     void Add(Vendor vendor);
     void AddBranch(VendorBranch branch);
     void AddBankAccount(VendorBankAccount bankAccount);

@@ -547,6 +547,7 @@ public class DriverReadService : IDriverReadService
             LastOfferResponseAtUtc: commitmentSummary.LastOfferResponseAtUtc,
             Address: driver.Address,
             LicenseNumber: driver.LicenseNumber,
+            NationalId: driver.NationalId,
             NationalIdExpiryDate: driver.NationalIdExpiryDate,
             DriverLicenseExpiryDate: driver.DriverLicenseExpiryDate,
             VehicleLicenseNumber: driver.VehicleLicenseNumber,

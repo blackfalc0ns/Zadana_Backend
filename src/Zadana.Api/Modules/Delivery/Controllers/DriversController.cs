@@ -33,12 +33,23 @@ public class DriversController : ApiControllerBase
     [HttpPost("register")]
     public async Task<IActionResult> RegisterDriver([FromBody] RegisterDriverRequest request)
     {
+        DriverVehicleType? parsedVehicleType = null;
+        if (!string.IsNullOrWhiteSpace(request.VehicleType))
+        {
+            if (!DriverVehicleTypeMapper.TryParse(request.VehicleType, out var resolvedVehicleType))
+            {
+                throw new BusinessRuleException("INVALID_VEHICLE_TYPE", "نوع المركبة غير مدعوم | Unsupported vehicle type.");
+            }
+
+            parsedVehicleType = resolvedVehicleType;
+        }
+
         var command = new RegisterDriverCommand(
             request.FullName,
             request.Email,
             request.Phone,
             request.Password,
-            request.VehicleType,
+            parsedVehicleType,
             request.NationalId,
             request.LicenseNumber,
             request.NationalIdExpiryDate,

@@ -7,7 +7,7 @@ public record RegisterDriverRequest(
     string Email,
     string Phone,
     string Password,
-    DriverVehicleType? VehicleType,
+    string? VehicleType,
     string? NationalId,
     string? LicenseNumber,
     DateTime? NationalIdExpiryDate,

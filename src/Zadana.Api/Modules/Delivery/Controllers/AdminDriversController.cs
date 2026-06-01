@@ -1,4 +1,4 @@
-﻿using Microsoft.AspNetCore.Authorization;
+using Microsoft.AspNetCore.Authorization;
 using Microsoft.AspNetCore.Mvc;
 using Microsoft.EntityFrameworkCore;
 using Microsoft.Extensions.Logging;
@@ -17,6 +17,7 @@ using Zadana.Application.Modules.Delivery.Commands.ReviewDriver;
 using Zadana.Application.Modules.Delivery.Commands.SuspendDriver;
 using Zadana.Application.Modules.Delivery.Commands.UnbanDriver;
 using Zadana.Application.Modules.Delivery.Commands.UnblockDriverLocationUpdates;
+using Zadana.Application.Modules.Delivery.Commands.UpdateDriverProfile;
 using Zadana.Application.Modules.Delivery.DTOs;
 using Zadana.Application.Modules.Delivery.Interfaces;
 using Zadana.Application.Modules.Identity.Interfaces;
@@ -79,6 +80,33 @@ public class AdminDriversController : ApiControllerBase
         var result = await _driverReadService.GetAdminDriverDetailAsync(id, cancellationToken);
         if (result is null) return NotFound();
         return Ok(result);
+    }
+
+    // Update driver profile from admin panel
+    [HttpPut("{id:guid}/profile")]
+    public async Task<IActionResult> UpdateDriverProfile(
+        Guid id,
+        [FromBody] UpdateDriverProfileRequest request,
+        CancellationToken cancellationToken = default)
+    {
+        var command = new UpdateDriverProfileCommand(
+            id,
+            request.FullName,
+            request.Email,
+            request.PhoneNumber,
+            request.VehicleType,
+            request.NationalId,
+            request.LicenseNumber,
+            request.NationalIdExpiryDate,
+            request.DriverLicenseExpiryDate,
+            request.VehicleLicenseNumber,
+            request.VehicleLicenseExpiryDate,
+            request.Address,
+            request.Region,
+            request.City);
+
+        await Sender.Send(command, cancellationToken);
+        return Ok(new { message = "Driver profile updated successfully", messageAr = "تم تحديث بيانات المندوب بنجاح" });
     }
 
     [HttpPost("{id:guid}/notifications/test")]
@@ -450,6 +478,20 @@ public class AdminDriversController : ApiControllerBase
 }
 
 public record ReviewDriverRequest(string Action, string? Note);
+public record UpdateDriverProfileRequest(
+    string FullName,
+    string Email,
+    string PhoneNumber,
+    string? VehicleType,
+    string? NationalId,
+    string? LicenseNumber,
+    DateTime? NationalIdExpiryDate,
+    DateTime? DriverLicenseExpiryDate,
+    string? VehicleLicenseNumber,
+    DateTime? VehicleLicenseExpiryDate,
+    string? Address,
+    string? Region,
+    string? City);
 public record RejectDriverDocumentRequest(string Reason);
 public record SuspendDriverRequest(string? Reason);
 public record BanDriverRequest(string? Reason);

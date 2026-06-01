@@ -51,6 +51,28 @@ public class VendorRepository : IVendorRepository
             .ThenBy(account => account.CreatedAtUtc)
             .FirstOrDefaultAsync(cancellationToken);
 
+    public async Task ReplaceBranchOperatingHoursAsync(
+        Guid branchId,
+        IReadOnlyCollection<BranchOperatingHour> operatingHours,
+        CancellationToken cancellationToken = default)
+    {
+        var trackedHours = _dbContext.ChangeTracker
+            .Entries<BranchOperatingHour>()
+            .Where(entry => entry.Entity.BranchId == branchId)
+            .ToArray();
+
+        foreach (var entry in trackedHours)
+        {
+            entry.State = EntityState.Detached;
+        }
+
+        await _dbContext.BranchOperatingHours
+            .Where(hour => hour.BranchId == branchId)
+            .ExecuteDeleteAsync(cancellationToken);
+
+        await _dbContext.BranchOperatingHours.AddRangeAsync(operatingHours, cancellationToken);
+    }
+
     public void Add(Vendor vendor) => _dbContext.Vendors.Add(vendor);
 
     public void AddBranch(VendorBranch branch) => _dbContext.VendorBranches.Add(branch);

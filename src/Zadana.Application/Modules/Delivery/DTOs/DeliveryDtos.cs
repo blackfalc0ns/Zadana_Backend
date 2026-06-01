@@ -255,6 +255,7 @@ public record AdminDriverDetailDto(
     DateTime? LastOfferResponseAtUtc,
     string? Address,
     string? LicenseNumber,
+    string? NationalId,
     DateTime? NationalIdExpiryDate,
     DateTime? DriverLicenseExpiryDate,
     string? VehicleLicenseNumber,

@@ -153,11 +153,16 @@ public class Driver : BaseEntity
         string? vehicleImageUrl,
         string? personalPhotoUrl)
     {
-        NationalIdFrontImageUrl = NormalizeOptional(nationalIdFrontImageUrl);
-        NationalIdBackImageUrl = NormalizeOptional(nationalIdBackImageUrl);
-        LicenseImageUrl = NormalizeOptional(licenseImageUrl);
-        VehicleImageUrl = NormalizeOptional(vehicleImageUrl);
-        PersonalPhotoUrl = NormalizeOptional(personalPhotoUrl);
+        if (!string.IsNullOrWhiteSpace(nationalIdFrontImageUrl))
+            NationalIdFrontImageUrl = nationalIdFrontImageUrl.Trim();
+        if (!string.IsNullOrWhiteSpace(nationalIdBackImageUrl))
+            NationalIdBackImageUrl = nationalIdBackImageUrl.Trim();
+        if (!string.IsNullOrWhiteSpace(licenseImageUrl))
+            LicenseImageUrl = licenseImageUrl.Trim();
+        if (!string.IsNullOrWhiteSpace(vehicleImageUrl))
+            VehicleImageUrl = vehicleImageUrl.Trim();
+        if (!string.IsNullOrWhiteSpace(personalPhotoUrl))
+            PersonalPhotoUrl = personalPhotoUrl.Trim();
     }
 
     public DriverDocumentReview GetOrCreateDocumentReview(DriverDocumentType type)

@@ -6,6 +6,7 @@ using Zadana.Application.Common.Interfaces;
 using Zadana.Application.Common.Localization;
 using Zadana.Application.Modules.Vendors.DTOs;
 using Zadana.Application.Modules.Vendors.Interfaces;
+using Zadana.Application.Modules.Vendors.Support;
 using Zadana.Domain.Modules.Vendors.Entities;
 using Zadana.SharedKernel.Exceptions;
 
@@ -23,8 +24,14 @@ public class UpdateVendorHoursCommandValidator : AbstractValidator<UpdateVendorH
         RuleForEach(x => x.Hours).ChildRules(hour =>
         {
             hour.RuleFor(x => x.DayOfWeek).InclusiveBetween(0, 6);
-            hour.RuleFor(x => x.OpenTime).NotEmpty().MaximumLength(5);
-            hour.RuleFor(x => x.CloseTime).NotEmpty().MaximumLength(5);
+            hour.RuleFor(x => x.OpenTime)
+                .NotEmpty()
+                .Must(VendorOperatingHourTimeParser.IsValidClockTime)
+                .WithMessage("Open time must use HH:mm format between 00:00 and 23:59.");
+            hour.RuleFor(x => x.CloseTime)
+                .NotEmpty()
+                .Must(VendorOperatingHourTimeParser.IsValidClockTime)
+                .WithMessage("Close time must use HH:mm format between 00:00 and 23:59.");
         });
     }
 }
@@ -57,6 +64,7 @@ public class UpdateVendorHoursCommandHandler : IRequestHandler<UpdateVendorHours
     public async Task<VendorWorkspaceDto> Handle(UpdateVendorHoursCommand request, CancellationToken cancellationToken)
     {
         var userId = _currentUserService.UserId ?? throw new UnauthorizedException("USER_NOT_AUTHENTICATED");
+        var requestedHours = ParseRequestedHours(request.Hours);
         var vendor = await _vendorRepository.GetByUserIdAsync(userId, cancellationToken)
             ?? throw new NotFoundException("Vendor", userId);
 
@@ -65,42 +73,22 @@ public class UpdateVendorHoursCommandHandler : IRequestHandler<UpdateVendorHours
             .ThenBy(branch => branch.CreatedAtUtc)
             .FirstOrDefault();
 
+        var branchWasCreated = primaryBranch == null;
         if (primaryBranch == null)
         {
-            primaryBranch = new VendorBranch(
-                vendor.Id,
-                vendor.BusinessNameAr,
-                vendor.NationalAddress ?? "Primary branch",
-                0,
-                0,
-                vendor.ContactPhone,
-                5);
+            primaryBranch = VendorPrimaryBranchFactory.CreateForHoursProfile(vendor);
 
             _vendorRepository.AddBranch(primaryBranch);
             vendor.Branches.Add(primaryBranch);
         }
 
-        foreach (var hour in request.Hours)
+        if (branchWasCreated)
         {
-            var parsedOpen = TimeSpan.Parse(hour.OpenTime);
-            var parsedClose = TimeSpan.Parse(hour.CloseTime);
-            var existingHour = primaryBranch.OperatingHours.FirstOrDefault(item => item.DayOfWeek == hour.DayOfWeek);
-
-            if (existingHour == null)
-            {
-                primaryBranch.OperatingHours.Add(new BranchOperatingHour(
-                    primaryBranch.Id,
-                    hour.DayOfWeek,
-                    parsedOpen,
-                    parsedClose,
-                    !hour.IsOpen));
-            }
-            else
-            {
-                existingHour.Update(parsedOpen, parsedClose, !hour.IsOpen);
-            }
+            await _unitOfWork.SaveChangesAsync(cancellationToken);
         }
 
+        var replacementHours = BuildReplacementHours(primaryBranch, requestedHours);
+        await _vendorRepository.ReplaceBranchOperatingHoursAsync(primaryBranch.Id, replacementHours, cancellationToken);
         await _unitOfWork.SaveChangesAsync(cancellationToken);
         await _cacheInvalidator.RemoveByTagsAsync(CacheInvalidationProfiles.CatalogReadModels, cancellationToken);
 
@@ -118,4 +106,47 @@ public class UpdateVendorHoursCommandHandler : IRequestHandler<UpdateVendorHours
         return await _vendorReadService.GetWorkspaceByUserIdAsync(userId, cancellationToken)
             ?? throw new NotFoundException("Vendor", userId);
     }
+
+    private static IReadOnlyCollection<BranchOperatingHour> BuildReplacementHours(
+        VendorBranch branch,
+        IReadOnlyCollection<ParsedOperatingHour> requestedHours)
+    {
+        var hoursByDay = branch.OperatingHours
+            .GroupBy(hour => hour.DayOfWeek)
+            .Select(group => group.Last())
+            .ToDictionary(
+                hour => hour.DayOfWeek,
+                hour => new ParsedOperatingHour(hour.DayOfWeek, hour.OpenTime, hour.CloseTime, !hour.IsClosed));
+
+        foreach (var requestedHour in requestedHours)
+        {
+            hoursByDay[requestedHour.DayOfWeek] = requestedHour;
+        }
+
+        return hoursByDay.Values
+            .OrderBy(hour => hour.DayOfWeek)
+            .Select(hour => new BranchOperatingHour(
+                branch.Id,
+                hour.DayOfWeek,
+                hour.OpenTime,
+                hour.CloseTime,
+                !hour.IsOpen))
+            .ToArray();
+    }
+
+    private static IReadOnlyCollection<ParsedOperatingHour> ParseRequestedHours(
+        IEnumerable<UpdateVendorHoursItem> hours)
+    {
+        return hours
+            .GroupBy(hour => hour.DayOfWeek)
+            .Select(group => group.Last())
+            .Select(hour => new ParsedOperatingHour(
+                hour.DayOfWeek,
+                VendorOperatingHourTimeParser.ParseClockTime(hour.OpenTime),
+                VendorOperatingHourTimeParser.ParseClockTime(hour.CloseTime),
+                hour.IsOpen))
+            .ToArray();
+    }
+
+    private sealed record ParsedOperatingHour(int DayOfWeek, TimeSpan OpenTime, TimeSpan CloseTime, bool IsOpen);
 }
