@@ -1165,4 +1165,5 @@ static Task WriteHealthResponseAsync(HttpContext context, HealthReport report)
     }));
 }
 
+// Trigger reload for watch
 public partial class Program { }

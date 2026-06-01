@@ -357,6 +357,81 @@ public class OrderSupportCase : BaseEntity
             isInternalOnly: !visibleToCustomer);
     }
 
+    public void RecordSlaBreach()
+    {
+        EnsureNotClosed("CASE_SLA_BREACH_NOT_ALLOWED");
+
+        DecisionNotes = string.IsNullOrWhiteSpace(DecisionNotes)
+            ? $"SLA breached at {SlaDueAtUtc:u}. Case has exceeded its response deadline."
+            : $"{DecisionNotes}\n---\nSLA breached at {SlaDueAtUtc:u}. Case has exceeded its response deadline.";
+
+        AddActivity(
+            "sla_breached",
+            "SLA Breached",
+            $"SLA breached at {SlaDueAtUtc:u}. Case has exceeded its response deadline.",
+            Guid.Empty,
+            "system",
+            visibleToCustomer: false,
+            messageType: "internal_note",
+            audience: "internal_admin_only",
+            isInternalOnly: true);
+    }
+
+    public void AutoEscalate(
+        OrderSupportCaseQueue queue,
+        OrderSupportCasePriority priority,
+        string? note,
+        DateTime? slaDueAtUtc = null)
+    {
+        EnsureNotClosed("CASE_AUTO_ESCALATION_NOT_ALLOWED");
+
+        Queue = queue;
+        Priority = priority;
+        SlaDueAtUtc = slaDueAtUtc ?? SlaDueAtUtc;
+        AssignedAtUtc = DateTime.UtcNow;
+
+        if (Status == OrderSupportCaseStatus.Submitted || Status == OrderSupportCaseStatus.AwaitingCustomerEvidence)
+        {
+            Status = OrderSupportCaseStatus.InReview;
+        }
+
+        DecisionNotes = string.IsNullOrWhiteSpace(note) ? DecisionNotes : note.Trim();
+
+        AddActivity(
+            "auto_escalated",
+            $"Case auto-escalated to {queue}",
+            note,
+            Guid.Empty,
+            "system",
+            visibleToCustomer: false,
+            messageType: "escalation",
+            audience: "internal_admin_only",
+            isInternalOnly: true);
+    }
+
+    public void RecordStaleEvidenceReminder()
+    {
+        EnsureNotClosed("CASE_STALE_REMINDER_NOT_ALLOWED");
+
+        var note = $"Reminder: awaiting response from {AwaitingResponseFromRole} for 72+ hours. No response received.";
+
+        DecisionNotes = string.IsNullOrWhiteSpace(DecisionNotes)
+            ? note
+            : $"{DecisionNotes}\n---\n{note}";
+
+        AddActivity(
+            "stale_evidence_reminder",
+            $"Stale evidence reminder sent",
+            note,
+            Guid.Empty,
+            "system",
+            visibleToCustomer: false,
+            messageType: "internal_note",
+            audience: "internal_admin_only",
+            isInternalOnly: true);
+    }
+
+
     public void AddAdminPublicMessage(Guid actorUserId, string message, string audience)
     {
         EnsureNotClosed("CASE_MESSAGE_NOT_ALLOWED");

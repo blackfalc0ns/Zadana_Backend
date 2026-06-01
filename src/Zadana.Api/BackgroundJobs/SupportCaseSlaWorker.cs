@@ -86,14 +86,7 @@ public class SupportCaseSlaWorker : BackgroundService
 
         foreach (var supportCase in breachedCases)
         {
-            supportCase.AddInternalNote(
-                Guid.Empty,
-                $"SLA breached at {supportCase.SlaDueAtUtc:u}. Case has exceeded its response deadline.",
-                visibleToCustomer: false);
-
-            // Mark the activity so we don't alert again
-            var lastActivity = supportCase.Activities.OrderByDescending(a => a.CreatedAtUtc).First();
-            // The AddInternalNote already creates an activity, we just need to tag it
+            supportCase.RecordSlaBreach();
         }
 
         await context.SaveChangesAsync(cancellationToken);
@@ -135,12 +128,10 @@ public class SupportCaseSlaWorker : BackgroundService
                 _ => OrderSupportCasePriority.High
             };
 
-            supportCase.Escalate(
-                Guid.Empty,
+            supportCase.AutoEscalate(
                 supportCase.Queue,
                 newPriority,
                 $"Auto-escalated: SLA breached by {AutoEscalateAfterHours}+ hours. Priority changed to {newPriority}.",
-                customerVisibleNote: null,
                 slaDueAtUtc: DateTime.UtcNow.AddHours(4));
         }
 
@@ -176,10 +167,7 @@ public class SupportCaseSlaWorker : BackgroundService
 
         foreach (var supportCase in staleCases)
         {
-            supportCase.AddInternalNote(
-                Guid.Empty,
-                $"Reminder: awaiting response from {supportCase.AwaitingResponseFromRole} for {StaleEvidenceReminderHours}+ hours. No response received.",
-                visibleToCustomer: false);
+            supportCase.RecordStaleEvidenceReminder();
         }
 
         await context.SaveChangesAsync(cancellationToken);
