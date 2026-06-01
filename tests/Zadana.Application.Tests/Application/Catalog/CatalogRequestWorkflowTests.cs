@@ -1,6 +1,7 @@
 using FluentAssertions;
 using Microsoft.EntityFrameworkCore;
 using Microsoft.Extensions.Localization;
+using Microsoft.Extensions.Logging;
 using Moq;
 using Zadana.Application.Common.Interfaces;
 using Zadana.Application.Common.Localization;
@@ -47,7 +48,10 @@ public class CatalogRequestWorkflowTests
             Mock.Of<ICacheInvalidator>(),
             new StubCurrentUserService(fixture.AdminUser.Id, UserRole.Admin),
             new StubIdentityAccountService(fixture.AdminUser),
-            new PassThroughLocalizer<SharedResource>());
+            new PassThroughLocalizer<SharedResource>(),
+            Mock.Of<INotificationService>(),
+            Mock.Of<IFileStorageService>(),
+            Mock.Of<ILogger<ReviewProductRequestCommandHandler>>());
 
         var createdId = await handler.Handle(new ReviewProductRequestCommand(request.Id, true, null), CancellationToken.None);
 
@@ -82,7 +86,10 @@ public class CatalogRequestWorkflowTests
             Mock.Of<ICacheInvalidator>(),
             new StubCurrentUserService(fixture.AdminUser.Id, UserRole.Admin),
             new StubIdentityAccountService(fixture.AdminUser),
-            new PassThroughLocalizer<SharedResource>());
+            new PassThroughLocalizer<SharedResource>(),
+            Mock.Of<INotificationService>(),
+            Mock.Of<IFileStorageService>(),
+            Mock.Of<ILogger<ReviewProductRequestCommandHandler>>());
 
         var createdId = await handler.Handle(new ReviewProductRequestCommand(request.Id, true, null), CancellationToken.None);
 
@@ -112,7 +119,10 @@ public class CatalogRequestWorkflowTests
             Mock.Of<ICacheInvalidator>(),
             new StubCurrentUserService(fixture.AdminUser.Id, UserRole.Admin),
             new StubIdentityAccountService(fixture.AdminUser),
-            new PassThroughLocalizer<SharedResource>());
+            new PassThroughLocalizer<SharedResource>(),
+            Mock.Of<INotificationService>(),
+            Mock.Of<IFileStorageService>(),
+            Mock.Of<ILogger<ReviewBrandRequestCommandHandler>>());
 
         var createdId = await handler.Handle(new ReviewBrandRequestCommand(request.Id, true, null), CancellationToken.None);
 
@@ -149,7 +159,10 @@ public class CatalogRequestWorkflowTests
             Mock.Of<ICacheInvalidator>(),
             new StubCurrentUserService(fixture.AdminUser.Id, UserRole.Admin),
             new StubIdentityAccountService(fixture.AdminUser),
-            new PassThroughLocalizer<SharedResource>());
+            new PassThroughLocalizer<SharedResource>(),
+            Mock.Of<INotificationService>(),
+            Mock.Of<IFileStorageService>(),
+            Mock.Of<ILogger<ReviewCategoryRequestCommandHandler>>());
 
         var createdId = await handler.Handle(new ReviewCategoryRequestCommand(request.Id, true, null, null, null), CancellationToken.None);
 
@@ -304,7 +317,10 @@ public class CatalogRequestWorkflowTests
             Mock.Of<ICacheInvalidator>(),
             new StubCurrentUserService(fixture.AdminUser.Id, UserRole.Admin),
             new StubIdentityAccountService(fixture.AdminUser),
-            new PassThroughLocalizer<SharedResource>());
+            new PassThroughLocalizer<SharedResource>(),
+            Mock.Of<INotificationService>(),
+            Mock.Of<IFileStorageService>(),
+            Mock.Of<ILogger<ReviewProductRequestCommandHandler>>());
 
         var act = () => handler.Handle(new ReviewProductRequestCommand(request.Id, true, null), CancellationToken.None);
 
