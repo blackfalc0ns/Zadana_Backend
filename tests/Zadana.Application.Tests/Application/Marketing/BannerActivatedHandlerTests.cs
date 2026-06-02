@@ -82,7 +82,10 @@ public class BannerActivatedHandlerTests
                 It.Is<string?>(data =>
                     data != null &&
                     data.Contains(notification.BannerId.ToString()) &&
-                    data.Contains(notification.ImageUrl)),
+                    data.Contains(notification.ImageUrl) &&
+                    data.Contains("\"presentation\":\"popup\"", StringComparison.Ordinal) &&
+                    data.Contains("\"popupType\":\"new_banner\"", StringComparison.Ordinal) &&
+                    data.Contains("\"showPopup\":true", StringComparison.Ordinal)),
                 It.IsAny<CancellationToken>()),
             Times.Once);
 
@@ -100,8 +103,11 @@ public class BannerActivatedHandlerTests
                 It.Is<string?>(data =>
                     data != null &&
                     data.Contains(notification.BannerId.ToString()) &&
-                    data.Contains(notification.ImageUrl)),
-                null,
+                    data.Contains(notification.ImageUrl) &&
+                    data.Contains("\"presentation\":\"popup\"", StringComparison.Ordinal) &&
+                    data.Contains("\"popupType\":\"new_banner\"", StringComparison.Ordinal) &&
+                    data.Contains("\"showPopup\":true", StringComparison.Ordinal)),
+                "/",
                 OneSignalPushProfile.MobileHeadsUp,
                 It.IsAny<CancellationToken>()),
             Times.Once);

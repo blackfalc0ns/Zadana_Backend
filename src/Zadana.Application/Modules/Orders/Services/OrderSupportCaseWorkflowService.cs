@@ -1391,7 +1391,7 @@ public sealed class OrderSupportCaseWorkflowService : IOrderSupportCaseWorkflowS
                 targetUrl: targetUrl,
                 category: NotificationCategories.Support,
                 targetApplication: OneSignalApplicationTarget.Driver)
-            : OneSignalMobilePushRequest.CreateStandard(
+            : OneSignalMobilePushRequest.CreateHeadsUp(
                 supportCase.CustomerUserId.ToString(),
                 titleAr,
                 titleEn,
@@ -2031,9 +2031,10 @@ public sealed class OrderSupportCaseWorkflowService : IOrderSupportCaseWorkflowS
                 NotificationTypes.OrderSupportCaseChanged,
                 referenceId,
                 data,
+                targetUrl: $"/support/cases/{referenceId}",
                 category: NotificationCategories.Support,
                 targetApplication: OneSignalApplicationTarget.Driver)
-            : OneSignalMobilePushRequest.CreateStandard(
+            : OneSignalMobilePushRequest.CreateHeadsUp(
                 driverUserId.ToString(),
                 titleAr,
                 titleEn,
@@ -2042,6 +2043,7 @@ public sealed class OrderSupportCaseWorkflowService : IOrderSupportCaseWorkflowS
                 NotificationTypes.OrderSupportCaseChanged,
                 referenceId,
                 data,
+                targetUrl: $"/support/cases/{referenceId}",
                 category: NotificationCategories.Support,
                 targetApplication: OneSignalApplicationTarget.Driver);
 

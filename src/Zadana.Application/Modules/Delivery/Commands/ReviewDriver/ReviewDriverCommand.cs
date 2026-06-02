@@ -167,7 +167,7 @@ public class ReviewDriverCommandHandler : IRequestHandler<ReviewDriverCommand>
         try
         {
             await _oneSignalPushService.SendMobileNotificationAsync(
-                OneSignalMobilePushRequest.CreateStandard(
+                OneSignalMobilePushRequest.CreateHeadsUp(
                     driverUserId.ToString(),
                     titleAr,
                     titleEn,

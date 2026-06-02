@@ -4,6 +4,7 @@ using Microsoft.Extensions.Logging.Abstractions;
 using Moq;
 using MediatR;
 using Zadana.Application.Common.Interfaces;
+using Zadana.Application.Modules.Orders.Events;
 using Zadana.Domain.Modules.Delivery.Entities;
 using Zadana.Domain.Modules.Delivery.Enums;
 using Zadana.Domain.Modules.Identity.Entities;
@@ -125,22 +126,24 @@ public class DeliveryDispatchServiceTests
     {
         await using var dbContext = CreateDbContext();
         var scenario = await SeedDispatchScenarioAsync(dbContext);
-        var notificationServiceMock = new Mock<INotificationService>();
-        var service = CreateDispatchService(dbContext, notificationService: notificationServiceMock.Object);
+        var publisherMock = new Mock<IPublisher>();
+        var service = CreateDispatchService(dbContext, publisher: publisherMock.Object);
 
         await service.TryAutoDispatchAsync(scenario.Order.Id, cancellationToken: CancellationToken.None);
 
-        notificationServiceMock.Verify(
-            service => service.SendOrderStatusChangedToUserAsync(
-                scenario.Order.UserId,
-                scenario.Order.Id,
-                scenario.Order.OrderNumber,
-                scenario.Order.VendorId,
-                nameof(OrderStatus.ReadyForPickup),
-                nameof(OrderStatus.DriverAssignmentInProgress),
-                "dispatch",
-                null,
-                null,
+        publisherMock.Verify(
+            publisher => publisher.Publish(
+                It.Is<OrderStatusChangedNotification>(notification =>
+                    notification.UserId == scenario.Order.UserId &&
+                    notification.OrderId == scenario.Order.Id &&
+                    notification.OrderNumber == scenario.Order.OrderNumber &&
+                    notification.VendorId == scenario.Order.VendorId &&
+                    notification.OldStatus == OrderStatus.ReadyForPickup &&
+                    notification.NewStatus == OrderStatus.DriverAssignmentInProgress &&
+                    notification.ActorRole == "dispatch" &&
+                    notification.NotifyCustomer &&
+                    !notification.NotifyVendor &&
+                    !notification.CustomerNotificationAlreadySent),
                 It.IsAny<CancellationToken>()),
             Times.Once);
     }
@@ -201,7 +204,7 @@ public class DeliveryDispatchServiceTests
                     request.ReferenceId == scenario.Order.Id &&
                     request.Category == NotificationCategories.Dispatch &&
                     request.Profile == OneSignalPushProfile.MobileHeadsUp &&
-                    request.TargetUrl == null &&
+                    request.TargetUrl == "/" &&
                     request.Data != null &&
                     request.Data.Contains("\"target\":\"driver-offer\"") &&
                     request.Data.Contains("\"presentation\":\"popup\"") &&

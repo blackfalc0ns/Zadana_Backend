@@ -68,7 +68,7 @@ public class BlockDriverLocationUpdatesCommandHandler : IRequestHandler<BlockDri
         await _notificationService.SendDriverHomeUpdatedAsync(driver.UserId, cancellationToken);
 
         await _oneSignalPushService.SendMobileNotificationAsync(
-            OneSignalMobilePushRequest.CreateStandard(
+            OneSignalMobilePushRequest.CreateHeadsUp(
                 driver.UserId.ToString(),
                 titleAr,
                 titleEn,

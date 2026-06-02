@@ -364,7 +364,7 @@ public class DriverCommitmentPolicyService : IDriverCommitmentPolicyService
         await _notificationService.SendDriverHomeUpdatedAsync(driver.UserId, cancellationToken);
 
         await _oneSignalPushService.SendMobileNotificationAsync(
-            OneSignalMobilePushRequest.CreateStandard(
+            OneSignalMobilePushRequest.CreateHeadsUp(
                 driver.UserId.ToString(),
                 titleAr,
                 titleEn,
@@ -373,6 +373,7 @@ public class DriverCommitmentPolicyService : IDriverCommitmentPolicyService
                 NotificationTypes.DriverCommitmentEnforcement,
                 driver.Id,
                 data,
+                targetUrl: "/account-status",
                 category: NotificationCategories.Account,
                 targetApplication: OneSignalApplicationTarget.Driver),
             cancellationToken);

@@ -41,6 +41,7 @@ using Zadana.Application.Modules.Orders.Queries.GetCart;
 using Zadana.Application.Modules.Orders.Queries.GetCartVendors;
 using Zadana.Application.Modules.Orders.Support;
 using Zadana.Application.Modules.Payments.Interfaces;
+using Zadana.Application.Modules.Social.Commands;
 using Zadana.Application.Modules.Social.Queries;
 using Zadana.Domain.Modules.Catalog.Entities;
 using Zadana.Domain.Modules.Identity.Entities;
@@ -348,18 +349,25 @@ public class CustomerEndpointLocalizationTests
             .Returns(Task.CompletedTask);
         sender.Setup(x => x.Send(It.IsAny<MarkAllNotificationsReadCommand>(), It.IsAny<CancellationToken>()))
             .ReturnsAsync(2);
+        sender.Setup(x => x.Send(It.IsAny<DeleteAllNotificationsCommand>(), It.IsAny<CancellationToken>()))
+            .ReturnsAsync(3);
 
         var read = await controller.MarkAsRead(Guid.NewGuid(), CancellationToken.None);
         var readAll = await controller.MarkAllAsRead(CancellationToken.None);
+        var deleteAll = await controller.DeleteAllNotifications(CancellationToken.None);
 
         var readPayload = GetOkAnonymous(read);
         var readAllPayload = GetOkAnonymous(readAll);
+        var deleteAllPayload = GetOkAnonymous(deleteAll);
 
         ReadProperty<string>(readPayload, "message_ar").Should().Be(LocalizedMessages.GetAr(LocalizedMessages.NotificationMarkedRead));
         ReadProperty<string>(readPayload, "message_en").Should().Be(LocalizedMessages.GetEn(LocalizedMessages.NotificationMarkedRead));
         ReadProperty<string>(readAllPayload, "message_ar").Should().Be(LocalizedMessages.GetAr(LocalizedMessages.AllNotificationsMarkedRead));
         ReadProperty<string>(readAllPayload, "message_en").Should().Be(LocalizedMessages.GetEn(LocalizedMessages.AllNotificationsMarkedRead));
         ReadProperty<int>(readAllPayload, "count").Should().Be(2);
+        ReadProperty<string>(deleteAllPayload, "message_ar").Should().Be("\u062a\u0645 \u062d\u0630\u0641 \u062c\u0645\u064a\u0639 \u0627\u0644\u0625\u0634\u0639\u0627\u0631\u0627\u062a");
+        ReadProperty<string>(deleteAllPayload, "message_en").Should().Be("All notifications deleted");
+        ReadProperty<int>(deleteAllPayload, "count").Should().Be(3);
     }
 
     [Fact]

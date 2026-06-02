@@ -1,8 +1,8 @@
+using System.Text.Json;
 using Microsoft.AspNetCore.Authorization;
 using Microsoft.AspNetCore.Mvc;
 using Microsoft.EntityFrameworkCore;
 using Microsoft.Extensions.Logging;
-using System.Text.Json;
 using Zadana.Api.Controllers;
 using Zadana.Api.Modules.Identity.Requests;
 using Zadana.Application.Common.Interfaces;
@@ -74,10 +74,14 @@ public class AdminCustomersController : ApiControllerBase
 
         request ??= new AdminSendCustomerNotificationRequest();
 
-        var titleAr = string.IsNullOrWhiteSpace(request.TitleAr) ? "إشعار تجريبي للعميل" : request.TitleAr.Trim();
-        var titleEn = string.IsNullOrWhiteSpace(request.TitleEn) ? "Customer test notification" : request.TitleEn.Trim();
+        var titleAr = string.IsNullOrWhiteSpace(request.TitleAr)
+            ? "\u0625\u0634\u0639\u0627\u0631 \u062a\u062c\u0631\u064a\u0628\u064a \u0644\u0644\u0639\u0645\u064a\u0644"
+            : request.TitleAr.Trim();
+        var titleEn = string.IsNullOrWhiteSpace(request.TitleEn)
+            ? "Customer test notification"
+            : request.TitleEn.Trim();
         var bodyAr = string.IsNullOrWhiteSpace(request.BodyAr)
-            ? "هذا إشعار تجريبي من واجهة الأدمن للتأكد من وصول إشعارات الموبايل للعميل."
+            ? "\u0647\u0630\u0627 \u0625\u0634\u0639\u0627\u0631 \u062a\u062c\u0631\u064a\u0628\u064a \u0645\u0646 \u0648\u0627\u062c\u0647\u0629 \u0627\u0644\u0623\u062f\u0645\u0646 \u0644\u0644\u062a\u0623\u0643\u062f \u0645\u0646 \u0648\u0635\u0648\u0644 \u0625\u0634\u0639\u0627\u0631\u0627\u062a \u0627\u0644\u0645\u0648\u0628\u0627\u064a\u0644 \u0644\u0644\u0639\u0645\u064a\u0644."
             : request.BodyAr.Trim();
         var bodyEn = string.IsNullOrWhiteSpace(request.BodyEn)
             ? "This is a test notification sent from the admin API to verify customer mobile delivery."
@@ -91,7 +95,11 @@ public class AdminCustomersController : ApiControllerBase
                 customerId = customer.Id,
                 userId = customer.Id,
                 generatedAtUtc = DateTime.UtcNow,
-                targetUrl
+                targetUrl,
+                presentation = "popup",
+                popupType = "customer_test",
+                showPopup = true,
+                eventName = "customer.test_notification"
             })
             : request.Data;
 
@@ -105,6 +113,7 @@ public class AdminCustomersController : ApiControllerBase
             request.ReferenceId,
             data,
             cancellationToken);
+
         var pushRequest = OneSignalMobilePushRequest.CreateHeadsUp(
             customer.Id.ToString(),
             titleAr,
@@ -130,6 +139,17 @@ public class AdminCustomersController : ApiControllerBase
                 ProviderStatusCode: null,
                 ProviderNotificationId: null,
                 Reason: "Push dispatch was disabled for this admin request.");
+
+        if (pushResult is null)
+        {
+            pushResult = new OneSignalPushDispatchResult(
+                Attempted: true,
+                Sent: false,
+                Skipped: true,
+                ProviderStatusCode: null,
+                ProviderNotificationId: null,
+                Reason: "Push dispatch returned no result.");
+        }
 
         if (request.SendPush)
         {

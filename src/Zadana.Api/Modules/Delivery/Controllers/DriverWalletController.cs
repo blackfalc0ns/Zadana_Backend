@@ -225,6 +225,7 @@ public class DriverWalletController : ApiControllerBase
         [FromServices] IDriverRepository driverRepository,
         [FromServices] IApplicationDbContext context,
         [FromServices] INotificationService notificationService,
+        [FromServices] IOneSignalPushService oneSignalPushService,
         [FromServices] IAdminAlertService adminAlertService,
         CancellationToken cancellationToken = default)
     {
@@ -324,6 +325,21 @@ public class DriverWalletController : ApiControllerBase
             cancellationToken);
 
         await notificationService.SendDriverWalletUpdatedAsync(driver.UserId, cancellationToken);
+
+        await oneSignalPushService.SendMobileNotificationAsync(
+            OneSignalMobilePushRequest.CreateHeadsUp(
+                driver.UserId.ToString(),
+                "\u062a\u0645 \u0627\u0633\u062a\u0644\u0627\u0645 \u0637\u0644\u0628 \u0627\u0644\u0633\u062d\u0628",
+                "Withdrawal request submitted",
+                $"\u062a\u0645 \u0627\u0633\u062a\u0644\u0627\u0645 \u0637\u0644\u0628 \u0633\u062d\u0628 \u0628\u0642\u064a\u0645\u0629 {withdrawal.Amount:0.##}.",
+                $"Your withdrawal request for {withdrawal.Amount:0.##} was submitted.",
+                NotificationTypes.DriverWalletUpdated,
+                withdrawal.Id,
+                data,
+                "/wallet",
+                NotificationCategories.Wallet,
+                OneSignalApplicationTarget.Driver),
+            cancellationToken);
 
         await adminAlertService.SendAsync(
             new AdminAlertRequest(

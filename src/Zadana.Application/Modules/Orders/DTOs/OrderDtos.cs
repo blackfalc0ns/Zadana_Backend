@@ -505,6 +505,8 @@ public record AdminOrderDetailDto(
 
 public record AdminOrderItemDto(
     string Name,
+    string NameAr,
+    string NameEn,
     string Brand,
     string Quantity,
     decimal Price,

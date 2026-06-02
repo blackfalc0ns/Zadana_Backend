@@ -29,17 +29,8 @@ public class AdminCustomersControllerTests
         var notificationServiceMock = new Mock<INotificationService>();
         var oneSignalPushServiceMock = new Mock<IOneSignalPushService>();
         oneSignalPushServiceMock
-            .Setup(service => service.SendToExternalUserAsync(
-                It.IsAny<string>(),
-                It.IsAny<string>(),
-                It.IsAny<string>(),
-                It.IsAny<string>(),
-                It.IsAny<string>(),
-                It.IsAny<string?>(),
-                It.IsAny<Guid?>(),
-                It.IsAny<string?>(),
-                It.IsAny<string?>(),
-                It.IsAny<OneSignalPushProfile>(),
+            .Setup(service => service.SendMobileNotificationAsync(
+                It.IsAny<OneSignalMobilePushRequest>(),
                 It.IsAny<CancellationToken>()))
             .ReturnsAsync(new OneSignalPushDispatchResult(
                 Attempted: true,
@@ -52,9 +43,9 @@ public class AdminCustomersControllerTests
         var controller = CreateController(dbContext, notificationServiceMock.Object, oneSignalPushServiceMock.Object);
         var request = new AdminSendCustomerNotificationRequest
         {
-            TitleAr = "إشعار أدمن",
+            TitleAr = "\u0625\u0634\u0639\u0627\u0631 \u0623\u062f\u0645\u0646",
             TitleEn = "Admin notification",
-            BodyAr = "هذا اختبار للموبايل",
+            BodyAr = "\u0647\u0630\u0627 \u0627\u062e\u062a\u0628\u0627\u0631 \u0644\u0644\u0645\u0648\u0628\u0627\u064a\u0644",
             BodyEn = "This is a mobile test",
             Type = "customer_test",
             TargetUrl = "/orders/test"
@@ -72,29 +63,38 @@ public class AdminCustomersControllerTests
         notificationServiceMock.Verify(
             service => service.SendToUserAsync(
                 customer.Id,
-                "إشعار أدمن",
-                "Admin notification",
-                "هذا اختبار للموبايل",
-                "This is a mobile test",
+                request.TitleAr,
+                request.TitleEn,
+                request.BodyAr,
+                request.BodyEn,
                 "customer_test",
                 null,
-                It.Is<string?>(data => data != null && data.Contains("admin_customer_notifications_test_api")),
+                It.Is<string?>(data =>
+                    data != null &&
+                    data.Contains("admin_customer_notifications_test_api", StringComparison.Ordinal) &&
+                    data.Contains("\"presentation\":\"popup\"", StringComparison.Ordinal) &&
+                    data.Contains("\"popupType\":\"customer_test\"", StringComparison.Ordinal) &&
+                    data.Contains("\"showPopup\":true", StringComparison.Ordinal)),
                 It.IsAny<CancellationToken>()),
             Times.Once);
 
         oneSignalPushServiceMock.Verify(
-            service => service.SendToExternalUserAsync(
-                customer.Id.ToString(),
-                "إشعار أدمن",
-                "Admin notification",
-                "هذا اختبار للموبايل",
-                "This is a mobile test",
-                "customer_test",
-                null,
-                It.Is<string?>(data => data != null && data.Contains("admin_customer_notifications_test_api")),
-                "/orders/test",
-                OneSignalPushProfile.MobileHeadsUp,
-            It.IsAny<CancellationToken>()),
+            service => service.SendMobileNotificationAsync(
+                It.Is<OneSignalMobilePushRequest>(pushRequest =>
+                    pushRequest.ExternalUserId == customer.Id.ToString() &&
+                    pushRequest.TitleAr == request.TitleAr &&
+                    pushRequest.TitleEn == request.TitleEn &&
+                    pushRequest.BodyAr == request.BodyAr &&
+                    pushRequest.BodyEn == request.BodyEn &&
+                    pushRequest.Type == "customer_test" &&
+                    pushRequest.TargetUrl == "/orders/test" &&
+                    pushRequest.Profile == OneSignalPushProfile.MobileHeadsUp &&
+                    pushRequest.Data != null &&
+                    pushRequest.Data.Contains("admin_customer_notifications_test_api", StringComparison.Ordinal) &&
+                    pushRequest.Data.Contains("\"presentation\":\"popup\"", StringComparison.Ordinal) &&
+                    pushRequest.Data.Contains("\"popupType\":\"customer_test\"", StringComparison.Ordinal) &&
+                    pushRequest.Data.Contains("\"showPopup\":true", StringComparison.Ordinal)),
+                It.IsAny<CancellationToken>()),
             Times.Once);
     }
 
@@ -113,17 +113,8 @@ public class AdminCustomersControllerTests
         var notificationServiceMock = new Mock<INotificationService>();
         var oneSignalPushServiceMock = new Mock<IOneSignalPushService>();
         oneSignalPushServiceMock
-            .Setup(service => service.SendToExternalUserAsync(
-                It.IsAny<string>(),
-                It.IsAny<string>(),
-                It.IsAny<string>(),
-                It.IsAny<string>(),
-                It.IsAny<string>(),
-                It.IsAny<string?>(),
-                It.IsAny<Guid?>(),
-                It.IsAny<string?>(),
-                It.IsAny<string?>(),
-                It.IsAny<OneSignalPushProfile>(),
+            .Setup(service => service.SendMobileNotificationAsync(
+                It.IsAny<OneSignalMobilePushRequest>(),
                 It.IsAny<CancellationToken>()))
             .ReturnsAsync(new OneSignalPushDispatchResult(
                 Attempted: true,
@@ -138,17 +129,14 @@ public class AdminCustomersControllerTests
         await controller.SendCustomerNotification(customer.Id, new AdminSendCustomerNotificationRequest(), CancellationToken.None);
 
         oneSignalPushServiceMock.Verify(
-            service => service.SendToExternalUserAsync(
-                customer.Id.ToString(),
-                It.IsAny<string>(),
-                It.IsAny<string>(),
-                It.IsAny<string>(),
-                It.IsAny<string>(),
-                It.IsAny<string?>(),
-                It.IsAny<Guid?>(),
-                It.Is<string?>(data => data != null && data.Contains("/notifications")),
-                "/notifications",
-                OneSignalPushProfile.MobileHeadsUp,
+            service => service.SendMobileNotificationAsync(
+                It.Is<OneSignalMobilePushRequest>(pushRequest =>
+                    pushRequest.ExternalUserId == customer.Id.ToString() &&
+                    pushRequest.TargetUrl == "/notifications" &&
+                    pushRequest.Profile == OneSignalPushProfile.MobileHeadsUp &&
+                    pushRequest.Data != null &&
+                    pushRequest.Data.Contains("/notifications", StringComparison.Ordinal) &&
+                    pushRequest.Data.Contains("\"showPopup\":true", StringComparison.Ordinal)),
                 It.IsAny<CancellationToken>()),
             Times.Once);
     }

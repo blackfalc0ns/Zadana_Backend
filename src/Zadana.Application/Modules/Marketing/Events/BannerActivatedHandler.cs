@@ -25,15 +25,23 @@ public class BannerActivatedHandler : INotificationHandler<BannerActivatedNotifi
 
     public async Task Handle(BannerActivatedNotification notification, CancellationToken cancellationToken)
     {
+        const string targetUrl = "/";
         var data = JsonSerializer.Serialize(new
         {
             bannerId = notification.BannerId,
-            imageUrl = notification.ImageUrl
+            imageUrl = notification.ImageUrl,
+            category = "marketing",
+            screen = "home",
+            targetUrl,
+            presentation = "popup",
+            popupType = "new_banner",
+            showPopup = true,
+            eventName = "banner.activated"
         });
 
-        var titleAr = $"🎉 عرض جديد: {notification.TitleAr}";
-        var titleEn = $"🎉 New Offer: {notification.TitleEn}";
-        const string bodyAr = "اكتشف أحدث العروض والخصومات المتاحة الآن!";
+        var titleAr = $"\ud83c\udf89 \u0639\u0631\u0636 \u062c\u062f\u064a\u062f: {notification.TitleAr}";
+        var titleEn = $"\ud83c\udf89 New Offer: {notification.TitleEn}";
+        const string bodyAr = "\u0627\u0643\u062a\u0634\u0641 \u0623\u062d\u062f\u062b \u0627\u0644\u0639\u0631\u0648\u0636 \u0648\u0627\u0644\u062e\u0635\u0648\u0645\u0627\u062a \u0627\u0644\u0645\u062a\u0627\u062d\u0629 \u0627\u0644\u0622\u0646!";
         const string bodyEn = "Discover the latest offers and discounts available now!";
 
         await _notificationService.BroadcastToAllCustomersAsync(
@@ -59,7 +67,7 @@ public class BannerActivatedHandler : INotificationHandler<BannerActivatedNotifi
             bodyEn,
             type: NotificationTypes.NewBanner,
             data: data,
-            targetUrl: null,
+            targetUrl: targetUrl,
             profile: OneSignalPushProfile.MobileHeadsUp,
             cancellationToken: cancellationToken);
     }

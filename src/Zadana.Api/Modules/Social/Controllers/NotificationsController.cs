@@ -62,7 +62,11 @@ public class NotificationsController : ApiControllerBase
     {
         var userId = _currentUserService.UserId ?? throw new UnauthorizedException("USER_NOT_AUTHENTICATED");
         await Sender.Send(new MarkNotificationReadCommand(id, userId), cancellationToken);
-        return Ok(new { message_ar = LocalizedMessages.GetAr(LocalizedMessages.NotificationMarkedRead), message_en = LocalizedMessages.GetEn(LocalizedMessages.NotificationMarkedRead) });
+        return Ok(new
+        {
+            message_ar = LocalizedMessages.GetAr(LocalizedMessages.NotificationMarkedRead),
+            message_en = LocalizedMessages.GetEn(LocalizedMessages.NotificationMarkedRead)
+        });
     }
 
     [HttpPost("read-all")]
@@ -70,7 +74,12 @@ public class NotificationsController : ApiControllerBase
     {
         var userId = _currentUserService.UserId ?? throw new UnauthorizedException("USER_NOT_AUTHENTICATED");
         var count = await Sender.Send(new MarkAllNotificationsReadCommand(userId), cancellationToken);
-        return Ok(new { message_ar = LocalizedMessages.GetAr(LocalizedMessages.AllNotificationsMarkedRead), message_en = LocalizedMessages.GetEn(LocalizedMessages.AllNotificationsMarkedRead), count });
+        return Ok(new
+        {
+            message_ar = LocalizedMessages.GetAr(LocalizedMessages.AllNotificationsMarkedRead),
+            message_en = LocalizedMessages.GetEn(LocalizedMessages.AllNotificationsMarkedRead),
+            count
+        });
     }
 
     [HttpDelete("{id:guid}")]
@@ -86,7 +95,12 @@ public class NotificationsController : ApiControllerBase
     {
         var userId = _currentUserService.UserId ?? throw new UnauthorizedException("USER_NOT_AUTHENTICATED");
         var count = await Sender.Send(new DeleteAllNotificationsCommand(userId), cancellationToken);
-        return Ok(new { count, message_ar = "تم حذف جميع الإشعارات", message_en = "All notifications deleted" });
+        return Ok(new
+        {
+            count,
+            message_ar = "\u062a\u0645 \u062d\u0630\u0641 \u062c\u0645\u064a\u0639 \u0627\u0644\u0625\u0634\u0639\u0627\u0631\u0627\u062a",
+            message_en = "All notifications deleted"
+        });
     }
 
     [HttpGet("preferences")]
@@ -134,7 +148,6 @@ public class NotificationsController : ApiControllerBase
             dto.Type, dto.Category, dto.Priority, dto.ReferenceId, dto.Data, dto.DataObject, dto.IsRead, dto.CreatedAtUtc);
 }
 
-// Response DTOs
 public record NotificationsResponse(
     List<NotificationResponse> Items,
     int Page,

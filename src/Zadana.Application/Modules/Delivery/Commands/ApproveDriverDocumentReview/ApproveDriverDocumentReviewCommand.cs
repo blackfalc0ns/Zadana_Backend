@@ -211,7 +211,7 @@ public class ApproveDriverDocumentReviewCommandHandler : IRequestHandler<Approve
         try
         {
             await _oneSignalPushService.SendMobileNotificationAsync(
-                OneSignalMobilePushRequest.CreateStandard(
+                OneSignalMobilePushRequest.CreateHeadsUp(
                     driver.UserId.ToString(),
                     titleAr,
                     titleEn,

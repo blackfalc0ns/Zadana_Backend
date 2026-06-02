@@ -560,6 +560,13 @@ public class OrderStatusChangedHandler : INotificationHandler<OrderStatusChanged
             notification.OrderId,
             data);
 
+        var targetUrl = screen switch
+        {
+            "assignment" => $"/assignments/{assignmentId}",
+            "order_detail" or "order_tracking" => $"/orders/{notification.OrderId}",
+            _ => "/notifications"
+        };
+
         var pushRequest = pushKind == OneSignalPushRequestKind.HeadsUp
             ? OneSignalMobilePushRequest.CreateHeadsUp(
                 driverUserId.ToString(),
@@ -570,9 +577,10 @@ public class OrderStatusChangedHandler : INotificationHandler<OrderStatusChanged
                 NotificationTypes.DriverAssignmentUpdated,
                 notification.OrderId,
                 data,
+                targetUrl: targetUrl,
                 category: NotificationCategories.Assignment,
                 targetApplication: OneSignalApplicationTarget.Driver)
-            : OneSignalMobilePushRequest.CreateStandard(
+            : OneSignalMobilePushRequest.CreateHeadsUp(
                 driverUserId.ToString(),
                 titleAr,
                 titleEn,
@@ -581,6 +589,7 @@ public class OrderStatusChangedHandler : INotificationHandler<OrderStatusChanged
                 NotificationTypes.DriverAssignmentUpdated,
                 notification.OrderId,
                 data,
+                targetUrl: targetUrl,
                 category: NotificationCategories.Assignment,
                 targetApplication: OneSignalApplicationTarget.Driver);
 

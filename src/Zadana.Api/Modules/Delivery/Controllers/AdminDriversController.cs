@@ -2,7 +2,6 @@ using Microsoft.AspNetCore.Authorization;
 using Microsoft.AspNetCore.Mvc;
 using Microsoft.EntityFrameworkCore;
 using Microsoft.Extensions.Logging;
-using System.Text.Json;
 using Zadana.Api.Controllers;
 using Zadana.Application.Common.Interfaces;
 using Zadana.Application.Modules.Delivery.Commands.AddDriverIncident;
@@ -20,6 +19,7 @@ using Zadana.Application.Modules.Delivery.Commands.UnblockDriverLocationUpdates;
 using Zadana.Application.Modules.Delivery.Commands.UpdateDriverProfile;
 using Zadana.Application.Modules.Delivery.DTOs;
 using Zadana.Application.Modules.Delivery.Interfaces;
+using Zadana.Application.Modules.Delivery.Support;
 using Zadana.Application.Modules.Identity.Interfaces;
 using Zadana.SharedKernel.Exceptions;
 
@@ -133,16 +133,20 @@ public class AdminDriversController : ApiControllerBase
             ? "This is a test notification sent from the admin API to verify driver mobile delivery."
             : request.BodyEn.Trim();
         var type = string.IsNullOrWhiteSpace(request.Type) ? "driver_test" : request.Type.Trim();
+        var eventName = string.IsNullOrWhiteSpace(request.Type) ? "account.test_notification" : type;
         var targetUrl = string.IsNullOrWhiteSpace(request.TargetUrl) ? "/notifications" : request.TargetUrl.Trim();
         var data = string.IsNullOrWhiteSpace(request.Data)
-            ? JsonSerializer.Serialize(new
-            {
-                source = "admin_driver_notifications_test_api",
-                driverId = driver.Id,
-                userId = driver.UserId,
-                generatedAtUtc = DateTime.UtcNow,
-                targetUrl
-            })
+            ? DriverNotificationDataBuilder.Build(
+                screen: "account_status",
+                @event: eventName,
+                driverId: driver.Id,
+                extra: new
+                {
+                    source = "admin_driver_notifications_test_api",
+                    userId = driver.UserId,
+                    generatedAtUtc = DateTime.UtcNow,
+                    targetUrl
+                })
             : request.Data;
 
         await _notificationService.SendToUserAsync(
@@ -157,7 +161,7 @@ public class AdminDriversController : ApiControllerBase
             cancellationToken);
 
         var pushRequest = OneSignalMobilePushRequest.CreateHeadsUp(
-            driver.Id.ToString(),
+            driver.UserId.ToString(),
             titleAr,
             titleEn,
             bodyAr,
@@ -166,6 +170,7 @@ public class AdminDriversController : ApiControllerBase
             request.ReferenceId,
             data,
             targetUrl,
+            category: "account",
             targetApplication: OneSignalApplicationTarget.Driver);
 
         if (request.SendPush)
@@ -350,6 +355,12 @@ public class AdminDriversController : ApiControllerBase
         driver.Suspend(reason);
         await _context.SaveChangesAsync(cancellationToken);
 
+        var data = DriverNotificationDataBuilder.Build(
+            screen: "account_status",
+            @event: "account.login_locked",
+            driverId: driver.Id,
+            extra: new { reason });
+
         // Notify the driver via push notification
         await _oneSignalPushService.SendMobileNotificationAsync(
             OneSignalMobilePushRequest.CreateHeadsUp(
@@ -360,6 +371,8 @@ public class AdminDriversController : ApiControllerBase
                 "Your login has been locked. Use the support form to appeal.",
                 "driver_account_updated",
                 driver.Id,
+                data,
+                "/account-status",
                 category: "account",
                 targetApplication: OneSignalApplicationTarget.Driver),
             cancellationToken);
@@ -388,6 +401,11 @@ public class AdminDriversController : ApiControllerBase
 
         await _context.SaveChangesAsync(cancellationToken);
 
+        var data = DriverNotificationDataBuilder.Build(
+            screen: "account_status",
+            @event: "account.login_unlocked",
+            driverId: driver.Id);
+
         // Notify the driver via push notification
         await _oneSignalPushService.SendMobileNotificationDirectAsync(
             OneSignalMobilePushRequest.CreateHeadsUp(
@@ -398,6 +416,8 @@ public class AdminDriversController : ApiControllerBase
                 "Your login has been unlocked. You can now use the app.",
                 "driver_account_updated",
                 driver.Id,
+                data,
+                "/account-status",
                 category: "account",
                 targetApplication: OneSignalApplicationTarget.Driver),
             cancellationToken);

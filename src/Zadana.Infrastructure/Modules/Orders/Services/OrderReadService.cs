@@ -50,6 +50,26 @@ public class OrderReadService : IOrderReadService
     private static string L(string ar, string en) =>
         CultureInfo.CurrentUICulture.TwoLetterISOLanguageName == "ar" ? ar : en;
 
+    private static string LocalizeCity(string? city)
+    {
+        if (string.IsNullOrWhiteSpace(city)) return string.Empty;
+        var clean = city.Trim().ToUpperInvariant();
+        return clean switch
+        {
+            "RIYADH" => L("الرياض", "Riyadh"),
+            "JEDDAH" => L("جدة", "Jeddah"),
+            "DAMMAM" => L("الدمام", "Dammam"),
+            "MAKKAH" => L("مكة", "Makkah"),
+            "MADINAH" => L("المدينة", "Madinah"),
+            "TAIF" => L("الطائف", "Taif"),
+            "TABUK" => L("تبوك", "Tabuk"),
+            "ABHA" => L("أبها", "Abha"),
+            "KHOBAR" => L("الخبر", "Khobar"),
+            "QATIF" => L("القطيف", "Qatif"),
+            _ => city
+        };
+    }
+
     /// <summary>
     /// Escapes characters that have meaning inside a SQL LIKE pattern so a
     /// user-supplied search term cannot accidentally widen the match. Used
@@ -512,7 +532,7 @@ public class OrderReadService : IOrderReadService
 
         var customerAddressText = customerAddress is null
             ? string.Empty
-            : string.Join(", ", new[] { customerAddress.AddressLine, customerAddress.Area, customerAddress.City }
+            : string.Join(", ", new[] { customerAddress.AddressLine, customerAddress.Area, LocalizeCity(customerAddress.City) }
                 .Where(value => !string.IsNullOrWhiteSpace(value)));
 
         var assignment = await _dbContext.DeliveryAssignments
@@ -2024,7 +2044,7 @@ public class OrderReadService : IOrderReadService
                     driver.User.FullName,
                     $"#DRV-{driver.Id.ToString("N")[..6].ToUpperInvariant()}",
                     driver.User.PhoneNumber ?? string.Empty,
-                    driver.City ?? dispatchContext.PickupCity ?? L("غير معروف", "Unknown"),
+                    LocalizeCity(driver.City ?? dispatchContext.PickupCity ?? L("غير معروف", "Unknown")),
                     driver.Address ?? L("منطقة التغطية", "Coverage area"),
                     candidateStatus,
                     Math.Round(evaluation.DistanceKm, 1),
@@ -2079,7 +2099,7 @@ public class OrderReadService : IOrderReadService
         var baseItem = BuildAdminOrderListItem(order, address, payment, refunds, assignment);
         var operationalCase = BuildOperationalCase(order, refunds);
         var placedAtLocal = order.PlacedAtUtc.ToLocalTime();
-        var merchantLocation = string.Join(", ", new[] { order.VendorBranch?.AddressLine, order.Vendor?.City, order.Vendor?.NationalAddress }
+        var merchantLocation = string.Join(", ", new[] { order.VendorBranch?.AddressLine, LocalizeCity(order.Vendor?.City), order.Vendor?.NationalAddress }
             .Where(value => !string.IsNullOrWhiteSpace(value)));
 
         var timeline = BuildAdminTimeline(order, payment, assignment, operationalCase);
@@ -2101,7 +2121,7 @@ public class OrderReadService : IOrderReadService
             assignment?.Driver?.User?.PhoneNumber ?? string.Empty,
             assignment?.Driver?.VehicleType?.ToString() ?? L("مركبة توصيل", "Delivery vehicle"),
             assignment?.Driver?.LicenseNumber ?? "N/A",
-            address?.City ?? order.Vendor?.City ?? string.Empty,
+            LocalizeCity(address?.City ?? order.Vendor?.City ?? string.Empty),
             address?.Area ?? string.Empty,
             CalculateSlaScore(order, assignment),
             placedAtLocal.ToString("yyyy-MM-dd"),
@@ -2130,7 +2150,13 @@ public class OrderReadService : IOrderReadService
                 ? new GeoPointDto(order.VendorBranch.Latitude, order.VendorBranch.Longitude) : null,
             driverLiveLocation,
             order.Items.Select(item => new AdminOrderItemDto(
-                item.ProductName,
+                item.MasterProduct is not null
+                    ? (item.MasterProduct.NameAr == item.MasterProduct.NameEn
+                        ? (item.MasterProduct.NameAr ?? item.ProductName)
+                        : $"{item.MasterProduct.NameAr} / {item.MasterProduct.NameEn}")
+                    : item.ProductName,
+                item.MasterProduct?.NameAr ?? item.ProductName,
+                item.MasterProduct?.NameEn ?? item.ProductName,
                 "General",
                 item.Quantity.ToString(CultureInfo.InvariantCulture),
                 item.UnitPrice,
@@ -2854,7 +2880,7 @@ public class OrderReadService : IOrderReadService
             return string.Empty;
         }
 
-        return string.Join(", ", new[] { address.AddressLine, address.Area, address.City }
+        return string.Join(", ", new[] { address.AddressLine, address.Area, LocalizeCity(address.City) }
             .Where(value => !string.IsNullOrWhiteSpace(value)));
     }
 
@@ -3025,36 +3051,100 @@ public class OrderReadService : IOrderReadService
         DeliveryAssignment? assignment,
         AdminOrderOperationalCaseDto? operationalCase)
     {
-        var steps = new List<AdminOrderTimelineItemDto>
+        var steps = new List<AdminOrderTimelineItemDto>();
+
+        // Always add Placed/Created as the first step
+        steps.Add(new AdminOrderTimelineItemDto(
+            L("تم إنشاء الطلب", "Order created"),
+            payment?.Status == PaymentStatus.Paid ? L("تم تأكيد الدفع والتحصيل", "Payment captured") : L("بانتظار تأكيد الدفع", "Waiting for payment confirmation"),
+            order.PlacedAtUtc.ToLocalTime().ToString("hh:mm tt", CultureInfo.InvariantCulture),
+            "COMPLETED",
+            order.StatusHistory.Count == 0
+        ));
+
+        var historyList = order.StatusHistory
+            .OrderBy(history => history.CreatedAtUtc)
+            .ToList();
+
+        foreach (var history in historyList)
         {
-            new(
-                L("تم إنشاء الطلب", "Order created"),
-                payment?.Status == PaymentStatus.Paid ? L("تم تحصيل الدفع", "Payment captured") : L("بانتظار تأكيد الدفع", "Waiting for payment confirmation"),
-                order.PlacedAtUtc.ToLocalTime().ToString("hh:mm tt", CultureInfo.InvariantCulture),
-                "COMPLETED",
-                false),
-            new(
-                L("معالجة المتجر", "Vendor handling"),
-                BuildFulfillmentStatusNote(order, assignment),
-                ResolveStepDate(order.StatusHistory.ToList(), OrderStatus.Accepted, OrderStatus.Preparing, OrderStatus.ReadyForPickup)?.ToLocalTime().ToString("hh:mm tt", CultureInfo.InvariantCulture) ?? "--:--",
-                order.Status is OrderStatus.PendingPayment or OrderStatus.Placed or OrderStatus.PendingVendorAcceptance ? "PENDING" : "COMPLETED",
-                order.Status is OrderStatus.Accepted or OrderStatus.Preparing or OrderStatus.ReadyForPickup),
-            new(
-                L("تقدم التوصيل", "Delivery progress"),
-                assignment?.Driver is null ? L("بانتظار التعيين", "Awaiting assignment") : L($"السائق: {assignment.Driver.User.FullName}", $"Driver: {assignment.Driver.User.FullName}"),
-                (assignment?.AcceptedAtUtc ?? assignment?.OfferedAtUtc)?.ToLocalTime().ToString("hh:mm tt", CultureInfo.InvariantCulture) ?? "--:--",
-                order.Status is OrderStatus.DriverAssigned or OrderStatus.PickedUp or OrderStatus.OnTheWay ? "IN_PROGRESS" : order.Status is OrderStatus.Delivered or OrderStatus.Refunded ? "COMPLETED" : "PENDING",
-                order.Status is OrderStatus.DriverAssigned or OrderStatus.PickedUp or OrderStatus.OnTheWay),
-            new(
-                operationalCase is null ? L("حالة الملف", "Case status") : operationalCase.Title,
-                operationalCase is null ? L("لا توجد حالة تشغيلية مفتوحة", "No open operational case") : operationalCase.QueueLabel,
-                operationalCase?.LastUpdatedAt ?? ResolveLastUpdatedAtUtc(order).ToLocalTime().ToString("hh:mm tt", CultureInfo.InvariantCulture),
-                operationalCase is null ? "PENDING" : operationalCase.Status == "OPEN" ? "IN_PROGRESS" : "COMPLETED",
-                operationalCase?.Status == "OPEN")
-        };
+            var isLast = history == historyList.Last() && operationalCase == null;
+            var statusStr = "COMPLETED";
+            
+            // If it's the last step and the order is not in a terminal state, mark it as IN_PROGRESS
+            if (isLast && order.Status != OrderStatus.Delivered && order.Status != OrderStatus.Cancelled && order.Status != OrderStatus.VendorRejected && order.Status != OrderStatus.DeliveryFailed && order.Status != OrderStatus.Refunded)
+            {
+                statusStr = "IN_PROGRESS";
+            }
+
+            var title = TranslateOrderStatus(history.NewStatus);
+            var note = string.IsNullOrWhiteSpace(history.Note)
+                ? L("تحديث تلقائي للنظام", "System automatic update")
+                : history.Note;
+
+            steps.Add(new AdminOrderTimelineItemDto(
+                title,
+                note,
+                history.CreatedAtUtc.ToLocalTime().ToString("hh:mm tt", CultureInfo.InvariantCulture),
+                statusStr,
+                isLast
+            ));
+        }
+
+        // If there's an active operational case, we can append it as a step at the end
+        if (operationalCase is not null)
+        {
+            steps.Add(new AdminOrderTimelineItemDto(
+                operationalCase.Title,
+                operationalCase.QueueLabel,
+                operationalCase.LastUpdatedAt,
+                operationalCase.Status == "OPEN" ? "IN_PROGRESS" : "COMPLETED",
+                true
+            ));
+        }
 
         return steps;
     }
+
+    private static string TranslateOrderStatus(OrderStatus status) => status switch
+    {
+        OrderStatus.PendingPayment => L("بانتظار الدفع", "Pending Payment"),
+        OrderStatus.Placed => L("مُرسل", "Placed"),
+        OrderStatus.PendingVendorAcceptance => L("بانتظار قبول المتجر", "Pending Vendor Acceptance"),
+        OrderStatus.Accepted => L("مقبول", "Accepted"),
+        OrderStatus.Preparing => L("قيد التجهيز", "Preparing"),
+        OrderStatus.ReadyForPickup => L("جاهز للاستلام", "Ready for Pickup"),
+        OrderStatus.DriverAssignmentInProgress => L("جاري البحث عن سائق", "Driver Assignment in Progress"),
+        OrderStatus.DriverAssigned => L("تم تعيين السائق", "Driver Assigned"),
+        OrderStatus.PickedUp => L("تم الاستلام", "Picked Up"),
+        OrderStatus.OnTheWay => L("في الطريق", "On The Way"),
+        OrderStatus.Delivered => L("تم التوصيل", "Delivered"),
+        OrderStatus.Cancelled => L("ملغى", "Cancelled"),
+        OrderStatus.VendorRejected => L("مرفوض من المتجر", "Vendor Rejected"),
+        OrderStatus.DeliveryFailed => L("فشل التوصيل", "Delivery Failed"),
+        OrderStatus.Refunded => L("مسترد", "Refunded"),
+        _ => status.ToString()
+    };
+
+    private static string TranslatePaymentStatus(PaymentStatus status) => status switch
+    {
+        PaymentStatus.Pending => L("قيد الانتظار", "Pending"),
+        PaymentStatus.Paid => L("مدفوع", "Paid"),
+        PaymentStatus.Failed => L("فشل", "Failed"),
+        PaymentStatus.Refunded => L("مسترد", "Refunded"),
+        PaymentStatus.PartiallyRefunded => L("مسترد جزئياً", "Partially Refunded"),
+        PaymentStatus.PendingCollection => L("بانتظار التحصيل", "Pending Collection"),
+        _ => status.ToString()
+    };
+
+    private static string TranslatePaymentProvider(string? provider) => provider switch
+    {
+        "CashOnDelivery" => L("الدفع عند الاستلام", "Cash on Delivery"),
+        "Wallet" => L("المحفظة", "Wallet"),
+        "BankTransfer" => L("تحويل بنكي", "Bank Transfer"),
+        "Card" => L("بطاقة ائتمان", "Card"),
+        _ => provider ?? string.Empty
+    };
 
     private static IReadOnlyList<AdminOrderActivityDto> BuildAdminActivities(
         Order order,
@@ -3067,7 +3157,7 @@ public class OrderReadService : IOrderReadService
             .OrderByDescending(item => item.CreatedAtUtc)
             .Take(5)
             .Select(item => new AdminOrderActivityDto(
-                L($"الطلب انتقل إلى {item.NewStatus}", $"Order moved to {item.NewStatus}"),
+                L($"الطلب انتقل إلى {TranslateOrderStatus(item.NewStatus)}", $"Order moved to {TranslateOrderStatus(item.NewStatus)}"),
                 item.ChangedByUserId.HasValue ? L("مستخدم النظام", "Workflow user") : L("النظام", "System"),
                 item.CreatedAtUtc.ToLocalTime().ToString("g", CultureInfo.InvariantCulture),
                 "status"))
@@ -3076,8 +3166,8 @@ public class OrderReadService : IOrderReadService
         if (payment is not null)
         {
             activities.Insert(0, new AdminOrderActivityDto(
-                L($"حالة الدفع: {payment.Status}", $"Payment state: {payment.Status}"),
-                payment.ProviderName ?? L("بوابة الدفع", "Payment gateway"),
+                L($"حالة الدفع: {TranslatePaymentStatus(payment.Status)}", $"Payment state: {TranslatePaymentStatus(payment.Status)}"),
+                TranslatePaymentProvider(payment.ProviderName) is var provider && !string.IsNullOrWhiteSpace(provider) ? provider : L("بوابة الدفع", "Payment gateway"),
                 (payment.PaidAtUtc ?? payment.FailedAtUtc ?? payment.CreatedAtUtc).ToLocalTime().ToString("g", CultureInfo.InvariantCulture),
                 "payment"));
         }
@@ -3104,7 +3194,7 @@ public class OrderReadService : IOrderReadService
         {
             var refund = refunds.OrderByDescending(item => item.CreatedAtUtc).First();
             activities.Insert(0, new AdminOrderActivityDto(
-                L($"استرداد {refund.Status}", $"Refund {refund.Status}"),
+                L($"استرداد {TranslatePaymentStatus(refund.Status)}", $"Refund {TranslatePaymentStatus(refund.Status)}"),
                 L("المالية", "Finance"),
                 refund.CreatedAtUtc.ToLocalTime().ToString("g", CultureInfo.InvariantCulture),
                 "payment"));

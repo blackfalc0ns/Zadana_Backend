@@ -361,6 +361,7 @@ public class AdminWalletsController : ApiControllerBase
         [FromServices] FinancialEventPostingService financialEventPostingService,
         [FromServices] WalletProjectionUpdater walletProjectionUpdater,
         [FromServices] INotificationService notificationService,
+        [FromServices] IOneSignalPushService oneSignalPushService,
         CancellationToken cancellationToken = default)
     {
         var wallet = await context.Wallets.FirstOrDefaultAsync(w => w.Id == id, cancellationToken)
@@ -443,6 +444,21 @@ public class AdminWalletsController : ApiControllerBase
                     cancellationToken);
 
                 await notificationService.SendDriverWalletUpdatedAsync(driverUserId, cancellationToken);
+
+                await oneSignalPushService.SendMobileNotificationAsync(
+                    OneSignalMobilePushRequest.CreateHeadsUp(
+                        driverUserId.ToString(),
+                        "\u062a\u0645 \u062a\u0639\u062f\u064a\u0644 \u0631\u0635\u064a\u062f \u0627\u0644\u0645\u062d\u0641\u0638\u0629",
+                        "Wallet balance adjusted",
+                        "\u062a\u0645 \u062a\u0639\u062f\u064a\u0644 \u0631\u0635\u064a\u062f \u0645\u062d\u0641\u0638\u062a\u0643 \u0645\u0646 \u0642\u0628\u0644 \u0627\u0644\u0625\u062f\u0627\u0631\u0629.",
+                        "Your wallet balance was adjusted by the team.",
+                        NotificationTypes.DriverWalletUpdated,
+                        txn.Id,
+                        data,
+                        "/wallet",
+                        NotificationCategories.Wallet,
+                        OneSignalApplicationTarget.Driver),
+                    cancellationToken);
             }
         }
 
@@ -671,7 +687,7 @@ public class AdminWalletsController : ApiControllerBase
             await notificationService.SendDriverWalletUpdatedAsync(driverUserId, cancellationToken);
 
             await oneSignalPushService.SendMobileNotificationAsync(
-                OneSignalMobilePushRequest.CreateStandard(
+                OneSignalMobilePushRequest.CreateHeadsUp(
                     driverUserId.ToString(),
                     titleAr,
                     titleEn,
@@ -680,6 +696,7 @@ public class AdminWalletsController : ApiControllerBase
                     NotificationTypes.DriverWalletUpdated,
                     withdrawal.Id,
                     data,
+                    "/wallet",
                     category: NotificationCategories.Wallet,
                     targetApplication: OneSignalApplicationTarget.Driver),
                 cancellationToken);

@@ -3,6 +3,7 @@ using Microsoft.EntityFrameworkCore;
 using Microsoft.Extensions.Options;
 using Zadana.Application.Common.Interfaces;
 using Zadana.Application.Common.Settings;
+using Zadana.Application.Modules.Delivery.Support;
 using Zadana.Application.Modules.Payments.Gateways;
 using Zadana.Application.Modules.Payments.Interfaces;
 using Zadana.Application.Modules.Wallets.Services;
@@ -999,7 +1000,16 @@ public sealed class PayoutOrchestrator
                     return;
                 }
 
-                var data = $"{{\"payoutId\":\"{payout.Id}\",\"settlementId\":\"{payout.SettlementId}\",\"amount\":{payout.Amount},\"transferReference\":\"{payout.TransferReference}\",\"targetUrl\":\"/wallet\"}}";
+                var data = DriverNotificationDataBuilder.Build(
+                    screen: "wallet",
+                    @event: "wallet.payout_completed",
+                    extra: new
+                    {
+                        payoutId = payout.Id,
+                        settlementId = payout.SettlementId,
+                        amount = payout.Amount,
+                        transferReference = payout.TransferReference
+                    });
 
                 await _notificationService.SendToUserAsync(
                     driverUserId,
@@ -1014,17 +1024,19 @@ public sealed class PayoutOrchestrator
 
                 await _notificationService.SendDriverWalletUpdatedAsync(driverUserId, cancellationToken);
 
-                await _oneSignalPushService.SendToExternalUserAsync(
-                    driverUserId.ToString(),
-                    "تم إتمام التحويل إلى حسابك البنكي",
-                    "Payout completed",
-                    $"تم تحويل مبلغ {payout.Amount:0.00} ريال إلى حسابك البنكي بنجاح.",
-                    $"A payout of {payout.Amount:0.00} SAR has been successfully transferred to your bank account.",
-                    NotificationTypes.DriverWalletUpdated,
-                    payout.Id,
-                    data,
-                    "/wallet",
-                    OneSignalPushProfile.MobileStandard,
+                await _oneSignalPushService.SendMobileNotificationAsync(
+                    OneSignalMobilePushRequest.CreateHeadsUp(
+                        driverUserId.ToString(),
+                        "\u062a\u0645 \u0625\u062a\u0645\u0627\u0645 \u0627\u0644\u062a\u062d\u0648\u064a\u0644 \u0625\u0644\u0649 \u062d\u0633\u0627\u0628\u0643 \u0627\u0644\u0628\u0646\u0643\u064a",
+                        "Payout completed",
+                        $"\u062a\u0645 \u062a\u062d\u0648\u064a\u0644 \u0645\u0628\u0644\u063a {payout.Amount:0.00} \u0631\u064a\u0627\u0644 \u0625\u0644\u0649 \u062d\u0633\u0627\u0628\u0643 \u0627\u0644\u0628\u0646\u0643\u064a \u0628\u0646\u062c\u0627\u062d.",
+                        $"A payout of {payout.Amount:0.00} SAR has been successfully transferred to your bank account.",
+                        NotificationTypes.DriverWalletUpdated,
+                        payout.Id,
+                        data,
+                        "/wallet",
+                        NotificationCategories.Wallet,
+                        OneSignalApplicationTarget.Driver),
                     cancellationToken);
             }
             else if (settlement.OwnerType == SettlementOwnerType.Vendor)

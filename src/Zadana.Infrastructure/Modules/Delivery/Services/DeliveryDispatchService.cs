@@ -244,7 +244,7 @@ public class DeliveryDispatchService : IDeliveryDispatchService
                 cancellationToken);
 
             await _oneSignalPushService.SendMobileNotificationAsync(
-                OneSignalMobilePushRequest.CreateStandard(
+                OneSignalMobilePushRequest.CreateHeadsUp(
                     driverUserId.ToString(),
                     "انتهت مهلة عرض التوصيل",
                     "Delivery offer expired",
@@ -253,6 +253,7 @@ public class DeliveryDispatchService : IDeliveryDispatchService
                     NotificationTypes.DriverDeliveryOffer,
                     assignment.OrderId,
                     data,
+                    targetUrl: "/",
                     category: NotificationCategories.Dispatch,
                     targetApplication: OneSignalApplicationTarget.Driver),
                 cancellationToken);
@@ -765,6 +766,7 @@ public class DeliveryDispatchService : IDeliveryDispatchService
                 NotificationTypes.DriverDeliveryOffer,
                 order.Id,
                 offerPayloadJson,
+                targetUrl: "/",
                 category: NotificationCategories.Dispatch,
                 targetApplication: OneSignalApplicationTarget.Driver),
             cancellationToken);
