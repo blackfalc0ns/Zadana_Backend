@@ -5,11 +5,11 @@ using Zadana.Application.Tests.Helpers;
 
 namespace Zadana.Application.Tests.Integration;
 
-public class NabdaWebhook_IntegrationTests : IClassFixture<ZadanaWebFactory>
+public class WapilotWebhook_IntegrationTests : IClassFixture<ZadanaWebFactory>
 {
     private readonly HttpClient _client;
 
-    public NabdaWebhook_IntegrationTests(ZadanaWebFactory factory)
+    public WapilotWebhook_IntegrationTests(ZadanaWebFactory factory)
     {
         _client = factory.CreateClient();
     }
@@ -19,7 +19,6 @@ public class NabdaWebhook_IntegrationTests : IClassFixture<ZadanaWebFactory>
     {
         var payload = new
         {
-            instanceId = "a82a8cd3-e60b-4635-baf7-db783ecc7e2c",
             @event = "message.ack",
             payload = new
             {
@@ -31,11 +30,11 @@ public class NabdaWebhook_IntegrationTests : IClassFixture<ZadanaWebFactory>
             timestamp = DateTimeOffset.UtcNow
         };
 
-        var response = await _client.PostAsJsonAsync("/api/webhooks/nabda", payload);
+        var response = await _client.PostAsJsonAsync("/api/webhooks/wapilot", payload);
 
         var content = await response.Content.ReadAsStringAsync();
         response.StatusCode.Should().Be(HttpStatusCode.OK, content);
-        content.Should().Contain("Nabda");
+        content.Should().Contain("WAPIlot");
         content.Should().Contain("message.ack");
     }
 }

@@ -4,11 +4,11 @@ namespace Zadana.Infrastructure.Services;
 
 public sealed class CompositeOtpService : IOtpService
 {
-    private readonly NabdaWhatsAppOtpService _whatsAppOtpService;
+    private readonly WapilotWhatsAppOtpService _whatsAppOtpService;
     private readonly ResendOtpService _emailOtpService;
 
     public CompositeOtpService(
-        NabdaWhatsAppOtpService whatsAppOtpService,
+        WapilotWhatsAppOtpService whatsAppOtpService,
         ResendOtpService emailOtpService)
     {
         _whatsAppOtpService = whatsAppOtpService;

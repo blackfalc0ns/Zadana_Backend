@@ -3,7 +3,7 @@ using Zadana.Infrastructure.Services;
 
 namespace Zadana.Application.Tests.Infrastructure;
 
-public class NabdaPhoneNumberNormalizerTests
+public class WhatsAppPhoneNumberNormalizerTests
 {
     [Theory]
     [InlineData("01012345678", "+20", "+201012345678")]
@@ -17,7 +17,7 @@ public class NabdaPhoneNumberNormalizerTests
         string countryCode,
         string expected)
     {
-        var result = NabdaPhoneNumberNormalizer.Normalize(input, countryCode);
+        var result = WhatsAppPhoneNumberNormalizer.Normalize(input, countryCode);
 
         result.Should().Be(expected);
     }
@@ -29,7 +29,7 @@ public class NabdaPhoneNumberNormalizerTests
     [InlineData("+123")]
     public void Normalize_WithInvalidPhone_Throws(string input)
     {
-        var act = () => NabdaPhoneNumberNormalizer.Normalize(input, "+20");
+        var act = () => WhatsAppPhoneNumberNormalizer.Normalize(input, "+20");
 
         act.Should().Throw<ArgumentException>();
     }

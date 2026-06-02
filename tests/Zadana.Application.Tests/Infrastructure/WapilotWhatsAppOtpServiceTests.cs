@@ -9,7 +9,7 @@ using Zadana.SharedKernel.Exceptions;
 
 namespace Zadana.Application.Tests.Infrastructure;
 
-public class NabdaWhatsAppOtpServiceTests
+public class WapilotWhatsAppOtpServiceTests
 {
     [Fact]
     public async Task SendOtpSmsAsync_SendsExpectedAuthorizationHeaderAndPayload()
@@ -28,8 +28,8 @@ public class NabdaWhatsAppOtpServiceTests
 
         capturedRequest.Should().NotBeNull();
         capturedRequest!.Method.Should().Be(HttpMethod.Post);
-        capturedRequest.RequestUri!.PathAndQuery.Should().Be("/api/v1/messages/send");
-        capturedRequest.Headers.GetValues("Authorization").Should().ContainSingle("test-api-key");
+        capturedRequest.RequestUri!.PathAndQuery.Should().Be("/api/send");
+        capturedRequest.Headers.GetValues("Authorization").Should().ContainSingle("Bearer test-api-key");
         capturedBody.Should().NotBeNullOrWhiteSpace();
 
         using var body = JsonDocument.Parse(capturedBody!);
@@ -48,7 +48,7 @@ public class NabdaWhatsAppOtpServiceTests
         var act = () => service.SendOtpSmsAsync("+201012345678", "1234");
 
         var ex = await act.Should().ThrowAsync<ExternalServiceException>();
-        ex.Which.ErrorCode.Should().Be("NABDA_INVALID_API_KEY");
+        ex.Which.ErrorCode.Should().Be("WAPILOT_INVALID_API_KEY");
     }
 
     [Fact]
@@ -61,7 +61,7 @@ public class NabdaWhatsAppOtpServiceTests
         var act = () => service.SendOtpSmsAsync("+201012345678", "1234");
 
         var ex = await act.Should().ThrowAsync<ExternalServiceException>();
-        ex.Which.ErrorCode.Should().Be("NABDA_INSTANCE_SUSPENDED");
+        ex.Which.ErrorCode.Should().Be("WAPILOT_INSTANCE_SUSPENDED");
     }
 
     [Fact]
@@ -73,7 +73,7 @@ public class NabdaWhatsAppOtpServiceTests
         var act = () => service.SendOtpSmsAsync("+201012345678", "1234");
 
         var ex = await act.Should().ThrowAsync<ExternalServiceException>();
-        ex.Which.ErrorCode.Should().Be("NABDA_WHATSAPP_OTP_TIMEOUT");
+        ex.Which.ErrorCode.Should().Be("WAPILOT_WHATSAPP_OTP_TIMEOUT");
     }
 
     [Fact]
@@ -89,26 +89,27 @@ public class NabdaWhatsAppOtpServiceTests
         ex.Which.ErrorCode.Should().Be("INVALID_WHATSAPP_PHONE_NUMBER");
     }
 
-    private static NabdaWhatsAppOtpService CreateService(HttpMessageHandler handler, string apiKey)
+    private static WapilotWhatsAppOtpService CreateService(HttpMessageHandler handler, string apiKey)
     {
         var client = new HttpClient(handler)
         {
-            BaseAddress = new Uri("https://api.nabdaotp.com")
+            BaseAddress = new Uri("https://app.wapilot.net")
         };
 
-        var settings = Options.Create(new NabdaOtpSettings
+        var settings = Options.Create(new WapilotOtpSettings
         {
             Enabled = true,
-            BaseUrl = "https://api.nabdaotp.com",
+            BaseUrl = "https://app.wapilot.net",
+            SendMessagePath = "/api/send",
             ApiKey = apiKey,
             DefaultCountryCode = "+20",
             MessageTemplateEn = "Your Zadana verification code is {0}. Do not share it with anyone."
         });
 
-        return new NabdaWhatsAppOtpService(
+        return new WapilotWhatsAppOtpService(
             client,
             settings,
-            NullLogger<NabdaWhatsAppOtpService>.Instance);
+            NullLogger<WapilotWhatsAppOtpService>.Instance);
     }
 
     private sealed class CapturingHandler : HttpMessageHandler

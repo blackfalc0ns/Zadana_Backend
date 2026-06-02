@@ -1,7 +1,6 @@
 using System.Security.Cryptography;
 using System.Text;
 using System.Text.Json;
-using System.Text.Json.Serialization;
 using Microsoft.AspNetCore.Authorization;
 using Microsoft.AspNetCore.Mvc;
 using Microsoft.AspNetCore.RateLimiting;
@@ -12,13 +11,13 @@ using Zadana.Infrastructure.Settings;
 
 namespace Zadana.Api.Modules.Identity.Controllers;
 
-[Route("api/webhooks/nabda")]
+[Route("api/webhooks/wapilot")]
 [Tags("Webhooks")]
-public sealed class NabdaWebhooksController(
-    IOptions<NabdaOtpSettings> settings,
-    ILogger<NabdaWebhooksController> logger) : ApiControllerBase
+public sealed class WapilotWebhooksController(
+    IOptions<WapilotOtpSettings> settings,
+    ILogger<WapilotWebhooksController> logger) : ApiControllerBase
 {
-    private const string NabdaSecretHeader = "X-Nabda-Webhook-Secret";
+    private const string WapilotSecretHeader = "X-Wapilot-Webhook-Secret";
     private const string GenericSecretHeader = "X-Webhook-Secret";
 
     [AllowAnonymous]
@@ -28,7 +27,7 @@ public sealed class NabdaWebhooksController(
     {
         return Ok(new
         {
-            provider = "Nabda",
+            provider = "WAPIlot",
             status = "ready"
         });
     }
@@ -40,11 +39,11 @@ public sealed class NabdaWebhooksController(
     {
         if (!IsWebhookSecretValid())
         {
-            logger.LogWarning("Rejected Nabda webhook because the provided secret is invalid.");
+            logger.LogWarning("Rejected WAPIlot webhook because the provided secret is invalid.");
             return Unauthorized(new
             {
                 processed = false,
-                provider = "Nabda",
+                provider = "WAPIlot",
                 message = "Webhook secret is invalid."
             });
         }
@@ -56,53 +55,80 @@ public sealed class NabdaWebhooksController(
 
         if (string.IsNullOrWhiteSpace(payload))
         {
-            logger.LogInformation("Nabda webhook probe received with an empty payload.");
+            logger.LogInformation("WAPIlot webhook probe received with an empty payload.");
             return Ok(new
             {
                 processed = false,
-                provider = "Nabda",
+                provider = "WAPIlot",
                 status = "empty"
             });
         }
 
-        NabdaWebhookEnvelope? envelope;
+        WapilotWebhookSummary summary;
         try
         {
-            envelope = JsonSerializer.Deserialize<NabdaWebhookEnvelope>(
-                payload,
-                new JsonSerializerOptions(JsonSerializerDefaults.Web));
+            summary = ParseWebhookPayload(payload);
         }
         catch (JsonException ex)
         {
-            logger.LogWarning(ex, "Nabda webhook payload could not be parsed. PayloadBytes={PayloadBytes}", payload.Length);
+            logger.LogWarning(ex, "WAPIlot webhook payload could not be parsed. PayloadBytes={PayloadBytes}", payload.Length);
             return BadRequest(new
             {
                 processed = false,
-                provider = "Nabda",
+                provider = "WAPIlot",
                 message = "Webhook payload is not valid JSON."
             });
         }
 
-        var eventName = envelope?.Event ?? "unknown";
-        var status = envelope?.Payload?.Status ?? "unknown";
-        var messageId = envelope?.Payload?.MessageId;
-        var phone = MaskPhone(envelope?.Payload?.Phone);
-
         logger.LogInformation(
-            "Nabda webhook received. Event={Event} Status={Status} MessageId={MessageId} Phone={Phone} PayloadBytes={PayloadBytes}",
-            eventName,
-            status,
-            string.IsNullOrWhiteSpace(messageId) ? "unknown" : messageId,
-            phone,
+            "WAPIlot webhook received. Event={Event} Status={Status} MessageId={MessageId} Phone={Phone} PayloadBytes={PayloadBytes}",
+            summary.EventName,
+            summary.Status,
+            string.IsNullOrWhiteSpace(summary.MessageId) ? "unknown" : summary.MessageId,
+            MaskPhone(summary.Phone),
             payload.Length);
 
         return Ok(new
         {
             processed = true,
-            provider = "Nabda",
-            eventName,
-            status
+            provider = "WAPIlot",
+            eventName = summary.EventName,
+            status = summary.Status
         });
+    }
+
+    private WapilotWebhookSummary ParseWebhookPayload(string payload)
+    {
+        using var document = JsonDocument.Parse(payload);
+        var root = document.RootElement;
+
+        var eventName = FirstNonEmpty(
+            ReadString(root, "event"),
+            ReadString(root, "type"),
+            ReadString(root, "eventType"),
+            ReadString(root, "payload", "event")) ?? "unknown";
+
+        var status = FirstNonEmpty(
+            ReadString(root, "status"),
+            ReadString(root, "messageStatus"),
+            ReadString(root, "payload", "status"),
+            ReadString(root, "payload", "messageStatus")) ?? "unknown";
+
+        var messageId = FirstNonEmpty(
+            ReadString(root, "messageId"),
+            ReadString(root, "id"),
+            ReadString(root, "payload", "messageId"),
+            ReadString(root, "payload", "id"));
+
+        var phone = FirstNonEmpty(
+            ReadString(root, "phone"),
+            ReadString(root, "from"),
+            ReadString(root, "to"),
+            ReadString(root, "payload", "phone"),
+            ReadString(root, "payload", "from"),
+            ReadString(root, "payload", "to"));
+
+        return new WapilotWebhookSummary(eventName, status, messageId, phone);
     }
 
     private bool IsWebhookSecretValid()
@@ -114,7 +140,7 @@ public sealed class NabdaWebhooksController(
         }
 
         var provided = FirstNonEmpty(
-            Request.Headers[NabdaSecretHeader].ToString(),
+            Request.Headers[WapilotSecretHeader].ToString(),
             Request.Headers[GenericSecretHeader].ToString(),
             Request.Query["secret"].ToString());
 
@@ -127,6 +153,25 @@ public sealed class NabdaWebhooksController(
         var providedBytes = Encoding.UTF8.GetBytes(provided.Trim());
         return expectedBytes.Length == providedBytes.Length &&
                CryptographicOperations.FixedTimeEquals(expectedBytes, providedBytes);
+    }
+
+    private static string? ReadString(JsonElement root, params string[] path)
+    {
+        var current = root;
+        foreach (var segment in path)
+        {
+            if (current.ValueKind != JsonValueKind.Object || !current.TryGetProperty(segment, out current))
+            {
+                return null;
+            }
+        }
+
+        return current.ValueKind switch
+        {
+            JsonValueKind.String => current.GetString(),
+            JsonValueKind.Number or JsonValueKind.True or JsonValueKind.False => current.ToString(),
+            _ => null
+        };
     }
 
     private static string? FirstNonEmpty(params string?[] values)
@@ -158,15 +203,9 @@ public sealed class NabdaWebhooksController(
         return string.Concat(new string('*', compact.Length - 4), compact.AsSpan(compact.Length - 4));
     }
 
-    private sealed record NabdaWebhookEnvelope(
-        [property: JsonPropertyName("instanceId")] string? InstanceId,
-        [property: JsonPropertyName("event")] string? Event,
-        [property: JsonPropertyName("payload")] NabdaWebhookPayload? Payload,
-        [property: JsonPropertyName("timestamp")] DateTimeOffset? Timestamp);
-
-    private sealed record NabdaWebhookPayload(
-        [property: JsonPropertyName("messageId")] string? MessageId,
-        [property: JsonPropertyName("status")] string? Status,
-        [property: JsonPropertyName("phone")] string? Phone,
-        [property: JsonPropertyName("message")] string? Message);
+    private sealed record WapilotWebhookSummary(
+        string EventName,
+        string Status,
+        string? MessageId,
+        string? Phone);
 }

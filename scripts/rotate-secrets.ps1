@@ -10,7 +10,7 @@
       - BankTransfer:WebhookSecret   (32-byte random, hex)
       - Seeding:ManagementKey        (32-byte random, hex)
 
-    Provider-issued secrets (Moyasar, ImageKit, Resend, OneSignal, MS SQL
+    Provider-issued secrets (Moyasar, ImageKit, Resend, WAPIlot, OneSignal, MS SQL
     password) must be rotated through each provider's dashboard. This script
     only emits placeholders for them so the operator pastes the new values.
 
@@ -50,9 +50,12 @@ $values = [ordered]@{
     # Placeholders for provider-issued secrets — replace by hand.
     'ConnectionStrings__DefaultConnection'      = '<<rotate via DBaaS panel; format: Server=...;Encrypt=True;TrustServerCertificate=False;User Id=...;Password=...>>'
     'ResendSettings__ApiKey'                    = '<<rotate at https://resend.com/api-keys>>'
-    'TwilioSettings__AccountSid'                = '<<rotate at https://console.twilio.com>>'
-    'TwilioSettings__AuthToken'                 = '<<rotate at https://console.twilio.com>>'
-    'TwilioSettings__FromNumber'                = '<<your provisioned Twilio number>>'
+    'WapilotOtp__Enabled'                       = 'true'
+    'WapilotOtp__BaseUrl'                       = 'https://app.wapilot.net'
+    'WapilotOtp__SendMessagePath'               = '/api/send'
+    'WapilotOtp__ApiKey'                        = '<<rotate/regenerate in WAPIlot dashboard>>'
+    'WapilotOtp__DefaultCountryCode'            = '+20'
+    'WapilotOtp__WebhookSecret'                 = '<<optional shared secret if configured in WAPIlot>>'
     'ImageKit__PublicKey'                       = '<<rotate at https://imagekit.io/dashboard/developer/api-keys>>'
     'ImageKit__PrivateKey'                      = '<<rotate at https://imagekit.io/dashboard/developer/api-keys>>'
     'ImageKit__UrlEndpoint'                     = '<<your ImageKit endpoint, e.g. https://ik.imagekit.io/your-id>>'

@@ -20,14 +20,14 @@ Already configured with:
 - Database connection string
 - JWT settings
 - Email settings (Resend)
-- SMS settings (Twilio)
+- WhatsApp OTP settings (WAPIlot)
 - File storage (ImageKit)
 
 **Important**: Update these values before deployment:
 - `ConnectionStrings:DefaultConnection` - Your production database
 - `JwtSettings:Secret` - Strong secret key (min 32 characters)
 - `ResendSettings:ApiKey` - Your Resend API key
-- `TwilioSettings` - Your Twilio credentials
+- `WapilotOtp` - Your WAPIlot WhatsApp OTP credentials
 - `ImageKit` - Your ImageKit credentials
 
 ### 3. Environment Variables (Alternative to appsettings)
@@ -38,7 +38,25 @@ You can also set these as environment variables on the server:
 ConnectionStrings__DefaultConnection="Server=...;Database=...;"
 JwtSettings__Secret="YourSecretKey"
 ResendSettings__ApiKey="re_..."
+WapilotOtp__Enabled=true
+WapilotOtp__BaseUrl="https://app.wapilot.net"
+WapilotOtp__SendMessagePath="/api/send"
+WapilotOtp__ApiKey="..."
+WapilotOtp__DefaultCountryCode="+20"
 ```
+
+For WAPIlot delivery callbacks, configure the webhook URL in the WAPIlot
+instance dashboard as:
+
+```text
+https://your-domain.com/api/webhooks/wapilot
+```
+
+Recommended WAPIlot webhook events:
+
+- `message.ack` - required for sent/read/delivery status changes.
+- `session.status` - optional, useful for monitoring WhatsApp instance health.
+- `message.any` - optional, only enable if you want to observe all message events.
 
 ### 4. Database Migration
 

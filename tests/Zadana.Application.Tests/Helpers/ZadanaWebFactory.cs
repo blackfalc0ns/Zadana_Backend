@@ -45,11 +45,7 @@ public class ZadanaWebFactory : WebApplicationFactory<Program>
                 ["JwtSettings:Secret"] = "TestSecretKey_For_Integration_Tests_Only_32chars!",
                 ["JwtSettings:Issuer"] = "ZadanaTest",
                 ["JwtSettings:Audience"] = "ZadanaTestClient",
-                ["JwtSettings:ExpiryMinutes"] = "60",
-                // Dummy Twilio settings for testing (won't be used)
-                ["TwilioSettings:AccountSid"] = "ACtest",
-                ["TwilioSettings:AuthToken"] = "test_token",
-                ["TwilioSettings:FromNumber"] = "+10000000000"
+                ["JwtSettings:ExpiryMinutes"] = "60"
             });
         });
 

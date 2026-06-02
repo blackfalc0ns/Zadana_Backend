@@ -18,6 +18,7 @@ $patterns = @(
     @{ Name = 'Resend API key';                       Regex = 're_[A-Za-z0-9]{16,}' },
     @{ Name = 'ImageKit private key';                 Regex = 'private_[A-Za-z0-9+/=]{20,}' },
     @{ Name = 'Moyasar secret key';                   Regex = 'sk_(test|live)_[A-Za-z0-9]{20,}' },
+    @{ Name = 'WAPIlot API token';                    Regex = '(?i)WapilotOtp(__|:|")ApiKey"?\s*[:=]\s*(?!__SET_VIA_ENV__|<<)[A-Za-z0-9]{30,}' },
     @{ Name = 'Twilio account SID';                   Regex = 'AC[a-f0-9]{32}' },
     @{ Name = 'AWS access key ID';                    Regex = 'AKIA[0-9A-Z]{16}' },
     @{ Name = 'Generic webhook secret hex 64 chars';  Regex = 'WebhookSecret"\s*:\s*"[a-f0-9]{50,}"' }

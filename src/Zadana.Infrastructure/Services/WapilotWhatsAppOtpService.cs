@@ -10,18 +10,16 @@ using Zadana.SharedKernel.Exceptions;
 
 namespace Zadana.Infrastructure.Services;
 
-public sealed class NabdaWhatsAppOtpService : IOtpService
+public sealed class WapilotWhatsAppOtpService : IOtpService
 {
-    private const string SendMessagePath = "api/v1/messages/send";
-
     private readonly HttpClient _httpClient;
-    private readonly NabdaOtpSettings _settings;
-    private readonly ILogger<NabdaWhatsAppOtpService> _logger;
+    private readonly WapilotOtpSettings _settings;
+    private readonly ILogger<WapilotWhatsAppOtpService> _logger;
 
-    public NabdaWhatsAppOtpService(
+    public WapilotWhatsAppOtpService(
         HttpClient httpClient,
-        IOptions<NabdaOtpSettings> settings,
-        ILogger<NabdaWhatsAppOtpService> logger)
+        IOptions<WapilotOtpSettings> settings,
+        ILogger<WapilotWhatsAppOtpService> logger)
     {
         _httpClient = httpClient;
         _settings = settings.Value;
@@ -32,21 +30,21 @@ public sealed class NabdaWhatsAppOtpService : IOtpService
     {
         if (!_settings.Enabled)
         {
-            _logger.LogWarning("Nabda WhatsApp OTP is disabled. OTP delivery was skipped for {Phone}.", MaskPhone(phoneNumber));
+            _logger.LogWarning("WAPIlot WhatsApp OTP is disabled. OTP delivery was skipped for {Phone}.", MaskPhone(phoneNumber));
             return;
         }
 
         if (string.IsNullOrWhiteSpace(_settings.ApiKey))
         {
             throw new ExternalServiceException(
-                "NABDA_OTP_NOT_CONFIGURED",
-                "Nabda WhatsApp OTP is enabled but no API key is configured.");
+                "WAPILOT_OTP_NOT_CONFIGURED",
+                "WAPIlot WhatsApp OTP is enabled but no API key is configured.");
         }
 
         string formattedPhone;
         try
         {
-            formattedPhone = NabdaPhoneNumberNormalizer.Normalize(phoneNumber, _settings.DefaultCountryCode);
+            formattedPhone = WhatsAppPhoneNumberNormalizer.Normalize(phoneNumber, _settings.DefaultCountryCode);
         }
         catch (ArgumentException)
         {
@@ -56,25 +54,24 @@ public sealed class NabdaWhatsAppOtpService : IOtpService
         }
 
         var message = BuildOtpMessage(otpCode);
-
-        using var request = new HttpRequestMessage(HttpMethod.Post, SendMessagePath)
+        using var request = new HttpRequestMessage(HttpMethod.Post, ResolveSendPath())
         {
-            Content = JsonContent.Create(new NabdaSendMessageRequest(formattedPhone, message))
+            Content = JsonContent.Create(new WapilotSendMessageRequest(formattedPhone, message))
         };
-        request.Headers.TryAddWithoutValidation("Authorization", _settings.ApiKey.Trim());
+        request.Headers.TryAddWithoutValidation("Authorization", $"Bearer {_settings.ApiKey.Trim()}");
 
         try
         {
             using var response = await _httpClient.SendAsync(request, cancellationToken);
             if (response.IsSuccessStatusCode)
             {
-                _logger.LogInformation("WhatsApp OTP sent successfully via Nabda to {Phone}.", MaskPhone(formattedPhone));
+                _logger.LogInformation("WhatsApp OTP sent successfully via WAPIlot to {Phone}.", MaskPhone(formattedPhone));
                 return;
             }
 
             var status = response.StatusCode;
             _logger.LogWarning(
-                "Nabda WhatsApp OTP delivery failed for {Phone}. StatusCode={StatusCode}",
+                "WAPIlot WhatsApp OTP delivery failed for {Phone}. StatusCode={StatusCode}",
                 MaskPhone(formattedPhone),
                 (int)status);
 
@@ -85,15 +82,15 @@ public sealed class NabdaWhatsAppOtpService : IOtpService
         catch (OperationCanceledException ex) when (!cancellationToken.IsCancellationRequested)
         {
             throw new ExternalServiceException(
-                "NABDA_WHATSAPP_OTP_TIMEOUT",
-                "Nabda WhatsApp OTP delivery timed out.",
+                "WAPILOT_WHATSAPP_OTP_TIMEOUT",
+                "WAPIlot WhatsApp OTP delivery timed out.",
                 ex);
         }
         catch (HttpRequestException ex)
         {
             throw new ExternalServiceException(
-                "NABDA_WHATSAPP_OTP_UNAVAILABLE",
-                "Nabda WhatsApp OTP service is unavailable.",
+                "WAPILOT_WHATSAPP_OTP_UNAVAILABLE",
+                "WAPIlot WhatsApp OTP service is unavailable.",
                 ex);
         }
     }
@@ -104,7 +101,7 @@ public sealed class NabdaWhatsAppOtpService : IOtpService
         CancellationToken cancellationToken = default,
         int validityMinutes = 5)
     {
-        _logger.LogDebug("Nabda WhatsApp OTP service does not send email OTP.");
+        _logger.LogDebug("WAPIlot WhatsApp OTP service does not send email OTP.");
         return Task.CompletedTask;
     }
 
@@ -124,20 +121,31 @@ public sealed class NabdaWhatsAppOtpService : IOtpService
             : $"{template.Trim()} {otpCode}";
     }
 
+    private string ResolveSendPath()
+    {
+        var path = string.IsNullOrWhiteSpace(_settings.SendMessagePath)
+            ? "/api/send"
+            : _settings.SendMessagePath.Trim();
+
+        return path.StartsWith("/", StringComparison.Ordinal) ? path : "/" + path;
+    }
+
     private static string ResolveErrorCode(HttpStatusCode statusCode) =>
         statusCode switch
         {
-            HttpStatusCode.Unauthorized => "NABDA_INVALID_API_KEY",
-            HttpStatusCode.Forbidden => "NABDA_INSTANCE_SUSPENDED",
-            _ => "NABDA_WHATSAPP_OTP_FAILED"
+            HttpStatusCode.Unauthorized => "WAPILOT_INVALID_API_KEY",
+            HttpStatusCode.Forbidden => "WAPILOT_INSTANCE_SUSPENDED",
+            HttpStatusCode.TooManyRequests => "WAPILOT_RATE_LIMITED",
+            _ => "WAPILOT_WHATSAPP_OTP_FAILED"
         };
 
     private static string ResolveFailureMessage(HttpStatusCode statusCode) =>
         statusCode switch
         {
-            HttpStatusCode.Unauthorized => "Nabda WhatsApp OTP API key is invalid.",
-            HttpStatusCode.Forbidden => "Nabda WhatsApp OTP instance is suspended.",
-            _ => "Nabda WhatsApp OTP delivery failed."
+            HttpStatusCode.Unauthorized => "WAPIlot WhatsApp OTP API key is invalid.",
+            HttpStatusCode.Forbidden => "WAPIlot WhatsApp OTP instance is suspended.",
+            HttpStatusCode.TooManyRequests => "WAPIlot WhatsApp OTP rate limit has been exceeded.",
+            _ => "WAPIlot WhatsApp OTP delivery failed."
         };
 
     private static string MaskPhone(string? phone)
@@ -156,7 +164,7 @@ public sealed class NabdaWhatsAppOtpService : IOtpService
         return string.Concat(new string('*', compact.Length - 4), compact.AsSpan(compact.Length - 4));
     }
 
-    private sealed record NabdaSendMessageRequest(
+    private sealed record WapilotSendMessageRequest(
         [property: JsonPropertyName("phone")] string Phone,
         [property: JsonPropertyName("message")] string Message);
 }

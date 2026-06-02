@@ -98,9 +98,9 @@ if (builder.Environment.IsProduction())
         "Security:SearchableHashKey"
     };
 
-    if (builder.Configuration.GetValue<bool>("NabdaOtp:Enabled"))
+    if (builder.Configuration.GetValue<bool>("WapilotOtp:Enabled"))
     {
-        requiredProductionSettings.Add("NabdaOtp:ApiKey");
+        requiredProductionSettings.Add("WapilotOtp:ApiKey");
     }
 
     var missing = requiredProductionSettings

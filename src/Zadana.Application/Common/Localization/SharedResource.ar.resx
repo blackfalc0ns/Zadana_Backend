@@ -394,22 +394,25 @@
   <data name="INVALID_WHATSAPP_PHONE_NUMBER" xml:space="preserve">
     <value>رقم الجوال غير صالح لإرسال رمز التحقق عبر واتساب.</value>
   </data>
-  <data name="NABDA_OTP_NOT_CONFIGURED" xml:space="preserve">
+  <data name="WAPILOT_OTP_NOT_CONFIGURED" xml:space="preserve">
     <value>إرسال رمز التحقق عبر واتساب غير مهيأ.</value>
   </data>
-  <data name="NABDA_INVALID_API_KEY" xml:space="preserve">
+  <data name="WAPILOT_INVALID_API_KEY" xml:space="preserve">
     <value>مفتاح خدمة واتساب OTP غير صالح.</value>
   </data>
-  <data name="NABDA_INSTANCE_SUSPENDED" xml:space="preserve">
+  <data name="WAPILOT_INSTANCE_SUSPENDED" xml:space="preserve">
     <value>حساب واتساب الخاص بإرسال رمز التحقق موقوف.</value>
   </data>
-  <data name="NABDA_WHATSAPP_OTP_TIMEOUT" xml:space="preserve">
+  <data name="WAPILOT_WHATSAPP_OTP_TIMEOUT" xml:space="preserve">
     <value>انتهت مهلة إرسال رمز التحقق عبر واتساب. يرجى المحاولة مرة أخرى.</value>
   </data>
-  <data name="NABDA_WHATSAPP_OTP_UNAVAILABLE" xml:space="preserve">
+  <data name="WAPILOT_WHATSAPP_OTP_UNAVAILABLE" xml:space="preserve">
     <value>خدمة إرسال رمز التحقق عبر واتساب غير متاحة حاليا. يرجى المحاولة مرة أخرى.</value>
   </data>
-  <data name="NABDA_WHATSAPP_OTP_FAILED" xml:space="preserve">
+  <data name="WAPILOT_RATE_LIMITED" xml:space="preserve">
+    <value>تم تجاوز حد إرسال رموز التحقق عبر واتساب. يرجى المحاولة لاحقا.</value>
+  </data>
+  <data name="WAPILOT_WHATSAPP_OTP_FAILED" xml:space="preserve">
     <value>فشل إرسال رمز التحقق عبر واتساب. يرجى المحاولة مرة أخرى.</value>
   </data>
   <data name="ValidationErrorTitle" xml:space="preserve">

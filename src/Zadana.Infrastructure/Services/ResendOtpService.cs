@@ -93,7 +93,7 @@ public class ResendOtpService : IOtpService
 
     public Task SendOtpSmsAsync(string phoneNumber, string otpCode, CancellationToken cancellationToken = default)
     {
-        _logger.LogWarning("SMS OTP is requested but not implemented in ResendOtpService. Use TwilioOtpService if SMS is needed.");
+        _logger.LogWarning("SMS OTP is requested but not implemented in ResendOtpService. Use the WhatsApp OTP service for mobile OTP delivery.");
         return Task.CompletedTask;
     }
 

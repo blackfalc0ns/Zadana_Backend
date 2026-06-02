@@ -4,7 +4,7 @@ using System.Text.RegularExpressions;
 
 namespace Zadana.Infrastructure.Services;
 
-public static partial class NabdaPhoneNumberNormalizer
+public static partial class WhatsAppPhoneNumberNormalizer
 {
     public static string Normalize(string phoneNumber, string defaultCountryCode)
     {

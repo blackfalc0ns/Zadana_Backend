@@ -21,37 +21,34 @@ public static class DependencyInjection
             .ValidateDataAnnotations()
             .ValidateOnStart();
 
-        services.AddOptions<TwilioSettings>()
-            .Bind(configuration.GetSection(TwilioSettings.SectionName))
-            .ValidateDataAnnotations()
-            .ValidateOnStart();
-
-        services.AddOptions<NabdaOtpSettings>()
-            .Bind(configuration.GetSection(NabdaOtpSettings.SectionName))
-            .Validate(settings => !settings.Enabled || !string.IsNullOrWhiteSpace(settings.ApiKey),
-                "NabdaOtp:ApiKey is required when NabdaOtp:Enabled is true.")
+        services.AddOptions<WapilotOtpSettings>()
+            .Bind(configuration.GetSection(WapilotOtpSettings.SectionName))
+            .Validate(settings => !settings.Enabled || !IsPlaceholder(settings.ApiKey),
+                "WapilotOtp:ApiKey is required when WapilotOtp:Enabled is true.")
             .Validate(settings => Uri.TryCreate(settings.BaseUrl, UriKind.Absolute, out _),
-                "NabdaOtp:BaseUrl must be an absolute URL.")
+                "WapilotOtp:BaseUrl must be an absolute URL.")
+            .Validate(settings => !settings.Enabled || !string.IsNullOrWhiteSpace(settings.SendMessagePath),
+                "WapilotOtp:SendMessagePath is required when WapilotOtp:Enabled is true.")
             .Validate(settings =>
             {
                 try
                 {
-                    _ = NabdaPhoneNumberNormalizer.NormalizeCountryCode(settings.DefaultCountryCode);
+                    _ = WhatsAppPhoneNumberNormalizer.NormalizeCountryCode(settings.DefaultCountryCode);
                     return true;
                 }
                 catch (ArgumentException)
                 {
                     return false;
                 }
-            }, "NabdaOtp:DefaultCountryCode must be an international dialing code.")
+            }, "WapilotOtp:DefaultCountryCode must be an international dialing code.")
             .ValidateOnStart();
         
         services.AddHttpClient<IEmailService, ResendEmailService>();
-        services.AddHttpClient<NabdaWhatsAppOtpService>((serviceProvider, client) =>
+        services.AddHttpClient<WapilotWhatsAppOtpService>((serviceProvider, client) =>
         {
-            var settings = serviceProvider.GetRequiredService<IOptions<NabdaOtpSettings>>().Value;
+            var settings = serviceProvider.GetRequiredService<IOptions<WapilotOtpSettings>>().Value;
             client.BaseAddress = new Uri(string.IsNullOrWhiteSpace(settings.BaseUrl)
-                ? "https://api.nabdaotp.com"
+                ? "https://app.wapilot.net"
                 : settings.BaseUrl);
             client.Timeout = TimeSpan.FromSeconds(10);
         });
@@ -70,4 +67,8 @@ public static class DependencyInjection
 
         return services;
     }
+
+    private static bool IsPlaceholder(string? value) =>
+        string.IsNullOrWhiteSpace(value) ||
+        value.Trim().StartsWith("__SET_VIA_ENV__", StringComparison.OrdinalIgnoreCase);
 }

@@ -84,10 +84,13 @@
           <environmentVariable name="OneSignal__AdminDefaultWebUrl" value="https://zadan-super-panel.vercel.app/" />
           <environmentVariable name="OneSignal__DefaultWebUrl"      value="https://zadana-vendor-panel.vercel.app/" />
 
-          <!-- ===== Twilio (إذا تستخدمه) ===== -->
-          <environmentVariable name="TwilioSettings__AccountSid" value="&lt;&lt;TWILIO_SID_OR_LEAVE_DEFAULT&gt;&gt;" />
-          <environmentVariable name="TwilioSettings__AuthToken"  value="&lt;&lt;TWILIO_TOKEN_OR_LEAVE_DEFAULT&gt;&gt;" />
-          <environmentVariable name="TwilioSettings__FromNumber" value="+1234567890" />
+          <!-- ===== WAPIlot WhatsApp OTP ===== -->
+          <environmentVariable name="WapilotOtp__Enabled" value="true" />
+          <environmentVariable name="WapilotOtp__BaseUrl" value="https://app.wapilot.net" />
+          <environmentVariable name="WapilotOtp__SendMessagePath" value="/api/send" />
+          <environmentVariable name="WapilotOtp__ApiKey" value="&lt;&lt;ROTATED_WAPILOT_API_KEY&gt;&gt;" />
+          <environmentVariable name="WapilotOtp__DefaultCountryCode" value="+20" />
+          <environmentVariable name="WapilotOtp__WebhookSecret" value="" />
 
           <!-- ===== Seeding (اتركه فارغاً لتعطيل seeding endpoints) ===== -->
           <environmentVariable name="Seeding__ManagementKey" value="" />
