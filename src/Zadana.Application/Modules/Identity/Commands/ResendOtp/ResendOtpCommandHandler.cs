@@ -28,7 +28,7 @@ public class ResendOtpCommandHandler : IRequestHandler<ResendOtpCommand, AuthRes
     {
         if (string.IsNullOrWhiteSpace(request.Identifier))
         {
-            throw new BusinessRuleException("EMAIL_REQUIRED", _localizer["RequiredField", _localizer["Email"].Value]);
+            throw new BusinessRuleException("EMAIL_REQUIRED", _localizer["RequiredField", _localizer["Identifier"].Value]);
         }
 
         var otpResult = await _identityAccountService.ResendRegistrationOtpAsync(request.Identifier, cancellationToken);
@@ -50,9 +50,9 @@ public class ResendOtpCommandHandler : IRequestHandler<ResendOtpCommand, AuthRes
         }
 
         var user = otpResult.Account!;
-        if (!string.IsNullOrWhiteSpace(user.Email) && !string.IsNullOrWhiteSpace(otpResult.OtpCode))
+        if (!string.IsNullOrWhiteSpace(user.PhoneNumber) && !string.IsNullOrWhiteSpace(otpResult.OtpCode))
         {
-            await _otpService.SendOtpEmailAsync(user.Email, otpResult.OtpCode, cancellationToken);
+            await _otpService.SendOtpSmsAsync(user.PhoneNumber, otpResult.OtpCode, cancellationToken);
         }
 
         var userDto = new CurrentUserDto(user.Id, user.FullName, user.Email, user.PhoneNumber, user.Role.ToString(), user.MustChangePassword, ProfilePhotoUrl: user.ProfilePhotoUrl);

@@ -43,7 +43,7 @@ public class VerifyOtpCommandHandler : IRequestHandler<VerifyOtpCommand, AuthRes
     {
         if (string.IsNullOrWhiteSpace(request.Identifier))
         {
-            throw new BusinessRuleException("EMAIL_REQUIRED", _localizer["RequiredField", _localizer["Email"].Value]);
+            throw new BusinessRuleException("EMAIL_REQUIRED", _localizer["RequiredField", _localizer["Identifier"].Value]);
         }
 
         var verificationResult = await _identityAccountService.VerifyRegistrationOtpAsync(

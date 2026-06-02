@@ -87,7 +87,7 @@ var jwtSecret = builder.Configuration.GetRequiredSetting("JwtSettings:Secret");
 // placeholders or default values that have ever been committed.
 if (builder.Environment.IsProduction())
 {
-    var requiredProductionSettings = new[]
+    var requiredProductionSettings = new List<string>
     {
         "JwtSettings:Secret",
         "ImageKit:PrivateKey",
@@ -97,6 +97,11 @@ if (builder.Environment.IsProduction())
         "BankTransfer:WebhookSecret",
         "Security:SearchableHashKey"
     };
+
+    if (builder.Configuration.GetValue<bool>("NabdaOtp:Enabled"))
+    {
+        requiredProductionSettings.Add("NabdaOtp:ApiKey");
+    }
 
     var missing = requiredProductionSettings
         .Where(key => Zadana.Api.Configuration.ConfigurationGuardExtensions.IsPlaceholder(builder.Configuration[key]))
@@ -466,6 +471,19 @@ builder.Services.AddRateLimiter(options =>
             message = "Too many requests. Please try again later."
         }, cancellationToken);
     };
+
+    if (builder.Environment.IsEnvironment("Testing"))
+    {
+        options.GlobalLimiter = PartitionedRateLimiter.Create<HttpContext, string>(_ =>
+            RateLimitPartition.GetNoLimiter("testing-global"));
+        options.AddPolicy(RateLimitPolicyNames.Auth, _ =>
+            RateLimitPartition.GetNoLimiter("testing-auth"));
+        options.AddPolicy(RateLimitPolicyNames.FileUploads, _ =>
+            RateLimitPartition.GetNoLimiter("testing-file-uploads"));
+        options.AddPolicy(RateLimitPolicyNames.PaymentCallbacks, _ =>
+            RateLimitPartition.GetNoLimiter("testing-payment-callbacks"));
+        return;
+    }
 
     // Global limiter is configurable so load-test environments can lift the
     // ceiling temporarily. In Production we *force* it on regardless of the

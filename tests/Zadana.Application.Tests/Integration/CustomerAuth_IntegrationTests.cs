@@ -1,7 +1,11 @@
 using System.Net;
 using System.Net.Http.Json;
 using FluentAssertions;
+using Microsoft.AspNetCore.Identity;
+using Microsoft.Extensions.DependencyInjection;
 using Zadana.Application.Tests.Helpers;
+using Zadana.Domain.Modules.Identity.Entities;
+using Zadana.Domain.Modules.Identity.Enums;
 
 namespace Zadana.Application.Tests.Integration;
 
@@ -11,10 +15,13 @@ namespace Zadana.Application.Tests.Integration;
 /// </summary>
 public class CustomerAuth_IntegrationTests : IClassFixture<ZadanaWebFactory>
 {
+    private readonly ZadanaWebFactory _factory;
     private readonly HttpClient _client;
 
     public CustomerAuth_IntegrationTests(ZadanaWebFactory factory)
     {
+        _factory = factory;
+        _factory.OtpSink.Clear();
         _client = factory.CreateClient();
     }
 
@@ -42,6 +49,27 @@ public class CustomerAuth_IntegrationTests : IClassFixture<ZadanaWebFactory>
         response.StatusCode.Should().Be(HttpStatusCode.OK);
         var content = await response.Content.ReadAsStringAsync();
         content.Should().Contain("accessToken", "registration must return a token");
+    }
+
+    [Fact]
+    public async Task Register_WithValidData_SendsOtpToPhoneOnly()
+    {
+        var phone = "010" + new Random().Next(10000000, 99999999).ToString();
+        var body = new
+        {
+            fullName = "WhatsApp OTP User",
+            email = $"wa_{Guid.NewGuid():N}@test.com",
+            phone,
+            password = "P@ssword1234",
+            addressLine = "Test Address Line"
+        };
+
+        var response = await _client.PostAsJsonAsync("/api/customers/auth/register", body);
+
+        var content = await response.Content.ReadAsStringAsync();
+        response.StatusCode.Should().Be(HttpStatusCode.OK, content);
+        _factory.OtpSink.SmsDispatches.Should().ContainSingle(dispatch => dispatch.Recipient == phone);
+        _factory.OtpSink.EmailDispatches.Should().BeEmpty();
     }
 
     [Fact]
@@ -200,6 +228,53 @@ public class CustomerAuth_IntegrationTests : IClassFixture<ZadanaWebFactory>
         var response = await _client.PostAsJsonAsync("/api/customers/auth/forgot-password", body);
 
         response.StatusCode.Should().Be(HttpStatusCode.OK);
+    }
+
+    [Fact]
+    public async Task ForgotPassword_WithEmailIdentifier_SendsOtpToRegisteredPhoneOnly()
+    {
+        var email = $"forgot_wa_{Guid.NewGuid():N}@test.com";
+        var phone = "018" + new Random().Next(10000000, 99999999).ToString();
+        var password = "P@ssword1234";
+
+        await SeedCustomerAccountAsync("Forgot WhatsApp Test", email, phone, password);
+        _factory.OtpSink.Clear();
+
+        var response = await _client.PostAsJsonAsync("/api/customers/auth/forgot-password", new { identifier = email });
+
+        var content = await response.Content.ReadAsStringAsync();
+        response.StatusCode.Should().Be(HttpStatusCode.OK, content);
+        _factory.OtpSink.SmsDispatches.Should().ContainSingle(dispatch => dispatch.Recipient == phone);
+        _factory.OtpSink.EmailDispatches.Should().BeEmpty();
+    }
+
+    private async Task SeedCustomerAccountAsync(string fullName, string email, string phone, string password)
+    {
+        using var scope = _factory.Services.CreateScope();
+        var userManager = scope.ServiceProvider.GetRequiredService<UserManager<User>>();
+        var user = new User(fullName, email, phone, UserRole.Customer);
+        var createResult = await userManager.CreateAsync(user, password);
+        createResult.Succeeded.Should().BeTrue(string.Join(", ", createResult.Errors.Select(error => error.Description)));
+
+        var roleResult = await userManager.AddToRoleAsync(user, UserRole.Customer.ToString());
+        roleResult.Succeeded.Should().BeTrue(string.Join(", ", roleResult.Errors.Select(error => error.Description)));
+    }
+
+    [Fact]
+    public async Task ResendOtp_WithinCooldown_ReturnsErrorWithoutSendingAgain()
+    {
+        var email = $"resend_{Guid.NewGuid():N}@test.com";
+        var phone = "013" + new Random().Next(10000000, 99999999).ToString();
+
+        await _client.PostAsJsonAsync("/api/customers/auth/register",
+            new { fullName = "Resend Test", email, phone, password = "P@ssword1234", addressLine = "Resend Address" });
+        _factory.OtpSink.Clear();
+
+        var response = await _client.PostAsJsonAsync("/api/customers/auth/resend-otp", new { identifier = email });
+
+        ((int)response.StatusCode).Should().BeGreaterThan(399);
+        _factory.OtpSink.SmsDispatches.Should().BeEmpty();
+        _factory.OtpSink.EmailDispatches.Should().BeEmpty();
     }
 
     [Fact]

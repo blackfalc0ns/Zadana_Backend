@@ -16,7 +16,7 @@ public class ResendOtpCommandValidator : AbstractValidator<ResendOtpCommand>
         RuleFor(x => x.Identifier)
             .NotEmpty().WithMessage(localizer["RequiredField"].Value)
             .Must(identifier => IsEmail(identifier) || IsPhone(identifier))
-            .WithMessage(localizer["InvalidEmail"].Value)
+            .WithMessage(localizer["InvalidIdentifier"].Value)
             .WithName(localizer["Identifier"].Value);
     }
 

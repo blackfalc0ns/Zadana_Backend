@@ -74,13 +74,13 @@ public class RegistrationWorkflow : IRegistrationWorkflow
 
         if (otpResult.Status != OtpDispatchStatus.Succeeded ||
             otpResult.Account == null ||
-            string.IsNullOrWhiteSpace(otpResult.Account.Email) ||
+            string.IsNullOrWhiteSpace(otpResult.Account.PhoneNumber) ||
             string.IsNullOrWhiteSpace(otpResult.OtpCode))
         {
             throw new BusinessRuleException("OTP_GENERATION_FAILED", _localizer["IDENTITY_OPERATION_FAILED"]);
         }
 
-        await _otpService.SendOtpEmailAsync(otpResult.Account.Email, otpResult.OtpCode, cancellationToken);
+        await _otpService.SendOtpSmsAsync(otpResult.Account.PhoneNumber, otpResult.OtpCode, cancellationToken);
         return otpResult.Account;
     }
 

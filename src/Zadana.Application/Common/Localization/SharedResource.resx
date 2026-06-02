@@ -38,6 +38,9 @@
   <data name="InvalidEmail" xml:space="preserve">
     <value>Invalid email address format.</value>
   </data>
+  <data name="InvalidIdentifier" xml:space="preserve">
+    <value>Enter a valid phone number or .com email address.</value>
+  </data>
   <data name="MinValue" xml:space="preserve">
     <value>{PropertyName} cannot be negative.</value>
   </data>
@@ -141,7 +144,7 @@
     <value>No account found with this phone number or email. Please register first.</value>
   </data>
   <data name="AccountEmailNotVerified" xml:space="preserve">
-    <value>Your email address is not verified yet. Please verify your account using the OTP sent to your email before logging in.</value>
+    <value>Your account is not verified yet. Please verify it using the OTP sent to your mobile number before logging in.</value>
   </data>
   <data name="UnauthorizedAppAccess" xml:space="preserve">
     <value>Unauthorized access to this application.</value>
@@ -219,7 +222,7 @@
     <value>OTP is invalid or expired.</value>
   </data>
   <data name="PasswordResetOtpSent" xml:space="preserve">
-    <value>If the account is registered, an OTP has been sent.</value>
+    <value>If the account is registered, a password reset OTP has been sent to the mobile number.</value>
   </data>
   <data name="PasswordResetSuccess" xml:space="preserve">
     <value>Password reset successfully.</value>
@@ -382,13 +385,34 @@
     <value>Please wait {0} seconds before retrying.</value>
   </data>
   <data name="OtpResentSuccessfully" xml:space="preserve">
-    <value>Verification code resent successfully.</value>
+    <value>Verification code resent to your mobile number successfully.</value>
   </data>
   <data name="OtpSentToEmail" xml:space="preserve">
     <value>Verification code has been sent to your email.</value>
   </data>
   <data name="OtpSentToPhone" xml:space="preserve">
     <value>Verification code has been sent to your phone.</value>
+  </data>
+  <data name="INVALID_WHATSAPP_PHONE_NUMBER" xml:space="preserve">
+    <value>Phone number is not valid for WhatsApp OTP delivery.</value>
+  </data>
+  <data name="NABDA_OTP_NOT_CONFIGURED" xml:space="preserve">
+    <value>WhatsApp OTP delivery is not configured.</value>
+  </data>
+  <data name="NABDA_INVALID_API_KEY" xml:space="preserve">
+    <value>WhatsApp OTP API key is invalid.</value>
+  </data>
+  <data name="NABDA_INSTANCE_SUSPENDED" xml:space="preserve">
+    <value>WhatsApp OTP instance is suspended.</value>
+  </data>
+  <data name="NABDA_WHATSAPP_OTP_TIMEOUT" xml:space="preserve">
+    <value>WhatsApp OTP delivery timed out. Please try again.</value>
+  </data>
+  <data name="NABDA_WHATSAPP_OTP_UNAVAILABLE" xml:space="preserve">
+    <value>WhatsApp OTP service is currently unavailable. Please try again.</value>
+  </data>
+  <data name="NABDA_WHATSAPP_OTP_FAILED" xml:space="preserve">
+    <value>WhatsApp OTP delivery failed. Please try again.</value>
   </data>
   <data name="ValidationErrorTitle" xml:space="preserve">
     <value>Validation Error</value>

@@ -35,6 +35,7 @@ using Zadana.Application.Modules.Vendors.Interfaces;
 using Zadana.Application.Modules.Vendors.Queries.GetAllVendors;
 using Zadana.Application.Modules.Vendors.Queries.GetVendorAnalytics;
 using Zadana.Application.Modules.Vendors.Queries.GetVendorActivityLog;
+using Zadana.Application.Modules.Vendors.Queries.GetAdminVendorFinanceSummary;
 using Zadana.Application.Modules.Vendors.Queries.GetVendorDetail;
 using Zadana.Application.Modules.Wallets.Commands.CreateSettlement;
 using Zadana.Application.Modules.Wallets.Commands.CompleteVendorPayout;
@@ -219,6 +220,13 @@ public class AdminVendorsController : ApiControllerBase
         [FromQuery] string range = "30d")
     {
         var result = await Sender.Send(new GetVendorAnalyticsQuery(vendorId, range));
+        return Ok(result);
+    }
+
+    [HttpGet("{vendorId:guid}/finance-summary")]
+    public async Task<IActionResult> GetVendorFinanceSummary(Guid vendorId)
+    {
+        var result = await Sender.Send(new GetAdminVendorFinanceSummaryQuery(vendorId));
         return Ok(result);
     }
 

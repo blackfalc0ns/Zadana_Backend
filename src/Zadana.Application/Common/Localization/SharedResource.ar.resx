@@ -38,6 +38,9 @@
   <data name="InvalidEmail" xml:space="preserve">
     <value>صيغة البريد الإلكتروني غير صالحة.</value>
   </data>
+  <data name="InvalidIdentifier" xml:space="preserve">
+    <value>أدخل رقم هاتف صحيحا أو بريدا إلكترونيا ينتهي بـ .com.</value>
+  </data>
   <data name="MinValue" xml:space="preserve">
     <value>لا يمكن أن يكون {PropertyName} بالسالب.</value>
   </data>
@@ -216,7 +219,7 @@
     <value>كود التفعيل غير صالح أو منتهي الصلاحية.</value>
   </data>
   <data name="PasswordResetOtpSent" xml:space="preserve">
-    <value>إذا كان الحساب مسجلاً، فقد تم إرسال كود التفعيل.</value>
+    <value>إذا كان الحساب مسجلا، فقد تم إرسال رمز إعادة تعيين كلمة السر إلى رقم الجوال.</value>
   </data>
   <data name="PasswordResetSuccess" xml:space="preserve">
     <value>تم إعادة تعيين كلمة المرور بنجاح.</value>
@@ -380,13 +383,34 @@
     <value>يرجى الانتظار {0} ثانية قبل إعادة المحاولة.</value>
   </data>
   <data name="OtpResentSuccessfully" xml:space="preserve">
-    <value>تم إعادة إرسال كود التحقق بنجاح.</value>
+    <value>تمت إعادة إرسال رمز التحقق إلى رقم الجوال بنجاح.</value>
   </data>
   <data name="OtpSentToEmail" xml:space="preserve">
     <value>تم إرسال كود التحقق إلى بريدك الإلكتروني.</value>
   </data>
   <data name="OtpSentToPhone" xml:space="preserve">
     <value>تم إرسال كود التحقق إلى هاتفك.</value>
+  </data>
+  <data name="INVALID_WHATSAPP_PHONE_NUMBER" xml:space="preserve">
+    <value>رقم الجوال غير صالح لإرسال رمز التحقق عبر واتساب.</value>
+  </data>
+  <data name="NABDA_OTP_NOT_CONFIGURED" xml:space="preserve">
+    <value>إرسال رمز التحقق عبر واتساب غير مهيأ.</value>
+  </data>
+  <data name="NABDA_INVALID_API_KEY" xml:space="preserve">
+    <value>مفتاح خدمة واتساب OTP غير صالح.</value>
+  </data>
+  <data name="NABDA_INSTANCE_SUSPENDED" xml:space="preserve">
+    <value>حساب واتساب الخاص بإرسال رمز التحقق موقوف.</value>
+  </data>
+  <data name="NABDA_WHATSAPP_OTP_TIMEOUT" xml:space="preserve">
+    <value>انتهت مهلة إرسال رمز التحقق عبر واتساب. يرجى المحاولة مرة أخرى.</value>
+  </data>
+  <data name="NABDA_WHATSAPP_OTP_UNAVAILABLE" xml:space="preserve">
+    <value>خدمة إرسال رمز التحقق عبر واتساب غير متاحة حاليا. يرجى المحاولة مرة أخرى.</value>
+  </data>
+  <data name="NABDA_WHATSAPP_OTP_FAILED" xml:space="preserve">
+    <value>فشل إرسال رمز التحقق عبر واتساب. يرجى المحاولة مرة أخرى.</value>
   </data>
   <data name="ValidationErrorTitle" xml:space="preserve">
     <value>خطأ في التحقق</value>
@@ -431,7 +455,7 @@
     <value>يجب ربط العلامة التجارية بتصنيف فرعي وليس بتصنيف رئيسي.</value>
   </data>
   <data name="AccountEmailNotVerified" xml:space="preserve">
-    <value>بريدك الإلكتروني غير موثق بعد. يرجى تأكيد الحساب باستخدام كود التحقق المرسل إلى بريدك قبل تسجيل الدخول.</value>
+    <value>حسابك غير موثق بعد. يرجى تأكيده باستخدام رمز التحقق المرسل إلى رقم الجوال قبل تسجيل الدخول.</value>
   </data>
   <data name="DRIVER_NOT_FOUND" xml:space="preserve">
     <value>لم يتم العثور على حساب مندوب مرتبط بهذا المستخدم.</value>

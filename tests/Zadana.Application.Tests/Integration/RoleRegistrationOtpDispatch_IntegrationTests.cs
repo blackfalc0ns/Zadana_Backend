@@ -1,0 +1,110 @@
+using System.Net;
+using System.Net.Http.Json;
+using FluentAssertions;
+using Zadana.Application.Tests.Helpers;
+
+namespace Zadana.Application.Tests.Integration;
+
+public class RoleRegistrationOtpDispatch_IntegrationTests : IClassFixture<ZadanaWebFactory>
+{
+    private readonly ZadanaWebFactory _factory;
+    private readonly HttpClient _client;
+
+    public RoleRegistrationOtpDispatch_IntegrationTests(ZadanaWebFactory factory)
+    {
+        _factory = factory;
+        _factory.OtpSink.Clear();
+        _client = factory.CreateClient();
+    }
+
+    [Fact]
+    public async Task VendorRegister_WithValidData_SendsOtpToVendorPhoneOnly()
+    {
+        var phone = "011" + new Random().Next(10000000, 99999999).ToString();
+        var unique = Guid.NewGuid().ToString("N");
+        var body = new
+        {
+            fullName = "Vendor OTP Owner",
+            email = $"vendor_{unique}@test.com",
+            phone,
+            password = "P@ssword1234",
+            businessNameAr = "متجر اختبار",
+            businessNameEn = "Test Vendor",
+            businessType = "Grocery",
+            commercialRegistrationNumber = $"CR{unique[..10]}",
+            commercialRegistrationExpiryDate = DateTime.UtcNow.AddYears(1),
+            contactEmail = $"contact_{unique}@test.com",
+            contactPhone = phone,
+            descriptionAr = "وصف",
+            descriptionEn = "Description",
+            ownerName = "Vendor Owner",
+            ownerEmail = $"owner_{unique}@test.com",
+            ownerPhone = phone,
+            idNumber = "1234567890",
+            nationality = "SA",
+            region = "RIYADH",
+            city = "RIYADH_CITY",
+            nationalAddress = "Riyadh test address",
+            taxId = "300000000000003",
+            licenseNumber = "LIC-123",
+            bankName = "Test Bank",
+            accountHolderName = "Vendor Owner",
+            iban = "SA0380000000608010167519",
+            swiftCode = "TESTSARI",
+            payoutCycle = "Weekly",
+            logoUrl = "https://example.com/logo.png",
+            commercialRegisterDocumentUrl = "https://example.com/cr.pdf",
+            taxDocumentUrl = "https://example.com/tax.pdf",
+            licenseDocumentUrl = "https://example.com/license.pdf",
+            branchName = "Main Branch",
+            branchAddressLine = "Riyadh branch address",
+            branchLatitude = 24.7136m,
+            branchLongitude = 46.6753m,
+            branchContactPhone = phone,
+            branchDeliveryRadiusKm = 5m
+        };
+
+        var response = await _client.PostAsJsonAsync("/api/vendors/register", body);
+
+        var content = await response.Content.ReadAsStringAsync();
+        response.StatusCode.Should().Be(HttpStatusCode.OK, content);
+        _factory.OtpSink.SmsDispatches.Should().ContainSingle(dispatch => dispatch.Recipient == phone);
+        _factory.OtpSink.EmailDispatches.Should().BeEmpty();
+    }
+
+    [Fact]
+    public async Task DriverRegister_WithValidData_SendsOtpToDriverPhoneOnly()
+    {
+        var phone = "012" + new Random().Next(10000000, 99999999).ToString();
+        var unique = Guid.NewGuid().ToString("N");
+        var body = new
+        {
+            fullName = "Driver OTP User",
+            email = $"driver_{unique}@test.com",
+            phone,
+            password = "P@ssword1234",
+            vehicleType = "Car",
+            nationalId = "1234567890",
+            licenseNumber = $"DL{unique[..8]}",
+            nationalIdExpiryDate = DateTime.UtcNow.AddYears(1),
+            driverLicenseExpiryDate = DateTime.UtcNow.AddYears(1),
+            vehicleLicenseNumber = $"VL{unique[..8]}",
+            vehicleLicenseExpiryDate = DateTime.UtcNow.AddYears(1),
+            address = "Riyadh driver address",
+            region = "RIYADH",
+            city = "RIYADH_CITY",
+            nationalIdFrontImageUrl = "https://example.com/nid-front.png",
+            nationalIdBackImageUrl = "https://example.com/nid-back.png",
+            licenseImageUrl = "https://example.com/license.png",
+            vehicleImageUrl = "https://example.com/vehicle.png",
+            personalPhotoUrl = "https://example.com/photo.png"
+        };
+
+        var response = await _client.PostAsJsonAsync("/api/drivers/register", body);
+
+        var content = await response.Content.ReadAsStringAsync();
+        response.StatusCode.Should().Be(HttpStatusCode.OK, content);
+        _factory.OtpSink.SmsDispatches.Should().ContainSingle(dispatch => dispatch.Recipient == phone);
+        _factory.OtpSink.EmailDispatches.Should().BeEmpty();
+    }
+}
