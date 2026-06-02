@@ -1,5 +1,4 @@
 using System.Net;
-using System.Text.Json;
 using FluentAssertions;
 using Microsoft.Extensions.Logging.Abstractions;
 using Microsoft.Extensions.Options;
@@ -12,7 +11,7 @@ namespace Zadana.Application.Tests.Infrastructure;
 public class WapilotWhatsAppOtpServiceTests
 {
     [Fact]
-    public async Task SendOtpSmsAsync_SendsExpectedAuthorizationHeaderAndPayload()
+    public async Task SendOtpSmsAsync_SendsExpectedTokenHeaderAndPayload()
     {
         HttpRequestMessage? capturedRequest = null;
         string? capturedBody = null;
@@ -28,13 +27,13 @@ public class WapilotWhatsAppOtpServiceTests
 
         capturedRequest.Should().NotBeNull();
         capturedRequest!.Method.Should().Be(HttpMethod.Post);
-        capturedRequest.RequestUri!.PathAndQuery.Should().Be("/api/send");
-        capturedRequest.Headers.GetValues("Authorization").Should().ContainSingle("Bearer test-api-key");
+        capturedRequest.RequestUri!.PathAndQuery.Should().Be("/instance4218/send-message");
+        capturedRequest.Headers.GetValues("token").Should().ContainSingle("test-api-key");
         capturedBody.Should().NotBeNullOrWhiteSpace();
 
-        using var body = JsonDocument.Parse(capturedBody!);
-        body.RootElement.GetProperty("phone").GetString().Should().Be("+201012345678");
-        body.RootElement.GetProperty("message").GetString().Should().Contain("1234");
+        var form = ParseForm(capturedBody!);
+        form["chat_id"].Should().Be("201012345678@c.us");
+        form["text"].Should().Contain("1234");
         capturedBody.Should().NotContain("test-api-key");
     }
 
@@ -93,14 +92,15 @@ public class WapilotWhatsAppOtpServiceTests
     {
         var client = new HttpClient(handler)
         {
-            BaseAddress = new Uri("https://app.wapilot.net")
+            BaseAddress = new Uri("https://api.wapilot.net/api/v2")
         };
 
         var settings = Options.Create(new WapilotOtpSettings
         {
             Enabled = true,
-            BaseUrl = "https://app.wapilot.net",
-            SendMessagePath = "/api/send",
+            BaseUrl = "https://api.wapilot.net/api/v2",
+            SendMessagePath = "/{instance_id}/send-message",
+            InstanceId = "instance4218",
             ApiKey = apiKey,
             DefaultCountryCode = "+20",
             MessageTemplateEn = "Your Zadana verification code is {0}. Do not share it with anyone."
@@ -110,6 +110,18 @@ public class WapilotWhatsAppOtpServiceTests
             client,
             settings,
             NullLogger<WapilotWhatsAppOtpService>.Instance);
+    }
+
+    private static Dictionary<string, string> ParseForm(string encoded)
+    {
+        return encoded
+            .Split('&', StringSplitOptions.RemoveEmptyEntries)
+            .Select(part => part.Split('=', 2))
+            .ToDictionary(
+                part => Uri.UnescapeDataString(part[0]).Replace("+", " ", StringComparison.Ordinal),
+                part => part.Length > 1
+                    ? Uri.UnescapeDataString(part[1]).Replace("+", " ", StringComparison.Ordinal)
+                    : string.Empty);
     }
 
     private sealed class CapturingHandler : HttpMessageHandler

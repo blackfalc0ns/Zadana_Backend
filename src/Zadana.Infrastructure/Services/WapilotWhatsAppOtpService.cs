@@ -1,7 +1,5 @@
 using System.Globalization;
 using System.Net;
-using System.Net.Http.Json;
-using System.Text.Json.Serialization;
 using Microsoft.Extensions.Logging;
 using Microsoft.Extensions.Options;
 using Zadana.Application.Common.Interfaces;
@@ -41,6 +39,13 @@ public sealed class WapilotWhatsAppOtpService : IOtpService
                 "WAPIlot WhatsApp OTP is enabled but no API key is configured.");
         }
 
+        if (string.IsNullOrWhiteSpace(_settings.InstanceId))
+        {
+            throw new ExternalServiceException(
+                "WAPILOT_OTP_NOT_CONFIGURED",
+                "WAPIlot WhatsApp OTP is enabled but no instance ID is configured.");
+        }
+
         string formattedPhone;
         try
         {
@@ -53,12 +58,17 @@ public sealed class WapilotWhatsAppOtpService : IOtpService
                 "Phone number is not valid for WhatsApp OTP delivery.");
         }
 
+        var chatId = ToWapilotChatId(formattedPhone);
         var message = BuildOtpMessage(otpCode);
         using var request = new HttpRequestMessage(HttpMethod.Post, ResolveSendPath())
         {
-            Content = JsonContent.Create(new WapilotSendMessageRequest(formattedPhone, message))
+            Content = new FormUrlEncodedContent(new Dictionary<string, string>
+            {
+                ["chat_id"] = chatId,
+                ["text"] = message
+            })
         };
-        request.Headers.TryAddWithoutValidation("Authorization", $"Bearer {_settings.ApiKey.Trim()}");
+        request.Headers.TryAddWithoutValidation("token", _settings.ApiKey.Trim());
 
         try
         {
@@ -124,10 +134,17 @@ public sealed class WapilotWhatsAppOtpService : IOtpService
     private string ResolveSendPath()
     {
         var path = string.IsNullOrWhiteSpace(_settings.SendMessagePath)
-            ? "/api/send"
+            ? "/{instance_id}/send-message"
             : _settings.SendMessagePath.Trim();
 
+        path = path.Replace("{instance_id}", Uri.EscapeDataString(_settings.InstanceId.Trim()), StringComparison.OrdinalIgnoreCase);
         return path.StartsWith("/", StringComparison.Ordinal) ? path : "/" + path;
+    }
+
+    private static string ToWapilotChatId(string formattedPhone)
+    {
+        var digits = new string(formattedPhone.Where(char.IsDigit).ToArray());
+        return $"{digits}@c.us";
     }
 
     private static string ResolveErrorCode(HttpStatusCode statusCode) =>
@@ -164,7 +181,4 @@ public sealed class WapilotWhatsAppOtpService : IOtpService
         return string.Concat(new string('*', compact.Length - 4), compact.AsSpan(compact.Length - 4));
     }
 
-    private sealed record WapilotSendMessageRequest(
-        [property: JsonPropertyName("phone")] string Phone,
-        [property: JsonPropertyName("message")] string Message);
 }

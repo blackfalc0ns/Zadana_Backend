@@ -25,6 +25,8 @@ public static class DependencyInjection
             .Bind(configuration.GetSection(WapilotOtpSettings.SectionName))
             .Validate(settings => !settings.Enabled || !IsPlaceholder(settings.ApiKey),
                 "WapilotOtp:ApiKey is required when WapilotOtp:Enabled is true.")
+            .Validate(settings => !settings.Enabled || !string.IsNullOrWhiteSpace(settings.InstanceId),
+                "WapilotOtp:InstanceId is required when WapilotOtp:Enabled is true.")
             .Validate(settings => Uri.TryCreate(settings.BaseUrl, UriKind.Absolute, out _),
                 "WapilotOtp:BaseUrl must be an absolute URL.")
             .Validate(settings => !settings.Enabled || !string.IsNullOrWhiteSpace(settings.SendMessagePath),
@@ -48,7 +50,7 @@ public static class DependencyInjection
         {
             var settings = serviceProvider.GetRequiredService<IOptions<WapilotOtpSettings>>().Value;
             client.BaseAddress = new Uri(string.IsNullOrWhiteSpace(settings.BaseUrl)
-                ? "https://app.wapilot.net"
+                ? "https://api.wapilot.net/api/v2"
                 : settings.BaseUrl);
             client.Timeout = TimeSpan.FromSeconds(10);
         });

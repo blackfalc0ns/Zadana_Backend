@@ -86,8 +86,9 @@
 
           <!-- ===== WAPIlot WhatsApp OTP ===== -->
           <environmentVariable name="WapilotOtp__Enabled" value="true" />
-          <environmentVariable name="WapilotOtp__BaseUrl" value="https://app.wapilot.net" />
-          <environmentVariable name="WapilotOtp__SendMessagePath" value="/api/send" />
+          <environmentVariable name="WapilotOtp__BaseUrl" value="https://api.wapilot.net/api/v2" />
+          <environmentVariable name="WapilotOtp__SendMessagePath" value="/{instance_id}/send-message" />
+          <environmentVariable name="WapilotOtp__InstanceId" value="instance4218" />
           <environmentVariable name="WapilotOtp__ApiKey" value="&lt;&lt;ROTATED_WAPILOT_API_KEY&gt;&gt;" />
           <environmentVariable name="WapilotOtp__DefaultCountryCode" value="+20" />
           <environmentVariable name="WapilotOtp__WebhookSecret" value="" />

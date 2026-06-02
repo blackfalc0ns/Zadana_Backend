@@ -101,6 +101,7 @@ if (builder.Environment.IsProduction())
     if (builder.Configuration.GetValue<bool>("WapilotOtp:Enabled"))
     {
         requiredProductionSettings.Add("WapilotOtp:ApiKey");
+        requiredProductionSettings.Add("WapilotOtp:InstanceId");
     }
 
     var missing = requiredProductionSettings

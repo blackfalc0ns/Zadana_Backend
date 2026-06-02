@@ -39,8 +39,9 @@ ConnectionStrings__DefaultConnection="Server=...;Database=...;"
 JwtSettings__Secret="YourSecretKey"
 ResendSettings__ApiKey="re_..."
 WapilotOtp__Enabled=true
-WapilotOtp__BaseUrl="https://app.wapilot.net"
-WapilotOtp__SendMessagePath="/api/send"
+WapilotOtp__BaseUrl="https://api.wapilot.net/api/v2"
+WapilotOtp__SendMessagePath="/{instance_id}/send-message"
+WapilotOtp__InstanceId="instance4218"
 WapilotOtp__ApiKey="..."
 WapilotOtp__DefaultCountryCode="+20"
 ```
