@@ -15,6 +15,16 @@ import { Rate, Trend } from 'k6/metrics';
 import { randomIntBetween } from 'https://jslib.k6.io/k6-utils/1.4.0/index.js';
 
 const BASE_URL = __ENV.BASE_URL || 'http://localhost:5000';
+const START_RATE = numberEnv('START_RATE', 5);
+const WARM_RATE = numberEnv('WARM_RATE', 20);
+const RAMP_RATE = numberEnv('RAMP_RATE', 100);
+const SUSTAIN_RATE = numberEnv('SUSTAIN_RATE', 200);
+const PRE_ALLOCATED_VUS = numberEnv('PRE_ALLOCATED_VUS', 20);
+const MAX_VUS = numberEnv('MAX_VUS', 100);
+const WARMUP_DURATION = __ENV.WARMUP_DURATION || '15s';
+const RAMP_DURATION = __ENV.RAMP_DURATION || '30s';
+const SUSTAIN_DURATION = __ENV.SUSTAIN_DURATION || '30s';
+const COOLDOWN_DURATION = __ENV.COOLDOWN_DURATION || '15s';
 
 const errorRate = new Rate('errors');
 const latency = new Trend('latency_ms', true);
@@ -27,15 +37,15 @@ export const options = {
     public_browse: {
       executor: 'ramping-arrival-rate',
       exec: 'browse',
-      startRate: 5,
+      startRate: START_RATE,
       timeUnit: '1s',
-      preAllocatedVUs: 20,
-      maxVUs: 100,
+      preAllocatedVUs: PRE_ALLOCATED_VUS,
+      maxVUs: MAX_VUS,
       stages: [
-        { duration: '15s', target: 20 },   // warmup
-        { duration: '30s', target: 100 },  // ramp
-        { duration: '30s', target: 200 },  // sustain
-        { duration: '15s', target: 0 },    // cooldown
+        { duration: WARMUP_DURATION, target: WARM_RATE },
+        { duration: RAMP_DURATION, target: RAMP_RATE },
+        { duration: SUSTAIN_DURATION, target: SUSTAIN_RATE },
+        { duration: COOLDOWN_DURATION, target: 0 },
       ],
     },
   },
@@ -71,4 +81,14 @@ export function browse() {
   });
   errorRate.add(res.status >= 400);
   latency.add(res.timings.duration);
+}
+
+function numberEnv(name, fallback) {
+  const raw = __ENV[name];
+  if (raw === undefined || raw === null || raw === '') {
+    return fallback;
+  }
+
+  const value = Number(raw);
+  return Number.isFinite(value) && value >= 0 ? value : fallback;
 }

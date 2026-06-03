@@ -15,6 +15,27 @@ public class OrderConfiguration : IEntityTypeConfiguration<Order>
 
         builder.Property(x => x.OrderNumber).HasMaxLength(50).IsRequired();
         builder.HasIndex(x => x.OrderNumber).IsUnique();
+        builder.HasIndex(x => new { x.UserId, x.PlacedAtUtc })
+            .IsDescending(false, true)
+            .HasDatabaseName("IX_Orders_UserId_PlacedAt_Desc");
+        builder.HasIndex(x => new { x.UserId, x.Status, x.PlacedAtUtc })
+            .IsDescending(false, false, true)
+            .HasDatabaseName("IX_Orders_UserId_Status_PlacedAt_Desc");
+        builder.HasIndex(x => new { x.VendorId, x.PlacedAtUtc })
+            .IsDescending(false, true)
+            .HasDatabaseName("IX_Orders_VendorId_PlacedAt_Desc");
+        builder.HasIndex(x => new { x.VendorId, x.Status, x.PlacedAtUtc })
+            .IsDescending(false, false, true)
+            .HasDatabaseName("IX_Orders_VendorId_Status_PlacedAt_Desc");
+        builder.HasIndex(x => new { x.VendorId, x.VendorBranchId, x.PlacedAtUtc })
+            .IsDescending(false, false, true)
+            .HasDatabaseName("IX_Orders_VendorId_BranchId_PlacedAt_Desc");
+        builder.HasIndex(x => new { x.Status, x.PlacedAtUtc })
+            .IsDescending(false, true)
+            .HasDatabaseName("IX_Orders_Status_PlacedAt_Desc");
+        builder.HasIndex(x => new { x.PaymentStatus, x.PlacedAtUtc })
+            .IsDescending(false, true)
+            .HasDatabaseName("IX_Orders_PaymentStatus_PlacedAt_Desc");
 
         builder.Property(x => x.Status).HasConversion<string>().HasMaxLength(50).IsRequired();
         builder.Property(x => x.PaymentMethod).HasConversion<string>().HasMaxLength(50).IsRequired();

@@ -1,9 +1,10 @@
 # Zadana API — Load Testing
 
-Three k6 scenarios covering the full performance envelope:
+Four k6 scenarios covering the full performance envelope:
 
 | File | Purpose | Duration | Peak RPS |
 |------|---------|----------|----------|
+| `capacity-1000u-500orders.js` | Validate the requested target shape (1k active customers / 500 active orders / 20 vendors / 10 reviewers / 200 drivers) | configurable, default 18 min | workload-shaped |
 | `steady-realistic.js` | Validate SLO at expected peak (1k users / 500 drivers / 1k orders / 200 vendors) | 10 min | ~50 |
 | `stress-extreme.js`   | Find the breaking point across every hot path simultaneously | 8 min | ~17,000 combined |
 | `spike-write-storm.js` | Worst-case write storm on driver location endpoint | 4 min | 10,000 |
@@ -33,6 +34,30 @@ $env:SAMPLE_ORDER_ID = "<a known order GUID>"
 ```
 
 ## Run the steady-state SLO check (start here)
+
+For the exact capacity target you asked for:
+
+```powershell
+k6 run `
+  -e BASE_URL=https://staging.zadana.com `
+  -e CUSTOMER_TOKENS=$env:CUSTOMER_TOKENS `
+  -e DRIVER_TOKENS=$env:DRIVER_TOKENS `
+  -e VENDOR_TOKENS=$env:VENDOR_TOKENS `
+  -e REVIEWER_TOKENS=$env:REVIEWER_TOKENS `
+  -e ORDER_IDS=$env:ORDER_IDS `
+  -e VENDOR_IDS=$env:VENDOR_IDS `
+  -e ADDRESS_IDS=$env:ADDRESS_IDS `
+  scripts/load-tests/capacity-1000u-500orders.js
+```
+
+This profile ramps to:
+- `1000` active customer sessions
+- `500` active order polling sessions
+- `200` active driver GPS sessions
+- `20` vendor panel sessions
+- `10` reviewer/admin sessions
+
+It writes only driver location pings by default. It does not mutate order statuses, approve records, or create/cancel orders.
 
 ```powershell
 k6 run `

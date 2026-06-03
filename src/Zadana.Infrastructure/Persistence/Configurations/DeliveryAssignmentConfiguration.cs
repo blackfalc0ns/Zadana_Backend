@@ -19,6 +19,16 @@ public class DeliveryAssignmentConfiguration : IEntityTypeConfiguration<Delivery
         builder.Property(x => x.PickupOtpCode).HasMaxLength(10);
         builder.Property(x => x.DeliveryOtpCode).HasMaxLength(10);
 
+        builder.HasIndex(x => new { x.OrderId, x.Status, x.CreatedAtUtc })
+            .IsDescending(false, false, true)
+            .HasDatabaseName("IX_DeliveryAssignments_OrderId_Status_CreatedAt_Desc");
+        builder.HasIndex(x => new { x.DriverId, x.Status, x.CreatedAtUtc })
+            .IsDescending(false, false, true)
+            .HasDatabaseName("IX_DeliveryAssignments_DriverId_Status_CreatedAt_Desc");
+        builder.HasIndex(x => new { x.OrderId, x.CreatedAtUtc })
+            .IsDescending(false, true)
+            .HasDatabaseName("IX_DeliveryAssignments_OrderId_CreatedAt_Desc");
+
         builder.HasOne(x => x.Order)
             .WithMany()
             .HasForeignKey(x => x.OrderId)

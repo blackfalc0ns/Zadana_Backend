@@ -17,6 +17,10 @@ public class OrderStatusHistoryConfiguration : IEntityTypeConfiguration<OrderSta
         
         builder.Property(x => x.Note).HasMaxLength(500);
 
+        builder.HasIndex(x => new { x.OrderId, x.CreatedAtUtc })
+            .IsDescending(false, true)
+            .HasDatabaseName("IX_OrderStatusHistories_OrderId_CreatedAt_Desc");
+
         builder.HasOne(x => x.ChangedByUser)
             .WithMany()
             .HasForeignKey(x => x.ChangedByUserId)

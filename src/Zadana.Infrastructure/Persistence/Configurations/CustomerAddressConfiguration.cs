@@ -27,6 +27,10 @@ public class CustomerAddressConfiguration : IEntityTypeConfiguration<CustomerAdd
         builder.Property(x => x.Latitude).HasPrecision(10, 7);
         builder.Property(x => x.Longitude).HasPrecision(10, 7);
 
+        builder.HasIndex(x => new { x.UserId, x.IsDefault, x.UpdatedAtUtc, x.CreatedAtUtc })
+            .IsDescending(false, true, true, true)
+            .HasDatabaseName("IX_CustomerAddresses_UserId_Default_Updated_Created_Desc");
+
         builder.HasOne(x => x.User)
             .WithMany()
             .HasForeignKey(x => x.UserId)
