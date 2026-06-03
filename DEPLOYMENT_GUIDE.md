@@ -20,14 +20,15 @@ Already configured with:
 - Database connection string
 - JWT settings
 - Email settings (Resend)
-- WhatsApp OTP settings (WAPIlot)
+- WhatsApp OTP settings (WhatsApp Cloud API for Copy Code button, or WAPIlot text fallback)
 - File storage (ImageKit)
 
 **Important**: Update these values before deployment:
 - `ConnectionStrings:DefaultConnection` - Your production database
 - `JwtSettings:Secret` - Strong secret key (min 32 characters)
 - `ResendSettings:ApiKey` - Your Resend API key
-- `WapilotOtp` - Your WAPIlot WhatsApp OTP credentials
+- `WhatsAppCloudOtp` - Your Meta WhatsApp Cloud API OTP template credentials
+- `WapilotOtp` - Optional WAPIlot WhatsApp OTP text fallback credentials
 - `ImageKit` - Your ImageKit credentials
 
 ### 3. Environment Variables (Alternative to appsettings)
@@ -39,12 +40,37 @@ ConnectionStrings__DefaultConnection="Server=...;Database=...;"
 JwtSettings__Secret="YourSecretKey"
 ResendSettings__ApiKey="re_..."
 WapilotOtp__Enabled=true
-WapilotOtp__BaseUrl="https://api.wapilot.net/api/v2"
-WapilotOtp__SendMessagePath="/{instance_id}/send-message"
+WapilotOtp__BaseUrl="https://api.wapilot.net"
+WapilotOtp__SendMessagePath="/api/v2/{instance_id}/send-message"
 WapilotOtp__InstanceId="instance4218"
 WapilotOtp__ApiKey="..."
 WapilotOtp__DefaultCountryCode="+20"
 ```
+
+For a real WhatsApp Copy Code button, use WhatsApp Cloud API instead of WAPIlot
+text messages:
+
+```bash
+WhatsAppCloudOtp__Enabled=true
+WhatsAppCloudOtp__BaseUrl="https://graph.facebook.com"
+WhatsAppCloudOtp__GraphVersion="v23.0"
+WhatsAppCloudOtp__PhoneNumberId="..."
+WhatsAppCloudOtp__AccessToken="..."
+WhatsAppCloudOtp__DefaultCountryCode="+20"
+WhatsAppCloudOtp__TemplateName="zadana_otp_copy_code"
+WhatsAppCloudOtp__LanguageCode="en_US"
+WhatsAppCloudOtp__CopyCodeButtonIndex=0
+WapilotOtp__Enabled=false
+```
+
+The configured template must be an approved WhatsApp Authentication template
+with a Copy Code button. Zadana sends the generated 4-digit OTP as both the
+template body parameter and the button `copy_code` value.
+
+WAPIlot v2 sends OTP messages through
+`POST https://api.wapilot.net/api/v2/{instance_id}/send-message` using a
+`token` header. Zadana converts mobile numbers to WAPIlot chat IDs such as
+`201012345678@c.us` before sending.
 
 For WAPIlot delivery callbacks, configure the webhook URL in the WAPIlot
 instance dashboard as:

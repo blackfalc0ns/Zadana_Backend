@@ -47,10 +47,11 @@ public class GetCheckoutSummaryQueryHandler : IRequestHandler<GetCheckoutSummary
         var pricing = await CheckoutSupport.BuildPricingSnapshotAsync(_context, cart, request.VendorId, cancellationToken);
         var address = await CheckoutSupport.ResolveSelectedAddressAsync(_context, request.UserId, request.AddressId, cancellationToken);
         var coupon = await CheckoutSupport.ResolveAppliedCouponAsync(_context, request.UserId, cart, cancellationToken);
+        var deliveryBranchId = await CheckoutSupport.ResolveDeliveryBranchIdAsync(_context, pricing, address, cancellationToken);
         var deliveryAssessment = await CheckoutSupport.EvaluateDeliveryAsync(
             _context,
             _deliveryPricingService,
-            pricing.VendorBranchId,
+            deliveryBranchId,
             address,
             cancellationToken,
             pricing.Subtotal);
@@ -65,13 +66,13 @@ public class GetCheckoutSummaryQueryHandler : IRequestHandler<GetCheckoutSummary
         var operationalProfile = await DeliveryEtaTelemetry.LoadOperationalProfileAsync(
             _context,
             pricing.VendorId,
-            pricing.VendorBranchId,
+            deliveryBranchId,
             address?.City,
             address?.Area,
             cancellationToken);
         var liveSignal = await DeliveryEtaTelemetry.LoadLiveSignalAsync(
             _context,
-            pricing.VendorBranchId,
+            deliveryBranchId,
             cancellationToken);
         var estimatedDeliveryWindow = DeliveryEtaPolicy.EstimateCheckoutWindow(
             preparationTimeMinutes,

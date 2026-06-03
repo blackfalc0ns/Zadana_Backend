@@ -44,13 +44,45 @@ public static class DependencyInjection
                 }
             }, "WapilotOtp:DefaultCountryCode must be an international dialing code.")
             .ValidateOnStart();
+
+        services.AddOptions<WhatsAppCloudOtpSettings>()
+            .Bind(configuration.GetSection(WhatsAppCloudOtpSettings.SectionName))
+            .Validate(settings => !settings.Enabled || !IsPlaceholder(settings.AccessToken),
+                "WhatsAppCloudOtp:AccessToken is required when WhatsAppCloudOtp:Enabled is true.")
+            .Validate(settings => !settings.Enabled || !string.IsNullOrWhiteSpace(settings.PhoneNumberId),
+                "WhatsAppCloudOtp:PhoneNumberId is required when WhatsAppCloudOtp:Enabled is true.")
+            .Validate(settings => !settings.Enabled || !string.IsNullOrWhiteSpace(settings.TemplateName),
+                "WhatsAppCloudOtp:TemplateName is required when WhatsAppCloudOtp:Enabled is true.")
+            .Validate(settings => Uri.TryCreate(settings.BaseUrl, UriKind.Absolute, out _),
+                "WhatsAppCloudOtp:BaseUrl must be an absolute URL.")
+            .Validate(settings =>
+            {
+                try
+                {
+                    _ = WhatsAppPhoneNumberNormalizer.NormalizeCountryCode(settings.DefaultCountryCode);
+                    return true;
+                }
+                catch (ArgumentException)
+                {
+                    return false;
+                }
+            }, "WhatsAppCloudOtp:DefaultCountryCode must be an international dialing code.")
+            .ValidateOnStart();
         
         services.AddHttpClient<IEmailService, ResendEmailService>();
+        services.AddHttpClient<WhatsAppCloudOtpService>((serviceProvider, client) =>
+        {
+            var settings = serviceProvider.GetRequiredService<IOptions<WhatsAppCloudOtpSettings>>().Value;
+            client.BaseAddress = new Uri(string.IsNullOrWhiteSpace(settings.BaseUrl)
+                ? "https://graph.facebook.com"
+                : settings.BaseUrl);
+            client.Timeout = TimeSpan.FromSeconds(10);
+        });
         services.AddHttpClient<WapilotWhatsAppOtpService>((serviceProvider, client) =>
         {
             var settings = serviceProvider.GetRequiredService<IOptions<WapilotOtpSettings>>().Value;
             client.BaseAddress = new Uri(string.IsNullOrWhiteSpace(settings.BaseUrl)
-                ? "https://api.wapilot.net/api/v2"
+                ? "https://api.wapilot.net"
                 : settings.BaseUrl);
             client.Timeout = TimeSpan.FromSeconds(10);
         });

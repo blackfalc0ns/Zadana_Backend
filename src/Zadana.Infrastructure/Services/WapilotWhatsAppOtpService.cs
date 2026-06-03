@@ -122,8 +122,8 @@ public sealed class WapilotWhatsAppOtpService : IOtpService
         if (string.IsNullOrWhiteSpace(template))
         {
             template = isArabic
-                ? "رمز التحقق من زادنا هو {0}. لا تشاركه مع أي شخص."
-                : "Your Zadana verification code is {0}. Do not share it with anyone.";
+                ? "رمز تحقق زادنا:\n```{0}```\n\nلا تشارك هذا الرمز مع أي شخص."
+                : "ZADANA verification code:\n```{0}```\n\nDo not share this code with anyone.";
         }
 
         return template.Contains("{0}", StringComparison.Ordinal)
@@ -134,7 +134,7 @@ public sealed class WapilotWhatsAppOtpService : IOtpService
     private string ResolveSendPath()
     {
         var path = string.IsNullOrWhiteSpace(_settings.SendMessagePath)
-            ? "/{instance_id}/send-message"
+            ? "/api/v2/{instance_id}/send-message"
             : _settings.SendMessagePath.Trim();
 
         path = path.Replace("{instance_id}", Uri.EscapeDataString(_settings.InstanceId.Trim()), StringComparison.OrdinalIgnoreCase);

@@ -86,12 +86,23 @@
 
           <!-- ===== WAPIlot WhatsApp OTP ===== -->
           <environmentVariable name="WapilotOtp__Enabled" value="true" />
-          <environmentVariable name="WapilotOtp__BaseUrl" value="https://api.wapilot.net/api/v2" />
-          <environmentVariable name="WapilotOtp__SendMessagePath" value="/{instance_id}/send-message" />
+          <environmentVariable name="WapilotOtp__BaseUrl" value="https://api.wapilot.net" />
+          <environmentVariable name="WapilotOtp__SendMessagePath" value="/api/v2/{instance_id}/send-message" />
           <environmentVariable name="WapilotOtp__InstanceId" value="instance4218" />
           <environmentVariable name="WapilotOtp__ApiKey" value="&lt;&lt;ROTATED_WAPILOT_API_KEY&gt;&gt;" />
           <environmentVariable name="WapilotOtp__DefaultCountryCode" value="+20" />
           <environmentVariable name="WapilotOtp__WebhookSecret" value="" />
+
+          <!-- ===== WhatsApp Cloud API OTP (Copy Code button) ===== -->
+          <environmentVariable name="WhatsAppCloudOtp__Enabled" value="false" />
+          <environmentVariable name="WhatsAppCloudOtp__BaseUrl" value="https://graph.facebook.com" />
+          <environmentVariable name="WhatsAppCloudOtp__GraphVersion" value="v23.0" />
+          <environmentVariable name="WhatsAppCloudOtp__PhoneNumberId" value="&lt;&lt;META_PHONE_NUMBER_ID&gt;&gt;" />
+          <environmentVariable name="WhatsAppCloudOtp__AccessToken" value="&lt;&lt;META_PERMANENT_ACCESS_TOKEN&gt;&gt;" />
+          <environmentVariable name="WhatsAppCloudOtp__DefaultCountryCode" value="+20" />
+          <environmentVariable name="WhatsAppCloudOtp__TemplateName" value="zadana_otp_copy_code" />
+          <environmentVariable name="WhatsAppCloudOtp__LanguageCode" value="en_US" />
+          <environmentVariable name="WhatsAppCloudOtp__CopyCodeButtonIndex" value="0" />
 
           <!-- ===== Seeding (اتركه فارغاً لتعطيل seeding endpoints) ===== -->
           <environmentVariable name="Seeding__ManagementKey" value="" />

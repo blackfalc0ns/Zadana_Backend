@@ -78,6 +78,76 @@ public class GetCheckoutSummaryQueryHandlerTests
     }
 
     [Fact]
+    public async Task Handle_WhenVendorProductsHaveNoBranchAndVendorHasMultipleBranches_UsesNearestActiveBranchForDeliveryQuote()
+    {
+        await using var context = TestDbContextFactory.Create();
+
+        var customer = new User("Nearest Branch Customer", "checkout.nearest@test.com", "01000000181", UserRole.Customer);
+        var vendorUser = new User("Nearest Branch Vendor", "checkout.nearest.vendor@test.com", "01000000182", UserRole.Vendor);
+        var category = new Category("Category", "Category");
+        var product = new MasterProduct("Product", "Product", "checkout-nearest-branch-product", category.Id);
+        product.Publish();
+
+        var vendor = new Vendor(
+            vendorUser.Id,
+            "Nearest Store",
+            "Nearest Store",
+            "Groceries",
+            "CR-CHECKOUT-NEAREST",
+            "checkout.nearest.vendor@test.com",
+            "01000000182");
+        vendor.Approve(10m, Guid.NewGuid());
+
+        var nearBranch = new VendorBranch(vendor.Id, "Dammam Branch", "Dammam Address", 26.4207m, 50.1033m, "01000000183", 12m);
+        var farBranch = new VendorBranch(vendor.Id, "Khobar Branch", "Khobar Address", 26.2828m, 50.2088m, "01000000184", 10m);
+        var vendorProduct = new VendorProduct(vendor.Id, product.Id, 50m, 10);
+        var address = new CustomerAddress(
+            customer.Id,
+            "Nearest Branch Customer",
+            "01000000181",
+            "Dhahran Address",
+            AddressLabel.Home,
+            city: "Dhahran",
+            area: "Eastern Province",
+            latitude: 26.4207101m,
+            longitude: 50.0887807m);
+        address.SetAsDefault();
+
+        var cart = new Cart(customer.Id);
+        cart.Items.Add(new CartItem(cart.Id, product.Id, product.NameEn, 1));
+        cart.UpdateTotals(50m, 0m);
+
+        context.Users.AddRange(customer, vendorUser);
+        context.Categories.Add(category);
+        context.MasterProducts.Add(product);
+        context.Vendors.Add(vendor);
+        context.VendorBranches.AddRange(nearBranch, farBranch);
+        context.VendorProducts.Add(vendorProduct);
+        context.CustomerAddresses.Add(address);
+        context.Carts.Add(cart);
+        await context.SaveChangesAsync();
+
+        var gatewayResolver = TestPaymentGatewayResolver.Enabled();
+
+        var deliveryPricing = new Mock<IDeliveryPricingService>();
+        deliveryPricing
+            .Setup(service => service.QuoteAsync(nearBranch.Id, address.Id, It.IsAny<CancellationToken>(), It.IsAny<decimal?>()))
+            .ReturnsAsync(new DeliveryPriceQuote(5m, 2m, 0m, 7m, 3m, "zone", "Nearest branch", 1m, 2m, 3m, 4m, "driver", "vendor", false, "manual", null, "locked", DateTime.UtcNow, 1, false));
+
+        var handler = new GetCheckoutSummaryQueryHandler(context, gatewayResolver, deliveryPricing.Object);
+
+        var result = await handler.Handle(
+            new GetCheckoutSummaryQuery(customer.Id, vendor.Id, address.Id, null, "cash"),
+            CancellationToken.None);
+
+        result.DeliveryCheck.Status.Should().Be("deliverable");
+        result.DeliveryCheck.CanProceedToCheckout.Should().BeTrue();
+        result.DeliveryQuote.TotalFee.Should().Be(7m);
+        deliveryPricing.Verify(service => service.QuoteAsync(nearBranch.Id, address.Id, It.IsAny<CancellationToken>(), It.IsAny<decimal?>()), Times.Once);
+        deliveryPricing.Verify(service => service.QuoteAsync(farBranch.Id, address.Id, It.IsAny<CancellationToken>(), It.IsAny<decimal?>()), Times.Never);
+    }
+
+    [Fact]
     public async Task Handle_WhenBranchHasReliableHistoricalEta_UsesBranchCalibrationInsteadOfVendorWideAverage()
     {
         await using var context = TestDbContextFactory.Create();

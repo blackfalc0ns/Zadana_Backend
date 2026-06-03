@@ -27,13 +27,15 @@ public class WapilotWhatsAppOtpServiceTests
 
         capturedRequest.Should().NotBeNull();
         capturedRequest!.Method.Should().Be(HttpMethod.Post);
-        capturedRequest.RequestUri!.PathAndQuery.Should().Be("/instance4218/send-message");
+        capturedRequest.RequestUri!.PathAndQuery.Should().Be("/api/v2/instance4218/send-message");
         capturedRequest.Headers.GetValues("token").Should().ContainSingle("test-api-key");
         capturedBody.Should().NotBeNullOrWhiteSpace();
 
         var form = ParseForm(capturedBody!);
         form["chat_id"].Should().Be("201012345678@c.us");
         form["text"].Should().Contain("1234");
+        form["text"].Should().Contain("ZADANA verification code");
+        form["text"].Should().Contain("```1234```");
         capturedBody.Should().NotContain("test-api-key");
     }
 
@@ -92,18 +94,18 @@ public class WapilotWhatsAppOtpServiceTests
     {
         var client = new HttpClient(handler)
         {
-            BaseAddress = new Uri("https://api.wapilot.net/api/v2")
+            BaseAddress = new Uri("https://api.wapilot.net")
         };
 
         var settings = Options.Create(new WapilotOtpSettings
         {
             Enabled = true,
-            BaseUrl = "https://api.wapilot.net/api/v2",
-            SendMessagePath = "/{instance_id}/send-message",
+            BaseUrl = "https://api.wapilot.net",
+            SendMessagePath = "/api/v2/{instance_id}/send-message",
             InstanceId = "instance4218",
             ApiKey = apiKey,
             DefaultCountryCode = "+20",
-            MessageTemplateEn = "Your Zadana verification code is {0}. Do not share it with anyone."
+            MessageTemplateEn = "ZADANA verification code:\n```{0}```\n\nDo not share this code with anyone."
         });
 
         return new WapilotWhatsAppOtpService(

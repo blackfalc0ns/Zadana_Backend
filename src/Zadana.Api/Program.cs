@@ -104,6 +104,13 @@ if (builder.Environment.IsProduction())
         requiredProductionSettings.Add("WapilotOtp:InstanceId");
     }
 
+    if (builder.Configuration.GetValue<bool>("WhatsAppCloudOtp:Enabled"))
+    {
+        requiredProductionSettings.Add("WhatsAppCloudOtp:AccessToken");
+        requiredProductionSettings.Add("WhatsAppCloudOtp:PhoneNumberId");
+        requiredProductionSettings.Add("WhatsAppCloudOtp:TemplateName");
+    }
+
     var missing = requiredProductionSettings
         .Where(key => Zadana.Api.Configuration.ConfigurationGuardExtensions.IsPlaceholder(builder.Configuration[key]))
         .ToArray();

@@ -234,7 +234,7 @@ public class CustomerEndpointLocalizationTests
             summary.Cart.Items[0].Unit.Should().Be(UnitEn);
             summary.DeliverySlots[0].Label.Should().Be("30-45 minutes");
             summary.PaymentMethods.First(x => x.Code == "cash").Label.Should().Be("Cash on Delivery");
-            summary.ShippingBreakdown.First(x => x.Code == "base_delivery").Label.Should().Be("Base delivery");
+            summary.ShippingBreakdown.First(x => x.Code == "driver_to_vendor").Label.Should().Be("Driver to vendor");
             CreateApplyPromoCodeResult().Message.Should().Be(LocalizedMessages.GetEn(LocalizedMessages.PromoCodeApplied));
             CreateRemovePromoCodeResult().Message.Should().Be(LocalizedMessages.GetEn(LocalizedMessages.PromoCodeRemoved));
             CreatePlaceOrderResult().Message.Should().Be(LocalizedMessages.GetEn(LocalizedMessages.OrderPlacedSuccess));
@@ -253,7 +253,7 @@ public class CustomerEndpointLocalizationTests
             summary.Cart.Items[0].Unit.Should().Be(UnitAr);
             ContainsArabic(summary.DeliverySlots[0].Label).Should().BeTrue();
             ContainsArabic(summary.PaymentMethods.First(x => x.Code == "cash").Label).Should().BeTrue();
-            ContainsArabic(summary.ShippingBreakdown.First(x => x.Code == "base_delivery").Label).Should().BeTrue();
+            ContainsArabic(summary.ShippingBreakdown.First(x => x.Code == "driver_to_vendor").Label).Should().BeTrue();
             CreateApplyPromoCodeResult().Message.Should().Be(LocalizedMessages.GetAr(LocalizedMessages.PromoCodeApplied));
             CreateRemovePromoCodeResult().Message.Should().Be(LocalizedMessages.GetAr(LocalizedMessages.PromoCodeRemoved));
             CreatePlaceOrderResult().Message.Should().Be(LocalizedMessages.GetAr(LocalizedMessages.OrderPlacedSuccess));

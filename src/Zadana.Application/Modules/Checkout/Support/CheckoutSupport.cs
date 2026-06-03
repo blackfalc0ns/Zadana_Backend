@@ -191,11 +191,93 @@ internal static class CheckoutSupport
             })
             .ToList();
 
+        var branchSelection = await ResolveBranchSelectionAsync(
+            context,
+            candidateVendor.VendorId,
+            candidateVendor.Offers,
+            cancellationToken);
+
         return new CheckoutPricingSnapshot(
             candidateVendor.VendorId,
-            await ResolveSingleBranchIdAsync(context, candidateVendor.VendorId, candidateVendor.Offers, cancellationToken),
+            branchSelection.BranchId,
+            branchSelection.HasAmbiguousBranchScopedOffers,
+            branchSelection.RequiresAddressBranchResolution,
             items,
             items.Sum(x => x.TotalPrice));
+    }
+
+    public static async Task<Guid?> ResolveDeliveryBranchIdAsync(
+        IApplicationDbContext context,
+        CheckoutPricingSnapshot pricing,
+        CustomerAddress? address,
+        CancellationToken cancellationToken)
+    {
+        if (pricing.VendorBranchId.HasValue)
+        {
+            return pricing.VendorBranchId.Value;
+        }
+
+        if (pricing.HasAmbiguousBranchScopedOffers || !pricing.RequiresAddressBranchResolution)
+        {
+            return null;
+        }
+
+        var branches = await context.VendorBranches
+            .AsNoTracking()
+            .Where(branch => branch.VendorId == pricing.VendorId && branch.IsActive)
+            .OrderByDescending(branch => branch.IsPrimary)
+            .ThenBy(branch => branch.CreatedAtUtc)
+            .Select(branch => new ActiveBranchSnapshot(
+                branch.Id,
+                branch.Latitude,
+                branch.Longitude,
+                branch.DeliveryRadiusKm,
+                branch.City,
+                branch.IsPrimary,
+                branch.CreatedAtUtc))
+            .ToListAsync(cancellationToken);
+
+        if (branches.Count == 0)
+        {
+            return null;
+        }
+
+        if (branches.Count == 1 || address is null)
+        {
+            return branches[0].Id;
+        }
+
+        if (HasUsableCoordinates(address))
+        {
+            var addressLatitude = address.Latitude!.Value;
+            var addressLongitude = address.Longitude!.Value;
+            var nearestBranch = branches
+                .Where(branch => HasUsableCoordinates(branch.Latitude, branch.Longitude))
+                .Select(branch =>
+                {
+                    var distanceKm = ApproximateDistanceKm(branch.Latitude, branch.Longitude, addressLatitude, addressLongitude);
+                    var isInsideRadius = branch.DeliveryRadiusKm <= 0m || distanceKm <= branch.DeliveryRadiusKm;
+                    return new BranchDistanceSnapshot(branch, distanceKm, isInsideRadius);
+                })
+                .OrderByDescending(item => item.IsInsideRadius)
+                .ThenBy(item => item.DistanceKm)
+                .ThenByDescending(item => item.Branch.IsPrimary)
+                .ThenBy(item => item.Branch.CreatedAtUtc)
+                .FirstOrDefault();
+
+            if (nearestBranch is not null)
+            {
+                return nearestBranch.Branch.Id;
+            }
+        }
+
+        var sameCityBranch = branches
+            .Where(branch => IsSameCityDelivery(branch.City, address.City))
+            .OrderByDescending(branch => branch.IsPrimary)
+            .ThenBy(branch => branch.CreatedAtUtc)
+            .FirstOrDefault();
+
+        return (sameCityBranch ?? branches[0]).Id;
     }
 
     public static async Task<CustomerAddress?> ResolveSelectedAddressAsync(
@@ -665,7 +747,7 @@ internal static class CheckoutSupport
             _ => "pending"
         };
 
-    private static async Task<Guid?> ResolveSingleBranchIdAsync(
+    private static async Task<BranchSelection> ResolveBranchSelectionAsync(
         IApplicationDbContext context,
         Guid vendorId,
         IReadOnlyCollection<VendorOfferSnapshot> offers,
@@ -679,12 +761,12 @@ internal static class CheckoutSupport
 
         if (nonNullBranchIds.Count == 1)
         {
-            return nonNullBranchIds[0];
+            return new BranchSelection(nonNullBranchIds[0], false, false);
         }
 
         if (nonNullBranchIds.Count > 1)
         {
-            return null;
+            return new BranchSelection(null, true, false);
         }
 
         var activeBranchIds = await context.VendorBranches
@@ -694,8 +776,21 @@ internal static class CheckoutSupport
             .Select(branch => branch.Id)
             .ToListAsync(cancellationToken);
 
-        return activeBranchIds.Count == 1 ? activeBranchIds[0] : null;
+        return activeBranchIds.Count switch
+        {
+            1 => new BranchSelection(activeBranchIds[0], false, false),
+            > 1 => new BranchSelection(null, false, true),
+            _ => new BranchSelection(null, false, false)
+        };
     }
+
+    private static bool HasUsableCoordinates(CustomerAddress address) =>
+        address.Latitude.HasValue &&
+        address.Longitude.HasValue &&
+        HasUsableCoordinates(address.Latitude.Value, address.Longitude.Value);
+
+    private static bool HasUsableCoordinates(decimal latitude, decimal longitude) =>
+        !(latitude == 0m && longitude == 0m);
 
     private static bool IsArabic() =>
         CultureInfo.CurrentUICulture.TwoLetterISOLanguageName.Equals("ar", StringComparison.OrdinalIgnoreCase);
@@ -896,11 +991,8 @@ internal static class CheckoutSupport
             return false;
         }
 
-        var branchHasCoordinates = !(branch.Latitude == 0m && branch.Longitude == 0m);
-        var addressHasCoordinates =
-            address.Latitude.HasValue &&
-            address.Longitude.HasValue &&
-            !(address.Latitude.Value == 0m && address.Longitude.Value == 0m);
+        var branchHasCoordinates = HasUsableCoordinates(branch.Latitude, branch.Longitude);
+        var addressHasCoordinates = HasUsableCoordinates(address);
 
         if (!branchHasCoordinates || !addressHasCoordinates)
         {
@@ -965,6 +1057,8 @@ internal static class CheckoutSupport
     internal sealed record CheckoutPricingSnapshot(
         Guid VendorId,
         Guid? VendorBranchId,
+        bool HasAmbiguousBranchScopedOffers,
+        bool RequiresAddressBranchResolution,
         List<CheckoutCartItemDto> Items,
         decimal Subtotal);
 
@@ -1019,6 +1113,25 @@ internal static class CheckoutSupport
         bool CoversAllProducts,
         decimal Total,
         List<VendorOfferSnapshot> Offers);
+
+    private sealed record BranchSelection(
+        Guid? BranchId,
+        bool HasAmbiguousBranchScopedOffers,
+        bool RequiresAddressBranchResolution);
+
+    private sealed record ActiveBranchSnapshot(
+        Guid Id,
+        decimal Latitude,
+        decimal Longitude,
+        decimal DeliveryRadiusKm,
+        string? City,
+        bool IsPrimary,
+        DateTime CreatedAtUtc);
+
+    private sealed record BranchDistanceSnapshot(
+        ActiveBranchSnapshot Branch,
+        decimal DistanceKm,
+        bool IsInsideRadius);
 
     private sealed record VendorBranchSnapshot(
         Guid Id,

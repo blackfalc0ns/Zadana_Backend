@@ -109,10 +109,11 @@ public class PlaceCheckoutOrderCommandHandler : IRequestHandler<PlaceCheckoutOrd
         var user = await _context.Users.FirstOrDefaultAsync(x => x.Id == request.UserId, cancellationToken)
             ?? throw new NotFoundException("User", request.UserId);
 
+        var deliveryBranchId = await CheckoutSupport.ResolveDeliveryBranchIdAsync(_context, pricing, address, cancellationToken);
         var deliveryAssessment = await CheckoutSupport.EvaluateDeliveryAsync(
             _context,
             _deliveryPricingService,
-            pricing.VendorBranchId,
+            deliveryBranchId,
             address,
             cancellationToken,
             pricing.Subtotal);
@@ -135,13 +136,13 @@ public class PlaceCheckoutOrderCommandHandler : IRequestHandler<PlaceCheckoutOrd
         var operationalProfile = await DeliveryEtaTelemetry.LoadOperationalProfileAsync(
             _context,
             pricing.VendorId,
-            pricing.VendorBranchId,
+            deliveryBranchId,
             address.City,
             address.Area,
             cancellationToken);
         var liveSignal = await DeliveryEtaTelemetry.LoadLiveSignalAsync(
             _context,
-            pricing.VendorBranchId,
+            deliveryBranchId,
             cancellationToken);
         var estimatedDeliveryWindow = DeliveryEtaPolicy.EstimateCheckoutWindow(
             preparationTimeMinutes,
@@ -202,7 +203,7 @@ public class PlaceCheckoutOrderCommandHandler : IRequestHandler<PlaceCheckoutOrd
                 CustomerAddressId: address.Id,
                 PaymentMethod: internalPaymentMethod,
                 Notes: request.Notes,
-                VendorBranchId: pricing.VendorBranchId,
+                VendorBranchId: deliveryBranchId,
                 CouponId: coupon?.Id,
                 BaseDeliveryFee: deliveryQuote.BaseFee,
                 DistanceDeliveryFee: deliveryQuote.DistanceFee,
