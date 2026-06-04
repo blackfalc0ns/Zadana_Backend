@@ -202,6 +202,7 @@ builder.Services.AddScoped<IVendorRepository, VendorRepository>();
 builder.Services.AddScoped<IVendorReadService, VendorReadService>();
 builder.Services.AddScoped<IVendorReviewAuditService, VendorReviewAuditService>();
 builder.Services.AddScoped<IDriverRepository, DriverRepository>();
+builder.Services.AddSingleton<Zadana.Application.Common.Interfaces.IGeographyCityResolver, Zadana.Infrastructure.Modules.Geography.Services.GeographyCityResolver>();
 builder.Services.AddScoped<IDriverReadService, Zadana.Infrastructure.Modules.Delivery.Services.DriverReadService>();
 builder.Services.AddScoped<IDriverHomeReadService, Zadana.Infrastructure.Modules.Delivery.Services.DriverHomeReadService>();
 builder.Services.AddScoped<IDriverWalletReadService, Zadana.Infrastructure.Modules.Delivery.Services.DriverWalletReadService>();

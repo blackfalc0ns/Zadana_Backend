@@ -11,6 +11,7 @@ using Zadana.Domain.Modules.Vendors.Entities;
 using Zadana.Domain.Modules.Vendors.Enums;
 using Zadana.Domain.Modules.Wallets.Entities;
 using Zadana.Domain.Modules.Wallets.Enums;
+using Zadana.Infrastructure.Data;
 using Zadana.Infrastructure.Settings;
 
 namespace Zadana.Infrastructure.Persistence;
@@ -71,6 +72,7 @@ public class ApplicationDbContextInitialiser
 
     private async Task TrySeedAsync()
     {
+        await new SaudiGeographySynchronizer(_context).SynchronizeAsync();
         await SeedIdentityRolesAsync();
         await SeedAdminAccessControlAsync();
         await SeedSuperAdminAsync();

@@ -26,6 +26,7 @@ public sealed class AccessAuthorizationConvention : IApplicationModelConvention
                 create: [PermissionKeys.Admin.UsersAccessCreate],
                 edit: [PermissionKeys.Admin.UsersAccessEdit]),
             ["AdminDashboard"] = new([PermissionKeys.Admin.DashboardView]),
+            ["AdminGeography"] = new([PermissionKeys.Admin.DashboardView]),
             ["AdminBrands"] = CreateCatalogAdminRule(),
             ["AdminBrandRequests"] = CreateCatalogAdminRule(),
             ["AdminCatalogRequestCenter"] = CreateCatalogAdminRule(),
