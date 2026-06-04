@@ -80,6 +80,13 @@ public class RegisterNotificationDeviceCommandHandler : IRequestHandler<Register
         var normalizedDeviceId = string.IsNullOrWhiteSpace(request.DeviceId) ? null : request.DeviceId.Trim();
         var normalizedToken = request.DeviceToken.Trim();
 
+        if (platform == PushPlatform.Web && !Guid.TryParse(normalizedToken, out _))
+        {
+            throw new BadRequestException(
+                "INVALID_ONESIGNAL_SUBSCRIPTION",
+                "Web push registration requires a valid OneSignal subscription id.");
+        }
+
         var device = await _context.UserPushDevices
             .FirstOrDefaultAsync(
                 x => x.DeviceToken == normalizedToken

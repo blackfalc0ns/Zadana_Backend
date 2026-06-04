@@ -646,6 +646,59 @@ public class OneSignalPushServiceTests
     }
 
     [Fact]
+    public async Task SendToExternalUsersAsync_WithAdminWebTarget_ShouldPreferRegisteredSubscriptionIdsBeforeAliases()
+    {
+        await using var dbContext = CreateDbContext();
+        var adminUserId = Guid.Parse("a1b2c3d4-e5f6-7890-abcd-ef1234567890");
+        var subscriptionId = Guid.Parse("2c10f9d2-35f4-4c0d-8e44-38f10f0dced1");
+        dbContext.UserPushDevices.Add(new UserPushDevice(
+            adminUserId,
+            subscriptionId.ToString(),
+            PushPlatform.Web,
+            deviceId: $"admin-web-{adminUserId}",
+            deviceName: "Edge",
+            appVersion: "superadmin-panel",
+            locale: "ar",
+            notificationsEnabled: true));
+        await dbContext.SaveChangesAsync();
+
+        var handler = new RecordingHttpMessageHandler(HttpStatusCode.OK, """{"id":"admin-subscription-push"}""");
+        var service = CreateService(
+            handler,
+            scopeFactory: new DbContextServiceScopeFactory(dbContext),
+            configureSettings: settings =>
+            {
+                settings.AdminWebAppId = "admin-web-app-id";
+                settings.AdminWebRestApiKey = "admin-web-rest-key";
+            });
+
+        var results = await service.SendToExternalUsersAsync(
+            [adminUserId.ToString()],
+            "تنبيه",
+            "Alert",
+            "نص",
+            "Body",
+            AdminAlertTypes.DeliveryDispatchStuck,
+            Guid.NewGuid(),
+            null,
+            "/notifications",
+            OneSignalPushProfile.Default,
+            OneSignalApplicationTarget.AdminWeb,
+            CancellationToken.None);
+
+        results.Should().ContainSingle(result => result.Sent && result.ProviderNotificationId == "admin-subscription-push");
+        handler.RequestBodies.Should().HaveCount(1);
+
+        using var document = JsonDocument.Parse(handler.RequestBodies[0]);
+        document.RootElement
+            .GetProperty("include_subscription_ids")
+            .EnumerateArray()
+            .Select(item => item.GetString())
+            .Should()
+            .Equal(subscriptionId.ToString());
+    }
+
+    [Fact]
     public async Task SendToExternalUsersAsync_WithAdminWebAndArabicDeviceLocale_ShouldPinArabicIntoEnglishFallbackSlot()
     {
         await using var dbContext = CreateDbContext();

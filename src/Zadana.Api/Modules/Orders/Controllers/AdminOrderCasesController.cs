@@ -5,6 +5,7 @@ using Zadana.Api.Controllers;
 using Zadana.Application.Common.Interfaces;
 using Zadana.Application.Modules.Orders.DTOs;
 using Zadana.Application.Modules.Orders.Interfaces;
+using Zadana.Domain.Modules.Orders.Entities;
 using Zadana.Domain.Modules.Orders.Enums;
 using Zadana.SharedKernel.Exceptions;
 
@@ -280,40 +281,46 @@ public class AdminOrderCasesController : ApiControllerBase
     public async Task<ActionResult<AdminOrderCaseStatsResponse>> GetStats(CancellationToken cancellationToken = default)
     {
         var now = DateTime.UtcNow;
-        var activeCases = _dbContext.OrderSupportCases
+
+        var activeCasesQuery = _dbContext.OrderSupportCases
+            .AsNoTracking()
             .Where(c => c.Status != OrderSupportCaseStatus.Rejected && c.Status != OrderSupportCaseStatus.Resolved);
 
-        var totalOpen = await activeCases.CountAsync(cancellationToken);
+        var totalOpen = await activeCasesQuery.CountAsync(cancellationToken);
 
-        var byStatus = await _dbContext.OrderSupportCases
-            .GroupBy(c => c.Status)
-            .Select(g => new AdminCaseCountByLabel(g.Key.ToString(), g.Count()))
-            .ToListAsync(cancellationToken);
+        var byStatus = await MapEnumGroupCountsAsync(
+            _dbContext.OrderSupportCases.AsNoTracking(),
+            entity => entity.Status,
+            cancellationToken);
 
-        var byPriority = await activeCases
-            .GroupBy(c => c.Priority)
-            .Select(g => new AdminCaseCountByLabel(g.Key.ToString(), g.Count()))
-            .ToListAsync(cancellationToken);
+        var byPriority = await MapEnumGroupCountsAsync(
+            activeCasesQuery,
+            entity => entity.Priority,
+            cancellationToken);
 
-        var byQueue = await activeCases
-            .GroupBy(c => c.Queue)
-            .Select(g => new AdminCaseCountByLabel(g.Key.ToString(), g.Count()))
-            .ToListAsync(cancellationToken);
+        var byQueue = await MapEnumGroupCountsAsync(
+            activeCasesQuery,
+            entity => entity.Queue,
+            cancellationToken);
 
-        var byType = await activeCases
-            .GroupBy(c => c.Type)
-            .Select(g => new AdminCaseCountByLabel(g.Key.ToString(), g.Count()))
-            .ToListAsync(cancellationToken);
+        var byType = await MapEnumGroupCountsAsync(
+            activeCasesQuery,
+            entity => entity.Type,
+            cancellationToken);
 
-        var slaBreachedCount = await activeCases
+        var slaBreachedCount = await activeCasesQuery
             .Where(c => c.SlaDueAtUtc != null && c.SlaDueAtUtc < now)
             .CountAsync(cancellationToken);
 
-        var avgResolutionHours = await _dbContext.OrderSupportCases
+        var closedCases = await _dbContext.OrderSupportCases
+            .AsNoTracking()
             .Where(c => c.ClosedAtUtc != null)
-            .Select(c => EF.Functions.DateDiffHour(c.CreatedAtUtc, c.ClosedAtUtc!.Value))
-            .DefaultIfEmpty(0)
-            .AverageAsync(cancellationToken);
+            .Select(c => new { c.CreatedAtUtc, ClosedAtUtc = c.ClosedAtUtc!.Value })
+            .ToListAsync(cancellationToken);
+
+        var avgResolutionHours = closedCases.Count == 0
+            ? 0
+            : closedCases.Average(item => (item.ClosedAtUtc - item.CreatedAtUtc).TotalHours);
 
         return Ok(new AdminOrderCaseStatsResponse(
             totalOpen,
@@ -323,6 +330,22 @@ public class AdminOrderCasesController : ApiControllerBase
             byPriority,
             byQueue,
             byType));
+    }
+
+    private static async Task<List<AdminCaseCountByLabel>> MapEnumGroupCountsAsync<TEnum>(
+        IQueryable<OrderSupportCase> query,
+        System.Linq.Expressions.Expression<Func<OrderSupportCase, TEnum>> keySelector,
+        CancellationToken cancellationToken)
+        where TEnum : struct, Enum
+    {
+        var groups = await query
+            .GroupBy(keySelector)
+            .Select(group => new { group.Key, Count = group.Count() })
+            .ToListAsync(cancellationToken);
+
+        return groups
+            .Select(group => new AdminCaseCountByLabel(group.Key.ToString(), group.Count))
+            .ToList();
     }
 }
 

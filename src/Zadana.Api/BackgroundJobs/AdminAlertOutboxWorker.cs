@@ -236,7 +236,7 @@ public sealed class AdminAlertOutboxWorker : BackgroundService
                     pushResult.Reason);
             }
 
-            if (ShouldCreatePushFailureAlert() && pushResult.Attempted && !pushResult.Sent && !alertEvent.SuppressPush && alertEvent.Type != AdminAlertTypes.SystemOneSignalFailure)
+            if (ShouldCreatePushFailureAlert(pushResult) && !alertEvent.SuppressPush && alertEvent.Type != AdminAlertTypes.SystemOneSignalFailure)
             {
                 await adminAlertService.SendAsync(
                     new AdminAlertRequest(
@@ -413,7 +413,8 @@ public sealed class AdminAlertOutboxWorker : BackgroundService
         return RetryDelays[index];
     }
 
-    private static bool ShouldCreatePushFailureAlert() => true;
+    private static bool ShouldCreatePushFailureAlert(OneSignalPushDispatchResult pushResult) =>
+        pushResult.Attempted && !pushResult.Sent && !pushResult.Skipped;
 
     private static JsonElement? TryParseJson(string? json)
     {

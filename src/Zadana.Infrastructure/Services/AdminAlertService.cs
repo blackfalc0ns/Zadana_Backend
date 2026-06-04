@@ -126,8 +126,16 @@ public sealed class AdminAlertService : IAdminAlertService
         return JsonSerializer.Serialize(envelope, JsonOptions);
     }
 
-    private static string BuildDedupeKey(AdminAlertRequest request) =>
-        $"{request.Type.Trim().ToLowerInvariant()}|{request.ReferenceId?.ToString("N") ?? "none"}|{request.TargetUrl.Trim().ToLowerInvariant()}";
+    private static string BuildDedupeKey(AdminAlertRequest request)
+    {
+        var type = request.Type.Trim().ToLowerInvariant();
+        if (string.Equals(type, AdminAlertTypes.SystemOneSignalFailure, StringComparison.Ordinal))
+        {
+            return type;
+        }
+
+        return $"{type}|{request.ReferenceId?.ToString("N") ?? "none"}|{request.TargetUrl.Trim().ToLowerInvariant()}";
+    }
 
     private static TimeSpan ResolveDedupeWindow(AdminAlertRequest request)
     {
@@ -136,8 +144,12 @@ public sealed class AdminAlertService : IAdminAlertService
             return TimeSpan.FromHours(6);
         }
 
-        if (string.Equals(request.Type, AdminAlertTypes.SystemIntegrationFailure, StringComparison.OrdinalIgnoreCase) ||
-            string.Equals(request.Type, AdminAlertTypes.SystemOneSignalFailure, StringComparison.OrdinalIgnoreCase))
+        if (string.Equals(request.Type, AdminAlertTypes.SystemOneSignalFailure, StringComparison.OrdinalIgnoreCase))
+        {
+            return TimeSpan.FromHours(6);
+        }
+
+        if (string.Equals(request.Type, AdminAlertTypes.SystemIntegrationFailure, StringComparison.OrdinalIgnoreCase))
         {
             return TimeSpan.FromMinutes(1);
         }

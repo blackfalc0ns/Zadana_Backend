@@ -41,6 +41,8 @@ public class AdminAuthController : IdentityAuthControllerBase
     {
         var cookieName = _environment.IsProduction() ? "__Host-XSRF-AF" : "XSRF-AF";
         Response.Cookies.Delete(cookieName);
+        // Keep the readable token cookie in sync with the antiforgery cookie pair.
+        Response.Cookies.Delete("XSRF-TOKEN");
     }
 
     /// <summary>

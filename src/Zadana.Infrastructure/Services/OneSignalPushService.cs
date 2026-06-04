@@ -380,6 +380,33 @@ public sealed class OneSignalPushService : IOneSignalPushService
                     .Distinct(StringComparer.Ordinal)
                     .ToArray();
 
+                if (resolvedTargetApplication == OneSignalApplicationTarget.AdminWeb)
+                {
+                    var subscriptionFirstPayload = await BuildSubscriptionPayloadAsync(
+                        lookupBatch,
+                        sanitized,
+                        referenceId,
+                        resolvedTargetUrl,
+                        appConfiguration.AppId,
+                        appConfiguration.RestApiKey,
+                        profile,
+                        notificationEventId,
+                        Guid.NewGuid(),
+                        preferredLocale,
+                        category,
+                        cancellationToken);
+
+                    if (subscriptionFirstPayload is not null)
+                    {
+                        var subscriptionFirstResult = await SendPayloadAsync(subscriptionFirstPayload, cancellationToken);
+                        if (subscriptionFirstResult.Sent)
+                        {
+                            results.Add(subscriptionFirstResult);
+                            continue;
+                        }
+                    }
+                }
+
                 var preparedPayload = BuildPayload(
                     batch,
                     sanitized,
@@ -1444,7 +1471,8 @@ public sealed class OneSignalPushService : IOneSignalPushService
         if (string.IsNullOrWhiteSpace(configuredDefaultWebUrl) ||
             !Uri.TryCreate(configuredDefaultWebUrl, UriKind.Absolute, out var baseUri))
         {
-            return requestedTargetUrl;
+            // OneSignal web push requires an absolute URL; relative paths are ignored here.
+            return null;
         }
 
         return new Uri(baseUri, requestedTargetUrl).ToString();

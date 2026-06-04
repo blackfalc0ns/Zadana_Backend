@@ -950,6 +950,45 @@ public class OrderReadService : IOrderReadService
             safePage < totalPages);
     }
 
+    private static IQueryable<OrderSupportCase> ApplyAdminSupportCaseTypeFilter(
+        IQueryable<OrderSupportCase> query,
+        string? type)
+    {
+        if (string.IsNullOrWhiteSpace(type) ||
+            string.Equals(type, "ALL", StringComparison.OrdinalIgnoreCase))
+        {
+            return query.Where(item => item.Type != OrderSupportCaseType.Complaint);
+        }
+
+        if (type.Contains(',', StringComparison.Ordinal))
+        {
+            var tokens = type
+                .Split(',', StringSplitOptions.RemoveEmptyEntries | StringSplitOptions.TrimEntries)
+                .Select(token => token.ToLowerInvariant())
+                .ToHashSet(StringComparer.Ordinal);
+
+            return query.Where(item =>
+                (tokens.Contains("return_request") && item.Type == OrderSupportCaseType.ReturnRequest) ||
+                (tokens.Contains("driver_dispute") && item.Type == OrderSupportCaseType.DriverDispute) ||
+                (tokens.Contains("driver_report") && item.Type == OrderSupportCaseType.DriverReport) ||
+                ((tokens.Contains("driver_account") || tokens.Contains("driver_account_appeal")) &&
+                 item.Type == OrderSupportCaseType.DriverAccountAppeal) ||
+                ((tokens.Contains("complaint") || tokens.Contains("support")) &&
+                 item.Type == OrderSupportCaseType.Complaint));
+        }
+
+        var normalizedType = type.Trim().ToLowerInvariant();
+        return normalizedType switch
+        {
+            "return_request" => query.Where(item => item.Type == OrderSupportCaseType.ReturnRequest),
+            "complaint" or "support" => query.Where(item => item.Type == OrderSupportCaseType.Complaint),
+            "driver_report" => query.Where(item => item.Type == OrderSupportCaseType.DriverReport),
+            "driver_dispute" => query.Where(item => item.Type == OrderSupportCaseType.DriverDispute),
+            "driver_account" or "driver_account_appeal" => query.Where(item => item.Type == OrderSupportCaseType.DriverAccountAppeal),
+            _ => query
+        };
+    }
+
     private static IQueryable<OrderSupportCase> ApplyAdminSupportCaseFilters(
         IQueryable<OrderSupportCase> query,
         string? search,
@@ -980,24 +1019,7 @@ public class OrderReadService : IOrderReadService
             }
         }
 
-        if (string.IsNullOrWhiteSpace(type) ||
-            string.Equals(type, "ALL", StringComparison.OrdinalIgnoreCase))
-        {
-            query = query.Where(item => item.Type != OrderSupportCaseType.Complaint);
-        }
-        else
-        {
-            var normalizedType = type.Trim().ToLowerInvariant();
-            query = normalizedType switch
-            {
-                "return_request" => query.Where(item => item.Type == OrderSupportCaseType.ReturnRequest),
-                "complaint" or "support" => query.Where(item => item.Type == OrderSupportCaseType.Complaint),
-                "driver_report" => query.Where(item => item.Type == OrderSupportCaseType.DriverReport),
-                "driver_dispute" => query.Where(item => item.Type == OrderSupportCaseType.DriverDispute),
-                "driver_account" or "driver_account_appeal" => query.Where(item => item.Type == OrderSupportCaseType.DriverAccountAppeal),
-                _ => query
-            };
-        }
+        query = ApplyAdminSupportCaseTypeFilter(query, type);
 
         if (!string.IsNullOrWhiteSpace(status) &&
             !string.Equals(status, "ALL", StringComparison.OrdinalIgnoreCase))
@@ -2414,7 +2436,7 @@ public class OrderReadService : IOrderReadService
         return new AdminOrderSupportCaseListItemDto(
             supportCase.Id,
             order?.Id,
-            order?.Id.ToString() ?? $"driver-account:{supportCase.DriverId}",
+            order?.OrderNumber ?? L("حساب مندوب", "Driver account"),
             order?.User.FullName ?? "Driver account",
             order?.User.Email ?? string.Empty,
             order?.Vendor.BusinessNameAr ?? "Driver operations",
@@ -2429,7 +2451,7 @@ public class OrderReadService : IOrderReadService
             ResolveAdminSupportCaseStatusLabel(ResolveDisplaySupportCaseStatus(supportCase, couponSupportMap)),
             MapSupportCasePriority(supportCase.Priority),
             ResolveSupportCasePriorityLabel(supportCase.Priority),
-            supportCase.AssignedAdminId.HasValue ? "Assigned admin" : ResolveQueueLabel(supportCase.Queue),
+            supportCase.AssignedAdminId.HasValue ? L("مراجع مسند", "Assigned admin") : ResolveQueueLabel(supportCase.Queue),
             MapSupportCaseQueue(supportCase.Queue),
             ResolveQueueLabel(supportCase.Queue),
             MapRiskLevel(supportCase.Priority),

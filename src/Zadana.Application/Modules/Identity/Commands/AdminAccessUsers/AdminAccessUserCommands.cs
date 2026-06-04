@@ -76,6 +76,14 @@ public sealed class CreateAdminAccessUserCommandHandler
         CancellationToken cancellationToken)
     {
         var role = await LoadActiveRoleAsync(_context, request.RoleDefinitionId, cancellationToken);
+
+        if (role.PanelScope != PanelScope.SuperAdminPanel || request.PanelScope != PanelScope.SuperAdminPanel)
+        {
+            throw new BusinessRuleException(
+                "ADMIN_PANEL_CREATE_ONLY",
+                "Only super admin panel accounts can be created from the access directory.");
+        }
+
         await _validationService.EnsureCanMutateUserAccessAsync(
             Guid.Empty,
             role.IdentityRole,
@@ -87,63 +95,70 @@ public sealed class CreateAdminAccessUserCommandHandler
             cancellationToken,
             request.Email.Trim().ToLowerInvariant());
 
-        return await _transaction.ExecuteAsync(async ct =>
+        return await _transaction.ExecuteAsync(
+            ct => CreateNewAccountAccessAsync(request, role, ct),
+            cancellationToken);
+    }
+
+    private async Task<AdminUserRecordDto> CreateNewAccountAccessAsync(
+        CreateAdminAccessUserCommand request,
+        RoleDefinition role,
+        CancellationToken cancellationToken)
+    {
+        var createResult = await _identityAccountService.CreateAsync(
+            new CreateIdentityAccountRequest(
+                request.FullName,
+                request.Email,
+                request.Phone,
+                role.IdentityRole,
+                request.Password),
+            cancellationToken);
+
+        if (createResult.Status == IdentityCreateStatus.DuplicateEmailOrPhone)
         {
-            var createResult = await _identityAccountService.CreateAsync(
-                new CreateIdentityAccountRequest(
-                    request.FullName,
-                    request.Email,
-                    request.Phone,
-                    role.IdentityRole,
-                    request.Password),
-                ct);
+            throw new BusinessRuleException("USER_ALREADY_EXISTS", "Email or phone number is already in use.");
+        }
 
-            if (createResult.Status == IdentityCreateStatus.DuplicateEmailOrPhone)
-            {
-                throw new BusinessRuleException("USER_ALREADY_EXISTS", "Email or phone number is already in use.");
-            }
+        if (createResult.Status != IdentityCreateStatus.Succeeded || createResult.Account is null)
+        {
+            throw new BusinessRuleException(
+                "IDENTITY_CREATE_FAILED",
+                string.Join(", ", createResult.Errors ?? ["Unable to create the user account."]));
+        }
 
-            if (createResult.Status != IdentityCreateStatus.Succeeded || createResult.Account is null)
-            {
-                throw new BusinessRuleException(
-                    "IDENTITY_CREATE_FAILED",
-                    string.Join(", ", createResult.Errors ?? ["Unable to create the user account."]));
-            }
+        var user = await _context.Users.FindAsync([createResult.Account.Id], cancellationToken)
+            ?? throw new NotFoundException(nameof(User), createResult.Account.Id);
 
-            var user = await _context.Users.FindAsync([createResult.Account.Id], ct)
-                ?? throw new NotFoundException(nameof(User), createResult.Account.Id);
+        var normalizedScopeEntityId = await _validationService.NormalizeAndValidateScopeAsync(
+            role,
+            request.PanelScope,
+            request.ScopeType,
+            request.ScopeEntityId,
+            user.Id,
+            cancellationToken);
 
-            var normalizedScopeEntityId = await _validationService.NormalizeAndValidateScopeAsync(
-                role,
-                request.PanelScope,
-                request.ScopeType,
-                request.ScopeEntityId,
-                user.Id,
-                ct);
+        user.UpdateDirectoryProfile(request.Department, request.Team);
+        user.VerifyEmail();
+        user.RequirePasswordChange();
+        _context.UserAccessScopes.Add(new UserAccessScope(
+            user.Id,
+            role.Id,
+            request.PanelScope,
+            request.ScopeType,
+            normalizedScopeEntityId,
+            request.Notes));
+        user.IncrementPermissionVersion();
 
-            user.UpdateDirectoryProfile(request.Department, request.Team);
-            user.VerifyEmail();
-            user.RequirePasswordChange();
-            _context.UserAccessScopes.Add(new UserAccessScope(
-                user.Id,
-                role.Id,
-                request.PanelScope,
-                request.ScopeType,
-                normalizedScopeEntityId,
-                request.Notes));
-            user.IncrementPermissionVersion();
+        _auditService.Add(
+            user.Id,
+            "access-user-created",
+            $"Access account created with role {role.Code}.",
+            after: Snapshot(user, role, request.PanelScope, request.ScopeType, normalizedScopeEntityId, [], []));
+        _auditService.Add(user.Id, "password-reset-required", "Temporary password requires first-login change.");
 
-            _auditService.Add(
-                user.Id,
-                "access-user-created",
-                $"Access account created with role {role.Code}.",
-                after: Snapshot(user, role, request.PanelScope, request.ScopeType, normalizedScopeEntityId, [], []));
-            _auditService.Add(user.Id, "password-reset-required", "Temporary password requires first-login change.");
-
-            await _context.SaveChangesAsync(ct);
-            await _emailVerificationSender.SendAsync(user.Id, ct);
-            return await ProjectUserAsync(_context, user.Id, ct);
-        }, cancellationToken);
+        await _context.SaveChangesAsync(cancellationToken);
+        await _emailVerificationSender.SendAsync(user.Id, cancellationToken);
+        return await ProjectUserAsync(_context, user.Id, cancellationToken);
     }
 
     internal static async Task<RoleDefinition> LoadActiveRoleAsync(

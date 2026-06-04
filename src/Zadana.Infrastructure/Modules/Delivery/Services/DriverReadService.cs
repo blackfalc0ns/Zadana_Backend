@@ -1,3 +1,4 @@
+using System.Globalization;
 using Microsoft.EntityFrameworkCore;
 using Zadana.Application.Common.Interfaces;
 using Zadana.Application.Modules.Delivery.DTOs;
@@ -1431,7 +1432,7 @@ public class DriverReadService : IDriverReadService
                 "DRIVER_ACCOUNT_APPEAL",
                 MapDriverAccountSupportStatus(supportCase.Status),
                 supportCase.Priority.ToString().ToUpperInvariant(),
-                supportCase.AssignedAdminId.HasValue ? "Assigned admin" : "Driver operations",
+                supportCase.AssignedAdminId.HasValue ? L("مراجع مسند", "Assigned admin") : L("عمليات المندوبين", "Driver operations"),
                 supportCase.UpdatedAtUtc,
                 null))
             .ToArray();
@@ -1762,5 +1763,8 @@ public class DriverReadService : IDriverReadService
 
     private static string? BuildExpiryInfo(DateTime? expiryDate) =>
         expiryDate.HasValue ? expiryDate.Value.ToString("yyyy-MM-dd") : null;
+
+    private static string L(string ar, string en) =>
+        CultureInfo.CurrentUICulture.TwoLetterISOLanguageName == "ar" ? ar : en;
 
 }
