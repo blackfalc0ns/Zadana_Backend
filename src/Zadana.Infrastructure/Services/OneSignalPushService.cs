@@ -366,6 +366,7 @@ public sealed class OneSignalPushService : IOneSignalPushService
 
         foreach (var localeBatch in recipientsByLocale)
         {
+            var preferredLocale = ResolvePreferredLocaleForBatch(localeBatch.Locale, resolvedTargetApplication);
             var localePushExternalUserIds = localeBatch.ExternalUserIds
                 .Select(recipientIdentity.ResolvePushExternalUserId)
                 .Distinct(StringComparer.Ordinal)
@@ -389,7 +390,7 @@ public sealed class OneSignalPushService : IOneSignalPushService
                     profile,
                     notificationEventId,
                     Guid.NewGuid(),
-                    localeBatch.Locale);
+                    preferredLocale);
 
                 try
                 {
@@ -428,7 +429,7 @@ public sealed class OneSignalPushService : IOneSignalPushService
                         profile,
                         notificationEventId,
                         Guid.NewGuid(),
-                        localeBatch.Locale,
+                        preferredLocale,
                         category,
                         cancellationToken);
 
@@ -442,7 +443,7 @@ public sealed class OneSignalPushService : IOneSignalPushService
                         profile,
                         notificationEventId,
                         Guid.NewGuid(),
-                        localeBatch.Locale,
+                        preferredLocale,
                         cancellationToken);
 
                     if (subscriptionPayload is not null)
@@ -959,6 +960,32 @@ public sealed class OneSignalPushService : IOneSignalPushService
         var englishText = FirstNonEmpty(english, arabic, fallback);
         var arabicText = FirstNonEmpty(arabic, english, fallback);
 
+        // OneSignal decides which language to display from each subscriber's own
+        // OneSignal language tag (auto-detected by the browser) and falls back to the
+        // "en" entry when there is no match. That makes the displayed language depend on
+        // the browser instead of the recipient's registered device locale, so the same
+        // alert can show in English on one browser and Arabic on another.
+        // When we already resolved the recipient batch's locale, pin that language into
+        // every slot (including the "en" fallback) so the chosen language wins deterministically.
+        var normalizedLocale = NormalizeLocale(preferredLocale);
+        if (normalizedLocale == "ar")
+        {
+            return new Dictionary<string, string>
+            {
+                ["en"] = arabicText,
+                ["ar"] = arabicText
+            };
+        }
+
+        if (normalizedLocale == "en")
+        {
+            return new Dictionary<string, string>
+            {
+                ["en"] = englishText,
+                ["ar"] = englishText
+            };
+        }
+
         return new Dictionary<string, string>
         {
             ["en"] = englishText,
@@ -1100,6 +1127,11 @@ public sealed class OneSignalPushService : IOneSignalPushService
 
         return null;
     }
+
+    private static string? ResolvePreferredLocaleForBatch(
+        string? deviceLocale,
+        OneSignalApplicationTarget targetApplication) =>
+        NormalizeLocale(deviceLocale) ?? (targetApplication == OneSignalApplicationTarget.AdminWeb ? "ar" : null);
 
     private (string AppId, string RestApiKey) ResolveAppConfiguration(
         OneSignalApplicationTarget targetApplication)

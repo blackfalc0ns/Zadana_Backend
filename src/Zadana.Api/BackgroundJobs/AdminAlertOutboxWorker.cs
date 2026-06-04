@@ -1,5 +1,6 @@
 using System.Text.Json;
 using Microsoft.AspNetCore.SignalR;
+using Microsoft.Data.SqlClient;
 using Microsoft.EntityFrameworkCore;
 using Zadana.Api.Realtime;
 using Zadana.Application.Common.Interfaces;
@@ -62,25 +63,66 @@ public sealed class AdminAlertOutboxWorker : BackgroundService
 
     private async Task ProcessReadyEventsAsync(CancellationToken cancellationToken)
     {
-        using var scope = _scopeFactory.CreateScope();
-        var context = scope.ServiceProvider.GetRequiredService<ApplicationDbContext>();
-        var pushService = scope.ServiceProvider.GetRequiredService<IOneSignalPushService>();
-        var adminAlertService = scope.ServiceProvider.GetRequiredService<IAdminAlertService>();
         var now = DateTime.UtcNow;
 
-        var events = await context.AdminAlertEvents
-            .Include(item => item.Dispatches)
+        await using var scope = _scopeFactory.CreateAsyncScope();
+        var context = scope.ServiceProvider.GetRequiredService<ApplicationDbContext>();
+
+        var eventIds = await context.AdminAlertEvents
+            .AsNoTracking()
             .Where(item =>
                 (item.Status == AdminAlertEventStatus.Pending || item.Status == AdminAlertEventStatus.FailedRetryable) &&
                 (!item.NextAttemptAtUtc.HasValue || item.NextAttemptAtUtc <= now))
             .OrderBy(item => item.CreatedAtUtc)
+            .Select(item => item.Id)
             .Take(BatchSize)
             .ToListAsync(cancellationToken);
 
-        foreach (var alertEvent in events)
+        foreach (var eventId in eventIds)
         {
-            await ProcessEventAsync(context, pushService, adminAlertService, alertEvent, cancellationToken);
+            await using var eventScope = _scopeFactory.CreateAsyncScope();
+            var eventContext = eventScope.ServiceProvider.GetRequiredService<ApplicationDbContext>();
+            var pushService = eventScope.ServiceProvider.GetRequiredService<IOneSignalPushService>();
+            var adminAlertService = eventScope.ServiceProvider.GetRequiredService<IAdminAlertService>();
+
+            if (!await TryClaimEventAsync(eventContext, eventId, now, cancellationToken))
+            {
+                continue;
+            }
+
+            var alertEvent = await eventContext.AdminAlertEvents
+                .Include(item => item.Dispatches)
+                .FirstOrDefaultAsync(item => item.Id == eventId, cancellationToken);
+
+            if (alertEvent is null)
+            {
+                continue;
+            }
+
+            await ProcessEventAsync(eventContext, pushService, adminAlertService, alertEvent, cancellationToken);
         }
+    }
+
+    private static async Task<bool> TryClaimEventAsync(
+        ApplicationDbContext context,
+        Guid eventId,
+        DateTime now,
+        CancellationToken cancellationToken)
+    {
+        var rowsAffected = await context.AdminAlertEvents
+            .Where(item =>
+                item.Id == eventId &&
+                (item.Status == AdminAlertEventStatus.Pending || item.Status == AdminAlertEventStatus.FailedRetryable) &&
+                (!item.NextAttemptAtUtc.HasValue || item.NextAttemptAtUtc <= now))
+            .ExecuteUpdateAsync(setters => setters
+                .SetProperty(item => item.Status, AdminAlertEventStatus.Processing)
+                .SetProperty(item => item.Attempts, item => item.Attempts + 1)
+                .SetProperty(item => item.LastAttemptAtUtc, now)
+                .SetProperty(item => item.LastError, (string?)null)
+                .SetProperty(item => item.UpdatedAtUtc, now),
+                cancellationToken);
+
+        return rowsAffected > 0;
     }
 
     private async Task ProcessEventAsync(
@@ -90,9 +132,6 @@ public sealed class AdminAlertOutboxWorker : BackgroundService
         AdminAlertEvent alertEvent,
         CancellationToken cancellationToken)
     {
-        alertEvent.MarkProcessing();
-        await context.SaveChangesAsync(cancellationToken);
-
         try
         {
             var recipientIds = await context.Users
@@ -106,13 +145,11 @@ public sealed class AdminAlertOutboxWorker : BackgroundService
 
             foreach (var recipientId in recipientIds)
             {
-                var dispatch = alertEvent.Dispatches.FirstOrDefault(item => item.AdminUserId == recipientId);
-                if (dispatch is null)
-                {
-                    dispatch = new AdminAlertDispatch(alertEvent.Id, recipientId);
-                    alertEvent.Dispatches.Add(dispatch);
-                    context.AdminAlertDispatches.Add(dispatch);
-                }
+                var dispatch = await GetOrCreateDispatchAsync(
+                    context,
+                    alertEvent,
+                    recipientId,
+                    cancellationToken);
 
                 if (!dispatch.NotificationId.HasValue)
                 {
@@ -131,16 +168,16 @@ public sealed class AdminAlertOutboxWorker : BackgroundService
                     context.Notifications.Add(notification);
                     await context.SaveChangesAsync(cancellationToken);
                     dispatch.MarkPersisted(notification.Id);
+                    await context.SaveChangesAsync(cancellationToken);
                 }
 
                 if (!dispatch.SignalRSent && dispatch.NotificationId.HasValue)
                 {
                     await SendSignalRAsync(recipientId, dispatch.NotificationId.Value, alertEvent, cancellationToken);
                     dispatch.MarkSignalRSent();
+                    await context.SaveChangesAsync(cancellationToken);
                 }
             }
-
-            await context.SaveChangesAsync(cancellationToken);
 
             var pushRecipientIds = alertEvent.SuppressPush
                 ? new List<Guid>()
@@ -162,7 +199,11 @@ public sealed class AdminAlertOutboxWorker : BackgroundService
                     OneSignalApplicationTarget.AdminWeb,
                     cancellationToken));
 
-            foreach (var dispatch in alertEvent.Dispatches.Where(item => recipientIds.Contains(item.AdminUserId)))
+            var dispatches = await context.AdminAlertDispatches
+                .Where(item => item.AdminAlertEventId == alertEvent.Id && recipientIds.Contains(item.AdminUserId))
+                .ToListAsync(cancellationToken);
+
+            foreach (var dispatch in dispatches)
             {
                 var wasPushCandidate = pushRecipientIds.Contains(dispatch.AdminUserId);
                 dispatch.MarkPushResult(
@@ -180,7 +221,7 @@ public sealed class AdminAlertOutboxWorker : BackgroundService
                 alertEvent.Id,
                 alertEvent.Type,
                 recipientIds.Count,
-                alertEvent.Dispatches.Count(item => item.SignalRSent),
+                dispatches.Count(item => item.SignalRSent),
                 pushResult.Attempted,
                 pushResult.Sent,
                 pushResult.Skipped);
@@ -232,6 +273,74 @@ public sealed class AdminAlertOutboxWorker : BackgroundService
                 alertEvent.Attempts,
                 alertEvent.Status);
         }
+    }
+
+    private async Task<AdminAlertDispatch> GetOrCreateDispatchAsync(
+        ApplicationDbContext context,
+        AdminAlertEvent alertEvent,
+        Guid recipientId,
+        CancellationToken cancellationToken)
+    {
+        var dispatch = await context.AdminAlertDispatches
+            .FirstOrDefaultAsync(
+                item => item.AdminAlertEventId == alertEvent.Id && item.AdminUserId == recipientId,
+                cancellationToken);
+
+        if (dispatch is not null)
+        {
+            return dispatch;
+        }
+
+        dispatch = new AdminAlertDispatch(alertEvent.Id, recipientId);
+        context.AdminAlertDispatches.Add(dispatch);
+
+        try
+        {
+            await context.SaveChangesAsync(cancellationToken);
+            return dispatch;
+        }
+        catch (DbUpdateException ex) when (IsDuplicateDispatchKey(ex))
+        {
+            DetachAddedDispatches(context, alertEvent.Id, recipientId);
+
+            _logger.LogWarning(
+                "Admin alert dispatch row for event {EventId} and admin {AdminUserId} already exists; reusing persisted row.",
+                alertEvent.Id,
+                recipientId);
+
+            return await context.AdminAlertDispatches
+                .FirstAsync(
+                    item => item.AdminAlertEventId == alertEvent.Id && item.AdminUserId == recipientId,
+                    cancellationToken);
+        }
+    }
+
+    private static void DetachAddedDispatches(
+        ApplicationDbContext context,
+        Guid eventId,
+        Guid adminUserId)
+    {
+        foreach (var entry in context.ChangeTracker.Entries<AdminAlertDispatch>()
+                     .Where(item =>
+                         item.State == EntityState.Added &&
+                         item.Entity.AdminAlertEventId == eventId &&
+                         item.Entity.AdminUserId == adminUserId))
+        {
+            entry.State = EntityState.Detached;
+        }
+    }
+
+    private static bool IsDuplicateDispatchKey(DbUpdateException exception)
+    {
+        for (var current = exception.InnerException; current is not null; current = current.InnerException)
+        {
+            if (current is SqlException sql && (sql.Number == 2601 || sql.Number == 2627))
+            {
+                return true;
+            }
+        }
+
+        return false;
     }
 
     private async Task SendSignalRAsync(

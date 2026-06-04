@@ -25,6 +25,7 @@ const WARMUP_DURATION = __ENV.WARMUP_DURATION || '15s';
 const RAMP_DURATION = __ENV.RAMP_DURATION || '30s';
 const SUSTAIN_DURATION = __ENV.SUSTAIN_DURATION || '30s';
 const COOLDOWN_DURATION = __ENV.COOLDOWN_DURATION || '15s';
+const BUST_CACHE = (__ENV.BUST_CACHE || 'false').toLowerCase() === 'true';
 
 const errorRate = new Rate('errors');
 const latency = new Trend('latency_ms', true);
@@ -75,7 +76,13 @@ const headers = {
 
 export function browse() {
   const path = PUBLIC_PATHS[randomIntBetween(0, PUBLIC_PATHS.length - 1)];
-  const res = http.get(`${BASE_URL}${path}`, { headers, timeout: '15s' });
+  const separator = path.includes('?') ? '&' : '?';
+  const cacheBust = BUST_CACHE ? `${separator}_cb=${__VU}-${__ITER}-${Date.now()}` : '';
+  const res = http.get(`${BASE_URL}${path}${cacheBust}`, {
+    headers,
+    timeout: '15s',
+    tags: { name: path },
+  });
   check(res, {
     '2xx/304': r => r.status < 400 || r.status === 304,
   });

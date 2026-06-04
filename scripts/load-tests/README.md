@@ -1,10 +1,11 @@
 # Zadana API — Load Testing
 
-Four k6 scenarios covering the full performance envelope:
+Five k6 scenarios covering the full performance envelope:
 
 | File | Purpose | Duration | Peak RPS |
 |------|---------|----------|----------|
 | `capacity-1000u-500orders.js` | Validate the requested target shape (1k active customers / 500 active orders / 20 vendors / 10 reviewers / 200 drivers) | configurable, default 18 min | workload-shaped |
+| `limit-finder-mixed.js` | Ramp public + optional protected workloads until latency, drops, 429s, or 5xx reveal the ceiling | configurable, default ~4 min | configurable |
 | `steady-realistic.js` | Validate SLO at expected peak (1k users / 500 drivers / 1k orders / 200 vendors) | 10 min | ~50 |
 | `stress-extreme.js`   | Find the breaking point across every hot path simultaneously | 8 min | ~17,000 combined |
 | `spike-write-storm.js` | Worst-case write storm on driver location endpoint | 4 min | 10,000 |
@@ -78,6 +79,32 @@ k6 run `
 If any threshold fails, k6 exits non-zero and prints which one breached.
 
 ## Push it until it breaks (stress)
+
+For the mixed limit finder, start public-only locally, then add tokens on staging:
+
+```powershell
+k6 run `
+  -e BASE_URL=http://localhost:5298 `
+  -e PUBLIC_MAX_RPS=5000 `
+  scripts/load-tests/limit-finder-mixed.js
+```
+
+Full staging version:
+
+```powershell
+k6 run `
+  -e BASE_URL=https://staging.zadana.com `
+  -e CUSTOMER_TOKENS=$env:CUSTOMER_TOKENS `
+  -e DRIVER_TOKENS=$env:DRIVER_TOKENS `
+  -e VENDOR_TOKENS=$env:VENDOR_TOKENS `
+  -e REVIEWER_TOKENS=$env:REVIEWER_TOKENS `
+  -e ORDER_IDS=$env:ORDER_IDS `
+  -e ADDRESS_IDS=$env:ADDRESS_IDS `
+  -e ALLOW_DRIVER_WRITES=true `
+  scripts/load-tests/limit-finder-mixed.js
+```
+
+Read this one by stage: first sustained `dropped_iterations`, `429`, `5xx`, or p95 above your SLO is the practical limit for that environment.
 
 ```powershell
 k6 run `

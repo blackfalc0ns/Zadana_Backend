@@ -9,6 +9,8 @@ using Microsoft.Extensions.Logging.Abstractions;
 using Microsoft.Extensions.Options;
 using Zadana.Application.Common.Interfaces;
 using Zadana.Domain.Modules.Delivery.Entities;
+using Zadana.Domain.Modules.Identity.Entities;
+using Zadana.Domain.Modules.Identity.Enums;
 using Zadana.Infrastructure.Persistence;
 using Zadana.Infrastructure.Persistence.Interceptors;
 using Zadana.Infrastructure.Services;
@@ -641,6 +643,60 @@ public class OneSignalPushServiceTests
     public void IsValidOneSignalSubscriptionId_ShouldOnlyAcceptUuidValues(string? value, bool expected)
     {
         OneSignalPushService.IsValidOneSignalSubscriptionId(value).Should().Be(expected);
+    }
+
+    [Fact]
+    public async Task SendToExternalUsersAsync_WithAdminWebAndArabicDeviceLocale_ShouldPinArabicIntoEnglishFallbackSlot()
+    {
+        await using var dbContext = CreateDbContext();
+        var adminUserId = Guid.Parse("a1b2c3d4-e5f6-7890-abcd-ef1234567890");
+        var subscriptionId = Guid.Parse("2c10f9d2-35f4-4c0d-8e44-38f10f0dced1");
+        dbContext.UserPushDevices.Add(new UserPushDevice(
+            adminUserId,
+            subscriptionId.ToString(),
+            PushPlatform.Web,
+            deviceId: $"admin-web-{adminUserId}",
+            deviceName: "Edge",
+            appVersion: "superadmin-panel",
+            locale: "ar",
+            notificationsEnabled: true));
+        await dbContext.SaveChangesAsync();
+
+        var handler = new RecordingHttpMessageHandler(HttpStatusCode.OK, """{"id":"admin-ar-push"}""");
+        var service = CreateService(
+            handler,
+            scopeFactory: new DbContextServiceScopeFactory(dbContext),
+            configureSettings: settings =>
+            {
+                settings.AdminWebAppId = "admin-web-app-id";
+                settings.AdminWebRestApiKey = "admin-web-rest-key";
+            });
+
+        var results = await service.SendToExternalUsersAsync(
+            [adminUserId.ToString()],
+            "طلب بدون مندوب",
+            "Order without driver",
+            "الطلب ينتظر مندوب توصيل.",
+            "Order is waiting for a driver.",
+            AdminAlertTypes.DeliveryDispatchStuck,
+            Guid.NewGuid(),
+            null,
+            "/notifications",
+            OneSignalPushProfile.Default,
+            OneSignalApplicationTarget.AdminWeb,
+            CancellationToken.None);
+
+        results.Should().ContainSingle(result => result.Sent);
+        handler.RequestBodies.Should().HaveCount(1);
+
+        using var document = JsonDocument.Parse(handler.RequestBodies[0]);
+        var headings = document.RootElement.GetProperty("headings");
+        var contents = document.RootElement.GetProperty("contents");
+
+        headings.GetProperty("en").GetString().Should().Be("طلب بدون مندوب");
+        headings.GetProperty("ar").GetString().Should().Be("طلب بدون مندوب");
+        contents.GetProperty("en").GetString().Should().Be("الطلب ينتظر مندوب توصيل.");
+        contents.GetProperty("ar").GetString().Should().Be("الطلب ينتظر مندوب توصيل.");
     }
 
     private static OneSignalPushService CreateService(
