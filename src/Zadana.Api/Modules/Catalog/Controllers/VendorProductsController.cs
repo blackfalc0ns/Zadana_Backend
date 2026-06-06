@@ -82,7 +82,6 @@ public class VendorProductsController : ApiControllerBase
             request.IdempotencyKey,
             request.Items.Select(item => new BulkCreateVendorProductItemInput(
                 item.MasterProductId,
-                item.CostPrice,
                 item.TradePrice,
                 item.SellingPrice,
                 item.CompareAtPrice,
@@ -177,7 +176,6 @@ public record BulkCreateVendorProductsRequest(
 
 public record BulkCreateVendorProductItemRequest(
     Guid MasterProductId,
-    decimal? CostPrice,
     decimal? TradePrice,
     decimal SellingPrice,
     decimal? CompareAtPrice,

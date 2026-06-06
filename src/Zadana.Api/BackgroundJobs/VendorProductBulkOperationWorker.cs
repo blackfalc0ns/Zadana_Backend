@@ -143,7 +143,7 @@ public sealed class VendorProductBulkOperationWorker : BackgroundService
                         item.SellingPrice,
                         item.StockQty,
                         item.CompareAtPrice,
-                        item.CostPrice,
+                        null,
                         item.TradePrice,
                         item.VendorBranchId);
 

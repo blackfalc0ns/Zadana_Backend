@@ -461,7 +461,7 @@ public class VendorReadService : IVendorReadService
 
     private static IReadOnlyList<VendorWorkspaceReviewItemDto> BuildFieldWorkspaceReviewItems(Vendor vendor)
     {
-        var reviewLookup = vendor.ProfileReviewItems.ToDictionary(item => item.Code, StringComparer.OrdinalIgnoreCase);
+        var reviewLookup = BuildProfileReviewLookup(vendor.ProfileReviewItems);
         var primaryBranch = GetPrimaryBranch(vendor);
         var primaryBankAccount = GetPrimaryBankAccount(vendor);
 
@@ -782,7 +782,7 @@ public class VendorReadService : IVendorReadService
         VendorBankAccountDto? primaryBankAccount,
         User? user)
     {
-        var reviewLookup = vendor.DocumentReviews.ToDictionary(item => item.Type);
+        var reviewLookup = BuildDocumentReviewLookup(vendor.DocumentReviews);
 
         return new[]
         {
@@ -1083,4 +1083,26 @@ public class VendorReadService : IVendorReadService
 
         return indicators;
     }
+
+    private static Dictionary<string, VendorProfileReviewItem> BuildProfileReviewLookup(
+        IEnumerable<VendorProfileReviewItem> items) =>
+        items
+            .Where(item => !string.IsNullOrWhiteSpace(item.Code))
+            .GroupBy(item => item.Code, StringComparer.OrdinalIgnoreCase)
+            .ToDictionary(
+                group => group.Key,
+                group => group
+                    .OrderByDescending(item => item.ReviewedAtUtc ?? item.LastSubmittedAtUtc ?? item.UpdatedAtUtc)
+                    .First(),
+                StringComparer.OrdinalIgnoreCase);
+
+    private static Dictionary<VendorDocumentType, VendorDocumentReview> BuildDocumentReviewLookup(
+        IEnumerable<VendorDocumentReview> items) =>
+        items
+            .GroupBy(item => item.Type)
+            .ToDictionary(
+                group => group.Key,
+                group => group
+                    .OrderByDescending(item => item.ReviewedAtUtc ?? item.UpdatedAtUtc)
+                    .First());
 }

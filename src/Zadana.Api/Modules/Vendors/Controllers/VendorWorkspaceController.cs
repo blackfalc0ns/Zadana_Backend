@@ -170,9 +170,7 @@ public class VendorWorkspaceController : ApiControllerBase
                 order.TotalAmount,
                 order.CommissionAmount,
                 order.PlacedAtUtc,
-                order.DeliveredAtUtc,
-                AcceptedAtUtc = order.StatusHistory.Where(h => h.NewStatus == OrderStatus.Preparing).Max(h => (DateTime?)h.CreatedAtUtc),
-                ReadyAtUtc = order.StatusHistory.Where(h => h.NewStatus == OrderStatus.ReadyForPickup).Max(h => (DateTime?)h.CreatedAtUtc)
+                order.DeliveredAtUtc
             })
             .ToListAsync(cancellationToken);
 
@@ -418,17 +416,8 @@ public class VendorWorkspaceController : ApiControllerBase
                     mainBranchMetrics.OrdersCount > 0 ? mainBranchMetrics.Revenue / mainBranchMetrics.OrdersCount : 0m));
         }
 
-        var prepTimes = orders
-            .Where(o => o.AcceptedAtUtc.HasValue && o.ReadyAtUtc.HasValue)
-            .Select(o => (o.ReadyAtUtc!.Value - o.AcceptedAtUtc!.Value).TotalMinutes)
-            .ToList();
-        var averagePrepTimeMinutes = prepTimes.Count > 0
-            ? (int)Math.Round(prepTimes.Average())
-            : (int)Math.Round(etaProfile.AveragePreparationMinutes);
-        var prepEfficiencyThreshold = Math.Max(30, averagePrepTimeMinutes + 10);
-        var prepEfficiencyScore = prepTimes.Count > 0
-            ? Math.Round((decimal)prepTimes.Count(t => t <= prepEfficiencyThreshold) / prepTimes.Count * 100, 1)
-            : etaProfile.OnTimeRate;
+        var averagePrepTimeMinutes = (int)Math.Round(etaProfile.AveragePreparationMinutes);
+        var prepEfficiencyScore = etaProfile.OnTimeRate;
 
         var lostRevenueAmount = orders.Where(o => o.Status is OrderStatus.Cancelled or OrderStatus.VendorRejected).Sum(o => o.TotalAmount);
 

@@ -83,7 +83,6 @@ public class BulkCreateVendorProductsCommandHandler : IRequestHandler<BulkCreate
             .Select((item, index) => new VendorProductBulkOperationItem(
                 index + 1,
                 item.MasterProductId,
-                item.CostPrice,
                 item.TradePrice,
                 item.SellingPrice,
                 item.CompareAtPrice,

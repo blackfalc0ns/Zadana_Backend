@@ -4,7 +4,9 @@ using Microsoft.Extensions.Options;
 using Zadana.Application.Common.Caching;
 using Zadana.Application.Common.Interfaces;
 using Zadana.Application.Common.Settings;
+using Zadana.Application.Modules.Dashboard;
 using Zadana.Application.Modules.Dashboard.DTOs;
+using Zadana.Application.Modules.Geography;
 using Zadana.Domain.Modules.Catalog.Enums;
 using Zadana.Domain.Modules.Delivery.Enums;
 using Zadana.Domain.Modules.Identity.Enums;
@@ -18,7 +20,8 @@ namespace Zadana.Application.Modules.Dashboard.Queries.GetAdminDashboardOverview
 internal sealed class GetAdminDashboardOverviewQueryHandler(
     IApplicationDbContext dbContext,
     IAppCache cache,
-    IOptions<CachingSettings> cachingOptions)
+    IOptions<CachingSettings> cachingOptions,
+    IGeographyCityResolver geographyCityResolver)
     : IRequestHandler<GetAdminDashboardOverviewQuery, AdminDashboardOverviewDto>
 {
     private readonly CacheDurationSettings _durations = cachingOptions.Value.Durations;
@@ -26,21 +29,34 @@ internal sealed class GetAdminDashboardOverviewQueryHandler(
     public Task<AdminDashboardOverviewDto> Handle(GetAdminDashboardOverviewQuery request, CancellationToken cancellationToken)
     {
         var period = NormalizePeriod(request.Period);
-        var normalizedRegion = NormalizeRegion(request.Region);
+        var normalizedRegion = DashboardGeographyScope.NormalizeFilterRegionToken(request.Region);
 
         return cache.GetOrCreateAsync(
             AppCacheKeys.Build(
                 "dashboard",
                 "admin-overview",
-                "v2-ar",
+                "v3-saudi-regions",
                 period,
                 AppCacheKeys.NormalizeToken(normalizedRegion),
                 AppCacheKeys.GuidToken(request.VendorId),
                 AppCacheKeys.CurrentCulture),
-            async _ =>
+            async token =>
             {
                 var now = DateTime.UtcNow;
                 var start = ResolveStart(period, now);
+
+                await geographyCityResolver.RefreshCatalogAsync(token);
+                var saudiRegions = await dbContext.SaudiRegions
+                    .AsNoTracking()
+                    .OrderBy(region => region.SortOrder)
+                    .Select(region => new SaudiRegionRow(
+                        region.Code,
+                        region.NameAr,
+                        region.NameEn,
+                        region.SortOrder))
+                    .ToListAsync(token);
+
+                var geography = new DashboardGeographyScope(geographyCityResolver, saudiRegions);
 
                 var vendors = await dbContext.Vendors
             .Select(v => new VendorRow(
@@ -54,7 +70,7 @@ internal sealed class GetAdminDashboardOverviewQueryHandler(
                 v.LockedAtUtc,
                 v.UpdatedAtUtc,
                 v.CreatedAtUtc))
-            .ToListAsync(cancellationToken);
+            .ToListAsync(token);
 
                 var vendorIndex = vendors.ToDictionary(v => v.Id);
                 var selectedVendor = request.VendorId.HasValue && vendorIndex.TryGetValue(request.VendorId.Value, out var vendor)
@@ -200,7 +216,7 @@ internal sealed class GetAdminDashboardOverviewQueryHandler(
                 var unavailableProducts = vendorProducts.Count(vp => !vp.IsAvailable || vp.Status is VendorProductStatus.Inactive or VendorProductStatus.OutOfStock or VendorProductStatus.Suspended);
 
         var filteredOrders = orders
-            .Where(order => MatchesVendor(order, request.VendorId) && MatchesRegion(order, vendorIndex, normalizedRegion))
+            .Where(order => MatchesVendor(order, request.VendorId) && MatchesRegion(order, vendorIndex, geography, normalizedRegion))
             .ToList();
 
         var filteredSupportCases = supportCases
@@ -214,19 +230,19 @@ internal sealed class GetAdminDashboardOverviewQueryHandler(
             .ToList();
 
         var filteredVendors = vendors
-            .Where(v => MatchesVendor(v, request.VendorId) && MatchesRegion(v, normalizedRegion))
+            .Where(v => MatchesVendor(v, request.VendorId) && MatchesRegion(v, geography, normalizedRegion))
             .ToList();
 
         var filteredDrivers = drivers
-            .Where(d => MatchesRegion(d, normalizedRegion) && MatchesDriverVendorScope(d, filteredOrders, request.VendorId))
+            .Where(d => MatchesRegion(d, geography, normalizedRegion) && MatchesDriverVendorScope(d, filteredOrders, request.VendorId))
             .ToList();
 
         var filteredVendorProducts = vendorProducts
-            .Where(vp => MatchesVendor(vp, request.VendorId) && MatchesRegion(vp, vendorIndex, normalizedRegion))
+            .Where(vp => MatchesVendor(vp, request.VendorId) && MatchesRegion(vp, vendorIndex, geography, normalizedRegion))
             .ToList();
 
         var filteredReviews = reviews
-            .Where(r => MatchesVendor(r, request.VendorId) && MatchesRegion(r, vendorIndex, normalizedRegion))
+            .Where(r => MatchesVendor(r, request.VendorId) && MatchesRegion(r, vendorIndex, geography, normalizedRegion))
             .ToList();
 
         var totalOrders = filteredOrders.Count;
@@ -249,7 +265,7 @@ internal sealed class GetAdminDashboardOverviewQueryHandler(
 
         var ordersTrend = BuildOrdersTrend(filteredOrders, period, start, now);
         var revenueTrend = BuildRevenueTrend(filteredOrders, period, start, now);
-        var regionPressure = BuildRegionPressure(filteredOrders, filteredDrivers, vendorIndex, normalizedRegion);
+        var regionPressure = BuildRegionPressure(filteredOrders, filteredDrivers, vendorIndex, geography, normalizedRegion);
         var vendorReadiness = BuildVendorReadiness(filteredVendors);
         var driverReadiness = BuildDriverReadiness(filteredDrivers);
         var liveQueues = BuildLiveQueues(filteredOrders);
@@ -261,7 +277,7 @@ internal sealed class GetAdminDashboardOverviewQueryHandler(
         {
             SystemHealth = BuildSystemHealthSection(adminUsersCount, activeUsersCount, unreadNotifications, pushDevicesCount, alerts.Count),
             OrderOps = BuildOrderOpsSection(filteredOrders, filteredSupportCases, vendorIndex, gmv, lateOrders, paymentIssues),
-            VendorOps = BuildVendorOpsSection(filteredVendors, filteredOrders, filteredSupportCases, pendingDocumentReviews, vendorBranchesCount, vendorIndex),
+            VendorOps = BuildVendorOpsSection(filteredVendors, filteredOrders, filteredSupportCases, pendingDocumentReviews, vendorBranchesCount, vendorIndex, geography),
             DriverOps = BuildDriverOpsSection(filteredDrivers, regionPressure, openDriverIncidents, pendingWithdrawals, processingWithdrawals),
             CustomerSupport = BuildCustomerSupportSection(customersTotal, newCustomers, activeCustomers, filteredSupportCases, filteredReviews),
             FinanceOps = BuildFinanceOpsSection(gmv, refundsTotal, refundsCount, paymentsFailedCount, paymentsPendingCount, pendingSettlements, failedSettlements, settledNetAmount, walletsCount, walletInflow, walletOutflow),
@@ -277,7 +293,7 @@ internal sealed class GetAdminDashboardOverviewQueryHandler(
                 Period = period,
                 Region = normalizedRegion,
                 VendorId = request.VendorId,
-                ScopeSummary = ResolveScopeSummary(normalizedRegion, selectedVendor),
+                ScopeSummary = ResolveScopeSummary(geography, normalizedRegion, selectedVendor),
                 Mode = "live",
                 GeneratedAtUtc = now
             },
@@ -289,8 +305,8 @@ internal sealed class GetAdminDashboardOverviewQueryHandler(
                     new AdminDashboardFilterOptionDto { Value = "week", Label = "آخر 7 أيام" },
                     new AdminDashboardFilterOptionDto { Value = "month", Label = "آخر 30 يوم" }
                 ],
-                Regions = BuildRegionOptions(vendors),
-                Vendors = BuildVendorOptions(vendors)
+                Regions = BuildRegionOptions(vendors, geography),
+                Vendors = BuildVendorOptions(vendors, geography, normalizedRegion)
             },
             HeroKpis =
             [
@@ -416,44 +432,69 @@ internal sealed class GetAdminDashboardOverviewQueryHandler(
     private static bool MatchesVendor(ReviewRow review, Guid? vendorId) =>
         !vendorId.HasValue || review.VendorId == vendorId.Value;
 
-    private static bool MatchesRegion(OrderRow order, IReadOnlyDictionary<Guid, VendorRow> vendorIndex, string region)
+    private static bool MatchesRegion(
+        OrderRow order,
+        IReadOnlyDictionary<Guid, VendorRow> vendorIndex,
+        DashboardGeographyScope geography,
+        string normalizedFilterRegion)
     {
-        if (region == "all")
+        if (!vendorIndex.TryGetValue(order.VendorId, out var vendor))
         {
-            return true;
+            return false;
         }
 
-        return vendorIndex.TryGetValue(order.VendorId, out var vendor)
-            && NormalizeRegion(vendor.Region ?? vendor.City) == region;
+        return geography.MatchesRegion(
+            geography.ResolveEntityRegionCode(vendor.City, vendor.Region),
+            normalizedFilterRegion);
     }
 
-    private static bool MatchesRegion(VendorRow vendor, string region) =>
-        region == "all" || NormalizeRegion(vendor.Region ?? vendor.City) == region;
+    private static bool MatchesRegion(
+        VendorRow vendor,
+        DashboardGeographyScope geography,
+        string normalizedFilterRegion) =>
+        geography.MatchesRegion(
+            geography.ResolveEntityRegionCode(vendor.City, vendor.Region),
+            normalizedFilterRegion);
 
-    private static bool MatchesRegion(VendorProductRow product, IReadOnlyDictionary<Guid, VendorRow> vendorIndex, string region)
+    private static bool MatchesRegion(
+        VendorProductRow product,
+        IReadOnlyDictionary<Guid, VendorRow> vendorIndex,
+        DashboardGeographyScope geography,
+        string normalizedFilterRegion)
     {
-        if (region == "all")
+        if (!vendorIndex.TryGetValue(product.VendorId, out var vendor))
         {
-            return true;
+            return false;
         }
 
-        return vendorIndex.TryGetValue(product.VendorId, out var vendor)
-            && NormalizeRegion(vendor.Region ?? vendor.City) == region;
+        return geography.MatchesRegion(
+            geography.ResolveEntityRegionCode(vendor.City, vendor.Region),
+            normalizedFilterRegion);
     }
 
-    private static bool MatchesRegion(ReviewRow review, IReadOnlyDictionary<Guid, VendorRow> vendorIndex, string region)
+    private static bool MatchesRegion(
+        ReviewRow review,
+        IReadOnlyDictionary<Guid, VendorRow> vendorIndex,
+        DashboardGeographyScope geography,
+        string normalizedFilterRegion)
     {
-        if (region == "all")
+        if (!vendorIndex.TryGetValue(review.VendorId, out var vendor))
         {
-            return true;
+            return false;
         }
 
-        return vendorIndex.TryGetValue(review.VendorId, out var vendor)
-            && NormalizeRegion(vendor.Region ?? vendor.City) == region;
+        return geography.MatchesRegion(
+            geography.ResolveEntityRegionCode(vendor.City, vendor.Region),
+            normalizedFilterRegion);
     }
 
-    private static bool MatchesRegion(DriverRow driver, string region) =>
-        region == "all" || NormalizeRegion(driver.Region ?? driver.City) == region;
+    private static bool MatchesRegion(
+        DriverRow driver,
+        DashboardGeographyScope geography,
+        string normalizedFilterRegion) =>
+        geography.MatchesRegion(
+            geography.ResolveEntityRegionCode(driver.City, driver.Region),
+            normalizedFilterRegion);
 
     private static bool MatchesDriverVendorScope(DriverRow driver, IReadOnlyCollection<OrderRow> filteredOrders, Guid? vendorId)
     {
@@ -466,59 +507,19 @@ internal sealed class GetAdminDashboardOverviewQueryHandler(
         return activeRegions.Count > 0;
     }
 
-    private static string NormalizeRegion(string? value)
-    {
-        var normalized = (value ?? string.Empty).Trim().ToLowerInvariant();
-        if (string.IsNullOrWhiteSpace(normalized) || normalized == "all")
-        {
-            return "all";
-        }
-
-        if (normalized.Contains("riyadh") || normalized.Contains("رياض"))
-        {
-            return "central";
-        }
-
-        if (normalized.Contains("jeddah") || normalized.Contains("makk") || normalized.Contains("medina") || normalized.Contains("جدة") || normalized.Contains("مكة") || normalized.Contains("مدينة"))
-        {
-            return "western";
-        }
-
-        if (normalized.Contains("dammam") || normalized.Contains("khobar") || normalized.Contains("دمام") || normalized.Contains("خبر"))
-        {
-            return "eastern";
-        }
-
-        if (normalized.Contains("tabuk") || normalized.Contains("hail") || normalized.Contains("تبوك") || normalized.Contains("حائل"))
-        {
-            return "northern";
-        }
-
-        if (normalized.Contains("abha") || normalized.Contains("jazan") || normalized.Contains("أبها") || normalized.Contains("جازان"))
-        {
-            return "southern";
-        }
-
-        return "other";
-    }
-
-    private static string ResolveScopeSummary(string region, VendorRow? vendor)
+    private static string ResolveScopeSummary(
+        DashboardGeographyScope geography,
+        string normalizedFilterRegion,
+        VendorRow? vendor)
     {
         if (vendor is not null)
         {
             return !string.IsNullOrWhiteSpace(vendor.BusinessNameAr) ? vendor.BusinessNameAr : vendor.BusinessNameEn;
         }
 
-        return region switch
-        {
-            "central" => "المنطقة الوسطى",
-            "western" => "المنطقة الغربية",
-            "eastern" => "المنطقة الشرقية",
-            "northern" => "المنطقة الشمالية",
-            "southern" => "المنطقة الجنوبية",
-            "other" => "مناطق أخرى",
-            _ => "كل الشبكة"
-        };
+        return normalizedFilterRegion == GeographyCoverageConstants.AllRegionsToken
+            ? "كل الشبكة"
+            : geography.GetRegionLabel(normalizedFilterRegion);
     }
 
     private static string TranslateDashboardToken(string? value)
@@ -573,37 +574,67 @@ internal sealed class GetAdminDashboardOverviewQueryHandler(
         };
     }
 
-    private static IReadOnlyList<AdminDashboardFilterOptionDto> BuildRegionOptions(IEnumerable<VendorRow> vendors)
+    private static IReadOnlyList<AdminDashboardFilterOptionDto> BuildRegionOptions(
+        IEnumerable<VendorRow> vendors,
+        DashboardGeographyScope geography)
     {
-        var groups = vendors
-            .GroupBy(v => NormalizeRegion(v.Region ?? v.City))
-            .Select(group => new AdminDashboardFilterOptionDto
-            {
-                Value = group.Key,
-                Label = ResolveScopeSummary(group.Key, null),
-                Count = group.Count()
-            })
-            .OrderByDescending(option => option.Count)
-            .ToList();
+        var vendorList = vendors.ToList();
+        var counts = vendorList
+            .GroupBy(vendor => geography.ResolveEntityRegionCode(vendor.City, vendor.Region))
+            .ToDictionary(group => group.Key, group => group.Count(), StringComparer.OrdinalIgnoreCase);
 
-        groups.Insert(0, new AdminDashboardFilterOptionDto
+        var options = new List<AdminDashboardFilterOptionDto>
         {
-            Value = "all",
-            Label = "كل المناطق",
-            Count = vendors.Count()
-        });
+            new()
+            {
+                Value = GeographyCoverageConstants.AllRegionsToken,
+                Label = geography.GetRegionLabel(GeographyCoverageConstants.AllRegionsToken),
+                Count = vendorList.Count
+            }
+        };
 
-        return groups;
+        foreach (var region in geography.Regions)
+        {
+            options.Add(new AdminDashboardFilterOptionDto
+            {
+                Value = region.Code,
+                Label = region.NameAr,
+                Count = counts.GetValueOrDefault(region.Code)
+            });
+        }
+
+        if (counts.TryGetValue(DashboardGeographyScope.UnmappedRegionCode, out var unmappedCount) && unmappedCount > 0)
+        {
+            options.Add(new AdminDashboardFilterOptionDto
+            {
+                Value = DashboardGeographyScope.UnmappedRegionCode,
+                Label = geography.GetRegionLabel(DashboardGeographyScope.UnmappedRegionCode),
+                Count = unmappedCount
+            });
+        }
+
+        return options;
     }
 
-    private static IReadOnlyList<AdminDashboardFilterOptionDto> BuildVendorOptions(IEnumerable<VendorRow> vendors)
+    private static IReadOnlyList<AdminDashboardFilterOptionDto> BuildVendorOptions(
+        IEnumerable<VendorRow> vendors,
+        DashboardGeographyScope geography,
+        string normalizedFilterRegion)
     {
-        var items = vendors
-            .OrderBy(v => v.BusinessNameEn)
-            .Select(v => new AdminDashboardFilterOptionDto
+        var scopedVendors = vendors
+            .Where(vendor => geography.MatchesRegion(
+                geography.ResolveEntityRegionCode(vendor.City, vendor.Region),
+                normalizedFilterRegion))
+            .OrderBy(vendor => vendor.BusinessNameEn)
+            .ToList();
+
+        var items = scopedVendors
+            .Select(vendor => new AdminDashboardFilterOptionDto
             {
-                Value = v.Id.ToString(),
-                Label = !string.IsNullOrWhiteSpace(v.BusinessNameAr) ? v.BusinessNameAr : v.BusinessNameEn
+                Value = vendor.Id.ToString(),
+                Label = !string.IsNullOrWhiteSpace(vendor.BusinessNameAr)
+                    ? vendor.BusinessNameAr
+                    : vendor.BusinessNameEn
             })
             .ToList();
 
@@ -611,7 +642,7 @@ internal sealed class GetAdminDashboardOverviewQueryHandler(
         {
             Value = "all",
             Label = "كل التجار",
-            Count = vendors.Count()
+            Count = scopedVendors.Count
         });
 
         return items;
@@ -698,27 +729,30 @@ internal sealed class GetAdminDashboardOverviewQueryHandler(
         IReadOnlyList<OrderRow> orders,
         IReadOnlyList<DriverRow> drivers,
         IReadOnlyDictionary<Guid, VendorRow> vendorIndex,
+        DashboardGeographyScope geography,
         string selectedRegion)
     {
         var regionGroups = orders
-            .GroupBy(order => vendorIndex.TryGetValue(order.VendorId, out var vendor) ? NormalizeRegion(vendor.Region ?? vendor.City) : "other")
+            .GroupBy(order => vendorIndex.TryGetValue(order.VendorId, out var vendor)
+                ? geography.ResolveEntityRegionCode(vendor.City, vendor.Region)
+                : DashboardGeographyScope.UnmappedRegionCode)
             .ToDictionary(group => group.Key, group => new RegionAccumulator
             {
                 RegionKey = group.Key,
-                RegionLabel = ResolveScopeSummary(group.Key, null),
+                RegionLabel = geography.GetRegionLabel(group.Key),
                 LateOrders = group.Count(order => order.Status is OrderStatus.Preparing or OrderStatus.ReadyForPickup or OrderStatus.DriverAssignmentInProgress or OrderStatus.DriverAssigned or OrderStatus.PickedUp or OrderStatus.OnTheWay),
                 PaymentIssues = group.Count(order => order.PaymentStatus is PaymentStatus.Failed or PaymentStatus.Pending or PaymentStatus.PendingCollection)
             });
 
         foreach (var driver in drivers)
         {
-            var regionKey = NormalizeRegion(driver.Region ?? driver.City);
+            var regionKey = geography.ResolveEntityRegionCode(driver.City, driver.Region);
             if (!regionGroups.TryGetValue(regionKey, out var accumulator))
             {
                 accumulator = new RegionAccumulator
                 {
                     RegionKey = regionKey,
-                    RegionLabel = ResolveScopeSummary(regionKey, null)
+                    RegionLabel = geography.GetRegionLabel(regionKey)
                 };
                 regionGroups[regionKey] = accumulator;
             }
@@ -730,7 +764,7 @@ internal sealed class GetAdminDashboardOverviewQueryHandler(
         }
 
         return regionGroups.Values
-            .Where(row => selectedRegion == "all" || row.RegionKey == selectedRegion)
+            .Where(row => selectedRegion == GeographyCoverageConstants.AllRegionsToken || row.RegionKey == selectedRegion)
             .Select(row => new AdminDashboardRegionPressureDto
             {
                 RegionKey = row.RegionKey,
@@ -1154,7 +1188,8 @@ internal sealed class GetAdminDashboardOverviewQueryHandler(
         IReadOnlyList<SupportCaseRow> supportCases,
         int pendingDocumentReviews,
         int vendorBranchesCount,
-        IReadOnlyDictionary<Guid, VendorRow> vendorIndex)
+        IReadOnlyDictionary<Guid, VendorRow> vendorIndex,
+        DashboardGeographyScope geography)
     {
         var activeVendors = vendors.Count(v => v.Status == VendorStatus.Active);
         var pendingVendors = vendors.Count(v => v.Status == VendorStatus.PendingReview);
@@ -1218,7 +1253,7 @@ internal sealed class GetAdminDashboardOverviewQueryHandler(
                     Id = $"vendor_exception_{v.Id}",
                 EntityLabel = string.IsNullOrWhiteSpace(v.BusinessNameAr) ? v.BusinessNameEn : v.BusinessNameAr,
                     IssueLabel = v.Status == VendorStatus.Suspended || v.LockedAtUtc.HasValue ? "التاجر محظور" : "استقبال الطلبات متوقف حاليًا",
-                    OwnerLabel = ResolveScopeSummary(NormalizeRegion(v.Region ?? v.City), null),
+                    OwnerLabel = geography.GetRegionLabel(geography.ResolveEntityRegionCode(v.City, v.Region)),
                     MetricLabel = TranslateDashboardToken(v.Status.ToString()),
                     Severity = v.Status == VendorStatus.Suspended || v.LockedAtUtc.HasValue ? "critical" : "warning",
                     Route = "/vendors"

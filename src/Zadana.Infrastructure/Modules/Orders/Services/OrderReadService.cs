@@ -9,6 +9,7 @@ using Zadana.Application.Modules.Delivery.Interfaces;
 using Zadana.Application.Modules.Orders.DTOs;
 using Zadana.Application.Modules.Orders.Interfaces;
 using Zadana.Application.Modules.Orders.Support;
+using Zadana.Domain.Modules.Catalog.Entities;
 using Zadana.Domain.Modules.Delivery.Entities;
 using Zadana.Domain.Modules.Delivery.Enums;
 using Zadana.Domain.Modules.Identity.Enums;
@@ -128,6 +129,7 @@ public class OrderReadService : IOrderReadService
             .AsNoTracking()
             .Include(item => item.Items)
                 .ThenInclude(item => item.MasterProduct)
+                    .ThenInclude(product => product!.Images)
             .FirstOrDefaultAsync(item => item.Id == orderId && item.UserId == userId, cancellationToken);
 
         if (order is null)
@@ -199,6 +201,7 @@ public class OrderReadService : IOrderReadService
         var orders = await query
             .Include(order => order.Items)
                 .ThenInclude(item => item.MasterProduct)
+                    .ThenInclude(product => product!.Images)
             .OrderByDescending(order => order.PlacedAtUtc)
             .Skip((normalizedPage - 1) * normalizedPerPage)
             .Take(normalizedPerPage)
@@ -219,6 +222,7 @@ public class OrderReadService : IOrderReadService
             .AsSplitQuery()
             .Include(order => order.Items)
                 .ThenInclude(item => item.MasterProduct)
+                    .ThenInclude(product => product!.Images)
             .Include(order => order.SupportCases)
             .Where(order => order.Id == orderId && order.UserId == userId)
             .FirstOrDefaultAsync(cancellationToken);
@@ -497,6 +501,7 @@ public class OrderReadService : IOrderReadService
             .Include(item => item.User)
             .Include(item => item.Items)
                 .ThenInclude(item => item.MasterProduct)
+                    .ThenInclude(product => product!.Images)
             .Include(item => item.StatusHistory)
             .Include(item => item.Vendor)
             .Where(item =>
@@ -515,6 +520,10 @@ public class OrderReadService : IOrderReadService
         {
             return null;
         }
+
+        var productImageLookup = await LoadMasterProductPrimaryImageLookupAsync(
+            order.Items.Select(item => item.MasterProductId),
+            cancellationToken);
 
         var customerAddress = await _dbContext.CustomerAddresses
             .AsNoTracking()
@@ -645,7 +654,7 @@ public class OrderReadService : IOrderReadService
                 item.Quantity,
                 item.UnitPrice,
                 item.LineTotal,
-                BuildProductImageUrl(item),
+                BuildProductImageUrl(item, productImageLookup),
                 BuildVariantDisplaySize(item),
                 BuildPackageTypeName(item),
                 item.MasterProduct?.MeasurementValue,
@@ -799,6 +808,7 @@ public class OrderReadService : IOrderReadService
             .Include(item => item.User)
             .Include(item => item.Items)
                 .ThenInclude(item => item.MasterProduct)
+                    .ThenInclude(product => product!.Images)
             .Include(item => item.StatusHistory)
             .Include(item => item.Vendor)
             .Include(item => item.VendorBranch)
@@ -1190,7 +1200,9 @@ public class OrderReadService : IOrderReadService
     private static string? NormalizeText(string? value) =>
         string.IsNullOrWhiteSpace(value) ? null : value.Trim();
 
-    private static string? BuildProductImageUrl(OrderItem item)
+    private static string? BuildProductImageUrl(
+        OrderItem item,
+        IReadOnlyDictionary<Guid, string?>? productImageLookup = null)
     {
         // Prefer the historical snapshot captured at order time
         if (!string.IsNullOrWhiteSpace(item.SnapshotImageUrl))
@@ -1199,11 +1211,62 @@ public class OrderReadService : IOrderReadService
         }
 
         // Fallback to current MasterProduct images (legacy orders without snapshot)
-        return item.MasterProduct?.Images
+        var navigationImage = item.MasterProduct?.Images
             .OrderByDescending(image => image.IsPrimary)
             .ThenBy(image => image.DisplayOrder)
             .Select(image => image.Url)
             .FirstOrDefault();
+
+        if (!string.IsNullOrWhiteSpace(navigationImage))
+        {
+            return navigationImage;
+        }
+
+        if (productImageLookup is not null &&
+            productImageLookup.TryGetValue(item.MasterProductId, out var lookupImage) &&
+            !string.IsNullOrWhiteSpace(lookupImage))
+        {
+            return lookupImage;
+        }
+
+        return null;
+    }
+
+    private async Task<IReadOnlyDictionary<Guid, string?>> LoadMasterProductPrimaryImageLookupAsync(
+        IEnumerable<Guid> masterProductIds,
+        CancellationToken cancellationToken)
+    {
+        var ids = masterProductIds
+            .Where(id => id != Guid.Empty)
+            .Distinct()
+            .ToList();
+
+        if (ids.Count == 0)
+        {
+            return new Dictionary<Guid, string?>();
+        }
+
+        var rows = await _dbContext.Set<MasterProductImage>()
+            .AsNoTracking()
+            .Where(image => ids.Contains(image.MasterProductId))
+            .Select(image => new
+            {
+                image.MasterProductId,
+                image.Url,
+                image.IsPrimary,
+                image.DisplayOrder
+            })
+            .ToListAsync(cancellationToken);
+
+        return rows
+            .GroupBy(row => row.MasterProductId)
+            .ToDictionary(
+                group => group.Key,
+                group => group
+                    .OrderByDescending(row => row.IsPrimary)
+                    .ThenBy(row => row.DisplayOrder)
+                    .Select(row => row.Url)
+                    .FirstOrDefault());
     }
 
     private static string? BuildVariantDisplaySize(OrderItem item)
@@ -1855,6 +1918,10 @@ public class OrderReadService : IOrderReadService
 
     private static IReadOnlyList<VendorOrderTimelineItemDto> BuildVendorTimeline(Order order)
     {
+        var history = order.StatusHistory
+            .OrderBy(entry => entry.CreatedAtUtc)
+            .ToList();
+
         var timeline = new List<VendorOrderTimelineItemDto>
         {
             new(
@@ -1865,16 +1932,18 @@ public class OrderReadService : IOrderReadService
                 null)
         };
 
-        timeline.AddRange(order.StatusHistory
-            .OrderBy(entry => entry.CreatedAtUtc)
-            .Select(entry => new VendorOrderTimelineItemDto(
-                entry.NewStatus.ToString(),
-                entry.NewStatus.ToString(),
-                entry.CreatedAtUtc,
-                true,
-                entry.Note)));
+        timeline.AddRange(history.Select(entry => new VendorOrderTimelineItemDto(
+            entry.NewStatus.ToString(),
+            entry.NewStatus.ToString(),
+            entry.CreatedAtUtc,
+            true,
+            entry.Note)));
 
-        return timeline;
+        return timeline
+            .GroupBy(item => item.Status, StringComparer.OrdinalIgnoreCase)
+            .Select(group => group.OrderBy(item => item.TimestampUtc).First())
+            .OrderBy(item => item.TimestampUtc)
+            .ToList();
     }
 
     private static bool IsLate(OrderStatus status, DateTime placedAtUtc)

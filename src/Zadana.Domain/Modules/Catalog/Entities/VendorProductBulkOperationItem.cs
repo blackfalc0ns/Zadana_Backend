@@ -31,7 +31,6 @@ public class VendorProductBulkOperationItem : BaseEntity
     public VendorProductBulkOperationItem(
         int rowNumber,
         Guid masterProductId,
-        decimal? costPrice,
         decimal? tradePrice,
         decimal sellingPrice,
         decimal? compareAtPrice,
@@ -43,7 +42,7 @@ public class VendorProductBulkOperationItem : BaseEntity
     {
         RowNumber = rowNumber;
         MasterProductId = masterProductId;
-        CostPrice = costPrice;
+        CostPrice = null;
         TradePrice = tradePrice;
         SellingPrice = sellingPrice;
         CompareAtPrice = compareAtPrice;

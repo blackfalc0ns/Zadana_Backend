@@ -7,7 +7,6 @@ namespace Zadana.Application.Modules.Catalog.Commands.VendorProducts.BulkCreateV
 
 public record BulkCreateVendorProductItemInput(
     Guid MasterProductId,
-    decimal? CostPrice,
     decimal? TradePrice,
     decimal SellingPrice,
     decimal? CompareAtPrice,
@@ -37,8 +36,6 @@ public class BulkCreateVendorProductsCommandValidator : AbstractValidator<BulkCr
         {
             item.RuleFor(x => x.MasterProductId).NotEmpty().WithMessage(x => localizer["RequiredField"]);
             item.RuleFor(x => x.SellingPrice).GreaterThan(0).WithMessage(x => localizer["GreaterThanZero"]);
-            item.RuleFor(x => x.CostPrice)
-                .GreaterThanOrEqualTo(0).When(x => x.CostPrice.HasValue).WithMessage(x => localizer["MinValue"]);
             item.RuleFor(x => x.TradePrice)
                 .NotNull().WithMessage("Trade price is required.");
             item.RuleFor(x => x.TradePrice)
