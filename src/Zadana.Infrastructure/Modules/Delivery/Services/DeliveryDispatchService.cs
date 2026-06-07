@@ -308,7 +308,7 @@ public class DeliveryDispatchService : IDeliveryDispatchService
 
         attempt?.MarkAccepted();
 
-        var pickupOtp = assignment.EnsurePickupOtp(PickupOtpTtl);
+        assignment.EnsurePickupOtp(PickupOtpTtl);
 
         var oldStatus = assignment.Order.Status;
         if (assignment.Order.Status != OrderStatus.DriverAssigned)
@@ -362,11 +362,11 @@ public class DeliveryDispatchService : IDeliveryDispatchService
                 assignment.Order.Vendor.UserId,
                 "تم تعيين المندوب للطلب",
                 "Driver assigned to the order",
-                $"تم تعيين {driverName} ({vehicleType} - {plateNumber}) لطلب {assignment.Order.OrderNumber}. رمز الاستلام هو {pickupOtp}.",
-                $"{driverName} ({vehicleType} - {plateNumber}) has been assigned to order #{assignment.Order.OrderNumber}. Pickup OTP: {pickupOtp}.",
+                $"تم تعيين {driverName} ({vehicleType} - {plateNumber}) لطلب {assignment.Order.OrderNumber}. افتح تفاصيل الطلب لعرض رمز الاستلام المؤمّن.",
+                $"{driverName} ({vehicleType} - {plateNumber}) has been assigned to order #{assignment.Order.OrderNumber}. Open the order details to view the secure pickup code.",
                 "vendor-driver-assigned",
                 assignment.OrderId,
-                $"assignmentId={assignment.Id};pickupOtp={pickupOtp};driverPhone={driverPhone}",
+                $"assignmentId={assignment.Id};driverPhone={driverPhone};otpType=pickup",
                 cancellationToken);
         }
 

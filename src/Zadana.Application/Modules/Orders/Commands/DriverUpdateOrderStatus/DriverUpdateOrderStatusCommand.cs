@@ -144,10 +144,11 @@ public class DriverUpdateOrderStatusCommandHandler : IRequestHandler<DriverUpdat
         order.ChangeStatus(request.NewStatus, request.DriverUserId, request.Note);
         _context.OrderStatusHistories.Add(order.StatusHistory.Last());
 
-        string? deliveryOtp = null;
+        var deliveryOtpReady = false;
         if (request.NewStatus is OrderStatus.PickedUp or OrderStatus.OnTheWay)
         {
-            deliveryOtp = assignment.EnsureDeliveryOtp(DeliveryOtpTtl);
+            assignment.EnsureDeliveryOtp(DeliveryOtpTtl);
+            deliveryOtpReady = true;
         }
 
         // Update assignment status to match order status
@@ -180,17 +181,17 @@ public class DriverUpdateOrderStatusCommandHandler : IRequestHandler<DriverUpdat
 
         await _unitOfWork.SaveChangesAsync(cancellationToken);
 
-        if (!string.IsNullOrWhiteSpace(deliveryOtp))
+        if (deliveryOtpReady)
         {
             await _notificationService.SendToUserAsync(
                 order.UserId,
                 "رمز التسليم جاهز",
                 "Delivery OTP is ready",
-                $"رمز تسليم طلبك رقم {order.OrderNumber} هو {deliveryOtp}. شاركه مع المندوب عند الاستلام.",
-                $"Your delivery OTP for order #{order.OrderNumber} is {deliveryOtp}. Share it with the driver on arrival.",
+                $"رمز تسليم طلبك رقم {order.OrderNumber} جاهز. افتح تفاصيل الطلب لعرض الرمز المؤمّن عند وصول المندوب.",
+                $"Your delivery code for order #{order.OrderNumber} is ready. Open the order details to view it when the driver arrives.",
                 "delivery-otp",
                 order.Id,
-                $"deliveryOtp={deliveryOtp}",
+                "otpType=delivery",
                 cancellationToken);
         }
 

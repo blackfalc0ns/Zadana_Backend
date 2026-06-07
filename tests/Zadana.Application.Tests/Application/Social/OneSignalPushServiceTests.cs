@@ -437,7 +437,7 @@ public class OneSignalPushServiceTests
     }
 
     [Fact]
-    public async Task SendToExternalUsersAsync_WithDriverTargetAndUserId_ShouldSendDriverIdAlias()
+    public async Task SendToExternalUsersAsync_WithDriverTargetAndUserId_ShouldSendUserIdAlias()
     {
         await using var dbContext = CreateDbContext();
         var userId = Guid.Parse("1363aa39-64cb-42a8-9466-d2415f247c09");
@@ -484,13 +484,13 @@ public class OneSignalPushServiceTests
             .Select(item => item.GetString())
             .ToArray();
 
-        externalIds.Should().Equal(driver.Id.ToString());
-        externalIds.Should().NotContain(userId.ToString());
+        externalIds.Should().Equal(userId.ToString());
+        externalIds.Should().NotContain(driver.Id.ToString());
         document.RootElement.GetProperty("app_id").GetString().Should().Be("driver-app-id");
     }
 
     [Fact]
-    public async Task SendToExternalUsersAsync_WithDriverTargetAndDriverId_ShouldKeepDriverIdAlias()
+    public async Task SendToExternalUsersAsync_WithDriverTargetAndDriverId_ShouldNormalizeToUserIdAlias()
     {
         await using var dbContext = CreateDbContext();
         var userId = Guid.NewGuid();
@@ -533,7 +533,7 @@ public class OneSignalPushServiceTests
             .EnumerateArray()
             .Select(item => item.GetString())
             .Should()
-            .Equal(driver.Id.ToString());
+            .Equal(userId.ToString());
     }
 
     [Fact]
@@ -557,7 +557,7 @@ public class OneSignalPushServiceTests
             {
                 invalid_aliases = new Dictionary<string, string[]>
                 {
-                    ["external_id"] = [driver.Id.ToString()]
+                    ["external_id"] = [userId.ToString()]
                 }
             }
         });
@@ -577,8 +577,6 @@ public class OneSignalPushServiceTests
         var handler = new RecordingHttpMessageHandler(
             HttpStatusCode.OK,
             aliasErrorBody,
-            HttpStatusCode.NotFound,
-            """{"errors":[{"title":"driver alias not found"}]}""",
             HttpStatusCode.OK,
             providerUserBody,
             HttpStatusCode.OK,
@@ -609,9 +607,8 @@ public class OneSignalPushServiceTests
         results.Should().ContainSingle(result =>
             result.Sent &&
             result.ProviderNotificationId == "fallback-push");
-        handler.RequestMethods.Should().Equal("POST", "GET", "GET", "POST");
-        handler.RequestUris[1].Should().Contain(driver.Id.ToString());
-        handler.RequestUris[2].Should().Contain(userId.ToString());
+        handler.RequestMethods.Should().Equal("POST", "GET", "POST");
+        handler.RequestUris[1].Should().Contain(userId.ToString());
 
         var firstPostBody = handler.RequestBodies[0];
         using var firstPost = JsonDocument.Parse(firstPostBody);
@@ -621,9 +618,9 @@ public class OneSignalPushServiceTests
             .EnumerateArray()
             .Select(item => item.GetString())
             .Should()
-            .Equal(driver.Id.ToString());
+            .Equal(userId.ToString());
 
-        var fallbackPostBody = handler.RequestBodies[3];
+        var fallbackPostBody = handler.RequestBodies[2];
         using var fallbackPost = JsonDocument.Parse(fallbackPostBody);
         fallbackPost.RootElement
             .GetProperty("include_subscription_ids")

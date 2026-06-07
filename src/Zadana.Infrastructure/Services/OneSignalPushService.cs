@@ -545,7 +545,8 @@ public sealed class OneSignalPushService : IOneSignalPushService
             {
                 var lookupExternalUserId = byUserMatch.UserId.ToString();
                 lookupExternalUserIds.Add(lookupExternalUserId);
-                pushExternalUserIdByLookup[lookupExternalUserId] = byUserMatch.DriverId.ToString();
+                // Driver mobile app registers OneSignal.login(userId), so push must target userId.
+                pushExternalUserIdByLookup[lookupExternalUserId] = lookupExternalUserId;
                 continue;
             }
 
@@ -553,7 +554,7 @@ public sealed class OneSignalPushService : IOneSignalPushService
             {
                 var lookupExternalUserId = byDriverMatch.UserId.ToString();
                 lookupExternalUserIds.Add(lookupExternalUserId);
-                pushExternalUserIdByLookup[lookupExternalUserId] = byDriverMatch.DriverId.ToString();
+                pushExternalUserIdByLookup[lookupExternalUserId] = lookupExternalUserId;
                 continue;
             }
 

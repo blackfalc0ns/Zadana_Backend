@@ -75,7 +75,7 @@ public class ResendAssignmentOtpCommandHandler : IRequestHandler<ResendAssignmen
                 throw new BusinessRuleException("PICKUP_OTP_ALREADY_VERIFIED", "Pickup OTP has already been verified.");
             }
 
-            var pickupOtp = assignment.RegeneratePickupOtp(OtpTtl);
+            assignment.RegeneratePickupOtp(OtpTtl);
             await _context.SaveChangesAsync(cancellationToken);
 
             if (assignment.Order.Vendor is not null)
@@ -89,11 +89,11 @@ public class ResendAssignmentOtpCommandHandler : IRequestHandler<ResendAssignmen
                     assignment.Order.Vendor.UserId,
                     "إعادة إرسال رمز الاستلام",
                     "Pickup OTP Resent",
-                    $"المندوب {driverName} متواجد لاستلام طلب {assignment.Order.OrderNumber}. رمز الاستلام هو {pickupOtp}.",
-                    $"Driver {driverName} is ready to pickup order #{assignment.Order.OrderNumber}. Pickup OTP: {pickupOtp}.",
+                    $"المندوب {driverName} ({vehicleType} - {plateNumber}) متواجد لاستلام طلب {assignment.Order.OrderNumber}. افتح تفاصيل الطلب لعرض رمز الاستلام المؤمّن.",
+                    $"Driver {driverName} ({vehicleType} - {plateNumber}) is ready to pickup order #{assignment.Order.OrderNumber}. Open the order details to view the secure pickup code.",
                     "vendor-pickup-otp-resent",
                     assignment.OrderId,
-                    $"assignmentId={assignment.Id};pickupOtp={pickupOtp};driverPhone={driverPhone}",
+                    $"assignmentId={assignment.Id};driverPhone={driverPhone};otpType=pickup",
                     cancellationToken);
             }
         }
@@ -104,18 +104,18 @@ public class ResendAssignmentOtpCommandHandler : IRequestHandler<ResendAssignmen
                 throw new BusinessRuleException("DELIVERY_OTP_ALREADY_VERIFIED", "Delivery OTP has already been verified.");
             }
 
-            var deliveryOtp = assignment.RegenerateDeliveryOtp(OtpTtl);
+            assignment.RegenerateDeliveryOtp(OtpTtl);
             await _context.SaveChangesAsync(cancellationToken);
 
             await _notificationService.SendToUserAsync(
                 assignment.Order.UserId,
                 "إعادة إرسال رمز التسليم",
                 "Delivery OTP Resent",
-                $"المندوب متواجد لتسليم طلبك رقم {assignment.Order.OrderNumber}. رمز التسليم هو {deliveryOtp}.",
-                $"Driver is ready to deliver order #{assignment.Order.OrderNumber}. Delivery OTP: {deliveryOtp}.",
+                $"المندوب متواجد لتسليم طلبك رقم {assignment.Order.OrderNumber}. افتح تفاصيل الطلب لعرض رمز التسليم المؤمّن.",
+                $"Driver is ready to deliver order #{assignment.Order.OrderNumber}. Open the order details to view the secure delivery code.",
                 "customer-delivery-otp-resent",
                 assignment.OrderId,
-                $"deliveryOtp={deliveryOtp}",
+                $"assignmentId={assignment.Id};otpType=delivery",
                 cancellationToken);
         }
     }
