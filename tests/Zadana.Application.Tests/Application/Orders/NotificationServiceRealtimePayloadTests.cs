@@ -204,30 +204,61 @@ public class NotificationServiceRealtimePayloadTests
         var orderId = Guid.NewGuid();
         var (service, sent) = CreateNotificationService(userId);
 
-        await service.SendDeliveryOfferToDriverAsync(
-            userId,
+        var currentOffer = new Zadana.Application.Modules.Delivery.DTOs.DriverIncomingOfferDto(
             assignmentId,
             orderId,
             "ORD-OFFER-RT-001",
             "Vendor",
+            "متجر",
+            "Vendor",
+            "https://example.com/logo.png",
+            "Pickup address",
+            24.7136m,
+            46.6753m,
+            "Customer",
+            "Delivery address",
+            24.7236m,
+            46.6853m,
+            3.5m,
+            "14-19 min",
             15m,
+            "CashOnDelivery",
             120m,
             100m,
-            "CashOnDelivery",
+            "VE",
+            "CU",
+            null,
             45,
+            [new Zadana.Application.Modules.Delivery.DTOs.DriverOfferItemDto("Product", 1, null)]);
+
+        await service.SendDeliveryOfferToDriverAsync(
+            userId,
+            currentOffer,
             CancellationToken.None);
 
         sent.Method.Should().Be(NotificationHub.ReceiveDeliveryOfferMethod);
         var payload = sent.Payload.Should().BeOfType<DeliveryOfferRealtimePayload>().Subject;
-        payload.AssignmentId.Should().Be(assignmentId);
-        payload.OrderId.Should().Be(orderId);
+        payload.CurrentOffer.AssignmentId.Should().Be(assignmentId);
+        payload.CurrentOffer.OrderId.Should().Be(orderId);
         payload.Presentation.Should().Be("popup");
         payload.PopupType.Should().Be("delivery_offer");
         payload.ShowPopup.Should().BeTrue();
         payload.EventName.Should().Be("dispatch.offer_new");
+        payload.CurrentOffer.VendorNameAr.Should().Be("متجر");
+        payload.CurrentOffer.VendorNameEn.Should().Be("Vendor");
+        payload.CurrentOffer.VendorLogoUrl.Should().Be("https://example.com/logo.png");
+        payload.CurrentOffer.OrderItems.Should().ContainSingle();
 
-        var json = JsonSerializer.Serialize(payload);
+        var json = JsonSerializer.Serialize(payload, new JsonSerializerOptions
+        {
+            PropertyNamingPolicy = JsonNamingPolicy.CamelCase
+        });
         json.Should().Contain("\"presentation\":\"popup\"");
+        json.Should().Contain("\"currentOffer\"");
+        json.Should().Contain("vendorNameAr");
+        json.Should().Contain("vendorNameEn");
+        json.Should().Contain("vendorLogoUrl");
+        json.Should().Contain("orderItems");
         json.Should().Contain("\"popupType\":\"delivery_offer\"");
         json.Should().Contain("\"showPopup\":true");
         json.Should().Contain("\"eventName\":\"dispatch.offer_new\"");

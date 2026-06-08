@@ -370,7 +370,8 @@ public sealed class OrderSupportCaseWorkflowService : IOrderSupportCaseWorkflowS
         if (supportCase.Order is null)
         {
             await NotifyDriverAccountAdminsAsync(supportCase, "request_evidence", actorUserId, cancellationToken);
-            if (normalizedTargetRole == "driver")
+            // Driver account cases use CustomerUserId as the driver; admin UI may send targetRole=customer.
+            if (normalizedTargetRole is "driver" or "customer")
             {
                 await NotifyDriverAccountDriverAsync(supportCase, "request_evidence", cancellationToken);
             }
@@ -694,6 +695,11 @@ public sealed class OrderSupportCaseWorkflowService : IOrderSupportCaseWorkflowS
         {
             await NotifyCustomerAsync(supportCase.Order, supportCase, "note_added", cancellationToken);
             await NotifyVendorSupportCaseAsync(supportCase.Order, supportCase, "note_added", cancellationToken);
+        }
+
+        if (IsDriverStakeholderCase(supportCase))
+        {
+            await NotifyActiveDriverAsync(supportCase.Order!, supportCase, "note_added", cancellationToken);
         }
 
         return supportCase;
@@ -1404,7 +1410,7 @@ public sealed class OrderSupportCaseWorkflowService : IOrderSupportCaseWorkflowS
                 category: NotificationCategories.Support,
                 targetApplication: OneSignalApplicationTarget.Driver);
 
-        await pushRequest.DispatchAsync(_oneSignalPushService, cancellationToken);
+        await DispatchDriverPushAsync(pushRequest, cancellationToken);
     }
 
     private static (string TitleAr, string TitleEn, string BodyAr, string BodyEn) BuildDriverAccountSupportNotification(string action) =>
@@ -1662,6 +1668,12 @@ public sealed class OrderSupportCaseWorkflowService : IOrderSupportCaseWorkflowS
         string action,
         CancellationToken cancellationToken)
     {
+        if (IsDriverStakeholderCase(supportCase) && supportCase.CustomerUserId != Guid.Empty)
+        {
+            await NotifyDriverAsync(order, supportCase, supportCase.CustomerUserId, action, cancellationToken);
+            return;
+        }
+
         var driverId = await _context.DeliveryAssignments
             .AsNoTracking()
             .Where(item => item.OrderId == order.Id && item.DriverId != null)
@@ -1754,8 +1766,20 @@ public sealed class OrderSupportCaseWorkflowService : IOrderSupportCaseWorkflowS
             driverUserId,
             cancellationToken);
 
-        await envelope.PushRequest.DispatchAsync(_oneSignalPushService, cancellationToken);
+        await DispatchDriverPushAsync(envelope.PushRequest, cancellationToken);
     }
+
+    private Task DispatchDriverPushAsync(
+        OneSignalMobilePushRequest pushRequest,
+        CancellationToken cancellationToken) =>
+        _oneSignalPushService.SendMobileNotificationDirectAsync(pushRequest, cancellationToken);
+
+    private static bool IsDriverStakeholderCase(OrderSupportCase supportCase) =>
+        supportCase.Type is OrderSupportCaseType.DriverReport
+            or OrderSupportCaseType.DriverDispute
+            or OrderSupportCaseType.DriverAccountAppeal
+        || string.Equals(supportCase.InitiatorRole, "driver", StringComparison.OrdinalIgnoreCase)
+        || string.Equals(supportCase.AwaitingResponseFromRole, "driver", StringComparison.OrdinalIgnoreCase);
 
     private static DriverSupportNotificationEnvelope? TryComposeDriverSupportNotification(
         Order order,
@@ -1827,6 +1851,17 @@ public sealed class OrderSupportCaseWorkflowService : IOrderSupportCaseWorkflowS
                 "New support message",
                 $"توجد رسالة دعم جديدة بخصوص الطلب رقم #{order.OrderNumber}.",
                 $"There is a new support message about order #{order.OrderNumber}.",
+                NotificationPriorities.High,
+                OneSignalPushRequestKind.HeadsUp,
+                supportCase.Id,
+                data),
+
+            "note_added" => BuildDriverSupportNotification(
+                driverUserId,
+                "تمت إضافة ملاحظة",
+                "New support note",
+                $"تمت إضافة ملاحظة على بلاغ الطلب رقم #{order.OrderNumber}.",
+                $"A note was added to the support case for order #{order.OrderNumber}.",
                 NotificationPriorities.High,
                 OneSignalPushRequestKind.HeadsUp,
                 supportCase.Id,
@@ -1936,6 +1971,16 @@ public sealed class OrderSupportCaseWorkflowService : IOrderSupportCaseWorkflowS
                 "New support message",
                 $"توجد رسالة دعم جديدة بخصوص الطلب رقم #{orderNumber}.",
                 $"There is a new support message about order #{orderNumber}.",
+                NotificationPriorities.High,
+                OneSignalPushRequestKind.HeadsUp,
+                supportCaseId,
+                data),
+            "note_added" => BuildDriverSupportNotification(
+                driverUserId,
+                "تمت إضافة ملاحظة",
+                "New support note",
+                $"تمت إضافة ملاحظة على بلاغ الطلب رقم #{orderNumber}.",
+                $"A note was added to the support case for order #{orderNumber}.",
                 NotificationPriorities.High,
                 OneSignalPushRequestKind.HeadsUp,
                 supportCaseId,

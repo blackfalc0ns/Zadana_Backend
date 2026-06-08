@@ -642,6 +642,17 @@ public class OneSignalPushServiceTests
         OneSignalPushService.IsValidOneSignalSubscriptionId(value).Should().Be(expected);
     }
 
+    [Theory]
+    [InlineData("""{"id":"push-partial-success","errors":{"invalid_player_ids":["stale-subscription"]}}""", true)]
+    [InlineData("""{"id":"","errors":{"invalid_aliases":{"external_id":["user-id"]}}}""", false)]
+    [InlineData("""{"id":"push-clean-success"}""", true)]
+    public void HasSuccessfulNotificationId_ShouldTreatPartialRecipientErrorsAsSuccessWhenIdExists(
+        string responseBody,
+        bool expected)
+    {
+        OneSignalPushService.HasSuccessfulNotificationId(responseBody).Should().Be(expected);
+    }
+
     [Fact]
     public async Task SendToExternalUsersAsync_WithCustomerTarget_ShouldPreferRegisteredSubscriptionIdsBeforeAliases()
     {

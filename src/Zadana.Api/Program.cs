@@ -693,6 +693,7 @@ builder.Services.AddControllers(options =>
     })
     .AddJsonOptions(options =>
     {
+        options.JsonSerializerOptions.PropertyNamingPolicy = JsonNamingPolicy.CamelCase;
         options.JsonSerializerOptions.Converters.Add(new JsonStringEnumConverter());
     })
     .ConfigureApiBehaviorOptions(options =>
@@ -700,7 +701,7 @@ builder.Services.AddControllers(options =>
         options.SuppressModelStateInvalidFilter = true;
     });
 
-builder.Services.AddSignalR(o =>
+var signalRBuilder = builder.Services.AddSignalR(o =>
 {
     // Tighter limits prevent slow / abusive clients from exhausting server
     // resources under load. Keep alive intervals match mobile defaults.
@@ -712,13 +713,18 @@ builder.Services.AddSignalR(o =>
     o.HandshakeTimeout = TimeSpan.FromSeconds(15);
 });
 
+signalRBuilder.AddJsonProtocol(options =>
+{
+    options.PayloadSerializerOptions.PropertyNamingPolicy = JsonNamingPolicy.CamelCase;
+    options.PayloadSerializerOptions.Converters.Add(new JsonStringEnumConverter());
+});
+
 // Wire the Redis backplane so SignalR scales out across multiple API
 // instances without users missing notifications. Without this, hubs only
 // broadcast to clients connected to the same process.
 if (useRedisCaching)
 {
-    builder.Services
-        .AddSignalR()
+    signalRBuilder
         .AddStackExchangeRedis(redisConnectionString!, options =>
         {
             options.Configuration.ChannelPrefix =

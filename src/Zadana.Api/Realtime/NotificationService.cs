@@ -312,37 +312,21 @@ public sealed class NotificationService : INotificationService
 
     public async Task SendDeliveryOfferToDriverAsync(
         Guid driverUserId,
-        Guid assignmentId,
-        Guid orderId,
-        string orderNumber,
-        string vendorName,
-        decimal deliveryFee,
-        decimal totalAmount,
-        decimal codAmount,
-        string paymentMethod,
-        int countdownSeconds,
+        Application.Modules.Delivery.DTOs.DriverIncomingOfferDto currentOffer,
         CancellationToken cancellationToken = default)
     {
         try
         {
             var payload = new Contracts.DeliveryOfferRealtimePayload(
-                assignmentId,
-                orderId,
-                orderNumber,
-                vendorName,
-                deliveryFee,
-                totalAmount,
-                codAmount,
-                paymentMethod,
-                countdownSeconds,
+                currentOffer,
                 DateTime.UtcNow);
 
             _logger.LogInformation(
                 "Sending delivery offer SignalR event {Method} to user {UserId}. AssignmentId: {AssignmentId}. OrderId: {OrderId}.",
                 NotificationHub.ReceiveDeliveryOfferMethod,
                 driverUserId,
-                assignmentId,
-                orderId);
+                currentOffer.AssignmentId,
+                currentOffer.OrderId);
 
             await _hubContext.Clients
                 .Group(NotificationHub.GetUserGroup(driverUserId))
@@ -354,7 +338,7 @@ public sealed class NotificationService : INotificationService
                 ex,
                 "Failed to send delivery offer SignalR event to driver {UserId} for assignment {AssignmentId}",
                 driverUserId,
-                assignmentId);
+                currentOffer.AssignmentId);
         }
     }
 

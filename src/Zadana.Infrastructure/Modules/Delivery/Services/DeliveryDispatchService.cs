@@ -83,6 +83,7 @@ public class DeliveryDispatchService : IDeliveryDispatchService
         var order = await _context.Orders
             .Include(item => item.Vendor)
             .Include(item => item.VendorBranch)
+            .Include(item => item.Items)
             .FirstOrDefaultAsync(item => item.Id == orderId, cancellationToken);
 
         if (order is null)
@@ -698,7 +699,10 @@ public class DeliveryDispatchService : IDeliveryDispatchService
 
         await _unitOfWork.SaveChangesAsync(cancellationToken);
 
-        var vendorName = order.Vendor?.BusinessNameAr ?? order.Vendor?.BusinessNameEn ?? "Vendor";
+        var customerAddress = await _context.CustomerAddresses
+            .FirstOrDefaultAsync(item => item.Id == order.CustomerAddressId, cancellationToken);
+
+        var currentOffer = DriverIncomingOfferFactory.Build(assignment, order, customerAddress, now);
         var offerPayloadJson = DriverNotificationDataBuilder.Build(
             screen: "home",
             @event: "dispatch.offer_new",
@@ -715,15 +719,8 @@ public class DeliveryDispatchService : IDeliveryDispatchService
                 popupType = "delivery_offer",
                 showPopup = true,
                 eventName = "dispatch.offer_new",
-                orderNumber = order.OrderNumber,
-                vendorName,
-                deliveryFee = order.DeliveryFee,
-                totalAmount = order.TotalAmount,
-                codAmount = assignment.CodAmount,
-                paymentMethod = order.PaymentMethod.ToString(),
-                amountToCollect = assignment.CodAmount,
-                countdownSeconds = (int)OfferTtl.TotalSeconds,
-                expiresAtUtc
+                expiresAtUtc,
+                currentOffer
             });
 
         // Send real-time SignalR notification so the driver's Home screen updates instantly.
@@ -746,15 +743,7 @@ public class DeliveryDispatchService : IDeliveryDispatchService
         // instantly display the offer countdown UI without parsing generic inbox items.
         await _notificationService.SendDeliveryOfferToDriverAsync(
             best.Driver.UserId,
-            assignment.Id,
-            order.Id,
-            order.OrderNumber,
-            vendorName,
-            order.DeliveryFee,
-            order.TotalAmount,
-            assignment.CodAmount,
-            order.PaymentMethod.ToString(),
-            (int)OfferTtl.TotalSeconds,
+            currentOffer,
             cancellationToken);
 
         // Send a push notification to wake the driver app if it's in the background.

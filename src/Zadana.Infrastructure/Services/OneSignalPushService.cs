@@ -614,7 +614,7 @@ public sealed class OneSignalPushService : IOneSignalPushService
                             : responseBody);
             }
 
-            if (HasProviderRecipientErrors(responseBody))
+            if (HasProviderRecipientErrors(responseBody) && !HasSuccessfulNotificationId(responseBody))
             {
                 _logger.LogWarning(
                     "[PUSH-DIAG] OneSignal push provider accepted request but reported recipient errors. ExternalUserCount: {ExternalUserCount}. ExternalIdBatch: {ExternalIdBatch}. Profile: {Profile}. Type: {Type}. ReferenceId: {ReferenceId}. NotificationEventId: {NotificationEventId}. PreferredLocale: {PreferredLocale}. Channel: {Channel}. DataKeys: {DataKeys}. StatusCode: {StatusCode}. ProviderNotificationId: {ProviderNotificationId}. ResponseBody: {ResponseBody}",
@@ -641,6 +641,16 @@ public sealed class OneSignalPushService : IOneSignalPushService
                         string.IsNullOrWhiteSpace(responseBody)
                             ? "OneSignal reported recipient errors."
                             : responseBody);
+            }
+
+            if (HasProviderRecipientErrors(responseBody))
+            {
+                _logger.LogWarning(
+                    "[PUSH-DIAG] OneSignal push delivered with partial recipient errors (stale subscriptions ignored). ExternalUserCount: {ExternalUserCount}. ExternalIdBatch: {ExternalIdBatch}. ProviderNotificationId: {ProviderNotificationId}. ResponseBody: {ResponseBody}",
+                    preparedPayload.ExternalUserCount,
+                    preparedPayload.ExternalIdBatch,
+                    notificationId,
+                    responseBody);
             }
 
             _logger.LogInformation(
@@ -950,20 +960,25 @@ public sealed class OneSignalPushService : IOneSignalPushService
 
         query = ApplyCategoryFilter(query, category);
 
-        var registeredTokens = await query
+        var registeredDevices = await query
             .OrderByDescending(device => device.LastSeenAtUtc)
             .ThenByDescending(device => device.LastRegisteredAtUtc)
-            .Select(device => device.DeviceToken)
-            .Where(token => token != string.Empty)
+            .Select(device => new { device.UserId, device.DeviceToken })
             .ToArrayAsync(cancellationToken);
 
-        var subscriptionIds = registeredTokens
-            .Select(token => token.Trim())
-            .Where(IsValidOneSignalSubscriptionId)
+        // Prefer only the freshest subscription per user so stale OneSignal player ids
+        // do not poison the batch and cause the provider response to be treated as a failure.
+        var subscriptionIds = registeredDevices
+            .GroupBy(device => device.UserId)
+            .Select(group => group
+                .Select(device => device.DeviceToken.Trim())
+                .FirstOrDefault(IsValidOneSignalSubscriptionId))
+            .Where(subscriptionId => subscriptionId is not null)
+            .Cast<string>()
             .Distinct(StringComparer.OrdinalIgnoreCase)
             .ToArray();
 
-        var ignoredTokenCount = registeredTokens.Count(token => !IsValidOneSignalSubscriptionId(token));
+        var ignoredTokenCount = registeredDevices.Count(device => !IsValidOneSignalSubscriptionId(device.DeviceToken));
         if (ignoredTokenCount > 0)
         {
             _logger.LogWarning(
@@ -1575,6 +1590,9 @@ public sealed class OneSignalPushService : IOneSignalPushService
             return false;
         }
     }
+
+    internal static bool HasSuccessfulNotificationId(string? responseBody) =>
+        !string.IsNullOrWhiteSpace(ExtractNotificationId(responseBody));
 
     private static string ResolveChannel(Dictionary<string, object?> payload)
     {

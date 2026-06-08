@@ -4,6 +4,11 @@ namespace Zadana.Application.Modules.Delivery.Support;
 
 public static class DriverNotificationDataBuilder
 {
+    private static readonly JsonSerializerOptions JsonOptions = new()
+    {
+        PropertyNamingPolicy = JsonNamingPolicy.CamelCase
+    };
+
     public static string Build(
         string screen,
         string @event,
@@ -42,13 +47,13 @@ public static class DriverNotificationDataBuilder
 
         if (extra is not null)
         {
-            foreach (var property in JsonSerializer.SerializeToElement(extra).EnumerateObject())
+            foreach (var property in JsonSerializer.SerializeToElement(extra, JsonOptions).EnumerateObject())
             {
                 data[property.Name] = Deserialize(property.Value);
             }
         }
 
-        return JsonSerializer.Serialize(data);
+        return JsonSerializer.Serialize(data, JsonOptions);
     }
 
     private static string ResolveTargetUrl(
@@ -135,7 +140,7 @@ public static class DriverNotificationDataBuilder
     }
 
     private static object? Deserialize(JsonElement element) =>
-        JsonSerializer.Deserialize<object>(element.GetRawText());
+        JsonSerializer.Deserialize<object>(element.GetRawText(), JsonOptions);
 
     private static string Normalize(string value) =>
         value.Trim().Replace('_', '-').ToLowerInvariant().Replace('-', '_');

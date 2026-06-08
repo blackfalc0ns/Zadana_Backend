@@ -190,6 +190,10 @@ public class DeliveryDispatchServiceTests
                     request.Data.Contains("\"popupType\":\"delivery_offer\"") &&
                     request.Data.Contains("\"showPopup\":true") &&
                     request.Data.Contains("\"eventName\":\"dispatch.offer_new\"") &&
+                    request.Data.Contains("\"currentOffer\"") &&
+                    (request.Data.Contains("\"pickupAddress\"") || request.Data.Contains("\"PickupAddress\"")) &&
+                    (request.Data.Contains("\"orderItems\"") || request.Data.Contains("\"OrderItems\"")) &&
+                    request.Data.Contains("\"vendorNameEn\":\"Dispatch Store\"") &&
                     request.Data.Contains($"\"driverId\":\"{scenario.SameZoneFreshDriver.Id}\"") &&
                     request.Data.Contains(expectedPayloadPart) &&
                     request.Data.Contains(scenario.Order.Id.ToString())),
@@ -211,6 +215,10 @@ public class DeliveryDispatchServiceTests
                     request.Data.Contains("\"popupType\":\"delivery_offer\"") &&
                     request.Data.Contains("\"showPopup\":true") &&
                     request.Data.Contains("\"eventName\":\"dispatch.offer_new\"") &&
+                    request.Data.Contains("\"currentOffer\"") &&
+                    (request.Data.Contains("\"pickupAddress\"") || request.Data.Contains("\"PickupAddress\"")) &&
+                    (request.Data.Contains("\"orderItems\"") || request.Data.Contains("\"OrderItems\"")) &&
+                    request.Data.Contains("\"vendorNameEn\":\"Dispatch Store\"") &&
                     request.Data.Contains($"\"driverId\":\"{scenario.SameZoneFreshDriver.Id}\"") &&
                     request.Data.Contains(expectedPayloadPart) &&
                     request.Data.Contains(scenario.Order.Id.ToString())),
@@ -305,7 +313,8 @@ public class DeliveryDispatchServiceTests
             "01000000993",
             region: "Riyadh",
             city: "Riyadh",
-            nationalAddress: "Olaya");
+            nationalAddress: "Olaya",
+            logoUrl: "https://example.com/dispatch-vendor-logo.png");
 
         var branch = new VendorBranch(
             vendor.Id,

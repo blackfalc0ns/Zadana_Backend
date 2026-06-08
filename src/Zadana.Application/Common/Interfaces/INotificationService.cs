@@ -94,15 +94,7 @@ public interface INotificationService
     /// </summary>
     Task SendDeliveryOfferToDriverAsync(
         Guid driverUserId,
-        Guid assignmentId,
-        Guid orderId,
-        string orderNumber,
-        string vendorName,
-        decimal deliveryFee,
-        decimal totalAmount,
-        decimal codAmount,
-        string paymentMethod,
-        int countdownSeconds,
+        Modules.Delivery.DTOs.DriverIncomingOfferDto currentOffer,
         CancellationToken cancellationToken = default);
 
     /// <summary>

@@ -155,43 +155,7 @@ public sealed class DriverHomeReadService : IDriverHomeReadService
         var address = await _context.CustomerAddresses
             .FirstOrDefaultAsync(a => a.Id == assignment.Order.CustomerAddressId, cancellationToken);
 
-        var distanceKm = address?.Latitude.HasValue == true && address.Longitude.HasValue
-            ? ApproximateDistanceKm(
-                assignment.Order.VendorBranch?.Latitude ?? 0m,
-                assignment.Order.VendorBranch?.Longitude ?? 0m,
-                address.Latitude!.Value,
-                address.Longitude!.Value)
-            : 0m;
-
-        var countdownSeconds = assignment.OfferExpiresAtUtc.HasValue
-            ? Math.Max(0, (int)(assignment.OfferExpiresAtUtc.Value - DateTime.UtcNow).TotalSeconds)
-            : 0;
-
-        return new DriverIncomingOfferDto(
-            assignment.Id,
-            assignment.OrderId,
-            assignment.Order.OrderNumber,
-            assignment.Order.Vendor.BusinessNameEn,
-            assignment.Order.VendorBranch?.AddressLine ?? assignment.Order.Vendor.NationalAddress ?? string.Empty,
-            assignment.Order.VendorBranch?.Latitude,
-            assignment.Order.VendorBranch?.Longitude,
-            address?.ContactName ?? "Customer",
-            address?.AddressLine ?? string.Empty,
-            address?.Latitude,
-            address?.Longitude,
-            Math.Round(distanceKm, 2),
-            BuildEta(distanceKm),
-            assignment.Order.DeliveryFee,
-            assignment.Order.PaymentMethod.ToString(),
-            assignment.Order.TotalAmount,
-            ResolveCodAmount(assignment),
-            BuildInitials(assignment.Order.Vendor.BusinessNameEn),
-            BuildInitials(address?.ContactName ?? "Customer"),
-            assignment.Order.Notes,
-            countdownSeconds,
-            assignment.Order.Items
-                .Select(item => new DriverOfferItemDto(item.ProductName, item.Quantity, assignment.Order.Notes))
-                .ToArray());
+        return DriverIncomingOfferFactory.Build(assignment, address);
     }
 
     private async Task<DriverCurrentAssignmentDto> BuildCurrentAssignmentDtoAsync(
@@ -246,28 +210,8 @@ public sealed class DriverHomeReadService : IDriverHomeReadService
         return operationalStatus.IsAvailable ? "WaitingForOffer" : "Offline";
     }
 
-    private static decimal ApproximateDistanceKm(decimal lat1, decimal lng1, decimal lat2, decimal lng2)
-    {
-        var dLat = (double)(lat2 - lat1) * Math.PI / 180;
-        var dLng = (double)(lng2 - lng1) * Math.PI / 180;
-        var avgLat = (double)(lat1 + lat2) / 2 * Math.PI / 180;
-        var x = dLng * Math.Cos(avgLat);
-        var y = dLat;
-        return (decimal)(Math.Sqrt(x * x + y * y) * 6371);
-    }
-
-    private static string BuildEta(decimal distanceKm)
-    {
-        var minutes = Math.Max(8, (int)Math.Round((double)distanceKm * 4));
-        return $"{minutes}-{minutes + 5} min";
-    }
-
-    private static string BuildInitials(string value)
-    {
-        var parts = value.Split(' ', StringSplitOptions.RemoveEmptyEntries | StringSplitOptions.TrimEntries);
-        return string.Concat(parts.Take(2).Select(part => char.ToUpperInvariant(part[0])));
-    }
-
     private static decimal ResolveCodAmount(DeliveryAssignment assignment) =>
-        assignment.Order.PaymentMethod == PaymentMethodType.CashOnDelivery ? assignment.Order.TotalAmount : 0m;
+        assignment.Order.PaymentMethod == PaymentMethodType.CashOnDelivery
+            ? assignment.CodAmount
+            : 0m;
 }

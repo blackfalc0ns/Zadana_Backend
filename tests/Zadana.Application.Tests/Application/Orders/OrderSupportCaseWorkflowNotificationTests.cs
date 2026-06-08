@@ -135,7 +135,7 @@ public class OrderSupportCaseWorkflowNotificationTests
             Times.Once);
 
         pushServiceMock.Verify(
-            service => service.SendMobileNotificationAsync(
+            service => service.SendMobileNotificationDirectAsync(
                 It.Is<OneSignalMobilePushRequest>(request =>
                     request.ExternalUserId == driverUser.Id.ToString() &&
                     request.Type == NotificationTypes.OrderSupportCaseChanged &&
@@ -162,6 +162,73 @@ public class OrderSupportCaseWorkflowNotificationTests
                 "in_review",
                 "admin_message",
                 $"/orders/{order.Id}/cases/{supportCase.Id}",
+                It.IsAny<CancellationToken>()),
+            Times.Once);
+    }
+
+    [Fact]
+    public async Task AddNoteAsync_WhenDriverOrderCase_ShouldSendDirectSupportPushToDriver()
+    {
+        await using var dbContext = CreateDbContext();
+        var customer = new User("Customer User", "customer.driver.note@test.com", "01000000212", UserRole.Customer);
+        var driverUser = new User("Driver User", "driver.note.case@test.com", "01000000213", UserRole.Driver);
+        var driver = new Driver(driverUser.Id, DriverVehicleType.Car, "3234567892", "LIC-2002");
+        var vendor = CreateVendor(Guid.NewGuid());
+        var order = CreateOrder(customer.Id, vendor.Id, OrderStatus.DriverAssigned, "ORD-DRIVER-NOTE-001");
+        var supportCase = new OrderSupportCase(
+            order.Id,
+            driverUser.Id,
+            OrderSupportCaseType.DriverReport,
+            OrderSupportCasePriority.High,
+            OrderSupportCaseQueue.DriverOps,
+            "pickup_issue",
+            "Driver reported a pickup issue.",
+            initiatorRole: "driver");
+
+        dbContext.Users.AddRange(customer, driverUser);
+        dbContext.Vendors.Add(vendor);
+        dbContext.Drivers.Add(driver);
+        dbContext.Orders.Add(order);
+        dbContext.OrderSupportCases.Add(supportCase);
+        await dbContext.SaveChangesAsync();
+
+        var notificationServiceMock = CreateNotificationServiceMock();
+        var pushServiceMock = CreatePushServiceMock();
+        var workflowService = CreateWorkflowService(
+            dbContext,
+            notificationServiceMock,
+            pushServiceMock: pushServiceMock);
+
+        await workflowService.AddNoteAsync(
+            supportCase.Id,
+            Guid.NewGuid(),
+            "Internal follow-up note.",
+            visibleToCustomer: false,
+            CancellationToken.None);
+
+        notificationServiceMock.Verify(
+            service => service.SendToUserAsync(
+                driverUser.Id,
+                It.Is<NotificationDispatchRequest>(request =>
+                    request.Type == NotificationTypes.OrderSupportCaseChanged &&
+                    request.Category == NotificationCategories.Support &&
+                    request.Data != null &&
+                    request.Data.Contains("\"event\":\"support.note_added\"", StringComparison.Ordinal) &&
+                    request.Data.Contains("\"popupType\":\"support_case_status_update\"", StringComparison.Ordinal)),
+                It.IsAny<CancellationToken>()),
+            Times.Once);
+
+        pushServiceMock.Verify(
+            service => service.SendMobileNotificationDirectAsync(
+                It.Is<OneSignalMobilePushRequest>(request =>
+                    request.ExternalUserId == driverUser.Id.ToString() &&
+                    request.Type == NotificationTypes.OrderSupportCaseChanged &&
+                    request.ReferenceId == supportCase.Id &&
+                    request.Category == NotificationCategories.Support &&
+                    request.Profile == OneSignalPushProfile.MobileHeadsUp &&
+                    request.TargetApplication == OneSignalApplicationTarget.Driver &&
+                    request.Data != null &&
+                    request.Data.Contains("\"event\":\"support.note_added\"", StringComparison.Ordinal)),
                 It.IsAny<CancellationToken>()),
             Times.Once);
     }
@@ -406,6 +473,11 @@ public class OrderSupportCaseWorkflowNotificationTests
         var pushServiceMock = new Mock<IOneSignalPushService>();
         pushServiceMock
             .Setup(service => service.SendMobileNotificationAsync(
+                It.IsAny<OneSignalMobilePushRequest>(),
+                It.IsAny<CancellationToken>()))
+            .ReturnsAsync(new OneSignalPushDispatchResult(true, true, false, 200, "push-id", null));
+        pushServiceMock
+            .Setup(service => service.SendMobileNotificationDirectAsync(
                 It.IsAny<OneSignalMobilePushRequest>(),
                 It.IsAny<CancellationToken>()))
             .ReturnsAsync(new OneSignalPushDispatchResult(true, true, false, 200, "push-id", null));
