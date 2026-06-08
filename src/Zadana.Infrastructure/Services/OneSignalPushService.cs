@@ -380,7 +380,8 @@ public sealed class OneSignalPushService : IOneSignalPushService
                     .Distinct(StringComparer.Ordinal)
                     .ToArray();
 
-                if (resolvedTargetApplication == OneSignalApplicationTarget.AdminWeb)
+                if (resolvedTargetApplication is OneSignalApplicationTarget.AdminWeb
+                    or OneSignalApplicationTarget.Driver)
                 {
                     var subscriptionFirstPayload = await BuildSubscriptionPayloadAsync(
                         lookupBatch,

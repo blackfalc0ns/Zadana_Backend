@@ -197,7 +197,7 @@ public class DeliveryDispatchServiceTests
             Times.Once);
 
         oneSignalPushServiceMock.Verify(
-            service => service.SendMobileNotificationAsync(
+            service => service.SendMobileNotificationDirectAsync(
                 It.Is<OneSignalMobilePushRequest>(request =>
                     request.ExternalUserId == scenario.SameZoneFreshDriver.UserId.ToString() &&
                     request.Type == NotificationTypes.DriverDeliveryOffer &&
