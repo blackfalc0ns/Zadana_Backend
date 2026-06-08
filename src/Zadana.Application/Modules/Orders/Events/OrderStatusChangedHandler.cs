@@ -442,7 +442,21 @@ public class OrderStatusChangedHandler : INotificationHandler<OrderStatusChanged
             envelope.Request,
             cancellationToken);
 
-        await envelope.PushRequest.DispatchAsync(_oneSignalPushService, cancellationToken);
+        // Use direct dispatch (subscription-first) so assignment pushes reach killed/background driver apps,
+        // matching the delivery-offer path in DeliveryDispatchService.
+        var pushResult = await _oneSignalPushService.SendMobileNotificationDirectAsync(
+            envelope.PushRequest,
+            cancellationToken);
+
+        if (!pushResult.Sent && !pushResult.Skipped)
+        {
+            _logger.LogWarning(
+                "Driver assignment push failed for order {OrderId} driver user {DriverUserId}. ProviderStatusCode: {ProviderStatusCode}. Reason: {Reason}",
+                notification.OrderId,
+                driverUserId,
+                pushResult.ProviderStatusCode,
+                pushResult.Reason);
+        }
     }
 
     private static DriverAssignmentNotificationEnvelope? TryComposeDriverAssignmentNotification(
@@ -478,7 +492,7 @@ public class OrderStatusChangedHandler : INotificationHandler<OrderStatusChanged
                 $"التاجر بدأ تحضير الطلب رقم #{notification.OrderNumber}.",
                 $"The vendor started preparing order #{notification.OrderNumber}.",
                 NotificationPriorities.Normal,
-                OneSignalPushRequestKind.Standard),
+                OneSignalPushRequestKind.HeadsUp),
 
                 OrderStatus.ReadyForPickup => CreateDriverAssignmentNotification(
                     notification,

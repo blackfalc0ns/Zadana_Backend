@@ -542,6 +542,67 @@ public class OrderStatusChangedHandlerTests
             Times.Once);
     }
 
+    [Fact]
+    public async Task Handle_WhenOrderBecomesReadyForPickup_ShouldSendDirectAssignmentPushToDriver()
+    {
+        await using var dbContext = CreateDbContext();
+        var customer = new User("Customer User", "customer.ready.pickup@test.com", "01000000142", UserRole.Customer);
+        var driverUser = new User("Driver User", "driver.ready.pickup@test.com", "01000000143", UserRole.Driver);
+        var driver = new Driver(driverUser.Id, DriverVehicleType.Car, "3234567891", "LIC-1006");
+        var vendorId = Guid.NewGuid();
+        var order = CreateOrder(customer.Id, vendorId, OrderStatus.Preparing, "ORD-READY-PICKUP-001");
+        var assignment = new DeliveryAssignment(order.Id, 0m);
+
+        assignment.OfferTo(driver.Id, 1, DateTime.UtcNow.AddMinutes(5));
+        assignment.Accept();
+
+        dbContext.Users.AddRange(customer, driverUser);
+        dbContext.Drivers.Add(driver);
+        dbContext.Orders.Add(order);
+        dbContext.DeliveryAssignments.Add(assignment);
+        await dbContext.SaveChangesAsync();
+
+        var notificationServiceMock = new Mock<INotificationService>();
+        var pushServiceMock = CreatePushServiceMock();
+        var dispatcherMock = CreateDispatcherMock();
+        var revenueDistributionServiceMock = CreateRevenueDistributionServiceMock(dbContext);
+        var handler = new OrderStatusChangedHandler(
+            notificationServiceMock.Object,
+            dbContext,
+            pushServiceMock.Object,
+            dispatcherMock.Object,
+            revenueDistributionServiceMock.Object,
+            Mock.Of<IOrderTrackingRealtimeNotifier>(),
+            Mock.Of<IEmailCenterService>(),
+            Mock.Of<Microsoft.Extensions.Logging.ILogger<OrderStatusChangedHandler>>());
+
+        await handler.Handle(
+            new OrderStatusChangedNotification(
+                order.Id,
+                customer.Id,
+                vendorId,
+                order.OrderNumber,
+                OrderStatus.Preparing,
+                OrderStatus.ReadyForPickup,
+                NotifyCustomer: false,
+                NotifyVendor: false,
+                ActorRole: "vendor"),
+            CancellationToken.None);
+
+        pushServiceMock.Verify(
+            service => service.SendMobileNotificationDirectAsync(
+                It.Is<OneSignalMobilePushRequest>(request =>
+                    request.ExternalUserId == driverUser.Id.ToString() &&
+                    request.Type == NotificationTypes.DriverAssignmentUpdated &&
+                    request.Category == NotificationCategories.Assignment &&
+                    request.TargetApplication == OneSignalApplicationTarget.Driver &&
+                    request.Profile == OneSignalPushProfile.MobileHeadsUp &&
+                    request.Data != null &&
+                    request.Data.Contains("\"eventName\":\"assignment.pickup_ready\"", StringComparison.Ordinal)),
+                It.IsAny<CancellationToken>()),
+            Times.Once);
+    }
+
     private static Mock<IOrderStatusNotificationDispatcher> CreateDispatcherMock()
     {
         var dispatcherMock = new Mock<IOrderStatusNotificationDispatcher>();
@@ -615,6 +676,17 @@ public class OrderStatusChangedHandlerTests
                 It.IsAny<string?>(),
                 It.IsAny<string?>(),
                 It.IsAny<OneSignalPushProfile>(),
+                It.IsAny<CancellationToken>()))
+            .ReturnsAsync(new OneSignalPushDispatchResult(
+                Attempted: true,
+                Sent: true,
+                Skipped: false,
+                ProviderStatusCode: 200,
+                ProviderNotificationId: "push-id",
+                Reason: null));
+        pushServiceMock
+            .Setup(service => service.SendMobileNotificationDirectAsync(
+                It.IsAny<OneSignalMobilePushRequest>(),
                 It.IsAny<CancellationToken>()))
             .ReturnsAsync(new OneSignalPushDispatchResult(
                 Attempted: true,
