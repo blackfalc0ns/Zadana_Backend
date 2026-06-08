@@ -21,6 +21,7 @@ using Zadana.Application.Modules.Delivery.DTOs;
 using Zadana.Application.Modules.Delivery.Interfaces;
 using Zadana.Application.Modules.Delivery.Support;
 using Zadana.Application.Modules.Identity.Interfaces;
+using Zadana.Domain.Modules.Social.Enums;
 using Zadana.SharedKernel.Exceptions;
 
 namespace Zadana.Api.Modules.Delivery.Controllers;
@@ -190,7 +191,7 @@ public class AdminDriversController : ApiControllerBase
 
         if (request.SendPush
             && pushResult.Skipped
-            && string.Equals(pushResult.Reason, "No active push-enabled devices matched the selected notification category.", StringComparison.Ordinal))
+            && string.Equals(pushResult.Reason, "No registered push devices found.", StringComparison.Ordinal))
         {
             _logger.LogWarning(
                 "[PUSH-DIAG] Admin driver test notification is falling back to direct OneSignal delivery without UserPushDevices registration. DriverId: {DriverId}. UserId: {UserId}. ExternalId: {ExternalId}",
@@ -361,19 +362,31 @@ public class AdminDriversController : ApiControllerBase
             driverId: driver.Id,
             extra: new { reason });
 
-        // Notify the driver via push notification
-        await _oneSignalPushService.SendMobileNotificationAsync(
+        await _notificationService.SendToUserAsync(
+            driver.UserId,
+            "تم قفل تسجيل الدخول",
+            "Login locked",
+            "تم قفل تسجيل دخولك. استخدم نموذج الدعم للاعتراض.",
+            "Your login has been locked. Use the support form to appeal.",
+            NotificationTypes.DriverAccountUpdated,
+            driver.Id,
+            data,
+            cancellationToken);
+
+        await _notificationService.SendDriverHomeUpdatedAsync(driver.UserId, cancellationToken);
+
+        await _oneSignalPushService.SendMobileNotificationDirectAsync(
             OneSignalMobilePushRequest.CreateHeadsUp(
                 driver.UserId.ToString(),
                 "تم قفل تسجيل الدخول",
                 "Login locked",
                 "تم قفل تسجيل دخولك. استخدم نموذج الدعم للاعتراض.",
                 "Your login has been locked. Use the support form to appeal.",
-                "driver_account_updated",
+                NotificationTypes.DriverAccountUpdated,
                 driver.Id,
                 data,
                 "/account-status",
-                category: "account",
+                category: NotificationCategories.Account,
                 targetApplication: OneSignalApplicationTarget.Driver),
             cancellationToken);
 
@@ -406,7 +419,19 @@ public class AdminDriversController : ApiControllerBase
             @event: "account.login_unlocked",
             driverId: driver.Id);
 
-        // Notify the driver via push notification
+        await _notificationService.SendToUserAsync(
+            driver.UserId,
+            "تم فتح تسجيل الدخول",
+            "Login unlocked",
+            "تم فتح تسجيل دخولك بنجاح. يمكنك الآن استخدام التطبيق.",
+            "Your login has been unlocked. You can now use the app.",
+            NotificationTypes.DriverAccountUpdated,
+            driver.Id,
+            data,
+            cancellationToken);
+
+        await _notificationService.SendDriverHomeUpdatedAsync(driver.UserId, cancellationToken);
+
         await _oneSignalPushService.SendMobileNotificationDirectAsync(
             OneSignalMobilePushRequest.CreateHeadsUp(
                 driver.UserId.ToString(),
@@ -414,11 +439,11 @@ public class AdminDriversController : ApiControllerBase
                 "Login unlocked",
                 "تم فتح تسجيل دخولك بنجاح. يمكنك الآن استخدام التطبيق.",
                 "Your login has been unlocked. You can now use the app.",
-                "driver_account_updated",
+                NotificationTypes.DriverAccountUpdated,
                 driver.Id,
                 data,
                 "/account-status",
-                category: "account",
+                category: NotificationCategories.Account,
                 targetApplication: OneSignalApplicationTarget.Driver),
             cancellationToken);
 

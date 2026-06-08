@@ -4,6 +4,7 @@ using Microsoft.EntityFrameworkCore;
 using Zadana.Application.Common.Interfaces;
 using Zadana.Application.Modules.Delivery.Interfaces;
 using Zadana.Domain.Modules.Delivery.Enums;
+using Zadana.Domain.Modules.Social.Enums;
 using Zadana.SharedKernel.Exceptions;
 
 namespace Zadana.Application.Modules.Delivery.Commands.ResendAssignmentOtp;
@@ -37,15 +38,18 @@ public class ResendAssignmentOtpCommandHandler : IRequestHandler<ResendAssignmen
     private readonly IApplicationDbContext _context;
     private readonly IDriverRepository _driverRepository;
     private readonly INotificationService _notificationService;
+    private readonly IOneSignalPushService _oneSignalPushService;
 
     public ResendAssignmentOtpCommandHandler(
         IApplicationDbContext context,
         IDriverRepository driverRepository,
-        INotificationService notificationService)
+        INotificationService notificationService,
+        IOneSignalPushService oneSignalPushService)
     {
         _context = context;
         _driverRepository = driverRepository;
         _notificationService = notificationService;
+        _oneSignalPushService = oneSignalPushService;
     }
 
     public async Task Handle(ResendAssignmentOtpCommand request, CancellationToken cancellationToken)
@@ -116,6 +120,21 @@ public class ResendAssignmentOtpCommandHandler : IRequestHandler<ResendAssignmen
                 "customer-delivery-otp-resent",
                 assignment.OrderId,
                 $"assignmentId={assignment.Id};otpType=delivery",
+                cancellationToken);
+
+            await _oneSignalPushService.SendMobileNotificationDirectAsync(
+                OneSignalMobilePushRequest.CreateHeadsUp(
+                    assignment.Order.UserId.ToString(),
+                    "إعادة إرسال رمز التسليم",
+                    "Delivery OTP Resent",
+                    $"المندوب متواجد لتسليم طلبك رقم {assignment.Order.OrderNumber}. افتح تفاصيل الطلب لعرض رمز التسليم المؤمّن.",
+                    $"Driver is ready to deliver order #{assignment.Order.OrderNumber}. Open the order details to view the secure delivery code.",
+                    "customer-delivery-otp-resent",
+                    assignment.OrderId,
+                    $"assignmentId={assignment.Id};otpType=delivery",
+                    $"/orders/{assignment.OrderId}",
+                    category: NotificationCategories.Order,
+                    targetApplication: OneSignalApplicationTarget.Customer),
                 cancellationToken);
         }
     }

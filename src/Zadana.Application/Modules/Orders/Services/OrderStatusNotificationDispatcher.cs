@@ -2,6 +2,7 @@ using Microsoft.Extensions.Logging;
 using Zadana.Application.Common.Interfaces;
 using Zadana.Application.Modules.Orders.Support;
 using Zadana.Domain.Modules.Orders.Enums;
+using Zadana.Domain.Modules.Social.Enums;
 
 namespace Zadana.Application.Modules.Orders.Services;
 
@@ -181,5 +182,7 @@ public sealed class OrderStatusNotificationDispatcher : IOrderStatusNotification
             composed.NotificationType,
             request.OrderId,
             composed.Data,
-            composed.TargetUrl);
+            composed.TargetUrl,
+            category: NotificationCategories.Order,
+            targetApplication: OneSignalApplicationTarget.Customer);
 }

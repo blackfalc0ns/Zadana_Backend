@@ -243,7 +243,7 @@ public class DeliveryDispatchService : IDeliveryDispatchService
                     data),
                 cancellationToken);
 
-            await _oneSignalPushService.SendMobileNotificationAsync(
+            await _oneSignalPushService.SendMobileNotificationDirectAsync(
                 OneSignalMobilePushRequest.CreateHeadsUp(
                     driverUserId.ToString(),
                     "انتهت مهلة عرض التوصيل",
@@ -257,6 +257,8 @@ public class DeliveryDispatchService : IDeliveryDispatchService
                     category: NotificationCategories.Dispatch,
                     targetApplication: OneSignalApplicationTarget.Driver),
                 cancellationToken);
+
+            await _notificationService.SendDriverHomeUpdatedAsync(driverUserId, cancellationToken);
         }
 
         if (timedOutDriverIds.Count > 0)

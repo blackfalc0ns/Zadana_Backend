@@ -157,7 +157,7 @@ public sealed class OneSignalPushService : IOneSignalPushService
 
     private static bool IsRetryableSkipReason(string? reason) =>
         !string.IsNullOrWhiteSpace(reason) &&
-        reason.Contains("No active push-enabled devices", StringComparison.OrdinalIgnoreCase);
+        reason.Contains("No registered push devices found", StringComparison.OrdinalIgnoreCase);
 
     public async Task<OneSignalPushDispatchResult> SendMobileNotificationDirectAsync(
         OneSignalMobilePushRequest request,
@@ -352,14 +352,11 @@ public sealed class OneSignalPushService : IOneSignalPushService
 
         if (recipientsByLocale.Count == 0)
         {
-            return
-            [
-                CreateSkippedResult(
-                    requireRegisteredDevices
-                        ? "No active push-enabled devices matched the selected notification category."
-                        : "No eligible OneSignal recipients were found.",
-                    normalizedExternalUserIds.Length)
-            ];
+            var skipReason = await ResolveNoRecipientsSkipReasonAsync(
+                recipientIdentity.LookupExternalUserIds,
+                cancellationToken);
+
+            return [CreateSkippedResult(skipReason, normalizedExternalUserIds.Length)];
         }
 
         var results = new List<OneSignalPushDispatchResult>();
@@ -381,7 +378,8 @@ public sealed class OneSignalPushService : IOneSignalPushService
                     .ToArray();
 
                 if (resolvedTargetApplication is OneSignalApplicationTarget.AdminWeb
-                    or OneSignalApplicationTarget.Driver)
+                    or OneSignalApplicationTarget.Driver
+                    or OneSignalApplicationTarget.Customer)
                 {
                     var subscriptionFirstPayload = await BuildSubscriptionPayloadAsync(
                         lookupBatch,
@@ -1060,11 +1058,19 @@ public sealed class OneSignalPushService : IOneSignalPushService
         await using var scope = _scopeFactory.CreateAsyncScope();
         var dbContext = scope.ServiceProvider.GetRequiredService<ApplicationDbContext>();
 
-        var devicesQuery = dbContext.UserPushDevices
+        var activeDevicesQuery = dbContext.UserPushDevices
             .AsNoTracking()
             .Where(device => guidUserIds.Contains(device.UserId) && device.IsActive && device.NotificationsEnabled);
 
-        devicesQuery = ApplyCategoryFilter(devicesQuery, category);
+        var usersWithRegisteredDevices = await dbContext.UserPushDevices
+            .AsNoTracking()
+            .Where(device => guidUserIds.Contains(device.UserId) && device.IsActive)
+            .Select(device => device.UserId)
+            .Distinct()
+            .ToListAsync(cancellationToken);
+        var usersWithRegisteredDeviceSet = usersWithRegisteredDevices.ToHashSet();
+
+        var devicesQuery = ApplyCategoryFilter(activeDevicesQuery, category);
 
         var deviceLocales = await devicesQuery
             .Select(device => new
@@ -1106,6 +1112,10 @@ public sealed class OneSignalPushService : IOneSignalPushService
         }
 
         return parsedUserIds
+            .Where(item =>
+                !item.Parsed ||
+                !usersWithRegisteredDeviceSet.Contains(item.UserId) ||
+                optedInUserIds.Contains(item.UserId))
             .GroupBy(item =>
                 item.Parsed && preferredLocaleByUserId.TryGetValue(item.UserId, out var locale)
                     ? locale
@@ -1114,6 +1124,35 @@ public sealed class OneSignalPushService : IOneSignalPushService
                 group.Key,
                 group.Select(item => item.ExternalUserId).ToArray()))
             .ToArray();
+    }
+
+    private async Task<string> ResolveNoRecipientsSkipReasonAsync(
+        IReadOnlyCollection<string> lookupExternalUserIds,
+        CancellationToken cancellationToken)
+    {
+        var guidUserIds = lookupExternalUserIds
+            .Select(id => Guid.TryParse(id, out var userId) ? userId : Guid.Empty)
+            .Where(id => id != Guid.Empty)
+            .Distinct()
+            .ToArray();
+
+        if (guidUserIds.Length == 0)
+        {
+            return "No eligible OneSignal recipients were found.";
+        }
+
+        await using var scope = _scopeFactory.CreateAsyncScope();
+        var dbContext = scope.ServiceProvider.GetRequiredService<ApplicationDbContext>();
+
+        var hasAnyActiveDevice = await dbContext.UserPushDevices
+            .AsNoTracking()
+            .AnyAsync(
+                device => guidUserIds.Contains(device.UserId) && device.IsActive && device.NotificationsEnabled,
+                cancellationToken);
+
+        return hasAnyActiveDevice
+            ? "Push notifications are disabled for this category on all registered devices."
+            : "No registered push devices found.";
     }
 
     private static IQueryable<Domain.Modules.Identity.Entities.UserPushDevice> ApplyCategoryFilter(

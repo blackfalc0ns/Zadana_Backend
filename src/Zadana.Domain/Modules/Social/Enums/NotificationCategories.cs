@@ -7,4 +7,5 @@ public static class NotificationCategories
     public const string Support = "support";
     public const string Wallet = "wallet";
     public const string Account = "account";
+    public const string Order = "order";
 }

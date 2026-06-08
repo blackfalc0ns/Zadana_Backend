@@ -1376,7 +1376,7 @@ public sealed class OrderSupportCaseWorkflowService : IOrderSupportCaseWorkflowS
 
         var pushKind = action is "request_evidence" or "admin_message" or "escalated" or "resolved" or "rejected" or "approved" or "note_added" or "reopened" or "assigned"
             ? OneSignalPushRequestKind.HeadsUp
-            : OneSignalPushRequestKind.HeadsUp;
+            : OneSignalPushRequestKind.Standard;
 
         var pushRequest = pushKind == OneSignalPushRequestKind.HeadsUp
             ? OneSignalMobilePushRequest.CreateHeadsUp(
@@ -1391,7 +1391,7 @@ public sealed class OrderSupportCaseWorkflowService : IOrderSupportCaseWorkflowS
                 targetUrl: targetUrl,
                 category: NotificationCategories.Support,
                 targetApplication: OneSignalApplicationTarget.Driver)
-            : OneSignalMobilePushRequest.CreateHeadsUp(
+            : OneSignalMobilePushRequest.CreateStandard(
                 supportCase.CustomerUserId.ToString(),
                 titleAr,
                 titleEn,
@@ -1521,7 +1521,9 @@ public sealed class OrderSupportCaseWorkflowService : IOrderSupportCaseWorkflowS
                 composed.NotificationType,
                 supportCase.Id,
                 composed.Data,
-                composed.TargetUrl)
+                composed.TargetUrl,
+                category: NotificationCategories.Support,
+                targetApplication: OneSignalApplicationTarget.Customer)
             .DispatchAsync(_oneSignalPushService, cancellationToken);
     }
 
@@ -1574,7 +1576,9 @@ public sealed class OrderSupportCaseWorkflowService : IOrderSupportCaseWorkflowS
                 "order_support_case",
                 supportCase.Id,
                 data,
-                targetUrl)
+                targetUrl,
+                category: NotificationCategories.Support,
+                targetApplication: OneSignalApplicationTarget.Customer)
             .DispatchAsync(_oneSignalPushService, cancellationToken);
     }
 
@@ -2034,7 +2038,7 @@ public sealed class OrderSupportCaseWorkflowService : IOrderSupportCaseWorkflowS
                 targetUrl: $"/support/cases/{referenceId}",
                 category: NotificationCategories.Support,
                 targetApplication: OneSignalApplicationTarget.Driver)
-            : OneSignalMobilePushRequest.CreateHeadsUp(
+            : OneSignalMobilePushRequest.CreateStandard(
                 driverUserId.ToString(),
                 titleAr,
                 titleEn,

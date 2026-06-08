@@ -6,6 +6,7 @@ using Microsoft.Extensions.Logging;
 using Zadana.Application.Common.Interfaces;
 using Zadana.Application.Common.Localization;
 using Zadana.Application.Modules.Delivery.Interfaces;
+using Zadana.Domain.Modules.Social.Enums;
 using Zadana.SharedKernel.Exceptions;
 
 namespace Zadana.Application.Modules.Delivery.Commands.UpdateDriverArrivalState;
@@ -175,7 +176,8 @@ public class UpdateDriverArrivalStateCommandHandler : IRequestHandler<UpdateDriv
                     assignment.OrderId,
                     notificationData,
                     targetUrl,
-                    category: "order"),
+                    category: NotificationCategories.Order,
+                    targetApplication: OneSignalApplicationTarget.Customer),
                 cancellationToken);
 
             if (!pushResult.Sent)

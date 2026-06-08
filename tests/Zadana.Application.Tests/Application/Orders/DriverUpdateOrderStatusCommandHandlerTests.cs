@@ -52,6 +52,7 @@ public class DriverUpdateOrderStatusCommandHandlerTests
             new DriverRepository(dbContext),
             Mock.Of<IDriverReadService>(),
             Mock.Of<INotificationService>(),
+            Mock.Of<IOneSignalPushService>(),
             new OrderInventoryWorkflowService(dbContext));
 
         var action = () => handler.Handle(
@@ -92,6 +93,7 @@ public class DriverUpdateOrderStatusCommandHandlerTests
             new DriverRepository(dbContext),
             Mock.Of<IDriverReadService>(),
             Mock.Of<INotificationService>(),
+            Mock.Of<IOneSignalPushService>(),
             new OrderInventoryWorkflowService(dbContext));
 
         var action = () => handler.Handle(
@@ -135,6 +137,7 @@ public class DriverUpdateOrderStatusCommandHandlerTests
             new DriverRepository(dbContext),
             Mock.Of<IDriverReadService>(),
             Mock.Of<INotificationService>(),
+            Mock.Of<IOneSignalPushService>(),
             new OrderInventoryWorkflowService(dbContext));
 
         var action = () => handler.Handle(
@@ -175,6 +178,7 @@ public class DriverUpdateOrderStatusCommandHandlerTests
             new DriverRepository(dbContext),
             Mock.Of<IDriverReadService>(),
             Mock.Of<INotificationService>(),
+            Mock.Of<IOneSignalPushService>(),
             new OrderInventoryWorkflowService(dbContext));
 
         var action = () => handler.Handle(
@@ -219,6 +223,7 @@ public class DriverUpdateOrderStatusCommandHandlerTests
             new DriverRepository(dbContext),
             Mock.Of<IDriverReadService>(),
             Mock.Of<INotificationService>(),
+            Mock.Of<IOneSignalPushService>(),
             new OrderInventoryWorkflowService(dbContext));
 
         var result = await handler.Handle(
@@ -263,6 +268,7 @@ public class DriverUpdateOrderStatusCommandHandlerTests
             new DriverRepository(dbContext),
             Mock.Of<IDriverReadService>(),
             Mock.Of<INotificationService>(),
+            Mock.Of<IOneSignalPushService>(),
             new OrderInventoryWorkflowService(dbContext));
 
         var result = await handler.Handle(
@@ -311,6 +317,7 @@ public class DriverUpdateOrderStatusCommandHandlerTests
             new DriverRepository(dbContext),
             Mock.Of<IDriverReadService>(),
             Mock.Of<INotificationService>(),
+            Mock.Of<IOneSignalPushService>(),
             new OrderInventoryWorkflowService(dbContext));
 
         var result = await handler.Handle(
@@ -357,6 +364,7 @@ public class DriverUpdateOrderStatusCommandHandlerTests
             new DriverRepository(dbContext),
             Mock.Of<IDriverReadService>(),
             Mock.Of<INotificationService>(),
+            Mock.Of<IOneSignalPushService>(),
             new OrderInventoryWorkflowService(dbContext));
 
         await handler.Handle(
@@ -405,6 +413,7 @@ public class DriverUpdateOrderStatusCommandHandlerTests
             new DriverRepository(dbContext),
             Mock.Of<IDriverReadService>(),
             Mock.Of<INotificationService>(),
+            Mock.Of<IOneSignalPushService>(),
             new OrderInventoryWorkflowService(dbContext));
 
         await handler.Handle(
@@ -449,6 +458,7 @@ public class DriverUpdateOrderStatusCommandHandlerTests
             new DriverRepository(dbContext),
             Mock.Of<IDriverReadService>(),
             Mock.Of<INotificationService>(),
+            Mock.Of<IOneSignalPushService>(),
             new OrderInventoryWorkflowService(dbContext));
 
         var action = () => handler.Handle(

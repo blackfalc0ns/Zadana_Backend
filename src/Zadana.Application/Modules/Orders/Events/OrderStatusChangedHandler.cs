@@ -562,7 +562,7 @@ public class OrderStatusChangedHandler : INotificationHandler<OrderStatusChanged
 
         var targetUrl = screen switch
         {
-            "assignment" => $"/assignments/{assignmentId}",
+            "assignment" or "assignment_detail" => $"/assignments/{assignmentId}",
             "order_detail" or "order_tracking" => $"/orders/{notification.OrderId}",
             _ => "/notifications"
         };
@@ -580,7 +580,7 @@ public class OrderStatusChangedHandler : INotificationHandler<OrderStatusChanged
                 targetUrl: targetUrl,
                 category: NotificationCategories.Assignment,
                 targetApplication: OneSignalApplicationTarget.Driver)
-            : OneSignalMobilePushRequest.CreateHeadsUp(
+            : OneSignalMobilePushRequest.CreateStandard(
                 driverUserId.ToString(),
                 titleAr,
                 titleEn,

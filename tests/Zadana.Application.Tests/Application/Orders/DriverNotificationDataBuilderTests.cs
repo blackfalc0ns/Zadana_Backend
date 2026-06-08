@@ -32,6 +32,21 @@ public class DriverNotificationDataBuilderTests
     }
 
     [Fact]
+    public void Build_ForAssignmentDetail_ShouldResolveAssignmentTargetUrl()
+    {
+        var assignmentId = Guid.NewGuid();
+
+        var json = DriverNotificationDataBuilder.Build(
+            screen: "assignment_detail",
+            @event: "assignment.driver_assigned",
+            assignmentId: assignmentId);
+
+        using var document = JsonDocument.Parse(json);
+        document.RootElement.GetProperty("targetUrl").GetString()
+            .Should().Be($"/assignments/{assignmentId}");
+    }
+
+    [Fact]
     public void Build_ForDeliveryOffer_ShouldKeepDeliveryOfferPopupType()
     {
         var assignmentId = Guid.NewGuid();

@@ -643,6 +643,95 @@ public class OneSignalPushServiceTests
     }
 
     [Fact]
+    public async Task SendToExternalUsersAsync_WithCustomerTarget_ShouldPreferRegisteredSubscriptionIdsBeforeAliases()
+    {
+        await using var dbContext = CreateDbContext();
+        var customerUserId = Guid.Parse("b2c3d4e5-f6a7-8901-bcde-f12345678901");
+        var subscriptionId = Guid.Parse("3d21a0e3-46a5-5d1e-9f55-49a21a1e1df2");
+        dbContext.UserPushDevices.Add(new UserPushDevice(
+            customerUserId,
+            subscriptionId.ToString(),
+            PushPlatform.Fcm,
+            deviceId: $"customer-android-{customerUserId}",
+            deviceName: "Pixel",
+            appVersion: "customer-app",
+            locale: "ar",
+            notificationsEnabled: true));
+        await dbContext.SaveChangesAsync();
+
+        var handler = new RecordingHttpMessageHandler(HttpStatusCode.OK, """{"id":"customer-subscription-push"}""");
+        var service = CreateService(
+            handler,
+            scopeFactory: new DbContextServiceScopeFactory(dbContext));
+
+        var results = await service.SendToExternalUsersAsync(
+            [customerUserId.ToString()],
+            "تحديث الطلب",
+            "Order update",
+            "طلبك في الطريق.",
+            "Your order is on the way.",
+            "order_status_changed",
+            Guid.NewGuid(),
+            null,
+            "/orders/123",
+            OneSignalPushProfile.MobileHeadsUp,
+            OneSignalApplicationTarget.Customer,
+            CancellationToken.None);
+
+        results.Should().ContainSingle(result => result.Sent && result.ProviderNotificationId == "customer-subscription-push");
+        handler.RequestBodies.Should().HaveCount(1);
+
+        using var document = JsonDocument.Parse(handler.RequestBodies[0]);
+        document.RootElement
+            .GetProperty("include_subscription_ids")
+            .EnumerateArray()
+            .Select(item => item.GetString())
+            .Should()
+            .Equal(subscriptionId.ToString());
+    }
+
+    [Fact]
+    public async Task SendMobileNotificationDirectAsync_WhenCustomerDisabledMasterPushToggle_ShouldSkipAliasDelivery()
+    {
+        await using var dbContext = CreateDbContext();
+        var customerUserId = Guid.Parse("c3d4e5f6-a7b8-9012-cdef-123456789012");
+        dbContext.UserPushDevices.Add(new UserPushDevice(
+            customerUserId,
+            Guid.Parse("4e32b1f4-57a6-6e2f-0a66-50a32a2f2ea3").ToString(),
+            PushPlatform.Fcm,
+            deviceId: $"customer-android-{customerUserId}",
+            deviceName: "Pixel",
+            appVersion: "customer-app",
+            locale: "en",
+            notificationsEnabled: false));
+        await dbContext.SaveChangesAsync();
+
+        var handler = new RecordingHttpMessageHandler(HttpStatusCode.OK, """{"id":"should-not-send"}""");
+        var service = CreateService(
+            handler,
+            scopeFactory: new DbContextServiceScopeFactory(dbContext));
+
+        var result = await service.SendMobileNotificationDirectAsync(
+            OneSignalMobilePushRequest.CreateHeadsUp(
+                customerUserId.ToString(),
+                "تحديث",
+                "Update",
+                "نص",
+                "Body",
+                "order_status_changed",
+                Guid.NewGuid(),
+                null,
+                "/orders/123",
+                category: "order",
+                targetApplication: OneSignalApplicationTarget.Customer),
+            CancellationToken.None);
+
+        result.Skipped.Should().BeTrue();
+        result.Sent.Should().BeFalse();
+        handler.RequestBodies.Should().BeEmpty();
+    }
+
+    [Fact]
     public async Task SendToExternalUsersAsync_WithAdminWebTarget_ShouldPreferRegisteredSubscriptionIdsBeforeAliases()
     {
         await using var dbContext = CreateDbContext();

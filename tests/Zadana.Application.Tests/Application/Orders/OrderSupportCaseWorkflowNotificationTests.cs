@@ -228,6 +228,7 @@ public class OrderSupportCaseWorkflowNotificationTests
                     request.Type == NotificationTypes.OrderSupportCaseChanged &&
                     request.ReferenceId == supportCase.Id &&
                     request.Profile == OneSignalPushProfile.MobileHeadsUp &&
+                    request.Category == NotificationCategories.Support &&
                     request.TargetApplication == OneSignalApplicationTarget.Customer &&
                     request.Data != null &&
                     request.Data.Contains("\"presentation\":\"popup\"", StringComparison.Ordinal) &&

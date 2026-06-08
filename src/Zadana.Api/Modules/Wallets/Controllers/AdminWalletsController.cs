@@ -637,7 +637,13 @@ public class AdminWalletsController : ApiControllerBase
                     : approvedAndFailed
                         ? "wallet.withdrawal_failed"
                         : "wallet.withdrawal_rejected";
-            var titleAr = request.IsApproved ? "تم تحويل مبلغ السحب" : "تم رفض طلب السحب";
+            var titleAr = approvedAndPaid
+                ? "تم تحويل مبلغ السحب"
+                : approvedAndProcessing
+                    ? "جاري تحويل السحب"
+                    : approvedAndFailed
+                        ? "فشل تحويل السحب"
+                        : "تم رفض طلب السحب";
             var titleEn = approvedAndPaid
                 ? "Withdrawal paid"
                 : approvedAndProcessing
@@ -645,10 +651,13 @@ public class AdminWalletsController : ApiControllerBase
                     : approvedAndFailed
                         ? "Withdrawal transfer failed"
                         : "Withdrawal rejected";
-            titleAr = titleEn;
-            var bodyAr = request.IsApproved
-                ? $"تمت معالجة طلب السحب رقم #{withdrawal.Id} بنجاح."
-                : $"تم رفض طلب السحب رقم #{withdrawal.Id}.";
+            var bodyAr = approvedAndPaid
+                ? $"تم تحويل طلب السحب رقم #{withdrawal.Id} بنجاح."
+                : approvedAndProcessing
+                    ? $"جاري تحويل طلب السحب رقم #{withdrawal.Id}."
+                    : approvedAndFailed
+                        ? $"فشل تحويل طلب السحب رقم #{withdrawal.Id}. تواصل مع الدعم."
+                        : $"تم رفض طلب السحب رقم #{withdrawal.Id}.";
             var bodyEn = approvedAndPaid
                 ? $"Your withdrawal request #{withdrawal.Id} was paid successfully."
                 : approvedAndProcessing
@@ -656,7 +665,6 @@ public class AdminWalletsController : ApiControllerBase
                     : approvedAndFailed
                         ? $"Your withdrawal request #{withdrawal.Id} transfer failed. Please contact support."
                         : $"Your withdrawal request #{withdrawal.Id} was rejected.";
-            bodyAr = bodyEn;
 
             var data = DriverNotificationDataBuilder.Build(
                 screen: "wallet",

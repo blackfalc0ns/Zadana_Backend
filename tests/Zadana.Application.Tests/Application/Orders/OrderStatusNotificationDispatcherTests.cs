@@ -39,6 +39,8 @@ public class OrderStatusNotificationDispatcherTests
                     request.Type == NotificationTypes.OrderStatusChanged &&
                     request.ReferenceId == orderId &&
                     request.TargetUrl == $"/orders/{orderId}" &&
+                    request.Category == NotificationCategories.Order &&
+                    request.TargetApplication == OneSignalApplicationTarget.Customer &&
                     request.Profile == OneSignalPushProfile.MobileHeadsUp),
                 It.IsAny<CancellationToken>()))
             .ReturnsAsync(new OneSignalPushDispatchResult(
@@ -126,6 +128,8 @@ public class OrderStatusNotificationDispatcherTests
                     request.Data.Contains("\"showPopup\":true") &&
                     request.Data.Contains("\"targetUrl\":\"/orders/") &&
                     request.TargetUrl == $"/orders/{orderId}" &&
+                    request.Category == NotificationCategories.Order &&
+                    request.TargetApplication == OneSignalApplicationTarget.Customer &&
                     request.Profile == OneSignalPushProfile.MobileHeadsUp),
                 It.IsAny<CancellationToken>()),
             Times.Once);
@@ -182,6 +186,7 @@ public class OrderStatusNotificationDispatcherTests
                     request.Type == NotificationTypes.OrderStatusChanged &&
                     request.ReferenceId == orderId &&
                     request.TargetUrl == $"/orders/{orderId}" &&
+                    request.Category == NotificationCategories.Order &&
                     request.Profile == OneSignalPushProfile.MobileHeadsUp &&
                     request.TargetApplication == OneSignalApplicationTarget.Customer &&
                     request.Data != null &&

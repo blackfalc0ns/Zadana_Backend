@@ -65,7 +65,7 @@ public static class DriverNotificationDataBuilder
             "account_status" => "/account-status",
             "support_case_detail" => supportCaseId.HasValue ? $"/support/cases/{supportCaseId}" : "/support",
             "order_detail" or "order_tracking" => orderId.HasValue ? $"/orders/{orderId}" : "/orders",
-            "assignment" => assignmentId.HasValue ? $"/assignments/{assignmentId}" : "/assignments",
+            "assignment" or "assignment_detail" => assignmentId.HasValue ? $"/assignments/{assignmentId}" : "/assignments",
             _ => "/notifications"
         };
 

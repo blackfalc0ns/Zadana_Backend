@@ -9,6 +9,7 @@ using Zadana.Application.Modules.Orders.Events;
 using Zadana.Application.Modules.Orders.Services;
 using Zadana.Domain.Modules.Orders.Enums;
 using Zadana.Domain.Modules.Payments.Enums;
+using Zadana.Domain.Modules.Social.Enums;
 using Zadana.SharedKernel.Exceptions;
 
 namespace Zadana.Application.Modules.Orders.Commands.DriverUpdateOrderStatus;
@@ -56,6 +57,7 @@ public class DriverUpdateOrderStatusCommandHandler : IRequestHandler<DriverUpdat
     private readonly IDriverRepository _driverRepository;
     private readonly IDriverReadService _driverReadService;
     private readonly INotificationService _notificationService;
+    private readonly IOneSignalPushService _oneSignalPushService;
     private readonly OrderInventoryWorkflowService _orderInventoryWorkflowService;
 
     public DriverUpdateOrderStatusCommandHandler(
@@ -65,6 +67,7 @@ public class DriverUpdateOrderStatusCommandHandler : IRequestHandler<DriverUpdat
         IDriverRepository driverRepository,
         IDriverReadService driverReadService,
         INotificationService notificationService,
+        IOneSignalPushService oneSignalPushService,
         OrderInventoryWorkflowService orderInventoryWorkflowService)
     {
         _context = context;
@@ -73,6 +76,7 @@ public class DriverUpdateOrderStatusCommandHandler : IRequestHandler<DriverUpdat
         _driverRepository = driverRepository;
         _driverReadService = driverReadService;
         _notificationService = notificationService;
+        _oneSignalPushService = oneSignalPushService;
         _orderInventoryWorkflowService = orderInventoryWorkflowService;
     }
 
@@ -192,6 +196,21 @@ public class DriverUpdateOrderStatusCommandHandler : IRequestHandler<DriverUpdat
                 "delivery-otp",
                 order.Id,
                 "otpType=delivery",
+                cancellationToken);
+
+            await _oneSignalPushService.SendMobileNotificationDirectAsync(
+                OneSignalMobilePushRequest.CreateHeadsUp(
+                    order.UserId.ToString(),
+                    "رمز التسليم جاهز",
+                    "Delivery OTP is ready",
+                    $"رمز تسليم طلبك رقم {order.OrderNumber} جاهز. افتح تفاصيل الطلب لعرض الرمز المؤمّن عند وصول المندوب.",
+                    $"Your delivery code for order #{order.OrderNumber} is ready. Open the order details to view it when the driver arrives.",
+                    "delivery-otp",
+                    order.Id,
+                    "otpType=delivery",
+                    $"/orders/{order.Id}",
+                    category: NotificationCategories.Order,
+                    targetApplication: OneSignalApplicationTarget.Customer),
                 cancellationToken);
         }
 
