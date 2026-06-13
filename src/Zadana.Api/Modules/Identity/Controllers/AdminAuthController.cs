@@ -15,7 +15,6 @@ using Zadana.Application.Modules.Identity.DTOs;
 using Zadana.Domain.Modules.Identity.Enums;
 
 namespace Zadana.Api.Modules.Identity.Controllers;
-
 [Route("api/admin/auth")]
 [Tags("Admin Dashboard API")]
 public class AdminAuthController : IdentityAuthControllerBase

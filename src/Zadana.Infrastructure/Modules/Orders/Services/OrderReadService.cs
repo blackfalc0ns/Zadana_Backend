@@ -198,10 +198,7 @@ public class OrderReadService : IOrderReadService
         };
 
         var total = await query.CountAsync(cancellationToken);
-        var orders = await query
-            .Include(order => order.Items)
-                .ThenInclude(item => item.MasterProduct)
-                    .ThenInclude(product => product!.Images)
+        var orders = await IncludeCustomerOrderItems(query)
             .OrderByDescending(order => order.PlacedAtUtc)
             .Skip((normalizedPage - 1) * normalizedPerPage)
             .Take(normalizedPerPage)
@@ -217,12 +214,7 @@ public class OrderReadService : IOrderReadService
         Guid userId,
         CancellationToken cancellationToken = default)
     {
-        var order = await _dbContext.Orders
-            .AsNoTracking()
-            .AsSplitQuery()
-            .Include(order => order.Items)
-                .ThenInclude(item => item.MasterProduct)
-                    .ThenInclude(product => product!.Images)
+        var order = await IncludeCustomerOrderItems(_dbContext.Orders.AsNoTracking().AsSplitQuery())
             .Include(order => order.SupportCases)
             .Where(order => order.Id == orderId && order.UserId == userId)
             .FirstOrDefaultAsync(cancellationToken);
@@ -1135,7 +1127,7 @@ public class OrderReadService : IOrderReadService
             order.Items
                 .Select(item => new CustomerOrderProductDto(
                     item.Id,
-                    item.ProductName,
+                    ResolveCustomerItemName(item),
                     item.Quantity,
                     item.UnitPrice,
                     BuildProductImageUrl(item),
@@ -1166,7 +1158,7 @@ public class OrderReadService : IOrderReadService
             order.Items
                 .Select(item => new CustomerOrderProductDto(
                     item.Id,
-                    item.ProductName,
+                    ResolveCustomerItemName(item),
                     item.Quantity,
                     item.UnitPrice,
                     BuildProductImageUrl(item),
@@ -1269,21 +1261,50 @@ public class OrderReadService : IOrderReadService
                     .FirstOrDefault());
     }
 
+    private static IQueryable<Order> IncludeCustomerOrderItems(IQueryable<Order> query) =>
+        query
+            .Include(order => order.Items)
+                .ThenInclude(item => item.MasterProduct)
+                    .ThenInclude(product => product!.Images)
+            .Include(order => order.Items)
+                .ThenInclude(item => item.MasterProduct)
+                    .ThenInclude(product => product!.PackageType)
+            .Include(order => order.Items)
+                .ThenInclude(item => item.MasterProduct)
+                    .ThenInclude(product => product!.MeasurementUnit)
+            .Include(order => order.Items)
+                .ThenInclude(item => item.MasterProduct)
+                    .ThenInclude(product => product!.UnitOfMeasure);
+
+    private static string ResolveCustomerItemName(OrderItem item)
+    {
+        if (item.MasterProduct is null)
+        {
+            return item.ProductName;
+        }
+
+        var preferred = IsArabic() ? item.MasterProduct.NameAr : item.MasterProduct.NameEn;
+        var fallback = IsArabic() ? item.MasterProduct.NameEn : item.MasterProduct.NameAr;
+        return preferred?.Trim() ?? fallback?.Trim() ?? item.ProductName;
+    }
+
     private static string? BuildVariantDisplaySize(OrderItem item)
     {
-        // Prefer the historical snapshot captured at order time
-        if (!string.IsNullOrWhiteSpace(item.SnapshotDisplaySize))
-        {
-            return item.SnapshotDisplaySize;
-        }
-
-        // Fallback to current MasterProduct data (legacy orders without snapshot)
         var product = item.MasterProduct;
-        if (product is null)
+        if (product is not null)
         {
-            return NormalizeText(item.UnitName);
+            var localizedDisplaySize = BuildLocalizedDisplaySize(product);
+            if (!string.IsNullOrWhiteSpace(localizedDisplaySize))
+            {
+                return localizedDisplaySize;
+            }
         }
 
+        return NormalizeText(item.SnapshotDisplaySize) ?? NormalizeText(item.UnitName);
+    }
+
+    private static string? BuildLocalizedDisplaySize(MasterProduct product)
+    {
         var measurementUnit = product.MeasurementUnit ?? product.UnitOfMeasure;
         var displaySize = IsArabic()
             ? MasterProductDisplayDto.BuildDisplaySize(
@@ -1299,7 +1320,7 @@ public class OrderReadService : IOrderReadService
                 measurementUnit?.Symbol,
                 false);
 
-        return NormalizeText(displaySize) ?? NormalizeText(item.UnitName);
+        return NormalizeText(displaySize);
     }
 
     private static string? BuildPackageTypeName(OrderItem item)

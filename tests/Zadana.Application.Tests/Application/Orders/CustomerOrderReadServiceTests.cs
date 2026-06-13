@@ -1,5 +1,7 @@
 using FluentAssertions;
 using Microsoft.EntityFrameworkCore;
+using System.Globalization;
+using Zadana.Domain.Modules.Catalog.Entities;
 using Zadana.Domain.Modules.Delivery.Entities;
 using Zadana.Domain.Modules.Delivery.Enums;
 using Zadana.Application.Modules.Orders.Interfaces;
@@ -356,6 +358,88 @@ public class CustomerOrderReadServiceTests
         result!.CompensationType.Should().Be("cash_refund");
         result.SettlementStatus.Should().Be("cash_refunded");
         result.CouponCode.Should().BeNull();
+    }
+
+    [Fact]
+    public async Task GetCustomerOrderDetailAsync_ShouldLocalizeItemNameAndUnitByRequestCulture()
+    {
+        await using var dbContext = CreateDbContext();
+        var user = CreateUser();
+        var category = new Category("تصنيف", "Category", null, null, 1);
+        var packageType = new UnitOfMeasure("زجاجة", "Bottle", "btl", Domain.Modules.Catalog.Enums.UnitKind.Packaging);
+        var measurementUnit = new UnitOfMeasure("لتر", "Liter", "L", Domain.Modules.Catalog.Enums.UnitKind.Measurement);
+        var product = new MasterProduct(
+            "زيت زيتون",
+            "Olive Oil",
+            $"olive-oil-{Guid.NewGuid():N}",
+            category.Id,
+            packageTypeId: packageType.Id,
+            measurementValue: 1m,
+            measurementUnitId: measurementUnit.Id);
+        product.Publish();
+
+        dbContext.Users.Add(user);
+        dbContext.Categories.Add(category);
+        dbContext.UnitsOfMeasure.AddRange(packageType, measurementUnit);
+        dbContext.MasterProducts.Add(product);
+        await dbContext.SaveChangesAsync();
+
+        var order = CreateOrder(user.Id, OrderStatus.PendingVendorAcceptance, "ORD-LOCALIZED");
+        var orderItem = new OrderItem(
+            order.Id,
+            Guid.NewGuid(),
+            product.Id,
+            "Olive Oil",
+            1,
+            120m);
+        orderItem.CaptureVariantSnapshot(null, "زجاجة 1 لتر", null);
+        order.Items.Clear();
+        order.Items.Add(orderItem);
+
+        dbContext.Orders.Add(order);
+        await dbContext.SaveChangesAsync();
+
+        var service = new OrderReadService(dbContext);
+
+        using (new CultureScope("en"))
+        {
+            var englishDetail = await service.GetCustomerOrderDetailAsync(order.Id, user.Id);
+            englishDetail.Should().NotBeNull();
+            englishDetail!.Items.Should().ContainSingle();
+            englishDetail.Items[0].Name.Should().Be("Olive Oil");
+            englishDetail.Items[0].VariantDisplaySize.Should().Be("Bottle 1 L");
+        }
+
+        using (new CultureScope("ar"))
+        {
+            var arabicDetail = await service.GetCustomerOrderDetailAsync(order.Id, user.Id);
+            arabicDetail.Should().NotBeNull();
+            arabicDetail!.Items.Should().ContainSingle();
+            arabicDetail.Items[0].Name.Should().Be("زيت زيتون");
+            arabicDetail.Items[0].VariantDisplaySize.Should().Be("زجاجة 1 لتر");
+        }
+    }
+
+    private sealed class CultureScope : IDisposable
+    {
+        private readonly CultureInfo _originalCulture;
+        private readonly CultureInfo _originalUiCulture;
+
+        public CultureScope(string cultureName)
+        {
+            _originalCulture = CultureInfo.CurrentCulture;
+            _originalUiCulture = CultureInfo.CurrentUICulture;
+
+            var culture = new CultureInfo(cultureName);
+            CultureInfo.CurrentCulture = culture;
+            CultureInfo.CurrentUICulture = culture;
+        }
+
+        public void Dispose()
+        {
+            CultureInfo.CurrentCulture = _originalCulture;
+            CultureInfo.CurrentUICulture = _originalUiCulture;
+        }
     }
 
     private static ApplicationDbContext CreateDbContext()

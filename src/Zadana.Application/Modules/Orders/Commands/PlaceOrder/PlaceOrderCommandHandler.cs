@@ -1,5 +1,6 @@
 using MediatR;
 using Microsoft.Extensions.Options;
+using System.Globalization;
 using System.Text.Json;
 using Microsoft.Extensions.Localization;
 using Zadana.Application.Common.Interfaces;
@@ -203,13 +204,15 @@ public class PlaceOrderCommandHandler : IRequestHandler<PlaceOrderCommand, Guid>
                 .FirstOrDefault();
 
             var measurementUnit = masterProduct?.MeasurementUnit ?? masterProduct?.UnitOfMeasure;
+            var snapshotIsArabic = CultureInfo.CurrentUICulture.TwoLetterISOLanguageName
+                .Equals("ar", StringComparison.OrdinalIgnoreCase);
             var snapshotDisplaySize = masterProduct is not null
                 ? MasterProductDisplayDto.BuildDisplaySize(
-                    masterProduct.PackageType?.NameAr,
+                    snapshotIsArabic ? masterProduct.PackageType?.NameAr : masterProduct.PackageType?.NameEn,
                     masterProduct.MeasurementValue,
-                    measurementUnit?.NameAr,
+                    snapshotIsArabic ? measurementUnit?.NameAr : measurementUnit?.NameEn,
                     measurementUnit?.Symbol,
-                    true)
+                    snapshotIsArabic)
                 : null;
 
             orderItem.CaptureVariantSnapshot(snapshotImageUrl, snapshotDisplaySize, masterProduct?.Barcode);
