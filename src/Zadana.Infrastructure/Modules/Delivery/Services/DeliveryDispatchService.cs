@@ -741,7 +741,7 @@ public class DeliveryDispatchService : IDeliveryDispatchService
 
         // Send a push notification to wake the driver app if it's in the background.
         // Use direct dispatch so delivery is not blocked when alias targeting is flaky;
-        // OneSignalPushService prefers live OneSignal subscriptions, then DB cache, then aliases.
+        // OneSignalPushService prefers the DB registration, then live OneSignal subscriptions, then aliases.
         var offerPushResult = await _oneSignalPushService.SendMobileNotificationDirectAsync(
             OneSignalMobilePushRequest.CreateHeadsUp(
                 best.Driver.UserId.ToString(),

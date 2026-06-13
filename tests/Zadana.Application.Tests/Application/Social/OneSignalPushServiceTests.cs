@@ -632,7 +632,7 @@ public class OneSignalPushServiceTests
     }
 
     [Fact]
-    public async Task SendMobileNotificationDirectAsync_WithDriverTarget_ShouldPreferProviderSubscriptionsBeforeDbCache()
+    public async Task SendMobileNotificationDirectAsync_WithDriverTarget_ShouldPreferRegisteredDbSubscriptionBeforeProviderLookup()
     {
         await using var dbContext = CreateDbContext();
         var userId = Guid.Parse("1363aa39-64cb-42a8-9466-d2415f247c09");
@@ -642,9 +642,10 @@ public class OneSignalPushServiceTests
             nationalId: null,
             licenseNumber: null);
         dbContext.Drivers.Add(driver);
+        var registeredSubscriptionId = Guid.Parse("bdc466d9-d487-491c-96a5-3a04ba215489");
         dbContext.UserPushDevices.Add(new UserPushDevice(
             userId,
-            Guid.Parse("bdc466d9-d487-491c-96a5-3a04ba215489").ToString(),
+            registeredSubscriptionId.ToString(),
             PushPlatform.Fcm,
             deviceId: $"driver-android-{userId}",
             deviceName: "Pixel",
@@ -654,25 +655,9 @@ public class OneSignalPushServiceTests
             dispatchPushEnabled: true));
         await dbContext.SaveChangesAsync();
 
-        var liveSubscriptionId = Guid.Parse("f783fa4e-fd24-4258-824d-22996bc8681f");
-        var providerUserBody = JsonSerializer.Serialize(new
-        {
-            identity = new
-            {
-                external_id = userId.ToString(),
-                onesignal_id = "dee28e12-3906-43bd-b49d-c4da7aa3784b"
-            },
-            subscriptions = new[]
-            {
-                new { id = liveSubscriptionId.ToString(), enabled = true, type = "AndroidPush" },
-                new { id = "bdc466d9-d487-491c-96a5-3a04ba215489", enabled = false, type = "AndroidPush" }
-            }
-        });
         var handler = new RecordingHttpMessageHandler(
             HttpStatusCode.OK,
-            providerUserBody,
-            HttpStatusCode.OK,
-            """{"id":"provider-subscription-push"}""");
+            """{"id":"db-subscription-push"}""");
         var service = CreateService(
             handler,
             scopeFactory: new DbContextServiceScopeFactory(dbContext),
@@ -698,17 +683,16 @@ public class OneSignalPushServiceTests
             CancellationToken.None);
 
         result.Sent.Should().BeTrue();
-        result.ProviderNotificationId.Should().Be("provider-subscription-push");
-        handler.RequestMethods.Should().Equal("GET", "POST");
-        handler.RequestUris[0].Should().Contain(userId.ToString());
+        result.ProviderNotificationId.Should().Be("db-subscription-push");
+        handler.RequestMethods.Should().Equal("POST");
 
-        using var document = JsonDocument.Parse(handler.RequestBodies[1]);
+        using var document = JsonDocument.Parse(handler.RequestBodies[0]);
         document.RootElement
             .GetProperty("include_subscription_ids")
             .EnumerateArray()
             .Select(item => item.GetString())
             .Should()
-            .Equal(liveSubscriptionId.ToString());
+            .Equal(registeredSubscriptionId.ToString());
     }
 
     [Fact]
@@ -754,9 +738,9 @@ public class OneSignalPushServiceTests
         });
         var handler = new RecordingHttpMessageHandler(
             HttpStatusCode.OK,
-            providerUserBody,
-            HttpStatusCode.OK,
             partialErrorBody,
+            HttpStatusCode.OK,
+            providerUserBody,
             HttpStatusCode.OK,
             """{"id":"alias-push"}""");
         var service = CreateService(
@@ -785,7 +769,7 @@ public class OneSignalPushServiceTests
 
         result.Sent.Should().BeTrue();
         result.ProviderNotificationId.Should().Be("alias-push");
-        handler.RequestMethods.Should().Equal("GET", "POST", "POST");
+        handler.RequestMethods.Should().Equal("POST", "GET", "POST");
 
         using var aliasDocument = JsonDocument.Parse(handler.RequestBodies[2]);
         aliasDocument.RootElement

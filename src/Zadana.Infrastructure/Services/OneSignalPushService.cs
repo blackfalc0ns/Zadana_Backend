@@ -585,6 +585,20 @@ public sealed class OneSignalPushService : IOneSignalPushService
     {
         var subscriptionPayloadBuilders = new List<Func<Task<PreparedOneSignalPayload?>>>();
 
+        subscriptionPayloadBuilders.Add(() => BuildSubscriptionPayloadAsync(
+            lookupBatch,
+            sanitized,
+            referenceId,
+            resolvedTargetUrl,
+            appId,
+            restApiKey,
+            profile,
+            notificationEventId,
+            Guid.NewGuid(),
+            preferredLocale,
+            category,
+            cancellationToken));
+
         if (preferLiveProviderSubscriptions)
         {
             var providerLookupIds = lookupBatch
@@ -605,20 +619,6 @@ public sealed class OneSignalPushService : IOneSignalPushService
                 preferredLocale,
                 cancellationToken));
         }
-
-        subscriptionPayloadBuilders.Add(() => BuildSubscriptionPayloadAsync(
-            lookupBatch,
-            sanitized,
-            referenceId,
-            resolvedTargetUrl,
-            appId,
-            restApiKey,
-            profile,
-            notificationEventId,
-            Guid.NewGuid(),
-            preferredLocale,
-            category,
-            cancellationToken));
 
         foreach (var buildPayload in subscriptionPayloadBuilders)
         {
