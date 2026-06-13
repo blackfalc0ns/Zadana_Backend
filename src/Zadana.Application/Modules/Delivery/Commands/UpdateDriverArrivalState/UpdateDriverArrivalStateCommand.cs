@@ -7,6 +7,7 @@ using Zadana.Application.Common.Interfaces;
 using Zadana.Application.Common.Localization;
 using Zadana.Application.Modules.Delivery.Interfaces;
 using Zadana.Application.Modules.Orders.Events;
+using Zadana.Application.Modules.Orders.Services;
 using Zadana.Domain.Modules.Delivery.Enums;
 using Zadana.Domain.Modules.Orders.Enums;
 using Zadana.Domain.Modules.Social.Enums;
@@ -52,6 +53,7 @@ public class UpdateDriverArrivalStateCommandHandler : IRequestHandler<UpdateDriv
     private readonly IOneSignalPushService _oneSignalPushService;
     private readonly IOrderTrackingRealtimeNotifier _orderTrackingRealtimeNotifier;
     private readonly IPublisher _publisher;
+    private readonly OrderInventoryWorkflowService _orderInventoryWorkflowService;
     private readonly ILogger<UpdateDriverArrivalStateCommandHandler> _logger;
 
     public UpdateDriverArrivalStateCommandHandler(
@@ -63,6 +65,7 @@ public class UpdateDriverArrivalStateCommandHandler : IRequestHandler<UpdateDriv
         IOneSignalPushService oneSignalPushService,
         IOrderTrackingRealtimeNotifier orderTrackingRealtimeNotifier,
         IPublisher publisher,
+        OrderInventoryWorkflowService orderInventoryWorkflowService,
         ILogger<UpdateDriverArrivalStateCommandHandler> logger)
     {
         _context = context;
@@ -73,6 +76,7 @@ public class UpdateDriverArrivalStateCommandHandler : IRequestHandler<UpdateDriv
         _oneSignalPushService = oneSignalPushService;
         _orderTrackingRealtimeNotifier = orderTrackingRealtimeNotifier;
         _publisher = publisher;
+        _orderInventoryWorkflowService = orderInventoryWorkflowService;
         _logger = logger;
     }
 
@@ -131,13 +135,16 @@ public class UpdateDriverArrivalStateCommandHandler : IRequestHandler<UpdateDriv
 
             if (assignment.Status != AssignmentStatus.PickedUp)
             {
-                throw new BusinessRuleException(
-                    assignment.Status is AssignmentStatus.ArrivedAtVendor or AssignmentStatus.Accepted
-                        ? "PICKUP_REQUIRED_BEFORE_CUSTOMER_ARRIVAL"
-                        : "INVALID_ARRIVAL_STATE_TRANSITION",
-                    assignment.Status is AssignmentStatus.ArrivedAtVendor or AssignmentStatus.Accepted
-                        ? "يجب استلام الطلب من المتجر قبل تسجيل الوصول للعميل | Pick up the order from the store before marking arrival at the customer."
-                        : "يمكنك تسجيل الوصول للعميل فقط بعد بدء التوصيل | You can only mark arrival at customer after the order is on the way.");
+                if (assignment.Status == AssignmentStatus.ArrivedAtVendor && assignment.IsPickupOtpVerified)
+                {
+                    await CompletePickupHandoffAsync(assignment, request.DriverUserId, cancellationToken);
+                }
+                else
+                {
+                    throw new BusinessRuleException(
+                        ResolveCustomerArrivalBlockErrorCode(assignment),
+                        ResolveCustomerArrivalBlockMessage(assignment));
+                }
             }
 
             if (assignment.Order.Status == OrderStatus.PickedUp)
@@ -211,7 +218,7 @@ public class UpdateDriverArrivalStateCommandHandler : IRequestHandler<UpdateDriv
                     targetApplication: OneSignalApplicationTarget.Customer),
                 cancellationToken);
 
-            if (!pushResult.Sent)
+            if (pushResult is not null && !pushResult.Sent)
             {
                 _logger.LogWarning(
                     "Customer driver-arrival push was not sent for order {OrderId} user {UserId}. Attempted: {Attempted}. Skipped: {Skipped}. ProviderStatusCode: {ProviderStatusCode}. Reason: {Reason}",
@@ -327,6 +334,66 @@ public class UpdateDriverArrivalStateCommandHandler : IRequestHandler<UpdateDriv
                 ActorRole: "driver"),
             cancellationToken);
     }
+
+    private async Task CompletePickupHandoffAsync(
+        Domain.Modules.Delivery.Entities.DeliveryAssignment assignment,
+        Guid driverUserId,
+        CancellationToken cancellationToken)
+    {
+        var order = assignment.Order;
+        var oldStatus = order.Status;
+
+        if (order.Status != OrderStatus.PickedUp)
+        {
+            order.ChangeStatus(OrderStatus.PickedUp, driverUserId, "Pickup confirmed before customer arrival.");
+            _context.OrderStatusHistories.Add(order.StatusHistory.Last());
+        }
+
+        if (assignment.Status != AssignmentStatus.PickedUp)
+        {
+            assignment.MarkPickedUp();
+        }
+
+        await _orderInventoryWorkflowService.ApplyPickupDeductionAsync(order.Id, cancellationToken);
+        await _unitOfWork.SaveChangesAsync(cancellationToken);
+
+        await _publisher.Publish(
+            new OrderStatusChangedNotification(
+                order.Id,
+                order.UserId,
+                order.VendorId,
+                order.OrderNumber,
+                oldStatus,
+                order.Status,
+                NotifyCustomer: true,
+                NotifyVendor: false,
+                ActorRole: "driver"),
+            cancellationToken);
+    }
+
+    private static string ResolveCustomerArrivalBlockErrorCode(
+        Domain.Modules.Delivery.Entities.DeliveryAssignment assignment) =>
+        assignment.Status switch
+        {
+            AssignmentStatus.Accepted => "VENDOR_ARRIVAL_REQUIRED",
+            AssignmentStatus.ArrivedAtVendor when assignment.RequiresPickupOtpVerification => "PICKUP_OTP_PENDING",
+            AssignmentStatus.ArrivedAtVendor or AssignmentStatus.Accepted => "PICKUP_REQUIRED_BEFORE_CUSTOMER_ARRIVAL",
+            _ => "INVALID_ARRIVAL_STATE_TRANSITION"
+        };
+
+    private static string ResolveCustomerArrivalBlockMessage(
+        Domain.Modules.Delivery.Entities.DeliveryAssignment assignment) =>
+        assignment.Status switch
+        {
+            AssignmentStatus.Accepted =>
+                "يجب تسجيل الوصول للمتجر واستلام الطلب قبل الوصول للعميل | Mark arrival at the store and pick up the order before arriving at the customer.",
+            AssignmentStatus.ArrivedAtVendor when assignment.RequiresPickupOtpVerification =>
+                "يجب تأكيد رمز الاستلام من المتجر قبل تسجيل الوصول للعميل | Confirm the store pickup OTP before marking arrival at the customer.",
+            AssignmentStatus.ArrivedAtVendor or AssignmentStatus.Accepted =>
+                "يجب استلام الطلب من المتجر قبل تسجيل الوصول للعميل | Pick up the order from the store before marking arrival at the customer.",
+            _ =>
+                "يمكنك تسجيل الوصول للعميل فقط بعد بدء التوصيل | You can only mark arrival at customer after the order is on the way."
+        };
 
     private static string BuildArrivalNotificationData(
         Guid orderId,

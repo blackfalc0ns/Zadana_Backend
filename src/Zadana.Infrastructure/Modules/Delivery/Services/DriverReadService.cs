@@ -1072,10 +1072,14 @@ public class DriverReadService : IDriverReadService
 
         if (assignment.Status == AssignmentStatus.ArrivedAtVendor)
         {
-            // After arrival at vendor:
-            // - If pickup OTP verified (vendor confirmed handoff) → driver can mark picked up
-            // - Otherwise → driver waits for vendor to confirm pickup via OTP
-            return [];
+            if (assignment.IsPickupOtpVerified)
+            {
+                return ["mark_picked_up"];
+            }
+
+            return assignment.RequiresPickupOtpVerification
+                ? ["verify_pickup_otp"]
+                : ["mark_picked_up"];
         }
 
         if (assignment.Status == AssignmentStatus.PickedUp && orderStatus != OrderStatus.OnTheWay)

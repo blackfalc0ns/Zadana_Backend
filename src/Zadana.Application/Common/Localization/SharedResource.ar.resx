@@ -487,6 +487,12 @@
   <data name="PICKUP_REQUIRED_BEFORE_CUSTOMER_ARRIVAL" xml:space="preserve">
     <value>يجب استلام الطلب من المتجر قبل تسجيل الوصول للعميل.</value>
   </data>
+  <data name="PICKUP_OTP_PENDING" xml:space="preserve">
+    <value>يجب تأكيد رمز الاستلام من المتجر قبل تسجيل الوصول للعميل.</value>
+  </data>
+  <data name="VENDOR_ARRIVAL_REQUIRED" xml:space="preserve">
+    <value>يجب تسجيل الوصول للمتجر واستلام الطلب قبل الوصول للعميل.</value>
+  </data>
   <data name="ASSIGNMENT_NOT_OWNED" xml:space="preserve">
     <value>يمكنك تنفيذ هذا الإجراء فقط للطلبات المخصصة لك.</value>
   </data>

@@ -55,7 +55,7 @@ public class DriverReadServiceTests
         result.Should().NotBeNull();
         result!.AssignmentStatus.Should().Be(nameof(AssignmentStatus.ArrivedAtVendor));
         result.HomeState.Should().Be("OnMission");
-        result.AllowedActions.Should().BeEmpty();
+        result.AllowedActions.Should().ContainSingle().Which.Should().Be("verify_pickup_otp");
         result.PickupOtpRequired.Should().BeTrue();
         result.PickupOtpStatus.Should().Be("pending");
         result.DriverArrivalState.Should().Be("arrived_at_vendor");

@@ -486,6 +486,12 @@
   <data name="PICKUP_REQUIRED_BEFORE_CUSTOMER_ARRIVAL" xml:space="preserve">
     <value>Pick up the order from the store before marking arrival at the customer.</value>
   </data>
+  <data name="PICKUP_OTP_PENDING" xml:space="preserve">
+    <value>Confirm the store pickup OTP before marking arrival at the customer.</value>
+  </data>
+  <data name="VENDOR_ARRIVAL_REQUIRED" xml:space="preserve">
+    <value>Mark arrival at the store and pick up the order before arriving at the customer.</value>
+  </data>
   <data name="ASSIGNMENT_NOT_OWNED" xml:space="preserve">
     <value>You can only perform this action for your assigned deliveries.</value>
   </data>

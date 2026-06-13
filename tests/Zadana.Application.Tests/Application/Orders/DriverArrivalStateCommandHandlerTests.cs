@@ -6,6 +6,7 @@ using Moq;
 using Zadana.Application.Common.Interfaces;
 using Zadana.Application.Modules.Delivery.Commands.UpdateDriverArrivalState;
 using Zadana.Application.Modules.Delivery.Interfaces;
+using Zadana.Application.Modules.Orders.Services;
 using Zadana.Domain.Modules.Delivery.Entities;
 using Zadana.Domain.Modules.Delivery.Enums;
 using Zadana.Domain.Modules.Identity.Entities;
@@ -58,6 +59,7 @@ public class DriverArrivalStateCommandHandlerTests
             Mock.Of<IOneSignalPushService>(),
             Mock.Of<IOrderTrackingRealtimeNotifier>(),
             Mock.Of<IPublisher>(),
+            new OrderInventoryWorkflowService(dbContext),
             NullLogger<UpdateDriverArrivalStateCommandHandler>.Instance);
 
         var result = await handler.Handle(
@@ -130,6 +132,7 @@ public class DriverArrivalStateCommandHandlerTests
             pushService.Object,
             Mock.Of<IOrderTrackingRealtimeNotifier>(),
             Mock.Of<IPublisher>(),
+            new OrderInventoryWorkflowService(dbContext),
             NullLogger<UpdateDriverArrivalStateCommandHandler>.Instance);
 
         var result = await handler.Handle(
@@ -229,6 +232,7 @@ public class DriverArrivalStateCommandHandlerTests
             Mock.Of<IOneSignalPushService>(),
             Mock.Of<IOrderTrackingRealtimeNotifier>(),
             Mock.Of<IPublisher>(),
+            new OrderInventoryWorkflowService(dbContext),
             NullLogger<UpdateDriverArrivalStateCommandHandler>.Instance);
 
         var result = await handler.Handle(
@@ -249,6 +253,70 @@ public class DriverArrivalStateCommandHandlerTests
                 It.IsAny<string?>(),
                 It.IsAny<CancellationToken>()),
             Times.Never);
+    }
+
+    [Fact]
+    public async Task Handle_WhenPickupOtpVerifiedButAssignmentStillAtVendor_ShouldCompletePickupThenArriveAtCustomer()
+    {
+        await using var dbContext = CreateDbContext();
+        var notificationService = new Mock<INotificationService>();
+        var pushService = new Mock<IOneSignalPushService>();
+        pushService
+            .Setup(service => service.SendMobileNotificationDirectAsync(
+                It.IsAny<OneSignalMobilePushRequest>(),
+                It.IsAny<CancellationToken>()))
+            .ReturnsAsync(new OneSignalPushDispatchResult(
+                Attempted: true,
+                Sent: true,
+                Skipped: false,
+                ProviderStatusCode: 200,
+                ProviderNotificationId: "arrival-push-id",
+                Reason: null));
+
+        var customer = new User("Customer User", "arrival.customer4@test.com", "01000000140", UserRole.Customer);
+        var vendorUser = new User("Vendor User", "arrival.vendor4@test.com", "01000000141", UserRole.Vendor);
+        var driverUser = new User("Driver User", "arrival.driver4@test.com", "01000000142", UserRole.Driver);
+        var vendor = new Vendor(vendorUser.Id, "متجر", "Store", "Groceries", "CR-ARR-4", "arrival.vendor4@test.com", "01000000141", city: "Riyadh");
+        var driver = new Driver(driverUser.Id, DriverVehicleType.Car, "1234567893", "CAR-126");
+        driver.Approve(Guid.NewGuid());
+
+        var order = new Order("ORD-ARR-004", customer.Id, vendor.Id, Guid.NewGuid(), PaymentMethodType.Card, 100m, 0m, 10m, 10m, 0m, 0m, null, null, null, 0m, 0m, 0m, 0m, null, null, false, null, null, null, null, 1, false, 5m);
+        order.ChangeStatus(OrderStatus.DriverAssigned);
+
+        var assignment = new DeliveryAssignment(order.Id, 0m);
+        assignment.OfferTo(driver.Id, 1, DateTime.UtcNow.AddMinutes(5));
+        assignment.Accept();
+        assignment.MarkArrivedAtVendor();
+        assignment.EnsurePickupOtp(TimeSpan.FromHours(4));
+        assignment.VerifyPickupOtp(driver.Id, assignment.PickupOtpCode!);
+
+        dbContext.Users.AddRange(customer, vendorUser, driverUser);
+        dbContext.Vendors.Add(vendor);
+        dbContext.Drivers.Add(driver);
+        dbContext.Orders.Add(order);
+        dbContext.DeliveryAssignments.Add(assignment);
+        await dbContext.SaveChangesAsync();
+
+        var handler = new UpdateDriverArrivalStateCommandHandler(
+            dbContext,
+            dbContext,
+            new DriverRepository(dbContext),
+            Mock.Of<IDriverReadService>(),
+            notificationService.Object,
+            pushService.Object,
+            Mock.Of<IOrderTrackingRealtimeNotifier>(),
+            Mock.Of<IPublisher>(),
+            new OrderInventoryWorkflowService(dbContext),
+            NullLogger<UpdateDriverArrivalStateCommandHandler>.Instance);
+
+        var result = await handler.Handle(
+            new UpdateDriverArrivalStateCommand(order.Id, driverUser.Id, "arrived_at_customer"),
+            CancellationToken.None);
+
+        result.ArrivalState.Should().Be("arrived_at_customer");
+        order.Status.Should().Be(OrderStatus.OnTheWay);
+        assignment.Status.Should().Be(AssignmentStatus.ArrivedAtCustomer);
+        assignment.PickedUpAtUtc.Should().NotBeNull();
     }
 
     private static ApplicationDbContext CreateDbContext()
