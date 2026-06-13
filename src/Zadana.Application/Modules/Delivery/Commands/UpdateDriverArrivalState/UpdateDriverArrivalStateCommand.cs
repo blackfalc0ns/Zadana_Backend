@@ -6,6 +6,9 @@ using Microsoft.Extensions.Logging;
 using Zadana.Application.Common.Interfaces;
 using Zadana.Application.Common.Localization;
 using Zadana.Application.Modules.Delivery.Interfaces;
+using Zadana.Application.Modules.Orders.Events;
+using Zadana.Domain.Modules.Delivery.Enums;
+using Zadana.Domain.Modules.Orders.Enums;
 using Zadana.Domain.Modules.Social.Enums;
 using Zadana.SharedKernel.Exceptions;
 
@@ -39,6 +42,8 @@ public class UpdateDriverArrivalStateCommandValidator : AbstractValidator<Update
 
 public class UpdateDriverArrivalStateCommandHandler : IRequestHandler<UpdateDriverArrivalStateCommand, DriverArrivalStateResultDto>
 {
+    private static readonly TimeSpan DeliveryOtpTtl = TimeSpan.FromHours(12);
+
     private readonly IApplicationDbContext _context;
     private readonly IUnitOfWork _unitOfWork;
     private readonly IDriverRepository _driverRepository;
@@ -46,6 +51,7 @@ public class UpdateDriverArrivalStateCommandHandler : IRequestHandler<UpdateDriv
     private readonly INotificationService _notificationService;
     private readonly IOneSignalPushService _oneSignalPushService;
     private readonly IOrderTrackingRealtimeNotifier _orderTrackingRealtimeNotifier;
+    private readonly IPublisher _publisher;
     private readonly ILogger<UpdateDriverArrivalStateCommandHandler> _logger;
 
     public UpdateDriverArrivalStateCommandHandler(
@@ -56,6 +62,7 @@ public class UpdateDriverArrivalStateCommandHandler : IRequestHandler<UpdateDriv
         INotificationService notificationService,
         IOneSignalPushService oneSignalPushService,
         IOrderTrackingRealtimeNotifier orderTrackingRealtimeNotifier,
+        IPublisher publisher,
         ILogger<UpdateDriverArrivalStateCommandHandler> logger)
     {
         _context = context;
@@ -65,6 +72,7 @@ public class UpdateDriverArrivalStateCommandHandler : IRequestHandler<UpdateDriv
         _notificationService = notificationService;
         _oneSignalPushService = oneSignalPushService;
         _orderTrackingRealtimeNotifier = orderTrackingRealtimeNotifier;
+        _publisher = publisher;
         _logger = logger;
     }
 
@@ -83,6 +91,8 @@ public class UpdateDriverArrivalStateCommandHandler : IRequestHandler<UpdateDriv
         var assignment = await _context.DeliveryAssignments
             .Include(item => item.Order)
                 .ThenInclude(order => order.Vendor)
+            .Include(item => item.Order)
+                .ThenInclude(order => order.StatusHistory)
             .FirstOrDefaultAsync(item => item.OrderId == request.OrderId && item.DriverId == driver.Id, cancellationToken)
             ?? throw new BusinessRuleException("DRIVER_NOT_ASSIGNED", "أنت غير مخصص لهذا الطلب | You are not assigned to this order.");
 
@@ -114,10 +124,31 @@ public class UpdateDriverArrivalStateCommandHandler : IRequestHandler<UpdateDriv
         }
         else
         {
-            if (assignment.Order.Status != Domain.Modules.Orders.Enums.OrderStatus.OnTheWay ||
-                assignment.Status is not (Domain.Modules.Delivery.Enums.AssignmentStatus.PickedUp or Domain.Modules.Delivery.Enums.AssignmentStatus.ArrivedAtCustomer))
+            if (assignment.Status == AssignmentStatus.ArrivedAtCustomer)
             {
-                throw new BusinessRuleException("INVALID_ARRIVAL_STATE_TRANSITION", "يمكنك تسجيل الوصول للعميل فقط بعد بدء التوصيل | You can only mark arrival at customer after the order is on the way.");
+                return await BuildArrivedAtCustomerResultAsync(driver.Id, assignment, cancellationToken);
+            }
+
+            if (assignment.Status != AssignmentStatus.PickedUp)
+            {
+                throw new BusinessRuleException(
+                    assignment.Status is AssignmentStatus.ArrivedAtVendor or AssignmentStatus.Accepted
+                        ? "PICKUP_REQUIRED_BEFORE_CUSTOMER_ARRIVAL"
+                        : "INVALID_ARRIVAL_STATE_TRANSITION",
+                    assignment.Status is AssignmentStatus.ArrivedAtVendor or AssignmentStatus.Accepted
+                        ? "يجب استلام الطلب من المتجر قبل تسجيل الوصول للعميل | Pick up the order from the store before marking arrival at the customer."
+                        : "يمكنك تسجيل الوصول للعميل فقط بعد بدء التوصيل | You can only mark arrival at customer after the order is on the way.");
+            }
+
+            if (assignment.Order.Status == OrderStatus.PickedUp)
+            {
+                await PromoteOrderToOnTheWayAsync(assignment, request.DriverUserId, cancellationToken);
+            }
+            else if (assignment.Order.Status != OrderStatus.OnTheWay)
+            {
+                throw new BusinessRuleException(
+                    "INVALID_ARRIVAL_STATE_TRANSITION",
+                    "يمكنك تسجيل الوصول للعميل فقط بعد بدء التوصيل | You can only mark arrival at customer after the order is on the way.");
             }
 
             assignment.MarkArrivedAtCustomer();
@@ -223,6 +254,78 @@ public class UpdateDriverArrivalStateCommandHandler : IRequestHandler<UpdateDriv
             messageAr,
             messageEn,
             updatedDetail);
+    }
+
+    private async Task<DriverArrivalStateResultDto> BuildArrivedAtCustomerResultAsync(
+        Guid driverId,
+        Domain.Modules.Delivery.Entities.DeliveryAssignment assignment,
+        CancellationToken cancellationToken)
+    {
+        var updatedDetail = await _driverReadService.GetAssignmentDetailAsync(
+            driverId,
+            assignment.Id,
+            cancellationToken);
+
+        return new DriverArrivalStateResultDto(
+            assignment.OrderId,
+            assignment.Id,
+            "arrived_at_customer",
+            LocalizedMessages.GetAr(LocalizedMessages.DriverArrivedAtCustomer),
+            LocalizedMessages.GetEn(LocalizedMessages.DriverArrivedAtCustomer),
+            updatedDetail);
+    }
+
+    private async Task PromoteOrderToOnTheWayAsync(
+        Domain.Modules.Delivery.Entities.DeliveryAssignment assignment,
+        Guid driverUserId,
+        CancellationToken cancellationToken)
+    {
+        var order = assignment.Order;
+        var oldStatus = order.Status;
+        order.ChangeStatus(OrderStatus.OnTheWay, driverUserId, "Driver is on the way.");
+        _context.OrderStatusHistories.Add(order.StatusHistory.Last());
+        assignment.EnsureDeliveryOtp(DeliveryOtpTtl);
+
+        await _unitOfWork.SaveChangesAsync(cancellationToken);
+
+        await _notificationService.SendToUserAsync(
+            order.UserId,
+            "رمز التسليم جاهز",
+            "Delivery OTP is ready",
+            $"رمز تسليم طلبك رقم {order.OrderNumber} جاهز. افتح تفاصيل الطلب لعرض الرمز المؤمّن عند وصول المندوب.",
+            $"Your delivery code for order #{order.OrderNumber} is ready. Open the order details to view it when the driver arrives.",
+            "delivery-otp",
+            order.Id,
+            "otpType=delivery",
+            cancellationToken);
+
+        await _oneSignalPushService.SendMobileNotificationDirectAsync(
+            OneSignalMobilePushRequest.CreateHeadsUp(
+                order.UserId.ToString(),
+                "رمز التسليم جاهز",
+                "Delivery OTP is ready",
+                $"رمز تسليم طلبك رقم {order.OrderNumber} جاهز. افتح تفاصيل الطلب لعرض الرمز المؤمّن عند وصول المندوب.",
+                $"Your delivery code for order #{order.OrderNumber} is ready. Open the order details to view it when the driver arrives.",
+                "delivery-otp",
+                order.Id,
+                "otpType=delivery",
+                $"/orders/{order.Id}",
+                category: NotificationCategories.Order,
+                targetApplication: OneSignalApplicationTarget.Customer),
+            cancellationToken);
+
+        await _publisher.Publish(
+            new OrderStatusChangedNotification(
+                order.Id,
+                order.UserId,
+                order.VendorId,
+                order.OrderNumber,
+                oldStatus,
+                OrderStatus.OnTheWay,
+                NotifyCustomer: true,
+                NotifyVendor: false,
+                ActorRole: "driver"),
+            cancellationToken);
     }
 
     private static string BuildArrivalNotificationData(

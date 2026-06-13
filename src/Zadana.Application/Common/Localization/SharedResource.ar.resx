@@ -484,6 +484,9 @@
   <data name="INVALID_ARRIVAL_STATE_TRANSITION" xml:space="preserve">
     <value>لا يمكن تحديث حالة الوصول في المرحلة الحالية.</value>
   </data>
+  <data name="PICKUP_REQUIRED_BEFORE_CUSTOMER_ARRIVAL" xml:space="preserve">
+    <value>يجب استلام الطلب من المتجر قبل تسجيل الوصول للعميل.</value>
+  </data>
   <data name="ASSIGNMENT_NOT_OWNED" xml:space="preserve">
     <value>يمكنك تنفيذ هذا الإجراء فقط للطلبات المخصصة لك.</value>
   </data>
