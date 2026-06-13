@@ -131,7 +131,9 @@ public record DriverRejectionPolicyDto(
     string? RestrictionMessage,
     int WeeklyRejections = 0,
     int WeeklyLimit = 0,
-    int RemainingBeforeWeeklyFreeze = 0);
+    int RemainingBeforeWeeklyFreeze = 0,
+    string? RestrictionMessageAr = null,
+    string? RestrictionMessageEn = null);
 
 public record DriverProfileDocumentDto(
     string DocumentType,

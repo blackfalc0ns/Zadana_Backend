@@ -56,6 +56,62 @@ public static class DriverNotificationDataBuilder
         return JsonSerializer.Serialize(data, JsonOptions);
     }
 
+    public static string BuildDispatchOfferInboxData(
+        Guid orderId,
+        Guid assignmentId,
+        Guid driverId,
+        DateTime expiresAtUtc,
+        object currentOffer,
+        string? source = null) =>
+        Build(
+            screen: "home",
+            @event: "dispatch.offer_new",
+            orderId: orderId,
+            assignmentId: assignmentId,
+            driverId: driverId,
+            extra: new
+            {
+                target = "driver-offer",
+                legacyType = "driver-offer",
+                category = "dispatch",
+                action = "offer_new",
+                presentation = "popup",
+                popupType = "delivery_offer",
+                showPopup = true,
+                eventName = "dispatch.offer_new",
+                source,
+                expiresAtUtc,
+                currentOffer
+            });
+
+    /// <summary>
+    /// Compact payload for OneSignal push (must stay under provider data limits).
+    /// Full offer details are delivered via SignalR/inbox instead.
+    /// </summary>
+    public static string BuildDispatchOfferPushData(
+        Guid orderId,
+        Guid assignmentId,
+        Guid driverId,
+        DateTime expiresAtUtc,
+        int? countdownSeconds = null,
+        string? source = null) =>
+        Build(
+            screen: "home",
+            @event: "dispatch.offer_new",
+            orderId: orderId,
+            assignmentId: assignmentId,
+            driverId: driverId,
+            extra: new
+            {
+                target = "driver-offer",
+                legacyType = "driver-offer",
+                action = "offer_new",
+                eventName = "dispatch.offer_new",
+                source,
+                expiresAtUtc,
+                countdownSeconds
+            });
+
     private static string ResolveTargetUrl(
         string screen,
         Guid? orderId,

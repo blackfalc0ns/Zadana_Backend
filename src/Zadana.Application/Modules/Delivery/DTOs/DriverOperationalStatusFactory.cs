@@ -71,8 +71,8 @@ public static class DriverOperationalStatusFactory
             SupportCta: new DriverSupportCtaDto(
                 Endpoint: isLoginLocked ? "/api/drivers/account-support/appeals" : "/api/drivers/support/account-appeals",
                 ReasonType: ResolveSupportReasonType(gateStatus),
-                LabelAr: "تواصل مع دعم حساب المندوب",
-                LabelEn: "Contact driver account support"));
+                LabelAr: "التواصل مع الدعم",
+                LabelEn: "Contact support"));
     }
 
     public static string ResolveGateStatus(Driver driver, bool isLoginLocked = false) =>

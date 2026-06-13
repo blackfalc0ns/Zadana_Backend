@@ -11,6 +11,7 @@ using Zadana.Application.Common.Interfaces;
 using Zadana.Domain.Modules.Delivery.Entities;
 using Zadana.Domain.Modules.Identity.Entities;
 using Zadana.Domain.Modules.Identity.Enums;
+using Zadana.Domain.Modules.Social.Enums;
 using Zadana.Infrastructure.Persistence;
 using Zadana.Infrastructure.Persistence.Interceptors;
 using Zadana.Infrastructure.Services;
@@ -628,6 +629,156 @@ public class OneSignalPushServiceTests
             .Select(item => item.GetString())
             .Should()
             .Equal(enabledSubscriptionId.ToString());
+    }
+
+    [Fact]
+    public async Task SendMobileNotificationDirectAsync_WithDriverTarget_ShouldPreferRegisteredDbSubscriptionBeforeProviderLookup()
+    {
+        await using var dbContext = CreateDbContext();
+        var userId = Guid.Parse("1363aa39-64cb-42a8-9466-d2415f247c09");
+        var driver = new Driver(
+            userId,
+            vehicleType: null,
+            nationalId: null,
+            licenseNumber: null);
+        dbContext.Drivers.Add(driver);
+        var registeredSubscriptionId = Guid.Parse("bdc466d9-d487-491c-96a5-3a04ba215489");
+        dbContext.UserPushDevices.Add(new UserPushDevice(
+            userId,
+            registeredSubscriptionId.ToString(),
+            PushPlatform.Fcm,
+            deviceId: $"driver-android-{userId}",
+            deviceName: "Pixel",
+            appVersion: "driver-app",
+            locale: "ar",
+            notificationsEnabled: true,
+            dispatchPushEnabled: true));
+        await dbContext.SaveChangesAsync();
+
+        var handler = new RecordingHttpMessageHandler(
+            HttpStatusCode.OK,
+            """{"id":"db-subscription-push"}""");
+        var service = CreateService(
+            handler,
+            scopeFactory: new DbContextServiceScopeFactory(dbContext),
+            configureSettings: settings =>
+            {
+                settings.DriverAppId = "driver-app-id";
+                settings.DriverRestApiKey = "driver-rest-key";
+            });
+
+        var result = await service.SendMobileNotificationDirectAsync(
+            OneSignalMobilePushRequest.CreateHeadsUp(
+                userId.ToString(),
+                "عرض توصيل جديد",
+                "New delivery offer",
+                "لديك عرض توصيل جديد.",
+                "You have a new delivery offer.",
+                NotificationTypes.DriverDeliveryOffer,
+                Guid.NewGuid(),
+                null,
+                "/",
+                category: NotificationCategories.Dispatch,
+                targetApplication: OneSignalApplicationTarget.Driver),
+            CancellationToken.None);
+
+        result.Sent.Should().BeTrue();
+        result.ProviderNotificationId.Should().Be("db-subscription-push");
+        handler.RequestMethods.Should().Equal("POST");
+
+        using var document = JsonDocument.Parse(handler.RequestBodies[0]);
+        document.RootElement
+            .GetProperty("include_subscription_ids")
+            .EnumerateArray()
+            .Select(item => item.GetString())
+            .Should()
+            .Equal(registeredSubscriptionId.ToString());
+    }
+
+    [Fact]
+    public async Task SendMobileNotificationDirectAsync_WithDriverTargetAndPartialSubscriptionErrors_ShouldFallbackToAlias()
+    {
+        await using var dbContext = CreateDbContext();
+        var userId = Guid.Parse("1363aa39-64cb-42a8-9466-d2415f247c09");
+        var driver = new Driver(
+            userId,
+            vehicleType: null,
+            nationalId: null,
+            licenseNumber: null);
+        dbContext.Drivers.Add(driver);
+        var staleSubscriptionId = Guid.Parse("bdc466d9-d487-491c-96a5-3a04ba215489");
+        dbContext.UserPushDevices.Add(new UserPushDevice(
+            userId,
+            staleSubscriptionId.ToString(),
+            PushPlatform.Fcm,
+            deviceId: $"driver-android-{userId}",
+            deviceName: "Pixel",
+            appVersion: "driver-app",
+            locale: "ar",
+            notificationsEnabled: true,
+            dispatchPushEnabled: true));
+        await dbContext.SaveChangesAsync();
+
+        var providerUserBody = JsonSerializer.Serialize(new
+        {
+            identity = new
+            {
+                external_id = userId.ToString(),
+                onesignal_id = "dee28e12-3906-43bd-b49d-c4da7aa3784b"
+            },
+            subscriptions = Array.Empty<object>()
+        });
+        var partialErrorBody = JsonSerializer.Serialize(new
+        {
+            id = "stale-subscription-push",
+            errors = new
+            {
+                invalid_player_ids = new[] { staleSubscriptionId.ToString() }
+            }
+        });
+        var handler = new RecordingHttpMessageHandler(
+            HttpStatusCode.OK,
+            partialErrorBody,
+            HttpStatusCode.OK,
+            providerUserBody,
+            HttpStatusCode.OK,
+            """{"id":"alias-push"}""");
+        var service = CreateService(
+            handler,
+            scopeFactory: new DbContextServiceScopeFactory(dbContext),
+            configureSettings: settings =>
+            {
+                settings.DriverAppId = "driver-app-id";
+                settings.DriverRestApiKey = "driver-rest-key";
+            });
+
+        var result = await service.SendMobileNotificationDirectAsync(
+            OneSignalMobilePushRequest.CreateHeadsUp(
+                userId.ToString(),
+                "عرض توصيل جديد",
+                "New delivery offer",
+                "لديك عرض توصيل جديد.",
+                "You have a new delivery offer.",
+                NotificationTypes.DriverDeliveryOffer,
+                Guid.NewGuid(),
+                null,
+                "/",
+                category: NotificationCategories.Dispatch,
+                targetApplication: OneSignalApplicationTarget.Driver),
+            CancellationToken.None);
+
+        result.Sent.Should().BeTrue();
+        result.ProviderNotificationId.Should().Be("alias-push");
+        handler.RequestMethods.Should().Equal("POST", "GET", "POST");
+
+        using var aliasDocument = JsonDocument.Parse(handler.RequestBodies[2]);
+        aliasDocument.RootElement
+            .GetProperty("include_aliases")
+            .GetProperty("external_id")
+            .EnumerateArray()
+            .Select(item => item.GetString())
+            .Should()
+            .Equal(userId.ToString());
     }
 
     [Theory]

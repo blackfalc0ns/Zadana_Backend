@@ -703,25 +703,18 @@ public class DeliveryDispatchService : IDeliveryDispatchService
             .FirstOrDefaultAsync(item => item.Id == order.CustomerAddressId, cancellationToken);
 
         var currentOffer = DriverIncomingOfferFactory.Build(assignment, order, customerAddress, now);
-        var offerPayloadJson = DriverNotificationDataBuilder.Build(
-            screen: "home",
-            @event: "dispatch.offer_new",
-            orderId: order.Id,
-            assignmentId: assignment.Id,
-            driverId: best.Driver.Id,
-            extra: new
-            {
-                target = "driver-offer",
-                legacyType = "driver-offer",
-                category = NotificationCategories.Dispatch,
-                action = "offer_new",
-                presentation = "popup",
-                popupType = "delivery_offer",
-                showPopup = true,
-                eventName = "dispatch.offer_new",
-                expiresAtUtc,
-                currentOffer
-            });
+        var offerPayloadJson = DriverNotificationDataBuilder.BuildDispatchOfferInboxData(
+            order.Id,
+            assignment.Id,
+            best.Driver.Id,
+            expiresAtUtc,
+            currentOffer);
+        var offerPushPayloadJson = DriverNotificationDataBuilder.BuildDispatchOfferPushData(
+            order.Id,
+            assignment.Id,
+            best.Driver.Id,
+            expiresAtUtc,
+            currentOffer.CountdownSeconds);
 
         // Send real-time SignalR notification so the driver's Home screen updates instantly.
         // SendToUserAsync persists to DB inbox AND pushes via SignalR simultaneously.
@@ -748,8 +741,8 @@ public class DeliveryDispatchService : IDeliveryDispatchService
 
         // Send a push notification to wake the driver app if it's in the background.
         // Use direct dispatch so delivery is not blocked when alias targeting is flaky;
-        // OneSignalPushService will prefer registered subscription ids for driver pushes.
-        await _oneSignalPushService.SendMobileNotificationDirectAsync(
+        // OneSignalPushService prefers live OneSignal subscriptions, then DB cache, then aliases.
+        var offerPushResult = await _oneSignalPushService.SendMobileNotificationDirectAsync(
             OneSignalMobilePushRequest.CreateHeadsUp(
                 best.Driver.UserId.ToString(),
                 "عرض توصيل جديد",
@@ -758,11 +751,23 @@ public class DeliveryDispatchService : IDeliveryDispatchService
                 "You have a new delivery offer and need to respond within a few seconds.",
                 NotificationTypes.DriverDeliveryOffer,
                 order.Id,
-                offerPayloadJson,
+                offerPushPayloadJson,
                 targetUrl: "/",
                 category: NotificationCategories.Dispatch,
                 targetApplication: OneSignalApplicationTarget.Driver),
             cancellationToken);
+
+        if (offerPushResult is not null && !offerPushResult.Sent)
+        {
+            _logger.LogWarning(
+                "Driver delivery offer push was not delivered. OrderId: {OrderId}. DriverId: {DriverId}. DriverUserId: {DriverUserId}. Skipped: {Skipped}. ProviderStatusCode: {ProviderStatusCode}. Reason: {Reason}",
+                order.Id,
+                best.Driver.Id,
+                best.Driver.UserId,
+                offerPushResult.Skipped,
+                offerPushResult.ProviderStatusCode,
+                offerPushResult.Reason);
+        }
 
         _logger.LogInformation(
             "Dispatch offer engine: offered order {OrderId} to driver {DriverId} attempt {Attempt} ({Reason}).",

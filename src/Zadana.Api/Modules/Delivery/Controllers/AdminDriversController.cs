@@ -21,6 +21,7 @@ using Zadana.Application.Modules.Delivery.DTOs;
 using Zadana.Application.Modules.Delivery.Interfaces;
 using Zadana.Application.Modules.Delivery.Support;
 using Zadana.Application.Modules.Identity.Interfaces;
+using Zadana.Domain.Modules.Delivery.Entities;
 using Zadana.Domain.Modules.Social.Enums;
 using Zadana.SharedKernel.Exceptions;
 
@@ -220,6 +221,178 @@ public class AdminDriversController : ApiControllerBase
             PushStatusCode: pushResult.ProviderStatusCode,
             ProviderNotificationId: pushResult.ProviderNotificationId,
             PushReason: pushResult.Reason));
+    }
+
+    [HttpPost("{id:guid}/notifications/test-offer")]
+    public async Task<ActionResult<AdminDriverNotificationResponse>> SendTestDeliveryOffer(
+        Guid id,
+        [FromBody] AdminSendDriverTestOfferRequest? request,
+        CancellationToken cancellationToken = default)
+    {
+        var driver = await _context.Drivers
+            .AsNoTracking()
+            .Where(item => item.Id == id)
+            .Select(item => new { item.Id, item.UserId })
+            .FirstOrDefaultAsync(cancellationToken)
+            ?? throw new NotFoundException("Driver", id);
+
+        request ??= new AdminSendDriverTestOfferRequest();
+
+        var now = DateTime.UtcNow;
+        var expiresAtUtc = now.AddSeconds(Math.Clamp(request.CountdownSeconds ?? 45, 15, 120));
+        var vendorNameAr = "متجر تجريبي";
+        DriverIncomingOfferDto currentOffer;
+        Guid referenceOrderId;
+
+        if (request.OrderId is Guid orderId)
+        {
+            var order = await _context.Orders
+                .AsNoTracking()
+                .Include(item => item.Vendor)
+                .Include(item => item.VendorBranch)
+                .Include(item => item.Items)
+                .FirstOrDefaultAsync(item => item.Id == orderId, cancellationToken)
+                ?? throw new NotFoundException("Order", orderId);
+
+            var customerAddress = await _context.CustomerAddresses
+                .AsNoTracking()
+                .FirstOrDefaultAsync(item => item.Id == order.CustomerAddressId, cancellationToken);
+
+            var codAmount = order.PaymentMethod == Domain.Modules.Payments.Enums.PaymentMethodType.CashOnDelivery
+                ? order.TotalAmount
+                : 0m;
+            var assignment = new DeliveryAssignment(order.Id, codAmount);
+            assignment.OfferTo(driver.Id, 1, expiresAtUtc);
+
+            currentOffer = DriverIncomingOfferFactory.Build(assignment, order, customerAddress, now);
+            referenceOrderId = order.Id;
+            vendorNameAr = order.Vendor?.BusinessNameAr ?? vendorNameAr;
+        }
+        else
+        {
+            referenceOrderId = Guid.NewGuid();
+            currentOffer = BuildSyntheticTestOffer(referenceOrderId, expiresAtUtc, now, request.CountdownSeconds ?? 45);
+        }
+
+        var offerPayloadJson = DriverNotificationDataBuilder.BuildDispatchOfferInboxData(
+            referenceOrderId,
+            currentOffer.AssignmentId,
+            driver.Id,
+            expiresAtUtc,
+            currentOffer,
+            source: "admin_driver_test_offer_api");
+        var pushPayloadJson = DriverNotificationDataBuilder.BuildDispatchOfferPushData(
+            referenceOrderId,
+            currentOffer.AssignmentId,
+            driver.Id,
+            expiresAtUtc,
+            currentOffer.CountdownSeconds,
+            source: "admin_driver_test_offer_api");
+
+        await _notificationService.SendToUserAsync(
+            driver.UserId,
+            new NotificationDispatchRequest(
+                "عرض توصيل تجريبي",
+                "Test delivery offer",
+                $"لديك عرض توصيل تجريبي من {vendorNameAr} للتأكد من وصول الإشعار.",
+                "You have a test delivery offer to verify mobile notification delivery.",
+                NotificationTypes.DriverDeliveryOffer,
+                NotificationCategories.Dispatch,
+                NotificationPriorities.Critical,
+                referenceOrderId,
+                offerPayloadJson),
+            cancellationToken);
+
+        await _notificationService.SendDeliveryOfferToDriverAsync(
+            driver.UserId,
+            currentOffer,
+            cancellationToken);
+
+        var pushRequest = OneSignalMobilePushRequest.CreateHeadsUp(
+            driver.UserId.ToString(),
+            "عرض توصيل تجريبي",
+            "Test delivery offer",
+            $"لديك عرض توصيل تجريبي من {vendorNameAr} للتأكد من وصول الإشعار.",
+            "You have a test delivery offer to verify mobile notification delivery.",
+            NotificationTypes.DriverDeliveryOffer,
+            referenceOrderId,
+            pushPayloadJson,
+            targetUrl: "/",
+            category: NotificationCategories.Dispatch,
+            targetApplication: OneSignalApplicationTarget.Driver);
+
+        OneSignalPushDispatchResult pushResult;
+        if (request.SendPush)
+        {
+            LogPushDispatchStart(driver.Id, driver.UserId, pushRequest);
+            pushResult = await _oneSignalPushService.SendMobileNotificationDirectAsync(pushRequest, cancellationToken);
+            LogPushDispatchResult(driver.Id, driver.UserId, pushRequest, pushResult);
+        }
+        else
+        {
+            pushResult = new OneSignalPushDispatchResult(
+                Attempted: false,
+                Sent: false,
+                Skipped: true,
+                ProviderStatusCode: null,
+                ProviderNotificationId: null,
+                Reason: "Push dispatch was disabled for this admin test offer request.");
+        }
+
+        return Ok(new AdminDriverNotificationResponse(
+            Message: "Test delivery offer queued successfully.",
+            DriverId: driver.Id,
+            UserId: driver.UserId,
+            ExternalId: pushRequest.ExternalUserId,
+            Type: NotificationTypes.DriverDeliveryOffer,
+            InboxRequested: true,
+            PushAttempted: pushResult.Attempted,
+            PushSent: pushResult.Sent,
+            PushSkipped: pushResult.Skipped,
+            PushStatusCode: pushResult.ProviderStatusCode,
+            ProviderNotificationId: pushResult.ProviderNotificationId,
+            PushReason: pushResult.Reason));
+    }
+
+    private static DriverIncomingOfferDto BuildSyntheticTestOffer(
+        Guid orderId,
+        DateTime expiresAtUtc,
+        DateTime utcNow,
+        int countdownSeconds)
+    {
+        var assignmentId = Guid.NewGuid();
+        var resolvedCountdown = Math.Max(0, (int)(expiresAtUtc - utcNow).TotalSeconds);
+        if (resolvedCountdown == 0)
+        {
+            resolvedCountdown = countdownSeconds;
+        }
+
+        return new DriverIncomingOfferDto(
+            assignmentId,
+            orderId,
+            "TEST-OFFER-001",
+            "Test Vendor",
+            "متجر تجريبي",
+            "Test Vendor",
+            null,
+            "Test Pickup Address, Riyadh",
+            24.7137m,
+            46.6754m,
+            "Test Customer",
+            "Test Delivery Address, Riyadh",
+            24.7236m,
+            46.6853m,
+            1.2m,
+            "12-17 min",
+            15m,
+            "CashOnDelivery",
+            120m,
+            120m,
+            "TV",
+            "TC",
+            "Admin test delivery offer",
+            resolvedCountdown,
+            new[] { new DriverOfferItemDto("Test Product", 1, null) });
     }
 
     private void LogPushDispatchStart(
@@ -556,6 +729,10 @@ public record AdminSendDriverNotificationRequest(
     Guid? ReferenceId = null,
     string? Data = null,
     string? TargetUrl = null,
+    bool SendPush = true);
+public record AdminSendDriverTestOfferRequest(
+    Guid? OrderId = null,
+    int? CountdownSeconds = null,
     bool SendPush = true);
 public record AdminDriverNotificationResponse(
     string Message,

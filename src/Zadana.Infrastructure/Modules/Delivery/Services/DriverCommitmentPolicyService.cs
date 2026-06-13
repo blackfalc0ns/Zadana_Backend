@@ -323,16 +323,18 @@ public class DriverCommitmentPolicyService : IDriverCommitmentPolicyService
 
         var titleAr = suspensionCandidateTriggered
             ? "مراجعة تشغيلية مطلوبة"
-            : "تم إيقاف استقبال العروض مؤقتًا";
+            : "الحساب محظور مؤقتًا";
         var titleEn = suspensionCandidateTriggered
             ? "Operational review required"
-            : "Offer reception paused";
-        var bodyAr = suspensionCandidateTriggered
-            ? "بسبب تكرار الرفض أو انتهاء مهلة الرد على العروض، تم تحويل حسابك إلى المراجعة التشغيلية."
-            : "تم إيقاف استقبال العروض الجديدة مؤقتًا بسبب الالتزام الأخير بالعروض.";
-        var bodyEn = suspensionCandidateTriggered
-            ? "Repeated rejections or offer timeouts moved your account to operational review."
-            : "New offers were paused temporarily because of recent offer compliance.";
+            : "Account temporarily restricted";
+        var bodyAr = summary.RestrictionMessage
+            ?? (suspensionCandidateTriggered
+                ? "تم تقييد الحساب مؤقتًا بسبب تكرار رفض العروض أو إلغاء التوصيل. يرجى انتظار مراجعة الإدارة قبل استقبال الطلبات مجددًا."
+                : "تم تقييد الحساب مؤقتًا بعد الوصول إلى حد رفض العروض أو إلغاء التوصيل اليوم. يمكنك استقبال العروض مجددًا غدًا أو بعد رفع التقييد من الإدارة.");
+        var bodyEn = summary.RestrictionMessageEn
+            ?? (suspensionCandidateTriggered
+                ? "Your account was temporarily restricted because offer rejections or delivery cancellations occurred repeatedly. Please wait for admin review before receiving orders again."
+                : "Your account was temporarily restricted after reaching today's offer rejection or delivery cancellation limit. You can receive offers again tomorrow or after admin clearance.");
 
         var data = DriverNotificationDataBuilder.Build(
             screen: "account_status",
@@ -428,20 +430,27 @@ public class DriverCommitmentPolicyService : IDriverCommitmentPolicyService
     }
 
     private static string? ResolveRestrictionMessageAr(DriverCommitmentEnforcementLevel enforcementLevel) =>
-        ResolveRestrictionMessageEn(enforcementLevel);
+        enforcementLevel switch
+        {
+            DriverCommitmentEnforcementLevel.SoftBlocked =>
+                "تم تقييد الحساب مؤقتًا بعد الوصول إلى حد رفض العروض أو إلغاء التوصيل لليوم. يمكنك استقبال العروض مجددًا غدًا أو بعد رفع القيد من الإدارة.",
+            DriverCommitmentEnforcementLevel.SuspensionCandidate =>
+                "تم تقييد الحساب مؤقتًا بسبب تكرار رفض العروض أو إلغاء التوصيل. يرجى انتظار مراجعة الإدارة قبل استقبال الطلبات مجددًا.",
+            _ => null
+        };
 
     private static string? ResolveRestrictionMessageEn(DriverCommitmentEnforcementLevel enforcementLevel) =>
         enforcementLevel switch
         {
             DriverCommitmentEnforcementLevel.SoftBlocked =>
-                "The account was temporarily restricted after reaching today's rejection or delivery cancellation limit. It can receive offers again tomorrow or after admin clearance.",
+                "Your account was temporarily restricted after reaching today's offer rejection or delivery cancellation limit. You can receive offers again tomorrow or after admin clearance.",
             DriverCommitmentEnforcementLevel.SuspensionCandidate =>
-                "The account was temporarily restricted because offer rejections or delivery cancellations happened repeatedly. Please wait for admin review before receiving orders again.",
+                "Your account was temporarily restricted because offer rejections or delivery cancellations happened repeatedly. Please wait for admin review before receiving orders again.",
             _ => null
         };
 
     private static string? ResolveRestrictionMessageArClean(DriverCommitmentEnforcementLevel enforcementLevel) =>
-        ResolveRestrictionMessageEn(enforcementLevel);
+        ResolveRestrictionMessageAr(enforcementLevel);
 
     private sealed class NoOpNotificationService : INotificationService
     {

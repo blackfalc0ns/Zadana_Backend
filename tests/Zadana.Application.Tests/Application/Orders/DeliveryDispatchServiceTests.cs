@@ -31,6 +31,19 @@ public class DeliveryDispatchServiceTests
         IAdminAlertService? adminAlertService = null)
     {
         var commitmentPolicyService = new DriverCommitmentPolicyService(dbContext, dbContext);
+        var pushServiceMock = new Mock<IOneSignalPushService>();
+        pushServiceMock
+            .Setup(service => service.SendMobileNotificationDirectAsync(
+                It.IsAny<OneSignalMobilePushRequest>(),
+                It.IsAny<CancellationToken>()))
+            .ReturnsAsync(new OneSignalPushDispatchResult(
+                Attempted: true,
+                Sent: true,
+                Skipped: false,
+                ProviderStatusCode: 200,
+                ProviderNotificationId: "test-push",
+                Reason: null));
+
         return new DeliveryDispatchService(
             dbContext,
             dbContext,
@@ -38,7 +51,7 @@ public class DeliveryDispatchServiceTests
             publisher ?? Mock.Of<IPublisher>(),
             notificationService ?? Mock.Of<INotificationService>(),
             commitmentPolicyService,
-            oneSignalPushService ?? Mock.Of<IOneSignalPushService>(),
+            oneSignalPushService ?? pushServiceMock.Object,
             adminAlertService);
     }
 
@@ -215,10 +228,8 @@ public class DeliveryDispatchServiceTests
                     request.Data.Contains("\"popupType\":\"delivery_offer\"") &&
                     request.Data.Contains("\"showPopup\":true") &&
                     request.Data.Contains("\"eventName\":\"dispatch.offer_new\"") &&
-                    request.Data.Contains("\"currentOffer\"") &&
-                    (request.Data.Contains("\"pickupAddress\"") || request.Data.Contains("\"PickupAddress\"")) &&
-                    (request.Data.Contains("\"orderItems\"") || request.Data.Contains("\"OrderItems\"")) &&
-                    request.Data.Contains("\"vendorNameEn\":\"Dispatch Store\"") &&
+                    request.Data.Contains("\"countdownSeconds\"") &&
+                    !request.Data.Contains("\"currentOffer\"") &&
                     request.Data.Contains($"\"driverId\":\"{scenario.SameZoneFreshDriver.Id}\"") &&
                     request.Data.Contains(expectedPayloadPart) &&
                     request.Data.Contains(scenario.Order.Id.ToString())),

@@ -603,6 +603,115 @@ public class OrderStatusChangedHandlerTests
             Times.Once);
     }
 
+    [Fact]
+    public async Task Handle_WhenDriverAssignedBySystem_ShouldSendHeadsUpAssignmentPushToDriver()
+    {
+        await using var dbContext = CreateDbContext();
+        var customer = new User("Customer User", "customer.assigned@test.com", "01000000144", UserRole.Customer);
+        var driverUser = new User("Driver User", "driver.assigned@test.com", "01000000145", UserRole.Driver);
+        var driver = new Driver(driverUser.Id, DriverVehicleType.Car, "3234567892", "LIC-1007");
+        var vendorId = Guid.NewGuid();
+        var order = CreateOrder(customer.Id, vendorId, OrderStatus.DriverAssignmentInProgress, "ORD-DRIVER-ASSIGNED-001");
+        var assignment = new DeliveryAssignment(order.Id, 0m);
+
+        assignment.OfferTo(driver.Id, 1, DateTime.UtcNow.AddMinutes(5));
+        assignment.Accept();
+
+        dbContext.Users.AddRange(customer, driverUser);
+        dbContext.Drivers.Add(driver);
+        dbContext.Orders.Add(order);
+        dbContext.DeliveryAssignments.Add(assignment);
+        await dbContext.SaveChangesAsync();
+
+        var pushServiceMock = CreatePushServiceMock();
+        var handler = new OrderStatusChangedHandler(
+            Mock.Of<INotificationService>(),
+            dbContext,
+            pushServiceMock.Object,
+            CreateDispatcherMock().Object,
+            CreateRevenueDistributionServiceMock(dbContext).Object,
+            Mock.Of<IOrderTrackingRealtimeNotifier>(),
+            Mock.Of<IEmailCenterService>(),
+            Mock.Of<Microsoft.Extensions.Logging.ILogger<OrderStatusChangedHandler>>());
+
+        await handler.Handle(
+            new OrderStatusChangedNotification(
+                order.Id,
+                customer.Id,
+                vendorId,
+                order.OrderNumber,
+                OrderStatus.DriverAssignmentInProgress,
+                OrderStatus.DriverAssigned,
+                NotifyCustomer: false,
+                NotifyVendor: false,
+                ActorRole: "system"),
+            CancellationToken.None);
+
+        pushServiceMock.Verify(
+            service => service.SendMobileNotificationDirectAsync(
+                It.Is<OneSignalMobilePushRequest>(request =>
+                    request.ExternalUserId == driverUser.Id.ToString() &&
+                    request.Type == NotificationTypes.DriverAssignmentUpdated &&
+                    request.Category == NotificationCategories.Assignment &&
+                    request.TargetApplication == OneSignalApplicationTarget.Driver &&
+                    request.Profile == OneSignalPushProfile.MobileHeadsUp &&
+                    request.Data != null &&
+                    request.Data.Contains("\"eventName\":\"assignment.driver_assigned\"", StringComparison.Ordinal)),
+                It.IsAny<CancellationToken>()),
+            Times.Once);
+    }
+
+    [Fact]
+    public async Task Handle_WhenDriverAssignedByDriverActor_ShouldNotSendAssignmentPush()
+    {
+        await using var dbContext = CreateDbContext();
+        var customer = new User("Customer User", "customer.self-assigned@test.com", "01000000146", UserRole.Customer);
+        var driverUser = new User("Driver User", "driver.self-assigned@test.com", "01000000147", UserRole.Driver);
+        var driver = new Driver(driverUser.Id, DriverVehicleType.Car, "3234567893", "LIC-1008");
+        var vendorId = Guid.NewGuid();
+        var order = CreateOrder(customer.Id, vendorId, OrderStatus.ReadyForPickup, "ORD-DRIVER-SELF-001");
+        var assignment = new DeliveryAssignment(order.Id, 0m);
+
+        assignment.OfferTo(driver.Id, 1, DateTime.UtcNow.AddMinutes(5));
+        assignment.Accept();
+
+        dbContext.Users.AddRange(customer, driverUser);
+        dbContext.Drivers.Add(driver);
+        dbContext.Orders.Add(order);
+        dbContext.DeliveryAssignments.Add(assignment);
+        await dbContext.SaveChangesAsync();
+
+        var pushServiceMock = CreatePushServiceMock();
+        var handler = new OrderStatusChangedHandler(
+            Mock.Of<INotificationService>(),
+            dbContext,
+            pushServiceMock.Object,
+            CreateDispatcherMock().Object,
+            CreateRevenueDistributionServiceMock(dbContext).Object,
+            Mock.Of<IOrderTrackingRealtimeNotifier>(),
+            Mock.Of<IEmailCenterService>(),
+            Mock.Of<Microsoft.Extensions.Logging.ILogger<OrderStatusChangedHandler>>());
+
+        await handler.Handle(
+            new OrderStatusChangedNotification(
+                order.Id,
+                customer.Id,
+                vendorId,
+                order.OrderNumber,
+                OrderStatus.DriverAssignmentInProgress,
+                OrderStatus.DriverAssigned,
+                NotifyCustomer: false,
+                NotifyVendor: false,
+                ActorRole: "driver"),
+            CancellationToken.None);
+
+        pushServiceMock.Verify(
+            service => service.SendMobileNotificationDirectAsync(
+                It.IsAny<OneSignalMobilePushRequest>(),
+                It.IsAny<CancellationToken>()),
+            Times.Never);
+    }
+
     private static Mock<IOrderStatusNotificationDispatcher> CreateDispatcherMock()
     {
         var dispatcherMock = new Mock<IOrderStatusNotificationDispatcher>();

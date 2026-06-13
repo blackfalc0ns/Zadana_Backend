@@ -428,12 +428,20 @@ public class OrderStatusChangedHandler : INotificationHandler<OrderStatusChanged
     {
         if (string.Equals(notification.ActorRole, "driver", StringComparison.OrdinalIgnoreCase))
         {
+            _logger.LogDebug(
+                "Skipping driver assignment inbox/push for order {OrderId} because actor is driver (status {NewStatus}).",
+                notification.OrderId,
+                notification.NewStatus);
             return;
         }
 
         var envelope = TryComposeDriverAssignmentNotification(notification, assignmentId, driverUserId);
         if (envelope is null)
         {
+            _logger.LogDebug(
+                "No driver assignment push composed for order {OrderId} status {NewStatus}.",
+                notification.OrderId,
+                notification.NewStatus);
             return;
         }
 
@@ -448,15 +456,35 @@ public class OrderStatusChangedHandler : INotificationHandler<OrderStatusChanged
             envelope.PushRequest,
             cancellationToken);
 
-        if (!pushResult.Sent && !pushResult.Skipped)
+        if (pushResult.Sent)
         {
-            _logger.LogWarning(
-                "Driver assignment push failed for order {OrderId} driver user {DriverUserId}. ProviderStatusCode: {ProviderStatusCode}. Reason: {Reason}",
+            _logger.LogInformation(
+                "Driver assignment push delivered for order {OrderId} driver user {DriverUserId}. Event: {EventName}. ProviderNotificationId: {ProviderNotificationId}.",
                 notification.OrderId,
                 driverUserId,
-                pushResult.ProviderStatusCode,
-                pushResult.Reason);
+                ExtractAssignmentEventName(envelope.PushRequest.Data),
+                pushResult.ProviderNotificationId);
+            return;
         }
+
+        if (pushResult.Skipped)
+        {
+            _logger.LogWarning(
+                "Driver assignment push skipped for order {OrderId} driver user {DriverUserId}. Event: {EventName}. Reason: {Reason}",
+                notification.OrderId,
+                driverUserId,
+                ExtractAssignmentEventName(envelope.PushRequest.Data),
+                pushResult.Reason);
+            return;
+        }
+
+        _logger.LogWarning(
+            "Driver assignment push failed for order {OrderId} driver user {DriverUserId}. Event: {EventName}. ProviderStatusCode: {ProviderStatusCode}. Reason: {Reason}",
+            notification.OrderId,
+            driverUserId,
+            ExtractAssignmentEventName(envelope.PushRequest.Data),
+            pushResult.ProviderStatusCode,
+            pushResult.Reason);
     }
 
     private static DriverAssignmentNotificationEnvelope? TryComposeDriverAssignmentNotification(
@@ -479,7 +507,7 @@ public class OrderStatusChangedHandler : INotificationHandler<OrderStatusChanged
                 $"تم تعيين الطلب رقم #{notification.OrderNumber} لك. افتح تفاصيل المهمة لبدء التنفيذ.",
                 $"Order #{notification.OrderNumber} was assigned to you. Open the assignment to get started.",
                 NotificationPriorities.High,
-                OneSignalPushRequestKind.Standard),
+                OneSignalPushRequestKind.HeadsUp),
 
                 OrderStatus.Preparing => CreateDriverAssignmentNotification(
                     notification,
@@ -608,6 +636,29 @@ public class OrderStatusChangedHandler : INotificationHandler<OrderStatusChanged
                 targetApplication: OneSignalApplicationTarget.Driver);
 
         return new DriverAssignmentNotificationEnvelope(request, pushRequest);
+    }
+
+    private static string? ExtractAssignmentEventName(string? data)
+    {
+        if (string.IsNullOrWhiteSpace(data))
+        {
+            return null;
+        }
+
+        try
+        {
+            using var document = System.Text.Json.JsonDocument.Parse(data);
+            if (document.RootElement.TryGetProperty("eventName", out var eventName))
+            {
+                return eventName.GetString();
+            }
+        }
+        catch
+        {
+            // Ignore malformed assignment payload when logging.
+        }
+
+        return null;
     }
 
 
