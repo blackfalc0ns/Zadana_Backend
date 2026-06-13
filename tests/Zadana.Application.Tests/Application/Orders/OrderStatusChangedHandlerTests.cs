@@ -543,6 +543,66 @@ public class OrderStatusChangedHandlerTests
     }
 
     [Fact]
+    public async Task Handle_WhenOrderCancelledAndAssignmentAlreadyCancelled_ShouldRefreshDriverHome()
+    {
+        await using var dbContext = CreateDbContext();
+        var customer = new User("Customer User", "customer.driver.cancel@test.com", "01000000144", UserRole.Customer);
+        var driverUser = new User("Driver User", "driver.cancel@test.com", "01000000145", UserRole.Driver);
+        var driver = new Driver(driverUser.Id, DriverVehicleType.Car, "3234567892", "LIC-1007");
+        var vendorId = Guid.NewGuid();
+        var order = CreateOrder(customer.Id, vendorId, OrderStatus.OnTheWay, "ORD-DRIVER-CANCEL-001");
+        var assignment = new DeliveryAssignment(order.Id, 0m);
+
+        assignment.OfferTo(driver.Id, 1, DateTime.UtcNow.AddMinutes(5));
+        assignment.Accept();
+        assignment.Cancel("Order cancelled by admin");
+
+        dbContext.Users.AddRange(customer, driverUser);
+        dbContext.Drivers.Add(driver);
+        dbContext.Orders.Add(order);
+        dbContext.DeliveryAssignments.Add(assignment);
+        await dbContext.SaveChangesAsync();
+
+        var notificationServiceMock = new Mock<INotificationService>();
+        var handler = new OrderStatusChangedHandler(
+            notificationServiceMock.Object,
+            dbContext,
+            CreatePushServiceMock().Object,
+            CreateDispatcherMock().Object,
+            CreateRevenueDistributionServiceMock(dbContext).Object,
+            Mock.Of<IOrderTrackingRealtimeNotifier>(),
+            Mock.Of<IEmailCenterService>(),
+            Mock.Of<Microsoft.Extensions.Logging.ILogger<OrderStatusChangedHandler>>());
+
+        await handler.Handle(
+            new OrderStatusChangedNotification(
+                order.Id,
+                customer.Id,
+                vendorId,
+                order.OrderNumber,
+                OrderStatus.OnTheWay,
+                OrderStatus.Cancelled,
+                NotifyCustomer: false,
+                NotifyVendor: false,
+                ActorRole: "admin"),
+            CancellationToken.None);
+
+        notificationServiceMock.Verify(
+            service => service.SendAssignmentUpdatedToDriverAsync(
+                driverUser.Id,
+                assignment.Id,
+                order.Id,
+                It.IsAny<CancellationToken>()),
+            Times.Once);
+
+        notificationServiceMock.Verify(
+            service => service.SendDriverHomeUpdatedAsync(
+                driverUser.Id,
+                It.IsAny<CancellationToken>()),
+            Times.Once);
+    }
+
+    [Fact]
     public async Task Handle_WhenOrderBecomesReadyForPickup_ShouldSendDirectAssignmentPushToDriver()
     {
         await using var dbContext = CreateDbContext();

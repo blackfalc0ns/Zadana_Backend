@@ -29,6 +29,7 @@ public class AdminOrdersController : ApiControllerBase
     private readonly IPublisher _publisher;
     private readonly IOrderStatusNotificationDispatcher _orderStatusNotificationDispatcher;
     private readonly Application.Modules.Delivery.Interfaces.IDeliveryDispatchService _dispatchService;
+    private readonly INotificationService _notificationService;
 
     public AdminOrdersController(
         IApplicationDbContext dbContext,
@@ -37,7 +38,8 @@ public class AdminOrdersController : ApiControllerBase
         IOrderSupportCaseWorkflowService orderSupportCaseWorkflowService,
         IPublisher publisher,
         IOrderStatusNotificationDispatcher orderStatusNotificationDispatcher,
-        Application.Modules.Delivery.Interfaces.IDeliveryDispatchService dispatchService)
+        Application.Modules.Delivery.Interfaces.IDeliveryDispatchService dispatchService,
+        INotificationService notificationService)
     {
         _dbContext = dbContext;
         _currentUserService = currentUserService;
@@ -46,6 +48,7 @@ public class AdminOrdersController : ApiControllerBase
         _publisher = publisher;
         _orderStatusNotificationDispatcher = orderStatusNotificationDispatcher;
         _dispatchService = dispatchService;
+        _notificationService = notificationService;
     }
 
     [HttpGet("filter-options")]
@@ -298,11 +301,15 @@ public class AdminOrdersController : ApiControllerBase
 
         // Close any active delivery assignment
         var assignment = await _dbContext.DeliveryAssignments
+            .Include(a => a.Driver)
             .FirstOrDefaultAsync(a => a.OrderId == orderId
                 && a.Status != Domain.Modules.Delivery.Enums.AssignmentStatus.Delivered
                 && a.Status != Domain.Modules.Delivery.Enums.AssignmentStatus.Failed
                 && a.Status != Domain.Modules.Delivery.Enums.AssignmentStatus.Cancelled
                 && a.Status != Domain.Modules.Delivery.Enums.AssignmentStatus.Returned, cancellationToken);
+
+        Guid? driverUserId = assignment?.Driver?.UserId;
+        Guid? assignmentId = assignment?.Id;
 
         if (assignment is not null)
         {
@@ -345,6 +352,20 @@ public class AdminOrdersController : ApiControllerBase
                 ActorRole: "admin",
                 CustomerNotificationAlreadySent: true),
             cancellationToken);
+
+        if (driverUserId.HasValue && assignmentId.HasValue)
+        {
+            await _notificationService.SendAssignmentUpdatedToDriverAsync(
+                driverUserId.Value,
+                assignmentId.Value,
+                orderId,
+                cancellationToken);
+
+            await _notificationService.SendDriverHomeUpdatedAsync(
+                driverUserId.Value,
+                cancellationToken);
+        }
+
         return Ok(await RequireDetailAsync(orderId, cancellationToken));
     }
 

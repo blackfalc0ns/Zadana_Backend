@@ -361,6 +361,8 @@ public class OrderStatusChangedHandler : INotificationHandler<OrderStatusChanged
             "[DriverRealtime] Looking for active assignment for order {OrderId} (status change: {OldStatus} -> {NewStatus}, actor: {Actor})",
             notification.OrderId, notification.OldStatus, notification.NewStatus, notification.ActorRole);
 
+        var includeTerminalAssignments = ShouldIncludeTerminalAssignmentsForDriver(notification.NewStatus);
+
         var driverAssignment = await _context.DeliveryAssignments
             .AsNoTracking()
             .Where(assignment =>
@@ -369,7 +371,9 @@ public class OrderStatusChangedHandler : INotificationHandler<OrderStatusChanged
                 assignment.Status != AssignmentStatus.SearchingDriver &&
                 assignment.Status != AssignmentStatus.OfferSent &&
                 assignment.Status != AssignmentStatus.Rejected &&
-                assignment.Status != AssignmentStatus.Cancelled)
+                (includeTerminalAssignments ||
+                    (assignment.Status != AssignmentStatus.Cancelled &&
+                     assignment.Status != AssignmentStatus.Failed)))
             .OrderByDescending(assignment => assignment.CreatedAtUtc)
             .Select(assignment => new { assignment.Id, assignment.Status, DriverUserId = assignment.Driver!.UserId })
             .FirstOrDefaultAsync(cancellationToken);
@@ -419,6 +423,9 @@ public class OrderStatusChangedHandler : INotificationHandler<OrderStatusChanged
             "[DriverRealtime] Successfully dispatched ReceiveAssignmentUpdated to driver user {DriverUserId} for assignment {AssignmentId}.",
             driverAssignment.DriverUserId, driverAssignment.Id);
     }
+
+    private static bool ShouldIncludeTerminalAssignmentsForDriver(OrderStatus newStatus) =>
+        newStatus is OrderStatus.Cancelled or OrderStatus.DeliveryFailed or OrderStatus.Refunded;
 
     private async Task SendDriverAssignmentInboxAndPushAsync(
         OrderStatusChangedNotification notification,
