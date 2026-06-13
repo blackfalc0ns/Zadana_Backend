@@ -286,7 +286,7 @@ public class AdminDriversController : ApiControllerBase
             currentOffer.AssignmentId,
             driver.Id,
             expiresAtUtc,
-            currentOffer.CountdownSeconds,
+            currentOffer,
             source: "admin_driver_test_offer_api");
 
         await _notificationService.SendToUserAsync(

@@ -1,4 +1,5 @@
 using System.Text.Json;
+using Zadana.Application.Modules.Delivery.DTOs;
 
 namespace Zadana.Application.Modules.Delivery.Support;
 
@@ -85,17 +86,20 @@ public static class DriverNotificationDataBuilder
             });
 
     /// <summary>
-    /// Compact payload for OneSignal push (must stay under provider data limits).
-    /// Full offer details are delivered via SignalR/inbox instead.
+    /// Push payload for delivery offers. Includes flat offer fields for native overlay
+    /// when the app is killed; keep an eye on provider data size limits.
     /// </summary>
     public static string BuildDispatchOfferPushData(
         Guid orderId,
         Guid assignmentId,
         Guid driverId,
         DateTime expiresAtUtc,
-        int? countdownSeconds = null,
-        string? source = null) =>
-        Build(
+        DriverIncomingOfferDto currentOffer,
+        string? source = null)
+    {
+        var itemsCount = currentOffer.OrderItems?.Count ?? 0;
+
+        return Build(
             screen: "home",
             @event: "dispatch.offer_new",
             orderId: orderId,
@@ -109,8 +113,33 @@ public static class DriverNotificationDataBuilder
                 eventName = "dispatch.offer_new",
                 source,
                 expiresAtUtc,
-                countdownSeconds
+                countdownSeconds = currentOffer.CountdownSeconds,
+                itemsCount,
+                orderNumber = currentOffer.OrderNumber,
+                vendorName = currentOffer.VendorName,
+                vendorNameAr = currentOffer.VendorNameAr,
+                vendorNameEn = currentOffer.VendorNameEn,
+                vendorLogoUrl = currentOffer.VendorLogoUrl,
+                pickupAddress = currentOffer.PickupAddress,
+                pickupLatitude = currentOffer.PickupLatitude,
+                pickupLongitude = currentOffer.PickupLongitude,
+                customerName = currentOffer.CustomerName,
+                deliveryAddress = currentOffer.DeliveryAddress,
+                deliveryLatitude = currentOffer.DeliveryLatitude,
+                deliveryLongitude = currentOffer.DeliveryLongitude,
+                estimatedDistanceKm = currentOffer.EstimatedDistanceKm,
+                estimatedEta = currentOffer.EstimatedEta,
+                payout = currentOffer.Payout,
+                deliveryFee = currentOffer.Payout,
+                paymentMethod = currentOffer.PaymentMethod,
+                totalAmount = currentOffer.TotalAmount,
+                codAmount = currentOffer.CodAmount,
+                vendorInitials = currentOffer.VendorInitials,
+                customerInitials = currentOffer.CustomerInitials,
+                packageNote = currentOffer.PackageNote,
+                orderItems = currentOffer.OrderItems
             });
+    }
 
     private static string ResolveTargetUrl(
         string screen,

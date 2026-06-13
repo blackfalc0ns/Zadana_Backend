@@ -714,7 +714,7 @@ public class DeliveryDispatchService : IDeliveryDispatchService
             assignment.Id,
             best.Driver.Id,
             expiresAtUtc,
-            currentOffer.CountdownSeconds);
+            currentOffer);
 
         // Send real-time SignalR notification so the driver's Home screen updates instantly.
         // SendToUserAsync persists to DB inbox AND pushes via SignalR simultaneously.

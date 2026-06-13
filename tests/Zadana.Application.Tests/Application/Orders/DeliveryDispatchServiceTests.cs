@@ -229,7 +229,11 @@ public class DeliveryDispatchServiceTests
                     request.Data.Contains("\"showPopup\":true") &&
                     request.Data.Contains("\"eventName\":\"dispatch.offer_new\"") &&
                     request.Data.Contains("\"countdownSeconds\"") &&
-                    !request.Data.Contains("\"currentOffer\"") &&
+                    request.Data.Contains("\"vendorNameEn\":\"Dispatch Store\"") &&
+                    (request.Data.Contains("\"pickupAddress\"") || request.Data.Contains("\"PickupAddress\"")) &&
+                    (request.Data.Contains("\"deliveryAddress\"") || request.Data.Contains("\"DeliveryAddress\"")) &&
+                    request.Data.Contains("\"payout\"") &&
+                    request.Data.Contains("\"itemsCount\"") &&
                     request.Data.Contains($"\"driverId\":\"{scenario.SameZoneFreshDriver.Id}\"") &&
                     request.Data.Contains(expectedPayloadPart) &&
                     request.Data.Contains(scenario.Order.Id.ToString())),

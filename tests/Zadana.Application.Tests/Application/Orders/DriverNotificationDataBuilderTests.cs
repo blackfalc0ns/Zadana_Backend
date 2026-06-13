@@ -1,5 +1,6 @@
 using System.Text.Json;
 using FluentAssertions;
+using Zadana.Application.Modules.Delivery.DTOs;
 using Zadana.Application.Modules.Delivery.Support;
 
 namespace Zadana.Application.Tests.Application.Orders;
@@ -64,5 +65,61 @@ public class DriverNotificationDataBuilderTests
         root.GetProperty("showPopup").GetBoolean().Should().BeTrue();
         root.GetProperty("targetUrl").GetString().Should().Be("/");
         root.GetProperty("category").GetString().Should().Be("dispatch");
+    }
+
+    [Fact]
+    public void BuildDispatchOfferPushData_ShouldIncludeFlatOfferFieldsForNativeOverlay()
+    {
+        var orderId = Guid.NewGuid();
+        var assignmentId = Guid.NewGuid();
+        var driverId = Guid.NewGuid();
+        var expiresAtUtc = DateTime.UtcNow.AddSeconds(25);
+        var offer = new DriverIncomingOfferDto(
+            assignmentId,
+            orderId,
+            "ORD-TEST-001",
+            "Test Vendor",
+            "متجر تجريبي",
+            "Test Vendor",
+            "https://cdn.example/logo.png",
+            "Pickup Street 1",
+            24.71m,
+            46.67m,
+            "Customer One",
+            "Delivery Street 2",
+            24.72m,
+            46.68m,
+            3.5m,
+            "12-17 min",
+            18.5m,
+            "CashOnDelivery",
+            120m,
+            120m,
+            "TV",
+            "CO",
+            "Handle with care",
+            25,
+            [new DriverOfferItemDto("Burger", 2, null)]);
+
+        var json = DriverNotificationDataBuilder.BuildDispatchOfferPushData(
+            orderId,
+            assignmentId,
+            driverId,
+            expiresAtUtc,
+            offer,
+            source: "unit_test");
+
+        using var document = JsonDocument.Parse(json);
+        var root = document.RootElement;
+
+        root.GetProperty("vendorName").GetString().Should().Be("Test Vendor");
+        root.GetProperty("pickupAddress").GetString().Should().Be("Pickup Street 1");
+        root.GetProperty("deliveryAddress").GetString().Should().Be("Delivery Street 2");
+        root.GetProperty("payout").GetDecimal().Should().Be(18.5m);
+        root.GetProperty("deliveryFee").GetDecimal().Should().Be(18.5m);
+        root.GetProperty("estimatedDistanceKm").GetDecimal().Should().Be(3.5m);
+        root.GetProperty("countdownSeconds").GetInt32().Should().Be(25);
+        root.GetProperty("itemsCount").GetInt32().Should().Be(1);
+        root.GetProperty("orderItems").GetArrayLength().Should().Be(1);
     }
 }
