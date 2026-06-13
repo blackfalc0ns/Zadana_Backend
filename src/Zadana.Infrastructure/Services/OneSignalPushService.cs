@@ -177,7 +177,9 @@ public sealed class OneSignalPushService : IOneSignalPushService
             request.Category,
             requireRegisteredDevices: false,
             cancellationToken,
-            request.TargetApplication);
+            request.TargetApplication,
+            preferLiveProviderSubscriptions: request.TargetApplication == OneSignalApplicationTarget.Driver &&
+                request.Profile is OneSignalPushProfile.MobileHeadsUp or OneSignalPushProfile.MobileOrderUpdates);
 
         return results[0];
     }
@@ -307,7 +309,8 @@ public sealed class OneSignalPushService : IOneSignalPushService
         string? category,
         bool requireRegisteredDevices,
         CancellationToken cancellationToken,
-        OneSignalApplicationTarget? targetApplication = null)
+        OneSignalApplicationTarget? targetApplication = null,
+        bool preferLiveProviderSubscriptions = false)
     {
         var normalizedExternalUserIds = externalUserIds
             .Where(id => !string.IsNullOrWhiteSpace(id))
@@ -381,28 +384,24 @@ public sealed class OneSignalPushService : IOneSignalPushService
                     or OneSignalApplicationTarget.Driver
                     or OneSignalApplicationTarget.Customer)
                 {
-                    var subscriptionFirstPayload = await BuildSubscriptionPayloadAsync(
-                        lookupBatch,
-                        sanitized,
-                        referenceId,
-                        resolvedTargetUrl,
-                        appConfiguration.AppId,
-                        appConfiguration.RestApiKey,
-                        profile,
-                        notificationEventId,
-                        Guid.NewGuid(),
-                        preferredLocale,
-                        category,
-                        cancellationToken);
-
-                    if (subscriptionFirstPayload is not null)
+                    if (await TryDeliverSubscriptionFirstAsync(
+                            lookupBatch,
+                            batch,
+                            sanitized,
+                            referenceId,
+                            resolvedTargetUrl,
+                            appConfiguration.AppId,
+                            appConfiguration.RestApiKey,
+                            profile,
+                            notificationEventId,
+                            preferredLocale,
+                            category,
+                            resolvedTargetApplication,
+                            preferLiveProviderSubscriptions,
+                            results,
+                            cancellationToken))
                     {
-                        var subscriptionFirstResult = await SendPayloadAsync(subscriptionFirstPayload, cancellationToken);
-                        if (subscriptionFirstResult.Sent)
-                        {
-                            results.Add(subscriptionFirstResult);
-                            continue;
-                        }
+                        continue;
                     }
                 }
 
@@ -443,7 +442,8 @@ public sealed class OneSignalPushService : IOneSignalPushService
                 }
 
                 var result = await SendPayloadAsync(preparedPayload, cancellationToken);
-                if (!result.Sent && HasProviderRecipientErrors(result.Reason))
+                if ((!result.Sent || HasProviderRecipientErrors(result.Reason)) &&
+                    HasProviderRecipientErrors(result.Reason))
                 {
                     var subscriptionPayload = await BuildSubscriptionPayloadAsync(
                         lookupBatch,
@@ -566,6 +566,92 @@ public sealed class OneSignalPushService : IOneSignalPushService
             pushExternalUserIdByLookup);
     }
 
+    private async Task<bool> TryDeliverSubscriptionFirstAsync(
+        string[] lookupBatch,
+        string[] pushBatch,
+        SanitizedNotificationPayload sanitized,
+        Guid? referenceId,
+        string? resolvedTargetUrl,
+        string appId,
+        string restApiKey,
+        OneSignalPushProfile profile,
+        Guid notificationEventId,
+        string? preferredLocale,
+        string? category,
+        OneSignalApplicationTarget targetApplication,
+        bool preferLiveProviderSubscriptions,
+        List<OneSignalPushDispatchResult> results,
+        CancellationToken cancellationToken)
+    {
+        var subscriptionPayloadBuilders = new List<Func<Task<PreparedOneSignalPayload?>>>();
+
+        if (preferLiveProviderSubscriptions)
+        {
+            var providerLookupIds = lookupBatch
+                .Concat(pushBatch)
+                .Distinct(StringComparer.Ordinal)
+                .ToArray();
+
+            subscriptionPayloadBuilders.Add(() => BuildProviderSubscriptionPayloadAsync(
+                providerLookupIds,
+                sanitized,
+                referenceId,
+                resolvedTargetUrl,
+                appId,
+                restApiKey,
+                profile,
+                notificationEventId,
+                Guid.NewGuid(),
+                preferredLocale,
+                cancellationToken));
+        }
+
+        subscriptionPayloadBuilders.Add(() => BuildSubscriptionPayloadAsync(
+            lookupBatch,
+            sanitized,
+            referenceId,
+            resolvedTargetUrl,
+            appId,
+            restApiKey,
+            profile,
+            notificationEventId,
+            Guid.NewGuid(),
+            preferredLocale,
+            category,
+            cancellationToken));
+
+        foreach (var buildPayload in subscriptionPayloadBuilders)
+        {
+            var subscriptionPayload = await buildPayload();
+            if (subscriptionPayload is null)
+            {
+                continue;
+            }
+
+            var subscriptionResult = await SendPayloadAsync(subscriptionPayload, cancellationToken);
+            if (!subscriptionResult.Sent)
+            {
+                continue;
+            }
+
+            if (HasProviderRecipientErrors(subscriptionResult.Reason))
+            {
+                _logger.LogWarning(
+                    "[PUSH-FALLBACK] Subscription-first delivery reported recipient errors for ExternalIdBatch: {ExternalIdBatch}. Type: {Type}. ReferenceId: {ReferenceId}. Falling back to alias targeting.",
+                    subscriptionPayload.ExternalIdBatch,
+                    sanitized.Type,
+                    referenceId);
+
+                return false;
+            }
+
+            results.Add(subscriptionResult);
+            return true;
+        }
+
+        return false;
+    }
+
     private async Task<OneSignalPushDispatchResult> SendPayloadAsync(
         PreparedOneSignalPayload preparedPayload,
         CancellationToken cancellationToken)
@@ -674,7 +760,7 @@ public sealed class OneSignalPushService : IOneSignalPushService
                 Skipped: false,
                 ProviderStatusCode: statusCode,
                 ProviderNotificationId: notificationId,
-                Reason: null);
+                Reason: HasProviderRecipientErrors(responseBody) ? responseBody : null);
         }
         catch (Exception ex)
         {

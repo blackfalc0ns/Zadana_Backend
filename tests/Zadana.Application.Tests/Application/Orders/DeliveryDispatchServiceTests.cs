@@ -31,6 +31,19 @@ public class DeliveryDispatchServiceTests
         IAdminAlertService? adminAlertService = null)
     {
         var commitmentPolicyService = new DriverCommitmentPolicyService(dbContext, dbContext);
+        var pushServiceMock = new Mock<IOneSignalPushService>();
+        pushServiceMock
+            .Setup(service => service.SendMobileNotificationDirectAsync(
+                It.IsAny<OneSignalMobilePushRequest>(),
+                It.IsAny<CancellationToken>()))
+            .ReturnsAsync(new OneSignalPushDispatchResult(
+                Attempted: true,
+                Sent: true,
+                Skipped: false,
+                ProviderStatusCode: 200,
+                ProviderNotificationId: "test-push",
+                Reason: null));
+
         return new DeliveryDispatchService(
             dbContext,
             dbContext,
@@ -38,7 +51,7 @@ public class DeliveryDispatchServiceTests
             publisher ?? Mock.Of<IPublisher>(),
             notificationService ?? Mock.Of<INotificationService>(),
             commitmentPolicyService,
-            oneSignalPushService ?? Mock.Of<IOneSignalPushService>(),
+            oneSignalPushService ?? pushServiceMock.Object,
             adminAlertService);
     }
 

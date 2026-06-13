@@ -748,8 +748,8 @@ public class DeliveryDispatchService : IDeliveryDispatchService
 
         // Send a push notification to wake the driver app if it's in the background.
         // Use direct dispatch so delivery is not blocked when alias targeting is flaky;
-        // OneSignalPushService will prefer registered subscription ids for driver pushes.
-        await _oneSignalPushService.SendMobileNotificationDirectAsync(
+        // OneSignalPushService prefers live OneSignal subscriptions, then DB cache, then aliases.
+        var offerPushResult = await _oneSignalPushService.SendMobileNotificationDirectAsync(
             OneSignalMobilePushRequest.CreateHeadsUp(
                 best.Driver.UserId.ToString(),
                 "عرض توصيل جديد",
@@ -763,6 +763,18 @@ public class DeliveryDispatchService : IDeliveryDispatchService
                 category: NotificationCategories.Dispatch,
                 targetApplication: OneSignalApplicationTarget.Driver),
             cancellationToken);
+
+        if (offerPushResult is not null && !offerPushResult.Sent)
+        {
+            _logger.LogWarning(
+                "Driver delivery offer push was not delivered. OrderId: {OrderId}. DriverId: {DriverId}. DriverUserId: {DriverUserId}. Skipped: {Skipped}. ProviderStatusCode: {ProviderStatusCode}. Reason: {Reason}",
+                order.Id,
+                best.Driver.Id,
+                best.Driver.UserId,
+                offerPushResult.Skipped,
+                offerPushResult.ProviderStatusCode,
+                offerPushResult.Reason);
+        }
 
         _logger.LogInformation(
             "Dispatch offer engine: offered order {OrderId} to driver {DriverId} attempt {Attempt} ({Reason}).",
