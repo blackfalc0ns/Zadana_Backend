@@ -79,6 +79,8 @@ public class ClearDriverRestrictionsCommandHandler : IRequestHandler<ClearDriver
                 accountStatus = driver.Status.ToString(),
                 locationUpdatesBlocked = driver.IsLocationUpdatesBlocked,
                 commitmentClearedAtUtc = driver.CommitmentClearedAtUtc,
+                canReceiveOffers = true,
+                isFrozen = false,
                 note = request.Note
             });
 

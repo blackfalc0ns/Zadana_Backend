@@ -346,6 +346,8 @@ public class DriverCommitmentPolicyService : IDriverCommitmentPolicyService
                 commitmentScore = summary.CommitmentScore,
                 dailyRejections = summary.DailyRejections,
                 weeklyRejections = summary.WeeklyRejections,
+                canReceiveOffers = summary.CanReceiveOffers,
+                isFrozen = !summary.CanReceiveOffers,
                 forcedOffline
             });
 

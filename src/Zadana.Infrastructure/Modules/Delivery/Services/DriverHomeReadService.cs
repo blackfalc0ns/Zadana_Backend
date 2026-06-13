@@ -134,7 +134,7 @@ public sealed class DriverHomeReadService : IDriverHomeReadService
         var unreadAlerts = await _context.Notifications
             .CountAsync(n => n.UserId == driverUserId && !n.IsRead, cancellationToken);
 
-        var homeState = ResolveHomeState(operationalStatus, currentOffer, currentAssignment);
+        var homeState = DriverHomeStateResolver.Resolve(operationalStatus, currentOffer, currentAssignment);
         var profileReadiness = DriverProfileReadinessFactory.BuildHomeReadiness(driver, driver.User);
 
         return new DriverHomeDto(
@@ -185,29 +185,6 @@ public sealed class DriverHomeReadService : IDriverHomeReadService
             assignment.RequiresPickupOtpVerification,
             assignment.RequiresDeliveryOtpVerification,
             assignment.IsInHandoffWindow ? assignment.PickupOtpCode : null);
-    }
-
-    private static string ResolveHomeState(
-        DriverOperationalStatusDto operationalStatus,
-        DriverIncomingOfferDto? currentOffer,
-        DriverCurrentAssignmentDto? currentAssignment)
-    {
-        if (currentAssignment is not null)
-        {
-            return "OnMission";
-        }
-
-        if (!operationalStatus.IsOperational)
-        {
-            return operationalStatus.GateStatus;
-        }
-
-        if (currentOffer is not null)
-        {
-            return "IncomingOffer";
-        }
-
-        return operationalStatus.IsAvailable ? "WaitingForOffer" : "Offline";
     }
 
     private static decimal ResolveCodAmount(DeliveryAssignment assignment) =>
