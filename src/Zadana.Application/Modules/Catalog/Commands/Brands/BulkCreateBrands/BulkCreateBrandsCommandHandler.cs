@@ -11,12 +11,12 @@ namespace Zadana.Application.Modules.Catalog.Commands.Brands.BulkCreateBrands;
 public class BulkCreateBrandsCommandHandler : IRequestHandler<BulkCreateBrandsCommand, AdminBrandBulkOperationDto>
 {
     private readonly IApplicationDbContext _context;
-    private readonly IAdminBrandBulkOperationQueue _queue;
+    private readonly IAdminBrandBulkOperationProcessor _processor;
 
-    public BulkCreateBrandsCommandHandler(IApplicationDbContext context, IAdminBrandBulkOperationQueue queue)
+    public BulkCreateBrandsCommandHandler(IApplicationDbContext context, IAdminBrandBulkOperationProcessor processor)
     {
         _context = context;
-        _queue = queue;
+        _processor = processor;
     }
 
     public async Task<AdminBrandBulkOperationDto> Handle(BulkCreateBrandsCommand request, CancellationToken cancellationToken)
@@ -28,11 +28,15 @@ public class BulkCreateBrandsCommandHandler : IRequestHandler<BulkCreateBrandsCo
         }
 
         var existingOperation = await _context.AdminBrandBulkOperations
-            .AsNoTracking()
             .FirstOrDefaultAsync(x => x.AdminUserId == request.AdminUserId && x.IdempotencyKey == request.IdempotencyKey, cancellationToken);
 
         if (existingOperation is not null)
         {
+            await _processor.ProcessOperationAsync(existingOperation.Id, cancellationToken);
+            existingOperation = await _context.AdminBrandBulkOperations
+                .AsNoTracking()
+                .FirstAsync(x => x.Id == existingOperation.Id, cancellationToken);
+
             return new AdminBrandBulkOperationDto(
                 existingOperation.Id,
                 existingOperation.IdempotencyKey,
@@ -71,7 +75,11 @@ public class BulkCreateBrandsCommandHandler : IRequestHandler<BulkCreateBrandsCo
 
         _context.AdminBrandBulkOperations.Add(operation);
         await _context.SaveChangesAsync(cancellationToken);
-        await _queue.EnqueueAsync(operation.Id, cancellationToken);
+        await _processor.ProcessOperationAsync(operation.Id, cancellationToken);
+
+        operation = await _context.AdminBrandBulkOperations
+            .AsNoTracking()
+            .FirstAsync(x => x.Id == operation.Id, cancellationToken);
 
         return new AdminBrandBulkOperationDto(
             operation.Id,

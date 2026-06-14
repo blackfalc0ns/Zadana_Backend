@@ -79,8 +79,15 @@ public class GetCategoryFiltersQueryHandler : IRequestHandler<GetCategoryFilters
                     .Select(product => new VisibleMasterProductRow(
                         product.MasterProductId,
                         product.VendorId,
-                        product.MasterProduct.CategoryId))
+                        product.MasterProduct.CategoryId,
+                        product.VendorBranchId,
+                        product.VendorBranch != null && product.VendorBranch.IsPrimary,
+                        product.SellingPrice,
+                        product.CompareAtPrice,
+                        product.CreatedAtUtc))
                     .ToListAsync(token);
+
+                visibleMasterProductRows = ApplyUnifiedPricing(visibleMasterProductRows);
 
                 var availabilityDecisions = await VendorCustomerAvailabilityPolicy.LoadDecisionsAsync(
                     _context,
@@ -267,8 +274,15 @@ public class GetCategoryFiltersQueryHandler : IRequestHandler<GetCategoryFilters
                     .Select(product => new VisiblePriceRow(
                         product.MasterProduct.CategoryId,
                         product.VendorId,
-                        product.SellingPrice))
+                        product.VendorBranchId,
+                        product.VendorBranch != null && product.VendorBranch.IsPrimary,
+                        product.SellingPrice,
+                        product.CompareAtPrice,
+                        product.CreatedAtUtc,
+                        product.MasterProductId))
                     .ToListAsync(token);
+
+                visiblePriceRows = ApplyUnifiedPricing(visiblePriceRows);
 
                 var visiblePrices = visiblePriceRows
                     .Where(product =>
@@ -346,6 +360,44 @@ public class GetCategoryFiltersQueryHandler : IRequestHandler<GetCategoryFilters
             : $"{value} {unitName.Trim()}";
     }
 
+    private static List<VisibleMasterProductRow> ApplyUnifiedPricing(List<VisibleMasterProductRow> rows) =>
+        rows
+            .GroupBy(row => new { row.VendorId, row.MasterProductId })
+            .SelectMany(group =>
+            {
+                var canonical = group
+                    .OrderByDescending(row => row.IsPrimaryBranch)
+                    .ThenBy(row => row.VendorBranchId.HasValue)
+                    .ThenBy(row => row.CreatedAtUtc)
+                    .First();
+
+                return group.Select(row => row with
+                {
+                    SellingPrice = canonical.SellingPrice,
+                    CompareAtPrice = canonical.CompareAtPrice
+                });
+            })
+            .ToList();
+
+    private static List<VisiblePriceRow> ApplyUnifiedPricing(List<VisiblePriceRow> rows) =>
+        rows
+            .GroupBy(row => new { row.VendorId, row.MasterProductId })
+            .SelectMany(group =>
+            {
+                var canonical = group
+                    .OrderByDescending(row => row.IsPrimaryBranch)
+                    .ThenBy(row => row.VendorBranchId.HasValue)
+                    .ThenBy(row => row.CreatedAtUtc)
+                    .First();
+
+                return group.Select(row => row with
+                {
+                    SellingPrice = canonical.SellingPrice,
+                    CompareAtPrice = canonical.CompareAtPrice
+                });
+            })
+            .ToList();
+
     private sealed record ScopedMasterProductRow(
         Guid MasterProductId,
         Guid CategoryId,
@@ -376,10 +428,20 @@ public class GetCategoryFiltersQueryHandler : IRequestHandler<GetCategoryFilters
     private sealed record VisiblePriceRow(
         Guid CategoryId,
         Guid VendorId,
-        decimal SellingPrice);
+        Guid? VendorBranchId,
+        bool IsPrimaryBranch,
+        decimal SellingPrice,
+        decimal? CompareAtPrice,
+        DateTime CreatedAtUtc,
+        Guid MasterProductId);
 
     private sealed record VisibleMasterProductRow(
         Guid MasterProductId,
         Guid VendorId,
-        Guid CategoryId);
+        Guid CategoryId,
+        Guid? VendorBranchId,
+        bool IsPrimaryBranch,
+        decimal SellingPrice,
+        decimal? CompareAtPrice,
+        DateTime CreatedAtUtc);
 }

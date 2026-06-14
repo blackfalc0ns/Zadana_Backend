@@ -162,14 +162,14 @@ public class GetCategoryProductsQueryHandler : IRequestHandler<GetCategoryProduc
                 (!request.BrandId.HasValue || product.MasterProduct.BrandId == request.BrandId.Value) &&
                 (!request.QuantityId.HasValue || product.MasterProduct.MeasurementUnitId == request.QuantityId.Value) &&
                 (!request.MeasurementValue.HasValue || product.MasterProduct.MeasurementValue == request.MeasurementValue.Value) &&
-                (!request.PackageTypeId.HasValue || product.MasterProduct.PackageTypeId == request.PackageTypeId.Value) &&
-                (!request.MinPrice.HasValue || product.SellingPrice >= request.MinPrice.Value) &&
-                (!request.MaxPrice.HasValue || product.SellingPrice <= request.MaxPrice.Value))
+                (!request.PackageTypeId.HasValue || product.MasterProduct.PackageTypeId == request.PackageTypeId.Value))
             .Select(product => new RawCategoryProduct(
                 product.Id,
                 product.MasterProductId,
                 product.CreatedAtUtc,
                 product.VendorId,
+                product.VendorBranchId,
+                product.VendorBranch != null && product.VendorBranch.IsPrimary,
                 product.MasterProduct.CategoryId,
                 !string.IsNullOrWhiteSpace(product.CustomNameAr) ? product.CustomNameAr : product.MasterProduct.NameAr,
                 !string.IsNullOrWhiteSpace(product.CustomNameEn) ? product.CustomNameEn : product.MasterProduct.NameEn,
@@ -191,6 +191,13 @@ public class GetCategoryProductsQueryHandler : IRequestHandler<GetCategoryProduc
                 product.MasterProduct.VariantGroupId,
                 product.MasterProduct.ShowPriceOnCard))
             .ToListAsync(cancellationToken);
+
+        rawProducts = ApplyUnifiedPricing(rawProducts);
+        rawProducts = rawProducts
+            .Where(product =>
+                (!request.MinPrice.HasValue || product.SellingPrice >= request.MinPrice.Value) &&
+                (!request.MaxPrice.HasValue || product.SellingPrice <= request.MaxPrice.Value))
+            .ToList();
 
         var availabilityDecisions = await VendorCustomerAvailabilityPolicy.LoadDecisionsAsync(
             _context,
@@ -281,6 +288,31 @@ public class GetCategoryProductsQueryHandler : IRequestHandler<GetCategoryProduc
         }
 
         return Math.Min(perPage, MaxPerPage);
+    }
+
+    private static List<RawCategoryProduct> ApplyUnifiedPricing(List<RawCategoryProduct> products)
+    {
+        var canonicalPricingByProduct = products
+            .GroupBy(product => new { product.VendorId, product.MasterProductId })
+            .ToDictionary(
+                group => group.Key,
+                group => group
+                    .OrderByDescending(product => product.IsPrimaryBranch)
+                    .ThenBy(product => product.VendorBranchId.HasValue)
+                    .ThenBy(product => product.CreatedAtUtc)
+                    .First());
+
+        return products
+            .Select(product =>
+            {
+                var canonical = canonicalPricingByProduct[new { product.VendorId, product.MasterProductId }];
+                return product with
+                {
+                    SellingPrice = canonical.SellingPrice,
+                    CompareAtPrice = canonical.CompareAtPrice
+                };
+            })
+            .ToList();
     }
 
     private IEnumerable<CategoryProductSource> ApplySorting(IEnumerable<CategoryProductSource> products, string? sort)
@@ -432,6 +464,8 @@ public class GetCategoryProductsQueryHandler : IRequestHandler<GetCategoryProduc
         Guid MasterProductId,
         DateTime CreatedAtUtc,
         Guid VendorId,
+        Guid? VendorBranchId,
+        bool IsPrimaryBranch,
         Guid CategoryId,
         string? NameAr,
         string? NameEn,

@@ -12,12 +12,12 @@ namespace Zadana.Application.Modules.Catalog.Commands.AdminMasterProducts.BulkCr
 public class BulkCreateMasterProductsCommandHandler : IRequestHandler<BulkCreateMasterProductsCommand, AdminMasterProductBulkOperationDto>
 {
     private readonly IApplicationDbContext _context;
-    private readonly IAdminMasterProductBulkOperationQueue _queue;
+    private readonly IAdminMasterProductBulkOperationProcessor _processor;
 
-    public BulkCreateMasterProductsCommandHandler(IApplicationDbContext context, IAdminMasterProductBulkOperationQueue queue)
+    public BulkCreateMasterProductsCommandHandler(IApplicationDbContext context, IAdminMasterProductBulkOperationProcessor processor)
     {
         _context = context;
-        _queue = queue;
+        _processor = processor;
     }
 
     public async Task<AdminMasterProductBulkOperationDto> Handle(BulkCreateMasterProductsCommand request, CancellationToken cancellationToken)
@@ -29,11 +29,15 @@ public class BulkCreateMasterProductsCommandHandler : IRequestHandler<BulkCreate
         }
 
         var existingOperation = await _context.AdminMasterProductBulkOperations
-            .AsNoTracking()
             .FirstOrDefaultAsync(x => x.AdminUserId == request.AdminUserId && x.IdempotencyKey == request.IdempotencyKey, cancellationToken);
 
         if (existingOperation is not null)
         {
+            await _processor.ProcessOperationAsync(existingOperation.Id, cancellationToken);
+            existingOperation = await _context.AdminMasterProductBulkOperations
+                .AsNoTracking()
+                .FirstAsync(x => x.Id == existingOperation.Id, cancellationToken);
+
             return new AdminMasterProductBulkOperationDto(
                 existingOperation.Id,
                 existingOperation.IdempotencyKey,
@@ -112,7 +116,11 @@ public class BulkCreateMasterProductsCommandHandler : IRequestHandler<BulkCreate
 
         _context.AdminMasterProductBulkOperations.Add(operation);
         await _context.SaveChangesAsync(cancellationToken);
-        await _queue.EnqueueAsync(operation.Id, cancellationToken);
+        await _processor.ProcessOperationAsync(operation.Id, cancellationToken);
+
+        operation = await _context.AdminMasterProductBulkOperations
+            .AsNoTracking()
+            .FirstAsync(x => x.Id == operation.Id, cancellationToken);
 
         return new AdminMasterProductBulkOperationDto(
             operation.Id,

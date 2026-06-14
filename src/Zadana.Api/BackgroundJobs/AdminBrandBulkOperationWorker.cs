@@ -1,8 +1,4 @@
-using Microsoft.EntityFrameworkCore;
 using Zadana.Application.Modules.Catalog.Interfaces;
-using Zadana.Domain.Modules.Catalog.Entities;
-using Zadana.Domain.Modules.Catalog.Enums;
-using Zadana.Infrastructure.Persistence;
 
 namespace Zadana.Api.BackgroundJobs;
 
@@ -42,93 +38,7 @@ public sealed class AdminBrandBulkOperationWorker : BackgroundService
     private async Task ProcessOperationAsync(Guid operationId, CancellationToken cancellationToken)
     {
         using var scope = _scopeFactory.CreateScope();
-        var context = scope.ServiceProvider.GetRequiredService<ApplicationDbContext>();
-
-        var operation = await context.AdminBrandBulkOperations
-            .Include(x => x.Items)
-            .FirstOrDefaultAsync(x => x.Id == operationId, cancellationToken);
-
-        if (operation is null)
-        {
-            return;
-        }
-
-        operation.MarkProcessing();
-        await context.SaveChangesAsync(cancellationToken);
-
-        try
-        {
-            var categoryIds = operation.Items
-                .SelectMany(x => x.GetCategoryIds())
-                .Distinct()
-                .ToArray();
-            var categories = await context.Categories
-                .AsNoTracking()
-                .Where(x => categoryIds.Contains(x.Id))
-                .ToDictionaryAsync(x => x.Id, cancellationToken);
-
-            foreach (var item in operation.Items.OrderBy(x => x.RowNumber))
-            {
-                if (item.Status != AdminBrandBulkOperationItemStatus.Pending)
-                {
-                    continue;
-                }
-
-                var itemCategoryIds = item.GetCategoryIds();
-                var missingCategoryIds = itemCategoryIds.Where(categoryId => !categories.ContainsKey(categoryId)).ToArray();
-                var rootCategoryIds = itemCategoryIds
-                    .Where(categoryId => categories.TryGetValue(categoryId, out var category) && !category.ParentCategoryId.HasValue)
-                    .ToArray();
-
-                if (missingCategoryIds.Length > 0)
-                {
-                    item.MarkFailed("Category was not found.");
-                }
-                else if (rootCategoryIds.Length > 0)
-                {
-                    item.MarkFailed("Category must be a subcategory.");
-                }
-                else
-                {
-                    try
-                    {
-                        var brand = new Brand(item.NameAr, item.NameEn, item.LogoUrl, item.CoverImageUrl, itemCategoryIds[0]);
-                        if (!item.IsActive)
-                        {
-                            brand.Deactivate();
-                        }
-
-                        context.Brands.Add(brand);
-                        foreach (var categoryId in itemCategoryIds)
-                        {
-                            context.BrandCategories.Add(new BrandCategory(brand.Id, categoryId));
-                        }
-
-                        await context.SaveChangesAsync(cancellationToken);
-                        item.MarkSucceeded(brand.Id);
-                    }
-                    catch (DbUpdateException ex)
-                    {
-                        item.MarkFailed(ex.InnerException?.Message ?? "Brand could not be created.");
-                    }
-                    catch (Exception ex)
-                    {
-                        item.MarkFailed(ex.Message);
-                    }
-                }
-
-                operation.RecalculateProgress();
-                await context.SaveChangesAsync(cancellationToken);
-            }
-
-            operation.RecalculateProgress();
-            await context.SaveChangesAsync(cancellationToken);
-        }
-        catch (Exception ex)
-        {
-            operation.MarkFailed(ex.Message);
-            await context.SaveChangesAsync(cancellationToken);
-            throw;
-        }
+        var processor = scope.ServiceProvider.GetRequiredService<IAdminBrandBulkOperationProcessor>();
+        await processor.ProcessOperationAsync(operationId, cancellationToken);
     }
 }

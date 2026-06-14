@@ -12,12 +12,12 @@ namespace Zadana.Application.Modules.Catalog.Commands.VendorProducts.BulkCreateV
 public class BulkCreateVendorProductsCommandHandler : IRequestHandler<BulkCreateVendorProductsCommand, VendorProductBulkOperationDto>
 {
     private readonly IApplicationDbContext _context;
-    private readonly IVendorProductBulkOperationQueue _queue;
+    private readonly IVendorProductBulkOperationProcessor _processor;
 
-    public BulkCreateVendorProductsCommandHandler(IApplicationDbContext context, IVendorProductBulkOperationQueue queue)
+    public BulkCreateVendorProductsCommandHandler(IApplicationDbContext context, IVendorProductBulkOperationProcessor processor)
     {
         _context = context;
-        _queue = queue;
+        _processor = processor;
     }
 
     public async Task<VendorProductBulkOperationDto> Handle(BulkCreateVendorProductsCommand request, CancellationToken cancellationToken)
@@ -29,23 +29,12 @@ public class BulkCreateVendorProductsCommandHandler : IRequestHandler<BulkCreate
         }
 
         var existingOperation = await _context.VendorProductBulkOperations
-            .AsNoTracking()
             .FirstOrDefaultAsync(x => x.IdempotencyKey == request.IdempotencyKey && x.VendorId == request.VendorId, cancellationToken);
 
         if (existingOperation is not null)
         {
-            return new VendorProductBulkOperationDto(
-                existingOperation.Id,
-                existingOperation.IdempotencyKey,
-                existingOperation.Status.ToString(),
-                existingOperation.TotalRows,
-                existingOperation.ProcessedRows,
-                existingOperation.SucceededRows,
-                existingOperation.FailedRows,
-                existingOperation.ErrorMessage,
-                existingOperation.CreatedAtUtc,
-                existingOperation.StartedAtUtc,
-                existingOperation.CompletedAtUtc);
+            await _processor.ProcessOperationAsync(existingOperation.Id, cancellationToken);
+            return await GetOperationDtoAsync(existingOperation.Id, cancellationToken);
         }
 
         var duplicateMasterProducts = request.Items
@@ -101,7 +90,16 @@ public class BulkCreateVendorProductsCommandHandler : IRequestHandler<BulkCreate
 
         _context.VendorProductBulkOperations.Add(operation);
         await _context.SaveChangesAsync(cancellationToken);
-        await _queue.EnqueueAsync(operation.Id, cancellationToken);
+        await _processor.ProcessOperationAsync(operation.Id, cancellationToken);
+
+        return await GetOperationDtoAsync(operation.Id, cancellationToken);
+    }
+
+    private async Task<VendorProductBulkOperationDto> GetOperationDtoAsync(Guid operationId, CancellationToken cancellationToken)
+    {
+        var operation = await _context.VendorProductBulkOperations
+            .AsNoTracking()
+            .FirstAsync(x => x.Id == operationId, cancellationToken);
 
         return new VendorProductBulkOperationDto(
             operation.Id,

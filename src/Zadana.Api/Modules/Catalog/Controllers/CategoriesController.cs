@@ -75,7 +75,7 @@ public class CategoriesController : ApiControllerBase
 
     [HttpGet("{categoryId:guid}/filters")]
     [OutputCache(PolicyName = OutputCachePolicyNames.CatalogMetadata)]
-    public async Task<ActionResult<CategoryFiltersDto>> GetFilters(Guid categoryId, CancellationToken cancellationToken)
+    public async Task<ActionResult<CategoryFiltersDto>> GetFilters(Guid categoryId, CancellationToken cancellationToken = default)
     {
         var result = await Sender.Send(new GetCategoryFiltersQuery(categoryId), cancellationToken);
         return Ok(result);

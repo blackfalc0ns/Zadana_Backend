@@ -3,7 +3,6 @@ using Microsoft.AspNetCore.Mvc;
 using Microsoft.AspNetCore.OutputCaching;
 using Zadana.Api.Configuration;
 using Zadana.Api.Controllers;
-using Zadana.Application.Common.Interfaces;
 using Zadana.Application.Modules.Catalog.DTOs;
 using Zadana.Application.Modules.Catalog.Queries.Products.GetProductDetails;
 using Zadana.Application.Modules.Catalog.Queries.Products.SearchProducts;
@@ -15,13 +14,6 @@ namespace Zadana.Api.Modules.Catalog.Controllers;
 [Tags("Customer App API")]
 public class ProductsController : ApiControllerBase
 {
-    private readonly ICurrentUserService? _currentUserService;
-
-    public ProductsController(ICurrentUserService? currentUserService = null)
-    {
-        _currentUserService = currentUserService;
-    }
-
     [HttpGet("search")]
     [OutputCache(PolicyName = OutputCachePolicyNames.PublicCatalogBrowse)]
     public async Task<ActionResult<SearchProductsResponseDto>> SearchProducts(
@@ -33,8 +25,6 @@ public class ProductsController : ApiControllerBase
         [FromQuery] string? sort = null,
         [FromQuery] int page = 1,
         [FromQuery(Name = "per_page")] int perPage = 20,
-        [FromQuery(Name = "address_id")] Guid? addressId = null,
-        [FromQuery(Name = "city")] string? city = null,
         CancellationToken cancellationToken = default)
     {
         var result = await Sender.Send(
@@ -46,10 +36,7 @@ public class ProductsController : ApiControllerBase
                 maxPrice,
                 sort,
                 page,
-                perPage,
-                _currentUserService?.UserId,
-                addressId,
-                city),
+                perPage),
             cancellationToken);
 
         return Ok(result);

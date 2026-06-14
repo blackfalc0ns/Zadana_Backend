@@ -5,7 +5,7 @@ namespace Zadana.Application.Modules.Catalog.Queries;
 
 internal static class CatalogQueryCacheKeys
 {
-    private const string Version = "v5";
+    private const string Version = "v6";
 
     public static string CustomerBrands() =>
         AppCacheKeys.Build("catalog", "brands", "customer", Version, AppCacheKeys.CurrentCulture);
@@ -45,8 +45,7 @@ internal static class CatalogQueryCacheKeys
         decimal? maxPrice,
         string? sort,
         int page,
-        int perPage,
-        string? city = null) =>
+        int perPage) =>
         AppCacheKeys.Build(
             "catalog",
             "products",
@@ -61,7 +60,6 @@ internal static class CatalogQueryCacheKeys
             AppCacheKeys.NormalizeToken(sort),
             AppCacheKeys.IntToken(page),
             AppCacheKeys.IntToken(perPage),
-            string.IsNullOrWhiteSpace(city) ? string.Empty : AppCacheKeys.NormalizeToken(city),
             "public");
 
     public static string CategoryProducts(
@@ -110,8 +108,7 @@ internal static class CatalogQueryCacheKeys
         decimal? maxPrice,
         string? sort,
         int page,
-        int perPage,
-        string? city = null) =>
+        int perPage) =>
         AppCacheKeys.Build(
             "catalog",
             "brands",
@@ -129,7 +126,6 @@ internal static class CatalogQueryCacheKeys
             AppCacheKeys.NormalizeToken(sort),
             AppCacheKeys.IntToken(page),
             AppCacheKeys.IntToken(perPage),
-            string.IsNullOrWhiteSpace(city) ? string.Empty : AppCacheKeys.NormalizeToken(city),
             "public");
 
     public static string ProductDetails(Guid productId) =>

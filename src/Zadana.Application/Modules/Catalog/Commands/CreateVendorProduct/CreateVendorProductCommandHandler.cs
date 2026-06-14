@@ -77,7 +77,8 @@ public class CreateVendorProductCommandHandler : IRequestHandler<CreateVendorPro
             .Where(product =>
                 product.VendorId == request.VendorId &&
                 product.MasterProductId == request.MasterProductId)
-            .OrderBy(product => product.VendorBranchId.HasValue)
+            .OrderByDescending(product => product.VendorBranch != null && product.VendorBranch.IsPrimary)
+            .ThenBy(product => product.VendorBranchId.HasValue)
             .ThenBy(product => product.CreatedAtUtc)
             .Select(product => new
             {

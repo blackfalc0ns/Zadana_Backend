@@ -60,6 +60,7 @@ internal static class CheckoutSupport
                 product.Id,
                 product.VendorId,
                 product.VendorBranchId,
+                product.VendorBranch != null && product.VendorBranch.IsPrimary,
                 product.MasterProductId,
                 product.SellingPrice,
                 product.CreatedAtUtc,
@@ -174,7 +175,16 @@ internal static class CheckoutSupport
         if (candidateVendor == null)
         {
             throw selectedVendorId.HasValue
-                ? new BusinessRuleException("VENDOR_MISSING_CART_PRODUCT", "The selected vendor does not offer all products currently in the cart.")
+                ? new BusinessRuleException(
+                    "CART_ITEMS_UNAVAILABLE_AT_ADDRESS_BRANCH",
+                    BuildUnavailableCartItemsMessage(
+                        cart.Items
+                            .Where(item => visibleOffers.All(offer =>
+                                offer.VendorId != selectedVendorId.Value ||
+                                offer.MasterProductId != item.MasterProductId))
+                            .Select(item => item.ProductName)
+                            .Distinct(StringComparer.CurrentCultureIgnoreCase)
+                            .ToList()))
                 : new BusinessRuleException("CHECKOUT_VENDOR_UNAVAILABLE", "No single vendor can fulfill all cart items for checkout.");
         }
 
@@ -253,7 +263,7 @@ internal static class CheckoutSupport
             return null;
         }
 
-        if (branches.Count == 1 || address is null)
+        if (address is null)
         {
             return branches[0].Id;
         }
@@ -267,6 +277,11 @@ internal static class CheckoutSupport
         if (sameCityBranch is not null)
         {
             return sameCityBranch.Id;
+        }
+
+        if (!string.IsNullOrWhiteSpace(address.City))
+        {
+            return null;
         }
 
         if (HasUsableCoordinates(address))
@@ -812,7 +827,8 @@ internal static class CheckoutSupport
             .ToDictionary(
                 group => group.Key,
                 group => group
-                    .OrderBy(offer => offer.VendorBranchId.HasValue)
+                    .OrderByDescending(offer => offer.IsPrimaryBranch)
+                    .ThenBy(offer => offer.VendorBranchId.HasValue)
                     .ThenBy(offer => offer.CreatedAtUtc)
                     .First().Price);
 
@@ -910,11 +926,6 @@ internal static class CheckoutSupport
             return null;
         }
 
-        if (branches.Count == 1)
-        {
-            return branches.First();
-        }
-
         var sameCityBranch = branches
             .Where(branch => IsSameCityDelivery(branch.City, address.City))
             .OrderByDescending(branch => branch.IsPrimary)
@@ -924,6 +935,11 @@ internal static class CheckoutSupport
         if (sameCityBranch is not null)
         {
             return sameCityBranch;
+        }
+
+        if (!string.IsNullOrWhiteSpace(address.City))
+        {
+            return null;
         }
 
         if (HasUsableCoordinates(address))
@@ -938,8 +954,8 @@ internal static class CheckoutSupport
                     var isInsideRadius = branch.DeliveryRadiusKm <= 0m || distanceKm <= branch.DeliveryRadiusKm;
                     return new AddressBranchDistance(branch, distanceKm, isInsideRadius);
                 })
-                .OrderByDescending(item => item.IsInsideRadius)
-                .ThenBy(item => item.DistanceKm)
+                .Where(item => item.IsInsideRadius)
+                .OrderBy(item => item.DistanceKm)
                 .ThenByDescending(item => item.Branch.IsPrimary)
                 .ThenBy(item => item.Branch.CreatedAtUtc)
                 .FirstOrDefault();
@@ -953,7 +969,7 @@ internal static class CheckoutSupport
         return branches
             .OrderByDescending(branch => branch.IsPrimary)
             .ThenBy(branch => branch.CreatedAtUtc)
-            .First();
+            .FirstOrDefault();
     }
 
     private static bool HasUsableCoordinates(CustomerAddress address) =>
@@ -966,6 +982,21 @@ internal static class CheckoutSupport
 
     private static bool IsArabic() =>
         CultureInfo.CurrentUICulture.TwoLetterISOLanguageName.Equals("ar", StringComparison.OrdinalIgnoreCase);
+
+    private static string BuildUnavailableCartItemsMessage(IReadOnlyCollection<string> productNames)
+    {
+        var names = string.Join(", ", productNames.Where(name => !string.IsNullOrWhiteSpace(name)).Take(5));
+        if (string.IsNullOrWhiteSpace(names))
+        {
+            return IsArabic()
+                ? "بعض المنتجات في العربة غير متوفرة في فرع المتجر المطابق لعنوانك."
+                : "Some cart items are unavailable at the store branch matching your address.";
+        }
+
+        return IsArabic()
+            ? $"المنتجات التالية غير متوفرة في فرع المتجر المطابق لعنوانك: {names}"
+            : $"The following products are unavailable at the store branch matching your address: {names}";
+    }
 
     private static string PickLocalized(string? arabic, string? english)
     {
@@ -1259,6 +1290,7 @@ internal static class CheckoutSupport
         Guid Id,
         Guid VendorId,
         Guid? VendorBranchId,
+        bool IsPrimaryBranch,
         Guid MasterProductId,
         decimal Price,
         DateTime CreatedAtUtc,

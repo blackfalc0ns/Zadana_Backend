@@ -45,6 +45,7 @@ public class OrderRepository : IOrderRepository
             .Include(product => product.MasterProduct)
                 .ThenInclude(master => master.MeasurementUnit)
             .Include(product => product.Vendor)
+            .Include(product => product.VendorBranch)
             .Where(product => product.VendorId == vendorId && masterProductIds.Contains(product.MasterProductId))
             .ToListAsync(cancellationToken);
 
@@ -167,7 +168,8 @@ public class OrderRepository : IOrderRepository
         }
 
         return products
-            .OrderBy(product => product.VendorBranchId.HasValue)
+            .OrderByDescending(product => product.VendorBranch != null && product.VendorBranch.IsPrimary)
+            .ThenBy(product => product.VendorBranchId.HasValue)
             .ThenBy(product => product.CreatedAtUtc)
             .FirstOrDefault();
     }

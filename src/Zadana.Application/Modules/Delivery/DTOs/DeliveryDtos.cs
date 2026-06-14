@@ -215,6 +215,9 @@ public record AdminDriverListItemDto(
     int WeeklyRejections,
     string EnforcementLevel,
     DateTime? LastOfferResponseAtUtc,
+    bool CanReceiveOffers,
+    bool IsLoginLocked,
+    bool LocationUpdatesBlocked,
     string[] Issues,
     string CollectionPaymentStatus,
     string[]? Alerts);

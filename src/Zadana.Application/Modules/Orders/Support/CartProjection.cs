@@ -3,6 +3,7 @@ using Microsoft.EntityFrameworkCore;
 using Zadana.Application.Common.Interfaces;
 using Zadana.Application.Modules.Catalog.DTOs;
 using Zadana.Application.Modules.Orders.DTOs;
+using Zadana.Domain.Modules.Identity.Entities;
 using Zadana.Application.Modules.Vendors.Support;
 using Zadana.Domain.Modules.Catalog.Enums;
 using Zadana.Domain.Modules.Orders.Entities;
@@ -16,7 +17,8 @@ internal static class CartProjection
         IApplicationDbContext context,
         Cart? cart,
         CancellationToken cancellationToken,
-        Guid? selectedVendorId = null)
+        Guid? selectedVendorId = null,
+        CustomerAddress? address = null)
     {
         if (cart is null || cart.Items.Count == 0)
         {
@@ -79,6 +81,8 @@ internal static class CartProjection
             .Select(product => new VisibleCartOfferSnapshot(
                 product.Id,
                 product.VendorId,
+                product.VendorBranchId,
+                product.VendorBranch != null && product.VendorBranch.IsPrimary,
                 product.MasterProductId,
                 product.SellingPrice,
                 product.CompareAtPrice,
@@ -91,6 +95,16 @@ internal static class CartProjection
                     .Select(image => image.Url)
                     .FirstOrDefault()))
             .ToListAsync(cancellationToken);
+
+        candidateOffers = ApplyUnifiedPricing(candidateOffers);
+
+        var selectedBranchIdByVendor = await CartBranchSelectionSupport.ResolveAddressBranchIdsByVendorAsync(
+            context,
+            candidateOffers.Select(offer => offer.VendorId),
+            address,
+            cancellationToken);
+
+        candidateOffers = FilterOffersForAddressBranch(candidateOffers, selectedBranchIdByVendor);
 
         var availabilityDecisions = await VendorCustomerAvailabilityPolicy.LoadDecisionsAsync(
             context,
@@ -264,6 +278,74 @@ internal static class CartProjection
             : null;
     }
 
+    private static List<VisibleCartOfferSnapshot> ApplyUnifiedPricing(List<VisibleCartOfferSnapshot> offers)
+    {
+        if (offers.Count == 0)
+        {
+            return offers;
+        }
+
+        var canonicalPricingByProduct = offers
+            .GroupBy(offer => new { offer.VendorId, offer.MasterProductId })
+            .ToDictionary(
+                group => group.Key,
+                group => group
+                    .OrderByDescending(offer => offer.IsPrimaryBranch)
+                    .ThenBy(offer => offer.VendorBranchId.HasValue)
+                    .ThenBy(offer => offer.CreatedAtUtc)
+                    .First());
+
+        return offers
+            .Select(offer =>
+            {
+                var canonical = canonicalPricingByProduct[new { offer.VendorId, offer.MasterProductId }];
+                return offer.Price == canonical.Price && offer.OldPrice == canonical.OldPrice
+                    ? offer
+                    : offer with
+                    {
+                        Price = canonical.Price,
+                        OldPrice = canonical.OldPrice
+                    };
+            })
+            .ToList();
+    }
+
+    private static List<VisibleCartOfferSnapshot> FilterOffersForAddressBranch(
+        List<VisibleCartOfferSnapshot> offers,
+        IReadOnlyDictionary<Guid, Guid?> selectedBranchIdByVendor)
+    {
+        if (offers.Count == 0 || selectedBranchIdByVendor.Count == 0)
+        {
+            return offers;
+        }
+
+        return offers
+            .GroupBy(offer => new { offer.VendorId, offer.MasterProductId })
+            .SelectMany(group =>
+            {
+                if (!selectedBranchIdByVendor.TryGetValue(group.Key.VendorId, out var selectedBranchId) ||
+                    !selectedBranchId.HasValue)
+                {
+                    return [];
+                }
+
+                var branchOffers = group
+                    .Where(offer => offer.VendorBranchId == selectedBranchId.Value)
+                    .ToList();
+
+                if (branchOffers.Count > 0)
+                {
+                    return branchOffers;
+                }
+
+                var hasBranchScopedInventory = group.Any(offer => offer.VendorBranchId.HasValue);
+                return hasBranchScopedInventory
+                    ? []
+                    : group.Where(offer => !offer.VendorBranchId.HasValue);
+            })
+            .ToList();
+    }
+
     public static async Task<Guid?> ResolveSingleProductPricingVendorIdAsync(
         IApplicationDbContext context,
         Cart cart,
@@ -399,6 +481,8 @@ internal static class CartProjection
     private sealed record VisibleCartOfferSnapshot(
         Guid Id,
         Guid VendorId,
+        Guid? VendorBranchId,
+        bool IsPrimaryBranch,
         Guid MasterProductId,
         decimal Price,
         decimal? OldPrice,

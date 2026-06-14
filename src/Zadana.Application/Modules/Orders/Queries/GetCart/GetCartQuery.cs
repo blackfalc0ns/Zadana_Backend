@@ -29,7 +29,8 @@ public class GetCartQueryHandler : IRequestHandler<GetCartQuery, CartDto>
         }
 
         var cart = await CartLookup.FindCartAsync(_context, actor, cancellationToken, includeItems: true, asTracking: false);
+        var address = await CartBranchSelectionSupport.ResolveDefaultAddressAsync(_context, actor, cancellationToken);
 
-        return await CartProjection.BuildCartDtoAsync(_context, cart, cancellationToken, request.VendorId);
+        return await CartProjection.BuildCartDtoAsync(_context, cart, cancellationToken, request.VendorId, address);
     }
 }

@@ -166,6 +166,9 @@ public class DriverReadService : IDriverReadService
                 WeeklyRejections: commitmentSummary.WeeklyRejections,
                 EnforcementLevel: commitmentSummary.EnforcementLevel,
                 LastOfferResponseAtUtc: commitmentSummary.LastOfferResponseAtUtc,
+                CanReceiveOffers: commitmentSummary.CanReceiveOffers,
+                IsLoginLocked: d.User.IsLoginLocked,
+                LocationUpdatesBlocked: d.IsLocationUpdatesBlocked,
                 Issues: DeriveIssues(d, walletBalance, commitmentSummary),
                 CollectionPaymentStatus: walletBalance < 0 ? "critical" : walletBalance < 200 ? "warning" : "good",
                 Alerts: null);

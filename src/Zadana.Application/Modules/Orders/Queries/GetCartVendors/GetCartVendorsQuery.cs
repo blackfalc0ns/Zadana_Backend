@@ -23,6 +23,7 @@ public class GetCartVendorsQueryHandler : IRequestHandler<GetCartVendorsQuery, C
 
     public async Task<CartAvailableVendorsDto> Handle(GetCartVendorsQuery request, CancellationToken cancellationToken)
     {
+        var address = await CartBranchSelectionSupport.ResolveDefaultAddressAsync(_context, request.Actor, cancellationToken);
         var cart = await CartLookup.FindCartAsync(
             _context,
             request.Actor.UserId,
@@ -32,7 +33,7 @@ public class GetCartVendorsQueryHandler : IRequestHandler<GetCartVendorsQuery, C
 
         if (cart == null || cart.Items.Count == 0)
         {
-            var availableVendors = await _context.VendorProducts
+            var availableVendorRows = await _context.VendorProducts
                 .AsNoTracking()
                 .Where(product =>
                     product.Status == VendorProductStatus.Active &&
@@ -40,12 +41,24 @@ public class GetCartVendorsQueryHandler : IRequestHandler<GetCartVendorsQuery, C
                     product.StockQuantity > 0 &&
                     product.MasterProduct.Status == ProductStatus.Active &&
                     product.Vendor.Status == VendorStatus.Active)
-                .GroupBy(product => new
-                {
+                .Select(product => new CartAvailableVendorProductRow(
                     product.VendorId,
                     product.Vendor.BusinessNameAr,
                     product.Vendor.BusinessNameEn,
-                    product.Vendor.LogoUrl
+                    product.Vendor.LogoUrl,
+                    product.MasterProductId,
+                    product.VendorBranchId))
+                .ToListAsync(cancellationToken);
+
+            availableVendorRows = await FilterRowsForAddressBranchAsync(availableVendorRows, address, cancellationToken);
+
+            var availableVendors = availableVendorRows
+                .GroupBy(product => new
+                {
+                    product.VendorId,
+                    product.BusinessNameAr,
+                    product.BusinessNameEn,
+                    product.LogoUrl
                 })
                 .Select(group => new CartAvailableVendorRow(
                     group.Key.VendorId,
@@ -53,7 +66,7 @@ public class GetCartVendorsQueryHandler : IRequestHandler<GetCartVendorsQuery, C
                     group.Key.BusinessNameEn,
                     group.Key.LogoUrl,
                     group.Select(item => item.MasterProductId).Distinct().Count()))
-                .ToListAsync(cancellationToken);
+                .ToList();
 
             var availabilityDecisions = await VendorCustomerAvailabilityPolicy.LoadDecisionsAsync(
                 _context,
@@ -78,7 +91,7 @@ public class GetCartVendorsQueryHandler : IRequestHandler<GetCartVendorsQuery, C
             .Distinct()
             .ToList();
 
-        var vendorRows = await _context.VendorProducts
+        var vendorProductRows = await _context.VendorProducts
             .AsNoTracking()
             .Where(product =>
                 productIds.Contains(product.MasterProductId) &&
@@ -87,12 +100,24 @@ public class GetCartVendorsQueryHandler : IRequestHandler<GetCartVendorsQuery, C
                 product.StockQuantity > 0 &&
                 product.MasterProduct.Status == ProductStatus.Active &&
                 product.Vendor.Status == VendorStatus.Active)
-            .GroupBy(product => new
-            {
+            .Select(product => new CartAvailableVendorProductRow(
                 product.VendorId,
                 product.Vendor.BusinessNameAr,
                 product.Vendor.BusinessNameEn,
-                product.Vendor.LogoUrl
+                product.Vendor.LogoUrl,
+                product.MasterProductId,
+                product.VendorBranchId))
+            .ToListAsync(cancellationToken);
+
+        vendorProductRows = await FilterRowsForAddressBranchAsync(vendorProductRows, address, cancellationToken);
+
+        var vendorRows = vendorProductRows
+            .GroupBy(product => new
+            {
+                product.VendorId,
+                product.BusinessNameAr,
+                product.BusinessNameEn,
+                product.LogoUrl
             })
             .Select(group => new CartAvailableVendorRow(
                 group.Key.VendorId,
@@ -100,7 +125,7 @@ public class GetCartVendorsQueryHandler : IRequestHandler<GetCartVendorsQuery, C
                 group.Key.BusinessNameEn,
                 group.Key.LogoUrl,
                 group.Select(item => item.MasterProductId).Distinct().Count()))
-            .ToListAsync(cancellationToken);
+            .ToList();
 
         var decisions = await VendorCustomerAvailabilityPolicy.LoadDecisionsAsync(
             _context,
@@ -126,6 +151,53 @@ public class GetCartVendorsQueryHandler : IRequestHandler<GetCartVendorsQuery, C
         return new CartAvailableVendorsDto(vendors);
     }
 
+    private async Task<List<CartAvailableVendorProductRow>> FilterRowsForAddressBranchAsync(
+        List<CartAvailableVendorProductRow> rows,
+        Domain.Modules.Identity.Entities.CustomerAddress? address,
+        CancellationToken cancellationToken)
+    {
+        var selectedBranchIdByVendor = await CartBranchSelectionSupport.ResolveAddressBranchIdsByVendorAsync(
+            _context,
+            rows.Select(row => row.VendorId),
+            address,
+            cancellationToken);
+
+        if (rows.Count == 0 || selectedBranchIdByVendor.Count == 0)
+        {
+            return rows;
+        }
+
+        return rows
+            .GroupBy(row => new { row.VendorId, row.MasterProductId })
+            .SelectMany(group =>
+            {
+                if (!selectedBranchIdByVendor.TryGetValue(group.Key.VendorId, out var selectedBranchId))
+                {
+                    return group;
+                }
+
+                if (!selectedBranchId.HasValue)
+                {
+                    return [];
+                }
+
+                var branchRows = group
+                    .Where(row => row.VendorBranchId == selectedBranchId.Value)
+                    .ToList();
+
+                if (branchRows.Count > 0)
+                {
+                    return branchRows;
+                }
+
+                var hasBranchScopedInventory = group.Any(row => row.VendorBranchId.HasValue);
+                return hasBranchScopedInventory
+                    ? []
+                    : group.Where(row => !row.VendorBranchId.HasValue);
+            })
+            .ToList();
+    }
+
     private static bool IsArabic() =>
         CultureInfo.CurrentUICulture.TwoLetterISOLanguageName.Equals("ar", StringComparison.OrdinalIgnoreCase);
 
@@ -142,4 +214,12 @@ public class GetCartVendorsQueryHandler : IRequestHandler<GetCartVendorsQuery, C
         string? NameEn,
         string? LogoUrl,
         int ProductsCount);
+
+    private sealed record CartAvailableVendorProductRow(
+        Guid VendorId,
+        string? BusinessNameAr,
+        string? BusinessNameEn,
+        string? LogoUrl,
+        Guid MasterProductId,
+        Guid? VendorBranchId);
 }

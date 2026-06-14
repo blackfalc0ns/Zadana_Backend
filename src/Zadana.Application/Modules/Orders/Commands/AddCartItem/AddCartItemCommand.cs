@@ -91,7 +91,8 @@ public class AddCartItemCommandHandler : IRequestHandler<AddCartItemCommand, Car
         }
 
         cart = await ReloadCartForWriteAsync(actor, cancellationToken);
-        var cartDto = await CartProjection.BuildCartDtoAsync(_context, cart, cancellationToken, null);
+        var address = await CartBranchSelectionSupport.ResolveDefaultAddressAsync(_context, actor, cancellationToken);
+        var cartDto = await CartProjection.BuildCartDtoAsync(_context, cart, cancellationToken, null, address);
         var itemDto = cartDto.Items.Single(item => item.Id == affectedItem.Id);
 
         return new CartItemMutationResponseDto(LocalizedMessages.GetAr(LocalizedMessages.CartItemAdded), LocalizedMessages.GetEn(LocalizedMessages.CartItemAdded), itemDto, cartDto.Summary);

@@ -29,6 +29,7 @@ using Zadana.Application.Common.Interfaces;
 using Zadana.Application.Common.Settings;
 using Zadana.Application.Modules.Wallets.Services;
 using Zadana.Application.Modules.Catalog.Interfaces;
+using Zadana.Application.Modules.Catalog.Services;
 using Zadana.Application.Modules.Delivery.Interfaces;
 using Zadana.Application.Modules.Home.Interfaces;
 using Zadana.Application.Modules.Orders.Interfaces;
@@ -213,6 +214,9 @@ builder.Services.AddScoped<IDeliveryPricingService, Zadana.Infrastructure.Module
 builder.Services.AddScoped<IProductRequestRepository, ProductRequestRepository>();
 builder.Services.AddScoped<IProductRequestReadService, ProductRequestReadService>();
 builder.Services.AddScoped<ICatalogRequestReadService, CatalogRequestReadService>();
+builder.Services.AddScoped<IAdminBrandBulkOperationProcessor, AdminBrandBulkOperationProcessor>();
+builder.Services.AddScoped<IAdminMasterProductBulkOperationProcessor, AdminMasterProductBulkOperationProcessor>();
+builder.Services.AddScoped<IVendorProductBulkOperationProcessor, VendorProductBulkOperationProcessor>();
 builder.Services.AddScoped<IHomeReadService, HomeReadService>();
 builder.Services.AddScoped<IOrderRepository, OrderRepository>();
 builder.Services.AddScoped<IOrderReadService, OrderReadService>();

@@ -1,4 +1,5 @@
 using MediatR;
+using Microsoft.EntityFrameworkCore;
 using Microsoft.Extensions.Options;
 using System.Globalization;
 using System.Text.Json;
@@ -8,6 +9,7 @@ using Zadana.Application.Common.Localization;
 using Zadana.Application.Common.Settings;
 using Zadana.Application.Modules.Catalog.DTOs;
 using Zadana.Application.Modules.Orders.Interfaces;
+using Zadana.Application.Modules.Orders.Support;
 using Zadana.Domain.Modules.Orders.Entities;
 using Zadana.Domain.Modules.Payments.Enums;
 using Zadana.SharedKernel.Exceptions;
@@ -19,17 +21,20 @@ public class PlaceOrderCommandHandler : IRequestHandler<PlaceOrderCommand, Guid>
     private readonly IOrderRepository _orderRepository;
     private readonly IStringLocalizer<SharedResource> _localizer;
     private readonly IUnitOfWork _unitOfWork;
+    private readonly IApplicationDbContext? _context;
     private readonly FinancialSettingsOptions _financialSettings;
 
     public PlaceOrderCommandHandler(
         IOrderRepository orderRepository,
         IStringLocalizer<SharedResource> localizer,
         IUnitOfWork unitOfWork,
+        IApplicationDbContext? context = null,
         IOptions<FinancialSettingsOptions>? financialSettings = null)
     {
         _orderRepository = orderRepository;
         _localizer = localizer;
         _unitOfWork = unitOfWork;
+        _context = context;
         _financialSettings = financialSettings?.Value ?? new FinancialSettingsOptions();
     }
 
@@ -54,12 +59,27 @@ public class PlaceOrderCommandHandler : IRequestHandler<PlaceOrderCommand, Guid>
                 $"{paymentMethod} is not supported as a standalone order payment method.");
         }
 
+        var vendorBranchId = await ResolveVendorBranchIdAsync(request, cancellationToken);
+
         var masterProductIds = cart.Items.Select(item => item.MasterProductId).Distinct().ToArray();
         var vendorProducts = await _orderRepository.GetVendorProductsForCheckoutAsync(
             request.VendorId,
             masterProductIds,
-            request.VendorBranchId,
+            vendorBranchId,
             cancellationToken);
+
+        var unavailableCartItems = cart.Items
+            .Where(item => !vendorProducts.ContainsKey(item.MasterProductId))
+            .Select(item => item.ProductName)
+            .Distinct(StringComparer.CurrentCultureIgnoreCase)
+            .ToList();
+
+        if (unavailableCartItems.Count > 0)
+        {
+            throw new BusinessRuleException(
+                "CART_ITEMS_UNAVAILABLE_AT_ADDRESS_BRANCH",
+                BuildUnavailableCartItemsMessage(unavailableCartItems));
+        }
 
         foreach (var cartItem in cart.Items)
         {
@@ -97,7 +117,7 @@ public class PlaceOrderCommandHandler : IRequestHandler<PlaceOrderCommand, Guid>
             request.VendorId,
             request.CustomerAddressId,
             paymentMethod,
-            request.VendorBranchId,
+            vendorBranchId,
             request.CouponId,
             request.Notes,
             subtotal,
@@ -175,7 +195,7 @@ public class PlaceOrderCommandHandler : IRequestHandler<PlaceOrderCommand, Guid>
             vatAmount: request.VatAmount,
             codFee: request.CodFee,
             notes: request.Notes,
-            vendorBranchId: request.VendorBranchId,
+            vendorBranchId: vendorBranchId,
             couponId: request.CouponId
         );
         ApplyOrderFinancialSnapshot(order, subtotal, cart.DiscountTotal, commissionAmount, request);
@@ -230,6 +250,57 @@ public class PlaceOrderCommandHandler : IRequestHandler<PlaceOrderCommand, Guid>
 
         return order.Id;
     }
+
+    private async Task<Guid?> ResolveVendorBranchIdAsync(PlaceOrderCommand request, CancellationToken cancellationToken)
+    {
+        if (_context is null)
+        {
+            return request.VendorBranchId;
+        }
+
+        var customerAddress = await _context.CustomerAddresses
+            .AsNoTracking()
+            .FirstOrDefaultAsync(address => address.Id == request.CustomerAddressId && address.UserId == request.UserId, cancellationToken)
+            ?? throw new NotFoundException("CustomerAddress", request.CustomerAddressId);
+
+        var selectedBranchIds = await CartBranchSelectionSupport.ResolveAddressBranchIdsByVendorAsync(
+            _context,
+            [request.VendorId],
+            customerAddress,
+            cancellationToken);
+
+        if (!selectedBranchIds.TryGetValue(request.VendorId, out var resolvedBranchId))
+        {
+            return null;
+        }
+
+        if (!resolvedBranchId.HasValue && !string.IsNullOrWhiteSpace(customerAddress.City))
+        {
+            throw new BusinessRuleException(
+                "CART_ITEMS_UNAVAILABLE_AT_ADDRESS_BRANCH",
+                BuildUnavailableCartItemsMessage([]));
+        }
+
+        return resolvedBranchId;
+    }
+
+    private static string BuildUnavailableCartItemsMessage(IReadOnlyCollection<string> productNames)
+    {
+        var names = string.Join(", ", productNames.Where(name => !string.IsNullOrWhiteSpace(name)).Take(5));
+        if (string.IsNullOrWhiteSpace(names))
+        {
+            return IsArabic()
+                ? "بعض المنتجات في العربة غير متوفرة في فرع المتجر المطابق لعنوانك."
+                : "Some cart items are unavailable at the store branch matching your address.";
+        }
+
+        return IsArabic()
+            ? $"المنتجات التالية غير متوفرة في فرع المتجر المطابق لعنوانك: {names}"
+            : $"The following products are unavailable at the store branch matching your address: {names}";
+    }
+
+    private static bool IsArabic() =>
+        CultureInfo.CurrentUICulture.TwoLetterISOLanguageName.Equals("ar", StringComparison.OrdinalIgnoreCase);
 
     private void ApplyOrderFinancialSnapshot(
         Order order,

@@ -42,7 +42,8 @@ public class AdminAuthController : IdentityAuthControllerBase
         Response.Cookies.Delete(cookieName);
         // Keep the readable token cookie in sync with the antiforgery cookie pair.
         Response.Cookies.Delete("XSRF-TOKEN");
-    }
+
+   }
 
     /// <summary>
     /// Issues a fresh anti-CSRF token to the caller. Always succeeds, even when

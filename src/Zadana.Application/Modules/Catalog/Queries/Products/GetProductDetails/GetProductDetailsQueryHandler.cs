@@ -254,6 +254,8 @@ public class GetProductDetailsQueryHandler : IRequestHandler<GetProductDetailsQu
                 product.Id,
                 product.MasterProductId,
                 product.VendorId,
+                product.VendorBranchId,
+                product.VendorBranch != null && product.VendorBranch.IsPrimary,
                 product.MasterProduct.CategoryId,
                 product.CreatedAtUtc,
                 !string.IsNullOrWhiteSpace(product.CustomNameAr) ? product.CustomNameAr : product.MasterProduct.NameAr,
@@ -285,7 +287,9 @@ public class GetProductDetailsQueryHandler : IRequestHandler<GetProductDetailsQu
             offers.Select(offer => offer.VendorId),
             cancellationToken);
 
-        return RawOffersToVisibleOffers(offers, availabilityDecisions);
+        var visibleOffers = RawOffersToVisibleOffers(offers, availabilityDecisions);
+        visibleOffers = ApplyUnifiedPricing(visibleOffers);
+        return SelectRepresentativeOffers(visibleOffers);
     }
 
     private List<VisibleOfferRow> RawOffersToVisibleOffers(
@@ -301,6 +305,8 @@ public class GetProductDetailsQueryHandler : IRequestHandler<GetProductDetailsQu
                     offer.VendorProductId,
                     offer.MasterProductId,
                     offer.VendorId,
+                    offer.VendorBranchId,
+                    offer.IsPrimaryBranch,
                     offer.CategoryId,
                     offer.CreatedAtUtc,
                     NormalizeText(offer.NameAr),
@@ -372,10 +378,47 @@ public class GetProductDetailsQueryHandler : IRequestHandler<GetProductDetailsQu
     private static Guid GetProductGroupKey(Guid variantGroupId, Guid masterProductId) =>
         variantGroupId != default ? variantGroupId : masterProductId;
 
+    private static List<VisibleOfferRow> ApplyUnifiedPricing(List<VisibleOfferRow> offers)
+    {
+        var canonicalPricingByProduct = offers
+            .GroupBy(offer => new { offer.VendorId, offer.MasterProductId })
+            .ToDictionary(
+                group => group.Key,
+                group => group
+                    .OrderByDescending(offer => offer.IsPrimaryBranch)
+                    .ThenBy(offer => offer.VendorBranchId.HasValue)
+                    .ThenBy(offer => offer.CreatedAtUtc)
+                    .First());
+
+        return offers
+            .Select(offer =>
+            {
+                var canonical = canonicalPricingByProduct[new { offer.VendorId, offer.MasterProductId }];
+                return offer with
+                {
+                    Price = canonical.Price,
+                    OldPrice = canonical.OldPrice
+                };
+            })
+            .ToList();
+    }
+
+    private static List<VisibleOfferRow> SelectRepresentativeOffers(List<VisibleOfferRow> offers) =>
+        offers
+            .GroupBy(offer => new { offer.VendorId, offer.MasterProductId })
+            .Select(group => group
+                .OrderByDescending(offer => offer.IsPrimaryBranch)
+                .ThenBy(offer => offer.VendorBranchId.HasValue)
+                .ThenBy(offer => offer.CreatedAtUtc)
+                .First())
+            .ToList();
+
     private sealed record RawVisibleOfferRow(
         Guid VendorProductId,
         Guid MasterProductId,
         Guid VendorId,
+        Guid? VendorBranchId,
+        bool IsPrimaryBranch,
         Guid CategoryId,
         DateTime CreatedAtUtc,
         string? NameAr,
@@ -401,6 +444,8 @@ public class GetProductDetailsQueryHandler : IRequestHandler<GetProductDetailsQu
         Guid VendorProductId,
         Guid MasterProductId,
         Guid VendorId,
+        Guid? VendorBranchId,
+        bool IsPrimaryBranch,
         Guid CategoryId,
         DateTime CreatedAtUtc,
         string? NameAr,
