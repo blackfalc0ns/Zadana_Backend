@@ -67,10 +67,11 @@ public class VendorProductConfiguration : IEntityTypeConfiguration<VendorProduct
             .HasForeignKey(vp => vp.VendorBranchId)
             .OnDelete(DeleteBehavior.Restrict);
 
-        // Unique: one vendor product per vendor per master product
-        builder.HasIndex(vp => new { vp.VendorId, vp.MasterProductId })
+        // Unique inventory row per vendor product per branch. Pricing is still
+        // synchronized by application logic across all branch rows.
+        builder.HasIndex(vp => new { vp.VendorId, vp.MasterProductId, vp.VendorBranchId })
             .IsUnique()
-            .HasDatabaseName("IX_VendorProduct_Vendor_Master");
+            .HasDatabaseName("IX_VendorProduct_Vendor_Master_Branch");
 
         builder.HasIndex(vp => vp.VendorId)
             .HasDatabaseName("IX_VendorProduct_VendorId");

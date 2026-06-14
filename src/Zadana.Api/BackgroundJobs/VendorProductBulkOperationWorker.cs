@@ -82,11 +82,35 @@ public sealed class VendorProductBulkOperationWorker : BackgroundService
             .Select(x => x.Id)
             .ToHashSetAsync(cancellationToken);
 
-        var existingVendorProductIds = await context.VendorProducts
+        var existingVendorProductKeys = await context.VendorProducts
             .AsNoTracking()
             .Where(x => x.VendorId == operation.VendorId && masterProductIds.Contains(x.MasterProductId))
-            .Select(x => x.MasterProductId)
-            .ToHashSetAsync(cancellationToken);
+            .Select(x => new VendorProductScopeKey(x.MasterProductId, x.VendorBranchId))
+            .ToListAsync(cancellationToken);
+
+        var existingVendorProductKeySet = existingVendorProductKeys.ToHashSet();
+
+        var existingPricingRows = await context.VendorProducts
+            .AsNoTracking()
+            .Where(x => x.VendorId == operation.VendorId && masterProductIds.Contains(x.MasterProductId))
+            .Select(product => new CanonicalVendorProductPricing(
+                product.MasterProductId,
+                product.SellingPrice,
+                product.CompareAtPrice,
+                product.CostPrice,
+                product.TradePrice,
+                product.VendorBranchId,
+                product.CreatedAtUtc))
+            .ToListAsync(cancellationToken);
+
+        var canonicalPricingByProductId = existingPricingRows
+            .GroupBy(x => x.MasterProductId)
+            .ToDictionary(
+                group => group.Key,
+                group => group
+                .OrderBy(product => product.VendorBranchId.HasValue)
+                .ThenBy(product => product.CreatedAtUtc)
+                .First());
 
         var validBranchIds = await context.VendorBranches
             .AsNoTracking()
@@ -105,9 +129,9 @@ public sealed class VendorProductBulkOperationWorker : BackgroundService
             {
                 item.MarkFailed("Master product was not found.");
             }
-            else if (existingVendorProductIds.Contains(item.MasterProductId))
+            else if (existingVendorProductKeySet.Contains(new VendorProductScopeKey(item.MasterProductId, item.VendorBranchId)))
             {
-                item.MarkSkipped("Product already exists in vendor store.");
+                item.MarkSkipped("Product already exists in vendor branch.");
             }
             else if (item.VendorBranchId.HasValue && !validBranchIds.Contains(item.VendorBranchId.Value))
             {
@@ -137,25 +161,37 @@ public sealed class VendorProductBulkOperationWorker : BackgroundService
             {
                 try
                 {
+                    canonicalPricingByProductId.TryGetValue(item.MasterProductId, out var canonicalPricing);
+
                     var vendorProduct = new VendorProduct(
                         operation.VendorId,
                         item.MasterProductId,
-                        item.SellingPrice,
+                        canonicalPricing?.SellingPrice ?? item.SellingPrice,
                         item.StockQty,
-                        item.CompareAtPrice,
-                        null,
-                        item.TradePrice,
+                        canonicalPricing?.CompareAtPrice ?? item.CompareAtPrice,
+                        canonicalPricing?.CostPrice,
+                        canonicalPricing?.TradePrice ?? item.TradePrice,
                         item.VendorBranchId);
 
                     context.VendorProducts.Add(vendorProduct);
                     await context.SaveChangesAsync(cancellationToken);
 
                     item.MarkSucceeded(vendorProduct.Id);
-                    existingVendorProductIds.Add(item.MasterProductId);
+                    existingVendorProductKeySet.Add(new VendorProductScopeKey(item.MasterProductId, item.VendorBranchId));
+                    canonicalPricingByProductId.TryAdd(
+                        item.MasterProductId,
+                        new CanonicalVendorProductPricing(
+                            item.MasterProductId,
+                            vendorProduct.SellingPrice,
+                            vendorProduct.CompareAtPrice,
+                            vendorProduct.CostPrice,
+                            vendorProduct.TradePrice,
+                            vendorProduct.VendorBranchId,
+                            vendorProduct.CreatedAtUtc));
                 }
                 catch (DbUpdateException)
                 {
-                    item.MarkSkipped("Product already exists in vendor store.");
+                    item.MarkSkipped("Product already exists in vendor branch.");
                 }
                 catch (Exception ex)
                 {
@@ -170,4 +206,15 @@ public sealed class VendorProductBulkOperationWorker : BackgroundService
         operation.RecalculateProgress();
         await context.SaveChangesAsync(cancellationToken);
     }
+
+    private sealed record VendorProductScopeKey(Guid MasterProductId, Guid? VendorBranchId);
+
+    private sealed record CanonicalVendorProductPricing(
+        Guid MasterProductId,
+        decimal SellingPrice,
+        decimal? CompareAtPrice,
+        decimal? CostPrice,
+        decimal? TradePrice,
+        Guid? VendorBranchId,
+        DateTime CreatedAtUtc);
 }

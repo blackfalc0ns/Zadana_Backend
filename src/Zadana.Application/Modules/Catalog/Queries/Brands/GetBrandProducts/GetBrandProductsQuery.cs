@@ -14,7 +14,10 @@ public record GetBrandProductsQuery(
     decimal? MaxPrice = null,
     string? Sort = null,
     int Page = 1,
-    int PerPage = 20) : IRequest<BrandProductsDto>
+    int PerPage = 20,
+    Guid? CustomerId = null,
+    Guid? AddressId = null,
+    string? City = null) : IRequest<BrandProductsDto>
 {
     public GetBrandProductsQuery(
         Guid brandId,

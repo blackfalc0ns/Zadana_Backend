@@ -44,8 +44,8 @@ public class GetCheckoutSummaryQueryHandler : IRequestHandler<GetCheckoutSummary
             cancellationToken);
 
         var cart = await CheckoutSupport.GetRequiredCartAsync(_context, request.UserId, cancellationToken);
-        var pricing = await CheckoutSupport.BuildPricingSnapshotAsync(_context, cart, request.VendorId, cancellationToken);
         var address = await CheckoutSupport.ResolveSelectedAddressAsync(_context, request.UserId, request.AddressId, cancellationToken);
+        var pricing = await CheckoutSupport.BuildPricingSnapshotAsync(_context, cart, request.VendorId, address, cancellationToken);
         var coupon = await CheckoutSupport.ResolveAppliedCouponAsync(_context, request.UserId, cart, cancellationToken);
         var deliveryBranchId = await CheckoutSupport.ResolveDeliveryBranchIdAsync(_context, pricing, address, cancellationToken);
         var deliveryAssessment = await CheckoutSupport.EvaluateDeliveryAsync(

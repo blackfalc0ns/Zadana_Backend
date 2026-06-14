@@ -8,6 +8,7 @@ using Zadana.Application.Common.Settings;
 using Zadana.Application.Modules.Catalog.DTOs;
 using Zadana.Application.Modules.Catalog.Interfaces;
 using Zadana.Application.Modules.Catalog.Queries;
+using Zadana.Application.Modules.Delivery.Support;
 using Zadana.Application.Modules.Vendors.Support;
 using Zadana.Domain.Modules.Catalog.Enums;
 using Zadana.Domain.Modules.Vendors.Enums;
@@ -42,6 +43,7 @@ public class SearchProductsQueryHandler : IRequestHandler<SearchProductsQuery, S
         var normalizedQuery = request.Query?.Trim() ?? string.Empty;
         var page = NormalizePage(request.Page);
         var perPage = NormalizePerPage(request.PerPage);
+        var requestedCity = await ResolveRequestedCityAsync(request.CustomerId, request.AddressId, request.City, cancellationToken);
         var baseResponse = await _cache.GetOrCreateAsync(
             CatalogQueryCacheKeys.SearchProducts(
                 normalizedQuery,
@@ -51,8 +53,9 @@ public class SearchProductsQueryHandler : IRequestHandler<SearchProductsQuery, S
                 request.MaxPrice,
                 request.Sort,
                 page,
-                perPage),
-            token => BuildBaseResponseAsync(request, normalizedQuery, page, perPage, token),
+                perPage,
+                requestedCity),
+            token => BuildBaseResponseAsync(request, normalizedQuery, page, perPage, requestedCity, token),
             new AppCacheEntryOptions(_durations.BrowseBase),
             [CacheTagNames.Catalog],
             cancellationToken);
@@ -66,6 +69,7 @@ public class SearchProductsQueryHandler : IRequestHandler<SearchProductsQuery, S
         string normalizedQuery,
         int page,
         int perPage,
+        string? requestedCity,
         CancellationToken cancellationToken)
     {
         var salesByVendorProductId = await _catalogReadCacheService.GetDeliveredSalesByVendorProductIdAsync(cancellationToken);
@@ -98,6 +102,9 @@ public class SearchProductsQueryHandler : IRequestHandler<SearchProductsQuery, S
                 product.MasterProductId,
                 product.CreatedAtUtc,
                 product.VendorId,
+                product.VendorBranchId,
+                product.VendorBranch != null ? product.VendorBranch.City : null,
+                product.Vendor.City,
                 !string.IsNullOrWhiteSpace(product.CustomNameAr) ? product.CustomNameAr : product.MasterProduct.NameAr,
                 !string.IsNullOrWhiteSpace(product.CustomNameEn) ? product.CustomNameEn : product.MasterProduct.NameEn,
                 product.Vendor.BusinessNameAr,
@@ -118,6 +125,9 @@ public class SearchProductsQueryHandler : IRequestHandler<SearchProductsQuery, S
                 product.MasterProduct.VariantGroupId,
                 product.MasterProduct.ShowPriceOnCard))
             .ToListAsync(cancellationToken);
+
+        rawProducts = ApplyUnifiedPricing(rawProducts);
+        rawProducts = FilterForRequestedCity(rawProducts, requestedCity);
 
         var availabilityDecisions = await VendorCustomerAvailabilityPolicy.LoadDecisionsAsync(
             _context,
@@ -302,11 +312,102 @@ public class SearchProductsQueryHandler : IRequestHandler<SearchProductsQuery, S
     private static Guid GetProductGroupKey(Guid variantGroupId, Guid masterProductId) =>
         variantGroupId != default ? variantGroupId : masterProductId;
 
+    private async Task<string?> ResolveRequestedCityAsync(
+        Guid? customerId,
+        Guid? addressId,
+        string? city,
+        CancellationToken cancellationToken)
+    {
+        if (!string.IsNullOrWhiteSpace(city))
+        {
+            return city.Trim();
+        }
+
+        if (!customerId.HasValue)
+        {
+            return null;
+        }
+
+        var query = _context.CustomerAddresses
+            .AsNoTracking()
+            .Where(address => address.UserId == customerId.Value);
+
+        if (addressId.HasValue)
+        {
+            query = query.Where(address => address.Id == addressId.Value);
+        }
+        else
+        {
+            query = query
+                .OrderByDescending(address => address.IsDefault)
+                .ThenByDescending(address => address.UpdatedAtUtc)
+                .ThenByDescending(address => address.CreatedAtUtc);
+        }
+
+        return await query
+            .Select(address => address.City)
+            .FirstOrDefaultAsync(cancellationToken);
+    }
+
+    private static List<RawSearchProduct> ApplyUnifiedPricing(List<RawSearchProduct> products)
+    {
+        var canonicalPricingByProduct = products
+            .GroupBy(product => new { product.VendorId, product.MasterProductId })
+            .ToDictionary(
+                group => group.Key,
+                group => group
+                    .OrderBy(product => product.VendorBranchId.HasValue)
+                    .ThenBy(product => product.CreatedAtUtc)
+                    .First());
+
+        return products
+            .Select(product =>
+            {
+                var canonical = canonicalPricingByProduct[new { product.VendorId, product.MasterProductId }];
+                return product with
+                {
+                    SellingPrice = canonical.SellingPrice,
+                    CompareAtPrice = canonical.CompareAtPrice
+                };
+            })
+            .ToList();
+    }
+
+    private static List<RawSearchProduct> FilterForRequestedCity(List<RawSearchProduct> products, string? city)
+    {
+        if (string.IsNullOrWhiteSpace(city))
+        {
+            return products;
+        }
+
+        return products
+            .GroupBy(product => new { product.VendorId, product.MasterProductId })
+            .SelectMany(group =>
+            {
+                var branchMatches = group
+                    .Where(product => product.VendorBranchId.HasValue && DeliveryCityMatcher.Matches(product.BranchCity ?? product.VendorCity, city))
+                    .ToList();
+
+                if (branchMatches.Count > 0)
+                {
+                    return branchMatches;
+                }
+
+                return group.Any(product => product.VendorBranchId.HasValue)
+                    ? []
+                    : group.Where(product => !product.VendorBranchId.HasValue && DeliveryCityMatcher.Matches(product.VendorCity, city));
+            })
+            .ToList();
+    }
+
     private sealed record RawSearchProduct(
         Guid Id,
         Guid MasterProductId,
         DateTime CreatedAtUtc,
         Guid VendorId,
+        Guid? VendorBranchId,
+        string? BranchCity,
+        string? VendorCity,
         string? NameAr,
         string? NameEn,
         string StoreAr,

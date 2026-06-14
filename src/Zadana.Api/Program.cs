@@ -390,7 +390,10 @@ builder.Services.AddOutputCache(options =>
             .SetVaryByQuery(
                 "categoryId", "subcategoryId", "brandId", "productTypeId",
                 "partId", "quantityId", "packageTypeId", "minPrice", "maxPrice",
-                "sort", "page", "perPage", "search", "query")
+                "category_id", "subcategory_id", "brand_id", "product_type_id",
+                "part_id", "quantity_id", "package_type_id", "min_price", "max_price",
+                "address_id", "city",
+                "sort", "page", "perPage", "per_page", "search", "query")
             .SetVaryByHeader("Accept-Language")
             .Tag("catalog-browse"));
 

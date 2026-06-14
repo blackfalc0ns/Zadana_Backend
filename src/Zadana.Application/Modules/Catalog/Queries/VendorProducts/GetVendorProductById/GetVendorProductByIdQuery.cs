@@ -51,7 +51,8 @@ public class GetVendorProductByIdQueryHandler : IRequestHandler<GetVendorProduct
             vp.StockQuantity,
             vp.IsAvailable,
             vp.Status.ToString(),
-            MasterProductDisplayDto.ToDto(vp.MasterProduct, true)
+            MasterProductDisplayDto.ToDto(vp.MasterProduct, true),
+            vp.VendorBranchId
         );
     }
 }

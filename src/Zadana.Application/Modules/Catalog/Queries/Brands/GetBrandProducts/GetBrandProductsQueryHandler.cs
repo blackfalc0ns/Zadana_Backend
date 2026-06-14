@@ -8,6 +8,7 @@ using Zadana.Application.Modules.Catalog.DTOs;
 using Zadana.Application.Modules.Catalog.Interfaces;
 using Zadana.Application.Modules.Catalog.Queries;
 using Zadana.Application.Modules.Catalog.Queries.Brands;
+using Zadana.Application.Modules.Delivery.Support;
 using Zadana.Application.Modules.Vendors.Support;
 using Zadana.Domain.Modules.Catalog.Entities;
 using Zadana.Domain.Modules.Catalog.Enums;
@@ -43,6 +44,7 @@ public class GetBrandProductsQueryHandler : IRequestHandler<GetBrandProductsQuer
     {
         var page = NormalizePage(request.Page);
         var perPage = NormalizePerPage(request.PerPage);
+        var requestedCity = await ResolveRequestedCityAsync(request.CustomerId, request.AddressId, request.City, cancellationToken);
         var baseResponse = await _cache.GetOrCreateAsync(
             CatalogQueryCacheKeys.BrandProducts(
                 request.BrandId,
@@ -55,8 +57,9 @@ public class GetBrandProductsQueryHandler : IRequestHandler<GetBrandProductsQuer
                 request.MaxPrice,
                 request.Sort,
                 page,
-                perPage),
-            token => BuildBaseResponseAsync(request, page, perPage, token),
+                perPage,
+                requestedCity),
+            token => BuildBaseResponseAsync(request, page, perPage, requestedCity, token),
             new AppCacheEntryOptions(_durations.BrowseBase),
             [CacheTagNames.Catalog],
             cancellationToken);
@@ -69,6 +72,7 @@ public class GetBrandProductsQueryHandler : IRequestHandler<GetBrandProductsQuer
         GetBrandProductsQuery request,
         int page,
         int perPage,
+        string? requestedCity,
         CancellationToken cancellationToken)
     {
         var brandExists = await _context.Brands
@@ -116,6 +120,9 @@ public class GetBrandProductsQueryHandler : IRequestHandler<GetBrandProductsQuer
                 product.MasterProductId,
                 product.CreatedAtUtc,
                 product.VendorId,
+                product.VendorBranchId,
+                product.VendorBranch != null ? product.VendorBranch.City : null,
+                product.Vendor.City,
                 !string.IsNullOrWhiteSpace(product.CustomNameAr) ? product.CustomNameAr : product.MasterProduct.NameAr,
                 !string.IsNullOrWhiteSpace(product.CustomNameEn) ? product.CustomNameEn : product.MasterProduct.NameEn,
                 product.Vendor.BusinessNameAr,
@@ -135,6 +142,9 @@ public class GetBrandProductsQueryHandler : IRequestHandler<GetBrandProductsQuer
                     .FirstOrDefault(),
                 product.MasterProduct.ShowPriceOnCard))
             .ToListAsync(cancellationToken);
+
+        rawProducts = ApplyUnifiedPricing(rawProducts);
+        rawProducts = FilterForRequestedCity(rawProducts, requestedCity);
 
         var availabilityDecisions = await VendorCustomerAvailabilityPolicy.LoadDecisionsAsync(
             _context,
@@ -316,6 +326,94 @@ public class GetBrandProductsQueryHandler : IRequestHandler<GetBrandProductsQuer
         return result;
     }
 
+    private async Task<string?> ResolveRequestedCityAsync(
+        Guid? customerId,
+        Guid? addressId,
+        string? city,
+        CancellationToken cancellationToken)
+    {
+        if (!string.IsNullOrWhiteSpace(city))
+        {
+            return city.Trim();
+        }
+
+        if (!customerId.HasValue)
+        {
+            return null;
+        }
+
+        var query = _context.CustomerAddresses
+            .AsNoTracking()
+            .Where(address => address.UserId == customerId.Value);
+
+        if (addressId.HasValue)
+        {
+            query = query.Where(address => address.Id == addressId.Value);
+        }
+        else
+        {
+            query = query
+                .OrderByDescending(address => address.IsDefault)
+                .ThenByDescending(address => address.UpdatedAtUtc)
+                .ThenByDescending(address => address.CreatedAtUtc);
+        }
+
+        return await query
+            .Select(address => address.City)
+            .FirstOrDefaultAsync(cancellationToken);
+    }
+
+    private static List<RawBrandProduct> ApplyUnifiedPricing(List<RawBrandProduct> products)
+    {
+        var canonicalPricingByProduct = products
+            .GroupBy(product => new { product.VendorId, product.MasterProductId })
+            .ToDictionary(
+                group => group.Key,
+                group => group
+                    .OrderBy(product => product.VendorBranchId.HasValue)
+                    .ThenBy(product => product.CreatedAtUtc)
+                    .First());
+
+        return products
+            .Select(product =>
+            {
+                var canonical = canonicalPricingByProduct[new { product.VendorId, product.MasterProductId }];
+                return product with
+                {
+                    SellingPrice = canonical.SellingPrice,
+                    CompareAtPrice = canonical.CompareAtPrice
+                };
+            })
+            .ToList();
+    }
+
+    private static List<RawBrandProduct> FilterForRequestedCity(List<RawBrandProduct> products, string? city)
+    {
+        if (string.IsNullOrWhiteSpace(city))
+        {
+            return products;
+        }
+
+        return products
+            .GroupBy(product => new { product.VendorId, product.MasterProductId })
+            .SelectMany(group =>
+            {
+                var branchMatches = group
+                    .Where(product => product.VendorBranchId.HasValue && DeliveryCityMatcher.Matches(product.BranchCity ?? product.VendorCity, city))
+                    .ToList();
+
+                if (branchMatches.Count > 0)
+                {
+                    return branchMatches;
+                }
+
+                return group.Any(product => product.VendorBranchId.HasValue)
+                    ? []
+                    : group.Where(product => !product.VendorBranchId.HasValue && DeliveryCityMatcher.Matches(product.VendorCity, city));
+            })
+            .ToList();
+    }
+
     private sealed record CategoryRow(Guid Id, Guid? ParentCategoryId);
 
     private sealed record RawBrandProduct(
@@ -323,6 +421,9 @@ public class GetBrandProductsQueryHandler : IRequestHandler<GetBrandProductsQuer
         Guid MasterProductId,
         DateTime CreatedAtUtc,
         Guid VendorId,
+        Guid? VendorBranchId,
+        string? BranchCity,
+        string? VendorCity,
         string? NameAr,
         string? NameEn,
         string StoreAr,

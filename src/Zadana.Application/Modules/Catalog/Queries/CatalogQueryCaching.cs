@@ -45,7 +45,8 @@ internal static class CatalogQueryCacheKeys
         decimal? maxPrice,
         string? sort,
         int page,
-        int perPage) =>
+        int perPage,
+        string? city = null) =>
         AppCacheKeys.Build(
             "catalog",
             "products",
@@ -60,6 +61,7 @@ internal static class CatalogQueryCacheKeys
             AppCacheKeys.NormalizeToken(sort),
             AppCacheKeys.IntToken(page),
             AppCacheKeys.IntToken(perPage),
+            string.IsNullOrWhiteSpace(city) ? string.Empty : AppCacheKeys.NormalizeToken(city),
             "public");
 
     public static string CategoryProducts(
@@ -108,7 +110,8 @@ internal static class CatalogQueryCacheKeys
         decimal? maxPrice,
         string? sort,
         int page,
-        int perPage) =>
+        int perPage,
+        string? city = null) =>
         AppCacheKeys.Build(
             "catalog",
             "brands",
@@ -126,6 +129,7 @@ internal static class CatalogQueryCacheKeys
             AppCacheKeys.NormalizeToken(sort),
             AppCacheKeys.IntToken(page),
             AppCacheKeys.IntToken(perPage),
+            string.IsNullOrWhiteSpace(city) ? string.Empty : AppCacheKeys.NormalizeToken(city),
             "public");
 
     public static string ProductDetails(Guid productId) =>

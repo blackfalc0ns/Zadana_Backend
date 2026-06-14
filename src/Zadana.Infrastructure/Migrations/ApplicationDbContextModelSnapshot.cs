@@ -1138,9 +1138,9 @@ namespace Zadana.Infrastructure.Migrations
                     b.HasIndex("VendorId")
                         .HasDatabaseName("IX_VendorProduct_VendorId");
 
-                    b.HasIndex("VendorId", "MasterProductId")
+                    b.HasIndex("VendorId", "MasterProductId", "VendorBranchId")
                         .IsUnique()
-                        .HasDatabaseName("IX_VendorProduct_Vendor_Master");
+                        .HasDatabaseName("IX_VendorProduct_Vendor_Master_Branch");
 
                     b.ToTable("VendorProduct", (string)null);
                 });

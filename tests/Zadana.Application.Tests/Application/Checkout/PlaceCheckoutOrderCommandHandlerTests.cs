@@ -322,6 +322,94 @@ public class PlaceCheckoutOrderCommandHandlerTests
             .Where(exception => exception.ErrorCode == "DELIVERY_NOT_AVAILABLE");
     }
 
+    [Fact]
+    public async Task Handle_WhenCustomerAddressMatchesBranch_ShouldUseThatBranchInventory()
+    {
+        await using var dbContext = CreateDbContext();
+
+        var customer = new User("Dammam Customer", "dammam.customer@test.com", "01000000330", UserRole.Customer);
+        var vendorUser = new User("Branch Vendor", "branch.vendor@test.com", "01000000331", UserRole.Vendor);
+        var category = new Category("Groceries", "Groceries");
+        var product = new MasterProduct("Water Pack", "Water Pack", "water-pack-branch-test", category.Id);
+        product.Publish();
+
+        var vendor = new Zadana.Domain.Modules.Vendors.Entities.Vendor(
+            vendorUser.Id,
+            "Branch Store",
+            "Branch Store",
+            "Groceries",
+            "1234567893",
+            "branch.vendor@test.com",
+            "01000000331");
+        vendor.Approve(10m, Guid.NewGuid());
+        vendor.UpdateOperationsSettings(true, null, 30);
+
+        var dammamBranch = new Zadana.Domain.Modules.Vendors.Entities.VendorBranch(vendor.Id, "Dammam Branch", "Dammam", 26.4207m, 50.0888m, "01000000332", 20m);
+        var dhahranBranch = new Zadana.Domain.Modules.Vendors.Entities.VendorBranch(vendor.Id, "Dhahran Branch", "Dhahran", 26.2361m, 50.0393m, "01000000333", 20m);
+        var dammamProduct = new VendorProduct(vendor.Id, product.Id, 25m, 8, tradePrice: 18m, vendorBranchId: dammamBranch.Id);
+        var dhahranProduct = new VendorProduct(vendor.Id, product.Id, 5m, 8, tradePrice: 4m, vendorBranchId: dhahranBranch.Id);
+        var address = new CustomerAddress(customer.Id, "Dammam Customer", "01000000330", "Dammam 12", AddressLabel.Home, city: "Dammam");
+        address.SetAsDefault();
+
+        var cart = new Cart(customer.Id);
+        cart.Items.Add(new CartItem(cart.Id, product.Id, product.NameEn, 2));
+        cart.UpdateTotals(50m, 0m);
+
+        dbContext.Users.AddRange(customer, vendorUser);
+        dbContext.Categories.Add(category);
+        dbContext.MasterProducts.Add(product);
+        dbContext.Vendors.Add(vendor);
+        dbContext.VendorBranches.AddRange(dammamBranch, dhahranBranch);
+        dbContext.VendorProducts.AddRange(dammamProduct, dhahranProduct);
+        dbContext.CustomerAddresses.Add(address);
+        dbContext.Carts.Add(cart);
+        await dbContext.SaveChangesAsync();
+
+        var orderRepository = new OrderRepository(dbContext);
+        var placeOrderHandler = new PlaceOrderCommandHandler(orderRepository, TestLocalizer.Create<SharedResource>(), dbContext);
+        var sender = new SenderProxy(type =>
+        {
+            if (type == typeof(IRequestHandler<PlaceOrderCommand, Guid>))
+            {
+                return placeOrderHandler;
+            }
+
+            throw new InvalidOperationException($"Unsupported handler: {type.FullName}");
+        });
+
+        var deliveryPricingMock = new Mock<IDeliveryPricingService>();
+        deliveryPricingMock
+            .Setup(service => service.QuoteAsync(dammamBranch.Id, address.Id, It.IsAny<CancellationToken>(), It.IsAny<decimal?>()))
+            .ReturnsAsync(new DeliveryPriceQuote(5m, 2m, 0m, 7m, 3m, "zone", "Dammam", 1m, 2m, 3m, 4m, "driver", "vendor", false, "manual", null, "locked", DateTime.UtcNow, 1, false));
+
+        var handler = new PlaceCheckoutOrderCommandHandler(
+            dbContext,
+            TestPaymentGatewayResolver.Disabled(),
+            deliveryPricingMock.Object,
+            sender,
+            dbContext,
+            Mock.Of<IPublisher>());
+
+        await handler.Handle(
+            new PlaceCheckoutOrderCommand(
+                customer.Id,
+                vendor.Id,
+                address.Id,
+                null,
+                "cash",
+                null,
+                null),
+            CancellationToken.None);
+
+        var savedOrder = await dbContext.Orders
+            .Include(order => order.Items)
+            .SingleAsync();
+
+        savedOrder.VendorBranchId.Should().Be(dammamBranch.Id);
+        savedOrder.Subtotal.Should().Be(50m);
+        savedOrder.Items.Single().VendorProductId.Should().Be(dammamProduct.Id);
+    }
+
     private sealed class SenderProxy : ISender
     {
         private readonly Func<Type, object> _resolver;

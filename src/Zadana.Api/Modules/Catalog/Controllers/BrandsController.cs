@@ -3,6 +3,7 @@ using Microsoft.AspNetCore.Mvc;
 using Microsoft.AspNetCore.OutputCaching;
 using Zadana.Api.Controllers;
 using Zadana.Api.Configuration;
+using Zadana.Application.Common.Interfaces;
 using Zadana.Application.Modules.Catalog.DTOs;
 using Zadana.Application.Modules.Catalog.Queries.Brands.GetBrandById;
 using Zadana.Application.Modules.Catalog.Queries.Brands.GetBrandFilters;
@@ -16,6 +17,13 @@ namespace Zadana.Api.Modules.Catalog.Controllers;
 [Tags("Customer App API")]
 public class BrandsController : ApiControllerBase
 {
+    private readonly ICurrentUserService? _currentUserService;
+
+    public BrandsController(ICurrentUserService? currentUserService = null)
+    {
+        _currentUserService = currentUserService;
+    }
+
     [HttpGet]
     [OutputCache(PolicyName = OutputCachePolicyNames.CatalogMetadata)]
     public async Task<ActionResult<List<BrandCustomerDto>>> GetBrands(CancellationToken cancellationToken = default)
@@ -54,7 +62,9 @@ public class BrandsController : ApiControllerBase
         [FromQuery] int page = 1,
         [FromQuery(Name = "per_page")] int perPage = 20,
         [FromQuery(Name = "package_type_id")] Guid? packageTypeId = null,
-        CancellationToken cancellationToken = default)
+        CancellationToken cancellationToken = default,
+        [FromQuery(Name = "address_id")] Guid? addressId = null,
+        [FromQuery(Name = "city")] string? city = null)
     {
         var effectiveMeasurementUnitId = measurementUnitId ?? unitId;
 
@@ -70,7 +80,10 @@ public class BrandsController : ApiControllerBase
                 maxPrice,
                 sort,
                 page,
-                perPage),
+                perPage,
+                _currentUserService?.UserId,
+                addressId,
+                city),
             cancellationToken);
 
         return Ok(result);

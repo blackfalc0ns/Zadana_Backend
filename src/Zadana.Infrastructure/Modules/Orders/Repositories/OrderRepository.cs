@@ -34,6 +34,7 @@ public class OrderRepository : IOrderRepository
     public async Task<IReadOnlyDictionary<Guid, VendorProduct>> GetVendorProductsForCheckoutAsync(
         Guid vendorId,
         IReadOnlyCollection<Guid> masterProductIds,
+        Guid? vendorBranchId,
         CancellationToken cancellationToken = default)
     {
         var vendorProducts = await _dbContext.VendorProducts
@@ -47,7 +48,11 @@ public class OrderRepository : IOrderRepository
             .Where(product => product.VendorId == vendorId && masterProductIds.Contains(product.MasterProductId))
             .ToListAsync(cancellationToken);
 
-        return vendorProducts.ToDictionary(product => product.MasterProductId);
+        return vendorProducts
+            .GroupBy(product => product.MasterProductId)
+            .Select(group => SelectProductForBranch(group.ToList(), vendorBranchId))
+            .Where(product => product is not null)
+            .ToDictionary(product => product!.MasterProductId, product => product!);
     }
 
     public async Task<Order?> GetReusablePendingOrderForCheckoutAsync(
@@ -141,6 +146,31 @@ public class OrderRepository : IOrderRepository
     public void AddOrder(Order order) => _dbContext.Orders.Add(order);
 
     public void AddOrderItem(OrderItem orderItem) => _dbContext.OrderItems.Add(orderItem);
+
+    private static VendorProduct? SelectProductForBranch(
+        IReadOnlyCollection<VendorProduct> products,
+        Guid? vendorBranchId)
+    {
+        if (vendorBranchId.HasValue)
+        {
+            var branchProduct = products.FirstOrDefault(product => product.VendorBranchId == vendorBranchId.Value);
+            if (branchProduct is not null)
+            {
+                return branchProduct;
+            }
+
+            var hasBranchScopedInventory = products.Any(product => product.VendorBranchId.HasValue);
+            if (hasBranchScopedInventory)
+            {
+                return null;
+            }
+        }
+
+        return products
+            .OrderBy(product => product.VendorBranchId.HasValue)
+            .ThenBy(product => product.CreatedAtUtc)
+            .FirstOrDefault();
+    }
 
     private static bool HasMatchingItems(Order order, IReadOnlyDictionary<Guid, int> itemQuantities)
     {

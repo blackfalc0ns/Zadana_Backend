@@ -42,6 +42,7 @@ internal static class CheckoutSupport
         IApplicationDbContext context,
         Cart cart,
         Guid? selectedVendorId,
+        CustomerAddress? address,
         CancellationToken cancellationToken)
     {
         var masterProductIds = cart.Items.Select(x => x.MasterProductId).Distinct().ToList();
@@ -94,9 +95,19 @@ internal static class CheckoutSupport
                     true),
                 MasterProductDisplayDto.BuildLegacyUnit(
                     product.MasterProduct.PackageType != null ? product.MasterProduct.PackageType.NameEn : null,
-                    product.MasterProduct.MeasurementUnit != null ? product.MasterProduct.MeasurementUnit.NameEn : product.MasterProduct.UnitOfMeasure != null ? product.MasterProduct.UnitOfMeasure.NameEn : null,
-                    false)))
+                product.MasterProduct.MeasurementUnit != null ? product.MasterProduct.MeasurementUnit.NameEn : product.MasterProduct.UnitOfMeasure != null ? product.MasterProduct.UnitOfMeasure.NameEn : null,
+                false)))
             .ToListAsync(cancellationToken);
+
+        candidateOffers = ApplyUnifiedPricing(candidateOffers);
+
+        var selectedBranchIdByVendor = await ResolveAddressBranchIdsByVendorAsync(
+            context,
+            candidateOffers.Select(offer => offer.VendorId),
+            address,
+            cancellationToken);
+
+        candidateOffers = FilterOffersForAddressBranch(candidateOffers, selectedBranchIdByVendor);
 
         var availabilityDecisions = await VendorCustomerAvailabilityPolicy.LoadDecisionsAsync(
             context,
@@ -247,6 +258,17 @@ internal static class CheckoutSupport
             return branches[0].Id;
         }
 
+        var sameCityBranch = branches
+            .Where(branch => IsSameCityDelivery(branch.City, address.City))
+            .OrderByDescending(branch => branch.IsPrimary)
+            .ThenBy(branch => branch.CreatedAtUtc)
+            .FirstOrDefault();
+
+        if (sameCityBranch is not null)
+        {
+            return sameCityBranch.Id;
+        }
+
         if (HasUsableCoordinates(address))
         {
             var addressLatitude = address.Latitude!.Value;
@@ -271,13 +293,7 @@ internal static class CheckoutSupport
             }
         }
 
-        var sameCityBranch = branches
-            .Where(branch => IsSameCityDelivery(branch.City, address.City))
-            .OrderByDescending(branch => branch.IsPrimary)
-            .ThenBy(branch => branch.CreatedAtUtc)
-            .FirstOrDefault();
-
-        return (sameCityBranch ?? branches[0]).Id;
+        return branches[0].Id;
     }
 
     public static async Task<CustomerAddress?> ResolveSelectedAddressAsync(
@@ -432,7 +448,7 @@ internal static class CheckoutSupport
                 item.Longitude,
                 item.DeliveryRadiusKm,
                 item.IsActive,
-                item.Vendor.City))
+                string.IsNullOrWhiteSpace(item.City) ? item.Vendor.City : item.City))
             .FirstOrDefaultAsync(cancellationToken);
 
         if (branch is null || !branch.IsActive)
@@ -784,6 +800,162 @@ internal static class CheckoutSupport
         };
     }
 
+    private static List<VendorOfferSnapshot> ApplyUnifiedPricing(List<VendorOfferSnapshot> offers)
+    {
+        if (offers.Count == 0)
+        {
+            return offers;
+        }
+
+        var canonicalPricingByProduct = offers
+            .GroupBy(offer => new { offer.VendorId, offer.MasterProductId })
+            .ToDictionary(
+                group => group.Key,
+                group => group
+                    .OrderBy(offer => offer.VendorBranchId.HasValue)
+                    .ThenBy(offer => offer.CreatedAtUtc)
+                    .First().Price);
+
+        return offers
+            .Select(offer =>
+            {
+                var price = canonicalPricingByProduct[new { offer.VendorId, offer.MasterProductId }];
+                return offer.Price == price ? offer : offer with { Price = price };
+            })
+            .ToList();
+    }
+
+    private static async Task<IReadOnlyDictionary<Guid, Guid?>> ResolveAddressBranchIdsByVendorAsync(
+        IApplicationDbContext context,
+        IEnumerable<Guid> vendorIds,
+        CustomerAddress? address,
+        CancellationToken cancellationToken)
+    {
+        if (address is null)
+        {
+            return new Dictionary<Guid, Guid?>();
+        }
+
+        var distinctVendorIds = vendorIds.Distinct().ToArray();
+        if (distinctVendorIds.Length == 0)
+        {
+            return new Dictionary<Guid, Guid?>();
+        }
+
+        var branches = await context.VendorBranches
+            .AsNoTracking()
+            .Where(branch => distinctVendorIds.Contains(branch.VendorId) && branch.IsActive)
+            .OrderByDescending(branch => branch.IsPrimary)
+            .ThenBy(branch => branch.CreatedAtUtc)
+            .Select(branch => new AddressBranchCandidate(
+                branch.VendorId,
+                branch.Id,
+                branch.Latitude,
+                branch.Longitude,
+                branch.DeliveryRadiusKm,
+                branch.City,
+                branch.IsPrimary,
+                branch.CreatedAtUtc))
+            .ToListAsync(cancellationToken);
+
+        return branches
+            .GroupBy(branch => branch.VendorId)
+            .ToDictionary(
+                group => group.Key,
+                group => (Guid?)ResolveBestBranchForAddress(group.ToList(), address)?.Id);
+    }
+
+    private static List<VendorOfferSnapshot> FilterOffersForAddressBranch(
+        List<VendorOfferSnapshot> offers,
+        IReadOnlyDictionary<Guid, Guid?> selectedBranchIdByVendor)
+    {
+        if (offers.Count == 0 || selectedBranchIdByVendor.Count == 0)
+        {
+            return offers;
+        }
+
+        return offers
+            .GroupBy(offer => new { offer.VendorId, offer.MasterProductId })
+            .SelectMany(group =>
+            {
+                if (!selectedBranchIdByVendor.TryGetValue(group.Key.VendorId, out var selectedBranchId) ||
+                    !selectedBranchId.HasValue)
+                {
+                    return group;
+                }
+
+                var branchOffers = group
+                    .Where(offer => offer.VendorBranchId == selectedBranchId.Value)
+                    .ToList();
+
+                if (branchOffers.Count > 0)
+                {
+                    return branchOffers;
+                }
+
+                var hasBranchScopedInventory = group.Any(offer => offer.VendorBranchId.HasValue);
+                return hasBranchScopedInventory
+                    ? []
+                    : group.Where(offer => !offer.VendorBranchId.HasValue);
+            })
+            .ToList();
+    }
+
+    private static AddressBranchCandidate? ResolveBestBranchForAddress(
+        IReadOnlyCollection<AddressBranchCandidate> branches,
+        CustomerAddress address)
+    {
+        if (branches.Count == 0)
+        {
+            return null;
+        }
+
+        if (branches.Count == 1)
+        {
+            return branches.First();
+        }
+
+        var sameCityBranch = branches
+            .Where(branch => IsSameCityDelivery(branch.City, address.City))
+            .OrderByDescending(branch => branch.IsPrimary)
+            .ThenBy(branch => branch.CreatedAtUtc)
+            .FirstOrDefault();
+
+        if (sameCityBranch is not null)
+        {
+            return sameCityBranch;
+        }
+
+        if (HasUsableCoordinates(address))
+        {
+            var addressLatitude = address.Latitude!.Value;
+            var addressLongitude = address.Longitude!.Value;
+            var nearestBranch = branches
+                .Where(branch => HasUsableCoordinates(branch.Latitude, branch.Longitude))
+                .Select(branch =>
+                {
+                    var distanceKm = ApproximateDistanceKm(branch.Latitude, branch.Longitude, addressLatitude, addressLongitude);
+                    var isInsideRadius = branch.DeliveryRadiusKm <= 0m || distanceKm <= branch.DeliveryRadiusKm;
+                    return new AddressBranchDistance(branch, distanceKm, isInsideRadius);
+                })
+                .OrderByDescending(item => item.IsInsideRadius)
+                .ThenBy(item => item.DistanceKm)
+                .ThenByDescending(item => item.Branch.IsPrimary)
+                .ThenBy(item => item.Branch.CreatedAtUtc)
+                .FirstOrDefault();
+
+            if (nearestBranch is not null)
+            {
+                return nearestBranch.Branch;
+            }
+        }
+
+        return branches
+            .OrderByDescending(branch => branch.IsPrimary)
+            .ThenBy(branch => branch.CreatedAtUtc)
+            .First();
+    }
+
     private static bool HasUsableCoordinates(CustomerAddress address) =>
         address.Latitude.HasValue &&
         address.Longitude.HasValue &&
@@ -1130,6 +1302,21 @@ internal static class CheckoutSupport
 
     private sealed record BranchDistanceSnapshot(
         ActiveBranchSnapshot Branch,
+        decimal DistanceKm,
+        bool IsInsideRadius);
+
+    private sealed record AddressBranchCandidate(
+        Guid VendorId,
+        Guid Id,
+        decimal Latitude,
+        decimal Longitude,
+        decimal DeliveryRadiusKm,
+        string? City,
+        bool IsPrimary,
+        DateTime CreatedAtUtc);
+
+    private sealed record AddressBranchDistance(
+        AddressBranchCandidate Branch,
         decimal DistanceKm,
         bool IsInsideRadius);
 

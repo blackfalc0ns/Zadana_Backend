@@ -12,6 +12,7 @@ public interface IOrderRepository
     Task<IReadOnlyDictionary<Guid, VendorProduct>> GetVendorProductsForCheckoutAsync(
         Guid vendorId,
         IReadOnlyCollection<Guid> masterProductIds,
+        Guid? vendorBranchId,
         CancellationToken cancellationToken = default);
     Task<Order?> GetReusablePendingOrderForCheckoutAsync(
         Guid userId,

@@ -49,14 +49,14 @@ public class BulkCreateVendorProductsCommandHandler : IRequestHandler<BulkCreate
         }
 
         var duplicateMasterProducts = request.Items
-            .GroupBy(x => x.MasterProductId)
+            .GroupBy(x => new { x.MasterProductId, x.BranchId })
             .Where(x => x.Count() > 1)
             .Select(x => x.Key)
             .ToHashSet();
 
         if (duplicateMasterProducts.Count > 0)
         {
-            throw new ValidationException("Duplicate master products are not allowed in the same bulk request.");
+            throw new ValidationException("Duplicate master products are not allowed in the same branch in one bulk request.");
         }
 
         var branchIds = request.Items

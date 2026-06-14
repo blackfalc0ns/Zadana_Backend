@@ -58,6 +58,7 @@ public class PlaceOrderCommandHandler : IRequestHandler<PlaceOrderCommand, Guid>
         var vendorProducts = await _orderRepository.GetVendorProductsForCheckoutAsync(
             request.VendorId,
             masterProductIds,
+            request.VendorBranchId,
             cancellationToken);
 
         foreach (var cartItem in cart.Items)

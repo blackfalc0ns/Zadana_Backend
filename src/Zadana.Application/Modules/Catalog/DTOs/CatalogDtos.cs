@@ -53,7 +53,8 @@ public record VendorProductDto(
     int StockQuantity,
     bool IsAvailable,
     string Status,
-    MasterProductDto MasterProduct);
+    MasterProductDto MasterProduct,
+    Guid? VendorBranchId = null);
 
 public record ProductVendorSnapshotDto(
     Guid VendorId,

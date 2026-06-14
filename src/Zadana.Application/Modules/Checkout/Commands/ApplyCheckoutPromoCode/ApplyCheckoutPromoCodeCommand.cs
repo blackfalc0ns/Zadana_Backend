@@ -42,8 +42,8 @@ public class ApplyCheckoutPromoCodeCommandHandler : IRequestHandler<ApplyCheckou
     public async Task<ApplyCheckoutPromoCodeResultDto> Handle(ApplyCheckoutPromoCodeCommand request, CancellationToken cancellationToken)
     {
         var cart = await CheckoutSupport.GetRequiredCartAsync(_context, request.UserId, cancellationToken, asTracking: true);
-        var pricing = await CheckoutSupport.BuildPricingSnapshotAsync(_context, cart, request.VendorId, cancellationToken);
         var address = await CheckoutSupport.ResolveSelectedAddressAsync(_context, request.UserId, null, cancellationToken);
+        var pricing = await CheckoutSupport.BuildPricingSnapshotAsync(_context, cart, request.VendorId, address, cancellationToken);
         var coupon = await CheckoutSupport.ResolveCouponByCodeAsync(_context, request.UserId, request.Code, pricing.VendorId, pricing.Subtotal, cancellationToken);
         var deliveryBranchId = await CheckoutSupport.ResolveDeliveryBranchIdAsync(_context, pricing, address, cancellationToken);
         var deliveryQuote = await CheckoutSupport.QuoteDeliveryOrFallbackAsync(

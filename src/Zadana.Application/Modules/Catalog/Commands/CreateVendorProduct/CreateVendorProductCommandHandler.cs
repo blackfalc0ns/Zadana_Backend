@@ -59,14 +59,43 @@ public class CreateVendorProductCommandHandler : IRequestHandler<CreateVendorPro
             }
         }
 
+        var productExistsInScope = await _context.VendorProducts
+            .AsNoTracking()
+            .AnyAsync(product =>
+                product.VendorId == request.VendorId &&
+                product.MasterProductId == request.MasterProductId &&
+                product.VendorBranchId == request.BranchId,
+                cancellationToken);
+
+        if (productExistsInScope)
+        {
+            throw new BusinessRuleException("VENDOR_PRODUCT_ALREADY_EXISTS", "Product already exists in this vendor branch.");
+        }
+
+        var canonicalPricing = await _context.VendorProducts
+            .AsNoTracking()
+            .Where(product =>
+                product.VendorId == request.VendorId &&
+                product.MasterProductId == request.MasterProductId)
+            .OrderBy(product => product.VendorBranchId.HasValue)
+            .ThenBy(product => product.CreatedAtUtc)
+            .Select(product => new
+            {
+                product.SellingPrice,
+                product.CompareAtPrice,
+                product.CostPrice,
+                product.TradePrice
+            })
+            .FirstOrDefaultAsync(cancellationToken);
+
         var vendorProduct = new VendorProduct(
             vendorId: request.VendorId,
             masterProductId: request.MasterProductId,
-            sellingPrice: request.SellingPrice,
+            sellingPrice: canonicalPricing?.SellingPrice ?? request.SellingPrice,
             stockQuantity: request.StockQty,
-            compareAtPrice: request.CompareAtPrice,
-            costPrice: request.CostPrice,
-            tradePrice: request.TradePrice,
+            compareAtPrice: canonicalPricing?.CompareAtPrice ?? request.CompareAtPrice,
+            costPrice: canonicalPricing?.CostPrice ?? request.CostPrice,
+            tradePrice: canonicalPricing?.TradePrice ?? request.TradePrice,
             vendorBranchId: request.BranchId
         );
 

@@ -87,7 +87,7 @@ public class PlaceOrderCommandHandlerTests
             .Setup(repository => repository.GetCartForCheckoutAsync(userId, It.IsAny<CancellationToken>()))
             .ReturnsAsync(cart);
         _orderRepositoryMock
-            .Setup(repository => repository.GetVendorProductsForCheckoutAsync(vendorId, It.IsAny<IReadOnlyCollection<Guid>>(), It.IsAny<CancellationToken>()))
+            .Setup(repository => repository.GetVendorProductsForCheckoutAsync(vendorId, It.IsAny<IReadOnlyCollection<Guid>>(), It.IsAny<Guid?>(), It.IsAny<CancellationToken>()))
             .ReturnsAsync(new Dictionary<Guid, VendorProduct>());
         _orderRepositoryMock
             .Setup(repository => repository.GetReusablePendingOrderForCheckoutAsync(
@@ -207,7 +207,7 @@ public class PlaceOrderCommandHandlerTests
             .Setup(repository => repository.GetCartForCheckoutAsync(userId, It.IsAny<CancellationToken>()))
             .ReturnsAsync(cart);
         _orderRepositoryMock
-            .Setup(repository => repository.GetVendorProductsForCheckoutAsync(vendorId, It.IsAny<IReadOnlyCollection<Guid>>(), It.IsAny<CancellationToken>()))
+            .Setup(repository => repository.GetVendorProductsForCheckoutAsync(vendorId, It.IsAny<IReadOnlyCollection<Guid>>(), It.IsAny<Guid?>(), It.IsAny<CancellationToken>()))
             .ReturnsAsync(new Dictionary<Guid, VendorProduct> { [masterProduct.Id] = vendorProduct });
         _orderRepositoryMock
             .Setup(repository => repository.GetReusablePendingOrderForCheckoutAsync(
@@ -272,7 +272,7 @@ public class PlaceOrderCommandHandlerTests
             .Setup(repository => repository.GetCartForCheckoutAsync(userId, It.IsAny<CancellationToken>()))
             .ReturnsAsync(cart);
         _orderRepositoryMock
-            .Setup(repository => repository.GetVendorProductsForCheckoutAsync(vendorId, It.IsAny<IReadOnlyCollection<Guid>>(), It.IsAny<CancellationToken>()))
+            .Setup(repository => repository.GetVendorProductsForCheckoutAsync(vendorId, It.IsAny<IReadOnlyCollection<Guid>>(), It.IsAny<Guid?>(), It.IsAny<CancellationToken>()))
             .ReturnsAsync(new Dictionary<Guid, VendorProduct>
             {
                 [masterProduct.Id] = new VendorProduct(vendorId, masterProduct.Id, 40m, 5)

@@ -33,13 +33,23 @@ public class UpdateVendorProductCommandHandler : IRequestHandler<UpdateVendorPro
         if (!request.TradePrice.HasValue)
             throw new BusinessRuleException("TRADE_PRICE_REQUIRED", "Trade price is required.");
 
-        vendorProduct.UpdatePricing(request.SellingPrice, request.CompareAtPrice, request.CostPrice, request.TradePrice);
+        var productRows = await _context.VendorProducts
+            .Where(vp =>
+                vp.VendorId == request.VendorId &&
+                vp.MasterProductId == vendorProduct.MasterProductId)
+            .ToListAsync(cancellationToken);
+
+        foreach (var productRow in productRows)
+        {
+            productRow.UpdatePricing(request.SellingPrice, request.CompareAtPrice, request.CostPrice, request.TradePrice);
+            productRow.UpdateCustomDetails(
+                request.CustomNameAr,
+                request.CustomNameEn,
+                request.CustomDescriptionAr,
+                request.CustomDescriptionEn);
+        }
+
         vendorProduct.UpdateStock(request.StockQty);
-        vendorProduct.UpdateCustomDetails(
-            request.CustomNameAr, 
-            request.CustomNameEn, 
-            request.CustomDescriptionAr, 
-            request.CustomDescriptionEn);
 
         await _context.SaveChangesAsync(cancellationToken);
         await _cacheInvalidator.RemoveByTagsAsync(CacheInvalidationProfiles.CatalogReadModels, cancellationToken);

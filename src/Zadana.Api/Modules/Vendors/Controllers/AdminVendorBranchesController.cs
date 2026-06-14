@@ -44,7 +44,7 @@ public class AdminVendorBranchesController : ApiControllerBase
             .Select(b => new
             {
                 b.Id, b.Name, b.AddressLine, b.Latitude, b.Longitude,
-                b.ContactPhone, b.DeliveryRadiusKm, b.IsActive, b.CreatedAtUtc
+                b.ContactPhone, b.DeliveryRadiusKm, b.IsActive, b.City, b.Region, b.CreatedAtUtc
             })
             .ToListAsync(ct);
 
@@ -63,7 +63,7 @@ public class AdminVendorBranchesController : ApiControllerBase
         return Ok(new
         {
             branch.Id, branch.Name, branch.AddressLine, branch.Latitude, branch.Longitude,
-            branch.ContactPhone, branch.DeliveryRadiusKm, branch.IsActive, branch.CreatedAtUtc,
+            branch.ContactPhone, branch.DeliveryRadiusKm, branch.IsActive, branch.City, branch.Region, branch.CreatedAtUtc,
             OperatingHours = branch.OperatingHours.Select(h => new
             {
                 h.DayOfWeek, h.OpenTime, h.CloseTime, h.IsClosed

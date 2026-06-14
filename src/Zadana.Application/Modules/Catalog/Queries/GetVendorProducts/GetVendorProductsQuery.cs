@@ -102,7 +102,8 @@ public class GetVendorProductsQueryHandler : IRequestHandler<GetVendorProductsQu
             vp.StockQuantity,
             vp.IsAvailable,
             vp.Status.ToString(),
-            MasterProductDisplayDto.ToDto(vp.MasterProduct, true)
+            MasterProductDisplayDto.ToDto(vp.MasterProduct, true),
+            vp.VendorBranchId
         )).ToList();
         
         return new PaginatedList<VendorProductDto>(items, totalCount, request.PageNumber, request.PageSize);

@@ -11,4 +11,7 @@ public record SearchProductsQuery(
     decimal? MaxPrice,
     string? Sort,
     int Page = 1,
-    int PerPage = 20) : IRequest<SearchProductsResponseDto>;
+    int PerPage = 20,
+    Guid? CustomerId = null,
+    Guid? AddressId = null,
+    string? City = null) : IRequest<SearchProductsResponseDto>;
