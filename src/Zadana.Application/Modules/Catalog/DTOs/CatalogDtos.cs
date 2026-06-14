@@ -58,7 +58,8 @@ public record VendorProductDto(
     bool IsAvailable,
     string Status,
     MasterProductDto MasterProduct,
-    Guid? VendorBranchId = null);
+    Guid? VendorBranchId = null,
+    bool CanEditPrice = true);
 
 public record ProductVendorSnapshotDto(
     Guid VendorId,

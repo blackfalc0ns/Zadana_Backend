@@ -37,6 +37,7 @@ public class GetVendorProductsQueryHandler : IRequestHandler<GetVendorProductsQu
             .Include(vp => vp.MasterProduct)
                 .ThenInclude(mp => mp.MeasurementUnit)
             .Include(vp => vp.Vendor)
+            .Include(vp => vp.VendorBranch)
             .Where(vp => vp.VendorId == request.VendorId && vp.MasterProduct != null);
 
         if (request.CategoryId.HasValue)
@@ -103,7 +104,8 @@ public class GetVendorProductsQueryHandler : IRequestHandler<GetVendorProductsQu
             vp.IsAvailable,
             vp.Status.ToString(),
             MasterProductDisplayDto.ToDto(vp.MasterProduct, true),
-            vp.VendorBranchId
+            vp.VendorBranchId,
+            vp.VendorBranchId is null || vp.VendorBranch != null && vp.VendorBranch.IsPrimary
         )).ToList();
         
         return new PaginatedList<VendorProductDto>(items, totalCount, request.PageNumber, request.PageSize);

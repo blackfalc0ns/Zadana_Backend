@@ -30,6 +30,7 @@ public class GetVendorProductByIdQueryHandler : IRequestHandler<GetVendorProduct
             .Include(x => x.MasterProduct)
                 .ThenInclude(mp => mp.MeasurementUnit)
             .Include(x => x.Vendor)
+            .Include(x => x.VendorBranch)
             .FirstOrDefaultAsync(x =>
                 x.Id == request.ProductId &&
                 x.VendorId == request.VendorId &&
@@ -52,7 +53,8 @@ public class GetVendorProductByIdQueryHandler : IRequestHandler<GetVendorProduct
             vp.IsAvailable,
             vp.Status.ToString(),
             MasterProductDisplayDto.ToDto(vp.MasterProduct, true),
-            vp.VendorBranchId
+            vp.VendorBranchId,
+            vp.VendorBranchId is null || vp.VendorBranch != null && vp.VendorBranch.IsPrimary
         );
     }
 }

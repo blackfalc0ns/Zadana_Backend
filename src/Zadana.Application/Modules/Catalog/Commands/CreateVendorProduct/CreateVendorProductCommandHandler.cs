@@ -48,15 +48,22 @@ public class CreateVendorProductCommandHandler : IRequestHandler<CreateVendorPro
             throw new BusinessRuleException("TRADE_PRICE_REQUIRED", "Trade price is required.");
         }
 
+        var isCanonicalPriceScope = !request.BranchId.HasValue;
+
         if (request.BranchId.HasValue)
         {
-            var branchBelongsToVendor = await _context.VendorBranches
-                .AnyAsync(branch => branch.Id == request.BranchId.Value && branch.VendorId == request.VendorId, cancellationToken);
+            var branch = await _context.VendorBranches
+                .AsNoTracking()
+                .Where(branch => branch.Id == request.BranchId.Value && branch.VendorId == request.VendorId)
+                .Select(branch => new { branch.Id, branch.IsPrimary })
+                .FirstOrDefaultAsync(cancellationToken);
 
-            if (!branchBelongsToVendor)
+            if (branch is null)
             {
                 throw new NotFoundException("VendorBranch", request.BranchId.Value);
             }
+
+            isCanonicalPriceScope = branch.IsPrimary;
         }
 
         var productExistsInScope = await _context.VendorProducts
@@ -72,22 +79,38 @@ public class CreateVendorProductCommandHandler : IRequestHandler<CreateVendorPro
             throw new BusinessRuleException("VENDOR_PRODUCT_ALREADY_EXISTS", "Product already exists in this vendor branch.");
         }
 
-        var canonicalPricing = await _context.VendorProducts
-            .AsNoTracking()
-            .Where(product =>
-                product.VendorId == request.VendorId &&
-                product.MasterProductId == request.MasterProductId)
-            .OrderByDescending(product => product.VendorBranch != null && product.VendorBranch.IsPrimary)
-            .ThenBy(product => product.VendorBranchId.HasValue)
-            .ThenBy(product => product.CreatedAtUtc)
-            .Select(product => new
+        var canonicalPricing = isCanonicalPriceScope
+            ? null
+            : await _context.VendorProducts
+                .AsNoTracking()
+                .Where(product =>
+                    product.VendorId == request.VendorId &&
+                    product.MasterProductId == request.MasterProductId)
+                .OrderByDescending(product => product.VendorBranch != null && product.VendorBranch.IsPrimary)
+                .ThenBy(product => product.VendorBranchId.HasValue)
+                .ThenBy(product => product.CreatedAtUtc)
+                .Select(product => new
+                {
+                    product.SellingPrice,
+                    product.CompareAtPrice,
+                    product.CostPrice,
+                    product.TradePrice
+                })
+                .FirstOrDefaultAsync(cancellationToken);
+
+        if (isCanonicalPriceScope)
+        {
+            var existingProductRows = await _context.VendorProducts
+                .Where(product =>
+                    product.VendorId == request.VendorId &&
+                    product.MasterProductId == request.MasterProductId)
+                .ToListAsync(cancellationToken);
+
+            foreach (var productRow in existingProductRows)
             {
-                product.SellingPrice,
-                product.CompareAtPrice,
-                product.CostPrice,
-                product.TradePrice
-            })
-            .FirstOrDefaultAsync(cancellationToken);
+                productRow.UpdatePricing(request.SellingPrice, request.CompareAtPrice, request.CostPrice, request.TradePrice);
+            }
+        }
 
         var vendorProduct = new VendorProduct(
             vendorId: request.VendorId,

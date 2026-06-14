@@ -21,6 +21,7 @@ public class UpdateVendorProductCommandHandler : IRequestHandler<UpdateVendorPro
     public async Task Handle(UpdateVendorProductCommand request, CancellationToken cancellationToken)
     {
         var vendorProduct = await _context.VendorProducts
+            .Include(vp => vp.VendorBranch)
             .FirstOrDefaultAsync(vp =>
                 vp.Id == request.Id &&
                 vp.VendorId == request.VendorId &&
@@ -39,9 +40,19 @@ public class UpdateVendorProductCommandHandler : IRequestHandler<UpdateVendorPro
                 vp.MasterProductId == vendorProduct.MasterProductId)
             .ToListAsync(cancellationToken);
 
+        var canUpdateCanonicalPricing = vendorProduct.VendorBranchId is null ||
+            vendorProduct.VendorBranch?.IsPrimary == true;
+
+        if (canUpdateCanonicalPricing)
+        {
+            foreach (var productRow in productRows)
+            {
+                productRow.UpdatePricing(request.SellingPrice, request.CompareAtPrice, request.CostPrice, request.TradePrice);
+            }
+        }
+
         foreach (var productRow in productRows)
         {
-            productRow.UpdatePricing(request.SellingPrice, request.CompareAtPrice, request.CostPrice, request.TradePrice);
             productRow.UpdateCustomDetails(
                 request.CustomNameAr,
                 request.CustomNameEn,

@@ -95,11 +95,16 @@ public sealed class VendorProductBulkOperationProcessor : IVendorProductBulkOper
                     .ThenBy(product => product.CreatedAtUtc)
                     .First());
 
-        var validBranchIds = await _context.VendorBranches
+        var branchScopes = await _context.VendorBranches
             .AsNoTracking()
             .Where(x => x.VendorId == operation.VendorId)
+            .Select(x => new { x.Id, x.IsPrimary })
+            .ToListAsync(cancellationToken);
+        var validBranchIds = branchScopes.Select(x => x.Id).ToHashSet();
+        var primaryBranchIds = branchScopes
+            .Where(x => x.IsPrimary)
             .Select(x => x.Id)
-            .ToHashSetAsync(cancellationToken);
+            .ToHashSet();
 
         foreach (var item in operation.Items.OrderBy(x => x.RowNumber))
         {
@@ -142,7 +147,7 @@ public sealed class VendorProductBulkOperationProcessor : IVendorProductBulkOper
             }
             else
             {
-                await CreateVendorProductAsync(operation, item, existingVendorProductKeySet, canonicalPricingByProductId, cancellationToken);
+                await CreateVendorProductAsync(operation, item, existingVendorProductKeySet, canonicalPricingByProductId, primaryBranchIds, cancellationToken);
             }
 
             operation.RecalculateProgress();
@@ -158,6 +163,7 @@ public sealed class VendorProductBulkOperationProcessor : IVendorProductBulkOper
         VendorProductBulkOperationItem item,
         HashSet<VendorProductScopeKey> existingVendorProductKeySet,
         Dictionary<Guid, CanonicalVendorProductPricing> canonicalPricingByProductId,
+        HashSet<Guid> primaryBranchIds,
         CancellationToken cancellationToken)
     {
         VendorProduct? vendorProduct = null;
@@ -165,15 +171,36 @@ public sealed class VendorProductBulkOperationProcessor : IVendorProductBulkOper
         try
         {
             canonicalPricingByProductId.TryGetValue(item.MasterProductId, out var canonicalPricing);
+            var isCanonicalPriceScope = !item.VendorBranchId.HasValue ||
+                primaryBranchIds.Contains(item.VendorBranchId.Value);
+
+            var sellingPrice = isCanonicalPriceScope ? item.SellingPrice : canonicalPricing?.SellingPrice ?? item.SellingPrice;
+            var compareAtPrice = isCanonicalPriceScope ? item.CompareAtPrice : canonicalPricing?.CompareAtPrice ?? item.CompareAtPrice;
+            var costPrice = isCanonicalPriceScope ? null : canonicalPricing?.CostPrice;
+            var tradePrice = isCanonicalPriceScope ? item.TradePrice : canonicalPricing?.TradePrice ?? item.TradePrice;
+
+            if (isCanonicalPriceScope)
+            {
+                var existingProductRows = await _context.VendorProducts
+                    .Where(product =>
+                        product.VendorId == operation.VendorId &&
+                        product.MasterProductId == item.MasterProductId)
+                    .ToListAsync(cancellationToken);
+
+                foreach (var productRow in existingProductRows)
+                {
+                    productRow.UpdatePricing(sellingPrice, compareAtPrice, costPrice, tradePrice);
+                }
+            }
 
             vendorProduct = new VendorProduct(
                 operation.VendorId,
                 item.MasterProductId,
-                canonicalPricing?.SellingPrice ?? item.SellingPrice,
+                sellingPrice,
                 item.StockQty,
-                canonicalPricing?.CompareAtPrice ?? item.CompareAtPrice,
-                canonicalPricing?.CostPrice,
-                canonicalPricing?.TradePrice ?? item.TradePrice,
+                compareAtPrice,
+                costPrice,
+                tradePrice,
                 item.VendorBranchId);
 
             _context.VendorProducts.Add(vendorProduct);
@@ -181,17 +208,15 @@ public sealed class VendorProductBulkOperationProcessor : IVendorProductBulkOper
 
             item.MarkSucceeded(vendorProduct.Id);
             existingVendorProductKeySet.Add(new VendorProductScopeKey(item.MasterProductId, item.VendorBranchId));
-            canonicalPricingByProductId.TryAdd(
+            canonicalPricingByProductId[item.MasterProductId] = new CanonicalVendorProductPricing(
                 item.MasterProductId,
-                new CanonicalVendorProductPricing(
-                    item.MasterProductId,
-                    vendorProduct.SellingPrice,
-                    vendorProduct.CompareAtPrice,
-                    vendorProduct.CostPrice,
-                    vendorProduct.TradePrice,
-                    vendorProduct.VendorBranchId,
-                    false,
-                    vendorProduct.CreatedAtUtc));
+                vendorProduct.SellingPrice,
+                vendorProduct.CompareAtPrice,
+                vendorProduct.CostPrice,
+                vendorProduct.TradePrice,
+                vendorProduct.VendorBranchId,
+                isCanonicalPriceScope,
+                vendorProduct.CreatedAtUtc);
         }
         catch (DbUpdateException)
         {
