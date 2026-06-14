@@ -636,6 +636,7 @@ builder.Services.AddCors(options =>
                     "Accept-Language",
                     "Cache-Control",
                     "X-Requested-With",
+                    "X-SignalR-User-Agent",
                     "X-Device-Id",
                     "X-Seeding-Key",
                     "X-Moyasar-Signature",
