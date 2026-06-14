@@ -1,3 +1,4 @@
+using System.Text;
 using System.Text.Json;
 using Zadana.Application.Modules.Delivery.DTOs;
 
@@ -5,6 +6,14 @@ namespace Zadana.Application.Modules.Delivery.Support;
 
 public static class DriverNotificationDataBuilder
 {
+    /// <summary>
+    /// OneSignal rejects push when serialized <c>data</c> exceeds 2048 bytes.
+    /// BuildAdditionalData nests the payload and merges the same keys at the top level (~2x size).
+    /// </summary>
+    public const int OneSignalMaxDataBytes = 2048;
+
+    public const int OneSignalMergedPayloadBudgetBytes = 900;
+
     private static readonly JsonSerializerOptions JsonOptions = new()
     {
         PropertyNamingPolicy = JsonNamingPolicy.CamelCase
@@ -86,8 +95,8 @@ public static class DriverNotificationDataBuilder
             });
 
     /// <summary>
-    /// Push payload for delivery offers. Includes flat offer fields for native overlay
-    /// when the app is killed; keep an eye on provider data size limits.
+    /// Compact push payload for delivery offers when the app is killed.
+    /// Full offer details stay in inbox + SignalR; mobile should refresh home on tap.
     /// </summary>
     public static string BuildDispatchOfferPushData(
         Guid orderId,
@@ -98,6 +107,11 @@ public static class DriverNotificationDataBuilder
         string? source = null)
     {
         var itemsCount = currentOffer.OrderItems?.Count ?? 0;
+        var vendorName = Truncate(
+            string.IsNullOrWhiteSpace(currentOffer.VendorNameAr)
+                ? currentOffer.VendorName
+                : currentOffer.VendorNameAr,
+            64);
 
         return Build(
             screen: "home",
@@ -115,30 +129,28 @@ public static class DriverNotificationDataBuilder
                 expiresAtUtc,
                 countdownSeconds = currentOffer.CountdownSeconds,
                 itemsCount,
-                orderNumber = currentOffer.OrderNumber,
-                vendorName = currentOffer.VendorName,
-                vendorNameAr = currentOffer.VendorNameAr,
-                vendorNameEn = currentOffer.VendorNameEn,
-                vendorLogoUrl = currentOffer.VendorLogoUrl,
-                pickupAddress = currentOffer.PickupAddress,
-                pickupLatitude = currentOffer.PickupLatitude,
-                pickupLongitude = currentOffer.PickupLongitude,
-                customerName = currentOffer.CustomerName,
-                deliveryAddress = currentOffer.DeliveryAddress,
-                deliveryLatitude = currentOffer.DeliveryLatitude,
-                deliveryLongitude = currentOffer.DeliveryLongitude,
+                orderNumber = Truncate(currentOffer.OrderNumber, 32),
+                vendorName,
                 estimatedDistanceKm = currentOffer.EstimatedDistanceKm,
-                estimatedEta = currentOffer.EstimatedEta,
+                estimatedEta = Truncate(currentOffer.EstimatedEta, 24),
                 payout = currentOffer.Payout,
                 deliveryFee = currentOffer.Payout,
-                paymentMethod = currentOffer.PaymentMethod,
-                totalAmount = currentOffer.TotalAmount,
-                codAmount = currentOffer.CodAmount,
-                vendorInitials = currentOffer.VendorInitials,
-                customerInitials = currentOffer.CustomerInitials,
-                packageNote = currentOffer.PackageNote,
-                orderItems = currentOffer.OrderItems
+                paymentMethod = Truncate(currentOffer.PaymentMethod, 24)
             });
+    }
+
+    /// <summary>
+    /// Approximates OneSignal envelope size after nested payload + top-level merge.
+    /// </summary>
+    public static int EstimateOneSignalEnvelopeSize(string pushPayloadJson)
+    {
+        if (string.IsNullOrWhiteSpace(pushPayloadJson))
+        {
+            return 0;
+        }
+
+        var payloadBytes = Encoding.UTF8.GetByteCount(pushPayloadJson);
+        return payloadBytes * 2 + 120;
     }
 
     private static string ResolveTargetUrl(
@@ -229,4 +241,14 @@ public static class DriverNotificationDataBuilder
 
     private static string Normalize(string value) =>
         value.Trim().Replace('_', '-').ToLowerInvariant().Replace('-', '_');
+
+    private static string Truncate(string? value, int maxLength)
+    {
+        if (string.IsNullOrEmpty(value) || value.Length <= maxLength)
+        {
+            return value ?? string.Empty;
+        }
+
+        return value[..maxLength];
+    }
 }
