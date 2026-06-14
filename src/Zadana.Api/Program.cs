@@ -628,7 +628,20 @@ builder.Services.AddCors(options =>
         if (productionOrigins.Length > 0)
         {
             policy.WithOrigins(productionOrigins)
-                .WithHeaders("Authorization", "Content-Type", "Accept", "Accept-Language", "X-Device-Id", "X-Seeding-Key", "X-Moyasar-Signature", "X-BankTransfer-Secret", "X-Forwarded-For", "X-XSRF-TOKEN")
+                // SignalR negotiate / long-poll sends X-Requested-With; dev uses AllowAnyHeader().
+                .WithHeaders(
+                    "Authorization",
+                    "Content-Type",
+                    "Accept",
+                    "Accept-Language",
+                    "Cache-Control",
+                    "X-Requested-With",
+                    "X-Device-Id",
+                    "X-Seeding-Key",
+                    "X-Moyasar-Signature",
+                    "X-BankTransfer-Secret",
+                    "X-Forwarded-For",
+                    "X-XSRF-TOKEN")
                 .WithMethods("GET", "POST", "PUT", "PATCH", "DELETE", "OPTIONS")
                 .AllowCredentials();
             return;
@@ -884,6 +897,19 @@ if (!app.Environment.IsEnvironment("Testing"))
 }
 
 app.UseMiddleware<ExceptionHandlingMiddleware>();
+
+// Response compression breaks SignalR WebSocket / SSE / long-poll transports on
+// IIS (runasp.net). Strip Accept-Encoding for hub traffic before compression runs.
+app.Use(async (context, next) =>
+{
+    if (context.Request.Path.StartsWithSegments("/hubs", StringComparison.OrdinalIgnoreCase))
+    {
+        context.Request.Headers.AcceptEncoding = string.Empty;
+        context.Response.Headers.CacheControl = "no-cache, no-store";
+    }
+
+    await next(context);
+});
 
 // Response compression must run early so the compression provider can wrap
 // the response stream before downstream middleware writes to it.

@@ -24,6 +24,10 @@
 <configuration>
   <location path="." inheritInChildApplications="false">
     <system.webServer>
+      <!-- Required for SignalR WebSocket transport on IIS / runasp.net.
+           Without this, clients fall back to long-poll which also breaks if IIS
+           dynamic compression is enabled on top of ASP.NET response compression. -->
+      <webSocket enabled="true" />
       <handlers>
         <add name="aspNetCore" path="*" verb="*" modules="AspNetCoreModuleV2" resourceType="Unspecified" />
       </handlers>
