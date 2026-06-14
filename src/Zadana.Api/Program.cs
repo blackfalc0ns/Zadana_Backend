@@ -595,7 +595,7 @@ builder.Services.AddAntiforgery(options =>
     options.HeaderName = "X-XSRF-TOKEN";
     options.Cookie.Name = builder.Environment.IsProduction() ? "__Host-XSRF-AF" : "XSRF-AF";
     options.Cookie.HttpOnly = true;
-    options.Cookie.SameSite = SameSiteMode.Strict;
+    options.Cookie.SameSite = CrossOriginCookiePolicy.ResolveSameSite(builder.Environment);
     options.Cookie.SecurePolicy = builder.Environment.IsProduction()
         ? CookieSecurePolicy.Always
         : CookieSecurePolicy.SameAsRequest;

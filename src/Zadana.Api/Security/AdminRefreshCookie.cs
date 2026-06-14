@@ -38,7 +38,7 @@ public static class AdminRefreshCookie
         {
             HttpOnly = true,
             Secure = isProduction,
-            SameSite = SameSiteMode.Strict,
+            SameSite = CrossOriginCookiePolicy.ResolveSameSite(env),
             // In production we use __Host- prefix → cookie must be on path "/"
             // and have no Domain attribute. In dev we keep a narrow path so
             // accidental requests from other parts of the API can't leak it.

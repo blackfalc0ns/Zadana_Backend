@@ -64,7 +64,7 @@ public class AdminAuthController : IdentityAuthControllerBase
             {
                 HttpOnly = false,
                 Secure = _environment.IsProduction(),
-                SameSite = SameSiteMode.Strict,
+                SameSite = CrossOriginCookiePolicy.ResolveSameSite(_environment),
                 Path = "/",
                 IsEssential = true,
                 Expires = DateTimeOffset.UtcNow.AddHours(2)
