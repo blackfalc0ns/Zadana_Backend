@@ -52,12 +52,40 @@ public class GetMasterProductsQueryHandler : IRequestHandler<GetMasterProductsQu
             .Take(request.PageSize)
             .ToListAsync(cancellationToken);
 
+        var productIds = products.Select(product => product.Id).ToArray();
+        var inVendorStoreProductIds = request.VendorId.HasValue && productIds.Length > 0
+            ? await BuildVendorStoreProductSetAsync(request.VendorId.Value, request.VendorBranchId, productIds, cancellationToken)
+            : new HashSet<Guid>();
+
         var items = products
             .Select(p => MasterProductDisplayDto.ToDto(
                 p,
-                request.VendorId.HasValue && _context.VendorProducts.Any(vp => vp.MasterProductId == p.Id && vp.VendorId == request.VendorId.Value)))
+                inVendorStoreProductIds.Contains(p.Id)))
             .ToList();
 
         return new PaginatedList<MasterProductDto>(items, totalCount, request.PageNumber, request.PageSize);
+    }
+
+    private async Task<HashSet<Guid>> BuildVendorStoreProductSetAsync(
+        Guid vendorId,
+        Guid? vendorBranchId,
+        Guid[] productIds,
+        CancellationToken cancellationToken)
+    {
+        var query = _context.VendorProducts
+            .AsNoTracking()
+            .Where(product =>
+                product.VendorId == vendorId &&
+                productIds.Contains(product.MasterProductId));
+
+        if (vendorBranchId.HasValue)
+        {
+            query = query.Where(product => product.VendorBranchId == vendorBranchId.Value);
+        }
+
+        return await query
+            .Select(product => product.MasterProductId)
+            .Distinct()
+            .ToHashSetAsync(cancellationToken);
     }
 }

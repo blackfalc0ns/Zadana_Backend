@@ -59,18 +59,20 @@ public class VendorCatalogController : ApiControllerBase
         [FromQuery] int pageSize = 10,
         [FromQuery] string? searchTerm = null,
         [FromQuery] Guid? categoryId = null,
-        [FromQuery] Guid? brandId = null)
+        [FromQuery] Guid? brandId = null,
+        [FromQuery] Guid? branchId = null)
     {
-        var vendorId = await _currentVendorService.TryGetVendorIdAsync(HttpContext.RequestAborted);
+        var scope = await _currentVendorService.GetRequiredVendorScopeAsync(HttpContext.RequestAborted);
 
         var result = await Sender.Send(new GetMasterProductsQuery(
             searchTerm, 
             categoryId, 
             brandId, 
             ProductStatus.Active, 
-            vendorId, 
+            scope.VendorId,
             pageNumber, 
-            pageSize));
+            pageSize,
+            ResolveBranchFilter(scope, branchId)));
         return Ok(result);
     }
 
@@ -112,5 +114,8 @@ public class VendorCatalogController : ApiControllerBase
         var notifications = await _catalogRequestReadService.GetVendorNotificationsAsync(vendor.UserId, HttpContext.RequestAborted);
         return Ok(notifications);
     }
+
+    private static Guid? ResolveBranchFilter(CurrentVendorScope scope, Guid? requestedBranchId) =>
+        scope.BranchId ?? requestedBranchId;
 }
 

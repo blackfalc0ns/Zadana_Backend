@@ -12,4 +12,5 @@ public record GetMasterProductsQuery(
     ProductStatus? Status = null,
     Guid? VendorId = null,
     int PageNumber = 1,
-    int PageSize = 10) : IRequest<PaginatedList<MasterProductDto>>;
+    int PageSize = 10,
+    Guid? VendorBranchId = null) : IRequest<PaginatedList<MasterProductDto>>;
