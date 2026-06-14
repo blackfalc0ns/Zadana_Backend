@@ -20,7 +20,11 @@ public static class MasterProductDisplayDto
     public static MasterProductDto ToDto(
         MasterProduct product,
         bool isInVendorStore,
-        ICollection<MasterProductVariantOptionDto>? variants = null)
+        ICollection<MasterProductVariantOptionDto>? variants = null,
+        decimal? vendorSellingPrice = null,
+        decimal? vendorCompareAtPrice = null,
+        decimal? vendorCostPrice = null,
+        decimal? vendorTradePrice = null)
     {
         var measurementUnit = product.MeasurementUnit ?? product.UnitOfMeasure;
 
@@ -55,7 +59,11 @@ public static class MasterProductDisplayDto
             product.Images.Select(i => new MasterProductImageDto(i.Url, i.AltText, i.DisplayOrder, i.IsPrimary)).ToList(),
             product.CreatedAtUtc,
             product.UpdatedAtUtc,
-            variants);
+            variants,
+            vendorSellingPrice,
+            vendorCompareAtPrice,
+            vendorCostPrice,
+            vendorTradePrice);
     }
 
     public static string? BuildDisplaySize(

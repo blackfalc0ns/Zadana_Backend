@@ -39,7 +39,11 @@ public record MasterProductDto(
     ICollection<MasterProductImageDto> Images,
     DateTime? CreatedAtUtc = null,
     DateTime? UpdatedAtUtc = null,
-    ICollection<MasterProductVariantOptionDto>? Variants = null);
+    ICollection<MasterProductVariantOptionDto>? Variants = null,
+    decimal? VendorSellingPrice = null,
+    decimal? VendorCompareAtPrice = null,
+    decimal? VendorCostPrice = null,
+    decimal? VendorTradePrice = null);
 
 public record VendorProductDto(
     Guid Id,
