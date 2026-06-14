@@ -441,7 +441,9 @@ public class DriverReadService : IDriverReadService
             activeTasks,
             wallet?.PendingBalance ?? 0,
             incidents,
-            missingRequirements);
+            missingRequirements,
+            commitmentSummary,
+            driver.User.IsLoginLocked);
 
         var workflow = BuildAdminWorkflowSection(workflowState);
         var overview = new AdminDriverOverviewSectionDto(
@@ -927,6 +929,8 @@ public class DriverReadService : IDriverReadService
             issues.Add("payment");
         if (driver.Status is AccountStatus.Suspended or AccountStatus.Banned)
             issues.Add("legal");
+        if (driver.IsLocationUpdatesBlocked)
+            issues.Add("location");
         if (!commitmentSummary.CanReceiveOffers)
             issues.Add("dispatch");
         return issues.Count > 0 ? issues.ToArray() : ["clear"];
@@ -1199,6 +1203,7 @@ public class DriverReadService : IDriverReadService
         {
             "READY_FOR_DISPATCH" or "ACTIVE_DELIVERY" => "READY",
             "FINANCE_HOLD" or "READY_TO_ACTIVATE" => "LIMITED",
+            "OFFER_RESTRICTED" or "LOCATION_RESTRICTED" or "LOGIN_LOCKED" => "BLOCKED",
             _ => "BLOCKED"
         };
 
@@ -1210,6 +1215,9 @@ public class DriverReadService : IDriverReadService
             "VERIFICATION_REVIEW" => ["verification_in_progress"],
             "COMPLIANCE_REVIEW" => ["open_compliance_case"],
             "FINANCE_HOLD" => ["finance_hold"],
+            "OFFER_RESTRICTED" => ["offer_restricted"],
+            "LOCATION_RESTRICTED" => ["location_updates_blocked"],
+            "LOGIN_LOCKED" => ["login_locked"],
             _ => Array.Empty<string>()
         };
 
@@ -1218,6 +1226,9 @@ public class DriverReadService : IDriverReadService
             "ACTIVE_DELIVERY" => ["driver_on_active_mission"],
             "READY_FOR_DISPATCH" => ["ready_for_dispatch"],
             "READY_TO_ACTIVATE" => ["driver_offline_but_approved"],
+            "OFFER_RESTRICTED" => ["offer_restriction_active"],
+            "LOCATION_RESTRICTED" => ["location_updates_blocked"],
+            "LOGIN_LOCKED" => ["login_locked"],
             _ => Array.Empty<string>()
         };
 
@@ -1259,6 +1270,22 @@ public class DriverReadService : IDriverReadService
                 new AdminDriverWorkflowActionDto("OPEN_FINANCE", "warning", "finance"),
                 new AdminDriverWorkflowActionDto("CLEAR_FINANCE_HOLD", "success", "finance"),
                 new AdminDriverWorkflowActionDto("OPEN_SUPPORT", "secondary", "support")
+            },
+            "OFFER_RESTRICTED" => new[]
+            {
+                new AdminDriverWorkflowActionDto("CLEAR_DRIVER_RESTRICTIONS", "success", "overview"),
+                new AdminDriverWorkflowActionDto("OPEN_OPERATIONS", "primary", "operations"),
+                new AdminDriverWorkflowActionDto("OPEN_SUPPORT", "secondary", "support")
+            },
+            "LOCATION_RESTRICTED" => new[]
+            {
+                new AdminDriverWorkflowActionDto("OPEN_OPERATIONS", "primary", "operations"),
+                new AdminDriverWorkflowActionDto("OPEN_SUPPORT", "secondary", "support")
+            },
+            "LOGIN_LOCKED" => new[]
+            {
+                new AdminDriverWorkflowActionDto("OPEN_SUPPORT", "secondary", "support"),
+                new AdminDriverWorkflowActionDto("OPEN_OPERATIONS", "primary", "operations")
             },
             "ACTIVE_DELIVERY" => new[]
             {
@@ -1340,7 +1367,9 @@ public class DriverReadService : IDriverReadService
         int activeTasks,
         decimal pendingBalance,
         AdminDriverIncidentDto[] incidents,
-        IReadOnlyCollection<string> missingRequirements)
+        IReadOnlyCollection<string> missingRequirements,
+        DriverCommitmentSummaryDto commitmentSummary,
+        bool isLoginLocked)
     {
         if (driver.Status == AccountStatus.Banned)
         {
@@ -1350,6 +1379,11 @@ public class DriverReadService : IDriverReadService
         if (driver.Status == AccountStatus.Suspended)
         {
             return "SUSPENDED";
+        }
+
+        if (isLoginLocked)
+        {
+            return "LOGIN_LOCKED";
         }
 
         if (driver.HasExpiredRequiredDocuments())
@@ -1377,6 +1411,16 @@ public class DriverReadService : IDriverReadService
         if (pendingBalance > 0)
         {
             return "FINANCE_HOLD";
+        }
+
+        if (driver.IsLocationUpdatesBlocked)
+        {
+            return "LOCATION_RESTRICTED";
+        }
+
+        if (!commitmentSummary.CanReceiveOffers)
+        {
+            return "OFFER_RESTRICTED";
         }
 
         if (activeTasks > 0)
