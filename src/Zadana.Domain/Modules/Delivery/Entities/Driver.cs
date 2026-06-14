@@ -34,12 +34,17 @@ public class Driver : BaseEntity
     public bool CanReceiveOrders =>
         VerificationStatus == DriverVerificationStatus.Approved &&
         Status == AccountStatus.Active &&
+        HasServiceArea &&
         !HasExpiredRequiredDocuments();
 
     public bool CanReceiveNewOffers =>
         CanReceiveOrders &&
         IsAvailable &&
         !IsLocationUpdatesBlocked;
+
+    public bool HasServiceArea =>
+        !string.IsNullOrWhiteSpace(Region) &&
+        !string.IsNullOrWhiteSpace(City);
 
     public bool CanReactivate =>
         VerificationStatus == DriverVerificationStatus.Approved &&

@@ -47,9 +47,13 @@ public class UpdateDriverAvailabilityCommandHandler : IRequestHandler<UpdateDriv
 
         if (request.IsAvailable && !driver.CanReceiveOrders)
         {
+            var message = !driver.HasServiceArea
+                ? "Please choose the city you will work in before going online."
+                : "Your account must be approved before you can go online.";
+
             throw new BusinessRuleException(
                 "DRIVER_NOT_READY_FOR_DISPATCH",
-                "Your account must be approved before you can go online.");
+                message);
         }
 
         if (request.IsAvailable && driver.IsLocationUpdatesBlocked)

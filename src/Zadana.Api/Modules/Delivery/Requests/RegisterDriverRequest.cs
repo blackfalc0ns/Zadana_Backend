@@ -1,3 +1,4 @@
+using System.ComponentModel.DataAnnotations;
 using Zadana.Domain.Modules.Delivery.Enums;
 
 namespace Zadana.Api.Modules.Delivery.Requests;
@@ -15,8 +16,8 @@ public record RegisterDriverRequest(
     string? VehicleLicenseNumber,
     DateTime? VehicleLicenseExpiryDate,
     string? Address,
-    string? Region,
-    string? City,
+    [Required] string? Region,
+    [Required] string? City,
     string? NationalIdFrontImageUrl,
     string? NationalIdBackImageUrl,
     string? LicenseImageUrl,

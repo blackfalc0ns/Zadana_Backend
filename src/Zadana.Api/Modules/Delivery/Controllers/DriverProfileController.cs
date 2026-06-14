@@ -117,30 +117,30 @@ public class DriverProfileController : ApiControllerBase
         ResetDocumentReviewIfReady(driver, DriverDocumentType.VehicleLicense);
 
 
-        // Update geography (region/city) if provided
-        if (!string.IsNullOrWhiteSpace(request.Region))
+        if (string.IsNullOrWhiteSpace(request.Region) || string.IsNullOrWhiteSpace(request.City))
         {
-            var normalizedRegion = request.Region.Trim().ToUpperInvariant();
-            var regionEntity = await context.SaudiRegions
-                .AsNoTracking()
-                .FirstOrDefaultAsync(r => r.Code == normalizedRegion, cancellationToken)
-                ?? throw new BusinessRuleException("INVALID_REGION", "المنطقة المختارة غير موجودة | Selected region does not exist.");
-
-            if (!string.IsNullOrWhiteSpace(request.City))
-            {
-                var normalizedCity = request.City.Trim().ToUpperInvariant();
-                var cityExists = await context.SaudiCities
-                    .AsNoTracking()
-                    .AnyAsync(c => c.Code == normalizedCity && c.RegionId == regionEntity.Id, cancellationToken);
-
-                if (!cityExists)
-                {
-                    throw new BusinessRuleException("INVALID_CITY", "المدينة المختارة لا تتبع المنطقة المحددة | Selected city does not belong to the chosen region.");
-                }
-            }
-
-            driver.UpdateServiceArea(request.Region, request.City);
+            throw new BusinessRuleException(
+                "DRIVER_SERVICE_AREA_REQUIRED",
+                "يجب اختيار المنطقة والمدينة التي سيعمل بها المندوب | Driver must choose the region and city they will work in.");
         }
+
+        var normalizedRegion = request.Region.Trim().ToUpperInvariant();
+        var regionEntity = await context.SaudiRegions
+            .AsNoTracking()
+            .FirstOrDefaultAsync(r => r.Code == normalizedRegion, cancellationToken)
+            ?? throw new BusinessRuleException("INVALID_REGION", "المنطقة المختارة غير موجودة | Selected region does not exist.");
+
+        var normalizedCity = request.City.Trim().ToUpperInvariant();
+        var cityExists = await context.SaudiCities
+            .AsNoTracking()
+            .AnyAsync(c => c.Code == normalizedCity && c.RegionId == regionEntity.Id, cancellationToken);
+
+        if (!cityExists)
+        {
+            throw new BusinessRuleException("INVALID_CITY", "المدينة المختارة لا تتبع المنطقة المحددة | Selected city does not belong to the chosen region.");
+        }
+
+        driver.UpdateServiceArea(request.Region, request.City);
 
         driver.RefreshProfileReviewState(
             HasRequiredProfileData(driver),

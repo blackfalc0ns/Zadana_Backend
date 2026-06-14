@@ -302,6 +302,22 @@ public class DeliveryDispatchService : IDeliveryDispatchService
             throw new BusinessRuleException("DELIVERY_OFFER_EXPIRED", "انتهت صلاحية عرض التوصيل | The delivery offer has expired.");
         }
 
+        if (!DriverMatchesPickupCity(assignment.Driver, assignment.Order))
+        {
+            var mismatchedAttempt = await _context.DeliveryOfferAttempts
+                .Where(item => item.OrderId == assignment.OrderId && item.DriverId == driverId && item.Status == DeliveryOfferAttemptStatus.Offered)
+                .OrderByDescending(item => item.AttemptNumber)
+                .FirstOrDefaultAsync(cancellationToken);
+
+            assignment.Reject("pickup-city-mismatch");
+            mismatchedAttempt?.MarkRejected("pickup-city-mismatch");
+            await _unitOfWork.SaveChangesAsync(cancellationToken);
+
+            throw new BusinessRuleException(
+                "DELIVERY_OFFER_CITY_MISMATCH",
+                "The delivery offer is not available for this driver because the branch city is different.");
+        }
+
         assignment.Accept();
 
         var attempt = await _context.DeliveryOfferAttempts
@@ -522,8 +538,14 @@ public class DeliveryDispatchService : IDeliveryDispatchService
             activeZones,
             pickupLat,
             pickupLng,
-            order.Vendor?.City,
-            order.Vendor?.Region);
+            FirstNonBlank(order.VendorBranch?.City, order.Vendor?.City),
+            FirstNonBlank(order.VendorBranch?.Region, order.Vendor?.Region));
+
+        if (string.IsNullOrWhiteSpace(dispatchContext.PickupCity))
+        {
+            await TrackDispatchQueueNoteAsync(order, "Dispatch pending: missing-pickup-city", cancellationToken);
+            return null;
+        }
 
         var today = DateTime.UtcNow.Date;
 
@@ -540,7 +562,7 @@ public class DeliveryDispatchService : IDeliveryDispatchService
                 !busyDriverIds.Contains(driver.Id))
             .ToListAsync(cancellationToken);
 
-        eligibleDrivers = eligibleDrivers
+        eligibleDrivers = FilterDriversForPickupCity(eligibleDrivers, dispatchContext)
             .Where(driver =>
                 !rejectedDriverIds.Contains(driver.Id) &&
                 !timedOutDriverIds.Contains(driver.Id))
@@ -561,14 +583,14 @@ public class DeliveryDispatchService : IDeliveryDispatchService
                     !busyDriverIds.Contains(driver.Id))
                 .ToListAsync(cancellationToken);
 
-            eligibleDrivers = eligibleDrivers
+            eligibleDrivers = FilterDriversForPickupCity(eligibleDrivers, dispatchContext)
                 .Where(driver => !rejectedDriverIds.Contains(driver.Id))
                 .ToList();
         }
 
         if (eligibleDrivers.Count == 0)
         {
-            await TrackDispatchQueueNoteAsync(order, "Dispatch pending: no-eligible-driver", cancellationToken);
+            await TrackDispatchQueueNoteAsync(order, "Dispatch pending: no-eligible-driver-in-pickup-city", cancellationToken);
             return null;
         }
 
@@ -828,6 +850,26 @@ public class DeliveryDispatchService : IDeliveryDispatchService
 
     private static decimal ResolveCodAmount(Domain.Modules.Orders.Entities.Order order) =>
         order.PaymentMethod == PaymentMethodType.CashOnDelivery ? order.TotalAmount : 0m;
+
+    private static List<Driver> FilterDriversForPickupCity(
+        IEnumerable<Driver> drivers,
+        DeliveryDispatchContext dispatchContext)
+    {
+        return drivers
+            .Where(driver => DeliveryDispatchScoring.CityMatchesNormalized(driver.City, dispatchContext.PickupCity))
+            .ToList();
+    }
+
+    private static bool DriverMatchesPickupCity(Driver? driver, Domain.Modules.Orders.Entities.Order order)
+    {
+        var pickupCity = FirstNonBlank(order.VendorBranch?.City, order.Vendor?.City);
+        return !string.IsNullOrWhiteSpace(pickupCity)
+            && driver is not null
+            && DeliveryDispatchScoring.CityMatchesNormalized(driver.City, pickupCity);
+    }
+
+    private static string? FirstNonBlank(params string?[] values) =>
+        values.FirstOrDefault(value => !string.IsNullOrWhiteSpace(value))?.Trim();
 
     private async Task TrackDispatchQueueNoteAsync(
         Domain.Modules.Orders.Entities.Order order,

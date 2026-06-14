@@ -17,7 +17,7 @@ public class DriverOperationalStatusFactoryTests
         result.GateStatus.Should().Be("UnderReview");
         result.IsOperational.Should().BeFalse();
         result.CanGoAvailable.Should().BeFalse();
-        result.Message.Should().Contain("under admin review");
+        result.MessageEn.Should().Contain("under admin review");
     }
 
     [Fact]
@@ -64,6 +64,19 @@ public class DriverOperationalStatusFactoryTests
     }
 
     [Fact]
+    public void Create_WhenDriverHasNoServiceCity_ShouldNotReceiveOrders()
+    {
+        var driver = CreateDriver(region: null, city: null);
+        driver.Approve(Guid.NewGuid(), "Approved");
+
+        var result = DriverOperationalStatusFactory.Create(driver);
+
+        result.CanReceiveOrders.Should().BeFalse();
+        result.CanGoAvailable.Should().BeFalse();
+        result.IsOperational.Should().BeFalse();
+    }
+
+    [Fact]
     public void Create_WhenRequiredDocumentExpired_ShouldReturnExpiredDocumentsGate()
     {
         var driver = CreateDriver();
@@ -82,10 +95,10 @@ public class DriverOperationalStatusFactoryTests
         result.GateStatus.Should().Be("ExpiredDocuments");
         result.IsOperational.Should().BeFalse();
         result.CanReceiveOrders.Should().BeFalse();
-        result.Message.Should().Contain("expired documents");
+        result.MessageEn.Should().Contain("expired documents");
     }
 
-    private static Driver CreateDriver() =>
+    private static Driver CreateDriver(string? region = "EASTERN", string? city = "DAMMAM") =>
         new(
             Guid.NewGuid(),
             DriverVehicleType.Motorcycle,
@@ -100,5 +113,7 @@ public class DriverOperationalStatusFactoryTests
             nationalIdBackImageUrl: "https://cdn.example.com/drivers/id-back.jpg",
             licenseImageUrl: "https://cdn.example.com/drivers/license.jpg",
             vehicleImageUrl: "https://cdn.example.com/drivers/vehicle.jpg",
-            personalPhotoUrl: "https://cdn.example.com/drivers/photo.jpg");
+            personalPhotoUrl: "https://cdn.example.com/drivers/photo.jpg",
+            region: region,
+            city: city);
 }

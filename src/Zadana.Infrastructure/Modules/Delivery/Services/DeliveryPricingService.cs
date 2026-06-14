@@ -1,6 +1,7 @@
 using Microsoft.EntityFrameworkCore;
 using Zadana.Application.Common.Interfaces;
 using Zadana.Application.Modules.Delivery.Interfaces;
+using Zadana.Application.Modules.Delivery.Support;
 using Zadana.Domain.Modules.Delivery.Entities;
 using Zadana.Domain.Modules.Delivery.Enums;
 using Zadana.Domain.Modules.Finances.Entities;
@@ -60,13 +61,22 @@ public class DeliveryPricingService : IDeliveryPricingService
             .DistinctBy(zone => zone.Id)
             .ToArray();
 
-        var vendorCity = ResolveCity(cities, branch.Vendor.City, branch.Vendor.Region);
+        var vendorPickupCity = FirstNonBlank(branch.City, branch.Vendor.City);
+        var vendorPickupRegion = FirstNonBlank(branch.Region, branch.Vendor.Region);
+        if (string.IsNullOrWhiteSpace(vendorPickupCity))
+        {
+            throw new BusinessRuleException(
+                "DELIVERY_PICKUP_CITY_REQUIRED",
+                "Vendor branch city is required for delivery pricing.");
+        }
+
+        var vendorCity = ResolveCity(cities, vendorPickupCity, vendorPickupRegion);
         var customerCity = ResolveCity(cities, address.City, null);
         var hasBranchCoordinates = !(branch.Latitude == 0m && branch.Longitude == 0m);
 
         var vendorZone = hasBranchCoordinates
-            ? ResolveLocationZone(zones, branch.Latitude, branch.Longitude, branch.Vendor.City)
-            : ResolveZoneByCity(zones, branch.Vendor.City);
+            ? ResolveLocationZone(zones, branch.Latitude, branch.Longitude, vendorPickupCity)
+            : ResolveZoneByCity(zones, vendorPickupCity);
         var customerPoint = ResolveCustomerPoint(address, customerCity, zones);
         var customerZone = customerPoint.Zone;
         var vendorPickupPoint = ResolveVendorPickupPoint(branch, vendorCity, vendorZone);
@@ -77,6 +87,7 @@ public class DeliveryPricingService : IDeliveryPricingService
             zones,
             vendorZone,
             vendorCity,
+            vendorPickupCity,
             cancellationToken);
 
         var vendorLegSettings = ResolveLegPricingSettings(
@@ -154,6 +165,7 @@ public class DeliveryPricingService : IDeliveryPricingService
         IReadOnlyCollection<DeliveryZone> zones,
         DeliveryZone? vendorZone,
         SaudiCity? vendorCity,
+        string pickupCity,
         CancellationToken cancellationToken)
     {
         var busyDriverIds = await _context.DeliveryAssignments
@@ -173,6 +185,7 @@ public class DeliveryPricingService : IDeliveryPricingService
                 .Where(driver => !busyDriverIds.Contains(driver.Id))
                 .ToListAsync(cancellationToken))
             .Where(driver => driver.CanReceiveNewOffers)
+            .Where(driver => DeliveryCityMatcher.Matches(driver.City, pickupCity))
             .ToList();
 
         if (eligibleDrivers.Any())
@@ -189,6 +202,8 @@ public class DeliveryPricingService : IDeliveryPricingService
 
             if (eligibleDrivers.Any())
             {
+                driverIds = eligibleDrivers.Select(driver => driver.Id).ToList();
+
                 var latestLocations = await _context.DriverLocations
                     .AsNoTracking()
                     .Where(location => driverIds.Contains(location.DriverId))
@@ -468,7 +483,7 @@ public class DeliveryPricingService : IDeliveryPricingService
         string? cityValue,
         string? regionValue)
     {
-        var normalizedCity = NormalizeCity(cityValue);
+        var normalizedCity = DeliveryCityMatcher.Normalize(cityValue);
         var normalizedRegion = NormalizeRegion(regionValue);
 
         return cities.FirstOrDefault(city =>
@@ -515,13 +530,7 @@ public class DeliveryPricingService : IDeliveryPricingService
         zones.Any(zone => zone.IsActive && DeliveryDispatchScoring.IsPointWithinZone(zone, latitude, longitude));
 
     private static bool CityMatches(string? left, string? right)
-    {
-        var normalizedLeft = NormalizeCity(left);
-        var normalizedRight = NormalizeCity(right);
-
-        return !string.IsNullOrWhiteSpace(normalizedLeft)
-            && string.Equals(normalizedLeft, normalizedRight, StringComparison.OrdinalIgnoreCase);
-    }
+        => DeliveryCityMatcher.Matches(left, right);
 
     private static string? NormalizeCity(string? city)
     {
@@ -561,6 +570,9 @@ public class DeliveryPricingService : IDeliveryPricingService
             _ => normalized
         };
     }
+
+    private static string? FirstNonBlank(params string?[] values) =>
+        values.FirstOrDefault(value => !string.IsNullOrWhiteSpace(value))?.Trim();
 
     private static readonly TimeZoneInfo SaudiTimeZone = TimeZoneInfo.FindSystemTimeZoneById("Arab Standard Time");
 

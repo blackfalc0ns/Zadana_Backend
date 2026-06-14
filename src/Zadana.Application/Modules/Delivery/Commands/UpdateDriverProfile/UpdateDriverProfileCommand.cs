@@ -36,6 +36,8 @@ public class UpdateDriverProfileCommandValidator : AbstractValidator<UpdateDrive
         RuleFor(x => x.FullName).NotEmpty().MaximumLength(200);
         RuleFor(x => x.Email).NotEmpty().EmailAddress().MaximumLength(150);
         RuleFor(x => x.PhoneNumber).NotEmpty().MaximumLength(50);
+        RuleFor(x => x.Region).NotEmpty().MaximumLength(50);
+        RuleFor(x => x.City).NotEmpty().MaximumLength(50);
     }
 }
 
@@ -94,6 +96,13 @@ public class UpdateDriverProfileCommandHandler : IRequestHandler<UpdateDriverPro
         }
 
         // Geography validation (Region & City)
+        if (string.IsNullOrWhiteSpace(request.Region) || string.IsNullOrWhiteSpace(request.City))
+        {
+            throw new BusinessRuleException(
+                "DRIVER_SERVICE_AREA_REQUIRED",
+                "Driver must choose the region and city they will work in.");
+        }
+
         if (!string.IsNullOrWhiteSpace(request.Region))
         {
             var normalizedRegion = request.Region.Trim().ToUpperInvariant();

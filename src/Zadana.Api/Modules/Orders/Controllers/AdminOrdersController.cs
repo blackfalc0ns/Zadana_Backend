@@ -8,6 +8,7 @@ using Zadana.Application.Modules.Orders.DTOs;
 using Zadana.Application.Modules.Orders.Events;
 using Zadana.Application.Modules.Orders.Interfaces;
 using Zadana.Application.Modules.Orders.Services;
+using Zadana.Application.Modules.Delivery.Support;
 using Zadana.Domain.Modules.Delivery.Entities;
 using Zadana.Domain.Modules.Orders.Entities;
 using Zadana.Domain.Modules.Orders.Enums;
@@ -196,6 +197,13 @@ public class AdminOrdersController : ApiControllerBase
             throw new BusinessRuleException(
                 "DRIVER_NOT_READY_FOR_DISPATCH",
                 "Driver must be approved, online, unrestricted, and ready to receive new offers before assignment.");
+        }
+
+        if (!DriverMatchesPickupCity(driver, order))
+        {
+            throw new BusinessRuleException(
+                "DRIVER_CITY_MISMATCH",
+                "Driver cannot be assigned because their city does not match the order branch city.");
         }
 
         var assignment = await _dbContext.DeliveryAssignments
@@ -538,7 +546,10 @@ public class AdminOrdersController : ApiControllerBase
 
     private async Task<Order> LoadOrderAsync(Guid orderId, CancellationToken cancellationToken)
     {
-        return await _dbContext.Orders.FirstOrDefaultAsync(item => item.Id == orderId, cancellationToken)
+        return await _dbContext.Orders
+            .Include(item => item.Vendor)
+            .Include(item => item.VendorBranch)
+            .FirstOrDefaultAsync(item => item.Id == orderId, cancellationToken)
             ?? throw new NotFoundException("Order", orderId);
     }
 
@@ -584,6 +595,49 @@ public class AdminOrdersController : ApiControllerBase
 
         return parsed;
     }
+
+    private static bool DriverMatchesPickupCity(Driver driver, Order order)
+    {
+        var pickupCity = FirstNonBlank(order.VendorBranch?.City, order.Vendor?.City);
+        return !string.IsNullOrWhiteSpace(pickupCity)
+            && DeliveryCityMatcher.Matches(driver.City, pickupCity);
+    }
+
+    private static bool CityMatches(string? left, string? right)
+    {
+        var normalizedLeft = NormalizeCity(left);
+        var normalizedRight = NormalizeCity(right);
+
+        return !string.IsNullOrWhiteSpace(normalizedLeft)
+            && string.Equals(normalizedLeft, normalizedRight, StringComparison.OrdinalIgnoreCase);
+    }
+
+    private static string? NormalizeCity(string? city)
+    {
+        if (string.IsNullOrWhiteSpace(city))
+        {
+            return null;
+        }
+
+        var normalized = city.Trim().ToLowerInvariant()
+            .Replace(" ", string.Empty)
+            .Replace("-", string.Empty)
+            .Replace("_", string.Empty);
+
+        if (normalized.StartsWith("ال", StringComparison.Ordinal) && normalized.Length > 2)
+        {
+            normalized = normalized[2..];
+        }
+        else if (normalized.StartsWith("al", StringComparison.Ordinal) && normalized.Length > 2)
+        {
+            normalized = normalized[2..];
+        }
+
+        return normalized;
+    }
+
+    private static string? FirstNonBlank(params string?[] values) =>
+        values.FirstOrDefault(value => !string.IsNullOrWhiteSpace(value))?.Trim();
 
     private static string BuildSupportCaseMessage(string title, params string?[] segments)
     {

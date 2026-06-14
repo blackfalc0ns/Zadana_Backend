@@ -79,6 +79,11 @@ public sealed class DriverHomeReadService : IDriverHomeReadService
             .OrderByDescending(a => a.OfferedAtUtc)
             .FirstOrDefaultAsync(cancellationToken);
 
+        if (currentOfferEntity is not null && !DriverMatchesPickupCity(driver, currentOfferEntity.Order))
+        {
+            currentOfferEntity = null;
+        }
+
         var currentAssignmentEntity = await _context.DeliveryAssignments
             .Include(a => a.Order)
                 .ThenInclude(o => o.Vendor)
@@ -191,4 +196,14 @@ public sealed class DriverHomeReadService : IDriverHomeReadService
         assignment.Order.PaymentMethod == PaymentMethodType.CashOnDelivery
             ? assignment.CodAmount
             : 0m;
+
+    private static bool DriverMatchesPickupCity(Driver driver, Domain.Modules.Orders.Entities.Order order)
+    {
+        var pickupCity = FirstNonBlank(order.VendorBranch?.City, order.Vendor?.City);
+        return !string.IsNullOrWhiteSpace(pickupCity)
+            && DeliveryCityMatcher.Matches(driver.City, pickupCity);
+    }
+
+    private static string? FirstNonBlank(params string?[] values) =>
+        values.FirstOrDefault(value => !string.IsNullOrWhiteSpace(value))?.Trim();
 }

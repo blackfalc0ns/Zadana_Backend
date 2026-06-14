@@ -1,4 +1,5 @@
 using Zadana.Domain.Modules.Delivery.Entities;
+using Zadana.Application.Modules.Delivery.Support;
 
 namespace Zadana.Infrastructure.Modules.Delivery.Services;
 
@@ -232,14 +233,8 @@ internal static class DeliveryDispatchScoring
             _ => null
         };
 
-    private static bool CityMatchesNormalized(string? left, string? right)
-    {
-        var normalizedLeft = NormalizeCityForDispatch(left);
-        var normalizedRight = NormalizeCityForDispatch(right);
-
-        return !string.IsNullOrWhiteSpace(normalizedLeft)
-            && string.Equals(normalizedLeft, normalizedRight, StringComparison.OrdinalIgnoreCase);
-    }
+    internal static bool CityMatchesNormalized(string? left, string? right)
+        => DeliveryCityMatcher.Matches(left, right);
 
     private static string? NormalizeCityForDispatch(string? city)
     {

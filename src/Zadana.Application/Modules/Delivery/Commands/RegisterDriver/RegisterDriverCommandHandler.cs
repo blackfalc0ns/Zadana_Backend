@@ -36,6 +36,13 @@ public class RegisterDriverCommandHandler : IRequestHandler<RegisterDriverComman
 
     public async Task<AuthResponseDto> Handle(RegisterDriverCommand request, CancellationToken cancellationToken)
     {
+        if (string.IsNullOrWhiteSpace(request.Region) || string.IsNullOrWhiteSpace(request.City))
+        {
+            throw new BusinessRuleException(
+                "DRIVER_SERVICE_AREA_REQUIRED",
+                "Driver must choose the region and city they will work in.");
+        }
+
         // Validate geography (region + city)
         Guid? regionEntityId = null;
         if (!string.IsNullOrWhiteSpace(request.Region))

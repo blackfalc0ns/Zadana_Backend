@@ -74,6 +74,46 @@ public class DeliveryDispatchServiceTests
     }
 
     [Fact]
+    public async Task TryAutoDispatchAsync_ShouldUseBranchCityInsteadOfVendorCity()
+    {
+        await using var dbContext = CreateDbContext();
+        var scenario = await SeedDispatchScenarioAsync(
+            dbContext,
+            vendorRegion: "Riyadh",
+            vendorCity: "Riyadh",
+            branchRegion: "Makkah",
+            branchCity: "Jeddah",
+            sameZoneDriverRegion: "MAKKAH",
+            sameZoneDriverCity: "JEDDAH");
+        var service = CreateDispatchService(dbContext);
+
+        var decision = await service.TryAutoDispatchAsync(scenario.Order.Id, cancellationToken: CancellationToken.None);
+
+        decision.Should().NotBeNull();
+        decision!.DriverId.Should().Be(scenario.SameZoneFreshDriver.Id);
+
+        var assignment = await dbContext.DeliveryAssignments.SingleAsync();
+        assignment.DriverId.Should().Be(scenario.SameZoneFreshDriver.Id);
+    }
+
+    [Fact]
+    public async Task TryAutoDispatchAsync_WhenNoDriverInBranchCity_ShouldNotOfferToOtherCities()
+    {
+        await using var dbContext = CreateDbContext();
+        var scenario = await SeedDispatchScenarioAsync(
+            dbContext,
+            branchRegion: "Makkah",
+            branchCity: "Jeddah");
+        var service = CreateDispatchService(dbContext);
+
+        var decision = await service.TryAutoDispatchAsync(scenario.Order.Id, cancellationToken: CancellationToken.None);
+
+        decision.Should().BeNull();
+        var assignments = await dbContext.DeliveryAssignments.ToListAsync();
+        assignments.Should().BeEmpty();
+    }
+
+    [Fact]
     public async Task TryAutoDispatchAsync_ShouldPenalizeLowConfidenceGpsInsideSameZone()
     {
         await using var dbContext = CreateDbContext();
@@ -307,7 +347,17 @@ public class DeliveryDispatchServiceTests
 
     private static async Task<DispatchScenario> SeedDispatchScenarioAsync(
         ApplicationDbContext dbContext,
-        bool lowConfidenceFreshDriver = false)
+        bool lowConfidenceFreshDriver = false,
+        string vendorRegion = "Riyadh",
+        string vendorCity = "Riyadh",
+        string branchRegion = "Riyadh",
+        string branchCity = "Riyadh",
+        string sameZoneDriverRegion = "RIYADH",
+        string sameZoneDriverCity = "RIYADH",
+        string sameCityFallbackDriverRegion = "RIYADH",
+        string sameCityFallbackDriverCity = "RIYADH",
+        string secondSameZoneDriverRegion = "RIYADH",
+        string secondSameZoneDriverCity = "RIYADH")
     {
         var customer = new User("Dispatch Customer", "dispatch.customer@test.com", "01000000992", UserRole.Customer);
         var vendorUser = new User("Dispatch Vendor", "dispatch.vendor@test.com", "01000000993", UserRole.Vendor);
@@ -326,32 +376,38 @@ public class DeliveryDispatchServiceTests
             "CR-100",
             "dispatch.vendor@test.com",
             "01000000993",
-            region: "Riyadh",
-            city: "Riyadh",
+            region: vendorRegion,
+            city: vendorCity,
             nationalAddress: "Olaya",
             logoUrl: "https://example.com/dispatch-vendor-logo.png");
 
         var branch = new VendorBranch(
             vendor.Id,
             "Olaya Branch",
+            "OLAYA",
+            true,
             "King Fahd Rd",
+            branchRegion,
+            branchCity,
             24.7137m,
             46.6754m,
             "01000000998",
+            "Dispatch Manager",
+            "01000000999",
             8m);
 
         var sameZoneFreshDriver = new Driver(sameZoneUser.Id, DriverVehicleType.Car, "1234567890", "DRV-ZONE-1",
-            region: "RIYADH", city: "RIYADH");
+            region: sameZoneDriverRegion, city: sameZoneDriverCity);
         sameZoneFreshDriver.Approve(Guid.NewGuid());
         sameZoneFreshDriver.ToggleAvailability(true);
 
         var sameCityFallbackDriver = new Driver(secondZoneUser.Id, DriverVehicleType.Car, "1234567891", "DRV-CITY-1",
-            region: "RIYADH", city: "RIYADH");
+            region: sameCityFallbackDriverRegion, city: sameCityFallbackDriverCity);
         sameCityFallbackDriver.Approve(Guid.NewGuid());
         sameCityFallbackDriver.ToggleAvailability(true);
 
         var secondSameZoneDriver = new Driver(reserveZoneUser.Id, DriverVehicleType.Car, "1234567892", "DRV-ZONE-2",
-            region: "RIYADH", city: "RIYADH");
+            region: secondSameZoneDriverRegion, city: secondSameZoneDriverCity);
         secondSameZoneDriver.Approve(Guid.NewGuid());
         secondSameZoneDriver.ToggleAvailability(true);
 
