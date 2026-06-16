@@ -1,4 +1,5 @@
 using System.Globalization;
+using System.Text.Json;
 using Microsoft.EntityFrameworkCore;
 using Zadana.Application.Common.Interfaces;
 using Zadana.Application.Modules.Delivery.DTOs;
@@ -19,6 +20,13 @@ namespace Zadana.Infrastructure.Modules.Delivery.Services;
 public class DriverReadService : IDriverReadService
 {
     private sealed record AssignmentStatsRow(Guid DriverId, int Total, int Completed, int Closed);
+    private sealed record DriverDocumentApprovalOverlay(
+        AccessApprovalStatus Status,
+        string? RejectionReason,
+        DateTime? DecidedAtUtc,
+        IReadOnlySet<DriverDocumentType> DocumentTypes);
+
+    private static readonly JsonSerializerOptions JsonOptions = new(JsonSerializerDefaults.Web);
 
     private readonly IApplicationDbContext _context;
     private readonly IDriverCommitmentPolicyService _driverCommitmentPolicyService;
@@ -835,6 +843,8 @@ public class DriverReadService : IDriverReadService
             }
         }
 
+        var documentApprovalOverlay = await ResolveDriverDocumentApprovalOverlayAsync(driver, cancellationToken);
+
         return new DriverProfileDto(
             driver.User.FullName,
             driver.User.Email ?? string.Empty,
@@ -852,7 +862,7 @@ public class DriverReadService : IDriverReadService
             driver.NationalIdBackImageUrl,
             driver.LicenseImageUrl,
             driver.VehicleImageUrl,
-            BuildDriverProfileDocuments(driver),
+            BuildDriverProfileDocuments(driver, documentApprovalOverlay),
             driver.Region,
             driver.City,
             regionNameAr,
@@ -1586,14 +1596,19 @@ public class DriverReadService : IDriverReadService
         ];
     }
 
-    private static DriverProfileDocumentDto[] BuildDriverProfileDocuments(Driver driver) =>
+    private static DriverProfileDocumentDto[] BuildDriverProfileDocuments(
+        Driver driver,
+        DriverDocumentApprovalOverlay? approvalOverlay = null) =>
     [
-        BuildDriverProfileDocumentDto(driver, DriverDocumentType.NationalId),
-        BuildDriverProfileDocumentDto(driver, DriverDocumentType.DriverLicense),
-        BuildDriverProfileDocumentDto(driver, DriverDocumentType.VehicleLicense)
+        BuildDriverProfileDocumentDto(driver, DriverDocumentType.NationalId, approvalOverlay),
+        BuildDriverProfileDocumentDto(driver, DriverDocumentType.DriverLicense, approvalOverlay),
+        BuildDriverProfileDocumentDto(driver, DriverDocumentType.VehicleLicense, approvalOverlay)
     ];
 
-    private static DriverProfileDocumentDto BuildDriverProfileDocumentDto(Driver driver, DriverDocumentType type)
+    private static DriverProfileDocumentDto BuildDriverProfileDocumentDto(
+        Driver driver,
+        DriverDocumentType type,
+        DriverDocumentApprovalOverlay? approvalOverlay = null)
     {
         var review = driver.DocumentReviews.FirstOrDefault(item => item.Type == type);
         var status = type switch
@@ -1603,13 +1618,36 @@ public class DriverReadService : IDriverReadService
             DriverDocumentType.VehicleLicense => ResolveDriverDocumentStatus(DriverProfileReadinessFactory.HasVehicleLicensePacket(driver), driver.VehicleLicenseExpiryDate, review),
             _ => "review"
         };
+        var rejectionReason = review?.RejectionReason;
+        var reviewedAtUtc = review?.ReviewedAtUtc;
+        var reviewedByName = review?.ReviewedByName;
+
+        if (approvalOverlay?.DocumentTypes.Contains(type) == true)
+        {
+            if (approvalOverlay.Status == AccessApprovalStatus.Pending)
+            {
+                status = "review";
+                rejectionReason = null;
+                reviewedAtUtc = null;
+                reviewedByName = null;
+            }
+            else if (approvalOverlay.Status == AccessApprovalStatus.Rejected)
+            {
+                status = "rejected";
+                rejectionReason = string.IsNullOrWhiteSpace(approvalOverlay.RejectionReason)
+                    ? "Document change rejected by admin."
+                    : approvalOverlay.RejectionReason;
+                reviewedAtUtc = approvalOverlay.DecidedAtUtc;
+                reviewedByName = null;
+            }
+        }
 
         return new DriverProfileDocumentDto(
             type.ToString(),
             status,
-            review?.RejectionReason,
-            review?.ReviewedAtUtc,
-            review?.ReviewedByName);
+            rejectionReason,
+            reviewedAtUtc,
+            reviewedByName);
     }
 
     private static AdminDriverDocumentHealthDto BuildDocumentHealth(AdminDriverDocumentDto[] documents) =>
@@ -1618,6 +1656,79 @@ public class DriverReadService : IDriverReadService
             documents.Count(d => string.Equals(d.Status, "expiring", StringComparison.OrdinalIgnoreCase)),
             documents.Count(d => !string.Equals(d.Status, "valid", StringComparison.OrdinalIgnoreCase) &&
                                  !string.Equals(d.Status, "expiring", StringComparison.OrdinalIgnoreCase)));
+
+    private async Task<DriverDocumentApprovalOverlay?> ResolveDriverDocumentApprovalOverlayAsync(
+        Driver driver,
+        CancellationToken cancellationToken)
+    {
+        var approval = await _context.AccessApprovalRequests
+            .AsNoTracking()
+            .Where(request =>
+                request.TargetUserId == driver.UserId &&
+                request.Action == ProfileChangeApprovalActions.DriverProfileDocuments)
+            .OrderByDescending(request => request.CreatedAtUtc)
+            .FirstOrDefaultAsync(cancellationToken);
+
+        if (approval is null || approval.Status == AccessApprovalStatus.Approved)
+        {
+            return null;
+        }
+
+        DriverDocumentsProfileChangePayload? payload;
+        try
+        {
+            payload = JsonSerializer.Deserialize<DriverDocumentsProfileChangePayload>(
+                approval.PayloadJson,
+                JsonOptions);
+        }
+        catch (JsonException)
+        {
+            return null;
+        }
+
+        if (payload is null)
+        {
+            return null;
+        }
+
+        var documentTypes = ResolveChangedDocumentTypes(driver, payload);
+        return documentTypes.Count == 0
+            ? null
+            : new DriverDocumentApprovalOverlay(
+                approval.Status,
+                approval.DecisionNote,
+                approval.DecidedAtUtc,
+                documentTypes);
+    }
+
+    private static IReadOnlySet<DriverDocumentType> ResolveChangedDocumentTypes(
+        Driver driver,
+        DriverDocumentsProfileChangePayload payload)
+    {
+        var result = new HashSet<DriverDocumentType>();
+
+        if (HasChanged(payload.NationalIdFrontImageUrl, driver.NationalIdFrontImageUrl) ||
+            HasChanged(payload.NationalIdBackImageUrl, driver.NationalIdBackImageUrl))
+        {
+            result.Add(DriverDocumentType.NationalId);
+        }
+
+        if (HasChanged(payload.LicenseImageUrl, driver.LicenseImageUrl))
+        {
+            result.Add(DriverDocumentType.DriverLicense);
+        }
+
+        if (HasChanged(payload.VehicleImageUrl, driver.VehicleImageUrl))
+        {
+            result.Add(DriverDocumentType.VehicleLicense);
+        }
+
+        return result;
+    }
+
+    private static bool HasChanged(string? requestedValue, string? currentValue) =>
+        !string.IsNullOrWhiteSpace(requestedValue) &&
+        !string.Equals(requestedValue.Trim(), currentValue?.Trim(), StringComparison.Ordinal);
 
     private static string ResolveRiskLevel(
         Driver driver,

@@ -1,6 +1,7 @@
 using FluentAssertions;
 using Microsoft.EntityFrameworkCore;
 using Moq;
+using System.Text.Json;
 using Zadana.Application.Common.Interfaces;
 using Zadana.Application.Modules.Delivery.DTOs;
 using Zadana.Application.Modules.Delivery.Interfaces;
@@ -207,6 +208,78 @@ public class DriverReadServiceTests
     }
 
     [Fact]
+    public async Task GetDriverProfileAsync_WhenDocumentChangePending_ShouldExposeDocumentUnderReview()
+    {
+        await using var dbContext = CreateDbContext();
+        var user = new User("Driver Pending Document User", "driver.pending.document@test.com", "01000000074", UserRole.Driver);
+        var driver = CreateCompleteDriver(user.Id);
+        ApproveRequiredDocuments(driver);
+
+        var payload = new DriverDocumentsProfileChangePayload(
+            driver.Id,
+            driver.NationalIdFrontImageUrl,
+            driver.NationalIdBackImageUrl,
+            "https://cdn.example.com/drivers/license-new.jpg",
+            driver.VehicleImageUrl,
+            driver.PersonalPhotoUrl);
+
+        dbContext.Users.Add(user);
+        dbContext.Drivers.Add(driver);
+        dbContext.AccessApprovalRequests.Add(new AccessApprovalRequest(
+            user.Id,
+            user.Id,
+            ProfileChangeApprovalActions.DriverProfileDocuments,
+            "Driver requested document changes.",
+            "pending-hash",
+            JsonSerializer.Serialize(payload, new JsonSerializerOptions(JsonSerializerDefaults.Web))));
+        await dbContext.SaveChangesAsync();
+
+        var service = CreateService(dbContext);
+        var result = await service.GetDriverProfileAsync(user.Id);
+
+        result.Should().NotBeNull();
+        result!.Documents.Single(document => document.DocumentType == nameof(DriverDocumentType.DriverLicense))
+            .Status.Should().Be("review");
+    }
+
+    [Fact]
+    public async Task GetDriverProfileAsync_WhenDocumentChangeRejected_ShouldExposeRejectedDocumentAndReason()
+    {
+        await using var dbContext = CreateDbContext();
+        var user = new User("Driver Rejected Document User", "driver.rejected.document@test.com", "01000000075", UserRole.Driver);
+        var driver = CreateCompleteDriver(user.Id);
+        ApproveRequiredDocuments(driver);
+
+        var payload = new DriverDocumentsProfileChangePayload(
+            driver.Id,
+            driver.NationalIdFrontImageUrl,
+            driver.NationalIdBackImageUrl,
+            driver.LicenseImageUrl,
+            "https://cdn.example.com/drivers/vehicle-new.jpg",
+            driver.PersonalPhotoUrl);
+        var approval = new AccessApprovalRequest(
+            user.Id,
+            user.Id,
+            ProfileChangeApprovalActions.DriverProfileDocuments,
+            "Driver requested document changes.",
+            "rejected-hash",
+            JsonSerializer.Serialize(payload, new JsonSerializerOptions(JsonSerializerDefaults.Web)));
+        approval.Reject(Guid.NewGuid(), "الصورة غير واضحة");
+
+        dbContext.Users.Add(user);
+        dbContext.Drivers.Add(driver);
+        dbContext.AccessApprovalRequests.Add(approval);
+        await dbContext.SaveChangesAsync();
+
+        var service = CreateService(dbContext);
+        var result = await service.GetDriverProfileAsync(user.Id);
+        var vehicleDocument = result!.Documents.Single(document => document.DocumentType == nameof(DriverDocumentType.VehicleLicense));
+
+        vehicleDocument.Status.Should().Be("rejected");
+        vehicleDocument.RejectionReason.Should().Be("الصورة غير واضحة");
+    }
+
+    [Fact]
     public async Task GetAdminDriverDetailAsync_ShouldExposeLocationAccessState()
     {
         await using var dbContext = CreateDbContext();
@@ -297,6 +370,36 @@ public class DriverReadServiceTests
 
     private static User CreateCustomer() =>
         new("Customer User", "driver.read.customer@test.com", "01000000058", UserRole.Customer);
+
+    private static Driver CreateCompleteDriver(Guid userId)
+    {
+        var driver = new Driver(
+            userId,
+            DriverVehicleType.Car,
+            "12345678901242",
+            "LIC-112",
+            nationalIdExpiryDate: DateTime.UtcNow.Date.AddYears(1),
+            driverLicenseExpiryDate: DateTime.UtcNow.Date.AddYears(1),
+            vehicleLicenseNumber: "VEH-112",
+            vehicleLicenseExpiryDate: DateTime.UtcNow.Date.AddYears(1),
+            address: "Riyadh",
+            nationalIdFrontImageUrl: "https://cdn.example.com/drivers/id-front.jpg",
+            nationalIdBackImageUrl: "https://cdn.example.com/drivers/id-back.jpg",
+            licenseImageUrl: "https://cdn.example.com/drivers/license.jpg",
+            vehicleImageUrl: "https://cdn.example.com/drivers/vehicle.jpg",
+            personalPhotoUrl: "https://cdn.example.com/drivers/photo.jpg",
+            region: "RIYADH",
+            city: "RIYADH");
+        driver.Approve(Guid.NewGuid());
+        return driver;
+    }
+
+    private static void ApproveRequiredDocuments(Driver driver)
+    {
+        driver.GetOrCreateDocumentReview(DriverDocumentType.NationalId).Approve(Guid.NewGuid(), "Admin");
+        driver.GetOrCreateDocumentReview(DriverDocumentType.DriverLicense).Approve(Guid.NewGuid(), "Admin");
+        driver.GetOrCreateDocumentReview(DriverDocumentType.VehicleLicense).Approve(Guid.NewGuid(), "Admin");
+    }
 
     private static Vendor CreateVendor() =>
         new(
