@@ -66,7 +66,7 @@ public class ForgotPasswordCommandHandlerTests
     }
 
     [Fact]
-    public async Task Handle_WhenUserHasPhone_ShouldSendSmsAndNotEmail()
+    public async Task Handle_WhenUserHasPhoneOnly_ShouldNotSendOtp()
     {
         SetupLocalizer();
         var account = BuildAccount(null, "01011111111");
@@ -80,15 +80,15 @@ public class ForgotPasswordCommandHandlerTests
         await handler.Handle(new ForgotPasswordCommand("01011111111"), CancellationToken.None);
 
         _otpServiceMock.Verify(
-            service => service.SendOtpSmsAsync("01011111111", "1234", It.IsAny<CancellationToken>()),
-            Times.Once);
+            service => service.SendOtpSmsAsync(It.IsAny<string>(), It.IsAny<string>(), It.IsAny<CancellationToken>()),
+            Times.Never);
         _otpServiceMock.Verify(
             service => service.SendOtpEmailAsync(It.IsAny<string>(), It.IsAny<string>(), It.IsAny<CancellationToken>()),
             Times.Never);
     }
 
     [Fact]
-    public async Task Handle_WhenUserHasEmailAndPhone_ShouldSendSmsOnly()
+    public async Task Handle_WhenUserHasEmailAndPhone_ShouldSendEmailOnly()
     {
         SetupLocalizer();
         var account = BuildAccount("user@zadana.com", "01022222222");
@@ -102,10 +102,10 @@ public class ForgotPasswordCommandHandlerTests
         await handler.Handle(new ForgotPasswordCommand("user@zadana.com"), CancellationToken.None);
 
         _otpServiceMock.Verify(
-            service => service.SendOtpSmsAsync("01022222222", "6543", It.IsAny<CancellationToken>()),
+            service => service.SendOtpEmailAsync("user@zadana.com", "6543", It.IsAny<CancellationToken>(), 15),
             Times.Once);
         _otpServiceMock.Verify(
-            service => service.SendOtpEmailAsync(It.IsAny<string>(), It.IsAny<string>(), It.IsAny<CancellationToken>()),
+            service => service.SendOtpSmsAsync(It.IsAny<string>(), It.IsAny<string>(), It.IsAny<CancellationToken>()),
             Times.Never);
     }
 

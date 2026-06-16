@@ -232,7 +232,7 @@ public class CustomerAuth_IntegrationTests : IClassFixture<ZadanaWebFactory>
     }
 
     [Fact]
-    public async Task ForgotPassword_WithEmailIdentifier_SendsOtpToRegisteredPhoneOnly()
+    public async Task ForgotPassword_WithEmailIdentifier_SendsOtpToRegisteredEmailOnly()
     {
         var email = $"forgot_wa_{Guid.NewGuid():N}@test.com";
         var phone = "018" + new Random().Next(10000000, 99999999).ToString();
@@ -245,8 +245,8 @@ public class CustomerAuth_IntegrationTests : IClassFixture<ZadanaWebFactory>
 
         var content = await response.Content.ReadAsStringAsync();
         response.StatusCode.Should().Be(HttpStatusCode.OK, content);
-        _factory.OtpSink.SmsDispatches.Should().ContainSingle(dispatch => dispatch.Recipient == phone);
-        _factory.OtpSink.EmailDispatches.Should().BeEmpty();
+        _factory.OtpSink.EmailDispatches.Should().ContainSingle(dispatch => dispatch.Recipient == email);
+        _factory.OtpSink.SmsDispatches.Should().BeEmpty();
     }
 
     private async Task SeedCustomerAccountAsync(string fullName, string email, string phone, string password)
