@@ -309,7 +309,7 @@ public class AdminAccessController(
             .Take(pageSize)
             .ToListAsync(cancellationToken);
 
-        return Ok(result);
+        return Ok(await AttachReviewDetailsAsync(result, cancellationToken));
     }
 
     [HttpPost("approvals/{id}/approve")]
@@ -1012,9 +1012,15 @@ public class AdminAccessController(
 
     private async Task<AccessApprovalRequestDto?> ProjectApprovalRequestAsync(
         Guid id,
-        CancellationToken cancellationToken) =>
-        await ProjectApprovalRequests(dbContext.AccessApprovalRequests.AsNoTracking().Where(item => item.Id == id))
+        CancellationToken cancellationToken)
+    {
+        var approval = await ProjectApprovalRequests(dbContext.AccessApprovalRequests.AsNoTracking().Where(item => item.Id == id))
             .FirstOrDefaultAsync(cancellationToken);
+
+        return approval is null
+            ? null
+            : approval with { ReviewDetails = await BuildReviewDetailsAsync(approval, cancellationToken) };
+    }
 
     private IQueryable<AccessApprovalRequestDto> ProjectApprovalRequests(IQueryable<AccessApprovalRequest> query) =>
         from approval in query
@@ -1045,7 +1051,271 @@ public class AdminAccessController(
             decidedBy != null ? decidedBy.Email : null,
             approval.DecidedAtUtc == null ? null : approval.DecidedAtUtc.GetValueOrDefault().ToString("o"),
             approval.DecisionNote,
-            approval.ConsumedAtUtc == null ? null : approval.ConsumedAtUtc.GetValueOrDefault().ToString("o"));
+            approval.ConsumedAtUtc == null ? null : approval.ConsumedAtUtc.GetValueOrDefault().ToString("o"),
+            null);
+
+    private async Task<IReadOnlyList<AccessApprovalRequestDto>> AttachReviewDetailsAsync(
+        IReadOnlyList<AccessApprovalRequestDto> approvals,
+        CancellationToken cancellationToken)
+    {
+        var result = new List<AccessApprovalRequestDto>(approvals.Count);
+        foreach (var approval in approvals)
+        {
+            result.Add(approval with
+            {
+                ReviewDetails = await BuildReviewDetailsAsync(approval, cancellationToken)
+            });
+        }
+
+        return result;
+    }
+
+    private async Task<AccessApprovalReviewDetailsDto?> BuildReviewDetailsAsync(
+        AccessApprovalRequestDto approval,
+        CancellationToken cancellationToken)
+    {
+        return approval.Action switch
+        {
+            ProfileChangeApprovalActions.DriverProfilePersonal =>
+                await BuildDriverPersonalReviewDetailsAsync(approval, cancellationToken),
+            ProfileChangeApprovalActions.DriverProfileVehicle =>
+                await BuildDriverVehicleReviewDetailsAsync(approval, cancellationToken),
+            ProfileChangeApprovalActions.DriverProfileDocuments =>
+                await BuildDriverDocumentsReviewDetailsAsync(approval, cancellationToken),
+            ProfileChangeApprovalActions.DriverPayoutMethodCreate =>
+                await BuildDriverPayoutMethodCreateReviewDetailsAsync(approval, cancellationToken),
+            ProfileChangeApprovalActions.DriverPayoutMethodUpdate =>
+                await BuildDriverPayoutMethodUpdateReviewDetailsAsync(approval, cancellationToken),
+            ProfileChangeApprovalActions.DriverPayoutMethodMakePrimary =>
+                await BuildDriverPayoutMethodMakePrimaryReviewDetailsAsync(approval, cancellationToken),
+            ProfileChangeApprovalActions.DriverPayoutMethodDelete =>
+                await BuildDriverPayoutMethodDeleteReviewDetailsAsync(approval, cancellationToken),
+            _ => null
+        };
+    }
+
+    private async Task<AccessApprovalReviewDetailsDto> BuildDriverPersonalReviewDetailsAsync(
+        AccessApprovalRequestDto approval,
+        CancellationToken cancellationToken)
+    {
+        var payload = DeserializePayload<DriverPersonalProfileChangePayload>(approval.PayloadJson, approval.Action);
+        var driver = await dbContext.Drivers
+            .AsNoTracking()
+            .Include(item => item.User)
+            .FirstOrDefaultAsync(item => item.Id == payload.DriverId, cancellationToken)
+            ?? throw new NotFoundException("Driver", payload.DriverId);
+
+        return new AccessApprovalReviewDetailsDto(
+            "driver",
+            payload.DriverId,
+            approval.Action,
+            "update_personal",
+            [
+                ReviewField("fullName", "اسم المندوب", "Driver name", driver.User.FullName, payload.FullName, isSensitive: true),
+                ReviewField("email", "البريد الإلكتروني", "Email", driver.User.Email, payload.Email, isSensitive: true),
+                ReviewField("phone", "رقم الجوال", "Phone", driver.User.PhoneNumber, payload.Phone, isSensitive: true),
+                ReviewField("address", "العنوان", "Address", driver.Address, payload.Address, isSensitive: true)
+            ]);
+    }
+
+    private async Task<AccessApprovalReviewDetailsDto> BuildDriverVehicleReviewDetailsAsync(
+        AccessApprovalRequestDto approval,
+        CancellationToken cancellationToken)
+    {
+        var payload = DeserializePayload<DriverVehicleProfileChangePayload>(approval.PayloadJson, approval.Action);
+        var driver = await dbContext.Drivers
+            .AsNoTracking()
+            .FirstOrDefaultAsync(item => item.Id == payload.DriverId, cancellationToken)
+            ?? throw new NotFoundException("Driver", payload.DriverId);
+
+        return new AccessApprovalReviewDetailsDto(
+            "driver",
+            payload.DriverId,
+            approval.Action,
+            "update_vehicle",
+            [
+                ReviewField("vehicleType", "نوع المركبة", "Vehicle type", driver.VehicleType?.ToString(), payload.VehicleType, isSensitive: true),
+                ReviewField("nationalId", "رقم الهوية", "National ID", driver.NationalId, payload.NationalId, isSensitive: true),
+                ReviewField("licenseNumber", "رقم رخصة القيادة", "Driver license number", driver.LicenseNumber, payload.LicenseNumber, isSensitive: true),
+                ReviewField("nationalIdExpiryDate", "تاريخ انتهاء الهوية", "National ID expiry date", FormatDate(driver.NationalIdExpiryDate), FormatDate(payload.NationalIdExpiryDate), isSensitive: true),
+                ReviewField("driverLicenseExpiryDate", "تاريخ انتهاء رخصة القيادة", "Driver license expiry date", FormatDate(driver.DriverLicenseExpiryDate), FormatDate(payload.DriverLicenseExpiryDate), isSensitive: true),
+                ReviewField("vehicleLicenseNumber", "رقم رخصة المركبة", "Vehicle license number", driver.VehicleLicenseNumber, payload.VehicleLicenseNumber, isSensitive: true),
+                ReviewField("vehicleLicenseExpiryDate", "تاريخ انتهاء رخصة المركبة", "Vehicle license expiry date", FormatDate(driver.VehicleLicenseExpiryDate), FormatDate(payload.VehicleLicenseExpiryDate), isSensitive: true),
+                ReviewField("region", "المنطقة", "Region", driver.Region, payload.Region),
+                ReviewField("city", "المدينة", "City", driver.City, payload.City)
+            ]);
+    }
+
+    private async Task<AccessApprovalReviewDetailsDto> BuildDriverDocumentsReviewDetailsAsync(
+        AccessApprovalRequestDto approval,
+        CancellationToken cancellationToken)
+    {
+        var payload = DeserializePayload<DriverDocumentsProfileChangePayload>(approval.PayloadJson, approval.Action);
+        var driver = await dbContext.Drivers
+            .AsNoTracking()
+            .FirstOrDefaultAsync(item => item.Id == payload.DriverId, cancellationToken)
+            ?? throw new NotFoundException("Driver", payload.DriverId);
+
+        return new AccessApprovalReviewDetailsDto(
+            "driver",
+            payload.DriverId,
+            approval.Action,
+            "update_documents",
+            [
+                DocumentReviewField("nationalIdFrontImageUrl", "صورة الهوية الأمامية", "National ID front image", driver.NationalIdFrontImageUrl, payload.NationalIdFrontImageUrl),
+                DocumentReviewField("nationalIdBackImageUrl", "صورة الهوية الخلفية", "National ID back image", driver.NationalIdBackImageUrl, payload.NationalIdBackImageUrl),
+                DocumentReviewField("licenseImageUrl", "صورة رخصة القيادة", "Driver license image", driver.LicenseImageUrl, payload.LicenseImageUrl),
+                DocumentReviewField("vehicleImageUrl", "صورة المركبة", "Vehicle image", driver.VehicleImageUrl, payload.VehicleImageUrl),
+                DocumentReviewField("personalPhotoUrl", "الصورة الشخصية", "Personal photo", driver.PersonalPhotoUrl, payload.PersonalPhotoUrl)
+            ]);
+    }
+
+    private Task<AccessApprovalReviewDetailsDto> BuildDriverPayoutMethodCreateReviewDetailsAsync(
+        AccessApprovalRequestDto approval,
+        CancellationToken cancellationToken)
+    {
+        var payload = DeserializePayload<DriverPayoutMethodCreatePayload>(approval.PayloadJson, approval.Action);
+        return Task.FromResult(new AccessApprovalReviewDetailsDto(
+            "driver",
+            payload.DriverId,
+            approval.Action,
+            "create_payout_method",
+            [
+                ReviewField("type", "نوع طريقة السحب", "Payout method type", null, payload.Type, isSensitive: true),
+                ReviewField("accountHolderName", "اسم صاحب الحساب", "Account holder name", null, payload.AccountHolderName, isSensitive: true),
+                ReviewField("accountIdentifier", "رقم الحساب / IBAN", "Account identifier / IBAN", null, payload.AccountIdentifier, isSensitive: true),
+                ReviewField("providerName", "اسم البنك", "Provider name", null, payload.ProviderName, isSensitive: true),
+                ReviewField("isPrimary", "أساسية", "Primary", null, payload.IsPrimary, isSensitive: true)
+            ]));
+    }
+
+    private async Task<AccessApprovalReviewDetailsDto> BuildDriverPayoutMethodUpdateReviewDetailsAsync(
+        AccessApprovalRequestDto approval,
+        CancellationToken cancellationToken)
+    {
+        var payload = DeserializePayload<DriverPayoutMethodUpdatePayload>(approval.PayloadJson, approval.Action);
+        var payoutMethod = await dbContext.DriverPayoutMethods
+            .AsNoTracking()
+            .FirstOrDefaultAsync(
+                item => item.Id == payload.PayoutMethodId && item.DriverId == payload.DriverId,
+                cancellationToken)
+            ?? throw new NotFoundException("DriverPayoutMethod", payload.PayoutMethodId);
+
+        return new AccessApprovalReviewDetailsDto(
+            "driver",
+            payload.DriverId,
+            approval.Action,
+            "update_payout_method",
+            [
+                ReviewField("payoutMethodId", "معرف طريقة السحب", "Payout method ID", payoutMethod.Id, payload.PayoutMethodId, isSensitive: true),
+                ReviewField("type", "نوع طريقة السحب", "Payout method type", payoutMethod.MethodType.ToString(), payload.Type, isSensitive: true),
+                ReviewField("accountHolderName", "اسم صاحب الحساب", "Account holder name", payoutMethod.AccountHolderName, payload.AccountHolderName, isSensitive: true),
+                ReviewField("accountIdentifier", "رقم الحساب / IBAN", "Account identifier / IBAN", payoutMethod.AccountIdentifier, payload.AccountIdentifier, isSensitive: true),
+                ReviewField("providerName", "اسم البنك", "Provider name", payoutMethod.ProviderName, payload.ProviderName, isSensitive: true)
+            ]);
+    }
+
+    private async Task<AccessApprovalReviewDetailsDto> BuildDriverPayoutMethodMakePrimaryReviewDetailsAsync(
+        AccessApprovalRequestDto approval,
+        CancellationToken cancellationToken)
+    {
+        var payload = DeserializePayload<DriverPayoutMethodMakePrimaryPayload>(approval.PayloadJson, approval.Action);
+        var payoutMethod = await dbContext.DriverPayoutMethods
+            .AsNoTracking()
+            .FirstOrDefaultAsync(
+                item => item.Id == payload.PayoutMethodId && item.DriverId == payload.DriverId,
+                cancellationToken)
+            ?? throw new NotFoundException("DriverPayoutMethod", payload.PayoutMethodId);
+
+        return new AccessApprovalReviewDetailsDto(
+            "driver",
+            payload.DriverId,
+            approval.Action,
+            "make_payout_method_primary",
+            [
+                ReviewField("payoutMethodId", "معرف طريقة السحب", "Payout method ID", payoutMethod.Id, payload.PayoutMethodId, isSensitive: true),
+                ReviewField("maskedLabel", "طريقة السحب", "Payout method", payoutMethod.MaskedLabel, payoutMethod.MaskedLabel, isSensitive: true),
+                ReviewField("isPrimary", "أساسية", "Primary", payoutMethod.IsPrimary, true, isSensitive: true)
+            ]);
+    }
+
+    private async Task<AccessApprovalReviewDetailsDto> BuildDriverPayoutMethodDeleteReviewDetailsAsync(
+        AccessApprovalRequestDto approval,
+        CancellationToken cancellationToken)
+    {
+        var payload = DeserializePayload<DriverPayoutMethodDeletePayload>(approval.PayloadJson, approval.Action);
+        var payoutMethod = await dbContext.DriverPayoutMethods
+            .AsNoTracking()
+            .FirstOrDefaultAsync(
+                item => item.Id == payload.PayoutMethodId && item.DriverId == payload.DriverId,
+                cancellationToken)
+            ?? throw new NotFoundException("DriverPayoutMethod", payload.PayoutMethodId);
+
+        return new AccessApprovalReviewDetailsDto(
+            "driver",
+            payload.DriverId,
+            approval.Action,
+            "delete_payout_method",
+            [
+                ReviewField("payoutMethodId", "معرف طريقة السحب", "Payout method ID", payoutMethod.Id, null, isSensitive: true),
+                ReviewField("type", "نوع طريقة السحب", "Payout method type", payoutMethod.MethodType.ToString(), null, isSensitive: true),
+                ReviewField("accountHolderName", "اسم صاحب الحساب", "Account holder name", payoutMethod.AccountHolderName, null, isSensitive: true),
+                ReviewField("accountIdentifier", "رقم الحساب / IBAN", "Account identifier / IBAN", payoutMethod.AccountIdentifier, null, isSensitive: true),
+                ReviewField("providerName", "اسم البنك", "Provider name", payoutMethod.ProviderName, null, isSensitive: true),
+                ReviewField("isPrimary", "أساسية", "Primary", payoutMethod.IsPrimary, null, isSensitive: true)
+            ]);
+    }
+
+    private static AccessApprovalReviewFieldDto ReviewField(
+        string key,
+        string labelAr,
+        string labelEn,
+        object? currentValue,
+        object? requestedValue,
+        bool isDocument = false,
+        bool isSensitive = false) =>
+        new(
+            key,
+            labelAr,
+            labelEn,
+            currentValue,
+            requestedValue,
+            !ValuesEqual(currentValue, requestedValue),
+            isDocument,
+            isSensitive);
+
+    private static AccessApprovalReviewFieldDto DocumentReviewField(
+        string key,
+        string labelAr,
+        string labelEn,
+        string? currentValue,
+        string? requestedValue) =>
+        new(
+            key,
+            labelAr,
+            labelEn,
+            currentValue,
+            requestedValue,
+            HasChanged(currentValue, requestedValue),
+            IsDocument: true,
+            IsSensitive: true);
+
+    private static string? FormatDate(DateTime? value) =>
+        value?.Date.ToString("yyyy-MM-dd");
+
+    private static bool ValuesEqual(object? currentValue, object? requestedValue) =>
+        string.Equals(
+            Convert.ToString(currentValue, System.Globalization.CultureInfo.InvariantCulture)?.Trim(),
+            Convert.ToString(requestedValue, System.Globalization.CultureInfo.InvariantCulture)?.Trim(),
+            StringComparison.OrdinalIgnoreCase);
+
+    private static TPayload DeserializePayload<TPayload>(string payloadJson, string action)
+    {
+        return JsonSerializer.Deserialize<TPayload>(payloadJson, JsonOptions)
+            ?? throw new BusinessRuleException(
+                "INVALID_APPROVAL_PAYLOAD",
+                $"Approval payload for {action} is invalid.");
+    }
 
     private static object SnapshotApproval(AccessApprovalRequest approval) => new
     {

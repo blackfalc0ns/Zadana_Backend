@@ -213,6 +213,35 @@ public class CustomerAuth_IntegrationTests : IClassFixture<ZadanaWebFactory>
         response.StatusCode.Should().Be(HttpStatusCode.BadRequest);
     }
 
+    [Fact]
+    public async Task VerifyOtp_WithRegistrationCode_ConfirmsEmail()
+    {
+        var email = $"verify_{Guid.NewGuid():N}@test.com";
+        var phone = "014" + new Random().Next(10000000, 99999999).ToString();
+
+        var registerResponse = await _client.PostAsJsonAsync("/api/customers/auth/register",
+            new { fullName = "Verify Email Test", email, phone, password = "P@ssword1234", addressLine = "Verify Address" });
+
+        var registerContent = await registerResponse.Content.ReadAsStringAsync();
+        registerResponse.StatusCode.Should().Be(HttpStatusCode.OK, registerContent);
+
+        var otpCode = _factory.OtpSink.EmailDispatches
+            .Single(dispatch => dispatch.Recipient == email)
+            .OtpCode;
+
+        var response = await _client.PostAsJsonAsync("/api/customers/auth/verify-otp",
+            new { identifier = email, otpCode });
+
+        var content = await response.Content.ReadAsStringAsync();
+        response.StatusCode.Should().Be(HttpStatusCode.OK, content);
+
+        using var scope = _factory.Services.CreateScope();
+        var userManager = scope.ServiceProvider.GetRequiredService<UserManager<User>>();
+        var user = await userManager.FindByEmailAsync(email);
+        user.Should().NotBeNull();
+        user!.EmailConfirmed.Should().BeTrue();
+    }
+
     // ─── Forgot & Reset Password ───────────────────────────────────────────
 
     [Fact]
@@ -259,6 +288,23 @@ public class CustomerAuth_IntegrationTests : IClassFixture<ZadanaWebFactory>
 
         var roleResult = await userManager.AddToRoleAsync(user, UserRole.Customer.ToString());
         roleResult.Succeeded.Should().BeTrue(string.Join(", ", roleResult.Errors.Select(error => error.Description)));
+    }
+
+    [Fact]
+    public async Task ResendOtp_WithEmailIdentifier_SendsOtpToRegisteredEmailOnly()
+    {
+        var email = $"resend_email_{Guid.NewGuid():N}@test.com";
+        var phone = "013" + new Random().Next(10000000, 99999999).ToString();
+
+        await SeedCustomerAccountAsync("Resend Email Test", email, phone, "P@ssword1234");
+        _factory.OtpSink.Clear();
+
+        var response = await _client.PostAsJsonAsync("/api/customers/auth/resend-otp", new { identifier = email });
+
+        var content = await response.Content.ReadAsStringAsync();
+        response.StatusCode.Should().Be(HttpStatusCode.OK, content);
+        _factory.OtpSink.EmailDispatches.Should().ContainSingle(dispatch => dispatch.Recipient == email);
+        _factory.OtpSink.SmsDispatches.Should().BeEmpty();
     }
 
     [Fact]

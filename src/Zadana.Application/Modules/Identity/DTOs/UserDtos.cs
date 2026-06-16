@@ -104,7 +104,25 @@ public record AccessApprovalRequestDto(
     string? DecidedByEmail,
     string? DecidedAtUtc,
     string? DecisionNote,
-    string? ConsumedAtUtc);
+    string? ConsumedAtUtc,
+    AccessApprovalReviewDetailsDto? ReviewDetails = null);
+
+public record AccessApprovalReviewDetailsDto(
+    string EntityType,
+    Guid EntityId,
+    string Action,
+    string Operation,
+    IReadOnlyList<AccessApprovalReviewFieldDto> Fields);
+
+public record AccessApprovalReviewFieldDto(
+    string Key,
+    string LabelAr,
+    string LabelEn,
+    object? CurrentValue,
+    object? RequestedValue,
+    bool IsChanged,
+    bool IsDocument = false,
+    bool IsSensitive = false);
 
 public record SystemLogEntryDto(
     Guid Id,
