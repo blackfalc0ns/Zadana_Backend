@@ -36,41 +36,39 @@ public class DriverProfileController : ApiControllerBase
         [FromBody] UpdateDriverPersonalProfileRequest request,
         [FromServices] ICurrentUserService currentUserService,
         [FromServices] IDriverRepository driverRepository,
-        [FromServices] IIdentityAccountService identityAccountService,
-        [FromServices] IApplicationDbContext context,
         [FromServices] IDriverReadService driverReadService,
-        [FromServices] IAdminAlertService adminAlertService,
-        [FromServices] IEmailVerificationSender emailVerificationSender,
+        [FromServices] IProfileChangeApprovalService profileChangeApprovalService,
         CancellationToken cancellationToken = default)
     {
         var userId = currentUserService.UserId ?? throw new UnauthorizedException("DRIVER_NOT_AUTHENTICATED");
-        var updateResult = await identityAccountService.UpdateProfileAsync(
-            userId,
-            request.FullName,
-            request.Email,
-            request.Phone,
-            cancellationToken);
-
-        if (!updateResult.Succeeded)
-        {
-            throw new BusinessRuleException(
-                "IDENTITY_PROFILE_UPDATE_FAILED",
-                string.Join(", ", updateResult.Errors ?? Array.Empty<string>()));
-        }
-
-        if (updateResult.EmailChanged)
-        {
-            await emailVerificationSender.SendAsync(userId, cancellationToken);
-        }
-
         var driver = await driverRepository.GetByUserIdWithReviewsAsync(userId, cancellationToken)
             ?? throw new NotFoundException("Driver", userId);
 
-        driver.UpdateAddress(request.Address);
-        driver.RefreshProfileReviewState(HasRequiredProfileData(driver), sensitiveChange: false);
+        var payload = new DriverPersonalProfileChangePayload(
+            driver.Id,
+            request.FullName,
+            request.Email,
+            request.Phone,
+            request.Address);
 
-        await context.SaveChangesAsync(cancellationToken);
-        await SendDriverReviewAlertAsync(driver, adminAlertService, hasRequiredProfileData: HasRequiredProfileData(driver), cancellationToken);
+        await profileChangeApprovalService.SubmitAsync(
+            userId,
+            driver.UserId,
+            ProfileChangeApprovalActions.DriverProfilePersonal,
+            $"Driver {GetDriverDisplayName(driver)} requested personal profile changes.",
+            payload,
+            new ProfileChangeApprovalAlert(
+                AdminAlertTypes.DriverCriticalChangeSubmitted,
+                AdminAlertCategories.Drivers,
+                AdminAlertPriorities.High,
+                "تعديل بيانات مندوب بانتظار الموافقة",
+                "Driver personal change pending approval",
+                $"أرسل المندوب {GetDriverDisplayName(driver)} تعديل بيانات شخصية وينتظر موافقة الأدمن.",
+                $"Driver {GetDriverDisplayName(driver)} submitted personal profile changes pending admin approval.",
+                driver.Id,
+                "/admin/access/approvals",
+                new { driverId = driver.Id, userId = driver.UserId, section = "personal" }),
+            cancellationToken);
 
         var profile = await driverReadService.GetDriverProfileAsync(userId, cancellationToken)
             ?? throw new NotFoundException("Driver", userId);
@@ -85,7 +83,7 @@ public class DriverProfileController : ApiControllerBase
         [FromServices] IDriverRepository driverRepository,
         [FromServices] IApplicationDbContext context,
         [FromServices] IDriverReadService driverReadService,
-        [FromServices] IAdminAlertService adminAlertService,
+        [FromServices] IProfileChangeApprovalService profileChangeApprovalService,
         CancellationToken cancellationToken = default)
     {
         var userId = currentUserService.UserId ?? throw new UnauthorizedException("DRIVER_NOT_AUTHENTICATED");
@@ -102,20 +100,6 @@ public class DriverProfileController : ApiControllerBase
 
             parsedVehicleType = resolvedVehicleType;
         }
-
-        driver.UpdateDetails(
-            parsedVehicleType,
-            request.NationalId,
-            request.LicenseNumber,
-            request.NationalIdExpiryDate,
-            request.DriverLicenseExpiryDate,
-            request.VehicleLicenseNumber,
-            request.VehicleLicenseExpiryDate);
-
-        ResetDocumentReviewIfReady(driver, DriverDocumentType.NationalId);
-        ResetDocumentReviewIfReady(driver, DriverDocumentType.DriverLicense);
-        ResetDocumentReviewIfReady(driver, DriverDocumentType.VehicleLicense);
-
 
         if (string.IsNullOrWhiteSpace(request.Region) || string.IsNullOrWhiteSpace(request.City))
         {
@@ -140,15 +124,36 @@ public class DriverProfileController : ApiControllerBase
             throw new BusinessRuleException("INVALID_CITY", "المدينة المختارة لا تتبع المنطقة المحددة | Selected city does not belong to the chosen region.");
         }
 
-        driver.UpdateServiceArea(request.Region, request.City);
+        var payload = new DriverVehicleProfileChangePayload(
+            driver.Id,
+            request.VehicleType,
+            request.NationalId,
+            request.LicenseNumber,
+            request.NationalIdExpiryDate,
+            request.DriverLicenseExpiryDate,
+            request.VehicleLicenseNumber,
+            request.VehicleLicenseExpiryDate,
+            request.Region,
+            request.City);
 
-        driver.RefreshProfileReviewState(
-            HasRequiredProfileData(driver),
-            sensitiveChange: true,
-            note: "Profile updated and pending admin re-review");
-
-        await context.SaveChangesAsync(cancellationToken);
-        await SendDriverReviewAlertAsync(driver, adminAlertService, hasRequiredProfileData: HasRequiredProfileData(driver), cancellationToken);
+        await profileChangeApprovalService.SubmitAsync(
+            userId,
+            driver.UserId,
+            ProfileChangeApprovalActions.DriverProfileVehicle,
+            $"Driver {GetDriverDisplayName(driver)} requested vehicle and identity changes.",
+            payload,
+            new ProfileChangeApprovalAlert(
+                AdminAlertTypes.DriverCriticalChangeSubmitted,
+                AdminAlertCategories.Drivers,
+                AdminAlertPriorities.High,
+                "تعديل بيانات هوية أو مركبة بانتظار الموافقة",
+                "Driver vehicle change pending approval",
+                $"أرسل المندوب {GetDriverDisplayName(driver)} تعديل بيانات هوية أو مركبة وينتظر موافقة الأدمن.",
+                $"Driver {GetDriverDisplayName(driver)} submitted vehicle or identity changes pending admin approval.",
+                driver.Id,
+                "/admin/access/approvals",
+                new { driverId = driver.Id, userId = driver.UserId, section = "vehicle" }),
+            cancellationToken);
 
         var profile = await driverReadService.GetDriverProfileAsync(userId, cancellationToken)
             ?? throw new NotFoundException("Driver", userId);
@@ -161,33 +166,40 @@ public class DriverProfileController : ApiControllerBase
         [FromBody] UpdateDriverDocumentsRequest request,
         [FromServices] ICurrentUserService currentUserService,
         [FromServices] IDriverRepository driverRepository,
-        [FromServices] IApplicationDbContext context,
         [FromServices] IDriverReadService driverReadService,
-        [FromServices] IAdminAlertService adminAlertService,
+        [FromServices] IProfileChangeApprovalService profileChangeApprovalService,
         CancellationToken cancellationToken = default)
     {
         var userId = currentUserService.UserId ?? throw new UnauthorizedException("DRIVER_NOT_AUTHENTICATED");
         var driver = await driverRepository.GetByUserIdWithReviewsAsync(userId, cancellationToken)
             ?? throw new NotFoundException("Driver", userId);
 
-        driver.UpdateDocuments(
+        var payload = new DriverDocumentsProfileChangePayload(
+            driver.Id,
             request.NationalIdFrontImageUrl,
             request.NationalIdBackImageUrl,
             request.LicenseImageUrl,
             request.VehicleImageUrl,
             request.PersonalPhotoUrl);
 
-        ResetDocumentReviewIfReady(driver, DriverDocumentType.NationalId);
-        ResetDocumentReviewIfReady(driver, DriverDocumentType.DriverLicense);
-        ResetDocumentReviewIfReady(driver, DriverDocumentType.VehicleLicense);
-
-        driver.RefreshProfileReviewState(
-            HasRequiredProfileData(driver),
-            sensitiveChange: true,
-            note: "Profile updated and pending admin re-review");
-
-        await context.SaveChangesAsync(cancellationToken);
-        await SendDriverReviewAlertAsync(driver, adminAlertService, hasRequiredProfileData: HasRequiredProfileData(driver), cancellationToken);
+        await profileChangeApprovalService.SubmitAsync(
+            userId,
+            driver.UserId,
+            ProfileChangeApprovalActions.DriverProfileDocuments,
+            $"Driver {GetDriverDisplayName(driver)} requested document changes.",
+            payload,
+            new ProfileChangeApprovalAlert(
+                AdminAlertTypes.DriverDocumentsSubmitted,
+                AdminAlertCategories.Drivers,
+                AdminAlertPriorities.High,
+                "مستندات مندوب بانتظار الموافقة",
+                "Driver documents pending approval",
+                $"أرسل المندوب {GetDriverDisplayName(driver)} مستندات جديدة وينتظر موافقة الأدمن.",
+                $"Driver {GetDriverDisplayName(driver)} submitted document changes pending admin approval.",
+                driver.Id,
+                "/admin/access/approvals",
+                new { driverId = driver.Id, userId = driver.UserId, section = "documents" }),
+            cancellationToken);
 
         var profile = await driverReadService.GetDriverProfileAsync(userId, cancellationToken)
             ?? throw new NotFoundException("Driver", userId);
@@ -274,4 +286,9 @@ public class DriverProfileController : ApiControllerBase
                 }),
             cancellationToken);
     }
+
+    private static string GetDriverDisplayName(Domain.Modules.Delivery.Entities.Driver driver) =>
+        string.IsNullOrWhiteSpace(driver.User?.FullName)
+            ? driver.UserId.ToString("N")
+            : driver.User.FullName.Trim();
 }

@@ -26,7 +26,24 @@ public sealed class SystemLogMiddleware
         "otp",
         "code",
         "secret",
-        "apiKey"
+        "apiKey",
+        "iban",
+        "accountIdentifier",
+        "accountNumber",
+        "nationalId",
+        "idNumber",
+        "taxId",
+        "licenseNumber",
+        "vehicleLicenseNumber",
+        "commercialRegistrationNumber",
+        "commercialRegisterDocumentUrl",
+        "taxDocumentUrl",
+        "licenseDocumentUrl",
+        "nationalIdFrontImageUrl",
+        "nationalIdBackImageUrl",
+        "licenseImageUrl",
+        "vehicleImageUrl",
+        "personalPhotoUrl"
     };
 
     private const int MaxLoggedBodyCharacters = 16000;
@@ -366,7 +383,7 @@ public sealed class SystemLogMiddleware
         {
             foreach (var property in obj.ToList())
             {
-                if (property.Key is not null && SensitiveKeys.Contains(property.Key))
+                if (property.Key is not null && IsSensitiveKey(property.Key))
                 {
                     obj[property.Key] = "***";
                     continue;
@@ -391,5 +408,22 @@ public sealed class SystemLogMiddleware
                 }
             }
         }
+    }
+
+    private static bool IsSensitiveKey(string key)
+    {
+        if (SensitiveKeys.Contains(key))
+        {
+            return true;
+        }
+
+        return key.Contains("iban", StringComparison.OrdinalIgnoreCase) ||
+            key.Contains("nationalId", StringComparison.OrdinalIgnoreCase) ||
+            key.Contains("idNumber", StringComparison.OrdinalIgnoreCase) ||
+            key.Contains("taxId", StringComparison.OrdinalIgnoreCase) ||
+            key.Contains("licenseNumber", StringComparison.OrdinalIgnoreCase) ||
+            key.Contains("accountIdentifier", StringComparison.OrdinalIgnoreCase) ||
+            key.Contains("documentUrl", StringComparison.OrdinalIgnoreCase) ||
+            key.Contains("imageUrl", StringComparison.OrdinalIgnoreCase);
     }
 }

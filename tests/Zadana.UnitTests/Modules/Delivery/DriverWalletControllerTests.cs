@@ -25,12 +25,13 @@ public class DriverWalletControllerTests
         var driver = CreateApprovedDriver();
         var currentUserService = Mock.Of<ICurrentUserService>(service => service.UserId == driver.UserId);
         var driverRepository = CreateDriverRepository(driver);
+        var profileChangeApprovalService = Mock.Of<IProfileChangeApprovalService>();
 
         var act = () => controller.CreatePaymentMethod(
             null,
             currentUserService,
             driverRepository.Object,
-            context,
+            profileChangeApprovalService,
             CancellationToken.None);
 
         await act.Should().ThrowAsync<BadRequestException>()
@@ -45,16 +46,59 @@ public class DriverWalletControllerTests
         var driver = CreateApprovedDriver();
         var currentUserService = Mock.Of<ICurrentUserService>(service => service.UserId == driver.UserId);
         var driverRepository = CreateDriverRepository(driver);
+        var profileChangeApprovalService = Mock.Of<IProfileChangeApprovalService>();
 
         var act = () => controller.CreatePaymentMethod(
             new CreateDriverPayoutMethodRequest("BankAccount", "Driver Name", " ", "Bank", true),
             currentUserService,
             driverRepository.Object,
-            context,
+            profileChangeApprovalService,
             CancellationToken.None);
 
         await act.Should().ThrowAsync<BadRequestException>()
             .WithMessage("Account identifier is required.");
+    }
+
+    [Fact]
+    public async Task CreatePaymentMethod_SubmitsApprovalRequest_WithoutCreatingMethod()
+    {
+        await using var context = TestDbContextFactory.Create();
+        var controller = new DriverWalletController();
+        var driver = CreateApprovedDriver();
+        var approvalRequestId = Guid.NewGuid();
+        var currentUserService = Mock.Of<ICurrentUserService>(service => service.UserId == driver.UserId);
+        var driverRepository = CreateDriverRepository(driver);
+        var profileChangeApprovalService = new Mock<IProfileChangeApprovalService>();
+        profileChangeApprovalService
+            .Setup(service => service.SubmitAsync(
+                driver.UserId,
+                driver.UserId,
+                ProfileChangeApprovalActions.DriverPayoutMethodCreate,
+                It.IsAny<string>(),
+                It.IsAny<DriverPayoutMethodCreatePayload>(),
+                It.IsAny<ProfileChangeApprovalAlert>(),
+                It.IsAny<CancellationToken>()))
+            .ReturnsAsync(approvalRequestId);
+
+        var result = await controller.CreatePaymentMethod(
+            new CreateDriverPayoutMethodRequest("BankAccount", "Driver Name", "SA1234567890123456789012", "Bank", true),
+            currentUserService,
+            driverRepository.Object,
+            profileChangeApprovalService.Object,
+            CancellationToken.None);
+
+        result.Result.Should().BeOfType<AcceptedResult>();
+        context.DriverPayoutMethods.Should().BeEmpty();
+        profileChangeApprovalService.Verify(
+            service => service.SubmitAsync(
+                driver.UserId,
+                driver.UserId,
+                ProfileChangeApprovalActions.DriverPayoutMethodCreate,
+                It.IsAny<string>(),
+                It.IsAny<DriverPayoutMethodCreatePayload>(),
+                It.IsAny<ProfileChangeApprovalAlert>(),
+                It.IsAny<CancellationToken>()),
+            Times.Once);
     }
 
     [Fact]
@@ -65,6 +109,7 @@ public class DriverWalletControllerTests
         var driver = CreateApprovedDriver();
         var currentUserService = Mock.Of<ICurrentUserService>(service => service.UserId == driver.UserId);
         var driverRepository = CreateDriverRepository(driver);
+        var profileChangeApprovalService = Mock.Of<IProfileChangeApprovalService>();
 
         var wallet = new Wallet(WalletOwnerType.Driver, driver.Id);
         var payoutMethod = new DriverPayoutMethod(driver.Id, DriverPayoutMethodType.BankAccount, "Driver Name", "1234567890", "Bank", true);
@@ -80,10 +125,58 @@ public class DriverWalletControllerTests
             currentUserService,
             driverRepository.Object,
             context,
+            profileChangeApprovalService,
             CancellationToken.None);
 
         await act.Should().ThrowAsync<BusinessRuleException>()
             .WithMessage("*linked to withdrawal requests*");
+    }
+
+    [Fact]
+    public async Task DeletePaymentMethod_SubmitsApprovalRequest_WithoutDeletingMethod()
+    {
+        await using var context = TestDbContextFactory.Create();
+        var controller = new DriverWalletController();
+        var driver = CreateApprovedDriver();
+        var approvalRequestId = Guid.NewGuid();
+        var currentUserService = Mock.Of<ICurrentUserService>(service => service.UserId == driver.UserId);
+        var driverRepository = CreateDriverRepository(driver);
+        var payoutMethod = new DriverPayoutMethod(driver.Id, DriverPayoutMethodType.BankAccount, "Driver Name", "SA1234567890123456789012", "Bank", true);
+        var profileChangeApprovalService = new Mock<IProfileChangeApprovalService>();
+        profileChangeApprovalService
+            .Setup(service => service.SubmitAsync(
+                driver.UserId,
+                driver.UserId,
+                ProfileChangeApprovalActions.DriverPayoutMethodDelete,
+                It.IsAny<string>(),
+                It.IsAny<DriverPayoutMethodDeletePayload>(),
+                It.IsAny<ProfileChangeApprovalAlert>(),
+                It.IsAny<CancellationToken>()))
+            .ReturnsAsync(approvalRequestId);
+
+        context.DriverPayoutMethods.Add(payoutMethod);
+        await context.SaveChangesAsync(CancellationToken.None);
+
+        var result = await controller.DeletePaymentMethod(
+            payoutMethod.Id,
+            currentUserService,
+            driverRepository.Object,
+            context,
+            profileChangeApprovalService.Object,
+            CancellationToken.None);
+
+        result.Should().BeOfType<AcceptedResult>();
+        context.DriverPayoutMethods.Should().ContainSingle(item => item.Id == payoutMethod.Id);
+        profileChangeApprovalService.Verify(
+            service => service.SubmitAsync(
+                driver.UserId,
+                driver.UserId,
+                ProfileChangeApprovalActions.DriverPayoutMethodDelete,
+                It.IsAny<string>(),
+                It.IsAny<DriverPayoutMethodDeletePayload>(),
+                It.IsAny<ProfileChangeApprovalAlert>(),
+                It.IsAny<CancellationToken>()),
+            Times.Once);
     }
 
     [Fact]
@@ -128,7 +221,13 @@ public class DriverWalletControllerTests
 
     private static Driver CreateApprovedDriver()
     {
-        var driver = new Driver(Guid.NewGuid(), null, null, null);
+        var driver = new Driver(
+            Guid.NewGuid(),
+            null,
+            null,
+            null,
+            region: "RIYADH",
+            city: "RIYADH");
         driver.Approve(Guid.NewGuid(), "approved for wallet tests");
         return driver;
     }

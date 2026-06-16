@@ -16,9 +16,17 @@ using Zadana.Application.Modules.Identity.Commands.AdminAccessUsers;
 using Zadana.Domain.Modules.Identity.Enums;
 using Zadana.Application.Modules.Identity.DTOs;
 using Zadana.Application.Common.Interfaces;
+using Zadana.Application.Modules.Identity.Interfaces;
 using Zadana.Application.Modules.Identity.Services;
+using Zadana.Application.Modules.Delivery.DTOs;
+using Zadana.Domain.Modules.Delivery.Enums;
+using Zadana.Domain.Modules.Vendors.Entities;
+using Zadana.Domain.Modules.Vendors.Enums;
 using Zadana.Domain.Modules.Identity.Entities;
+using Zadana.Domain.Modules.Wallets.Entities;
+using Zadana.Domain.Modules.Wallets.Enums;
 using Microsoft.EntityFrameworkCore;
+using System.Text.Json;
 using Zadana.SharedKernel.Exceptions;
 
 namespace Zadana.Api.Modules.Identity.Controllers;
@@ -29,8 +37,11 @@ public class AdminAccessController(
     IMediator mediator,
     IApplicationDbContext dbContext,
     ICurrentUserService currentUserService,
+    IIdentityAccountService identityAccountService,
+    IEmailVerificationSender emailVerificationSender,
     IAccessAuditService auditService) : ApiControllerBase
 {
+    private static readonly JsonSerializerOptions JsonOptions = new(JsonSerializerDefaults.Web);
     [HttpGet("permissions")]
     [RequireAccess(PermissionKeys.Admin.UsersAccessView)]
     public async Task<IActionResult> GetPermissions(CancellationToken cancellationToken)
@@ -318,6 +329,11 @@ public class AdminAccessController(
         EnsureCurrentUserCanDecideApproval(approval);
         var before = SnapshotApproval(approval);
         approval.Approve(currentUserService.UserId!.Value, request?.Note);
+        if (ProfileChangeApprovalActions.IsProfileChange(approval.Action))
+        {
+            await ApplyApprovedProfileChangeAsync(approval, cancellationToken);
+            approval.Consume();
+        }
         auditService.Add(
             approval.TargetUserId ?? approval.RequestedByUserId,
             "access-approval-approved",
@@ -421,6 +437,577 @@ public class AdminAccessController(
         {
             throw new BusinessRuleException("SELF_APPROVAL_BLOCKED", "You cannot approve or reject your own access request.");
         }
+    }
+
+    private async Task ApplyApprovedProfileChangeAsync(
+        AccessApprovalRequest approval,
+        CancellationToken cancellationToken)
+    {
+        switch (approval.Action)
+        {
+            case ProfileChangeApprovalActions.VendorProfileBasic:
+                await ApplyVendorBasicChangeAsync(
+                    DeserializePayload<VendorBasicProfileChangePayload>(approval),
+                    cancellationToken);
+                break;
+
+            case ProfileChangeApprovalActions.VendorProfileStore:
+                await ApplyVendorStoreChangeAsync(
+                    DeserializePayload<VendorStoreProfileChangePayload>(approval),
+                    cancellationToken);
+                break;
+
+            case ProfileChangeApprovalActions.VendorProfileOwner:
+                await ApplyVendorOwnerChangeAsync(
+                    DeserializePayload<VendorOwnerProfileChangePayload>(approval),
+                    cancellationToken);
+                break;
+
+            case ProfileChangeApprovalActions.VendorProfileLegal:
+                await ApplyVendorLegalChangeAsync(
+                    DeserializePayload<VendorLegalProfileChangePayload>(approval),
+                    cancellationToken);
+                break;
+
+            case ProfileChangeApprovalActions.VendorProfileBanking:
+                await ApplyVendorBankingChangeAsync(
+                    DeserializePayload<VendorBankingProfileChangePayload>(approval),
+                    cancellationToken);
+                break;
+
+            case ProfileChangeApprovalActions.DriverProfilePersonal:
+                await ApplyDriverPersonalChangeAsync(
+                    DeserializePayload<DriverPersonalProfileChangePayload>(approval),
+                    cancellationToken);
+                break;
+
+            case ProfileChangeApprovalActions.DriverProfileVehicle:
+                await ApplyDriverVehicleChangeAsync(
+                    DeserializePayload<DriverVehicleProfileChangePayload>(approval),
+                    cancellationToken);
+                break;
+
+            case ProfileChangeApprovalActions.DriverProfileDocuments:
+                await ApplyDriverDocumentsChangeAsync(
+                    DeserializePayload<DriverDocumentsProfileChangePayload>(approval),
+                    cancellationToken);
+                break;
+
+            case ProfileChangeApprovalActions.DriverPayoutMethodCreate:
+                await ApplyDriverPayoutMethodCreateAsync(
+                    DeserializePayload<DriverPayoutMethodCreatePayload>(approval),
+                    cancellationToken);
+                break;
+
+            case ProfileChangeApprovalActions.DriverPayoutMethodUpdate:
+                await ApplyDriverPayoutMethodUpdateAsync(
+                    DeserializePayload<DriverPayoutMethodUpdatePayload>(approval),
+                    cancellationToken);
+                break;
+
+            case ProfileChangeApprovalActions.DriverPayoutMethodMakePrimary:
+                await ApplyDriverPayoutMethodMakePrimaryAsync(
+                    DeserializePayload<DriverPayoutMethodMakePrimaryPayload>(approval),
+                    cancellationToken);
+                break;
+
+            case ProfileChangeApprovalActions.DriverPayoutMethodDelete:
+                await ApplyDriverPayoutMethodDeleteAsync(
+                    DeserializePayload<DriverPayoutMethodDeletePayload>(approval),
+                    cancellationToken);
+                break;
+
+            default:
+                throw new BusinessRuleException(
+                    "UNSUPPORTED_PROFILE_APPROVAL_ACTION",
+                    $"Unsupported profile approval action: {approval.Action}");
+        }
+    }
+
+    private async Task ApplyVendorStoreChangeAsync(
+        VendorStoreProfileChangePayload payload,
+        CancellationToken cancellationToken)
+    {
+        var vendor = await dbContext.Vendors
+            .Include(item => item.ProfileReviewItems)
+            .FirstOrDefaultAsync(item => item.Id == payload.VendorId, cancellationToken)
+            ?? throw new NotFoundException("Vendor", payload.VendorId);
+
+        vendor.UpdateStore(
+            vendor.BusinessNameAr,
+            vendor.BusinessNameEn,
+            vendor.BusinessType,
+            vendor.ContactEmail,
+            vendor.ContactPhone,
+            vendor.DescriptionAr,
+            vendor.DescriptionEn,
+            vendor.LogoUrl,
+            payload.CommercialRegisterDocumentUrl,
+            vendor.Region,
+            vendor.City,
+            vendor.NationalAddress,
+            payload.CommercialRegistrationNumber);
+    }
+
+    private async Task ApplyVendorBasicChangeAsync(
+        VendorBasicProfileChangePayload payload,
+        CancellationToken cancellationToken)
+    {
+        var vendor = await dbContext.Vendors
+            .FirstOrDefaultAsync(item => item.Id == payload.VendorId, cancellationToken)
+            ?? throw new NotFoundException("Vendor", payload.VendorId);
+
+        vendor.UpdateProfile(
+            vendor.BusinessNameAr,
+            vendor.BusinessNameEn,
+            vendor.BusinessType,
+            vendor.ContactEmail,
+            vendor.ContactPhone,
+            payload.TaxId);
+    }
+
+    private async Task ApplyVendorOwnerChangeAsync(
+        VendorOwnerProfileChangePayload payload,
+        CancellationToken cancellationToken)
+    {
+        var vendor = await dbContext.Vendors
+            .Include(item => item.ProfileReviewItems)
+            .FirstOrDefaultAsync(item => item.Id == payload.VendorId, cancellationToken)
+            ?? throw new NotFoundException("Vendor", payload.VendorId);
+
+        vendor.UpdateOwner(
+            payload.OwnerName,
+            payload.OwnerEmail,
+            payload.OwnerPhone,
+            payload.IdNumber,
+            payload.Nationality);
+
+        var updateIdentityResult = await identityAccountService.UpdateProfileAsync(
+            vendor.UserId,
+            payload.OwnerName,
+            payload.OwnerEmail,
+            payload.OwnerPhone,
+            cancellationToken);
+
+        if (!updateIdentityResult.Succeeded)
+        {
+            throw new BusinessRuleException(
+                "IDENTITY_UPDATE_FAILED",
+                string.Join(", ", updateIdentityResult.Errors ?? []));
+        }
+
+        if (updateIdentityResult.EmailChanged)
+        {
+            await emailVerificationSender.SendAsync(vendor.UserId, cancellationToken);
+        }
+    }
+
+    private async Task ApplyVendorLegalChangeAsync(
+        VendorLegalProfileChangePayload payload,
+        CancellationToken cancellationToken)
+    {
+        var vendor = await dbContext.Vendors
+            .Include(item => item.DocumentReviews)
+            .Include(item => item.ProfileReviewItems)
+            .FirstOrDefaultAsync(item => item.Id == payload.VendorId, cancellationToken)
+            ?? throw new NotFoundException("Vendor", payload.VendorId);
+
+        var resetDocuments = ResolveReuploadedRejectedDocuments(
+            vendor.CommercialRegisterDocumentUrl,
+            payload.CommercialRegisterDocumentUrl,
+            vendor.TaxDocumentUrl,
+            payload.TaxDocumentUrl,
+            vendor.LicenseDocumentUrl,
+            payload.LicenseDocumentUrl);
+
+        vendor.UpdateLegal(
+            payload.CommercialRegistrationNumber,
+            payload.CommercialRegistrationExpiryDate,
+            payload.TaxId,
+            payload.LicenseNumber,
+            payload.CommercialRegisterDocumentUrl,
+            payload.TaxDocumentUrl,
+            payload.LicenseDocumentUrl);
+
+        foreach (var documentType in resetDocuments)
+        {
+            var review = vendor.DocumentReviews.FirstOrDefault(item => item.Type == documentType);
+            if (review?.Decision == VendorDocumentReviewDecision.Rejected)
+            {
+                review.ResetToPending();
+            }
+        }
+    }
+
+    private async Task ApplyVendorBankingChangeAsync(
+        VendorBankingProfileChangePayload payload,
+        CancellationToken cancellationToken)
+    {
+        var vendor = await dbContext.Vendors
+            .Include(item => item.BankAccounts)
+            .Include(item => item.ProfileReviewItems)
+            .FirstOrDefaultAsync(item => item.Id == payload.VendorId, cancellationToken)
+            ?? throw new NotFoundException("Vendor", payload.VendorId);
+
+        vendor.UpdateBanking(payload.PayoutCycle);
+
+        var primaryAccount = vendor.BankAccounts
+            .FirstOrDefault(account => account.IsPrimary)
+            ?? vendor.BankAccounts
+                .OrderByDescending(account => account.CreatedAtUtc)
+                .FirstOrDefault();
+
+        foreach (var account in vendor.BankAccounts)
+        {
+            account.UnsetPrimary();
+        }
+
+        if (primaryAccount is null)
+        {
+            primaryAccount = new VendorBankAccount(
+                vendor.Id,
+                payload.BankName,
+                payload.AccountHolderName,
+                payload.Iban,
+                payload.SwiftCode);
+
+            primaryAccount.MarkAsPreferredForSetup();
+            dbContext.VendorBankAccounts.Add(primaryAccount);
+        }
+        else
+        {
+            primaryAccount.UpdateDetails(
+                payload.BankName,
+                payload.AccountHolderName,
+                payload.Iban,
+                payload.SwiftCode);
+            primaryAccount.MarkAsPreferredForSetup();
+        }
+    }
+
+    private async Task ApplyDriverPersonalChangeAsync(
+        DriverPersonalProfileChangePayload payload,
+        CancellationToken cancellationToken)
+    {
+        var driver = await dbContext.Drivers
+            .Include(item => item.User)
+            .Include(item => item.DocumentReviews)
+            .FirstOrDefaultAsync(item => item.Id == payload.DriverId, cancellationToken)
+            ?? throw new NotFoundException("Driver", payload.DriverId);
+
+        var updateResult = await identityAccountService.UpdateProfileAsync(
+            driver.UserId,
+            payload.FullName,
+            payload.Email,
+            payload.Phone,
+            cancellationToken);
+
+        if (!updateResult.Succeeded)
+        {
+            throw new BusinessRuleException(
+                "IDENTITY_PROFILE_UPDATE_FAILED",
+                string.Join(", ", updateResult.Errors ?? []));
+        }
+
+        if (updateResult.EmailChanged)
+        {
+            await emailVerificationSender.SendAsync(driver.UserId, cancellationToken);
+        }
+
+        driver.UpdateAddress(payload.Address);
+        driver.RefreshProfileReviewState(HasRequiredDriverProfileData(driver), sensitiveChange: true, note: "Sensitive profile change approved by admin.");
+    }
+
+    private async Task ApplyDriverVehicleChangeAsync(
+        DriverVehicleProfileChangePayload payload,
+        CancellationToken cancellationToken)
+    {
+        var driver = await dbContext.Drivers
+            .Include(item => item.User)
+            .Include(item => item.DocumentReviews)
+            .FirstOrDefaultAsync(item => item.Id == payload.DriverId, cancellationToken)
+            ?? throw new NotFoundException("Driver", payload.DriverId);
+
+        DriverVehicleType? parsedVehicleType = null;
+        if (!string.IsNullOrWhiteSpace(payload.VehicleType))
+        {
+            if (!DriverVehicleTypeMapper.TryParse(payload.VehicleType, out var resolvedVehicleType))
+            {
+                throw new BusinessRuleException("INVALID_VEHICLE_TYPE", "Unsupported vehicle type.");
+            }
+
+            parsedVehicleType = resolvedVehicleType;
+        }
+
+        driver.UpdateDetails(
+            parsedVehicleType,
+            payload.NationalId,
+            payload.LicenseNumber,
+            payload.NationalIdExpiryDate,
+            payload.DriverLicenseExpiryDate,
+            payload.VehicleLicenseNumber,
+            payload.VehicleLicenseExpiryDate);
+
+        ResetDriverDocumentReviewIfReady(driver, DriverDocumentType.NationalId);
+        ResetDriverDocumentReviewIfReady(driver, DriverDocumentType.DriverLicense);
+        ResetDriverDocumentReviewIfReady(driver, DriverDocumentType.VehicleLicense);
+
+        driver.UpdateServiceArea(payload.Region, payload.City);
+        driver.RefreshProfileReviewState(HasRequiredDriverProfileData(driver), sensitiveChange: true, note: "Sensitive profile change approved by admin.");
+    }
+
+    private async Task ApplyDriverDocumentsChangeAsync(
+        DriverDocumentsProfileChangePayload payload,
+        CancellationToken cancellationToken)
+    {
+        var driver = await dbContext.Drivers
+            .Include(item => item.User)
+            .Include(item => item.DocumentReviews)
+            .FirstOrDefaultAsync(item => item.Id == payload.DriverId, cancellationToken)
+            ?? throw new NotFoundException("Driver", payload.DriverId);
+
+        driver.UpdateDocuments(
+            payload.NationalIdFrontImageUrl,
+            payload.NationalIdBackImageUrl,
+            payload.LicenseImageUrl,
+            payload.VehicleImageUrl,
+            payload.PersonalPhotoUrl);
+
+        ResetDriverDocumentReviewIfReady(driver, DriverDocumentType.NationalId);
+        ResetDriverDocumentReviewIfReady(driver, DriverDocumentType.DriverLicense);
+        ResetDriverDocumentReviewIfReady(driver, DriverDocumentType.VehicleLicense);
+
+        driver.RefreshProfileReviewState(HasRequiredDriverProfileData(driver), sensitiveChange: true, note: "Documents approved for profile update by admin.");
+    }
+
+    private async Task ApplyDriverPayoutMethodCreateAsync(
+        DriverPayoutMethodCreatePayload payload,
+        CancellationToken cancellationToken)
+    {
+        var driverExists = await dbContext.Drivers
+            .AnyAsync(item => item.Id == payload.DriverId, cancellationToken);
+
+        if (!driverExists)
+        {
+            throw new NotFoundException("Driver", payload.DriverId);
+        }
+
+        var methodType = ParseDriverPayoutMethodType(payload.Type);
+        EnsureSupportedDriverBankPayoutMethod(methodType, payload.AccountIdentifier);
+
+        var existingMethods = await dbContext.DriverPayoutMethods
+            .Where(item => item.DriverId == payload.DriverId)
+            .ToListAsync(cancellationToken);
+
+        var shouldBePrimary = payload.IsPrimary || existingMethods.Count == 0;
+        if (shouldBePrimary)
+        {
+            foreach (var method in existingMethods.Where(item => item.IsPrimary))
+            {
+                method.UnsetPrimary();
+            }
+        }
+
+        dbContext.DriverPayoutMethods.Add(new DriverPayoutMethod(
+            payload.DriverId,
+            methodType,
+            payload.AccountHolderName,
+            payload.AccountIdentifier,
+            payload.ProviderName,
+            shouldBePrimary));
+    }
+
+    private async Task ApplyDriverPayoutMethodUpdateAsync(
+        DriverPayoutMethodUpdatePayload payload,
+        CancellationToken cancellationToken)
+    {
+        var payoutMethod = await dbContext.DriverPayoutMethods
+            .FirstOrDefaultAsync(
+                item => item.Id == payload.PayoutMethodId && item.DriverId == payload.DriverId,
+                cancellationToken)
+            ?? throw new NotFoundException("DriverPayoutMethod", payload.PayoutMethodId);
+
+        var methodType = ParseDriverPayoutMethodType(payload.Type);
+        EnsureSupportedDriverBankPayoutMethod(methodType, payload.AccountIdentifier);
+
+        payoutMethod.UpdateDetails(
+            methodType,
+            payload.AccountHolderName,
+            payload.AccountIdentifier,
+            payload.ProviderName);
+    }
+
+    private async Task ApplyDriverPayoutMethodMakePrimaryAsync(
+        DriverPayoutMethodMakePrimaryPayload payload,
+        CancellationToken cancellationToken)
+    {
+        var methods = await dbContext.DriverPayoutMethods
+            .Where(item => item.DriverId == payload.DriverId)
+            .ToListAsync(cancellationToken);
+
+        var payoutMethod = methods.FirstOrDefault(item => item.Id == payload.PayoutMethodId)
+            ?? throw new NotFoundException("DriverPayoutMethod", payload.PayoutMethodId);
+
+        EnsureSupportedDriverBankPayoutMethod(payoutMethod.MethodType, payoutMethod.AccountIdentifier);
+
+        foreach (var method in methods)
+        {
+            method.UnsetPrimary();
+        }
+
+        payoutMethod.SetPrimary();
+    }
+
+    private async Task ApplyDriverPayoutMethodDeleteAsync(
+        DriverPayoutMethodDeletePayload payload,
+        CancellationToken cancellationToken)
+    {
+        var methods = await dbContext.DriverPayoutMethods
+            .Where(item => item.DriverId == payload.DriverId)
+            .ToListAsync(cancellationToken);
+
+        var payoutMethod = methods.FirstOrDefault(item => item.Id == payload.PayoutMethodId)
+            ?? throw new NotFoundException("DriverPayoutMethod", payload.PayoutMethodId);
+
+        var hasWithdrawalHistory = await dbContext.DriverWithdrawalRequests
+            .AnyAsync(item => item.DriverPayoutMethodId == payload.PayoutMethodId, cancellationToken);
+
+        if (hasWithdrawalHistory)
+        {
+            throw new BusinessRuleException(
+                "DRIVER_PAYOUT_METHOD_IN_USE",
+                "This payout method cannot be deleted because it is linked to withdrawal requests.");
+        }
+
+        var isPrimary = payoutMethod.IsPrimary;
+        dbContext.DriverPayoutMethods.Remove(payoutMethod);
+
+        if (isPrimary)
+        {
+            methods
+                .Where(item => item.Id != payload.PayoutMethodId)
+                .OrderByDescending(item => item.CreatedAtUtc)
+                .FirstOrDefault()
+                ?.SetPrimary();
+        }
+    }
+
+    private static TPayload DeserializePayload<TPayload>(AccessApprovalRequest approval)
+    {
+        return JsonSerializer.Deserialize<TPayload>(approval.PayloadJson, JsonOptions)
+            ?? throw new BusinessRuleException(
+                "INVALID_APPROVAL_PAYLOAD",
+                $"Approval payload for {approval.Action} is invalid.");
+    }
+
+    private static IReadOnlyList<VendorDocumentType> ResolveReuploadedRejectedDocuments(
+        string? currentCommercialUrl,
+        string? nextCommercialUrl,
+        string? currentTaxUrl,
+        string? nextTaxUrl,
+        string? currentLicenseUrl,
+        string? nextLicenseUrl)
+    {
+        var changed = new List<VendorDocumentType>();
+
+        if (HasChanged(currentCommercialUrl, nextCommercialUrl))
+        {
+            changed.Add(VendorDocumentType.Commercial);
+        }
+
+        if (HasChanged(currentTaxUrl, nextTaxUrl))
+        {
+            changed.Add(VendorDocumentType.Tax);
+        }
+
+        if (HasChanged(currentLicenseUrl, nextLicenseUrl))
+        {
+            changed.Add(VendorDocumentType.License);
+        }
+
+        return changed;
+    }
+
+    private static bool HasChanged(string? currentValue, string? nextValue) =>
+        !string.IsNullOrWhiteSpace(nextValue) &&
+        !string.Equals(currentValue?.Trim(), nextValue.Trim(), StringComparison.OrdinalIgnoreCase);
+
+    private static bool HasRequiredDriverProfileData(Domain.Modules.Delivery.Entities.Driver driver) =>
+        driver.VehicleType is not null &&
+        !string.IsNullOrWhiteSpace(driver.NationalId) &&
+        !string.IsNullOrWhiteSpace(driver.LicenseNumber) &&
+        !string.IsNullOrWhiteSpace(driver.VehicleLicenseNumber) &&
+        !string.IsNullOrWhiteSpace(driver.Address) &&
+        !string.IsNullOrWhiteSpace(driver.PersonalPhotoUrl) &&
+        !string.IsNullOrWhiteSpace(driver.NationalIdFrontImageUrl) &&
+        !string.IsNullOrWhiteSpace(driver.NationalIdBackImageUrl) &&
+        !string.IsNullOrWhiteSpace(driver.LicenseImageUrl) &&
+        !string.IsNullOrWhiteSpace(driver.VehicleImageUrl) &&
+        driver.NationalIdExpiryDate.HasValue &&
+        driver.DriverLicenseExpiryDate.HasValue &&
+        driver.VehicleLicenseExpiryDate.HasValue &&
+        !string.IsNullOrWhiteSpace(driver.Region) &&
+        !string.IsNullOrWhiteSpace(driver.City) &&
+        !DriverProfileReadinessFactory.HasExpiredRequiredDocuments(driver);
+
+    private static void ResetDriverDocumentReviewIfReady(
+        Domain.Modules.Delivery.Entities.Driver driver,
+        DriverDocumentType type)
+    {
+        var hasPacket = type switch
+        {
+            DriverDocumentType.NationalId => DriverProfileReadinessFactory.HasNationalIdPacket(driver),
+            DriverDocumentType.DriverLicense => DriverProfileReadinessFactory.HasDriverLicensePacket(driver),
+            DriverDocumentType.VehicleLicense => DriverProfileReadinessFactory.HasVehicleLicensePacket(driver),
+            _ => false
+        };
+
+        if (hasPacket)
+        {
+            driver.ResetDocumentReviewToPending(type);
+        }
+    }
+
+    private static DriverPayoutMethodType ParseDriverPayoutMethodType(string value)
+    {
+        if (!Enum.TryParse<DriverPayoutMethodType>(value, true, out var methodType))
+        {
+            throw new BusinessRuleException("INVALID_DRIVER_PAYOUT_METHOD_TYPE", "Unsupported payout method type.");
+        }
+
+        return methodType;
+    }
+
+    private static void EnsureSupportedDriverBankPayoutMethod(
+        DriverPayoutMethodType methodType,
+        string accountIdentifier)
+    {
+        if (methodType != DriverPayoutMethodType.BankAccount)
+        {
+            throw new BusinessRuleException(
+                "DRIVER_BANK_ACCOUNT_REQUIRED",
+                "Only bank account payout methods are supported for withdrawals.");
+        }
+
+        if (!IsValidSaudiIban(accountIdentifier))
+        {
+            throw new BusinessRuleException(
+                "DRIVER_BANK_IBAN_INVALID",
+                "Driver bank account must be a valid Saudi IBAN.");
+        }
+    }
+
+    private static bool IsValidSaudiIban(string? iban)
+    {
+        if (string.IsNullOrWhiteSpace(iban))
+        {
+            return false;
+        }
+
+        var clean = new string(iban.Where(char.IsLetterOrDigit).ToArray()).ToUpperInvariant();
+        return clean.Length == 24 &&
+            clean.StartsWith("SA", StringComparison.OrdinalIgnoreCase) &&
+            clean.Skip(2).All(char.IsDigit);
     }
 
     private async Task<AccessApprovalRequestDto?> ProjectApprovalRequestAsync(

@@ -82,7 +82,7 @@ public class UpdateVendorContactCommandHandler : IRequestHandler<UpdateVendorCon
             vendor.UserId,
             "profile-contact-updated",
             "info",
-            "قام التاجر بتحديث بيانات العنوان والموقع من بوابة التاجر.",
+            "تم تحديث بيانات العنوان والموقع من بوابة التاجر.",
             "بوابة التاجر",
             vendor.BusinessNameAr,
             userId,

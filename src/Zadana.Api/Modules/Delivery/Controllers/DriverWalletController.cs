@@ -86,38 +86,34 @@ public class DriverWalletController : ApiControllerBase
         [FromBody] CreateDriverPayoutMethodRequest? request,
         [FromServices] ICurrentUserService currentUserService,
         [FromServices] IDriverRepository driverRepository,
-        [FromServices] IApplicationDbContext context,
+        [FromServices] IProfileChangeApprovalService profileChangeApprovalService,
         CancellationToken cancellationToken = default)
     {
         EnsurePayoutMethodRequest(request);
         var driver = await GetDriverAsync(currentUserService, driverRepository, cancellationToken);
         var methodType = ParseMethodType(request!.Type);
         EnsureSupportedBankPayoutMethod(methodType, request.AccountIdentifier);
-        var existingMethods = await context.DriverPayoutMethods
-            .Where(m => m.DriverId == driver.Id)
-            .ToListAsync(cancellationToken);
 
-        var shouldBePrimary = request.IsPrimary || existingMethods.Count == 0;
-        if (shouldBePrimary)
+        var approvalRequestId = await profileChangeApprovalService.SubmitAsync(
+            driver.UserId,
+            driver.UserId,
+            ProfileChangeApprovalActions.DriverPayoutMethodCreate,
+            $"Driver {GetDriverDisplayName(driver)} requested payout method creation.",
+            new DriverPayoutMethodCreatePayload(
+                driver.Id,
+                request.Type,
+                request.AccountHolderName,
+                request.AccountIdentifier,
+                request.ProviderName,
+                request.IsPrimary),
+            BuildDriverPayoutMethodApprovalAlert(driver, "create"),
+            cancellationToken);
+
+        return Accepted(new
         {
-            foreach (var method in existingMethods.Where(m => m.IsPrimary))
-            {
-                method.UnsetPrimary();
-            }
-        }
-
-        var payoutMethod = new DriverPayoutMethod(
-            driver.Id,
-            methodType,
-            request.AccountHolderName,
-            request.AccountIdentifier,
-            request.ProviderName,
-            shouldBePrimary);
-
-        context.DriverPayoutMethods.Add(payoutMethod);
-        await context.SaveChangesAsync(cancellationToken);
-
-        return Ok(MapPayoutMethodDto(payoutMethod));
+            approvalRequestId,
+            message = "Payout method change is pending admin approval."
+        });
     }
 
     [HttpPut("payment-methods/{id:guid}")]
@@ -127,6 +123,7 @@ public class DriverWalletController : ApiControllerBase
         [FromServices] ICurrentUserService currentUserService,
         [FromServices] IDriverRepository driverRepository,
         [FromServices] IApplicationDbContext context,
+        [FromServices] IProfileChangeApprovalService profileChangeApprovalService,
         CancellationToken cancellationToken = default)
     {
         EnsurePayoutMethodRequest(request);
@@ -138,15 +135,26 @@ public class DriverWalletController : ApiControllerBase
         var methodType = ParseMethodType(request!.Type);
         EnsureSupportedBankPayoutMethod(methodType, request.AccountIdentifier);
 
-        payoutMethod.UpdateDetails(
-            methodType,
-            request.AccountHolderName,
-            request.AccountIdentifier,
-            request.ProviderName);
+        var approvalRequestId = await profileChangeApprovalService.SubmitAsync(
+            driver.UserId,
+            driver.UserId,
+            ProfileChangeApprovalActions.DriverPayoutMethodUpdate,
+            $"Driver {GetDriverDisplayName(driver)} requested payout method updates.",
+            new DriverPayoutMethodUpdatePayload(
+                driver.Id,
+                payoutMethod.Id,
+                request.Type,
+                request.AccountHolderName,
+                request.AccountIdentifier,
+                request.ProviderName),
+            BuildDriverPayoutMethodApprovalAlert(driver, "update", payoutMethod.Id),
+            cancellationToken);
 
-        await context.SaveChangesAsync(cancellationToken);
-
-        return Ok(MapPayoutMethodDto(payoutMethod));
+        return Accepted(new
+        {
+            approvalRequestId,
+            message = "Payout method change is pending admin approval."
+        });
     }
 
     [HttpDelete("payment-methods/{id:guid}")]
@@ -155,6 +163,7 @@ public class DriverWalletController : ApiControllerBase
         [FromServices] ICurrentUserService currentUserService,
         [FromServices] IDriverRepository driverRepository,
         [FromServices] IApplicationDbContext context,
+        [FromServices] IProfileChangeApprovalService profileChangeApprovalService,
         CancellationToken cancellationToken = default)
     {
         var driver = await GetDriverAsync(currentUserService, driverRepository, cancellationToken);
@@ -172,21 +181,20 @@ public class DriverWalletController : ApiControllerBase
                 "لا يمكن حذف طريقة السحب لأنها مرتبطة بطلبات سحب سابقة أو حالية | This payout method cannot be deleted because it is linked to withdrawal requests.");
         }
 
-        var isPrimary = payoutMethod.IsPrimary;
-        context.DriverPayoutMethods.Remove(payoutMethod);
+        var approvalRequestId = await profileChangeApprovalService.SubmitAsync(
+            driver.UserId,
+            driver.UserId,
+            ProfileChangeApprovalActions.DriverPayoutMethodDelete,
+            $"Driver {GetDriverDisplayName(driver)} requested payout method deletion.",
+            new DriverPayoutMethodDeletePayload(driver.Id, payoutMethod.Id),
+            BuildDriverPayoutMethodApprovalAlert(driver, "delete", payoutMethod.Id),
+            cancellationToken);
 
-        if (isPrimary)
+        return Accepted(new
         {
-            var fallbackPrimary = await context.DriverPayoutMethods
-                .Where(m => m.DriverId == driver.Id && m.Id != id)
-                .OrderByDescending(m => m.CreatedAtUtc)
-                .FirstOrDefaultAsync(cancellationToken);
-
-            fallbackPrimary?.SetPrimary();
-        }
-
-        await context.SaveChangesAsync(cancellationToken);
-        return NoContent();
+            approvalRequestId,
+            message = "Payout method deletion is pending admin approval."
+        });
     }
 
     [HttpPost("payment-methods/{id:guid}/make-primary")]
@@ -195,27 +203,30 @@ public class DriverWalletController : ApiControllerBase
         [FromServices] ICurrentUserService currentUserService,
         [FromServices] IDriverRepository driverRepository,
         [FromServices] IApplicationDbContext context,
+        [FromServices] IProfileChangeApprovalService profileChangeApprovalService,
         CancellationToken cancellationToken = default)
     {
         var driver = await GetDriverAsync(currentUserService, driverRepository, cancellationToken);
-        var methods = await context.DriverPayoutMethods
-            .Where(m => m.DriverId == driver.Id)
-            .ToListAsync(cancellationToken);
-
-        var payoutMethod = methods.FirstOrDefault(m => m.Id == id)
+        var payoutMethod = await context.DriverPayoutMethods
+            .FirstOrDefaultAsync(m => m.Id == id && m.DriverId == driver.Id, cancellationToken)
             ?? throw new NotFoundException("DriverPayoutMethod", id);
 
         EnsureSupportedBankPayoutMethod(payoutMethod.MethodType, payoutMethod.AccountIdentifier);
 
-        foreach (var method in methods)
+        var approvalRequestId = await profileChangeApprovalService.SubmitAsync(
+            driver.UserId,
+            driver.UserId,
+            ProfileChangeApprovalActions.DriverPayoutMethodMakePrimary,
+            $"Driver {GetDriverDisplayName(driver)} requested a primary payout method change.",
+            new DriverPayoutMethodMakePrimaryPayload(driver.Id, payoutMethod.Id),
+            BuildDriverPayoutMethodApprovalAlert(driver, "make_primary", payoutMethod.Id),
+            cancellationToken);
+
+        return Accepted(new
         {
-            method.UnsetPrimary();
-        }
-
-        payoutMethod.SetPrimary();
-        await context.SaveChangesAsync(cancellationToken);
-
-        return Ok(MapPayoutMethodDto(payoutMethod));
+            approvalRequestId,
+            message = "Payout method change is pending admin approval."
+        });
     }
 
     [HttpPost("withdrawals")]
@@ -530,6 +541,37 @@ public class DriverWalletController : ApiControllerBase
         EnsureRequiredString(request.AccountHolderName, "INVALID_ACCOUNT_HOLDER_NAME", "Account holder name is required.");
         EnsureRequiredString(request.AccountIdentifier, "INVALID_ACCOUNT_IDENTIFIER", "Account identifier is required.");
     }
+
+    private static ProfileChangeApprovalAlert BuildDriverPayoutMethodApprovalAlert(
+        Domain.Modules.Delivery.Entities.Driver driver,
+        string action,
+        Guid? payoutMethodId = null)
+    {
+        var driverName = GetDriverDisplayName(driver);
+        return new(
+            AdminAlertTypes.DriverCriticalChangeSubmitted,
+            AdminAlertCategories.Drivers,
+            AdminAlertPriorities.High,
+            "تغيير طريقة سحب مندوب بانتظار الموافقة",
+            "Driver payout method change pending approval",
+            $"أرسل المندوب {driverName} تغييرًا في طريقة السحب وينتظر موافقة الأدمن.",
+            $"Driver {driverName} submitted payout method changes pending admin approval.",
+            payoutMethodId ?? driver.Id,
+            "/admin/access/approvals",
+            new
+            {
+                driverId = driver.Id,
+                userId = driver.UserId,
+                payoutMethodId,
+                section = "payout_method",
+                action
+            });
+    }
+
+    private static string GetDriverDisplayName(Domain.Modules.Delivery.Entities.Driver driver) =>
+        string.IsNullOrWhiteSpace(driver.User?.FullName)
+            ? driver.UserId.ToString("N")
+            : driver.User.FullName.Trim();
 
     private static void EnsureRequiredString(string? value, string errorCode, string message)
     {

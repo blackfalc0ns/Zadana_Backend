@@ -33,6 +33,7 @@ public static class AdminAlertTypes
 {
     public const string DriverApprovalRequested = "driver.approval_requested";
     public const string DriverDocumentsSubmitted = "driver.documents_submitted";
+    public const string DriverCriticalChangeSubmitted = "driver.critical_change_submitted";
     public const string DriverApprovalBlocked = "driver.approval_blocked";
     public const string VendorApprovalRequested = "vendor.approval_requested";
     public const string VendorDocumentsSubmitted = "vendor.documents_submitted";

@@ -13,6 +13,7 @@ public class UpdateVendorProfileCommandHandlerTests
     private readonly Mock<ICurrentUserService> _currentUserMock = new();
     private readonly Mock<IVendorRepository> _vendorRepositoryMock = new();
     private readonly Mock<IUnitOfWork> _unitOfWorkMock = new();
+    private readonly Mock<IProfileChangeApprovalService> _profileChangeApprovalServiceMock = new();
 
     [Fact]
     public async Task Handle_WithValidRequest_UpdatesProfileAndReturnsDto()
@@ -24,20 +25,39 @@ public class UpdateVendorProfileCommandHandlerTests
         _vendorRepositoryMock
             .Setup(repository => repository.GetByUserIdAsync(userId, It.IsAny<CancellationToken>()))
             .ReturnsAsync(vendor);
+        _profileChangeApprovalServiceMock
+            .Setup(service => service.SubmitAsync(
+                It.IsAny<Guid>(),
+                It.IsAny<Guid>(),
+                It.IsAny<string>(),
+                It.IsAny<string>(),
+                It.IsAny<object>(),
+                It.IsAny<ProfileChangeApprovalAlert>(),
+                It.IsAny<CancellationToken>()))
+            .ReturnsAsync(Guid.NewGuid());
 
         var handler = new UpdateVendorProfileCommandHandler(
             _vendorRepositoryMock.Object,
             _unitOfWorkMock.Object,
-            _currentUserMock.Object);
+            _currentUserMock.Object,
+            _profileChangeApprovalServiceMock.Object);
 
         var result = await handler.Handle(
             new UpdateVendorProfileCommand("New Ar", "New En", "Wholesale", "new@test.com", "999", "Tax123"),
             default);
 
         result.BusinessNameEn.Should().Be("New En");
-        result.TaxId.Should().Be("Tax123");
+        result.TaxId.Should().BeNull();
         result.ContactEmail.Should().Be("new@test.com");
         _unitOfWorkMock.Verify(unitOfWork => unitOfWork.SaveChangesAsync(It.IsAny<CancellationToken>()), Times.Once);
+        _profileChangeApprovalServiceMock.Verify(service => service.SubmitAsync(
+            userId,
+            vendor.UserId,
+            ProfileChangeApprovalActions.VendorProfileBasic,
+            It.IsAny<string>(),
+            It.IsAny<object>(),
+            It.IsAny<ProfileChangeApprovalAlert>(),
+            It.IsAny<CancellationToken>()), Times.Once);
     }
 
     [Fact]
@@ -52,7 +72,8 @@ public class UpdateVendorProfileCommandHandlerTests
         var handler = new UpdateVendorProfileCommandHandler(
             _vendorRepositoryMock.Object,
             _unitOfWorkMock.Object,
-            _currentUserMock.Object);
+            _currentUserMock.Object,
+            _profileChangeApprovalServiceMock.Object);
 
         await Assert.ThrowsAsync<NotFoundException>(() =>
             handler.Handle(new UpdateVendorProfileCommand("A", "B", "C", "d@e.com", "1", null), default));
@@ -66,7 +87,8 @@ public class UpdateVendorProfileCommandHandlerTests
         var handler = new UpdateVendorProfileCommandHandler(
             _vendorRepositoryMock.Object,
             _unitOfWorkMock.Object,
-            _currentUserMock.Object);
+            _currentUserMock.Object,
+            _profileChangeApprovalServiceMock.Object);
 
         await Assert.ThrowsAsync<UnauthorizedException>(() =>
             handler.Handle(new UpdateVendorProfileCommand("A", "B", "C", "d@e.com", "1", null), default));

@@ -1,12 +1,10 @@
-﻿using FluentValidation;
+using FluentValidation;
 using MediatR;
 using Microsoft.Extensions.Localization;
 using Zadana.Application.Common.Interfaces;
 using Zadana.Application.Common.Localization;
 using Zadana.Application.Modules.Vendors.DTOs;
 using Zadana.Application.Modules.Vendors.Interfaces;
-using Zadana.Application.Modules.Vendors.Support;
-using Zadana.Domain.Modules.Vendors.Enums;
 using Zadana.SharedKernel.Exceptions;
 
 namespace Zadana.Application.Modules.Vendors.Commands.UpdateVendorLegal;
@@ -34,25 +32,22 @@ public class UpdateVendorLegalCommandHandler : IRequestHandler<UpdateVendorLegal
 {
     private readonly IVendorRepository _vendorRepository;
     private readonly IVendorReadService _vendorReadService;
-    private readonly IUnitOfWork _unitOfWork;
     private readonly ICurrentUserService _currentUserService;
     private readonly IVendorReviewAuditService _vendorReviewAuditService;
-    private readonly IAdminAlertService _adminAlertService;
+    private readonly IProfileChangeApprovalService _profileChangeApprovalService;
 
     public UpdateVendorLegalCommandHandler(
         IVendorRepository vendorRepository,
         IVendorReadService vendorReadService,
-        IUnitOfWork unitOfWork,
         ICurrentUserService currentUserService,
         IVendorReviewAuditService vendorReviewAuditService,
-        IAdminAlertService adminAlertService)
+        IProfileChangeApprovalService profileChangeApprovalService)
     {
         _vendorRepository = vendorRepository;
         _vendorReadService = vendorReadService;
-        _unitOfWork = unitOfWork;
         _currentUserService = currentUserService;
         _vendorReviewAuditService = vendorReviewAuditService;
-        _adminAlertService = adminAlertService;
+        _profileChangeApprovalService = profileChangeApprovalService;
     }
 
     public async Task<VendorWorkspaceDto> Handle(UpdateVendorLegalCommand request, CancellationToken cancellationToken)
@@ -61,15 +56,8 @@ public class UpdateVendorLegalCommandHandler : IRequestHandler<UpdateVendorLegal
         var vendor = await _vendorRepository.GetByUserIdAsync(userId, cancellationToken)
             ?? throw new NotFoundException("Vendor", userId);
 
-        var resetDocuments = ResolveReuploadedRejectedDocuments(
-            vendor.CommercialRegisterDocumentUrl,
-            request.CommercialRegisterDocumentUrl,
-            vendor.TaxDocumentUrl,
-            request.TaxDocumentUrl,
-            vendor.LicenseDocumentUrl,
-            request.LicenseDocumentUrl);
-
-        vendor.UpdateLegal(
+        var payload = new VendorLegalProfileChangePayload(
+            vendor.Id,
             request.CommercialRegistrationNumber,
             request.CommercialRegistrationExpiryDate,
             request.TaxId,
@@ -78,107 +66,37 @@ public class UpdateVendorLegalCommandHandler : IRequestHandler<UpdateVendorLegal
             request.TaxDocumentUrl,
             request.LicenseDocumentUrl);
 
-        foreach (var documentType in resetDocuments)
-        {
-            var review = vendor.DocumentReviews.FirstOrDefault(item => item.Type == documentType);
-            if (review?.Decision == VendorDocumentReviewDecision.Rejected)
-            {
-                review.ResetToPending();
-            }
-        }
-
-        VendorProfileReviewMutations.ResetSectionToSubmitted(vendor, "legal");
-
-        await _unitOfWork.SaveChangesAsync(cancellationToken);
-
-        if (resetDocuments.Count > 0)
-        {
-            await _vendorReviewAuditService.AppendEntryAsync(
-                vendor.UserId,
-                "vendor-document-reuploaded",
-                "info",
-                $"قام التاجر بإعادة رفع مستند(ات): {string.Join("، ", resetDocuments.Select(MapDocumentTypeToArabic))}. تم إرجاعها لقائمة المراجعة.",
-                "بوابة التاجر",
-                vendor.BusinessNameAr,
-                userId,
-                vendor.BusinessNameAr,
-                cancellationToken);
-        }
-        else
-        {
-            await _vendorReviewAuditService.AppendActivityEntryAsync(
-                vendor.UserId,
-                "profile-legal-updated",
-                "warning",
-                "قام التاجر بتحديث البيانات القانونية والامتثال من بوابة التاجر.",
-                "بوابة التاجر",
-                vendor.BusinessNameAr,
-                userId,
-                vendor.BusinessNameAr,
-                cancellationToken);
-        }
-
-        await _adminAlertService.SendAsync(
-            new AdminAlertRequest(
-                resetDocuments.Count > 0 ? AdminAlertTypes.VendorDocumentsSubmitted : AdminAlertTypes.VendorLegalUpdated,
+        await _profileChangeApprovalService.SubmitAsync(
+            userId,
+            vendor.UserId,
+            ProfileChangeApprovalActions.VendorProfileLegal,
+            $"Vendor {vendor.BusinessNameEn} requested legal profile changes.",
+            payload,
+            new ProfileChangeApprovalAlert(
+                AdminAlertTypes.VendorCriticalChangeSubmitted,
                 AdminAlertCategories.Vendors,
                 AdminAlertPriorities.High,
-                resetDocuments.Count > 0 ? "إعادة رفع مستندات تاجر" : "تعديل بيانات التراخيص والضرائب",
-                resetDocuments.Count > 0 ? "Vendor documents re-uploaded" : "Vendor legal and tax details updated",
-                resetDocuments.Count > 0
-                    ? $"قام التاجر {vendor.BusinessNameAr} بإعادة رفع مستندات تحتاج مراجعة."
-                    : $"قام التاجر {vendor.BusinessNameAr} بتعديل بيانات التراخيص والضرائب.",
-                resetDocuments.Count > 0
-                    ? $"Vendor {vendor.BusinessNameEn} re-uploaded documents that need review."
-                    : $"Vendor {vendor.BusinessNameEn} updated legal and tax details.",
+                "تعديل بيانات أو مستندات قانونية بانتظار الموافقة",
+                "Vendor legal change pending approval",
+                $"أرسل التاجر {vendor.BusinessNameAr} تعديل بيانات أو مستندات قانونية وينتظر موافقة الأدمن.",
+                $"Vendor {vendor.BusinessNameEn} submitted legal or document changes pending admin approval.",
                 vendor.Id,
-                $"/vendors/{vendor.Id}",
-                new { vendorId = vendor.Id, userId = vendor.UserId, section = "legal", resetDocuments }),
+                "/admin/access/approvals",
+                new { vendorId = vendor.Id, userId = vendor.UserId, section = "legal" }),
+            cancellationToken);
+
+        await _vendorReviewAuditService.AppendActivityEntryAsync(
+            vendor.UserId,
+            "profile-legal-change-submitted",
+            "warning",
+            "أرسل التاجر تعديل البيانات أو المستندات القانونية للمراجعة قبل التطبيق.",
+            "بوابة التاجر",
+            vendor.BusinessNameAr,
+            userId,
+            vendor.BusinessNameAr,
             cancellationToken);
 
         return await _vendorReadService.GetWorkspaceByUserIdAsync(userId, cancellationToken)
             ?? throw new NotFoundException("Vendor", userId);
     }
-
-    private static IReadOnlyList<VendorDocumentType> ResolveReuploadedRejectedDocuments(
-        string? currentCommercialUrl,
-        string? nextCommercialUrl,
-        string? currentTaxUrl,
-        string? nextTaxUrl,
-        string? currentLicenseUrl,
-        string? nextLicenseUrl)
-    {
-        var changed = new List<VendorDocumentType>();
-
-        if (HasChanged(currentCommercialUrl, nextCommercialUrl))
-        {
-            changed.Add(VendorDocumentType.Commercial);
-        }
-
-        if (HasChanged(currentTaxUrl, nextTaxUrl))
-        {
-            changed.Add(VendorDocumentType.Tax);
-        }
-
-        if (HasChanged(currentLicenseUrl, nextLicenseUrl))
-        {
-            changed.Add(VendorDocumentType.License);
-        }
-
-        return changed;
-    }
-
-    private static bool HasChanged(string? currentValue, string? nextValue) =>
-        !string.IsNullOrWhiteSpace(nextValue)
-        && !string.Equals(currentValue?.Trim(), nextValue.Trim(), StringComparison.OrdinalIgnoreCase);
-
-    private static string MapDocumentTypeToArabic(VendorDocumentType type) => type switch
-    {
-        VendorDocumentType.Commercial => "السجل التجاري",
-        VendorDocumentType.Tax => "الضريبة",
-        VendorDocumentType.License => "الرخصة",
-        VendorDocumentType.Identity => "الهوية",
-        VendorDocumentType.Bank => "البنك",
-        _ => type.ToString()
-    };
 }
