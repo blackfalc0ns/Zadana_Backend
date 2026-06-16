@@ -3,6 +3,7 @@ using System.Collections.Generic;
 using System.Globalization;
 using System.IO;
 using System.Net;
+using System.Text;
 using System.Threading.Tasks;
 using Microsoft.Extensions.Logging;
 using Zadana.Application.Common.Interfaces;
@@ -42,7 +43,7 @@ public class HtmlTemplateService : ITemplateService
             throw new FileNotFoundException($"Email template {templateName} not found at {filePath}");
         }
 
-        var templateContent = await File.ReadAllTextAsync(filePath);
+        var templateContent = await File.ReadAllTextAsync(filePath, Encoding.UTF8);
 
         // Replace all placeholders in the format {{Key}} with their respective Values
         foreach (var placeholder in placeholders)

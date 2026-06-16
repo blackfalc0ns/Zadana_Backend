@@ -316,13 +316,13 @@ public class User : IdentityUser<Guid>
             return false;
         }
 
-        // Success: clear OTP state and mark phone confirmed (legacy behavior).
+        // Success: clear OTP state and mark email confirmed.
         OtpCode = null;
         OtpExpiryTime = null;
         OtpAttempts = 0;
         OtpLockoutCount = 0;
         OtpLockedUntilUtc = null;
-        PhoneNumberConfirmed = true;
+        EmailConfirmed = true;
         UpdatedAtUtc = DateTime.UtcNow;
 
         return true;

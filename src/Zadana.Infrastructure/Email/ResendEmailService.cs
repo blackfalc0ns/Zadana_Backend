@@ -2,7 +2,7 @@ using System.ComponentModel.DataAnnotations;
 using Microsoft.Extensions.Logging;
 using Microsoft.Extensions.Options;
 using System.Net.Mail;
-using System.Net.Http.Json;
+using System.Text;
 using System.Text.Json;
 using Zadana.Application.Common.Interfaces;
 namespace Zadana.Infrastructure.Email;
@@ -87,7 +87,8 @@ public class ResendEmailService : IEmailService
 
             var httpRequest = new HttpRequestMessage(HttpMethod.Post, "https://api.resend.com/emails");
             httpRequest.Headers.Authorization = new System.Net.Http.Headers.AuthenticationHeaderValue("Bearer", _settings.ApiKey);
-            httpRequest.Content = JsonContent.Create(requestBody);
+            var jsonBody = JsonSerializer.Serialize(requestBody);
+            httpRequest.Content = new StringContent(jsonBody, Encoding.UTF8, "application/json");
 
             var response = await _httpClient.SendAsync(httpRequest, cancellationToken);
 
