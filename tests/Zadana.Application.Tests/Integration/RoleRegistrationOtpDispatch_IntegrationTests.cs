@@ -18,14 +18,15 @@ public class RoleRegistrationOtpDispatch_IntegrationTests : IClassFixture<Zadana
     }
 
     [Fact]
-    public async Task VendorRegister_WithValidData_SendsOtpToVendorPhoneOnly()
+    public async Task VendorRegister_WithValidData_SendsOtpToVendorEmailOnly()
     {
         var phone = "011" + new Random().Next(10000000, 99999999).ToString();
         var unique = Guid.NewGuid().ToString("N");
+        var email = $"vendor_{unique}@test.com";
         var body = new
         {
             fullName = "Vendor OTP Owner",
-            email = $"vendor_{unique}@test.com",
+            email,
             phone,
             password = "P@ssword1234",
             businessNameAr = "متجر اختبار",
@@ -68,19 +69,20 @@ public class RoleRegistrationOtpDispatch_IntegrationTests : IClassFixture<Zadana
 
         var content = await response.Content.ReadAsStringAsync();
         response.StatusCode.Should().Be(HttpStatusCode.OK, content);
-        _factory.OtpSink.SmsDispatches.Should().ContainSingle(dispatch => dispatch.Recipient == phone);
-        _factory.OtpSink.EmailDispatches.Should().BeEmpty();
+        _factory.OtpSink.EmailDispatches.Should().ContainSingle(dispatch => dispatch.Recipient == email);
+        _factory.OtpSink.SmsDispatches.Should().BeEmpty();
     }
 
     [Fact]
-    public async Task DriverRegister_WithValidData_SendsOtpToDriverPhoneOnly()
+    public async Task DriverRegister_WithValidData_SendsOtpToDriverEmailOnly()
     {
         var phone = "012" + new Random().Next(10000000, 99999999).ToString();
         var unique = Guid.NewGuid().ToString("N");
+        var email = $"driver_{unique}@test.com";
         var body = new
         {
             fullName = "Driver OTP User",
-            email = $"driver_{unique}@test.com",
+            email,
             phone,
             password = "P@ssword1234",
             vehicleType = "Car",
@@ -104,7 +106,7 @@ public class RoleRegistrationOtpDispatch_IntegrationTests : IClassFixture<Zadana
 
         var content = await response.Content.ReadAsStringAsync();
         response.StatusCode.Should().Be(HttpStatusCode.OK, content);
-        _factory.OtpSink.SmsDispatches.Should().ContainSingle(dispatch => dispatch.Recipient == phone);
-        _factory.OtpSink.EmailDispatches.Should().BeEmpty();
+        _factory.OtpSink.EmailDispatches.Should().ContainSingle(dispatch => dispatch.Recipient == email);
+        _factory.OtpSink.SmsDispatches.Should().BeEmpty();
     }
 }

@@ -50,9 +50,9 @@ public class ResendOtpCommandHandler : IRequestHandler<ResendOtpCommand, AuthRes
         }
 
         var user = otpResult.Account!;
-        if (!string.IsNullOrWhiteSpace(user.PhoneNumber) && !string.IsNullOrWhiteSpace(otpResult.OtpCode))
+        if (!string.IsNullOrWhiteSpace(user.Email) && !string.IsNullOrWhiteSpace(otpResult.OtpCode))
         {
-            await _otpService.SendOtpSmsAsync(user.PhoneNumber, otpResult.OtpCode, cancellationToken);
+            await _otpService.SendOtpEmailAsync(user.Email, otpResult.OtpCode, cancellationToken);
         }
 
         var userDto = new CurrentUserDto(user.Id, user.FullName, user.Email, user.PhoneNumber, user.Role.ToString(), user.MustChangePassword, ProfilePhotoUrl: user.ProfilePhotoUrl);

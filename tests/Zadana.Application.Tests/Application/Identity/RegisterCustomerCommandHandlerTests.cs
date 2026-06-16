@@ -99,7 +99,7 @@ public class RegisterCustomerCommandHandlerTests
     }
 
     [Fact]
-    public async Task Handle_WithValidData_ShouldSendOtpSms()
+    public async Task Handle_WithValidData_ShouldSendOtpEmail()
     {
         // Arrange
         _userRepositoryMock
@@ -125,9 +125,12 @@ public class RegisterCustomerCommandHandlerTests
 
         // Assert
         _otpServiceMock.Verify(
-            o => o.SendOtpSmsAsync(It.IsAny<string>(), It.IsAny<string>(), It.IsAny<CancellationToken>()),
+            o => o.SendOtpEmailAsync(It.IsAny<string>(), It.IsAny<string>(), It.IsAny<CancellationToken>()),
             Times.Once,
-            "OTP SMS should be sent exactly once upon registration");
+            "OTP email should be sent exactly once upon registration");
+        _otpServiceMock.Verify(
+            o => o.SendOtpSmsAsync(It.IsAny<string>(), It.IsAny<string>(), It.IsAny<CancellationToken>()),
+            Times.Never);
     }
 
     [Fact]

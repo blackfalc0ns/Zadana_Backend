@@ -52,13 +52,14 @@ public class CustomerAuth_IntegrationTests : IClassFixture<ZadanaWebFactory>
     }
 
     [Fact]
-    public async Task Register_WithValidData_SendsOtpToPhoneOnly()
+    public async Task Register_WithValidData_SendsOtpToEmailOnly()
     {
         var phone = "010" + new Random().Next(10000000, 99999999).ToString();
+        var email = $"wa_{Guid.NewGuid():N}@test.com";
         var body = new
         {
             fullName = "WhatsApp OTP User",
-            email = $"wa_{Guid.NewGuid():N}@test.com",
+            email,
             phone,
             password = "P@ssword1234",
             addressLine = "Test Address Line"
@@ -68,8 +69,8 @@ public class CustomerAuth_IntegrationTests : IClassFixture<ZadanaWebFactory>
 
         var content = await response.Content.ReadAsStringAsync();
         response.StatusCode.Should().Be(HttpStatusCode.OK, content);
-        _factory.OtpSink.SmsDispatches.Should().ContainSingle(dispatch => dispatch.Recipient == phone);
-        _factory.OtpSink.EmailDispatches.Should().BeEmpty();
+        _factory.OtpSink.EmailDispatches.Should().ContainSingle(dispatch => dispatch.Recipient == email);
+        _factory.OtpSink.SmsDispatches.Should().BeEmpty();
     }
 
     [Fact]
