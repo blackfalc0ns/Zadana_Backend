@@ -114,14 +114,18 @@ public class DriverNotificationDataBuilderTests
         var root = document.RootElement;
 
         root.GetProperty("vendorName").GetString().Should().Be("متجر تجريبي");
+        root.GetProperty("pickupAddress").GetString().Should().Be("Pickup Street 1");
+        root.GetProperty("deliveryAddress").GetString().Should().Be("Delivery Street 2");
+        root.GetProperty("customerName").GetString().Should().Be("Customer One");
         root.GetProperty("payout").GetDecimal().Should().Be(18.5m);
-        root.GetProperty("deliveryFee").GetDecimal().Should().Be(18.5m);
+        root.GetProperty("codAmount").GetDecimal().Should().Be(120m);
+        root.GetProperty("totalAmount").GetDecimal().Should().Be(120m);
         root.GetProperty("estimatedDistanceKm").GetDecimal().Should().Be(3.5m);
+        root.GetProperty("distanceKm").GetDecimal().Should().Be(3.5m);
+        root.GetProperty("distanceText").GetString().Should().Be("3.5 km");
         root.GetProperty("countdownSeconds").GetInt32().Should().Be(25);
         root.GetProperty("itemsCount").GetInt32().Should().Be(1);
         root.TryGetProperty("orderItems", out _).Should().BeFalse();
-        root.TryGetProperty("pickupAddress", out _).Should().BeFalse();
-        root.TryGetProperty("deliveryAddress", out _).Should().BeFalse();
     }
 
     [Fact]

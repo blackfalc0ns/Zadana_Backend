@@ -12,7 +12,7 @@ public static class DriverNotificationDataBuilder
     /// </summary>
     public const int OneSignalMaxDataBytes = 2048;
 
-    public const int OneSignalMergedPayloadBudgetBytes = 900;
+    public const int OneSignalMergedPayloadBudgetBytes = 950;
 
     private static readonly JsonSerializerOptions JsonOptions = new()
     {
@@ -72,27 +72,24 @@ public static class DriverNotificationDataBuilder
         Guid driverId,
         DateTime expiresAtUtc,
         object currentOffer,
-        string? source = null) =>
-        Build(
+        string? source = null)
+    {
+        var extra = BuildOfferOverlayData(
+            currentOffer,
+            expiresAtUtc,
+            source,
+            includeFullItems: true);
+
+        extra["currentOffer"] = currentOffer;
+
+        return Build(
             screen: "home",
             @event: "dispatch.offer_new",
             orderId: orderId,
             assignmentId: assignmentId,
             driverId: driverId,
-            extra: new
-            {
-                target = "driver-offer",
-                legacyType = "driver-offer",
-                category = "dispatch",
-                action = "offer_new",
-                presentation = "popup",
-                popupType = "delivery_offer",
-                showPopup = true,
-                eventName = "dispatch.offer_new",
-                source,
-                expiresAtUtc,
-                currentOffer
-            });
+            extra: extra);
+    }
 
     /// <summary>
     /// Compact push payload for delivery offers when the app is killed.
@@ -106,12 +103,12 @@ public static class DriverNotificationDataBuilder
         DriverIncomingOfferDto currentOffer,
         string? source = null)
     {
-        var itemsCount = currentOffer.OrderItems?.Count ?? 0;
-        var vendorName = Truncate(
-            string.IsNullOrWhiteSpace(currentOffer.VendorNameAr)
-                ? currentOffer.VendorName
-                : currentOffer.VendorNameAr,
-            64);
+        var extra = BuildOfferOverlayData(
+            currentOffer,
+            expiresAtUtc,
+            source,
+            includeFullItems: false,
+            compact: true);
 
         return Build(
             screen: "home",
@@ -119,24 +116,7 @@ public static class DriverNotificationDataBuilder
             orderId: orderId,
             assignmentId: assignmentId,
             driverId: driverId,
-            extra: new
-            {
-                target = "driver-offer",
-                legacyType = "driver-offer",
-                action = "offer_new",
-                eventName = "dispatch.offer_new",
-                source,
-                expiresAtUtc,
-                countdownSeconds = currentOffer.CountdownSeconds,
-                itemsCount,
-                orderNumber = Truncate(currentOffer.OrderNumber, 32),
-                vendorName,
-                estimatedDistanceKm = currentOffer.EstimatedDistanceKm,
-                estimatedEta = Truncate(currentOffer.EstimatedEta, 24),
-                payout = currentOffer.Payout,
-                deliveryFee = currentOffer.Payout,
-                paymentMethod = Truncate(currentOffer.PaymentMethod, 24)
-            });
+            extra: extra);
     }
 
     /// <summary>
@@ -241,6 +221,78 @@ public static class DriverNotificationDataBuilder
 
     private static string Normalize(string value) =>
         value.Trim().Replace('_', '-').ToLowerInvariant().Replace('-', '_');
+
+    private static Dictionary<string, object?> BuildOfferOverlayData(
+        object currentOffer,
+        DateTime expiresAtUtc,
+        string? source,
+        bool includeFullItems,
+        bool compact = false)
+    {
+        var data = new Dictionary<string, object?>
+        {
+            ["target"] = "driver-offer",
+            ["action"] = "offer_new",
+            ["expiresAtUtc"] = expiresAtUtc
+        };
+
+        if (!string.IsNullOrWhiteSpace(source))
+        {
+            data["source"] = source;
+        }
+
+        if (currentOffer is not DriverIncomingOfferDto offer)
+        {
+            return data;
+        }
+
+        var items = offer.OrderItems ?? [];
+        var vendorName = FirstNonBlank(offer.VendorNameAr, offer.VendorName, offer.VendorNameEn);
+
+        data["countdownSeconds"] = offer.CountdownSeconds;
+        data["itemsCount"] = items.Count;
+        data["orderNumber"] = compact ? Truncate(offer.OrderNumber, 12) : offer.OrderNumber;
+        data["vendorName"] = compact ? Truncate(vendorName, 24) : vendorName;
+        data["vendorNameEn"] = compact ? Truncate(offer.VendorNameEn, 24) : offer.VendorNameEn;
+        data["pickupAddress"] = compact ? Truncate(offer.PickupAddress, 20) : offer.PickupAddress;
+        data["deliveryAddress"] = compact ? Truncate(offer.DeliveryAddress, 20) : offer.DeliveryAddress;
+        data["customerName"] = compact ? Truncate(offer.CustomerName, 16) : offer.CustomerName;
+        data["estimatedDistanceKm"] = offer.EstimatedDistanceKm;
+        data["distanceKm"] = offer.EstimatedDistanceKm;
+        data["distanceText"] = BuildDistanceText(offer.EstimatedDistanceKm);
+        data["payout"] = offer.Payout;
+        data["paymentMethod"] = compact ? Truncate(offer.PaymentMethod, 12) : offer.PaymentMethod;
+        data["totalAmount"] = offer.TotalAmount;
+        data["codAmount"] = offer.CodAmount;
+
+        if (!compact)
+        {
+            data["estimatedEta"] = offer.EstimatedEta;
+            data["deliveryFee"] = offer.Payout;
+            data["vendorNameAr"] = offer.VendorNameAr;
+            data["vendorLogoUrl"] = offer.VendorLogoUrl;
+            data["pickupLatitude"] = offer.PickupLatitude;
+            data["pickupLongitude"] = offer.PickupLongitude;
+            data["deliveryLatitude"] = offer.DeliveryLatitude;
+            data["deliveryLongitude"] = offer.DeliveryLongitude;
+            data["vendorInitials"] = offer.VendorInitials;
+            data["customerInitials"] = offer.CustomerInitials;
+            data["packageNote"] = offer.PackageNote;
+        }
+
+        if (includeFullItems)
+        {
+            data["orderItems"] = items;
+        }
+
+        return data;
+    }
+
+    private static string BuildDistanceText(decimal distanceKm) =>
+        $"{distanceKm:0.##} km";
+
+    private static string FirstNonBlank(params string?[] values) =>
+        values.FirstOrDefault(value => !string.IsNullOrWhiteSpace(value))?.Trim() ?? string.Empty;
 
     private static string Truncate(string? value, int maxLength)
     {
