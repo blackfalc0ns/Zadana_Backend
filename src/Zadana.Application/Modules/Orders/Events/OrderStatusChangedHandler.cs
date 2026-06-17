@@ -1,6 +1,7 @@
 using MediatR;
 using Microsoft.EntityFrameworkCore;
 using Microsoft.Extensions.Logging;
+using System.Text.Json;
 using Zadana.Application.Common.Interfaces;
 using Zadana.Application.Modules.EmailCenter;
 using Zadana.Application.Modules.EmailCenter.DTOs;
@@ -9,6 +10,7 @@ using Zadana.Application.Modules.Delivery.Support;
 using Zadana.Application.Modules.Orders.Support;
 using Zadana.Application.Modules.Wallets.Services;
 using Zadana.Domain.Modules.Delivery.Enums;
+using Zadana.Domain.Modules.Identity.Enums;
 using Zadana.Domain.Modules.Orders.Enums;
 using Zadana.Domain.Modules.Payments.Enums;
 using Zadana.Domain.Modules.Social.Enums;
@@ -67,7 +69,7 @@ public class OrderStatusChangedHandler : INotificationHandler<OrderStatusChanged
 
         var targetUrl = OrderStatusNotificationComposer.ResolveTargetUrl(notification.OrderId);
         var action = OrderStatusNotificationComposer.ResolveAction(notification.NewStatus);
-        var data = OrderStatusNotificationComposer.BuildData(
+        var baseData = OrderStatusNotificationComposer.BuildData(
             notification.OrderId,
             notification.OrderNumber,
             notification.VendorId,
@@ -76,6 +78,12 @@ public class OrderStatusChangedHandler : INotificationHandler<OrderStatusChanged
             notification.ActorRole,
             action,
             targetUrl);
+        var orderBranchId = await _context.Orders
+            .AsNoTracking()
+            .Where(order => order.Id == notification.OrderId)
+            .Select(order => order.VendorBranchId)
+            .FirstOrDefaultAsync(cancellationToken);
+        var data = AddBranchIdToData(baseData, orderBranchId);
 
         if (notification.NotifyCustomer)
         {
@@ -159,22 +167,108 @@ public class OrderStatusChangedHandler : INotificationHandler<OrderStatusChanged
             targetUrl,
             cancellationToken);
 
+        var branchRecipientUserIds = await GetVendorNotificationRecipientUserIdsAsync(
+            notification.VendorId,
+            orderBranchId,
+            vendorRecipient.UserId,
+            cancellationToken);
+
+        foreach (var recipientUserId in branchRecipientUserIds)
+        {
+            await _notificationService.SendToUserAsync(
+                recipientUserId,
+                vendorTitleAr,
+                vendorTitleEn,
+                vendorBodyAr,
+                vendorBodyEn,
+                vendorType,
+                notification.OrderId,
+                data,
+                cancellationToken);
+
+            await _notificationService.SendOrderStatusChangedToUserAsync(
+                recipientUserId,
+                notification.OrderId,
+                notification.OrderNumber,
+                notification.VendorId,
+                notification.OldStatus.ToString(),
+                notification.NewStatus.ToString(),
+                notification.ActorRole,
+                action,
+                targetUrl,
+                cancellationToken);
+        }
+
         if (notification.NewStatus == OrderStatus.PendingVendorAcceptance && !vendorRecipient.NewOrdersNotificationsEnabled)
         {
             return;
         }
 
-        await _oneSignalPushService.SendToExternalUserAsync(
-            vendorRecipient.UserId.ToString(),
-            vendorTitleAr,
-            vendorTitleEn,
-            vendorBodyAr,
-            vendorBodyEn,
-            vendorType,
-            notification.OrderId,
-            data,
-            targetUrl,
-            cancellationToken);
+        foreach (var recipientUserId in new[] { vendorRecipient.UserId }.Concat(branchRecipientUserIds).Distinct())
+        {
+            await _oneSignalPushService.SendToExternalUserAsync(
+                recipientUserId.ToString(),
+                vendorTitleAr,
+                vendorTitleEn,
+                vendorBodyAr,
+                vendorBodyEn,
+                vendorType,
+                notification.OrderId,
+                data,
+                targetUrl,
+                cancellationToken);
+        }
+    }
+
+    private async Task<List<Guid>> GetVendorNotificationRecipientUserIdsAsync(
+        Guid vendorId,
+        Guid? branchId,
+        Guid vendorOwnerUserId,
+        CancellationToken cancellationToken)
+    {
+        var userIds = await (
+            from scope in _context.UserAccessScopes.AsNoTracking()
+            join branch in _context.VendorBranches.AsNoTracking()
+                on scope.ScopeEntityId equals branch.Id into branchScope
+            from branch in branchScope.DefaultIfEmpty()
+            where scope.IsActive &&
+                  scope.PanelScope == PanelScope.VendorPanel &&
+                  scope.ScopeEntityId.HasValue &&
+                  (
+                      (scope.ScopeType == AccessScopeType.VendorCompany && scope.ScopeEntityId == vendorId) ||
+                      (branchId.HasValue &&
+                       scope.ScopeType == AccessScopeType.VendorBranch &&
+                       scope.ScopeEntityId == branchId.Value &&
+                       branch != null &&
+                       branch.VendorId == vendorId)
+                  )
+            select scope.UserId)
+            .Distinct()
+            .ToListAsync(cancellationToken);
+
+        return userIds
+            .Where(userId => userId != vendorOwnerUserId)
+            .Distinct()
+            .ToList();
+    }
+
+    private static string AddBranchIdToData(string data, Guid? branchId)
+    {
+        if (!branchId.HasValue)
+        {
+            return data;
+        }
+
+        try
+        {
+            var payload = JsonSerializer.Deserialize<Dictionary<string, object?>>(data) ?? [];
+            payload["branchId"] = branchId.Value;
+            return JsonSerializer.Serialize(payload);
+        }
+        catch
+        {
+            return data;
+        }
     }
 
     private async Task DispatchCustomerOrderEmailAsync(

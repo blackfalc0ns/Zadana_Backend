@@ -182,6 +182,118 @@ public class VendorAccessController : ApiControllerBase
     }
 
     [Authorize(Policy = "VendorOnly")]
+    [HttpPut("branches/{id:guid}")]
+    [RequireAccess(PermissionKeys.Vendor.BranchTeamEdit)]
+    public async Task<IActionResult> UpdateBranch(
+        Guid id,
+        [FromBody] VendorBranchUpdateRequest request,
+        CancellationToken cancellationToken)
+    {
+        var scope = await RequireCompanyScopeForMutationAsync(cancellationToken);
+        var branch = await _context.VendorBranches
+            .Include(item => item.OperatingHours)
+            .FirstOrDefaultAsync(item => item.Id == id && item.VendorId == scope.VendorId, cancellationToken)
+            ?? throw new NotFoundException("VendorBranch", id);
+
+        var name = string.IsNullOrWhiteSpace(request.Name)
+            ? throw new BusinessRuleException("BRANCH_NAME_REQUIRED", "Branch name is required.")
+            : request.Name.Trim();
+        var addressLine = string.IsNullOrWhiteSpace(request.AddressLine)
+            ? throw new BusinessRuleException("BRANCH_ADDRESS_REQUIRED", "Branch address is required.")
+            : request.AddressLine.Trim();
+        var contactPhone = (request.Phone ?? string.Empty).Trim();
+        if (contactPhone.Length > 20)
+        {
+            contactPhone = contactPhone[..20];
+        }
+
+        var code = string.IsNullOrWhiteSpace(request.Code)
+            ? GenerateBranchCode(name)
+            : request.Code.Trim();
+        var managerName = string.IsNullOrWhiteSpace(request.ManagerName)
+            ? throw new BusinessRuleException("BRANCH_MANAGER_NAME_REQUIRED", "Branch manager name is required.")
+            : request.ManagerName.Trim();
+        var managerContact = string.IsNullOrWhiteSpace(request.ManagerContact)
+            ? throw new BusinessRuleException("BRANCH_MANAGER_CONTACT_REQUIRED", "Branch manager contact is required.")
+            : request.ManagerContact.Trim();
+        var region = string.IsNullOrWhiteSpace(request.Region)
+            ? throw new BusinessRuleException("BRANCH_REGION_REQUIRED", "Branch region is required.")
+            : request.Region.Trim();
+        var city = string.IsNullOrWhiteSpace(request.City)
+            ? throw new BusinessRuleException("BRANCH_CITY_REQUIRED", "Branch city is required.")
+            : request.City.Trim();
+        var latitude = request.Latitude ?? branch.Latitude;
+        var longitude = request.Longitude ?? branch.Longitude;
+        var deliveryRadiusKm = request.DeliveryRadiusKm.GetValueOrDefault(branch.DeliveryRadiusKm);
+        if (latitude is < -90 or > 90)
+        {
+            throw new BusinessRuleException("BRANCH_LATITUDE_INVALID", "Latitude must be between -90 and 90.");
+        }
+        if (longitude is < -180 or > 180)
+        {
+            throw new BusinessRuleException("BRANCH_LONGITUDE_INVALID", "Longitude must be between -180 and 180.");
+        }
+        if (deliveryRadiusKm <= 0)
+        {
+            throw new BusinessRuleException("BRANCH_RADIUS_INVALID", "Delivery radius must be greater than zero.");
+        }
+
+        var duplicateCodeExists = await _context.VendorBranches
+            .AsNoTracking()
+            .AnyAsync(item => item.VendorId == scope.VendorId && item.Id != branch.Id && item.Code == code, cancellationToken);
+        if (duplicateCodeExists)
+        {
+            throw new BusinessRuleException("BRANCH_CODE_CONFLICT", "Branch code is already in use.");
+        }
+
+        var isPrimary = request.IsPrimary || branch.IsPrimary;
+        if (isPrimary)
+        {
+            var existingPrimary = await _context.VendorBranches
+                .Where(item => item.VendorId == scope.VendorId && item.Id != branch.Id && item.IsPrimary)
+                .ToListAsync(cancellationToken);
+
+            foreach (var existingBranch in existingPrimary)
+            {
+                existingBranch.SetPrimary(false);
+            }
+        }
+
+        branch.Update(
+            name,
+            code,
+            isPrimary,
+            addressLine,
+            region,
+            city,
+            latitude,
+            longitude,
+            contactPhone,
+            managerName,
+            managerContact,
+            deliveryRadiusKm);
+
+        if (branch.OperatingHours.Count > 0)
+        {
+            _context.BranchOperatingHours.RemoveRange(branch.OperatingHours);
+        }
+
+        foreach (var operatingHour in NormalizeOperatingHours(branch.Id, request.OperatingHours))
+        {
+            _context.BranchOperatingHours.Add(operatingHour);
+        }
+
+        await _context.SaveChangesAsync(cancellationToken);
+
+        branch = await _context.VendorBranches
+            .AsNoTracking()
+            .Include(item => item.OperatingHours)
+            .FirstAsync(item => item.Id == id, cancellationToken);
+
+        return Ok(ToBranchResponse(branch));
+    }
+
+    [Authorize(Policy = "VendorOnly")]
     [HttpGet("staff")]
     [RequireAccess(PermissionKeys.Vendor.BranchTeamView)]
     public async Task<IActionResult> GetStaff(CancellationToken cancellationToken)
@@ -1693,6 +1805,21 @@ public sealed record VendorStaffInvitationAcceptancePreview(
     DateTime ExpiresAt);
 
 public sealed record VendorBranchCreateRequest(
+    string Name,
+    string? Code,
+    bool IsPrimary,
+    string AddressLine,
+    string? Phone,
+    string ManagerName,
+    string ManagerContact,
+    string? Region,
+    string? City,
+    decimal? Latitude,
+    decimal? Longitude,
+    decimal? DeliveryRadiusKm,
+    VendorBranchOperatingHourRequest[]? OperatingHours);
+
+public sealed record VendorBranchUpdateRequest(
     string Name,
     string? Code,
     bool IsPrimary,

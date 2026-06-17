@@ -43,4 +43,31 @@ public class FileUploadSecurityPolicyTests
         rule.AllowAnonymous.Should().BeFalse();
         rule.AllowedRoles.Should().Contain("Driver");
     }
+
+    [Theory]
+    [InlineData("drivers/national-id")]
+    [InlineData("drivers/license")]
+    [InlineData("drivers/vehicle")]
+    [InlineData("drivers/profile")]
+    public void TryResolve_DriverRegistrationUploadsDoNotRequireRegistrationToken(string directory)
+    {
+        var resolved = FileUploadSecurityPolicy.TryResolve(directory, out var rule);
+
+        resolved.Should().BeTrue();
+        rule.AllowAnonymous.Should().BeTrue();
+        rule.RequiresRegistrationToken.Should().BeFalse();
+    }
+
+    [Theory]
+    [InlineData("uploads/vendors/commercial-register")]
+    [InlineData("uploads/vendors/tax-certificates")]
+    [InlineData("uploads/vendors/licenses")]
+    public void TryResolve_VendorRegistrationDocumentsStillRequireRegistrationToken(string directory)
+    {
+        var resolved = FileUploadSecurityPolicy.TryResolve(directory, out var rule);
+
+        resolved.Should().BeTrue();
+        rule.AllowAnonymous.Should().BeTrue();
+        rule.RequiresRegistrationToken.Should().BeTrue();
+    }
 }

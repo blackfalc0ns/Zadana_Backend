@@ -32,15 +32,17 @@ public static class FileUploadSecurityPolicy
             [NormalizeDirectory("uploads/users/profile")] =
                 CreateAuthenticated("uploads/users/profile"),
 
-            // PII-sensitive driver docs: anonymous + token required.
+            // Driver registration happens before the driver has an account.
+            // Keep these anonymous so the mobile app can upload the selected
+            // files and submit their returned URLs with the register request.
             [NormalizeDirectory("drivers/national-id")] =
-                CreateRegistrationOnly("drivers/national-id"),
+                CreatePublicAnonymous("drivers/national-id"),
             [NormalizeDirectory("drivers/license")] =
-                CreateRegistrationOnly("drivers/license"),
+                CreatePublicAnonymous("drivers/license"),
             [NormalizeDirectory("drivers/vehicle")] =
-                CreateRegistrationOnly("drivers/vehicle"),
+                CreatePublicAnonymous("drivers/vehicle"),
             [NormalizeDirectory("drivers/profile")] =
-                CreateRegistrationOnly("drivers/profile"),
+                CreatePublicAnonymous("drivers/profile"),
 
             [NormalizeDirectory("drivers/proofs")] =
                 CreateAuthenticatedRoles("drivers/proofs", UserRole.Driver),
