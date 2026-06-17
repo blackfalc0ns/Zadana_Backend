@@ -739,6 +739,16 @@ public class AdminAccessController(
             parsedVehicleType = resolvedVehicleType;
         }
 
+        var nationalIdChanged =
+            HasChanged(driver.NationalId, payload.NationalId) ||
+            HasChanged(driver.NationalIdExpiryDate, payload.NationalIdExpiryDate);
+        var driverLicenseChanged =
+            HasChanged(driver.LicenseNumber, payload.LicenseNumber) ||
+            HasChanged(driver.DriverLicenseExpiryDate, payload.DriverLicenseExpiryDate);
+        var vehicleLicenseChanged =
+            HasChanged(driver.VehicleLicenseNumber, payload.VehicleLicenseNumber) ||
+            HasChanged(driver.VehicleLicenseExpiryDate, payload.VehicleLicenseExpiryDate);
+
         driver.UpdateDetails(
             parsedVehicleType,
             payload.NationalId,
@@ -748,9 +758,20 @@ public class AdminAccessController(
             payload.VehicleLicenseNumber,
             payload.VehicleLicenseExpiryDate);
 
-        ResetDriverDocumentReviewIfReady(driver, DriverDocumentType.NationalId);
-        ResetDriverDocumentReviewIfReady(driver, DriverDocumentType.DriverLicense);
-        ResetDriverDocumentReviewIfReady(driver, DriverDocumentType.VehicleLicense);
+        if (nationalIdChanged)
+        {
+            ResetDriverDocumentReviewIfReady(driver, DriverDocumentType.NationalId);
+        }
+
+        if (driverLicenseChanged)
+        {
+            ResetDriverDocumentReviewIfReady(driver, DriverDocumentType.DriverLicense);
+        }
+
+        if (vehicleLicenseChanged)
+        {
+            ResetDriverDocumentReviewIfReady(driver, DriverDocumentType.VehicleLicense);
+        }
 
         driver.UpdateServiceArea(payload.Region, payload.City);
         driver.RefreshProfileReviewState(HasRequiredDriverProfileData(driver), sensitiveChange: true, note: "Sensitive profile change approved by admin.");
@@ -766,6 +787,12 @@ public class AdminAccessController(
             .FirstOrDefaultAsync(item => item.Id == payload.DriverId, cancellationToken)
             ?? throw new NotFoundException("Driver", payload.DriverId);
 
+        var nationalIdChanged =
+            HasChanged(driver.NationalIdFrontImageUrl, payload.NationalIdFrontImageUrl) ||
+            HasChanged(driver.NationalIdBackImageUrl, payload.NationalIdBackImageUrl);
+        var driverLicenseChanged = HasChanged(driver.LicenseImageUrl, payload.LicenseImageUrl);
+        var vehicleLicenseChanged = HasChanged(driver.VehicleImageUrl, payload.VehicleImageUrl);
+
         driver.UpdateDocuments(
             payload.NationalIdFrontImageUrl,
             payload.NationalIdBackImageUrl,
@@ -773,9 +800,20 @@ public class AdminAccessController(
             payload.VehicleImageUrl,
             payload.PersonalPhotoUrl);
 
-        ResetDriverDocumentReviewIfReady(driver, DriverDocumentType.NationalId);
-        ResetDriverDocumentReviewIfReady(driver, DriverDocumentType.DriverLicense);
-        ResetDriverDocumentReviewIfReady(driver, DriverDocumentType.VehicleLicense);
+        if (nationalIdChanged)
+        {
+            ResetDriverDocumentReviewIfReady(driver, DriverDocumentType.NationalId);
+        }
+
+        if (driverLicenseChanged)
+        {
+            ResetDriverDocumentReviewIfReady(driver, DriverDocumentType.DriverLicense);
+        }
+
+        if (vehicleLicenseChanged)
+        {
+            ResetDriverDocumentReviewIfReady(driver, DriverDocumentType.VehicleLicense);
+        }
 
         driver.RefreshProfileReviewState(HasRequiredDriverProfileData(driver), sensitiveChange: true, note: "Documents approved for profile update by admin.");
     }
@@ -931,6 +969,10 @@ public class AdminAccessController(
     private static bool HasChanged(string? currentValue, string? nextValue) =>
         !string.IsNullOrWhiteSpace(nextValue) &&
         !string.Equals(currentValue?.Trim(), nextValue.Trim(), StringComparison.OrdinalIgnoreCase);
+
+    private static bool HasChanged(DateTime? currentValue, DateTime? nextValue) =>
+        nextValue.HasValue &&
+        (!currentValue.HasValue || currentValue.Value.Date != nextValue.Value.Date);
 
     private static bool HasRequiredDriverProfileData(Domain.Modules.Delivery.Entities.Driver driver) =>
         driver.VehicleType is not null &&

@@ -1,4 +1,5 @@
 using Microsoft.EntityFrameworkCore;
+using System.Globalization;
 using Zadana.Application.Common.Interfaces;
 using Zadana.Application.Modules.Delivery.DTOs;
 using Zadana.Application.Modules.Delivery.Interfaces;
@@ -170,13 +171,20 @@ public sealed class DriverHomeReadService : IDriverHomeReadService
         var address = await _context.CustomerAddresses
             .FirstOrDefaultAsync(a => a.Id == assignment.Order.CustomerAddressId, cancellationToken);
 
+        var vendor = assignment.Order.Vendor;
+        var vendorNameAr = FirstNonBlank(vendor.BusinessNameAr, vendor.BusinessNameEn) ?? string.Empty;
+        var vendorNameEn = FirstNonBlank(vendor.BusinessNameEn, vendor.BusinessNameAr) ?? string.Empty;
+
         return new DriverCurrentAssignmentDto(
             assignment.Id,
             assignment.OrderId,
             assignment.Order.OrderNumber,
             assignment.Status.ToString(),
-            assignment.Order.Vendor.BusinessNameEn,
-            assignment.Order.VendorBranch?.AddressLine ?? assignment.Order.Vendor.NationalAddress ?? string.Empty,
+            Localize(vendorNameAr, vendorNameEn),
+            vendorNameAr,
+            vendorNameEn,
+            vendor.LogoUrl,
+            assignment.Order.VendorBranch?.AddressLine ?? vendor.NationalAddress ?? string.Empty,
             address?.AddressLine ?? string.Empty,
             assignment.Order.VendorBranch?.Latitude,
             assignment.Order.VendorBranch?.Longitude,
@@ -184,7 +192,7 @@ public sealed class DriverHomeReadService : IDriverHomeReadService
             address?.Longitude,
             ResolveCodAmount(assignment),
             assignment.CreatedAtUtc,
-            assignment.Order.Vendor.ContactPhone,
+            vendor.ContactPhone,
             assignment.Driver?.VehicleType?.ToString(),
             assignment.Driver?.LicenseNumber,
             assignment.RequiresPickupOtpVerification,
@@ -206,4 +214,9 @@ public sealed class DriverHomeReadService : IDriverHomeReadService
 
     private static string? FirstNonBlank(params string?[] values) =>
         values.FirstOrDefault(value => !string.IsNullOrWhiteSpace(value))?.Trim();
+
+    private static string Localize(string ar, string en) =>
+        CultureInfo.CurrentUICulture.TwoLetterISOLanguageName.Equals("ar", StringComparison.OrdinalIgnoreCase)
+            ? ar
+            : en;
 }
