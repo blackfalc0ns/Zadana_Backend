@@ -250,7 +250,7 @@ public class VendorOrderCasesController : ApiControllerBase
             supportCase.UpdatedAtUtc,
             supportCase.ClosedAtUtc,
             BuildParticipants(supportCase),
-            supportCase.Status is OrderSupportCaseStatus.Rejected or OrderSupportCaseStatus.Resolved ? [] : ["message"],
+            (supportCase.Status is OrderSupportCaseStatus.Rejected or OrderSupportCaseStatus.Resolved) ? [] : ["message"],
             attachments,
             activities,
             supportCase.Activities
