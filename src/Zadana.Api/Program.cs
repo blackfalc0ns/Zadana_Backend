@@ -147,6 +147,7 @@ var cachingSettingsSection = builder.Configuration.GetSection(CachingSettings.Se
 var cachingSettings = cachingSettingsSection.Get<CachingSettings>() ?? new CachingSettings();
 var redisConnectionString = cachingSettings.Redis.ConnectionString;
 var useRedisCaching = !string.IsNullOrWhiteSpace(redisConnectionString);
+var databasePerformanceSection = builder.Configuration.GetSection(DatabasePerformanceSettings.SectionName);
 
 builder.Services.AddApplication();
 builder.Services.AddOptions<CachingSettings>()
@@ -157,6 +158,15 @@ builder.Services.AddOptions<CachingSettings>()
         settings => !builder.Environment.IsProduction() || !settings.Redis.RequireInProduction || !string.IsNullOrWhiteSpace(settings.Redis.ConnectionString),
         "Caching:Redis:ConnectionString is required when Redis is enforced in production.")
     .ValidateOnStart();
+builder.Services.AddOptions<DatabasePerformanceSettings>()
+    .Bind(databasePerformanceSection)
+    .Validate(
+        settings => settings.SlowQueryThresholdMilliseconds >= 100,
+        "DatabasePerformance:SlowQueryThresholdMilliseconds must be at least 100.")
+    .Validate(
+        settings => settings.MaxLoggedCommandTextLength is >= 100 and <= 4000,
+        "DatabasePerformance:MaxLoggedCommandTextLength must be between 100 and 4000.")
+    .ValidateOnStart();
 
 if (!builder.Environment.IsEnvironment("Testing"))
 {
@@ -165,6 +175,7 @@ if (!builder.Environment.IsEnvironment("Testing"))
     // which makes it safe to reuse across pooled DbContext instances.
     builder.Services.AddSingleton<AuditableEntityInterceptor>(sp =>
         new AuditableEntityInterceptor(sp));
+    builder.Services.AddSingleton<SlowQueryLoggingInterceptor>();
 
     // DbContext pooling reuses change-tracker / model-cache state across
     // requests, eliminating per-request allocations and dramatically lowering
@@ -172,6 +183,7 @@ if (!builder.Environment.IsEnvironment("Testing"))
     builder.Services.AddDbContextPool<ApplicationDbContext>((sp, options) =>
     {
         var interceptor = sp.GetRequiredService<AuditableEntityInterceptor>();
+        var slowQueryInterceptor = sp.GetRequiredService<SlowQueryLoggingInterceptor>();
         options.UseSqlServer(
             builder.Configuration.GetRequiredConnectionString("DefaultConnection"),
             sqlOptions =>
@@ -184,7 +196,7 @@ if (!builder.Environment.IsEnvironment("Testing"))
                 sqlOptions.CommandTimeout(60);
             });
 
-        options.AddInterceptors(interceptor);
+        options.AddInterceptors(interceptor, slowQueryInterceptor);
 
         // PII value converters are bound to the runtime IDataProtector and
         // therefore cannot be represented faithfully in an EF migration
@@ -359,17 +371,24 @@ builder.Services.AddScoped<Zadana.Application.Common.Interfaces.IPiiAccessAuditS
     Zadana.Infrastructure.Modules.Identity.Services.PiiAccessAuditService>();
 
 builder.Services.AddMemoryCache();
+SharedRedisConnection? sharedRedisConnection = null;
 if (useRedisCaching)
 {
+    sharedRedisConnection = new SharedRedisConnection(
+        redisConnectionString!,
+        $"{cachingSettings.Redis.InstanceName}-{builder.Environment.EnvironmentName}");
+    var redisConnectionOwnedByContainer = sharedRedisConnection;
+    builder.Services.AddSingleton<SharedRedisConnection>(_ => redisConnectionOwnedByContainer);
+
     builder.Services.AddStackExchangeRedisCache(options =>
     {
-        options.Configuration = redisConnectionString;
+        options.ConnectionMultiplexerFactory = sharedRedisConnection.GetConnectionAsync;
         options.InstanceName = $"{cachingSettings.Redis.InstanceName}:data:";
     });
 
     builder.Services.AddStackExchangeRedisOutputCache(options =>
     {
-        options.Configuration = redisConnectionString;
+        options.ConnectionMultiplexerFactory = sharedRedisConnection.GetConnectionAsync;
         options.InstanceName = $"{cachingSettings.Redis.InstanceName}:output:";
     });
 }
@@ -750,6 +769,7 @@ if (useRedisCaching)
     signalRBuilder
         .AddStackExchangeRedis(redisConnectionString!, options =>
         {
+            options.ConnectionFactory = sharedRedisConnection!.GetConnectionAsync;
             options.Configuration.ChannelPrefix =
                 StackExchange.Redis.RedisChannel.Literal($"{cachingSettings.Redis.InstanceName}:signalr");
         });

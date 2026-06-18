@@ -72,7 +72,36 @@ Caching__Redis__RequireInProduction=true
 ```
 
 Redis automatically backs the distributed application cache, output cache,
-and SignalR backplane. Never commit its connection string.
+and SignalR backplane. All three now share one long-lived Redis connection
+multiplexer, reducing sockets, handshakes, and reconnect storms. The API also
+enforces safe reconnect, timeout, and keep-alive defaults. Never commit its
+connection string.
+
+## Slow SQL visibility
+
+Database commands slower than 750 ms emit a structured warning without
+parameter values:
+
+```text
+DatabasePerformance__LogSlowQueries=true
+DatabasePerformance__SlowQueryThresholdMilliseconds=750
+DatabasePerformance__MaxLoggedCommandTextLength=800
+```
+
+During a load test, collect these warnings and optimize the most frequent slow
+query first. Lower the threshold only temporarily; logging every moderately
+slow query under heavy traffic can itself create noisy logs.
+
+## Multiple API instances
+
+One ASP.NET Core process already schedules request work across all available
+CPU cores. Do not enable an IIS web garden merely to "use all cores".
+
+Add a second API instance only when CPU is consistently saturated or one
+process is no longer enough. Before scaling out, Redis must be enabled for the
+SignalR backplane and distributed caches, and every instance must share the
+same persistent Data Protection keys. The load balancer must support
+WebSockets; sticky sessions are still recommended for SignalR clients.
 
 ## Rate limits
 
