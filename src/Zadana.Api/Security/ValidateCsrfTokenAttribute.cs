@@ -1,36 +1,24 @@
-using Microsoft.AspNetCore.Antiforgery;
 using Microsoft.AspNetCore.Mvc;
 using Microsoft.AspNetCore.Mvc.Filters;
 
 namespace Zadana.Api.Security;
 
 /// <summary>
-/// A custom, lightweight antiforgery validation filter attribute for APIs.
-/// Avoids requiring the heavy MVC Views / Microsoft.AspNetCore.Mvc.ViewFeatures
-/// services that the built-in [ValidateAntiForgeryToken] filter relies on.
+/// Validates the API's host-only double-submit CSRF cookie against the
+/// X-XSRF-TOKEN request header.
 /// </summary>
 [AttributeUsage(AttributeTargets.Method | AttributeTargets.Class, AllowMultiple = false)]
 public sealed class ValidateCsrfTokenAttribute : Attribute, IAsyncAuthorizationFilter
 {
-    public async Task OnAuthorizationAsync(AuthorizationFilterContext context)
+    public Task OnAuthorizationAsync(AuthorizationFilterContext context)
     {
         if (context == null)
         {
             throw new ArgumentNullException(nameof(context));
         }
 
-        var antiforgery = context.HttpContext.RequestServices.GetService(typeof(IAntiforgery)) as IAntiforgery;
-        if (antiforgery == null)
-        {
-            // If Antiforgery service is not registered in DI, skip validation.
-            return;
-        }
-
-        try
-        {
-            await antiforgery.ValidateRequestAsync(context.HttpContext);
-        }
-        catch (AntiforgeryValidationException)
+        var environment = context.HttpContext.RequestServices.GetRequiredService<IHostEnvironment>();
+        if (!ApiCsrfToken.IsValid(context.HttpContext.Request, environment))
         {
             context.Result = new ObjectResult(new
             {
@@ -41,5 +29,7 @@ public sealed class ValidateCsrfTokenAttribute : Attribute, IAsyncAuthorizationF
                 StatusCode = StatusCodes.Status400BadRequest
             };
         }
+
+        return Task.CompletedTask;
     }
 }

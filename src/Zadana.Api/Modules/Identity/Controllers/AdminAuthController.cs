@@ -1,4 +1,3 @@
-using Microsoft.AspNetCore.Antiforgery;
 using Microsoft.AspNetCore.Authorization;
 using Microsoft.AspNetCore.Mvc;
 using Microsoft.AspNetCore.RateLimiting;
@@ -24,25 +23,18 @@ public class AdminAuthController : IdentityAuthControllerBase
     private static readonly TimeSpan RefreshTokenCookieLifetime = TimeSpan.FromDays(7);
 
     private readonly IWebHostEnvironment _environment;
-    private readonly IAntiforgery _antiforgery;
 
     public AdminAuthController(
         IStringLocalizer<SharedResource> localizer,
-        IWebHostEnvironment environment,
-        IAntiforgery antiforgery)
+        IWebHostEnvironment environment)
         : base(localizer)
     {
         _environment = environment;
-        _antiforgery = antiforgery;
     }
 
     private void ClearCsrfCookie()
     {
-        var cookieName = _environment.IsProduction() ? "__Host-XSRF-AF" : "XSRF-AF";
-        Response.Cookies.Delete(cookieName);
-        // Keep the readable token cookie in sync with the antiforgery cookie pair.
-        Response.Cookies.Delete("XSRF-TOKEN");
-
+        ApiCsrfToken.Clear(Response, _environment);
    }
 
     /// <summary>
@@ -54,24 +46,7 @@ public class AdminAuthController : IdentityAuthControllerBase
     [HttpGet("csrf")]
     public IActionResult IssueCsrfToken()
     {
-        var tokens = _antiforgery.GetAndStoreTokens(HttpContext);
-
-        // The X-XSRF-TOKEN cookie is what the SPA reads (non-HttpOnly) and
-        // mirrors back via the request header for AntiForgery validation.
-        Response.Cookies.Append(
-            "XSRF-TOKEN",
-            tokens.RequestToken!,
-            new CookieOptions
-            {
-                HttpOnly = false,
-                Secure = _environment.IsProduction(),
-                SameSite = CrossOriginCookiePolicy.ResolveSameSite(_environment),
-                Path = "/",
-                IsEssential = true,
-                Expires = DateTimeOffset.UtcNow.AddHours(2)
-            });
-
-        return Ok(new { csrfToken = tokens.RequestToken });
+        return Ok(new { csrfToken = ApiCsrfToken.Issue(Response, _environment) });
     }
 
     [EnableRateLimiting(RateLimitPolicyNames.Auth)]

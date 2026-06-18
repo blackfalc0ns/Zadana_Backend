@@ -593,23 +593,6 @@ builder.Services.ConfigureApplicationCookie(options =>
 
 builder.Services.AddIdentityInfrastructure(builder.Configuration);
 
-// Antiforgery (CSRF) protection for cookie-authenticated admin endpoints.
-// The SPA bootstraps by calling GET /api/admin/auth/csrf, which sets a
-// non-HttpOnly XSRF-TOKEN cookie. Subsequent state-changing requests must
-// echo it via the X-XSRF-TOKEN header for AntiForgery to validate them.
-builder.Services.AddAntiforgery(options =>
-{
-    options.HeaderName = "X-XSRF-TOKEN";
-    options.Cookie.Name = builder.Environment.IsProduction() ? "__Host-XSRF-AF" : "XSRF-AF";
-    options.Cookie.HttpOnly = true;
-    options.Cookie.SameSite = CrossOriginCookiePolicy.ResolveSameSite(builder.Environment);
-    options.Cookie.SecurePolicy = builder.Environment.IsProduction()
-        ? CookieSecurePolicy.Always
-        : CookieSecurePolicy.SameAsRequest;
-    options.Cookie.Path = "/";
-    options.SuppressXFrameOptionsHeader = false;
-});
-
 var allowedOrigins = builder.Configuration.GetSection("Cors:AllowedOrigins").Get<string[]>();
 builder.Services.AddCors(options =>
 {
