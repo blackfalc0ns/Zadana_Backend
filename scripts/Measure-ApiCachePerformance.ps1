@@ -1,5 +1,5 @@
 param(
-    [string]$BaseUrl = "https://zadana.runasp.net",
+    [string]$BaseUrl = "https://api.zadna0.com",
     [int]$WarmSamples = 12,
     [string]$Culture = "ar",
     [string]$OutputPath = ""

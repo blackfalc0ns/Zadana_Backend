@@ -84,7 +84,7 @@ jobs:
         if: always()
         shell: pwsh
         run: |
-          $healthUrl = "https://zadana.runasp.net/health"
+          $healthUrl = "https://api.zadna0.com/health"
           $healthy = $false
 
           Start-Sleep -Seconds 10

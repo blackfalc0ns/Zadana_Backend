@@ -69,7 +69,7 @@
           <environmentVariable name="Moyasar__PublishableKey" value="&lt;&lt;NEW_MOYASAR_PUBLISHABLE_KEY&gt;&gt;" />
           <environmentVariable name="Moyasar__SecretKey"      value="&lt;&lt;NEW_MOYASAR_SECRET_KEY&gt;&gt;" />
           <environmentVariable name="Moyasar__WebhookSecret"  value="&lt;&lt;NEW_MOYASAR_WEBHOOK_SECRET&gt;&gt;" />
-          <environmentVariable name="Moyasar__CallbackUrl"    value="https://zadana.runasp.net/api/payments/moyasar/verify" />
+          <environmentVariable name="Moyasar__CallbackUrl"    value="https://api.zadna0.com/api/payments/moyasar/verify" />
 
           <!-- ===== Bank Transfer ===== -->
           <environmentVariable name="BankTransfer__BankName"          value="اسم البنك" />
