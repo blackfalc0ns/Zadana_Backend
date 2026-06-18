@@ -28,6 +28,8 @@ public class DeliveryAssignmentConfiguration : IEntityTypeConfiguration<Delivery
         builder.HasIndex(x => new { x.OrderId, x.CreatedAtUtc })
             .IsDescending(false, true)
             .HasDatabaseName("IX_DeliveryAssignments_OrderId_CreatedAt_Desc");
+        builder.HasIndex(x => new { x.Status, x.OfferExpiresAtUtc })
+            .HasDatabaseName("IX_DeliveryAssignments_Status_OfferExpiresAtUtc");
 
         builder.HasOne(x => x.Order)
             .WithMany()

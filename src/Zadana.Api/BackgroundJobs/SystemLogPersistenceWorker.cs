@@ -45,10 +45,34 @@ public sealed class SystemLogPersistenceWorker : BackgroundService
                 using var flushCts = new CancellationTokenSource(FlushInterval);
                 using var linked = CancellationTokenSource.CreateLinkedTokenSource(stoppingToken, flushCts.Token);
 
-                while (buffer.Count < BatchSize &&
-                       _queue.Reader.TryRead(out var next))
+                while (buffer.Count < BatchSize)
                 {
-                    buffer.Add(next);
+                    while (buffer.Count < BatchSize &&
+                           _queue.Reader.TryRead(out var next))
+                    {
+                        buffer.Add(next);
+                    }
+
+                    if (buffer.Count >= BatchSize)
+                    {
+                        break;
+                    }
+
+                    try
+                    {
+                        if (!await _queue.Reader.WaitToReadAsync(linked.Token))
+                        {
+                            break;
+                        }
+                    }
+                    catch (OperationCanceledException) when (
+                        flushCts.IsCancellationRequested &&
+                        !stoppingToken.IsCancellationRequested)
+                    {
+                        // Persist a partially filled batch after the maximum
+                        // coalescing interval instead of issuing tiny INSERTs.
+                        break;
+                    }
                 }
 
                 await PersistBatchAsync(buffer, stoppingToken);

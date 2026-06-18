@@ -62,7 +62,14 @@ public class DeliveryDispatchService : IDeliveryDispatchService
         CancellationToken cancellationToken = default)
     {
         await ProcessExpiredOffersAsync(cancellationToken);
+        return await TryAutoDispatchPreparedAsync(orderId, resetCycle, cancellationToken);
+    }
 
+    public async Task<DispatchDecisionDto?> TryAutoDispatchPreparedAsync(
+        Guid orderId,
+        bool resetCycle = false,
+        CancellationToken cancellationToken = default)
+    {
         var dispatchLock = GetDispatchLock(orderId);
         await dispatchLock.WaitAsync(cancellationToken);
         try

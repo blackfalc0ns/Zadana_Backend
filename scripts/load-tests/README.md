@@ -4,7 +4,7 @@ Five k6 scenarios covering the full performance envelope:
 
 | File | Purpose | Duration | Peak RPS |
 |------|---------|----------|----------|
-| `capacity-1000u-500orders.js` | Validate the requested target shape (1k active customers / 500 active orders / 20 vendors / 10 reviewers / 200 drivers) | configurable, default 18 min | workload-shaped |
+| `capacity-1000u-500orders.js` | Validate the requested target shape (1k active customers / 500 active orders / 30 stores / 20 admins / 500 drivers) | configurable, default 18 min | workload-shaped |
 | `limit-finder-mixed.js` | Ramp public + optional protected workloads until latency, drops, 429s, or 5xx reveal the ceiling | configurable, default ~4 min | configurable |
 | `steady-realistic.js` | Validate SLO at expected peak (1k users / 500 drivers / 1k orders / 200 vendors) | 10 min | ~50 |
 | `stress-extreme.js`   | Find the breaking point across every hot path simultaneously | 8 min | ~17,000 combined |
@@ -51,14 +51,69 @@ k6 run `
   scripts/load-tests/capacity-1000u-500orders.js
 ```
 
-This profile ramps to:
+The default `PROFILE=realistic` models the requested population without
+opening 2050 continuously looping sessions. Its default activity cadence is:
+
+- `1000` customers: about `34` customer journeys/second
+- `500` active orders: about `34` polling journeys/second
+- `500` drivers: `50` GPS journeys/second (one per driver every ~10 seconds)
+- `30` stores: `3` panel refresh journeys/second
+- `20` admins: `1` dashboard journey/second
+
+Because each journey can call multiple endpoints, the resulting HTTP rate is
+typically around `200-250 RPS` when all IDs are supplied.
+
+```powershell
+k6 run `
+  -e BASE_URL=https://your-new-server.example `
+  -e PROFILE=realistic `
+  -e REALISTIC_DURATION=15m `
+  -e CUSTOMER_TOKENS=$env:CUSTOMER_TOKENS `
+  -e DRIVER_TOKENS=$env:DRIVER_TOKENS `
+  -e VENDOR_TOKENS=$env:VENDOR_TOKENS `
+  -e REVIEWER_TOKENS=$env:REVIEWER_TOKENS `
+  -e ORDER_IDS=$env:ORDER_IDS `
+  -e VENDOR_IDS=$env:VENDOR_IDS `
+  -e ADDRESS_IDS=$env:ADDRESS_IDS `
+  scripts/load-tests/capacity-1000u-500orders.js
+```
+
+The destructive ceiling profile is still available explicitly with
+`PROFILE=concurrent`. It ramps to:
+
 - `1000` active customer sessions
 - `500` active order polling sessions
-- `200` active driver GPS sessions
-- `20` vendor panel sessions
-- `10` reviewer/admin sessions
+- `500` active driver GPS sessions
+- `30` vendor panel sessions
+- `20` reviewer/admin sessions
 
-It writes only driver location pings by default. It does not mutate order statuses, approve records, or create/cancel orders.
+That is `2050` concurrent virtual users at the steady plateau. It writes only
+driver location pings by default. The `500 orders` are active order
+read/tracking sessions against IDs supplied through `ORDER_IDS`; the test does
+not create, cancel, approve, or change order statuses.
+
+For a quick 5-minute validation before the full run:
+
+```powershell
+k6 run `
+  -e BASE_URL=https://your-new-server.example `
+  -e PROFILE=concurrent `
+  -e RAMP_UP=1m `
+  -e STEADY=3m `
+  -e RAMP_DOWN=1m `
+  -e CUSTOMER_TOKENS=$env:CUSTOMER_TOKENS `
+  -e DRIVER_TOKENS=$env:DRIVER_TOKENS `
+  -e VENDOR_TOKENS=$env:VENDOR_TOKENS `
+  -e REVIEWER_TOKENS=$env:REVIEWER_TOKENS `
+  -e ORDER_IDS=$env:ORDER_IDS `
+  -e VENDOR_IDS=$env:VENDOR_IDS `
+  -e ADDRESS_IDS=$env:ADDRESS_IDS `
+  scripts/load-tests/capacity-1000u-500orders.js
+```
+
+Do not interpret repeated use of one token as 1000 distinct authenticated
+accounts. For realistic authorization, cache, cart, and row-level behavior,
+supply token pools containing the test accounts for each role.
 
 ```powershell
 k6 run `

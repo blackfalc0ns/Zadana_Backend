@@ -67,7 +67,7 @@ public class UpdateDriverLocationCommandHandler : IRequestHandler<UpdateDriverLo
 
         await _unitOfWork.SaveChangesAsync(cancellationToken);
 
-        _logger.LogInformation(
+        _logger.LogDebug(
             "[DriverTracking] Persisted location for driver {DriverId} at ({Lat},{Lng}) acc={Acc}m. Looking for active assignments...",
             driver.Id, request.Latitude, request.Longitude, request.AccuracyMeters);
 
@@ -98,13 +98,13 @@ public class UpdateDriverLocationCommandHandler : IRequestHandler<UpdateDriverLo
 
         if (activeOrderIds.Count == 0)
         {
-            _logger.LogInformation(
+            _logger.LogDebug(
                 "[DriverTracking] Driver {DriverId} has NO active assignments. Location was saved but no broadcast was sent.",
                 driverId);
             return;
         }
 
-        _logger.LogInformation(
+        _logger.LogDebug(
             "[DriverTracking] Driver {DriverId} has {Count} active order(s). Broadcasting to: {OrderIds}",
             driverId, activeOrderIds.Count, string.Join(", ", activeOrderIds));
 
@@ -121,7 +121,7 @@ public class UpdateDriverLocationCommandHandler : IRequestHandler<UpdateDriverLo
                     location.RecordedAtUtc,
                     cancellationToken);
 
-                _logger.LogInformation(
+                _logger.LogDebug(
                     "[DriverTracking] Broadcast sent for order {OrderId} (group: order-{OrderIdN}).",
                     orderId, orderId.ToString("N"));
             }

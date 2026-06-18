@@ -521,6 +521,8 @@ builder.Services.AddRateLimiter(options =>
         && builder.Configuration.GetValue<bool>("RateLimiter:DisableGlobal");
     var globalLimiterPermitsPerSecond = builder.Configuration
         .GetValue<int?>("RateLimiter:GlobalPermitsPerSecond") ?? 200;
+    var publicReadPermitsPerSecond = builder.Configuration
+        .GetValue<int?>("RateLimiter:PublicReadPermitsPerSecond") ?? 250;
 
     if (!globalLimiterDisabled)
     {
@@ -543,8 +545,12 @@ builder.Services.AddRateLimiter(options =>
                 ResolveRateLimitKey(httpContext),
                 _ => new TokenBucketRateLimiterOptions
                 {
-                    TokenLimit = globalLimiterPermitsPerSecond,
-                    TokensPerPeriod = globalLimiterPermitsPerSecond,
+                    TokenLimit = IsPublicCacheableRead(httpContext)
+                        ? publicReadPermitsPerSecond
+                        : globalLimiterPermitsPerSecond,
+                    TokensPerPeriod = IsPublicCacheableRead(httpContext)
+                        ? publicReadPermitsPerSecond
+                        : globalLimiterPermitsPerSecond,
                     ReplenishmentPeriod = TimeSpan.FromSeconds(1),
                     AutoReplenishment = true,
                     QueueLimit = 0
@@ -969,6 +975,32 @@ app.UseAuthentication();
 app.UseMiddleware<JwtRevocationMiddleware>();
 
 app.UseRateLimiter();
+
+// Allow reverse proxies/CDNs to cache only immutable public GET responses.
+// Personalized and operational endpoints never receive these headers.
+app.Use(async (context, next) =>
+{
+    if (IsPublicCacheableRead(context))
+    {
+        context.Response.OnStarting(() =>
+        {
+            if (context.Response.StatusCode == StatusCodes.Status200OK &&
+                !context.Response.Headers.ContainsKey("Set-Cookie"))
+            {
+                var edgeTtl = ResolvePublicEdgeCacheSeconds(context.Request.Path);
+                context.Response.Headers.CacheControl =
+                    $"public, max-age=30, s-maxage={edgeTtl}, stale-while-revalidate=30, stale-if-error=300";
+                context.Response.Headers.Append("Vary", "Accept-Language, Accept-Encoding");
+                context.Response.Headers["X-Zadana-Edge-Cache"] = "eligible";
+            }
+
+            return Task.CompletedTask;
+        });
+    }
+
+    await next(context);
+});
+
 app.UseOutputCache();
 app.UseMiddleware<TemporaryPasswordMiddleware>();
 app.UseAuthorization();
@@ -1191,6 +1223,38 @@ static string ResolveRateLimitKey(HttpContext context)
     }
 
     return "ip:unknown";
+}
+
+static bool IsPublicCacheableRead(HttpContext context)
+{
+    if (!HttpMethods.IsGet(context.Request.Method) ||
+        context.Request.Headers.ContainsKey("Authorization"))
+    {
+        return false;
+    }
+
+    var path = context.Request.Path;
+    return path.StartsWithSegments("/api/home", StringComparison.OrdinalIgnoreCase) ||
+           path.StartsWithSegments("/api/brands", StringComparison.OrdinalIgnoreCase) ||
+           path.StartsWithSegments("/api/categories", StringComparison.OrdinalIgnoreCase) ||
+           path.StartsWithSegments("/api/geography", StringComparison.OrdinalIgnoreCase) ||
+           path.StartsWithSegments("/api/products", StringComparison.OrdinalIgnoreCase);
+}
+
+static int ResolvePublicEdgeCacheSeconds(PathString path)
+{
+    if (path.StartsWithSegments("/api/geography", StringComparison.OrdinalIgnoreCase))
+    {
+        return 86400;
+    }
+
+    if (path.StartsWithSegments("/api/brands", StringComparison.OrdinalIgnoreCase) ||
+        path.StartsWithSegments("/api/categories", StringComparison.OrdinalIgnoreCase))
+    {
+        return 1800;
+    }
+
+    return 120;
 }
 
 static void LogStartupExceptionSafely(IServiceProvider services, Exception exception, string message)

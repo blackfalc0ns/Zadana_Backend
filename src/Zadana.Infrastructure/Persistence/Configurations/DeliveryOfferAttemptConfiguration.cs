@@ -17,5 +17,8 @@ public class DeliveryOfferAttemptConfiguration : IEntityTypeConfiguration<Delive
 
         builder.HasIndex(x => new { x.OrderId, x.AttemptNumber });
         builder.HasIndex(x => new { x.OrderId, x.DriverId, x.Status });
+        builder.HasIndex(x => new { x.OrderId, x.OfferedAtUtc })
+            .IsDescending(false, true)
+            .HasDatabaseName("IX_DeliveryOfferAttempts_OrderId_OfferedAtUtc_Desc");
     }
 }

@@ -70,48 +70,70 @@ public class DeliveryDispatchWorker : BackgroundService
                     .ToListAsync(stoppingToken);
 
                 var now = DateTime.UtcNow;
+                var stuckOrderIds = stuckOrders.Select(order => order.Id).ToArray();
+
+                var ordersWithAcceptedAssignments = stuckOrderIds.Length == 0
+                    ? new HashSet<Guid>()
+                    : (await context.DeliveryAssignments
+                        .AsNoTracking()
+                        .Where(assignment =>
+                            stuckOrderIds.Contains(assignment.OrderId) &&
+                            (assignment.Status == AssignmentStatus.Accepted ||
+                             assignment.Status == AssignmentStatus.ArrivedAtVendor ||
+                             assignment.Status == AssignmentStatus.PickedUp ||
+                             assignment.Status == AssignmentStatus.ArrivedAtCustomer))
+                        .Select(assignment => assignment.OrderId)
+                        .Distinct()
+                        .ToListAsync(stoppingToken))
+                    .ToHashSet();
+
+                var ordersWithActiveOffers = stuckOrderIds.Length == 0
+                    ? new HashSet<Guid>()
+                    : (await context.DeliveryAssignments
+                        .AsNoTracking()
+                        .Where(assignment =>
+                            stuckOrderIds.Contains(assignment.OrderId) &&
+                            assignment.Status == AssignmentStatus.OfferSent &&
+                            assignment.OfferExpiresAtUtc.HasValue &&
+                            assignment.OfferExpiresAtUtc.Value > now)
+                        .Select(assignment => assignment.OrderId)
+                        .Distinct()
+                        .ToListAsync(stoppingToken))
+                    .ToHashSet();
+
+                var lastOfferActivities = stuckOrderIds.Length == 0
+                    ? new Dictionary<Guid, DateTime>()
+                    : await context.DeliveryOfferAttempts
+                        .AsNoTracking()
+                        .Where(attempt => stuckOrderIds.Contains(attempt.OrderId))
+                        .GroupBy(attempt => attempt.OrderId)
+                        .Select(group => new
+                        {
+                            OrderId = group.Key,
+                            LastOfferedAtUtc = group.Max(attempt => attempt.OfferedAtUtc)
+                        })
+                        .ToDictionaryAsync(
+                            item => item.OrderId,
+                            item => item.LastOfferedAtUtc,
+                            stoppingToken);
 
                 foreach (var stuckOrder in stuckOrders)
                 {
                     try
                     {
-                        // Check if there's already an accepted/active assignment for this order.
-                        var hasAcceptedAssignment = await context.DeliveryAssignments
-                            .AnyAsync(a =>
-                                a.OrderId == stuckOrder.Id &&
-                                (a.Status == AssignmentStatus.Accepted ||
-                                 a.Status == AssignmentStatus.ArrivedAtVendor ||
-                                 a.Status == AssignmentStatus.PickedUp ||
-                                 a.Status == AssignmentStatus.ArrivedAtCustomer),
-                                stoppingToken);
-
-                        if (hasAcceptedAssignment)
+                        if (ordersWithAcceptedAssignments.Contains(stuckOrder.Id))
                         {
                             // Order has a driver — clean up alert tracking.
                             _lastAlertSentAtUtc.Remove(stuckOrder.Id);
                             continue;
                         }
 
-                        // Check if there's already an active (non-expired) offer for this order.
-                        var hasActiveOffer = await context.DeliveryAssignments
-                            .AnyAsync(a =>
-                                a.OrderId == stuckOrder.Id &&
-                                a.Status == AssignmentStatus.OfferSent &&
-                                a.OfferExpiresAtUtc.HasValue &&
-                                a.OfferExpiresAtUtc.Value > now,
-                                stoppingToken);
-
-                        if (hasActiveOffer)
+                        if (ordersWithActiveOffers.Contains(stuckOrder.Id))
                         {
                             continue;
                         }
 
-                        // Determine how long this order has been waiting for a driver.
-                        var lastOfferActivity = await context.DeliveryOfferAttempts
-                            .Where(a => a.OrderId == stuckOrder.Id)
-                            .OrderByDescending(a => a.OfferedAtUtc)
-                            .Select(a => a.OfferedAtUtc)
-                            .FirstOrDefaultAsync(stoppingToken);
+                        lastOfferActivities.TryGetValue(stuckOrder.Id, out var lastOfferActivity);
 
                         var waitingSince = lastOfferActivity != default
                             ? lastOfferActivity
@@ -122,13 +144,13 @@ public class DeliveryDispatchWorker : BackgroundService
                         // Decide whether to reset the dispatch cycle or just retry.
                         var shouldResetCycle = waitingDuration >= ResetCycleCooldown;
 
-                        _logger.LogInformation(
+                        _logger.LogDebug(
                             "DeliveryDispatchWorker: retrying dispatch for order {OrderId} (waiting {WaitingMinutes:N1} min, resetCycle={ResetCycle}).",
                             stuckOrder.Id,
                             waitingDuration.TotalMinutes,
                             shouldResetCycle);
 
-                        await dispatchService.TryAutoDispatchAsync(
+                        await dispatchService.TryAutoDispatchPreparedAsync(
                             stuckOrder.Id,
                             resetCycle: shouldResetCycle,
                             cancellationToken: stoppingToken);

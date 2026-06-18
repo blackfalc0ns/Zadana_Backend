@@ -1,12 +1,13 @@
 /**
- * CAPACITY TARGET TEST - 1000 active customers / 500 active orders
- * ==================================================================
+ * CAPACITY TARGET TEST - 1000 customers / 500 drivers / 30 stores /
+ *                        20 admins / 500 active orders
+ * ===================================================================
  * Models the requested launch-capacity shape:
  *   - 1000 active customer sessions
  *   - 500 active order tracking sessions
- *   - 20 active vendor stores
- *   - 10 admin/reviewer users
- *   - 200 active drivers
+ *   - 30 active vendor stores
+ *   - 20 admin/reviewer users
+ *   - 500 active drivers
  *
  * This test is intentionally safe by default: it reads hot paths and
  * writes only driver GPS pings. It does not mutate order statuses.
@@ -29,16 +30,18 @@ import { Rate, Trend, Counter } from 'k6/metrics';
 
 const BASE_URL = (__ENV.BASE_URL || 'http://localhost:5000').replace(/\/+$/, '');
 const REQUIRE_AUTH = (__ENV.REQUIRE_AUTH || 'true').toLowerCase() !== 'false';
+const PROFILE = (__ENV.PROFILE || 'realistic').toLowerCase();
 
 const CUSTOMER_VUS = numberEnv('CUSTOMER_VUS', 1000);
 const ORDER_VUS = numberEnv('ORDER_VUS', 500);
-const VENDOR_VUS = numberEnv('VENDOR_VUS', 20);
-const REVIEWER_VUS = numberEnv('REVIEWER_VUS', 10);
-const DRIVER_VUS = numberEnv('DRIVER_VUS', 200);
+const VENDOR_VUS = numberEnv('VENDOR_VUS', 30);
+const REVIEWER_VUS = numberEnv('REVIEWER_VUS', 20);
+const DRIVER_VUS = numberEnv('DRIVER_VUS', 500);
 
 const RAMP_UP = __ENV.RAMP_UP || '2m';
 const STEADY = __ENV.STEADY || '15m';
 const RAMP_DOWN = __ENV.RAMP_DOWN || '1m';
+const REALISTIC_DURATION = __ENV.REALISTIC_DURATION || '15m';
 
 const CUSTOMER_TOKENS = listEnv('CUSTOMER_TOKENS', __ENV.CUSTOMER_TOKEN);
 const DRIVER_TOKENS = listEnv('DRIVER_TOKENS', __ENV.DRIVER_TOKEN);
@@ -67,7 +70,75 @@ export const options = {
   discardResponseBodies: true,
   userAgent: 'k6-zadana-capacity-target/1.0',
 
-  scenarios: {
+  scenarios: buildScenarios(),
+
+  thresholds: {
+    http_req_failed: ['rate<0.02'],
+    capacity_errors: ['rate<0.02'],
+    auth_errors: ['rate<0.001'],
+    server_errors: ['rate<0.005'],
+    customer_ms: ['p(95)<700', 'p(99)<1500'],
+    active_order_ms: ['p(95)<600', 'p(99)<1500'],
+    driver_ms: ['p(95)<250', 'p(99)<700'],
+    vendor_ms: ['p(95)<700', 'p(99)<1500'],
+    reviewer_ms: ['p(95)<900', 'p(99)<2000'],
+  },
+};
+
+function buildScenarios() {
+  if (PROFILE === 'concurrent') {
+    return buildConcurrentScenarios();
+  }
+
+  return {
+    customers_1000_realistic: arrivalScenario(
+      'activeCustomer',
+      numberEnv('CUSTOMER_RATE', 34),
+      numberEnv('CUSTOMER_PRE_VUS', 30),
+      numberEnv('CUSTOMER_MAX_VUS', 200),
+    ),
+    orders_500_realistic: arrivalScenario(
+      'activeOrderWatcher',
+      numberEnv('ORDER_RATE', 34),
+      numberEnv('ORDER_PRE_VUS', 25),
+      numberEnv('ORDER_MAX_VUS', 150),
+    ),
+    drivers_500_realistic: arrivalScenario(
+      'activeDriver',
+      numberEnv('DRIVER_RATE', 50),
+      numberEnv('DRIVER_PRE_VUS', 35),
+      numberEnv('DRIVER_MAX_VUS', 200),
+    ),
+    stores_30_realistic: arrivalScenario(
+      'vendorStore',
+      numberEnv('VENDOR_RATE', 3),
+      numberEnv('VENDOR_PRE_VUS', 5),
+      numberEnv('VENDOR_MAX_VUS', 30),
+    ),
+    admins_20_realistic: arrivalScenario(
+      'reviewerDesk',
+      numberEnv('REVIEWER_RATE', 1),
+      numberEnv('REVIEWER_PRE_VUS', 3),
+      numberEnv('REVIEWER_MAX_VUS', 20),
+    ),
+  };
+}
+
+function arrivalScenario(exec, rate, preAllocatedVUs, maxVUs) {
+  return {
+    executor: 'constant-arrival-rate',
+    exec,
+    rate,
+    timeUnit: '1s',
+    duration: REALISTIC_DURATION,
+    preAllocatedVUs,
+    maxVUs,
+    gracefulStop: '30s',
+  };
+}
+
+function buildConcurrentScenarios() {
+  return {
     active_customers_1000: {
       executor: 'ramping-vus',
       exec: 'activeCustomer',
@@ -90,7 +161,7 @@ export const options = {
         { duration: RAMP_DOWN, target: 0 },
       ],
     },
-    active_drivers_200: {
+    active_drivers_500: {
       executor: 'ramping-vus',
       exec: 'activeDriver',
       startVUs: 0,
@@ -101,7 +172,7 @@ export const options = {
         { duration: RAMP_DOWN, target: 0 },
       ],
     },
-    vendor_stores_20: {
+    vendor_stores_30: {
       executor: 'ramping-vus',
       exec: 'vendorStore',
       startVUs: 0,
@@ -112,7 +183,7 @@ export const options = {
         { duration: RAMP_DOWN, target: 0 },
       ],
     },
-    reviewers_10: {
+    reviewers_20: {
       executor: 'ramping-vus',
       exec: 'reviewerDesk',
       startVUs: 0,
@@ -123,22 +194,16 @@ export const options = {
         { duration: RAMP_DOWN, target: 0 },
       ],
     },
-  },
-
-  thresholds: {
-    http_req_failed: ['rate<0.02'],
-    capacity_errors: ['rate<0.02'],
-    auth_errors: ['rate<0.001'],
-    server_errors: ['rate<0.005'],
-    customer_ms: ['p(95)<700', 'p(99)<1500'],
-    active_order_ms: ['p(95)<600', 'p(99)<1500'],
-    driver_ms: ['p(95)<250', 'p(99)<700'],
-    vendor_ms: ['p(95)<700', 'p(99)<1500'],
-    reviewer_ms: ['p(95)<900', 'p(99)<2000'],
-  },
-};
+  };
+}
 
 export function setup() {
+  if (PROFILE !== 'realistic' && PROFILE !== 'concurrent') {
+    fail(`Unsupported PROFILE=${PROFILE}. Use realistic or concurrent.`);
+  }
+
+  console.log(`Capacity profile: ${PROFILE}`);
+
   if (!REQUIRE_AUTH) {
     return;
   }
@@ -171,7 +236,7 @@ export function activeCustomer() {
     request('GET', '/api/orders/active?page=1&per_page=10', null, auth(token), customerMs);
   }
 
-  sleep(randomFloat(8, 20));
+  pace(8, 20);
 }
 
 export function activeOrderWatcher() {
@@ -187,7 +252,7 @@ export function activeOrderWatcher() {
     orderPolls.add(1);
   }
 
-  sleep(randomFloat(10, 18));
+  pace(10, 18);
 }
 
 export function activeDriver() {
@@ -207,7 +272,7 @@ export function activeDriver() {
     request('GET', '/api/drivers/assignments/current', null, auth(token), driverMs);
   }
 
-  sleep(randomFloat(8, 12));
+  pace(8, 12);
 }
 
 export function vendorStore() {
@@ -222,7 +287,7 @@ export function vendorStore() {
     request('GET', '/api/vendor/products?page=1&pageSize=20', null, auth(token), vendorMs);
   }
 
-  sleep(randomFloat(8, 15));
+  pace(8, 15);
 }
 
 export function reviewerDesk() {
@@ -241,7 +306,7 @@ export function reviewerDesk() {
     request('GET', '/api/admin/order-cases/stats', null, auth(token), reviewerMs);
   }
 
-  sleep(randomFloat(12, 24));
+  pace(12, 24);
 }
 
 function request(method, path, body, params, trend) {
@@ -294,6 +359,12 @@ function movingLocation() {
     longitude: 50.05 + Math.random() * 0.25,
     accuracyMeters: randomInt(5, 30),
   };
+}
+
+function pace(min, max) {
+  if (PROFILE === 'concurrent') {
+    sleep(randomFloat(min, max));
+  }
 }
 
 function randomTerm() {
