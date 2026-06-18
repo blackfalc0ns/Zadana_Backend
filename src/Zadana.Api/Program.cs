@@ -12,6 +12,7 @@ using Microsoft.AspNetCore.OutputCaching;
 using Microsoft.AspNetCore.RateLimiting;
 using Microsoft.AspNetCore.SignalR;
 using Microsoft.EntityFrameworkCore;
+using Microsoft.EntityFrameworkCore.Diagnostics;
 using Microsoft.Extensions.Diagnostics.HealthChecks;
 using Microsoft.IdentityModel.Tokens;
 using Microsoft.OpenApi.Models;
@@ -184,6 +185,18 @@ if (!builder.Environment.IsEnvironment("Testing"))
             });
 
         options.AddInterceptors(interceptor);
+
+        // PII value converters are bound to the runtime IDataProtector and
+        // therefore cannot be represented faithfully in an EF migration
+        // snapshot. EF Core 9 can consequently report pending model changes
+        // at runtime even when the schema model and committed snapshot are in
+        // sync. Keep the check strict outside Production, but do not let this
+        // false positive prevent committed migrations from running.
+        if (builder.Environment.IsProduction())
+        {
+            options.ConfigureWarnings(warnings =>
+                warnings.Ignore(RelationalEventId.PendingModelChangesWarning));
+        }
 
         if (builder.Environment.IsDevelopment())
         {
