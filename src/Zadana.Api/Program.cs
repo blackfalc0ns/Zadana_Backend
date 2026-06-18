@@ -12,6 +12,7 @@ using Microsoft.AspNetCore.OutputCaching;
 using Microsoft.AspNetCore.RateLimiting;
 using Microsoft.AspNetCore.SignalR;
 using Microsoft.EntityFrameworkCore;
+using Microsoft.EntityFrameworkCore.Diagnostics;
 using Microsoft.Extensions.Diagnostics.HealthChecks;
 using Microsoft.IdentityModel.Tokens;
 using Microsoft.OpenApi.Models;
@@ -184,6 +185,17 @@ if (!builder.Environment.IsEnvironment("Testing"))
             });
 
         options.AddInterceptors(interceptor);
+
+        // EF Core 9 can report a false PendingModelChangesWarning on the Linux
+        // production host even though a fresh Release build and the committed
+        // model snapshot are in sync. Keep development strict so missing
+        // migrations are caught locally, but do not let this warning prevent
+        // recorded migrations from running and take the production API down.
+        if (builder.Environment.IsProduction())
+        {
+            options.ConfigureWarnings(warnings =>
+                warnings.Ignore(RelationalEventId.PendingModelChangesWarning));
+        }
 
         if (builder.Environment.IsDevelopment())
         {
