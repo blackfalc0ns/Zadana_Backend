@@ -1,10 +1,14 @@
+using Microsoft.EntityFrameworkCore.Infrastructure;
 using Microsoft.EntityFrameworkCore.Migrations;
+using Zadana.Infrastructure.Persistence;
 
 #nullable disable
 
 namespace Zadana.Infrastructure.Migrations
 {
     /// <inheritdoc />
+    [DbContext(typeof(ApplicationDbContext))]
+    [Migration("20260614120000_AllowBranchScopedVendorProductInventory")]
     public partial class AllowBranchScopedVendorProductInventory : Migration
     {
         /// <inheritdoc />

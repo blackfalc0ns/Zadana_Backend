@@ -71,6 +71,7 @@ public class VendorProductConfiguration : IEntityTypeConfiguration<VendorProduct
         // synchronized by application logic across all branch rows.
         builder.HasIndex(vp => new { vp.VendorId, vp.MasterProductId, vp.VendorBranchId })
             .IsUnique()
+            .HasFilter(null)
             .HasDatabaseName("IX_VendorProduct_Vendor_Master_Branch");
 
         builder.HasIndex(vp => vp.VendorId)

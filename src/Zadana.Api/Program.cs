@@ -901,6 +901,7 @@ if (!app.Environment.IsEnvironment("Testing"))
     catch (Exception ex)
     {
         LogStartupExceptionSafely(app.Services, ex, "An error occurred during database migration.");
+        throw;
     }
 }
 
