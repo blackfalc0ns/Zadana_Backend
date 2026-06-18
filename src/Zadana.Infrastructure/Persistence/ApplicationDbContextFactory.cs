@@ -1,5 +1,6 @@
 ﻿using Microsoft.EntityFrameworkCore;
 using Microsoft.EntityFrameworkCore.Design;
+using Microsoft.AspNetCore.DataProtection;
 using Microsoft.Extensions.Configuration;
 using Zadana.Infrastructure.Persistence.Interceptors;
 
@@ -9,6 +10,10 @@ public class ApplicationDbContextFactory : IDesignTimeDbContextFactory<Applicati
 {
     public ApplicationDbContext CreateDbContext(string[] args)
     {
+        // Keep the design-time model identical to the runtime model.
+        ApplicationDbContext.AmbientDataProtectionProvider =
+            new EphemeralDataProtectionProvider();
+
         var optionsBuilder = new DbContextOptionsBuilder<ApplicationDbContext>();
 
         var basePath = Path.Combine(Directory.GetCurrentDirectory(), "..", "Zadana.Api");
