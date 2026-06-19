@@ -245,7 +245,10 @@ internal static class CartProjection
                 canCheckout,
                 checkoutBlockReason,
                 unavailableItemsCount > 0,
-                unavailableItemsCount));
+                unavailableItemsCount),
+            items.Count,
+            1,
+            items.Count);
     }
 
     private static Guid? ResolveEffectiveVendorId(

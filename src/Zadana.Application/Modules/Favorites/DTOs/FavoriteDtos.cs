@@ -26,6 +26,9 @@ public record FavoritesSummaryDto(
 
 public record FavoritesListResponse(
     [property: JsonPropertyName("items")] IReadOnlyList<FavoriteItemDto> Items,
+    [property: JsonPropertyName("total")] int Total,
+    [property: JsonPropertyName("page")] int Page,
+    [property: JsonPropertyName("per_page")] int PerPage,
     [property: JsonPropertyName("summary")] FavoritesSummaryDto Summary);
 
 public record AddFavoriteResponse(

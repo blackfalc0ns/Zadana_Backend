@@ -42,16 +42,18 @@ public class CartController : ApiControllerBase
     [AllowAnonymous]
     public async Task<ActionResult<CartDto>> GetCart(
         [FromQuery(Name = "vendor_id")] Guid? vendorId = null,
+        [FromQuery] int page = 1,
+        [FromQuery(Name = "per_page")] int perPage = 20,
         CancellationToken cancellationToken = default)
     {
         var actor = TryGetCartActor();
         if (actor is null)
         {
-            return Ok(new CartDto([], new CartSummaryDto(0, 0, null, null, null)));
+            return Ok(new CartDto([], new CartSummaryDto(0, 0, null, null, null), 0, page, perPage));
         }
 
         var resolvedVendorId = ResolveVendorIdQueryAlias(vendorId);
-        var result = await Sender.Send(new GetCartQuery(actor, resolvedVendorId), cancellationToken);
+        var result = await Sender.Send(new GetCartQuery(actor, resolvedVendorId, page, perPage), cancellationToken);
         return Ok(result);
     }
 

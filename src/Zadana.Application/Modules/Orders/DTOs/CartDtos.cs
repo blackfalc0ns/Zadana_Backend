@@ -158,7 +158,10 @@ public record CartSummaryDto(
 
 public record CartDto(
     List<CartItemDto> Items,
-    CartSummaryDto Summary);
+    CartSummaryDto Summary,
+    int Total = 0,
+    int Page = 1,
+    int PerPage = 0);
 
 public sealed record CartItemMutationResponseDto
 {

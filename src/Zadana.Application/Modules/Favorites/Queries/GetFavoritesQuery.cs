@@ -8,10 +8,14 @@ using Zadana.SharedKernel.Exceptions;
 
 namespace Zadana.Application.Modules.Favorites.Queries;
 
-public record GetFavoritesQuery(Guid? UserId, string? GuestId) : IRequest<FavoritesListResponse>;
+public record GetFavoritesQuery(Guid? UserId, string? GuestId, int Page = 1, int PerPage = 20) : IRequest<FavoritesListResponse>;
 
 public class GetFavoritesQueryHandler : IRequestHandler<GetFavoritesQuery, FavoritesListResponse>
 {
+    private const int DefaultPage = 1;
+    private const int DefaultPerPage = 20;
+    private const int MaxPerPage = 100;
+
     private readonly IApplicationDbContext _context;
     private readonly IStringLocalizer<SharedResource> _localizer;
 
@@ -31,6 +35,9 @@ public class GetFavoritesQueryHandler : IRequestHandler<GetFavoritesQuery, Favor
             throw new UnauthorizedException(_localizer["UserNotAuthenticated"]);
         }
 
+        var page = NormalizePage(request.Page);
+        var perPage = NormalizePerPage(request.PerPage);
+
         var favoriteIds = await _context.CustomerFavorites
             .AsNoTracking()
             .Where(x =>
@@ -41,14 +48,35 @@ public class GetFavoritesQueryHandler : IRequestHandler<GetFavoritesQuery, Favor
             .ToListAsync(cancellationToken);
 
         var itemMap = await FavoriteReadModelBuilder.BuildAsync(_context, favoriteIds, cancellationToken);
-        var items = favoriteIds
+        var allItems = favoriteIds
             .Distinct()
             .Where(itemMap.ContainsKey)
             .Select(id => itemMap[id])
             .ToList();
 
+        var total = allItems.Count;
+        var items = allItems
+            .Skip((page - 1) * perPage)
+            .Take(perPage)
+            .ToList();
+
         return new FavoritesListResponse(
             items,
-            new FavoritesSummaryDto(items.Count));
+            total,
+            page,
+            perPage,
+            new FavoritesSummaryDto(total));
+    }
+
+    private static int NormalizePage(int page) => page <= 0 ? DefaultPage : page;
+
+    private static int NormalizePerPage(int perPage)
+    {
+        if (perPage <= 0)
+        {
+            return DefaultPerPage;
+        }
+
+        return Math.Min(perPage, MaxPerPage);
     }
 }

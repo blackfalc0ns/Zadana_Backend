@@ -66,7 +66,7 @@ public class CartControllerTests
         _senderMock.Setup(x => x.Send(It.IsAny<GetCartQuery>(), It.IsAny<CancellationToken>()))
             .ReturnsAsync(dto);
 
-        var result = await _controller.GetCart(null, CancellationToken.None);
+        var result = await _controller.GetCart(null, cancellationToken: CancellationToken.None);
 
         var okResult = result.Result.Should().BeOfType<OkObjectResult>().Subject;
         okResult.Value.Should().BeEquivalentTo(dto);
@@ -301,7 +301,7 @@ public class CartControllerTests
             .ReturnsAsync(dto);
 
         var vendorId = Guid.NewGuid();
-        await _controller.GetCart(vendorId, CancellationToken.None);
+        await _controller.GetCart(vendorId, cancellationToken: CancellationToken.None);
 
         sentQuery.Should().NotBeNull();
         sentQuery!.VendorId.Should().Be(vendorId);
@@ -320,7 +320,7 @@ public class CartControllerTests
         var vendorId = Guid.NewGuid();
         _controller.ControllerContext.HttpContext.Request.QueryString = new Microsoft.AspNetCore.Http.QueryString($"?vendorId={vendorId}");
 
-        await _controller.GetCart(null, CancellationToken.None);
+        await _controller.GetCart(null, cancellationToken: CancellationToken.None);
 
         sentQuery.Should().NotBeNull();
         sentQuery!.VendorId.Should().Be(vendorId);
@@ -336,7 +336,7 @@ public class CartControllerTests
             .Callback<IRequest<CartDto>, CancellationToken>((query, _) => sentQuery = (GetCartQuery)query)
             .ReturnsAsync(dto);
 
-        await _controller.GetCart(null, CancellationToken.None);
+        await _controller.GetCart(null, cancellationToken: CancellationToken.None);
 
         sentQuery.Should().NotBeNull();
         sentQuery!.VendorId.Should().BeNull();

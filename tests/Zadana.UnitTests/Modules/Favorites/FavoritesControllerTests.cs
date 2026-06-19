@@ -66,7 +66,7 @@ public class FavoritesControllerTests
         _currentUserServiceMock.SetupGet(x => x.UserId).Returns((Guid?)null);
         _currentUserServiceMock.SetupGet(x => x.IsAuthenticated).Returns(false);
 
-        var act = async () => await _controller.GetFavorites(CancellationToken.None);
+        var act = async () => await _controller.GetFavorites(cancellationToken: CancellationToken.None);
 
         var exception = await act.Should().ThrowAsync<UnauthorizedException>();
         exception.Which.Message.Should().Be("User is not authenticated. Send X-Device-Id header for guest favorites access.");
