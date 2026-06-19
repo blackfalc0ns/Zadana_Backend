@@ -1,4 +1,6 @@
+using System.Diagnostics;
 using Microsoft.Extensions.Hosting;
+using Microsoft.Extensions.Logging;
 using Microsoft.Extensions.Options;
 using SkiaSharp;
 using Zadana.Application.Common.Interfaces;
@@ -25,12 +27,15 @@ public sealed class LocalFileStorageService : IFileStorageService
     private readonly string _rootPath;
     private readonly Uri _publicBaseUri;
     private readonly SemaphoreSlim _imageProcessingGate;
+    private readonly ILogger<LocalFileStorageService> _logger;
 
     public LocalFileStorageService(
         IOptions<FileStorageSettings> options,
-        IHostEnvironment environment)
+        IHostEnvironment environment,
+        ILogger<LocalFileStorageService> logger)
     {
         _settings = options.Value.Local;
+        _logger = logger;
 
         if (string.IsNullOrWhiteSpace(_settings.RootPath))
         {
@@ -62,6 +67,7 @@ public sealed class LocalFileStorageService : IFileStorageService
         string directory,
         CancellationToken cancellationToken = default)
     {
+        var uploadStartedAt = Stopwatch.GetTimestamp();
         ValidateReadableStream(file.ContentStream);
 
         var safeDirectory = NormalizeDirectory(directory);
@@ -71,6 +77,9 @@ public sealed class LocalFileStorageService : IFileStorageService
         var sourceExtension = Path.GetExtension(file.FileName).ToLowerInvariant();
         var convertToWebp = _settings.ConvertImagesToWebp &&
                             RasterImageExtensions.Contains(sourceExtension);
+        var preserveWebp = convertToWebp &&
+                           sourceExtension.Equals(".webp", StringComparison.OrdinalIgnoreCase) &&
+                           CanPreserveWebp(file.ContentStream);
         var outputExtension = convertToWebp ? ".webp" : sourceExtension;
 
         if (string.IsNullOrWhiteSpace(outputExtension))
@@ -84,7 +93,11 @@ public sealed class LocalFileStorageService : IFileStorageService
 
         try
         {
-            if (convertToWebp)
+            if (preserveWebp)
+            {
+                await WriteStreamAsync(file.ContentStream, temporaryPath, cancellationToken);
+            }
+            else if (convertToWebp)
             {
                 await _imageProcessingGate.WaitAsync(cancellationToken);
                 try
@@ -98,16 +111,7 @@ public sealed class LocalFileStorageService : IFileStorageService
             }
             else
             {
-                ResetStream(file.ContentStream);
-                await using var output = new FileStream(
-                    temporaryPath,
-                    FileMode.CreateNew,
-                    FileAccess.Write,
-                    FileShare.None,
-                    bufferSize: 64 * 1024,
-                    useAsync: true);
-                await file.ContentStream.CopyToAsync(output, cancellationToken);
-                await output.FlushAsync(cancellationToken);
+                await WriteStreamAsync(file.ContentStream, temporaryPath, cancellationToken);
             }
 
             File.Move(temporaryPath, finalPath);
@@ -121,6 +125,16 @@ public sealed class LocalFileStorageService : IFileStorageService
         var relativeUrl = string.IsNullOrEmpty(safeDirectory)
             ? uniqueFileName
             : $"{safeDirectory}/{uniqueFileName}";
+
+        _logger.LogInformation(
+            "Stored upload {FileName} in {Directory} as {OutputExtension}; preservedWebp={PreservedWebp}; bytes={FileBytes}; elapsedMs={ElapsedMs:F1}",
+            file.FileName,
+            safeDirectory,
+            outputExtension,
+            preserveWebp,
+            file.ContentStream.CanSeek ? file.ContentStream.Length : null,
+            Stopwatch.GetElapsedTime(uploadStartedAt).TotalMilliseconds);
+
         return new Uri(_publicBaseUri, relativeUrl).AbsoluteUri;
     }
 
@@ -210,6 +224,49 @@ public sealed class LocalFileStorageService : IFileStorageService
             bufferSize: 64 * 1024,
             useAsync: true);
         encoded.SaveTo(output);
+        await output.FlushAsync(cancellationToken);
+    }
+
+    private bool CanPreserveWebp(Stream source)
+    {
+        ResetStream(source);
+
+        try
+        {
+            using var encodedInput = new SKManagedStream(source, disposeManagedStream: false);
+            using var codec = SKCodec.Create(encodedInput);
+            if (codec is null)
+            {
+                return false;
+            }
+
+            var info = codec.Info;
+            return info.Width > 0 &&
+                   info.Height > 0 &&
+                   info.Width <= _settings.MaxWidth &&
+                   info.Height <= _settings.MaxHeight &&
+                   (long)info.Width * info.Height <= _settings.MaxPixelCount;
+        }
+        finally
+        {
+            ResetStream(source);
+        }
+    }
+
+    private static async Task WriteStreamAsync(
+        Stream source,
+        string destinationPath,
+        CancellationToken cancellationToken)
+    {
+        ResetStream(source);
+        await using var output = new FileStream(
+            destinationPath,
+            FileMode.CreateNew,
+            FileAccess.Write,
+            FileShare.None,
+            bufferSize: 64 * 1024,
+            useAsync: true);
+        await source.CopyToAsync(output, 64 * 1024, cancellationToken);
         await output.FlushAsync(cancellationToken);
     }
 

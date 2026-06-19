@@ -1,6 +1,7 @@
 using FluentAssertions;
 using Microsoft.Extensions.FileProviders;
 using Microsoft.Extensions.Hosting;
+using Microsoft.Extensions.Logging.Abstractions;
 using Microsoft.Extensions.Options;
 using SkiaSharp;
 using Zadana.Application.Common.Interfaces;
@@ -70,6 +71,27 @@ public sealed class LocalFileStorageServiceTests : IDisposable
     }
 
     [Fact]
+    public async Task UploadAsync_OptimizedWebpWithinLimits_PreservesOriginalBytes()
+    {
+        var service = CreateService();
+        await using var source = CreateWebp(800, 600);
+        var expectedBytes = source.ToArray();
+
+        var url = await service.UploadAsync(
+            new FileUploadDto("product.webp", "image/webp", source),
+            "uploads/catalog/products");
+
+        var outputPath = Path.Combine(
+            _root,
+            "uploads",
+            "catalog",
+            "products",
+            Path.GetFileName(new Uri(url).LocalPath));
+
+        (await File.ReadAllBytesAsync(outputPath)).Should().Equal(expectedBytes);
+    }
+
+    [Fact]
     public async Task UploadAsync_PathTraversal_IsRejected()
     {
         var service = CreateService();
@@ -108,7 +130,10 @@ public sealed class LocalFileStorageServiceTests : IDisposable
             }
         });
 
-        return new LocalFileStorageService(settings, new TestHostEnvironment(_root));
+        return new LocalFileStorageService(
+            settings,
+            new TestHostEnvironment(_root),
+            NullLogger<LocalFileStorageService>.Instance);
     }
 
     private static MemoryStream CreatePng(int width, int height)
@@ -117,6 +142,15 @@ public sealed class LocalFileStorageServiceTests : IDisposable
         bitmap.Erase(SKColors.CornflowerBlue);
         using var image = SKImage.FromBitmap(bitmap);
         using var encoded = image.Encode(SKEncodedImageFormat.Png, 100);
+        return new MemoryStream(encoded.ToArray());
+    }
+
+    private static MemoryStream CreateWebp(int width, int height)
+    {
+        using var bitmap = new SKBitmap(width, height);
+        bitmap.Erase(SKColors.CornflowerBlue);
+        using var image = SKImage.FromBitmap(bitmap);
+        using var encoded = image.Encode(SKEncodedImageFormat.Webp, 82);
         return new MemoryStream(encoded.ToArray());
     }
 
