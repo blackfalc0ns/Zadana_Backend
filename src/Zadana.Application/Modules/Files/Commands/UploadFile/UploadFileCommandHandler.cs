@@ -19,6 +19,8 @@ public class UploadFileCommandHandler : IRequestHandler<UploadFileCommand, strin
             [".jpeg"] = new(["image/jpeg", "application/octet-stream"], MaxImageBytes, [[0xFF, 0xD8, 0xFF]]),
             [".png"] = new(["image/png", "application/octet-stream"], MaxImageBytes, [[0x89, 0x50, 0x4E, 0x47]]),
             [".webp"] = new(["image/webp", "application/octet-stream"], MaxImageBytes, [[0x52, 0x49, 0x46, 0x46], [0x57, 0x45, 0x42, 0x50]]),
+            [".gif"] = new(["image/gif", "application/octet-stream"], MaxImageBytes, [[0x47, 0x49, 0x46, 0x38]]),
+            [".bmp"] = new(["image/bmp", "image/x-ms-bmp", "application/octet-stream"], MaxImageBytes, [[0x42, 0x4D]]),
             [".pdf"] = new(["application/pdf", "application/octet-stream"], MaxPdfBytes, [[0x25, 0x50, 0x44, 0x46]])
         };
 

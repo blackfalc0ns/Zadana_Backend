@@ -84,6 +84,9 @@ builder.Configuration.AddEnvironmentVariables(prefix: "ZADANA_");
 builder.Configuration.AddEnvironmentVariables();
 
 var jwtSecret = builder.Configuration.GetRequiredSetting("JwtSettings:Secret");
+var fileStorageProvider = builder.Configuration[$"{FileStorageSettings.SectionName}:Provider"]?.Trim();
+fileStorageProvider = string.IsNullOrWhiteSpace(fileStorageProvider) ? "ImageKit" : fileStorageProvider;
+var useLocalFileStorage = fileStorageProvider.Equals("Local", StringComparison.OrdinalIgnoreCase);
 
 // Production hardening: refuse to start if critical settings are still
 // placeholders or default values that have ever been committed.
@@ -92,13 +95,22 @@ if (builder.Environment.IsProduction())
     var requiredProductionSettings = new List<string>
     {
         "JwtSettings:Secret",
-        "ImageKit:PrivateKey",
         "Moyasar:SecretKey",
         "Moyasar:WebhookSecret",
         "ResendSettings:ApiKey",
         "BankTransfer:WebhookSecret",
         "Security:SearchableHashKey"
     };
+
+    if (useLocalFileStorage)
+    {
+        requiredProductionSettings.Add("FileStorage:Local:RootPath");
+        requiredProductionSettings.Add("FileStorage:Local:PublicBaseUrl");
+    }
+    else
+    {
+        requiredProductionSettings.Add("ImageKit:PrivateKey");
+    }
 
     if (builder.Configuration.GetValue<bool>("WapilotOtp:Enabled"))
     {
@@ -290,8 +302,40 @@ builder.Services.AddOptions<BankTransferSettingsOptions>()
 
 builder.Services.AddOptions<Zadana.Infrastructure.Settings.ImageKitSettings>()
     .Bind(builder.Configuration.GetSection(Zadana.Infrastructure.Settings.ImageKitSettings.SectionName))
-    .ValidateDataAnnotations()
-    .ValidateOnStart();
+    .ValidateDataAnnotations();
+
+var fileStorageOptionsBuilder = builder.Services.AddOptions<FileStorageSettings>()
+    .Bind(builder.Configuration.GetSection(FileStorageSettings.SectionName))
+    .Validate(
+        settings => settings.Provider.Equals("ImageKit", StringComparison.OrdinalIgnoreCase) ||
+                    settings.Provider.Equals("Local", StringComparison.OrdinalIgnoreCase),
+        "FileStorage:Provider must be ImageKit or Local.");
+
+if (useLocalFileStorage && !builder.Environment.IsEnvironment("Testing"))
+{
+    fileStorageOptionsBuilder
+        .Validate(
+            settings => !string.IsNullOrWhiteSpace(settings.Local.RootPath),
+            "FileStorage:Local:RootPath is required for local media storage.")
+        .Validate(
+            settings => Uri.TryCreate(settings.Local.PublicBaseUrl, UriKind.Absolute, out var uri) &&
+                        (uri.Scheme == Uri.UriSchemeHttps || uri.Scheme == Uri.UriSchemeHttp),
+            "FileStorage:Local:PublicBaseUrl must be an absolute HTTP(S) URL.")
+        .ValidateOnStart();
+}
+else if (builder.Environment.IsEnvironment("Testing"))
+{
+    builder.Services.PostConfigure<FileStorageSettings>(settings =>
+    {
+        settings.Provider = "Local";
+        settings.Local.RootPath = string.IsNullOrWhiteSpace(settings.Local.RootPath)
+            ? Path.Combine(Path.GetTempPath(), "zadana-tests-media")
+            : settings.Local.RootPath;
+        settings.Local.PublicBaseUrl = string.IsNullOrWhiteSpace(settings.Local.PublicBaseUrl)
+            ? "http://localhost/media"
+            : settings.Local.PublicBaseUrl;
+    });
+}
 
 builder.Services.AddOptions<Zadana.Infrastructure.Settings.MoyasarSettings>()
     .Bind(builder.Configuration.GetSection(Zadana.Infrastructure.Settings.MoyasarSettings.SectionName));
@@ -345,9 +389,9 @@ builder.Services.AddHttpClient<IOneSignalPushService, OneSignalPushService>((ser
     o.Retry.MaxRetryAttempts = 2;
 });
 
-if (builder.Environment.IsEnvironment("Testing"))
+if (builder.Environment.IsEnvironment("Testing") || useLocalFileStorage)
 {
-    builder.Services.AddTransient<IFileStorageService, Zadana.Infrastructure.Modules.Files.Services.LocalFileStorageService>();
+    builder.Services.AddSingleton<IFileStorageService, Zadana.Infrastructure.Modules.Files.Services.LocalFileStorageService>();
 }
 else
 {
