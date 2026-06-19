@@ -57,7 +57,11 @@ public sealed record CartAvailableVendorDto
 }
 
 public record CartAvailableVendorsDto(
-    List<CartAvailableVendorDto> Vendors);
+    List<CartAvailableVendorDto> Vendors,
+    int Total = 0,
+    int Limit = 0,
+    int Offset = 0,
+    bool HasMore = false);
 
 public sealed record CartItemDto
 {
@@ -160,8 +164,9 @@ public record CartDto(
     List<CartItemDto> Items,
     CartSummaryDto Summary,
     int Total = 0,
-    int Page = 1,
-    int PerPage = 0);
+    int Limit = 0,
+    int Offset = 0,
+    bool HasMore = false);
 
 public sealed record CartItemMutationResponseDto
 {

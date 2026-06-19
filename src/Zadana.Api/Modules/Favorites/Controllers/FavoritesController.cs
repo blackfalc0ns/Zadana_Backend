@@ -37,11 +37,11 @@ public class FavoritesController : ApiControllerBase
     [HttpGet]
     [ProducesResponseType(typeof(FavoritesListResponse), StatusCodes.Status200OK)]
     public async Task<IActionResult> GetFavorites(
-        [FromQuery] int page = 1,
-        [FromQuery(Name = "per_page")] int perPage = 20,
+        [FromQuery] int limit = 20,
+        [FromQuery] int offset = 0,
         CancellationToken cancellationToken = default)
     {
-        var result = await _mediator.Send(new GetFavoritesQuery(_currentUserService.UserId, GetGuestId(), page, perPage), cancellationToken);
+        var result = await _mediator.Send(new GetFavoritesQuery(_currentUserService.UserId, GetGuestId(), limit, offset), cancellationToken);
         return Ok(result);
     }
 

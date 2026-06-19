@@ -2,6 +2,7 @@ using System.Globalization;
 using MediatR;
 using Microsoft.EntityFrameworkCore;
 using Zadana.Application.Common.Interfaces;
+using Zadana.Application.Common.Models;
 using Zadana.Application.Modules.Orders.DTOs;
 using Zadana.Application.Modules.Orders.Support;
 using Zadana.Application.Modules.Vendors.Support;
@@ -10,7 +11,7 @@ using Zadana.Domain.Modules.Vendors.Enums;
 
 namespace Zadana.Application.Modules.Orders.Queries.GetCartVendors;
 
-public record GetCartVendorsQuery(CartActor Actor) : IRequest<CartAvailableVendorsDto>;
+public record GetCartVendorsQuery(CartActor Actor, int Limit = 20, int Offset = 0) : IRequest<CartAvailableVendorsDto>;
 
 public class GetCartVendorsQueryHandler : IRequestHandler<GetCartVendorsQuery, CartAvailableVendorsDto>
 {
@@ -73,7 +74,7 @@ public class GetCartVendorsQueryHandler : IRequestHandler<GetCartVendorsQuery, C
                 availableVendors.Select(item => item.Id),
                 cancellationToken);
 
-            return new CartAvailableVendorsDto(
+            return ToOffsetResponse(
                 availableVendors
                     .Where(item => VendorCustomerAvailabilityPolicy.ResolveOrOffline(availabilityDecisions, item.Id).IsVisibleInCatalog)
                     .Select(item => new CartAvailableVendorDto(
@@ -83,7 +84,9 @@ public class GetCartVendorsQueryHandler : IRequestHandler<GetCartVendorsQuery, C
                         item.ProductsCount))
                     .OrderByDescending(item => item.ProductsCount)
                     .ThenBy(item => item.Name, StringComparer.CurrentCultureIgnoreCase)
-                    .ToList());
+                    .ToList(),
+                request.Limit,
+                request.Offset);
         }
 
         var productIds = cart.Items
@@ -150,7 +153,27 @@ public class GetCartVendorsQueryHandler : IRequestHandler<GetCartVendorsQuery, C
             .ThenBy(item => item.Name, StringComparer.CurrentCultureIgnoreCase)
             .ToList();
 
-        return new CartAvailableVendorsDto(vendors);
+        return ToOffsetResponse(vendors, request.Limit, request.Offset);
+    }
+
+    private static CartAvailableVendorsDto ToOffsetResponse(
+        List<CartAvailableVendorDto> vendors,
+        int limit,
+        int offset)
+    {
+        var normalizedOffset = OffsetLimitPagination.NormalizeOffset(offset);
+        var normalizedLimit = OffsetLimitPagination.NormalizeLimit(limit);
+        var total = vendors.Count;
+
+        return new CartAvailableVendorsDto(
+            vendors
+                .Skip(normalizedOffset)
+                .Take(normalizedLimit)
+                .ToList(),
+            total,
+            normalizedLimit,
+            normalizedOffset,
+            OffsetLimitPagination.HasMore(normalizedOffset, normalizedLimit, total));
     }
 
     private async Task<List<CartAvailableVendorProductRow>> FilterRowsForAddressBranchAsync(

@@ -352,7 +352,7 @@ public class CartControllerTests
         _senderMock.Setup(x => x.Send(It.IsAny<GetCartVendorsQuery>(), It.IsAny<CancellationToken>()))
             .ReturnsAsync(dto);
 
-        var result = await _controller.GetCartVendors(CancellationToken.None);
+        var result = await _controller.GetCartVendors(cancellationToken: CancellationToken.None);
 
         var okResult = result.Result.Should().BeOfType<OkObjectResult>().Subject;
         okResult.Value.Should().BeEquivalentTo(dto);

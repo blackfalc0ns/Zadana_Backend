@@ -42,32 +42,35 @@ public class CartController : ApiControllerBase
     [AllowAnonymous]
     public async Task<ActionResult<CartDto>> GetCart(
         [FromQuery(Name = "vendor_id")] Guid? vendorId = null,
-        [FromQuery] int page = 1,
-        [FromQuery(Name = "per_page")] int perPage = 20,
+        [FromQuery] int limit = 20,
+        [FromQuery] int offset = 0,
         CancellationToken cancellationToken = default)
     {
         var actor = TryGetCartActor();
         if (actor is null)
         {
-            return Ok(new CartDto([], new CartSummaryDto(0, 0, null, null, null), 0, page, perPage));
+            return Ok(new CartDto([], new CartSummaryDto(0, 0, null, null, null), 0, limit, offset, false));
         }
 
         var resolvedVendorId = ResolveVendorIdQueryAlias(vendorId);
-        var result = await Sender.Send(new GetCartQuery(actor, resolvedVendorId, page, perPage), cancellationToken);
+        var result = await Sender.Send(new GetCartQuery(actor, resolvedVendorId, limit, offset), cancellationToken);
         return Ok(result);
     }
 
     [HttpGet("vendors")]
     [AllowAnonymous]
-    public async Task<ActionResult<CartAvailableVendorsDto>> GetCartVendors(CancellationToken cancellationToken = default)
+    public async Task<ActionResult<CartAvailableVendorsDto>> GetCartVendors(
+        [FromQuery] int limit = 20,
+        [FromQuery] int offset = 0,
+        CancellationToken cancellationToken = default)
     {
         var actor = TryGetCartActor();
         if (actor is null)
         {
-            return Ok(new CartAvailableVendorsDto([]));
+            return Ok(new CartAvailableVendorsDto([], 0, limit, offset, false));
         }
 
-        var result = await Sender.Send(new GetCartVendorsQuery(actor), cancellationToken);
+        var result = await Sender.Send(new GetCartVendorsQuery(actor, limit, offset), cancellationToken);
         return Ok(result);
     }
 

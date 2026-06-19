@@ -792,12 +792,14 @@ builder.Services.AddControllers(options =>
 var signalRBuilder = builder.Services.AddSignalR(o =>
 {
     // Tighter limits prevent slow / abusive clients from exhausting server
-    // resources under load. Keep alive intervals match mobile defaults.
+    // resources under load. Send pings often enough to leave a safe margin
+    // below the common 30-second mobile SignalR server timeout, including
+    // normal reverse-proxy and mobile-network jitter.
     o.EnableDetailedErrors = builder.Environment.IsDevelopment();
     o.MaximumReceiveMessageSize = 32 * 1024; // 32 KB
     o.StreamBufferCapacity = 10;
-    o.KeepAliveInterval = TimeSpan.FromSeconds(15);
-    o.ClientTimeoutInterval = TimeSpan.FromSeconds(30);
+    o.KeepAliveInterval = TimeSpan.FromSeconds(10);
+    o.ClientTimeoutInterval = TimeSpan.FromSeconds(60);
     o.HandshakeTimeout = TimeSpan.FromSeconds(15);
 });
 
