@@ -97,7 +97,9 @@ if (builder.Environment.IsProduction())
         "JwtSettings:Secret",
         "Moyasar:SecretKey",
         "Moyasar:WebhookSecret",
-        "ResendSettings:ApiKey",
+        "Email:Smtp:Host",
+        "Email:Smtp:Username",
+        "Email:Smtp:Password",
         "BankTransfer:WebhookSecret",
         "Security:SearchableHashKey"
     };

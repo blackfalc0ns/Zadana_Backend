@@ -9,20 +9,20 @@ using Zadana.SharedKernel.Exceptions;
 
 namespace Zadana.Infrastructure.Services;
 
-public class ResendOtpService : IOtpService
+public class EmailOtpService : IOtpService
 {
     private readonly IEmailService _emailService;
-    private readonly ILogger<ResendOtpService> _logger;
+    private readonly ILogger<EmailOtpService> _logger;
     private readonly IStringLocalizer<SharedResource> _localizer;
     private readonly ITemplateService _templateService;
-    private readonly ResendEmailSettings _emailSettings;
+    private readonly EmailSettings _emailSettings;
 
-    public ResendOtpService(
+    public EmailOtpService(
         IEmailService emailService,
-        ILogger<ResendOtpService> logger,
+        ILogger<EmailOtpService> logger,
         IStringLocalizer<SharedResource> localizer,
         ITemplateService templateService,
-        IOptions<ResendEmailSettings> emailSettings)
+        IOptions<EmailSettings> emailSettings)
     {
         _emailService = emailService;
         _logger = logger;
@@ -78,7 +78,7 @@ public class ResendOtpService : IOtpService
             if (!result.Success)
             {
                 throw new ExternalServiceException(
-                    "RESEND_OTP_EMAIL_FAILED",
+                    "SMTP_OTP_EMAIL_FAILED",
                     result.FailureReason ?? "OTP email delivery failed.");
             }
 
@@ -93,7 +93,7 @@ public class ResendOtpService : IOtpService
 
     public Task SendOtpSmsAsync(string phoneNumber, string otpCode, CancellationToken cancellationToken = default)
     {
-        _logger.LogWarning("SMS OTP is requested but not implemented in ResendOtpService. Use the WhatsApp OTP service for mobile OTP delivery.");
+        _logger.LogWarning("SMS OTP is requested but not implemented in EmailOtpService. Use the WhatsApp OTP service for mobile OTP delivery.");
         return Task.CompletedTask;
     }
 

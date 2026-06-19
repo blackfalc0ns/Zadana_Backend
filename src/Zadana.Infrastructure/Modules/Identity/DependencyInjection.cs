@@ -16,9 +16,23 @@ public static class DependencyInjection
 {
     public static IServiceCollection AddIdentityInfrastructure(this IServiceCollection services, IConfiguration configuration)
     {
-        services.AddOptions<ResendEmailSettings>()
-            .Bind(configuration.GetSection(ResendEmailSettings.SectionName))
+        services.AddOptions<EmailSettings>()
+            .Bind(configuration.GetSection(EmailSettings.SectionName))
             .ValidateDataAnnotations()
+            .Validate(settings => !string.IsNullOrWhiteSpace(settings.Smtp.Host),
+                "Email:Smtp:Host is required.")
+            .Validate(settings => !settings.Smtp.RequireAuthentication ||
+                                  !string.IsNullOrWhiteSpace(settings.Smtp.Username),
+                "Email:Smtp:Username is required when authentication is enabled.")
+            .Validate(settings => !settings.Smtp.RequireAuthentication ||
+                                  !string.IsNullOrWhiteSpace(settings.Smtp.Password),
+                "Email:Smtp:Password is required when authentication is enabled.")
+            .Validate(settings => new[]
+                {
+                    "auto", "none", "sslonconnect", "ssl",
+                    "starttls", "starttlswhenavailable"
+                }.Contains(settings.Smtp.Security.Trim(), StringComparer.OrdinalIgnoreCase),
+                "Email:Smtp:Security is invalid.")
             .ValidateOnStart();
 
         services.AddOptions<WapilotOtpSettings>()
@@ -69,7 +83,7 @@ public static class DependencyInjection
             }, "WhatsAppCloudOtp:DefaultCountryCode must be an international dialing code.")
             .ValidateOnStart();
         
-        services.AddHttpClient<IEmailService, ResendEmailService>();
+        services.AddSingleton<IEmailService, SmtpEmailService>();
         services.AddHttpClient<WhatsAppCloudOtpService>((serviceProvider, client) =>
         {
             var settings = serviceProvider.GetRequiredService<IOptions<WhatsAppCloudOtpSettings>>().Value;
@@ -95,7 +109,7 @@ public static class DependencyInjection
         // Services
         services.AddTransient<IJwtTokenService, JwtTokenService>();
         services.AddScoped<ICurrentUserService, CurrentUserService>();
-        services.AddTransient<ResendOtpService>();
+        services.AddTransient<EmailOtpService>();
         services.AddTransient<IOtpService, CompositeOtpService>();
         services.AddTransient<ITemplateService, HtmlTemplateService>();
 

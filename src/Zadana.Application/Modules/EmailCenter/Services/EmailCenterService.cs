@@ -456,7 +456,7 @@ public sealed class EmailCenterService : IEmailCenterService
                     resolved: legacyRecipients,
                     subject: message.TitleEn,
                     source: "vendor_automation_legacy",
-                    sendResult: new EmailSendResult("resend", false, null, "Vendor has no email address for lifecycle communication."),
+                    sendResult: new EmailSendResult("smtp", false, null, "Vendor has no email address for lifecycle communication."),
                     reasonOverride: "Vendor has no email address for lifecycle communication.",
                     eventKey: eventKey,
                     entityId: vendor.UserId,

@@ -75,6 +75,7 @@ internal static class CartBranchSelectionSupport
             return null;
         }
 
+        // 1) Prefer a branch in the same city as the customer's address.
         var sameCityBranch = branches
             .Where(branch => DeliveryCityMatcher.Matches(branch.City, address.City))
             .OrderByDescending(branch => branch.IsPrimary)
@@ -86,16 +87,13 @@ internal static class CartBranchSelectionSupport
             return sameCityBranch;
         }
 
-        if (!string.IsNullOrWhiteSpace(address.City))
-        {
-            return null;
-        }
-
+        // 2) No same-city branch: fall back to the nearest branch within its delivery
+        //    radius when both the address and the branch expose usable coordinates.
         if (HasUsableCoordinates(address))
         {
             var addressLatitude = address.Latitude!.Value;
             var addressLongitude = address.Longitude!.Value;
-            return branches
+            var nearestWithinRadius = branches
                 .Where(branch => HasUsableCoordinates(branch.Latitude, branch.Longitude))
                 .Select(branch =>
                 {
@@ -109,8 +107,23 @@ internal static class CartBranchSelectionSupport
                 .ThenBy(item => item.Branch.CreatedAtUtc)
                 .Select(item => item.Branch)
                 .FirstOrDefault();
+
+            if (nearestWithinRadius is not null)
+            {
+                return nearestWithinRadius;
+            }
         }
 
+        // 3) The customer's location is known (has a city and/or coordinates) but no branch
+        //    can serve it -> return null so the product is reported as "unavailable" for this
+        //    vendor instead of silently being priced from an unrelated branch.
+        if (!string.IsNullOrWhiteSpace(address.City) || HasUsableCoordinates(address))
+        {
+            return null;
+        }
+
+        // 4) Location is completely unknown (no city, no coordinates): don't penalize the
+        //    customer; fall back to the vendor's primary/earliest active branch.
         return branches
             .OrderByDescending(branch => branch.IsPrimary)
             .ThenBy(branch => branch.CreatedAtUtc)

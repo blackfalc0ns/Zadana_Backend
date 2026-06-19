@@ -8,13 +8,13 @@ public sealed class CompositeOtpService : IOtpService
 {
     private readonly WhatsAppCloudOtpService _cloudOtpService;
     private readonly WapilotWhatsAppOtpService _whatsAppOtpService;
-    private readonly ResendOtpService _emailOtpService;
+    private readonly EmailOtpService _emailOtpService;
     private readonly WhatsAppCloudOtpSettings _cloudSettings;
 
     public CompositeOtpService(
         WhatsAppCloudOtpService cloudOtpService,
         WapilotWhatsAppOtpService whatsAppOtpService,
-        ResendOtpService emailOtpService,
+        EmailOtpService emailOtpService,
         IOptions<WhatsAppCloudOtpSettings> cloudSettings)
     {
         _cloudOtpService = cloudOtpService;

@@ -323,6 +323,9 @@ internal static class CartProjection
             .GroupBy(offer => new { offer.VendorId, offer.MasterProductId })
             .SelectMany(group =>
             {
+                // No branch can serve this address for the vendor -> drop the offer so the
+                // product is reported as "unavailable" for this vendor (the vendor itself
+                // still appears in the cart vendor list).
                 if (!selectedBranchIdByVendor.TryGetValue(group.Key.VendorId, out var selectedBranchId) ||
                     !selectedBranchId.HasValue)
                 {
