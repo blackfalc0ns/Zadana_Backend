@@ -1,18 +1,15 @@
 using MediatR;
 using Zadana.Application.Common.Interfaces;
+using Zadana.Application.Common.Models;
 using Zadana.Application.Modules.Orders.DTOs;
 using Zadana.Application.Modules.Orders.Support;
 
 namespace Zadana.Application.Modules.Orders.Queries.GetCart;
 
-public record GetCartQuery(CartActor Actor, Guid? VendorId, int Page = 1, int PerPage = 20) : IRequest<CartDto>;
+public record GetCartQuery(CartActor Actor, Guid? VendorId, int Limit = 20, int Offset = 0) : IRequest<CartDto>;
 
 public class GetCartQueryHandler : IRequestHandler<GetCartQuery, CartDto>
 {
-    private const int DefaultPage = 1;
-    private const int DefaultPerPage = 20;
-    private const int MaxPerPage = 100;
-
     private readonly IApplicationDbContext _context;
 
     public GetCartQueryHandler(IApplicationDbContext context)
@@ -37,35 +34,24 @@ public class GetCartQueryHandler : IRequestHandler<GetCartQuery, CartDto>
 
         // The full cart is projected first so the summary (pricing totals, checkout
         // eligibility, unavailable counts) always reflects every item, while only the
-        // returned items list is sliced for the requested page.
+        // returned items list is sliced for the requested offset/limit.
         var fullCart = await CartProjection.BuildCartDtoAsync(_context, cart, cancellationToken, request.VendorId, address);
 
-        var page = NormalizePage(request.Page);
-        var perPage = NormalizePerPage(request.PerPage);
+        var offset = OffsetLimitPagination.NormalizeOffset(request.Offset);
+        var limit = OffsetLimitPagination.NormalizeLimit(request.Limit);
         var total = fullCart.Items.Count;
-        var pagedItems = fullCart.Items
-            .Skip((page - 1) * perPage)
-            .Take(perPage)
+        var slicedItems = fullCart.Items
+            .Skip(offset)
+            .Take(limit)
             .ToList();
 
         return fullCart with
         {
-            Items = pagedItems,
+            Items = slicedItems,
             Total = total,
-            Page = page,
-            PerPage = perPage
+            Limit = limit,
+            Offset = offset,
+            HasMore = OffsetLimitPagination.HasMore(offset, limit, total)
         };
-    }
-
-    private static int NormalizePage(int page) => page <= 0 ? DefaultPage : page;
-
-    private static int NormalizePerPage(int perPage)
-    {
-        if (perPage <= 0)
-        {
-            return DefaultPerPage;
-        }
-
-        return Math.Min(perPage, MaxPerPage);
     }
 }

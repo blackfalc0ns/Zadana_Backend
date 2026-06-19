@@ -247,8 +247,9 @@ internal static class CartProjection
                 unavailableItemsCount > 0,
                 unavailableItemsCount),
             items.Count,
-            1,
-            items.Count);
+            items.Count,
+            0,
+            false);
     }
 
     private static Guid? ResolveEffectiveVendorId(

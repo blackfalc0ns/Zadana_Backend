@@ -306,3 +306,17 @@ For issues:
 3. Enable detailed errors temporarily
 4. Check database connectivity
 5. Verify all configuration values are set
+## SignalR / WebSocket requirement
+
+The production host must have the IIS **WebSocket Protocol** feature enabled.
+The API's source `web.config` enables WebSockets for the application, and that
+file must be included unchanged in the publish output. After deploying it,
+restart the application pool.
+
+If WebSocket Protocol is disabled at the server/hosting-plan level, both
+`/hubs/notifications` and `/hubs/customer-presence` can fall back to a
+proxy-buffered transport and mobile clients will eventually report:
+
+```text
+Server timeout elapsed without receiving a message from the server.
+```
