@@ -39,6 +39,8 @@
         <environmentVariables>
           <environmentVariable name="ASPNETCORE_ENVIRONMENT" value="Production" />
           <environmentVariable name="Caching__Redis__RequireInProduction" value="false" />
+          <environmentVariable name="Realtime__WebSocketsEnabled" value="false" />
+          <environmentVariable name="Realtime__ServerSentEventsEnabled" value="false" />
 
           <!-- ===== Database ===== -->
           <environmentVariable

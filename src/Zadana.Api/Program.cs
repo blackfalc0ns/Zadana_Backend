@@ -5,6 +5,7 @@ using System.Threading.RateLimiting;
 using Microsoft.AspNetCore.Authentication.JwtBearer;
 using Microsoft.AspNetCore.DataProtection;
 using Microsoft.AspNetCore.Diagnostics.HealthChecks;
+using Microsoft.AspNetCore.Http.Connections;
 using Microsoft.AspNetCore.HttpOverrides;
 using Microsoft.AspNetCore.Identity;
 using Microsoft.AspNetCore.Localization;
@@ -84,6 +85,8 @@ builder.Configuration.AddEnvironmentVariables(prefix: "ZADANA_");
 builder.Configuration.AddEnvironmentVariables();
 
 var jwtSecret = builder.Configuration.GetRequiredSetting("JwtSettings:Secret");
+var realtimeWebSocketsEnabled = builder.Configuration.GetValue("Realtime:WebSocketsEnabled", true);
+var realtimeServerSentEventsEnabled = builder.Configuration.GetValue("Realtime:ServerSentEventsEnabled", true);
 var fileStorageProvider = builder.Configuration[$"{FileStorageSettings.SectionName}:Provider"]?.Trim();
 fileStorageProvider = string.IsNullOrWhiteSpace(fileStorageProvider) ? "ImageKit" : fileStorageProvider;
 var useLocalFileStorage = fileStorageProvider.Equals("Local", StringComparison.OrdinalIgnoreCase);
@@ -1074,9 +1077,30 @@ app.UseMiddleware<TemporaryPasswordMiddleware>();
 app.UseAuthorization();
 app.UseMiddleware<SystemLogMiddleware>();
 app.MapControllers();
-app.MapHub<CustomerPresenceHub>(CustomerPresenceHub.HubRoute);
-app.MapHub<NotificationHub>(NotificationHub.HubRoute);
-app.MapHub<OrderTrackingHub>(OrderTrackingHub.HubRoute);
+
+var realtimeTransports = RealtimeTransportConfiguration.Resolve(
+    realtimeWebSocketsEnabled,
+    realtimeServerSentEventsEnabled);
+
+void ConfigureRealtimeTransport(HttpConnectionDispatcherOptions options)
+{
+    // Long polling remains enabled as the universal mobile-safe fallback.
+    // Keep each poll below common 30-second shared-hosting proxy timeouts.
+    options.Transports = realtimeTransports;
+    options.LongPolling.PollTimeout = TimeSpan.FromSeconds(25);
+    options.TransportSendTimeout = TimeSpan.FromSeconds(15);
+    options.ApplicationMaxBufferSize = 64 * 1024;
+    options.TransportMaxBufferSize = 64 * 1024;
+}
+
+app.Logger.LogInformation(
+    "SignalR transports enabled: WebSockets={WebSocketsEnabled}, ServerSentEvents={ServerSentEventsEnabled}, LongPolling=true.",
+    realtimeWebSocketsEnabled,
+    realtimeServerSentEventsEnabled);
+
+app.MapHub<CustomerPresenceHub>(CustomerPresenceHub.HubRoute, ConfigureRealtimeTransport);
+app.MapHub<NotificationHub>(NotificationHub.HubRoute, ConfigureRealtimeTransport);
+app.MapHub<OrderTrackingHub>(OrderTrackingHub.HubRoute, ConfigureRealtimeTransport);
 
 if (shouldSeedOnStartup)
 {

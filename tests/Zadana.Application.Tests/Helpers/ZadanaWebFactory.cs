@@ -45,7 +45,9 @@ public class ZadanaWebFactory : WebApplicationFactory<Program>
                 ["JwtSettings:Secret"] = "TestSecretKey_For_Integration_Tests_Only_32chars!",
                 ["JwtSettings:Issuer"] = "ZadanaTest",
                 ["JwtSettings:Audience"] = "ZadanaTestClient",
-                ["JwtSettings:ExpiryMinutes"] = "60"
+                ["JwtSettings:ExpiryMinutes"] = "60",
+                ["Realtime:WebSocketsEnabled"] = "false",
+                ["Realtime:ServerSentEventsEnabled"] = "false"
             });
         });
 

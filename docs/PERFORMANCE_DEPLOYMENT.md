@@ -57,8 +57,21 @@ Create a higher-priority bypass rule for:
 /hubs
 ```
 
-Keep WebSockets enabled. The API emits `X-Zadana-Edge-Cache: eligible` and safe
-`Cache-Control` headers only for anonymous public reads.
+Choose SignalR transports according to the hosting proxy:
+
+```text
+# Dedicated host/load balancer with verified WebSocket support
+Realtime__WebSocketsEnabled=true
+Realtime__ServerSentEventsEnabled=true
+
+# Current shared hosting (runasp.net): force mobile-safe negotiation
+Realtime__WebSocketsEnabled=false
+Realtime__ServerSentEventsEnabled=false
+```
+
+Long Polling is always enabled. Mobile clients must use normal SignalR
+negotiation and must not force `skipNegotiation + WebSockets`; the server will
+advertise the transports supported by the current deployment.
 
 ## Redis
 
