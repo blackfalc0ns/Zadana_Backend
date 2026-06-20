@@ -36,7 +36,6 @@ public sealed class OrderStatusNotificationDispatcher : IOrderStatusNotification
         var pushRequest = BuildCustomerMobilePushRequest(request, composed);
 
         var inboxQueued = false;
-        var realtimeQueued = false;
 
         _logger.LogInformation(
             "Dispatching customer order-status notification for order {OrderId} user {UserId} from {OldStatus} to {NewStatus}",
@@ -64,30 +63,6 @@ public sealed class OrderStatusNotificationDispatcher : IOrderStatusNotification
             _logger.LogError(
                 ex,
                 "Failed to persist inbox notification for order {OrderId} user {UserId}",
-                request.OrderId,
-                request.UserId);
-        }
-
-        try
-        {
-            await _notificationService.SendOrderStatusChangedToUserAsync(
-                request.UserId,
-                request.OrderId,
-                request.OrderNumber,
-                request.VendorId,
-                request.OldStatus.ToString(),
-                request.NewStatus.ToString(),
-                request.ActorRole,
-                composed.Action,
-                composed.TargetUrl,
-                cancellationToken);
-            realtimeQueued = true;
-        }
-        catch (Exception ex)
-        {
-            _logger.LogError(
-                ex,
-                "Failed to send SignalR order-status event for order {OrderId} user {UserId}",
                 request.OrderId,
                 request.UserId);
         }
@@ -155,7 +130,7 @@ public sealed class OrderStatusNotificationDispatcher : IOrderStatusNotification
             request.OrderId,
             request.UserId,
             inboxQueued,
-            realtimeQueued,
+            inboxQueued,
             pushResult.Attempted,
             pushResult.Sent,
             pushResult.ProviderStatusCode,
@@ -163,7 +138,7 @@ public sealed class OrderStatusNotificationDispatcher : IOrderStatusNotification
 
         return new OrderStatusNotificationDispatchResult(
             inboxQueued,
-            realtimeQueued,
+            inboxQueued,
             pushResult.Attempted,
             pushResult.Sent,
             pushResult.ProviderStatusCode,

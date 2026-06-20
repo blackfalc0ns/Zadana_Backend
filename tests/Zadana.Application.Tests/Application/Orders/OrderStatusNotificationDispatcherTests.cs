@@ -95,17 +95,17 @@ public class OrderStatusNotificationDispatcherTests
 
         notificationServiceMock.Verify(
             service => service.SendOrderStatusChangedToUserAsync(
-                userId,
-                orderId,
-                "ORD-DISPATCH-001",
-                vendorId,
-                nameof(OrderStatus.PendingVendorAcceptance),
-                nameof(OrderStatus.Accepted),
-                "vendor",
-                "status_changed",
-                $"/orders/{orderId}",
+                It.IsAny<Guid>(),
+                It.IsAny<Guid>(),
+                It.IsAny<string>(),
+                It.IsAny<Guid>(),
+                It.IsAny<string>(),
+                It.IsAny<string>(),
+                It.IsAny<string?>(),
+                It.IsAny<string?>(),
+                It.IsAny<string?>(),
                 It.IsAny<CancellationToken>()),
-            Times.Once);
+            Times.Never);
 
         pushServiceMock.Verify(
             service => service.SendMobileNotificationAsync(

@@ -104,9 +104,8 @@ public class PlaceOrderCommandHandler : IRequestHandler<PlaceOrderCommand, Guid>
         var commissionAmount = cart.Items.Sum(item =>
         {
             var vendorProduct = vendorProducts[item.MasterProductId];
-            var tradePrice = vendorProduct.TradePrice!.Value;
-            var profitPerUnit = Math.Max(vendorProduct.SellingPrice - tradePrice, 0m);
-            return Math.Round((profitPerUnit * item.Quantity) * vendorCommissionRate / 100m, 2);
+            var lineSubtotal = vendorProduct.SellingPrice * item.Quantity;
+            return Math.Round(lineSubtotal * vendorCommissionRate / 100m, 2, MidpointRounding.AwayFromZero);
         });
         var itemQuantities = cart.Items
             .GroupBy(item => item.MasterProductId)
@@ -325,6 +324,7 @@ public class PlaceOrderCommandHandler : IRequestHandler<PlaceOrderCommand, Guid>
         var commissionPolicySnapshot = JsonSerializer.Serialize(new
         {
             vendor_commission_amount = vendorCommissionAmount,
+            vendor_commission_basis = "selling_price",
             driver_commission_rate_percent = _financialSettings.DriverCommissionRatePercent,
             driver_commission_amount = driverCommissionAmount,
         });
