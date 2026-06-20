@@ -282,6 +282,36 @@ public class DeliveryDispatchServiceTests
     }
 
     [Fact]
+    public async Task TryAutoDispatchAsync_WhenOnlyDriverInSameRegionDifferentCity_ShouldOfferDriver()
+    {
+        await using var dbContext = CreateDbContext();
+        var scenario = await SeedDispatchScenarioAsync(
+            dbContext,
+            branchRegion: "Eastern Province",
+            branchCity: "Khobar",
+            sameZoneDriverRegion: "EASTERN",
+            sameZoneDriverCity: "DAMMAM",
+            sameCityFallbackDriverRegion: "MAKKAH",
+            sameCityFallbackDriverCity: "JEDDAH",
+            secondSameZoneDriverRegion: "MAKKAH",
+            secondSameZoneDriverCity: "JEDDAH");
+        scenario.SameCityFallbackDriver.ToggleAvailability(false);
+        scenario.SecondSameZoneDriver.ToggleAvailability(false);
+        await dbContext.SaveChangesAsync();
+
+        var service = CreateDispatchService(dbContext);
+
+        var decision = await service.TryAutoDispatchAsync(scenario.Order.Id, cancellationToken: CancellationToken.None);
+
+        decision.Should().NotBeNull();
+        decision!.DriverId.Should().Be(scenario.SameZoneFreshDriver.Id);
+
+        var assignment = await dbContext.DeliveryAssignments.SingleAsync();
+        assignment.DriverId.Should().Be(scenario.SameZoneFreshDriver.Id);
+        assignment.Status.Should().Be(AssignmentStatus.OfferSent);
+    }
+
+    [Fact]
     public async Task TryAutoDispatchAsync_WhenOnlyAvailableDriverTimedOut_ShouldRetrySameDriver()
     {
         await using var dbContext = CreateDbContext();

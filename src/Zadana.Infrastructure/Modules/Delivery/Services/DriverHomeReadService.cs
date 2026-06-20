@@ -85,7 +85,7 @@ public sealed class DriverHomeReadService : IDriverHomeReadService
             .OrderByDescending(a => a.OfferedAtUtc)
             .FirstOrDefaultAsync(cancellationToken);
 
-        if (currentOfferEntity is not null && !DriverMatchesPickupCity(driver, currentOfferEntity.Order))
+        if (currentOfferEntity is not null && !DriverMatchesPickupArea(driver, currentOfferEntity.Order))
         {
             currentOfferEntity = null;
         }
@@ -214,11 +214,12 @@ public sealed class DriverHomeReadService : IDriverHomeReadService
             ? assignment.CodAmount
             : 0m;
 
-    private static bool DriverMatchesPickupCity(Driver driver, Domain.Modules.Orders.Entities.Order order)
+    private static bool DriverMatchesPickupArea(Driver driver, Domain.Modules.Orders.Entities.Order order)
     {
         var pickupCity = FirstNonBlank(order.VendorBranch?.City, order.Vendor?.City);
-        return !string.IsNullOrWhiteSpace(pickupCity)
-            && DeliveryCityMatcher.Matches(driver.City, pickupCity);
+        var pickupRegion = FirstNonBlank(order.VendorBranch?.Region, order.Vendor?.Region);
+
+        return DeliveryPickupAreaMatcher.DriverMatchesPickup(driver, pickupCity, pickupRegion);
     }
 
     private static string? FirstNonBlank(params string?[] values) =>

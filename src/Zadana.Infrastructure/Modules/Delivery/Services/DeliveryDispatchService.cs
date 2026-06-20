@@ -319,7 +319,7 @@ public class DeliveryDispatchService : IDeliveryDispatchService
             throw new BusinessRuleException("DELIVERY_OFFER_EXPIRED", "انتهت صلاحية عرض التوصيل | The delivery offer has expired.");
         }
 
-        if (!DriverMatchesPickupCity(assignment.Driver, assignment.Order))
+        if (!DriverMatchesPickupArea(assignment.Driver, assignment.Order))
         {
             var mismatchedAttempt = await _context.DeliveryOfferAttempts
                 .Where(item => item.OrderId == assignment.OrderId && item.DriverId == driverId && item.Status == DeliveryOfferAttemptStatus.Offered)
@@ -571,9 +571,10 @@ public class DeliveryDispatchService : IDeliveryDispatchService
             FirstNonBlank(order.VendorBranch?.City, order.Vendor?.City),
             FirstNonBlank(order.VendorBranch?.Region, order.Vendor?.Region));
 
-        if (string.IsNullOrWhiteSpace(dispatchContext.PickupCity))
+        if (string.IsNullOrWhiteSpace(dispatchContext.PickupCity)
+            && string.IsNullOrWhiteSpace(dispatchContext.PickupRegion))
         {
-            await TrackDispatchQueueNoteAsync(order, "Dispatch pending: missing-pickup-city", cancellationToken);
+            await TrackDispatchQueueNoteAsync(order, "Dispatch pending: missing-pickup-location", cancellationToken);
             return null;
         }
 
@@ -592,7 +593,7 @@ public class DeliveryDispatchService : IDeliveryDispatchService
                 !busyDriverIds.Contains(driver.Id))
             .ToListAsync(cancellationToken);
 
-        eligibleDrivers = FilterDriversForPickupCity(eligibleDrivers, dispatchContext)
+        eligibleDrivers = FilterDriversForPickupArea(eligibleDrivers, dispatchContext)
             .Where(driver =>
                 !rejectedDriverIds.Contains(driver.Id) &&
                 !timedOutDriverIds.Contains(driver.Id))
@@ -613,14 +614,14 @@ public class DeliveryDispatchService : IDeliveryDispatchService
                     !busyDriverIds.Contains(driver.Id))
                 .ToListAsync(cancellationToken);
 
-            eligibleDrivers = FilterDriversForPickupCity(eligibleDrivers, dispatchContext)
+            eligibleDrivers = FilterDriversForPickupArea(eligibleDrivers, dispatchContext)
                 .Where(driver => !rejectedDriverIds.Contains(driver.Id))
                 .ToList();
         }
 
         if (eligibleDrivers.Count == 0)
         {
-            await TrackDispatchQueueNoteAsync(order, "Dispatch pending: no-eligible-driver-in-pickup-city", cancellationToken);
+            await TrackDispatchQueueNoteAsync(order, "Dispatch pending: no-eligible-driver-in-pickup-area", cancellationToken);
             return null;
         }
 
@@ -881,21 +882,21 @@ public class DeliveryDispatchService : IDeliveryDispatchService
     private static decimal ResolveCodAmount(Domain.Modules.Orders.Entities.Order order) =>
         order.PaymentMethod == PaymentMethodType.CashOnDelivery ? order.TotalAmount : 0m;
 
-    private static List<Driver> FilterDriversForPickupCity(
+    private static List<Driver> FilterDriversForPickupArea(
         IEnumerable<Driver> drivers,
-        DeliveryDispatchContext dispatchContext)
-    {
-        return drivers
-            .Where(driver => DeliveryDispatchScoring.CityMatchesNormalized(driver.City, dispatchContext.PickupCity))
-            .ToList();
-    }
+        DeliveryDispatchContext dispatchContext) =>
+        DeliveryPickupAreaMatcher.FilterDrivers(
+            drivers,
+            dispatchContext.PickupCity,
+            dispatchContext.PickupRegion);
 
-    private static bool DriverMatchesPickupCity(Driver? driver, Domain.Modules.Orders.Entities.Order order)
+    private static bool DriverMatchesPickupArea(Driver? driver, Domain.Modules.Orders.Entities.Order order)
     {
         var pickupCity = FirstNonBlank(order.VendorBranch?.City, order.Vendor?.City);
-        return !string.IsNullOrWhiteSpace(pickupCity)
-            && driver is not null
-            && DeliveryDispatchScoring.CityMatchesNormalized(driver.City, pickupCity);
+        var pickupRegion = FirstNonBlank(order.VendorBranch?.Region, order.Vendor?.Region);
+
+        return driver is not null
+            && DeliveryPickupAreaMatcher.DriverMatchesPickup(driver, pickupCity, pickupRegion);
     }
 
     private static string? FirstNonBlank(params string?[] values) =>

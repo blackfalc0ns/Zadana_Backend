@@ -66,10 +66,15 @@ internal static class DeliveryDispatchScoring
         // Driver-level region/city match (aligned with vendor geography)
         var sameRegionCity = !string.IsNullOrWhiteSpace(driver.Region)
             && !string.IsNullOrWhiteSpace(driver.City)
-            && string.Equals(driver.Region, context.PickupRegion, StringComparison.OrdinalIgnoreCase)
+            && DeliveryRegionMatcher.Matches(driver.Region, context.PickupRegion)
             && CityMatchesNormalized(driver.City, context.PickupCity);
 
+        var sameRegion = !sameRegionCity
+            && !string.IsNullOrWhiteSpace(context.PickupRegion)
+            && DeliveryRegionMatcher.Matches(driver.Region, context.PickupRegion);
+
         var sameCity = !sameRegionCity
+            && !sameRegion
             && !string.IsNullOrWhiteSpace(context.PickupCity)
             && CityMatchesNormalized(driver.City, context.PickupCity);
 
@@ -80,7 +85,7 @@ internal static class DeliveryDispatchScoring
 
         var distanceKm = ResolveDistanceKm(driver, latestLocation, context, gpsFresh, lowConfidenceGps);
         var distanceBucket = BuildDistanceBucket(distanceKm);
-        var tier = ResolveTier(sameRegionCity, sameCity, gpsFresh, lowConfidenceGps, inPickupZone);
+        var tier = ResolveTier(sameRegionCity, sameRegion, sameCity, gpsFresh, lowConfidenceGps, inPickupZone);
         var matchReason = ResolveMatchReason(tier);
         var commitmentAdjustment = ResolveCommitmentAdjustment(commitmentScore);
         var commitmentAdjustmentReason = ResolveCommitmentAdjustmentReason(commitmentScore);
@@ -153,12 +158,14 @@ internal static class DeliveryDispatchScoring
 
     private static int ResolveTier(
         bool sameRegionCity,
+        bool sameRegion,
         bool sameCity,
         bool gpsFresh,
         bool lowConfidenceGps,
         bool inPickupZone) =>
         sameRegionCity && gpsFresh && !lowConfidenceGps && inPickupZone ? 1
         : sameRegionCity ? 2
+        : sameRegion ? 2
         : sameCity ? 3
         : 4;
 

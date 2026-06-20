@@ -171,7 +171,7 @@ public class AdminOrdersController : ApiControllerBase
                 "Driver must be approved, online, unrestricted, and ready to receive new offers before assignment.");
         }
 
-        if (!DriverMatchesPickupCity(driver, order))
+        if (!DriverMatchesPickupArea(driver, order))
         {
             throw new BusinessRuleException(
                 "DRIVER_CITY_MISMATCH",
@@ -571,11 +571,12 @@ public class AdminOrdersController : ApiControllerBase
         return parsed;
     }
 
-    private static bool DriverMatchesPickupCity(Driver driver, Order order)
+    private static bool DriverMatchesPickupArea(Driver driver, Order order)
     {
         var pickupCity = FirstNonBlank(order.VendorBranch?.City, order.Vendor?.City);
-        return !string.IsNullOrWhiteSpace(pickupCity)
-            && DeliveryCityMatcher.Matches(driver.City, pickupCity);
+        var pickupRegion = FirstNonBlank(order.VendorBranch?.Region, order.Vendor?.Region);
+
+        return DeliveryPickupAreaMatcher.DriverMatchesPickup(driver, pickupCity, pickupRegion);
     }
 
     private static bool CityMatches(string? left, string? right)
