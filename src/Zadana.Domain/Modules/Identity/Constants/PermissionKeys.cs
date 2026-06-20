@@ -132,8 +132,6 @@ public static class PermissionKeys
         public const string NotificationsEdit = "vendor_notifications.edit";
         public const string OffersView = "vendor_offers.view";
         public const string OffersEdit = "vendor_offers.edit";
-        public const string ReviewsView = "vendor_reviews.view";
-        public const string ReviewsEdit = "vendor_reviews.edit";
         public const string DisputesView = "vendor_disputes.view";
         public const string DisputesEdit = "vendor_disputes.edit";
         public const string AlertsView = "vendor_alerts.view";
@@ -161,7 +159,6 @@ public static class PermissionKeys
             SettingsView, SettingsEdit, SettingsManageSettings,
             NotificationsView, NotificationsEdit,
             OffersView, OffersEdit,
-            ReviewsView, ReviewsEdit,
             DisputesView, DisputesEdit,
             AlertsView, AlertsEdit,
             StaffView, StaffEdit,
@@ -179,7 +176,6 @@ public static class PermissionKeys
             SettingsView, SettingsEdit,
             NotificationsView, NotificationsEdit,
             OffersView, OffersEdit,
-            ReviewsView, ReviewsEdit,
             DisputesView, DisputesEdit,
             AlertsView, AlertsEdit,
             StaffView,
@@ -195,7 +191,6 @@ public static class PermissionKeys
             SettingsView,
             NotificationsView, NotificationsEdit,
             OffersView,
-            ReviewsView,
             DisputesView,
             AlertsView,
             ProfileView, ProfileEdit

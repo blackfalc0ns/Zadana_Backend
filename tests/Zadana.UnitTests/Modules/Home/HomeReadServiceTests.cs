@@ -649,7 +649,6 @@ public class HomeReadServiceTests
         {
             context.VendorProducts.Add(subCategoryProduct);
         }
-        context.Reviews.Add(new Review(Guid.NewGuid(), customer.Id, vendor.Id, 5, "Great"));
 
         Guid? historyMatchedMasterProductId = null;
         if (includeHistory)

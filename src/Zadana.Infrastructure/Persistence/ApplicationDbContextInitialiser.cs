@@ -615,7 +615,6 @@ public class ApplicationDbContextInitialiser
             await _context.Orders.CountAsync(),
             await _context.HomeBanners.CountAsync(),
             await _context.Coupons.CountAsync(),
-            await _context.Reviews.CountAsync(),
             await _context.Notifications.CountAsync());
     }
 
@@ -827,5 +826,4 @@ public sealed record DevelopmentSeedSummary(
     int Orders,
     int HomeBanners,
     int Coupons,
-    int Reviews,
     int Notifications);

@@ -5,7 +5,6 @@ using Zadana.Domain.Modules.Catalog.Entities;
 using Zadana.Domain.Modules.Orders.Entities;
 using Zadana.Domain.Modules.Orders.Enums;
 using Zadana.Domain.Modules.Payments.Enums;
-using Zadana.Domain.Modules.Social.Entities;
 using Zadana.Domain.Modules.Vendors.Entities;
 using Zadana.SharedKernel.Exceptions;
 using Zadana.UnitTests.Common;
@@ -61,8 +60,8 @@ public class GetProductDetailsQueryHandlerTests
         result.VendorPrices.Select(item => item.Id).Should().Contain(new[] { setup.PrimaryVendorProduct.Id, setup.SecondaryVendorProduct.Id });
         result.SimilarProducts.Should().ContainSingle();
         result.SimilarProducts[0].Id.Should().Be(setup.SimilarVendorProduct.MasterProductId);
-        result.Rating.Should().Be(4.5m);
-        result.ReviewCount.Should().Be(2);
+        result.Rating.Should().BeNull();
+        result.ReviewCount.Should().Be(0);
     }
 
     [Fact]
@@ -273,10 +272,6 @@ public class GetProductDetailsQueryHandlerTests
             new OrderItem(firstOrder.Id, primaryVendorProduct.Id, primaryMasterProduct.Id, primaryMasterProduct.NameEn, 2, 50m, unitName: unit.NameEn),
             new OrderItem(secondOrder.Id, primaryVendorProduct.Id, primaryMasterProduct.Id, primaryMasterProduct.NameEn, 1, 50m, unitName: unit.NameEn),
             new OrderItem(firstOrder.Id, similarVendorProduct.Id, similarMasterProduct.Id, similarMasterProduct.NameEn, 1, 40m, unitName: unit.NameEn));
-
-        context.Reviews.AddRange(
-            new Review(firstOrder.Id, Guid.NewGuid(), primaryVendor.Id, 5, "Great"),
-            new Review(secondOrder.Id, Guid.NewGuid(), primaryVendor.Id, 4, "Good"));
 
         await context.SaveChangesAsync();
 

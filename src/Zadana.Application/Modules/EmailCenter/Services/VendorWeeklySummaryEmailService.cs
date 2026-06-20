@@ -99,16 +99,6 @@ public sealed class VendorWeeklySummaryEmailService : IVendorWeeklySummaryEmailS
                     .Take(3)
                     .ToList());
 
-        var ratings = await _context.Reviews
-            .AsNoTracking()
-            .Where(review =>
-                vendorIds.Contains(review.VendorId) &&
-                review.CreatedAtUtc >= weekStartUtc &&
-                review.CreatedAtUtc < weekEndUtc)
-            .GroupBy(review => review.VendorId)
-            .Select(group => new VendorRatingSummary(group.Key, group.Average(review => review.Rating)))
-            .ToDictionaryAsync(item => item.VendorId, item => item.AverageRating, cancellationToken);
-
         var sentCount = 0;
         foreach (var vendor in vendors)
         {
@@ -133,8 +123,7 @@ public sealed class VendorWeeklySummaryEmailService : IVendorWeeklySummaryEmailS
                             ["week_label"] = weekLabel,
                             ["summary_body"] = BuildSummaryBody(
                                 summary,
-                                topProductsByVendor.GetValueOrDefault(vendor.Id) ?? [],
-                                ratings.GetValueOrDefault(vendor.Id))
+                                topProductsByVendor.GetValueOrDefault(vendor.Id) ?? [])
                         },
                         TargetUrl: "/dashboard",
                         VendorId: vendor.Id,
@@ -172,14 +161,11 @@ public sealed class VendorWeeklySummaryEmailService : IVendorWeeklySummaryEmailS
 
     private static string BuildSummaryBody(
         VendorWeeklyOrderSummary summary,
-        IReadOnlyList<VendorTopProduct> topProducts,
-        double averageRating)
+        IReadOnlyList<VendorTopProduct> topProducts)
     {
         var topProductsText = topProducts.Count == 0
             ? "No product ranking this week."
             : string.Join("<br>", topProducts.Select((item, index) => $"{index + 1}. {item.ProductName} - {item.Quantity} sold"));
-
-        var ratingText = averageRating <= 0 ? "No new ratings this week." : averageRating.ToString("0.0");
 
         return string.Join("<br>", new[]
         {
@@ -187,7 +173,6 @@ public sealed class VendorWeeklySummaryEmailService : IVendorWeeklySummaryEmailS
             $"Orders: {summary.TotalOrders}",
             $"Completed: {summary.CompletedOrders}",
             $"Cancelled/failed/refunded: {summary.ExceptionOrders}",
-            $"Average rating: {ratingText}",
             "Top products:",
             topProductsText
         });
@@ -210,6 +195,4 @@ public sealed class VendorWeeklySummaryEmailService : IVendorWeeklySummaryEmailS
         string ContactEmail);
 
     private sealed record VendorTopProduct(Guid VendorId, string ProductName, int Quantity);
-
-    private sealed record VendorRatingSummary(Guid VendorId, double AverageRating);
 }

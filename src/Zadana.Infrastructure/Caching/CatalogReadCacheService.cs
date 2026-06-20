@@ -35,28 +35,9 @@ public sealed class CatalogReadCacheService(
         return result;
     }
 
-    public async Task<IReadOnlyDictionary<Guid, VendorReviewStatsSnapshot>> GetVendorReviewStatsByVendorIdAsync(
-        CancellationToken cancellationToken = default)
-    {
-        var key = AppCacheKeys.Build("catalog", "stats", "vendor-reviews", "v1");
-        var result = await cache.GetOrCreateAsync(
-            key,
-            async token =>
-                await dbContext.Reviews
-                    .AsNoTracking()
-                    .GroupBy(review => review.VendorId)
-                    .ToDictionaryAsync(
-                        group => group.Key,
-                        group => new VendorReviewStatsSnapshot(
-                            (decimal)Math.Round(group.Average(review => review.Rating), 1),
-                            group.Count()),
-                        token),
-            CreateOptions(_durations.BrowseBase),
-            [CacheTagNames.Catalog],
-            cancellationToken);
-
-        return result;
-    }
+    public Task<IReadOnlyDictionary<Guid, VendorReviewStatsSnapshot>> GetVendorReviewStatsByVendorIdAsync(
+        CancellationToken cancellationToken = default) =>
+        Task.FromResult<IReadOnlyDictionary<Guid, VendorReviewStatsSnapshot>>(new Dictionary<Guid, VendorReviewStatsSnapshot>());
 
     public Task<IReadOnlySet<Guid>> GetCurrentFavoriteMasterProductIdsAsync(CancellationToken cancellationToken = default) =>
         GetFavoriteMasterProductIdsAsync(currentUserService.UserId, currentUserService.GuestDeviceId, cancellationToken);

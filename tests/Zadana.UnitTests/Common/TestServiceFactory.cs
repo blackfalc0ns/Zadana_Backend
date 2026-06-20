@@ -62,22 +62,9 @@ internal static class TestServiceFactory
                 .ToDictionary(group => group.Key, group => group.Sum(row => row.Quantity));
         }
 
-        public async Task<IReadOnlyDictionary<Guid, VendorReviewStatsSnapshot>> GetVendorReviewStatsByVendorIdAsync(
-            CancellationToken cancellationToken = default)
-        {
-            var rows = await context.Reviews
-                .AsNoTracking()
-                .Select(review => new { review.VendorId, review.Rating })
-                .ToListAsync(cancellationToken);
-
-            return rows
-                .GroupBy(row => row.VendorId)
-                .ToDictionary(
-                    group => group.Key,
-                    group => new VendorReviewStatsSnapshot(
-                        (decimal)Math.Round(group.Average(row => row.Rating), 1),
-                        group.Count()));
-        }
+        public Task<IReadOnlyDictionary<Guid, VendorReviewStatsSnapshot>> GetVendorReviewStatsByVendorIdAsync(
+            CancellationToken cancellationToken = default) =>
+            Task.FromResult<IReadOnlyDictionary<Guid, VendorReviewStatsSnapshot>>(new Dictionary<Guid, VendorReviewStatsSnapshot>());
 
         public Task<IReadOnlySet<Guid>> GetCurrentFavoriteMasterProductIdsAsync(CancellationToken cancellationToken = default) =>
             GetFavoriteMasterProductIdsAsync(currentUserService.UserId, currentUserService.GuestDeviceId, cancellationToken);

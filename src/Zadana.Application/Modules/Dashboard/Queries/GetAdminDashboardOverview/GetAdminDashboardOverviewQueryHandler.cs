@@ -150,16 +150,6 @@ internal sealed class GetAdminDashboardOverviewQueryHandler(
                         u.LastSeenAtUtc))
                     .ToListAsync(cancellationToken);
 
-                var reviews = await dbContext.Reviews
-            .Where(r => r.CreatedAtUtc >= start || r.VendorRepliedAtUtc >= start)
-            .Select(r => new ReviewRow(
-                r.Id,
-                r.VendorId,
-                r.Rating,
-                r.VendorReply,
-                r.CreatedAtUtc))
-            .ToListAsync(cancellationToken);
-
                 var vendorProducts = await dbContext.VendorProducts
             .Select(vp => new VendorProductRow(
                 vp.Id,
@@ -211,7 +201,6 @@ internal sealed class GetAdminDashboardOverviewQueryHandler(
                 var paymentsFailedCount = await dbContext.Payments.CountAsync(p => p.CreatedAtUtc >= start && p.Status == PaymentStatus.Failed, cancellationToken);
                 var paymentsPendingCount = await dbContext.Payments.CountAsync(p => p.CreatedAtUtc >= start && p.Status == PaymentStatus.Pending, cancellationToken);
                 var openDriverIncidents = await dbContext.DriverIncidents.CountAsync(i => i.Status != DriverIncidentStatus.Resolved, cancellationToken);
-                var lowReplyReviews = reviews.Count(r => r.Rating <= 2 && string.IsNullOrWhiteSpace(r.VendorReply));
                 var lowStockProducts = vendorProducts.Count(vp => vp.StockQuantity <= 5);
                 var unavailableProducts = vendorProducts.Count(vp => !vp.IsAvailable || vp.Status is VendorProductStatus.Inactive or VendorProductStatus.OutOfStock or VendorProductStatus.Suspended);
 
@@ -239,10 +228,6 @@ internal sealed class GetAdminDashboardOverviewQueryHandler(
 
         var filteredVendorProducts = vendorProducts
             .Where(vp => MatchesVendor(vp, request.VendorId) && MatchesRegion(vp, vendorIndex, geography, normalizedRegion))
-            .ToList();
-
-        var filteredReviews = reviews
-            .Where(r => MatchesVendor(r, request.VendorId) && MatchesRegion(r, vendorIndex, geography, normalizedRegion))
             .ToList();
 
         var totalOrders = filteredOrders.Count;
@@ -279,10 +264,10 @@ internal sealed class GetAdminDashboardOverviewQueryHandler(
             OrderOps = BuildOrderOpsSection(filteredOrders, filteredSupportCases, vendorIndex, gmv, lateOrders, paymentIssues),
             VendorOps = BuildVendorOpsSection(filteredVendors, filteredOrders, filteredSupportCases, pendingDocumentReviews, vendorBranchesCount, vendorIndex, geography),
             DriverOps = BuildDriverOpsSection(filteredDrivers, regionPressure, openDriverIncidents, pendingWithdrawals, processingWithdrawals),
-            CustomerSupport = BuildCustomerSupportSection(customersTotal, newCustomers, activeCustomers, filteredSupportCases, filteredReviews),
+            CustomerSupport = BuildCustomerSupportSection(customersTotal, newCustomers, activeCustomers, filteredSupportCases),
             FinanceOps = BuildFinanceOpsSection(gmv, refundsTotal, refundsCount, paymentsFailedCount, paymentsPendingCount, pendingSettlements, failedSettlements, settledNetAmount, walletsCount, walletInflow, walletOutflow),
             CatalogHealth = BuildCatalogHealthSection(productsCount, brandsCount, categoriesCount, filteredVendorProducts, pendingProductRequests, pendingBrandRequests, pendingCategoryRequests, lowStockProducts, unavailableProducts, vendorIndex),
-            MarketingPulse = BuildMarketingPulseSection(activeCouponsCount, activeBannersCount, featuredPlacementsCount, unreadNotifications, recentNotifications, filteredReviews),
+            MarketingPulse = BuildMarketingPulseSection(activeCouponsCount, activeBannersCount, featuredPlacementsCount, unreadNotifications, recentNotifications),
             AccessSecurity = BuildAccessSecuritySection(rolesCount, permissionDefinitionsCount, userAccessScopesCount, userPermissionOverridesCount, adminUsersCount, lockedAdminUsersCount, adminUsers)
         };
 
@@ -429,9 +414,6 @@ internal sealed class GetAdminDashboardOverviewQueryHandler(
     private static bool MatchesVendor(VendorProductRow product, Guid? vendorId) =>
         !vendorId.HasValue || product.VendorId == vendorId.Value;
 
-    private static bool MatchesVendor(ReviewRow review, Guid? vendorId) =>
-        !vendorId.HasValue || review.VendorId == vendorId.Value;
-
     private static bool MatchesRegion(
         OrderRow order,
         IReadOnlyDictionary<Guid, VendorRow> vendorIndex,
@@ -463,22 +445,6 @@ internal sealed class GetAdminDashboardOverviewQueryHandler(
         string normalizedFilterRegion)
     {
         if (!vendorIndex.TryGetValue(product.VendorId, out var vendor))
-        {
-            return false;
-        }
-
-        return geography.MatchesRegion(
-            geography.ResolveEntityRegionCode(vendor.City, vendor.Region),
-            normalizedFilterRegion);
-    }
-
-    private static bool MatchesRegion(
-        ReviewRow review,
-        IReadOnlyDictionary<Guid, VendorRow> vendorIndex,
-        DashboardGeographyScope geography,
-        string normalizedFilterRegion)
-    {
-        if (!vendorIndex.TryGetValue(review.VendorId, out var vendor))
         {
             return false;
         }
@@ -1341,12 +1307,9 @@ internal sealed class GetAdminDashboardOverviewQueryHandler(
         int customersTotal,
         int newCustomers,
         int activeCustomers,
-        IReadOnlyList<SupportCaseRow> supportCases,
-        IReadOnlyList<ReviewRow> reviews)
+        IReadOnlyList<SupportCaseRow> supportCases)
     {
         var criticalSupport = supportCases.Count(c => c.Priority == OrderSupportCasePriority.Critical && c.Status is not (OrderSupportCaseStatus.Resolved or OrderSupportCaseStatus.Rejected));
-        var avgRating = reviews.Count == 0 ? 0m : Math.Round((decimal)reviews.Average(r => r.Rating), 1);
-        var noReplyReviews = reviews.Count(r => r.Rating <= 2 && string.IsNullOrWhiteSpace(r.VendorReply));
 
         return new AdminDashboardSectionDto
         {
@@ -1356,16 +1319,15 @@ internal sealed class GetAdminDashboardOverviewQueryHandler(
             Route = "/customers",
             Status = new AdminDashboardSectionStatusDto
             {
-                Severity = criticalSupport > 0 || noReplyReviews > 0 ? "warning" : "success",
+                Severity = criticalSupport > 0 ? "warning" : "success",
                 SummaryKey = "DASHBOARD.SECTIONS.CUSTOMER_SUPPORT.STATUS",
-                SummaryParams = new Dictionary<string, object?> { ["critical"] = criticalSupport, ["reviews"] = noReplyReviews }
+                SummaryParams = new Dictionary<string, object?> { ["critical"] = criticalSupport, ["reviews"] = 0 }
             },
             Stats =
             [
                 BuildStat("customers-total", "DASHBOARD.STATS.CUSTOMERS_TOTAL", customersTotal, customersTotal.ToString("N0"), "neutral", "DASHBOARD.STATS_HELPERS.CUSTOMERS_TOTAL"),
                 BuildStat("customers-new", "DASHBOARD.STATS.CUSTOMERS_NEW", newCustomers, newCustomers.ToString("N0"), "info", "DASHBOARD.STATS_HELPERS.CUSTOMERS_NEW"),
-                BuildStat("customers-active", "DASHBOARD.STATS.CUSTOMERS_ACTIVE", activeCustomers, activeCustomers.ToString("N0"), "success", "DASHBOARD.STATS_HELPERS.CUSTOMERS_ACTIVE"),
-                BuildStat("avg-rating", "DASHBOARD.STATS.AVG_RATING", avgRating, avgRating.ToString("N1"), avgRating < 3.5m ? "warning" : "success", "DASHBOARD.STATS_HELPERS.AVG_RATING")
+                BuildStat("customers-active", "DASHBOARD.STATS.CUSTOMERS_ACTIVE", activeCustomers, activeCustomers.ToString("N0"), "success", "DASHBOARD.STATS_HELPERS.CUSTOMERS_ACTIVE")
             ],
             RankedLists =
             [
@@ -1390,20 +1352,7 @@ internal sealed class GetAdminDashboardOverviewQueryHandler(
                         .ToList()
                 }
             ],
-            Exceptions = reviews
-                .Where(r => r.Rating <= 2 && string.IsNullOrWhiteSpace(r.VendorReply))
-                .Take(5)
-                .Select(r => new AdminDashboardExceptionRowDto
-                {
-                    Id = $"review_{r.Id}",
-                    EntityLabel = $"مراجعة #{r.Id.ToString()[..8].ToUpperInvariant()}",
-                    IssueLabel = "تقييم منخفض بدون رد من التاجر",
-                    OwnerLabel = "تجربة العملاء",
-                    MetricLabel = $"{r.Rating}/5",
-                    Severity = r.Rating <= 1 ? "critical" : "warning",
-                    Route = "/customers"
-                })
-                .ToList()
+            Exceptions = []
         };
     }
 
@@ -1604,12 +1553,8 @@ internal sealed class GetAdminDashboardOverviewQueryHandler(
         int activeBannersCount,
         int featuredPlacementsCount,
         int unreadNotifications,
-        int recentNotifications,
-        IReadOnlyList<ReviewRow> reviews)
+        int recentNotifications)
     {
-        var avgRating = reviews.Count == 0 ? 0m : Math.Round((decimal)reviews.Average(r => r.Rating), 1);
-        var lowReplyReviews = reviews.Count(r => r.Rating <= 2 && string.IsNullOrWhiteSpace(r.VendorReply));
-
         return new AdminDashboardSectionDto
         {
             Id = "marketing-pulse",
@@ -1618,16 +1563,15 @@ internal sealed class GetAdminDashboardOverviewQueryHandler(
             Route = "/notifications",
             Status = new AdminDashboardSectionStatusDto
             {
-                Severity = unreadNotifications > 0 || lowReplyReviews > 0 ? "warning" : "success",
+                Severity = unreadNotifications > 0 ? "warning" : "success",
                 SummaryKey = "DASHBOARD.SECTIONS.MARKETING_PULSE.STATUS",
-                SummaryParams = new Dictionary<string, object?> { ["notifications"] = unreadNotifications, ["reviews"] = lowReplyReviews }
+                SummaryParams = new Dictionary<string, object?> { ["notifications"] = unreadNotifications, ["reviews"] = 0 }
             },
             Stats =
             [
                 BuildStat("active-coupons", "DASHBOARD.STATS.ACTIVE_COUPONS", activeCouponsCount, activeCouponsCount.ToString("N0"), "success", "DASHBOARD.STATS_HELPERS.ACTIVE_COUPONS"),
                 BuildStat("home-banners", "DASHBOARD.STATS.HOME_BANNERS", activeBannersCount, activeBannersCount.ToString("N0"), "info", "DASHBOARD.STATS_HELPERS.HOME_BANNERS"),
-                BuildStat("featured-placements", "DASHBOARD.STATS.FEATURED_PLACEMENTS", featuredPlacementsCount, featuredPlacementsCount.ToString("N0"), "neutral", "DASHBOARD.STATS_HELPERS.FEATURED_PLACEMENTS"),
-                BuildStat("review-score", "DASHBOARD.STATS.REVIEW_SCORE", avgRating, avgRating.ToString("N1"), avgRating < 3.5m ? "warning" : "success", "DASHBOARD.STATS_HELPERS.REVIEW_SCORE")
+                BuildStat("featured-placements", "DASHBOARD.STATS.FEATURED_PLACEMENTS", featuredPlacementsCount, featuredPlacementsCount.ToString("N0"), "neutral", "DASHBOARD.STATS_HELPERS.FEATURED_PLACEMENTS")
             ],
             RankedLists =
             [
@@ -1639,8 +1583,7 @@ internal sealed class GetAdminDashboardOverviewQueryHandler(
                     Rows =
                     [
                         new AdminDashboardRankedRowDto { Id = "recent-notifications", Label = "إشعارات حديثة", Value = recentNotifications.ToString("N0"), Severity = recentNotifications > 0 ? "info" : "neutral", Route = "/notifications" },
-                        new AdminDashboardRankedRowDto { Id = "unread-notifications", Label = "إشعارات غير مقروءة", Value = unreadNotifications.ToString("N0"), Severity = unreadNotifications > 0 ? "warning" : "success", Route = "/notifications" },
-                        new AdminDashboardRankedRowDto { Id = "low-reply-reviews", Label = "تقييمات منخفضة تحتاج رد", Value = lowReplyReviews.ToString("N0"), Severity = lowReplyReviews > 0 ? "warning" : "success", Route = "/notifications" }
+                        new AdminDashboardRankedRowDto { Id = "unread-notifications", Label = "إشعارات غير مقروءة", Value = unreadNotifications.ToString("N0"), Severity = unreadNotifications > 0 ? "warning" : "success", Route = "/notifications" }
                     ]
                 }
             ]
@@ -1941,13 +1884,6 @@ internal sealed class GetAdminDashboardOverviewQueryHandler(
         DateTime CreatedAtUtc,
         DateTime UpdatedAtUtc,
         DateTime? ClosedAtUtc);
-
-    private sealed record ReviewRow(
-        Guid Id,
-        Guid VendorId,
-        int Rating,
-        string? VendorReply,
-        DateTime CreatedAtUtc);
 
     private sealed record VendorProductRow(
         Guid Id,

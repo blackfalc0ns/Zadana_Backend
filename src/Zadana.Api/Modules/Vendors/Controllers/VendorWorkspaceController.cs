@@ -10,10 +10,8 @@ using Zadana.Domain.Modules.Catalog.Entities;
 using Zadana.Domain.Modules.Orders.Entities;
 using Zadana.Domain.Modules.Orders.Enums;
 using Zadana.Domain.Modules.Payments.Enums;
-using Zadana.Domain.Modules.Social.Entities;
 using Zadana.Domain.Modules.Wallets.Enums;
 using Zadana.Domain.Modules.Vendors.Enums;
-using Zadana.SharedKernel.Exceptions;
 
 namespace Zadana.Api.Modules.Vendors.Controllers;
 
@@ -77,23 +75,9 @@ public class VendorWorkspaceController : ApiControllerBase
                 scope)
             .CountAsync(product => product.IsAvailable, cancellationToken);
 
-        var recentReviews = await ApplyBranchScope(
-                _dbContext.Reviews
-                    .AsNoTracking()
-                    .Where(review => review.VendorId == vendorId),
-                scope)
-            .OrderByDescending(review => review.CreatedAtUtc)
-            .Take(3)
-            .Select(review => new { review.Rating, review.CreatedAtUtc })
-            .ToListAsync(cancellationToken);
-
-        var recentTimeline = orders.Take(3).Select(order => new VendorDashboardTimelineItemResponse(
+        var recentTimeline = orders.Take(5).Select(order => new VendorDashboardTimelineItemResponse(
                 order.PlacedAtUtc.ToString("HH:mm"),
                 $"طلب #{order.OrderNumber} بحالة {order.Status}"))
-            .Concat(recentReviews.Select(review => new VendorDashboardTimelineItemResponse(
-                review.CreatedAtUtc.ToString("HH:mm"),
-                $"تقييم جديد {review.Rating}/5")))
-            .Take(5)
             .ToList();
 
         if (recentTimeline.Count == 0)
@@ -235,22 +219,6 @@ public class VendorWorkspaceController : ApiControllerBase
                 item.ProductName,
                 CategoryAr = item.MasterProduct.Category.NameAr,
                 CategoryEn = item.MasterProduct.Category.NameEn
-            })
-            .ToListAsync(cancellationToken);
-
-        var reviews = await ApplyBranchScope(
-                _dbContext.Reviews
-                    .AsNoTracking()
-                    .Where(review => review.VendorId == vendorId),
-                scope)
-            .Select(review => new
-            {
-                review.Id,
-                review.Rating,
-                review.Comment,
-                review.CreatedAtUtc,
-                review.VendorReply,
-                CustomerName = review.User.FullName
             })
             .ToListAsync(cancellationToken);
 
@@ -452,12 +420,7 @@ public class VendorWorkspaceController : ApiControllerBase
         var productsWithOffers = vendorProducts.Count(product => product.CompareAtPrice.HasValue && product.CompareAtPrice > product.SellingPrice);
         var offerCoverage = activeProducts > 0 ? (decimal)productsWithOffers / activeProducts : 0m;
 
-        var totalReviews = reviews.Count;
-        var averageRating = totalReviews > 0 ? (decimal)reviews.Sum(review => review.Rating) / totalReviews : 0m;
-        var lowRatingCount = reviews.Count(review => review.Rating <= 2);
-        var pendingReplies = reviews.Count(review => string.IsNullOrWhiteSpace(review.VendorReply));
-
-        var alerts = BuildDashboardAlerts(lateOrders, lowStockCritical, awaitingVendorResponse, pendingReplies, pendingSettlement);
+        var alerts = BuildDashboardAlerts(lateOrders, lowStockCritical, awaitingVendorResponse, pendingSettlement);
         var orderTrend = BuildTrendPoints(from, now, orders, item => item.PlacedAtUtc, items => items.Count(), items =>
             items.Where(order => order.PaymentStatus is PaymentStatus.Paid or PaymentStatus.Settled || order.Status == OrderStatus.Delivered).Sum(order => order.TotalAmount));
         var salesTrend = orderTrend.Select(point => new VendorDashboardDualTrendPointResponse(point.Label, point.SecondaryValue, point.Value)).ToList();
@@ -595,25 +558,6 @@ public class VendorWorkspaceController : ApiControllerBase
                 ],
                 vendorProducts.Where(product => product.CompareAtPrice.HasValue && product.CompareAtPrice > product.SellingPrice && product.StockQuantity > 0).OrderBy(product => product.StockQuantity).Take(6).Select(product => new VendorDashboardRankedItemResponse(product.Id.ToString(), product.NameAr, product.NameEn, product.CompareAtPrice.GetValueOrDefault() - product.SellingPrice, product.StockQuantity)).ToList(),
                 vendorProducts.Where(product => product.StockQuantity > 0 && product.StockQuantity <= 12 && !(product.CompareAtPrice.HasValue && product.CompareAtPrice > product.SellingPrice)).OrderBy(product => product.StockQuantity).Take(6).Select(product => new VendorDashboardRankedItemResponse(product.Id.ToString(), product.NameAr, product.NameEn, product.StockQuantity, 0)).ToList()),
-            new VendorDashboardReviewsSectionResponse(
-                averageRating,
-                totalReviews,
-                lowRatingCount,
-                pendingReplies,
-                0,
-                Enumerable.Range(1, 5)
-                    .Select(star => new VendorDashboardBreakdownSliceResponse(
-                        star.ToString(CultureInfo.InvariantCulture),
-                        star.ToString(CultureInfo.InvariantCulture),
-                        reviews.Count(review => review.Rating == star)))
-                    .ToList(),
-                BuildTrendPoints(from, now, reviews.Where(review => review.CreatedAtUtc >= from).ToList(), item => item.CreatedAtUtc, items => items.Count(), items => items.Count()).Select(point => new VendorDashboardTrendPointResponse(point.Label, point.Value)).ToList(),
-                [
-                    new VendorDashboardBreakdownSliceResponse("replied", "replied", reviews.Count(review => !string.IsNullOrWhiteSpace(review.VendorReply))),
-                    new VendorDashboardBreakdownSliceResponse("pending", "pending", pendingReplies)
-                ],
-                reviews.Where(review => review.Rating <= 2 && string.IsNullOrWhiteSpace(review.VendorReply)).OrderByDescending(review => review.CreatedAtUtc).Take(6).Select(review => new VendorDashboardReviewListItemResponse(review.Id.ToString(), review.CustomerName, review.Rating, review.Comment ?? string.Empty, review.CreatedAtUtc, true)).ToList(),
-                reviews.OrderByDescending(review => review.CreatedAtUtc).Take(6).Select(review => new VendorDashboardReviewListItemResponse(review.Id.ToString(), review.CustomerName, review.Rating, review.Comment ?? string.Empty, review.CreatedAtUtc, !string.IsNullOrWhiteSpace(review.VendorReply))).ToList()),
             new VendorDashboardFinanceSectionResponse(
                 availableBalance,
                 pendingSettlement,
@@ -719,11 +663,6 @@ public class VendorWorkspaceController : ApiControllerBase
             .Where(c => c.Order != null && c.Order.VendorId == vendorId && c.Status != OrderSupportCaseStatus.Rejected && c.Status != OrderSupportCaseStatus.Resolved)
             .CountAsync(cancellationToken);
 
-        var unrepliedLowReviewsCount = await _dbContext.Reviews
-            .AsNoTracking()
-            .Where(r => r.VendorId == vendorId && r.Rating <= 3 && string.IsNullOrWhiteSpace(r.VendorReply))
-            .CountAsync(cancellationToken);
-
         var paidOrders = orders.Where(o => o.PaymentStatus is PaymentStatus.Paid or PaymentStatus.Settled || o.Status == OrderStatus.Delivered).ToList();
         var paidSales = paidOrders.Sum(o => o.TotalAmount);
         var averageOrderValue = paidOrders.Any() ? paidSales / paidOrders.Count : 0;
@@ -756,19 +695,6 @@ public class VendorWorkspaceController : ApiControllerBase
         var prevPaidSales = prevPaidOrders.Sum(o => o.TotalAmount);
         var prevOrdersCount = prevOrders.Count;
         var prevAov = prevPaidOrders.Count > 0 ? prevPaidSales / prevPaidOrders.Count : 0;
-
-        // Rating summary
-        var allRatings = await _dbContext.Reviews
-            .AsNoTracking()
-            .Where(r => r.VendorId == vendorId)
-            .Select(r => r.Rating)
-            .ToListAsync(cancellationToken);
-        var totalReviews = allRatings.Count;
-        var avgRating = totalReviews > 0 ? (decimal)allRatings.Sum() / totalReviews : 0;
-        var ratingDistribution = Enumerable.Range(1, 5)
-            .Select(star => new VendorDashboardRatingStar(star, allRatings.Count(r => r == star)))
-            .ToList();
-        var ratingsSummary = new VendorDashboardRatingSummary(avgRating, totalReviews, ratingDistribution);
 
         // Acceptance rate
         var totalReceived = orders.Count(o => o.Status != OrderStatus.PendingPayment);
@@ -883,7 +809,7 @@ public class VendorWorkspaceController : ApiControllerBase
         var response = new VendorDashboardOverview(
             now,
             period,
-            new VendorDashboardSummary(pendingOrdersCount, readyForPickupCount, lateOrdersCount, lowStockCount, openDisputesCount, unrepliedLowReviewsCount),
+            new VendorDashboardSummary(pendingOrdersCount, readyForPickupCount, lateOrdersCount, lowStockCount, openDisputesCount),
             new VendorDashboardKpi(paidSales, ordersCount, averageOrderValue, activeProducts, activeOffers, cancellationRate, acceptanceRate),
             kpiDeltas,
             salesTrend,
@@ -892,7 +818,6 @@ public class VendorWorkspaceController : ApiControllerBase
             urgentOrders,
             inventoryWatchlist,
             financeSnapshot,
-            ratingsSummary,
             recentCompleted,
             alerts);
 
@@ -1112,80 +1037,6 @@ public class VendorWorkspaceController : ApiControllerBase
             .ToList();
 
         return Ok(new VendorFinanceLedgerPageResponse(items, page, pageSize, total, (int)Math.Ceiling(total / (double)pageSize)));
-    }
-
-    [HttpGet("reviews")]
-    public async Task<ActionResult<List<VendorReviewResponse>>> GetReviews(CancellationToken cancellationToken)
-    {
-        var vendorId = await _currentVendorService.GetRequiredVendorIdAsync(cancellationToken);
-
-        var reviews = await _dbContext.Reviews
-            .AsNoTracking()
-            .Where(review => review.VendorId == vendorId)
-            .OrderByDescending(review => review.CreatedAtUtc)
-            .Select(review => new
-            {
-                review.Id,
-                review.OrderId,
-                review.Rating,
-                review.Comment,
-                review.CreatedAtUtc,
-                review.VendorReply,
-                review.VendorRepliedAtUtc,
-                review.VendorReplyUpdatedAtUtc,
-                CustomerName = review.User.FullName,
-                OrderNumber = review.Order.OrderNumber
-            })
-            .ToListAsync(cancellationToken);
-
-        return Ok(reviews.Select(review => new VendorReviewResponse(
-            review.Id.ToString(),
-            "order",
-            review.CustomerName,
-            MaskName(review.CustomerName),
-            review.Rating,
-            $"تقييم الطلب #{review.OrderNumber}",
-            review.Comment ?? string.Empty,
-            review.CreatedAtUtc,
-            "published",
-            string.IsNullOrWhiteSpace(review.VendorReply) ? "none" : "replied",
-            review.Rating <= 2 && string.IsNullOrWhiteSpace(review.VendorReply) ? "needs_attention" : "normal",
-            true,
-            null,
-            null,
-            review.OrderId.ToString(),
-            review.OrderNumber,
-            null,
-            null,
-            null,
-            string.IsNullOrWhiteSpace(review.VendorReply)
-                ? null
-                : new VendorReviewReplyResponse(review.VendorReply, review.VendorRepliedAtUtc ?? review.CreatedAtUtc, review.VendorReplyUpdatedAtUtc),
-            [])).ToList());
-    }
-
-    [HttpPost("reviews/{reviewId:guid}/reply")]
-    public async Task<ActionResult<VendorReviewReplyResponse>> ReplyToReview(
-        Guid reviewId,
-        [FromBody] VendorReviewReplyRequest request,
-        CancellationToken cancellationToken)
-    {
-        var vendorId = await _currentVendorService.GetRequiredVendorIdAsync(cancellationToken);
-        var review = await _dbContext.Reviews
-            .FirstOrDefaultAsync(item => item.Id == reviewId && item.VendorId == vendorId, cancellationToken);
-
-        if (review is null)
-        {
-            throw new NotFoundException("Review", reviewId);
-        }
-
-        review.SetVendorReply(request.Message);
-        await _dbContext.SaveChangesAsync(cancellationToken);
-
-        return Ok(new VendorReviewReplyResponse(
-            review.VendorReply!,
-            review.VendorRepliedAtUtc ?? DateTime.UtcNow,
-            review.VendorReplyUpdatedAtUtc));
     }
 
     private static (string NormalizedPeriod, DateTime From, DateTime To) ResolveFinancePeriod(string period)
@@ -1464,7 +1315,6 @@ public class VendorWorkspaceController : ApiControllerBase
         int lateOrders,
         int lowStockCritical,
         int awaitingVendorResponse,
-        int pendingReplies,
         decimal pendingSettlement)
     {
         var alerts = new List<VendorDashboardAlertItemResponse>();
@@ -1503,18 +1353,6 @@ public class VendorWorkspaceController : ApiControllerBase
                 "DASHBOARD.ALERTS.DISPUTES_BODY",
                 "/disputes",
                 BuildRouteQuery(("status", "submitted"))));
-        }
-
-        if (pendingReplies > 0)
-        {
-            alerts.Add(new VendorDashboardAlertItemResponse(
-                "reviews-pending-replies",
-                "reviews",
-                "info",
-                "DASHBOARD.ALERTS.REVIEWS_TITLE",
-                "DASHBOARD.ALERTS.REVIEWS_BODY",
-                "/reviews",
-                BuildRouteQuery(("attention", "needs_attention"))));
         }
 
         if (pendingSettlement > 0)
@@ -1735,13 +1573,6 @@ public class VendorWorkspaceController : ApiControllerBase
         _ => "scheduled"
     };
 
-    private static string MaskName(string name)
-    {
-        return string.Join(' ', name
-            .Split(' ', StringSplitOptions.RemoveEmptyEntries)
-            .Select(part => part.Length <= 2 ? $"{part[0]}*" : $"{part[..Math.Min(2, part.Length)]}{new string('*', Math.Max(1, part.Length - 2))}"));
-    }
-
     private async Task<decimal> GetActiveVendorHoldAmountAsync(Guid vendorId, CancellationToken cancellationToken)
     {
         return await _dbContext.WalletHolds
@@ -1761,11 +1592,6 @@ public class VendorWorkspaceController : ApiControllerBase
     private static IQueryable<VendorProduct> ApplyBranchScope(IQueryable<VendorProduct> query, CurrentVendorScope scope) =>
         scope.BranchId.HasValue
             ? query.Where(product => product.VendorBranchId == scope.BranchId.Value)
-            : query;
-
-    private static IQueryable<Review> ApplyBranchScope(IQueryable<Review> query, CurrentVendorScope scope) =>
-        scope.BranchId.HasValue
-            ? query.Where(review => review.Order.VendorBranchId == scope.BranchId.Value)
             : query;
 
     private static IQueryable<OrderSupportCase> ApplyBranchScope(IQueryable<OrderSupportCase> query, CurrentVendorScope scope) =>
@@ -1807,32 +1633,6 @@ public record VendorLedgerEntryResponse(string Id, string Date, string TitleAr, 
 public record VendorFinanceAlertResponse(string Id, string Severity, string TitleKey, string BodyKey, string ActionLabelKey);
 public record VendorFinanceLedgerPageResponse(List<VendorLedgerEntryResponse> Items, int Page, int PageSize, int TotalCount, int TotalPages);
 
-public record VendorReviewResponse(
-    string Id,
-    string Type,
-    string CustomerName,
-    string CustomerMaskedName,
-    int Rating,
-    string Title,
-    string Comment,
-    DateTime CreatedAt,
-    string Visibility,
-    string ReplyStatus,
-    string AttentionState,
-    bool IsVerifiedPurchase,
-    string? ProductId,
-    string? ProductName,
-    string? OrderId,
-    string? OrderDisplayId,
-    int? DeliveryRating,
-    int? PackagingRating,
-    int? AccuracyRating,
-    VendorReviewReplyResponse? VendorReply,
-    List<string> Media);
-
-public record VendorReviewReplyRequest(string Message);
-public record VendorReviewReplyResponse(string Message, DateTime CreatedAt, DateTime? UpdatedAt);
-
 // New Dashboard Overview Records
 public record VendorDashboardOverview(
     DateTime GeneratedAtUtc,
@@ -1846,12 +1646,9 @@ public record VendorDashboardOverview(
     List<VendorDashboardUrgentOrder> UrgentOrders,
     List<VendorDashboardInventoryItem> InventoryWatchlist,
     VendorDashboardFinanceSnapshot FinanceSnapshot,
-    VendorDashboardRatingSummary RatingSummary,
     List<VendorDashboardCompletedOrder> RecentCompleted,
     List<VendorDashboardAlert> Alerts);
 
-public record VendorDashboardRatingStar(int Star, int Count);
-public record VendorDashboardRatingSummary(decimal AverageRating, int TotalReviews, List<VendorDashboardRatingStar> Distribution);
 public record VendorDashboardCompletedOrder(string Id, string OrderNumber, decimal TotalAmount, DateTime DeliveredAtUtc);
 
 public record VendorDashboardSummary(
@@ -1859,8 +1656,7 @@ public record VendorDashboardSummary(
     int ReadyForPickup,
     int LateOrders,
     int LowStockProducts,
-    int OpenDisputes,
-    int UnrepliedLowReviews);
+    int OpenDisputes);
 
 public record VendorDashboardKpi(
     decimal PaidSales,
@@ -1922,7 +1718,6 @@ public record VendorDashboardOverviewResponse(
     VendorDashboardSalesSectionEnvelopeResponse SalesSection,
     VendorDashboardInventorySectionResponse InventorySection,
     VendorDashboardOffersSectionResponse OffersSection,
-    VendorDashboardReviewsSectionResponse ReviewsSection,
     VendorDashboardFinanceSectionResponse FinanceSection,
     VendorDashboardDisputesSectionResponse DisputesSection,
     VendorDashboardStaffSectionResponse StaffSection,
@@ -2004,18 +1799,6 @@ public record VendorDashboardOffersSectionResponse(
     List<VendorDashboardRankedItemResponse> ExpiringOffersList,
     List<VendorDashboardRankedItemResponse> PromotionCandidates);
 
-public record VendorDashboardReviewsSectionResponse(
-    decimal AverageRating,
-    int TotalReviews,
-    int LowRatingCount,
-    int PendingReplies,
-    int HiddenReviews,
-    List<VendorDashboardBreakdownSliceResponse> RatingDistribution,
-    List<VendorDashboardTrendPointResponse> ReviewsTrend,
-    List<VendorDashboardBreakdownSliceResponse> ReplyBreakdown,
-    List<VendorDashboardReviewListItemResponse> LowRatingUnreplied,
-    List<VendorDashboardReviewListItemResponse> RecentHighlights);
-
 public record VendorDashboardFinanceSectionResponse(
     decimal AvailableBalance,
     decimal PendingSettlement,
@@ -2073,7 +1856,6 @@ public record VendorDashboardDualTrendPointResponse(string Label, decimal Value,
 public record VendorDashboardBreakdownSliceResponse(string Key, string Label, int Value);
 public record VendorDashboardRankedItemResponse(string Id, string LabelAr, string LabelEn, decimal Metric, decimal SecondaryMetric);
 public record VendorDashboardUrgentOrderResponse(string Id, string OrderNumber, string Status, DateTime PlacedAtUtc, string ReasonKey);
-public record VendorDashboardReviewListItemResponse(string Id, string CustomerName, int Rating, string Comment, DateTime CreatedAtUtc, bool NeedsAttention);
 public record VendorDashboardSettlementListItemResponse(string Id, string Code, decimal Amount, string Status, DateTime OccurredAtUtc, int OrdersCount);
 public record VendorDashboardLedgerListItemResponse(string Id, string Type, string Label, decimal Amount, string Direction, DateTime OccurredAtUtc, string Reference);
 public record VendorDashboardDisputeListItemResponse(string Id, string Type, string Status, string Priority, string Message, DateTime OccurredAtUtc);

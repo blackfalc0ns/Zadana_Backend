@@ -32,20 +32,6 @@ internal static class FavoriteReadModelBuilder
             })
             .ToDictionaryAsync(item => item.VendorProductId, item => item.Quantity, cancellationToken);
 
-        var reviewStatsByVendorId = await context.Reviews
-            .AsNoTracking()
-            .GroupBy(review => review.VendorId)
-            .Select(group => new
-            {
-                VendorId = group.Key,
-                AverageRating = Math.Round(group.Average(review => review.Rating), 1),
-                ReviewCount = group.Count()
-            })
-            .ToDictionaryAsync(
-                item => item.VendorId,
-                item => new VendorReviewStats((decimal)item.AverageRating, item.ReviewCount),
-                cancellationToken);
-
         var offers = await context.VendorProducts
             .AsNoTracking()
             .Where(product =>
@@ -84,7 +70,6 @@ internal static class FavoriteReadModelBuilder
         return offers
             .Select(offer =>
             {
-                reviewStatsByVendorId.TryGetValue(offer.VendorId, out var reviewStats);
                 salesByVendorProductId.TryGetValue(offer.VendorProductId, out var salesCount);
                 var decision = VendorCustomerAvailabilityPolicy.ResolveOrOffline(availabilityDecisions, offer.VendorId);
 
@@ -107,8 +92,8 @@ internal static class FavoriteReadModelBuilder
                         FavoriteProjectionMapper.NormalizeText(offer.UnitEn),
                         FavoriteProjectionMapper.PickLocalizedNullable(offer.UnitAr, offer.UnitEn),
                         offer.ImageUrl,
-                        reviewStats?.AverageRating,
-                        reviewStats?.ReviewCount ?? 0,
+                        null,
+                        0,
                         decision.IsOnlineNow,
                         decision.IsPurchasable,
                         decision.ReasonCode,
@@ -132,6 +117,4 @@ internal static class FavoriteReadModelBuilder
                     return FavoriteProjectionMapper.Map(preferred);
                 });
     }
-
-    private sealed record VendorReviewStats(decimal AverageRating, int ReviewCount);
 }
