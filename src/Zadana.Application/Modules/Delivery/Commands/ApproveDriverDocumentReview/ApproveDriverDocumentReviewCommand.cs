@@ -100,10 +100,18 @@ public class ApproveDriverDocumentReviewCommandHandler : IRequestHandler<Approve
 
         var documentNameAr = GetDocumentNameAr(documentType);
         var documentNameEn = GetDocumentNameEn(documentType);
+        var titleAr = $"تمت الموافقة على {documentNameAr}";
+        var titleEn = $"{documentNameEn} approved";
+        var bodyAr = $"تمت مراجعة {documentNameAr} والموافقة عليه. يمكنك متابعة حالة حسابك من التطبيق.";
+        var bodyEn = $"Your {documentNameEn.ToLowerInvariant()} was reviewed and approved. You can track your account status in the app.";
         var data = DriverNotificationDataBuilder.Build(
             screen: "account_status",
             @event: "account.document_approved",
             driverId: driver.Id,
+            titleAr: titleAr,
+            titleEn: titleEn,
+            bodyAr: bodyAr,
+            bodyEn: bodyEn,
             extra: new
             {
                 documentType = documentType.ToString(),
@@ -112,7 +120,7 @@ public class ApproveDriverDocumentReviewCommandHandler : IRequestHandler<Approve
                 accountStatus = driver.Status.ToString()
             });
 
-        await NotifyDriverAsync(driver, documentNameAr, documentNameEn, data, cancellationToken);
+        await NotifyDriverAsync(driver, titleAr, titleEn, bodyAr, bodyEn, data, cancellationToken);
     }
 
     private static DriverDocumentType ParseDocumentType(string documentId) =>
@@ -169,16 +177,13 @@ public class ApproveDriverDocumentReviewCommandHandler : IRequestHandler<Approve
 
     private async Task NotifyDriverAsync(
         Domain.Modules.Delivery.Entities.Driver driver,
-        string documentNameAr,
-        string documentNameEn,
+        string titleAr,
+        string titleEn,
+        string bodyAr,
+        string bodyEn,
         string data,
         CancellationToken cancellationToken)
     {
-        var titleAr = $"تمت الموافقة على {documentNameAr}";
-        var titleEn = $"{documentNameEn} approved";
-        var bodyAr = $"تمت مراجعة {documentNameAr} والموافقة عليه. يمكنك متابعة حالة حسابك من التطبيق.";
-        var bodyEn = $"Your {documentNameEn.ToLowerInvariant()} was reviewed and approved. You can track your account status in the app.";
-
         try
         {
             await _notificationService.SendToUserAsync(

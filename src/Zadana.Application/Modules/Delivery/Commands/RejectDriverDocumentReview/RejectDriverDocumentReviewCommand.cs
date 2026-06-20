@@ -98,10 +98,18 @@ public class RejectDriverDocumentReviewCommandHandler : IRequestHandler<RejectDr
 
         var documentNameAr = GetDocumentNameAr(documentType);
         var documentNameEn = GetDocumentNameEn(documentType);
+        var titleAr = $"مطلوب تعديل {documentNameAr}";
+        var titleEn = $"{documentNameEn} needs correction";
+        var bodyAr = $"تمت مراجعة {documentNameAr} ويوجد نقص أو خطأ. السبب: {request.Reason}";
+        var bodyEn = $"Your {documentNameEn.ToLowerInvariant()} needs correction. Reason: {request.Reason}";
         var data = DriverNotificationDataBuilder.Build(
             screen: "account_status",
             @event: "account.document_rejected",
             driverId: driver.Id,
+            titleAr: titleAr,
+            titleEn: titleEn,
+            bodyAr: bodyAr,
+            bodyEn: bodyEn,
             extra: new
             {
                 documentType = documentType.ToString(),
@@ -111,7 +119,7 @@ public class RejectDriverDocumentReviewCommandHandler : IRequestHandler<RejectDr
                 reason = request.Reason
             });
 
-        await NotifyDriverAsync(driver, documentNameAr, documentNameEn, request.Reason, data, cancellationToken);
+        await NotifyDriverAsync(driver, titleAr, titleEn, bodyAr, bodyEn, data, cancellationToken);
     }
 
     private static DriverDocumentType ParseDocumentType(string documentId) =>
@@ -155,17 +163,13 @@ public class RejectDriverDocumentReviewCommandHandler : IRequestHandler<RejectDr
 
     private async Task NotifyDriverAsync(
         Domain.Modules.Delivery.Entities.Driver driver,
-        string documentNameAr,
-        string documentNameEn,
-        string reason,
+        string titleAr,
+        string titleEn,
+        string bodyAr,
+        string bodyEn,
         string data,
         CancellationToken cancellationToken)
     {
-        var titleAr = $"مطلوب تعديل {documentNameAr}";
-        var titleEn = $"{documentNameEn} needs correction";
-        var bodyAr = $"تمت مراجعة {documentNameAr} ويوجد نقص أو خطأ. السبب: {reason}";
-        var bodyEn = $"Your {documentNameEn.ToLowerInvariant()} needs correction. Reason: {reason}";
-
         try
         {
             await _notificationService.SendToUserAsync(

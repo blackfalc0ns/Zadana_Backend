@@ -1,4 +1,5 @@
 using Microsoft.AspNetCore.Mvc;
+using Microsoft.Extensions.Logging;
 using Zadana.Api.Controllers;
 using Zadana.Api.Authorization;
 using Zadana.Domain.Modules.Identity.Constants;
@@ -19,12 +20,15 @@ using Zadana.Application.Common.Interfaces;
 using Zadana.Application.Modules.Identity.Interfaces;
 using Zadana.Application.Modules.Identity.Services;
 using Zadana.Application.Modules.Delivery.DTOs;
+using Zadana.Application.Modules.Delivery.Support;
 using Zadana.Domain.Modules.Delivery.Enums;
+using Zadana.Domain.Modules.Delivery.Entities;
 using Zadana.Domain.Modules.Vendors.Entities;
 using Zadana.Domain.Modules.Vendors.Enums;
 using Zadana.Domain.Modules.Identity.Entities;
 using Zadana.Domain.Modules.Wallets.Entities;
 using Zadana.Domain.Modules.Wallets.Enums;
+using Zadana.Domain.Modules.Social.Enums;
 using Microsoft.EntityFrameworkCore;
 using System.Text.Json;
 using Zadana.SharedKernel.Exceptions;
@@ -39,7 +43,10 @@ public class AdminAccessController(
     ICurrentUserService currentUserService,
     IIdentityAccountService identityAccountService,
     IEmailVerificationSender emailVerificationSender,
-    IAccessAuditService auditService) : ApiControllerBase
+    IAccessAuditService auditService,
+    INotificationService notificationService,
+    IOneSignalPushService oneSignalPushService,
+    ILogger<AdminAccessController> logger) : ApiControllerBase
 {
     private static readonly JsonSerializerOptions JsonOptions = new(JsonSerializerDefaults.Web);
     [HttpGet("permissions")]
@@ -329,9 +336,10 @@ public class AdminAccessController(
         EnsureCurrentUserCanDecideApproval(approval);
         var before = SnapshotApproval(approval);
         approval.Approve(currentUserService.UserId!.Value, request?.Note);
+        IReadOnlyList<DriverDocumentType>? approvedDriverDocuments = null;
         if (ProfileChangeApprovalActions.IsProfileChange(approval.Action))
         {
-            await ApplyApprovedProfileChangeAsync(approval, cancellationToken);
+            approvedDriverDocuments = await ApplyApprovedProfileChangeAsync(approval, cancellationToken);
             approval.Consume();
         }
         auditService.Add(
@@ -342,6 +350,13 @@ public class AdminAccessController(
             SnapshotApproval(approval));
 
         await dbContext.SaveChangesAsync(cancellationToken);
+
+        if (approvedDriverDocuments is { Count: > 0 })
+        {
+            var payload = DeserializePayload<DriverDocumentsProfileChangePayload>(approval);
+            await NotifyDriverDocumentsApprovedAsync(payload.DriverId, approvedDriverDocuments, cancellationToken);
+        }
+
         return Ok(await ProjectApprovalRequestAsync(id, cancellationToken));
     }
 
@@ -370,6 +385,16 @@ public class AdminAccessController(
             SnapshotApproval(approval));
 
         await dbContext.SaveChangesAsync(cancellationToken);
+
+        if (approval.Action == ProfileChangeApprovalActions.DriverProfileDocuments)
+        {
+            var payload = DeserializePayload<DriverDocumentsProfileChangePayload>(approval);
+            var reason = string.IsNullOrWhiteSpace(request?.Note)
+                ? "تم رفض طلب تحديث المستندات."
+                : request.Note.Trim();
+            await NotifyDriverDocumentsRejectedAsync(payload, reason, cancellationToken);
+        }
+
         return Ok(await ProjectApprovalRequestAsync(id, cancellationToken));
     }
 
@@ -439,7 +464,7 @@ public class AdminAccessController(
         }
     }
 
-    private async Task ApplyApprovedProfileChangeAsync(
+    private async Task<IReadOnlyList<DriverDocumentType>?> ApplyApprovedProfileChangeAsync(
         AccessApprovalRequest approval,
         CancellationToken cancellationToken)
     {
@@ -449,73 +474,72 @@ public class AdminAccessController(
                 await ApplyVendorBasicChangeAsync(
                     DeserializePayload<VendorBasicProfileChangePayload>(approval),
                     cancellationToken);
-                break;
+                return null;
 
             case ProfileChangeApprovalActions.VendorProfileStore:
                 await ApplyVendorStoreChangeAsync(
                     DeserializePayload<VendorStoreProfileChangePayload>(approval),
                     cancellationToken);
-                break;
+                return null;
 
             case ProfileChangeApprovalActions.VendorProfileOwner:
                 await ApplyVendorOwnerChangeAsync(
                     DeserializePayload<VendorOwnerProfileChangePayload>(approval),
                     cancellationToken);
-                break;
+                return null;
 
             case ProfileChangeApprovalActions.VendorProfileLegal:
                 await ApplyVendorLegalChangeAsync(
                     DeserializePayload<VendorLegalProfileChangePayload>(approval),
                     cancellationToken);
-                break;
+                return null;
 
             case ProfileChangeApprovalActions.VendorProfileBanking:
                 await ApplyVendorBankingChangeAsync(
                     DeserializePayload<VendorBankingProfileChangePayload>(approval),
                     cancellationToken);
-                break;
+                return null;
 
             case ProfileChangeApprovalActions.DriverProfilePersonal:
                 await ApplyDriverPersonalChangeAsync(
                     DeserializePayload<DriverPersonalProfileChangePayload>(approval),
                     cancellationToken);
-                break;
+                return null;
 
             case ProfileChangeApprovalActions.DriverProfileVehicle:
                 await ApplyDriverVehicleChangeAsync(
                     DeserializePayload<DriverVehicleProfileChangePayload>(approval),
                     cancellationToken);
-                break;
+                return null;
 
             case ProfileChangeApprovalActions.DriverProfileDocuments:
-                await ApplyDriverDocumentsChangeAsync(
+                return await ApplyDriverDocumentsChangeAsync(
                     DeserializePayload<DriverDocumentsProfileChangePayload>(approval),
                     cancellationToken);
-                break;
 
             case ProfileChangeApprovalActions.DriverPayoutMethodCreate:
                 await ApplyDriverPayoutMethodCreateAsync(
                     DeserializePayload<DriverPayoutMethodCreatePayload>(approval),
                     cancellationToken);
-                break;
+                return null;
 
             case ProfileChangeApprovalActions.DriverPayoutMethodUpdate:
                 await ApplyDriverPayoutMethodUpdateAsync(
                     DeserializePayload<DriverPayoutMethodUpdatePayload>(approval),
                     cancellationToken);
-                break;
+                return null;
 
             case ProfileChangeApprovalActions.DriverPayoutMethodMakePrimary:
                 await ApplyDriverPayoutMethodMakePrimaryAsync(
                     DeserializePayload<DriverPayoutMethodMakePrimaryPayload>(approval),
                     cancellationToken);
-                break;
+                return null;
 
             case ProfileChangeApprovalActions.DriverPayoutMethodDelete:
                 await ApplyDriverPayoutMethodDeleteAsync(
                     DeserializePayload<DriverPayoutMethodDeletePayload>(approval),
                     cancellationToken);
-                break;
+                return null;
 
             default:
                 throw new BusinessRuleException(
@@ -777,7 +801,7 @@ public class AdminAccessController(
         driver.RefreshProfileReviewState(HasRequiredDriverProfileData(driver), sensitiveChange: true, note: "Sensitive profile change approved by admin.");
     }
 
-    private async Task ApplyDriverDocumentsChangeAsync(
+    private async Task<IReadOnlyList<DriverDocumentType>> ApplyDriverDocumentsChangeAsync(
         DriverDocumentsProfileChangePayload payload,
         CancellationToken cancellationToken)
     {
@@ -803,26 +827,32 @@ public class AdminAccessController(
         var reviewerId = currentUserService.UserId
             ?? throw new BusinessRuleException("ADMIN_REVIEWER_REQUIRED", "An authenticated admin reviewer is required.");
         var reviewerName = await ResolveDriverComplianceReviewerNameAsync(reviewerId, cancellationToken);
+        var approvedDocumentTypes = new List<DriverDocumentType>();
 
         if (nationalIdChanged)
         {
             ApproveDriverDocumentReviewIfReady(driver, DriverDocumentType.NationalId, reviewerId, reviewerName);
+            approvedDocumentTypes.Add(DriverDocumentType.NationalId);
         }
 
         if (driverLicenseChanged)
         {
             ApproveDriverDocumentReviewIfReady(driver, DriverDocumentType.DriverLicense, reviewerId, reviewerName);
+            approvedDocumentTypes.Add(DriverDocumentType.DriverLicense);
         }
 
         if (vehicleLicenseChanged)
         {
             ApproveDriverDocumentReviewIfReady(driver, DriverDocumentType.VehicleLicense, reviewerId, reviewerName);
+            approvedDocumentTypes.Add(DriverDocumentType.VehicleLicense);
         }
 
         driver.RefreshProfileReviewState(
             HasRequiredDriverProfileData(driver),
             sensitiveChange: false,
             note: "Documents approved for profile update by admin.");
+
+        return approvedDocumentTypes;
     }
 
     private async Task ApplyDriverPayoutMethodCreateAsync(
@@ -1053,6 +1083,264 @@ public class AdminAccessController(
         var actor = await identityAccountService.FindByIdAsync(reviewerUserId, cancellationToken);
         return string.IsNullOrWhiteSpace(actor?.FullName) ? "Driver Compliance Desk" : actor.FullName;
     }
+
+    private async Task NotifyDriverDocumentsApprovedAsync(
+        Guid driverId,
+        IReadOnlyList<DriverDocumentType> approvedDocumentTypes,
+        CancellationToken cancellationToken)
+    {
+        if (approvedDocumentTypes.Count == 0)
+        {
+            return;
+        }
+
+        var driver = await dbContext.Drivers
+            .AsNoTracking()
+            .FirstOrDefaultAsync(item => item.Id == driverId, cancellationToken);
+
+        if (driver is null)
+        {
+            return;
+        }
+
+        foreach (var documentType in approvedDocumentTypes)
+        {
+            await NotifyDriverDocumentApprovedAsync(driver, documentType, cancellationToken);
+        }
+
+        try
+        {
+            await notificationService.SendDriverHomeUpdatedAsync(driver.UserId, cancellationToken);
+        }
+        catch (Exception ex)
+        {
+            logger.LogWarning(ex, "Driver home refresh notification failed after document profile approval for driver {DriverId}", driver.Id);
+        }
+    }
+
+    private async Task NotifyDriverDocumentApprovedAsync(
+        Driver driver,
+        DriverDocumentType documentType,
+        CancellationToken cancellationToken)
+    {
+        var documentNameAr = GetDriverDocumentNameAr(documentType);
+        var documentNameEn = GetDriverDocumentNameEn(documentType);
+        var titleAr = $"تمت الموافقة على {documentNameAr}";
+        var titleEn = $"{documentNameEn} approved";
+        var bodyAr = $"تمت مراجعة {documentNameAr} والموافقة عليه بعد تحديث المستند. يمكنك متابعة حالة حسابك من التطبيق.";
+        var bodyEn = $"Your updated {documentNameEn.ToLowerInvariant()} was reviewed and approved. You can track your account status in the app.";
+        var data = DriverNotificationDataBuilder.Build(
+            screen: "account_status",
+            @event: "account.document_approved",
+            driverId: driver.Id,
+            titleAr: titleAr,
+            titleEn: titleEn,
+            bodyAr: bodyAr,
+            bodyEn: bodyEn,
+            extra: new
+            {
+                documentType = documentType.ToString(),
+                documentId = documentType.ToString(),
+                source = "profile_change_approval",
+                verificationStatus = driver.VerificationStatus.ToString(),
+                accountStatus = driver.Status.ToString()
+            });
+
+        try
+        {
+            await notificationService.SendToUserAsync(
+                driver.UserId,
+                new NotificationDispatchRequest(
+                    titleAr,
+                    titleEn,
+                    bodyAr,
+                    bodyEn,
+                    NotificationTypes.DriverAccountUpdated,
+                    NotificationCategories.Account,
+                    NotificationPriorities.High,
+                    driver.Id,
+                    data),
+                cancellationToken);
+        }
+        catch (Exception ex)
+        {
+            logger.LogWarning(ex, "Driver document profile approval inbox notification failed for driver {DriverId}", driver.Id);
+        }
+
+        try
+        {
+            await oneSignalPushService.SendMobileNotificationAsync(
+                OneSignalMobilePushRequest.CreateHeadsUp(
+                    driver.UserId.ToString(),
+                    titleAr,
+                    titleEn,
+                    bodyAr,
+                    bodyEn,
+                    NotificationTypes.DriverAccountUpdated,
+                    driver.Id,
+                    data,
+                    targetUrl: "/account-status",
+                    category: NotificationCategories.Account,
+                    targetApplication: OneSignalApplicationTarget.Driver),
+                cancellationToken);
+        }
+        catch (Exception ex)
+        {
+            logger.LogWarning(ex, "Driver document profile approval push notification failed for driver {DriverId}", driver.Id);
+        }
+    }
+
+    private async Task NotifyDriverDocumentsRejectedAsync(
+        DriverDocumentsProfileChangePayload payload,
+        string reason,
+        CancellationToken cancellationToken)
+    {
+        var driver = await dbContext.Drivers
+            .AsNoTracking()
+            .FirstOrDefaultAsync(item => item.Id == payload.DriverId, cancellationToken);
+
+        if (driver is null)
+        {
+            return;
+        }
+
+        var rejectedDocumentTypes = ResolveChangedDriverDocumentTypes(driver, payload);
+        if (rejectedDocumentTypes.Count == 0)
+        {
+            return;
+        }
+
+        foreach (var documentType in rejectedDocumentTypes)
+        {
+            await NotifyDriverDocumentRejectedAsync(driver, documentType, reason, cancellationToken);
+        }
+
+        try
+        {
+            await notificationService.SendDriverHomeUpdatedAsync(driver.UserId, cancellationToken);
+        }
+        catch (Exception ex)
+        {
+            logger.LogWarning(ex, "Driver home refresh notification failed after document profile rejection for driver {DriverId}", driver.Id);
+        }
+    }
+
+    private async Task NotifyDriverDocumentRejectedAsync(
+        Driver driver,
+        DriverDocumentType documentType,
+        string reason,
+        CancellationToken cancellationToken)
+    {
+        var documentNameAr = GetDriverDocumentNameAr(documentType);
+        var documentNameEn = GetDriverDocumentNameEn(documentType);
+        var titleAr = $"تم رفض تحديث {documentNameAr}";
+        var titleEn = $"{documentNameEn} update rejected";
+        var bodyAr = $"تم رفض طلب تحديث {documentNameAr}. السبب: {reason}";
+        var bodyEn = $"Your {documentNameEn.ToLowerInvariant()} update request was rejected. Reason: {reason}";
+        var data = DriverNotificationDataBuilder.Build(
+            screen: "account_status",
+            @event: "account.document_rejected",
+            driverId: driver.Id,
+            titleAr: titleAr,
+            titleEn: titleEn,
+            bodyAr: bodyAr,
+            bodyEn: bodyEn,
+            extra: new
+            {
+                documentType = documentType.ToString(),
+                documentId = documentType.ToString(),
+                source = "profile_change_rejection",
+                verificationStatus = driver.VerificationStatus.ToString(),
+                accountStatus = driver.Status.ToString(),
+                reason
+            });
+
+        try
+        {
+            await notificationService.SendToUserAsync(
+                driver.UserId,
+                new NotificationDispatchRequest(
+                    titleAr,
+                    titleEn,
+                    bodyAr,
+                    bodyEn,
+                    NotificationTypes.DriverAccountUpdated,
+                    NotificationCategories.Account,
+                    NotificationPriorities.Critical,
+                    driver.Id,
+                    data),
+                cancellationToken);
+        }
+        catch (Exception ex)
+        {
+            logger.LogWarning(ex, "Driver document profile rejection inbox notification failed for driver {DriverId}", driver.Id);
+        }
+
+        try
+        {
+            await oneSignalPushService.SendMobileNotificationAsync(
+                OneSignalMobilePushRequest.CreateHeadsUp(
+                    driver.UserId.ToString(),
+                    titleAr,
+                    titleEn,
+                    bodyAr,
+                    bodyEn,
+                    NotificationTypes.DriverAccountUpdated,
+                    driver.Id,
+                    data,
+                    targetUrl: "/account-status",
+                    category: NotificationCategories.Account,
+                    targetApplication: OneSignalApplicationTarget.Driver),
+                cancellationToken);
+        }
+        catch (Exception ex)
+        {
+            logger.LogWarning(ex, "Driver document profile rejection push notification failed for driver {DriverId}", driver.Id);
+        }
+    }
+
+    private static IReadOnlyList<DriverDocumentType> ResolveChangedDriverDocumentTypes(
+        Driver driver,
+        DriverDocumentsProfileChangePayload payload)
+    {
+        var changed = new List<DriverDocumentType>();
+
+        if (HasChanged(driver.NationalIdFrontImageUrl, payload.NationalIdFrontImageUrl) ||
+            HasChanged(driver.NationalIdBackImageUrl, payload.NationalIdBackImageUrl))
+        {
+            changed.Add(DriverDocumentType.NationalId);
+        }
+
+        if (HasChanged(driver.LicenseImageUrl, payload.LicenseImageUrl))
+        {
+            changed.Add(DriverDocumentType.DriverLicense);
+        }
+
+        if (HasChanged(driver.VehicleImageUrl, payload.VehicleImageUrl))
+        {
+            changed.Add(DriverDocumentType.VehicleLicense);
+        }
+
+        return changed;
+    }
+
+    private static string GetDriverDocumentNameAr(DriverDocumentType type) =>
+        type switch
+        {
+            DriverDocumentType.NationalId => "الهوية الوطنية",
+            DriverDocumentType.DriverLicense => "رخصة القيادة",
+            DriverDocumentType.VehicleLicense => "رخصة المركبة",
+            _ => "المستند"
+        };
+
+    private static string GetDriverDocumentNameEn(DriverDocumentType type) =>
+        type switch
+        {
+            DriverDocumentType.NationalId => "National ID",
+            DriverDocumentType.DriverLicense => "Driver license",
+            DriverDocumentType.VehicleLicense => "Vehicle license",
+            _ => "Document"
+        };
 
     private static DriverPayoutMethodType ParseDriverPayoutMethodType(string value)
     {

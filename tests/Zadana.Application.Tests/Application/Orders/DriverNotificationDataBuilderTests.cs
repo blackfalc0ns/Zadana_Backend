@@ -129,6 +129,27 @@ public class DriverNotificationDataBuilderTests
     }
 
     [Fact]
+    public void Build_WithLocalizedText_ShouldIncludeArabicAndEnglishCopyInPayload()
+    {
+        var json = DriverNotificationDataBuilder.Build(
+            screen: "account_status",
+            @event: "account.document_approved",
+            driverId: Guid.NewGuid(),
+            titleAr: "تمت الموافقة على رخصة القيادة",
+            titleEn: "Driver license approved",
+            bodyAr: "تمت مراجعة رخصة القيادة والموافقة عليه.",
+            bodyEn: "Your driver license was reviewed and approved.");
+
+        using var document = JsonDocument.Parse(json);
+        var root = document.RootElement;
+
+        root.GetProperty("titleAr").GetString().Should().Be("تمت الموافقة على رخصة القيادة");
+        root.GetProperty("titleEn").GetString().Should().Be("Driver license approved");
+        root.GetProperty("bodyAr").GetString().Should().Be("تمت مراجعة رخصة القيادة والموافقة عليه.");
+        root.GetProperty("bodyEn").GetString().Should().Be("Your driver license was reviewed and approved.");
+    }
+
+    [Fact]
     public void BuildDispatchOfferPushData_ShouldStayWithinOneSignalDataLimit()
     {
         var orderId = Guid.NewGuid();

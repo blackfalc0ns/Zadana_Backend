@@ -27,6 +27,10 @@ public static class DriverNotificationDataBuilder
         Guid? supportCaseId = null,
         Guid? withdrawalId = null,
         Guid? driverId = null,
+        string? titleAr = null,
+        string? titleEn = null,
+        string? bodyAr = null,
+        string? bodyEn = null,
         object? extra = null)
     {
         var data = new Dictionary<string, object?>
@@ -44,6 +48,8 @@ public static class DriverNotificationDataBuilder
             ["supportCaseId"] = supportCaseId,
             ["withdrawalId"] = withdrawalId
         };
+
+        AppendLocalizedText(data, titleAr, titleEn, bodyAr, bodyEn);
 
         if (supportCaseId.HasValue)
         {
@@ -302,5 +308,33 @@ public static class DriverNotificationDataBuilder
         }
 
         return value[..maxLength];
+    }
+
+    private static void AppendLocalizedText(
+        Dictionary<string, object?> data,
+        string? titleAr,
+        string? titleEn,
+        string? bodyAr,
+        string? bodyEn)
+    {
+        if (!string.IsNullOrWhiteSpace(titleAr))
+        {
+            data["titleAr"] = titleAr.Trim();
+        }
+
+        if (!string.IsNullOrWhiteSpace(titleEn))
+        {
+            data["titleEn"] = titleEn.Trim();
+        }
+
+        if (!string.IsNullOrWhiteSpace(bodyAr))
+        {
+            data["bodyAr"] = bodyAr.Trim();
+        }
+
+        if (!string.IsNullOrWhiteSpace(bodyEn))
+        {
+            data["bodyEn"] = bodyEn.Trim();
+        }
     }
 }
