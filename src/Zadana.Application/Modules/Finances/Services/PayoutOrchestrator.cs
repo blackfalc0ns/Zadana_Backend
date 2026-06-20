@@ -910,7 +910,7 @@ public sealed class PayoutOrchestrator
                 $"Payout {payout.Id} for {payout.Amount:N2} needs provider reconciliation. Reason: {normalizedReason}",
                 $"Payout {payout.Id} for {payout.Amount:N2} needs provider reconciliation. Reason: {normalizedReason}",
                 payout.Id,
-                "/finances/payouts",
+                "/finances/withdrawals",
                 new
                 {
                     payoutId = payout.Id,

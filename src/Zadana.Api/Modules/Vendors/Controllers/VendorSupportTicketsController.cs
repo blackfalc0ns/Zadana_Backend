@@ -208,7 +208,7 @@ public class VendorSupportTicketsController : ApiControllerBase
             .FirstOrDefaultAsync(cancellationToken)
             ?? "Vendor";
 
-        var targetUrl = "/notifications?category=support";
+        var targetUrl = $"/support?tab=vendor&ticketId={ticket.Id}";
         var isCreated = string.Equals(action, "created", StringComparison.OrdinalIgnoreCase);
 
         await _adminAlertService.SendAsync(

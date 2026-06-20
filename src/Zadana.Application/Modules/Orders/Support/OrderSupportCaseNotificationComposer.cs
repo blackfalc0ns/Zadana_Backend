@@ -91,7 +91,7 @@ internal static class OrderSupportCaseNotificationComposer
     public static string ResolveAdminTargetUrl(Guid caseId, OrderSupportCaseType type) =>
         type switch
         {
-            OrderSupportCaseType.Complaint => "/notifications?category=support",
+            OrderSupportCaseType.Complaint => $"/support?tab=legacy&legacyCaseId={caseId}",
             OrderSupportCaseType.ReturnRequest => $"/finances/refunds?focus={caseId}",
             _ => $"/disputes?focus={caseId}"
         };

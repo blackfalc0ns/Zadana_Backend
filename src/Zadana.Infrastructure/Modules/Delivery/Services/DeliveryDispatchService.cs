@@ -437,7 +437,7 @@ public class DeliveryDispatchService : IDeliveryDispatchService
                     $"المسافة الفعلية للمندوب على الطلب #{assignment.Order.OrderNumber} انحرفت بنسبة {deviation:N2}%.",
                     $"Assigned driver distance for order #{assignment.Order.OrderNumber} deviated by {deviation:N2}%.",
                     assignment.OrderId,
-                    $"/admin/orders/{assignment.OrderId}",
+                    $"/orders/{assignment.OrderId}",
                     new
                     {
                         assignmentId = assignment.Id,

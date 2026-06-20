@@ -161,7 +161,7 @@ public sealed class PayoutStatusSyncWorker : BackgroundService
                     $"Payout {payout.Id} is still {payout.Status} after the configured payout processing threshold.",
                     $"Payout {payout.Id} is still {payout.Status} after the configured payout processing threshold.",
                     payout.Id,
-                    "/finances/payouts",
+                    "/finances/withdrawals",
                     new
                     {
                         payout.Id,

@@ -250,7 +250,7 @@ public class DeliveryDispatchWorker : BackgroundService
                     $"الطلب #{orderNumber} ينتظر مندوب توصيل منذ {waitingMinutes} دقيقة. يرجى التدخل يدوياً أو التأكد من توفر مندوبين.",
                     $"Order #{orderNumber} has been waiting for a delivery driver for {waitingMinutes} minutes. Please intervene manually or ensure drivers are available.",
                     orderId,
-                    $"/admin/orders/{orderId}",
+                    $"/orders/{orderId}",
                     new
                     {
                         orderId,
