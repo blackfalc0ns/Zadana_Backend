@@ -2,11 +2,11 @@ using Microsoft.AspNetCore.Authorization;
 using Microsoft.AspNetCore.Mvc;
 using Microsoft.EntityFrameworkCore;
 using System.Globalization;
-using System.Text.RegularExpressions;
 using Zadana.Api.Controllers;
 using Zadana.Application.Common.Interfaces;
 using Zadana.Application.Modules.Files.Commands.UploadFile;
 using Zadana.Application.Modules.Orders.Interfaces;
+using Zadana.Application.Modules.Orders.Support;
 using Zadana.Domain.Modules.Orders.Enums;
 using Zadana.SharedKernel.Exceptions;
 
@@ -174,7 +174,7 @@ public class VendorOrderCasesController : ApiControllerBase
         CancellationToken cancellationToken = default)
     {
         var vendorId = await _currentVendorService.GetRequiredVendorIdAsync(cancellationToken);
-        var isArabic = CultureInfo.CurrentUICulture.TwoLetterISOLanguageName.Equals("ar", StringComparison.OrdinalIgnoreCase);
+        var isArabic = OrderSupportCaseVendorLocalization.IsArabicRequest();
 
         var supportCase = await _dbContext.OrderSupportCases
             .AsNoTracking()
@@ -187,19 +187,6 @@ public class VendorOrderCasesController : ApiControllerBase
 
         var attachments = supportCase.Attachments
             .Select(a => new VendorOrderCaseAttachmentResponse(a.FileName, a.FileUrl))
-            .ToList();
-
-        var activities = supportCase.Activities
-            .OrderByDescending(a => a.CreatedAtUtc)
-            .Where(a => a.IsVisibleToRole("vendor"))
-            .Select(a => new VendorOrderCaseActivityResponse(
-                a.Id,
-                a.Action,
-                a.MessageType,
-                a.Title,
-                LocalizeVendorActivityNote(a.Action, a.MessageType, a.Note, supportCase, isArabic),
-                a.ActorRole,
-                a.CreatedAtUtc))
             .ToList();
 
         var coupon = supportCase.CompensationCouponId.HasValue
@@ -221,6 +208,19 @@ public class VendorOrderCasesController : ApiControllerBase
                     order => order.CouponId == supportCase.CompensationCouponId.Value,
                     cancellationToken);
 
+        var activities = supportCase.Activities
+            .OrderByDescending(a => a.CreatedAtUtc)
+            .Where(a => a.IsVisibleToRole("vendor"))
+            .Select(a => new VendorOrderCaseActivityResponse(
+                a.Id,
+                a.Action,
+                a.MessageType,
+                OrderSupportCaseVendorLocalization.ResolveActivityTitle(a, isArabic),
+                OrderSupportCaseVendorLocalization.ResolveActivityNote(supportCase, a, couponRedeemed, isArabic),
+                a.ActorRole,
+                a.CreatedAtUtc))
+            .ToList();
+
         return Ok(new VendorOrderCaseDetailResponse(
             supportCase.Id,
             supportCase.OrderId!.Value,
@@ -230,22 +230,26 @@ public class VendorOrderCasesController : ApiControllerBase
             supportCase.Priority.ToString(),
             supportCase.Queue.ToString(),
             supportCase.ReasonCode,
+            OrderSupportCaseVendorLocalization.ResolveReasonLabel(supportCase.Type, supportCase.ReasonCode, isArabic),
             supportCase.Message,
             supportCase.VendorResponse,
             supportCase.VendorRespondedAtUtc,
-            LocalizeVendorCustomerVisibleNote(supportCase, couponRedeemed, isArabic),
-            LocalizeVendorDecisionNotes(supportCase, couponRedeemed, isArabic),
+            OrderSupportCaseVendorLocalization.ResolveCustomerVisibleNote(supportCase, couponRedeemed, isArabic),
+            OrderSupportCaseVendorLocalization.ResolveDecisionNotes(supportCase, couponRedeemed, isArabic),
             supportCase.InitiatorRole,
             supportCase.AwaitingResponseFromRole,
             supportCase.RequestedRefundAmount,
             supportCase.ApprovedRefundAmount,
             supportCase.RefundMethod,
+            OrderSupportCaseVendorLocalization.ResolveRefundMethod(supportCase.RefundMethod, isArabic),
             MapCompensationType(supportCase.CompensationType),
             ResolveSettlementStatus(supportCase.Status, supportCase.Type, supportCase.CompensationType, couponRedeemed),
             coupon?.Code,
             coupon?.EndsAtUtc,
             couponRedeemed,
             supportCase.CostBearer,
+            OrderSupportCaseVendorLocalization.ResolveCostBearer(supportCase.CostBearer, isArabic),
+            OrderSupportCaseVendorLocalization.ResolveQueueLabel(supportCase.Queue, isArabic),
             supportCase.CreatedAtUtc,
             supportCase.UpdatedAtUtc,
             supportCase.ClosedAtUtc,
@@ -260,8 +264,8 @@ public class VendorOrderCasesController : ApiControllerBase
                 activity.Id,
                 activity.Action,
                 activity.MessageType,
-                activity.Title,
-                LocalizeVendorActivityNote(activity.Action, activity.MessageType, activity.Note, supportCase, isArabic),
+                OrderSupportCaseVendorLocalization.ResolveActivityTitle(activity, isArabic),
+                OrderSupportCaseVendorLocalization.ResolveActivityNote(supportCase, activity, couponRedeemed, isArabic),
                 activity.ActorRole,
                 activity.GetVisibleRoles().ToList(),
                 activity.IsInternalOnly,
@@ -401,86 +405,6 @@ public class VendorOrderCasesController : ApiControllerBase
             OrderSupportCaseCompensationType.CouponCompensation => "coupon_compensation",
             _ => null
         };
-
-    private static string? LocalizeVendorCustomerVisibleNote(
-        Zadana.Domain.Modules.Orders.Entities.OrderSupportCase supportCase,
-        bool couponRedeemed,
-        bool isArabic)
-    {
-        if (isArabic || !ContainsArabic(supportCase.CustomerVisibleNote))
-        {
-            return supportCase.CustomerVisibleNote;
-        }
-
-        return supportCase.Status switch
-        {
-            OrderSupportCaseStatus.Approved => "Your return request has been approved. You will be notified when the financial processing begins.",
-            OrderSupportCaseStatus.Rejected => "Your return request was rejected after review.",
-            OrderSupportCaseStatus.Resolved when supportCase.CompensationType == OrderSupportCaseCompensationType.CashRefund
-                => "Your refund has been completed and the case is now closed.",
-            OrderSupportCaseStatus.Resolved when supportCase.CompensationType == OrderSupportCaseCompensationType.CouponCompensation && couponRedeemed
-                => "Your compensation coupon was redeemed and the case is now closed.",
-            OrderSupportCaseStatus.Resolved when supportCase.CompensationType == OrderSupportCaseCompensationType.CouponCompensation
-                => "A compensation coupon was issued and the case is now closed.",
-            OrderSupportCaseStatus.AwaitingCustomerEvidence => "More information is required to continue reviewing this case.",
-            _ => "Your support case has been updated."
-        };
-    }
-
-    private static string? LocalizeVendorDecisionNotes(
-        Zadana.Domain.Modules.Orders.Entities.OrderSupportCase supportCase,
-        bool couponRedeemed,
-        bool isArabic)
-    {
-        if (isArabic || !ContainsArabic(supportCase.DecisionNotes))
-        {
-            return supportCase.DecisionNotes;
-        }
-
-        return supportCase.Status switch
-        {
-            OrderSupportCaseStatus.Approved when supportCase.Type == OrderSupportCaseType.ReturnRequest
-                => "The request matches platform policy and was approved after evidence review.",
-            OrderSupportCaseStatus.Rejected => "The request did not meet the approval criteria after evidence review.",
-            OrderSupportCaseStatus.Resolved when supportCase.CompensationType == OrderSupportCaseCompensationType.CashRefund
-                => "The case was closed after completing the customer refund.",
-            OrderSupportCaseStatus.Resolved when supportCase.CompensationType == OrderSupportCaseCompensationType.CouponCompensation && couponRedeemed
-                => "The case was closed after the compensation coupon was redeemed.",
-            OrderSupportCaseStatus.Resolved when supportCase.CompensationType == OrderSupportCaseCompensationType.CouponCompensation
-                => "The case was closed after issuing the compensation coupon.",
-            OrderSupportCaseStatus.AwaitingCustomerEvidence => "Additional evidence is required before a final decision can be made.",
-            _ => "The support team reviewed this case and recorded an internal decision."
-        };
-    }
-
-    private static string? LocalizeVendorActivityNote(
-        string action,
-        string messageType,
-        string? note,
-        Zadana.Domain.Modules.Orders.Entities.OrderSupportCase supportCase,
-        bool isArabic)
-    {
-        if (isArabic || !ContainsArabic(note))
-        {
-            return note;
-        }
-
-        return (action.Trim().ToLowerInvariant(), messageType.Trim().ToLowerInvariant()) switch
-        {
-            ("approved", _) => LocalizeVendorCustomerVisibleNote(supportCase, couponRedeemed: false, isArabic: false),
-            ("rejected", _) => "The case was rejected after review.",
-            ("resolved", _) => "The case was resolved and closed.",
-            ("request_evidence", _) => "Additional information was requested to continue the review.",
-            ("escalated", _) => "The case was escalated for further review.",
-            ("admin_message", _) => "Support shared an update on this case.",
-            (_, "decision") => "A final decision was recorded for this case.",
-            (_, "public_note") => "A public note was added to this case.",
-            _ => note
-        };
-    }
-
-    private static bool ContainsArabic(string? value) =>
-        !string.IsNullOrWhiteSpace(value) && Regex.IsMatch(value, @"[\u0600-\u06FF]");
 }
 
 // Request DTOs
@@ -523,6 +447,7 @@ public sealed record VendorOrderCaseDetailResponse(
     string Priority,
     string Queue,
     string? ReasonCode,
+    string? ReasonLabel,
     string Message,
     string? VendorResponse,
     DateTime? VendorRespondedAt,
@@ -533,12 +458,15 @@ public sealed record VendorOrderCaseDetailResponse(
     decimal? RequestedRefundAmount,
     decimal? ApprovedRefundAmount,
     string? RefundMethod,
+    string? RefundMethodLabel,
     string? CompensationType,
     string? SettlementStatus,
     string? CouponCode,
     DateTime? CouponExpiresAtUtc,
     bool CouponRedeemed,
     string? CostBearer,
+    string? CostBearerLabel,
+    string QueueLabel,
     DateTime CreatedAt,
     DateTime UpdatedAt,
     DateTime? ClosedAt,
