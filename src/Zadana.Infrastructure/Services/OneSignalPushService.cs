@@ -593,6 +593,30 @@ public sealed class OneSignalPushService : IOneSignalPushService
     {
         var subscriptionPayloadBuilders = new List<Func<Task<PreparedOneSignalPayload?>>>();
 
+        // Web subscriptions can be rotated by the browser/OneSignal without the old
+        // database row being explicitly unregistered. Resolve the live subscription
+        // first for vendor web push so a stale stored player id cannot block delivery.
+        if (targetApplication == OneSignalApplicationTarget.VendorWeb)
+        {
+            var providerLookupIds = lookupBatch
+                .Concat(pushBatch)
+                .Distinct(StringComparer.Ordinal)
+                .ToArray();
+
+            subscriptionPayloadBuilders.Add(() => BuildProviderSubscriptionPayloadAsync(
+                providerLookupIds,
+                sanitized,
+                referenceId,
+                resolvedTargetUrl,
+                appId,
+                restApiKey,
+                profile,
+                notificationEventId,
+                Guid.NewGuid(),
+                preferredLocale,
+                cancellationToken));
+        }
+
         subscriptionPayloadBuilders.Add(() => BuildSubscriptionPayloadAsync(
             lookupBatch,
             sanitized,
@@ -607,7 +631,8 @@ public sealed class OneSignalPushService : IOneSignalPushService
             category,
             cancellationToken));
 
-        if (preferLiveProviderSubscriptions)
+        if (preferLiveProviderSubscriptions &&
+            targetApplication != OneSignalApplicationTarget.VendorWeb)
         {
             var providerLookupIds = lookupBatch
                 .Concat(pushBatch)

@@ -78,11 +78,26 @@ public sealed class VendorCommunicationService : IVendorCommunicationService
             pushResult.Skipped,
             pushResult.ProviderStatusCode,
             pushResult.ProviderNotificationId,
-            pushResult.Reason,
+            NormalizePushReason(pushResult.Reason),
             emailAttempted,
             emailSent,
             emailSkipped,
             emailReason);
+    }
+
+    private static string? NormalizePushReason(string? reason)
+    {
+        if (string.IsNullOrWhiteSpace(reason))
+        {
+            return reason;
+        }
+
+        if (reason.Contains("All included players are not subscribed", StringComparison.OrdinalIgnoreCase))
+        {
+            return "The vendor browser is not currently subscribed to web push. Open the vendor panel, allow browser notifications, then sign in again before retrying.";
+        }
+
+        return reason;
     }
 
     private async Task<(bool Attempted, bool Sent, bool Skipped, string? Reason)> SendEmailAsync(

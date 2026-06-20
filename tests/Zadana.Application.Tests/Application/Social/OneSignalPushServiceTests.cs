@@ -1036,6 +1036,67 @@ public class OneSignalPushServiceTests
         document.RootElement.GetProperty("web_url").GetString().Should().Be("https://vendor.example/orders");
     }
 
+    [Fact]
+    public async Task SendToExternalUsersAsync_WithVendorWebTarget_ShouldPreferLiveProviderSubscription()
+    {
+        await using var dbContext = CreateDbContext();
+        var vendorUserId = Guid.Parse("d2380c53-4c5e-48ae-99a5-e4fa33d6e764");
+        var enabledSubscriptionId = Guid.Parse("3c7cdb57-854c-4c20-bdab-1f057e131ea5");
+        var providerUserBody = JsonSerializer.Serialize(new
+        {
+            identity = new
+            {
+                external_id = vendorUserId.ToString(),
+                onesignal_id = "038f774a-99b8-4e92-96a9-b9a64f1f2250"
+            },
+            subscriptions = new[]
+            {
+                new { id = enabledSubscriptionId.ToString(), enabled = true, type = "WebPush" },
+                new { id = "2643394a-8391-4461-a343-cbfbeea31ab1", enabled = false, type = "WebPush" }
+            }
+        });
+        var handler = new RecordingHttpMessageHandler(
+            HttpStatusCode.OK,
+            providerUserBody,
+            HttpStatusCode.OK,
+            """{"id":"vendor-live-push"}""");
+        var service = CreateService(
+            handler,
+            scopeFactory: new DbContextServiceScopeFactory(dbContext),
+            configureSettings: settings =>
+            {
+                settings.VendorWebAppId = "vendor-web-app-id";
+                settings.VendorWebRestApiKey = "vendor-web-rest-key";
+            });
+
+        var results = await service.SendToExternalUsersAsync(
+            [vendorUserId.ToString()],
+            "تنبيه",
+            "Alert",
+            "نص",
+            "Body",
+            "vendor_test",
+            null,
+            null,
+            "/alerts",
+            OneSignalPushProfile.Default,
+            OneSignalApplicationTarget.VendorWeb,
+            CancellationToken.None);
+
+        results.Should().ContainSingle(result =>
+            result.Sent &&
+            result.ProviderNotificationId == "vendor-live-push");
+        handler.RequestMethods.Should().Equal("GET", "POST");
+
+        using var document = JsonDocument.Parse(handler.RequestBodies[1]);
+        document.RootElement
+            .GetProperty("include_subscription_ids")
+            .EnumerateArray()
+            .Select(item => item.GetString())
+            .Should()
+            .Equal(enabledSubscriptionId.ToString());
+    }
+
     private static OneSignalPushService CreateService(
         RecordingHttpMessageHandler handler,
         ILogger<OneSignalPushService>? logger = null,
