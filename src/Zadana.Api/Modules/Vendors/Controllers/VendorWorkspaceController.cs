@@ -827,48 +827,53 @@ public class VendorWorkspaceController : ApiControllerBase
     [HttpGet("finance")]
     public async Task<ActionResult<VendorFinanceSnapshotResponse>> GetFinance(
         [FromQuery] string period = "month",
+        [FromQuery] Guid? branchId = null,
         CancellationToken cancellationToken = default)
     {
-        var vendorId = await _currentVendorService.GetRequiredVendorIdAsync(cancellationToken);
+        var scope = await _currentVendorService.GetRequiredVendorScopeAsync(cancellationToken);
+        var vendorId = scope.VendorId;
+        var financeAccess = await ResolveFinanceAccessAsync(scope, cancellationToken);
+        var selectedBranchId = ResolveSelectedFinanceBranchId(financeAccess, branchId);
         var (normalizedPeriod, from, to) = ResolveFinancePeriod(period);
 
-        var orders = await _dbContext.Orders
+        var ordersQuery = _dbContext.Orders
             .AsNoTracking()
             .Where(order =>
                 order.VendorId == vendorId &&
                 order.Status == OrderStatus.Delivered &&
                 order.DeliveredAtUtc.HasValue &&
                 order.DeliveredAtUtc.Value >= from &&
-                order.DeliveredAtUtc.Value < to)
+                order.DeliveredAtUtc.Value < to);
+
+        ordersQuery = ApplyFinanceBranchFilter(ordersQuery, financeAccess, selectedBranchId);
+
+        var orders = await ordersQuery
             .OrderBy(order => order.DeliveredAtUtc)
-            .Select(order => new
-            {
+            .Select(order => new FinanceOrderRow(
                 order.Id,
                 order.OrderNumber,
+                order.VendorBranchId,
                 order.Status,
                 order.PaymentStatus,
                 order.TotalAmount,
                 order.DeliveryFee,
                 order.CommissionAmount,
-                order.DeliveredAtUtc
-            })
+                order.DeliveredAtUtc))
             .ToListAsync(cancellationToken);
 
-        var orderProfitLookup = await _dbContext.OrderItems
-            .AsNoTracking()
-            .Where(item =>
-                item.Order.VendorId == vendorId &&
-                item.Order.Status == OrderStatus.Delivered &&
-                item.Order.DeliveredAtUtc.HasValue &&
-                item.Order.DeliveredAtUtc.Value >= from &&
-                item.Order.DeliveredAtUtc.Value < to)
-            .GroupBy(item => item.OrderId)
-            .Select(group => new
-            {
-                OrderId = group.Key,
-                Profit = group.Sum(item => item.VendorProfitPerUnit * item.Quantity)
-            })
-            .ToDictionaryAsync(item => item.OrderId, item => item.Profit, cancellationToken);
+        var orderIds = orders.Select(order => order.Id).ToList();
+        var orderProfitLookup = orderIds.Count == 0
+            ? new Dictionary<Guid, decimal>()
+            : await _dbContext.OrderItems
+                .AsNoTracking()
+                .Where(item => orderIds.Contains(item.OrderId))
+                .GroupBy(item => item.OrderId)
+                .Select(group => new
+                {
+                    OrderId = group.Key,
+                    Profit = group.Sum(item => item.VendorProfitPerUnit * item.Quantity)
+                })
+                .ToDictionaryAsync(item => item.OrderId, item => item.Profit, cancellationToken);
 
         var settlements = await _dbContext.Settlements
             .AsNoTracking()
@@ -918,27 +923,13 @@ public class VendorWorkspaceController : ApiControllerBase
 
         var vendorWalletTransactions = vendorWallet is null
             ? []
-            : await _dbContext.WalletTransactions
-                .AsNoTracking()
-                .Where(txn =>
-                    txn.WalletId == vendorWallet.Id &&
-                    txn.CreatedAtUtc >= from &&
-                    txn.CreatedAtUtc < to)
-                .OrderByDescending(txn => txn.CreatedAtUtc)
-                .Select(txn => new
-                {
-                    txn.Id,
-                    txn.OrderId,
-                    txn.TxnType,
-                    txn.Direction,
-                    txn.Amount,
-                    txn.CreatedAtUtc,
-                    txn.Description,
-                    txn.ReferenceType,
-                    txn.ReferenceId
-                })
-                .Take(10)
-                .ToListAsync(cancellationToken);
+            : await LoadFinanceWalletTransactionsAsync(
+                vendorWallet.Id,
+                from,
+                to,
+                selectedBranchId,
+                cancellationToken,
+                take: 10);
 
         var deliveredOrders = orders.ToList();
         var grossSales = deliveredOrders.Sum(order => order.TotalAmount);
@@ -951,6 +942,14 @@ public class VendorWorkspaceController : ApiControllerBase
         var activeHoldAmount = await GetActiveVendorHoldAmountAsync(vendorId, cancellationToken);
         var holdAmount = (vendorWallet?.PendingBalance ?? 0m) + activeHoldAmount;
         var availableBalance = Math.Max(0m, (vendorWallet?.CurrentBalance ?? 0m) - holdAmount);
+        var viewingSingleBranch = selectedBranchId.HasValue;
+
+        if (viewingSingleBranch)
+        {
+            availableBalance = vendorNetRevenue;
+            pendingSettlement = 0m;
+            holdAmount = 0m;
+        }
 
         var trend = BuildFinanceTrend(normalizedPeriod, from, to, deliveredOrders, payouts);
         var ledger = vendorWalletTransactions
@@ -959,6 +958,9 @@ public class VendorWorkspaceController : ApiControllerBase
             .ToList();
 
         var nextPayoutDate = ResolveNextPayoutDate(vendorFinancialMode, settlements);
+        var branchSections = financeAccess.CanSelectBranch && !selectedBranchId.HasValue
+            ? BuildFinanceBranchSections(financeAccess.Branches, deliveredOrders, orderProfitLookup)
+            : [];
 
         return Ok(new VendorFinanceSnapshotResponse(
             availableBalance,
@@ -982,7 +984,15 @@ public class VendorWorkspaceController : ApiControllerBase
                 settlement.NetAmount,
                 settlement.OrdersCount)).ToList(),
             ledger,
-            BuildFinanceAlerts(pendingSettlement, availableBalance)));
+            BuildFinanceAlerts(pendingSettlement, availableBalance),
+            new VendorFinanceBranchScopeResponse(
+                financeAccess.CanSelectBranch,
+                selectedBranchId?.ToString(),
+                financeAccess.Branches.Select(branch => new VendorFinanceBranchOptionResponse(
+                    branch.Id.ToString(),
+                    branch.Name,
+                    branch.IsPrimary)).ToList()),
+            branchSections));
     }
 
     [HttpGet("finance/ledger")]
@@ -990,9 +1000,13 @@ public class VendorWorkspaceController : ApiControllerBase
         [FromQuery] string period = "month",
         [FromQuery] int page = 1,
         [FromQuery] int pageSize = 20,
+        [FromQuery] Guid? branchId = null,
         CancellationToken cancellationToken = default)
     {
-        var vendorId = await _currentVendorService.GetRequiredVendorIdAsync(cancellationToken);
+        var scope = await _currentVendorService.GetRequiredVendorScopeAsync(cancellationToken);
+        var vendorId = scope.VendorId;
+        var financeAccess = await ResolveFinanceAccessAsync(scope, cancellationToken);
+        var selectedBranchId = ResolveSelectedFinanceBranchId(financeAccess, branchId);
         var (_, from, to) = ResolveFinancePeriod(period);
         page = Math.Max(1, page);
         pageSize = Math.Clamp(pageSize, 1, 100);
@@ -1006,13 +1020,29 @@ public class VendorWorkspaceController : ApiControllerBase
             return Ok(new VendorFinanceLedgerPageResponse(new List<VendorLedgerEntryResponse>(), page, pageSize, 0, 0));
         }
 
+        List<Guid>? branchOrderIds = null;
+        if (selectedBranchId.HasValue)
+        {
+            branchOrderIds = await _dbContext.Orders
+                .AsNoTracking()
+                .Where(order => order.VendorId == vendorId && order.VendorBranchId == selectedBranchId.Value)
+                .Select(order => order.Id)
+                .ToListAsync(cancellationToken);
+        }
+
         var query = _dbContext.WalletTransactions
             .AsNoTracking()
             .Where(txn =>
                 txn.WalletId == vendorWallet.Id &&
                 txn.CreatedAtUtc >= from &&
-                txn.CreatedAtUtc < to)
-            .OrderByDescending(txn => txn.CreatedAtUtc);
+                txn.CreatedAtUtc < to);
+
+        if (branchOrderIds is not null)
+        {
+            query = query.Where(txn => txn.OrderId.HasValue && branchOrderIds.Contains(txn.OrderId.Value));
+        }
+
+        query = query.OrderByDescending(txn => txn.CreatedAtUtc);
 
         var total = await query.CountAsync(cancellationToken);
         var transactions = await query
@@ -1463,7 +1493,7 @@ public class VendorWorkspaceController : ApiControllerBase
         string period,
         DateTime from,
         DateTime to,
-        IReadOnlyCollection<dynamic> deliveredOrders,
+        IReadOnlyCollection<FinanceOrderRow> deliveredOrders,
         IReadOnlyCollection<dynamic> payouts)
     {
         var buckets = BuildFinanceTrendBuckets(period, from, to);
@@ -1472,13 +1502,10 @@ public class VendorWorkspaceController : ApiControllerBase
         {
             var sales = deliveredOrders
                 .Where(order =>
-                {
-                    var deliveredAt = (DateTime?)order.DeliveredAtUtc;
-                    return deliveredAt.HasValue &&
-                           deliveredAt.Value >= bucket.StartUtc &&
-                           deliveredAt.Value < bucket.EndUtc;
-                })
-                .Sum(order => (decimal)order.TotalAmount);
+                    order.DeliveredAtUtc.HasValue &&
+                    order.DeliveredAtUtc.Value >= bucket.StartUtc &&
+                    order.DeliveredAtUtc.Value < bucket.EndUtc)
+                .Sum(order => order.TotalAmount);
 
             var payoutsAmount = payouts
                 .Where(payout =>
@@ -1584,6 +1611,137 @@ public class VendorWorkspaceController : ApiControllerBase
             .SumAsync(hold => (decimal?)hold.Amount, cancellationToken) ?? 0m;
     }
 
+    private async Task<FinanceAccessContext> ResolveFinanceAccessAsync(CurrentVendorScope scope, CancellationToken cancellationToken)
+    {
+        var branches = await _dbContext.VendorBranches
+            .AsNoTracking()
+            .Where(branch => branch.VendorId == scope.VendorId && branch.IsActive)
+            .OrderByDescending(branch => branch.IsPrimary)
+            .ThenBy(branch => branch.Name)
+            .Select(branch => new FinanceBranchRow(branch.Id, branch.Name, branch.IsPrimary))
+            .ToListAsync(cancellationToken);
+
+        if (!scope.BranchId.HasValue)
+        {
+            return new FinanceAccessContext(true, branches);
+        }
+
+        var primaryBranchId = branches.FirstOrDefault(branch => branch.IsPrimary)?.Id;
+        if (primaryBranchId.HasValue && scope.BranchId.Value == primaryBranchId)
+        {
+            return new FinanceAccessContext(true, branches);
+        }
+
+        var scopedBranch = branches.FirstOrDefault(branch => branch.Id == scope.BranchId.Value);
+        return new FinanceAccessContext(false, scopedBranch is null ? [] : [scopedBranch]);
+    }
+
+    private static Guid? ResolveSelectedFinanceBranchId(FinanceAccessContext access, Guid? requestedBranchId)
+    {
+        if (!access.CanSelectBranch)
+        {
+            return access.Branches.FirstOrDefault()?.Id;
+        }
+
+        if (!requestedBranchId.HasValue)
+        {
+            return null;
+        }
+
+        return access.Branches.Any(branch => branch.Id == requestedBranchId.Value)
+            ? requestedBranchId
+            : null;
+    }
+
+    private static IQueryable<Order> ApplyFinanceBranchFilter(
+        IQueryable<Order> query,
+        FinanceAccessContext access,
+        Guid? selectedBranchId)
+    {
+        if (!access.CanSelectBranch)
+        {
+            var branchId = access.Branches.FirstOrDefault()?.Id;
+            return branchId.HasValue
+                ? query.Where(order => order.VendorBranchId == branchId.Value)
+                : query;
+        }
+
+        return selectedBranchId.HasValue
+            ? query.Where(order => order.VendorBranchId == selectedBranchId.Value)
+            : query;
+    }
+
+    private async Task<List<FinanceWalletTransactionRow>> LoadFinanceWalletTransactionsAsync(
+        Guid walletId,
+        DateTime from,
+        DateTime to,
+        Guid? selectedBranchId,
+        CancellationToken cancellationToken,
+        int take)
+    {
+        var query = _dbContext.WalletTransactions
+            .AsNoTracking()
+            .Where(txn =>
+                txn.WalletId == walletId &&
+                txn.CreatedAtUtc >= from &&
+                txn.CreatedAtUtc < to);
+
+        if (selectedBranchId.HasValue)
+        {
+            var branchOrderIds = await _dbContext.Orders
+                .AsNoTracking()
+                .Where(order => order.VendorBranchId == selectedBranchId.Value)
+                .Select(order => order.Id)
+                .ToListAsync(cancellationToken);
+
+            query = query.Where(txn => txn.OrderId.HasValue && branchOrderIds.Contains(txn.OrderId.Value));
+        }
+
+        return await query
+            .OrderByDescending(txn => txn.CreatedAtUtc)
+            .Take(take)
+            .Select(txn => new FinanceWalletTransactionRow(
+                txn.Id,
+                txn.OrderId,
+                txn.TxnType,
+                txn.Direction,
+                txn.Amount,
+                txn.CreatedAtUtc,
+                txn.Description,
+                txn.ReferenceType,
+                txn.ReferenceId))
+            .ToListAsync(cancellationToken);
+    }
+
+    private static List<VendorFinanceBranchSectionResponse> BuildFinanceBranchSections(
+        IReadOnlyList<FinanceBranchRow> branches,
+        IReadOnlyCollection<FinanceOrderRow> deliveredOrders,
+        IReadOnlyDictionary<Guid, decimal> orderProfitLookup)
+    {
+        return branches
+            .Select(branch =>
+            {
+                var branchOrders = deliveredOrders.Where(order => order.VendorBranchId == branch.Id).ToList();
+                var grossSales = branchOrders.Sum(order => order.TotalAmount);
+                var vendorProfit = branchOrders.Sum(order => orderProfitLookup.TryGetValue(order.Id, out var profit) ? profit : 0m);
+                var fees = branchOrders.Sum(order => order.CommissionAmount);
+                var vendorNet = branchOrders.Sum(order => Math.Max((order.TotalAmount - order.DeliveryFee) - order.CommissionAmount, 0m));
+
+                return new VendorFinanceBranchSectionResponse(
+                    branch.Id.ToString(),
+                    branch.Name,
+                    branch.IsPrimary,
+                    grossSales,
+                    vendorProfit,
+                    fees,
+                    vendorNet,
+                    branchOrders.Count);
+            })
+            .OrderByDescending(section => section.IsPrimary)
+            .ThenByDescending(section => section.GrossSales)
+            .ToList();
+    }
+
     private static IQueryable<Order> ApplyBranchScope(IQueryable<Order> query, CurrentVendorScope scope) =>
         scope.BranchId.HasValue
             ? query.Where(order => order.VendorBranchId == scope.BranchId.Value)
@@ -1600,6 +1758,32 @@ public class VendorWorkspaceController : ApiControllerBase
             : query;
 
     private sealed record FinanceTrendBucket(DateTime StartUtc, DateTime EndUtc, string Label);
+
+    private sealed record FinanceOrderRow(
+        Guid Id,
+        string OrderNumber,
+        Guid? VendorBranchId,
+        OrderStatus Status,
+        PaymentStatus PaymentStatus,
+        decimal TotalAmount,
+        decimal DeliveryFee,
+        decimal CommissionAmount,
+        DateTime? DeliveredAtUtc);
+
+    private sealed record FinanceBranchRow(Guid Id, string Name, bool IsPrimary);
+
+    private sealed record FinanceAccessContext(bool CanSelectBranch, IReadOnlyList<FinanceBranchRow> Branches);
+
+    private sealed record FinanceWalletTransactionRow(
+        Guid Id,
+        Guid? OrderId,
+        WalletTxnType TxnType,
+        string Direction,
+        decimal Amount,
+        DateTime CreatedAtUtc,
+        string? Description,
+        string? ReferenceType,
+        Guid? ReferenceId);
 }
 
 public record VendorDashboardSnapshotResponse(
@@ -1624,7 +1808,26 @@ public record VendorFinanceSnapshotResponse(
     List<VendorFinanceTrendPointResponse> Trend,
     List<VendorSettlementResponse> Settlements,
     List<VendorLedgerEntryResponse> Ledger,
-    List<VendorFinanceAlertResponse> Alerts);
+    List<VendorFinanceAlertResponse> Alerts,
+    VendorFinanceBranchScopeResponse BranchScope,
+    List<VendorFinanceBranchSectionResponse> BranchSections);
+
+public record VendorFinanceBranchScopeResponse(
+    bool CanSelectBranch,
+    string? SelectedBranchId,
+    List<VendorFinanceBranchOptionResponse> Branches);
+
+public record VendorFinanceBranchOptionResponse(string Id, string Name, bool IsPrimary);
+
+public record VendorFinanceBranchSectionResponse(
+    string BranchId,
+    string BranchName,
+    bool IsPrimary,
+    decimal GrossSales,
+    decimal VendorProfit,
+    decimal PlatformFees,
+    decimal VendorNet,
+    int OrdersCount);
 
 public record VendorFinanceKpiResponse(string Id, string LabelKey, decimal Value, decimal Delta, string Trend, string Tone);
 public record VendorFinanceTrendPointResponse(string Label, decimal Sales, decimal Payout);
