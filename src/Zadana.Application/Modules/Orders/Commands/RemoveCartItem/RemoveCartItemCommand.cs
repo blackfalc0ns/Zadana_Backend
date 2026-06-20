@@ -94,11 +94,32 @@ public class RemoveCartItemCommandHandler : IRequestHandler<RemoveCartItemComman
                 new CartSummaryDto(0, 0, null, null, null));
         }
 
-        var effectiveVendorId = request.VendorId
-            ?? await CartProjection.ResolveSingleProductPricingVendorIdAsync(_context, refreshedCart, cancellationToken);
         var address = await CartBranchSelectionSupport.ResolveDefaultAddressAsync(_context, actor, cancellationToken);
-        var summary = (await CartProjection.BuildCartDtoAsync(_context, refreshedCart, cancellationToken, effectiveVendorId, address)).Summary;
+        var cartDto = await CartProjection.BuildCartDtoAsync(_context, refreshedCart, cancellationToken, request.VendorId, address);
 
-        return new CartItemRemovalResponseDto(LocalizedMessages.GetAr(LocalizedMessages.CartItemRemoved), LocalizedMessages.GetEn(LocalizedMessages.CartItemRemoved), summary);
+        if (!cartDto.Summary.IsPricingAvailable)
+        {
+            cartDto = await CartProjection.BuildCartDtoAsync(
+                _context,
+                refreshedCart,
+                cancellationToken,
+                request.VendorId,
+                address,
+                preferCheapestVendorWhenAmbiguous: true);
+
+            if (!cartDto.Summary.IsPricingAvailable)
+            {
+                var fallbackVendorId = await CartProjection.ResolveSingleProductPricingVendorIdAsync(_context, refreshedCart, cancellationToken);
+                if (fallbackVendorId.HasValue)
+                {
+                    cartDto = await CartProjection.BuildCartDtoAsync(_context, refreshedCart, cancellationToken, fallbackVendorId, address);
+                }
+            }
+        }
+
+        return new CartItemRemovalResponseDto(
+            LocalizedMessages.GetAr(LocalizedMessages.CartItemRemoved),
+            LocalizedMessages.GetEn(LocalizedMessages.CartItemRemoved),
+            cartDto.Summary);
     }
 }

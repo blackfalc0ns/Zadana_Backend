@@ -18,7 +18,8 @@ internal static class CartProjection
         Cart? cart,
         CancellationToken cancellationToken,
         Guid? selectedVendorId = null,
-        CustomerAddress? address = null)
+        CustomerAddress? address = null,
+        bool preferCheapestVendorWhenAmbiguous = false)
     {
         if (cart is null || cart.Items.Count == 0)
         {
@@ -115,7 +116,12 @@ internal static class CartProjection
             .Where(offer => VendorCustomerAvailabilityPolicy.ResolveOrOffline(availabilityDecisions, offer.VendorId).IsVisibleInCatalog)
             .ToList();
 
-        var effectiveVendorId = ResolveEffectiveVendorId(selectedVendorId, masterProductIds, visibleOffers);
+        var effectiveVendorId = ResolveEffectiveVendorId(
+            selectedVendorId,
+            masterProductIds,
+            visibleOffers,
+            cart.Items,
+            preferCheapestVendorWhenAmbiguous);
         var selectedVendorDecision = effectiveVendorId.HasValue
             ? VendorCustomerAvailabilityPolicy.ResolveOrOffline(availabilityDecisions, effectiveVendorId.Value)
             : null;
@@ -255,31 +261,88 @@ internal static class CartProjection
     private static Guid? ResolveEffectiveVendorId(
         Guid? selectedVendorId,
         IReadOnlyCollection<Guid> masterProductIds,
-        IReadOnlyCollection<VisibleCartOfferSnapshot> visibleOffers)
+        IReadOnlyCollection<VisibleCartOfferSnapshot> visibleOffers,
+        IEnumerable<CartItem> cartItems,
+        bool preferCheapestWhenAmbiguous = false)
     {
         if (selectedVendorId.HasValue)
         {
             return selectedVendorId;
         }
 
-        if (masterProductIds.Count == 0 || visibleOffers.Count == 0)
+        if (masterProductIds.Count == 0 || visibleOffers.Count == 0 || !cartItems.Any())
         {
             return null;
         }
 
-        var vendorsCoveringAllProducts = visibleOffers
+        var qualifyingVendorGroups = visibleOffers
             .GroupBy(offer => offer.VendorId)
             .Where(group => group
                 .Select(offer => offer.MasterProductId)
                 .Distinct()
                 .Count() == masterProductIds.Count)
-            .Select(group => group.Key)
-            .Take(2)
-            .ToArray();
+            .ToList();
 
-        return vendorsCoveringAllProducts.Length == 1
-            ? vendorsCoveringAllProducts[0]
-            : null;
+        if (qualifyingVendorGroups.Count == 0)
+        {
+            return null;
+        }
+
+        if (qualifyingVendorGroups.Count == 1)
+        {
+            return qualifyingVendorGroups[0].Key;
+        }
+
+        if (!preferCheapestWhenAmbiguous)
+        {
+            return null;
+        }
+
+        var quantityByProductId = cartItems
+            .GroupBy(item => item.MasterProductId)
+            .ToDictionary(group => group.Key, group => group.Sum(item => item.Quantity));
+
+        Guid? cheapestVendorId = null;
+        decimal? cheapestTotal = null;
+
+        foreach (var vendorGroup in qualifyingVendorGroups)
+        {
+            var bestOfferByProductId = vendorGroup
+                .GroupBy(offer => offer.MasterProductId)
+                .ToDictionary(
+                    group => group.Key,
+                    group => group
+                        .OrderBy(offer => offer.Price)
+                        .ThenByDescending(offer => offer.CreatedAtUtc)
+                        .First());
+
+            var vendorTotal = 0m;
+            var coversAllProducts = true;
+
+            foreach (var masterProductId in masterProductIds)
+            {
+                if (!bestOfferByProductId.TryGetValue(masterProductId, out var offer))
+                {
+                    coversAllProducts = false;
+                    break;
+                }
+
+                vendorTotal += offer.Price * quantityByProductId[masterProductId];
+            }
+
+            if (!coversAllProducts)
+            {
+                continue;
+            }
+
+            if (!cheapestTotal.HasValue || vendorTotal < cheapestTotal.Value)
+            {
+                cheapestTotal = vendorTotal;
+                cheapestVendorId = vendorGroup.Key;
+            }
+        }
+
+        return cheapestVendorId;
     }
 
     private static List<VisibleCartOfferSnapshot> ApplyUnifiedPricing(List<VisibleCartOfferSnapshot> offers)
