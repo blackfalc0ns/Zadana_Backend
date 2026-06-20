@@ -53,6 +53,9 @@
             value="&lt;&lt;BASE64_64_BYTES_FROM_rotate-secrets.ps1&gt;&gt;" />
           <environmentVariable name="JwtSettings__Issuer"   value="ZadanaApi" />
           <environmentVariable name="JwtSettings__Audience" value="ZadanaClients" />
+          <environmentVariable name="JwtSettings__ExpiryMinutes" value="60" />
+          <environmentVariable name="JwtSettings__AdminExpiryMinutes" value="600" />
+          <environmentVariable name="JwtSettings__VendorExpiryMinutes" value="600" />
 
           <!-- ===== DataProtection (يحفظ المفاتيح بعد restart) ===== -->
           <environmentVariable name="DataProtection__KeysPath" value="App_Data\keys" />

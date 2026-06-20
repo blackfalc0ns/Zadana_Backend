@@ -6,6 +6,7 @@ using Microsoft.Extensions.Configuration;
 using Microsoft.IdentityModel.Tokens;
 using Zadana.Application.Common.Interfaces;
 using Zadana.Application.Modules.Identity.DTOs;
+using Zadana.Domain.Modules.Identity.Enums;
 
 namespace Zadana.Infrastructure.Modules.Identity.Services;
 
@@ -49,9 +50,7 @@ public class JwtTokenService : IJwtTokenService
 
         var key = new SymmetricSecurityKey(Encoding.UTF8.GetBytes(secret));
         var creds = new SigningCredentials(key, SecurityAlgorithms.HmacSha256);
-        
-        var expiryMinutesStr = _configuration["JwtSettings:ExpiryMinutes"];
-        var expiryInMinutes = double.TryParse(expiryMinutesStr, out var parsedMinutes) ? parsedMinutes : 60;
+        var expiryInMinutes = ResolveExpiryMinutes(user.Role);
 
         var token = new JwtSecurityToken(
             issuer: _configuration["JwtSettings:Issuer"],
@@ -65,6 +64,22 @@ public class JwtTokenService : IJwtTokenService
         var refreshToken = GenerateSecureRefreshToken();
 
         return Task.FromResult(new TokenPairDto(accessToken, refreshToken));
+    }
+
+    private double ResolveExpiryMinutes(UserRole role) =>
+        role switch
+        {
+            UserRole.Admin or UserRole.SuperAdmin =>
+                ReadMinutes("JwtSettings:AdminExpiryMinutes", ReadMinutes("JwtSettings:ExpiryMinutes", 60)),
+            UserRole.Vendor or UserRole.VendorStaff =>
+                ReadMinutes("JwtSettings:VendorExpiryMinutes", ReadMinutes("JwtSettings:ExpiryMinutes", 60)),
+            _ => ReadMinutes("JwtSettings:ExpiryMinutes", 60)
+        };
+
+    private double ReadMinutes(string key, double fallback)
+    {
+        var raw = _configuration[key];
+        return double.TryParse(raw, out var parsed) && parsed > 0 ? parsed : fallback;
     }
 
     private static string GenerateSecureRefreshToken()
