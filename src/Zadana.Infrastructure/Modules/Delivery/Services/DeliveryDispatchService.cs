@@ -304,6 +304,16 @@ public class DeliveryDispatchService : IDeliveryDispatchService
             throw new BusinessRuleException("DELIVERY_OFFER_NOT_AVAILABLE", "عرض التوصيل لم يعد متاحاً | The delivery offer is no longer available.");
         }
 
+        if (assignment.Order.Status is OrderStatus.Cancelled
+            or OrderStatus.VendorRejected
+            or OrderStatus.DeliveryFailed
+            or OrderStatus.Refunded)
+        {
+            assignment.Cancel("Order is no longer available for delivery.");
+            await _unitOfWork.SaveChangesAsync(cancellationToken);
+            throw new BusinessRuleException("DELIVERY_OFFER_NOT_AVAILABLE", "عرض التوصيل لم يعد متاحاً | The delivery offer is no longer available.");
+        }
+
         if (!assignment.OfferExpiresAtUtc.HasValue || assignment.OfferExpiresAtUtc.Value <= DateTime.UtcNow)
         {
             throw new BusinessRuleException("DELIVERY_OFFER_EXPIRED", "انتهت صلاحية عرض التوصيل | The delivery offer has expired.");
@@ -497,6 +507,19 @@ public class DeliveryDispatchService : IDeliveryDispatchService
         DeliveryAssignment? existingAssignment,
         CancellationToken cancellationToken)
     {
+        if (order.Status is OrderStatus.Cancelled
+            or OrderStatus.VendorRejected
+            or OrderStatus.DeliveryFailed
+            or OrderStatus.Refunded
+            or OrderStatus.Delivered)
+        {
+            _logger.LogInformation(
+                "Dispatch offer engine: skipping offer for order {OrderId} because status is {Status}.",
+                order.Id,
+                order.Status);
+            return null;
+        }
+
         var unsuccessfulAttempts = await _context.DeliveryOfferAttempts
             .Where(item =>
                 item.OrderId == order.Id &&

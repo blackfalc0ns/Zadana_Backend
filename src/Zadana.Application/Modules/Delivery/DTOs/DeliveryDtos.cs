@@ -510,6 +510,12 @@ public record AdminDriverFinanceSectionDto(
     string StatementPeriod,
     AdminDriverFinanceEntryDto[] Entries);
 
+public record AdminDriverFinanceEntriesListDto(
+    AdminDriverFinanceEntryDto[] Items,
+    int TotalCount,
+    int PageNumber,
+    int PageSize);
+
 public record AdminDriverVerificationChecklistItemDto(
     string Code,
     bool Completed,

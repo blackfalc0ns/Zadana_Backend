@@ -19,6 +19,14 @@ public interface IDriverReadService
         Guid driverId,
         CancellationToken cancellationToken = default);
 
+    Task<AdminDriverFinanceEntriesListDto?> GetAdminDriverFinanceEntriesAsync(
+        Guid driverId,
+        int page,
+        int pageSize,
+        string? status = null,
+        string? search = null,
+        CancellationToken cancellationToken = default);
+
     Task<DriverAssignmentDetailDto?> GetAssignmentDetailAsync(
         Guid driverId,
         Guid assignmentId,

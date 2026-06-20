@@ -29,6 +29,7 @@ public class OrderStatusChangedHandler : INotificationHandler<OrderStatusChanged
     private readonly OrderRevenueDistributionService _revenueDistributionService;
     private readonly IOrderTrackingRealtimeNotifier _orderTrackingRealtimeNotifier;
     private readonly IEmailCenterService _emailCenterService;
+    private readonly DeliveryAssignmentOrderCancellationService _deliveryAssignmentOrderCancellationService;
     private readonly ILogger<OrderStatusChangedHandler> _logger;
 
     public OrderStatusChangedHandler(
@@ -39,6 +40,7 @@ public class OrderStatusChangedHandler : INotificationHandler<OrderStatusChanged
         OrderRevenueDistributionService revenueDistributionService,
         IOrderTrackingRealtimeNotifier orderTrackingRealtimeNotifier,
         IEmailCenterService emailCenterService,
+        DeliveryAssignmentOrderCancellationService deliveryAssignmentOrderCancellationService,
         ILogger<OrderStatusChangedHandler> logger)
     {
         _notificationService = notificationService;
@@ -48,6 +50,7 @@ public class OrderStatusChangedHandler : INotificationHandler<OrderStatusChanged
         _revenueDistributionService = revenueDistributionService;
         _orderTrackingRealtimeNotifier = orderTrackingRealtimeNotifier;
         _emailCenterService = emailCenterService;
+        _deliveryAssignmentOrderCancellationService = deliveryAssignmentOrderCancellationService;
         _logger = logger;
     }
 
@@ -66,6 +69,23 @@ public class OrderStatusChangedHandler : INotificationHandler<OrderStatusChanged
             notification.NewStatus,
             notification.ActorRole,
             cancellationToken);
+
+        if (DeliveryAssignmentOrderCancellationService.ShouldCloseAssignments(notification.NewStatus))
+        {
+            var cancellationReason = notification.NewStatus switch
+            {
+                OrderStatus.VendorRejected => "Order rejected by vendor.",
+                OrderStatus.DeliveryFailed => "Order delivery failed.",
+                OrderStatus.Refunded => "Order refunded.",
+                _ => "Order cancelled."
+            };
+
+            await _deliveryAssignmentOrderCancellationService.CloseOpenAssignmentsAsync(
+                notification.OrderId,
+                notification.OrderNumber,
+                cancellationReason,
+                cancellationToken);
+        }
 
         var targetUrl = OrderStatusNotificationComposer.ResolveTargetUrl(notification.OrderId);
         var action = OrderStatusNotificationComposer.ResolveAction(notification.NewStatus);

@@ -84,6 +84,31 @@ public class AdminDriversController : ApiControllerBase
         return Ok(result);
     }
 
+    [HttpGet("{id:guid}/finance/entries")]
+    public async Task<IActionResult> GetDriverFinanceEntries(
+        Guid id,
+        [FromQuery] int page = 1,
+        [FromQuery] int pageSize = 10,
+        [FromQuery] string? status = null,
+        [FromQuery] string? search = null,
+        CancellationToken cancellationToken = default)
+    {
+        var result = await _driverReadService.GetAdminDriverFinanceEntriesAsync(
+            id,
+            Math.Max(1, page),
+            Math.Clamp(pageSize, 1, 50),
+            status,
+            search,
+            cancellationToken);
+
+        if (result is null)
+        {
+            return NotFound();
+        }
+
+        return Ok(result);
+    }
+
     // Update driver profile from admin panel
     [HttpPut("{id:guid}/profile")]
     public async Task<IActionResult> UpdateDriverProfile(

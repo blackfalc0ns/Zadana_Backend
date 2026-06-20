@@ -593,6 +593,76 @@ public class DriverReadService : IDriverReadService
             Verification: verification);
     }
 
+    public async Task<AdminDriverFinanceEntriesListDto?> GetAdminDriverFinanceEntriesAsync(
+        Guid driverId,
+        int page,
+        int pageSize,
+        string? status = null,
+        string? search = null,
+        CancellationToken cancellationToken = default)
+    {
+        var driverExists = await _context.Drivers
+            .AsNoTracking()
+            .AnyAsync(d => d.Id == driverId, cancellationToken);
+
+        if (!driverExists)
+        {
+            return null;
+        }
+
+        var wallet = await _context.Wallets
+            .AsNoTracking()
+            .FirstOrDefaultAsync(
+                w => w.OwnerType == WalletOwnerType.Driver && w.OwnerId == driverId,
+                cancellationToken);
+
+        if (wallet is null)
+        {
+            return new AdminDriverFinanceEntriesListDto([], 0, page, pageSize);
+        }
+
+        var query = _context.WalletTransactions
+            .AsNoTracking()
+            .Where(t => t.WalletId == wallet.Id);
+
+        var normalizedSearch = search?.Trim();
+        if (!string.IsNullOrWhiteSpace(normalizedSearch))
+        {
+            var searchLower = normalizedSearch.ToLowerInvariant();
+            query = query.Where(t =>
+                t.TxnType.ToString().ToLower().Contains(searchLower) ||
+                t.Id.ToString().ToLower().Contains(searchLower) ||
+                (t.OrderId != null && t.OrderId.Value.ToString().ToLower().Contains(searchLower)) ||
+                (t.ReferenceId != null && t.ReferenceId.Value.ToString().ToLower().Contains(searchLower)) ||
+                (t.SettlementId != null && t.SettlementId.Value.ToString().ToLower().Contains(searchLower)));
+        }
+
+        var normalizedStatus = status?.Trim().ToUpperInvariant();
+        if (!string.IsNullOrWhiteSpace(normalizedStatus) && normalizedStatus != "ALL")
+        {
+            query = normalizedStatus switch
+            {
+                "SETTLED" => query.Where(t => t.SettlementId != null),
+                "FAILED" => query.Where(_ => false),
+                "PENDING" => query.Where(t => t.SettlementId == null),
+                _ => query
+            };
+        }
+
+        var totalCount = await query.CountAsync(cancellationToken);
+        var items = await query
+            .OrderByDescending(t => t.CreatedAtUtc)
+            .Skip((page - 1) * pageSize)
+            .Take(pageSize)
+            .ToArrayAsync(cancellationToken);
+
+        return new AdminDriverFinanceEntriesListDto(
+            items.Select(MapFinanceEntry).ToArray(),
+            totalCount,
+            page,
+            pageSize);
+    }
+
     public async Task<DriverAssignmentDetailDto?> GetAssignmentDetailAsync(
         Guid driverId,
         Guid assignmentId,
@@ -1858,7 +1928,7 @@ public class DriverReadService : IDriverReadService
             transaction.Id,
             reference,
             transaction.TxnType.ToString(),
-            "posted",
+            transaction.SettlementId.HasValue ? "settled" : "posted",
             transaction.Direction == "OUT" ? -transaction.Amount : transaction.Amount,
             0,
             method,

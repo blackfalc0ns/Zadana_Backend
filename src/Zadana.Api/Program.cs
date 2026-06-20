@@ -251,6 +251,7 @@ builder.Services.AddScoped<IDriverHomeReadService, Zadana.Infrastructure.Modules
 builder.Services.AddScoped<IDriverWalletReadService, Zadana.Infrastructure.Modules.Delivery.Services.DriverWalletReadService>();
 builder.Services.AddScoped<IDriverCommitmentPolicyService, Zadana.Infrastructure.Modules.Delivery.Services.DriverCommitmentPolicyService>();
 builder.Services.AddScoped<IDeliveryDispatchService, Zadana.Infrastructure.Modules.Delivery.Services.DeliveryDispatchService>();
+builder.Services.AddScoped<Zadana.Application.Modules.Delivery.Support.DeliveryAssignmentOrderCancellationService>();
 builder.Services.AddSingleton<Zadana.Infrastructure.Modules.Delivery.Services.DeliveryPricingCacheService>();
 builder.Services.AddScoped<IDeliveryPricingService, Zadana.Infrastructure.Modules.Delivery.Services.DeliveryPricingService>();
 builder.Services.AddScoped<IProductRequestRepository, ProductRequestRepository>();

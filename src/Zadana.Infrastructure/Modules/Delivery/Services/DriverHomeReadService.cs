@@ -6,6 +6,7 @@ using Zadana.Application.Modules.Delivery.Interfaces;
 using Zadana.Application.Modules.Delivery.Support;
 using Zadana.Domain.Modules.Delivery.Entities;
 using Zadana.Domain.Modules.Delivery.Enums;
+using Zadana.Domain.Modules.Orders.Enums;
 using Zadana.Domain.Modules.Payments.Enums;
 using Zadana.Domain.Modules.Wallets.Enums;
 using Zadana.SharedKernel.Exceptions;
@@ -76,7 +77,11 @@ public sealed class DriverHomeReadService : IDriverHomeReadService
                 a.DriverId == driver.Id &&
                 a.Status == AssignmentStatus.OfferSent &&
                 a.OfferExpiresAtUtc.HasValue &&
-                a.OfferExpiresAtUtc.Value > DateTime.UtcNow)
+                a.OfferExpiresAtUtc.Value > DateTime.UtcNow &&
+                a.Order.Status != OrderStatus.Cancelled &&
+                a.Order.Status != OrderStatus.VendorRejected &&
+                a.Order.Status != OrderStatus.DeliveryFailed &&
+                a.Order.Status != OrderStatus.Refunded)
             .OrderByDescending(a => a.OfferedAtUtc)
             .FirstOrDefaultAsync(cancellationToken);
 
@@ -96,7 +101,11 @@ public sealed class DriverHomeReadService : IDriverHomeReadService
                 (a.Status == AssignmentStatus.Accepted ||
                  a.Status == AssignmentStatus.PickedUp ||
                  a.Status == AssignmentStatus.ArrivedAtVendor ||
-                 a.Status == AssignmentStatus.ArrivedAtCustomer))
+                 a.Status == AssignmentStatus.ArrivedAtCustomer) &&
+                a.Order.Status != OrderStatus.Cancelled &&
+                a.Order.Status != OrderStatus.VendorRejected &&
+                a.Order.Status != OrderStatus.DeliveryFailed &&
+                a.Order.Status != OrderStatus.Refunded)
             .OrderByDescending(a => a.CreatedAtUtc)
             .FirstOrDefaultAsync(cancellationToken);
 

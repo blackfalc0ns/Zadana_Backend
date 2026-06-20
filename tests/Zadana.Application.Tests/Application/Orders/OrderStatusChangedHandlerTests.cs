@@ -7,6 +7,7 @@ using Zadana.Application.Modules.EmailCenter;
 using Zadana.Application.Modules.EmailCenter.DTOs;
 using Zadana.Application.Modules.EmailCenter.Interfaces;
 using Zadana.Application.Modules.Finances.Services;
+using Zadana.Application.Modules.Delivery.Support;
 using Zadana.Application.Modules.Orders.Events;
 using Zadana.Application.Modules.Wallets.Services;
 using Zadana.Domain.Modules.Delivery.Entities;
@@ -52,6 +53,7 @@ public class OrderStatusChangedHandlerTests
             revenueDistributionServiceMock.Object,
             orderTrackingNotifierMock.Object,
             Mock.Of<IEmailCenterService>(),
+            CreateCancellationService(dbContext),
             loggerMock.Object);
 
         await handler.Handle(
@@ -140,6 +142,7 @@ public class OrderStatusChangedHandlerTests
             revenueDistributionServiceMock.Object,
             orderTrackingNotifierMock.Object,
             Mock.Of<IEmailCenterService>(),
+            CreateCancellationService(dbContext),
             loggerMock.Object);
 
         await handler.Handle(
@@ -228,6 +231,7 @@ public class OrderStatusChangedHandlerTests
             revenueDistributionServiceMock.Object,
             orderTrackingNotifierMock.Object,
             Mock.Of<IEmailCenterService>(),
+            CreateCancellationService(dbContext),
             loggerMock.Object);
 
         await handler.Handle(
@@ -309,6 +313,7 @@ public class OrderStatusChangedHandlerTests
             revenueDistributionServiceMock.Object,
             orderTrackingNotifierMock.Object,
             Mock.Of<IEmailCenterService>(),
+            CreateCancellationService(dbContext),
             loggerMock.Object);
         var customerId = Guid.NewGuid();
         var vendorId = Guid.NewGuid();
@@ -389,6 +394,7 @@ public class OrderStatusChangedHandlerTests
             revenueDistributionServiceMock.Object,
             orderTrackingNotifierMock.Object,
             Mock.Of<IEmailCenterService>(),
+            CreateCancellationService(dbContext),
             loggerMock.Object);
 
         await handler.Handle(
@@ -445,6 +451,7 @@ public class OrderStatusChangedHandlerTests
             revenueDistributionServiceMock.Object,
             orderTrackingNotifierMock.Object,
             emailCenterMock.Object,
+            CreateCancellationService(dbContext),
             loggerMock.Object);
 
         await handler.Handle(
@@ -512,6 +519,7 @@ public class OrderStatusChangedHandlerTests
             revenueDistributionServiceMock.Object,
             orderTrackingNotifierMock.Object,
             Mock.Of<IEmailCenterService>(),
+            CreateCancellationService(dbContext),
             loggerMock.Object);
 
         await handler.Handle(
@@ -572,6 +580,7 @@ public class OrderStatusChangedHandlerTests
             CreateRevenueDistributionServiceMock(dbContext).Object,
             Mock.Of<IOrderTrackingRealtimeNotifier>(),
             Mock.Of<IEmailCenterService>(),
+            CreateCancellationService(dbContext),
             Mock.Of<Microsoft.Extensions.Logging.ILogger<OrderStatusChangedHandler>>());
 
         await handler.Handle(
@@ -600,6 +609,71 @@ public class OrderStatusChangedHandlerTests
                 driverUser.Id,
                 It.IsAny<CancellationToken>()),
             Times.Once);
+    }
+
+    [Fact]
+    public async Task Handle_WhenOrderCancelledWithActiveOffer_ShouldCancelOfferAndRefreshDriverHome()
+    {
+        await using var dbContext = CreateDbContext();
+        var customer = new User("Customer User", "customer.offer.cancel@test.com", "01000000146", UserRole.Customer);
+        var driverUser = new User("Driver User", "driver.offer.cancel@test.com", "01000000147", UserRole.Driver);
+        var driver = new Driver(driverUser.Id, DriverVehicleType.Car, "3234567893", "LIC-1008");
+        var vendorId = Guid.NewGuid();
+        var order = CreateOrder(customer.Id, vendorId, OrderStatus.DriverAssignmentInProgress, "ORD-DRIVER-OFFER-CANCEL-001");
+        var assignment = new DeliveryAssignment(order.Id, 0m);
+
+        assignment.OfferTo(driver.Id, 1, DateTime.UtcNow.AddMinutes(5));
+
+        dbContext.Users.AddRange(customer, driverUser);
+        dbContext.Drivers.Add(driver);
+        dbContext.Orders.Add(order);
+        dbContext.DeliveryAssignments.Add(assignment);
+        await dbContext.SaveChangesAsync();
+
+        var notificationServiceMock = new Mock<INotificationService>();
+        notificationServiceMock
+            .Setup(service => service.SendDriverHomeUpdatedAsync(It.IsAny<Guid>(), It.IsAny<CancellationToken>()))
+            .Returns(Task.CompletedTask);
+
+        var handler = new OrderStatusChangedHandler(
+            notificationServiceMock.Object,
+            dbContext,
+            CreatePushServiceMock().Object,
+            CreateDispatcherMock().Object,
+            CreateRevenueDistributionServiceMock(dbContext).Object,
+            Mock.Of<IOrderTrackingRealtimeNotifier>(),
+            Mock.Of<IEmailCenterService>(),
+            new DeliveryAssignmentOrderCancellationService(
+                dbContext,
+                notificationServiceMock.Object,
+                CreatePushServiceMock().Object,
+                Mock.Of<Microsoft.Extensions.Logging.ILogger<DeliveryAssignmentOrderCancellationService>>()),
+            Mock.Of<Microsoft.Extensions.Logging.ILogger<OrderStatusChangedHandler>>());
+
+        order.ChangeStatus(OrderStatus.Cancelled, null, "Cancelled by customer.");
+        dbContext.OrderStatusHistories.Add(order.StatusHistory.Last());
+        await dbContext.SaveChangesAsync();
+
+        await handler.Handle(
+            new OrderStatusChangedNotification(
+                order.Id,
+                customer.Id,
+                vendorId,
+                order.OrderNumber,
+                OrderStatus.DriverAssignmentInProgress,
+                OrderStatus.Cancelled,
+                NotifyCustomer: false,
+                NotifyVendor: false,
+                ActorRole: "customer"),
+            CancellationToken.None);
+
+        assignment.Status.Should().Be(AssignmentStatus.Cancelled);
+
+        notificationServiceMock.Verify(
+            service => service.SendDriverHomeUpdatedAsync(
+                driverUser.Id,
+                It.IsAny<CancellationToken>()),
+            Times.AtLeastOnce);
     }
 
     [Fact]
@@ -634,6 +708,7 @@ public class OrderStatusChangedHandlerTests
             revenueDistributionServiceMock.Object,
             Mock.Of<IOrderTrackingRealtimeNotifier>(),
             Mock.Of<IEmailCenterService>(),
+            CreateCancellationService(dbContext),
             Mock.Of<Microsoft.Extensions.Logging.ILogger<OrderStatusChangedHandler>>());
 
         await handler.Handle(
@@ -692,6 +767,7 @@ public class OrderStatusChangedHandlerTests
             CreateRevenueDistributionServiceMock(dbContext).Object,
             Mock.Of<IOrderTrackingRealtimeNotifier>(),
             Mock.Of<IEmailCenterService>(),
+            CreateCancellationService(dbContext),
             Mock.Of<Microsoft.Extensions.Logging.ILogger<OrderStatusChangedHandler>>());
 
         await handler.Handle(
@@ -750,6 +826,7 @@ public class OrderStatusChangedHandlerTests
             CreateRevenueDistributionServiceMock(dbContext).Object,
             Mock.Of<IOrderTrackingRealtimeNotifier>(),
             Mock.Of<IEmailCenterService>(),
+            CreateCancellationService(dbContext),
             Mock.Of<Microsoft.Extensions.Logging.ILogger<OrderStatusChangedHandler>>());
 
         await handler.Handle(
@@ -809,6 +886,26 @@ public class OrderStatusChangedHandlerTests
             new Mock<Microsoft.Extensions.Logging.ILogger<OrderRevenueDistributionService>>().Object,
             (VendorRecoveryService)null!,
             (PayoutOrchestrator)null!);
+    }
+
+    private static DeliveryAssignmentOrderCancellationService CreateCancellationService(ApplicationDbContext dbContext)
+    {
+        var notificationServiceMock = new Mock<INotificationService>();
+        notificationServiceMock
+            .Setup(service => service.SendDriverHomeUpdatedAsync(It.IsAny<Guid>(), It.IsAny<CancellationToken>()))
+            .Returns(Task.CompletedTask);
+        notificationServiceMock
+            .Setup(service => service.SendToUserAsync(
+                It.IsAny<Guid>(),
+                It.IsAny<NotificationDispatchRequest>(),
+                It.IsAny<CancellationToken>()))
+            .Returns(Task.CompletedTask);
+
+        return new DeliveryAssignmentOrderCancellationService(
+            dbContext,
+            notificationServiceMock.Object,
+            CreatePushServiceMock().Object,
+            Mock.Of<Microsoft.Extensions.Logging.ILogger<DeliveryAssignmentOrderCancellationService>>());
     }
 
     private static Mock<IOneSignalPushService> CreatePushServiceMock()
