@@ -2,6 +2,7 @@ using MediatR;
 using Microsoft.EntityFrameworkCore;
 using Zadana.Application.Common.Interfaces;
 using Zadana.Application.Modules.Identity.DTOs;
+using Zadana.Application.Modules.Identity.Support;
 using Zadana.Domain.Modules.Identity.Enums;
 using Zadana.Domain.Modules.Orders.Enums;
 using Zadana.Domain.Modules.Payments.Enums;
@@ -15,11 +16,16 @@ public class GetAdminCustomerDetailQueryHandler : IRequestHandler<GetAdminCustom
 {
     private readonly IApplicationDbContext _context;
     private readonly ICustomerPresenceService _customerPresenceService;
+    private readonly IGeographyCityResolver _geographyCityResolver;
 
-    public GetAdminCustomerDetailQueryHandler(IApplicationDbContext context, ICustomerPresenceService customerPresenceService)
+    public GetAdminCustomerDetailQueryHandler(
+        IApplicationDbContext context,
+        ICustomerPresenceService customerPresenceService,
+        IGeographyCityResolver geographyCityResolver)
     {
         _context = context;
         _customerPresenceService = customerPresenceService;
+        _geographyCityResolver = geographyCityResolver;
     }
 
     public async Task<AdminCustomerDetailDto> Handle(GetAdminCustomerDetailQuery request, CancellationToken cancellationToken)
@@ -94,13 +100,18 @@ public class GetAdminCustomerDetailQueryHandler : IRequestHandler<GetAdminCustom
             .AsNoTracking()
             .CountAsync(favorite => favorite.UserId == request.CustomerId, cancellationToken);
 
+        var cityLabels = CustomerCityLocalization.Localize(_geographyCityResolver, address?.City);
+
         return new AdminCustomerDetailDto(
             customer.Id,
             customer.FullName,
             customer.Email,
             customer.Phone,
             customer.ProfilePhotoUrl,
-            address?.City,
+            cityLabels.Raw,
+            cityLabels.Code,
+            cityLabels.Ar,
+            cityLabels.En,
             address?.Area,
             address?.AddressLine,
             address?.BuildingNo,

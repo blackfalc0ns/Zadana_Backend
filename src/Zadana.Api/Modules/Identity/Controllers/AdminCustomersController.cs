@@ -6,6 +6,7 @@ using Microsoft.Extensions.Logging;
 using Zadana.Api.Controllers;
 using Zadana.Api.Modules.Identity.Requests;
 using Zadana.Application.Common.Interfaces;
+using Zadana.Application.Modules.Identity.DTOs;
 using Zadana.Application.Modules.Identity.Queries.AdminCustomers;
 using Zadana.Domain.Modules.Identity.Enums;
 using Zadana.SharedKernel.Exceptions;
@@ -49,6 +50,13 @@ public class AdminCustomersController : ApiControllerBase
     {
         var result = await Sender.Send(new GetAdminCustomersQuery(
             search, status, city, isLocked, hasOrders, minSpent, maxSpent, sortBy, page, pageSize));
+        return Ok(result);
+    }
+
+    [HttpGet("filter-options")]
+    public async Task<ActionResult<AdminCustomerFilterOptionsDto>> GetFilterOptions(CancellationToken cancellationToken = default)
+    {
+        var result = await Sender.Send(new GetAdminCustomerFilterOptionsQuery(), cancellationToken);
         return Ok(result);
     }
 

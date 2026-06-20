@@ -3,6 +3,7 @@ using Microsoft.EntityFrameworkCore;
 using Zadana.Application.Common.Interfaces;
 using Zadana.Application.Common.Models;
 using Zadana.Application.Modules.Identity.DTOs;
+using Zadana.Application.Modules.Identity.Support;
 using Zadana.Domain.Modules.Identity.Enums;
 using Zadana.Domain.Modules.Payments.Enums;
 
@@ -24,11 +25,16 @@ public class GetAdminCustomersQueryHandler : IRequestHandler<GetAdminCustomersQu
 {
     private readonly IApplicationDbContext _context;
     private readonly ICustomerPresenceService _customerPresenceService;
+    private readonly IGeographyCityResolver _geographyCityResolver;
 
-    public GetAdminCustomersQueryHandler(IApplicationDbContext context, ICustomerPresenceService customerPresenceService)
+    public GetAdminCustomersQueryHandler(
+        IApplicationDbContext context,
+        ICustomerPresenceService customerPresenceService,
+        IGeographyCityResolver geographyCityResolver)
     {
         _context = context;
         _customerPresenceService = customerPresenceService;
+        _geographyCityResolver = geographyCityResolver;
     }
 
     public async Task<PaginatedList<AdminCustomerListItemDto>> Handle(GetAdminCustomersQuery request, CancellationToken cancellationToken)
@@ -64,14 +70,21 @@ public class GetAdminCustomersQueryHandler : IRequestHandler<GetAdminCustomersQu
             query = query.Where(user => user.IsLoginLocked == request.IsLocked.Value);
         }
 
-        // Filter by city (via address join)
+        // Filter by city (via address join, resolved against geography catalog)
         if (!string.IsNullOrWhiteSpace(request.City))
         {
-            var city = request.City.Trim();
-            var userIdsInCity = _context.CustomerAddresses
+            var cityFilter = request.City.Trim();
+            var addressRows = await _context.CustomerAddresses
                 .AsNoTracking()
-                .Where(address => address.City != null && address.City.Contains(city))
-                .Select(address => address.UserId);
+                .Where(address => address.City != null && address.City != string.Empty)
+                .Select(address => new { address.UserId, address.City })
+                .ToListAsync(cancellationToken);
+
+            var userIdsInCity = addressRows
+                .Where(row => CustomerCityLocalization.MatchesFilter(_geographyCityResolver, row.City, cityFilter))
+                .Select(row => row.UserId)
+                .Distinct()
+                .ToHashSet();
 
             query = query.Where(user => userIdsInCity.Contains(user.Id));
         }
@@ -215,13 +228,17 @@ public class GetAdminCustomersQueryHandler : IRequestHandler<GetAdminCustomersQu
             primaryAddressByUser.TryGetValue(customer.Id, out var address);
             orderStats.TryGetValue(customer.Id, out var stats);
             favoritesCountByUser.TryGetValue(customer.Id, out var favoritesCount);
+            var cityLabels = CustomerCityLocalization.Localize(_geographyCityResolver, address?.City);
 
             return new AdminCustomerListItemDto(
                 customer.Id,
                 customer.FullName,
                 customer.Email,
                 customer.Phone,
-                address?.City,
+                cityLabels.Raw,
+                cityLabels.Code,
+                cityLabels.Ar,
+                cityLabels.En,
                 address?.Area,
                 customer.AccountStatus.ToString(),
                 customer.IsLoginLocked,
