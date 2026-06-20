@@ -5,6 +5,7 @@ using Zadana.Application.Common.Interfaces;
 using Zadana.Application.Common.Localization;
 using Zadana.Application.Modules.Vendors.DTOs;
 using Zadana.Application.Modules.Vendors.Interfaces;
+using Zadana.Application.Modules.Vendors.Support;
 using Zadana.SharedKernel.Exceptions;
 
 namespace Zadana.Application.Modules.Vendors.Commands.UpdateVendorStore;
@@ -92,6 +93,7 @@ public class UpdateVendorStoreCommandHandler : IRequestHandler<UpdateVendorStore
             request.NationalAddress,
             hasSensitiveChange ? vendor.CommercialRegistrationNumber : request.CommercialRegistrationNumber);
 
+        VendorProfileReviewMutations.ResetSectionToSubmitted(vendor, "store");
         await _unitOfWork.SaveChangesAsync(cancellationToken);
 
         if (hasSensitiveChange)
