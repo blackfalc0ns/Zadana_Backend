@@ -280,6 +280,45 @@ public class DriverReadServiceTests
     }
 
     [Fact]
+    public async Task GetAdminDriverDetailAsync_WhenDocumentChangePending_ShouldExposePendingDocumentPreview()
+    {
+        await using var dbContext = CreateDbContext();
+        var user = new User("Driver Pending Admin Doc User", "driver.pending.admin@test.com", "01000000076", UserRole.Driver);
+        user.VerifyEmail();
+        var driver = CreateCompleteDriver(user.Id);
+        ApproveRequiredDocuments(driver);
+
+        const string pendingLicenseUrl = "https://cdn.example.com/drivers/license-new.jpg";
+        var payload = new DriverDocumentsProfileChangePayload(
+            driver.Id,
+            driver.NationalIdFrontImageUrl,
+            driver.NationalIdBackImageUrl,
+            pendingLicenseUrl,
+            driver.VehicleImageUrl,
+            driver.PersonalPhotoUrl);
+
+        dbContext.Users.Add(user);
+        dbContext.Drivers.Add(driver);
+        dbContext.AccessApprovalRequests.Add(new AccessApprovalRequest(
+            user.Id,
+            user.Id,
+            ProfileChangeApprovalActions.DriverProfileDocuments,
+            "Driver requested document changes.",
+            "pending-admin-hash",
+            JsonSerializer.Serialize(payload, new JsonSerializerOptions(JsonSerializerDefaults.Web))));
+        await dbContext.SaveChangesAsync();
+
+        var service = CreateService(dbContext);
+        var result = await service.GetAdminDriverDetailAsync(driver.Id);
+
+        result.Should().NotBeNull();
+        var licenseDocument = result!.Documents.Single(document => document.DocumentType == "DriverLicense");
+        licenseDocument.ImageUrl.Should().Be(pendingLicenseUrl);
+        licenseDocument.Status.Should().Be("review");
+        user.EmailConfirmed.Should().BeTrue();
+    }
+
+    [Fact]
     public async Task GetAdminDriverDetailAsync_ShouldExposeLocationAccessState()
     {
         await using var dbContext = CreateDbContext();

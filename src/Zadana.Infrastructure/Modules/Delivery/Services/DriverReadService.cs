@@ -24,7 +24,8 @@ public class DriverReadService : IDriverReadService
         AccessApprovalStatus Status,
         string? RejectionReason,
         DateTime? DecidedAtUtc,
-        IReadOnlySet<DriverDocumentType> DocumentTypes);
+        IReadOnlySet<DriverDocumentType> DocumentTypes,
+        DriverDocumentsProfileChangePayload Payload);
 
     private static readonly JsonSerializerOptions JsonOptions = new(JsonSerializerDefaults.Web);
 
@@ -341,7 +342,8 @@ public class DriverReadService : IDriverReadService
             .ToArray();
 
         // Documents
-        var documents = BuildAdminDriverDocuments(driver);
+        var documentApprovalOverlay = await ResolveDriverDocumentApprovalOverlayAsync(driver, cancellationToken);
+        var documents = BuildAdminDriverDocuments(driver, documentApprovalOverlay);
 
         var commitmentSummary = await _driverCommitmentPolicyService.GetDriverSummaryAsync(driverId, cancellationToken);
         var allDriverIds = await _context.Drivers
@@ -1549,51 +1551,138 @@ public class DriverReadService : IDriverReadService
             _ => "WAITING"
         };
 
-    private static AdminDriverDocumentDto[] BuildAdminDriverDocuments(Driver driver)
+    private static AdminDriverDocumentDto[] BuildAdminDriverDocuments(
+        Driver driver,
+        DriverDocumentApprovalOverlay? approvalOverlay = null)
     {
         var nationalIdReview = driver.DocumentReviews.FirstOrDefault(item => item.Type == DriverDocumentType.NationalId);
         var driverLicenseReview = driver.DocumentReviews.FirstOrDefault(item => item.Type == DriverDocumentType.DriverLicense);
         var vehicleLicenseReview = driver.DocumentReviews.FirstOrDefault(item => item.Type == DriverDocumentType.VehicleLicense);
+        var pendingPayload = approvalOverlay?.Payload;
 
         return
         [
-            new AdminDriverDocumentDto(
+            BuildAdminDriverDocumentDto(
+                driver,
+                DriverDocumentType.NationalId,
                 "NationalId",
-                driver.NationalIdFrontImageUrl,
-                driver.NationalIdBackImageUrl,
+                ResolvePendingDocumentImageUrl(
+                    approvalOverlay,
+                    DriverDocumentType.NationalId,
+                    pendingPayload?.NationalIdFrontImageUrl,
+                    driver.NationalIdFrontImageUrl),
+                ResolvePendingDocumentImageUrl(
+                    approvalOverlay,
+                    DriverDocumentType.NationalId,
+                    pendingPayload?.NationalIdBackImageUrl,
+                    driver.NationalIdBackImageUrl),
                 driver.NationalId,
                 driver.NationalIdExpiryDate,
-                ResolveDriverDocumentStatus(DriverProfileReadinessFactory.HasNationalIdPacket(driver), driver.NationalIdExpiryDate, nationalIdReview),
-                BuildExpiryInfo(driver.NationalIdExpiryDate),
-                nationalIdReview?.Decision.ToString(),
-                nationalIdReview?.RejectionReason,
-                nationalIdReview?.ReviewedAtUtc,
-                nationalIdReview?.ReviewedByName),
-            new AdminDriverDocumentDto(
+                nationalIdReview,
+                approvalOverlay),
+            BuildAdminDriverDocumentDto(
+                driver,
+                DriverDocumentType.DriverLicense,
                 "DriverLicense",
-                driver.LicenseImageUrl,
+                ResolvePendingDocumentImageUrl(
+                    approvalOverlay,
+                    DriverDocumentType.DriverLicense,
+                    pendingPayload?.LicenseImageUrl,
+                    driver.LicenseImageUrl),
                 null,
                 driver.LicenseNumber,
                 driver.DriverLicenseExpiryDate,
-                ResolveDriverDocumentStatus(DriverProfileReadinessFactory.HasDriverLicensePacket(driver), driver.DriverLicenseExpiryDate, driverLicenseReview),
-                BuildExpiryInfo(driver.DriverLicenseExpiryDate),
-                driverLicenseReview?.Decision.ToString(),
-                driverLicenseReview?.RejectionReason,
-                driverLicenseReview?.ReviewedAtUtc,
-                driverLicenseReview?.ReviewedByName),
-            new AdminDriverDocumentDto(
+                driverLicenseReview,
+                approvalOverlay),
+            BuildAdminDriverDocumentDto(
+                driver,
+                DriverDocumentType.VehicleLicense,
                 "VehicleLicense",
-                driver.VehicleImageUrl,
+                ResolvePendingDocumentImageUrl(
+                    approvalOverlay,
+                    DriverDocumentType.VehicleLicense,
+                    pendingPayload?.VehicleImageUrl,
+                    driver.VehicleImageUrl),
                 null,
                 driver.VehicleLicenseNumber,
                 driver.VehicleLicenseExpiryDate,
-                ResolveDriverDocumentStatus(DriverProfileReadinessFactory.HasVehicleLicensePacket(driver), driver.VehicleLicenseExpiryDate, vehicleLicenseReview),
-                BuildExpiryInfo(driver.VehicleLicenseExpiryDate),
-                vehicleLicenseReview?.Decision.ToString(),
-                vehicleLicenseReview?.RejectionReason,
-                vehicleLicenseReview?.ReviewedAtUtc,
-                vehicleLicenseReview?.ReviewedByName)
+                vehicleLicenseReview,
+                approvalOverlay)
         ];
+    }
+
+    private static AdminDriverDocumentDto BuildAdminDriverDocumentDto(
+        Driver driver,
+        DriverDocumentType documentType,
+        string documentTypeLabel,
+        string? imageUrl,
+        string? secondaryImageUrl,
+        string? number,
+        DateTime? expiryDateUtc,
+        DriverDocumentReview? review,
+        DriverDocumentApprovalOverlay? approvalOverlay)
+    {
+        var hasPacket = documentType switch
+        {
+            DriverDocumentType.NationalId => DriverProfileReadinessFactory.HasNationalIdPacket(driver),
+            DriverDocumentType.DriverLicense => DriverProfileReadinessFactory.HasDriverLicensePacket(driver),
+            DriverDocumentType.VehicleLicense => DriverProfileReadinessFactory.HasVehicleLicensePacket(driver),
+            _ => false
+        };
+
+        var status = ResolveDriverDocumentStatus(hasPacket, expiryDateUtc, review);
+        var rejectionReason = review?.RejectionReason;
+        var reviewedAtUtc = review?.ReviewedAtUtc;
+        var reviewedByName = review?.ReviewedByName;
+
+        if (approvalOverlay?.DocumentTypes.Contains(documentType) == true)
+        {
+            if (approvalOverlay.Status == AccessApprovalStatus.Pending)
+            {
+                status = "review";
+                rejectionReason = null;
+                reviewedAtUtc = null;
+                reviewedByName = null;
+            }
+            else if (approvalOverlay.Status == AccessApprovalStatus.Rejected)
+            {
+                status = "rejected";
+                rejectionReason = string.IsNullOrWhiteSpace(approvalOverlay.RejectionReason)
+                    ? "Document change rejected by admin."
+                    : approvalOverlay.RejectionReason;
+                reviewedAtUtc = approvalOverlay.DecidedAtUtc;
+                reviewedByName = null;
+            }
+        }
+
+        return new AdminDriverDocumentDto(
+            documentTypeLabel,
+            imageUrl,
+            secondaryImageUrl,
+            number,
+            expiryDateUtc,
+            status,
+            BuildExpiryInfo(expiryDateUtc),
+            review?.Decision.ToString(),
+            rejectionReason,
+            reviewedAtUtc,
+            reviewedByName);
+    }
+
+    private static string? ResolvePendingDocumentImageUrl(
+        DriverDocumentApprovalOverlay? approvalOverlay,
+        DriverDocumentType documentType,
+        string? requestedValue,
+        string? currentValue)
+    {
+        if (approvalOverlay?.Status != AccessApprovalStatus.Pending ||
+            !approvalOverlay.DocumentTypes.Contains(documentType) ||
+            string.IsNullOrWhiteSpace(requestedValue))
+        {
+            return currentValue;
+        }
+
+        return requestedValue.Trim();
     }
 
     private static DriverProfileDocumentDto[] BuildDriverProfileDocuments(
@@ -1698,7 +1787,8 @@ public class DriverReadService : IDriverReadService
                 approval.Status,
                 approval.DecisionNote,
                 approval.DecidedAtUtc,
-                documentTypes);
+                documentTypes,
+                payload);
     }
 
     private static IReadOnlySet<DriverDocumentType> ResolveChangedDocumentTypes(

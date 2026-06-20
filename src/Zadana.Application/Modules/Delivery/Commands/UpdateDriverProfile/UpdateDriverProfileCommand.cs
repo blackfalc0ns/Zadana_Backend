@@ -5,9 +5,9 @@ using Microsoft.Extensions.Localization;
 using Zadana.Application.Common.Interfaces;
 using Zadana.Application.Common.Localization;
 using Zadana.Application.Modules.Delivery.DTOs;
+using Zadana.Application.Modules.Identity.Interfaces;
 using Zadana.Domain.Modules.Delivery.Entities;
 using Zadana.Domain.Modules.Delivery.Enums;
-using Zadana.Domain.Modules.Identity.Entities;
 using Zadana.SharedKernel.Exceptions;
 
 namespace Zadana.Application.Modules.Delivery.Commands.UpdateDriverProfile;
@@ -45,11 +45,16 @@ public class UpdateDriverProfileCommandHandler : IRequestHandler<UpdateDriverPro
 {
     private readonly IApplicationDbContext _context;
     private readonly IUnitOfWork _unitOfWork;
+    private readonly IIdentityAccountService _identityAccountService;
 
-    public UpdateDriverProfileCommandHandler(IApplicationDbContext context, IUnitOfWork unitOfWork)
+    public UpdateDriverProfileCommandHandler(
+        IApplicationDbContext context,
+        IUnitOfWork unitOfWork,
+        IIdentityAccountService identityAccountService)
     {
         _context = context;
         _unitOfWork = unitOfWork;
+        _identityAccountService = identityAccountService;
     }
 
     public async Task Handle(UpdateDriverProfileCommand request, CancellationToken cancellationToken)
@@ -60,31 +65,6 @@ public class UpdateDriverProfileCommandHandler : IRequestHandler<UpdateDriverPro
             .FirstOrDefaultAsync(d => d.Id == request.DriverId, cancellationToken)
             ?? throw new NotFoundException("Driver", request.DriverId);
 
-        // Unique Email check
-        if (!string.Equals(driver.User.Email, request.Email, StringComparison.OrdinalIgnoreCase))
-        {
-            var emailExists = await _context.Users.AnyAsync(
-                u => u.Id != driver.UserId && u.Email == request.Email.ToLowerInvariant().Trim(),
-                cancellationToken);
-            if (emailExists)
-            {
-                throw new BusinessRuleException("EMAIL_EXISTS", "البريد الإلكتروني مستخدم بالفعل | Email is already in use.");
-            }
-        }
-
-        // Unique Phone check
-        if (!string.Equals(driver.User.PhoneNumber, request.PhoneNumber, StringComparison.Ordinal))
-        {
-            var phoneExists = await _context.Users.AnyAsync(
-                u => u.Id != driver.UserId && u.PhoneNumber == request.PhoneNumber.Trim(),
-                cancellationToken);
-            if (phoneExists)
-            {
-                throw new BusinessRuleException("PHONE_EXISTS", "رقم الجوال مستخدم بالفعل | Phone number is already in use.");
-            }
-        }
-
-        // Vehicle Type validation
         DriverVehicleType? parsedVehicleType = null;
         if (!string.IsNullOrWhiteSpace(request.VehicleType))
         {
@@ -92,10 +72,10 @@ public class UpdateDriverProfileCommandHandler : IRequestHandler<UpdateDriverPro
             {
                 throw new BusinessRuleException("INVALID_VEHICLE_TYPE", "نوع المركبة غير مدعوم | Unsupported vehicle type.");
             }
+
             parsedVehicleType = resolvedVehicleType;
         }
 
-        // Geography validation (Region & City)
         if (string.IsNullOrWhiteSpace(request.Region) || string.IsNullOrWhiteSpace(request.City))
         {
             throw new BusinessRuleException(
@@ -103,31 +83,58 @@ public class UpdateDriverProfileCommandHandler : IRequestHandler<UpdateDriverPro
                 "Driver must choose the region and city they will work in.");
         }
 
-        if (!string.IsNullOrWhiteSpace(request.Region))
+        var normalizedRegion = request.Region.Trim().ToUpperInvariant();
+        var regionEntity = await _context.SaudiRegions
+            .AsNoTracking()
+            .FirstOrDefaultAsync(r => r.Code == normalizedRegion, cancellationToken)
+            ?? throw new BusinessRuleException("INVALID_REGION", "المنطقة المختارة غير موجودة | Selected region does not exist.");
+
+        var normalizedCity = request.City.Trim().ToUpperInvariant();
+        var cityExists = await _context.SaudiCities
+            .AsNoTracking()
+            .AnyAsync(c => c.Code == normalizedCity && c.RegionId == regionEntity.Id, cancellationToken);
+
+        if (!cityExists)
         {
-            var normalizedRegion = request.Region.Trim().ToUpperInvariant();
-            var regionEntity = await _context.SaudiRegions
-                .AsNoTracking()
-                .FirstOrDefaultAsync(r => r.Code == normalizedRegion, cancellationToken)
-                ?? throw new BusinessRuleException("INVALID_REGION", "المنطقة المختارة غير موجودة | Selected region does not exist.");
+            throw new BusinessRuleException("INVALID_CITY", "المدينة المختارة لا تتبع المنطقة المحددة | Selected city does not belong to the chosen region.");
+        }
 
-            if (!string.IsNullOrWhiteSpace(request.City))
+        var personalChanged =
+            HasChanged(driver.User.FullName, request.FullName) ||
+            HasChanged(driver.User.Email, request.Email) ||
+            HasChanged(driver.User.PhoneNumber, request.PhoneNumber) ||
+            HasChanged(driver.Address, request.Address);
+        var nationalIdChanged =
+            HasChanged(driver.NationalId, request.NationalId) ||
+            HasChanged(driver.NationalIdExpiryDate, request.NationalIdExpiryDate);
+        var driverLicenseChanged =
+            HasChanged(driver.LicenseNumber, request.LicenseNumber) ||
+            HasChanged(driver.DriverLicenseExpiryDate, request.DriverLicenseExpiryDate);
+        var vehicleLicenseChanged =
+            HasChanged(driver.VehicleLicenseNumber, request.VehicleLicenseNumber) ||
+            HasChanged(driver.VehicleLicenseExpiryDate, request.VehicleLicenseExpiryDate);
+        var vehicleChanged =
+            driver.VehicleType != parsedVehicleType ||
+            HasChanged(driver.Region, request.Region) ||
+            HasChanged(driver.City, request.City);
+
+        if (personalChanged)
+        {
+            var updateResult = await _identityAccountService.UpdateProfileAsync(
+                driver.UserId,
+                request.FullName,
+                request.Email,
+                request.PhoneNumber,
+                cancellationToken);
+
+            if (!updateResult.Succeeded)
             {
-                var normalizedCity = request.City.Trim().ToUpperInvariant();
-                var cityExists = await _context.SaudiCities
-                    .AsNoTracking()
-                    .AnyAsync(c => c.Code == normalizedCity && c.RegionId == regionEntity.Id, cancellationToken);
-
-                if (!cityExists)
-                {
-                    throw new BusinessRuleException("INVALID_CITY", "المدينة المختارة لا تتبع المنطقة المحددة | Selected city does not belong to the chosen region.");
-                }
+                throw new BusinessRuleException(
+                    "IDENTITY_PROFILE_UPDATE_FAILED",
+                    string.Join(", ", updateResult.Errors ?? []));
             }
         }
 
-        // Update entities
-        driver.User.UpdateProfile(request.FullName, request.Email, request.PhoneNumber);
-        
         driver.UpdateDetails(
             parsedVehicleType,
             request.NationalId,
@@ -140,16 +147,29 @@ public class UpdateDriverProfileCommandHandler : IRequestHandler<UpdateDriverPro
         driver.UpdateAddress(request.Address);
         driver.UpdateServiceArea(request.Region, request.City);
 
-        // Reset document review status if packet is ready
-        ResetDocumentReviewIfReady(driver, DriverDocumentType.NationalId);
-        ResetDocumentReviewIfReady(driver, DriverDocumentType.DriverLicense);
-        ResetDocumentReviewIfReady(driver, DriverDocumentType.VehicleLicense);
+        if (nationalIdChanged)
+        {
+            ResetDocumentReviewIfReady(driver, DriverDocumentType.NationalId);
+        }
 
-        // Refresh profile review state
-        driver.RefreshProfileReviewState(
-            HasRequiredProfileData(driver),
-            sensitiveChange: true,
-            note: "Profile details updated by administrator");
+        if (driverLicenseChanged)
+        {
+            ResetDocumentReviewIfReady(driver, DriverDocumentType.DriverLicense);
+        }
+
+        if (vehicleLicenseChanged)
+        {
+            ResetDocumentReviewIfReady(driver, DriverDocumentType.VehicleLicense);
+        }
+
+        var sensitiveChange = personalChanged || nationalIdChanged || driverLicenseChanged || vehicleLicenseChanged || vehicleChanged;
+        if (sensitiveChange)
+        {
+            driver.RefreshProfileReviewState(
+                HasRequiredProfileData(driver),
+                sensitiveChange: true,
+                note: "Profile details updated by administrator");
+        }
 
         await _unitOfWork.SaveChangesAsync(cancellationToken);
     }
@@ -187,4 +207,10 @@ public class UpdateDriverProfileCommandHandler : IRequestHandler<UpdateDriverPro
         !string.IsNullOrWhiteSpace(driver.Region) &&
         !string.IsNullOrWhiteSpace(driver.City) &&
         !DriverProfileReadinessFactory.HasExpiredRequiredDocuments(driver);
+
+    private static bool HasChanged(string? currentValue, string? requestedValue) =>
+        !string.Equals(currentValue?.Trim(), requestedValue?.Trim(), StringComparison.Ordinal);
+
+    private static bool HasChanged(DateTime? currentValue, DateTime? requestedValue) =>
+        currentValue?.Date != requestedValue?.Date;
 }

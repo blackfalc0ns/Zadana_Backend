@@ -815,7 +815,10 @@ public class AdminAccessController(
             ResetDriverDocumentReviewIfReady(driver, DriverDocumentType.VehicleLicense);
         }
 
-        driver.RefreshProfileReviewState(HasRequiredDriverProfileData(driver), sensitiveChange: true, note: "Documents approved for profile update by admin.");
+        driver.RefreshProfileReviewState(
+            HasRequiredDriverProfileData(driver),
+            sensitiveChange: false,
+            note: "Documents approved for profile update by admin.");
     }
 
     private async Task ApplyDriverPayoutMethodCreateAsync(

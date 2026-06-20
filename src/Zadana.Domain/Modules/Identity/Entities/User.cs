@@ -85,10 +85,18 @@ public class User : IdentityUser<Guid>
     public void UpdateProfile(string fullName, string email, string phone)
     {
         FullName = fullName.Trim();
-        Email = email.ToLowerInvariant().Trim();
+        var normalizedEmail = email.ToLowerInvariant().Trim();
+        var emailChanged = !string.Equals(Email, normalizedEmail, StringComparison.OrdinalIgnoreCase);
+        Email = normalizedEmail;
         UserName = Email;
+        NormalizedEmail = normalizedEmail.ToUpperInvariant();
         PhoneNumber = phone.Trim();
         UpdatedAtUtc = DateTime.UtcNow;
+
+        if (emailChanged)
+        {
+            EmailConfirmed = false;
+        }
     }
 
     public void UpdateProfilePhoto(string? profilePhotoUrl)

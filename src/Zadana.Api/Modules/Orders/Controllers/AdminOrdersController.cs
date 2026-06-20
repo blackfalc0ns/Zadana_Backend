@@ -23,6 +23,8 @@ namespace Zadana.Api.Modules.Orders.Controllers;
 [Tags("Admin Dashboard API")]
 public class AdminOrdersController : ApiControllerBase
 {
+    private static readonly TimeSpan PickupOtpTtl = TimeSpan.FromHours(12);
+
     private readonly IApplicationDbContext _dbContext;
     private readonly ICurrentUserService _currentUserService;
     private readonly IOrderReadService _orderReadService;
@@ -209,6 +211,8 @@ public class AdminOrdersController : ApiControllerBase
         var assignment = await _dbContext.DeliveryAssignments
             .FirstOrDefaultAsync(item => item.OrderId == order.Id, cancellationToken);
 
+        var previousDriverId = assignment?.DriverId;
+
         if (assignment is null)
         {
             assignment = new DeliveryAssignment(order.Id, order.PaymentMethod == PaymentMethodType.CashOnDelivery ? order.TotalAmount : 0);
@@ -221,6 +225,7 @@ public class AdminOrdersController : ApiControllerBase
 
         assignment.OfferTo(driver.Id, assignment.DispatchAttemptNumber + 1, DateTime.UtcNow.AddMinutes(5));
         assignment.Accept();
+        EnsurePickupOtpForAdminAssignment(assignment, previousDriverId, driver.Id);
         order.ChangeStatus(OrderStatus.DriverAssigned, GetRequiredAdminUserId(), request.InternalNotes ?? "Driver assigned by admin.");
         _dbContext.OrderStatusHistories.Add(order.StatusHistory.Last());
 
@@ -687,6 +692,27 @@ public class AdminOrdersController : ApiControllerBase
         refund.Process();
         _dbContext.Refunds.Add(refund);
         order.UpdatePaymentStatus(PaymentStatus.Refunded);
+    }
+
+    private static void EnsurePickupOtpForAdminAssignment(
+        DeliveryAssignment assignment,
+        Guid? previousDriverId,
+        Guid assignedDriverId)
+    {
+        if (assignment.IsPickupOtpVerified)
+        {
+            return;
+        }
+
+        if (previousDriverId.HasValue &&
+            previousDriverId.Value != assignedDriverId &&
+            !string.IsNullOrWhiteSpace(assignment.PickupOtpCode))
+        {
+            assignment.RegeneratePickupOtp(PickupOtpTtl);
+            return;
+        }
+
+        assignment.EnsurePickupOtp(PickupOtpTtl);
     }
 
     private static string MapOrderStatusLabel(OrderStatus status) => status switch
