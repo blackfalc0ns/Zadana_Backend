@@ -445,7 +445,8 @@ public record AdminOrderListItemDto(
     string PaymentStatus,
     string FulfillmentStatus,
     string DispatchState,
-    string DispatchReason,
+    string DispatchReasonAr,
+    string DispatchReasonEn,
     string PaymentMethodLabel,
     DateTime LastUpdatedAtUtc,
     decimal Total,
@@ -478,7 +479,8 @@ public record AdminOrderDetailDto(
     string PaymentStatus,
     string FulfillmentStatus,
     string DispatchState,
-    string DispatchReason,
+    string DispatchReasonAr,
+    string DispatchReasonEn,
     string PaymentMethodLabel,
     string ExpectedDeliveryWindow,
     string TransactionRef,
@@ -520,8 +522,10 @@ public record AdminOrderItemDto(
     string? MeasurementUnitName = null);
 
 public record AdminOrderTimelineItemDto(
-    string Title,
-    string Subtitle,
+    string TitleAr,
+    string TitleEn,
+    string SubtitleAr,
+    string SubtitleEn,
     string Time,
     string Status,
     bool Current);

@@ -2242,7 +2242,8 @@ public class OrderReadService : IOrderReadService
             baseItem.PaymentStatus,
             baseItem.FulfillmentStatus,
             baseItem.DispatchState,
-            baseItem.DispatchReason,
+            baseItem.DispatchReasonAr,
+            baseItem.DispatchReasonEn,
             BuildPaymentMethodLabel(order.PaymentMethod),
             BuildExpectedDeliveryWindow(order, assignment),
             payment?.ProviderTransactionId ?? $"ORD-{order.OrderNumber}",
@@ -2299,6 +2300,7 @@ public class OrderReadService : IOrderReadService
         var placedAtLocal = order.PlacedAtUtc.ToLocalTime();
         var isLate = IsLate(order.Status, order.PlacedAtUtc);
         var operationalCase = BuildOperationalCase(order, refunds);
+        var dispatchReason = BuildDispatchReason(order, assignment);
 
         return new AdminOrderListItemDto(
             order.Id,
@@ -2313,7 +2315,8 @@ public class OrderReadService : IOrderReadService
             MapAdminPaymentStatus(order.PaymentStatus, refunds),
             MapFulfillmentStatus(order.Status, assignment),
             BuildDispatchState(order.Status, assignment),
-            BuildDispatchReason(order, assignment),
+            dispatchReason.Ar,
+            dispatchReason.En,
             BuildPaymentMethodLabel(order.PaymentMethod),
             ResolveLastUpdatedAtUtc(order),
             order.TotalAmount,
@@ -2896,11 +2899,11 @@ public class OrderReadService : IOrderReadService
             _ => "NOT_REQUIRED"
         };
 
-    private static string BuildDispatchReason(Order order, DeliveryAssignment? assignment)
+    private static LocalizedText BuildDispatchReason(Order order, DeliveryAssignment? assignment)
     {
         if (!string.IsNullOrWhiteSpace(assignment?.FailureReason))
         {
-            return assignment.FailureReason!;
+            return OrderStatusNoteCatalog.LocalizeNote(assignment.FailureReason);
         }
 
         var latestDispatchNote = order.StatusHistory
@@ -2911,21 +2914,21 @@ public class OrderReadService : IOrderReadService
 
         if (!string.IsNullOrWhiteSpace(latestDispatchNote))
         {
-            return latestDispatchNote!;
+            return OrderStatusNoteCatalog.LocalizeNote(latestDispatchNote);
         }
 
         return order.Status switch
         {
-            OrderStatus.ReadyForPickup => L("الطلب جاهز وبانتظار التوجيه.", "Order is ready and waiting for dispatch."),
-            OrderStatus.DriverAssignmentInProgress => L("قائمة التوجيه تبحث عن أفضل سائق متاح.", "Dispatch queue is searching for the best available driver."),
+            OrderStatus.ReadyForPickup => new("الطلب جاهز وبانتظار التوجيه.", "Order is ready and waiting for dispatch."),
+            OrderStatus.DriverAssignmentInProgress => new("قائمة التوجيه تبحث عن أفضل سائق متاح.", "Dispatch queue is searching for the best available driver."),
             OrderStatus.DriverAssigned => assignment?.Driver?.User is not null
-                ? L($"تم التعيين إلى {assignment.Driver.User.FullName}.", $"Assigned to {assignment.Driver.User.FullName}.")
-                : L("تم تعيين السائق.", "Driver assignment completed."),
-            OrderStatus.PickedUp => L("السائق استلم الطلب.", "Driver picked up the order."),
-            OrderStatus.OnTheWay => L("السائق في الطريق إلى العميل.", "Driver is on the way to the customer."),
-            OrderStatus.Delivered => L("تم التوصيل بنجاح.", "Delivery completed successfully."),
-            OrderStatus.DeliveryFailed => L("محاولة التوصيل فشلت وتحتاج تدخل.", "Delivery attempt failed and needs intervention."),
-            _ => L("التوجيه غير نشط للحالة الحالية.", "Dispatch is not active for the current order state.")
+                ? new($"تم التعيين إلى {assignment.Driver.User.FullName}.", $"Assigned to {assignment.Driver.User.FullName}.")
+                : new("تم تعيين السائق.", "Driver assignment completed."),
+            OrderStatus.PickedUp => new("السائق استلم الطلب.", "Driver picked up the order."),
+            OrderStatus.OnTheWay => new("السائق في الطريق إلى العميل.", "Driver is on the way to the customer."),
+            OrderStatus.Delivered => new("تم التوصيل بنجاح.", "Delivery completed successfully."),
+            OrderStatus.DeliveryFailed => new("محاولة التوصيل فشلت وتحتاج تدخل.", "Delivery attempt failed and needs intervention."),
+            _ => new("التوجيه غير نشط للحالة الحالية.", "Dispatch is not active for the current order state.")
         };
     }
 
@@ -3166,9 +3169,15 @@ public class OrderReadService : IOrderReadService
         var steps = new List<AdminOrderTimelineItemDto>();
 
         // Always add Placed/Created as the first step
+        var createdSubtitle = payment?.Status == PaymentStatus.Paid
+            ? new LocalizedText("تم تأكيد الدفع والتحصيل", "Payment captured")
+            : new LocalizedText("بانتظار تأكيد الدفع", "Waiting for payment confirmation");
+
         steps.Add(new AdminOrderTimelineItemDto(
-            L("تم إنشاء الطلب", "Order created"),
-            payment?.Status == PaymentStatus.Paid ? L("تم تأكيد الدفع والتحصيل", "Payment captured") : L("بانتظار تأكيد الدفع", "Waiting for payment confirmation"),
+            "تم إنشاء الطلب",
+            "Order created",
+            createdSubtitle.Ar,
+            createdSubtitle.En,
             order.PlacedAtUtc.ToLocalTime().ToString("hh:mm tt", CultureInfo.InvariantCulture),
             "COMPLETED",
             order.StatusHistory.Count == 0
@@ -3189,14 +3198,14 @@ public class OrderReadService : IOrderReadService
                 statusStr = "IN_PROGRESS";
             }
 
-            var title = TranslateOrderStatus(history.NewStatus);
-            var note = string.IsNullOrWhiteSpace(history.Note)
-                ? L("تحديث تلقائي للنظام", "System automatic update")
-                : history.Note;
+            var title = OrderStatusLocalization.Localize(history.NewStatus);
+            var note = OrderStatusNoteCatalog.LocalizeNote(history.Note);
 
             steps.Add(new AdminOrderTimelineItemDto(
-                title,
-                note,
+                title.Ar,
+                title.En,
+                note.Ar,
+                note.En,
                 history.CreatedAtUtc.ToLocalTime().ToString("hh:mm tt", CultureInfo.InvariantCulture),
                 statusStr,
                 isLast
@@ -3206,9 +3215,14 @@ public class OrderReadService : IOrderReadService
         // If there's an active operational case, we can append it as a step at the end
         if (operationalCase is not null)
         {
+            var caseTitle = OrderStatusNoteCatalog.LocalizeNote(operationalCase.Title);
+            var caseSubtitle = OrderStatusNoteCatalog.LocalizeNote(operationalCase.QueueLabel);
+
             steps.Add(new AdminOrderTimelineItemDto(
-                operationalCase.Title,
-                operationalCase.QueueLabel,
+                caseTitle.Ar,
+                caseTitle.En,
+                caseSubtitle.Ar,
+                caseSubtitle.En,
                 operationalCase.LastUpdatedAt,
                 operationalCase.Status == "OPEN" ? "IN_PROGRESS" : "COMPLETED",
                 true
