@@ -43,8 +43,33 @@ public static class DeliveryRegionMatcher
             "bahah" or "albaha" or "الباحة" or "منطقةالباحة" => "bahah",
             "jawf" or "aljawf" or "الجوف" or "منطقةالجوف" => "jawf",
             "qassim" or "alqassim" or "القصيم" or "منطقةالقصيم" => "qassim",
-            _ => StripLeadingAl(normalized)
+            _ => InferRegion(normalized)
         };
+    }
+
+    private static string InferRegion(string normalized)
+    {
+        if (normalized.Contains("شرق", StringComparison.Ordinal) || normalized.Contains("eastern", StringComparison.Ordinal))
+        {
+            return "eastern";
+        }
+
+        if (normalized.Contains("رياض", StringComparison.Ordinal) || normalized.Contains("riyadh", StringComparison.Ordinal) || normalized.Contains("central", StringComparison.Ordinal))
+        {
+            return "riyadh";
+        }
+
+        if (normalized.Contains("مكة", StringComparison.Ordinal) || normalized.Contains("مكه", StringComparison.Ordinal) || normalized.Contains("makkah", StringComparison.Ordinal) || normalized.Contains("western", StringComparison.Ordinal))
+        {
+            return "makkah";
+        }
+
+        if (normalized.Contains("مدين", StringComparison.Ordinal) || normalized.Contains("madinah", StringComparison.Ordinal) || normalized.Contains("medina", StringComparison.Ordinal))
+        {
+            return "madinah";
+        }
+
+        return StripLeadingAl(normalized);
     }
 
     private static string StripLeadingAl(string normalized) =>
