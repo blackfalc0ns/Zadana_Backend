@@ -36,19 +36,22 @@ public class UpdateVendorContactCommandHandler : IRequestHandler<UpdateVendorCon
     private readonly IUnitOfWork _unitOfWork;
     private readonly ICurrentUserService _currentUserService;
     private readonly IVendorReviewAuditService _vendorReviewAuditService;
+    private readonly IAdminAlertService _adminAlertService;
 
     public UpdateVendorContactCommandHandler(
         IVendorRepository vendorRepository,
         IVendorReadService vendorReadService,
         IUnitOfWork unitOfWork,
         ICurrentUserService currentUserService,
-        IVendorReviewAuditService vendorReviewAuditService)
+        IVendorReviewAuditService vendorReviewAuditService,
+        IAdminAlertService adminAlertService)
     {
         _vendorRepository = vendorRepository;
         _vendorReadService = vendorReadService;
         _unitOfWork = unitOfWork;
         _currentUserService = currentUserService;
         _vendorReviewAuditService = vendorReviewAuditService;
+        _adminAlertService = adminAlertService;
     }
 
     public async Task<VendorWorkspaceDto> Handle(UpdateVendorContactCommand request, CancellationToken cancellationToken)
@@ -87,6 +90,12 @@ public class UpdateVendorContactCommandHandler : IRequestHandler<UpdateVendorCon
             vendor.BusinessNameAr,
             userId,
             vendor.BusinessNameAr,
+            cancellationToken);
+
+        await VendorProfileSectionAdminAlerts.NotifySectionReviewAsync(
+            _adminAlertService,
+            vendor,
+            "contact",
             cancellationToken);
 
         return await _vendorReadService.GetWorkspaceByUserIdAsync(userId, cancellationToken)

@@ -126,12 +126,13 @@ public sealed class SubmitVendorReviewCommandHandler : IRequestHandler<SubmitVen
                 $"قام التاجر {vendor.BusinessNameAr} بإرسال بياناته ومستنداته للمراجعة.",
                 $"Vendor {vendor.BusinessNameEn} submitted profile and documents for review.",
                 vendor.Id,
-                $"/vendors/{vendor.Id}",
+                $"/vendors/{vendor.Id}/compliance",
                 new
                 {
                     vendorId = vendor.Id,
                     userId = vendor.UserId,
-                    status = vendor.Status.ToString()
+                    status = vendor.Status.ToString(),
+                    section = "legal"
                 }),
             cancellationToken);
 

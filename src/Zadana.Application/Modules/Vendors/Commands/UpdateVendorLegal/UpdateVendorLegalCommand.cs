@@ -5,6 +5,7 @@ using Zadana.Application.Common.Interfaces;
 using Zadana.Application.Common.Localization;
 using Zadana.Application.Modules.Vendors.DTOs;
 using Zadana.Application.Modules.Vendors.Interfaces;
+using Zadana.Application.Modules.Vendors.Support;
 using Zadana.SharedKernel.Exceptions;
 
 namespace Zadana.Application.Modules.Vendors.Commands.UpdateVendorLegal;
@@ -35,19 +36,22 @@ public class UpdateVendorLegalCommandHandler : IRequestHandler<UpdateVendorLegal
     private readonly ICurrentUserService _currentUserService;
     private readonly IVendorReviewAuditService _vendorReviewAuditService;
     private readonly IProfileChangeApprovalService _profileChangeApprovalService;
+    private readonly IAdminAlertService _adminAlertService;
 
     public UpdateVendorLegalCommandHandler(
         IVendorRepository vendorRepository,
         IVendorReadService vendorReadService,
         ICurrentUserService currentUserService,
         IVendorReviewAuditService vendorReviewAuditService,
-        IProfileChangeApprovalService profileChangeApprovalService)
+        IProfileChangeApprovalService profileChangeApprovalService,
+        IAdminAlertService adminAlertService)
     {
         _vendorRepository = vendorRepository;
         _vendorReadService = vendorReadService;
         _currentUserService = currentUserService;
         _vendorReviewAuditService = vendorReviewAuditService;
         _profileChangeApprovalService = profileChangeApprovalService;
+        _adminAlertService = adminAlertService;
     }
 
     public async Task<VendorWorkspaceDto> Handle(UpdateVendorLegalCommand request, CancellationToken cancellationToken)
@@ -94,6 +98,12 @@ public class UpdateVendorLegalCommandHandler : IRequestHandler<UpdateVendorLegal
             vendor.BusinessNameAr,
             userId,
             vendor.BusinessNameAr,
+            cancellationToken);
+
+        await VendorProfileSectionAdminAlerts.NotifySectionReviewAsync(
+            _adminAlertService,
+            vendor,
+            "legal",
             cancellationToken);
 
         return await _vendorReadService.GetWorkspaceByUserIdAsync(userId, cancellationToken)

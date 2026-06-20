@@ -51,6 +51,7 @@ public class UpdateVendorStoreCommandHandler : IRequestHandler<UpdateVendorStore
     private readonly ICurrentUserService _currentUserService;
     private readonly IVendorReviewAuditService _vendorReviewAuditService;
     private readonly IProfileChangeApprovalService _profileChangeApprovalService;
+    private readonly IAdminAlertService _adminAlertService;
 
     public UpdateVendorStoreCommandHandler(
         IVendorRepository vendorRepository,
@@ -58,7 +59,8 @@ public class UpdateVendorStoreCommandHandler : IRequestHandler<UpdateVendorStore
         IUnitOfWork unitOfWork,
         ICurrentUserService currentUserService,
         IVendorReviewAuditService vendorReviewAuditService,
-        IProfileChangeApprovalService profileChangeApprovalService)
+        IProfileChangeApprovalService profileChangeApprovalService,
+        IAdminAlertService adminAlertService)
     {
         _vendorRepository = vendorRepository;
         _vendorReadService = vendorReadService;
@@ -66,6 +68,7 @@ public class UpdateVendorStoreCommandHandler : IRequestHandler<UpdateVendorStore
         _currentUserService = currentUserService;
         _vendorReviewAuditService = vendorReviewAuditService;
         _profileChangeApprovalService = profileChangeApprovalService;
+        _adminAlertService = adminAlertService;
     }
 
     public async Task<VendorWorkspaceDto> Handle(UpdateVendorStoreCommand request, CancellationToken cancellationToken)
@@ -134,6 +137,12 @@ public class UpdateVendorStoreCommandHandler : IRequestHandler<UpdateVendorStore
             vendor.BusinessNameAr,
             userId,
             vendor.BusinessNameAr,
+            cancellationToken);
+
+        await VendorProfileSectionAdminAlerts.NotifySectionReviewAsync(
+            _adminAlertService,
+            vendor,
+            "store",
             cancellationToken);
 
         return await _vendorReadService.GetWorkspaceByUserIdAsync(userId, cancellationToken)
