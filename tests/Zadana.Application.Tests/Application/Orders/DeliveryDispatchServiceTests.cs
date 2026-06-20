@@ -83,6 +83,7 @@ public class DeliveryDispatchServiceTests
             vendorCity: "Riyadh",
             branchRegion: "Makkah",
             branchCity: "Jeddah",
+            customerCity: "Jeddah",
             sameZoneDriverRegion: "MAKKAH",
             sameZoneDriverCity: "JEDDAH");
         var service = CreateDispatchService(dbContext);
@@ -103,7 +104,8 @@ public class DeliveryDispatchServiceTests
         var scenario = await SeedDispatchScenarioAsync(
             dbContext,
             branchRegion: "Makkah",
-            branchCity: "Jeddah");
+            branchCity: "Jeddah",
+            customerCity: "Jeddah");
         var service = CreateDispatchService(dbContext);
 
         var decision = await service.TryAutoDispatchAsync(scenario.Order.Id, cancellationToken: CancellationToken.None);
@@ -282,13 +284,14 @@ public class DeliveryDispatchServiceTests
     }
 
     [Fact]
-    public async Task TryAutoDispatchAsync_WhenOnlyDriverInSameRegionDifferentCity_ShouldOfferDriver()
+    public async Task TryAutoDispatchAsync_WhenOnlyDriverInSameRegionDifferentCity_ShouldNotOfferDriver()
     {
         await using var dbContext = CreateDbContext();
         var scenario = await SeedDispatchScenarioAsync(
             dbContext,
             branchRegion: "Eastern Province",
             branchCity: "Khobar",
+            customerCity: "Khobar",
             sameZoneDriverRegion: "EASTERN",
             sameZoneDriverCity: "DAMMAM",
             sameCityFallbackDriverRegion: "MAKKAH",
@@ -303,12 +306,8 @@ public class DeliveryDispatchServiceTests
 
         var decision = await service.TryAutoDispatchAsync(scenario.Order.Id, cancellationToken: CancellationToken.None);
 
-        decision.Should().NotBeNull();
-        decision!.DriverId.Should().Be(scenario.SameZoneFreshDriver.Id);
-
-        var assignment = await dbContext.DeliveryAssignments.SingleAsync();
-        assignment.DriverId.Should().Be(scenario.SameZoneFreshDriver.Id);
-        assignment.Status.Should().Be(AssignmentStatus.OfferSent);
+        decision.Should().BeNull();
+        (await dbContext.DeliveryAssignments.CountAsync()).Should().Be(0);
     }
 
     [Fact]
@@ -382,6 +381,7 @@ public class DeliveryDispatchServiceTests
         string vendorCity = "Riyadh",
         string branchRegion = "Riyadh",
         string branchCity = "Riyadh",
+        string customerCity = "Riyadh",
         string sameZoneDriverRegion = "RIYADH",
         string sameZoneDriverCity = "RIYADH",
         string sameCityFallbackDriverRegion = "RIYADH",
@@ -441,11 +441,21 @@ public class DeliveryDispatchServiceTests
         secondSameZoneDriver.Approve(Guid.NewGuid());
         secondSameZoneDriver.ToggleAvailability(true);
 
+        var customerAddressId = Guid.NewGuid();
+        var customerAddress = new CustomerAddress(
+            customer.Id,
+            "Dispatch Customer",
+            "01000000992",
+            "Customer delivery address",
+            city: customerCity);
+
+        SetPrivateProperty(customerAddress, nameof(CustomerAddress.Id), customerAddressId);
+
         var order = new Order(
             "ORD-DISPATCH-001",
             customer.Id,
             vendor.Id,
-            Guid.NewGuid(),
+            customerAddressId,
             PaymentMethodType.Card,
             120m,
             0m,
@@ -483,6 +493,7 @@ public class DeliveryDispatchServiceTests
         dbContext.Vendors.Add(vendor);
         dbContext.VendorBranches.Add(branch);
         dbContext.Drivers.AddRange(sameZoneFreshDriver, sameCityFallbackDriver, secondSameZoneDriver);
+        dbContext.CustomerAddresses.Add(customerAddress);
         dbContext.Orders.Add(order);
 
         dbContext.DriverLocations.Add(new DriverLocation(

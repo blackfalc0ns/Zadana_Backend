@@ -4,40 +4,30 @@ namespace Zadana.Application.Modules.Delivery.Support;
 
 public static class DeliveryPickupAreaMatcher
 {
-    public static bool DriverMatchesPickup(Driver driver, string? pickupCity, string? pickupRegion)
+    /// <summary>
+    /// Driver must operate in the store (branch) city and the customer delivery city.
+    /// When both cities are set they must normalize to the same city for a match.
+    /// </summary>
+    public static bool DriverMatchesDeliveryArea(Driver driver, string? storeCity, string? customerCity)
     {
-        if (DeliveryCityMatcher.Matches(driver.City, pickupCity))
+        if (!DeliveryCityMatcher.Matches(driver.City, storeCity))
         {
-            return true;
+            return false;
         }
 
-        return !string.IsNullOrWhiteSpace(pickupRegion)
-            && DeliveryRegionMatcher.Matches(driver.Region, pickupRegion);
+        if (string.IsNullOrWhiteSpace(customerCity))
+        {
+            return false;
+        }
+
+        return DeliveryCityMatcher.Matches(driver.City, customerCity);
     }
 
     public static List<Driver> FilterDrivers(
         IEnumerable<Driver> drivers,
-        string? pickupCity,
-        string? pickupRegion)
-    {
-        var driverList = drivers.ToList();
-
-        var cityMatches = driverList
-            .Where(driver => DeliveryCityMatcher.Matches(driver.City, pickupCity))
+        string? storeCity,
+        string? customerCity) =>
+        drivers
+            .Where(driver => DriverMatchesDeliveryArea(driver, storeCity, customerCity))
             .ToList();
-
-        if (cityMatches.Count > 0)
-        {
-            return cityMatches;
-        }
-
-        if (string.IsNullOrWhiteSpace(pickupRegion))
-        {
-            return cityMatches;
-        }
-
-        return driverList
-            .Where(driver => DeliveryRegionMatcher.Matches(driver.Region, pickupRegion))
-            .ToList();
-    }
 }

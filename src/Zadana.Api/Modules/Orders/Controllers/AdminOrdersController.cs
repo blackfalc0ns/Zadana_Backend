@@ -171,11 +171,11 @@ public class AdminOrdersController : ApiControllerBase
                 "Driver must be approved, online, unrestricted, and ready to receive new offers before assignment.");
         }
 
-        if (!DriverMatchesPickupArea(driver, order))
+        if (!await DriverMatchesDeliveryAreaAsync(driver, order, cancellationToken))
         {
             throw new BusinessRuleException(
                 "DRIVER_CITY_MISMATCH",
-                "Driver cannot be assigned because their city does not match the order branch city.");
+                "Driver cannot be assigned because their city does not match the store and customer city.");
         }
 
         var assignment = await _dbContext.DeliveryAssignments
@@ -571,12 +571,17 @@ public class AdminOrdersController : ApiControllerBase
         return parsed;
     }
 
-    private static bool DriverMatchesPickupArea(Driver driver, Order order)
+    private async Task<bool> DriverMatchesDeliveryAreaAsync(Driver driver, Order order, CancellationToken cancellationToken)
     {
         var pickupCity = FirstNonBlank(order.VendorBranch?.City, order.Vendor?.City);
-        var pickupRegion = FirstNonBlank(order.VendorBranch?.Region, order.Vendor?.Region);
+        var customerAddress = await _dbContext.CustomerAddresses
+            .AsNoTracking()
+            .FirstOrDefaultAsync(item => item.Id == order.CustomerAddressId, cancellationToken);
 
-        return DeliveryPickupAreaMatcher.DriverMatchesPickup(driver, pickupCity, pickupRegion);
+        return DeliveryPickupAreaMatcher.DriverMatchesDeliveryArea(
+            driver,
+            pickupCity,
+            customerAddress?.City);
     }
 
     private static bool CityMatches(string? left, string? right)

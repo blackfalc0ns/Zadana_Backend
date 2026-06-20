@@ -85,9 +85,23 @@ public sealed class DriverHomeReadService : IDriverHomeReadService
             .OrderByDescending(a => a.OfferedAtUtc)
             .FirstOrDefaultAsync(cancellationToken);
 
-        if (currentOfferEntity is not null && !DriverMatchesPickupArea(driver, currentOfferEntity.Order))
+        if (currentOfferEntity is not null)
         {
-            currentOfferEntity = null;
+            var customerAddress = await _context.CustomerAddresses
+                .AsNoTracking()
+                .FirstOrDefaultAsync(a => a.Id == currentOfferEntity.Order.CustomerAddressId, cancellationToken);
+
+            var pickupCity = FirstNonBlank(
+                currentOfferEntity.Order.VendorBranch?.City,
+                currentOfferEntity.Order.Vendor?.City);
+
+            if (!DeliveryPickupAreaMatcher.DriverMatchesDeliveryArea(
+                    driver,
+                    pickupCity,
+                    customerAddress?.City))
+            {
+                currentOfferEntity = null;
+            }
         }
 
         var currentAssignmentEntity = await _context.DeliveryAssignments
@@ -213,14 +227,6 @@ public sealed class DriverHomeReadService : IDriverHomeReadService
         assignment.Order.PaymentMethod == PaymentMethodType.CashOnDelivery
             ? assignment.CodAmount
             : 0m;
-
-    private static bool DriverMatchesPickupArea(Driver driver, Domain.Modules.Orders.Entities.Order order)
-    {
-        var pickupCity = FirstNonBlank(order.VendorBranch?.City, order.Vendor?.City);
-        var pickupRegion = FirstNonBlank(order.VendorBranch?.Region, order.Vendor?.Region);
-
-        return DeliveryPickupAreaMatcher.DriverMatchesPickup(driver, pickupCity, pickupRegion);
-    }
 
     private static string? FirstNonBlank(params string?[] values) =>
         values.FirstOrDefault(value => !string.IsNullOrWhiteSpace(value))?.Trim();
