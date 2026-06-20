@@ -99,6 +99,45 @@ public static class VendorProfileReviewCatalog
     public static IReadOnlyList<string> GetSectionCodes(string section) =>
         SectionCodes.TryGetValue(section, out var codes) ? codes : [];
 
+    public static bool TryResolveSection(string code, out string section)
+    {
+        foreach (var (sectionKey, codes) in SectionCodes)
+        {
+            if (codes.Any(item => string.Equals(item, code, StringComparison.OrdinalIgnoreCase)))
+            {
+                section = sectionKey;
+                return true;
+            }
+        }
+
+        if (string.Equals(code, Step5Commercial, StringComparison.OrdinalIgnoreCase)
+            || string.Equals(code, Step5Tax, StringComparison.OrdinalIgnoreCase)
+            || string.Equals(code, Step5License, StringComparison.OrdinalIgnoreCase))
+        {
+            section = "legal";
+            return true;
+        }
+
+        section = string.Empty;
+        return false;
+    }
+
+    public static (string LabelAr, string LabelEn) GetSectionLabel(string section) =>
+        SectionLabels.TryGetValue(section, out var label) ? label : ("قسم الملف", "Profile section");
+
+    private static readonly IReadOnlyDictionary<string, (string LabelAr, string LabelEn)> SectionLabels =
+        new Dictionary<string, (string LabelAr, string LabelEn)>(StringComparer.OrdinalIgnoreCase)
+        {
+            ["store"] = ("بيانات المتجر", "Store profile"),
+            ["owner"] = ("بيانات المالك", "Owner details"),
+            ["contact"] = ("بيانات التواصل", "Contact details"),
+            ["legal"] = ("البيانات القانونية", "Legal & compliance"),
+            ["banking"] = ("البيانات البنكية", "Banking details")
+        };
+
+    public static string BuildProfileSectionTab(string section) =>
+        string.IsNullOrWhiteSpace(section) ? "store-section" : $"{section.Trim().ToLowerInvariant()}-section";
+
     public sealed record ReviewDefinition(
         string Code,
         int Step,

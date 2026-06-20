@@ -111,15 +111,51 @@ public class ReviewVendorProfileFieldsCommandHandler : IRequestHandler<ReviewVen
                             new ValidationFailure("items.decision", $"Unsupported decision '{item.Decision}'.")
                         });
                 }
+            }
 
-                var actionLabel = item.Decision == "approved" ? "قبول" : "رفض";
+            var sectionNotifications = normalizedItems
+                .Where(item => VendorProfileReviewCatalog.TryResolveSection(item.Code, out _))
+                .GroupBy(item =>
+                {
+                    VendorProfileReviewCatalog.TryResolveSection(item.Code, out var section);
+                    return section;
+                })
+                .ToList();
+
+            foreach (var group in sectionNotifications)
+            {
+                var (labelAr, labelEn) = VendorProfileReviewCatalog.GetSectionLabel(group.Key);
+                var hasRejected = group.Any(item => item.Decision == "rejected");
+                var rejectionReasons = group
+                    .Where(item => item.Decision == "rejected" && !string.IsNullOrWhiteSpace(item.Reason))
+                    .Select(item => item.Reason!)
+                    .Distinct(StringComparer.Ordinal)
+                    .ToList();
+
+                var messageAr = !hasRejected
+                    ? $"تم قبول قسم {labelAr}."
+                    : rejectionReasons.Count switch
+                    {
+                        0 => $"تم طلب تعديلات على قسم {labelAr}.",
+                        1 => $"تم طلب تعديلات على قسم {labelAr}: {rejectionReasons[0]}",
+                        _ => $"تم طلب تعديلات على قسم {labelAr}: {string.Join(" • ", rejectionReasons)}"
+                    };
+
+                var messageEn = !hasRejected
+                    ? $"{labelEn} section was approved."
+                    : rejectionReasons.Count switch
+                    {
+                        0 => $"Changes were requested for the {labelEn} section.",
+                        1 => $"Changes were requested for the {labelEn} section: {rejectionReasons[0]}",
+                        _ => $"Changes were requested for the {labelEn} section: {string.Join(" • ", rejectionReasons)}"
+                    };
+
                 AddAuditNotifications(
                     vendor.UserId,
-                    item.Decision == "approved" ? "profile-field-approved" : "profile-field-rejected",
-                    item.Decision == "approved" ? "success" : "warning",
-                    item.Decision == "approved"
-                        ? $"تم {actionLabel} العنصر {item.Code}."
-                        : $"تم {actionLabel} العنصر {item.Code}. {item.Reason}",
+                    $"profile-section-{group.Key}-{(hasRejected ? "rejected" : "approved")}",
+                    hasRejected ? "warning" : "success",
+                    messageAr,
+                    messageEn,
                     "مراجعة بيانات التاجر",
                     reviewerName);
             }
@@ -137,6 +173,22 @@ public class ReviewVendorProfileFieldsCommandHandler : IRequestHandler<ReviewVen
             await _dbContext.SaveChangesAsync(cancellationToken);
 
             var rejectedCount = normalizedItems.Count(item => item.Decision == "rejected");
+            var affectedSections = normalizedItems
+                .Select(item =>
+                {
+                    return VendorProfileReviewCatalog.TryResolveSection(item.Code, out var section)
+                        ? section
+                        : null;
+                })
+                .Where(section => !string.IsNullOrWhiteSpace(section))
+                .Distinct(StringComparer.OrdinalIgnoreCase)
+                .Cast<string>()
+                .ToList();
+
+            var targetUrl = affectedSections.Count == 1
+                ? $"/profile?tab={VendorProfileReviewCatalog.BuildProfileSectionTab(affectedSections[0])}"
+                : "/profile";
+
             await _vendorCommunicationService.SendAsync(
                 vendor,
                 new VendorCommunicationMessage(
@@ -144,12 +196,12 @@ public class ReviewVendorProfileFieldsCommandHandler : IRequestHandler<ReviewVen
                     rejectedCount > 0 ? "مطلوب تعديل بيانات في ملف التاجر" : "تم اعتماد عناصر من ملف التاجر",
                     rejectedCount > 0 ? "Vendor profile changes requested" : "Vendor profile items approved",
                     rejectedCount > 0
-                        ? "تمت مراجعة بعض بيانات الملف وتحتاج إلى تعديل قبل إعادة الإرسال."
-                        : "تم اعتماد بعض عناصر ملف التاجر من فريق الامتثال.",
+                        ? BuildSectionAwareBodyAr(affectedSections, changesRequested: true)
+                        : BuildSectionAwareBodyAr(affectedSections, changesRequested: false),
                     rejectedCount > 0
-                        ? "Some profile items were reviewed and need correction before resubmission."
-                        : "Some vendor profile items were approved by the compliance team.",
-                    "/profile",
+                        ? BuildSectionAwareBodyEn(affectedSections, changesRequested: true)
+                        : BuildSectionAwareBodyEn(affectedSections, changesRequested: false),
+                    targetUrl,
                     vendor.Id,
                     SendPush: true),
                 cancellationToken);
@@ -175,11 +227,46 @@ public class ReviewVendorProfileFieldsCommandHandler : IRequestHandler<ReviewVen
         return string.IsNullOrWhiteSpace(actor?.FullName) ? "Vendor Compliance Desk" : actor.FullName;
     }
 
+    private static string BuildSectionAwareBodyAr(IReadOnlyCollection<string> sections, bool changesRequested)
+    {
+        if (sections.Count == 0)
+        {
+            return changesRequested
+                ? "تمت مراجعة بعض بيانات الملف وتحتاج إلى تعديل قبل إعادة الإرسال."
+                : "تم اعتماد بعض عناصر ملف التاجر من فريق الامتثال.";
+        }
+
+        var labels = sections.Select(section => VendorProfileReviewCatalog.GetSectionLabel(section).LabelAr).ToList();
+        var sectionList = string.Join("، ", labels);
+
+        return changesRequested
+            ? $"تمت مراجعة {sectionList} وتحتاج إلى تعديل قبل إعادة الإرسال."
+            : $"تم اعتماد {sectionList} من فريق الامتثال.";
+    }
+
+    private static string BuildSectionAwareBodyEn(IReadOnlyCollection<string> sections, bool changesRequested)
+    {
+        if (sections.Count == 0)
+        {
+            return changesRequested
+                ? "Some profile items were reviewed and need correction before resubmission."
+                : "Some vendor profile items were approved by the compliance team.";
+        }
+
+        var labels = sections.Select(section => VendorProfileReviewCatalog.GetSectionLabel(section).LabelEn).ToList();
+        var sectionList = string.Join(", ", labels);
+
+        return changesRequested
+            ? $"{sectionList} were reviewed and need correction before resubmission."
+            : $"{sectionList} were approved by the compliance team.";
+    }
+
     private void AddAuditNotifications(
         Guid vendorUserId,
         string kind,
         string tone,
-        string message,
+        string messageAr,
+        string messageEn,
         string roleLabel,
         string reviewerName)
     {
@@ -197,16 +284,16 @@ public class ReviewVendorProfileFieldsCommandHandler : IRequestHandler<ReviewVen
             vendorUserId,
             reviewerName,
             reviewerName,
-            message,
-            message,
+            messageAr,
+            messageEn,
             BuildType("vendor-review"));
 
         var notif2 = new Zadana.Domain.Modules.Social.Entities.Notification(
             vendorUserId,
             reviewerName,
             reviewerName,
-            message,
-            message,
+            messageAr,
+            messageEn,
             BuildType("vendor-activity"));
 
         _dbContext.Notifications.Add(notif1);
