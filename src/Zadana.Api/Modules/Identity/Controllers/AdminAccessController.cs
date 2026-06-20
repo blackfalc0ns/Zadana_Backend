@@ -800,19 +800,23 @@ public class AdminAccessController(
             payload.VehicleImageUrl,
             payload.PersonalPhotoUrl);
 
+        var reviewerId = currentUserService.UserId
+            ?? throw new BusinessRuleException("ADMIN_REVIEWER_REQUIRED", "An authenticated admin reviewer is required.");
+        var reviewerName = await ResolveDriverComplianceReviewerNameAsync(reviewerId, cancellationToken);
+
         if (nationalIdChanged)
         {
-            ResetDriverDocumentReviewIfReady(driver, DriverDocumentType.NationalId);
+            ApproveDriverDocumentReviewIfReady(driver, DriverDocumentType.NationalId, reviewerId, reviewerName);
         }
 
         if (driverLicenseChanged)
         {
-            ResetDriverDocumentReviewIfReady(driver, DriverDocumentType.DriverLicense);
+            ApproveDriverDocumentReviewIfReady(driver, DriverDocumentType.DriverLicense, reviewerId, reviewerName);
         }
 
         if (vehicleLicenseChanged)
         {
-            ResetDriverDocumentReviewIfReady(driver, DriverDocumentType.VehicleLicense);
+            ApproveDriverDocumentReviewIfReady(driver, DriverDocumentType.VehicleLicense, reviewerId, reviewerName);
         }
 
         driver.RefreshProfileReviewState(
@@ -1011,6 +1015,43 @@ public class AdminAccessController(
         {
             driver.ResetDocumentReviewToPending(type);
         }
+    }
+
+    private void ApproveDriverDocumentReviewIfReady(
+        Domain.Modules.Delivery.Entities.Driver driver,
+        DriverDocumentType type,
+        Guid reviewerUserId,
+        string reviewerName)
+    {
+        var hasPacket = type switch
+        {
+            DriverDocumentType.NationalId => DriverProfileReadinessFactory.HasNationalIdPacket(driver),
+            DriverDocumentType.DriverLicense => DriverProfileReadinessFactory.HasDriverLicensePacket(driver),
+            DriverDocumentType.VehicleLicense => DriverProfileReadinessFactory.HasVehicleLicensePacket(driver),
+            _ => false
+        };
+
+        if (!hasPacket)
+        {
+            return;
+        }
+
+        var existingReview = driver.DocumentReviews.FirstOrDefault(item => item.Type == type);
+        var documentReview = existingReview ?? driver.GetOrCreateDocumentReview(type);
+        if (existingReview is null)
+        {
+            dbContext.DriverDocumentReviews.Add(documentReview);
+        }
+
+        documentReview.Approve(reviewerUserId, reviewerName);
+    }
+
+    private async Task<string> ResolveDriverComplianceReviewerNameAsync(
+        Guid reviewerUserId,
+        CancellationToken cancellationToken)
+    {
+        var actor = await identityAccountService.FindByIdAsync(reviewerUserId, cancellationToken);
+        return string.IsNullOrWhiteSpace(actor?.FullName) ? "Driver Compliance Desk" : actor.FullName;
     }
 
     private static DriverPayoutMethodType ParseDriverPayoutMethodType(string value)

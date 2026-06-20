@@ -78,7 +78,8 @@ public class ApproveDriverDocumentReviewCommandHandler : IRequestHandler<Approve
 
         if (driver.User is not null &&
             DriverProfileReadinessFactory.GetMissingRequirements(driver, driver.User).Count == 0 &&
-            DriverProfileReadinessFactory.AreRequiredDocumentsApproved(driver))
+            DriverProfileReadinessFactory.AreRequiredDocumentsApproved(driver) &&
+            driver.VerificationStatus != DriverVerificationStatus.Approved)
         {
             driver.RefreshProfileReviewState(true, sensitiveChange: true, note: "Documents approved and pending final account approval");
         }

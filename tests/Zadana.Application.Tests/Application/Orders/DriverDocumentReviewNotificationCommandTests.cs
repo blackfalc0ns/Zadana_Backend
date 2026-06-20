@@ -188,6 +188,42 @@ public class DriverDocumentReviewNotificationCommandTests
             item.Decision == DriverDocumentReviewDecision.Approved);
     }
 
+    [Fact]
+    public async Task ApproveDocument_WhenDriverAlreadyApproved_ShouldNotDowngradeVerificationStatus()
+    {
+        var reviewerId = Guid.NewGuid();
+        var driver = CreateDriver();
+        driver.Approve(reviewerId, "Initial account approval");
+        driver.GetOrCreateDocumentReview(DriverDocumentType.NationalId).Approve(reviewerId, "Reviewer");
+        driver.GetOrCreateDocumentReview(DriverDocumentType.DriverLicense).Approve(reviewerId, "Reviewer");
+        driver.GetOrCreateDocumentReview(DriverDocumentType.VehicleLicense).Approve(reviewerId, "Reviewer");
+
+        ConfigureActor(reviewerId);
+        _driverRepositoryMock
+            .Setup(repository => repository.GetByIdWithReviewsAsync(driver.Id, It.IsAny<CancellationToken>()))
+            .ReturnsAsync(driver);
+        _dbContextMock
+            .Setup(context => context.SaveChangesAsync(It.IsAny<CancellationToken>()))
+            .ReturnsAsync(1);
+
+        var handler = new ApproveDriverDocumentReviewCommandHandler(
+            _driverRepositoryMock.Object,
+            _dbContextMock.Object,
+            _currentUserServiceMock.Object,
+            _identityAccountServiceMock.Object,
+            _notificationServiceMock.Object,
+            _oneSignalPushServiceMock.Object,
+            NullLogger<ApproveDriverDocumentReviewCommandHandler>.Instance);
+
+        await handler.Handle(
+            new ApproveDriverDocumentReviewCommand(driver.Id, DriverDocumentType.DriverLicense.ToString()),
+            CancellationToken.None);
+
+        driver.VerificationStatus.Should().Be(DriverVerificationStatus.Approved);
+        driver.ReviewedAtUtc.Should().NotBeNull();
+        driver.ReviewedByUserId.Should().Be(reviewerId);
+    }
+
     private void ConfigureActor(Guid reviewerId)
     {
         _currentUserServiceMock.SetupGet(service => service.UserId).Returns(reviewerId);
