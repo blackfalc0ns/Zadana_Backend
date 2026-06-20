@@ -105,6 +105,8 @@ public class AdminVendorBankAccountsController : ApiControllerBase
                 accountId,
                 data,
                 "/profile/bank-accounts",
+                OneSignalPushProfile.Default,
+                OneSignalApplicationTarget.VendorWeb,
                 ct);
         }
 
@@ -157,6 +159,8 @@ public class AdminVendorBankAccountsController : ApiControllerBase
                 accountId,
                 data,
                 "/profile/bank-accounts",
+                OneSignalPushProfile.Default,
+                OneSignalApplicationTarget.VendorWeb,
                 ct);
         }
 

@@ -81,10 +81,13 @@
           <environmentVariable name="BankTransfer__WebhookSecret"     value="&lt;&lt;HEX_FROM_rotate-secrets.ps1&gt;&gt;" />
 
           <!-- ===== OneSignal Push ===== -->
+          <environmentVariable name="OneSignal__Enabled"            value="true" />
           <environmentVariable name="OneSignal__AppId"              value="e557da4e-947b-468b-ab5b-37c552c35dca" />
-          <environmentVariable name="OneSignal__RestApiKey"         value="&lt;&lt;NEW_ONESIGNAL_REST_API_KEY&gt;&gt;" />
-          <environmentVariable name="OneSignal__DriverAppId"        value="1eead1ea-3d6f-4f2a-8bc5-c681d71b55f6" />
+          <environmentVariable name="OneSignal__RestApiKey"         value="&lt;&lt;NEW_CUSTOMER_REST_API_KEY&gt;&gt;" />
+          <environmentVariable name="OneSignal__DriverAppId"        value="1029ab79-2599-4a14-bd1b-f94e2598f363" />
           <environmentVariable name="OneSignal__DriverRestApiKey"   value="&lt;&lt;NEW_DRIVER_REST_API_KEY&gt;&gt;" />
+          <environmentVariable name="OneSignal__VendorWebAppId"     value="a0a2059e-f011-464d-abe1-7b3de71f72ab" />
+          <environmentVariable name="OneSignal__VendorWebRestApiKey" value="&lt;&lt;NEW_VENDOR_WEB_REST_API_KEY&gt;&gt;" />
           <environmentVariable name="OneSignal__AdminWebAppId"      value="c32e801d-7fa0-46f3-bd0a-564af78dbddf" />
           <environmentVariable name="OneSignal__AdminWebRestApiKey" value="&lt;&lt;NEW_ADMIN_REST_API_KEY&gt;&gt;" />
           <environmentVariable name="OneSignal__AdminDefaultWebUrl" value="https://zadan-super-panel.vercel.app/" />

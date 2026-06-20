@@ -58,6 +58,8 @@ public sealed class VendorCommunicationService : IVendorCommunicationService
                 message.ReferenceId,
                 data,
                 message.TargetUrl,
+                OneSignalPushProfile.Default,
+                OneSignalApplicationTarget.VendorWeb,
                 cancellationToken)
             : new OneSignalPushDispatchResult(
                 Attempted: false,

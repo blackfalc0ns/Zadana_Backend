@@ -95,31 +95,16 @@ public class RemoveCartItemCommandHandler : IRequestHandler<RemoveCartItemComman
         }
 
         var address = await CartBranchSelectionSupport.ResolveDefaultAddressAsync(_context, actor, cancellationToken);
-        var cartDto = await CartProjection.BuildCartDtoAsync(_context, refreshedCart, cancellationToken, request.VendorId, address);
-
-        if (!cartDto.Summary.IsPricingAvailable)
-        {
-            cartDto = await CartProjection.BuildCartDtoAsync(
-                _context,
-                refreshedCart,
-                cancellationToken,
-                request.VendorId,
-                address,
-                preferCheapestVendorWhenAmbiguous: true);
-
-            if (!cartDto.Summary.IsPricingAvailable)
-            {
-                var fallbackVendorId = await CartProjection.ResolveSingleProductPricingVendorIdAsync(_context, refreshedCart, cancellationToken);
-                if (fallbackVendorId.HasValue)
-                {
-                    cartDto = await CartProjection.BuildCartDtoAsync(_context, refreshedCart, cancellationToken, fallbackVendorId, address);
-                }
-            }
-        }
+        var summary = await CartProjection.BuildCartSummaryForMutationAsync(
+            _context,
+            refreshedCart,
+            request.VendorId,
+            address,
+            cancellationToken);
 
         return new CartItemRemovalResponseDto(
             LocalizedMessages.GetAr(LocalizedMessages.CartItemRemoved),
             LocalizedMessages.GetEn(LocalizedMessages.CartItemRemoved),
-            cartDto.Summary);
+            summary);
     }
 }

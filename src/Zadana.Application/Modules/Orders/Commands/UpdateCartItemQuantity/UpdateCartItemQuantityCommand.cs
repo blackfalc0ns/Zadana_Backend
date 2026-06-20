@@ -78,29 +78,12 @@ public class UpdateCartItemQuantityCommandHandler : IRequestHandler<UpdateCartIt
 
         var address = await CartBranchSelectionSupport.ResolveDefaultAddressAsync(_context, actor, cancellationToken);
         var cartDto = await CartProjection.BuildCartDtoAsync(_context, cart, cancellationToken, request.VendorId, address);
-        var summary = cartDto.Summary;
-
-        if (!summary.IsPricingAvailable)
-        {
-            var pricedCartDto = await CartProjection.BuildCartDtoAsync(
-                _context,
-                cart,
-                cancellationToken,
-                request.VendorId,
-                address,
-                preferCheapestVendorWhenAmbiguous: true);
-            summary = pricedCartDto.Summary;
-
-            if (!summary.IsPricingAvailable)
-            {
-                var fallbackVendorId = await CartProjection.ResolveSingleProductPricingVendorIdAsync(_context, cart, cancellationToken);
-                if (fallbackVendorId.HasValue)
-                {
-                    summary = (await CartProjection.BuildCartDtoAsync(_context, cart, cancellationToken, fallbackVendorId, address)).Summary;
-                }
-            }
-        }
-
+        var summary = await CartProjection.BuildCartSummaryForMutationAsync(
+            _context,
+            cart,
+            request.VendorId,
+            address,
+            cancellationToken);
         var itemDto = cartDto.Items.Single(item => item.Id == cartItem.Id);
 
         return new CartItemMutationResponseDto(LocalizedMessages.GetAr(LocalizedMessages.CartItemUpdated), LocalizedMessages.GetEn(LocalizedMessages.CartItemUpdated), itemDto, summary);

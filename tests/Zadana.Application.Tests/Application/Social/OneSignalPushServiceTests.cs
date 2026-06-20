@@ -1000,6 +1000,42 @@ public class OneSignalPushServiceTests
         contents.GetProperty("ar").GetString().Should().Be("الطلب ينتظر مندوب توصيل.");
     }
 
+    [Fact]
+    public async Task SendToExternalUsersAsync_WithVendorWebTarget_ShouldUseVendorWebApplication()
+    {
+        var handler = new RecordingHttpMessageHandler(
+            HttpStatusCode.OK,
+            """{"id":"vendor-web-push"}""");
+        var service = CreateService(
+            handler,
+            configureSettings: settings =>
+            {
+                settings.VendorWebAppId = "vendor-web-app-id";
+                settings.VendorWebRestApiKey = "vendor-web-rest-key";
+            });
+
+        var results = await service.SendToExternalUsersAsync(
+            ["vendor-user-id"],
+            "تنبيه",
+            "Alert",
+            "نص",
+            "Body",
+            "vendor.order.created",
+            Guid.NewGuid(),
+            null,
+            "/orders",
+            OneSignalPushProfile.Default,
+            OneSignalApplicationTarget.VendorWeb,
+            CancellationToken.None);
+
+        results.Should().ContainSingle(result => result.Sent);
+        handler.RequestBodies.Should().ContainSingle();
+
+        using var document = JsonDocument.Parse(handler.RequestBodies[0]);
+        document.RootElement.GetProperty("app_id").GetString().Should().Be("vendor-web-app-id");
+        document.RootElement.GetProperty("web_url").GetString().Should().Be("https://vendor.example/orders");
+    }
+
     private static OneSignalPushService CreateService(
         RecordingHttpMessageHandler handler,
         ILogger<OneSignalPushService>? logger = null,

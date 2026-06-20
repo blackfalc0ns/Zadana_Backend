@@ -65,6 +65,13 @@ public sealed class OneSignalPushService : IOneSignalPushService
             restApiKeyConfigured: _settings.DriverRestApiKey);
 
         WarnIfSeparateAppCredentialsInconsistent(
+            applicationName: "VendorWeb",
+            appIdEnvVar: "OneSignal__VendorWebAppId",
+            appIdConfigured: _settings.VendorWebAppId,
+            restApiKeyEnvVar: "OneSignal__VendorWebRestApiKey",
+            restApiKeyConfigured: _settings.VendorWebRestApiKey);
+
+        WarnIfSeparateAppCredentialsInconsistent(
             applicationName: "AdminWeb",
             appIdEnvVar: "OneSignal__AdminWebAppId",
             appIdConfigured: _settings.AdminWebAppId,
@@ -381,6 +388,7 @@ public sealed class OneSignalPushService : IOneSignalPushService
                     .ToArray();
 
                 if (resolvedTargetApplication is OneSignalApplicationTarget.AdminWeb
+                    or OneSignalApplicationTarget.VendorWeb
                     or OneSignalApplicationTarget.Driver
                     or OneSignalApplicationTarget.Customer)
                 {
@@ -1332,6 +1340,18 @@ public sealed class OneSignalPushService : IOneSignalPushService
                 fallbackRestApiKey: customerRestApiKey);
         }
 
+        if (targetApplication == OneSignalApplicationTarget.VendorWeb)
+        {
+            return ResolveSeparateAppConfiguration(
+                applicationName: "VendorWeb",
+                appIdEnvVar: "OneSignal__VendorWebAppId",
+                appIdConfigured: _settings.VendorWebAppId,
+                restApiKeyEnvVar: "OneSignal__VendorWebRestApiKey",
+                restApiKeyConfigured: _settings.VendorWebRestApiKey,
+                fallbackAppId: customerAppId,
+                fallbackRestApiKey: customerRestApiKey);
+        }
+
         return (customerAppId, customerRestApiKey);
     }
 
@@ -1444,6 +1464,8 @@ public sealed class OneSignalPushService : IOneSignalPushService
                 "Driver OneSignal AppId or RestApiKey is not configured. Set OneSignal__DriverAppId and OneSignal__DriverRestApiKey, or configure OneSignal__AppId and OneSignal__RestApiKey as a fallback.",
             OneSignalApplicationTarget.AdminWeb =>
                 "Admin web OneSignal AppId or RestApiKey is not configured. Set OneSignal__AdminWebAppId and OneSignal__AdminWebRestApiKey, or configure OneSignal__AppId and OneSignal__RestApiKey as a fallback.",
+            OneSignalApplicationTarget.VendorWeb =>
+                "Vendor web OneSignal AppId or RestApiKey is not configured. Set OneSignal__VendorWebAppId and OneSignal__VendorWebRestApiKey, or configure OneSignal__AppId and OneSignal__RestApiKey as a fallback.",
             _ =>
                 "Customer OneSignal AppId or RestApiKey is not configured. Set OneSignal__AppId and OneSignal__RestApiKey."
         };

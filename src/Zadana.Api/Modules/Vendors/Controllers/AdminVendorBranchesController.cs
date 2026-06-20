@@ -181,7 +181,10 @@ public class AdminVendorBranchesController : ApiControllerBase
             vendorUserId.ToString(),
             titleAr, titleEn, bodyAr, bodyEn,
             NotificationTypes.VendorAccountUpdated,
-            branchId, data, "/branches", ct);
+            branchId, data, "/branches",
+            OneSignalPushProfile.Default,
+            OneSignalApplicationTarget.VendorWeb,
+            ct);
     }
 }
 

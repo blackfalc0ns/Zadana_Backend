@@ -186,6 +186,8 @@ public class VendorNotificationsController : ApiControllerBase
                 request.ReferenceId,
                 data,
                 request.TargetUrl,
+                OneSignalPushProfile.Default,
+                OneSignalApplicationTarget.VendorWeb,
                 cancellationToken)
             : new OneSignalPushDispatchResult(
                 Attempted: false,

@@ -9,6 +9,8 @@ public sealed class OneSignalSettings
     public string RestApiKey { get; set; } = string.Empty;
     public string DriverAppId { get; set; } = string.Empty;
     public string DriverRestApiKey { get; set; } = string.Empty;
+    public string VendorWebAppId { get; set; } = string.Empty;
+    public string VendorWebRestApiKey { get; set; } = string.Empty;
     public string AdminWebAppId { get; set; } = string.Empty;
     public string AdminWebRestApiKey { get; set; } = string.Empty;
     public string AdminDefaultWebUrl { get; set; } = string.Empty;

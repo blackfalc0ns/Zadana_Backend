@@ -35,6 +35,37 @@ public interface IOneSignalPushService
         OneSignalPushProfile profile,
         CancellationToken cancellationToken = default);
 
+    async Task<OneSignalPushDispatchResult> SendToExternalUserAsync(
+        string externalUserId,
+        string titleAr,
+        string titleEn,
+        string bodyAr,
+        string bodyEn,
+        string? type,
+        Guid? referenceId,
+        string? data,
+        string? targetUrl,
+        OneSignalPushProfile profile,
+        OneSignalApplicationTarget targetApplication,
+        CancellationToken cancellationToken = default)
+    {
+        var results = await SendToExternalUsersAsync(
+            [externalUserId],
+            titleAr,
+            titleEn,
+            bodyAr,
+            bodyEn,
+            type,
+            referenceId,
+            data,
+            targetUrl,
+            profile,
+            targetApplication,
+            cancellationToken);
+
+        return results[0];
+    }
+
     Task<IReadOnlyList<OneSignalPushDispatchResult>> SendToExternalUsersAsync(
         IReadOnlyCollection<string> externalUserIds,
         string titleAr,

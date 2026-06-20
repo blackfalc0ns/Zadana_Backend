@@ -416,6 +416,132 @@ internal static class CartProjection
             .ToList();
     }
 
+    public static async Task<CartSummaryDto> BuildCartSummaryForMutationAsync(
+        IApplicationDbContext context,
+        Cart cart,
+        Guid? selectedVendorId,
+        CustomerAddress? address,
+        CancellationToken cancellationToken)
+    {
+        if (cart.Items.Count == 0)
+        {
+            return new CartSummaryDto(0, 0, null, null, null);
+        }
+
+        if (selectedVendorId.HasValue)
+        {
+            var selectedSummary = await TryBuildPricingSummaryAsync(
+                context,
+                cart,
+                selectedVendorId,
+                address,
+                cancellationToken);
+            if (selectedSummary is not null)
+            {
+                return selectedSummary;
+            }
+        }
+
+        var autoSummary = await TryBuildPricingSummaryAsync(context, cart, null, address, cancellationToken)
+            ?? await TryBuildPricingSummaryAsync(context, cart, null, address, cancellationToken, preferCheapestVendorWhenAmbiguous: true);
+        if (autoSummary is not null)
+        {
+            return autoSummary;
+        }
+
+        var singleProductVendorId = await ResolveSingleProductPricingVendorIdAsync(context, cart, cancellationToken);
+        if (singleProductVendorId.HasValue)
+        {
+            var singleProductSummary = await TryBuildPricingSummaryAsync(
+                context,
+                cart,
+                singleProductVendorId,
+                address,
+                cancellationToken);
+            if (singleProductSummary is not null)
+            {
+                return singleProductSummary;
+            }
+        }
+
+        var partialSummary = await ResolveBestPartialCartSummaryAsync(context, cart, address, cancellationToken);
+        if (partialSummary is not null)
+        {
+            return partialSummary;
+        }
+
+        return (await BuildCartDtoAsync(context, cart, cancellationToken, selectedVendorId, address)).Summary;
+    }
+
+    private static async Task<CartSummaryDto?> TryBuildPricingSummaryAsync(
+        IApplicationDbContext context,
+        Cart cart,
+        Guid? vendorId,
+        CustomerAddress? address,
+        CancellationToken cancellationToken,
+        bool preferCheapestVendorWhenAmbiguous = false)
+    {
+        var dto = await BuildCartDtoAsync(
+            context,
+            cart,
+            cancellationToken,
+            vendorId,
+            address,
+            preferCheapestVendorWhenAmbiguous);
+
+        return dto.Summary.IsPricingAvailable ? dto.Summary : null;
+    }
+
+    private static async Task<CartSummaryDto?> ResolveBestPartialCartSummaryAsync(
+        IApplicationDbContext context,
+        Cart cart,
+        CustomerAddress? address,
+        CancellationToken cancellationToken)
+    {
+        var masterProductIds = cart.Items
+            .Select(item => item.MasterProductId)
+            .Distinct()
+            .ToList();
+
+        if (masterProductIds.Count == 0)
+        {
+            return null;
+        }
+
+        var vendorIds = await context.VendorProducts
+            .AsNoTracking()
+            .Where(product =>
+                masterProductIds.Contains(product.MasterProductId) &&
+                product.Status == VendorProductStatus.Active &&
+                product.IsAvailable &&
+                product.StockQuantity > 0 &&
+                product.MasterProduct.Status == ProductStatus.Active &&
+                product.Vendor.Status == VendorStatus.Active)
+            .Select(product => product.VendorId)
+            .Distinct()
+            .ToListAsync(cancellationToken);
+
+        CartSummaryDto? bestSummary = null;
+        decimal bestTotal = -1m;
+
+        foreach (var vendorId in vendorIds)
+        {
+            var dto = await BuildCartDtoAsync(context, cart, cancellationToken, vendorId, address);
+            if (!dto.Summary.IsPricingAvailable || !dto.Summary.TotalAmount.HasValue)
+            {
+                continue;
+            }
+
+            if (dto.Summary.TotalAmount.Value > bestTotal)
+            {
+                bestTotal = dto.Summary.TotalAmount.Value;
+                bestSummary = dto.Summary;
+            }
+        }
+
+        return bestSummary;
+    }
+
     public static async Task<Guid?> ResolveSingleProductPricingVendorIdAsync(
         IApplicationDbContext context,
         Cart cart,

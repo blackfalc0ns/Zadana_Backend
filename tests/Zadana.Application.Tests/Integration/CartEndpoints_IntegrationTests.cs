@@ -97,6 +97,27 @@ public class CartEndpoints_IntegrationTests : IClassFixture<ZadanaWebFactory>
     }
 
     [Fact]
+    public async Task RemoveItem_WithoutVendorId_WhenNoSingleVendorCoversCart_ShouldReturnBestPartialTotal()
+    {
+        var scenario = await SeedCartScenarioAsync();
+        using var request = new HttpRequestMessage(HttpMethod.Delete, $"/api/cart/items/{scenario.FirstAvailableItemId}");
+        request.Headers.Add(GuestHeaderName, scenario.GuestId);
+
+        using var response = await _client.SendAsync(request);
+
+        response.StatusCode.Should().Be(HttpStatusCode.OK);
+        using var payload = await ReadJsonAsync(response);
+
+        var summary = payload.RootElement.GetProperty("summary");
+        summary.GetProperty("itemsCount").GetInt32().Should().Be(2);
+        summary.GetProperty("totalQuantity").GetInt32().Should().Be(3);
+        ReadDecimal(summary, "subtotal").Should().Be(90m);
+        ReadDecimal(summary, "discountAmount").Should().Be(0m);
+        ReadDecimal(summary, "totalAmount").Should().Be(90m);
+        summary.GetProperty("isPricingAvailable").GetBoolean().Should().BeTrue();
+    }
+
+    [Fact]
     public async Task UpdateItem_WithCamelCaseVendorId_ShouldRecalculateSummaryForSelectedVendor()
     {
         var scenario = await SeedCartScenarioAsync();

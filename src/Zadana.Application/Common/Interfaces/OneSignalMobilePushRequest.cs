@@ -76,5 +76,6 @@ public enum OneSignalApplicationTarget
 {
     Customer = 0,
     Driver = 1,
-    AdminWeb = 2
+    AdminWeb = 2,
+    VendorWeb = 3
 }

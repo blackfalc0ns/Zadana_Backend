@@ -268,6 +268,8 @@ public class AdminVendorSupportTicketsController : ApiControllerBase
             ticket.Id,
             data,
             targetUrl,
+            OneSignalPushProfile.Default,
+            OneSignalApplicationTarget.VendorWeb,
             cancellationToken);
     }
 
