@@ -182,7 +182,14 @@ public class DriversController : ApiControllerBase
             .Where(a => a.DriverId == driver.Id &&
                 a.Status != Domain.Modules.Delivery.Enums.AssignmentStatus.Delivered &&
                 a.Status != Domain.Modules.Delivery.Enums.AssignmentStatus.Failed &&
-                a.Status != Domain.Modules.Delivery.Enums.AssignmentStatus.Cancelled)
+                a.Status != Domain.Modules.Delivery.Enums.AssignmentStatus.Cancelled &&
+                a.Status != Domain.Modules.Delivery.Enums.AssignmentStatus.Returned &&
+                a.Status != Domain.Modules.Delivery.Enums.AssignmentStatus.Rejected &&
+                a.Order.Status != Domain.Modules.Orders.Enums.OrderStatus.Cancelled &&
+                a.Order.Status != Domain.Modules.Orders.Enums.OrderStatus.VendorRejected &&
+                a.Order.Status != Domain.Modules.Orders.Enums.OrderStatus.DeliveryFailed &&
+                a.Order.Status != Domain.Modules.Orders.Enums.OrderStatus.Refunded &&
+                a.Order.Status != Domain.Modules.Orders.Enums.OrderStatus.Delivered)
             .OrderByDescending(a => a.CreatedAtUtc)
             .FirstOrDefaultAsync(cancellationToken);
 

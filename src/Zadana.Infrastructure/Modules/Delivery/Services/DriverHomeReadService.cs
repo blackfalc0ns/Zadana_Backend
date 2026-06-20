@@ -21,6 +21,7 @@ public sealed class DriverHomeReadService : IDriverHomeReadService
     private readonly IDriverCommitmentPolicyService _driverCommitmentPolicyService;
     private readonly INotificationService _notificationService;
     private readonly IOneSignalPushService _oneSignalPushService;
+    private readonly DeliveryAssignmentOrderCancellationService _deliveryAssignmentOrderCancellationService;
 
     public DriverHomeReadService(
         IApplicationDbContext context,
@@ -28,7 +29,8 @@ public sealed class DriverHomeReadService : IDriverHomeReadService
         IDeliveryDispatchService dispatchService,
         IDriverCommitmentPolicyService driverCommitmentPolicyService,
         INotificationService notificationService,
-        IOneSignalPushService oneSignalPushService)
+        IOneSignalPushService oneSignalPushService,
+        DeliveryAssignmentOrderCancellationService deliveryAssignmentOrderCancellationService)
     {
         _context = context;
         _driverRepository = driverRepository;
@@ -36,6 +38,7 @@ public sealed class DriverHomeReadService : IDriverHomeReadService
         _driverCommitmentPolicyService = driverCommitmentPolicyService;
         _notificationService = notificationService;
         _oneSignalPushService = oneSignalPushService;
+        _deliveryAssignmentOrderCancellationService = deliveryAssignmentOrderCancellationService;
     }
 
     public async Task<DriverHomeDto> GetHomeAsync(
@@ -45,6 +48,10 @@ public sealed class DriverHomeReadService : IDriverHomeReadService
     {
         var driver = await _driverRepository.GetByUserIdAsync(driverUserId, cancellationToken)
             ?? throw new NotFoundException("Driver", driverUserId);
+
+        await _deliveryAssignmentOrderCancellationService.CloseAssignmentsLinkedToTerminalOrdersAsync(
+            driver.Id,
+            cancellationToken);
 
         if (driver.ApplyDocumentExpiryLock())
         {

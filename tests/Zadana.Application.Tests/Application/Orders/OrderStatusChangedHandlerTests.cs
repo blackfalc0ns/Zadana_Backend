@@ -612,6 +612,33 @@ public class OrderStatusChangedHandlerTests
     }
 
     [Fact]
+    public async Task CloseAssignmentsLinkedToTerminalOrdersAsync_WhenOrderCancelledButAssignmentStillAccepted_ShouldCloseAssignment()
+    {
+        await using var dbContext = CreateDbContext();
+        var customer = new User("Customer User", "customer.stale.assignment@test.com", "01000000148", UserRole.Customer);
+        var driverUser = new User("Driver User", "driver.stale.assignment@test.com", "01000000149", UserRole.Driver);
+        var driver = new Driver(driverUser.Id, DriverVehicleType.Car, "3234567894", "LIC-1009");
+        var vendorId = Guid.NewGuid();
+        var order = CreateOrder(customer.Id, vendorId, OrderStatus.Cancelled, "ORD-STALE-ASSIGNMENT-001");
+        var assignment = new DeliveryAssignment(order.Id, 0m);
+
+        assignment.OfferTo(driver.Id, 1, DateTime.UtcNow.AddMinutes(5));
+        assignment.Accept();
+
+        dbContext.Users.AddRange(customer, driverUser);
+        dbContext.Drivers.Add(driver);
+        dbContext.Orders.Add(order);
+        dbContext.DeliveryAssignments.Add(assignment);
+        await dbContext.SaveChangesAsync();
+
+        var cancellationService = CreateCancellationService(dbContext);
+
+        await cancellationService.CloseAssignmentsLinkedToTerminalOrdersAsync(driver.Id, CancellationToken.None);
+
+        assignment.Status.Should().Be(AssignmentStatus.Cancelled);
+    }
+
+    [Fact]
     public async Task Handle_WhenOrderCancelledWithActiveOffer_ShouldCancelOfferAndRefreshDriverHome()
     {
         await using var dbContext = CreateDbContext();

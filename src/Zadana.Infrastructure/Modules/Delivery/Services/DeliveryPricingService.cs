@@ -175,7 +175,8 @@ public class DeliveryPricingService : IDeliveryPricingService
                 item.Status != AssignmentStatus.Failed &&
                 item.Status != AssignmentStatus.Cancelled &&
                 item.Status != AssignmentStatus.Rejected &&
-                item.Status != AssignmentStatus.Returned)
+                item.Status != AssignmentStatus.Returned &&
+                !DeliveryActiveAssignmentRules.TerminalOrderStatuses.Contains(item.Order.Status))
             .Select(item => item.DriverId!.Value)
             .Distinct()
             .ToListAsync(cancellationToken);

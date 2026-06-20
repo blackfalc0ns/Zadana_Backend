@@ -50,6 +50,55 @@ public sealed class DeliveryAssignmentOrderCancellationService
                 assignment.Status != AssignmentStatus.Rejected)
             .ToListAsync(cancellationToken);
 
+        await CloseAssignmentsAndNotifyAsync(assignments, orderId, orderNumber, reason, cancellationToken);
+    }
+
+    /// <summary>
+    /// Closes stale assignments that stayed open after their order reached a terminal status.
+    /// This heals race conditions or legacy rows so drivers are not stuck "on mission".
+    /// </summary>
+    public async Task CloseAssignmentsLinkedToTerminalOrdersAsync(
+        Guid? driverId = null,
+        CancellationToken cancellationToken = default)
+    {
+        var assignments = await _context.DeliveryAssignments
+            .Include(assignment => assignment.Driver)
+            .Include(assignment => assignment.Order)
+            .Where(assignment =>
+                assignment.DriverId != null &&
+                assignment.Status != AssignmentStatus.Delivered &&
+                assignment.Status != AssignmentStatus.Failed &&
+                assignment.Status != AssignmentStatus.Cancelled &&
+                assignment.Status != AssignmentStatus.Returned &&
+                assignment.Status != AssignmentStatus.Rejected &&
+                (assignment.Order.Status == OrderStatus.Cancelled ||
+                 assignment.Order.Status == OrderStatus.VendorRejected ||
+                 assignment.Order.Status == OrderStatus.DeliveryFailed ||
+                 assignment.Order.Status == OrderStatus.Refunded ||
+                 assignment.Order.Status == OrderStatus.Delivered))
+            .Where(assignment => !driverId.HasValue || assignment.DriverId == driverId)
+            .ToListAsync(cancellationToken);
+
+        if (assignments.Count == 0)
+        {
+            return;
+        }
+
+        await CloseAssignmentsAndNotifyAsync(
+            assignments,
+            orderId: null,
+            orderNumber: null,
+            reason: "Order is no longer active.",
+            cancellationToken);
+    }
+
+    private async Task CloseAssignmentsAndNotifyAsync(
+        IReadOnlyList<Domain.Modules.Delivery.Entities.DeliveryAssignment> assignments,
+        Guid? orderId,
+        string? orderNumber,
+        string reason,
+        CancellationToken cancellationToken)
+    {
         if (assignments.Count == 0)
         {
             return;
@@ -66,11 +115,20 @@ public sealed class DeliveryAssignmentOrderCancellationService
 
         await _context.SaveChangesAsync(cancellationToken);
 
-        _logger.LogInformation(
-            "Closed {AssignmentCount} open delivery assignment(s) for order {OrderId} ({OrderNumber}).",
-            assignments.Count,
-            orderId,
-            orderNumber);
+        if (orderId.HasValue)
+        {
+            _logger.LogInformation(
+                "Closed {AssignmentCount} open delivery assignment(s) for order {OrderId} ({OrderNumber}).",
+                assignments.Count,
+                orderId.Value,
+                orderNumber);
+        }
+        else
+        {
+            _logger.LogInformation(
+                "Closed {AssignmentCount} stale delivery assignment(s) linked to terminal orders.",
+                assignments.Count);
+        }
 
         foreach (var (assignment, hadActiveOffer) in cancelledAssignments)
         {
@@ -79,12 +137,12 @@ public sealed class DeliveryAssignmentOrderCancellationService
                 continue;
             }
 
-            if (hadActiveOffer)
+            if (hadActiveOffer && orderId.HasValue && !string.IsNullOrWhiteSpace(orderNumber))
             {
                 await NotifyOfferWithdrawnAsync(
                     driverUserId,
                     assignment.Id,
-                    orderId,
+                    orderId.Value,
                     orderNumber,
                     cancellationToken);
             }

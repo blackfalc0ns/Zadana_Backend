@@ -112,10 +112,8 @@ public class DriverReadService : IDriverReadService
         // Load active task counts
         var activeTaskCounts = await _context.DeliveryAssignments
             .Where(a => driverIds.Contains(a.DriverId!.Value) &&
-                a.Status != AssignmentStatus.Delivered &&
-                a.Status != AssignmentStatus.Failed &&
-                a.Status != AssignmentStatus.Cancelled &&
-                a.Status != AssignmentStatus.Returned)
+                DeliveryActiveAssignmentRules.OpenAssignmentStatuses.Contains(a.Status) &&
+                !DeliveryActiveAssignmentRules.TerminalOrderStatuses.Contains(a.Order.Status))
             .GroupBy(a => a.DriverId)
             .Select(g => new { DriverId = g.Key, Count = g.Count() })
             .ToDictionaryAsync(g => g.DriverId!.Value, g => g.Count, cancellationToken);
@@ -238,9 +236,9 @@ public class DriverReadService : IDriverReadService
         // Active/completed tasks
         var activeTasks = await _context.DeliveryAssignments
             .CountAsync(a => a.DriverId == driverId &&
-                a.Status != AssignmentStatus.Delivered &&
-                a.Status != AssignmentStatus.Failed &&
-                a.Status != AssignmentStatus.Cancelled, cancellationToken);
+                DeliveryActiveAssignmentRules.OpenAssignmentStatuses.Contains(a.Status) &&
+                !DeliveryActiveAssignmentRules.TerminalOrderStatuses.Contains(a.Order.Status),
+                cancellationToken);
 
         var completedTasks = await _context.DeliveryAssignments
             .CountAsync(a => a.DriverId == driverId && a.Status == AssignmentStatus.Delivered, cancellationToken);
@@ -681,6 +679,11 @@ public class DriverReadService : IDriverReadService
             .FirstOrDefaultAsync(a => a.Id == assignmentId && a.DriverId == driverId, cancellationToken);
 
         if (assignment is null)
+        {
+            return null;
+        }
+
+        if (DeliveryActiveAssignmentRules.IsTerminalOrder(assignment.Order.Status))
         {
             return null;
         }

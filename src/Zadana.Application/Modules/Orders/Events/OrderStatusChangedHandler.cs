@@ -85,6 +85,9 @@ public class OrderStatusChangedHandler : INotificationHandler<OrderStatusChanged
                 notification.OrderNumber,
                 cancellationReason,
                 cancellationToken);
+
+            await _deliveryAssignmentOrderCancellationService.CloseAssignmentsLinkedToTerminalOrdersAsync(
+                cancellationToken: cancellationToken);
         }
 
         var targetUrl = OrderStatusNotificationComposer.ResolveTargetUrl(notification.OrderId);
