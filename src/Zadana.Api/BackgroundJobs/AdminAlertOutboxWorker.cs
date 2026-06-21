@@ -15,7 +15,7 @@ public sealed class AdminAlertOutboxWorker : BackgroundService
 {
     private const int BatchSize = 20;
     private const int MaxAttempts = 6;
-    private static readonly TimeSpan PollInterval = TimeSpan.FromSeconds(5);
+    private static readonly TimeSpan PollInterval = TimeSpan.FromSeconds(1);
     private static readonly TimeSpan[] RetryDelays =
     [
         TimeSpan.FromMinutes(1),
