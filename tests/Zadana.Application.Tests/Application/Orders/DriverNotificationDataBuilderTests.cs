@@ -119,7 +119,7 @@ public class DriverNotificationDataBuilderTests
         root.GetProperty("customerName").GetString().Should().Be("Customer One");
         root.GetProperty("payout").GetDecimal().Should().Be(18.5m);
         root.GetProperty("codAmount").GetDecimal().Should().Be(120m);
-        root.GetProperty("totalAmount").GetDecimal().Should().Be(120m);
+        root.TryGetProperty("totalAmount", out _).Should().BeFalse();
         root.GetProperty("estimatedDistanceKm").GetDecimal().Should().Be(3.5m);
         root.GetProperty("distanceKm").GetDecimal().Should().Be(3.5m);
         root.GetProperty("distanceText").GetString().Should().Be("3.5 km");
@@ -201,5 +201,96 @@ public class DriverNotificationDataBuilderTests
         Encoding.UTF8.GetByteCount(json).Should().BeLessThan(DriverNotificationDataBuilder.OneSignalMergedPayloadBudgetBytes);
         DriverNotificationDataBuilder.EstimateOneSignalEnvelopeSize(json)
             .Should().BeLessThan(DriverNotificationDataBuilder.OneSignalMaxDataBytes);
+    }
+
+    [Fact]
+    public void BuildDispatchOfferPushData_WhenArabicPayloadIsLarge_ShouldPreserveDeliveryAddress()
+    {
+        var offer = new DriverIncomingOfferDto(
+            Guid.NewGuid(),
+            Guid.NewGuid(),
+            "ORD-20260620-D702B831",
+            "Hope Grocery",
+            "بقالة الأمل",
+            "Hope Grocery",
+            null,
+            "سشيشسيشيسشيشسسشيشي",
+            24.71m,
+            46.67m,
+            "ahmed",
+            "العدامة، الدمام، المملكة العربية السعودية، مبنى 15، الدور الثالث، شقة 8",
+            26.42m,
+            50.08m,
+            13.49m,
+            "54-59 min",
+            47.45m,
+            "CashOnDelivery",
+            99.6m,
+            99.6m,
+            "HG",
+            "AH",
+            null,
+            60,
+            [new DriverOfferItemDto("منتج تجريبي", 1, null)]);
+
+        var json = DriverNotificationDataBuilder.BuildDispatchOfferPushData(
+            offer.OrderId,
+            offer.AssignmentId,
+            Guid.NewGuid(),
+            DateTime.UtcNow.AddSeconds(60),
+            offer);
+
+        using var document = JsonDocument.Parse(json);
+        var deliveryAddress = document.RootElement.GetProperty("deliveryAddress").GetString();
+
+        deliveryAddress.Should().Be("العدامة، الدمام، المملكة العربية السعودية، مبنى 15، الدور الثالث، شقة 8");
+        if (document.RootElement.TryGetProperty("pickupAddress", out var pickupAddress))
+        {
+            pickupAddress.GetString().Should().Be("سشيشسيشيسشيشسسشيشي");
+        }
+        DriverNotificationDataBuilder.EstimateOneSignalEnvelopeSize(json)
+            .Should().BeLessThan(DriverNotificationDataBuilder.OneSignalMaxDataBytes);
+    }
+
+    [Fact]
+    public void BuildDispatchOfferPushData_ShouldFallbackToCoordinatesWhenDeliveryAddressTextIsMissing()
+    {
+        var offer = new DriverIncomingOfferDto(
+            Guid.NewGuid(),
+            Guid.NewGuid(),
+            "ORD-COORDS-001",
+            "Hope Grocery",
+            "بقالة الأمل",
+            "Hope Grocery",
+            null,
+            "سشيشسيشيسشيشسسشيشي",
+            24.71m,
+            46.67m,
+            "ahmed",
+            string.Empty,
+            26.42m,
+            50.08m,
+            13.49m,
+            "54-59 min",
+            47.45m,
+            "CashOnDelivery",
+            99.6m,
+            99.6m,
+            "HG",
+            "AH",
+            null,
+            60,
+            [new DriverOfferItemDto("منتج تجريبي", 1, null)]);
+
+        var json = DriverNotificationDataBuilder.BuildDispatchOfferPushData(
+            offer.OrderId,
+            offer.AssignmentId,
+            Guid.NewGuid(),
+            DateTime.UtcNow.AddSeconds(60),
+            offer);
+
+        using var document = JsonDocument.Parse(json);
+        document.RootElement.GetProperty("deliveryAddress").GetString()
+            .Should().Be("26.42, 50.08");
     }
 }

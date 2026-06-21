@@ -116,6 +116,116 @@ public class DriverIncomingOfferFactoryTests
         offer.OrderItems[0].Quantity.Should().Be(2);
     }
 
+    [Fact]
+    public void Build_ShouldUseCityWhenAddressLineIsMissing()
+    {
+        var customer = new User("ahmed", "ahmed.offer@test.com", "01000000020", UserRole.Customer);
+        var vendorUser = new User("Vendor", "vendor.city@test.com", "01000000024", UserRole.Vendor);
+        var vendor = new Vendor(
+            vendorUser.Id,
+            "بقالة الأمل",
+            "Hope Grocery",
+            "Groceries",
+            "CR-101",
+            "vendor.city@test.com",
+            "01000000025");
+        var branch = new VendorBranch(vendor.Id, "Main", "سشيشسيشيسشيشسسشيشي", 24.71m, 46.67m, "01000000026", 8m);
+        var address = new CustomerAddress(
+            customer.Id,
+            "ahmed",
+            "01000000021",
+            string.Empty,
+            city: "الدمام",
+            area: "العدامة",
+            latitude: 26.42m,
+            longitude: 50.08m);
+        var order = CreateOrder(customer.Id, vendor, branch, address.Id);
+
+        var assignment = new DeliveryAssignment(order.Id, 99.6m);
+        SetPrivateProperty(assignment, nameof(DeliveryAssignment.Order), order);
+        var offer = DriverIncomingOfferFactory.Build(assignment, order, address, DateTime.UtcNow);
+
+        offer.DeliveryAddress.Should().Be("العدامة, الدمام");
+    }
+
+    [Fact]
+    public void Build_ShouldFallbackToCoordinatesWhenAddressTextIsMissing()
+    {
+        var customer = new User("ahmed", "ahmed.coords@test.com", "01000000022", UserRole.Customer);
+        var vendorUser = new User("Vendor", "vendor.coords@test.com", "01000000027", UserRole.Vendor);
+        var vendor = new Vendor(
+            vendorUser.Id,
+            "بقالة الأمل",
+            "Hope Grocery",
+            "Groceries",
+            "CR-102",
+            "vendor.coords@test.com",
+            "01000000028");
+        var branch = new VendorBranch(vendor.Id, "Main", "سشيشسيشيسشيشسسشيشي", 24.71m, 46.67m, "01000000029", 8m);
+        var address = new CustomerAddress(
+            customer.Id,
+            "ahmed",
+            "01000000023",
+            string.Empty,
+            latitude: 26.42m,
+            longitude: 50.08m);
+        var order = CreateOrder(customer.Id, vendor, branch, address.Id);
+
+        var assignment = new DeliveryAssignment(order.Id, 99.6m);
+        SetPrivateProperty(assignment, nameof(DeliveryAssignment.Order), order);
+        var offer = DriverIncomingOfferFactory.Build(assignment, order, address, DateTime.UtcNow);
+
+        offer.DeliveryAddress.Should().Be("26.42, 50.08");
+        offer.EstimatedDistanceKm.Should().BeGreaterThan(0m);
+    }
+
+    private static Order CreateOrder(Guid customerId, Vendor vendor, VendorBranch branch, Guid customerAddressId)
+    {
+        var order = new Order(
+            "ORD-MIN-001",
+            customerId,
+            vendor.Id,
+            customerAddressId,
+            PaymentMethodType.CashOnDelivery,
+            99.6m,
+            0m,
+            47.45m,
+            99.6m,
+            0m,
+            0m,
+            null,
+            null,
+            null,
+            0m,
+            0m,
+            0m,
+            0m,
+            null,
+            null,
+            false,
+            null,
+            null,
+            null,
+            null,
+            1,
+            false,
+            5m,
+            vendorBranchId: branch.Id);
+
+        SetPrivateProperty(order, nameof(Order.Vendor), vendor);
+        SetPrivateProperty(order, nameof(Order.VendorBranch), branch);
+        return order;
+    }
+
+    private static void SetPrivateProperty<T>(object target, string propertyName, T value)
+    {
+        var property = target.GetType().GetProperty(
+            propertyName,
+            System.Reflection.BindingFlags.Instance | System.Reflection.BindingFlags.Public | System.Reflection.BindingFlags.NonPublic);
+
+        property!.SetValue(target, value);
+    }
+
     private static ApplicationDbContext CreateDbContext()
     {
         var options = new DbContextOptionsBuilder<ApplicationDbContext>()

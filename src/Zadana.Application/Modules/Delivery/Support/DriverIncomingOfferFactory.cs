@@ -104,16 +104,40 @@ public static class DriverIncomingOfferFactory
         }
 
         var parts = new List<string>();
-        AddAddressPart(parts, address.AddressLine);
+        var isArabic = !string.IsNullOrWhiteSpace(address.AddressLine) &&
+            address.AddressLine.Any(character => character is >= '\u0600' and <= '\u06FF');
 
-        var isArabic = address.AddressLine.Any(character => character is >= '\u0600' and <= '\u06FF');
+        AddAddressPart(parts, address.AddressLine);
         AddAddressPart(parts, FormatAddressDetail(address.BuildingNo, isArabic ? "مبنى" : "Building"));
         AddAddressPart(parts, FormatAddressDetail(address.FloorNo, isArabic ? "الدور" : "Floor"));
         AddAddressPart(parts, FormatAddressDetail(address.ApartmentNo, isArabic ? "شقة" : "Apartment"));
         AddAddressPart(parts, address.Area);
         AddAddressPart(parts, address.City);
 
-        return string.Join(", ", parts);
+        var joined = string.Join(", ", parts);
+        if (!string.IsNullOrWhiteSpace(joined))
+        {
+            return joined;
+        }
+
+        var simple = string.Join(
+            ", ",
+            new[] { address.AddressLine, address.Area, address.City }
+                .Where(value => !string.IsNullOrWhiteSpace(value))
+                .Select(value => value!.Trim())
+                .Distinct(StringComparer.OrdinalIgnoreCase));
+
+        if (!string.IsNullOrWhiteSpace(simple))
+        {
+            return simple;
+        }
+
+        if (address.Latitude is decimal latitude && address.Longitude is decimal longitude)
+        {
+            return $"{latitude:0.######}, {longitude:0.######}";
+        }
+
+        return string.Empty;
     }
 
     private static string? FormatAddressDetail(string? value, string label) =>
