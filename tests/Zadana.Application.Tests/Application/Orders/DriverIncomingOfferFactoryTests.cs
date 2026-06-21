@@ -36,7 +36,12 @@ public class DriverIncomingOfferFactoryTests
             customer.Id,
             "Customer Name",
             "01000000013",
-            "Riyadh - Olaya",
+            "King Abdullah Road",
+            buildingNo: "15",
+            floorNo: "3",
+            apartmentNo: "8",
+            city: "Riyadh",
+            area: "Olaya",
             latitude: 24.7236m,
             longitude: 46.6853m);
         var order = new Order(
@@ -101,7 +106,7 @@ public class DriverIncomingOfferFactoryTests
         offer.VendorLogoUrl.Should().Be("https://example.com/logo.png");
         offer.PickupAddress.Should().Be("King Fahd Rd");
         offer.CustomerName.Should().Be("Customer Name");
-        offer.DeliveryAddress.Should().Be("Riyadh - Olaya");
+        offer.DeliveryAddress.Should().Be("King Abdullah Road, Building 15, Floor 3, Apartment 8, Olaya, Riyadh");
         offer.Payout.Should().Be(15m);
         offer.TotalAmount.Should().Be(135m);
         offer.CodAmount.Should().Be(120m);

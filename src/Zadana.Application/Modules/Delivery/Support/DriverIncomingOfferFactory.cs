@@ -56,7 +56,7 @@ public static class DriverIncomingOfferFactory
             pickupLatitude,
             pickupLongitude,
             customerName,
-            customerAddress?.AddressLine ?? string.Empty,
+            BuildFullCustomerAddress(customerAddress),
             deliveryLatitude,
             deliveryLongitude,
             Math.Round(distanceKm, 2),
@@ -95,6 +95,63 @@ public static class DriverIncomingOfferFactory
         var parts = value.Split(' ', StringSplitOptions.RemoveEmptyEntries | StringSplitOptions.TrimEntries);
         return string.Concat(parts.Take(2).Select(part => char.ToUpperInvariant(part[0])));
     }
+
+    private static string BuildFullCustomerAddress(CustomerAddress? address)
+    {
+        if (address is null)
+        {
+            return string.Empty;
+        }
+
+        var parts = new List<string>();
+        AddAddressPart(parts, address.AddressLine);
+
+        var isArabic = address.AddressLine.Any(character => character is >= '\u0600' and <= '\u06FF');
+        AddAddressPart(parts, FormatAddressDetail(address.BuildingNo, isArabic ? "مبنى" : "Building"));
+        AddAddressPart(parts, FormatAddressDetail(address.FloorNo, isArabic ? "الدور" : "Floor"));
+        AddAddressPart(parts, FormatAddressDetail(address.ApartmentNo, isArabic ? "شقة" : "Apartment"));
+        AddAddressPart(parts, address.Area);
+        AddAddressPart(parts, address.City);
+
+        return string.Join(", ", parts);
+    }
+
+    private static string? FormatAddressDetail(string? value, string label) =>
+        string.IsNullOrWhiteSpace(value) ? null : $"{label} {value.Trim()}";
+
+    private static void AddAddressPart(ICollection<string> parts, string? value)
+    {
+        if (string.IsNullOrWhiteSpace(value))
+        {
+            return;
+        }
+
+        var candidate = value.Trim();
+        var normalizedCandidate = NormalizeAddressPart(candidate);
+        if (string.IsNullOrWhiteSpace(normalizedCandidate))
+        {
+            return;
+        }
+
+        var alreadyIncluded = parts.Any(part =>
+        {
+            var normalizedPart = NormalizeAddressPart(part);
+            return normalizedPart.Contains(normalizedCandidate, StringComparison.OrdinalIgnoreCase) ||
+                   normalizedCandidate.Contains(normalizedPart, StringComparison.OrdinalIgnoreCase);
+        });
+
+        if (!alreadyIncluded)
+        {
+            parts.Add(candidate);
+        }
+    }
+
+    private static string NormalizeAddressPart(string value) =>
+        new(value
+            .Trim()
+            .ToLowerInvariant()
+            .Where(char.IsLetterOrDigit)
+            .ToArray());
 
     private static decimal ResolveCodAmount(DeliveryAssignment assignment) =>
         assignment.Order.PaymentMethod == PaymentMethodType.CashOnDelivery
