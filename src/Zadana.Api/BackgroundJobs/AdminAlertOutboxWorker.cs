@@ -375,19 +375,26 @@ public sealed class AdminAlertOutboxWorker : BackgroundService
         string category,
         CancellationToken cancellationToken)
     {
-        var optedIn = await context.UserPushDevices
+        var webDevices = await context.UserPushDevices
             .AsNoTracking()
             .Where(device =>
                 recipientIds.Contains(device.UserId) &&
-                device.Platform == PushPlatform.Web &&
-                device.IsActive &&
-                device.NotificationsEnabled)
+                device.Platform == PushPlatform.Web)
             .ToListAsync(cancellationToken);
 
-        return optedIn
-            .Where(device => device.IsAdminPushAllowedForCategory(category))
-            .Select(device => device.UserId)
-            .Distinct()
+        var devicesByUserId = webDevices
+            .GroupBy(device => device.UserId)
+            .ToDictionary(group => group.Key, group => group.ToArray());
+
+        // OneSignal may already have a valid subscription linked through
+        // OneSignal.login(externalId) before the browser registration reaches
+        // UserPushDevices. In that case include the admin and let the provider
+        // resolve the external id. Existing local device preferences remain
+        // authoritative when a record is present.
+        return recipientIds
+            .Where(userId =>
+                !devicesByUserId.TryGetValue(userId, out var devices) ||
+                devices.Any(device => device.IsAdminPushAllowedForCategory(category)))
             .ToList();
     }
 
