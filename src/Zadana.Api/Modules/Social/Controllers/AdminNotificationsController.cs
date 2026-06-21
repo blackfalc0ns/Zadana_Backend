@@ -99,13 +99,15 @@ public class AdminNotificationsController : ApiControllerBase
     public async Task<ActionResult<AdminNotificationPreferencesResponse>> GetPreferences(CancellationToken cancellationToken = default)
     {
         var userId = _currentUserService.UserId ?? throw new UnauthorizedException("USER_NOT_AUTHENTICATED");
-        var device = await _context.UserPushDevices
+        var devices = await _context.UserPushDevices
             .AsNoTracking()
             .Where(item => item.UserId == userId && item.Platform == PushPlatform.Web && item.IsActive)
             .OrderByDescending(item => item.LastSeenAtUtc)
-            .FirstOrDefaultAsync(cancellationToken);
+            .ToListAsync(cancellationToken);
 
-        return Ok(AdminNotificationPreferencesResponse.FromDevice(device));
+        return Ok(AdminNotificationPreferencesResponse.FromDevice(
+            devices.FirstOrDefault(),
+            devices.Count));
     }
 
     [HttpPut("preferences")]
