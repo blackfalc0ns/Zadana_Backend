@@ -7,6 +7,7 @@ using Microsoft.Extensions.Logging;
 using Microsoft.Extensions.Options;
 using Zadana.Application.Common.Interfaces;
 using Zadana.Application.Modules.Social.Support;
+using Zadana.Domain.Modules.Social.Enums;
 using Zadana.Infrastructure.Persistence;
 using Zadana.Infrastructure.Settings;
 
@@ -1606,13 +1607,23 @@ public sealed class OneSignalPushService : IOneSignalPushService
 
         if (!string.IsNullOrWhiteSpace(sanitized.Data))
         {
-            var payload = DeserializeJsonValue(sanitized.Data);
-            data["payload"] = payload;
-            TryMergePayloadObject(data, sanitized.Data);
+            if (ShouldUseFlatDriverPushData(sanitized.Type))
+            {
+                TryMergePayloadObject(data, sanitized.Data);
+            }
+            else
+            {
+                var payload = DeserializeJsonValue(sanitized.Data);
+                data["payload"] = payload;
+                TryMergePayloadObject(data, sanitized.Data);
+            }
         }
 
         return data;
     }
+
+    private static bool ShouldUseFlatDriverPushData(string? type) =>
+        string.Equals(type?.Trim(), NotificationTypes.DriverDeliveryOffer, StringComparison.OrdinalIgnoreCase);
 
     private static void TryMergePayloadObject(Dictionary<string, object?> data, string rawData)
     {

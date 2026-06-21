@@ -9,11 +9,13 @@ public static class DriverNotificationDataBuilder
 {
     /// <summary>
     /// OneSignal rejects push when serialized <c>data</c> exceeds 2048 bytes.
-    /// BuildAdditionalData nests the payload and merges the same keys at the top level (~2x size).
+    /// Driver delivery offers use flat merged keys only (no duplicate nested payload).
     /// </summary>
     public const int OneSignalMaxDataBytes = 2048;
 
-    public const int OneSignalMergedPayloadBudgetBytes = 962;
+    public const int OneSignalDriverOfferPayloadBudgetBytes = 1850;
+
+    private const int OneSignalEnvelopeOverheadBytes = 180;
 
     private static readonly JsonSerializerOptions JsonOptions = new()
     {
@@ -105,8 +107,7 @@ public static class DriverNotificationDataBuilder
     }
 
     /// <summary>
-    /// Compact push payload for delivery offers when the app is killed.
-    /// Full offer details stay in inbox + SignalR; mobile should refresh home on tap.
+    /// Push payload for the native driver offer overlay.
     /// </summary>
     public static string BuildDispatchOfferPushData(
         Guid orderId,
@@ -131,7 +132,7 @@ public static class DriverNotificationDataBuilder
             driverId: driverId,
             extra: extra);
 
-        if (Encoding.UTF8.GetByteCount(serialized) < OneSignalMergedPayloadBudgetBytes)
+        if (Encoding.UTF8.GetByteCount(serialized) < OneSignalDriverOfferPayloadBudgetBytes)
         {
             return serialized;
         }
@@ -144,28 +145,12 @@ public static class DriverNotificationDataBuilder
             driverId);
     }
 
-    private static readonly string[] OfferPushSecondaryKeys =
+    private static readonly string[] OfferPushOptionalKeys =
     [
         "source",
         "vendorNameEn",
         "estimatedDistanceKm",
-        "orderNumber",
-        "distanceText",
-        "customerName",
-        "paymentMethod"
-    ];
-
-    private static readonly string[] OfferPushEssentialKeys =
-    [
-        "expiresAtUtc",
-        "countdownSeconds",
-        "vendorName",
-        "pickupAddress",
-        "deliveryAddress",
-        "distanceKm",
-        "payout",
-        "codAmount",
-        "itemsCount"
+        "orderNumber"
     ];
 
     private static string FitOfferWithinPushBudget(
@@ -175,75 +160,46 @@ public static class DriverNotificationDataBuilder
         Guid assignmentId,
         Guid driverId)
     {
-        var fullDeliveryAddress = ResolveOverlayDeliveryAddress(offer);
-        var fullPickupAddress = offer.PickupAddress ?? string.Empty;
-
+        var vendorName = FirstNonBlank(offer.VendorNameAr, offer.VendorName, offer.VendorNameEn);
         var workingExtra = new Dictionary<string, object?>(extra)
         {
-            ["deliveryAddress"] = fullDeliveryAddress,
-            ["pickupAddress"] = fullPickupAddress
+            ["vendorName"] = vendorName,
+            ["pickupAddress"] = offer.PickupAddress ?? string.Empty,
+            ["deliveryAddress"] = ResolveOverlayDeliveryAddress(offer),
+            ["customerName"] = offer.CustomerName,
+            ["paymentMethod"] = offer.PaymentMethod,
+            ["distanceText"] = BuildDistanceText(offer.EstimatedDistanceKm),
+            ["totalAmount"] = offer.TotalAmount,
+            ["codAmount"] = offer.CodAmount,
+            ["payout"] = offer.Payout,
+            ["distanceKm"] = offer.EstimatedDistanceKm,
+            ["countdownSeconds"] = offer.CountdownSeconds,
+            ["itemsCount"] = (offer.OrderItems ?? []).Count
         };
 
-        for (var removalCount = 0; removalCount <= OfferPushSecondaryKeys.Length; removalCount++)
+        for (var removalCount = 0; removalCount <= OfferPushOptionalKeys.Length; removalCount++)
         {
             if (TryBuildOfferPushPayload(workingExtra, orderId, assignmentId, driverId, out var candidate))
             {
                 return candidate;
             }
 
-            if (removalCount < OfferPushSecondaryKeys.Length)
+            if (removalCount < OfferPushOptionalKeys.Length)
             {
-                workingExtra.Remove(OfferPushSecondaryKeys[removalCount]);
+                workingExtra.Remove(OfferPushOptionalKeys[removalCount]);
             }
         }
 
-        var essentialWithBothAddresses = BuildEssentialOfferExtra(workingExtra, fullDeliveryAddress, fullPickupAddress);
-        if (TryBuildOfferPushPayload(essentialWithBothAddresses, orderId, assignmentId, driverId, out var essentialBothCandidate))
-        {
-            return essentialBothCandidate;
-        }
-
-        var vendorName = workingExtra.GetValueOrDefault("vendorName")?.ToString() ?? string.Empty;
-        foreach (var maxElements in new[] { 16, 12, 8 })
-        {
-            workingExtra["vendorName"] = TruncateByTextElements(vendorName, maxElements);
-            if (TryBuildOfferPushPayload(workingExtra, orderId, assignmentId, driverId, out var candidate))
-            {
-                return candidate;
-            }
-        }
-
-        workingExtra["deliveryAddress"] = fullDeliveryAddress;
-        workingExtra.Remove("pickupAddress");
-        workingExtra.Remove("totalAmount");
-        if (TryBuildOfferPushPayload(workingExtra, orderId, assignmentId, driverId, out var deliveryFirstCandidate))
-        {
-            return deliveryFirstCandidate;
-        }
-
-        var essentialDeliveryOnly = BuildEssentialOfferExtra(workingExtra, fullDeliveryAddress, pickupAddress: null);
-        if (TryBuildOfferPushPayload(essentialDeliveryOnly, orderId, assignmentId, driverId, out var essentialDeliveryCandidate))
-        {
-            return essentialDeliveryCandidate;
-        }
-
-        workingExtra["pickupAddress"] = fullPickupAddress;
-        if (TryBuildOfferPushPayload(workingExtra, orderId, assignmentId, driverId, out var bothAddressesCandidate))
-        {
-            return bothAddressesCandidate;
-        }
-
+        var fullDeliveryAddress = ResolveOverlayDeliveryAddress(offer);
         if (IsCoordinateAddress(fullDeliveryAddress))
         {
-            return FitCompactDeliveryAddressWithinPushBudget(
-                workingExtra,
-                fullDeliveryAddress,
-                orderId,
-                assignmentId,
-                driverId);
+            workingExtra["deliveryAddress"] = fullDeliveryAddress;
+            if (TryBuildOfferPushPayload(workingExtra, orderId, assignmentId, driverId, out var coordinateCandidate))
+            {
+                return coordinateCandidate;
+            }
         }
 
-        workingExtra["pickupAddress"] = TruncateByTextElements(fullPickupAddress, 20);
         var fittedDelivery = TryFitDeliveryAddress(
             workingExtra,
             fullDeliveryAddress,
@@ -256,21 +212,8 @@ public static class DriverNotificationDataBuilder
             return fittedDelivery;
         }
 
-        var fittedPickup = TryFitPickupAddress(
-            workingExtra,
-            fullPickupAddress,
-            TruncateByTextElements(fullDeliveryAddress, 20),
-            orderId,
-            assignmentId,
-            driverId);
-
-        if (fittedPickup is not null)
-        {
-            return fittedPickup;
-        }
-
         workingExtra["deliveryAddress"] = TruncateByTextElements(fullDeliveryAddress, 20);
-        workingExtra["pickupAddress"] = TruncateByTextElements(fullPickupAddress, 20);
+        workingExtra["pickupAddress"] = TruncateByTextElements(offer.PickupAddress ?? string.Empty, 20);
         return Build(
             screen: "home",
             @event: "dispatch.offer_new",
@@ -295,78 +238,7 @@ public static class DriverNotificationDataBuilder
             driverId: driverId,
             extra: extra);
 
-        return Encoding.UTF8.GetByteCount(payload) < OneSignalMergedPayloadBudgetBytes;
-    }
-
-    private static Dictionary<string, object?> BuildEssentialOfferExtra(
-        Dictionary<string, object?> extra,
-        string fullDeliveryAddress,
-        string? pickupAddress)
-    {
-        var essential = OfferPushEssentialKeys
-            .Where(extra.ContainsKey)
-            .ToDictionary(key => key, key => extra[key]);
-
-        essential["deliveryAddress"] = fullDeliveryAddress;
-
-        if (string.IsNullOrWhiteSpace(pickupAddress))
-        {
-            essential.Remove("pickupAddress");
-        }
-        else
-        {
-            essential["pickupAddress"] = pickupAddress;
-        }
-
-        if (essential.TryGetValue("vendorName", out var vendorName))
-        {
-            essential["vendorName"] = TruncateByTextElements(vendorName?.ToString() ?? string.Empty, 10);
-        }
-
-        return essential;
-    }
-
-    private static string? TryFitPickupAddress(
-        Dictionary<string, object?> extra,
-        string pickupAddress,
-        string deliveryAddress,
-        Guid orderId,
-        Guid assignmentId,
-        Guid driverId)
-    {
-        var normalizedPickup = pickupAddress.Trim();
-        if (string.IsNullOrEmpty(normalizedPickup))
-        {
-            return null;
-        }
-
-        var pickupInfo = new System.Globalization.StringInfo(normalizedPickup);
-        var textElements = System.Globalization.StringInfo.ParseCombiningCharacters(normalizedPickup);
-        var low = 1;
-        var high = textElements.Length;
-        string? best = null;
-
-        while (low <= high)
-        {
-            var count = low + ((high - low) / 2);
-            var candidateExtra = new Dictionary<string, object?>(extra)
-            {
-                ["deliveryAddress"] = deliveryAddress,
-                ["pickupAddress"] = pickupInfo.SubstringByTextElements(0, count)
-            };
-
-            if (TryBuildOfferPushPayload(candidateExtra, orderId, assignmentId, driverId, out var candidate))
-            {
-                best = candidate;
-                low = count + 1;
-            }
-            else
-            {
-                high = count - 1;
-            }
-        }
-
-        return best;
+        return Encoding.UTF8.GetByteCount(payload) < OneSignalDriverOfferPayloadBudgetBytes;
     }
 
     private static string? TryFitDeliveryAddress(
@@ -377,6 +249,11 @@ public static class DriverNotificationDataBuilder
         Guid driverId)
     {
         var normalizedAddress = deliveryAddress.Trim();
+        if (string.IsNullOrEmpty(normalizedAddress))
+        {
+            return null;
+        }
+
         var textElements = System.Globalization.StringInfo.ParseCombiningCharacters(normalizedAddress);
         var addressInfo = new System.Globalization.StringInfo(normalizedAddress);
         var low = 1;
@@ -405,39 +282,6 @@ public static class DriverNotificationDataBuilder
         return best;
     }
 
-    private static string FitCompactDeliveryAddressWithinPushBudget(
-        Dictionary<string, object?> extra,
-        string deliveryAddress,
-        Guid orderId,
-        Guid assignmentId,
-        Guid driverId)
-    {
-        var workingExtra = new Dictionary<string, object?>(extra);
-
-        for (var removalCount = 0; removalCount <= OfferPushSecondaryKeys.Length; removalCount++)
-        {
-            workingExtra["deliveryAddress"] = deliveryAddress;
-            if (TryBuildOfferPushPayload(workingExtra, orderId, assignmentId, driverId, out var candidate))
-            {
-                return candidate;
-            }
-
-            if (removalCount < OfferPushSecondaryKeys.Length)
-            {
-                workingExtra.Remove(OfferPushSecondaryKeys[removalCount]);
-            }
-        }
-
-        workingExtra["deliveryAddress"] = deliveryAddress;
-        return Build(
-            screen: "home",
-            @event: "dispatch.offer_new",
-            orderId: orderId,
-            assignmentId: assignmentId,
-            driverId: driverId,
-            extra: workingExtra);
-    }
-
     private static bool IsCoordinateAddress(string value)
     {
         var parts = value.Split(',', StringSplitOptions.TrimEntries | StringSplitOptions.RemoveEmptyEntries);
@@ -447,9 +291,25 @@ public static class DriverNotificationDataBuilder
     }
 
     /// <summary>
-    /// Approximates OneSignal envelope size after nested payload + top-level merge.
+    /// Approximates OneSignal envelope size for driver offer pushes (flat merged data).
     /// </summary>
-    public static int EstimateOneSignalEnvelopeSize(string pushPayloadJson)
+    public static int EstimateOneSignalEnvelopeSize(string pushPayloadJson) =>
+        EstimateDriverOfferEnvelopeSize(pushPayloadJson);
+
+    public static int EstimateDriverOfferEnvelopeSize(string pushPayloadJson)
+    {
+        if (string.IsNullOrWhiteSpace(pushPayloadJson))
+        {
+            return 0;
+        }
+
+        return Encoding.UTF8.GetByteCount(pushPayloadJson) + OneSignalEnvelopeOverheadBytes;
+    }
+
+    /// <summary>
+    /// Legacy estimate when payload is nested and merged at the top level.
+    /// </summary>
+    public static int EstimateDuplicatedPayloadEnvelopeSize(string pushPayloadJson)
     {
         if (string.IsNullOrWhiteSpace(pushPayloadJson))
         {
@@ -558,14 +418,10 @@ public static class DriverNotificationDataBuilder
     {
         var data = new Dictionary<string, object?>
         {
+            ["target"] = "driver-offer",
+            ["action"] = "offer_new",
             ["expiresAtUtc"] = expiresAtUtc
         };
-
-        if (!compact)
-        {
-            data["target"] = "driver-offer";
-            data["action"] = "offer_new";
-        }
 
         if (!string.IsNullOrWhiteSpace(source))
         {
@@ -583,25 +439,17 @@ public static class DriverNotificationDataBuilder
         data["countdownSeconds"] = offer.CountdownSeconds;
         data["itemsCount"] = items.Count;
         data["orderNumber"] = compact ? Truncate(offer.OrderNumber, 12) : offer.OrderNumber;
-        data["vendorName"] = compact ? Truncate(vendorName, 24) : vendorName;
-        if (!compact)
-        {
-            data["vendorNameEn"] = offer.VendorNameEn;
-        }
-
+        data["vendorName"] = vendorName;
+        data["vendorNameEn"] = offer.VendorNameEn;
         data["pickupAddress"] = offer.PickupAddress ?? string.Empty;
         data["deliveryAddress"] = ResolveOverlayDeliveryAddress(offer);
-        data["customerName"] = compact ? Truncate(offer.CustomerName, 16) : offer.CustomerName;
+        data["customerName"] = offer.CustomerName;
         data["estimatedDistanceKm"] = offer.EstimatedDistanceKm;
         data["distanceKm"] = offer.EstimatedDistanceKm;
         data["distanceText"] = BuildDistanceText(offer.EstimatedDistanceKm);
         data["payout"] = offer.Payout;
-        data["paymentMethod"] = compact ? Truncate(offer.PaymentMethod, 12) : offer.PaymentMethod;
-        if (!compact)
-        {
-            data["totalAmount"] = offer.TotalAmount;
-        }
-
+        data["paymentMethod"] = offer.PaymentMethod;
+        data["totalAmount"] = offer.TotalAmount;
         data["codAmount"] = offer.CodAmount;
 
         if (!compact)

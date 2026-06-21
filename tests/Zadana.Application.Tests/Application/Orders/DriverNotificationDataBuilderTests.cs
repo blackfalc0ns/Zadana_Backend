@@ -119,7 +119,7 @@ public class DriverNotificationDataBuilderTests
         root.GetProperty("customerName").GetString().Should().Be("Customer One");
         root.GetProperty("payout").GetDecimal().Should().Be(18.5m);
         root.GetProperty("codAmount").GetDecimal().Should().Be(120m);
-        root.TryGetProperty("totalAmount", out _).Should().BeFalse();
+        root.GetProperty("totalAmount").GetDecimal().Should().Be(120m);
         root.GetProperty("estimatedDistanceKm").GetDecimal().Should().Be(3.5m);
         root.GetProperty("distanceKm").GetDecimal().Should().Be(3.5m);
         root.GetProperty("distanceText").GetString().Should().Be("3.5 km");
@@ -198,14 +198,17 @@ public class DriverNotificationDataBuilderTests
             offer,
             source: "unit_test");
 
-        Encoding.UTF8.GetByteCount(json).Should().BeLessThan(DriverNotificationDataBuilder.OneSignalMergedPayloadBudgetBytes);
-        DriverNotificationDataBuilder.EstimateOneSignalEnvelopeSize(json)
+        Encoding.UTF8.GetByteCount(json).Should().BeLessThan(DriverNotificationDataBuilder.OneSignalDriverOfferPayloadBudgetBytes);
+        DriverNotificationDataBuilder.EstimateDriverOfferEnvelopeSize(json)
             .Should().BeLessThan(DriverNotificationDataBuilder.OneSignalMaxDataBytes);
     }
 
     [Fact]
-    public void BuildDispatchOfferPushData_WhenArabicPayloadIsLarge_ShouldPreserveDeliveryAddress()
+    public void BuildDispatchOfferPushData_WhenArabicPayloadIsLarge_ShouldPreserveFullOverlayFields()
     {
+        const string fullDeliveryAddress =
+            "العدامة, الدمام, محافظة الدمام, المنطقة الشرقية, السعودية, مبنى 15, الدور الثالث, شقة 8";
+
         var offer = new DriverIncomingOfferDto(
             Guid.NewGuid(),
             Guid.NewGuid(),
@@ -218,7 +221,7 @@ public class DriverNotificationDataBuilderTests
             24.71m,
             46.67m,
             "ahmed",
-            "العدامة، الدمام، المملكة العربية السعودية، مبنى 15، الدور الثالث، شقة 8",
+            fullDeliveryAddress,
             26.42m,
             50.08m,
             13.49m,
@@ -241,14 +244,16 @@ public class DriverNotificationDataBuilderTests
             offer);
 
         using var document = JsonDocument.Parse(json);
-        var deliveryAddress = document.RootElement.GetProperty("deliveryAddress").GetString();
+        var root = document.RootElement;
 
-        deliveryAddress.Should().Be("العدامة، الدمام، المملكة العربية السعودية، مبنى 15، الدور الثالث، شقة 8");
-        if (document.RootElement.TryGetProperty("pickupAddress", out var pickupAddress))
-        {
-            pickupAddress.GetString().Should().Be("سشيشسيشيسشيشسسشيشي");
-        }
-        DriverNotificationDataBuilder.EstimateOneSignalEnvelopeSize(json)
+        root.GetProperty("vendorName").GetString().Should().Be("بقالة الأمل");
+        root.GetProperty("pickupAddress").GetString().Should().Be("سشيشسيشيسشيشسسشيشي");
+        root.GetProperty("deliveryAddress").GetString().Should().Be(fullDeliveryAddress);
+        root.GetProperty("customerName").GetString().Should().Be("ahmed");
+        root.GetProperty("paymentMethod").GetString().Should().Be("CashOnDelivery");
+        root.GetProperty("distanceText").GetString().Should().Be("13.49 km");
+        root.GetProperty("totalAmount").GetDecimal().Should().Be(99.6m);
+        DriverNotificationDataBuilder.EstimateDriverOfferEnvelopeSize(json)
             .Should().BeLessThan(DriverNotificationDataBuilder.OneSignalMaxDataBytes);
     }
 
