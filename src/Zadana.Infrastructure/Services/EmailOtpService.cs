@@ -67,7 +67,7 @@ public class EmailOtpService : IOtpService
                     subject,
                     body,
                     TextBody: textBody,
-                    From: $"{_emailSettings.FromName} Support <{_emailSettings.SupportEmail}>",
+                    From: $"{_emailSettings.FromName} <{_emailSettings.FromEmail}>",
                     ReplyTo: _emailSettings.SupportEmail,
                     Headers: new Dictionary<string, string>
                     {
