@@ -154,6 +154,11 @@ public sealed class AdminAlertService : IAdminAlertService
             return TimeSpan.FromMinutes(1);
         }
 
+        if (request.Type.StartsWith("vendor.", StringComparison.OrdinalIgnoreCase))
+        {
+            return TimeSpan.FromSeconds(30);
+        }
+
         return TimeSpan.FromMinutes(5);
     }
 }

@@ -44,6 +44,7 @@ public class UpdateVendorHoursCommandHandler : IRequestHandler<UpdateVendorHours
     private readonly ICurrentUserService _currentUserService;
     private readonly IVendorReviewAuditService _vendorReviewAuditService;
     private readonly ICacheInvalidator _cacheInvalidator;
+    private readonly IAdminAlertService _adminAlertService;
 
     public UpdateVendorHoursCommandHandler(
         IVendorRepository vendorRepository,
@@ -51,7 +52,8 @@ public class UpdateVendorHoursCommandHandler : IRequestHandler<UpdateVendorHours
         IUnitOfWork unitOfWork,
         ICurrentUserService currentUserService,
         IVendorReviewAuditService vendorReviewAuditService,
-        ICacheInvalidator cacheInvalidator)
+        ICacheInvalidator cacheInvalidator,
+        IAdminAlertService adminAlertService)
     {
         _vendorRepository = vendorRepository;
         _vendorReadService = vendorReadService;
@@ -59,6 +61,7 @@ public class UpdateVendorHoursCommandHandler : IRequestHandler<UpdateVendorHours
         _currentUserService = currentUserService;
         _vendorReviewAuditService = vendorReviewAuditService;
         _cacheInvalidator = cacheInvalidator;
+        _adminAlertService = adminAlertService;
     }
 
     public async Task<VendorWorkspaceDto> Handle(UpdateVendorHoursCommand request, CancellationToken cancellationToken)
@@ -101,6 +104,12 @@ public class UpdateVendorHoursCommandHandler : IRequestHandler<UpdateVendorHours
             vendor.BusinessNameAr,
             userId,
             vendor.BusinessNameAr,
+            cancellationToken);
+
+        await VendorProfileSectionAdminAlerts.NotifyOperationalUpdateAsync(
+            _adminAlertService,
+            vendor,
+            "hours",
             cancellationToken);
 
         return await _vendorReadService.GetWorkspaceByUserIdAsync(userId, cancellationToken)

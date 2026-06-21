@@ -4,6 +4,7 @@ using Zadana.Application.Common.Caching;
 using Zadana.Application.Common.Interfaces;
 using Zadana.Application.Modules.Vendors.DTOs;
 using Zadana.Application.Modules.Vendors.Interfaces;
+using Zadana.Application.Modules.Vendors.Support;
 using Zadana.SharedKernel.Exceptions;
 
 namespace Zadana.Application.Modules.Vendors.Commands.UpdateVendorOperationsSettings;
@@ -30,6 +31,7 @@ public class UpdateVendorOperationsSettingsCommandHandler : IRequestHandler<Upda
     private readonly ICurrentUserService _currentUserService;
     private readonly IVendorReviewAuditService _vendorReviewAuditService;
     private readonly ICacheInvalidator _cacheInvalidator;
+    private readonly IAdminAlertService _adminAlertService;
 
     public UpdateVendorOperationsSettingsCommandHandler(
         IVendorRepository vendorRepository,
@@ -37,7 +39,8 @@ public class UpdateVendorOperationsSettingsCommandHandler : IRequestHandler<Upda
         IUnitOfWork unitOfWork,
         ICurrentUserService currentUserService,
         IVendorReviewAuditService vendorReviewAuditService,
-        ICacheInvalidator cacheInvalidator)
+        ICacheInvalidator cacheInvalidator,
+        IAdminAlertService adminAlertService)
     {
         _vendorRepository = vendorRepository;
         _vendorReadService = vendorReadService;
@@ -45,6 +48,7 @@ public class UpdateVendorOperationsSettingsCommandHandler : IRequestHandler<Upda
         _currentUserService = currentUserService;
         _vendorReviewAuditService = vendorReviewAuditService;
         _cacheInvalidator = cacheInvalidator;
+        _adminAlertService = adminAlertService;
     }
 
     public async Task<VendorWorkspaceDto> Handle(UpdateVendorOperationsSettingsCommand request, CancellationToken cancellationToken)
@@ -66,6 +70,12 @@ public class UpdateVendorOperationsSettingsCommandHandler : IRequestHandler<Upda
             vendor.BusinessNameAr,
             userId,
             vendor.BusinessNameAr,
+            cancellationToken);
+
+        await VendorProfileSectionAdminAlerts.NotifyOperationalUpdateAsync(
+            _adminAlertService,
+            vendor,
+            "operations",
             cancellationToken);
 
         return await _vendorReadService.GetWorkspaceByUserIdAsync(userId, cancellationToken)

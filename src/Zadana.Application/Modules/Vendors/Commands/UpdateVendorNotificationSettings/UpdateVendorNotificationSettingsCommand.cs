@@ -3,6 +3,7 @@ using MediatR;
 using Zadana.Application.Common.Interfaces;
 using Zadana.Application.Modules.Vendors.DTOs;
 using Zadana.Application.Modules.Vendors.Interfaces;
+using Zadana.Application.Modules.Vendors.Support;
 using Zadana.SharedKernel.Exceptions;
 
 namespace Zadana.Application.Modules.Vendors.Commands.UpdateVendorNotificationSettings;
@@ -24,19 +25,22 @@ public class UpdateVendorNotificationSettingsCommandHandler : IRequestHandler<Up
     private readonly IUnitOfWork _unitOfWork;
     private readonly ICurrentUserService _currentUserService;
     private readonly IVendorReviewAuditService _vendorReviewAuditService;
+    private readonly IAdminAlertService _adminAlertService;
 
     public UpdateVendorNotificationSettingsCommandHandler(
         IVendorRepository vendorRepository,
         IVendorReadService vendorReadService,
         IUnitOfWork unitOfWork,
         ICurrentUserService currentUserService,
-        IVendorReviewAuditService vendorReviewAuditService)
+        IVendorReviewAuditService vendorReviewAuditService,
+        IAdminAlertService adminAlertService)
     {
         _vendorRepository = vendorRepository;
         _vendorReadService = vendorReadService;
         _unitOfWork = unitOfWork;
         _currentUserService = currentUserService;
         _vendorReviewAuditService = vendorReviewAuditService;
+        _adminAlertService = adminAlertService;
     }
 
     public async Task<VendorWorkspaceDto> Handle(UpdateVendorNotificationSettingsCommand request, CancellationToken cancellationToken)
@@ -62,6 +66,12 @@ public class UpdateVendorNotificationSettingsCommandHandler : IRequestHandler<Up
             vendor.BusinessNameAr,
             userId,
             vendor.BusinessNameAr,
+            cancellationToken);
+
+        await VendorProfileSectionAdminAlerts.NotifyOperationalUpdateAsync(
+            _adminAlertService,
+            vendor,
+            "notifications",
             cancellationToken);
 
         return await _vendorReadService.GetWorkspaceByUserIdAsync(userId, cancellationToken)

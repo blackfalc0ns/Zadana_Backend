@@ -35,6 +35,29 @@ public static class VendorProfileSectionAdminAlerts
         CancellationToken cancellationToken = default) =>
         adminAlertService.SendAsync(BuildSectionReviewRequest(vendor, section), cancellationToken);
 
+    public static Task NotifyOperationalUpdateAsync(
+        IAdminAlertService adminAlertService,
+        Vendor vendor,
+        string section,
+        CancellationToken cancellationToken = default)
+    {
+        var (labelAr, labelEn) = ResolveOperationalLabel(section);
+
+        return adminAlertService.SendAsync(
+            new AdminAlertRequest(
+                ResolveOperationalAlertType(section),
+                AdminAlertCategories.Vendors,
+                AdminAlertPriorities.Normal,
+                $"تحديث {labelAr}",
+                $"{labelEn} updated",
+                $"قام التاجر {vendor.BusinessNameAr} بتحديث {labelAr}.",
+                $"Vendor {vendor.BusinessNameEn} updated {labelEn}.",
+                vendor.Id,
+                $"/vendors/{vendor.Id}",
+                new { vendorId = vendor.Id, userId = vendor.UserId, section }),
+            cancellationToken);
+    }
+
     private static string BuildComplianceTargetUrl(Guid vendorId) => $"/vendors/{vendorId}/compliance";
 
     private static string ResolveAlertType(string section) =>
@@ -53,5 +76,23 @@ public static class VendorProfileSectionAdminAlerts
         {
             "owner" or "legal" or "banking" => AdminAlertPriorities.High,
             _ => AdminAlertPriorities.Normal
+        };
+
+    private static (string LabelAr, string LabelEn) ResolveOperationalLabel(string section) =>
+        section.Trim().ToLowerInvariant() switch
+        {
+            "hours" => ("ساعات العمل", "operating hours"),
+            "operations" => ("إعدادات التشغيل", "operations settings"),
+            "notifications" => ("تفضيلات الإشعارات", "notification preferences"),
+            _ => ("بيانات التاجر", "vendor profile")
+        };
+
+    private static string ResolveOperationalAlertType(string section) =>
+        section.Trim().ToLowerInvariant() switch
+        {
+            "hours" => AdminAlertTypes.VendorHoursUpdated,
+            "operations" => AdminAlertTypes.VendorOperationsUpdated,
+            "notifications" => AdminAlertTypes.VendorNotificationSettingsUpdated,
+            _ => AdminAlertTypes.VendorStoreUpdated
         };
 }
