@@ -239,7 +239,7 @@ public class AdminDriversController : ApiControllerBase
             UserId: driver.UserId,
             ExternalId: pushRequest.ExternalUserId,
             Type: type,
-            InboxRequested: true,
+            InboxRequested: true, // Cleaned automatically after the transient test offer expires.
             PushAttempted: pushResult.Attempted,
             PushSent: pushResult.Sent,
             PushSkipped: pushResult.Skipped,

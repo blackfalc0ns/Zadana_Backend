@@ -35,6 +35,7 @@ public class DriverNotificationsController : ApiControllerBase
         CancellationToken cancellationToken = default)
     {
         var userId = _currentUserService.UserId ?? throw new UnauthorizedException("USER_NOT_AUTHENTICATED");
+        await Sender.Send(new CleanupStaleDriverOfferNotificationsCommand(userId), cancellationToken);
         var result = await Sender.Send(
             new GetNotificationsQuery(userId, page, perPage, type, isRead, fromUtc, toUtc, category, priority),
             cancellationToken);
@@ -52,6 +53,7 @@ public class DriverNotificationsController : ApiControllerBase
     public async Task<ActionResult<DriverUnreadCountResponse>> GetUnreadCount(CancellationToken cancellationToken = default)
     {
         var userId = _currentUserService.UserId ?? throw new UnauthorizedException("USER_NOT_AUTHENTICATED");
+        await Sender.Send(new CleanupStaleDriverOfferNotificationsCommand(userId), cancellationToken);
         var count = await Sender.Send(new GetUnreadNotificationCountQuery(userId), cancellationToken);
         return Ok(new DriverUnreadCountResponse(count));
     }

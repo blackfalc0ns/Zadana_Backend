@@ -47,9 +47,12 @@ internal static class OrderStatusNotificationComposer
         var eventName = isRefundUpdate
             ? "order.refund.refunded"
             : $"order.status.{newStatus.ToString().ToLowerInvariant()}";
+        var dedupeKey = $"order-status:{orderId:N}:{oldStatus}:{newStatus}";
 
         var data = new Dictionary<string, object?>
         {
+            ["dedupeKey"] = dedupeKey,
+            ["eventId"] = dedupeKey,
             ["orderId"] = orderId,
             ["orderNumber"] = orderNumber,
             ["vendorId"] = vendorId,

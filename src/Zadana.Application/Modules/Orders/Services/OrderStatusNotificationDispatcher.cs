@@ -10,15 +10,18 @@ public sealed class OrderStatusNotificationDispatcher : IOrderStatusNotification
 {
     private readonly INotificationService _notificationService;
     private readonly IOneSignalPushService _oneSignalPushService;
+    private readonly ICustomerPresenceService _customerPresenceService;
     private readonly ILogger<OrderStatusNotificationDispatcher> _logger;
 
     public OrderStatusNotificationDispatcher(
         INotificationService notificationService,
         IOneSignalPushService oneSignalPushService,
+        ICustomerPresenceService customerPresenceService,
         ILogger<OrderStatusNotificationDispatcher> logger)
     {
         _notificationService = notificationService;
         _oneSignalPushService = oneSignalPushService;
+        _customerPresenceService = customerPresenceService;
         _logger = logger;
     }
 
@@ -82,9 +85,22 @@ public sealed class OrderStatusNotificationDispatcher : IOrderStatusNotification
         OneSignalPushDispatchResult pushResult;
         try
         {
-            pushResult = request.NewStatus is OrderStatus.OnTheWay or OrderStatus.Delivered
-                ? await _oneSignalPushService.SendMobileNotificationDirectAsync(pushRequest, cancellationToken)
-                : await pushRequest.DispatchAsync(_oneSignalPushService, cancellationToken);
+            if (_customerPresenceService.IsOnline(request.UserId))
+            {
+                pushResult = new OneSignalPushDispatchResult(
+                    Attempted: false,
+                    Sent: false,
+                    Skipped: true,
+                    ProviderStatusCode: null,
+                    ProviderNotificationId: null,
+                    Reason: "Customer is active in the foreground; SignalR delivery suppresses duplicate push.");
+            }
+            else
+            {
+                pushResult = request.NewStatus is OrderStatus.OnTheWay or OrderStatus.Delivered
+                    ? await _oneSignalPushService.SendMobileNotificationDirectAsync(pushRequest, cancellationToken)
+                    : await pushRequest.DispatchAsync(_oneSignalPushService, cancellationToken);
+            }
         }
         catch (Exception ex)
         {
