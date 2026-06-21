@@ -7,6 +7,7 @@ using Zadana.Application.Modules.Wallets.Interfaces;
 using Zadana.Domain.Modules.Wallets.Entities;
 using Zadana.Domain.Modules.Wallets.Enums;
 using Zadana.SharedKernel.Exceptions;
+using Zadana.SharedKernel.Serialization;
 
 namespace Zadana.Infrastructure.Modules.Delivery.Services;
 
@@ -30,7 +31,7 @@ public sealed class DriverWalletReadService : IDriverWalletReadService
         var driver = await GetDriverAsync(driverUserId, cancellationToken);
         var wallet = await GetOrCreateWalletAsync(driver.Id, cancellationToken);
 
-        var todayStart = DateTime.UtcNow.Date;
+        var todayStart = SaudiTime.StartOfTodayUtc;
         var weekStart = DateTime.UtcNow.AddDays(-7);
         var monthStart = DateTime.UtcNow.AddDays(-30);
 

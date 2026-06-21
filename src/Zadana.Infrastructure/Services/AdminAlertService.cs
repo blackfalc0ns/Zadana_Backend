@@ -3,14 +3,23 @@ using Microsoft.EntityFrameworkCore;
 using Microsoft.Extensions.Logging;
 using Zadana.Application.Common.Interfaces;
 using Zadana.Domain.Modules.Social.Entities;
+using Zadana.SharedKernel.Serialization;
 
 namespace Zadana.Infrastructure.Services;
 
 public sealed class AdminAlertService : IAdminAlertService
 {
-    private static readonly JsonSerializerOptions JsonOptions = new(JsonSerializerDefaults.Web);
+    private static readonly JsonSerializerOptions JsonOptions = CreateJsonOptions();
     private readonly IApplicationDbContext _context;
     private readonly ILogger<AdminAlertService> _logger;
+
+    private static JsonSerializerOptions CreateJsonOptions()
+    {
+        var options = new JsonSerializerOptions(JsonSerializerDefaults.Web);
+        options.Converters.Add(new SaudiDateTimeJsonConverter());
+        options.Converters.Add(new SaudiDateTimeOffsetJsonConverter());
+        return options;
+    }
 
     public AdminAlertService(
         IApplicationDbContext context,

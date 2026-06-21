@@ -9,6 +9,7 @@ using Zadana.Application.Modules.Identity.Interfaces;
 using Zadana.Domain.Modules.Delivery.Enums;
 using Zadana.Domain.Modules.Social.Enums;
 using Zadana.SharedKernel.Exceptions;
+using Zadana.SharedKernel.Serialization;
 
 namespace Zadana.Application.Modules.Delivery.Commands.ApproveDriverDocumentReview;
 
@@ -147,7 +148,7 @@ public class ApproveDriverDocumentReviewCommandHandler : IRequestHandler<Approve
             _ => null
         };
 
-        return expiryDate.HasValue && expiryDate.Value.Date < DateTime.UtcNow.Date;
+        return expiryDate.HasValue && expiryDate.Value.Date < SaudiTime.Today;
     }
 
     private void DetachDriverUserIfTracked(Domain.Modules.Delivery.Entities.Driver driver)

@@ -12,6 +12,7 @@ using Zadana.Domain.Modules.Orders.Enums;
 using Zadana.Domain.Modules.Payments.Enums;
 using Zadana.Domain.Modules.Wallets.Enums;
 using Zadana.Domain.Modules.Vendors.Enums;
+using Zadana.SharedKernel.Serialization;
 
 namespace Zadana.Api.Modules.Vendors.Controllers;
 
@@ -979,7 +980,7 @@ public class VendorWorkspaceController : ApiControllerBase
             settlements.Select(settlement => new VendorSettlementResponse(
                 settlement.Id.ToString(),
                 $"SET-{settlement.CreatedAtUtc:yyMMdd}",
-                settlement.CreatedAtUtc.ToString("yyyy-MM-dd"),
+                SaudiTime.ToSaudi(settlement.CreatedAtUtc).ToString("yyyy-MM-dd"),
                 MapSettlementStatus(settlement.Status),
                 settlement.NetAmount,
                 settlement.OrdersCount)).ToList(),
@@ -1094,7 +1095,7 @@ public class VendorWorkspaceController : ApiControllerBase
 
     private static DateTime? CalculateNextSettlementDate(VendorFinancialLifecycleMode mode)
     {
-        var now = DateTime.UtcNow.Date;
+        var now = SaudiTime.Today;
         return mode switch
         {
             VendorFinancialLifecycleMode.PerOrderDirectPayout => null,
@@ -1121,8 +1122,8 @@ public class VendorWorkspaceController : ApiControllerBase
         }
 
         return mode == VendorFinancialLifecycleMode.PerOrderDirectPayout
-            ? DateTime.UtcNow.Date
-            : CalculateNextSettlementDate(mode) ?? DateTime.UtcNow.Date;
+            ? SaudiTime.Today
+            : CalculateNextSettlementDate(mode) ?? SaudiTime.Today;
     }
 
     private static string MapLedgerEntryType(WalletTxnType txnType) =>
@@ -1466,7 +1467,7 @@ public class VendorWorkspaceController : ApiControllerBase
         IReadOnlyCollection<dynamic> payouts)
     {
         var months = Enumerable.Range(0, 6)
-            .Select(offset => DateTime.UtcNow.Date.AddMonths(-5 + offset))
+            .Select(offset => SaudiTime.Today.AddMonths(-5 + offset))
             .ToList();
 
         return months.Select(month =>

@@ -124,6 +124,8 @@ public class DriverNotificationDataBuilderTests
         root.GetProperty("distanceKm").GetDecimal().Should().Be(3.5m);
         root.GetProperty("distanceText").GetString().Should().Be("3.5 km");
         root.GetProperty("countdownSeconds").GetInt32().Should().Be(25);
+        DateTimeOffset.Parse(root.GetProperty("expiresAtUtc").GetString()!)
+            .Offset.Should().Be(TimeSpan.FromHours(3));
         root.GetProperty("itemsCount").GetInt32().Should().Be(1);
         root.TryGetProperty("orderItems", out _).Should().BeFalse();
     }

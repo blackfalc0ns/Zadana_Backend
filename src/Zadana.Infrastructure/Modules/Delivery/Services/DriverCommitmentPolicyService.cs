@@ -5,6 +5,7 @@ using Zadana.Application.Modules.Delivery.Interfaces;
 using Zadana.Application.Modules.Delivery.Support;
 using Zadana.Domain.Modules.Delivery.Entities;
 using Zadana.Domain.Modules.Delivery.Enums;
+using Zadana.SharedKernel.Serialization;
 using Zadana.Domain.Modules.Social.Enums;
 
 namespace Zadana.Infrastructure.Modules.Delivery.Services;
@@ -73,7 +74,7 @@ public class DriverCommitmentPolicyService : IDriverCommitmentPolicyService
         var distinctDriverIds = driverIds.Distinct().ToArray();
         var utcNow = DateTime.UtcNow;
         var weekWindowStart = utcNow.Subtract(WeeklyWindow);
-        var todayStart = utcNow.Date;
+        var todayStart = SaudiTime.StartOfTodayUtc;
 
         var commitmentClearDates = await _context.Drivers
             .Where(driver => distinctDriverIds.Contains(driver.Id))

@@ -27,7 +27,11 @@ public class AdminMarketingBannersController : ApiControllerBase
         var fileDto = new FileUploadDto(file.FileName, file.ContentType, stream);
         var fileUrl = await Sender.Send(new UploadFileCommand("marketing/banners", fileDto));
 
-        return Ok(new { url = fileUrl });
+        return Ok(new
+        {
+            url = fileUrl,
+            uploadedAt = DateTime.UtcNow
+        });
     }
 
     [HttpGet]

@@ -3,6 +3,7 @@ using Microsoft.EntityFrameworkCore;
 using Zadana.Application.Common.Interfaces;
 using Zadana.Domain.Modules.Vendors.Entities;
 using Zadana.Domain.Modules.Vendors.Enums;
+using Zadana.SharedKernel.Serialization;
 
 namespace Zadana.Application.Modules.Vendors.Support;
 
@@ -131,7 +132,7 @@ public static class VendorCustomerAvailabilityPolicy
             return new VendorCustomerAvailabilityDecision(false, false, false, VendorInactiveReason, "Vendor is inactive.");
         }
 
-        if (vendor.CommercialRegistrationExpiryDate.HasValue && vendor.CommercialRegistrationExpiryDate.Value.Date < DateTime.UtcNow.Date)
+        if (vendor.CommercialRegistrationExpiryDate.HasValue && vendor.CommercialRegistrationExpiryDate.Value.Date < SaudiTime.Today)
         {
             return new VendorCustomerAvailabilityDecision(false, false, false, "documents_expired", "Vendor registration documents have expired.");
         }

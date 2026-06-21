@@ -4,6 +4,7 @@ using Zadana.Application.Common.Interfaces;
 using Zadana.Application.Modules.Identity.DTOs;
 using Zadana.Domain.Modules.Identity.Entities;
 using Zadana.Domain.Modules.Identity.Enums;
+using Zadana.SharedKernel.Serialization;
 
 namespace Zadana.Application.Modules.Identity.Queries.GetAdminUsers;
 
@@ -307,10 +308,12 @@ public static class AdminUserRecordProjector
             RevokedPermissions: revokedPermissions,
             Security: new AdminUserSecurityDto(
                 MfaEnabled: false,
-                LastLoginAt: user.LastLoginAtUtc?.ToString("o"),
+                LastLoginAt: user.LastLoginAtUtc is { } lastLoginAtUtc
+                    ? SaudiTime.ToSaudi(lastLoginAtUtc).ToString("O")
+                    : null,
                 InvitedBy: "System",
-                InvitedAt: user.CreatedAtUtc.ToString("o"),
-                AcceptedAt: user.EmailConfirmed ? user.CreatedAtUtc.ToString("o") : null,
+                InvitedAt: SaudiTime.ToSaudi(user.CreatedAtUtc).ToString("O"),
+                AcceptedAt: user.EmailConfirmed ? SaudiTime.ToSaudi(user.CreatedAtUtc).ToString("O") : null,
                 VerificationState: identityKind == "external" && !user.EmailConfirmed ? "pending" : "verified"
             ),
             AvatarHue: Accents[colorIndex],

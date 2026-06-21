@@ -2,6 +2,7 @@ using Zadana.Domain.Modules.Delivery.Entities;
 using Zadana.Domain.Modules.Vendors.Entities;
 using Zadana.Domain.Modules.Wallets.Enums;
 using Zadana.SharedKernel.Primitives;
+using Zadana.SharedKernel.Serialization;
 
 namespace Zadana.Domain.Modules.Wallets.Entities;
 
@@ -46,8 +47,8 @@ public class Settlement : BaseEntity
         Origin = origin;
         Status = SettlementStatus.PendingReview;
         ResolutionType = SettlementResolutionType.BankPayout;
-        PeriodFrom = DateTime.UtcNow.Date;
-        PeriodTo = DateTime.UtcNow.Date;
+        PeriodFrom = SaudiTime.Today;
+        PeriodTo = SaudiTime.Today;
         GrossAmount = 0;
         CommissionAmount = 0;
         RefundAmount = 0;

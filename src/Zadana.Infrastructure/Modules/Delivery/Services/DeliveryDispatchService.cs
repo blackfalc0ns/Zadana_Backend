@@ -16,6 +16,7 @@ using Zadana.Domain.Modules.Orders.Enums;
 using Zadana.Domain.Modules.Payments.Enums;
 using Zadana.Domain.Modules.Social.Enums;
 using Zadana.SharedKernel.Exceptions;
+using Zadana.SharedKernel.Serialization;
 
 namespace Zadana.Infrastructure.Modules.Delivery.Services;
 
@@ -597,7 +598,7 @@ public class DeliveryDispatchService : IDeliveryDispatchService
             pickupCity,
             FirstNonBlank(order.VendorBranch?.Region, order.Vendor?.Region));
 
-        var today = DateTime.UtcNow.Date;
+        var today = SaudiTime.Today;
 
         var baseEligibleDrivers = await _context.Drivers
             .Include(driver => driver.User)

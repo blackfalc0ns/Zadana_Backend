@@ -1,5 +1,6 @@
 using Zadana.Domain.Modules.Delivery.Entities;
 using Zadana.Domain.Modules.Delivery.Enums;
+using Zadana.SharedKernel.Serialization;
 
 namespace Zadana.Application.Modules.Delivery.DTOs;
 
@@ -234,5 +235,5 @@ public static class DriverProfileReadinessFactory
         };
 
     private static bool IsExpired(DateTime? value) =>
-        value.HasValue && value.Value.Date < DateTime.UtcNow.Date;
+        value.HasValue && value.Value.Date < SaudiTime.Today;
 }

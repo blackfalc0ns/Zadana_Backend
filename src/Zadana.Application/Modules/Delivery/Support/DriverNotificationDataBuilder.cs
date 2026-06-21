@@ -1,6 +1,7 @@
 using System.Text;
 using System.Text.Json;
 using Zadana.Application.Modules.Delivery.DTOs;
+using Zadana.SharedKernel.Serialization;
 
 namespace Zadana.Application.Modules.Delivery.Support;
 
@@ -18,6 +19,12 @@ public static class DriverNotificationDataBuilder
     {
         PropertyNamingPolicy = JsonNamingPolicy.CamelCase
     };
+
+    static DriverNotificationDataBuilder()
+    {
+        JsonOptions.Converters.Add(new SaudiDateTimeJsonConverter());
+        JsonOptions.Converters.Add(new SaudiDateTimeOffsetJsonConverter());
+    }
 
     public static string Build(
         string screen,
@@ -116,7 +123,68 @@ public static class DriverNotificationDataBuilder
             includeFullItems: false,
             compact: true);
 
-        return Build(
+        var serialized = Build(
+            screen: "home",
+            @event: "dispatch.offer_new",
+            orderId: orderId,
+            assignmentId: assignmentId,
+            driverId: driverId,
+            extra: extra);
+
+        if (Encoding.UTF8.GetByteCount(serialized) < OneSignalMergedPayloadBudgetBytes)
+        {
+            return serialized;
+        }
+
+        return FitDeliveryAddressWithinPushBudget(
+            extra,
+            currentOffer.DeliveryAddress,
+            orderId,
+            assignmentId,
+            driverId);
+    }
+
+    private static string FitDeliveryAddressWithinPushBudget(
+        Dictionary<string, object?> extra,
+        string? deliveryAddress,
+        Guid orderId,
+        Guid assignmentId,
+        Guid driverId)
+    {
+        var normalizedAddress = deliveryAddress ?? string.Empty;
+        var textElements = System.Globalization.StringInfo.ParseCombiningCharacters(normalizedAddress);
+        var addressInfo = new System.Globalization.StringInfo(normalizedAddress);
+        var low = 0;
+        var high = textElements.Length;
+        string? best = null;
+
+        while (low <= high)
+        {
+            var count = low + ((high - low) / 2);
+            extra["deliveryAddress"] = count == 0
+                ? string.Empty
+                : addressInfo.SubstringByTextElements(0, count);
+
+            var candidate = Build(
+                screen: "home",
+                @event: "dispatch.offer_new",
+                orderId: orderId,
+                assignmentId: assignmentId,
+                driverId: driverId,
+                extra: extra);
+
+            if (Encoding.UTF8.GetByteCount(candidate) < OneSignalMergedPayloadBudgetBytes)
+            {
+                best = candidate;
+                low = count + 1;
+            }
+            else
+            {
+                high = count - 1;
+            }
+        }
+
+        return best ?? Build(
             screen: "home",
             @event: "dispatch.offer_new",
             orderId: orderId,

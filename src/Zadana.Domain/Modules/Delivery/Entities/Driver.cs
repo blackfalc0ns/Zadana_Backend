@@ -3,6 +3,7 @@ using Zadana.Domain.Modules.Identity.Entities;
 using Zadana.Domain.Modules.Identity.Enums;
 using Zadana.Domain.Modules.Identity.Services;
 using Zadana.SharedKernel.Primitives;
+using Zadana.SharedKernel.Serialization;
 
 namespace Zadana.Domain.Modules.Delivery.Entities;
 
@@ -313,7 +314,7 @@ public class Driver : BaseEntity
 
     public bool HasExpiredRequiredDocuments()
     {
-        var today = DateTime.UtcNow.Date;
+        var today = SaudiTime.Today;
         return (NationalIdExpiryDate.HasValue && NationalIdExpiryDate.Value.Date < today)
             || (DriverLicenseExpiryDate.HasValue && DriverLicenseExpiryDate.Value.Date < today)
             || (VehicleLicenseExpiryDate.HasValue && VehicleLicenseExpiryDate.Value.Date < today);

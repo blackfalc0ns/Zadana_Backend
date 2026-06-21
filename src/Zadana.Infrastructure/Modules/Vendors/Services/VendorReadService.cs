@@ -8,6 +8,7 @@ using Zadana.Domain.Modules.Social.Entities;
 using Zadana.Domain.Modules.Vendors.Entities;
 using Zadana.Domain.Modules.Vendors.Enums;
 using Zadana.Infrastructure.Persistence;
+using Zadana.SharedKernel.Serialization;
 
 namespace Zadana.Infrastructure.Modules.Vendors.Services;
 
@@ -59,7 +60,7 @@ public class VendorReadService : IVendorReadService
                 item.vendor.BusinessNameAr,
                 item.vendor.BusinessNameEn,
                 item.vendor.BusinessType,
-                item.vendor.Status == VendorStatus.Active && item.vendor.CommercialRegistrationExpiryDate.HasValue && item.vendor.CommercialRegistrationExpiryDate.Value.Date < DateTime.UtcNow.Date ? "Suspended" : NormalizeVendorStatus(item.vendor.Status),
+                item.vendor.Status == VendorStatus.Active && item.vendor.CommercialRegistrationExpiryDate.HasValue && item.vendor.CommercialRegistrationExpiryDate.Value.Date < SaudiTime.Today ? "Suspended" : NormalizeVendorStatus(item.vendor.Status),
                 item.vendor.OwnerName ?? (item.user != null ? item.user.FullName : item.vendor.ContactEmail),
                 item.vendor.ContactPhone,
                 item.vendor.CreatedAtUtc,
@@ -294,7 +295,7 @@ public class VendorReadService : IVendorReadService
             vendor.PayoutCycle,
             vendor.FinancialLifecycleMode.ToString(),
             vendor.CommissionRate,
-            vendor.Status == VendorStatus.Active && vendor.CommercialRegistrationExpiryDate.HasValue && vendor.CommercialRegistrationExpiryDate.Value.Date < DateTime.UtcNow.Date ? "Suspended" : NormalizeVendorStatus(vendor.Status),
+            vendor.Status == VendorStatus.Active && vendor.CommercialRegistrationExpiryDate.HasValue && vendor.CommercialRegistrationExpiryDate.Value.Date < SaudiTime.Today ? "Suspended" : NormalizeVendorStatus(vendor.Status),
             user?.AccountStatus.ToString() ?? "Pending",
             user?.IsLoginLocked ?? false,
             user?.LockedAtUtc,
@@ -414,7 +415,7 @@ public class VendorReadService : IVendorReadService
                 item.DecisionNote ?? $"Please update {item.Code}.")))
             .ToList();
 
-        if (vendor.CommercialRegistrationExpiryDate.HasValue && vendor.CommercialRegistrationExpiryDate.Value.Date < DateTime.UtcNow.Date)
+        if (vendor.CommercialRegistrationExpiryDate.HasValue && vendor.CommercialRegistrationExpiryDate.Value.Date < SaudiTime.Today)
         {
             requiredActions.Add(new VendorWorkspaceRequiredActionDto(
                 VendorProfileReviewCatalog.Step5Commercial,
@@ -438,7 +439,7 @@ public class VendorReadService : IVendorReadService
 
         return new WorkspaceReviewProjection(
             reviewState,
-            vendor.Status == VendorStatus.Active && vendor.ApprovedAtUtc.HasValue && (!vendor.CommercialRegistrationExpiryDate.HasValue || vendor.CommercialRegistrationExpiryDate.Value.Date >= DateTime.UtcNow.Date),
+            vendor.Status == VendorStatus.Active && vendor.ApprovedAtUtc.HasValue && (!vendor.CommercialRegistrationExpiryDate.HasValue || vendor.CommercialRegistrationExpiryDate.Value.Date >= SaudiTime.Today),
             assignedReviewerName,
             reviewSubmittedAtUtc,
             reviewStartedAtUtc,
@@ -548,7 +549,7 @@ public class VendorReadService : IVendorReadService
     {
         if (vendor.Status == VendorStatus.Active)
         {
-            if (vendor.CommercialRegistrationExpiryDate.HasValue && vendor.CommercialRegistrationExpiryDate.Value.Date < DateTime.UtcNow.Date)
+            if (vendor.CommercialRegistrationExpiryDate.HasValue && vendor.CommercialRegistrationExpiryDate.Value.Date < SaudiTime.Today)
             {
                 return "Suspended";
             }
@@ -587,7 +588,7 @@ public class VendorReadService : IVendorReadService
     {
         if (vendor.Status == VendorStatus.Active)
         {
-            if (vendor.CommercialRegistrationExpiryDate.HasValue && vendor.CommercialRegistrationExpiryDate.Value.Date < DateTime.UtcNow.Date)
+            if (vendor.CommercialRegistrationExpiryDate.HasValue && vendor.CommercialRegistrationExpiryDate.Value.Date < SaudiTime.Today)
             {
                 return "changes_requested";
             }

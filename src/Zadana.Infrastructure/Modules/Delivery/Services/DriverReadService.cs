@@ -13,6 +13,7 @@ using Zadana.Domain.Modules.Orders.Entities;
 using Zadana.Domain.Modules.Orders.Enums;
 using Zadana.Domain.Modules.Payments.Enums;
 using Zadana.Domain.Modules.Wallets.Entities;
+using Zadana.SharedKernel.Serialization;
 using Zadana.Domain.Modules.Wallets.Enums;
 
 namespace Zadana.Infrastructure.Modules.Delivery.Services;
@@ -2075,7 +2076,7 @@ public class DriverReadService : IDriverReadService
             return "rejected";
         }
 
-        if (expiryDate.HasValue && expiryDate.Value.Date < DateTime.UtcNow.Date)
+        if (expiryDate.HasValue && expiryDate.Value.Date < SaudiTime.Today)
         {
             return "expiring";
         }

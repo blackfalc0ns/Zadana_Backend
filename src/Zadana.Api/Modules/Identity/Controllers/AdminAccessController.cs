@@ -23,6 +23,7 @@ using Zadana.Application.Modules.Delivery.DTOs;
 using Zadana.Application.Modules.Delivery.Support;
 using Zadana.Domain.Modules.Delivery.Enums;
 using Zadana.Domain.Modules.Delivery.Entities;
+using Zadana.SharedKernel.Serialization;
 using Zadana.Domain.Modules.Vendors.Entities;
 using Zadana.Domain.Modules.Vendors.Enums;
 using Zadana.Domain.Modules.Identity.Entities;
@@ -241,7 +242,7 @@ public class AdminAccessController(
                     log.Summary,
                     log.BeforeJson,
                     log.AfterJson,
-                    log.CreatedAtUtc.ToString("o"),
+                    SaudiTime.ToSaudi(log.CreatedAtUtc).ToString("O"),
                     log.IpAddress,
                     log.UserAgent))
             .Take(100)
@@ -442,7 +443,7 @@ public class AdminAccessController(
                     log.Summary,
                     log.BeforeJson,
                     log.AfterJson,
-                    log.CreatedAtUtc.ToString("o"),
+                    SaudiTime.ToSaudi(log.CreatedAtUtc).ToString("O"),
                     log.IpAddress,
                     log.UserAgent))
             .Take(pageSize)
@@ -1419,7 +1420,7 @@ public class AdminAccessController(
             approval.PayloadHash,
             approval.PayloadJson,
             approval.Status.ToString(),
-            approval.CreatedAtUtc.ToString("o"),
+            SaudiTime.ToSaudi(approval.CreatedAtUtc).ToString("O"),
             approval.DecidedByUserId,
             decidedBy != null ? decidedBy.FullName : null,
             decidedBy != null ? decidedBy.Email : null,

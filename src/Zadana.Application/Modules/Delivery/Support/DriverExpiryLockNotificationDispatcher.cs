@@ -1,6 +1,7 @@
 using Zadana.Application.Common.Interfaces;
 using Zadana.Domain.Modules.Delivery.Entities;
 using Zadana.Domain.Modules.Social.Enums;
+using Zadana.SharedKernel.Serialization;
 
 namespace Zadana.Application.Modules.Delivery.Support;
 
@@ -14,17 +15,17 @@ public static class DriverExpiryLockNotificationDispatcher
     {
         var expiredDocuments = new List<string>();
 
-        if (driver.NationalIdExpiryDate.HasValue && driver.NationalIdExpiryDate.Value.Date < DateTime.UtcNow.Date)
+        if (driver.NationalIdExpiryDate.HasValue && driver.NationalIdExpiryDate.Value.Date < SaudiTime.Today)
         {
             expiredDocuments.Add("NationalId");
         }
 
-        if (driver.DriverLicenseExpiryDate.HasValue && driver.DriverLicenseExpiryDate.Value.Date < DateTime.UtcNow.Date)
+        if (driver.DriverLicenseExpiryDate.HasValue && driver.DriverLicenseExpiryDate.Value.Date < SaudiTime.Today)
         {
             expiredDocuments.Add("DriverLicense");
         }
 
-        if (driver.VehicleLicenseExpiryDate.HasValue && driver.VehicleLicenseExpiryDate.Value.Date < DateTime.UtcNow.Date)
+        if (driver.VehicleLicenseExpiryDate.HasValue && driver.VehicleLicenseExpiryDate.Value.Date < SaudiTime.Today)
         {
             expiredDocuments.Add("VehicleLicense");
         }

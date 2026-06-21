@@ -1,6 +1,7 @@
 using System.Text;
 using System.Text.Json;
 using System.Text.Json.Serialization;
+using Zadana.SharedKernel.Serialization;
 using System.Threading.RateLimiting;
 using Microsoft.AspNetCore.Authentication.JwtBearer;
 using Microsoft.AspNetCore.DataProtection;
@@ -787,6 +788,8 @@ builder.Services.AddControllers(options =>
     {
         options.JsonSerializerOptions.PropertyNamingPolicy = JsonNamingPolicy.CamelCase;
         options.JsonSerializerOptions.Converters.Add(new JsonStringEnumConverter());
+        options.JsonSerializerOptions.Converters.Add(new SaudiDateTimeJsonConverter());
+        options.JsonSerializerOptions.Converters.Add(new SaudiDateTimeOffsetJsonConverter());
     })
     .ConfigureApiBehaviorOptions(options =>
     {
@@ -811,6 +814,8 @@ signalRBuilder.AddJsonProtocol(options =>
 {
     options.PayloadSerializerOptions.PropertyNamingPolicy = JsonNamingPolicy.CamelCase;
     options.PayloadSerializerOptions.Converters.Add(new JsonStringEnumConverter());
+    options.PayloadSerializerOptions.Converters.Add(new SaudiDateTimeJsonConverter());
+    options.PayloadSerializerOptions.Converters.Add(new SaudiDateTimeOffsetJsonConverter());
 });
 
 // Wire the Redis backplane so SignalR scales out across multiple API

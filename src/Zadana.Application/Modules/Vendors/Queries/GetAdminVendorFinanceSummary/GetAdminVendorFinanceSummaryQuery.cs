@@ -5,6 +5,7 @@ using Zadana.Application.Modules.Vendors.DTOs;
 using Zadana.Domain.Modules.Orders.Enums;
 using Zadana.Domain.Modules.Wallets.Enums;
 using Zadana.SharedKernel.Exceptions;
+using Zadana.SharedKernel.Serialization;
 
 namespace Zadana.Application.Modules.Vendors.Queries.GetAdminVendorFinanceSummary;
 
@@ -144,7 +145,9 @@ public class GetAdminVendorFinanceSummaryQueryHandler
             directSettlementsCount,
             batchSettlementsCount,
             totalPayoutsCount,
-            (latestPayout?.ProcessedAtUtc ?? latestPayout?.CreatedAtUtc)?.ToString("O"),
+            (latestPayout?.ProcessedAtUtc ?? latestPayout?.CreatedAtUtc) is { } latestPayoutAtUtc
+                ? SaudiTime.ToSaudi(latestPayoutAtUtc).ToString("O")
+                : null,
             latestPayout is null ? null : $"PAY-{latestPayout.Id.ToString("N")[..8].ToUpperInvariant()}",
             latestPayout?.Amount,
             latestPayout?.Status.ToString());

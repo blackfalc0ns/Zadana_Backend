@@ -10,6 +10,7 @@ using Zadana.Domain.Modules.Orders.Enums;
 using Zadana.Domain.Modules.Payments.Enums;
 using Zadana.Domain.Modules.Wallets.Enums;
 using Zadana.SharedKernel.Exceptions;
+using Zadana.SharedKernel.Serialization;
 
 namespace Zadana.Infrastructure.Modules.Delivery.Services;
 
@@ -151,13 +152,17 @@ public sealed class DriverHomeReadService : IDriverHomeReadService
                 w => w.OwnerType == WalletOwnerType.Driver && w.OwnerId == driver.Id,
                 cancellationToken);
 
+        var todayStartUtc = SaudiTime.StartOfTodayUtc;
+        var tomorrowStartUtc = SaudiTime.StartOfTomorrowUtc;
+
         var earningsToday = wallet is null
             ? 0m
             : await _context.WalletTransactions
                 .Where(t =>
                     t.WalletId == wallet.Id &&
                     t.Direction == "IN" &&
-                    t.CreatedAtUtc.Date == DateTime.UtcNow.Date)
+                    t.CreatedAtUtc >= todayStartUtc &&
+                    t.CreatedAtUtc < tomorrowStartUtc)
                 .SumAsync(t => (decimal?)t.Amount, cancellationToken) ?? 0m;
 
         var completedTrips = await _context.DeliveryAssignments
@@ -165,7 +170,8 @@ public sealed class DriverHomeReadService : IDriverHomeReadService
                 a.DriverId == driver.Id &&
                 a.Status == AssignmentStatus.Delivered &&
                 a.DeliveredAtUtc.HasValue &&
-                a.DeliveredAtUtc.Value.Date == DateTime.UtcNow.Date, cancellationToken);
+                a.DeliveredAtUtc.Value >= todayStartUtc &&
+                a.DeliveredAtUtc.Value < tomorrowStartUtc, cancellationToken);
 
         var unreadAlerts = await _context.Notifications
             .CountAsync(n => n.UserId == driverUserId && !n.IsRead, cancellationToken);

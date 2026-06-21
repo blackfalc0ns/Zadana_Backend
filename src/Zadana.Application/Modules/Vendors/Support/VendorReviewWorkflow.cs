@@ -1,6 +1,7 @@
 using Zadana.Domain.Modules.Vendors.Entities;
 using Zadana.Domain.Modules.Vendors.Enums;
 using Zadana.SharedKernel.Exceptions;
+using Zadana.SharedKernel.Serialization;
 
 namespace Zadana.Application.Modules.Vendors.Support;
 
@@ -114,7 +115,7 @@ public static class VendorReviewWorkflow
         }
 
         bool isExpired = vendor.CommercialRegistrationExpiryDate.HasValue &&
-                         vendor.CommercialRegistrationExpiryDate.Value.Date < DateTime.UtcNow.Date;
+                         vendor.CommercialRegistrationExpiryDate.Value.Date < SaudiTime.Today;
 
         bool hasRejectedDocs = vendor.DocumentReviews.Any(r => 
             RequiredDocumentTypes.Contains(r.Type) && r.Decision == VendorDocumentReviewDecision.Rejected);

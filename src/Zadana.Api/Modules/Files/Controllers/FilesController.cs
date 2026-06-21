@@ -68,6 +68,10 @@ public class FilesController(
         var fileDto = new FileUploadDto(Path.GetFileName(file.FileName), file.ContentType, stream);
         var command = new UploadFileCommand(rule.Directory, fileDto);
         var fileUrl = await Sender.Send(command);
-        return Ok(new { url = fileUrl });
+        return Ok(new
+        {
+            url = fileUrl,
+            uploadedAt = DateTime.UtcNow
+        });
     }
 }
