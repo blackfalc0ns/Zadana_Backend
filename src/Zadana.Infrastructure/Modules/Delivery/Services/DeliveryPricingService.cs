@@ -575,7 +575,30 @@ public class DeliveryPricingService : IDeliveryPricingService
     private static string? FirstNonBlank(params string?[] values) =>
         values.FirstOrDefault(value => !string.IsNullOrWhiteSpace(value))?.Trim();
 
-    private static readonly TimeZoneInfo SaudiTimeZone = TimeZoneInfo.FindSystemTimeZoneById("Arab Standard Time");
+    private static readonly TimeZoneInfo SaudiTimeZone = ResolveSaudiTimeZone();
+
+    private static TimeZoneInfo ResolveSaudiTimeZone()
+    {
+        foreach (var id in new[] { "Asia/Riyadh", "Arab Standard Time" })
+        {
+            try
+            {
+                return TimeZoneInfo.FindSystemTimeZoneById(id);
+            }
+            catch (TimeZoneNotFoundException)
+            {
+            }
+            catch (InvalidTimeZoneException)
+            {
+            }
+        }
+
+        return TimeZoneInfo.CreateCustomTimeZone(
+            "Saudi Arabia Standard Time",
+            TimeSpan.FromHours(3),
+            "Saudi Arabia Standard Time",
+            "Saudi Arabia Standard Time");
+    }
 
     private static decimal ResolveActiveSurgeMultiplier(IReadOnlyCollection<DeliveryPricingSurgeWindow> windows)
     {

@@ -226,7 +226,7 @@ public static class VendorCustomerAvailabilityPolicy
 
     private static DateTime GetLocalNow()
     {
-        foreach (var timezoneId in new[] { "Africa/Cairo", "Egypt Standard Time" })
+        foreach (var timezoneId in new[] { "Asia/Riyadh", "Arab Standard Time" })
         {
             try
             {
@@ -241,7 +241,7 @@ public static class VendorCustomerAvailabilityPolicy
             }
         }
 
-        return DateTime.UtcNow;
+        return DateTime.UtcNow.AddHours(3);
     }
 
     private sealed record VendorSnapshot(Guid Id, VendorStatus Status, bool AcceptOrders, DateTime? CommercialRegistrationExpiryDate);

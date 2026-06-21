@@ -8,7 +8,7 @@ public sealed class VendorWeeklySummaryEmailWorker : BackgroundService
 
     private readonly IServiceScopeFactory _scopeFactory;
     private readonly ILogger<VendorWeeklySummaryEmailWorker> _logger;
-    private readonly TimeZoneInfo _cairoTimeZone;
+    private readonly TimeZoneInfo _saudiTimeZone;
 
     public VendorWeeklySummaryEmailWorker(
         IServiceScopeFactory scopeFactory,
@@ -16,7 +16,7 @@ public sealed class VendorWeeklySummaryEmailWorker : BackgroundService
     {
         _scopeFactory = scopeFactory;
         _logger = logger;
-        _cairoTimeZone = ResolveCairoTimeZone();
+        _saudiTimeZone = ResolveSaudiTimeZone();
     }
 
     protected override async Task ExecuteAsync(CancellationToken stoppingToken)
@@ -26,8 +26,8 @@ public sealed class VendorWeeklySummaryEmailWorker : BackgroundService
         while (!stoppingToken.IsCancellationRequested)
         {
             var nowUtc = DateTime.UtcNow;
-            var nextRunLocal = ResolveNextRunLocal(nowUtc, _cairoTimeZone);
-            var nextRunUtc = TimeZoneInfo.ConvertTimeToUtc(nextRunLocal, _cairoTimeZone);
+            var nextRunLocal = ResolveNextRunLocal(nowUtc, _saudiTimeZone);
+            var nextRunUtc = TimeZoneInfo.ConvertTimeToUtc(nextRunLocal, _saudiTimeZone);
             var delay = nextRunUtc - nowUtc;
             if (delay < TimeSpan.Zero)
             {
@@ -59,8 +59,8 @@ public sealed class VendorWeeklySummaryEmailWorker : BackgroundService
     {
         var currentWeekStartLocal = scheduledRunLocal.Date;
         var previousWeekStartLocal = currentWeekStartLocal.AddDays(-7);
-        var weekStartUtc = TimeZoneInfo.ConvertTimeToUtc(previousWeekStartLocal, _cairoTimeZone);
-        var weekEndUtc = TimeZoneInfo.ConvertTimeToUtc(currentWeekStartLocal, _cairoTimeZone);
+        var weekStartUtc = TimeZoneInfo.ConvertTimeToUtc(previousWeekStartLocal, _saudiTimeZone);
+        var weekEndUtc = TimeZoneInfo.ConvertTimeToUtc(currentWeekStartLocal, _saudiTimeZone);
 
         await using var scope = _scopeFactory.CreateAsyncScope();
         var summaryService = scope.ServiceProvider.GetRequiredService<IVendorWeeklySummaryEmailService>();
@@ -87,9 +87,9 @@ public sealed class VendorWeeklySummaryEmailWorker : BackgroundService
         return DateTime.SpecifyKind(candidate, DateTimeKind.Unspecified);
     }
 
-    private static TimeZoneInfo ResolveCairoTimeZone()
+    private static TimeZoneInfo ResolveSaudiTimeZone()
     {
-        foreach (var id in new[] { "Africa/Cairo", "Egypt Standard Time" })
+        foreach (var id in new[] { "Asia/Riyadh", "Arab Standard Time" })
         {
             try
             {
@@ -103,6 +103,10 @@ public sealed class VendorWeeklySummaryEmailWorker : BackgroundService
             }
         }
 
-        return TimeZoneInfo.Utc;
+        return TimeZoneInfo.CreateCustomTimeZone(
+            "Saudi Arabia Standard Time",
+            TimeSpan.FromHours(3),
+            "Saudi Arabia Standard Time",
+            "Saudi Arabia Standard Time");
     }
 }
