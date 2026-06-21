@@ -1045,6 +1045,41 @@ public class OneSignalPushServiceTests
     }
 
     [Fact]
+    public async Task SendToExternalUsersAsync_WithAdminWebTarget_ShouldNormalizeQuotedBaseUrl()
+    {
+        var handler = new RecordingHttpMessageHandler(
+            HttpStatusCode.OK,
+            """{"id":"admin-web-push"}""");
+        var service = CreateService(
+            handler,
+            configureSettings: settings =>
+            {
+                settings.AdminWebAppId = "admin-web-app-id";
+                settings.AdminWebRestApiKey = "admin-web-rest-key";
+                settings.AdminDefaultWebUrl = "'https://admin.zadna0.com/'";
+            });
+
+        var results = await service.SendToExternalUsersAsync(
+            ["admin-user-id"],
+            "تنبيه",
+            "Alert",
+            "نص",
+            "Body",
+            AdminAlertTypes.VendorStoreUpdated,
+            Guid.NewGuid(),
+            null,
+            "/vendors/123/compliance",
+            OneSignalPushProfile.Default,
+            OneSignalApplicationTarget.AdminWeb,
+            CancellationToken.None);
+
+        results.Should().ContainSingle(result => result.Sent);
+        using var document = JsonDocument.Parse(handler.RequestBodies[0]);
+        document.RootElement.GetProperty("web_url").GetString()
+            .Should().Be("https://admin.zadna0.com/vendors/123/compliance");
+    }
+
+    [Fact]
     public async Task SendToExternalUsersAsync_WithVendorWebTarget_ShouldPreferLiveProviderSubscription()
     {
         await using var dbContext = CreateDbContext();

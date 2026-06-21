@@ -1647,26 +1647,42 @@ public sealed class OneSignalPushService : IOneSignalPushService
                 ResolveSettingValue("OneSignal__AdminDefaultWebUrl", _settings.AdminDefaultWebUrl),
                 ResolveSettingValue("OneSignal__DefaultWebUrl", _settings.DefaultWebUrl))
             : ResolveSettingValue("OneSignal__DefaultWebUrl", _settings.DefaultWebUrl);
+        var baseUri = ParseHttpUri(configuredDefaultWebUrl);
 
         if (string.IsNullOrWhiteSpace(requestedTargetUrl))
         {
-            return string.IsNullOrWhiteSpace(configuredDefaultWebUrl) ? null : configuredDefaultWebUrl;
+            return baseUri?.AbsoluteUri;
         }
 
-        if (Uri.TryCreate(requestedTargetUrl, UriKind.Absolute, out var absolute))
+        var absolute = ParseHttpUri(requestedTargetUrl);
+        if (absolute is not null)
         {
-            return absolute.ToString();
+            return absolute.AbsoluteUri;
         }
 
-        if (string.IsNullOrWhiteSpace(configuredDefaultWebUrl) ||
-            !Uri.TryCreate(configuredDefaultWebUrl, UriKind.Absolute, out var baseUri))
+        if (baseUri is null)
         {
             // OneSignal web push requires an absolute URL; relative paths are ignored here.
             return null;
         }
 
-        return new Uri(baseUri, requestedTargetUrl).ToString();
+        return Uri.TryCreate(baseUri, requestedTargetUrl.Trim(), out var resolved)
+            && IsHttpUri(resolved)
+                ? resolved.AbsoluteUri
+                : null;
     }
+
+    private static Uri? ParseHttpUri(string? value)
+    {
+        var normalized = value?.Trim().Trim('\'', '"');
+        return Uri.TryCreate(normalized, UriKind.Absolute, out var uri) && IsHttpUri(uri)
+            ? uri
+            : null;
+    }
+
+    private static bool IsHttpUri(Uri uri) =>
+        uri.Scheme.Equals(Uri.UriSchemeHttps, StringComparison.OrdinalIgnoreCase) ||
+        uri.Scheme.Equals(Uri.UriSchemeHttp, StringComparison.OrdinalIgnoreCase);
 
     private static bool ShouldIncludeWebUrl(OneSignalPushProfile profile) =>
         profile == OneSignalPushProfile.Default;
