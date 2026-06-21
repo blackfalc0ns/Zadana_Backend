@@ -32,6 +32,7 @@ deploy/web.config.production
 deploy/appsettings.Production.json
 deploy/secrets.env
 deploy/onesignal-server-config.zip
+deploy/email-server-config.zip
 deploy/.generated-secrets.txt
 
 # Postman update script (contains API keys)

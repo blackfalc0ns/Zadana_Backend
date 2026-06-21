@@ -50,8 +50,17 @@ public abstract class IdentityAuthControllerBase : ApiControllerBase
         return Ok(result);
     }
 
-    protected async Task<IActionResult> ForgotPasswordAsync(ForgotPasswordRequest request)
+    protected async Task<IActionResult> ForgotPasswordAsync(ForgotPasswordRequest? request)
     {
+        if (request is null || string.IsNullOrWhiteSpace(request.Identifier))
+        {
+            return BadRequest(new
+            {
+                Code = "INVALID_FORGOT_PASSWORD_REQUEST",
+                Message = _localizer["ValidationErrorTitle"].Value
+            });
+        }
+
         await Sender.Send(new ForgotPasswordCommand(request.Identifier));
         return Ok(new { Message = _localizer["PasswordResetOtpSent"].Value });
     }
