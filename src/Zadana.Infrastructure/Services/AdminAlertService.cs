@@ -139,6 +139,14 @@ public sealed class AdminAlertService : IAdminAlertService
 
     private static TimeSpan ResolveDedupeWindow(AdminAlertRequest request)
     {
+        // A dispatch-stuck alert is an escalation, not a recurring reminder. The
+        // delivery worker keeps inspecting the order while it remains unassigned,
+        // so keep the event deduplicated for the complete practical order lifetime.
+        if (string.Equals(request.Type, AdminAlertTypes.DeliveryDispatchStuck, StringComparison.OrdinalIgnoreCase))
+        {
+            return TimeSpan.FromDays(30);
+        }
+
         if (string.Equals(request.Type, AdminAlertTypes.PayoutRequiresReview, StringComparison.OrdinalIgnoreCase))
         {
             return TimeSpan.FromHours(6);
