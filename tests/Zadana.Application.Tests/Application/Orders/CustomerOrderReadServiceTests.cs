@@ -16,6 +16,7 @@ using Zadana.Domain.Modules.Vendors.Entities;
 using Zadana.Infrastructure.Modules.Orders.Services;
 using Zadana.Infrastructure.Persistence;
 using Zadana.Infrastructure.Persistence.Interceptors;
+using Zadana.SharedKernel.Serialization;
 
 namespace Zadana.Application.Tests.Application.Orders;
 
@@ -163,7 +164,13 @@ public class CustomerOrderReadServiceTests
         result.ShowDeliveryOtp.Should().BeTrue();
         result.DeliveryOtp.Should().Be(assignment.DeliveryOtpCode);
         result.EstimatedDelivery.Should().NotBeNull();
+        result.EstimatedDelivery!.Formatted.Should().Be(
+            SaudiTime.ToSaudi(result.EstimatedDelivery.Datetime)
+                .ToString("dd MMM yyyy, hh:mm tt", CultureInfo.InvariantCulture));
         result.Timeline.Should().HaveCount(5);
+        result.Timeline[0].Time.Should().Be(
+            SaudiTime.ToSaudi(order.PlacedAtUtc)
+                .ToString("hh:mm tt", CultureInfo.InvariantCulture));
         result.Timeline[3].Id.Should().Be("out_for_delivery");
         result.Timeline[3].IsActive.Should().BeTrue();
         result.Timeline[0].IsCompleted.Should().BeTrue();

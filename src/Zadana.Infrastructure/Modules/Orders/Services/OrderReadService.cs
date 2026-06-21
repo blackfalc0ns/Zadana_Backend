@@ -22,6 +22,7 @@ using Zadana.Domain.Modules.Wallets.Entities;
 using Zadana.Domain.Modules.Wallets.Enums;
 using Zadana.Infrastructure.Modules.Delivery.Services;
 using Zadana.Infrastructure.Persistence;
+using Zadana.SharedKernel.Serialization;
 
 namespace Zadana.Infrastructure.Modules.Orders.Services;
 
@@ -1593,9 +1594,10 @@ public class OrderReadService : IOrderReadService
         }
 
         var estimatedAtUtc = estimate.DatetimeUtc;
+        var estimatedAtSaudi = SaudiTime.ToSaudi(estimatedAtUtc);
         return new CustomerOrderEstimatedDeliveryDto(
             estimatedAtUtc,
-            estimatedAtUtc.ToString("dd MMM yyyy, hh:mm tt 'UTC'", CultureInfo.InvariantCulture),
+            estimatedAtSaudi.ToString("dd MMM yyyy, hh:mm tt", CultureInfo.InvariantCulture),
             estimate.Window is null
                 ? null
                 : new EstimatedDeliveryWindowDto(
@@ -1934,7 +1936,7 @@ public class OrderReadService : IOrderReadService
 
     private static string GetStepTime(DateTime? dateTimeUtc) =>
         dateTimeUtc.HasValue
-            ? dateTimeUtc.Value.ToString("hh:mm tt", CultureInfo.InvariantCulture)
+            ? SaudiTime.ToSaudi(dateTimeUtc.Value).ToString("hh:mm tt", CultureInfo.InvariantCulture)
             : string.Empty;
 
     private static IReadOnlyList<VendorOrderTimelineItemDto> BuildVendorTimeline(Order order)
@@ -2210,7 +2212,7 @@ public class OrderReadService : IOrderReadService
     {
         var baseItem = BuildAdminOrderListItem(order, address, payment, refunds, assignment);
         var operationalCase = BuildOperationalCase(order, refunds);
-        var placedAtLocal = order.PlacedAtUtc.ToLocalTime();
+        var placedAtLocal = SaudiTime.ToSaudi(order.PlacedAtUtc);
         var merchantLocation = string.Join(", ", new[] { order.VendorBranch?.AddressLine, LocalizeCity(order.Vendor?.City), order.Vendor?.NationalAddress }
             .Where(value => !string.IsNullOrWhiteSpace(value)));
 
@@ -2297,7 +2299,7 @@ public class OrderReadService : IOrderReadService
         IReadOnlyList<Refund>? refunds,
         DeliveryAssignment? assignment)
     {
-        var placedAtLocal = order.PlacedAtUtc.ToLocalTime();
+        var placedAtLocal = SaudiTime.ToSaudi(order.PlacedAtUtc);
         var isLate = IsLate(order.Status, order.PlacedAtUtc);
         var operationalCase = BuildOperationalCase(order, refunds);
         var dispatchReason = BuildDispatchReason(order, assignment);
@@ -2521,9 +2523,9 @@ public class OrderReadService : IOrderReadService
             ?? order?.TotalAmount
             ?? 0m;
 
-        var createdAt = supportCase.CreatedAtUtc.ToLocalTime().ToString("g", CultureInfo.InvariantCulture);
+        var createdAt = SaudiTime.ToSaudi(supportCase.CreatedAtUtc).ToString("g", CultureInfo.InvariantCulture);
         var sla = supportCase.SlaDueAtUtc.HasValue
-            ? supportCase.SlaDueAtUtc.Value.ToLocalTime().ToString("g", CultureInfo.InvariantCulture)
+            ? SaudiTime.ToSaudi(supportCase.SlaDueAtUtc.Value).ToString("g", CultureInfo.InvariantCulture)
             : "No SLA";
 
         return new AdminOrderSupportCaseListItemDto(
@@ -2573,7 +2575,7 @@ public class OrderReadService : IOrderReadService
                 .Take(6)
                 .Select(activity => new AdminOrderSupportCaseTimelineItemDto(
                     ResolveLocalizedActivityTitle(activity) ?? activity.Title,
-                    activity.CreatedAtUtc.ToLocalTime().ToString("g", CultureInfo.InvariantCulture),
+                    SaudiTime.ToSaudi(activity.CreatedAtUtc).ToString("g", CultureInfo.InvariantCulture),
                     ResolveTimelineTone(activity.Action, supportCase.Status)))
                 .ToList(),
             supportCase.InitiatorRole,
@@ -3012,7 +3014,7 @@ public class OrderReadService : IOrderReadService
             ?? assignment?.OfferedAtUtc?.AddMinutes(40)
             ?? order.PlacedAtUtc.AddMinutes(45);
 
-        return estimated.ToLocalTime().ToString("hh:mm tt", CultureInfo.InvariantCulture);
+        return SaudiTime.ToSaudi(estimated).ToString("hh:mm tt", CultureInfo.InvariantCulture);
     }
 
     private static string BuildPaymentStatusNote(Order order, Payment? payment, IReadOnlyList<Refund>? refunds)
@@ -3109,7 +3111,7 @@ public class OrderReadService : IOrderReadService
             order.Notes ?? L("تم تسجيل الإلغاء من سير عمل المشرف.", "Cancellation was recorded from the admin workflow."),
             refundType,
             latestRefund is null ? "platform" : "merchant",
-            (order.CancelledAtUtc ?? ResolveLastUpdatedAtUtc(order)).ToLocalTime().ToString("g", CultureInfo.InvariantCulture),
+            SaudiTime.ToSaudi(order.CancelledAtUtc ?? ResolveLastUpdatedAtUtc(order)).ToString("g", CultureInfo.InvariantCulture),
             L("مكتب العمليات", "Operations desk"),
             L("تم تحديث حالة طلبك إلى ملغي.", "Your order status was updated to cancelled."));
     }
@@ -3137,8 +3139,8 @@ public class OrderReadService : IOrderReadService
                 status,
                 supportCase.CustomerVisibleNote ?? supportCase.Message,
                 ResolveQueueLabel(supportCase.Queue),
-                supportCase.CreatedAtUtc.ToLocalTime().ToString("g", CultureInfo.InvariantCulture),
-                supportCase.UpdatedAtUtc.ToLocalTime().ToString("g", CultureInfo.InvariantCulture));
+                SaudiTime.ToSaudi(supportCase.CreatedAtUtc).ToString("g", CultureInfo.InvariantCulture),
+                SaudiTime.ToSaudi(supportCase.UpdatedAtUtc).ToString("g", CultureInfo.InvariantCulture));
         }
 
         var latestRefund = refunds?
@@ -3156,8 +3158,8 @@ public class OrderReadService : IOrderReadService
             latestRefund.Status == PaymentStatus.Refunded ? "RESOLVED" : "OPEN",
             latestRefund.Amount >= order.TotalAmount ? L("مراجعة استرداد كامل", "Full refund review") : L("مراجعة استرداد جزئي", "Partial refund review"),
             "Finance",
-            latestRefund.CreatedAtUtc.ToLocalTime().ToString("g", CultureInfo.InvariantCulture),
-            latestRefund.UpdatedAtUtc.ToLocalTime().ToString("g", CultureInfo.InvariantCulture));
+            SaudiTime.ToSaudi(latestRefund.CreatedAtUtc).ToString("g", CultureInfo.InvariantCulture),
+            SaudiTime.ToSaudi(latestRefund.UpdatedAtUtc).ToString("g", CultureInfo.InvariantCulture));
     }
 
     private static IReadOnlyList<AdminOrderTimelineItemDto> BuildAdminTimeline(
@@ -3178,7 +3180,7 @@ public class OrderReadService : IOrderReadService
             "Order created",
             createdSubtitle.Ar,
             createdSubtitle.En,
-            order.PlacedAtUtc.ToLocalTime().ToString("hh:mm tt", CultureInfo.InvariantCulture),
+            SaudiTime.ToSaudi(order.PlacedAtUtc).ToString("hh:mm tt", CultureInfo.InvariantCulture),
             "COMPLETED",
             order.StatusHistory.Count == 0
         ));
@@ -3206,7 +3208,7 @@ public class OrderReadService : IOrderReadService
                 title.En,
                 note.Ar,
                 note.En,
-                history.CreatedAtUtc.ToLocalTime().ToString("hh:mm tt", CultureInfo.InvariantCulture),
+                SaudiTime.ToSaudi(history.CreatedAtUtc).ToString("hh:mm tt", CultureInfo.InvariantCulture),
                 statusStr,
                 isLast
             ));
@@ -3285,7 +3287,7 @@ public class OrderReadService : IOrderReadService
             .Select(item => new AdminOrderActivityDto(
                 L($"الطلب انتقل إلى {TranslateOrderStatus(item.NewStatus)}", $"Order moved to {TranslateOrderStatus(item.NewStatus)}"),
                 item.ChangedByUserId.HasValue ? L("مستخدم النظام", "Workflow user") : L("النظام", "System"),
-                item.CreatedAtUtc.ToLocalTime().ToString("g", CultureInfo.InvariantCulture),
+                SaudiTime.ToSaudi(item.CreatedAtUtc).ToString("g", CultureInfo.InvariantCulture),
                 "status"))
             .ToList();
 
@@ -3294,7 +3296,7 @@ public class OrderReadService : IOrderReadService
             activities.Insert(0, new AdminOrderActivityDto(
                 L($"حالة الدفع: {TranslatePaymentStatus(payment.Status)}", $"Payment state: {TranslatePaymentStatus(payment.Status)}"),
                 TranslatePaymentProvider(payment.ProviderName) is var provider && !string.IsNullOrWhiteSpace(provider) ? provider : L("بوابة الدفع", "Payment gateway"),
-                (payment.PaidAtUtc ?? payment.FailedAtUtc ?? payment.CreatedAtUtc).ToLocalTime().ToString("g", CultureInfo.InvariantCulture),
+                SaudiTime.ToSaudi(payment.PaidAtUtc ?? payment.FailedAtUtc ?? payment.CreatedAtUtc).ToString("g", CultureInfo.InvariantCulture),
                 "payment"));
         }
 
@@ -3303,7 +3305,7 @@ public class OrderReadService : IOrderReadService
             activities.Insert(0, new AdminOrderActivityDto(
                 L($"تم تعيين سائق: {assignment.Driver.User.FullName}", $"Driver assigned: {assignment.Driver.User.FullName}"),
                 L("التوجيه", "Dispatch"),
-                assignment.CreatedAtUtc.ToLocalTime().ToString("g", CultureInfo.InvariantCulture),
+                SaudiTime.ToSaudi(assignment.CreatedAtUtc).ToString("g", CultureInfo.InvariantCulture),
                 "status"));
         }
 
@@ -3322,7 +3324,7 @@ public class OrderReadService : IOrderReadService
             activities.Insert(0, new AdminOrderActivityDto(
                 L($"استرداد {TranslatePaymentStatus(refund.Status)}", $"Refund {TranslatePaymentStatus(refund.Status)}"),
                 L("المالية", "Finance"),
-                refund.CreatedAtUtc.ToLocalTime().ToString("g", CultureInfo.InvariantCulture),
+                SaudiTime.ToSaudi(refund.CreatedAtUtc).ToString("g", CultureInfo.InvariantCulture),
                 "payment"));
         }
 

@@ -77,13 +77,13 @@ public class VendorWorkspaceController : ApiControllerBase
             .CountAsync(product => product.IsAvailable, cancellationToken);
 
         var recentTimeline = orders.Take(5).Select(order => new VendorDashboardTimelineItemResponse(
-                order.PlacedAtUtc.ToString("HH:mm"),
+                SaudiTime.ToSaudi(order.PlacedAtUtc).ToString("HH:mm"),
                 $"طلب #{order.OrderNumber} بحالة {order.Status}"))
             .ToList();
 
         if (recentTimeline.Count == 0)
         {
-            recentTimeline.Add(new VendorDashboardTimelineItemResponse(DateTime.UtcNow.ToString("HH:mm"), "لا توجد أحداث تشغيلية بعد"));
+            recentTimeline.Add(new VendorDashboardTimelineItemResponse(SaudiTime.Now.ToString("HH:mm"), "لا توجد أحداث تشغيلية بعد"));
         }
 
         var checklist = new List<VendorDashboardChecklistItemResponse>();
@@ -1205,7 +1205,7 @@ public class VendorWorkspaceController : ApiControllerBase
 
         return new VendorLedgerEntryResponse(
             id.ToString(),
-            occurredAtUtc.ToString("yyyy-MM-dd"),
+            SaudiTime.ToSaudi(occurredAtUtc).ToString("yyyy-MM-dd"),
             titleAr,
             titleEn,
             type,

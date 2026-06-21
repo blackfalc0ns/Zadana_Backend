@@ -1,5 +1,6 @@
 using System.Text.Json;
 using FluentAssertions;
+using Zadana.Application.Modules.Delivery.DTOs;
 using Zadana.SharedKernel.Serialization;
 
 namespace Zadana.UnitTests.Common;
@@ -67,9 +68,34 @@ public class SaudiDateTimeJsonConverterTests
             .Should().Be("2026-06-21T19:45:00.000+03:00");
     }
 
+    [Fact]
+    public void SerializeDriverCompletedOrder_ShouldWriteCompletionTimeInSaudiTimezone()
+    {
+        var completedOrder = new DriverCompletedOrderListItemDto(
+            Guid.NewGuid(),
+            "Test merchant",
+            null,
+            "Test customer",
+            new DateTime(2026, 6, 21, 15, 30, 0, DateTimeKind.Utc),
+            "delivered",
+            100m,
+            5m,
+            "CashOnDelivery",
+            "Riyadh",
+            []);
+
+        using var document = JsonDocument.Parse(JsonSerializer.Serialize(completedOrder, Options));
+
+        document.RootElement.GetProperty("completedAtUtc").GetString()
+            .Should().Be("2026-06-21T18:30:00.000+03:00");
+    }
+
     private static JsonSerializerOptions CreateOptions()
     {
-        var options = new JsonSerializerOptions();
+        var options = new JsonSerializerOptions
+        {
+            PropertyNamingPolicy = JsonNamingPolicy.CamelCase
+        };
         options.Converters.Add(new SaudiDateTimeJsonConverter());
         options.Converters.Add(new SaudiDateTimeOffsetJsonConverter());
         return options;
