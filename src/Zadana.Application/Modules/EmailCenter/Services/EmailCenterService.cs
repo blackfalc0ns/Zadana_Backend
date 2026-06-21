@@ -2132,6 +2132,15 @@ internal static class EmailCenterDefaults
     public static IReadOnlyList<EmailSenderProfileConfig> BuildSenderProfiles() =>
     [
         new EmailSenderProfileConfig(
+            "system-no-reply",
+            "Zadna",
+            "no-reply@zadna0.com",
+            "support@zadna0.com",
+            "EMAIL_CENTER.PROFILES.SYSTEM_NO_REPLY",
+            "bilingual",
+            false,
+            "system"),
+        new EmailSenderProfileConfig(
             "ops-primary",
             "Zadna Support",
             "support@zadna0.com",
@@ -2157,7 +2166,16 @@ internal static class EmailCenterDefaults
             "EMAIL_CENTER.PROFILES.FINANCE_DIGEST",
             "english",
             false,
-            "backup")
+            "backup"),
+        new EmailSenderProfileConfig(
+            "public-contact",
+            "Zadna Contact",
+            "contact@zadna0.com",
+            "contact@zadna0.com",
+            "EMAIL_CENTER.PROFILES.PUBLIC_CONTACT",
+            "bilingual",
+            false,
+            "secondary")
     ];
 
     public static IReadOnlyList<EmailWorkflowRuleConfig> BuildWorkflowRules()
