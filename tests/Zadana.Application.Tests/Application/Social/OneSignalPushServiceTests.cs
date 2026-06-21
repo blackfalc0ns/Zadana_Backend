@@ -910,7 +910,11 @@ public class OneSignalPushServiceTests
             notificationsEnabled: true));
         await dbContext.SaveChangesAsync();
 
-        var handler = new RecordingHttpMessageHandler(HttpStatusCode.OK, """{"id":"admin-subscription-push"}""");
+        var handler = new RecordingHttpMessageHandler(
+            HttpStatusCode.OK,
+            """{"identity":{"external_id":"a1b2c3d4-e5f6-7890-abcd-ef1234567890"},"subscriptions":[]}""",
+            HttpStatusCode.OK,
+            """{"id":"admin-subscription-push"}""");
         var service = CreateService(
             handler,
             scopeFactory: new DbContextServiceScopeFactory(dbContext),
@@ -935,9 +939,9 @@ public class OneSignalPushServiceTests
             CancellationToken.None);
 
         results.Should().ContainSingle(result => result.Sent && result.ProviderNotificationId == "admin-subscription-push");
-        handler.RequestBodies.Should().HaveCount(1);
+        handler.RequestMethods.Should().Equal("GET", "POST");
 
-        using var document = JsonDocument.Parse(handler.RequestBodies[0]);
+        using var document = JsonDocument.Parse(handler.RequestBodies[1]);
         document.RootElement
             .GetProperty("include_subscription_ids")
             .EnumerateArray()
@@ -963,7 +967,11 @@ public class OneSignalPushServiceTests
             notificationsEnabled: true));
         await dbContext.SaveChangesAsync();
 
-        var handler = new RecordingHttpMessageHandler(HttpStatusCode.OK, """{"id":"admin-ar-push"}""");
+        var handler = new RecordingHttpMessageHandler(
+            HttpStatusCode.OK,
+            """{"identity":{"external_id":"a1b2c3d4-e5f6-7890-abcd-ef1234567890"},"subscriptions":[]}""",
+            HttpStatusCode.OK,
+            """{"id":"admin-ar-push"}""");
         var service = CreateService(
             handler,
             scopeFactory: new DbContextServiceScopeFactory(dbContext),
@@ -988,9 +996,9 @@ public class OneSignalPushServiceTests
             CancellationToken.None);
 
         results.Should().ContainSingle(result => result.Sent);
-        handler.RequestBodies.Should().HaveCount(1);
+        handler.RequestMethods.Should().Equal("GET", "POST");
 
-        using var document = JsonDocument.Parse(handler.RequestBodies[0]);
+        using var document = JsonDocument.Parse(handler.RequestBodies[1]);
         var headings = document.RootElement.GetProperty("headings");
         var contents = document.RootElement.GetProperty("contents");
 

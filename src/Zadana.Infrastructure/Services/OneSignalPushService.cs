@@ -595,8 +595,9 @@ public sealed class OneSignalPushService : IOneSignalPushService
 
         // Web subscriptions can be rotated by the browser/OneSignal without the old
         // database row being explicitly unregistered. Resolve the live subscription
-        // first for vendor web push so a stale stored player id cannot block delivery.
-        if (targetApplication == OneSignalApplicationTarget.VendorWeb)
+        // first for vendor/admin web push so a stale stored player id cannot block delivery.
+        if (targetApplication is OneSignalApplicationTarget.VendorWeb
+            or OneSignalApplicationTarget.AdminWeb)
         {
             var providerLookupIds = lookupBatch
                 .Concat(pushBatch)
@@ -632,7 +633,7 @@ public sealed class OneSignalPushService : IOneSignalPushService
             cancellationToken));
 
         if (preferLiveProviderSubscriptions &&
-            targetApplication != OneSignalApplicationTarget.VendorWeb)
+            targetApplication is not (OneSignalApplicationTarget.VendorWeb or OneSignalApplicationTarget.AdminWeb))
         {
             var providerLookupIds = lookupBatch
                 .Concat(pushBatch)
