@@ -73,6 +73,7 @@ public class ReviewProductRequestCommandHandler : IRequestHandler<ReviewProductR
 
         if (request.IsApproved)
         {
+            Brand? autoApprovedBrand = null;
             var resolvedCategoryId = productRequest.SuggestedCategoryId;
             if (!resolvedCategoryId.HasValue && productRequest.CategoryRequest is not null)
             {
@@ -122,7 +123,7 @@ public class ReviewProductRequestCommandHandler : IRequestHandler<ReviewProductR
 
                 if (productRequest.CategoryRequest.Status != ApprovalStatus.Approved || !productRequest.CategoryRequest.CreatedCategoryId.HasValue)
                 {
-                    throw new BusinessRuleException("CATEGORY_REQUEST_NOT_APPROVED", _localizer["REQUEST_ALREADY_REVIEWED"]);
+                    throw new BusinessRuleException("CATEGORY_REQUEST_NOT_APPROVED", _localizer["CATEGORY_REQUEST_NOT_APPROVED"]);
                 }
 
                 resolvedCategoryId = productRequest.CategoryRequest.CreatedCategoryId.Value;
@@ -175,10 +176,13 @@ public class ReviewProductRequestCommandHandler : IRequestHandler<ReviewProductR
 
                     if (resolvedCategoryId.HasValue && !brand.BrandCategories.Any(link => link.CategoryId == resolvedCategoryId.Value))
                     {
-                        _context.BrandCategories.Add(new BrandCategory(brand.Id, resolvedCategoryId.Value));
+                        var brandCategoryLink = new BrandCategory(brand.Id, resolvedCategoryId.Value);
+                        _context.BrandCategories.Add(brandCategoryLink);
+                        brand.BrandCategories.Add(brandCategoryLink);
                     }
 
                     brandRequest.Approve(reviewerName, brand.Id);
+                    autoApprovedBrand = brand;
 
                     await _notificationService.SendToUserAsync(
                         productRequest.Vendor.UserId,
@@ -192,7 +196,7 @@ public class ReviewProductRequestCommandHandler : IRequestHandler<ReviewProductR
 
                 if (productRequest.BrandRequest.Status != ApprovalStatus.Approved || !productRequest.BrandRequest.CreatedBrandId.HasValue)
                 {
-                    throw new BusinessRuleException("BRAND_REQUEST_NOT_APPROVED", _localizer["REQUEST_ALREADY_REVIEWED"]);
+                    throw new BusinessRuleException("BRAND_REQUEST_NOT_APPROVED", _localizer["BRAND_REQUEST_NOT_APPROVED"]);
                 }
 
                 resolvedBrandId = productRequest.BrandRequest.CreatedBrandId.Value;
@@ -200,14 +204,14 @@ public class ReviewProductRequestCommandHandler : IRequestHandler<ReviewProductR
 
             if (resolvedBrandId.HasValue)
             {
-                var brand = await _context.Brands
+                var brand = autoApprovedBrand ?? await _context.Brands
                     .Include(item => item.BrandCategories)
                     .FirstOrDefaultAsync(item => item.Id == resolvedBrandId.Value, cancellationToken)
                     ?? throw new NotFoundException(nameof(Brand), resolvedBrandId.Value);
 
                 if (!CatalogRequestWorkflowSupport.BrandMatchesCategory(brand, resolvedCategoryId.Value))
                 {
-                    throw new BusinessRuleException("BRAND_CATEGORY_MISMATCH", "The selected brand does not belong to the resolved category.");
+                    throw new BusinessRuleException("BRAND_CATEGORY_MISMATCH", _localizer["BRAND_CATEGORY_MISMATCH"]);
                 }
             }
 

@@ -292,6 +292,51 @@ public class CatalogRequestWorkflowTests
     }
 
     [Fact]
+    public async Task ReviewProductRequest_WhenMatchingBrandExistsInDifferentCategory_ShouldLinkBrandAndApprove()
+    {
+        await using var dbContext = CreateDbContext();
+        var fixture = await SeedVendorFixtureAsync(dbContext);
+        var firstCategory = new Category("فئة 1", "Category One", null, fixture.ParentCategory.Id, 1);
+        var secondCategory = new Category("فئة 2", "Category Two", null, fixture.ParentCategory.Id, 2);
+        dbContext.Categories.AddRange(firstCategory, secondCategory);
+        var existingBrand = new Brand("براند", "Shared Brand", null, null, firstCategory.Id);
+        dbContext.Brands.Add(existingBrand);
+        await dbContext.SaveChangesAsync();
+
+        var brandRequest = new BrandRequest(fixture.Vendor.Id, secondCategory.Id, "براند", "Shared Brand");
+        dbContext.BrandRequests.Add(brandRequest);
+        await dbContext.SaveChangesAsync();
+
+        var request = new ProductRequest(
+            fixture.Vendor.Id,
+            "منتج",
+            "Shared Brand Product",
+            suggestedCategoryId: secondCategory.Id,
+            suggestedBrandRequestId: brandRequest.Id);
+
+        dbContext.ProductRequests.Add(request);
+        await dbContext.SaveChangesAsync();
+
+        var handler = new ReviewProductRequestCommandHandler(
+            dbContext,
+            Mock.Of<ICacheInvalidator>(),
+            new StubCurrentUserService(fixture.AdminUser.Id, UserRole.Admin),
+            new StubIdentityAccountService(fixture.AdminUser),
+            new PassThroughLocalizer<SharedResource>(),
+            Mock.Of<INotificationService>(),
+            Mock.Of<IFileStorageService>(),
+            Mock.Of<ILogger<ReviewProductRequestCommandHandler>>());
+
+        var createdId = await handler.Handle(new ReviewProductRequestCommand(request.Id, true, null), CancellationToken.None);
+
+        createdId.Should().NotBeNull();
+        dbContext.BrandCategories.Should().ContainSingle(link =>
+            link.BrandId == existingBrand.Id &&
+            link.CategoryId == secondCategory.Id);
+        request.Status.Should().Be(ApprovalStatus.Approved);
+    }
+
+    [Fact]
     public async Task ReviewProductRequest_WhenMatchingProductIsDiscontinued_ShouldThrow()
     {
         await using var dbContext = CreateDbContext();
