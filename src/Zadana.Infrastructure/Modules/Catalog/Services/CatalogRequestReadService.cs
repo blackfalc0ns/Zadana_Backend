@@ -106,6 +106,8 @@ public class CatalogRequestReadService : ICatalogRequestReadService
             from brandRequest in brandRequestJoin.DefaultIfEmpty()
             join unit in _dbContext.UnitsOfMeasure.AsNoTracking() on request.SuggestedUnitOfMeasureId equals unit.Id into units
             from unit in units.DefaultIfEmpty()
+            join packageType in _dbContext.UnitsOfMeasure.AsNoTracking() on request.SuggestedPackageTypeId equals packageType.Id into packageTypes
+            from packageType in packageTypes.DefaultIfEmpty()
             select new ProductRequestRow(
                 request.Id,
                 request.VendorId,
@@ -128,7 +130,12 @@ public class CatalogRequestReadService : ICatalogRequestReadService
                 request.SuggestedUnitOfMeasureId,
                 unit != null ? unit.NameAr : null,
                 unit != null ? unit.NameEn : null,
+                request.SuggestedPackageTypeId,
+                packageType != null ? packageType.NameAr : null,
+                packageType != null ? packageType.NameEn : null,
+                request.SuggestedMeasurementValue,
                 request.ImageUrl,
+                request.SuggestedImageUrlsJson,
                 request.Status.ToString(),
                 request.RejectionReason,
                 request.ReviewedBy,
@@ -240,7 +247,12 @@ public class CatalogRequestReadService : ICatalogRequestReadService
                 requestedPathAr,
                 requestedPathEn,
                 approvedPathAr,
-                approvedPathEn);
+                approvedPathEn,
+                request.PackageTypeId,
+                request.PackageTypeNameAr,
+                request.PackageTypeNameEn,
+                request.MeasurementValue,
+                ProductRequestImageSupport.ParseImageUrls(request.SuggestedImageUrlsJson, request.ImageUrl));
         }).ToList();
 
         var mappedCategoryRequests = categoryRequests.Select(request => new CatalogRequestListItemDto(
@@ -364,6 +376,8 @@ public class CatalogRequestReadService : ICatalogRequestReadService
             from brandRequest in brandRequestJoin.DefaultIfEmpty()
             join unit in _dbContext.UnitsOfMeasure.AsNoTracking() on request.SuggestedUnitOfMeasureId equals unit.Id into units
             from unit in units.DefaultIfEmpty()
+            join packageType in _dbContext.UnitsOfMeasure.AsNoTracking() on request.SuggestedPackageTypeId equals packageType.Id into packageTypes
+            from packageType in packageTypes.DefaultIfEmpty()
             where request.Id == requestId
             select new ProductRequestRow(
                 request.Id,
@@ -387,7 +401,12 @@ public class CatalogRequestReadService : ICatalogRequestReadService
                 request.SuggestedUnitOfMeasureId,
                 unit != null ? unit.NameAr : null,
                 unit != null ? unit.NameEn : null,
+                request.SuggestedPackageTypeId,
+                packageType != null ? packageType.NameAr : null,
+                packageType != null ? packageType.NameEn : null,
+                request.SuggestedMeasurementValue,
                 request.ImageUrl,
+                request.SuggestedImageUrlsJson,
                 request.Status.ToString(),
                 request.RejectionReason,
                 request.ReviewedBy,
@@ -452,7 +471,12 @@ public class CatalogRequestReadService : ICatalogRequestReadService
             requestedPathAr,
             requestedPathEn,
             approvedCategoryId.HasValue ? BuildExistingPath(approvedCategoryId.Value, categoryLookup, true) : null,
-            approvedCategoryId.HasValue ? BuildExistingPath(approvedCategoryId.Value, categoryLookup, false) : null);
+            approvedCategoryId.HasValue ? BuildExistingPath(approvedCategoryId.Value, categoryLookup, false) : null,
+            result.PackageTypeId,
+            result.PackageTypeNameAr,
+            result.PackageTypeNameEn,
+            result.MeasurementValue,
+            ProductRequestImageSupport.ParseImageUrls(result.SuggestedImageUrlsJson, result.ImageUrl));
     }
 
     private async Task<CatalogRequestDetailDto?> GetBrandRequestDetailAsync(
@@ -713,7 +737,12 @@ public class CatalogRequestReadService : ICatalogRequestReadService
         Guid? UnitId,
         string? UnitNameAr,
         string? UnitNameEn,
+        Guid? PackageTypeId,
+        string? PackageTypeNameAr,
+        string? PackageTypeNameEn,
+        decimal? MeasurementValue,
         string? ImageUrl,
+        string? SuggestedImageUrlsJson,
         string Status,
         string? RejectionReason,
         string? ReviewedBy,

@@ -86,6 +86,19 @@ public class SubmitProductRequestCommandHandler : IRequestHandler<SubmitProductR
             throw new NotFoundException(nameof(UnitOfMeasure), request.SuggestedUnitOfMeasureId.Value);
         }
 
+        if (request.SuggestedPackageTypeId.HasValue
+            && !await _context.UnitsOfMeasure.AnyAsync(unit => unit.Id == request.SuggestedPackageTypeId.Value, cancellationToken))
+        {
+            throw new NotFoundException(nameof(UnitOfMeasure), request.SuggestedPackageTypeId.Value);
+        }
+
+        if (request.SuggestedMeasurementValue.HasValue && request.SuggestedMeasurementValue.Value <= 0)
+        {
+            throw new BusinessRuleException(
+                "INVALID_MEASUREMENT_VALUE",
+                "Measurement value must be greater than zero.");
+        }
+
         var normalizedNameAr = CatalogRequestWorkflowSupport.NormalizeName(request.SuggestedNameAr);
         var normalizedNameEn = CatalogRequestWorkflowSupport.NormalizeName(request.SuggestedNameEn);
 
@@ -142,6 +155,8 @@ public class SubmitProductRequestCommandHandler : IRequestHandler<SubmitProductR
                         item.SuggestedCategoryId == request.SuggestedCategoryId &&
                         item.SuggestedBrandId == request.SuggestedBrandId &&
                         item.SuggestedUnitOfMeasureId == request.SuggestedUnitOfMeasureId &&
+                        item.SuggestedPackageTypeId == request.SuggestedPackageTypeId &&
+                        item.SuggestedMeasurementValue == request.SuggestedMeasurementValue &&
                         item.SuggestedNameAr.ToUpper() == normalizedNameAr &&
                         item.SuggestedNameEn.ToUpper() == normalizedNameEn,
                 cancellationToken);
@@ -161,6 +176,8 @@ public class SubmitProductRequestCommandHandler : IRequestHandler<SubmitProductR
                     item => item.CategoryId == request.SuggestedCategoryId.Value &&
                             item.BrandId == request.SuggestedBrandId &&
                             item.UnitOfMeasureId == request.SuggestedUnitOfMeasureId &&
+                            item.PackageTypeId == request.SuggestedPackageTypeId &&
+                            item.MeasurementValue == request.SuggestedMeasurementValue &&
                             item.Status == Domain.Modules.Catalog.Enums.ProductStatus.Active &&
                             item.NameAr.ToUpper() == normalizedNameAr &&
                             item.NameEn.ToUpper() == normalizedNameEn,
@@ -174,6 +191,11 @@ public class SubmitProductRequestCommandHandler : IRequestHandler<SubmitProductR
             }
         }
 
+        var imageUrls = ProductRequestImageSupport.ParseImageUrls(
+            ProductRequestImageSupport.SerializeImageUrls(request.SuggestedImageUrls),
+            request.ImageUrl);
+        var primaryImageUrl = imageUrls.FirstOrDefault() ?? request.ImageUrl;
+
         var productRequest = new ProductRequest(
             vendorId: vendorId,
             suggestedNameAr: request.SuggestedNameAr,
@@ -183,9 +205,12 @@ public class SubmitProductRequestCommandHandler : IRequestHandler<SubmitProductR
             suggestedBrandId: request.SuggestedBrandId,
             suggestedBrandRequestId: brandRequest?.Id,
             suggestedUnitOfMeasureId: request.SuggestedUnitOfMeasureId,
+            suggestedPackageTypeId: request.SuggestedPackageTypeId,
+            suggestedMeasurementValue: request.SuggestedMeasurementValue,
             suggestedDescriptionAr: request.SuggestedDescriptionAr,
             suggestedDescriptionEn: request.SuggestedDescriptionEn,
-            imageUrl: request.ImageUrl
+            imageUrl: primaryImageUrl,
+            suggestedImageUrlsJson: ProductRequestImageSupport.SerializeImageUrls(imageUrls)
         );
 
         _context.ProductRequests.Add(productRequest);

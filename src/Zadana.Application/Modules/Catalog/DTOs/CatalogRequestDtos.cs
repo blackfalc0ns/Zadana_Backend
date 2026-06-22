@@ -34,7 +34,12 @@ public record CatalogRequestListItemDto(
     string? RequestedPathAr = null,
     string? RequestedPathEn = null,
     string? ApprovedPathAr = null,
-    string? ApprovedPathEn = null);
+    string? ApprovedPathEn = null,
+    Guid? PackageTypeId = null,
+    string? PackageTypeNameAr = null,
+    string? PackageTypeNameEn = null,
+    decimal? MeasurementValue = null,
+    IReadOnlyList<string>? ImageUrls = null);
 
 public record CatalogRequestDetailDto(
     Guid Id,
@@ -71,7 +76,12 @@ public record CatalogRequestDetailDto(
     string? RequestedPathAr = null,
     string? RequestedPathEn = null,
     string? ApprovedPathAr = null,
-    string? ApprovedPathEn = null);
+    string? ApprovedPathEn = null,
+    Guid? PackageTypeId = null,
+    string? PackageTypeNameAr = null,
+    string? PackageTypeNameEn = null,
+    decimal? MeasurementValue = null,
+    IReadOnlyList<string>? ImageUrls = null);
 
 public record VendorCatalogNotificationDto(
     Guid Id,

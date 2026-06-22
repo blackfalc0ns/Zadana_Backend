@@ -22,9 +22,12 @@ public record SubmitProductRequestCommand(
     Guid? SuggestedCategoryId = null,
     Guid? SuggestedBrandId = null,
     Guid? SuggestedUnitOfMeasureId = null,
+    Guid? SuggestedPackageTypeId = null,
+    decimal? SuggestedMeasurementValue = null,
     string? SuggestedDescriptionAr = null,
     string? SuggestedDescriptionEn = null,
     string? ImageUrl = null,
+    IReadOnlyList<string>? SuggestedImageUrls = null,
     RequestedBrandDraft? RequestedBrand = null,
     RequestedCategoryDraft? RequestedCategory = null
 ) : IRequest<Guid>;

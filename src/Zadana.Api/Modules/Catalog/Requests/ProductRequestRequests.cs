@@ -10,7 +10,10 @@ public record SubmitProductRequestProductPayload(
     Guid? CategoryId = null,
     Guid? BrandId = null,
     Guid? UnitId = null,
-    string? ImageUrl = null);
+    Guid? PackageTypeId = null,
+    decimal? MeasurementValue = null,
+    string? ImageUrl = null,
+    IReadOnlyList<string>? ImageUrls = null);
 
 public record SubmitBrandRequestPayload(
     Guid CategoryId,

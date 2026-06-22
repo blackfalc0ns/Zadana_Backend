@@ -22,9 +22,12 @@ public class VendorProductRequestsController : ApiControllerBase
             request.Product.CategoryId,
             request.Product.BrandId,
             request.Product.UnitId,
+            request.Product.PackageTypeId,
+            request.Product.MeasurementValue,
             request.Product.DescriptionAr,
             request.Product.DescriptionEn,
-            request.Product.ImageUrl,
+            request.Product.ImageUrl ?? request.Product.ImageUrls?.FirstOrDefault(),
+            request.Product.ImageUrls,
             request.RequestedBrand is null
                 ? null
                 : new RequestedBrandDraft(

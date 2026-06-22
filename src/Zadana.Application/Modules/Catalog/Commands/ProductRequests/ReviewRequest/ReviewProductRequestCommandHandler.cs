@@ -224,6 +224,8 @@ public class ReviewProductRequestCommandHandler : IRequestHandler<ReviewProductR
                     item => item.CategoryId == resolvedCategoryId.Value &&
                             item.BrandId == resolvedBrandId &&
                             item.UnitOfMeasureId == productRequest.SuggestedUnitOfMeasureId &&
+                            item.PackageTypeId == productRequest.SuggestedPackageTypeId &&
+                            item.MeasurementValue == productRequest.SuggestedMeasurementValue &&
                             item.NameAr.ToUpper() == normalizedNameAr &&
                             item.NameEn.ToUpper() == normalizedNameEn,
                     cancellationToken);
@@ -249,13 +251,19 @@ public class ReviewProductRequestCommandHandler : IRequestHandler<ReviewProductR
                     categoryId: resolvedCategoryId.Value,
                     brandId: resolvedBrandId,
                     unitOfMeasureId: productRequest.SuggestedUnitOfMeasureId,
+                    packageTypeId: productRequest.SuggestedPackageTypeId,
+                    measurementValue: productRequest.SuggestedMeasurementValue,
+                    measurementUnitId: productRequest.SuggestedUnitOfMeasureId,
                     descriptionAr: productRequest.SuggestedDescriptionAr,
                     descriptionEn: productRequest.SuggestedDescriptionEn
                 );
 
-                if (!string.IsNullOrWhiteSpace(productRequest.ImageUrl))
+                var imageUrls = ProductRequestImageSupport.ParseImageUrls(
+                    productRequest.SuggestedImageUrlsJson,
+                    productRequest.ImageUrl);
+                for (var index = 0; index < imageUrls.Count; index++)
                 {
-                    masterProduct.AddImage(productRequest.ImageUrl, productRequest.SuggestedNameEn, 0, true);
+                    masterProduct.AddImage(imageUrls[index], productRequest.SuggestedNameEn, index, index == 0);
                 }
 
                 _context.MasterProducts.Add(masterProduct);
@@ -296,16 +304,19 @@ public class ReviewProductRequestCommandHandler : IRequestHandler<ReviewProductR
 
         await _context.SaveChangesAsync(cancellationToken);
 
-        if (!string.IsNullOrWhiteSpace(productRequest.ImageUrl))
+        var rejectedImageUrls = ProductRequestImageSupport.ParseImageUrls(
+            productRequest.SuggestedImageUrlsJson,
+            productRequest.ImageUrl);
+        foreach (var imageUrl in rejectedImageUrls)
         {
             try
             {
-                await _fileStorageService.DeleteAsync(productRequest.ImageUrl, cancellationToken);
+                await _fileStorageService.DeleteAsync(imageUrl, cancellationToken);
             }
             catch (Exception ex)
             {
                 _logger.LogWarning(ex, "Failed to delete image file {ImageUrl} for rejected product request {ProductRequestId}",
-                    productRequest.ImageUrl, productRequest.Id);
+                    imageUrl, productRequest.Id);
             }
         }
 

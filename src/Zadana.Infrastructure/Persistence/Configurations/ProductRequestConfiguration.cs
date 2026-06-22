@@ -29,6 +29,12 @@ public class ProductRequestConfiguration : IEntityTypeConfiguration<ProductReque
         builder.Property(pr => pr.ImageUrl)
             .HasMaxLength(1000);
 
+        builder.Property(pr => pr.SuggestedImageUrlsJson)
+            .HasMaxLength(4000);
+
+        builder.Property(pr => pr.SuggestedMeasurementValue)
+            .HasPrecision(18, 2);
+
         builder.Property(pr => pr.ReviewedBy)
             .HasMaxLength(200);
 
@@ -69,6 +75,11 @@ public class ProductRequestConfiguration : IEntityTypeConfiguration<ProductReque
         builder.HasOne(pr => pr.UnitOfMeasure)
             .WithMany()
             .HasForeignKey(pr => pr.SuggestedUnitOfMeasureId)
+            .OnDelete(DeleteBehavior.Restrict);
+
+        builder.HasOne(pr => pr.PackageType)
+            .WithMany()
+            .HasForeignKey(pr => pr.SuggestedPackageTypeId)
             .OnDelete(DeleteBehavior.Restrict);
 
         builder.HasOne(pr => pr.CreatedMasterProduct)

@@ -17,7 +17,10 @@ public class ProductRequest : BaseEntity
     public Guid? SuggestedBrandId { get; private set; }
     public Guid? SuggestedBrandRequestId { get; private set; }
     public Guid? SuggestedUnitOfMeasureId { get; private set; }
+    public Guid? SuggestedPackageTypeId { get; private set; }
+    public decimal? SuggestedMeasurementValue { get; private set; }
     public string? ImageUrl { get; private set; }
+    public string? SuggestedImageUrlsJson { get; private set; }
     public ApprovalStatus Status { get; private set; }
     public string? RejectionReason { get; private set; }
     public DateTime? ReviewedAtUtc { get; private set; }
@@ -31,6 +34,7 @@ public class ProductRequest : BaseEntity
     public Brand? Brand { get; private set; }
     public BrandRequest? BrandRequest { get; private set; }
     public UnitOfMeasure? UnitOfMeasure { get; private set; }
+    public UnitOfMeasure? PackageType { get; private set; }
     public MasterProduct? CreatedMasterProduct { get; private set; }
 
     private ProductRequest() { }
@@ -44,9 +48,12 @@ public class ProductRequest : BaseEntity
         Guid? suggestedBrandId = null,
         Guid? suggestedBrandRequestId = null,
         Guid? suggestedUnitOfMeasureId = null,
+        Guid? suggestedPackageTypeId = null,
+        decimal? suggestedMeasurementValue = null,
         string? suggestedDescriptionAr = null,
         string? suggestedDescriptionEn = null,
-        string? imageUrl = null)
+        string? imageUrl = null,
+        string? suggestedImageUrlsJson = null)
     {
         VendorId = vendorId;
         SuggestedNameAr = suggestedNameAr.Trim();
@@ -56,9 +63,12 @@ public class ProductRequest : BaseEntity
         SuggestedBrandId = suggestedBrandId;
         SuggestedBrandRequestId = suggestedBrandRequestId;
         SuggestedUnitOfMeasureId = suggestedUnitOfMeasureId;
+        SuggestedPackageTypeId = suggestedPackageTypeId;
+        SuggestedMeasurementValue = suggestedMeasurementValue;
         SuggestedDescriptionAr = suggestedDescriptionAr?.Trim();
         SuggestedDescriptionEn = suggestedDescriptionEn?.Trim();
         ImageUrl = imageUrl?.Trim();
+        SuggestedImageUrlsJson = suggestedImageUrlsJson?.Trim();
         Status = ApprovalStatus.Pending;
     }
 
