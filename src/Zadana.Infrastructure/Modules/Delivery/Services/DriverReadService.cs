@@ -1908,11 +1908,12 @@ public class DriverReadService : IDriverReadService
             .AsNoTracking()
             .Where(request =>
                 request.TargetUserId == driver.UserId &&
-                request.Action == ProfileChangeApprovalActions.DriverProfileVehicle)
+                request.Action == ProfileChangeApprovalActions.DriverProfileVehicle &&
+                request.Status != AccessApprovalStatus.Rejected)
             .OrderByDescending(request => request.CreatedAtUtc)
             .FirstOrDefaultAsync(cancellationToken);
 
-        if (approval is null || approval.Status == AccessApprovalStatus.Approved)
+        if (approval is null)
         {
             return null;
         }
@@ -1942,35 +1943,33 @@ public class DriverReadService : IDriverReadService
         DriverVehicleApprovalOverlay? overlay)
     {
         var pending = overlay?.Status == AccessApprovalStatus.Pending ? overlay.Payload : null;
+        var approvedFallback = overlay?.Status == AccessApprovalStatus.Approved ? overlay.Payload : null;
 
         return new EffectiveVehicleProfileFields(
-            ResolveProfileVehicleType(driver.VehicleType, pending?.VehicleType),
-            CoalesceProfileValue(pending?.NationalId, driver.NationalId),
-            CoalesceProfileValue(pending?.LicenseNumber, driver.LicenseNumber),
-            CoalesceProfileDate(pending?.NationalIdExpiryDate, driver.NationalIdExpiryDate),
-            CoalesceProfileDate(pending?.DriverLicenseExpiryDate, driver.DriverLicenseExpiryDate),
-            CoalesceProfileValue(pending?.VehicleLicenseNumber, driver.VehicleLicenseNumber),
-            CoalesceProfileDate(pending?.VehicleLicenseExpiryDate, driver.VehicleLicenseExpiryDate),
-            CoalesceProfileValue(pending?.Region, driver.Region),
-            CoalesceProfileValue(pending?.City, driver.City));
+            ResolveProfileVehicleType(driver.VehicleType, pending?.VehicleType, approvedFallback?.VehicleType),
+            CoalesceProfileValue(pending?.NationalId, driver.NationalId, approvedFallback?.NationalId),
+            CoalesceProfileValue(pending?.LicenseNumber, driver.LicenseNumber, approvedFallback?.LicenseNumber),
+            CoalesceProfileDate(pending?.NationalIdExpiryDate, driver.NationalIdExpiryDate, approvedFallback?.NationalIdExpiryDate),
+            CoalesceProfileDate(pending?.DriverLicenseExpiryDate, driver.DriverLicenseExpiryDate, approvedFallback?.DriverLicenseExpiryDate),
+            CoalesceProfileValue(pending?.VehicleLicenseNumber, driver.VehicleLicenseNumber, approvedFallback?.VehicleLicenseNumber),
+            CoalesceProfileDate(pending?.VehicleLicenseExpiryDate, driver.VehicleLicenseExpiryDate, approvedFallback?.VehicleLicenseExpiryDate),
+            CoalesceProfileValue(pending?.Region, driver.Region, approvedFallback?.Region),
+            CoalesceProfileValue(pending?.City, driver.City, approvedFallback?.City));
     }
 
     private static DriverVehicleType? ResolveProfileVehicleType(
         DriverVehicleType? currentValue,
-        string? pendingValue) =>
+        string? pendingValue,
+        string? approvedFallbackValue) =>
         DriverVehicleTypeMapper.TryParse(pendingValue, out var parsedValue)
             ? parsedValue
-            : currentValue;
+            : currentValue ?? DriverVehicleTypeMapper.ParseOrNull(approvedFallbackValue);
 
-    private static string? CoalesceProfileValue(string? preferredValue, string? fallbackValue) =>
-        !string.IsNullOrWhiteSpace(preferredValue)
-            ? preferredValue.Trim()
-            : string.IsNullOrWhiteSpace(fallbackValue)
-                ? null
-                : fallbackValue.Trim();
+    private static string? CoalesceProfileValue(params string?[] values) =>
+        values.FirstOrDefault(value => !string.IsNullOrWhiteSpace(value))?.Trim();
 
-    private static DateTime? CoalesceProfileDate(DateTime? preferredValue, DateTime? fallbackValue) =>
-        preferredValue ?? fallbackValue;
+    private static DateTime? CoalesceProfileDate(params DateTime?[] values) =>
+        values.FirstOrDefault(value => value.HasValue);
 
     private static IReadOnlySet<DriverDocumentType> ResolveChangedDocumentTypes(
         Driver driver,

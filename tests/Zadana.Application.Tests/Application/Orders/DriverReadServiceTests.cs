@@ -416,6 +416,60 @@ public class DriverReadServiceTests
     }
 
     [Fact]
+    public async Task GetAdminDriverDetailAsync_WhenEncryptedValuesCannotBeRead_ShouldRecoverFromApprovedVehicleChange()
+    {
+        await using var dbContext = CreateDbContext();
+        var user = new User("Driver Approved Vehicle User", "driver.approved.vehicle@test.com", "01000000078", UserRole.Driver);
+        var driver = CreateCompleteDriver(user.Id);
+
+        var payload = new DriverVehicleProfileChangePayload(
+            driver.Id,
+            driver.VehicleType?.ToString(),
+            "RECOVERED-NATIONAL-ID",
+            "RECOVERED-LICENSE",
+            driver.NationalIdExpiryDate,
+            driver.DriverLicenseExpiryDate,
+            "RECOVERED-PLATE",
+            driver.VehicleLicenseExpiryDate,
+            driver.Region,
+            driver.City);
+        var approval = new AccessApprovalRequest(
+            user.Id,
+            user.Id,
+            ProfileChangeApprovalActions.DriverProfileVehicle,
+            "Driver requested vehicle changes.",
+            "approved-vehicle-hash",
+            JsonSerializer.Serialize(payload, new JsonSerializerOptions(JsonSerializerDefaults.Web)));
+        approval.Approve(Guid.NewGuid(), "Approved");
+
+        // Simulate encrypted database values that can no longer be decrypted.
+        driver.UpdateDetails(
+            vehicleType: driver.VehicleType,
+            nationalId: null,
+            licenseNumber: null,
+            nationalIdExpiryDate: driver.NationalIdExpiryDate,
+            driverLicenseExpiryDate: driver.DriverLicenseExpiryDate,
+            vehicleLicenseNumber: null,
+            vehicleLicenseExpiryDate: driver.VehicleLicenseExpiryDate);
+
+        dbContext.Users.Add(user);
+        dbContext.Drivers.Add(driver);
+        dbContext.AccessApprovalRequests.Add(approval);
+        await dbContext.SaveChangesAsync();
+
+        var service = CreateService(dbContext);
+        var result = await service.GetAdminDriverDetailAsync(driver.Id);
+
+        result.Should().NotBeNull();
+        result!.NationalId.Should().Be(payload.NationalId);
+        result.LicenseNumber.Should().Be(payload.LicenseNumber);
+        result.VehicleLicenseNumber.Should().Be(payload.VehicleLicenseNumber);
+        result.Documents.Single(document => document.DocumentType == "NationalId").Number.Should().Be(payload.NationalId);
+        result.Documents.Single(document => document.DocumentType == "DriverLicense").Number.Should().Be(payload.LicenseNumber);
+        result.Documents.Single(document => document.DocumentType == "VehicleLicense").Number.Should().Be(payload.VehicleLicenseNumber);
+    }
+
+    [Fact]
     public async Task GetAdminDriverDetailAsync_ShouldExposeLocationAccessState()
     {
         await using var dbContext = CreateDbContext();
