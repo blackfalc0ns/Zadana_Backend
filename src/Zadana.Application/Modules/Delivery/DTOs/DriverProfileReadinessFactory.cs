@@ -6,9 +6,24 @@ namespace Zadana.Application.Modules.Delivery.DTOs;
 
 public static class DriverProfileReadinessFactory
 {
-    public static IReadOnlyList<string> GetMissingRequirements(Driver driver, Domain.Modules.Identity.Entities.User user)
+    public sealed record FieldOverlay(
+        string? NationalId = null,
+        string? LicenseNumber = null,
+        string? VehicleLicenseNumber = null,
+        string? Region = null,
+        string? City = null);
+
+    public static IReadOnlyList<string> GetMissingRequirements(
+        Driver driver,
+        Domain.Modules.Identity.Entities.User user,
+        FieldOverlay? overlay = null)
     {
         var missing = new List<string>();
+        var nationalId = ResolveText(overlay?.NationalId, driver.NationalId);
+        var licenseNumber = ResolveText(overlay?.LicenseNumber, driver.LicenseNumber);
+        var vehicleLicenseNumber = ResolveText(overlay?.VehicleLicenseNumber, driver.VehicleLicenseNumber);
+        var region = ResolveText(overlay?.Region, driver.Region);
+        var city = ResolveText(overlay?.City, driver.City);
 
         if (string.IsNullOrWhiteSpace(user.FullName) ||
             string.IsNullOrWhiteSpace(user.Email) ||
@@ -18,12 +33,25 @@ public static class DriverProfileReadinessFactory
             missing.Add("missing_personal_info");
         }
 
-        if (driver.VehicleType is null ||
-            string.IsNullOrWhiteSpace(driver.LicenseNumber) ||
-            string.IsNullOrWhiteSpace(driver.NationalId) ||
-            string.IsNullOrWhiteSpace(driver.VehicleLicenseNumber))
+        if (driver.VehicleType is null)
         {
             missing.Add("missing_vehicle_info");
+        }
+        else
+        {
+            var hasTextIdentity =
+                !string.IsNullOrWhiteSpace(nationalId) &&
+                !string.IsNullOrWhiteSpace(licenseNumber) &&
+                !string.IsNullOrWhiteSpace(vehicleLicenseNumber);
+            var hasDocumentIdentity =
+                HasNationalIdPacket(driver) &&
+                HasDriverLicensePacket(driver) &&
+                HasVehicleLicensePacket(driver);
+
+            if (!hasTextIdentity && !hasDocumentIdentity)
+            {
+                missing.Add("missing_vehicle_info");
+            }
         }
 
         if (!HasNationalIdPacket(driver) ||
@@ -43,13 +71,16 @@ public static class DriverProfileReadinessFactory
             missing.Add("rejected_documents");
         }
 
-        if (string.IsNullOrWhiteSpace(driver.Region) || string.IsNullOrWhiteSpace(driver.City))
+        if (string.IsNullOrWhiteSpace(region) || string.IsNullOrWhiteSpace(city))
         {
             missing.Add("missing_region_city");
         }
 
         return missing;
     }
+
+    private static string? ResolveText(string? overlayValue, string? entityValue) =>
+        !string.IsNullOrWhiteSpace(overlayValue) ? overlayValue.Trim() : entityValue?.Trim();
 
     public static int GetCompletionPercent(int missingCount) =>
         missingCount switch
@@ -78,9 +109,10 @@ public static class DriverProfileReadinessFactory
 
     public static AdminDriverProfileReadinessDto BuildAdminReadiness(
         Driver driver,
-        Domain.Modules.Identity.Entities.User user)
+        Domain.Modules.Identity.Entities.User user,
+        FieldOverlay? overlay = null)
     {
-        var missingRequirements = GetMissingRequirements(driver, user);
+        var missingRequirements = GetMissingRequirements(driver, user, overlay);
         var completionPercent = GetCompletionPercent(missingRequirements.Count);
 
         return new AdminDriverProfileReadinessDto(

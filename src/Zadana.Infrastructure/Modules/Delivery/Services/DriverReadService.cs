@@ -541,7 +541,15 @@ public class DriverReadService : IDriverReadService
             commitmentSummaries,
             incidents,
             wallet?.PendingBalance ?? 0);
-        var profileReadiness = DriverProfileReadinessFactory.BuildAdminReadiness(driver, driver.User);
+        var profileReadiness = DriverProfileReadinessFactory.BuildAdminReadiness(
+            driver,
+            driver.User,
+            new DriverProfileReadinessFactory.FieldOverlay(
+                effectiveProfile.NationalId,
+                effectiveProfile.LicenseNumber,
+                effectiveProfile.VehicleLicenseNumber,
+                effectiveProfile.Region,
+                effectiveProfile.City));
         var verification = BuildAdminVerificationSection(
             driver,
             profileReadiness.Checklist,
