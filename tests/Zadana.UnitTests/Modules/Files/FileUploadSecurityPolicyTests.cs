@@ -45,6 +45,20 @@ public class FileUploadSecurityPolicyTests
     }
 
     [Theory]
+    [InlineData("uploads/catalog/brand-requests")]
+    [InlineData("uploads/catalog/category-requests")]
+    [InlineData("uploads/catalog/product-requests")]
+    public void TryResolve_RequiresVendorRoleForCatalogRequestUploads(string directory)
+    {
+        var resolved = FileUploadSecurityPolicy.TryResolve(directory, out var rule);
+
+        resolved.Should().BeTrue();
+        rule.AllowAnonymous.Should().BeFalse();
+        rule.AllowedRoles.Should().Contain("Vendor");
+        rule.AllowedRoles.Should().Contain("VendorStaff");
+    }
+
+    [Theory]
     [InlineData("drivers/national-id")]
     [InlineData("drivers/license")]
     [InlineData("drivers/vehicle")]

@@ -51,6 +51,8 @@ public static class FileUploadSecurityPolicy
                 CreateAuthenticatedRoles("uploads/catalog/brand-requests", UserRole.Vendor, UserRole.VendorStaff),
             [NormalizeDirectory("uploads/catalog/category-requests")] =
                 CreateAuthenticatedRoles("uploads/catalog/category-requests", UserRole.Vendor, UserRole.VendorStaff),
+            [NormalizeDirectory("uploads/catalog/product-requests")] =
+                CreateAuthenticatedRoles("uploads/catalog/product-requests", UserRole.Vendor, UserRole.VendorStaff),
 
             [NormalizeDirectory("uploads/catalog/categories")] =
                 CreatePublicAnonymous("uploads/catalog/categories"),
