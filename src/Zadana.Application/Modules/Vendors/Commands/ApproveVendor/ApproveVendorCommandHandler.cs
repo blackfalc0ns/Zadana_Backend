@@ -44,7 +44,7 @@ public class ApproveVendorCommandHandler : IRequestHandler<ApproveVendorCommand>
         {
             throw new BusinessRuleException(
                 "VendorApprovalRequirementsIncomplete",
-                "لا يمكن اعتماد التاجر قبل إقفال المستندات المطلوبة.|Vendor cannot be approved before the required documents are closed.");
+                "لا يمكن اعتماد التاجر قبل اعتماد الحقول والمستندات والحساب البنكي المطلوبة.|Vendor cannot be approved before the required profile fields, documents, and bank account are approved.");
         }
 
         vendor.Approve(request.CommissionRate, adminId);

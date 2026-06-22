@@ -29,18 +29,21 @@ public class VendorConfiguration : IEntityTypeConfiguration<Vendor>
 
         builder.Property(v => v.CommercialRegistrationNumber)
             .IsRequired()
-            .HasMaxLength(50);
+            .HasMaxLength(512);
+
+        builder.Property(v => v.CommercialRegistrationNumberHash)
+            .HasMaxLength(64);
 
         builder.Property(v => v.TaxId)
-            .HasMaxLength(50);
+            .HasMaxLength(512);
 
         builder.Property(v => v.ContactEmail)
             .IsRequired()
-            .HasMaxLength(256);
+            .HasMaxLength(512);
 
         builder.Property(v => v.ContactPhone)
             .IsRequired()
-            .HasMaxLength(20);
+            .HasMaxLength(512);
 
         builder.Property(v => v.DescriptionAr)
             .HasMaxLength(2000);
@@ -49,16 +52,16 @@ public class VendorConfiguration : IEntityTypeConfiguration<Vendor>
             .HasMaxLength(2000);
 
         builder.Property(v => v.OwnerName)
-            .HasMaxLength(200);
+            .HasMaxLength(512);
 
         builder.Property(v => v.OwnerEmail)
-            .HasMaxLength(256);
+            .HasMaxLength(512);
 
         builder.Property(v => v.OwnerPhone)
-            .HasMaxLength(20);
+            .HasMaxLength(512);
 
         builder.Property(v => v.IdNumber)
-            .HasMaxLength(50);
+            .HasMaxLength(512);
 
         builder.Property(v => v.Nationality)
             .HasMaxLength(100);
@@ -70,12 +73,12 @@ public class VendorConfiguration : IEntityTypeConfiguration<Vendor>
             .HasMaxLength(100);
 
         builder.Property(v => v.NationalAddress)
-            .HasMaxLength(500);
+            .HasMaxLength(2048);
 
         builder.Property(v => v.CommercialRegistrationExpiryDate);
 
         builder.Property(v => v.LicenseNumber)
-            .HasMaxLength(100);
+            .HasMaxLength(512);
 
         builder.Property(v => v.PayoutCycle)
             .HasMaxLength(50);
@@ -141,9 +144,10 @@ public class VendorConfiguration : IEntityTypeConfiguration<Vendor>
             .IsUnique()
             .HasDatabaseName("IX_Vendor_UserId");
 
-        builder.HasIndex(v => v.CommercialRegistrationNumber)
+        builder.HasIndex(v => v.CommercialRegistrationNumberHash)
             .IsUnique()
-            .HasDatabaseName("IX_Vendor_CommRegNum");
+            .HasFilter("[CommercialRegistrationNumberHash] IS NOT NULL")
+            .HasDatabaseName("IX_Vendor_CommRegNumHash");
 
         builder.HasIndex(v => v.Status)
             .HasDatabaseName("IX_Vendor_Status");

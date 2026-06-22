@@ -228,10 +228,34 @@ public class ApplicationDbContext : IdentityDbContext<User, IdentityRole<Guid>, 
             modelBuilder.Entity<Driver>()
                 .Property(d => d.VehicleLicenseNumber).HasConversion(converter);
 
+            modelBuilder.Entity<Vendor>()
+                .Property(v => v.CommercialRegistrationNumber).HasConversion(converter);
+            modelBuilder.Entity<Vendor>()
+                .Property(v => v.TaxId).HasConversion(converter);
+            modelBuilder.Entity<Vendor>()
+                .Property(v => v.ContactEmail).HasConversion(converter);
+            modelBuilder.Entity<Vendor>()
+                .Property(v => v.ContactPhone).HasConversion(converter);
+            modelBuilder.Entity<Vendor>()
+                .Property(v => v.OwnerName).HasConversion(converter);
+            modelBuilder.Entity<Vendor>()
+                .Property(v => v.OwnerEmail).HasConversion(converter);
+            modelBuilder.Entity<Vendor>()
+                .Property(v => v.OwnerPhone).HasConversion(converter);
+            modelBuilder.Entity<Vendor>()
+                .Property(v => v.IdNumber).HasConversion(converter);
+            modelBuilder.Entity<Vendor>()
+                .Property(v => v.NationalAddress).HasConversion(converter);
+            modelBuilder.Entity<Vendor>()
+                .Property(v => v.LicenseNumber).HasConversion(converter);
+
             modelBuilder.Entity<VendorBankAccount>()
                 .Property(a => a.IBAN).HasConversion(converter);
             modelBuilder.Entity<VendorBankAccount>()
                 .Property(a => a.AccountHolderName).HasConversion(converter);
+
+            modelBuilder.Entity<AccessApprovalRequest>()
+                .Property(a => a.PayloadJson).HasConversion(converter);
         }
     }
 

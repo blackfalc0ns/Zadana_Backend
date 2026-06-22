@@ -1,5 +1,6 @@
 using Zadana.Domain.Modules.Vendors.Enums;
 using Zadana.Domain.Modules.Social.Support;
+using Zadana.Domain.Modules.Identity.Services;
 using Zadana.SharedKernel.Exceptions;
 using Zadana.SharedKernel.Primitives;
 
@@ -12,6 +13,7 @@ public class Vendor : BaseEntity
     public string BusinessNameEn { get; private set; } = null!;
     public string BusinessType { get; private set; } = null!;
     public string CommercialRegistrationNumber { get; private set; } = null!;
+    public string? CommercialRegistrationNumberHash { get; private set; }
     public string? TaxId { get; private set; }
     public string ContactEmail { get; private set; } = null!;
     public string ContactPhone { get; private set; } = null!;
@@ -108,6 +110,7 @@ public class Vendor : BaseEntity
         BusinessNameEn = businessNameEn.Trim();
         BusinessType = businessType.Trim();
         CommercialRegistrationNumber = commercialRegistrationNumber.Trim();
+        CommercialRegistrationNumberHash = ComputeCommercialRegistrationHash(CommercialRegistrationNumber);
         ContactEmail = contactEmail.ToLowerInvariant().Trim();
         ContactPhone = contactPhone.Trim();
         DescriptionAr = NormalizeOptional(descriptionAr);
@@ -182,6 +185,7 @@ public class Vendor : BaseEntity
         CommercialRegistrationNumber = string.IsNullOrWhiteSpace(commercialRegistrationNumber)
             ? CommercialRegistrationNumber
             : commercialRegistrationNumber.Trim();
+        CommercialRegistrationNumberHash = ComputeCommercialRegistrationHash(CommercialRegistrationNumber);
 
         if (!string.IsNullOrWhiteSpace(logoUrl))
         {
@@ -232,6 +236,7 @@ public class Vendor : BaseEntity
         string? licenseDocumentUrl = null)
     {
         CommercialRegistrationNumber = commercialRegistrationNumber.Trim();
+        CommercialRegistrationNumberHash = ComputeCommercialRegistrationHash(CommercialRegistrationNumber);
         CommercialRegistrationExpiryDate = commercialRegistrationExpiryDate;
         TaxId = NormalizeOptional(taxId);
         LicenseNumber = NormalizeOptional(licenseNumber);
@@ -501,6 +506,9 @@ public class Vendor : BaseEntity
 
     private static string? NormalizeEmail(string? value) =>
         string.IsNullOrWhiteSpace(value) ? null : value.ToLowerInvariant().Trim();
+
+    private static string? ComputeCommercialRegistrationHash(string? value) =>
+        SearchableHashProvider.Compute(value?.Trim().ToUpperInvariant());
 
     private static VendorFinancialLifecycleMode ResolveFinancialLifecycleMode(string? payoutCycle)
     {

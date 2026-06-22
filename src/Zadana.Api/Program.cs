@@ -300,6 +300,7 @@ builder.Services.AddHostedService<SystemLogPersistenceWorker>();
 // records into the new NationalIdHash column. Idempotent and gated by
 // Security:RunNationalIdHashBackfill so it can be disabled after first run.
 builder.Services.AddHostedService<DriverNationalIdHashBackfillTask>();
+builder.Services.AddHostedService<VendorPiiEncryptionBackfillTask>();
 
 builder.Services.AddOptions<FinancialSettingsOptions>()
     .Bind(builder.Configuration.GetSection(FinancialSettingsOptions.SectionName));

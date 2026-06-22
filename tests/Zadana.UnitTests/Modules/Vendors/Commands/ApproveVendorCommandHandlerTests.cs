@@ -5,6 +5,7 @@ using Zadana.Application.Modules.Identity.DTOs;
 using Zadana.Application.Modules.Identity.Interfaces;
 using Zadana.Application.Modules.Vendors.Commands.ApproveVendor;
 using Zadana.Application.Modules.Vendors.Interfaces;
+using Zadana.Application.Modules.Vendors.Support;
 using Zadana.Domain.Modules.Vendors.Entities;
 using Zadana.Domain.Modules.Vendors.Enums;
 using Zadana.SharedKernel.Exceptions;
@@ -116,11 +117,58 @@ public class ApproveVendorCommandHandlerTests
         var exception = await Assert.ThrowsAsync<BusinessRuleException>(() =>
             handler.Handle(new ApproveVendorCommand(vendor.Id, 10), default));
 
-        exception.Message.Should().Contain("required documents");
+        exception.Message.Should().Contain("required profile fields");
         _unitOfWorkMock.Verify(unitOfWork => unitOfWork.SaveChangesAsync(It.IsAny<CancellationToken>()), Times.Never);
     }
 
-    private static Vendor CreateApprovalReadyVendor()
+    [Fact]
+    public async Task Handle_WhenRequiredProfileFieldsAreNotApproved_ThrowsBusinessRuleException()
+    {
+        var vendor = CreateApprovalReadyVendor(includeProfileApprovals: false);
+        var adminId = Guid.NewGuid();
+        _currentUserServiceMock.Setup(service => service.UserId).Returns(adminId);
+        _vendorRepositoryMock
+            .Setup(repository => repository.GetByIdAsync(vendor.Id, It.IsAny<CancellationToken>()))
+            .ReturnsAsync(vendor);
+
+        var handler = CreateHandler();
+
+        await Assert.ThrowsAsync<BusinessRuleException>(() =>
+            handler.Handle(new ApproveVendorCommand(vendor.Id, 10), default));
+
+        _identityAccountServiceMock.Verify(
+            service => service.ActivateAsync(It.IsAny<Guid>(), It.IsAny<CancellationToken>()),
+            Times.Never);
+    }
+
+    [Fact]
+    public async Task Handle_WhenPrimaryBankAccountIsNotVerified_ThrowsBusinessRuleException()
+    {
+        var vendor = CreateApprovalReadyVendor(includeVerifiedBankAccount: false);
+        var adminId = Guid.NewGuid();
+        _currentUserServiceMock.Setup(service => service.UserId).Returns(adminId);
+        _vendorRepositoryMock
+            .Setup(repository => repository.GetByIdAsync(vendor.Id, It.IsAny<CancellationToken>()))
+            .ReturnsAsync(vendor);
+
+        var handler = CreateHandler();
+
+        await Assert.ThrowsAsync<BusinessRuleException>(() =>
+            handler.Handle(new ApproveVendorCommand(vendor.Id, 10), default));
+    }
+
+    private ApproveVendorCommandHandler CreateHandler() =>
+        new(
+            _vendorRepositoryMock.Object,
+            _identityAccountServiceMock.Object,
+            _vendorReviewAuditServiceMock.Object,
+            _vendorCommunicationServiceMock.Object,
+            _unitOfWorkMock.Object,
+            _currentUserServiceMock.Object);
+
+    private static Vendor CreateApprovalReadyVendor(
+        bool includeProfileApprovals = true,
+        bool includeVerifiedBankAccount = true)
     {
         var vendor = new Vendor(
             Guid.NewGuid(),
@@ -131,6 +179,15 @@ public class ApproveVendorCommandHandlerTests
             "test@test.com",
             "123",
             taxId: "TAX-1",
+            ownerName: "Owner",
+            ownerEmail: "owner@test.com",
+            ownerPhone: "0500000000",
+            idNumber: "1000000000",
+            nationality: "Saudi",
+            region: "Riyadh",
+            city: "Riyadh",
+            nationalAddress: "Riyadh 12345",
+            payoutCycle: "weekly",
             licenseNumber: "LIC-1",
             commercialRegisterDocumentUrl: "https://cdn.example.com/cr.pdf",
             taxDocumentUrl: "https://cdn.example.com/tax.pdf",
@@ -147,6 +204,33 @@ public class ApproveVendorCommandHandlerTests
         var licenseReview = new VendorDocumentReview(vendor.Id, VendorDocumentType.License);
         licenseReview.Approve(Guid.NewGuid(), "Reviewer");
         vendor.DocumentReviews.Add(licenseReview);
+
+        if (includeProfileApprovals)
+        {
+            foreach (var definition in VendorProfileReviewCatalog.Definitions
+                         .Where(item => item.TargetType == VendorProfileReviewTargetType.Field && item.IsRequired))
+            {
+                var review = new VendorProfileReviewItem(
+                    vendor.Id,
+                    definition.Code,
+                    definition.TargetType,
+                    definition.Step);
+                review.Approve(Guid.NewGuid(), "Reviewer");
+                vendor.ProfileReviewItems.Add(review);
+            }
+        }
+
+        var bankAccount = new VendorBankAccount(
+            vendor.Id,
+            "Test Bank",
+            "Owner",
+            "SA0380000000608010167519");
+        bankAccount.MarkAsPreferredForSetup();
+        if (includeVerifiedBankAccount)
+        {
+            bankAccount.Verify(Guid.NewGuid());
+        }
+        vendor.BankAccounts.Add(bankAccount);
 
         return vendor;
     }

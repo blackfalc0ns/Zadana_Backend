@@ -96,7 +96,14 @@ public static class VendorReviewWorkflow
 
             var review = vendor.DocumentReviews.FirstOrDefault(item => item.Type == type);
             return review?.Decision == VendorDocumentReviewDecision.Approved;
-        });
+        })
+        && VendorProfileReviewCatalog.Definitions
+            .Where(item => item.TargetType == VendorProfileReviewTargetType.Field && item.IsRequired)
+            .All(definition => vendor.ProfileReviewItems.Any(item =>
+                string.Equals(item.Code, definition.Code, StringComparison.OrdinalIgnoreCase)
+                && item.Status == VendorProfileReviewStatus.Approved))
+        && vendor.BankAccounts.Any(account =>
+            account.IsPrimary && account.Status == BankAccountStatus.Verified);
 
     public static VendorDocumentReview? GetLatestRejectedRequiredReview(Vendor vendor) =>
         vendor.DocumentReviews
