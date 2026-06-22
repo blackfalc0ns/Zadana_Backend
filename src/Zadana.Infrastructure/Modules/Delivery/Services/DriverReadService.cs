@@ -28,6 +28,20 @@ public class DriverReadService : IDriverReadService
         IReadOnlySet<DriverDocumentType> DocumentTypes,
         DriverDocumentsProfileChangePayload Payload);
 
+    private sealed record DriverVehicleApprovalOverlay(
+        AccessApprovalStatus Status,
+        DriverVehicleProfileChangePayload Payload);
+
+    private sealed record EffectiveVehicleProfileFields(
+        string? NationalId,
+        string? LicenseNumber,
+        DateTime? NationalIdExpiryDate,
+        DateTime? DriverLicenseExpiryDate,
+        string? VehicleLicenseNumber,
+        DateTime? VehicleLicenseExpiryDate,
+        string? Region,
+        string? City);
+
     private static readonly JsonSerializerOptions JsonOptions = new(JsonSerializerDefaults.Web);
 
     private readonly IApplicationDbContext _context;
@@ -342,7 +356,9 @@ public class DriverReadService : IDriverReadService
 
         // Documents
         var documentApprovalOverlay = await ResolveDriverDocumentApprovalOverlayAsync(driver, cancellationToken);
-        var documents = BuildAdminDriverDocuments(driver, documentApprovalOverlay);
+        var vehicleApprovalOverlay = await ResolveDriverVehicleApprovalOverlayAsync(driver, cancellationToken);
+        var effectiveProfile = ResolveEffectiveVehicleProfileFields(driver, vehicleApprovalOverlay);
+        var documents = BuildAdminDriverDocuments(driver, documentApprovalOverlay, effectiveProfile);
 
         var commitmentSummary = await _driverCommitmentPolicyService.GetDriverSummaryAsync(driverId, cancellationToken);
         var allDriverIds = await _context.Drivers
@@ -460,15 +476,15 @@ public class DriverReadService : IDriverReadService
         var workflow = BuildAdminWorkflowSection(workflowState);
         var overview = new AdminDriverOverviewSectionDto(
             driver.Address,
-            driver.Region,
-            driver.City,
-            driver.LicenseNumber,
+            effectiveProfile.Region,
+            effectiveProfile.City,
+            effectiveProfile.LicenseNumber,
             Math.Round(completionRate, 0),
             commitmentSummary.CommitmentScore,
             walletBalance < 0 ? "critical" : walletBalance < 200 ? "warning" : "good");
         var operations = new AdminDriverOperationsSectionDto(
-            driver.Region,
-            driver.City,
+            effectiveProfile.Region,
+            effectiveProfile.City,
             lastLocation?.Latitude,
             lastLocation?.Longitude,
             lastLocation?.AccuracyMeters,
@@ -541,7 +557,7 @@ public class DriverReadService : IDriverReadService
             PhoneNumber: driver.User.PhoneNumber ?? "",
             Email: driver.User.Email ?? "",
             ImageUrl: driver.PersonalPhotoUrl,
-            City: driver.City ?? "",
+            City: effectiveProfile.City ?? "",
             Status: MapDriverStatus(driver, activeTasks),
             VerificationStatus: driver.VerificationStatus.ToString(),
             VehicleType: driver.VehicleType,
@@ -561,12 +577,12 @@ public class DriverReadService : IDriverReadService
             EnforcementLevel: commitmentSummary.EnforcementLevel,
             LastOfferResponseAtUtc: commitmentSummary.LastOfferResponseAtUtc,
             Address: driver.Address,
-            LicenseNumber: driver.LicenseNumber,
-            NationalId: driver.NationalId,
-            NationalIdExpiryDate: driver.NationalIdExpiryDate,
-            DriverLicenseExpiryDate: driver.DriverLicenseExpiryDate,
-            VehicleLicenseNumber: driver.VehicleLicenseNumber,
-            VehicleLicenseExpiryDate: driver.VehicleLicenseExpiryDate,
+            LicenseNumber: effectiveProfile.LicenseNumber,
+            NationalId: effectiveProfile.NationalId,
+            NationalIdExpiryDate: effectiveProfile.NationalIdExpiryDate,
+            DriverLicenseExpiryDate: effectiveProfile.DriverLicenseExpiryDate,
+            VehicleLicenseNumber: effectiveProfile.VehicleLicenseNumber,
+            VehicleLicenseExpiryDate: effectiveProfile.VehicleLicenseExpiryDate,
 
             ReviewedAtUtc: driver.ReviewedAtUtc,
             ReviewNote: driver.ReviewNote,
@@ -1642,8 +1658,10 @@ public class DriverReadService : IDriverReadService
 
     private static AdminDriverDocumentDto[] BuildAdminDriverDocuments(
         Driver driver,
-        DriverDocumentApprovalOverlay? approvalOverlay = null)
+        DriverDocumentApprovalOverlay? approvalOverlay = null,
+        EffectiveVehicleProfileFields? effectiveProfile = null)
     {
+        effectiveProfile ??= ResolveEffectiveVehicleProfileFields(driver, overlay: null);
         var nationalIdReview = driver.DocumentReviews.FirstOrDefault(item => item.Type == DriverDocumentType.NationalId);
         var driverLicenseReview = driver.DocumentReviews.FirstOrDefault(item => item.Type == DriverDocumentType.DriverLicense);
         var vehicleLicenseReview = driver.DocumentReviews.FirstOrDefault(item => item.Type == DriverDocumentType.VehicleLicense);
@@ -1665,8 +1683,8 @@ public class DriverReadService : IDriverReadService
                     DriverDocumentType.NationalId,
                     pendingPayload?.NationalIdBackImageUrl,
                     driver.NationalIdBackImageUrl),
-                driver.NationalId,
-                driver.NationalIdExpiryDate,
+                effectiveProfile.NationalId,
+                effectiveProfile.NationalIdExpiryDate,
                 nationalIdReview,
                 approvalOverlay),
             BuildAdminDriverDocumentDto(
@@ -1679,8 +1697,8 @@ public class DriverReadService : IDriverReadService
                     pendingPayload?.LicenseImageUrl,
                     driver.LicenseImageUrl),
                 null,
-                driver.LicenseNumber,
-                driver.DriverLicenseExpiryDate,
+                effectiveProfile.LicenseNumber,
+                effectiveProfile.DriverLicenseExpiryDate,
                 driverLicenseReview,
                 approvalOverlay),
             BuildAdminDriverDocumentDto(
@@ -1693,8 +1711,8 @@ public class DriverReadService : IDriverReadService
                     pendingPayload?.VehicleImageUrl,
                     driver.VehicleImageUrl),
                 null,
-                driver.VehicleLicenseNumber,
-                driver.VehicleLicenseExpiryDate,
+                effectiveProfile.VehicleLicenseNumber,
+                effectiveProfile.VehicleLicenseExpiryDate,
                 vehicleLicenseReview,
                 approvalOverlay)
         ];
@@ -1872,6 +1890,70 @@ public class DriverReadService : IDriverReadService
                 documentTypes,
                 payload);
     }
+
+    private async Task<DriverVehicleApprovalOverlay?> ResolveDriverVehicleApprovalOverlayAsync(
+        Driver driver,
+        CancellationToken cancellationToken)
+    {
+        var approval = await _context.AccessApprovalRequests
+            .AsNoTracking()
+            .Where(request =>
+                request.TargetUserId == driver.UserId &&
+                request.Action == ProfileChangeApprovalActions.DriverProfileVehicle)
+            .OrderByDescending(request => request.CreatedAtUtc)
+            .FirstOrDefaultAsync(cancellationToken);
+
+        if (approval is null || approval.Status == AccessApprovalStatus.Approved)
+        {
+            return null;
+        }
+
+        DriverVehicleProfileChangePayload? payload;
+        try
+        {
+            payload = JsonSerializer.Deserialize<DriverVehicleProfileChangePayload>(
+                approval.PayloadJson,
+                JsonOptions);
+        }
+        catch (JsonException)
+        {
+            return null;
+        }
+
+        if (payload is null)
+        {
+            return null;
+        }
+
+        return new DriverVehicleApprovalOverlay(approval.Status, payload);
+    }
+
+    private static EffectiveVehicleProfileFields ResolveEffectiveVehicleProfileFields(
+        Driver driver,
+        DriverVehicleApprovalOverlay? overlay)
+    {
+        var pending = overlay?.Status == AccessApprovalStatus.Pending ? overlay.Payload : null;
+
+        return new EffectiveVehicleProfileFields(
+            CoalesceProfileValue(driver.NationalId, pending?.NationalId),
+            CoalesceProfileValue(driver.LicenseNumber, pending?.LicenseNumber),
+            CoalesceProfileDate(driver.NationalIdExpiryDate, pending?.NationalIdExpiryDate),
+            CoalesceProfileDate(driver.DriverLicenseExpiryDate, pending?.DriverLicenseExpiryDate),
+            CoalesceProfileValue(driver.VehicleLicenseNumber, pending?.VehicleLicenseNumber),
+            CoalesceProfileDate(driver.VehicleLicenseExpiryDate, pending?.VehicleLicenseExpiryDate),
+            CoalesceProfileValue(driver.Region, pending?.Region),
+            CoalesceProfileValue(driver.City, pending?.City));
+    }
+
+    private static string? CoalesceProfileValue(string? currentValue, string? pendingValue) =>
+        !string.IsNullOrWhiteSpace(currentValue)
+            ? currentValue.Trim()
+            : string.IsNullOrWhiteSpace(pendingValue)
+                ? null
+                : pendingValue.Trim();
+
+    private static DateTime? CoalesceProfileDate(DateTime? currentValue, DateTime? pendingValue) =>
+        currentValue ?? pendingValue;
 
     private static IReadOnlySet<DriverDocumentType> ResolveChangedDocumentTypes(
         Driver driver,
