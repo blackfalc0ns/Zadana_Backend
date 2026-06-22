@@ -526,6 +526,10 @@ if (string.IsNullOrWhiteSpace(dataProtectionKeysPath))
 {
     dataProtectionKeysPath = Path.Combine(builder.Environment.ContentRootPath, "App_Data", "keys");
 }
+else if (!Path.IsPathRooted(dataProtectionKeysPath))
+{
+    dataProtectionKeysPath = Path.GetFullPath(dataProtectionKeysPath, builder.Environment.ContentRootPath);
+}
 
 try
 {
@@ -538,9 +542,17 @@ try
 }
 catch (Exception ex)
 {
-    // Fail open in environments where the keys directory cannot be created
-    // (e.g., read-only filesystems). Keys remain in-memory and rotate per restart.
-    Console.Error.WriteLine($"[DataProtection] Failed to persist keys to '{dataProtectionKeysPath}': {ex.Message}");
+    if (builder.Environment.IsProduction())
+    {
+        throw new InvalidOperationException(
+            $"Production startup blocked: DataProtection keys cannot be persisted to '{dataProtectionKeysPath}'. " +
+            "Starting with ephemeral keys would make encrypted PII unreadable after a restart.",
+            ex);
+    }
+
+    Console.Error.WriteLine(
+        $"[DataProtection] Failed to persist keys to '{dataProtectionKeysPath}'. " +
+        $"Development will use ephemeral keys: {ex.Message}");
     builder.Services
         .AddDataProtection()
         .SetApplicationName("Zadana.Api");
