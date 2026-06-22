@@ -943,15 +943,13 @@ builder.Services.AddOpenTelemetry()
             .AddPrometheusExporter();
     });
 
-var app = builder.Build();
-
-var searchableHashKeyBase64 = app.Configuration["Security:SearchableHashKey"];
+var searchableHashKeyBase64 = builder.Configuration["Security:SearchableHashKey"];
 byte[] searchableHashKey;
 if (!string.IsNullOrWhiteSpace(searchableHashKeyBase64))
 {
     searchableHashKey = Convert.FromBase64String(searchableHashKeyBase64);
 }
-else if (app.Environment.IsProduction())
+else if (builder.Environment.IsProduction())
 {
     throw new InvalidOperationException(
         "Production startup blocked: Security:SearchableHashKey must be configured (32-byte base64 value).");
@@ -963,15 +961,15 @@ else
 }
 
 ApplicationDbContext.PiiEncryptionMasterKey = searchableHashKey;
+Zadana.Domain.Modules.Identity.Services.SearchableHashProvider.Configure(searchableHashKey);
+
+var app = builder.Build();
 
 // Wire DataProtection into the pooled DbContext model so PII columns are
 // able to read legacy enc:v1 values. New values use stable enc:v2 encryption.
 ApplicationDbContext.AmbientDataProtectionProvider =
     app.Services.GetService<Microsoft.AspNetCore.DataProtection.IDataProtectionProvider>();
 
-// Searchable-hash key is required for indexed lookup of NationalId / IBAN
-// (the values themselves are encrypted at rest and therefore not searchable).
-Zadana.Domain.Modules.Identity.Services.SearchableHashProvider.Configure(searchableHashKey);
 var shouldSeedOnStartup = app.Environment.IsDevelopment() || app.Configuration.GetValue<bool>("Seeding:EnableOnStartup");
 var shouldResetOnStartup = app.Configuration.GetValue<bool>("Seeding:ResetOnStartup");
 var allowRemoteSeedEndpoints = app.Environment.IsDevelopment() || app.Configuration.GetValue<bool>("Seeding:EnableRemoteEndpointsOnNonDevelopment");
