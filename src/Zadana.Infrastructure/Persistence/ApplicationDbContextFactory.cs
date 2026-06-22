@@ -13,6 +13,9 @@ public class ApplicationDbContextFactory : IDesignTimeDbContextFactory<Applicati
         // Keep the design-time model identical to the runtime model.
         ApplicationDbContext.AmbientDataProtectionProvider =
             new EphemeralDataProtectionProvider();
+        ApplicationDbContext.PiiEncryptionMasterKey =
+            System.Security.Cryptography.SHA256.HashData(
+                System.Text.Encoding.UTF8.GetBytes("zadana-design-time-pii-key"));
 
         var optionsBuilder = new DbContextOptionsBuilder<ApplicationDbContext>();
 

@@ -945,16 +945,6 @@ builder.Services.AddOpenTelemetry()
 
 var app = builder.Build();
 
-// Wire DataProtection into the pooled DbContext model so PII columns are
-// encrypted at rest. DataProtection is a process-wide singleton, so this is
-// safe to set once and reuse across every pooled context instance.
-ApplicationDbContext.AmbientDataProtectionProvider =
-    app.Services.GetService<Microsoft.AspNetCore.DataProtection.IDataProtectionProvider>();
-
-// Searchable-hash key is required for indexed lookup of NationalId / IBAN
-// (the values themselves are encrypted at rest and therefore not searchable).
-// In Production the key MUST come from configuration; in dev we derive a
-// stable per-machine key so EnsureCreated / migrations still work.
 var searchableHashKeyBase64 = app.Configuration["Security:SearchableHashKey"];
 byte[] searchableHashKey;
 if (!string.IsNullOrWhiteSpace(searchableHashKeyBase64))
@@ -968,13 +958,19 @@ else if (app.Environment.IsProduction())
 }
 else
 {
-    // Development fallback: deterministic per-machine via DataProtection so
-    // search results stay consistent across restarts on the same dev box.
-    var devProvider = app.Services.GetRequiredService<Microsoft.AspNetCore.DataProtection.IDataProtectionProvider>();
-    var protector = devProvider.CreateProtector("Zadana.SearchableHash.DevKey");
     searchableHashKey = System.Security.Cryptography.SHA256.HashData(
-        protector.Protect(System.Text.Encoding.UTF8.GetBytes("zadana-dev-searchable-hash")));
+        System.Text.Encoding.UTF8.GetBytes(jwtSecret));
 }
+
+ApplicationDbContext.PiiEncryptionMasterKey = searchableHashKey;
+
+// Wire DataProtection into the pooled DbContext model so PII columns are
+// able to read legacy enc:v1 values. New values use stable enc:v2 encryption.
+ApplicationDbContext.AmbientDataProtectionProvider =
+    app.Services.GetService<Microsoft.AspNetCore.DataProtection.IDataProtectionProvider>();
+
+// Searchable-hash key is required for indexed lookup of NationalId / IBAN
+// (the values themselves are encrypted at rest and therefore not searchable).
 Zadana.Domain.Modules.Identity.Services.SearchableHashProvider.Configure(searchableHashKey);
 var shouldSeedOnStartup = app.Environment.IsDevelopment() || app.Configuration.GetValue<bool>("Seeding:EnableOnStartup");
 var shouldResetOnStartup = app.Configuration.GetValue<bool>("Seeding:ResetOnStartup");

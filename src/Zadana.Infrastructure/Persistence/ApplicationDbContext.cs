@@ -198,6 +198,7 @@ public class ApplicationDbContext : IdentityDbContext<User, IdentityRole<Guid>, 
     /// is safe to reuse across pooled DbContext instances.
     /// </summary>
     public static IDataProtectionProvider? AmbientDataProtectionProvider { get; set; }
+    public static byte[]? PiiEncryptionMasterKey { get; set; }
 
     protected override void OnModelCreating(ModelBuilder modelBuilder)
     {
@@ -214,9 +215,11 @@ public class ApplicationDbContext : IdentityDbContext<User, IdentityRole<Guid>, 
 
         // PII encryption at rest. Skipped when no provider is wired (tests
         // / design-time tooling) so EnsureCreated keeps working.
-        if (AmbientDataProtectionProvider is not null)
+        if (PiiEncryptionMasterKey is not null)
         {
-            var converter = PiiProtector.CreateConverter(AmbientDataProtectionProvider);
+            var converter = PiiProtector.CreateConverter(
+                PiiEncryptionMasterKey,
+                AmbientDataProtectionProvider);
 
             modelBuilder.Entity<Driver>()
                 .Property(d => d.NationalId).HasConversion(converter);

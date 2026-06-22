@@ -1,86 +1,126 @@
 using Microsoft.AspNetCore.DataProtection;
 using Microsoft.EntityFrameworkCore.Storage.ValueConversion;
+using System.Security.Cryptography;
+using System.Text;
 
 namespace Zadana.Infrastructure.Persistence.Encryption;
 
 /// <summary>
-/// EF Core value converter that transparently encrypts string columns at
-/// rest using ASP.NET Core's <see cref="IDataProtector"/>.
-///
-/// Storage format on disk: "enc:v1:{base64-cipher}".
-/// Plaintext rows already in the database remain readable: anything that
-/// does not start with the "enc:v1:" prefix is returned unchanged. New
-/// writes always encrypt. Run a one-off migration job to re-save legacy
-/// rows once everything is verified, then enforce strict mode.
+/// Encrypts PII strings with a stable AES-GCM key. The v2 format is portable
+/// across application restarts and worker processes. Legacy DataProtection
+/// v1 values remain readable while their original key ring is available.
 /// </summary>
 public sealed class EncryptedStringConverter : ValueConverter<string?, string?>
 {
-    private const string Prefix = "enc:v1:";
+    private const string LegacyPrefix = "enc:v1:";
+    private const string Prefix = "enc:v2:";
+    private const int NonceSize = 12;
+    private const int TagSize = 16;
 
-    public EncryptedStringConverter(IDataProtector protector)
+    public EncryptedStringConverter(byte[] encryptionKey, IDataProtector? legacyProtector = null)
         : base(
-            plain => Encrypt(plain, protector),
-            stored => Decrypt(stored, protector))
+            plain => Encrypt(plain, encryptionKey),
+            stored => Decrypt(stored, encryptionKey, legacyProtector))
     {
     }
 
-    private static string? Encrypt(string? plain, IDataProtector protector)
+    private static string? Encrypt(string? plain, byte[] encryptionKey)
     {
         if (string.IsNullOrEmpty(plain))
         {
             return plain;
         }
 
-        // If the value already looks encrypted (e.g., we round-tripped through
-        // the converter twice), do not double-encrypt.
-        if (plain.StartsWith(Prefix, StringComparison.Ordinal))
+        if (plain.StartsWith(Prefix, StringComparison.Ordinal) ||
+            plain.StartsWith(LegacyPrefix, StringComparison.Ordinal))
         {
             return plain;
         }
 
-        var cipher = protector.Protect(plain);
-        return Prefix + cipher;
+        var nonce = RandomNumberGenerator.GetBytes(NonceSize);
+        var plaintext = Encoding.UTF8.GetBytes(plain);
+        var ciphertext = new byte[plaintext.Length];
+        var tag = new byte[TagSize];
+
+        using var aes = new AesGcm(encryptionKey, TagSize);
+        aes.Encrypt(nonce, plaintext, ciphertext, tag);
+
+        var payload = new byte[NonceSize + TagSize + ciphertext.Length];
+        Buffer.BlockCopy(nonce, 0, payload, 0, NonceSize);
+        Buffer.BlockCopy(tag, 0, payload, NonceSize, TagSize);
+        Buffer.BlockCopy(ciphertext, 0, payload, NonceSize + TagSize, ciphertext.Length);
+
+        return Prefix + Convert.ToBase64String(payload);
     }
 
-    private static string? Decrypt(string? stored, IDataProtector protector)
+    private static string? Decrypt(
+        string? stored,
+        byte[] encryptionKey,
+        IDataProtector? legacyProtector)
     {
         if (string.IsNullOrEmpty(stored))
         {
             return stored;
         }
 
+        if (stored.StartsWith(LegacyPrefix, StringComparison.Ordinal))
+        {
+            if (legacyProtector is null)
+            {
+                return null;
+            }
+
+            try
+            {
+                return legacyProtector.Unprotect(stored[LegacyPrefix.Length..]);
+            }
+            catch
+            {
+                return null;
+            }
+        }
+
         if (!stored.StartsWith(Prefix, StringComparison.Ordinal))
         {
-            // Legacy plaintext row — return as-is so existing data stays
-            // readable. Will be re-encrypted on next write.
             return stored;
         }
 
         try
         {
-            return protector.Unprotect(stored[Prefix.Length..]);
+            var payload = Convert.FromBase64String(stored[Prefix.Length..]);
+            if (payload.Length <= NonceSize + TagSize)
+            {
+                return null;
+            }
+
+            var nonce = payload.AsSpan(0, NonceSize);
+            var tag = payload.AsSpan(NonceSize, TagSize);
+            var ciphertext = payload.AsSpan(NonceSize + TagSize);
+            var plaintext = new byte[ciphertext.Length];
+
+            using var aes = new AesGcm(encryptionKey, TagSize);
+            aes.Decrypt(nonce, ciphertext, tag, plaintext);
+            return Encoding.UTF8.GetString(plaintext);
         }
         catch
         {
-            // Corrupt or wrong key. Fail closed: surface as null so callers
-            // see "no data" instead of a crash.
             return null;
         }
     }
 }
 
-/// <summary>
-/// Builds the application-wide <see cref="EncryptedStringConverter"/> bound
-/// to a stable purpose so re-deployments don't lose the ability to decrypt
-/// existing rows (DataProtection keys are persisted to disk).
-/// </summary>
 public static class PiiProtector
 {
-    public const string Purpose = "Zadana.Pii.v1";
+    public const string LegacyPurpose = "Zadana.Pii.v1";
 
-    public static EncryptedStringConverter CreateConverter(IDataProtectionProvider provider)
+    public static EncryptedStringConverter CreateConverter(
+        byte[] masterKey,
+        IDataProtectionProvider? legacyProvider = null)
     {
-        var protector = provider.CreateProtector(Purpose);
-        return new EncryptedStringConverter(protector);
+        var encryptionKey = HMACSHA256.HashData(
+            masterKey,
+            Encoding.UTF8.GetBytes("Zadana.Pii.v2"));
+        var legacyProtector = legacyProvider?.CreateProtector(LegacyPurpose);
+        return new EncryptedStringConverter(encryptionKey, legacyProtector);
     }
 }
