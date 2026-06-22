@@ -33,6 +33,7 @@ public class DriverReadService : IDriverReadService
         DriverVehicleProfileChangePayload Payload);
 
     private sealed record EffectiveVehicleProfileFields(
+        DriverVehicleType? VehicleType,
         string? NationalId,
         string? LicenseNumber,
         DateTime? NationalIdExpiryDate,
@@ -568,7 +569,7 @@ public class DriverReadService : IDriverReadService
             City: effectiveProfile.City ?? "",
             Status: MapDriverStatus(driver, activeTasks),
             VerificationStatus: driver.VerificationStatus.ToString(),
-            VehicleType: driver.VehicleType,
+            VehicleType: effectiveProfile.VehicleType,
             JoinedAt: driver.CreatedAtUtc,
             LastSeenAt: lastLocation?.RecordedAtUtc ?? driver.UpdatedAtUtc,
             ActiveTasks: activeTasks,
@@ -1943,25 +1944,33 @@ public class DriverReadService : IDriverReadService
         var pending = overlay?.Status == AccessApprovalStatus.Pending ? overlay.Payload : null;
 
         return new EffectiveVehicleProfileFields(
-            CoalesceProfileValue(driver.NationalId, pending?.NationalId),
-            CoalesceProfileValue(driver.LicenseNumber, pending?.LicenseNumber),
-            CoalesceProfileDate(driver.NationalIdExpiryDate, pending?.NationalIdExpiryDate),
-            CoalesceProfileDate(driver.DriverLicenseExpiryDate, pending?.DriverLicenseExpiryDate),
-            CoalesceProfileValue(driver.VehicleLicenseNumber, pending?.VehicleLicenseNumber),
-            CoalesceProfileDate(driver.VehicleLicenseExpiryDate, pending?.VehicleLicenseExpiryDate),
-            CoalesceProfileValue(driver.Region, pending?.Region),
-            CoalesceProfileValue(driver.City, pending?.City));
+            ResolveProfileVehicleType(driver.VehicleType, pending?.VehicleType),
+            CoalesceProfileValue(pending?.NationalId, driver.NationalId),
+            CoalesceProfileValue(pending?.LicenseNumber, driver.LicenseNumber),
+            CoalesceProfileDate(pending?.NationalIdExpiryDate, driver.NationalIdExpiryDate),
+            CoalesceProfileDate(pending?.DriverLicenseExpiryDate, driver.DriverLicenseExpiryDate),
+            CoalesceProfileValue(pending?.VehicleLicenseNumber, driver.VehicleLicenseNumber),
+            CoalesceProfileDate(pending?.VehicleLicenseExpiryDate, driver.VehicleLicenseExpiryDate),
+            CoalesceProfileValue(pending?.Region, driver.Region),
+            CoalesceProfileValue(pending?.City, driver.City));
     }
 
-    private static string? CoalesceProfileValue(string? currentValue, string? pendingValue) =>
-        !string.IsNullOrWhiteSpace(currentValue)
-            ? currentValue.Trim()
-            : string.IsNullOrWhiteSpace(pendingValue)
-                ? null
-                : pendingValue.Trim();
+    private static DriverVehicleType? ResolveProfileVehicleType(
+        DriverVehicleType? currentValue,
+        string? pendingValue) =>
+        DriverVehicleTypeMapper.TryParse(pendingValue, out var parsedValue)
+            ? parsedValue
+            : currentValue;
 
-    private static DateTime? CoalesceProfileDate(DateTime? currentValue, DateTime? pendingValue) =>
-        currentValue ?? pendingValue;
+    private static string? CoalesceProfileValue(string? preferredValue, string? fallbackValue) =>
+        !string.IsNullOrWhiteSpace(preferredValue)
+            ? preferredValue.Trim()
+            : string.IsNullOrWhiteSpace(fallbackValue)
+                ? null
+                : fallbackValue.Trim();
+
+    private static DateTime? CoalesceProfileDate(DateTime? preferredValue, DateTime? fallbackValue) =>
+        preferredValue ?? fallbackValue;
 
     private static IReadOnlySet<DriverDocumentType> ResolveChangedDocumentTypes(
         Driver driver,

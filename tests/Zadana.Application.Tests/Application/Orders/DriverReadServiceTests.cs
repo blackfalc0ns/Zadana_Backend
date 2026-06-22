@@ -371,6 +371,51 @@ public class DriverReadServiceTests
     }
 
     [Fact]
+    public async Task GetAdminDriverDetailAsync_WhenVehicleChangePending_ShouldExposePendingProfileValues()
+    {
+        await using var dbContext = CreateDbContext();
+        var user = new User("Driver Pending Vehicle User", "driver.pending.vehicle@test.com", "01000000077", UserRole.Driver);
+        var driver = CreateCompleteDriver(user.Id);
+
+        var payload = new DriverVehicleProfileChangePayload(
+            driver.Id,
+            nameof(DriverVehicleType.Truck),
+            "PENDING-NATIONAL-ID",
+            "PENDING-LICENSE",
+            DateTime.UtcNow.Date.AddYears(2),
+            DateTime.UtcNow.Date.AddYears(3),
+            "PENDING-PLATE",
+            DateTime.UtcNow.Date.AddYears(4),
+            "EASTERN",
+            "DAMMAM");
+
+        dbContext.Users.Add(user);
+        dbContext.Drivers.Add(driver);
+        dbContext.AccessApprovalRequests.Add(new AccessApprovalRequest(
+            user.Id,
+            user.Id,
+            ProfileChangeApprovalActions.DriverProfileVehicle,
+            "Driver requested vehicle changes.",
+            "pending-vehicle-hash",
+            JsonSerializer.Serialize(payload, new JsonSerializerOptions(JsonSerializerDefaults.Web))));
+        await dbContext.SaveChangesAsync();
+
+        var service = CreateService(dbContext);
+        var result = await service.GetAdminDriverDetailAsync(driver.Id);
+
+        result.Should().NotBeNull();
+        result!.VehicleType.Should().Be(DriverVehicleType.Truck);
+        result.NationalId.Should().Be(payload.NationalId);
+        result.LicenseNumber.Should().Be(payload.LicenseNumber);
+        result.VehicleLicenseNumber.Should().Be(payload.VehicleLicenseNumber);
+        result.Operations.Region.Should().Be(payload.Region);
+        result.Operations.City.Should().Be(payload.City);
+        result.Documents.Single(document => document.DocumentType == "NationalId").Number.Should().Be(payload.NationalId);
+        result.Documents.Single(document => document.DocumentType == "DriverLicense").Number.Should().Be(payload.LicenseNumber);
+        result.Documents.Single(document => document.DocumentType == "VehicleLicense").Number.Should().Be(payload.VehicleLicenseNumber);
+    }
+
+    [Fact]
     public async Task GetAdminDriverDetailAsync_ShouldExposeLocationAccessState()
     {
         await using var dbContext = CreateDbContext();
