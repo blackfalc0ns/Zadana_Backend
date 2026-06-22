@@ -99,22 +99,30 @@ public class UpdateDriverProfileCommandHandler : IRequestHandler<UpdateDriverPro
             throw new BusinessRuleException("INVALID_CITY", "المدينة المختارة لا تتبع المنطقة المحددة | Selected city does not belong to the chosen region.");
         }
 
+        var nationalId = CoalesceTextUpdate(request.NationalId, driver.NationalId);
+        var licenseNumber = CoalesceTextUpdate(request.LicenseNumber, driver.LicenseNumber);
+        var vehicleLicenseNumber = CoalesceTextUpdate(request.VehicleLicenseNumber, driver.VehicleLicenseNumber);
+        var nationalIdExpiryDate = CoalesceDateUpdate(request.NationalIdExpiryDate, driver.NationalIdExpiryDate);
+        var driverLicenseExpiryDate = CoalesceDateUpdate(request.DriverLicenseExpiryDate, driver.DriverLicenseExpiryDate);
+        var vehicleLicenseExpiryDate = CoalesceDateUpdate(request.VehicleLicenseExpiryDate, driver.VehicleLicenseExpiryDate);
+        var vehicleType = parsedVehicleType ?? driver.VehicleType;
+
         var personalChanged =
             HasChanged(driver.User.FullName, request.FullName) ||
             HasChanged(driver.User.Email, request.Email) ||
             HasChanged(driver.User.PhoneNumber, request.PhoneNumber) ||
             HasChanged(driver.Address, request.Address);
         var nationalIdChanged =
-            HasChanged(driver.NationalId, request.NationalId) ||
-            HasChanged(driver.NationalIdExpiryDate, request.NationalIdExpiryDate);
+            HasChanged(driver.NationalId, nationalId) ||
+            HasChanged(driver.NationalIdExpiryDate, nationalIdExpiryDate);
         var driverLicenseChanged =
-            HasChanged(driver.LicenseNumber, request.LicenseNumber) ||
-            HasChanged(driver.DriverLicenseExpiryDate, request.DriverLicenseExpiryDate);
+            HasChanged(driver.LicenseNumber, licenseNumber) ||
+            HasChanged(driver.DriverLicenseExpiryDate, driverLicenseExpiryDate);
         var vehicleLicenseChanged =
-            HasChanged(driver.VehicleLicenseNumber, request.VehicleLicenseNumber) ||
-            HasChanged(driver.VehicleLicenseExpiryDate, request.VehicleLicenseExpiryDate);
+            HasChanged(driver.VehicleLicenseNumber, vehicleLicenseNumber) ||
+            HasChanged(driver.VehicleLicenseExpiryDate, vehicleLicenseExpiryDate);
         var vehicleChanged =
-            driver.VehicleType != parsedVehicleType ||
+            driver.VehicleType != vehicleType ||
             HasChanged(driver.Region, request.Region) ||
             HasChanged(driver.City, request.City);
 
@@ -136,13 +144,13 @@ public class UpdateDriverProfileCommandHandler : IRequestHandler<UpdateDriverPro
         }
 
         driver.UpdateDetails(
-            parsedVehicleType,
-            request.NationalId,
-            request.LicenseNumber,
-            request.NationalIdExpiryDate,
-            request.DriverLicenseExpiryDate,
-            request.VehicleLicenseNumber,
-            request.VehicleLicenseExpiryDate);
+            vehicleType,
+            nationalId,
+            licenseNumber,
+            nationalIdExpiryDate,
+            driverLicenseExpiryDate,
+            vehicleLicenseNumber,
+            vehicleLicenseExpiryDate);
 
         driver.UpdateAddress(request.Address);
         driver.UpdateServiceArea(request.Region, request.City);
@@ -213,4 +221,10 @@ public class UpdateDriverProfileCommandHandler : IRequestHandler<UpdateDriverPro
 
     private static bool HasChanged(DateTime? currentValue, DateTime? requestedValue) =>
         currentValue?.Date != requestedValue?.Date;
+
+    private static string? CoalesceTextUpdate(string? requestedValue, string? currentValue) =>
+        string.IsNullOrWhiteSpace(requestedValue) ? currentValue : requestedValue.Trim();
+
+    private static DateTime? CoalesceDateUpdate(DateTime? requestedValue, DateTime? currentValue) =>
+        requestedValue ?? currentValue;
 }
