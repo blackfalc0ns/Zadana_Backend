@@ -428,13 +428,15 @@ public class DriversController : ApiControllerBase
         [FromServices] ICurrentUserService currentUserService,
         [FromServices] IDriverRepository driverRepository,
         [FromServices] IDriverReadService driverReadService,
+        [FromQuery(Name = "page")] int page = 1,
+        [FromQuery(Name = "per_page")] int perPage = 20,
         CancellationToken cancellationToken = default)
     {
         var userId = currentUserService.UserId ?? throw new UnauthorizedException("DRIVER_NOT_AUTHENTICATED");
         var driver = await driverRepository.GetByUserIdAsync(userId, cancellationToken)
             ?? throw new NotFoundException("Driver", userId);
 
-        return Ok(await driverReadService.GetCompletedOrdersAsync(driver.Id, status, cancellationToken));
+        return Ok(await driverReadService.GetCompletedOrdersAsync(driver.Id, status, page, perPage, cancellationToken));
     }
 
     [HttpGet("orders/completed/{orderId:guid}")]

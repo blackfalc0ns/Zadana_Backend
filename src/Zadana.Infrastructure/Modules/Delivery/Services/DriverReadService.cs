@@ -752,8 +752,12 @@ public class DriverReadService : IDriverReadService
     public async Task<DriverCompletedOrdersListDto> GetCompletedOrdersAsync(
         Guid driverId,
         string? status = null,
+        int page = 1,
+        int perPage = 20,
         CancellationToken cancellationToken = default)
     {
+        var normalizedPage = page <= 0 ? 1 : page;
+        var normalizedPerPage = perPage <= 0 ? 20 : Math.Clamp(perPage, 1, 100);
         var normalizedStatus = string.IsNullOrWhiteSpace(status) ? null : status.Trim().ToLowerInvariant();
         var query = _context.DeliveryAssignments
             .AsNoTracking()
@@ -778,8 +782,12 @@ public class DriverReadService : IDriverReadService
             };
         }
 
+        var totalCount = await query.CountAsync(cancellationToken);
+
         var assignments = await query
             .OrderByDescending(a => a.DeliveredAtUtc ?? a.FailedAtUtc ?? a.Order.CancelledAtUtc ?? a.UpdatedAtUtc)
+            .Skip((normalizedPage - 1) * normalizedPerPage)
+            .Take(normalizedPerPage)
             .ToListAsync(cancellationToken);
 
         var addressIds = assignments.Select(a => a.Order.CustomerAddressId).Distinct().ToArray();
@@ -812,7 +820,14 @@ public class DriverReadService : IDriverReadService
             })
             .ToArray();
 
-        return new DriverCompletedOrdersListDto(items, items.Length);
+        var hasMore = normalizedPage * normalizedPerPage < totalCount;
+
+        return new DriverCompletedOrdersListDto(
+            items,
+            totalCount,
+            normalizedPage,
+            normalizedPerPage,
+            hasMore);
     }
 
     public async Task<DriverCompletedOrderDetailDto?> GetCompletedOrderDetailAsync(

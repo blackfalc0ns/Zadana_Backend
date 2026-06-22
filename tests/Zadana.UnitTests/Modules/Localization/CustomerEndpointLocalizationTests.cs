@@ -30,6 +30,8 @@ using Zadana.Application.Modules.Favorites.Commands;
 using Zadana.Application.Modules.Favorites.Queries;
 using Zadana.Application.Modules.Identity.Commands.ForgotPassword;
 using Zadana.Application.Modules.Identity.Commands.ResetPassword;
+using Zadana.Application.Modules.Identity.Commands.VerifyPasswordResetOtp;
+using Zadana.Application.Modules.Identity.DTOs;
 using Zadana.Application.Modules.Orders.Commands.AddCartItem;
 using Zadana.Application.Modules.Orders.Commands.CancelCustomerOrder;
 using Zadana.Application.Modules.Orders.Commands.ClearCart;
@@ -312,9 +314,11 @@ public class CustomerEndpointLocalizationTests
             var controller = CreateCustomerAuthController();
 
             var forgotPassword = await controller.ForgotPassword(new ForgotPasswordRequest("customer@test.com"));
-            var resetPassword = await controller.ResetPassword(new ResetPasswordRequest("customer@test.com", "1234", "Password123!"));
+            var verifyResetOtp = await controller.VerifyResetOtp(new VerifyPasswordResetOtpRequest("customer@test.com", "1234"));
+            var resetPassword = await controller.ResetPassword(new ResetPasswordRequest("customer@test.com", "reset-token-value", "Password123!"));
 
             GetOkMessage(forgotPassword).Should().Be(GetSharedResource("PasswordResetOtpSent"));
+            ((PasswordResetOtpVerifiedDto)GetOkAnonymous(verifyResetOtp)).Message.Should().Be(GetSharedResource("PasswordResetOtpVerified"));
             GetOkMessage(resetPassword).Should().Be(GetSharedResource("PasswordResetSuccess"));
 
             var addresses = CreateCustomerAddressesController(null);
@@ -328,9 +332,11 @@ public class CustomerEndpointLocalizationTests
             var controller = CreateCustomerAuthController();
 
             var forgotPassword = await controller.ForgotPassword(new ForgotPasswordRequest("customer@test.com"));
-            var resetPassword = await controller.ResetPassword(new ResetPasswordRequest("customer@test.com", "1234", "Password123!"));
+            var verifyResetOtp = await controller.VerifyResetOtp(new VerifyPasswordResetOtpRequest("customer@test.com", "1234"));
+            var resetPassword = await controller.ResetPassword(new ResetPasswordRequest("customer@test.com", "reset-token-value", "Password123!"));
 
             ContainsArabic(GetOkMessage(forgotPassword)).Should().BeTrue();
+            ContainsArabic(((PasswordResetOtpVerifiedDto)GetOkAnonymous(verifyResetOtp)).Message).Should().BeTrue();
             ContainsArabic(GetOkMessage(resetPassword)).Should().BeTrue();
 
             var addresses = CreateCustomerAddressesController(null);
@@ -486,6 +492,8 @@ public class CustomerEndpointLocalizationTests
         var sender = new Mock<ISender>();
         sender.Setup(x => x.Send(It.IsAny<ForgotPasswordCommand>(), It.IsAny<CancellationToken>()))
             .Returns(Task.CompletedTask);
+        sender.Setup(x => x.Send(It.IsAny<VerifyPasswordResetOtpCommand>(), It.IsAny<CancellationToken>()))
+            .ReturnsAsync(new PasswordResetOtpVerifiedDto("reset-token-value", 600, GetSharedResource("PasswordResetOtpVerified")));
         sender.Setup(x => x.Send(It.IsAny<ResetPasswordCommand>(), It.IsAny<CancellationToken>()))
             .Returns(Task.CompletedTask);
 
@@ -652,7 +660,7 @@ public class CustomerEndpointLocalizationTests
         return ReadProperty<string>(ok.Value!, "Message");
     }
 
-    private static object GetOkAnonymous(ActionResult actionResult)
+    private static object GetOkAnonymous(IActionResult actionResult)
     {
         var ok = actionResult.Should().BeOfType<OkObjectResult>().Subject;
         ok.Value.Should().NotBeNull();

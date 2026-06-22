@@ -190,6 +190,12 @@ public class ExceptionHandlingMiddleware
             var localized = GetLocalizedResource(errorCode, context, localizer);
             if (!string.Equals(localized, errorCode, StringComparison.Ordinal))
             {
+                if (!string.IsNullOrWhiteSpace(fallbackMessage) &&
+                    !string.Equals(fallbackMessage, localized, StringComparison.Ordinal))
+                {
+                    return fallbackMessage;
+                }
+
                 if (args != null && args.Length > 0)
                 {
                     try

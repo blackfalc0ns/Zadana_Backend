@@ -221,6 +221,18 @@
   <data name="InvalidOrExpiredOtp" xml:space="preserve">
     <value>OTP is invalid or expired.</value>
   </data>
+  <data name="InvalidOrExpiredResetToken" xml:space="preserve">
+    <value>Password reset session is invalid or expired. Please verify the OTP again.</value>
+  </data>
+  <data name="PasswordResetOtpVerified" xml:space="preserve">
+    <value>OTP verified. You can now set a new password.</value>
+  </data>
+  <data name="ResetToken" xml:space="preserve">
+    <value>Reset token</value>
+  </data>
+  <data name="InvalidResetToken" xml:space="preserve">
+    <value>Reset token is invalid.</value>
+  </data>
   <data name="PasswordResetOtpSent" xml:space="preserve">
     <value>If the account is registered, a password reset OTP has been sent to the mobile number.</value>
   </data>

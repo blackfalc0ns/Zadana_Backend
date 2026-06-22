@@ -428,7 +428,8 @@ public class CatalogRequestWorkflowTests
         public Task<OtpDispatchResult> ResendRegistrationOtpAsync(string identifier, CancellationToken cancellationToken = default) => throw new NotImplementedException();
         public Task<OtpVerificationResult> VerifyRegistrationOtpAsync(string identifier, string otpCode, CancellationToken cancellationToken = default) => throw new NotImplementedException();
         public Task<OtpDispatchResult> GeneratePasswordResetOtpAsync(string identifier, CancellationToken cancellationToken = default) => throw new NotImplementedException();
-        public Task<PasswordResetResult> ResetPasswordAsync(string identifier, string otpCode, string newPassword, CancellationToken cancellationToken = default) => throw new NotImplementedException();
+        public Task<PasswordResetOtpVerificationResult> VerifyPasswordResetOtpAsync(string identifier, string otpCode, CancellationToken cancellationToken = default) => throw new NotImplementedException();
+        public Task<PasswordResetResult> CompletePasswordResetAsync(string identifier, string resetToken, string newPassword, CancellationToken cancellationToken = default) => throw new NotImplementedException();
     }
 
     private sealed class PassThroughLocalizer<T> : IStringLocalizer<T>

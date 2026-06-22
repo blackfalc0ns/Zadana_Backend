@@ -46,7 +46,10 @@ public record DriverAssignmentItemDto(
 
 public record DriverCompletedOrdersListDto(
     IReadOnlyList<DriverCompletedOrderListItemDto> Items,
-    int TotalCount);
+    int TotalCount,
+    int Page,
+    int PerPage,
+    bool HasMore);
 
 public record DriverCompletedOrderListItemDto(
     Guid Id,

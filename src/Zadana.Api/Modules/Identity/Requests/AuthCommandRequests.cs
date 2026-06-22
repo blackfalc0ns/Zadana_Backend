@@ -8,7 +8,9 @@ public record RefreshTokenRequest(string RefreshToken);
 
 public record ForgotPasswordRequest(string Identifier);
 
-public record ResetPasswordRequest(string Identifier, string OtpCode, string NewPassword);
+public record VerifyPasswordResetOtpRequest(string Identifier, string OtpCode);
+
+public record ResetPasswordRequest(string Identifier, string ResetToken, string NewPassword);
 
 public record LogoutRequest(string RefreshToken);
 

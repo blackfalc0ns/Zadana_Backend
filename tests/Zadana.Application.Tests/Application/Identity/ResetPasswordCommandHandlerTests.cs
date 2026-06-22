@@ -4,29 +4,27 @@ using Microsoft.Extensions.Localization;
 using Zadana.Application.Common.Interfaces;
 using Zadana.Application.Common.Localization;
 using Zadana.Application.Modules.Identity.Commands.ResetPassword;
-using Zadana.Domain.Modules.Identity.Entities;
-using Zadana.Domain.Modules.Identity.Interfaces;
+using Zadana.Application.Modules.Identity.DTOs;
+using Zadana.Application.Modules.Identity.Interfaces;
 using Zadana.SharedKernel.Exceptions;
 
 namespace Zadana.Application.Tests.Application.Identity;
 
-/// <summary>
-/// Unit tests for ResetPasswordCommandHandler.
-/// </summary>
 public class ResetPasswordCommandHandlerTests
 {
-    private readonly Mock<IUserRepository> _userRepositoryMock = new();
+    private readonly Mock<IIdentityAccountService> _identityAccountServiceMock = new();
+    private readonly Mock<IRefreshTokenStore> _refreshTokenStoreMock = new();
+    private readonly Mock<IJwtRevocationStore> _jwtRevocationStoreMock = new();
     private readonly Mock<IUnitOfWork> _unitOfWorkMock = new();
-    private readonly Mock<IPasswordHasher> _passwordHasherMock = new();
     private readonly Mock<IStringLocalizer<SharedResource>> _localizerMock = new();
 
     private ResetPasswordCommandHandler CreateHandler() =>
         new(
-            _userRepositoryMock.Object,
+            _identityAccountServiceMock.Object,
+            _refreshTokenStoreMock.Object,
+            _jwtRevocationStoreMock.Object,
             _unitOfWorkMock.Object,
-            _passwordHasherMock.Object,
-            _localizerMock.Object
-        );
+            _localizerMock.Object);
 
     private void SetupLocalizer()
     {
@@ -34,83 +32,87 @@ public class ResetPasswordCommandHandlerTests
             .Returns((string key) => new LocalizedString(key, key));
     }
 
-    // ─── User Not Found ────────────────────────────────────────────────────
-
     [Fact]
     public async Task Handle_WhenUserNotFound_ShouldThrowUnauthorizedException()
     {
-        // Arrange
         SetupLocalizer();
-        _userRepositoryMock
-            .Setup(r => r.GetByIdentifierAsync(It.IsAny<string>(), It.IsAny<CancellationToken>()))
-            .ReturnsAsync((User?)null);
+        _identityAccountServiceMock
+            .Setup(s => s.FindByIdentifierAsync(It.IsAny<string>(), It.IsAny<CancellationToken>()))
+            .ReturnsAsync((IdentityAccountSnapshot?)null);
+        _identityAccountServiceMock
+            .Setup(s => s.CompletePasswordResetAsync(It.IsAny<string>(), It.IsAny<string>(), It.IsAny<string>(), It.IsAny<CancellationToken>()))
+            .ReturnsAsync(new PasswordResetResult(PasswordResetStatus.UserNotFound));
 
-        var command = new ResetPasswordCommand("unknown@test.com", "1234", "NewP@ssword1");
         var handler = CreateHandler();
+        var act = () => handler.Handle(new ResetPasswordCommand("unknown@test.com", new string('a', 64), "NewP@ssword1"), CancellationToken.None);
 
-        // Act
-        var act = () => handler.Handle(command, CancellationToken.None);
-
-        // Assert
         await act.Should().ThrowAsync<UnauthorizedException>();
     }
 
-    // ─── Invalid OTP ───────────────────────────────────────────────────────
-
     [Fact]
-    public async Task Handle_WithInvalidOtp_ShouldThrowBusinessRuleException()
+    public async Task Handle_WithInvalidResetToken_ShouldThrowBusinessRuleException()
     {
-        // Arrange
         SetupLocalizer();
-        var user = new User("Test", "test@zadana.com", "01011111111", "hash",
-            Zadana.Domain.Modules.Identity.Enums.UserRole.Customer);
-        // Generate a real OTP so VerifyPasswordResetOtp exists, but pass wrong code
-        user.GeneratePasswordResetOtp();
+        _identityAccountServiceMock
+            .Setup(s => s.FindByIdentifierAsync("test@zadana.com", It.IsAny<CancellationToken>()))
+            .ReturnsAsync(new IdentityAccountSnapshot(
+                Guid.NewGuid(),
+                "Test User",
+                "test@zadana.com",
+                "01011111111",
+                Zadana.Domain.Modules.Identity.Enums.UserRole.Customer,
+                1,
+                Zadana.Domain.Modules.Identity.Enums.AccountStatus.Active,
+                false,
+                null,
+                null,
+                true,
+                true,
+                false,
+                null));
+        _identityAccountServiceMock
+            .Setup(s => s.CompletePasswordResetAsync("test@zadana.com", It.IsAny<string>(), It.IsAny<string>(), It.IsAny<CancellationToken>()))
+            .ReturnsAsync(new PasswordResetResult(PasswordResetStatus.InvalidOrExpiredResetToken));
 
-        _userRepositoryMock
-            .Setup(r => r.GetByIdentifierAsync("01011111111", It.IsAny<CancellationToken>()))
-            .ReturnsAsync(user);
-
-        var command = new ResetPasswordCommand("01011111111", "0000", "NewP@ssword1");
         var handler = CreateHandler();
+        var act = () => handler.Handle(new ResetPasswordCommand("test@zadana.com", new string('a', 64), "NewP@ssword1"), CancellationToken.None);
 
-        // Act
-        var act = () => handler.Handle(command, CancellationToken.None);
-
-        // Assert
         await act.Should()
             .ThrowAsync<BusinessRuleException>()
-            .Where(e => e.ErrorCode == "INVALID_OTP");
+            .Where(e => e.ErrorCode == "INVALID_RESET_TOKEN");
     }
 
-    // ─── Valid Reset ───────────────────────────────────────────────────────
-
     [Fact]
-    public async Task Handle_WithValidOtp_ShouldChangePasswordAndSave()
+    public async Task Handle_WithValidResetToken_ShouldRevokeSessionsAndSave()
     {
-        // Arrange
         SetupLocalizer();
-        var user = new User("Test", "test@zadana.com", "01011111111", "hash",
-            Zadana.Domain.Modules.Identity.Enums.UserRole.Customer);
-        var otp = user.GeneratePasswordResetOtp();
+        var userId = Guid.NewGuid();
+        _identityAccountServiceMock
+            .Setup(s => s.FindByIdentifierAsync("test@zadana.com", It.IsAny<CancellationToken>()))
+            .ReturnsAsync(new IdentityAccountSnapshot(
+                userId,
+                "Test User",
+                "test@zadana.com",
+                "01011111111",
+                Zadana.Domain.Modules.Identity.Enums.UserRole.Customer,
+                1,
+                Zadana.Domain.Modules.Identity.Enums.AccountStatus.Active,
+                false,
+                null,
+                null,
+                true,
+                true,
+                false,
+                null));
+        _identityAccountServiceMock
+            .Setup(s => s.CompletePasswordResetAsync("test@zadana.com", It.IsAny<string>(), "NewP@ssword1", It.IsAny<CancellationToken>()))
+            .ReturnsAsync(new PasswordResetResult(PasswordResetStatus.Succeeded));
 
-        _userRepositoryMock
-            .Setup(r => r.GetByIdentifierAsync("01011111111", It.IsAny<CancellationToken>()))
-            .ReturnsAsync(user);
-
-        _passwordHasherMock
-            .Setup(p => p.HashPassword("NewP@ssword1"))
-            .Returns("new_hashed_password");
-
-        var command = new ResetPasswordCommand("01011111111", otp, "NewP@ssword1");
         var handler = CreateHandler();
+        await handler.Handle(new ResetPasswordCommand("test@zadana.com", new string('a', 64), "NewP@ssword1"), CancellationToken.None);
 
-        // Act
-        await handler.Handle(command, CancellationToken.None);
-
-        // Assert
-        _passwordHasherMock.Verify(p => p.HashPassword("NewP@ssword1"), Times.Once);
-        _userRepositoryMock.Verify(r => r.Update(user), Times.Once);
+        _refreshTokenStoreMock.Verify(s => s.RevokeAllByUserAsync(userId, It.IsAny<CancellationToken>()), Times.Once);
         _unitOfWorkMock.Verify(u => u.SaveChangesAsync(It.IsAny<CancellationToken>()), Times.Once);
+        _jwtRevocationStoreMock.Verify(s => s.RevokeAllForUserAsync(userId, It.IsAny<DateTime>(), It.IsAny<CancellationToken>()), Times.Once);
     }
 }

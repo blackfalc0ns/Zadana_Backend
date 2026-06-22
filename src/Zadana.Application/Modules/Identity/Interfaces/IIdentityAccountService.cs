@@ -28,5 +28,6 @@ public interface IIdentityAccountService
     Task<OtpDispatchResult> ResendRegistrationOtpAsync(string identifier, CancellationToken cancellationToken = default);
     Task<OtpVerificationResult> VerifyRegistrationOtpAsync(string identifier, string otpCode, CancellationToken cancellationToken = default);
     Task<OtpDispatchResult> GeneratePasswordResetOtpAsync(string identifier, CancellationToken cancellationToken = default);
-    Task<PasswordResetResult> ResetPasswordAsync(string identifier, string otpCode, string newPassword, CancellationToken cancellationToken = default);
+    Task<PasswordResetOtpVerificationResult> VerifyPasswordResetOtpAsync(string identifier, string otpCode, CancellationToken cancellationToken = default);
+    Task<PasswordResetResult> CompletePasswordResetAsync(string identifier, string resetToken, string newPassword, CancellationToken cancellationToken = default);
 }

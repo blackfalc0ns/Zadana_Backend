@@ -123,12 +123,31 @@ public enum PasswordResetStatus
     Succeeded,
     UserNotFound,
     InvalidOrExpiredOtp,
+    InvalidOrExpiredResetToken,
     Failed
 }
 
 public record PasswordResetResult(
     PasswordResetStatus Status,
     IReadOnlyCollection<string>? Errors = null);
+
+public enum PasswordResetOtpVerificationStatus
+{
+    Succeeded,
+    InvalidOrExpiredOtp,
+    Failed
+}
+
+public record PasswordResetOtpVerificationResult(
+    PasswordResetOtpVerificationStatus Status,
+    string? ResetToken = null,
+    int? ExpiresInSeconds = null,
+    IReadOnlyCollection<string>? Errors = null);
+
+public record PasswordResetOtpVerifiedDto(
+    string ResetToken,
+    int ExpiresInSeconds,
+    string? Message = null);
 
 public record RefreshTokenRecord(
     Guid UserId,

@@ -141,9 +141,61 @@ public class DriverReadServiceTests
         var deliveredOnly = await service.GetCompletedOrdersAsync(driver.Id, "delivered");
 
         allCompleted.TotalCount.Should().Be(3);
+        allCompleted.Page.Should().Be(1);
+        allCompleted.PerPage.Should().Be(20);
+        allCompleted.HasMore.Should().BeFalse();
         allCompleted.Items.Select(x => x.Status).Should().BeEquivalentTo(["delivered", "cancelled", "deliveryFailed"]);
         deliveredOnly.TotalCount.Should().Be(1);
         deliveredOnly.Items[0].Status.Should().Be("delivered");
+    }
+
+    [Fact]
+    public async Task GetCompletedOrdersAsync_ShouldPaginateResults()
+    {
+        await using var dbContext = CreateDbContext();
+        var customer = CreateCustomer();
+        var driverUser = new User("Driver Paginated User", "driver.paginated@test.com", "01000000063", UserRole.Driver);
+        var driver = new Driver(driverUser.Id, DriverVehicleType.Car, "12345678901238", "LIC-104", address: "Riyadh");
+        var vendor = CreateVendor();
+        var branch = CreateBranch(vendor.Id);
+        var address = CreateCustomerAddress(customer.Id);
+
+        var orders = Enumerable.Range(1, 5)
+            .Select(index => CreateOrder(customer.Id, vendor.Id, branch.Id, address.Id, OrderStatus.Delivered, $"ORD-PAGE-{index}"))
+            .ToArray();
+
+        var assignments = orders
+            .Select(order => CreateCompletedAssignment(driver.Id, order.Id, AssignmentStatus.Delivered))
+            .ToArray();
+
+        dbContext.Users.AddRange(customer, driverUser);
+        dbContext.Vendors.Add(vendor);
+        dbContext.VendorBranches.Add(branch);
+        dbContext.CustomerAddresses.Add(address);
+        dbContext.Drivers.Add(driver);
+        dbContext.Orders.AddRange(orders);
+        dbContext.DeliveryAssignments.AddRange(assignments);
+        await dbContext.SaveChangesAsync();
+
+        var service = CreateService(dbContext);
+
+        var firstPage = await service.GetCompletedOrdersAsync(driver.Id, "delivered", page: 1, perPage: 2);
+        var secondPage = await service.GetCompletedOrdersAsync(driver.Id, "delivered", page: 2, perPage: 2);
+
+        firstPage.TotalCount.Should().Be(5);
+        firstPage.Page.Should().Be(1);
+        firstPage.PerPage.Should().Be(2);
+        firstPage.HasMore.Should().BeTrue();
+        firstPage.Items.Should().HaveCount(2);
+
+        secondPage.TotalCount.Should().Be(5);
+        secondPage.Page.Should().Be(2);
+        secondPage.PerPage.Should().Be(2);
+        secondPage.HasMore.Should().BeTrue();
+        secondPage.Items.Should().HaveCount(2);
+
+        var ids = firstPage.Items.Select(x => x.Id).Concat(secondPage.Items.Select(x => x.Id)).ToArray();
+        ids.Should().OnlyHaveUniqueItems();
     }
 
     [Fact]

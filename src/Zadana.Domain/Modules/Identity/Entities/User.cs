@@ -351,6 +351,8 @@ public class User : IdentityUser<Guid>
     }
 
     // --- Password Reset Domain Behavior ---
+    public const int PasswordResetProofLifetimeMinutes = 10;
+
     public string GeneratePasswordResetOtp()
     {
         var code = GenerateNumericCode(4);
@@ -364,24 +366,71 @@ public class User : IdentityUser<Guid>
 
     public bool VerifyPasswordResetOtp(string code)
     {
-        if (string.IsNullOrWhiteSpace(PasswordResetOtp) || PasswordResetOtpExpiry == null)
+        if (!TryValidatePasswordResetOtpCode(code))
+        {
             return false;
+        }
+
+        ClearPasswordResetSession();
+        return true;
+    }
+
+    public string? ConfirmPasswordResetOtp(string code)
+    {
+        if (!TryValidatePasswordResetOtpCode(code))
+        {
+            return null;
+        }
+
+        var proofToken = GenerateProofToken();
+        PasswordResetOtp = HashOtp(proofToken);
+        PasswordResetOtpExpiry = DateTime.UtcNow.AddMinutes(PasswordResetProofLifetimeMinutes);
+        PasswordResetOtpAttempts = 0;
+        UpdatedAtUtc = DateTime.UtcNow;
+        return proofToken;
+    }
+
+    public bool ValidatePasswordResetProof(string proofToken)
+    {
+        if (string.IsNullOrWhiteSpace(PasswordResetOtp) || PasswordResetOtpExpiry == null)
+        {
+            return false;
+        }
 
         if (DateTime.UtcNow > PasswordResetOtpExpiry.Value)
         {
-            PasswordResetOtp = null;
-            PasswordResetOtpExpiry = null;
-            PasswordResetOtpAttempts = 0;
-            UpdatedAtUtc = DateTime.UtcNow;
+            ClearPasswordResetSession();
+            return false;
+        }
+
+        var providedHash = HashOtp(proofToken?.Trim() ?? string.Empty);
+        return FixedTimeEquals(PasswordResetOtp, providedHash);
+    }
+
+    public void ClearPasswordResetSession()
+    {
+        PasswordResetOtp = null;
+        PasswordResetOtpExpiry = null;
+        PasswordResetOtpAttempts = 0;
+        UpdatedAtUtc = DateTime.UtcNow;
+    }
+
+    private bool TryValidatePasswordResetOtpCode(string code)
+    {
+        if (string.IsNullOrWhiteSpace(PasswordResetOtp) || PasswordResetOtpExpiry == null)
+        {
+            return false;
+        }
+
+        if (DateTime.UtcNow > PasswordResetOtpExpiry.Value)
+        {
+            ClearPasswordResetSession();
             return false;
         }
 
         if (PasswordResetOtpAttempts >= MaxOtpAttempts)
         {
-            PasswordResetOtp = null;
-            PasswordResetOtpExpiry = null;
-            PasswordResetOtpAttempts = 0;
-            UpdatedAtUtc = DateTime.UtcNow;
+            ClearPasswordResetSession();
             return false;
         }
 
@@ -390,15 +439,22 @@ public class User : IdentityUser<Guid>
         {
             PasswordResetOtpAttempts++;
             UpdatedAtUtc = DateTime.UtcNow;
+            if (PasswordResetOtpAttempts >= MaxOtpAttempts)
+            {
+                ClearPasswordResetSession();
+            }
+
             return false;
         }
 
-        PasswordResetOtp = null;
-        PasswordResetOtpExpiry = null;
-        PasswordResetOtpAttempts = 0;
-        UpdatedAtUtc = DateTime.UtcNow;
-
         return true;
+    }
+
+    private static string GenerateProofToken()
+    {
+        var bytes = new byte[32];
+        System.Security.Cryptography.RandomNumberGenerator.Fill(bytes);
+        return Convert.ToHexString(bytes);
     }
 
     private static string GenerateNumericCode(int length)

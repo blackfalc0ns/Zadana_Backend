@@ -12,6 +12,7 @@ using Zadana.Application.Modules.Identity.Commands.ResetPassword;
 using Zadana.Application.Modules.Identity.Commands.UpdateCurrentUserProfile;
 using Zadana.Application.Modules.Identity.Commands.UpdateCurrentUserProfilePhoto;
 using Zadana.Application.Modules.Identity.Commands.VerifyOtp;
+using Zadana.Application.Modules.Identity.Commands.VerifyPasswordResetOtp;
 using Zadana.Application.Modules.Identity.Queries.GetCurrentUser;
 using Zadana.Domain.Modules.Identity.Enums;
 
@@ -65,9 +66,15 @@ public abstract class IdentityAuthControllerBase : ApiControllerBase
         return Ok(new { Message = _localizer["PasswordResetOtpSent"].Value });
     }
 
+    protected async Task<IActionResult> VerifyPasswordResetOtpAsync(VerifyPasswordResetOtpRequest request)
+    {
+        var result = await Sender.Send(new VerifyPasswordResetOtpCommand(request.Identifier, request.OtpCode));
+        return Ok(result);
+    }
+
     protected async Task<IActionResult> ResetPasswordAsync(ResetPasswordRequest request)
     {
-        await Sender.Send(new ResetPasswordCommand(request.Identifier, request.OtpCode, request.NewPassword));
+        await Sender.Send(new ResetPasswordCommand(request.Identifier, request.ResetToken, request.NewPassword));
         return Ok(new { Message = _localizer["PasswordResetSuccess"].Value });
     }
 

@@ -451,7 +451,42 @@ public class IdentityAccountService : IIdentityAccountService
         return new OtpDispatchResult(OtpDispatchStatus.Succeeded, Map(user), otpCode);
     }
 
-    public async Task<PasswordResetResult> ResetPasswordAsync(string identifier, string otpCode, string newPassword, CancellationToken cancellationToken = default)
+    public async Task<PasswordResetOtpVerificationResult> VerifyPasswordResetOtpAsync(
+        string identifier,
+        string otpCode,
+        CancellationToken cancellationToken = default)
+    {
+        var user = await FindUserByIdentifierAsync(identifier, cancellationToken);
+        if (user == null)
+        {
+            return new PasswordResetOtpVerificationResult(PasswordResetOtpVerificationStatus.InvalidOrExpiredOtp);
+        }
+
+        var resetToken = user.ConfirmPasswordResetOtp(otpCode);
+        if (resetToken == null)
+        {
+            return new PasswordResetOtpVerificationResult(PasswordResetOtpVerificationStatus.InvalidOrExpiredOtp);
+        }
+
+        var persistResult = await PersistUserAsync(user);
+        if (!persistResult.Succeeded)
+        {
+            return new PasswordResetOtpVerificationResult(
+                PasswordResetOtpVerificationStatus.Failed,
+                Errors: persistResult.Errors);
+        }
+
+        return new PasswordResetOtpVerificationResult(
+            PasswordResetOtpVerificationStatus.Succeeded,
+            ResetToken: resetToken,
+            ExpiresInSeconds: User.PasswordResetProofLifetimeMinutes * 60);
+    }
+
+    public async Task<PasswordResetResult> CompletePasswordResetAsync(
+        string identifier,
+        string resetToken,
+        string newPassword,
+        CancellationToken cancellationToken = default)
     {
         var user = await FindUserByIdentifierAsync(identifier, cancellationToken);
         if (user == null)
@@ -459,22 +494,62 @@ public class IdentityAccountService : IIdentityAccountService
             return new PasswordResetResult(PasswordResetStatus.UserNotFound);
         }
 
-        if (!user.VerifyPasswordResetOtp(otpCode))
+        if (!user.ValidatePasswordResetProof(resetToken))
         {
-            return new PasswordResetResult(PasswordResetStatus.InvalidOrExpiredOtp);
+            return new PasswordResetResult(PasswordResetStatus.InvalidOrExpiredResetToken);
         }
 
-        var resetToken = await _userManager.GeneratePasswordResetTokenAsync(user);
-        var result = await _userManager.ResetPasswordAsync(user, resetToken, newPassword);
-
-        if (!result.Succeeded)
+        var passwordResult = await SetPasswordAfterOtpVerificationAsync(user, newPassword);
+        if (!passwordResult.Succeeded)
         {
             return new PasswordResetResult(
                 PasswordResetStatus.Failed,
-                result.Errors.Select(error => error.Description).ToArray());
+                passwordResult.Errors);
+        }
+
+        user = await FindUserByIdentifierAsync(identifier, cancellationToken);
+        if (user == null)
+        {
+            return new PasswordResetResult(PasswordResetStatus.UserNotFound);
+        }
+
+        user.ClearPasswordResetSession();
+        user.CompletePasswordChange();
+        var persistResult = await PersistUserAsync(user);
+        if (!persistResult.Succeeded)
+        {
+            return new PasswordResetResult(
+                PasswordResetStatus.Failed,
+                persistResult.Errors);
         }
 
         return new PasswordResetResult(PasswordResetStatus.Succeeded);
+    }
+
+    private async Task<IdentityOperationResult> SetPasswordAfterOtpVerificationAsync(User user, string newPassword)
+    {
+        IdentityResult result;
+        if (string.IsNullOrEmpty(user.PasswordHash))
+        {
+            result = await _userManager.AddPasswordAsync(user, newPassword);
+        }
+        else
+        {
+            var removeResult = await _userManager.RemovePasswordAsync(user);
+            if (!removeResult.Succeeded)
+            {
+                return new IdentityOperationResult(false, MapIdentityErrors(removeResult.Errors));
+            }
+
+            result = await _userManager.AddPasswordAsync(user, newPassword);
+        }
+
+        if (!result.Succeeded)
+        {
+            return new IdentityOperationResult(false, MapIdentityErrors(result.Errors));
+        }
+
+        return new IdentityOperationResult(true);
     }
 
     private async Task<User?> FindUserByIdentifierAsync(string identifier, CancellationToken cancellationToken)
@@ -507,8 +582,14 @@ public class IdentityAccountService : IIdentityAccountService
 
         return new IdentityOperationResult(
             false,
-            result.Errors.Select(error => error.Description).ToArray());
+            MapIdentityErrors(result.Errors));
     }
+
+    private static string[] MapIdentityErrors(IEnumerable<IdentityError> errors) =>
+        errors.Select(error =>
+            string.IsNullOrWhiteSpace(error.Code)
+                ? error.Description
+                : $"{error.Code}: {error.Description}").ToArray();
 
     private static IdentityAccountSnapshot Map(User user) =>
         new(

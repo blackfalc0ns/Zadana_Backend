@@ -218,6 +218,18 @@
   <data name="InvalidOrExpiredOtp" xml:space="preserve">
     <value>كود التفعيل غير صالح أو منتهي الصلاحية.</value>
   </data>
+  <data name="InvalidOrExpiredResetToken" xml:space="preserve">
+    <value>انتهت صلاحية جلسة إعادة تعيين كلمة المرور. يرجى التحقق من الرمز مرة أخرى.</value>
+  </data>
+  <data name="PasswordResetOtpVerified" xml:space="preserve">
+    <value>تم التحقق من الرمز. يمكنك الآن تعيين كلمة مرور جديدة.</value>
+  </data>
+  <data name="ResetToken" xml:space="preserve">
+    <value>رمز إعادة التعيين</value>
+  </data>
+  <data name="InvalidResetToken" xml:space="preserve">
+    <value>رمز إعادة التعيين غير صالح.</value>
+  </data>
   <data name="PasswordResetOtpSent" xml:space="preserve">
     <value>إذا كان الحساب مسجلا، فقد تم إرسال رمز إعادة تعيين كلمة السر إلى رقم الجوال.</value>
   </data>

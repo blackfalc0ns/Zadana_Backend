@@ -39,15 +39,20 @@ public class ResetPasswordCommandHandler : IRequestHandler<ResetPasswordCommand>
 
         var account = await _identityAccountService.FindByIdentifierAsync(request.Identifier, cancellationToken);
 
-        var resetResult = await _identityAccountService.ResetPasswordAsync(
+        var resetResult = await _identityAccountService.CompletePasswordResetAsync(
             request.Identifier,
-            request.OtpCode,
+            request.ResetToken,
             request.NewPassword,
             cancellationToken);
 
         if (resetResult.Status == PasswordResetStatus.UserNotFound)
         {
             throw new UnauthorizedException(_localizer["InvalidResetAttempt"]);
+        }
+
+        if (resetResult.Status == PasswordResetStatus.InvalidOrExpiredResetToken)
+        {
+            throw new BusinessRuleException("INVALID_RESET_TOKEN", _localizer["InvalidOrExpiredResetToken"]);
         }
 
         if (resetResult.Status == PasswordResetStatus.InvalidOrExpiredOtp)
@@ -58,7 +63,10 @@ public class ResetPasswordCommandHandler : IRequestHandler<ResetPasswordCommand>
         if (resetResult.Status == PasswordResetStatus.Failed)
         {
             var errors = string.Join(", ", resetResult.Errors ?? []);
-            throw new BusinessRuleException("PASSWORD_RESET_FAILED", $"{_localizer["PASSWORD_RESET_FAILED"]}: {errors}");
+            var message = string.IsNullOrWhiteSpace(errors)
+                ? _localizer["PASSWORD_RESET_FAILED"].Value
+                : errors;
+            throw new BusinessRuleException("PASSWORD_RESET_FAILED", message);
         }
 
         if (account is not null)

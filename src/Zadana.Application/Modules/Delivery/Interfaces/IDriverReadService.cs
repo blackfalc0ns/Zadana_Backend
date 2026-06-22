@@ -35,6 +35,8 @@ public interface IDriverReadService
     Task<DriverCompletedOrdersListDto> GetCompletedOrdersAsync(
         Guid driverId,
         string? status = null,
+        int page = 1,
+        int perPage = 20,
         CancellationToken cancellationToken = default);
 
     Task<DriverCompletedOrderDetailDto?> GetCompletedOrderDetailAsync(
