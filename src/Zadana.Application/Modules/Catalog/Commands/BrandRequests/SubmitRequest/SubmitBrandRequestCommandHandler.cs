@@ -54,7 +54,7 @@ public class SubmitBrandRequestCommandHandler : IRequestHandler<SubmitBrandReque
                 $"تم إرسال طلب علامة تجارية: {request.NameAr}.",
                 $"A new brand request was submitted: {request.NameEn}.",
                 brandRequest.Id,
-                "/catalog/requests",
+                $"/catalog/brands?requests=1&requestId={brandRequest.Id}",
                 new { brandRequestId = brandRequest.Id, vendorId }),
             cancellationToken);
         return brandRequest.Id;

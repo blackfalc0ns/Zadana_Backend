@@ -201,7 +201,7 @@ public class SubmitProductRequestCommandHandler : IRequestHandler<SubmitProductR
                 $"تم إرسال طلب منتج جديد: {request.SuggestedNameAr}.",
                 $"A new product request was submitted: {request.SuggestedNameEn}.",
                 productRequest.Id,
-                "/catalog/requests",
+                $"/catalog/products?requests=1&requestId={productRequest.Id}",
                 new { productRequestId = productRequest.Id, vendorId }),
             cancellationToken);
 

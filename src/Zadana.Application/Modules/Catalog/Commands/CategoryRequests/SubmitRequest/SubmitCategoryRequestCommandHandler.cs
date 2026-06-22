@@ -64,7 +64,7 @@ public class SubmitCategoryRequestCommandHandler : IRequestHandler<SubmitCategor
                 $"تم إرسال طلب تصنيف: {request.NameAr}.",
                 $"A new category request was submitted: {request.NameEn}.",
                 categoryRequest.Id,
-                "/catalog/requests",
+                $"/catalog/categories?requests=1&requestId={categoryRequest.Id}",
                 new { categoryRequestId = categoryRequest.Id, vendorId }),
             cancellationToken);
         return categoryRequest.Id;

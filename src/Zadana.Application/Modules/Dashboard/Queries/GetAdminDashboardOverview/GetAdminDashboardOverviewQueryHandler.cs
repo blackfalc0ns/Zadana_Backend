@@ -1512,7 +1512,7 @@ internal sealed class GetAdminDashboardOverviewQueryHandler(
                     OwnerLabel = "الكتالوج",
                     MetricLabel = pendingProductRequests.ToString("N0"),
                     Severity = pendingProductRequests > 0 ? "warning" : "success",
-                    Route = "/catalog/products"
+                    Route = "/catalog/products?requests=1"
                 },
                 new AdminDashboardExceptionRowDto
                 {
@@ -1522,7 +1522,7 @@ internal sealed class GetAdminDashboardOverviewQueryHandler(
                     OwnerLabel = "الكتالوج",
                     MetricLabel = pendingBrandRequests.ToString("N0"),
                     Severity = pendingBrandRequests > 0 ? "warning" : "success",
-                    Route = "/catalog/brands"
+                    Route = "/catalog/brands?requests=1"
                 },
                 new AdminDashboardExceptionRowDto
                 {
@@ -1532,7 +1532,7 @@ internal sealed class GetAdminDashboardOverviewQueryHandler(
                     OwnerLabel = "الكتالوج",
                     MetricLabel = pendingCategoryRequests.ToString("N0"),
                     Severity = pendingCategoryRequests > 0 ? "warning" : "success",
-                    Route = "/catalog/categories"
+                    Route = "/catalog/categories?requests=1"
                 },
                 new AdminDashboardExceptionRowDto
                 {
