@@ -1711,14 +1711,7 @@ public class DriverReadService : IDriverReadService
         DriverDocumentReview? review,
         DriverDocumentApprovalOverlay? approvalOverlay)
     {
-        var hasPacket = documentType switch
-        {
-            DriverDocumentType.NationalId => DriverProfileReadinessFactory.HasNationalIdPacket(driver),
-            DriverDocumentType.DriverLicense => DriverProfileReadinessFactory.HasDriverLicensePacket(driver),
-            DriverDocumentType.VehicleLicense => DriverProfileReadinessFactory.HasVehicleLicensePacket(driver),
-            _ => false
-        };
-
+        var hasPacket = HasAdminDocumentPacket(driver, documentType, imageUrl, secondaryImageUrl);
         var status = ResolveDriverDocumentStatus(hasPacket, expiryDateUtc, review);
         var rejectionReason = review?.RejectionReason;
         var reviewedAtUtc = review?.ReviewedAtUtc;
@@ -1908,6 +1901,39 @@ public class DriverReadService : IDriverReadService
     private static bool HasChanged(string? requestedValue, string? currentValue) =>
         !string.IsNullOrWhiteSpace(requestedValue) &&
         !string.Equals(requestedValue.Trim(), currentValue?.Trim(), StringComparison.Ordinal);
+
+    private static bool HasAdminDocumentPacket(
+        Driver driver,
+        DriverDocumentType documentType,
+        string? imageUrl,
+        string? secondaryImageUrl)
+    {
+        if (documentType switch
+            {
+                DriverDocumentType.NationalId => DriverProfileReadinessFactory.HasNationalIdPacket(driver),
+                DriverDocumentType.DriverLicense => DriverProfileReadinessFactory.HasDriverLicensePacket(driver),
+                DriverDocumentType.VehicleLicense => DriverProfileReadinessFactory.HasVehicleLicensePacket(driver),
+                _ => false
+            })
+        {
+            return true;
+        }
+
+        return documentType switch
+        {
+            DriverDocumentType.NationalId =>
+                !string.IsNullOrWhiteSpace(imageUrl) &&
+                !string.IsNullOrWhiteSpace(secondaryImageUrl) &&
+                driver.NationalIdExpiryDate.HasValue,
+            DriverDocumentType.DriverLicense =>
+                !string.IsNullOrWhiteSpace(imageUrl) &&
+                driver.DriverLicenseExpiryDate.HasValue,
+            DriverDocumentType.VehicleLicense =>
+                !string.IsNullOrWhiteSpace(imageUrl) &&
+                driver.VehicleLicenseExpiryDate.HasValue,
+            _ => false
+        };
+    }
 
     private static string ResolveRiskLevel(
         Driver driver,

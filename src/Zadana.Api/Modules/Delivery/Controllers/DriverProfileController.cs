@@ -38,6 +38,8 @@ public class DriverProfileController : ApiControllerBase
         [FromServices] IDriverRepository driverRepository,
         [FromServices] IDriverReadService driverReadService,
         [FromServices] IProfileChangeApprovalService profileChangeApprovalService,
+        [FromServices] IIdentityAccountService identityAccountService,
+        [FromServices] IUnitOfWork unitOfWork,
         CancellationToken cancellationToken = default)
     {
         var userId = currentUserService.UserId ?? throw new UnauthorizedException("DRIVER_NOT_AUTHENTICATED");
@@ -51,24 +53,39 @@ public class DriverProfileController : ApiControllerBase
             request.Phone,
             request.Address);
 
-        await profileChangeApprovalService.SubmitAsync(
-            userId,
-            driver.UserId,
-            ProfileChangeApprovalActions.DriverProfilePersonal,
-            $"Driver {GetDriverDisplayName(driver)} requested personal profile changes.",
-            payload,
-            new ProfileChangeApprovalAlert(
-                AdminAlertTypes.DriverCriticalChangeSubmitted,
-                AdminAlertCategories.Drivers,
-                AdminAlertPriorities.High,
-                "تعديل بيانات مندوب بانتظار الموافقة",
-                "Driver personal change pending approval",
-                $"أرسل المندوب {GetDriverDisplayName(driver)} تعديل بيانات شخصية وينتظر موافقة الأدمن.",
-                $"Driver {GetDriverDisplayName(driver)} submitted personal profile changes pending admin approval.",
-                driver.Id,
-                "/admin/access/approvals",
-                new { driverId = driver.Id, userId = driver.UserId, section = "personal" }),
-            cancellationToken);
+        if (RequiresApprovalWorkflow(driver))
+        {
+            await profileChangeApprovalService.SubmitAsync(
+                userId,
+                driver.UserId,
+                ProfileChangeApprovalActions.DriverProfilePersonal,
+                $"Driver {GetDriverDisplayName(driver)} requested personal profile changes.",
+                payload,
+                BuildPersonalApprovalAlert(driver),
+                cancellationToken);
+        }
+        else
+        {
+            var updateResult = await identityAccountService.UpdateProfileAsync(
+                driver.UserId,
+                request.FullName,
+                request.Email,
+                request.Phone,
+                cancellationToken);
+            if (!updateResult.Succeeded)
+            {
+                throw new BusinessRuleException(
+                    "IDENTITY_PROFILE_UPDATE_FAILED",
+                    string.Join(", ", updateResult.Errors ?? []));
+            }
+
+            driver.UpdateAddress(request.Address);
+            driver.RefreshProfileReviewState(
+                HasRequiredProfileData(driver),
+                sensitiveChange: true,
+                note: "Personal profile updated during onboarding");
+            await unitOfWork.SaveChangesAsync(cancellationToken);
+        }
 
         var profile = await driverReadService.GetDriverProfileAsync(userId, cancellationToken)
             ?? throw new NotFoundException("Driver", userId);
@@ -84,6 +101,7 @@ public class DriverProfileController : ApiControllerBase
         [FromServices] IApplicationDbContext context,
         [FromServices] IDriverReadService driverReadService,
         [FromServices] IProfileChangeApprovalService profileChangeApprovalService,
+        [FromServices] IUnitOfWork unitOfWork,
         CancellationToken cancellationToken = default)
     {
         var userId = currentUserService.UserId ?? throw new UnauthorizedException("DRIVER_NOT_AUTHENTICATED");
@@ -136,24 +154,32 @@ public class DriverProfileController : ApiControllerBase
             request.Region,
             request.City);
 
-        await profileChangeApprovalService.SubmitAsync(
-            userId,
-            driver.UserId,
-            ProfileChangeApprovalActions.DriverProfileVehicle,
-            $"Driver {GetDriverDisplayName(driver)} requested vehicle and identity changes.",
-            payload,
-            new ProfileChangeApprovalAlert(
-                AdminAlertTypes.DriverCriticalChangeSubmitted,
-                AdminAlertCategories.Drivers,
-                AdminAlertPriorities.High,
-                "تعديل بيانات هوية أو مركبة بانتظار الموافقة",
-                "Driver vehicle change pending approval",
-                $"أرسل المندوب {GetDriverDisplayName(driver)} تعديل بيانات هوية أو مركبة وينتظر موافقة الأدمن.",
-                $"Driver {GetDriverDisplayName(driver)} submitted vehicle or identity changes pending admin approval.",
-                driver.Id,
-                "/admin/access/approvals",
-                new { driverId = driver.Id, userId = driver.UserId, section = "vehicle" }),
-            cancellationToken);
+        if (RequiresApprovalWorkflow(driver))
+        {
+            await profileChangeApprovalService.SubmitAsync(
+                userId,
+                driver.UserId,
+                ProfileChangeApprovalActions.DriverProfileVehicle,
+                $"Driver {GetDriverDisplayName(driver)} requested vehicle and identity changes.",
+                payload,
+                BuildVehicleApprovalAlert(driver),
+                cancellationToken);
+        }
+        else
+        {
+            ApplyVehicleProfileChanges(
+                driver,
+                parsedVehicleType,
+                request.NationalId,
+                request.LicenseNumber,
+                request.NationalIdExpiryDate,
+                request.DriverLicenseExpiryDate,
+                request.VehicleLicenseNumber,
+                request.VehicleLicenseExpiryDate,
+                request.Region,
+                request.City);
+            await unitOfWork.SaveChangesAsync(cancellationToken);
+        }
 
         var profile = await driverReadService.GetDriverProfileAsync(userId, cancellationToken)
             ?? throw new NotFoundException("Driver", userId);
@@ -168,6 +194,7 @@ public class DriverProfileController : ApiControllerBase
         [FromServices] IDriverRepository driverRepository,
         [FromServices] IDriverReadService driverReadService,
         [FromServices] IProfileChangeApprovalService profileChangeApprovalService,
+        [FromServices] IUnitOfWork unitOfWork,
         CancellationToken cancellationToken = default)
     {
         var userId = currentUserService.UserId ?? throw new UnauthorizedException("DRIVER_NOT_AUTHENTICATED");
@@ -182,30 +209,188 @@ public class DriverProfileController : ApiControllerBase
             request.VehicleImageUrl,
             request.PersonalPhotoUrl);
 
-        await profileChangeApprovalService.SubmitAsync(
-            userId,
-            driver.UserId,
-            ProfileChangeApprovalActions.DriverProfileDocuments,
-            $"Driver {GetDriverDisplayName(driver)} requested document changes.",
-            payload,
-            new ProfileChangeApprovalAlert(
-                AdminAlertTypes.DriverDocumentsSubmitted,
-                AdminAlertCategories.Drivers,
-                AdminAlertPriorities.High,
-                "مستندات مندوب بانتظار الموافقة",
-                "Driver documents pending approval",
-                $"أرسل المندوب {GetDriverDisplayName(driver)} مستندات جديدة وينتظر موافقة الأدمن.",
-                $"Driver {GetDriverDisplayName(driver)} submitted document changes pending admin approval.",
-                driver.Id,
-                "/admin/access/approvals",
-                new { driverId = driver.Id, userId = driver.UserId, section = "documents" }),
-            cancellationToken);
+        if (RequiresApprovalWorkflow(driver))
+        {
+            await profileChangeApprovalService.SubmitAsync(
+                userId,
+                driver.UserId,
+                ProfileChangeApprovalActions.DriverProfileDocuments,
+                $"Driver {GetDriverDisplayName(driver)} requested document changes.",
+                payload,
+                BuildDocumentsApprovalAlert(driver),
+                cancellationToken);
+        }
+        else
+        {
+            ApplyDocumentProfileChanges(
+                driver,
+                request.NationalIdFrontImageUrl,
+                request.NationalIdBackImageUrl,
+                request.LicenseImageUrl,
+                request.VehicleImageUrl,
+                request.PersonalPhotoUrl);
+            await unitOfWork.SaveChangesAsync(cancellationToken);
+        }
 
         var profile = await driverReadService.GetDriverProfileAsync(userId, cancellationToken)
             ?? throw new NotFoundException("Driver", userId);
 
         return Ok(profile);
     }
+
+    private static bool RequiresApprovalWorkflow(Domain.Modules.Delivery.Entities.Driver driver) =>
+        driver.VerificationStatus == DriverVerificationStatus.Approved;
+
+    private static void ApplyVehicleProfileChanges(
+        Domain.Modules.Delivery.Entities.Driver driver,
+        DriverVehicleType? parsedVehicleType,
+        string? nationalId,
+        string? licenseNumber,
+        DateTime? nationalIdExpiryDate,
+        DateTime? driverLicenseExpiryDate,
+        string? vehicleLicenseNumber,
+        DateTime? vehicleLicenseExpiryDate,
+        string? region,
+        string? city)
+    {
+        var nationalIdChanged =
+            HasChanged(driver.NationalId, nationalId) ||
+            HasChanged(driver.NationalIdExpiryDate, nationalIdExpiryDate);
+        var driverLicenseChanged =
+            HasChanged(driver.LicenseNumber, licenseNumber) ||
+            HasChanged(driver.DriverLicenseExpiryDate, driverLicenseExpiryDate);
+        var vehicleLicenseChanged =
+            HasChanged(driver.VehicleLicenseNumber, vehicleLicenseNumber) ||
+            HasChanged(driver.VehicleLicenseExpiryDate, vehicleLicenseExpiryDate);
+        var vehicleChanged =
+            driver.VehicleType != parsedVehicleType ||
+            HasChanged(driver.Region, region) ||
+            HasChanged(driver.City, city);
+
+        driver.UpdateDetails(
+            parsedVehicleType,
+            nationalId,
+            licenseNumber,
+            nationalIdExpiryDate,
+            driverLicenseExpiryDate,
+            vehicleLicenseNumber,
+            vehicleLicenseExpiryDate);
+        driver.UpdateServiceArea(region, city);
+
+        if (nationalIdChanged)
+        {
+            ResetDocumentReviewIfReady(driver, DriverDocumentType.NationalId);
+        }
+
+        if (driverLicenseChanged)
+        {
+            ResetDocumentReviewIfReady(driver, DriverDocumentType.DriverLicense);
+        }
+
+        if (vehicleLicenseChanged)
+        {
+            ResetDocumentReviewIfReady(driver, DriverDocumentType.VehicleLicense);
+        }
+
+        if (nationalIdChanged || driverLicenseChanged || vehicleLicenseChanged || vehicleChanged)
+        {
+            driver.RefreshProfileReviewState(
+                HasRequiredProfileData(driver),
+                sensitiveChange: true,
+                note: "Vehicle profile updated during onboarding");
+        }
+    }
+
+    private static void ApplyDocumentProfileChanges(
+        Domain.Modules.Delivery.Entities.Driver driver,
+        string? nationalIdFrontImageUrl,
+        string? nationalIdBackImageUrl,
+        string? licenseImageUrl,
+        string? vehicleImageUrl,
+        string? personalPhotoUrl)
+    {
+        var nationalIdChanged =
+            HasChanged(driver.NationalIdFrontImageUrl, nationalIdFrontImageUrl) ||
+            HasChanged(driver.NationalIdBackImageUrl, nationalIdBackImageUrl);
+        var driverLicenseChanged = HasChanged(driver.LicenseImageUrl, licenseImageUrl);
+        var vehicleLicenseChanged = HasChanged(driver.VehicleImageUrl, vehicleImageUrl);
+        var personalPhotoChanged = HasChanged(driver.PersonalPhotoUrl, personalPhotoUrl);
+
+        driver.UpdateDocuments(
+            nationalIdFrontImageUrl,
+            nationalIdBackImageUrl,
+            licenseImageUrl,
+            vehicleImageUrl,
+            personalPhotoUrl);
+
+        if (nationalIdChanged)
+        {
+            ResetDocumentReviewIfReady(driver, DriverDocumentType.NationalId);
+        }
+
+        if (driverLicenseChanged)
+        {
+            ResetDocumentReviewIfReady(driver, DriverDocumentType.DriverLicense);
+        }
+
+        if (vehicleLicenseChanged)
+        {
+            ResetDocumentReviewIfReady(driver, DriverDocumentType.VehicleLicense);
+        }
+
+        if (nationalIdChanged || driverLicenseChanged || vehicleLicenseChanged || personalPhotoChanged)
+        {
+            driver.RefreshProfileReviewState(
+                HasRequiredProfileData(driver),
+                sensitiveChange: true,
+                note: "Documents updated during onboarding");
+        }
+    }
+
+    private static ProfileChangeApprovalAlert BuildPersonalApprovalAlert(Domain.Modules.Delivery.Entities.Driver driver) =>
+        new(
+            AdminAlertTypes.DriverCriticalChangeSubmitted,
+            AdminAlertCategories.Drivers,
+            AdminAlertPriorities.High,
+            "تعديل بيانات مندوب بانتظار الموافقة",
+            "Driver personal change pending approval",
+            $"أرسل المندوب {GetDriverDisplayName(driver)} تعديل بيانات شخصية وينتظر موافقة الأدمن.",
+            $"Driver {GetDriverDisplayName(driver)} submitted personal profile changes pending admin approval.",
+            driver.Id,
+            "/admin/access/approvals",
+            new { driverId = driver.Id, userId = driver.UserId, section = "personal" });
+
+    private static ProfileChangeApprovalAlert BuildVehicleApprovalAlert(Domain.Modules.Delivery.Entities.Driver driver) =>
+        new(
+            AdminAlertTypes.DriverCriticalChangeSubmitted,
+            AdminAlertCategories.Drivers,
+            AdminAlertPriorities.High,
+            "تعديل بيانات هوية أو مركبة بانتظار الموافقة",
+            "Driver vehicle change pending approval",
+            $"أرسل المندوب {GetDriverDisplayName(driver)} تعديل بيانات هوية أو مركبة وينتظر موافقة الأدمن.",
+            $"Driver {GetDriverDisplayName(driver)} submitted vehicle or identity changes pending admin approval.",
+            driver.Id,
+            "/admin/access/approvals",
+            new { driverId = driver.Id, userId = driver.UserId, section = "vehicle" });
+
+    private static ProfileChangeApprovalAlert BuildDocumentsApprovalAlert(Domain.Modules.Delivery.Entities.Driver driver) =>
+        new(
+            AdminAlertTypes.DriverDocumentsSubmitted,
+            AdminAlertCategories.Drivers,
+            AdminAlertPriorities.High,
+            "مستندات مندوب بانتظار الموافقة",
+            "Driver documents pending approval",
+            $"أرسل المندوب {GetDriverDisplayName(driver)} مستندات جديدة وينتظر موافقة الأدمن.",
+            $"Driver {GetDriverDisplayName(driver)} submitted document changes pending admin approval.",
+            driver.Id,
+            $"/drivers/{driver.Id}?tab=verification",
+            new { driverId = driver.Id, userId = driver.UserId, section = "documents" });
+
+    private static bool HasChanged(string? currentValue, string? requestedValue) =>
+        !string.Equals(currentValue?.Trim(), requestedValue?.Trim(), StringComparison.Ordinal);
+
+    private static bool HasChanged(DateTime? currentValue, DateTime? requestedValue) =>
+        currentValue?.Date != requestedValue?.Date;
 
     private static bool HasRequiredProfileData(Domain.Modules.Delivery.Entities.Driver driver) =>
         driver.VehicleType is not null &&
