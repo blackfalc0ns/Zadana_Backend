@@ -7,6 +7,7 @@ using Microsoft.Extensions.Logging;
 using Microsoft.Extensions.Options;
 using Zadana.Application.Common.Interfaces;
 using Zadana.Application.Modules.Social.Support;
+using Zadana.Domain.Modules.Identity.Entities;
 using Zadana.Domain.Modules.Social.Enums;
 using Zadana.Infrastructure.Persistence;
 using Zadana.Infrastructure.Settings;
@@ -414,6 +415,7 @@ public sealed class OneSignalPushService : IOneSignalPushService
                     }
                 }
 
+                var notificationSound = await ResolveNotificationSoundForBatchAsync(batch, category, cancellationToken);
                 var preparedPayload = BuildPayload(
                     batch,
                     sanitized,
@@ -424,7 +426,9 @@ public sealed class OneSignalPushService : IOneSignalPushService
                     profile,
                     notificationEventId,
                     Guid.NewGuid(),
-                    preferredLocale);
+                    preferredLocale,
+                    category,
+                    notificationSound);
 
                 try
                 {
@@ -832,7 +836,9 @@ public sealed class OneSignalPushService : IOneSignalPushService
         OneSignalPushProfile profile,
         Guid notificationEventId,
         Guid requestIdempotencyKey,
-        string? preferredLocale)
+        string? preferredLocale,
+        string? category = null,
+        string? notificationSound = null)
     {
         var payload = new Dictionary<string, object?>
         {
@@ -846,7 +852,7 @@ public sealed class OneSignalPushService : IOneSignalPushService
             },
             ["headings"] = BuildLocalizedContent(sanitized.TitleAr, sanitized.TitleEn, "Vendor notification", preferredLocale),
             ["contents"] = BuildLocalizedContent(sanitized.BodyAr, sanitized.BodyEn, "You have a new vendor notification.", preferredLocale),
-            ["data"] = BuildAdditionalData(sanitized, referenceId, notificationEventId)
+            ["data"] = BuildAdditionalData(sanitized, referenceId, notificationEventId, category, notificationSound)
         };
 
         if (!string.IsNullOrWhiteSpace(targetUrl))
@@ -891,6 +897,8 @@ public sealed class OneSignalPushService : IOneSignalPushService
             return null;
         }
 
+        var notificationSound = await ResolveNotificationSoundForBatchAsync(externalUserIds, category, cancellationToken);
+
         var payload = new Dictionary<string, object?>
         {
             ["app_id"] = appId,
@@ -900,7 +908,7 @@ public sealed class OneSignalPushService : IOneSignalPushService
             ["include_subscription_ids"] = subscriptionIds,
             ["headings"] = BuildLocalizedContent(sanitized.TitleAr, sanitized.TitleEn, "Vendor notification", preferredLocale),
             ["contents"] = BuildLocalizedContent(sanitized.BodyAr, sanitized.BodyEn, "You have a new vendor notification.", preferredLocale),
-            ["data"] = BuildAdditionalData(sanitized, referenceId, notificationEventId)
+            ["data"] = BuildAdditionalData(sanitized, referenceId, notificationEventId, category, notificationSound)
         };
 
         if (!string.IsNullOrWhiteSpace(targetUrl))
@@ -1588,7 +1596,9 @@ public sealed class OneSignalPushService : IOneSignalPushService
     private static Dictionary<string, object?> BuildAdditionalData(
         SanitizedNotificationPayload sanitized,
         Guid? referenceId,
-        Guid notificationEventId)
+        Guid notificationEventId,
+        string? category = null,
+        string? notificationSound = null)
     {
         var data = new Dictionary<string, object?>
         {
@@ -1598,6 +1608,16 @@ public sealed class OneSignalPushService : IOneSignalPushService
         if (!string.IsNullOrWhiteSpace(sanitized.Type))
         {
             data["type"] = sanitized.Type;
+        }
+
+        if (!string.IsNullOrWhiteSpace(category))
+        {
+            data["category"] = category.Trim().ToLowerInvariant();
+        }
+
+        if (!string.IsNullOrWhiteSpace(notificationSound))
+        {
+            data["notificationSound"] = notificationSound.Trim().ToLowerInvariant();
         }
 
         if (referenceId.HasValue)
@@ -1620,6 +1640,33 @@ public sealed class OneSignalPushService : IOneSignalPushService
         }
 
         return data;
+    }
+
+    private async Task<string?> ResolveNotificationSoundForBatchAsync(
+        IReadOnlyCollection<string> externalUserIds,
+        string? category,
+        CancellationToken cancellationToken)
+    {
+        if (externalUserIds.Count != 1)
+        {
+            return null;
+        }
+
+        if (!Guid.TryParse(externalUserIds.First(), out var userId))
+        {
+            return null;
+        }
+
+        await using var scope = _scopeFactory.CreateAsyncScope();
+        var dbContext = scope.ServiceProvider.GetRequiredService<ApplicationDbContext>();
+
+        var device = await dbContext.UserPushDevices
+            .AsNoTracking()
+            .Where(d => d.UserId == userId && d.IsActive && d.NotificationsEnabled)
+            .OrderByDescending(d => d.LastSeenAtUtc)
+            .FirstOrDefaultAsync(cancellationToken);
+
+        return device?.ResolveNotificationSound(category);
     }
 
     private static bool ShouldUseFlatDriverPushData(string? type) =>

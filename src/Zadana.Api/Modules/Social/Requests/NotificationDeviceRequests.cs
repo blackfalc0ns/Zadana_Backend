@@ -26,7 +26,8 @@ public record RegisterNotificationDeviceRequest(
     bool AdminSettlementsPushEnabled = true,
     bool AdminSupportPushEnabled = true,
     bool AdminSystemPushEnabled = true,
-    string? NotificationSound = null);
+    string? NotificationSound = null,
+    [property: JsonPropertyName("notificationSounds")] Dictionary<string, string>? CategoryNotificationSounds = null);
 
 public record UpdateNotificationDevicePreferencesRequest(
     string? DeviceId,
@@ -45,7 +46,8 @@ public record UpdateNotificationDevicePreferencesRequest(
     bool? AdminSettlementsPushEnabled = null,
     bool? AdminSupportPushEnabled = null,
     bool? AdminSystemPushEnabled = null,
-    string? NotificationSound = null);
+    string? NotificationSound = null,
+    [property: JsonPropertyName("notificationSounds")] Dictionary<string, string>? CategoryNotificationSounds = null);
 
 public record UnregisterNotificationDeviceRequest(
     string? DeviceId,

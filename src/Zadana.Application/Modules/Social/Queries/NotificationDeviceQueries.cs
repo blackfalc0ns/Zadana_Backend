@@ -20,37 +20,15 @@ public class GetNotificationDevicesQueryHandler : IRequestHandler<GetNotificatio
 
     public async Task<IReadOnlyList<NotificationDeviceDto>> Handle(GetNotificationDevicesQuery request, CancellationToken cancellationToken)
     {
-        return await _context.UserPushDevices
+        var devices = await _context.UserPushDevices
             .AsNoTracking()
             .Where(x => x.UserId == request.UserId)
             .OrderByDescending(x => x.LastRegisteredAtUtc)
-            .Select(x => new NotificationDeviceDto(
-                x.Id,
-                x.DeviceToken,
-                x.Platform.ToString().ToLowerInvariant(),
-                x.DeviceId,
-                x.DeviceName,
-                x.AppVersion,
-                x.Locale,
-                x.NotificationsEnabled,
-                x.DispatchPushEnabled,
-                x.AssignmentPushEnabled,
-                x.SupportPushEnabled,
-                x.WalletPushEnabled,
-                x.AccountPushEnabled,
-                x.AdminDriversPushEnabled,
-                x.AdminVendorsPushEnabled,
-                x.AdminCatalogPushEnabled,
-                x.AdminDisputesPushEnabled,
-                x.AdminRefundsPushEnabled,
-                x.AdminSettlementsPushEnabled,
-                x.AdminSupportPushEnabled,
-                x.AdminSystemPushEnabled,
-                x.NotificationSound,
-                x.IsActive,
-                x.LastRegisteredAtUtc,
-                x.LastSeenAtUtc))
             .ToListAsync(cancellationToken);
+
+        return devices
+            .Select(RegisterNotificationDeviceCommandHandler.Map)
+            .ToList();
     }
 }
 

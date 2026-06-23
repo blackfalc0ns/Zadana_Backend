@@ -28,6 +28,7 @@ public class UserPushDevice : BaseEntity
     public bool AdminSupportPushEnabled { get; private set; }
     public bool AdminSystemPushEnabled { get; private set; }
     public string NotificationSound { get; private set; } = NotificationSoundCatalog.Classic;
+    public string? CategoryNotificationSoundsJson { get; private set; }
     public bool IsActive { get; private set; }
     public DateTime LastRegisteredAtUtc { get; private set; }
     public DateTime LastSeenAtUtc { get; private set; }
@@ -60,7 +61,8 @@ public class UserPushDevice : BaseEntity
         bool adminSettlementsPushEnabled = true,
         bool adminSupportPushEnabled = true,
         bool adminSystemPushEnabled = true,
-        string? notificationSound = null)
+        string? notificationSound = null,
+        IReadOnlyDictionary<string, string>? categoryNotificationSounds = null)
     {
         UserId = userId;
         DeviceToken = deviceToken.Trim();
@@ -83,7 +85,7 @@ public class UserPushDevice : BaseEntity
         AdminSettlementsPushEnabled = adminSettlementsPushEnabled;
         AdminSupportPushEnabled = adminSupportPushEnabled;
         AdminSystemPushEnabled = adminSystemPushEnabled;
-        NotificationSound = NotificationSoundCatalog.Normalize(notificationSound);
+        ApplyNotificationSounds(notificationSound, categoryNotificationSounds);
         IsActive = true;
         LastRegisteredAtUtc = DateTime.UtcNow;
         LastSeenAtUtc = DateTime.UtcNow;
@@ -111,7 +113,8 @@ public class UserPushDevice : BaseEntity
         bool adminSettlementsPushEnabled = true,
         bool adminSupportPushEnabled = true,
         bool adminSystemPushEnabled = true,
-        string? notificationSound = null)
+        string? notificationSound = null,
+        IReadOnlyDictionary<string, string>? categoryNotificationSounds = null)
     {
         UserId = userId;
         DeviceToken = deviceToken.Trim();
@@ -134,7 +137,7 @@ public class UserPushDevice : BaseEntity
         AdminSettlementsPushEnabled = adminSettlementsPushEnabled;
         AdminSupportPushEnabled = adminSupportPushEnabled;
         AdminSystemPushEnabled = adminSystemPushEnabled;
-        NotificationSound = NotificationSoundCatalog.Normalize(notificationSound, NotificationSound);
+        ApplyNotificationSounds(notificationSound, categoryNotificationSounds);
         IsActive = true;
         LastRegisteredAtUtc = DateTime.UtcNow;
         LastSeenAtUtc = DateTime.UtcNow;
@@ -161,7 +164,8 @@ public class UserPushDevice : BaseEntity
         bool? adminSettlementsPushEnabled = null,
         bool? adminSupportPushEnabled = null,
         bool? adminSystemPushEnabled = null,
-        string? notificationSound = null)
+        string? notificationSound = null,
+        IReadOnlyDictionary<string, string>? categoryNotificationSounds = null)
     {
         NotificationsEnabled = notificationsEnabled;
         DispatchPushEnabled = dispatchPushEnabled ?? DispatchPushEnabled;
@@ -177,11 +181,37 @@ public class UserPushDevice : BaseEntity
         AdminSettlementsPushEnabled = adminSettlementsPushEnabled ?? AdminSettlementsPushEnabled;
         AdminSupportPushEnabled = adminSupportPushEnabled ?? AdminSupportPushEnabled;
         AdminSystemPushEnabled = adminSystemPushEnabled ?? AdminSystemPushEnabled;
-        NotificationSound = notificationSound == null
-            ? NotificationSound
-            : NotificationSoundCatalog.Normalize(notificationSound, NotificationSound);
+        ApplyNotificationSounds(notificationSound, categoryNotificationSounds);
         LastSeenAtUtc = DateTime.UtcNow;
         UpdatedAtUtc = DateTime.UtcNow;
+    }
+
+    public IReadOnlyDictionary<string, string> GetNotificationSounds() =>
+        NotificationCategorySoundMap.BuildEffectiveMap(
+            NotificationCategorySoundMap.Parse(CategoryNotificationSoundsJson, NotificationSound),
+            NotificationSound);
+
+    public string ResolveNotificationSound(string? category) =>
+        NotificationCategorySoundMap.ResolveForCategory(
+            CategoryNotificationSoundsJson,
+            NotificationSound,
+            category);
+
+    private void ApplyNotificationSounds(
+        string? notificationSound,
+        IReadOnlyDictionary<string, string>? categoryNotificationSounds)
+    {
+        if (notificationSound is not null)
+        {
+            NotificationSound = NotificationSoundCatalog.Normalize(notificationSound, NotificationSound);
+        }
+
+        if (categoryNotificationSounds is not null)
+        {
+            CategoryNotificationSoundsJson = NotificationCategorySoundMap.Serialize(
+                categoryNotificationSounds,
+                NotificationSound);
+        }
     }
 
     public bool IsPushAllowedForCategory(string? category) =>

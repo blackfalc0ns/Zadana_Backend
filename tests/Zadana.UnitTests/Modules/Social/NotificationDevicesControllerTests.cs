@@ -61,6 +61,15 @@ public class NotificationDevicesControllerTests
             true,
             true,
             "chime",
+            new Dictionary<string, string>
+            {
+                ["default"] = "chime",
+                ["dispatch"] = "urgent",
+                ["assignment"] = "classic",
+                ["support"] = "soft",
+                ["wallet"] = "chime",
+                ["account"] = "classic"
+            },
             true,
             DateTime.UtcNow.AddMinutes(-5),
             DateTime.UtcNow);
@@ -85,6 +94,7 @@ public class NotificationDevicesControllerTests
         response.DeviceToken.Should().Be(deviceToken);
         response.NotificationsEnabled.Should().BeTrue();
         response.NotificationSound.Should().Be("chime");
+        response.NotificationSounds["dispatch"].Should().Be("urgent");
     }
 
     private NotificationDevicesController CreateController()

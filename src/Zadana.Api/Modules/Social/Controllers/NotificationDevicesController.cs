@@ -1,5 +1,6 @@
 using Microsoft.AspNetCore.Authorization;
 using Microsoft.AspNetCore.Mvc;
+using System.Text.Json.Serialization;
 using Zadana.Api.Controllers;
 using Zadana.Api.Modules.Social.Requests;
 using Zadana.Application.Common.Interfaces;
@@ -64,7 +65,8 @@ public class NotificationDevicesController : ApiControllerBase
             request.AdminSettlementsPushEnabled,
             request.AdminSupportPushEnabled,
             request.AdminSystemPushEnabled,
-            request.NotificationSound), cancellationToken);
+            request.NotificationSound,
+            request.CategoryNotificationSounds), cancellationToken);
 
         return Ok(Map(device));
     }
@@ -93,7 +95,8 @@ public class NotificationDevicesController : ApiControllerBase
             request.AdminSettlementsPushEnabled,
             request.AdminSupportPushEnabled,
             request.AdminSystemPushEnabled,
-            request.NotificationSound), cancellationToken);
+            request.NotificationSound,
+            request.CategoryNotificationSounds), cancellationToken);
 
         return Ok(Map(device));
     }
@@ -152,6 +155,7 @@ public class NotificationDevicesController : ApiControllerBase
             dto.AdminSupportPushEnabled,
             dto.AdminSystemPushEnabled,
             dto.NotificationSound,
+            dto.NotificationSounds,
             dto.IsActive,
             dto.LastRegisteredAtUtc,
             dto.LastSeenAtUtc);
@@ -182,6 +186,7 @@ public record NotificationDeviceResponse(
     bool AdminSupportPushEnabled,
     bool AdminSystemPushEnabled,
     string NotificationSound,
+    [property: JsonPropertyName("notificationSounds")] IReadOnlyDictionary<string, string> NotificationSounds,
     bool IsActive,
     DateTime LastRegisteredAtUtc,
     DateTime LastSeenAtUtc);

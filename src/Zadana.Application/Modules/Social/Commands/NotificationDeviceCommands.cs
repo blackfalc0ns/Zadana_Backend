@@ -31,6 +31,7 @@ public record NotificationDeviceDto(
     bool AdminSupportPushEnabled,
     bool AdminSystemPushEnabled,
     string NotificationSound,
+    IReadOnlyDictionary<string, string> NotificationSounds,
     bool IsActive,
     DateTime LastRegisteredAtUtc,
     DateTime LastSeenAtUtc);
@@ -57,7 +58,8 @@ public record RegisterNotificationDeviceCommand(
     bool AdminSettlementsPushEnabled = true,
     bool AdminSupportPushEnabled = true,
     bool AdminSystemPushEnabled = true,
-    string? NotificationSound = null) : IRequest<NotificationDeviceDto>;
+    string? NotificationSound = null,
+    IReadOnlyDictionary<string, string>? CategoryNotificationSounds = null) : IRequest<NotificationDeviceDto>;
 
 public class RegisterNotificationDeviceCommandHandler : IRequestHandler<RegisterNotificationDeviceCommand, NotificationDeviceDto>
 {
@@ -117,7 +119,8 @@ public class RegisterNotificationDeviceCommandHandler : IRequestHandler<Register
                 request.AdminSettlementsPushEnabled,
                 request.AdminSupportPushEnabled,
                 request.AdminSystemPushEnabled,
-                request.NotificationSound);
+                request.NotificationSound,
+                request.CategoryNotificationSounds);
 
             _context.UserPushDevices.Add(device);
         }
@@ -145,7 +148,8 @@ public class RegisterNotificationDeviceCommandHandler : IRequestHandler<Register
                 request.AdminSettlementsPushEnabled,
                 request.AdminSupportPushEnabled,
                 request.AdminSystemPushEnabled,
-                request.NotificationSound);
+                request.NotificationSound,
+                request.CategoryNotificationSounds);
         }
 
         await _context.SaveChangesAsync(cancellationToken);
@@ -177,6 +181,7 @@ public class RegisterNotificationDeviceCommandHandler : IRequestHandler<Register
             device.AdminSupportPushEnabled,
             device.AdminSystemPushEnabled,
             NotificationSoundCatalog.Normalize(device.NotificationSound),
+            device.GetNotificationSounds(),
             device.IsActive,
             device.LastRegisteredAtUtc,
             device.LastSeenAtUtc);
@@ -200,7 +205,8 @@ public record UpdateNotificationDevicePreferencesCommand(
     bool? AdminSettlementsPushEnabled = null,
     bool? AdminSupportPushEnabled = null,
     bool? AdminSystemPushEnabled = null,
-    string? NotificationSound = null) : IRequest<NotificationDeviceDto>;
+    string? NotificationSound = null,
+    IReadOnlyDictionary<string, string>? CategoryNotificationSounds = null) : IRequest<NotificationDeviceDto>;
 
 public class UpdateNotificationDevicePreferencesCommandHandler : IRequestHandler<UpdateNotificationDevicePreferencesCommand, NotificationDeviceDto>
 {
@@ -216,6 +222,23 @@ public class UpdateNotificationDevicePreferencesCommandHandler : IRequestHandler
             request.DeviceId,
             request.DeviceToken,
             cancellationToken);
+        IReadOnlyDictionary<string, string>? mergedCategorySounds = null;
+        if (request.CategoryNotificationSounds is not null)
+        {
+            var merged = new Dictionary<string, string>(device.GetNotificationSounds(), StringComparer.OrdinalIgnoreCase);
+            foreach (var (key, value) in request.CategoryNotificationSounds)
+            {
+                if (string.IsNullOrWhiteSpace(key) || string.IsNullOrWhiteSpace(value))
+                {
+                    continue;
+                }
+
+                merged[key.Trim().ToLowerInvariant()] = value;
+            }
+
+            mergedCategorySounds = merged;
+        }
+
         device.UpdatePushPreferences(
             request.NotificationsEnabled,
             request.DispatchPushEnabled,
@@ -231,7 +254,8 @@ public class UpdateNotificationDevicePreferencesCommandHandler : IRequestHandler
             request.AdminSettlementsPushEnabled,
             request.AdminSupportPushEnabled,
             request.AdminSystemPushEnabled,
-            request.NotificationSound);
+            request.NotificationSound,
+            mergedCategorySounds);
         await _context.SaveChangesAsync(cancellationToken);
         return RegisterNotificationDeviceCommandHandler.Map(device);
     }

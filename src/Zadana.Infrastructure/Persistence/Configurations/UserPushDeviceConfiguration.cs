@@ -39,6 +39,9 @@ public class UserPushDeviceConfiguration : IEntityTypeConfiguration<UserPushDevi
             .HasMaxLength(32)
             .HasDefaultValue(NotificationSoundCatalog.Classic);
 
+        builder.Property(x => x.CategoryNotificationSoundsJson)
+            .HasMaxLength(512);
+
         builder.Property(x => x.DispatchPushEnabled)
             .HasDefaultValue(true);
 
