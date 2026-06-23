@@ -467,6 +467,51 @@ public class DriverReadServiceTests
     }
 
     [Fact]
+    public async Task GetDriverProfileAsync_WhenLatestPersonalChangeApproved_ShouldIgnoreOlderPendingRequest()
+    {
+        await using var dbContext = CreateDbContext();
+        var user = new User("Driver Stale Pending User", "driver.stale.pending@test.com", "01000000084", UserRole.Driver);
+        var driver = CreateCompleteDriver(user.Id);
+        ApproveRequiredDocuments(driver);
+
+        var payload = new DriverPersonalProfileChangePayload(
+            driver.Id,
+            "Updated Name",
+            "updated@test.com",
+            "0500000004",
+            "Updated Address");
+
+        var olderPending = new AccessApprovalRequest(
+            user.Id,
+            user.Id,
+            ProfileChangeApprovalActions.DriverProfilePersonal,
+            "Older pending personal changes.",
+            "older-pending-personal-hash",
+            JsonSerializer.Serialize(payload, new JsonSerializerOptions(JsonSerializerDefaults.Web)));
+
+        var newerApproved = new AccessApprovalRequest(
+            user.Id,
+            user.Id,
+            ProfileChangeApprovalActions.DriverProfilePersonal,
+            "Newer approved personal changes.",
+            "newer-approved-personal-hash",
+            JsonSerializer.Serialize(payload with { FullName = "Final Name" }, new JsonSerializerOptions(JsonSerializerDefaults.Web)));
+        newerApproved.Approve(Guid.NewGuid(), "Approved");
+        newerApproved.Consume();
+
+        dbContext.Users.Add(user);
+        dbContext.Drivers.Add(driver);
+        dbContext.AccessApprovalRequests.Add(olderPending);
+        dbContext.AccessApprovalRequests.Add(newerApproved);
+        await dbContext.SaveChangesAsync();
+
+        var service = CreateService(dbContext);
+        var result = await service.GetDriverProfileAsync(user.Id);
+
+        result!.Sections.Single(section => section.Section == "personal").Status.Should().Be("valid");
+    }
+
+    [Fact]
     public async Task GetDriverProfileAsync_WhenPersonalChangeRejected_ShouldExposeRejectedPersonalSection()
     {
         await using var dbContext = CreateDbContext();
