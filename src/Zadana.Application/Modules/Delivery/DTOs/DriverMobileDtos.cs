@@ -108,6 +108,7 @@ public record DriverProfileDto(
     string? LicenseImageUrl,
     string? VehicleImageUrl,
     IReadOnlyList<DriverProfileDocumentDto> Documents,
+    IReadOnlyList<DriverProfileSectionDto> Sections,
     string? Region,
     string? City,
     string? RegionNameAr,
@@ -144,3 +145,9 @@ public record DriverProfileDocumentDto(
     string? RejectionReason,
     DateTime? ReviewedAtUtc,
     string? ReviewedByName);
+
+public record DriverProfileSectionDto(
+    string Section,
+    string Status,
+    string? RejectionReason = null,
+    DateTime? ReviewedAtUtc = null);

@@ -357,6 +357,16 @@ public class AdminAccessController(
             var payload = DeserializePayload<DriverDocumentsProfileChangePayload>(approval);
             await NotifyDriverDocumentsApprovedAsync(payload.DriverId, approvedDriverDocuments, cancellationToken);
         }
+        else if (approval.Action == ProfileChangeApprovalActions.DriverProfilePersonal)
+        {
+            var payload = DeserializePayload<DriverPersonalProfileChangePayload>(approval);
+            await NotifyDriverProfileSectionApprovedAsync(payload.DriverId, "personal", cancellationToken);
+        }
+        else if (approval.Action == ProfileChangeApprovalActions.DriverProfileVehicle)
+        {
+            var payload = DeserializePayload<DriverVehicleProfileChangePayload>(approval);
+            await NotifyDriverProfileSectionApprovedAsync(payload.DriverId, "vehicle", cancellationToken);
+        }
 
         return Ok(await ProjectApprovalRequestAsync(id, cancellationToken));
     }
@@ -394,6 +404,22 @@ public class AdminAccessController(
                 ? "تم رفض طلب تحديث المستندات."
                 : request.Note.Trim();
             await NotifyDriverDocumentsRejectedAsync(payload, reason, cancellationToken);
+        }
+        else if (approval.Action == ProfileChangeApprovalActions.DriverProfilePersonal)
+        {
+            var payload = DeserializePayload<DriverPersonalProfileChangePayload>(approval);
+            var reason = string.IsNullOrWhiteSpace(request?.Note)
+                ? "تم رفض طلب تحديث البيانات الشخصية."
+                : request.Note.Trim();
+            await NotifyDriverProfileSectionRejectedAsync(payload.DriverId, "personal", reason, cancellationToken);
+        }
+        else if (approval.Action == ProfileChangeApprovalActions.DriverProfileVehicle)
+        {
+            var payload = DeserializePayload<DriverVehicleProfileChangePayload>(approval);
+            var reason = string.IsNullOrWhiteSpace(request?.Note)
+                ? "تم رفض طلب تحديث بيانات المركبة."
+                : request.Note.Trim();
+            await NotifyDriverProfileSectionRejectedAsync(payload.DriverId, "vehicle", reason, cancellationToken);
         }
 
         return Ok(await ProjectApprovalRequestAsync(id, cancellationToken));
@@ -1299,6 +1325,204 @@ public class AdminAccessController(
             logger.LogWarning(ex, "Driver document profile rejection push notification failed for driver {DriverId}", driver.Id);
         }
     }
+
+    private async Task NotifyDriverProfileSectionApprovedAsync(
+        Guid driverId,
+        string section,
+        CancellationToken cancellationToken)
+    {
+        var driver = await dbContext.Drivers
+            .AsNoTracking()
+            .FirstOrDefaultAsync(item => item.Id == driverId, cancellationToken);
+
+        if (driver is null)
+        {
+            return;
+        }
+
+        var sectionNameAr = GetDriverProfileSectionNameAr(section);
+        var sectionNameEn = GetDriverProfileSectionNameEn(section);
+        var titleAr = $"تمت الموافقة على {sectionNameAr}";
+        var titleEn = $"{sectionNameEn} approved";
+        var bodyAr = $"تمت مراجعة {sectionNameAr} والموافقة على التعديل. يمكنك متابعة حالة حسابك من التطبيق.";
+        var bodyEn = $"Your {sectionNameEn.ToLowerInvariant()} update was reviewed and approved. You can track your account status in the app.";
+        var data = DriverNotificationDataBuilder.Build(
+            screen: "account_status",
+            @event: "account.profile_section_approved",
+            driverId: driver.Id,
+            titleAr: titleAr,
+            titleEn: titleEn,
+            bodyAr: bodyAr,
+            bodyEn: bodyEn,
+            extra: new
+            {
+                section,
+                source = "profile_change_approval",
+                verificationStatus = driver.VerificationStatus.ToString(),
+                accountStatus = driver.Status.ToString()
+            });
+
+        try
+        {
+            await notificationService.SendToUserAsync(
+                driver.UserId,
+                new NotificationDispatchRequest(
+                    titleAr,
+                    titleEn,
+                    bodyAr,
+                    bodyEn,
+                    NotificationTypes.DriverAccountUpdated,
+                    NotificationCategories.Account,
+                    NotificationPriorities.High,
+                    driver.Id,
+                    data),
+                cancellationToken);
+        }
+        catch (Exception ex)
+        {
+            logger.LogWarning(ex, "Driver profile section approval inbox notification failed for driver {DriverId}", driver.Id);
+        }
+
+        try
+        {
+            await oneSignalPushService.SendMobileNotificationAsync(
+                OneSignalMobilePushRequest.CreateHeadsUp(
+                    driver.UserId.ToString(),
+                    titleAr,
+                    titleEn,
+                    bodyAr,
+                    bodyEn,
+                    NotificationTypes.DriverAccountUpdated,
+                    driver.Id,
+                    data,
+                    targetUrl: "/account-status",
+                    category: NotificationCategories.Account,
+                    targetApplication: OneSignalApplicationTarget.Driver),
+                cancellationToken);
+        }
+        catch (Exception ex)
+        {
+            logger.LogWarning(ex, "Driver profile section approval push notification failed for driver {DriverId}", driver.Id);
+        }
+
+        try
+        {
+            await notificationService.SendDriverHomeUpdatedAsync(driver.UserId, cancellationToken);
+        }
+        catch (Exception ex)
+        {
+            logger.LogWarning(ex, "Driver home refresh notification failed after profile section approval for driver {DriverId}", driver.Id);
+        }
+    }
+
+    private async Task NotifyDriverProfileSectionRejectedAsync(
+        Guid driverId,
+        string section,
+        string reason,
+        CancellationToken cancellationToken)
+    {
+        var driver = await dbContext.Drivers
+            .AsNoTracking()
+            .FirstOrDefaultAsync(item => item.Id == driverId, cancellationToken);
+
+        if (driver is null)
+        {
+            return;
+        }
+
+        var sectionNameAr = GetDriverProfileSectionNameAr(section);
+        var sectionNameEn = GetDriverProfileSectionNameEn(section);
+        var titleAr = $"تم رفض تحديث {sectionNameAr}";
+        var titleEn = $"{sectionNameEn} update rejected";
+        var bodyAr = $"تم رفض طلب تحديث {sectionNameAr}. السبب: {reason}";
+        var bodyEn = $"Your {sectionNameEn.ToLowerInvariant()} update request was rejected. Reason: {reason}";
+        var data = DriverNotificationDataBuilder.Build(
+            screen: "account_status",
+            @event: "account.profile_section_rejected",
+            driverId: driver.Id,
+            titleAr: titleAr,
+            titleEn: titleEn,
+            bodyAr: bodyAr,
+            bodyEn: bodyEn,
+            extra: new
+            {
+                section,
+                source = "profile_change_rejection",
+                verificationStatus = driver.VerificationStatus.ToString(),
+                accountStatus = driver.Status.ToString(),
+                reason
+            });
+
+        try
+        {
+            await notificationService.SendToUserAsync(
+                driver.UserId,
+                new NotificationDispatchRequest(
+                    titleAr,
+                    titleEn,
+                    bodyAr,
+                    bodyEn,
+                    NotificationTypes.DriverAccountUpdated,
+                    NotificationCategories.Account,
+                    NotificationPriorities.Critical,
+                    driver.Id,
+                    data),
+                cancellationToken);
+        }
+        catch (Exception ex)
+        {
+            logger.LogWarning(ex, "Driver profile section rejection inbox notification failed for driver {DriverId}", driver.Id);
+        }
+
+        try
+        {
+            await oneSignalPushService.SendMobileNotificationAsync(
+                OneSignalMobilePushRequest.CreateHeadsUp(
+                    driver.UserId.ToString(),
+                    titleAr,
+                    titleEn,
+                    bodyAr,
+                    bodyEn,
+                    NotificationTypes.DriverAccountUpdated,
+                    driver.Id,
+                    data,
+                    targetUrl: "/account-status",
+                    category: NotificationCategories.Account,
+                    targetApplication: OneSignalApplicationTarget.Driver),
+                cancellationToken);
+        }
+        catch (Exception ex)
+        {
+            logger.LogWarning(ex, "Driver profile section rejection push notification failed for driver {DriverId}", driver.Id);
+        }
+
+        try
+        {
+            await notificationService.SendDriverHomeUpdatedAsync(driver.UserId, cancellationToken);
+        }
+        catch (Exception ex)
+        {
+            logger.LogWarning(ex, "Driver home refresh notification failed after profile section rejection for driver {DriverId}", driver.Id);
+        }
+    }
+
+    private static string GetDriverProfileSectionNameAr(string section) =>
+        section switch
+        {
+            "personal" => "البيانات الشخصية",
+            "vehicle" => "بيانات المركبة",
+            "documents" => "المستندات",
+            _ => "قسم الملف الشخصي"
+        };
+
+    private static string GetDriverProfileSectionNameEn(string section) =>
+        section switch
+        {
+            "personal" => "Personal information",
+            "vehicle" => "Vehicle information",
+            "documents" => "Documents",
+            _ => "Profile section"
+        };
 
     private static IReadOnlyList<DriverDocumentType> ResolveChangedDriverDocumentTypes(
         Driver driver,

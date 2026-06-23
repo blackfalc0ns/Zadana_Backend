@@ -292,6 +292,8 @@ public class DriverReadServiceTests
         result.Should().NotBeNull();
         result!.Documents.Single(document => document.DocumentType == nameof(DriverDocumentType.DriverLicense))
             .Status.Should().Be("review");
+        result.Sections.Single(section => section.Section == "documents")
+            .Status.Should().Be("review");
     }
 
     [Fact]
@@ -329,6 +331,101 @@ public class DriverReadServiceTests
 
         vehicleDocument.Status.Should().Be("rejected");
         vehicleDocument.RejectionReason.Should().Be("الصورة غير واضحة");
+        result!.Sections.Single(section => section.Section == "documents")
+            .Status.Should().Be("rejected");
+    }
+
+    [Fact]
+    public async Task GetDriverProfileAsync_WhenPersonalChangePending_ShouldExposePersonalSectionUnderReview()
+    {
+        await using var dbContext = CreateDbContext();
+        var user = new User("Driver Pending Personal User", "driver.pending.personal@test.com", "01000000079", UserRole.Driver);
+        var driver = CreateCompleteDriver(user.Id);
+        ApproveRequiredDocuments(driver);
+
+        var payload = new DriverPersonalProfileChangePayload(
+            driver.Id,
+            "Updated Name",
+            "updated@test.com",
+            "0500000001",
+            "Updated Address");
+
+        dbContext.Users.Add(user);
+        dbContext.Drivers.Add(driver);
+        dbContext.AccessApprovalRequests.Add(new AccessApprovalRequest(
+            user.Id,
+            user.Id,
+            ProfileChangeApprovalActions.DriverProfilePersonal,
+            "Driver requested personal changes.",
+            "pending-personal-hash",
+            JsonSerializer.Serialize(payload, new JsonSerializerOptions(JsonSerializerDefaults.Web))));
+        await dbContext.SaveChangesAsync();
+
+        var service = CreateService(dbContext);
+        var result = await service.GetDriverProfileAsync(user.Id);
+
+        result.Should().NotBeNull();
+        result!.Sections.Single(section => section.Section == "personal").Status.Should().Be("review");
+        result.Sections.Single(section => section.Section == "vehicle").Status.Should().Be("valid");
+    }
+
+    [Fact]
+    public async Task GetDriverProfileAsync_WhenVehicleChangePending_ShouldExposeVehicleSectionUnderReview()
+    {
+        await using var dbContext = CreateDbContext();
+        var user = new User("Driver Pending Vehicle Profile User", "driver.pending.vehicle.profile@test.com", "01000000080", UserRole.Driver);
+        var driver = CreateCompleteDriver(user.Id);
+        ApproveRequiredDocuments(driver);
+
+        var payload = new DriverVehicleProfileChangePayload(
+            driver.Id,
+            nameof(DriverVehicleType.Truck),
+            "PENDING-NATIONAL-ID",
+            "PENDING-LICENSE",
+            DateTime.UtcNow.Date.AddYears(2),
+            DateTime.UtcNow.Date.AddYears(3),
+            "PENDING-PLATE",
+            DateTime.UtcNow.Date.AddYears(4),
+            "EASTERN",
+            "DAMMAM");
+
+        dbContext.Users.Add(user);
+        dbContext.Drivers.Add(driver);
+        dbContext.AccessApprovalRequests.Add(new AccessApprovalRequest(
+            user.Id,
+            user.Id,
+            ProfileChangeApprovalActions.DriverProfileVehicle,
+            "Driver requested vehicle changes.",
+            "pending-vehicle-profile-hash",
+            JsonSerializer.Serialize(payload, new JsonSerializerOptions(JsonSerializerDefaults.Web))));
+        await dbContext.SaveChangesAsync();
+
+        var service = CreateService(dbContext);
+        var result = await service.GetDriverProfileAsync(user.Id);
+
+        result.Should().NotBeNull();
+        result!.Sections.Single(section => section.Section == "vehicle").Status.Should().Be("review");
+        result.Sections.Should().HaveCount(3);
+    }
+
+    [Fact]
+    public async Task GetDriverProfileAsync_WhenNoPendingChanges_ShouldExposeValidSectionStatuses()
+    {
+        await using var dbContext = CreateDbContext();
+        var user = new User("Driver Valid Sections User", "driver.valid.sections@test.com", "01000000081", UserRole.Driver);
+        var driver = CreateCompleteDriver(user.Id);
+        ApproveRequiredDocuments(driver);
+
+        dbContext.Users.Add(user);
+        dbContext.Drivers.Add(driver);
+        await dbContext.SaveChangesAsync();
+
+        var service = CreateService(dbContext);
+        var result = await service.GetDriverProfileAsync(user.Id);
+
+        result.Should().NotBeNull();
+        result!.Sections.Should().HaveCount(3);
+        result.Sections.Should().OnlyContain(section => section.Status == "valid");
     }
 
     [Fact]

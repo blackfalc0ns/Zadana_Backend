@@ -960,6 +960,7 @@ public class DriverReadService : IDriverReadService
         }
 
         var documentApprovalOverlay = await ResolveDriverDocumentApprovalOverlayAsync(driver, cancellationToken);
+        var sections = await BuildDriverProfileSectionsAsync(driver, documentApprovalOverlay, cancellationToken);
 
         return new DriverProfileDto(
             driver.User.FullName,
@@ -979,6 +980,7 @@ public class DriverReadService : IDriverReadService
             driver.LicenseImageUrl,
             driver.VehicleImageUrl,
             BuildDriverProfileDocuments(driver, documentApprovalOverlay),
+            sections,
             driver.Region,
             driver.City,
             regionNameAr,
@@ -1937,6 +1939,84 @@ public class DriverReadService : IDriverReadService
 
         return new DriverVehicleApprovalOverlay(approval.Status, payload);
     }
+
+    private async Task<IReadOnlyList<DriverProfileSectionDto>> BuildDriverProfileSectionsAsync(
+        Driver driver,
+        DriverDocumentApprovalOverlay? documentApprovalOverlay,
+        CancellationToken cancellationToken)
+    {
+        var personalApproval = await ResolveLatestProfileApprovalAsync(
+            driver.UserId,
+            ProfileChangeApprovalActions.DriverProfilePersonal,
+            cancellationToken);
+        var vehicleApproval = await ResolveLatestProfileApprovalAsync(
+            driver.UserId,
+            ProfileChangeApprovalActions.DriverProfileVehicle,
+            cancellationToken);
+        var documentsApproval = documentApprovalOverlay is null
+            ? await ResolveLatestProfileApprovalAsync(
+                driver.UserId,
+                ProfileChangeApprovalActions.DriverProfileDocuments,
+                cancellationToken)
+            : null;
+
+        return
+        [
+            BuildDriverProfileSection("personal", personalApproval),
+            BuildDriverProfileSection("vehicle", vehicleApproval),
+            BuildDriverProfileSection("documents", documentApprovalOverlay, documentsApproval)
+        ];
+    }
+
+    private async Task<AccessApprovalRequest?> ResolveLatestProfileApprovalAsync(
+        Guid targetUserId,
+        string action,
+        CancellationToken cancellationToken) =>
+        await _context.AccessApprovalRequests
+            .AsNoTracking()
+            .Where(request => request.TargetUserId == targetUserId && request.Action == action)
+            .OrderByDescending(request => request.CreatedAtUtc)
+            .FirstOrDefaultAsync(cancellationToken);
+
+    private static DriverProfileSectionDto BuildDriverProfileSection(
+        string section,
+        AccessApprovalRequest? approval) =>
+        new(
+            section,
+            ResolveProfileSectionStatus(approval?.Status),
+            approval?.Status == AccessApprovalStatus.Rejected ? approval.DecisionNote : null,
+            approval?.Status is AccessApprovalStatus.Approved or AccessApprovalStatus.Rejected
+                ? approval.DecidedAtUtc
+                : null);
+
+    private static DriverProfileSectionDto BuildDriverProfileSection(
+        string section,
+        DriverDocumentApprovalOverlay? documentApprovalOverlay,
+        AccessApprovalRequest? documentsApproval)
+    {
+        if (documentApprovalOverlay is not null)
+        {
+            return new DriverProfileSectionDto(
+                section,
+                ResolveProfileSectionStatus(documentApprovalOverlay.Status),
+                documentApprovalOverlay.Status == AccessApprovalStatus.Rejected
+                    ? documentApprovalOverlay.RejectionReason
+                    : null,
+                documentApprovalOverlay.Status is AccessApprovalStatus.Approved or AccessApprovalStatus.Rejected
+                    ? documentApprovalOverlay.DecidedAtUtc
+                    : null);
+        }
+
+        return BuildDriverProfileSection(section, documentsApproval);
+    }
+
+    private static string ResolveProfileSectionStatus(AccessApprovalStatus? status) =>
+        status switch
+        {
+            AccessApprovalStatus.Pending => "review",
+            AccessApprovalStatus.Rejected => "rejected",
+            _ => "valid"
+        };
 
     private static EffectiveVehicleProfileFields ResolveEffectiveVehicleProfileFields(
         Driver driver,
