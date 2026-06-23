@@ -50,7 +50,8 @@ public abstract class IdentityAuthControllerBase : ApiControllerBase
     {
         var result = await Sender.Send(new ResendOtpCommand(
             request.Identifier,
-            OtpResendPurposeParser.Parse(request.Purpose)));
+            OtpResendPurposeParser.Parse(request.Purpose),
+            !string.IsNullOrWhiteSpace(request.Purpose)));
         return Ok(result);
     }
 

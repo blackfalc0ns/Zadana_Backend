@@ -11,6 +11,7 @@ using Zadana.Application.Modules.Catalog.Commands.ProductRequests.ReviewRequest;
 using Zadana.Application.Modules.Catalog.Commands.ProductRequests.SubmitRequest;
 using Zadana.Application.Modules.Catalog.Commands.BrandRequests.ReviewRequest;
 using Zadana.Application.Modules.Identity.DTOs;
+using Zadana.Application.Modules.Identity.Enums;
 using Zadana.Application.Modules.Identity.Interfaces;
 using Zadana.Domain.Modules.Catalog.Entities;
 using Zadana.Domain.Modules.Catalog.Enums;
@@ -473,6 +474,7 @@ public class CatalogRequestWorkflowTests
         public Task<OtpDispatchResult> ResendRegistrationOtpAsync(string identifier, CancellationToken cancellationToken = default) => throw new NotImplementedException();
         public Task<OtpVerificationResult> VerifyRegistrationOtpAsync(string identifier, string otpCode, CancellationToken cancellationToken = default) => throw new NotImplementedException();
         public Task<OtpDispatchResult> GeneratePasswordResetOtpAsync(string identifier, CancellationToken cancellationToken = default) => throw new NotImplementedException();
+        public Task<OtpResendPurpose> ResolveOtpResendPurposeAsync(string identifier, OtpResendPurpose requestedPurpose, bool purposeExplicitlyProvided, CancellationToken cancellationToken = default) => throw new NotImplementedException();
         public Task<PasswordResetOtpVerificationResult> VerifyPasswordResetOtpAsync(string identifier, string otpCode, CancellationToken cancellationToken = default) => throw new NotImplementedException();
         public Task<PasswordResetResult> CompletePasswordResetAsync(string identifier, string resetToken, string newPassword, CancellationToken cancellationToken = default) => throw new NotImplementedException();
     }

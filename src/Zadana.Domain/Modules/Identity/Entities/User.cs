@@ -273,6 +273,8 @@ public class User : IdentityUser<Guid>
             throw new InvalidOperationException("OTP_ACCOUNT_LOCKED");
         }
 
+        ClearPasswordResetSession();
+
         var code = GenerateNumericCode(4);
         OtpCode = HashOtp(code);
         OtpExpiryTime = DateTime.UtcNow.AddMinutes(5);
@@ -355,6 +357,8 @@ public class User : IdentityUser<Guid>
 
     public string GeneratePasswordResetOtp()
     {
+        ClearRegistrationOtp();
+
         var code = GenerateNumericCode(4);
         PasswordResetOtp = HashOtp(code);
         PasswordResetOtpExpiry = DateTime.UtcNow.AddMinutes(15);
@@ -362,6 +366,21 @@ public class User : IdentityUser<Guid>
         LastOtpSentAt = DateTime.UtcNow;
         UpdatedAtUtc = DateTime.UtcNow;
         return code;
+    }
+
+    public bool HasActivePasswordResetOtp() =>
+        !string.IsNullOrWhiteSpace(PasswordResetOtp)
+        && PasswordResetOtpExpiry.HasValue
+        && DateTime.UtcNow <= PasswordResetOtpExpiry.Value;
+
+    public bool HasPendingRegistrationVerification() => !EmailConfirmed;
+
+    public void ClearRegistrationOtp()
+    {
+        OtpCode = null;
+        OtpExpiryTime = null;
+        OtpAttempts = 0;
+        UpdatedAtUtc = DateTime.UtcNow;
     }
 
     public bool VerifyPasswordResetOtp(string code)

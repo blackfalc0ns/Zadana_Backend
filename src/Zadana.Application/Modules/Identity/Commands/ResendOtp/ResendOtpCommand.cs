@@ -8,7 +8,10 @@ using Zadana.Application.Modules.Identity.Enums;
 
 namespace Zadana.Application.Modules.Identity.Commands.ResendOtp;
 
-public record ResendOtpCommand(string Identifier, OtpResendPurpose Purpose = OtpResendPurpose.Registration) : IRequest<AuthResponseDto>;
+public record ResendOtpCommand(
+    string Identifier,
+    OtpResendPurpose Purpose = OtpResendPurpose.Registration,
+    bool PurposeExplicitlyProvided = false) : IRequest<AuthResponseDto>;
 
 public class ResendOtpCommandValidator : AbstractValidator<ResendOtpCommand>
 {

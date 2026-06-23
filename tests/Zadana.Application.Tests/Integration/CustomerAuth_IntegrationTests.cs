@@ -363,6 +363,71 @@ public class CustomerAuth_IntegrationTests : IClassFixture<ZadanaWebFactory>
     }
 
     [Fact]
+    public async Task ResendOtp_WithoutPurposeDuringPasswordReset_InvalidatesPreviousResetCode()
+    {
+        var email = $"resend_reset_flow_{Guid.NewGuid():N}@test.com";
+        var phone = "016" + new Random().Next(10000000, 99999999).ToString();
+        const string password = "P@ssword1234";
+
+        using (var scope = _factory.Services.CreateScope())
+        {
+            var userManager = scope.ServiceProvider.GetRequiredService<UserManager<User>>();
+            var user = new User("Resend Reset Flow Test", email, phone, UserRole.Customer);
+            var createResult = await userManager.CreateAsync(user, password);
+            createResult.Succeeded.Should().BeTrue(string.Join(", ", createResult.Errors.Select(error => error.Description)));
+            await userManager.AddToRoleAsync(user, UserRole.Customer.ToString());
+            user.VerifyEmail();
+            await userManager.UpdateAsync(user);
+        }
+
+        await _client.PostAsJsonAsync("/api/customers/auth/forgot-password", new { identifier = email });
+        var firstOtp = _factory.OtpSink.EmailDispatches
+            .Single(dispatch => dispatch.Recipient == email)
+            .OtpCode;
+
+        using (var scope = _factory.Services.CreateScope())
+        {
+            var userManager = scope.ServiceProvider.GetRequiredService<UserManager<User>>();
+            var user = await userManager.FindByEmailAsync(email);
+            user.Should().NotBeNull();
+
+            typeof(User).GetProperty(nameof(User.LastOtpSentAt))!
+                .SetValue(user, DateTime.UtcNow.AddMinutes(-2));
+            typeof(User).GetProperty(nameof(User.PasswordResetOtpExpiry))!
+                .SetValue(user, DateTime.UtcNow.AddMinutes(-1));
+
+            await userManager.UpdateAsync(user!);
+        }
+
+        _factory.OtpSink.Clear();
+
+        var resendResponse = await _client.PostAsJsonAsync("/api/customers/auth/resend-otp", new { identifier = email });
+        var resendContent = await resendResponse.Content.ReadAsStringAsync();
+        resendResponse.StatusCode.Should().Be(HttpStatusCode.OK, resendContent);
+
+        var secondOtp = _factory.OtpSink.EmailDispatches
+            .Single(dispatch => dispatch.Recipient == email)
+            .OtpCode;
+
+        secondOtp.Should().NotBe(firstOtp);
+
+        var oldVerifyResponse = await _client.PostAsJsonAsync("/api/customers/auth/verify-reset-otp", new
+        {
+            identifier = email,
+            otpCode = firstOtp
+        });
+        oldVerifyResponse.StatusCode.Should().Be(HttpStatusCode.Conflict);
+
+        var newVerifyResponse = await _client.PostAsJsonAsync("/api/customers/auth/verify-reset-otp", new
+        {
+            identifier = email,
+            otpCode = secondOtp
+        });
+        var newVerifyContent = await newVerifyResponse.Content.ReadAsStringAsync();
+        newVerifyResponse.StatusCode.Should().Be(HttpStatusCode.OK, newVerifyContent);
+    }
+
+    [Fact]
     public async Task VerifyResetOtp_WithInvalidOtp_Returns409()
     {
         var email = $"reset_{Guid.NewGuid():N}@test.com";

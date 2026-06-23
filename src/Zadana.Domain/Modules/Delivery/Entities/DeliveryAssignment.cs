@@ -140,7 +140,9 @@ public class DeliveryAssignment : BaseEntity
             return PickupOtpCode ?? string.Empty;
         }
 
-        if (string.IsNullOrWhiteSpace(PickupOtpCode))
+        var isMissing = string.IsNullOrWhiteSpace(PickupOtpCode);
+        var isExpired = !PickupOtpExpiresAtUtc.HasValue || PickupOtpExpiresAtUtc.Value <= DateTime.UtcNow;
+        if (isMissing || isExpired)
         {
             PickupOtpCode = GenerateOtp();
         }
@@ -176,7 +178,9 @@ public class DeliveryAssignment : BaseEntity
             return DeliveryOtpCode ?? string.Empty;
         }
 
-        if (string.IsNullOrWhiteSpace(DeliveryOtpCode))
+        var isMissing = string.IsNullOrWhiteSpace(DeliveryOtpCode);
+        var isExpired = !DeliveryOtpExpiresAtUtc.HasValue || DeliveryOtpExpiresAtUtc.Value <= DateTime.UtcNow;
+        if (isMissing || isExpired)
         {
             DeliveryOtpCode = GenerateOtp();
         }

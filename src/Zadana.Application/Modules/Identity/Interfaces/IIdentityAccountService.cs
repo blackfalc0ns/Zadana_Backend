@@ -1,4 +1,5 @@
 using Zadana.Application.Modules.Identity.DTOs;
+using Zadana.Application.Modules.Identity.Enums;
 using Zadana.Domain.Modules.Identity.Enums;
 
 namespace Zadana.Application.Modules.Identity.Interfaces;
@@ -28,6 +29,7 @@ public interface IIdentityAccountService
     Task<OtpDispatchResult> ResendRegistrationOtpAsync(string identifier, CancellationToken cancellationToken = default);
     Task<OtpVerificationResult> VerifyRegistrationOtpAsync(string identifier, string otpCode, CancellationToken cancellationToken = default);
     Task<OtpDispatchResult> GeneratePasswordResetOtpAsync(string identifier, CancellationToken cancellationToken = default);
+    Task<OtpResendPurpose> ResolveOtpResendPurposeAsync(string identifier, OtpResendPurpose requestedPurpose, bool purposeExplicitlyProvided, CancellationToken cancellationToken = default);
     Task<PasswordResetOtpVerificationResult> VerifyPasswordResetOtpAsync(string identifier, string otpCode, CancellationToken cancellationToken = default);
     Task<PasswordResetResult> CompletePasswordResetAsync(string identifier, string resetToken, string newPassword, CancellationToken cancellationToken = default);
 }

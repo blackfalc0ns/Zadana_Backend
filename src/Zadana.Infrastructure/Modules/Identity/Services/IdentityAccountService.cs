@@ -1,6 +1,7 @@
 using Microsoft.AspNetCore.Identity;
 using Microsoft.EntityFrameworkCore;
 using Zadana.Application.Modules.Identity.DTOs;
+using Zadana.Application.Modules.Identity.Enums;
 using Zadana.Application.Modules.Identity.Interfaces;
 using Zadana.Domain.Modules.Identity.Entities;
 using Zadana.Domain.Modules.Identity.Enums;
@@ -449,6 +450,31 @@ public class IdentityAccountService : IIdentityAccountService
         }
 
         return new OtpDispatchResult(OtpDispatchStatus.Succeeded, Map(user), otpCode);
+    }
+
+    public async Task<OtpResendPurpose> ResolveOtpResendPurposeAsync(
+        string identifier,
+        OtpResendPurpose requestedPurpose,
+        bool purposeExplicitlyProvided,
+        CancellationToken cancellationToken = default)
+    {
+        if (purposeExplicitlyProvided || requestedPurpose == OtpResendPurpose.PasswordReset)
+        {
+            return requestedPurpose;
+        }
+
+        var user = await FindUserByIdentifierAsync(identifier, cancellationToken);
+        if (user == null)
+        {
+            return requestedPurpose;
+        }
+
+        if (user.HasPendingRegistrationVerification())
+        {
+            return OtpResendPurpose.Registration;
+        }
+
+        return OtpResendPurpose.PasswordReset;
     }
 
     public async Task<PasswordResetOtpVerificationResult> VerifyPasswordResetOtpAsync(

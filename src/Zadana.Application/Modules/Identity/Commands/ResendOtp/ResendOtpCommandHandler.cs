@@ -32,7 +32,13 @@ public class ResendOtpCommandHandler : IRequestHandler<ResendOtpCommand, AuthRes
             throw new BusinessRuleException("EMAIL_REQUIRED", _localizer["RequiredField", _localizer["Identifier"].Value]);
         }
 
-        return request.Purpose switch
+        var resolvedPurpose = await _identityAccountService.ResolveOtpResendPurposeAsync(
+            request.Identifier,
+            request.Purpose,
+            request.PurposeExplicitlyProvided,
+            cancellationToken);
+
+        return resolvedPurpose switch
         {
             OtpResendPurpose.PasswordReset => await ResendPasswordResetOtpAsync(request.Identifier, cancellationToken),
             _ => await ResendRegistrationOtpAsync(request.Identifier, cancellationToken)
