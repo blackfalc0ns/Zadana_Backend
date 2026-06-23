@@ -766,7 +766,10 @@ public class AdminAccessController(
         }
 
         driver.UpdateAddress(payload.Address);
-        driver.RefreshProfileReviewState(HasRequiredDriverProfileData(driver), sensitiveChange: true, note: "Sensitive profile change approved by admin.");
+        driver.RefreshProfileReviewState(
+            HasRequiredDriverProfileData(driver),
+            sensitiveChange: false,
+            note: "Personal profile change approved by admin.");
     }
 
     private async Task ApplyDriverVehicleChangeAsync(
@@ -778,6 +781,10 @@ public class AdminAccessController(
             .Include(item => item.DocumentReviews)
             .FirstOrDefaultAsync(item => item.Id == payload.DriverId, cancellationToken)
             ?? throw new NotFoundException("Driver", payload.DriverId);
+
+        var reviewerId = currentUserService.UserId
+            ?? throw new BusinessRuleException("ADMIN_REVIEWER_REQUIRED", "An authenticated admin reviewer is required.");
+        var reviewerName = await ResolveDriverComplianceReviewerNameAsync(reviewerId, cancellationToken);
 
         DriverVehicleType? parsedVehicleType = null;
         if (!string.IsNullOrWhiteSpace(payload.VehicleType))
@@ -811,21 +818,24 @@ public class AdminAccessController(
 
         if (nationalIdChanged)
         {
-            ResetDriverDocumentReviewIfReady(driver, DriverDocumentType.NationalId);
+            ApproveDriverDocumentReviewIfReady(driver, DriverDocumentType.NationalId, reviewerId, reviewerName);
         }
 
         if (driverLicenseChanged)
         {
-            ResetDriverDocumentReviewIfReady(driver, DriverDocumentType.DriverLicense);
+            ApproveDriverDocumentReviewIfReady(driver, DriverDocumentType.DriverLicense, reviewerId, reviewerName);
         }
 
         if (vehicleLicenseChanged)
         {
-            ResetDriverDocumentReviewIfReady(driver, DriverDocumentType.VehicleLicense);
+            ApproveDriverDocumentReviewIfReady(driver, DriverDocumentType.VehicleLicense, reviewerId, reviewerName);
         }
 
         driver.UpdateServiceArea(payload.Region, payload.City);
-        driver.RefreshProfileReviewState(HasRequiredDriverProfileData(driver), sensitiveChange: true, note: "Sensitive profile change approved by admin.");
+        driver.RefreshProfileReviewState(
+            HasRequiredDriverProfileData(driver),
+            sensitiveChange: false,
+            note: "Vehicle profile change approved by admin.");
     }
 
     private async Task<IReadOnlyList<DriverDocumentType>> ApplyDriverDocumentsChangeAsync(

@@ -99,7 +99,10 @@ public class DriversController : ApiControllerBase
         CancellationToken cancellationToken = default)
     {
         var userId = currentUserService.UserId ?? throw new UnauthorizedException("DRIVER_NOT_AUTHENTICATED");
-        return Ok(await driverHomeReadService.GetHomeAsync(userId, processExpiredOffers: true, cancellationToken));
+        // Keep the mobile home endpoint read-only and fast. Expired offer cleanup is handled by
+        // DeliveryDispatchWorker; running it here can make every app open trigger heavy dispatch
+        // work, duplicate transient notifications, and proxy timeouts/503s under load.
+        return Ok(await driverHomeReadService.GetHomeAsync(userId, processExpiredOffers: false, cancellationToken));
     }
 
 

@@ -1974,7 +1974,10 @@ public class DriverReadService : IDriverReadService
         CancellationToken cancellationToken) =>
         await _context.AccessApprovalRequests
             .AsNoTracking()
-            .Where(request => request.TargetUserId == targetUserId && request.Action == action)
+            .Where(request =>
+                request.TargetUserId == targetUserId &&
+                request.Action == action &&
+                request.Status != AccessApprovalStatus.Approved)
             .OrderByDescending(request => request.CreatedAtUtc)
             .FirstOrDefaultAsync(cancellationToken);
 

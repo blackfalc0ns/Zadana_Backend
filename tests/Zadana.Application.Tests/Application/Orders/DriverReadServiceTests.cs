@@ -429,6 +429,80 @@ public class DriverReadServiceTests
     }
 
     [Fact]
+    public async Task GetDriverProfileAsync_WhenPersonalChangeApproved_ShouldExposeValidSections()
+    {
+        await using var dbContext = CreateDbContext();
+        var user = new User("Driver Approved Personal User", "driver.approved.personal@test.com", "01000000082", UserRole.Driver);
+        var driver = CreateCompleteDriver(user.Id);
+        ApproveRequiredDocuments(driver);
+
+        var payload = new DriverPersonalProfileChangePayload(
+            driver.Id,
+            "Updated Name",
+            "updated@test.com",
+            "0500000002",
+            "Updated Address");
+        var approval = new AccessApprovalRequest(
+            user.Id,
+            user.Id,
+            ProfileChangeApprovalActions.DriverProfilePersonal,
+            "Driver requested personal changes.",
+            "approved-personal-hash",
+            JsonSerializer.Serialize(payload, new JsonSerializerOptions(JsonSerializerDefaults.Web)));
+        approval.Approve(Guid.NewGuid(), "Approved");
+        approval.Consume();
+
+        dbContext.Users.Add(user);
+        dbContext.Drivers.Add(driver);
+        dbContext.AccessApprovalRequests.Add(approval);
+        await dbContext.SaveChangesAsync();
+
+        var service = CreateService(dbContext);
+        var result = await service.GetDriverProfileAsync(user.Id);
+
+        result.Should().NotBeNull();
+        result!.VerificationStatus.Should().Be(nameof(DriverVerificationStatus.Approved));
+        result.AccountStatus.Should().Be(nameof(AccountStatus.Active));
+        result.Sections.Should().OnlyContain(section => section.Status == "valid");
+    }
+
+    [Fact]
+    public async Task GetDriverProfileAsync_WhenPersonalChangeRejected_ShouldExposeRejectedPersonalSection()
+    {
+        await using var dbContext = CreateDbContext();
+        var user = new User("Driver Rejected Personal User", "driver.rejected.personal@test.com", "01000000083", UserRole.Driver);
+        var driver = CreateCompleteDriver(user.Id);
+        ApproveRequiredDocuments(driver);
+
+        var payload = new DriverPersonalProfileChangePayload(
+            driver.Id,
+            "Updated Name",
+            "updated@test.com",
+            "0500000003",
+            "Updated Address");
+        var approval = new AccessApprovalRequest(
+            user.Id,
+            user.Id,
+            ProfileChangeApprovalActions.DriverProfilePersonal,
+            "Driver requested personal changes.",
+            "rejected-personal-hash",
+            JsonSerializer.Serialize(payload, new JsonSerializerOptions(JsonSerializerDefaults.Web)));
+        approval.Reject(Guid.NewGuid(), "البيانات غير مطابقة");
+
+        dbContext.Users.Add(user);
+        dbContext.Drivers.Add(driver);
+        dbContext.AccessApprovalRequests.Add(approval);
+        await dbContext.SaveChangesAsync();
+
+        var service = CreateService(dbContext);
+        var result = await service.GetDriverProfileAsync(user.Id);
+
+        result.Should().NotBeNull();
+        result!.Sections.Single(section => section.Section == "personal").Status.Should().Be("rejected");
+        result.Sections.Single(section => section.Section == "vehicle").Status.Should().Be("valid");
+    }
+
+    [Fact]
     public async Task GetAdminDriverDetailAsync_WhenDocumentChangePending_ShouldExposePendingDocumentPreview()
     {
         await using var dbContext = CreateDbContext();
