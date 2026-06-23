@@ -2,7 +2,7 @@ namespace Zadana.Api.Modules.Identity.Requests;
 
 public record VerifyOtpRequest(string Identifier, string OtpCode);
 
-public record ResendOtpRequest(string Identifier);
+public record ResendOtpRequest(string Identifier, string? Purpose = null);
 
 public record RefreshTokenRequest(string RefreshToken);
 

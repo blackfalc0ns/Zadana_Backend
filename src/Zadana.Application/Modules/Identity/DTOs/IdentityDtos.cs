@@ -53,6 +53,10 @@ public record IdentityAccountSnapshot(
     bool MustChangePassword,
     string? ProfilePhotoUrl = null);
 
+public record RegistrationOtpDispatch(
+    IdentityAccountSnapshot Account,
+    string OtpCode);
+
 public record CreateIdentityAccountRequest(
     string FullName,
     string Email,

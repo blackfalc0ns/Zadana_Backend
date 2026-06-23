@@ -4,10 +4,11 @@ using Microsoft.Extensions.Localization;
 using Zadana.Application.Common.Localization;
 using Zadana.Application.Common.Validation;
 using Zadana.Application.Modules.Identity.DTOs;
+using Zadana.Application.Modules.Identity.Enums;
 
 namespace Zadana.Application.Modules.Identity.Commands.ResendOtp;
 
-public record ResendOtpCommand(string Identifier) : IRequest<AuthResponseDto>;
+public record ResendOtpCommand(string Identifier, OtpResendPurpose Purpose = OtpResendPurpose.Registration) : IRequest<AuthResponseDto>;
 
 public class ResendOtpCommandValidator : AbstractValidator<ResendOtpCommand>
 {
@@ -18,6 +19,10 @@ public class ResendOtpCommandValidator : AbstractValidator<ResendOtpCommand>
             .Must(identifier => IsEmail(identifier) || IsPhone(identifier))
             .WithMessage(localizer["InvalidIdentifier"].Value)
             .WithName(localizer["Identifier"].Value);
+
+        RuleFor(x => x.Purpose)
+            .IsInEnum()
+            .WithMessage(localizer["ValidationErrorTitle"].Value);
     }
 
     private static bool IsEmail(string? value) =>

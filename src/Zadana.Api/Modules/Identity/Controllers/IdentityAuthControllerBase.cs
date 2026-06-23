@@ -13,6 +13,7 @@ using Zadana.Application.Modules.Identity.Commands.UpdateCurrentUserProfile;
 using Zadana.Application.Modules.Identity.Commands.UpdateCurrentUserProfilePhoto;
 using Zadana.Application.Modules.Identity.Commands.VerifyOtp;
 using Zadana.Application.Modules.Identity.Commands.VerifyPasswordResetOtp;
+using Zadana.Application.Modules.Identity.Enums;
 using Zadana.Application.Modules.Identity.Queries.GetCurrentUser;
 using Zadana.Domain.Modules.Identity.Enums;
 
@@ -47,9 +48,14 @@ public abstract class IdentityAuthControllerBase : ApiControllerBase
 
     protected async Task<IActionResult> ResendOtpAsync(ResendOtpRequest request)
     {
-        var result = await Sender.Send(new ResendOtpCommand(request.Identifier));
+        var result = await Sender.Send(new ResendOtpCommand(
+            request.Identifier,
+            OtpResendPurposeParser.Parse(request.Purpose)));
         return Ok(result);
     }
+
+    protected Task<IActionResult> ResendPasswordResetOtpAsync(ResendOtpRequest request) =>
+        ResendOtpAsync(request with { Purpose = "password_reset" });
 
     protected async Task<IActionResult> ForgotPasswordAsync(ForgotPasswordRequest? request)
     {

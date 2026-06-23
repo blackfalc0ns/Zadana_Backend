@@ -1,5 +1,7 @@
 using Zadana.Application.Modules.Delivery.DTOs;
+using Microsoft.Extensions.DependencyInjection;
 using Microsoft.Extensions.Localization;
+using Microsoft.Extensions.Logging;
 using Zadana.Application.Common.Interfaces;
 using Zadana.Application.Common.Localization;
 using Zadana.Application.Modules.Identity.DTOs;
@@ -18,6 +20,8 @@ public class RegistrationWorkflow : IRegistrationWorkflow
     private readonly IJwtTokenService _jwtTokenService;
     private readonly IStringLocalizer<SharedResource> _localizer;
     private readonly IOtpService _otpService;
+    private readonly IServiceScopeFactory _serviceScopeFactory;
+    private readonly ILogger<RegistrationWorkflow> _logger;
 
     public RegistrationWorkflow(
         IIdentityAccountService identityAccountService,
@@ -25,7 +29,9 @@ public class RegistrationWorkflow : IRegistrationWorkflow
         IRefreshTokenStore refreshTokenStore,
         IJwtTokenService jwtTokenService,
         IStringLocalizer<SharedResource> localizer,
-        IOtpService otpService)
+        IOtpService otpService,
+        IServiceScopeFactory serviceScopeFactory,
+        ILogger<RegistrationWorkflow> logger)
     {
         _identityAccountService = identityAccountService;
         _accessControlService = accessControlService;
@@ -33,6 +39,8 @@ public class RegistrationWorkflow : IRegistrationWorkflow
         _jwtTokenService = jwtTokenService;
         _localizer = localizer;
         _otpService = otpService;
+        _serviceScopeFactory = serviceScopeFactory;
+        _logger = logger;
     }
 
     public async Task<IdentityAccountSnapshot> RegisterAccountAsync(
@@ -59,29 +67,39 @@ public class RegistrationWorkflow : IRegistrationWorkflow
         IdentityAccountSnapshot account,
         CancellationToken cancellationToken = default)
     {
-        var otpResult = await _identityAccountService.GenerateRegistrationOtpAsync(account.Id, cancellationToken);
-
-        if (otpResult.Status == OtpDispatchStatus.UserNotFound)
-        {
-            throw new BusinessRuleException("USER_NOT_FOUND", _localizer["USER_NOT_FOUND", account.Email ?? account.Id.ToString()]);
-        }
-
-        if (otpResult.Status == OtpDispatchStatus.Failed)
-        {
-            var errors = string.Join(", ", otpResult.Errors ?? []);
-            throw new BusinessRuleException("IDENTITY_OPERATION_FAILED", $"{_localizer["IDENTITY_OPERATION_FAILED"]}: {errors}");
-        }
-
-        if (otpResult.Status != OtpDispatchStatus.Succeeded ||
-            otpResult.Account == null ||
-            string.IsNullOrWhiteSpace(otpResult.Account.Email) ||
-            string.IsNullOrWhiteSpace(otpResult.OtpCode))
-        {
-            throw new BusinessRuleException("OTP_GENERATION_FAILED", _localizer["IDENTITY_OPERATION_FAILED"]);
-        }
-
-        await _otpService.SendOtpEmailAsync(otpResult.Account.Email, otpResult.OtpCode, cancellationToken);
+        var otpResult = await GenerateRegistrationOtpInternalAsync(account, cancellationToken);
+        DispatchRegistrationOtpEmail(otpResult.Account!.Email!, otpResult.OtpCode!);
         return otpResult.Account;
+    }
+
+    public Task<RegistrationOtpDispatch> GenerateRegistrationOtpAsync(
+        IdentityAccountSnapshot account,
+        CancellationToken cancellationToken = default) =>
+        GenerateRegistrationOtpInternalAsync(account, cancellationToken);
+
+    public void DispatchRegistrationOtpEmail(string emailAddress, string otpCode)
+    {
+        if (string.IsNullOrWhiteSpace(emailAddress) || string.IsNullOrWhiteSpace(otpCode))
+        {
+            return;
+        }
+
+        _ = Task.Run(async () =>
+        {
+            try
+            {
+                await using var scope = _serviceScopeFactory.CreateAsyncScope();
+                var otpService = scope.ServiceProvider.GetRequiredService<IOtpService>();
+                await otpService.SendOtpEmailAsync(emailAddress.Trim(), otpCode, CancellationToken.None);
+            }
+            catch (Exception ex)
+            {
+                _logger.LogWarning(
+                    ex,
+                    "Background registration OTP email failed for {Email}. User can resend OTP.",
+                    emailAddress);
+            }
+        });
     }
 
     public async Task<AuthResponseDto> BuildAuthResponseAsync(
@@ -137,5 +155,33 @@ public class RegistrationWorkflow : IRegistrationWorkflow
             var errors = string.Join(", ", deleteResult.Errors ?? []);
             throw new BusinessRuleException("IDENTITY_COMPENSATION_FAILED", $"{_localizer["IDENTITY_OPERATION_FAILED"]}: {errors}");
         }
+    }
+
+    private async Task<RegistrationOtpDispatch> GenerateRegistrationOtpInternalAsync(
+        IdentityAccountSnapshot account,
+        CancellationToken cancellationToken)
+    {
+        var otpResult = await _identityAccountService.GenerateRegistrationOtpAsync(account.Id, cancellationToken);
+
+        if (otpResult.Status == OtpDispatchStatus.UserNotFound)
+        {
+            throw new BusinessRuleException("USER_NOT_FOUND", _localizer["USER_NOT_FOUND", account.Email ?? account.Id.ToString()]);
+        }
+
+        if (otpResult.Status == OtpDispatchStatus.Failed)
+        {
+            var errors = string.Join(", ", otpResult.Errors ?? []);
+            throw new BusinessRuleException("IDENTITY_OPERATION_FAILED", $"{_localizer["IDENTITY_OPERATION_FAILED"]}: {errors}");
+        }
+
+        if (otpResult.Status != OtpDispatchStatus.Succeeded ||
+            otpResult.Account == null ||
+            string.IsNullOrWhiteSpace(otpResult.Account.Email) ||
+            string.IsNullOrWhiteSpace(otpResult.OtpCode))
+        {
+            throw new BusinessRuleException("OTP_GENERATION_FAILED", _localizer["IDENTITY_OPERATION_FAILED"]);
+        }
+
+        return new RegistrationOtpDispatch(otpResult.Account, otpResult.OtpCode);
     }
 }

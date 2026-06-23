@@ -1,5 +1,6 @@
 using MediatR;
 using Microsoft.EntityFrameworkCore;
+using Microsoft.Extensions.Logging;
 using Zadana.Application.Common.Interfaces;
 using Zadana.Application.Modules.Delivery.DTOs;
 using Zadana.Application.Modules.Delivery.Interfaces;
@@ -15,23 +16,29 @@ namespace Zadana.Application.Modules.Delivery.Commands.RegisterDriver;
 public class RegisterDriverCommandHandler : IRequestHandler<RegisterDriverCommand, AuthResponseDto>
 {
     private readonly IRegistrationWorkflow _registrationWorkflow;
+    private readonly IIdentityAccountService _identityAccountService;
     private readonly IDriverRepository _driverRepository;
     private readonly IUnitOfWork _unitOfWork;
     private readonly IApplicationDbContext _context;
     private readonly IAdminAlertService _adminAlertService;
+    private readonly ILogger<RegisterDriverCommandHandler> _logger;
 
     public RegisterDriverCommandHandler(
         IRegistrationWorkflow registrationWorkflow,
+        IIdentityAccountService identityAccountService,
         IDriverRepository driverRepository,
         IUnitOfWork unitOfWork,
         IApplicationDbContext context,
-        IAdminAlertService adminAlertService)
+        IAdminAlertService adminAlertService,
+        ILogger<RegisterDriverCommandHandler> logger)
     {
         _registrationWorkflow = registrationWorkflow;
+        _identityAccountService = identityAccountService;
         _driverRepository = driverRepository;
         _unitOfWork = unitOfWork;
         _context = context;
         _adminAlertService = adminAlertService;
+        _logger = logger;
     }
 
     public async Task<AuthResponseDto> Handle(RegisterDriverCommand request, CancellationToken cancellationToken)
@@ -44,7 +51,6 @@ public class RegisterDriverCommandHandler : IRequestHandler<RegisterDriverComman
         }
 
         // Validate geography (region + city)
-        Guid? regionEntityId = null;
         if (!string.IsNullOrWhiteSpace(request.Region))
         {
             var normalizedRegion = request.Region.Trim().ToUpperInvariant();
@@ -56,8 +62,6 @@ public class RegisterDriverCommandHandler : IRequestHandler<RegisterDriverComman
             {
                 throw new BusinessRuleException("INVALID_REGION", "المنطقة المختارة غير موجودة | Selected region does not exist.");
             }
-
-            regionEntityId = regionEntity.Id;
 
             if (!string.IsNullOrWhiteSpace(request.City))
             {
@@ -73,40 +77,44 @@ public class RegisterDriverCommandHandler : IRequestHandler<RegisterDriverComman
             }
         }
 
-        var user = await _registrationWorkflow.RegisterAccountAsync(
-            new CreateIdentityAccountRequest(
-                request.FullName,
-                request.Email,
-                request.Phone,
-                UserRole.Driver,
-                request.Password),
-            cancellationToken);
+        var (user, isResume) = await RegisterOrResumeAccountAsync(request, cancellationToken);
         try
         {
-            var driver = new Driver(
-                user.Id,
-                request.VehicleType,
-                request.NationalId,
-                request.LicenseNumber,
-                request.NationalIdExpiryDate,
-                request.DriverLicenseExpiryDate,
-                request.VehicleLicenseNumber,
-                request.VehicleLicenseExpiryDate,
-                request.Address,
-                request.NationalIdFrontImageUrl,
-                request.NationalIdBackImageUrl,
-                request.LicenseImageUrl,
-                request.VehicleImageUrl,
-                request.PersonalPhotoUrl,
-                request.Region,
-                request.City);
+            Driver driver;
+            if (isResume)
+            {
+                driver = await _driverRepository.GetByUserIdWithReviewsAsync(user.Id, cancellationToken)
+                    ?? throw new NotFoundException("Driver", user.Id);
+            }
+            else
+            {
+                driver = new Driver(
+                    user.Id,
+                    request.VehicleType,
+                    request.NationalId,
+                    request.LicenseNumber,
+                    request.NationalIdExpiryDate,
+                    request.DriverLicenseExpiryDate,
+                    request.VehicleLicenseNumber,
+                    request.VehicleLicenseExpiryDate,
+                    request.Address,
+                    request.NationalIdFrontImageUrl,
+                    request.NationalIdBackImageUrl,
+                    request.LicenseImageUrl,
+                    request.VehicleImageUrl,
+                    request.PersonalPhotoUrl,
+                    request.Region,
+                    request.City);
 
-            _driverRepository.Add(driver);
+                _driverRepository.Add(driver);
+                await _unitOfWork.SaveChangesAsync(cancellationToken);
+
+                user = await EnsureDriverAccessScopeAsync(user, driver.Id, cancellationToken);
+            }
+
+            var otpDispatch = await _registrationWorkflow.GenerateRegistrationOtpAsync(user, cancellationToken);
+            user = otpDispatch.Account;
             await _unitOfWork.SaveChangesAsync(cancellationToken);
-
-            user = await EnsureDriverAccessScopeAsync(user, driver.Id, cancellationToken);
-
-            user = await _registrationWorkflow.SendRegistrationOtpAsync(user, cancellationToken);
 
             var authResponse = await _registrationWorkflow.BuildAuthResponseAsync(
                 user,
@@ -114,6 +122,108 @@ public class RegisterDriverCommandHandler : IRequestHandler<RegisterDriverComman
                 cancellationToken);
             await _unitOfWork.SaveChangesAsync(cancellationToken);
 
+            _registrationWorkflow.DispatchRegistrationOtpEmail(user.Email!, otpDispatch.OtpCode);
+
+            if (!isResume)
+            {
+                await TrySendNewDriverAdminAlertAsync(user, driver, request, cancellationToken);
+            }
+
+            return authResponse;
+        }
+        catch
+        {
+            if (!isResume)
+            {
+                await _registrationWorkflow.CompensateAccountCreationFailureAsync(user.Id, cancellationToken);
+            }
+
+            throw;
+        }
+    }
+
+    private async Task<(IdentityAccountSnapshot User, bool IsResume)> RegisterOrResumeAccountAsync(
+        RegisterDriverCommand request,
+        CancellationToken cancellationToken)
+    {
+        try
+        {
+            var user = await _registrationWorkflow.RegisterAccountAsync(
+                new CreateIdentityAccountRequest(
+                    request.FullName,
+                    request.Email,
+                    request.Phone,
+                    UserRole.Driver,
+                    request.Password),
+                cancellationToken);
+
+            return (user, false);
+        }
+        catch (BusinessRuleException ex) when (ex.ErrorCode == "USER_ALREADY_EXISTS")
+        {
+            var resumedUser = await TryResumePendingDriverRegistrationAsync(request, cancellationToken);
+            if (resumedUser is null)
+            {
+                throw;
+            }
+
+            _logger.LogInformation(
+                "Resuming pending driver registration for user {UserId} after duplicate submit.",
+                resumedUser.Id);
+
+            return (resumedUser, true);
+        }
+    }
+
+    private async Task<IdentityAccountSnapshot?> TryResumePendingDriverRegistrationAsync(
+        RegisterDriverCommand request,
+        CancellationToken cancellationToken)
+    {
+        var normalizedEmail = request.Email.Trim().ToLowerInvariant();
+        var normalizedPhone = request.Phone.Trim();
+
+        var existingByEmail = await _identityAccountService.FindByIdentifierAsync(normalizedEmail, cancellationToken);
+        var existingByPhone = await _identityAccountService.FindByIdentifierAsync(normalizedPhone, cancellationToken);
+
+        if (existingByEmail is not null &&
+            existingByPhone is not null &&
+            existingByEmail.Id != existingByPhone.Id)
+        {
+            return null;
+        }
+
+        var existing = existingByEmail ?? existingByPhone;
+        if (existing is null ||
+            existing.Role != UserRole.Driver ||
+            existing.EmailConfirmed ||
+            !string.Equals(existing.Email, normalizedEmail, StringComparison.OrdinalIgnoreCase) ||
+            !string.Equals(existing.PhoneNumber, normalizedPhone, StringComparison.Ordinal))
+        {
+            return null;
+        }
+
+        var credentialResult = await _identityAccountService.ValidateCredentialsAsync(
+            normalizedEmail,
+            request.Password,
+            cancellationToken);
+
+        if (credentialResult.Status != CredentialValidationStatus.Succeeded || credentialResult.Account is null)
+        {
+            return null;
+        }
+
+        var driverExists = await _driverRepository.GetByUserIdAsync(existing.Id, cancellationToken) is not null;
+        return driverExists ? credentialResult.Account : null;
+    }
+
+    private async Task TrySendNewDriverAdminAlertAsync(
+        IdentityAccountSnapshot user,
+        Driver driver,
+        RegisterDriverCommand request,
+        CancellationToken cancellationToken)
+    {
+        try
+        {
             await _adminAlertService.SendAsync(
                 new AdminAlertRequest(
                     AdminAlertTypes.DriverApprovalRequested,
@@ -135,13 +245,13 @@ public class RegisterDriverCommandHandler : IRequestHandler<RegisterDriverComman
                         vehicleType = request.VehicleType
                     }),
                 cancellationToken);
-
-            return authResponse;
         }
-        catch
+        catch (Exception ex)
         {
-            await _registrationWorkflow.CompensateAccountCreationFailureAsync(user.Id, cancellationToken);
-            throw;
+            _logger.LogWarning(
+                ex,
+                "Admin alert dispatch failed for new driver {DriverId}. Registration still succeeded.",
+                driver.Id);
         }
     }
 

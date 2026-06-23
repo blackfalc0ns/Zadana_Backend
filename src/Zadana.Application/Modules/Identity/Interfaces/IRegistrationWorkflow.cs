@@ -13,6 +13,12 @@ public interface IRegistrationWorkflow
         IdentityAccountSnapshot account,
         CancellationToken cancellationToken = default);
 
+    Task<RegistrationOtpDispatch> GenerateRegistrationOtpAsync(
+        IdentityAccountSnapshot account,
+        CancellationToken cancellationToken = default);
+
+    void DispatchRegistrationOtpEmail(string emailAddress, string otpCode);
+
     Task<AuthResponseDto> BuildAuthResponseAsync(
         IdentityAccountSnapshot account,
         DriverOperationalStatusDto? driverStatus = null,

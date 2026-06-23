@@ -1,6 +1,7 @@
 using FluentAssertions;
 using Microsoft.EntityFrameworkCore;
 using Microsoft.Extensions.Localization;
+using Microsoft.Extensions.Logging;
 using Moq;
 using Zadana.Application.Common.Interfaces;
 using Zadana.Application.Common.Localization;
@@ -78,6 +79,9 @@ public class DriverRegistrationRegionCityTests
             .Setup(workflow => workflow.RegisterAccountAsync(It.IsAny<CreateIdentityAccountRequest>(), It.IsAny<CancellationToken>()))
             .ReturnsAsync(userSnapshot);
         registrationWorkflow
+            .Setup(workflow => workflow.GenerateRegistrationOtpAsync(userSnapshot, It.IsAny<CancellationToken>()))
+            .ReturnsAsync(new RegistrationOtpDispatch(userSnapshot, "123456"));
+        registrationWorkflow
             .Setup(workflow => workflow.BuildAuthResponseAsync(
                 userSnapshot,
                 It.IsAny<DriverOperationalStatusDto>(),
@@ -92,10 +96,12 @@ public class DriverRegistrationRegionCityTests
 
         var handler = new RegisterDriverCommandHandler(
             registrationWorkflow.Object,
+            Mock.Of<IIdentityAccountService>(),
             new DriverRepository(dbContext),
             unitOfWork.Object,
             dbContext,
-            Mock.Of<IAdminAlertService>());
+            Mock.Of<IAdminAlertService>(),
+            Mock.Of<ILogger<RegisterDriverCommandHandler>>());
 
         var result = await handler.Handle(CreateCommand(), CancellationToken.None);
 
@@ -123,10 +129,12 @@ public class DriverRegistrationRegionCityTests
         var registrationWorkflow = new Mock<IRegistrationWorkflow>();
         var handler = new RegisterDriverCommandHandler(
             registrationWorkflow.Object,
+            Mock.Of<IIdentityAccountService>(),
             new DriverRepository(dbContext),
             Mock.Of<IUnitOfWork>(),
             dbContext,
-            Mock.Of<IAdminAlertService>());
+            Mock.Of<IAdminAlertService>(),
+            Mock.Of<ILogger<RegisterDriverCommandHandler>>());
 
         var action = () => handler.Handle(
             CreateCommand(region: "RIYADH", city: "JEDDAH"),

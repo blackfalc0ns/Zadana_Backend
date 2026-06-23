@@ -327,6 +327,42 @@ public class CustomerAuth_IntegrationTests : IClassFixture<ZadanaWebFactory>
     }
 
     [Fact]
+    public async Task ResendResetOtp_WithEmailIdentifier_SendsPasswordResetOtp()
+    {
+        var email = $"resend_reset_{Guid.NewGuid():N}@test.com";
+        var phone = "014" + new Random().Next(10000000, 99999999).ToString();
+
+        await SeedCustomerAccountAsync("Resend Reset Test", email, phone, "P@ssword1234");
+        _factory.OtpSink.Clear();
+
+        var response = await _client.PostAsJsonAsync("/api/customers/auth/resend-reset-otp", new { identifier = email });
+
+        var content = await response.Content.ReadAsStringAsync();
+        response.StatusCode.Should().Be(HttpStatusCode.OK, content);
+        _factory.OtpSink.EmailDispatches.Should().ContainSingle(dispatch => dispatch.Recipient == email);
+    }
+
+    [Fact]
+    public async Task ResendResetOtp_WithPurposeField_SendsPasswordResetOtp()
+    {
+        var email = $"resend_reset_purpose_{Guid.NewGuid():N}@test.com";
+        var phone = "015" + new Random().Next(10000000, 99999999).ToString();
+
+        await SeedCustomerAccountAsync("Resend Reset Purpose Test", email, phone, "P@ssword1234");
+        _factory.OtpSink.Clear();
+
+        var response = await _client.PostAsJsonAsync("/api/customers/auth/resend-otp", new
+        {
+            identifier = email,
+            purpose = "password_reset"
+        });
+
+        var content = await response.Content.ReadAsStringAsync();
+        response.StatusCode.Should().Be(HttpStatusCode.OK, content);
+        _factory.OtpSink.EmailDispatches.Should().ContainSingle(dispatch => dispatch.Recipient == email);
+    }
+
+    [Fact]
     public async Task VerifyResetOtp_WithInvalidOtp_Returns409()
     {
         var email = $"reset_{Guid.NewGuid():N}@test.com";

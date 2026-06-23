@@ -40,6 +40,11 @@ public class VendorAuthController : IdentityAuthControllerBase
         ResendOtpAsync(request);
 
     [EnableRateLimiting(RateLimitPolicyNames.Auth)]
+    [HttpPost("resend-reset-otp")]
+    public Task<IActionResult> ResendPasswordResetOtp([FromBody] ResendOtpRequest request) =>
+        ResendPasswordResetOtpAsync(request);
+
+    [EnableRateLimiting(RateLimitPolicyNames.Auth)]
     [HttpPost("verify-reset-otp")]
     public Task<IActionResult> VerifyResetOtp([FromBody] VerifyPasswordResetOtpRequest request) =>
         VerifyPasswordResetOtpAsync(request);
