@@ -132,9 +132,27 @@ internal static class OrderSupportCaseNotificationComposer
             _ => NotificationTypes.AdminOrderSupportCaseEscalated
         };
 
-        var queueLabel = queue.ToString();
-        var priorityLabel = priority.ToString().ToLowerInvariant();
-        var typeLabel = type switch
+        var queueLabelEn = queue.ToString();
+        var queueLabelAr = queue switch
+        {
+            OrderSupportCaseQueue.Support => "الدعم",
+            OrderSupportCaseQueue.Finance => "المالية",
+            OrderSupportCaseQueue.Operations => "العمليات",
+            OrderSupportCaseQueue.Risk => "المخاطر",
+            OrderSupportCaseQueue.Legal => "الشؤون القانونية",
+            OrderSupportCaseQueue.DriverOps => "عمليات المندوبين",
+            _ => queue.ToString()
+        };
+        var priorityLabelEn = priority.ToString().ToLowerInvariant();
+        var priorityLabelAr = priority switch
+        {
+            OrderSupportCasePriority.Low => "منخفضة",
+            OrderSupportCasePriority.Medium => "متوسطة",
+            OrderSupportCasePriority.High => "عالية",
+            OrderSupportCasePriority.Critical => "حرجة",
+            _ => priority.ToString()
+        };
+        var typeLabelEn = type switch
         {
             OrderSupportCaseType.ReturnRequest => "return request",
             OrderSupportCaseType.Complaint => "support case",
@@ -142,24 +160,33 @@ internal static class OrderSupportCaseNotificationComposer
             OrderSupportCaseType.DriverDispute => "driver dispute",
             _ => "support case"
         };
+        var typeLabelAr = type switch
+        {
+            OrderSupportCaseType.ReturnRequest => "طلب استرجاع",
+            OrderSupportCaseType.Complaint => "حالة دعم",
+            OrderSupportCaseType.DriverReport => "بلاغ مندوب",
+            OrderSupportCaseType.DriverDispute => "اعتراض مندوب",
+            OrderSupportCaseType.DriverAccountAppeal => "اعتراض حساب مندوب",
+            _ => "حالة دعم"
+        };
 
         var (titleAr, titleEn, bodyAr, bodyEn) = action switch
         {
             "created" => (
                 "حالة دعم جديدة تحتاج مراجعة",
                 "New support case requires review",
-                $"تم إنشاء {typeLabel} جديد للطلب رقم {orderNumber} وتم توجيهه إلى فريق {queueLabel}.",
-                $"A new {typeLabel} was created for order #{orderNumber} and routed to the {queueLabel} queue."),
+                $"فتحنا {typeLabelAr} جديدة للطلب رقم {orderNumber} ووجهناها لفريق {queueLabelAr}.",
+                $"A new {typeLabelEn} was created for order #{orderNumber} and routed to the {queueLabelEn} queue."),
             "assigned" => (
-                "تم إسناد حالة دعم إليك",
+                "أسندنا لك حالة دعم",
                 "A support case was assigned to you",
-                $"تم إسناد الحالة المرتبطة بالطلب رقم {orderNumber} إليك للمتابعة.",
+                $"أسندنا لك الحالة المرتبطة بالطلب رقم {orderNumber} للمتابعة.",
                 $"The support case linked to order #{orderNumber} has been assigned to you for follow-up."),
             _ => (
-                "تم تصعيد حالة الدعم",
+                "صعّدنا حالة الدعم",
                 "Support case escalated",
-                $"تم تصعيد الحالة المرتبطة بالطلب رقم {orderNumber} إلى فريق {queueLabel} بأولوية {priorityLabel}.",
-                $"The support case linked to order #{orderNumber} was escalated to the {queueLabel} queue with {priorityLabel} priority.")
+                $"صعّدنا الحالة المرتبطة بالطلب رقم {orderNumber} لفريق {queueLabelAr} بأولوية {priorityLabelAr}.",
+                $"The support case linked to order #{orderNumber} was escalated to the {queueLabelEn} queue with {priorityLabelEn} priority.")
         };
 
         var data = JsonSerializer.Serialize(new
@@ -170,7 +197,7 @@ internal static class OrderSupportCaseNotificationComposer
             type = ToApiValue(type),
             status = ToApiValue(status),
             queue = queue.ToString().ToLowerInvariant(),
-            priority = priorityLabel,
+            priority = priorityLabelEn,
             action,
             targetUrl
         });
@@ -200,19 +227,19 @@ internal static class OrderSupportCaseNotificationComposer
                 $"بدأ فريق الدعم مراجعة الحالة المرتبطة بطلب {orderNumber}.",
                 $"Support has started reviewing the case for order #{orderNumber}."),
             (_, OrderSupportCaseStatus.InReview, "escalated") => (
-                "تم تصعيد الحالة",
+                "صعّدنا الحالة",
                 "Case escalated",
-                $"تم تصعيد الحالة المرتبطة بطلب {orderNumber} للمراجعة.",
+                $"صعّدنا الحالة المرتبطة بطلب {orderNumber} للمراجعة.",
                 $"The case linked to order #{orderNumber} was escalated for review."),
             (_, _, "admin_message") => (
                 "رسالة جديدة من الدعم",
                 "New support message",
-                $"توجد رسالة جديدة من الدعم بخصوص طلب {orderNumber}.",
+                $"وصلتك رسالة جديدة من الدعم بخصوص طلب {orderNumber}.",
                 $"There is a new support message about order #{orderNumber}."),
             (_, _, "note_added") => (
-                "تمت إضافة ملاحظة",
+                "أضفنا ملاحظة",
                 "New support note",
-                $"تمت إضافة ملاحظة على الحالة المرتبطة بطلب {orderNumber}.",
+                $"أضفنا ملاحظة على الحالة المرتبطة بطلب {orderNumber}.",
                 $"A note was added to the case for order #{orderNumber}."),
             (_, OrderSupportCaseStatus.AwaitingCustomerEvidence, _) => (
                 "مطلوب مستندات إضافية",
@@ -220,29 +247,29 @@ internal static class OrderSupportCaseNotificationComposer
                 $"نحتاج معلومات أو أدلة إضافية لمتابعة الحالة المرتبطة بطلب {orderNumber}.",
                 $"We need additional information or evidence to continue reviewing the case for order #{orderNumber}."),
             (_, OrderSupportCaseStatus.Approved, _) => (
-                "تمت الموافقة على الحالة",
+                "اعتمدنا الحالة",
                 "Case approved",
-                $"تمت الموافقة على الحالة المرتبطة بطلب {orderNumber}.",
+                $"اعتمدنا الحالة المرتبطة بطلب {orderNumber}.",
                 $"The case linked to order #{orderNumber} has been approved."),
             (_, OrderSupportCaseStatus.Rejected, _) => (
-                "تم رفض الحالة",
+                "رفضنا الحالة",
                 "Case rejected",
-                $"تم رفض الحالة المرتبطة بطلب {orderNumber}.",
+                $"رفضنا الحالة المرتبطة بطلب {orderNumber}.",
                 $"The case linked to order #{orderNumber} has been rejected."),
             (_, OrderSupportCaseStatus.Resolved, _) => (
-                "تم إغلاق الحالة",
+                "أغلقنا الحالة",
                 "Case resolved",
-                $"تم إغلاق الحالة المرتبطة بطلب {orderNumber}.",
+                $"أغلقنا الحالة المرتبطة بطلب {orderNumber}.",
                 $"The case linked to order #{orderNumber} has been resolved."),
             (OrderSupportCaseType.ReturnRequest, _, "created") => (
-                "تم استلام طلب الاسترجاع",
+                "استلمنا طلب الاسترجاع",
                 "Return request received",
-                $"استلمنا طلب الاسترجاع الخاص بطلب {orderNumber} وسيتم مراجعته.",
+                $"استلمنا طلب الاسترجاع الخاص بطلب {orderNumber} وبنراجعه.",
                 $"We received your return request for order #{orderNumber} and it is now under review."),
             _ => (
-                "تم تحديث حالة الشكوى",
+                "حدّثنا حالة الشكوى",
                 "Support case updated",
-                $"تم تحديث الحالة المرتبطة بطلب {orderNumber}.",
+                $"حدّثنا الحالة المرتبطة بطلب {orderNumber}.",
                 $"The support case linked to order #{orderNumber} has been updated.")
         };
     }

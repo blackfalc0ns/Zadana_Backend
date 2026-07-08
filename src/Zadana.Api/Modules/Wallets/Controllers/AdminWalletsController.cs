@@ -432,9 +432,9 @@ public class AdminWalletsController : ApiControllerBase
                 await notificationService.SendToUserAsync(
                     driverUserId,
                     new NotificationDispatchRequest(
-                        "تم تعديل رصيد المحفظة",
+                        "عدّلنا رصيد المحفظة",
                         "Wallet balance adjusted",
-                        "تم تعديل رصيد محفظتك من قبل الإدارة.",
+                        "عدّلنا رصيد محفظتك من الإدارة.",
                         "Your wallet balance was adjusted by the team.",
                         NotificationTypes.DriverWalletUpdated,
                         NotificationCategories.Wallet,
@@ -638,12 +638,12 @@ public class AdminWalletsController : ApiControllerBase
                         ? "wallet.withdrawal_failed"
                         : "wallet.withdrawal_rejected";
             var titleAr = approvedAndPaid
-                ? "تم تحويل مبلغ السحب"
+                ? "حوّلنا مبلغ السحب"
                 : approvedAndProcessing
                     ? "جاري تحويل السحب"
                     : approvedAndFailed
                         ? "فشل تحويل السحب"
-                        : "تم رفض طلب السحب";
+                        : "رفضنا طلب السحب";
             var titleEn = approvedAndPaid
                 ? "Withdrawal paid"
                 : approvedAndProcessing
@@ -652,12 +652,12 @@ public class AdminWalletsController : ApiControllerBase
                         ? "Withdrawal transfer failed"
                         : "Withdrawal rejected";
             var bodyAr = approvedAndPaid
-                ? $"تم تحويل طلب السحب رقم #{withdrawal.Id} بنجاح."
+                ? $"حوّلنا طلب السحب رقم #{withdrawal.Id} بنجاح."
                 : approvedAndProcessing
                     ? $"جاري تحويل طلب السحب رقم #{withdrawal.Id}."
                     : approvedAndFailed
                         ? $"فشل تحويل طلب السحب رقم #{withdrawal.Id}. تواصل مع الدعم."
-                        : $"تم رفض طلب السحب رقم #{withdrawal.Id}.";
+                        : $"رفضنا طلب السحب رقم #{withdrawal.Id}.";
             var bodyEn = approvedAndPaid
                 ? $"Your withdrawal request #{withdrawal.Id} was paid successfully."
                 : approvedAndProcessing

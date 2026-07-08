@@ -2,6 +2,7 @@ using Microsoft.AspNetCore.Authorization;
 using Microsoft.AspNetCore.Mvc;
 using Microsoft.AspNetCore.RateLimiting;
 using Zadana.Api.Controllers;
+using Zadana.Api.Localization;
 using Zadana.Api.Modules.Files.Security;
 using Zadana.Api.Security;
 using Zadana.Application.Common.Interfaces;
@@ -25,7 +26,7 @@ public class FilesController(
     {
         if (file == null || file.Length == 0)
         {
-            return BadRequest("File is empty.");
+            return BadRequest(ApiLocalizedMessages.Resolve(HttpContext, "FILE_EMPTY"));
         }
 
         if (!FileUploadSecurityPolicy.TryResolve(directory, out var rule))
@@ -59,7 +60,7 @@ public class FilesController(
             if (!registrationTokenService.TryValidate(token, RegistrationUploadTokenService.PurposeRegistration, out var failureReason))
             {
                 throw new UnauthorizedException(
-                    "A valid registration upload token is required for this directory.",
+                    "REGISTRATION_TOKEN_INVALID",
                     failureReason ?? "REGISTRATION_TOKEN_INVALID");
             }
         }

@@ -31,7 +31,7 @@ public class SubmitBrandRequestCommandHandler : IRequestHandler<SubmitBrandReque
     public async Task<Guid> Handle(SubmitBrandRequestCommand request, CancellationToken cancellationToken)
     {
         var vendorId = await _currentVendorService.TryGetVendorIdAsync(cancellationToken)
-            ?? throw new ForbiddenAccessException(_localizer["VENDOR_LOGIN_REQUIRED"]);
+            ?? throw new ForbiddenAccessException("VENDOR_LOGIN_REQUIRED");
 
         await CatalogRequestWorkflowSupport.EnsureBrandRequestCanBeSubmittedAsync(
             _context,
@@ -51,7 +51,7 @@ public class SubmitBrandRequestCommandHandler : IRequestHandler<SubmitBrandReque
                 AdminAlertPriorities.Normal,
                 "طلب علامة تجارية من تاجر",
                 "New vendor brand request",
-                $"تم إرسال طلب علامة تجارية: {request.NameAr}.",
+                $"أرسلنا طلب علامة تجارية: {request.NameAr}.",
                 $"A new brand request was submitted: {request.NameEn}.",
                 brandRequest.Id,
                 $"/catalog/brands?requests=1&requestId={brandRequest.Id}",

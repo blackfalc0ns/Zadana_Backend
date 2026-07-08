@@ -1,5 +1,6 @@
 using System.Security.Claims;
 using Microsoft.EntityFrameworkCore;
+using Zadana.Api.Localization;
 using Zadana.Infrastructure.Persistence;
 
 namespace Zadana.Api.Middleware;
@@ -56,7 +57,7 @@ public sealed class TemporaryPasswordMiddleware
         await httpContext.Response.WriteAsJsonAsync(new
         {
             code = "TEMP_PASSWORD_CHANGE_REQUIRED",
-            message = "You must change your temporary password before continuing."
+            message = ApiLocalizedMessages.Resolve(httpContext, "TEMP_PASSWORD_CHANGE_REQUIRED")
         }, httpContext.RequestAborted);
     }
 

@@ -8,6 +8,7 @@ using Microsoft.AspNetCore.Mvc;
 using Microsoft.EntityFrameworkCore;
 using Zadana.Api.Authorization;
 using Zadana.Api.Controllers;
+using Zadana.Api.Localization;
 using Zadana.Application.Common.Interfaces;
 using Zadana.Application.Modules.Identity.Commands.UpdateUserOverrides;
 using Zadana.Application.Modules.Identity.Commands.UpdateUserScope;
@@ -582,7 +583,7 @@ public class VendorAccessController : ApiControllerBase
                 await _context.SaveChangesAsync(cancellationToken);
             }
 
-            return BadRequest(new { code = "INVITATION_NOT_ACTIVE", message = "Invitation is expired, accepted, or revoked." });
+            return BadRequest(new { code = "INVITATION_NOT_ACTIVE", message = ApiLocalizedMessages.Resolve(HttpContext, "VENDOR_INVITATION_UNAVAILABLE") });
         }
 
         var vendor = await RequireVendorAsync(invitation.VendorId, cancellationToken);
@@ -604,7 +605,7 @@ public class VendorAccessController : ApiControllerBase
     {
         if (string.IsNullOrWhiteSpace(request.Password) || request.Password.Length < 8)
         {
-            return BadRequest(new { code = "WEAK_PASSWORD", message = "Password must be at least 8 characters." });
+            return BadRequest(new { code = "WEAK_PASSWORD", message = ApiLocalizedMessages.Resolve(HttpContext, "PASSWORD_MIN_LENGTH") });
         }
 
         var invitation = await FindInvitationByTokenAsync(request.Token, cancellationToken);
@@ -617,7 +618,7 @@ public class VendorAccessController : ApiControllerBase
                 await _context.SaveChangesAsync(cancellationToken);
             }
 
-            return BadRequest(new { code = "INVITATION_NOT_ACTIVE", message = "Invitation is expired, accepted, or revoked." });
+            return BadRequest(new { code = "INVITATION_NOT_ACTIVE", message = ApiLocalizedMessages.Resolve(HttpContext, "VENDOR_INVITATION_UNAVAILABLE") });
         }
 
         await EnsureNotAlreadyStaffAsync(invitation.VendorId, invitation.Email, cancellationToken);
@@ -637,7 +638,7 @@ public class VendorAccessController : ApiControllerBase
         {
             if (existingAccount.Role != UserRole.VendorStaff)
             {
-                return Conflict(new { code = "USER_ALREADY_EXISTS", message = "An account already exists for this email." });
+                return Conflict(new { code = "USER_ALREADY_EXISTS", message = ApiLocalizedMessages.Resolve(HttpContext, "STAFF_EMAIL_ALREADY_EXISTS") });
             }
 
             var linkedVendorIds = await GetLinkedVendorIdsAsync(existingAccount.Id, cancellationToken);
@@ -646,7 +647,7 @@ public class VendorAccessController : ApiControllerBase
                 return Conflict(new
                 {
                     code = "STAFF_ACCOUNT_LINKED_TO_ANOTHER_VENDOR",
-                    message = "This staff account is already linked to another vendor."
+                    message = ApiLocalizedMessages.Resolve(HttpContext, "STAFF_LINKED_TO_ANOTHER_VENDOR")
                 });
             }
 
@@ -656,7 +657,7 @@ public class VendorAccessController : ApiControllerBase
                 return BadRequest(new
                 {
                     code = "IDENTITY_PASSWORD_RESET_FAILED",
-                    message = string.Join(", ", resetResult.Errors ?? ["Unable to prepare the staff account."])
+                    message = ApiLocalizedMessages.Resolve(HttpContext, "IDENTITY_PASSWORD_RESET_FAILED")
                 });
             }
 
@@ -679,7 +680,7 @@ public class VendorAccessController : ApiControllerBase
 
             if (createResult.Status == IdentityCreateStatus.DuplicateEmailOrPhone)
             {
-                return Conflict(new { code = "USER_ALREADY_EXISTS", message = "An account already exists for this email." });
+                return Conflict(new { code = "USER_ALREADY_EXISTS", message = ApiLocalizedMessages.Resolve(HttpContext, "STAFF_EMAIL_ALREADY_EXISTS") });
             }
 
             if (createResult.Status != IdentityCreateStatus.Succeeded || createResult.Account is null)
@@ -687,7 +688,7 @@ public class VendorAccessController : ApiControllerBase
                 return BadRequest(new
                 {
                     code = "IDENTITY_CREATE_FAILED",
-                    message = string.Join(", ", createResult.Errors ?? ["Unable to create the staff account."])
+                    message = ApiLocalizedMessages.Resolve(HttpContext, "IDENTITY_CREATE_FAILED")
                 });
             }
 
@@ -737,7 +738,7 @@ public class VendorAccessController : ApiControllerBase
 
         return Ok(new
         {
-            message = "Invitation accepted.",
+            message = ApiLocalizedMessages.Resolve(HttpContext, "INVITATION_ACCEPTED_SUCCESS"),
             email = invitation.Email,
             redirectTo = "/login"
         });

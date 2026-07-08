@@ -8,6 +8,7 @@ using Microsoft.AspNetCore.RateLimiting;
 using Microsoft.Extensions.Logging;
 using Microsoft.Extensions.Options;
 using Zadana.Api.Controllers;
+using Zadana.Api.Localization;
 using Zadana.Api.Security;
 using Zadana.Application.Common.Interfaces;
 using Zadana.Application.Modules.Finances.Services;
@@ -60,8 +61,8 @@ public class MoyasarPaymentsController(
                 cancellationToken);
 
             return Problem(
-                title: "Moyasar webhook is not configured",
-                detail: "Moyasar webhook secret is not configured on the server. Contact administrator.",
+                title: ApiLocalizedMessages.Resolve(HttpContext, "MOYASAR_WEBHOOK_NOT_CONFIGURED_TITLE"),
+                detail: ApiLocalizedMessages.Resolve(HttpContext, "MOYASAR_WEBHOOK_NOT_CONFIGURED_DETAIL"),
                 statusCode: StatusCodes.Status503ServiceUnavailable,
                 type: "https://moyasar.runasp.net/errors/PAYMENT_WEBHOOK_NOT_CONFIGURED",
                 instance: "/api/payments/moyasar/webhook");
@@ -92,8 +93,8 @@ public class MoyasarPaymentsController(
                 cancellationToken);
 
             return Problem(
-                title: "Webhook signature invalid",
-                detail: "Webhook signature could not be validated.",
+                title: ApiLocalizedMessages.Resolve(HttpContext, "WEBHOOK_SIGNATURE_INVALID_TITLE"),
+                detail: ApiLocalizedMessages.Resolve(HttpContext, "WEBHOOK_SIGNATURE_INVALID_DETAIL"),
                 statusCode: StatusCodes.Status401Unauthorized,
                 type: "https://moyasar.runasp.net/errors/PAYMENT_WEBHOOK_INVALID_SIGNATURE",
                 instance: "/api/payments/moyasar/webhook");
@@ -171,8 +172,8 @@ public class MoyasarPaymentsController(
                 cancellationToken);
 
             return Problem(
-                title: "Moyasar payout webhook is not configured",
-                detail: "Moyasar webhook secret is not configured on the server. Contact administrator.",
+                title: ApiLocalizedMessages.Resolve(HttpContext, "MOYASAR_PAYOUT_WEBHOOK_NOT_CONFIGURED_TITLE"),
+                detail: ApiLocalizedMessages.Resolve(HttpContext, "MOYASAR_WEBHOOK_NOT_CONFIGURED_DETAIL"),
                 statusCode: StatusCodes.Status503ServiceUnavailable,
                 type: "https://moyasar.runasp.net/errors/PAYOUT_WEBHOOK_NOT_CONFIGURED",
                 instance: "/api/payments/moyasar/payouts/webhook");
@@ -192,8 +193,8 @@ public class MoyasarPaymentsController(
                 cancellationToken);
 
             return Problem(
-                title: "Webhook signature invalid",
-                detail: "Webhook signature could not be validated.",
+                title: ApiLocalizedMessages.Resolve(HttpContext, "WEBHOOK_SIGNATURE_INVALID_TITLE"),
+                detail: ApiLocalizedMessages.Resolve(HttpContext, "WEBHOOK_SIGNATURE_INVALID_DETAIL"),
                 statusCode: StatusCodes.Status401Unauthorized,
                 type: "https://moyasar.runasp.net/errors/PAYOUT_WEBHOOK_INVALID_SIGNATURE",
                 instance: "/api/payments/moyasar/payouts/webhook");
@@ -209,7 +210,7 @@ public class MoyasarPaymentsController(
             return BadRequest(new
             {
                 processed = false,
-                message = parseError
+                message = ApiLocalizedMessages.Resolve(HttpContext, "PAYOUT_WEBHOOK_PAYLOAD_INVALID")
             });
         }
 
@@ -236,8 +237,8 @@ public class MoyasarPaymentsController(
         if (string.IsNullOrWhiteSpace(providerPaymentId))
         {
             return Problem(
-                title: "Moyasar payment id is required",
-                detail: "The Moyasar 'id' query parameter is missing. Make sure the Moyasar form was configured with a callback that propagates the payment id.",
+                title: ApiLocalizedMessages.Resolve(HttpContext, "MOYASAR_PAYMENT_ID_REQUIRED_TITLE"),
+                detail: ApiLocalizedMessages.Resolve(HttpContext, "MOYASAR_VERIFY_PAYMENT_ID_REQUIRED_DETAIL"),
                 statusCode: StatusCodes.Status400BadRequest,
                 type: "https://moyasar.runasp.net/errors/MOYASAR_PAYMENT_ID_REQUIRED",
                 instance: "/api/payments/moyasar/verify");
@@ -259,8 +260,8 @@ public class MoyasarPaymentsController(
         if (string.IsNullOrWhiteSpace(providerPaymentId))
         {
             return Problem(
-                title: "Moyasar payment id is required",
-                detail: "Send the Moyasar provider payment id returned by callback_url or on_completed(payment).",
+                title: ApiLocalizedMessages.Resolve(HttpContext, "MOYASAR_PAYMENT_ID_REQUIRED_TITLE"),
+                detail: ApiLocalizedMessages.Resolve(HttpContext, "MOYASAR_CONFIRM_PAYMENT_ID_REQUIRED_DETAIL"),
                 statusCode: StatusCodes.Status400BadRequest,
                 type: "https://moyasar.runasp.net/errors/MOYASAR_PAYMENT_ID_REQUIRED",
                 instance: "/api/payments/moyasar/confirm");
@@ -324,7 +325,7 @@ public class MoyasarPaymentsController(
                     AdminAlertPriorities.Critical,
                     "فشل تكامل Moyasar",
                     "Moyasar integration failure",
-                    "حدث خطأ أثناء معالجة webhook الدفع من Moyasar.",
+                    "صار خطأ أثناء معالجة webhook الدفع من Moyasar.",
                     "Moyasar payment webhook processing failed.",
                     null,
                     "/finances",

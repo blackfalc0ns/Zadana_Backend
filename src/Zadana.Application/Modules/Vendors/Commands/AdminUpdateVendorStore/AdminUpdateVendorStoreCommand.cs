@@ -87,9 +87,9 @@ public class AdminUpdateVendorStoreCommandHandler : IRequestHandler<AdminUpdateV
             vendor,
             new VendorCommunicationMessage(
                 "vendor_store_updated",
-                "تم تحديث بيانات المتجر",
+                "حدّثنا بيانات المتجر",
                 "Vendor store details updated",
-                "تم تحديث بيانات المتجر الأساسية من لوحة الإدارة.",
+                "حدّثنا بيانات المتجر الأساسية من لوحة الإدارة.",
                 "Your store profile details were updated by the admin team.",
                 "/profile",
                 vendor.Id),

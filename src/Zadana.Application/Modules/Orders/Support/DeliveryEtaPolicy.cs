@@ -438,7 +438,7 @@ public static class DeliveryEtaWindowDisplayTextBuilder
         }
 
         return isArabic
-            ? "سيتم تحديث الوقت حسب تقدم الطلب."
+            ? "راح تحديث الوقت حسب تقدم الطلب."
             : "This estimate will be updated as the order progresses.";
     }
 }

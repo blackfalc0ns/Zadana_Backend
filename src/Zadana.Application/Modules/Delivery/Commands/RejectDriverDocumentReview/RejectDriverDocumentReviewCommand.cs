@@ -100,7 +100,7 @@ public class RejectDriverDocumentReviewCommandHandler : IRequestHandler<RejectDr
         var documentNameEn = GetDocumentNameEn(documentType);
         var titleAr = $"مطلوب تعديل {documentNameAr}";
         var titleEn = $"{documentNameEn} needs correction";
-        var bodyAr = $"تمت مراجعة {documentNameAr} ويوجد نقص أو خطأ. السبب: {request.Reason}";
+        var bodyAr = $"راجعنا {documentNameAr} ويوجد نقص أو خطأ. السبب: {request.Reason}";
         var bodyEn = $"Your {documentNameEn.ToLowerInvariant()} needs correction. Reason: {request.Reason}";
         var data = DriverNotificationDataBuilder.Build(
             screen: "account_status",

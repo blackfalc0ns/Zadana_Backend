@@ -139,7 +139,7 @@ public class AdminCategoriesController : ApiControllerBase
         category.Restore();
         await _context.SaveChangesAsync(cancellationToken);
 
-        return Ok(new { message_ar = "تمت استعادة التصنيف بنجاح", message_en = "Category restored successfully", id });
+        return Ok(new { message_ar = "استعدنا التصنيف بنجاح", message_en = "Category restored successfully", id });
     }
 }
 

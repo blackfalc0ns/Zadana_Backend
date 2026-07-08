@@ -2,6 +2,7 @@ using Microsoft.AspNetCore.Authorization;
 using Microsoft.AspNetCore.Mvc;
 using Microsoft.EntityFrameworkCore;
 using Zadana.Api.Controllers;
+using Zadana.Api.Localization;
 using Zadana.Application.Common.Interfaces;
 using Zadana.Domain.Modules.Social.Enums;
 using Zadana.Domain.Modules.Vendors.Entities;
@@ -84,7 +85,7 @@ public class AdminVendorBranchesController : ApiControllerBase
         _context.VendorBranches.Add(branch);
         await _context.SaveChangesAsync(ct);
 
-        return Ok(new { branch.Id, branch.Name, Message = "Branch created successfully." });
+        return Ok(new { branch.Id, branch.Name, Message = ApiLocalizedMessages.Resolve(HttpContext, "BRANCH_CREATED_SUCCESS") });
     }
 
     [HttpPut("{branchId:guid}")]
@@ -98,7 +99,7 @@ public class AdminVendorBranchesController : ApiControllerBase
             request.ContactPhone, request.DeliveryRadiusKm);
 
         await _context.SaveChangesAsync(ct);
-        return Ok(new { Message = "Branch updated successfully." });
+        return Ok(new { Message = ApiLocalizedMessages.Resolve(HttpContext, "BRANCH_UPDATED_SUCCESS") });
     }
 
     [HttpPost("{branchId:guid}/activate")]
@@ -111,7 +112,7 @@ public class AdminVendorBranchesController : ApiControllerBase
         // Notify vendor
         await NotifyVendorBranchStatusAsync(vendorId, branchId, branch.Name, "activated", ct);
 
-        return Ok(new { Message = "Branch activated." });
+        return Ok(new { Message = ApiLocalizedMessages.Resolve(HttpContext, "BRANCH_ACTIVATED_SUCCESS") });
     }
 
     [HttpPost("{branchId:guid}/deactivate")]
@@ -124,7 +125,7 @@ public class AdminVendorBranchesController : ApiControllerBase
         // Notify vendor
         await NotifyVendorBranchStatusAsync(vendorId, branchId, branch.Name, "deactivated", ct);
 
-        return Ok(new { Message = "Branch deactivated." });
+        return Ok(new { Message = ApiLocalizedMessages.Resolve(HttpContext, "BRANCH_DEACTIVATED_SUCCESS") });
     }
 
     [HttpDelete("{branchId:guid}")]
@@ -161,11 +162,11 @@ public class AdminVendorBranchesController : ApiControllerBase
         if (vendorUserId == Guid.Empty) return;
 
         var isActivated = action == "activated";
-        var titleAr = isActivated ? "تم تفعيل الفرع" : "تم تعطيل الفرع";
+        var titleAr = isActivated ? "فعّلنا الفرع" : "عطّلنا الفرع";
         var titleEn = isActivated ? "Branch activated" : "Branch deactivated";
         var bodyAr = isActivated
-            ? $"تم تفعيل فرع {branchName} بنجاح وهو جاهز لاستقبال الطلبات."
-            : $"تم تعطيل فرع {branchName} مؤقتًا ولن يستقبل طلبات حتى إشعار.";
+            ? $"فعّلنا فرع {branchName} بنجاح وهو جاهز لاستقبال الطلبات."
+            : $"عطّلنا فرع {branchName} مؤقتا وما راح يستقبل طلبات حتى إشعار آخر.";
         var bodyEn = isActivated
             ? $"Branch '{branchName}' has been activated and is ready to accept orders."
             : $"Branch '{branchName}' has been deactivated and will not accept orders until further notice.";

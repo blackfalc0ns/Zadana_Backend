@@ -11,7 +11,7 @@ public sealed record CartActor(Guid? UserId, string? GuestId)
         var normalizedGuestId = string.IsNullOrWhiteSpace(guestId) ? null : guestId.Trim();
         if (!userId.HasValue && normalizedGuestId is null)
         {
-            throw new UnauthorizedException("Cart owner is required.");
+            throw new UnauthorizedException("CART_OWNER_REQUIRED");
         }
 
         return new CartActor(userId, normalizedGuestId);

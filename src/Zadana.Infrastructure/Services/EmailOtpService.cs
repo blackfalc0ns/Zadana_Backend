@@ -105,7 +105,7 @@ public class EmailOtpService : IOtpService
         }
 
         return isArabic
-            ? "رمز إعادة تعيين كلمة السر من زادنا"
+            ? "رمز إعادة تعيين كلمة المرور من زادنا"
             : "Reset your Zadna password";
     }
 
@@ -120,8 +120,8 @@ public class EmailOtpService : IOtpService
         if (isArabic)
         {
             return isPasswordReset
-                ? $"رمز إعادة تعيين كلمة السر من زادنا هو {otpCode}. هذا الرمز صالح لمدة {validityMinutes} دقيقة فقط. تم إرسال هذا الرمز إلى {emailAddress}. لا تشاركه مع أي شخص. إذا لم تطلب إعادة التعيين، تواصل معنا على {supportEmail}."
-                : $"رمز التحقق من زادنا هو {otpCode}. هذا الرمز صالح لمدة {validityMinutes} دقائق فقط. تم إرسال هذا الرمز إلى {emailAddress}. لا تشاركه مع أي شخص. إذا لم تطلب هذا الرمز، تواصل معنا على {supportEmail}.";
+                ? $"رمز إعادة تعيين كلمة المرور من زادنا هو {otpCode}. الرمز صالح لمدة {validityMinutes} دقيقة فقط. أرسلناه إلى {emailAddress}. لا تشاركه مع أي شخص. إذا ما طلبت إعادة التعيين، تواصل معنا على {supportEmail}."
+                : $"رمز التحقق من زادنا هو {otpCode}. الرمز صالح لمدة {validityMinutes} دقائق فقط. أرسلناه إلى {emailAddress}. لا تشاركه مع أي شخص. إذا ما طلبت هذا الرمز، تواصل معنا على {supportEmail}.";
         }
 
         return isPasswordReset
@@ -140,16 +140,16 @@ public class EmailOtpService : IOtpService
             return isPasswordReset
                 ? new Dictionary<string, string>
                 {
-                    ["OtpPreheader"] = $"رمز إعادة تعيين كلمة السر من زادنا هو {otpCode}.",
+                    ["OtpPreheader"] = $"رمز إعادة تعيين كلمة المرور من زادنا هو {otpCode}.",
                     ["OtpEyebrow"] = "رمز أمان",
-                    ["OtpTitle"] = "إعادة تعيين كلمة السر",
-                    ["OtpGreeting"] = "مرحباً،",
-                    ["OtpInstruction"] = "استخدم رمز الأمان التالي لإعادة تعيين كلمة السر الخاصة بحسابك في زادنا.",
+                    ["OtpTitle"] = "إعادة تعيين كلمة المرور",
+                    ["OtpGreeting"] = "مرحبًا،",
+                    ["OtpInstruction"] = "استخدم رمز الأمان التالي لإعادة تعيين كلمة مرور حسابك في زادنا.",
                     ["OtpCodeLabel"] = "رمز إعادة التعيين",
-                    ["OtpExpiryNote"] = $"هذا الرمز صالح لمدة {validityMinutes} دقيقة فقط.",
-                    ["OtpUsageNote"] = "لا تشارك هذا الرمز مع أي شخص. استخدمه فقط داخل زادنا لإكمال إعادة تعيين كلمة السر.",
-                    ["OtpSecurityNote"] = "زادنا لن تطلب منك إرسال هذا الرمز عبر الهاتف أو المحادثة أو البريد.",
-                    ["OtpNotice"] = "إذا لم تطلب إعادة تعيين كلمة السر، تجاهل هذه الرسالة أو تواصل مع دعم زادنا.",
+                    ["OtpExpiryNote"] = $"الرمز صالح لمدة {validityMinutes} دقيقة فقط.",
+                    ["OtpUsageNote"] = "لا تشارك هذا الرمز مع أي شخص. استخدمه فقط داخل زادنا لإكمال إعادة تعيين كلمة المرور.",
+                    ["OtpSecurityNote"] = "زادنا ما راح تطلب منك إرسال هذا الرمز عبر الهاتف أو المحادثة أو البريد.",
+                    ["OtpNotice"] = "إذا ما طلبت إعادة تعيين كلمة المرور، تجاهل هذه الرسالة أو تواصل مع دعم زادنا.",
                     ["OtpFooter"] = $"Copyright {DateTime.UtcNow.Year} Zadna. رسالة أمان تلقائية."
                 }
                 : new Dictionary<string, string>
@@ -157,13 +157,13 @@ public class EmailOtpService : IOtpService
                     ["OtpPreheader"] = $"رمز التحقق لمرة واحدة من زادنا هو {otpCode}.",
                     ["OtpEyebrow"] = "رمز لمرة واحدة",
                     ["OtpTitle"] = "أكد حسابك في زادنا",
-                    ["OtpGreeting"] = "مرحباً،",
+                    ["OtpGreeting"] = "مرحبًا،",
                     ["OtpInstruction"] = "استخدم رمز التحقق التالي لإكمال تأكيد حسابك في زادنا بأمان.",
                     ["OtpCodeLabel"] = "رمز التحقق",
-                    ["OtpExpiryNote"] = $"هذا الرمز صالح لمدة {validityMinutes} دقائق فقط.",
-                    ["OtpUsageNote"] = "هذا الرمز صالح لفترة قصيرة ولا يستخدم إلا داخل زادنا. لا تشاركه مع أي شخص.",
-                    ["OtpSecurityNote"] = "زادنا لن تطلب منك إرسال هذا الرمز عبر الهاتف أو المحادثة أو البريد.",
-                    ["OtpNotice"] = "إذا لم تطلب هذا الرمز، يمكنك تجاهل هذه الرسالة أو التواصل مع دعم زادنا.",
+                    ["OtpExpiryNote"] = $"الرمز صالح لمدة {validityMinutes} دقائق فقط.",
+                    ["OtpUsageNote"] = "هذا الرمز صالح لفترة قصيرة وينستخدم فقط داخل زادنا. لا تشاركه مع أي شخص.",
+                    ["OtpSecurityNote"] = "زادنا ما راح تطلب منك إرسال هذا الرمز عبر الهاتف أو المحادثة أو البريد.",
+                    ["OtpNotice"] = "إذا ما طلبت هذا الرمز، تقدر تتجاهل هذه الرسالة أو تتواصل مع دعم زادنا.",
                     ["OtpFooter"] = $"Copyright {DateTime.UtcNow.Year} Zadna. رسالة أمان تلقائية."
                 };
         }

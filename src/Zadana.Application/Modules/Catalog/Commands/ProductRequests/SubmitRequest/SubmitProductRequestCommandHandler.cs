@@ -31,7 +31,7 @@ public class SubmitProductRequestCommandHandler : IRequestHandler<SubmitProductR
     public async Task<Guid> Handle(SubmitProductRequestCommand request, CancellationToken cancellationToken)
     {
         var vendorId = await _currentVendorService.TryGetVendorIdAsync(cancellationToken)
-            ?? throw new ForbiddenAccessException(_localizer["VENDOR_LOGIN_REQUIRED"]);
+            ?? throw new ForbiddenAccessException("VENDOR_LOGIN_REQUIRED");
 
         if (request.SuggestedBrandId.HasValue && request.RequestedBrand is not null)
         {
@@ -223,7 +223,7 @@ public class SubmitProductRequestCommandHandler : IRequestHandler<SubmitProductR
                 AdminAlertPriorities.Normal,
                 "طلب منتج جديد من تاجر",
                 "New vendor product request",
-                $"تم إرسال طلب منتج جديد: {request.SuggestedNameAr}.",
+                $"أرسلنا طلب منتج جديد: {request.SuggestedNameAr}.",
                 $"A new product request was submitted: {request.SuggestedNameEn}.",
                 productRequest.Id,
                 $"/catalog/products?requests=1&requestId={productRequest.Id}",

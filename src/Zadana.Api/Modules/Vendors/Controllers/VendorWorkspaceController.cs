@@ -1245,12 +1245,12 @@ public class VendorWorkspaceController : ApiControllerBase
     {
         if (string.Equals(referenceType, "OrderRevenue", StringComparison.OrdinalIgnoreCase))
         {
-            return ("تمت إضافة ربح الطلب", "Order revenue added");
+            return ("أضفنا ربح الطلب", "Order revenue added");
         }
 
         if (string.Equals(referenceType, "VendorRecovery", StringComparison.OrdinalIgnoreCase))
         {
-            return ("تم خصم استرداد التاجر", "Vendor recovery deducted");
+            return ("خصمنا استرجاع التاجر", "Vendor recovery deducted");
         }
 
         return ResolveFinanceLedgerTitles(txnType, description);

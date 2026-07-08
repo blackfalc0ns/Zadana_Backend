@@ -580,7 +580,7 @@ builder.Services.AddRateLimiter(options =>
         await context.HttpContext.Response.WriteAsJsonAsync(new
         {
             code = "RATE_LIMIT_EXCEEDED",
-            message = "Too many requests. Please try again later."
+            message = Zadana.Api.Localization.ApiLocalizedMessages.Resolve(context.HttpContext, "RATE_LIMIT_EXCEEDED")
         }, cancellationToken);
     };
 
@@ -1139,6 +1139,7 @@ if (shouldSeedOnStartup)
 if (app.Environment.IsDevelopment())
 {
     app.MapPost("/dev/reset-seed", async (
+            HttpContext httpContext,
             ApplicationDbContextInitialiser initialiser,
             ILogger<Program> logger,
             CancellationToken cancellationToken) =>
@@ -1152,7 +1153,7 @@ if (app.Environment.IsDevelopment())
 
             return Results.Ok(new
             {
-                message = "Development database reset completed successfully. Only the Super Admin account was seeded.",
+                message = Zadana.Api.Localization.ApiLocalizedMessages.Resolve(httpContext, "DEV_DATABASE_RESET_SUCCESS"),
                 summary
             });
         })
@@ -1183,7 +1184,7 @@ if (allowRemoteSeedEndpoints)
 
             return Results.Ok(new
             {
-                message = "Admin seed operation completed successfully."
+                message = Zadana.Api.Localization.ApiLocalizedMessages.Resolve(httpContext, "ADMIN_SEED_SUCCESS")
             });
         })
         .WithTags("Operations")
@@ -1210,7 +1211,7 @@ if (allowRemoteSeedEndpoints)
 
             return Results.Ok(new
             {
-                message = "Reset and admin seed operation completed successfully.",
+                message = Zadana.Api.Localization.ApiLocalizedMessages.Resolve(httpContext, "ADMIN_SEED_RESET_SUCCESS"),
                 summary
             });
         })

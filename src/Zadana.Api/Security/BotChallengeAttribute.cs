@@ -1,5 +1,6 @@
 using Microsoft.AspNetCore.Mvc;
 using Microsoft.AspNetCore.Mvc.Filters;
+using Zadana.Api.Localization;
 using Zadana.Application.Common.Interfaces;
 
 namespace Zadana.Api.Security;
@@ -37,7 +38,7 @@ public sealed class BotChallengeAttribute : Attribute, IAsyncActionFilter
             context.Result = new ObjectResult(new
             {
                 code = "BOT_CHALLENGE_FAILED",
-                message = "CAPTCHA verification failed.",
+                message = ApiLocalizedMessages.Resolve(context.HttpContext, "BOT_CHALLENGE_FAILED"),
                 reason = result.FailureReason
             })
             {

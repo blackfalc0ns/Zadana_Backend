@@ -91,9 +91,9 @@ public class AdminUpdateVendorHoursCommandHandler : IRequestHandler<AdminUpdateV
             vendor,
             new VendorCommunicationMessage(
                 "vendor_hours_updated",
-                "تم تحديث ساعات تشغيل المتجر",
+                "حدّثنا ساعات تشغيل المتجر",
                 "Vendor operating hours updated",
-                "تم تحديث ساعات تشغيل المتجر من لوحة الإدارة.",
+                "حدّثنا ساعات تشغيل المتجر من لوحة الإدارة.",
                 "Your store operating hours were updated by the admin team.",
                 "/profile",
                 vendor.Id),

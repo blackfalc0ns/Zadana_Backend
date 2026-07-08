@@ -397,9 +397,9 @@ public class DeliveryDispatchService : IDeliveryDispatchService
 
             await _notificationService.SendToUserAsync(
                 assignment.Order.Vendor.UserId,
-                "تم تعيين المندوب للطلب",
+                "عيّنا المندوب للطلب",
                 "Driver assigned to the order",
-                $"تم تعيين {driverName} ({vehicleType} - {plateNumber}) لطلب {assignment.Order.OrderNumber}. افتح تفاصيل الطلب لعرض رمز الاستلام المؤمّن.",
+                $"عيّنا {driverName} ({vehicleType} - {plateNumber}) لطلب {assignment.Order.OrderNumber}. افتح تفاصيل الطلب لعرض رمز الاستلام المؤمّن.",
                 $"{driverName} ({vehicleType} - {plateNumber}) has been assigned to order #{assignment.Order.OrderNumber}. Open the order details to view the secure pickup code.",
                 "vendor-driver-assigned",
                 assignment.OrderId,
@@ -786,7 +786,7 @@ public class DeliveryDispatchService : IDeliveryDispatchService
             new NotificationDispatchRequest(
                 "عرض توصيل جديد",
                 "New delivery offer",
-                $"لديك عرض توصيل جديد من {order.Vendor?.BusinessNameAr ?? best.Driver.User.FullName} ويجب الرد خلال ثوان قليلة.",
+                $"لديك عرض توصيل جديد من {order.Vendor?.BusinessNameAr ?? best.Driver.User.FullName} ولازم ترد خلال ثوان قليلة.",
                 "You have a new delivery offer and need to respond within a few seconds.",
                 NotificationTypes.DriverDeliveryOffer,
                 NotificationCategories.Dispatch,
@@ -810,7 +810,7 @@ public class DeliveryDispatchService : IDeliveryDispatchService
                 best.Driver.UserId.ToString(),
                 "عرض توصيل جديد",
                 "New delivery offer",
-                $"لديك عرض توصيل جديد من {order.Vendor?.BusinessNameAr ?? best.Driver.User.FullName} ويجب الرد عليه خلال ثوانٍ قليلة.",
+                $"لديك عرض توصيل جديد من {order.Vendor?.BusinessNameAr ?? best.Driver.User.FullName} ولازم ترد عليه خلال ثوانٍ قليلة.",
                 "You have a new delivery offer and need to respond within a few seconds.",
                 NotificationTypes.DriverDeliveryOffer,
                 order.Id,

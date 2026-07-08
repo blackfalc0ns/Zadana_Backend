@@ -99,7 +99,7 @@ public class UpdateVendorHoursCommandHandler : IRequestHandler<UpdateVendorHours
             vendor.UserId,
             "profile-hours-updated",
             "info",
-            "تم تحديث ساعات العمل من بوابة التاجر.",
+            "حدّثنا ساعات العمل من بوابة التاجر.",
             "بوابة التاجر",
             vendor.BusinessNameAr,
             userId,

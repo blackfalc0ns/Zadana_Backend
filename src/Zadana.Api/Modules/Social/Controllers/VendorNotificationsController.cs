@@ -97,7 +97,7 @@ public class VendorNotificationsController : ApiControllerBase
     {
         var userId = _currentUserService.UserId ?? throw new UnauthorizedException("USER_NOT_AUTHENTICATED");
         var count = await Sender.Send(new DeleteAllNotificationsCommand(userId), cancellationToken);
-        return Ok(new { count, message_ar = "تم حذف جميع الإشعارات", message_en = "All notifications deleted" });
+        return Ok(new { count, message_ar = "حذفنا جميع الإشعارات", message_en = "All notifications deleted" });
     }
 
     [HttpGet("preferences")]

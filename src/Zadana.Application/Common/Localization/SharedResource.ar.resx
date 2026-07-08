@@ -33,34 +33,34 @@
     <value>{PropertyName} مطلوب.</value>
   </data>
   <data name="MaxLength" xml:space="preserve">
-    <value>لا يمكن أن يتجاوز {PropertyName} عدد {MaxLength} حرفاً.</value>
+    <value>{PropertyName} لازم ما يتجاوز {MaxLength} حرف.</value>
   </data>
   <data name="InvalidEmail" xml:space="preserve">
-    <value>صيغة البريد الإلكتروني غير صالحة.</value>
+    <value>صيغة البريد الإلكتروني غير صحيحة.</value>
   </data>
   <data name="InvalidIdentifier" xml:space="preserve">
-    <value>أدخل رقم هاتف صحيحا أو بريدا إلكترونيا ينتهي بـ .com.</value>
+    <value>أدخل رقم جوال صحيح أو بريد إلكتروني ينتهي بـ .com.</value>
   </data>
   <data name="MinValue" xml:space="preserve">
-    <value>لا يمكن أن يكون {PropertyName} بالسالب.</value>
+    <value>{PropertyName} ما ينفع يكون بالسالب.</value>
   </data>
   <data name="GreaterThanZero" xml:space="preserve">
-    <value>يجب أن يكون {PropertyName} أكبر من الصفر.</value>
+    <value>لازم يكون {PropertyName} أكبر من صفر.</value>
   </data>
   <data name="InvalidRange" xml:space="preserve">
-    <value>قيمة {PropertyName} خارج النطاق المسموح به.</value>
+    <value>قيمة {PropertyName} خارج النطاق المسموح.</value>
   </data>
   <data name="InvalidEnum" xml:space="preserve">
-    <value>نوع أو قيمة {PropertyName} غير صالحة.</value>
+    <value>نوع أو قيمة {PropertyName} غير صحيحة.</value>
   </data>
   <data name="EitherVendorOrDriverRequired" xml:space="preserve">
-    <value>يجب توفير إما معرف البائع أو معرف السائق.</value>
+    <value>لازم ترسل معرّف التاجر أو معرّف المندوب.</value>
   </data>
   <data name="PercentageTooHigh" xml:space="preserve">
-    <value>لا يمكن أن تتجاوز النسبة 100.</value>
+    <value>النسبة لازم ما تتجاوز 100.</value>
   </data>
   <data name="InvalidDateRange" xml:space="preserve">
-    <value>يجب أن يكون تاريخ الانتهاء بعد تاريخ البدء.</value>
+    <value>تاريخ الانتهاء لازم يكون بعد تاريخ البدء.</value>
   </data>
   <data name="PhoneOrEmail" xml:space="preserve">
     <value>رقم الهاتف أو البريد الإلكتروني</value>
@@ -81,7 +81,7 @@
     <value>نوع المركبة</value>
   </data>
   <data name="NationalId" xml:space="preserve">
-    <value>الرقم القومي</value>
+    <value>رقم الهوية</value>
   </data>
   <data name="LicenseNumber" xml:space="preserve">
     <value>رقم الرخصة</value>
@@ -90,7 +90,7 @@
     <value>العنوان</value>
   </data>
   <data name="NationalIdImageUrl" xml:space="preserve">
-    <value>صورة بطاقة الرقم القومي</value>
+    <value>صورة بطاقة الهوية</value>
   </data>
   <data name="LicenseImageUrl" xml:space="preserve">
     <value>صورة الرخصة</value>
@@ -141,19 +141,19 @@
     <value>بيانات الدخول غير صحيحة.</value>
   </data>
   <data name="AccountNotFound" xml:space="preserve">
-    <value>لا يوجد حساب مسجل بهذا الرقم أو البريد الإلكتروني. يرجى إنشاء حساب أولاً.</value>
+    <value>ما لقينا حساب بهذا الرقم أو البريد. أنشئ حساب أولًا.</value>
   </data>
   <data name="UnauthorizedAppAccess" xml:space="preserve">
-    <value>غير مصرح لك بالدخول إلى هذا التطبيق.</value>
+    <value>ما عندك صلاحية دخول لهذا التطبيق.</value>
   </data>
   <data name="AccountLoginDenied" xml:space="preserve">
-    <value>تم رفض تسجيل الدخول. حالة الحساب هي {0}.</value>
+    <value>رفضنا تسجيل الدخول. حالة الحساب: {0}.</value>
   </data>
   <data name="InvalidRefreshToken" xml:space="preserve">
-    <value>رمز التحديث غير صالح أو منتهي الصلاحية.</value>
+    <value>رمز التحديث غير صحيح أو منتهي.</value>
   </data>
   <data name="UserAccountNotActive" xml:space="preserve">
-    <value>حساب المستخدم لم يعد نشطاً.</value>
+    <value>حساب المستخدم غير نشط.</value>
   </data>
   <data name="UserNotAuthenticated" xml:space="preserve">
     <value>المستخدم غير مسجل الدخول.</value>
@@ -195,79 +195,79 @@
     <value>رقم الهاتف أو البريد الإلكتروني</value>
   </data>
   <data name="OtpCode" xml:space="preserve">
-    <value>كود التفعيل</value>
+    <value>رمز التفعيل</value>
   </data>
   <data name="InvalidOtpLength" xml:space="preserve">
-    <value>يجب أن يتكون كود التفعيل من 4 أرقام.</value>
+    <value>رمز التفعيل لازم يكون 4 أرقام.</value>
   </data>
   <data name="AccountVerifiedSuccessfully" xml:space="preserve">
-    <value>تم تفعيل الحساب بنجاح.</value>
+    <value>فعّلنا الحساب بنجاح.</value>
   </data>
   <data name="OtpCodeMustBe4Digits" xml:space="preserve">
-    <value>يجب أن يتكون كود التفعيل من 4 أرقام.</value>
+    <value>رمز التفعيل لازم يكون 4 أرقام.</value>
   </data>
   <data name="NewPassword" xml:space="preserve">
     <value>كلمة المرور الجديدة</value>
   </data>
   <data name="PasswordMinLength" xml:space="preserve">
-    <value>يجب أن تتكون كلمة المرور من 8 أحرف على الأقل.</value>
+    <value>كلمة المرور لازم تكون 8 أحرف على الأقل.</value>
   </data>
   <data name="InvalidResetAttempt" xml:space="preserve">
-    <value>محاولة إعادة تعيين غير صالحة.</value>
+    <value>محاولة إعادة التعيين غير صحيحة.</value>
   </data>
   <data name="InvalidOrExpiredOtp" xml:space="preserve">
-    <value>كود التفعيل غير صالح أو منتهي الصلاحية.</value>
+    <value>رمز التفعيل غير صحيح أو منتهي.</value>
   </data>
   <data name="InvalidOrExpiredResetToken" xml:space="preserve">
-    <value>انتهت صلاحية جلسة إعادة تعيين كلمة المرور. يرجى التحقق من الرمز مرة أخرى.</value>
+    <value>انتهت جلسة إعادة تعيين كلمة المرور. تحقق من الرمز مرة ثانية.</value>
   </data>
   <data name="PasswordResetOtpVerified" xml:space="preserve">
-    <value>تم التحقق من الرمز. يمكنك الآن تعيين كلمة مرور جديدة.</value>
+    <value>تحققنا من الرمز. تقدر تعيّن كلمة مرور جديدة الآن.</value>
   </data>
   <data name="ResetToken" xml:space="preserve">
     <value>رمز إعادة التعيين</value>
   </data>
   <data name="InvalidResetToken" xml:space="preserve">
-    <value>رمز إعادة التعيين غير صالح.</value>
+    <value>رمز إعادة التعيين غير صحيح.</value>
   </data>
   <data name="PasswordResetOtpSent" xml:space="preserve">
-    <value>إذا كان الحساب مسجلا، فقد تم إرسال رمز إعادة تعيين كلمة السر إلى رقم الجوال.</value>
+    <value>إذا كان الحساب مسجل، أرسلنا رمز إعادة تعيين كلمة المرور إلى رقم الجوال.</value>
   </data>
   <data name="PasswordResetSuccess" xml:space="preserve">
-    <value>تم إعادة تعيين كلمة المرور بنجاح.</value>
+    <value>أعدنا تعيين كلمة المرور بنجاح.</value>
   </data>
   <data name="PasswordResetEmailSubject" xml:space="preserve">
-    <value>زادانا | رمز إعادة تعيين كلمة المرور</value>
+    <value>زادنا | رمز إعادة تعيين كلمة المرور</value>
   </data>
   <data name="PasswordResetEmailBody" xml:space="preserve">
-    <value><![CDATA[<div dir='rtl'>رمز إعادة تعيين كلمة المرور الخاص بك هو: <b>{0}</b><br/>هذا الرمز صالح لمدة 15 دقيقة فقط.</div>]]></value>
+    <value><![CDATA[<div dir='rtl'>رمز إعادة تعيين كلمة المرور حقك هو: <b>{0}</b><br/>الرمز صالح لمدة 15 دقيقة فقط.</div>]]></value>
   </data>
   <data name="VendorApprovedSuccessfully" xml:space="preserve">
-    <value>تمت الموافقة على التاجر بنجاح.</value>
+    <value>اعتمدنا التاجر بنجاح.</value>
   </data>
   <data name="VendorRejected" xml:space="preserve">
-    <value>تم رفض التاجر.</value>
+    <value>رفضنا التاجر.</value>
   </data>
   <data name="VendorSuspended" xml:space="preserve">
-    <value>تم تعليق التاجر.</value>
+    <value>علّقنا التاجر.</value>
   </data>
   <data name="VendorNotFound" xml:space="preserve">
     <value>التاجر غير موجود.</value>
   </data>
   <data name="VendorProfileUpdated" xml:space="preserve">
-    <value>تم تحديث ملف التاجر بنجاح.</value>
+    <value>حدّثنا ملف التاجر بنجاح.</value>
   </data>
   <data name="VendorInvalidStatusForApproval" xml:space="preserve">
-    <value>لا يمكن الموافقة على التاجر إلا من حالة قيد المراجعة. الحالة الحالية: {0}.</value>
+    <value>اعتماد التاجر متاح فقط من حالة قيد المراجعة. الحالة الحالية: {0}.</value>
   </data>
   <data name="VendorInvalidStatusForRejection" xml:space="preserve">
-    <value>لا يمكن رفض التاجر إلا من حالة قيد المراجعة. الحالة الحالية: {0}.</value>
+    <value>رفض التاجر متاح فقط من حالة قيد المراجعة. الحالة الحالية: {0}.</value>
   </data>
   <data name="VendorInvalidStatusForSuspension" xml:space="preserve">
-    <value>لا يمكن تعليق التاجر إلا من حالة نشط. الحالة الحالية: {0}.</value>
+    <value>تعليق التاجر متاح فقط من حالة نشط. الحالة الحالية: {0}.</value>
   </data>
   <data name="VendorInvalidStatusForReactivation" xml:space="preserve">
-    <value>لا يمكن إعادة تفعيل التاجر إلا من حالة معلق. الحالة الحالية: {0}.</value>
+    <value>إعادة تفعيل التاجر متاحة فقط من حالة معلّق. الحالة الحالية: {0}.</value>
   </data>
   <data name="VendorStatus_PendingReview" xml:space="preserve">
     <value>قيد المراجعة</value>
@@ -282,105 +282,105 @@
     <value>معلق</value>
   </data>
   <data name="InvalidCommissionRate" xml:space="preserve">
-    <value>نسبة العمولة يجب أن تكون بين 0 و 100.</value>
+    <value>نسبة العمولة لازم تكون بين 0 و 100.</value>
   </data>
   <data name="VENDOR_NOT_FOUND" xml:space="preserve">
-    <value>لم يتم العثور على التاجر بالمعرف '{0}'.</value>
+    <value>ما لقينا التاجر بالمعرف '{0}'.</value>
   </data>
   <data name="USER_NOT_FOUND" xml:space="preserve">
     <value>المستخدم غير موجود.</value>
   </data>
   <data name="USER_ALREADY_EXISTS" xml:space="preserve">
-    <value>البريد الإلكتروني أو رقم الهاتف مسجل بالفعل.</value>
+    <value>البريد أو رقم الجوال مسجل مسبقًا.</value>
   </data>
   <data name="CREATION_FAILED" xml:space="preserve">
-    <value>فشل إنشاء حساب المستخدم.</value>
+    <value>ما قدرنا ننشئ حساب المستخدم.</value>
   </data>
   <data name="VERIFICATION_FAILED" xml:space="preserve">
-    <value>فشل تفعيل الحساب.</value>
+    <value>ما قدرنا نفعّل الحساب.</value>
   </data>
   <data name="PASSWORD_RESET_FAILED" xml:space="preserve">
-    <value>فشل إعادة تعيين كلمة المرور.</value>
+    <value>ما قدرنا نعيد تعيين كلمة المرور.</value>
   </data>
   <data name="IDENTITY_OPERATION_FAILED" xml:space="preserve">
-    <value>ØªØ¹Ø°Ø± ØªØ­Ø¯ÙŠØ« Ø­Ø§Ù„Ø© Ø§Ù„Ø­Ø³Ø§Ø¨.</value>
+    <value>ما قدرنا نحدّث حالة الحساب.</value>
   </data>
   <data name="OtpSmsMessage" xml:space="preserve">
-    <value>رمز التحقق الخاص بك في زادنا هو: {0}</value>
+    <value>رمز التحقق من زادنا هو: {0}</value>
   </data>
   <data name="OtpEmailSubject" xml:space="preserve">
-    <value>زادنا | كود التحقق الخاص بك</value>
+    <value>زادنا | رمز التحقق حقك</value>
   </data>
   <data name="OtpEmailBody" xml:space="preserve">
     <value><![CDATA[
       <div style='font-family: sans-serif; direction: rtl; text-align: center; padding: 20px; border: 1px solid #eee; border-radius: 10px;'>
-          <h2 style='color: #333;'>زادنا - كود التحقق</h2>
-          <p style='font-size: 18px;'>كود التحقق الخاص بك هو:</p>
+          <h2 style='color: #333;'>زادنا - رمز التحقق</h2>
+          <p style='font-size: 18px;'>رمز التحقق حقك هو:</p>
           <div style='font-size: 32px; font-weight: bold; color: #4CAF50; margin: 20px 0; letter-spacing: 5px;'>{0}</div>
-          <p style='color: #666;'>هذا الكود صالح لمدة 5 دقائق فقط.</p>
+          <p style='color: #666;'>هذا الرمز صالح لمدة 5 دقائق فقط.</p>
       </div>
     ]]></value>
   </data>
   <data name="INSUFFICIENT_STOCK" xml:space="preserve">
-    <value>الكمية المطلوبة تتجاوز المخزون المتاح.</value>
+    <value>الكمية المطلوبة أكبر من المخزون المتاح.</value>
   </data>
   <data name="VENDOR_MISSING_CART_PRODUCT" xml:space="preserve">
-    <value>التاجر المختار لا يوفر كل المنتجات الموجودة حاليًا في العربة.</value>
+    <value>التاجر المختار ما يوفر كل المنتجات الموجودة في السلة.</value>
   </data>
   <data name="EMPTY_CART" xml:space="preserve">
-    <value>لا يمكنك إنشاء طلب بسلة فارغة.</value>
+    <value>ما تقدر تنشئ طلب والسلة فاضية.</value>
   </data>
   <data name="INVALID_PAYMENT" xml:space="preserve">
-    <value>طريقة الدفع غير صالحة.</value>
+    <value>طريقة الدفع غير صحيحة.</value>
   </data>
   <data name="NO_FILE_PROVIDED" xml:space="preserve">
-    <value>لم يتم توفير ملف.</value>
+    <value>ما وصلنا أي ملف.</value>
   </data>
   <data name="INVALID_FILE_EXTENSION" xml:space="preserve">
-    <value>امتداد الملف غير صالح. الامتدادات المسموحة هي: {0}</value>
+    <value>امتداد الملف غير مسموح. الامتدادات المسموحة: {0}</value>
   </data>
   <data name="FEATURE_UNDER_REFACTORING" xml:space="preserve">
-    <value>جاري إعادة بناء هذه الخاصية.</value>
+    <value>نشتغل على إعادة بناء هذه الخاصية.</value>
   </data>
   <data name="UNAUTHORIZED_VIEW_REQUESTS" xml:space="preserve">
-    <value>غير مصرح لك باستعراض هذه الطلبات.</value>
+    <value>ما عندك صلاحية لعرض هذه الطلبات.</value>
   </data>
   <data name="VENDOR_LOGIN_REQUIRED" xml:space="preserve">
-    <value>يجب أن تكون مسجلاً كتاجر.</value>
+    <value>لازم تكون مسجل دخول كتاجر.</value>
   </data>
   <data name="VENDORS_ONLY" xml:space="preserve">
-    <value>فقط التجار يمكنهم طلب منتجات جديدة.</value>
+    <value>طلب المنتجات الجديدة متاح للتجار فقط.</value>
   </data>
   <data name="UNAUTHORIZED_REVIEW_REQUESTS" xml:space="preserve">
-    <value>غير مصرح لك بمراجعة طلبات المنتجات.</value>
+    <value>ما عندك صلاحية لمراجعة طلبات المنتجات.</value>
   </data>
   <data name="REQUEST_ALREADY_REVIEWED" xml:space="preserve">
-    <value>هذا الطلب تمت مراجعته مسبقاً.</value>
+    <value>هذا الطلب راجعناه مسبقًا.</value>
   </data>
   <data name="REJECTION_REASON_REQUIRED" xml:space="preserve">
     <value>سبب الرفض مطلوب.</value>
   </data>
   <data name="EMAIL_ALREADY_IN_USE" xml:space="preserve">
-    <value>البريد الإلكتروني مسجل بالفعل.</value>
+    <value>البريد الإلكتروني مستخدم مسبقًا.</value>
   </data>
   <data name="INVALID_USER_ROLE" xml:space="preserve">
-    <value>دور المستخدم غير صالح.</value>
+    <value>دور المستخدم غير صحيح.</value>
   </data>
   <data name="VENDOR_NOT_VERIFIED" xml:space="preserve">
-    <value>لا يمكنك إضافة منتجات حتى يتم توثيق حسابك من الإدارة.</value>
+    <value>ما تقدر تضيف منتجات لين توثّق الإدارة حسابك.</value>
   </data>
   <data name="PRODUCT_REQUEST_APPROVED" xml:space="preserve">
-    <value>تمت الموافقة وتم إنشاء المنتج الأساسي بنجاح.</value>
+    <value>اعتمدنا الطلب وأنشأنا المنتج الأساسي بنجاح.</value>
   </data>
   <data name="PRODUCT_REQUEST_REJECTED" xml:space="preserve">
-    <value>تم رفض الطلب.</value>
+    <value>رفضنا الطلب.</value>
   </data>
   <data name="USER_NOT_AUTHENTICATED" xml:space="preserve">
-    <value>لم يتم التعرف على المستخدم أو انتهت الجلسة.</value>
+    <value>الجلسة منتهية أو المستخدم غير مسجل الدخول.</value>
   </data>
 
   <data name="ImageUrlTooLong" xml:space="preserve">
-    <value>رابط الصورة طويل جداً.</value>
+    <value>رابط الصورة طويل جدًا.</value>
   </data>
   <data name="RequestIdRequired" xml:space="preserve">
     <value>رقم الطلب مطلوب.</value>
@@ -389,124 +389,124 @@
     <value>سبب الرفض مطلوب في حالة الرفض.</value>
   </data>
   <data name="RejectionReasonTooLong" xml:space="preserve">
-    <value>سبب الرفض يجب ألا يتجاوز 500 حرف.</value>
+    <value>سبب الرفض لازم ما يتجاوز 500 حرف.</value>
   </data>
   <data name="OtpCooldown" xml:space="preserve">
-    <value>يرجى الانتظار {0} ثانية قبل إعادة المحاولة.</value>
+    <value>انتظر {0} ثانية قبل المحاولة مرة ثانية.</value>
   </data>
   <data name="OtpResentSuccessfully" xml:space="preserve">
-    <value>تمت إعادة إرسال رمز التحقق إلى رقم الجوال بنجاح.</value>
+    <value>أعدنا إرسال رمز التحقق إلى رقم الجوال بنجاح.</value>
   </data>
   <data name="OtpSentToEmail" xml:space="preserve">
-    <value>تم إرسال كود التحقق إلى بريدك الإلكتروني.</value>
+    <value>أرسلنا رمز التحقق إلى بريدك الإلكتروني.</value>
   </data>
   <data name="OtpSentToPhone" xml:space="preserve">
-    <value>تم إرسال كود التحقق إلى هاتفك.</value>
+    <value>أرسلنا رمز التحقق إلى جوالك.</value>
   </data>
   <data name="INVALID_WHATSAPP_PHONE_NUMBER" xml:space="preserve">
-    <value>رقم الجوال غير صالح لإرسال رمز التحقق عبر واتساب.</value>
+    <value>رقم الجوال غير صحيح لإرسال رمز التحقق عبر واتساب.</value>
   </data>
   <data name="WAPILOT_OTP_NOT_CONFIGURED" xml:space="preserve">
     <value>إرسال رمز التحقق عبر واتساب غير مهيأ.</value>
   </data>
   <data name="WAPILOT_INVALID_API_KEY" xml:space="preserve">
-    <value>مفتاح خدمة واتساب OTP غير صالح.</value>
+    <value>مفتاح خدمة واتساب OTP غير صحيح.</value>
   </data>
   <data name="WAPILOT_INSTANCE_SUSPENDED" xml:space="preserve">
     <value>حساب واتساب الخاص بإرسال رمز التحقق موقوف.</value>
   </data>
   <data name="WAPILOT_WHATSAPP_OTP_TIMEOUT" xml:space="preserve">
-    <value>انتهت مهلة إرسال رمز التحقق عبر واتساب. يرجى المحاولة مرة أخرى.</value>
+    <value>انتهت مهلة إرسال رمز التحقق عبر واتساب. فضلاً المحاولة مرة أخرى.</value>
   </data>
   <data name="WAPILOT_WHATSAPP_OTP_UNAVAILABLE" xml:space="preserve">
-    <value>خدمة إرسال رمز التحقق عبر واتساب غير متاحة حاليا. يرجى المحاولة مرة أخرى.</value>
+    <value>خدمة إرسال رمز التحقق عبر واتساب غير متاحة حاليا. فضلاً المحاولة مرة أخرى.</value>
   </data>
   <data name="WAPILOT_RATE_LIMITED" xml:space="preserve">
-    <value>تم تجاوز حد إرسال رموز التحقق عبر واتساب. يرجى المحاولة لاحقا.</value>
+    <value>تجاوزت حد إرسال رموز التحقق عبر واتساب. فضلاً حاول لاحقًا.</value>
   </data>
   <data name="WAPILOT_WHATSAPP_OTP_FAILED" xml:space="preserve">
-    <value>فشل إرسال رمز التحقق عبر واتساب. يرجى المحاولة مرة أخرى.</value>
+    <value>فشل إرسال رمز التحقق عبر واتساب. فضلاً المحاولة مرة أخرى.</value>
   </data>
   <data name="ValidationErrorTitle" xml:space="preserve">
     <value>خطأ في التحقق</value>
   </data>
   <data name="BusinessRuleViolationTitle" xml:space="preserve">
-    <value>مخالفة قواعد العمل</value>
+    <value>ما نقدر نكمل الطلب</value>
   </data>
   <data name="UnauthorizedTitle" xml:space="preserve">
-    <value>غير مصرح</value>
+    <value>ما عندك صلاحية</value>
   </data>
   <data name="ResourceNotFoundTitle" xml:space="preserve">
-    <value>المورد غير موجود</value>
+    <value>العنصر غير موجود</value>
   </data>
   <data name="ExternalServiceErrorTitle" xml:space="preserve">
-    <value>خطأ في خدمة خارجية</value>
+    <value>مشكلة في خدمة خارجية</value>
   </data>
   <data name="ServerErrorTitle" xml:space="preserve">
     <value>خطأ في الخادم</value>
   </data>
   <data name="ServerErrorMessage" xml:space="preserve">
-    <value>حدث خطأ غير متوقع. يرجى المحاولة مرة أخرى لاحقاً.</value>
+    <value>صار خطأ غير متوقع. جرّب مرة ثانية لاحقًا.</value>
   </data>
   <data name="InvalidProductId" xml:space="preserve">
-    <value>معرّف المنتج غير صالح.</value>
+    <value>معرّف المنتج غير صحيح.</value>
   </data>
   <data name="GuestFavoritesHeaderRequired" xml:space="preserve">
     <value>المستخدم غير مسجل الدخول. أرسل الهيدر {0} لاستخدام المفضلة كزائر.</value>
   </data>
   <data name="GuestCartHeaderRequired" xml:space="preserve">
-    <value>المستخدم غير مسجل الدخول. أرسل الهيدر {0} لاستخدام العربة كزائر.</value>
+    <value>المستخدم غير مسجل الدخول. أرسل الهيدر {0} لاستخدام السلة كزائر.</value>
   </data>
   <data name="FavoriteAddedSuccessfully" xml:space="preserve">
-    <value>تمت إضافة المنتج إلى المفضلة بنجاح.</value>
+    <value>أضفنا المنتج للمفضلة بنجاح.</value>
   </data>
   <data name="FavoriteRemovedSuccessfully" xml:space="preserve">
-    <value>تمت إزالة المنتج من المفضلة بنجاح.</value>
+    <value>أزلنا المنتج من المفضلة بنجاح.</value>
   </data>
   <data name="FavoritesClearedSuccessfully" xml:space="preserve">
-    <value>تم مسح المفضلة بنجاح.</value>
+    <value>مسحنا المفضلة بنجاح.</value>
   </data>
   <data name="BrandMustBeLinkedToSubcategory" xml:space="preserve">
-    <value>يجب ربط العلامة التجارية بتصنيف فرعي وليس بتصنيف رئيسي.</value>
+    <value>لازم تربط العلامة التجارية بتصنيف فرعي، مو بتصنيف رئيسي.</value>
   </data>
   <data name="AccountEmailNotVerified" xml:space="preserve">
-    <value>حسابك غير موثق بعد. يرجى تأكيده باستخدام رمز التحقق المرسل إلى رقم الجوال قبل تسجيل الدخول.</value>
+    <value>حسابك غير موثق بعد. فضلاً تأكيده باستخدام رمز التحقق المرسل إلى رقم الجوال قبل تسجيل الدخول.</value>
   </data>
   <data name="DRIVER_NOT_FOUND" xml:space="preserve">
-    <value>لم يتم العثور على حساب مندوب مرتبط بهذا المستخدم.</value>
+    <value>ما لقينا حساب مندوب مرتبط بهذا المستخدم.</value>
   </data>
   <data name="DRIVER_NOT_READY_FOR_DISPATCH" xml:space="preserve">
-    <value>يجب مراجعة حسابك والموافقة عليه من الإدارة قبل تنفيذ هذا الإجراء.</value>
+    <value>تحتاج مراجعة واعتماد من الإدارة قبل تنفيذ هذا الإجراء.</value>
   </data>
   <data name="DRIVER_NOT_ASSIGNED" xml:space="preserve">
     <value>أنت غير مخصص لهذا الطلب.</value>
   </data>
   <data name="PICKUP_OTP_REQUIRED" xml:space="preserve">
-    <value>يجب تأكيد رمز الاستلام من المتجر قبل تحديث حالة الطلب.</value>
+    <value>لازم تأكد رمز الاستلام من المتجر قبل تحديث حالة الطلب.</value>
   </data>
   <data name="DELIVERY_OTP_REQUIRED" xml:space="preserve">
-    <value>يجب تأكيد رمز التوصيل من العميل قبل إتمام الطلب.</value>
+    <value>لازم تأكد رمز التوصيل من العميل قبل إتمام الطلب.</value>
   </data>
   <data name="DELIVERY_FAILURE_NOTE_REQUIRED" xml:space="preserve">
-    <value>يجب كتابة سبب فشل التوصيل قبل تسجيله.</value>
+    <value>لازم تكتب سبب فشل التوصيل قبل تسجيله.</value>
   </data>
   <data name="INVALID_ORDER_STATUS_TRANSITION" xml:space="preserve">
-    <value>لا يمكن تغيير حالة الطلب في الوقت الحالي.</value>
+    <value>ما تقدر تغيّر حالة الطلب في الوقت الحالي.</value>
   </data>
   <data name="INVALID_ARRIVAL_STATE_TRANSITION" xml:space="preserve">
-    <value>لا يمكن تحديث حالة الوصول في المرحلة الحالية.</value>
+    <value>ما تقدر تحدّث حالة الوصول في المرحلة الحالية.</value>
   </data>
   <data name="PICKUP_REQUIRED_BEFORE_CUSTOMER_ARRIVAL" xml:space="preserve">
-    <value>يجب استلام الطلب من المتجر قبل تسجيل الوصول للعميل.</value>
+    <value>لازم تستلم الطلب من المتجر قبل تسجيل الوصول للعميل.</value>
   </data>
   <data name="PICKUP_OTP_PENDING" xml:space="preserve">
-    <value>يجب تأكيد رمز الاستلام من المتجر قبل تسجيل الوصول للعميل.</value>
+    <value>لازم تأكد رمز الاستلام من المتجر قبل تسجيل الوصول للعميل.</value>
   </data>
   <data name="VENDOR_ARRIVAL_REQUIRED" xml:space="preserve">
-    <value>يجب تسجيل الوصول للمتجر واستلام الطلب قبل الوصول للعميل.</value>
+    <value>لازم تسجل وصولك للمتجر وتستلم الطلب قبل الوصول للعميل.</value>
   </data>
   <data name="ASSIGNMENT_NOT_OWNED" xml:space="preserve">
-    <value>يمكنك تنفيذ هذا الإجراء فقط للطلبات المخصصة لك.</value>
+    <value>تقدر تنفّذ هذا الإجراء فقط للطلبات المخصصة لك.</value>
   </data>
   <data name="PICKUP_OTP_INVALID" xml:space="preserve">
     <value>رمز الاستلام غير صحيح. تأكد من الرمز وحاول مرة أخرى.</value>
@@ -515,10 +515,10 @@
     <value>رمز التوصيل غير صحيح. تأكد من الرمز وحاول مرة أخرى.</value>
   </data>
   <data name="INVALID_PROOF_STATE" xml:space="preserve">
-    <value>لا يمكن إرسال إثبات التوصيل إلا للطلبات النشطة.</value>
+    <value>ما تقدر ترسل إثبات التوصيل إلا للطلبات النشطة.</value>
   </data>
   <data name="DRIVER_SOFT_BLOCKED_BY_REJECTIONS" xml:space="preserve">
-    <value>تم تجاوز الحد المسموح به لرفض الطلبات. حاول لاحقاً.</value>
+    <value>تجاوزت الحد المسموح لرفض الطلبات. حاول لاحقًا.</value>
   </data>
   <data name="DRIVER_PAYOUT_METHOD_REQUIRED" xml:space="preserve">
     <value>أضف طريقة سحب أساسية قبل طلب السحب.</value>
@@ -543,173 +543,173 @@
     <value>لا يوجد تاجر واحد يمكنه توفير جميع المنتجات في السلة.</value>
   </data>
   <data name="CUSTOMER_ADDRESS_REQUIRED" xml:space="preserve">
-    <value>يجب إضافة عنوان توصيل قبل إتمام الطلب.</value>
+    <value>لازم تضيف عنوان توصيل قبل إتمام الطلب.</value>
   </data>
   <data name="DELIVERY_PRICING_UNAVAILABLE" xml:space="preserve">
-    <value>تعذر حساب تكلفة التوصيل. حاول مرة أخرى.</value>
+    <value>ما قدرنا نحسب تكلفة التوصيل. جرّب مرة ثانية.</value>
   </data>
   <data name="INVALID_PROMO_CODE" xml:space="preserve">
-    <value>كود الخصم غير صالح أو منتهي الصلاحية.</value>
+    <value>رمز الخصم غير صحيح أو منتهي.</value>
   </data>
   <data name="PROMO_MIN_ORDER_NOT_MET" xml:space="preserve">
-    <value>إجمالي الطلب لا يحقق الحد الأدنى المطلوب لاستخدام كود الخصم.</value>
+    <value>إجمالي الطلب لا يحقق الحد الأدنى المطلوب لاستخدام رمز الخصم.</value>
   </data>
   <data name="PROMO_CODE_NOT_APPLICABLE" xml:space="preserve">
-    <value>كود الخصم غير قابل للتطبيق على التاجر المحدد.</value>
+    <value>رمز الخصم غير قابل للتطبيق على التاجر المحدد.</value>
   </data>
   <data name="PAYMENT_METHOD_NOT_SUPPORTED" xml:space="preserve">
     <value>طريقة الدفع المحددة غير مدعومة.</value>
   </data>
   <data name="PAYMENT_UNAVAILABLE" xml:space="preserve">
-    <value>الدفع الإلكتروني غير متاح حالياً. جرب طريقة أخرى.</value>
+    <value>الدفع الإلكتروني غير متاح حاليًا. جرب طريقة أخرى.</value>
   </data>
   <data name="DELIVERY_SLOT_NOT_AVAILABLE" xml:space="preserve">
     <value>موعد التوصيل المحدد غير متاح.</value>
   </data>
   <data name="INVALID_QUANTITY" xml:space="preserve">
-    <value>الكمية يجب أن تكون أكبر من صفر.</value>
+    <value>الكمية لازم تكون أكبر من صفر.</value>
   </data>
   <data name="INVALID_PRICE" xml:space="preserve">
-    <value>السعر لا يمكن أن يكون بالسالب.</value>
+    <value>السعر ما ينفع يكون بالسالب.</value>
   </data>
   <data name="INVALID_AMOUNT" xml:space="preserve">
-    <value>المبلغ غير صالح.</value>
+    <value>المبلغ غير صحيح.</value>
   </data>
   <data name="INVALID_RATING" xml:space="preserve">
-    <value>التقييم يجب أن يكون بين 1 و 5.</value>
+    <value>التقييم لازم يكون بين 1 و 5.</value>
   </data>
   <data name="INVALID_VENDOR_REPLY" xml:space="preserve">
     <value>نص الرد مطلوب.</value>
   </data>
   <data name="INVALID_DISCOUNT" xml:space="preserve">
-    <value>قيمة الخصم غير صالحة.</value>
+    <value>قيمة الخصم غير صحيحة.</value>
   </data>
   <data name="INVALID_OTP" xml:space="preserve">
-    <value>كود التحقق غير صالح أو منتهي الصلاحية.</value>
+    <value>رمز التحقق غير صحيح أو منتهي.</value>
   </data>
   <data name="EMAIL_REQUIRED" xml:space="preserve">
     <value>البريد الإلكتروني مطلوب.</value>
   </data>
   <data name="OTP_COOLDOWN" xml:space="preserve">
-    <value>يرجى الانتظار قبل طلب كود تحقق جديد.</value>
+    <value>انتظر شوي قبل طلب رمز تحقق جديد.</value>
   </data>
   <data name="IDENTITY_UPDATE_FAILED" xml:space="preserve">
-    <value>فشل تحديث الملف الشخصي. حاول مرة أخرى.</value>
+    <value>ما قدرنا نحدّث الملف الشخصي. جرّب مرة ثانية.</value>
   </data>
   <data name="ACCOUNT_EMAIL_NOT_VERIFIED" xml:space="preserve">
-    <value>بريدك الإلكتروني غير موثق بعد. يرجى التحقق من الكود المرسل إلى بريدك.</value>
+    <value>بريدك الإلكتروني غير موثق بعد. فضلاً التحقق من الرمز المرسل إلى بريدك.</value>
   </data>
   <data name="INVALID_BILLING_DATA" xml:space="preserve">
     <value>بيانات الفوترة غير مكتملة.</value>
   </data>
   <data name="INVALID_REQUEST_BODY" xml:space="preserve">
-    <value>البيانات المرسلة مفقودة أو غير صالحة.</value>
+    <value>بيانات الطلب مطلوبة.</value>
   </data>
 
   <!-- ── Success Messages ──────────────────────────────────────── -->
 
   <!-- Checkout -->
   <data name="ORDER_PLACED_SUCCESS" xml:space="preserve">
-    <value>تم تقديم طلبك بنجاح</value>
+    <value>أرسلنا طلبك بنجاح</value>
   </data>
   <data name="ORDER_CANCELLED_SUCCESS" xml:space="preserve">
-    <value>تم إلغاء الطلب بنجاح</value>
+    <value>ألغينا الطلب بنجاح</value>
   </data>
   <data name="ORDER_DELETED_SUCCESS" xml:space="preserve">
-    <value>تم حذف الطلب بنجاح</value>
+    <value>حذفنا الطلب بنجاح</value>
   </data>
   <data name="PROMO_CODE_APPLIED" xml:space="preserve">
-    <value>تم تطبيق كود الخصم بنجاح</value>
+    <value>طبّقنا رمز الخصم بنجاح</value>
   </data>
   <data name="PROMO_CODE_REMOVED" xml:space="preserve">
-    <value>تم إزالة كود الخصم بنجاح</value>
+    <value>أزلنا رمز الخصم بنجاح</value>
   </data>
 
   <!-- Cart -->
   <data name="CART_ITEM_ADDED" xml:space="preserve">
-    <value>تمت إضافة المنتج إلى السلة</value>
+    <value>أضفنا المنتج للسلة</value>
   </data>
   <data name="CART_ITEM_UPDATED" xml:space="preserve">
-    <value>تم تحديث المنتج في السلة</value>
+    <value>حدّثنا المنتج في السلة</value>
   </data>
   <data name="CART_ITEM_REMOVED" xml:space="preserve">
-    <value>تم حذف المنتج من السلة</value>
+    <value>حذفنا المنتج من السلة</value>
   </data>
   <data name="CART_CLEARED" xml:space="preserve">
-    <value>تم تفريغ السلة بنجاح</value>
+    <value>فرّغنا السلة بنجاح</value>
   </data>
 
   <!-- Driver - Availability & Location -->
   <data name="DRIVER_AVAILABILITY_ON" xml:space="preserve">
-    <value>تم تفعيل التوفر</value>
+    <value>فعّلنا التوفر</value>
   </data>
   <data name="DRIVER_AVAILABILITY_OFF" xml:space="preserve">
-    <value>تم إيقاف التوفر</value>
+    <value>وقفنا التوفر</value>
   </data>
   <data name="DRIVER_LOCATION_UPDATED" xml:space="preserve">
-    <value>تم تحديث الموقع</value>
+    <value>حدّثنا الموقع</value>
   </data>
 
   <!-- Driver - Arrival -->
   <data name="DRIVER_ARRIVED_AT_VENDOR" xml:space="preserve">
-    <value>تم تسجيل وصولك للمتجر بنجاح</value>
+    <value>سجّلنا وصولك للمتجر بنجاح</value>
   </data>
   <data name="DRIVER_ARRIVED_AT_CUSTOMER" xml:space="preserve">
-    <value>تم تسجيل وصولك للعميل بنجاح</value>
+    <value>سجّلنا وصولك للعميل بنجاح</value>
   </data>
 
   <!-- Driver - Proof -->
   <data name="DELIVERY_PROOF_SUBMITTED" xml:space="preserve">
-    <value>تم إرسال إثبات التوصيل بنجاح</value>
+    <value>أرسلنا إثبات التوصيل بنجاح</value>
   </data>
 
   <!-- Driver - OTP -->
   <data name="PICKUP_OTP_VERIFIED" xml:space="preserve">
-    <value>تم التحقق من رمز الاستلام وتم تسليم الطلب</value>
+    <value>تحققنا من رمز الاستلام وعلّمنا الطلب كمستلم</value>
   </data>
   <data name="DELIVERY_OTP_VERIFIED" xml:space="preserve">
-    <value>تم التحقق من رمز التوصيل وتم توصيل الطلب بنجاح</value>
+    <value>تحققنا من رمز التوصيل وعلّمنا الطلب كمسلّم</value>
   </data>
   <data name="PICKUP_OTP_ALREADY_VERIFIED" xml:space="preserve">
-    <value>تم التحقق من رمز الاستلام بالفعل</value>
+    <value>رمز الاستلام متحقق منه مسبقًا</value>
   </data>
   <data name="DELIVERY_OTP_ALREADY_VERIFIED" xml:space="preserve">
-    <value>تم التحقق من رمز التوصيل بالفعل</value>
+    <value>رمز التوصيل متحقق منه مسبقًا</value>
   </data>
 
   <!-- Driver - Order Status -->
   <data name="ORDER_STATUS_UPDATED" xml:space="preserve">
-    <value>تم تحديث حالة الطلب بنجاح</value>
+    <value>حدّثنا حالة الطلب بنجاح</value>
   </data>
 
   <!-- Driver - Offer -->
   <data name="OFFER_ACCEPTED" xml:space="preserve">
-    <value>تم قبول العرض بنجاح</value>
+    <value>قبلنا العرض بنجاح</value>
   </data>
   <data name="OFFER_REJECTED" xml:space="preserve">
-    <value>تم رفض العرض. بانتظار العرض التالي</value>
+    <value>رفضنا العرض. بانتظار العرض التالي</value>
   </data>
 
   <!-- Notifications -->
   <data name="NOTIFICATION_MARKED_READ" xml:space="preserve">
-    <value>تم تحديد الإشعار كمقروء</value>
+    <value>علّمنا الإشعار كمقروء</value>
   </data>
   <data name="ALL_NOTIFICATIONS_MARKED_READ" xml:space="preserve">
-    <value>تم تحديد جميع الإشعارات كمقروءة</value>
+    <value>علّمنا كل الإشعارات كمقروءة</value>
   </data>
 
   <!-- Payments -->
   <data name="PAYMENT_CONFIRMED_SUCCESS" xml:space="preserve">
-    <value>تم تأكيد الدفع بنجاح</value>
+    <value>أكدنا الدفع بنجاح</value>
   </data>
   <data name="PAYMENT_ALREADY_CONFIRMED" xml:space="preserve">
-    <value>تم تأكيد الدفع بالفعل</value>
+    <value>الدفع مؤكد مسبقًا</value>
   </data>
   <data name="PAYMENT_STILL_PENDING" xml:space="preserve">
-    <value>الدفع لا يزال قيد الانتظار</value>
+    <value>الدفع ما زال بانتظار المعالجة</value>
   </data>
   <data name="PAYMENT_CONFIRMATION_FAILED" xml:space="preserve">
-    <value>فشل تأكيد الدفع</value>
+    <value>ما قدرنا نؤكد الدفع</value>
   </data>
 
   <!-- ── Error Messages (Missing) ──────────────────────────────── -->
@@ -719,51 +719,51 @@
     <value>حالة الحساب البنكي لا تسمح بهذا الإجراء.</value>
   </data>
   <data name="BANK_NOT_VERIFIED" xml:space="preserve">
-    <value>الحساب البنكي لم يتم التحقق منه بعد.</value>
+    <value>الحساب البنكي لم يتحققنا منه بعد.</value>
   </data>
   <data name="INSUFFICIENT_FUNDS" xml:space="preserve">
-    <value>رصيد غير كافٍ لإتمام هذه العملية.</value>
+    <value>رصيد غير كافي لإتمام هذه العملية.</value>
   </data>
   <data name="INVALID_WITHDRAWAL_AMOUNT" xml:space="preserve">
-    <value>مبلغ السحب يجب أن يكون أكبر من صفر.</value>
+    <value>مبلغ السحب لازم يكون أكبر من صفر.</value>
   </data>
   <data name="INVALID_HOLD_RELEASE" xml:space="preserve">
-    <value>لا يمكن تحرير هذا الحجز.</value>
+    <value>ما تقدر تحرر هذا الحجز.</value>
   </data>
   <data name="INVALID_HOLD_SETTLE" xml:space="preserve">
-    <value>لا يمكن تسوية هذا الحجز.</value>
+    <value>ما تقدر تسوّي هذا الحجز.</value>
   </data>
   <data name="PAYOUT_INVALID_STATUS" xml:space="preserve">
-    <value>لا يمكن تعديل المدفوعات في حالتها الحالية.</value>
+    <value>ما تقدر تعدّل المدفوعات في حالتها الحالية.</value>
   </data>
 
   <!-- Categories / Brands -->
   <data name="BRAND_CATEGORY_MISMATCH" xml:space="preserve">
-    <value>العلامة التجارية لا تنتمي للفئة المحددة.</value>
+    <value>العلامة التجارية لا تنتمي للتصنيف المحددة.</value>
   </data>
   <data name="BRAND_CATEGORY_MUST_BE_NESTED" xml:space="preserve">
-    <value>فئة العلامة التجارية يجب أن تكون فئة فرعية.</value>
+    <value>تصنيف العلامة التجارية لازم تكون تصنيف فرعية.</value>
   </data>
   <data name="BRAND_REQUEST_NOT_APPROVED" xml:space="preserve">
-    <value>طلب العلامة التجارية لم تتم الموافقة عليه بعد.</value>
+    <value>طلب العلامة التجارية ما اعتمدناه للحين.</value>
   </data>
   <data name="CATEGORY_DEPTH_EXCEEDED" xml:space="preserve">
-    <value>تم تجاوز الحد الأقصى لعمق الفئات.</value>
+    <value>تجاوزت الحد الأقصى لعمق الفئات.</value>
   </data>
   <data name="CATEGORY_LEVEL_NOT_SUPPORTED" xml:space="preserve">
-    <value>مستوى الفئة هذا غير مدعوم.</value>
+    <value>مستوى التصنيف هذا غير مدعوم.</value>
   </data>
   <data name="CATEGORY_PARENT_REQUIRED" xml:space="preserve">
-    <value>الفئة الأم مطلوبة.</value>
+    <value>التصنيف الرئيسي مطلوب.</value>
   </data>
   <data name="CATEGORY_REQUEST_NOT_APPROVED" xml:space="preserve">
-    <value>طلب الفئة لم تتم الموافقة عليه بعد.</value>
+    <value>طلب التصنيف ما اعتمدناه للحين.</value>
   </data>
   <data name="INVALID_CATEGORY_PARENT_LEVEL" xml:space="preserve">
-    <value>الفئة الأم المحددة لا تتوافق مع المستوى المطلوب.</value>
+    <value>التصنيف الرئيسي المحدد ما يتوافق مع المستوى المطلوب.</value>
   </data>
   <data name="INVALID_CATEGORY_TARGET_LEVEL" xml:space="preserve">
-    <value>مستوى الفئة المستهدف غير صالح.</value>
+    <value>مستوى التصنيف المستهدف غير صحيح.</value>
   </data>
 
   <!-- Delivery / Dispatch -->
@@ -774,7 +774,7 @@
     <value>عرض التوصيل هذا لم يعد متاحاً.</value>
   </data>
   <data name="NO_ASSIGNED_DRIVER" xml:space="preserve">
-    <value>لم يتم العثور على مندوب مخصص لهذا الطلب.</value>
+    <value>ما لقينا مندوب مخصص لهذا الطلب.</value>
   </data>
 
   <!-- Identity -->
@@ -802,39 +802,39 @@
 
   <!-- Orders -->
   <data name="ORDER_ALREADY_PAID" xml:space="preserve">
-    <value>تم تأكيد دفع الطلب بالفعل.</value>
+    <value>أكدنا دفع الطلب مسبقًا.</value>
   </data>
   <data name="ORDER_CANNOT_BE_CANCELLED" xml:space="preserve">
-    <value>لا يمكن إلغاء الطلب في مرحلته الحالية.</value>
+    <value>ما تقدر إلغاء الطلب في مرحلته الحالية.</value>
   </data>
   <data name="ORDER_DELETE_NOT_ALLOWED" xml:space="preserve">
-    <value>يمكن حذف الطلبات غير المدفوعة في انتظار الدفع فقط.</value>
+    <value>يمكن حذف الطلبات غير المدفوعة بانتظار الدفع فقط.</value>
   </data>
   <data name="ORDER_COMPLAINT_ALREADY_EXISTS" xml:space="preserve">
-    <value>تم تقديم شكوى لهذا الطلب بالفعل.</value>
+    <value>أرسلنا شكوى لهذا الطلب مسبقًا.</value>
   </data>
 
   <!-- Catalog / Products -->
   <data name="INVALID_DATE_RANGE" xml:space="preserve">
-    <value>تاريخ الانتهاء يجب أن يكون أكبر من أو يساوي تاريخ البداية.</value>
+    <value>تاريخ الانتهاء لازم يكون أكبر من أو يساوي تاريخ البداية.</value>
   </data>
   <data name="INVALID_DIRECTION" xml:space="preserve">
-    <value>اتجاه الترتيب غير صالح.</value>
+    <value>اتجاه الترتيب غير صحيح.</value>
   </data>
   <data name="INVALID_DISPLAY_ORDER" xml:space="preserve">
-    <value>ترتيب العرض لا يمكن أن يكون سالباً.</value>
+    <value>ترتيب العرض ما ينفع يكون بالسالب.</value>
   </data>
   <data name="INVALID_ID" xml:space="preserve">
-    <value>المعرّف المقدم غير صالح.</value>
+    <value>المعرّف المقدم غير صحيح.</value>
   </data>
   <data name="INVALID_STATUS" xml:space="preserve">
-    <value>حالة غير صالحة لهذا الإجراء.</value>
+    <value>حالة غير صحيحة لهذا الإجراء.</value>
   </data>
   <data name="INVALID_STOCK" xml:space="preserve">
-    <value>كمية المخزون لا يمكن أن تكون سالبة.</value>
+    <value>كمية المخزون ما ينفع تكون بالسالب.</value>
   </data>
   <data name="INVALID_TIME_FORMAT" xml:space="preserve">
-    <value>يجب أن يكون الوقت بصيغة HH:mm أو HH:mm:ss.</value>
+    <value>لازم يكون الوقت بصيغة HH:mm أو HH:mm:ss.</value>
   </data>
 
   <!-- Featured / Home Sections -->
@@ -842,51 +842,51 @@
     <value>المنتج الرئيسي المحدد غير مؤهل للعرض المميز.</value>
   </data>
   <data name="INVALID_FEATURED_PLACEMENT" xml:space="preserve">
-    <value>إعداد العرض المميز غير صالح.</value>
+    <value>إعداد العرض المميز غير صحيح.</value>
   </data>
   <data name="INVALID_FEATURED_PLACEMENT_TYPE" xml:space="preserve">
-    <value>نوع العرض المميز غير صالح.</value>
+    <value>نوع العرض المميز غير صحيح.</value>
   </data>
   <data name="INVALID_FEATURED_VENDOR_PRODUCT" xml:space="preserve">
     <value>منتج التاجر المحدد غير مؤهل للعرض المميز.</value>
   </data>
   <data name="INVALID_HOME_CONTENT_SECTION_TYPE" xml:space="preserve">
-    <value>نوع قسم الصفحة الرئيسية غير صالح.</value>
+    <value>نوع قسم الصفحة الرئيسية غير صحيح.</value>
   </data>
   <data name="INVALID_HOME_SECTION_CATEGORY" xml:space="preserve">
-    <value>الفئة مطلوبة لهذا القسم.</value>
+    <value>التصنيف مطلوب لهذا القسم.</value>
   </data>
   <data name="INVALID_HOME_SECTION_PRODUCTS_TAKE" xml:space="preserve">
-    <value>عدد المنتجات يجب أن يكون بين 1 و 20.</value>
+    <value>عدد المنتجات لازم يكون بين 1 و 20.</value>
   </data>
   <data name="INVALID_HOME_SECTION_SUBCATEGORY" xml:space="preserve">
-    <value>يجب أن يشير القسم إلى فئة فرعية.</value>
+    <value>لازم يشير القسم إلى تصنيف فرعي.</value>
   </data>
 
   <!-- Vendor -->
   <data name="VENDOR_ARCHIVED" xml:space="preserve">
-    <value>لا يمكن إعادة تفعيل التجار المؤرشفين.</value>
+    <value>ما تقدر تعيد تفعيل التجار المؤرشفين.</value>
   </data>
   <data name="VENDOR_LOGIN_LOCKED" xml:space="preserve">
     <value>قم بفتح قفل تسجيل الدخول بدلاً من إعادة التفعيل.</value>
   </data>
   <data name="VendorAlreadyApproved" xml:space="preserve">
-    <value>التاجر موافق عليه بالفعل ولا يحتاج إلى موافقة أخرى.</value>
+    <value>التاجر معتمد مسبقًا وما يحتاج اعتماد مرة ثانية.</value>
   </data>
   <data name="VendorInvalidStatusForLock" xml:space="preserve">
-    <value>لا يمكن قفل التاجر في حالته الحالية.</value>
+    <value>ما تقدر تقفل التاجر في حالته الحالية.</value>
   </data>
   <data name="VendorRejectionReasonRequired" xml:space="preserve">
-    <value>يجب تقديم سبب واضح للرفض.</value>
+    <value>لازم ترسل سبب واضح للرفض.</value>
   </data>
   <data name="VendorSuspensionReasonRequired" xml:space="preserve">
-    <value>يجب تقديم سبب واضح للتعليق.</value>
+    <value>لازم ترسل سبب واضح للتعليق.</value>
   </data>
   <data name="InvalidMinimumOrderAmount" xml:space="preserve">
-    <value>الحد الأدنى لمبلغ الطلب غير صالح.</value>
+    <value>الحد الأدنى لمبلغ الطلب غير صحيح.</value>
   </data>
   <data name="InvalidPreparationTimeMinutes" xml:space="preserve">
-    <value>وقت التحضير غير صالح.</value>
+    <value>وقت التحضير غير صحيح.</value>
   </data>
 
   <!-- Coupons -->
@@ -894,7 +894,7 @@
     <value>الكوبون</value>
   </data>
   <data name="CouponCodeField" xml:space="preserve">
-    <value>كود الكوبون</value>
+    <value>رمز الكوبون</value>
   </data>
   <data name="CouponTitleField" xml:space="preserve">
     <value>عنوان الكوبون</value>
@@ -915,10 +915,1299 @@
     <value>الحد لكل عميل</value>
   </data>
   <data name="DUPLICATE_COUPON_CODE" xml:space="preserve">
-    <value>كود الكوبون مستخدم بالفعل.</value>
+    <value>رمز الكوبون مستخدم مسبقًا.</value>
   </data>
   <data name="COUPON_NOT_FOUND" xml:space="preserve">
     <value>الكوبون غير موجود.</value>
   </data>
+  <data name="PRODUCT_TYPE_HAS_PRODUCTS" xml:space="preserve">
+    <value>ما تقدر تحذف النوع لأنه مرتبط بمنتجات.</value>
+  </data>
+  <data name="PRODUCT_TYPE_HAS_PARTS" xml:space="preserve">
+    <value>ما تقدر تحذف النوع لأنه يحتوي أجزاء.</value>
+  </data>
+  <data name="PART_HAS_PRODUCTS" xml:space="preserve">
+    <value>ما تقدر تحذف الجزء لأنه مرتبط بمنتجات.</value>
+  </data>
+  <data name="INVALID_DELIVERY_PRICING" xml:space="preserve">
+    <value>مبالغ تسعير التوصيل ما ينفع تكون بالسالب.</value>
+  </data>
+  <data name="INVALID_SURGE_MULTIPLIER" xml:space="preserve">
+    <value>البيانات غير صحيح.</value>
+  </data>
+  <data name="DRIVER_SERVICE_AREA_REQUIRED" xml:space="preserve">
+    <value>لازم تختار المنطقة والمدينة اللي بيشتغل فيها المندوب.</value>
+  </data>
+  <data name="INVALID_OTP_TYPE" xml:space="preserve">
+    <value>نوع رمز التحقق مطلوب.</value>
+  </data>
+  <data name="NOT_ASSIGNED_TO_ORDER" xml:space="preserve">
+    <value>ما قدرنا نكمل العملية بسبب الطلب. راجع البيانات وجرّب مرة ثانية.</value>
+  </data>
+  <data name="DRIVER_PAYOUT_METHOD_IN_USE" xml:space="preserve">
+    <value>ما تقدر تحذف طريقة السحب لأنها مرتبطة بطلبات سحب سابقة أو حالية.</value>
+  </data>
+  <data name="DRIVER_PAYOUT_METHOD_NOT_FOUND" xml:space="preserve">
+    <value>طريقة السحب المحددة غير موجودة لهذا المندوب.</value>
+  </data>
+  <data name="DRIVER_COD_DEBT_NOT_SETTLED" xml:space="preserve">
+    <value>لازم تسدد مبالغ الدفع عند الاستلام المستحقة قبل طلب السحب.</value>
+  </data>
+  <data name="DRIVER_WALLET_ACCESS_BLOCKED" xml:space="preserve">
+    <value>الوصول للمحفظة متاح بعد ما يكون حساب المندوب نشط ومعتمد.</value>
+  </data>
+  <data name="DRIVER_BANK_ACCOUNT_REQUIRED" xml:space="preserve">
+    <value>السحب يدعم الحساب البنكي فقط.</value>
+  </data>
+  <data name="DRIVER_BANK_IBAN_INVALID" xml:space="preserve">
+    <value>حساب المندوب لازم يكون IBAN سعودي صحيح.</value>
+  </data>
+  <data name="INVALID_UPLOAD_DIRECTORY" xml:space="preserve">
+    <value>البيانات غير صحيح.</value>
+  </data>
+  <data name="VENDOR_VERIFIED_BANK_ACCOUNT_REQUIRED" xml:space="preserve">
+    <value>لازم يكون لدى التاجر حساب بنكي أساسي موثّق قبل اعتماد تسوية الدفعة البنكية.</value>
+  </data>
+  <data name="VENDOR_BANK_IBAN_INVALID" xml:space="preserve">
+    <value>الحساب البنكي الأساسي للتاجر لازم يكون IBAN سعودي صحيح قبل اعتماد تسوية الدفعة البنكية.</value>
+  </data>
+  <data name="APPROVER_REQUIRED" xml:space="preserve">
+    <value>لازم يكون فيه معتمد مسجل الدخول.</value>
+  </data>
+  <data name="SELF_APPROVAL_BLOCKED" xml:space="preserve">
+    <value>ما تقدر تعتمد أو ترفض طلب وصول خاص بك.</value>
+  </data>
+  <data name="ADMIN_REVIEWER_REQUIRED" xml:space="preserve">
+    <value>لازم يكون فيه مشرف مراجع مسجل الدخول.</value>
+  </data>
+  <data name="BRANCH_NAME_REQUIRED" xml:space="preserve">
+    <value>اسم الفرع مطلوب.</value>
+  </data>
+  <data name="BRANCH_ADDRESS_REQUIRED" xml:space="preserve">
+    <value>عنوان الفرع مطلوب.</value>
+  </data>
+  <data name="BRANCH_MANAGER_NAME_REQUIRED" xml:space="preserve">
+    <value>اسم مدير الفرع مطلوب.</value>
+  </data>
+  <data name="BRANCH_MANAGER_CONTACT_REQUIRED" xml:space="preserve">
+    <value>بيانات تواصل مدير الفرع مطلوبة.</value>
+  </data>
+  <data name="BRANCH_REGION_REQUIRED" xml:space="preserve">
+    <value>الفرع المنطقة مطلوب.</value>
+  </data>
+  <data name="BRANCH_CITY_REQUIRED" xml:space="preserve">
+    <value>الفرع المدينة مطلوب.</value>
+  </data>
+  <data name="BRANCH_CODE_CONFLICT" xml:space="preserve">
+    <value>ما قدرنا نكمل العملية بسبب الفرع. راجع البيانات وجرّب مرة ثانية.</value>
+  </data>
+  <data name="BRANCH_LATITUDE_INVALID" xml:space="preserve">
+    <value>الفرع غير صحيح.</value>
+  </data>
+  <data name="BRANCH_LONGITUDE_INVALID" xml:space="preserve">
+    <value>الفرع غير صحيح.</value>
+  </data>
+  <data name="BRANCH_RADIUS_INVALID" xml:space="preserve">
+    <value>نطاق التوصيل لازم يكون أكبر من صفر.</value>
+  </data>
+  <data name="INVITATION_ALREADY_ACCEPTED" xml:space="preserve">
+    <value>الدعوة مقبولة مسبقًا.</value>
+  </data>
+  <data name="INVITATION_REVOKED" xml:space="preserve">
+    <value>الدعوة ملغاة.</value>
+  </data>
+  <data name="PRIMARY_BRANCH_DELETE_FORBIDDEN" xml:space="preserve">
+    <value>ما تقدر تحذف الفرع الرئيسي.</value>
+  </data>
+  <data name="BRANCH_DELETE_BLOCKED_PRODUCTS" xml:space="preserve">
+    <value>ما تقدر تحذف الفرع لأن فيه منتجات مرتبطة فيه.</value>
+  </data>
+  <data name="BRANCH_DELETE_BLOCKED_ORDERS" xml:space="preserve">
+    <value>ما تقدر تحذف الفرع لأن فيه طلبات مرتبطة فيه.</value>
+  </data>
+  <data name="BRANCH_DELETE_BLOCKED_STAFF" xml:space="preserve">
+    <value>ما تقدر تحذف الفرع لأن فيه موظفين عندهم وصول عليه.</value>
+  </data>
+  <data name="BRANCH_DELETE_BLOCKED_INVITATIONS" xml:space="preserve">
+    <value>ما تقدر تحذف الفرع لأن فيه دعوات مرتبطة فيه.</value>
+  </data>
+  <data name="INVITATION_TOKEN_REQUIRED" xml:space="preserve">
+    <value>رمز الدعوة مطلوب.</value>
+  </data>
+  <data name="STAFF_ALREADY_EXISTS" xml:space="preserve">
+    <value>هذا البريد عنده وصول لهذا التاجر مسبقًا.</value>
+  </data>
+  <data name="INVITATION_BRANCH_SCOPE_INVALID" xml:space="preserve">
+    <value>الفرع غير صحيح.</value>
+  </data>
+  <data name="SINGLE_BRANCH_SCOPE_REQUIRED" xml:space="preserve">
+    <value>الفرع مطلوب.</value>
+  </data>
+  <data name="INVALID_BRANCH_SCOPE" xml:space="preserve">
+    <value>معرّف فرع الدعوة غير صحيح.</value>
+  </data>
+  <data name="TARGET_NAME_REQUIRED" xml:space="preserve">
+    <value>اسم مستلم الدعوة مطلوب.</value>
+  </data>
+  <data name="BRANCH_SCOPE_REQUIRED" xml:space="preserve">
+    <value>الفرع مطلوب.</value>
+  </data>
+  <data name="INVALID_EMAIL" xml:space="preserve">
+    <value>عنوان البريد الإلكتروني غير صحيح.</value>
+  </data>
+  <data name="INVALID_HOME_SECTION_THEME" xml:space="preserve">
+    <value>نمط القسم غير صحيح.</value>
+  </data>
+  <data name="INVALID_NOTE" xml:space="preserve">
+    <value>الملاحظة مطلوبة.</value>
+  </data>
+  <data name="DRIVER_CITY_MISMATCH" xml:space="preserve">
+    <value>ما نقدر نعيّن المندوب لأن مدينته مختلفة عن مدينة المتجر والعميل.</value>
+  </data>
+  <data name="INVALID_DISPATCH_STATE" xml:space="preserve">
+    <value>البيانات غير صحيح.</value>
+  </data>
+  <data name="ORDER_SUPPORT_CASE_ALREADY_EXISTS" xml:space="preserve">
+    <value>فيه حالة دعم نشطة لهذا الطلب مسبقًا.</value>
+  </data>
+  <data name="INVALID_VENDOR_ID" xml:space="preserve">
+    <value>التاجر غير صحيح.</value>
+  </data>
+  <data name="INVALID_ADDRESS_ID" xml:space="preserve">
+    <value>البيانات غير صحيح.</value>
+  </data>
+  <data name="INVALID_FILE" xml:space="preserve">
+    <value>الملف غير صحيح.</value>
+  </data>
+  <data name="INVALID_PAYMENT_METHOD" xml:space="preserve">
+    <value>الدفع غير صحيح.</value>
+  </data>
+  <data name="ORDER_NOT_PENDING_BANK" xml:space="preserve">
+    <value>الطلب مو بانتظار تأكيد التحويل البنكي.</value>
+  </data>
+  <data name="BANK_TRANSFER_REFERENCE_REQUIRED" xml:space="preserve">
+    <value>البيانات مطلوبة.</value>
+  </data>
+  <data name="BANK_TRANSFER_WEBHOOK_NOT_CONFIGURED" xml:space="preserve">
+    <value>ما قدرنا نكمل العملية بسبب البيانات. راجع البيانات وجرّب مرة ثانية.</value>
+  </data>
+  <data name="BANK_TRANSFER_WEBHOOK_INVALID_SECRET" xml:space="preserve">
+    <value>سر Webhook للتحويل البنكي غير صحيح.</value>
+  </data>
+  <data name="REASON_REQUIRED" xml:space="preserve">
+    <value>سبب الرفض مطلوب.</value>
+  </data>
+  <data name="REQUIRED_FIELD" xml:space="preserve">
+    <value>البيانات مطلوبة.</value>
+  </data>
+  <data name="MOYASAR_SECRET_KEY_REQUIRED" xml:space="preserve">
+    <value>البيانات مطلوبة.</value>
+  </data>
+  <data name="PLATFORM_BANK_ACCOUNT_REQUIRED" xml:space="preserve">
+    <value>البيانات مطلوبة.</value>
+  </data>
+  <data name="MOYASAR_PAYOUT_ACCOUNT_CREDENTIALS_REQUIRED" xml:space="preserve">
+    <value>الدفعة مطلوب.</value>
+  </data>
+  <data name="MOYASAR_PAYOUT_ACCOUNT_ID_MISSING" xml:space="preserve">
+    <value>ما قدرنا نكمل العملية بسبب الدفعة. راجع البيانات وجرّب مرة ثانية.</value>
+  </data>
+  <data name="INVALID_WALLET_OWNER" xml:space="preserve">
+    <value>المحفظة غير صحيح.</value>
+  </data>
+  <data name="PAYOUT_ORCHESTRATOR_REQUIRED" xml:space="preserve">
+    <value>خدمة تنسيق الدفعات مطلوبة.</value>
+  </data>
+  <data name="PAYOUT_GATEWAY_UNAVAILABLE" xml:space="preserve">
+    <value>دفعات Moyasar غير مفعّلة. أرسل مرجع تحويل للمعالجة اليدوية.</value>
+  </data>
+  <data name="BRAND_HAS_PRODUCTS" xml:space="preserve">
+    <value>ما تقدر تحذف العلامة التجارية لأنها مرتبطة بمنتجات. أزل المنتجات أو انقلها أولًا.</value>
+  </data>
+  <data name="IDS_REQUIRED" xml:space="preserve">
+    <value>لازم تختار علامة تجارية واحدة على الأقل.</value>
+  </data>
+  <data name="TOO_MANY_IDS" xml:space="preserve">
+    <value>ما تقدر تحذف أكثر من 50 علامة تجارية دفعة واحدة.</value>
+  </data>
+  <data name="CATEGORY_HAS_SUBCATEGORIES" xml:space="preserve">
+    <value>ما تقدر تحذف التصنيف لأنه يحتوي تصنيفات فرعية.</value>
+  </data>
+  <data name="CATEGORY_HAS_PRODUCTS" xml:space="preserve">
+    <value>ما تقدر تحذف التصنيف لأنه مرتبط بمنتجات.</value>
+  </data>
+  <data name="CATEGORY_HAS_BRANDS" xml:space="preserve">
+    <value>ما تقدر تحذف التصنيف لأنه مرتبط بعلامات تجارية.</value>
+  </data>
+  <data name="CATEGORY_HAS_PRODUCT_TYPES" xml:space="preserve">
+    <value>ما تقدر تحذف التصنيف لأنه مرتبط بأنواع منتجات.</value>
+  </data>
+  <data name="CATEGORY_HAS_REQUESTS" xml:space="preserve">
+    <value>ما تقدر تحذف التصنيف لأنه مرتبط بطلبات كتالوج.</value>
+  </data>
+  <data name="CATEGORY_HAS_HISTORY" xml:space="preserve">
+    <value>ما تقدر تحذف التصنيف لأنه مرتبط بسجلات أو أقسام عرض حالية.</value>
+  </data>
+  <data name="CATEGORY_CIRCULAR_REFERENCE" xml:space="preserve">
+    <value>ما تقدر تعيّن هذا التصنيف كأب لأنه يسبب حلقة مرجعية.</value>
+  </data>
+  <data name="DUPLICATE_VARIANT" xml:space="preserve">
+    <value>ما قدرنا نكمل العملية بسبب البيانات. راجع البيانات وجرّب مرة ثانية.</value>
+  </data>
+  <data name="TRADE_PRICE_REQUIRED" xml:space="preserve">
+    <value>سعر التوريد مطلوب.</value>
+  </data>
+  <data name="VENDOR_PRODUCT_ALREADY_EXISTS" xml:space="preserve">
+    <value>التاجر مستخدم أو معالج مسبقًا.</value>
+  </data>
+  <data name="PRODUCT_HAS_VENDOR_LISTINGS" xml:space="preserve">
+    <value>ما تقدر تحذف المنتج لأنه مدرج عند تجار. أزل إدراجات التجار أولًا.</value>
+  </data>
+  <data name="PRODUCT_HAS_ORDER_HISTORY" xml:space="preserve">
+    <value>ما تقدر تحذف المنتج لأنه مرتبط بطلبات سابقة.</value>
+  </data>
+  <data name="PRODUCT_IN_ACTIVE_CARTS" xml:space="preserve">
+    <value>ما تقدر تحذف المنتج لأنه موجود في سلات نشطة.</value>
+  </data>
+  <data name="PRODUCT_DISCONTINUED" xml:space="preserve">
+    <value>ما قدرنا نكمل العملية بسبب المنتج. راجع البيانات وجرّب مرة ثانية.</value>
+  </data>
+  <data name="PRODUCT_REQUEST_BRAND_CONFLICT" xml:space="preserve">
+    <value>ما قدرنا نكمل العملية بسبب المنتج. راجع البيانات وجرّب مرة ثانية.</value>
+  </data>
+  <data name="PRODUCT_REQUEST_CATEGORY_CONFLICT" xml:space="preserve">
+    <value>ما قدرنا نكمل العملية بسبب المنتج. راجع البيانات وجرّب مرة ثانية.</value>
+  </data>
+  <data name="INVALID_MEASUREMENT_VALUE" xml:space="preserve">
+    <value>قيمة القياس لازم تكون أكبر من صفر.</value>
+  </data>
+  <data name="PRODUCT_REQUEST_ALREADY_PENDING" xml:space="preserve">
+    <value>المنتج مستخدم أو معالج مسبقًا.</value>
+  </data>
+  <data name="PRODUCT_ALREADY_EXISTS" xml:space="preserve">
+    <value>المنتج مستخدم أو معالج مسبقًا.</value>
+  </data>
+  <data name="UNIT_HAS_PRODUCTS" xml:space="preserve">
+    <value>ما تقدر تحذف الوحدة لأنها مرتبطة بمنتجات.</value>
+  </data>
+  <data name="VENDOR_PRODUCT_DELETE_BLOCKED_BY_ORDERS" xml:space="preserve">
+    <value>ما قدرنا نحذف المنتج الحين. تأكد إنه غير مرتبط بطلبات أو حملات.</value>
+  </data>
+  <data name="VENDOR_PRODUCT_DELETE_BLOCKED_BY_MARKETING" xml:space="preserve">
+    <value>ما قدرنا نحذف المنتج الحين. تأكد إنه غير مرتبط بطلبات أو حملات.</value>
+  </data>
+  <data name="BRAND_REQUEST_ALREADY_PENDING" xml:space="preserve">
+    <value>العلامة التجارية مستخدم أو معالج مسبقًا.</value>
+  </data>
+  <data name="CATEGORY_ALREADY_EXISTS" xml:space="preserve">
+    <value>التصنيف مستخدم أو معالج مسبقًا.</value>
+  </data>
+  <data name="CATEGORY_REQUEST_ALREADY_PENDING" xml:space="preserve">
+    <value>التصنيف مستخدم أو معالج مسبقًا.</value>
+  </data>
+  <data name="BANK_TRANSFER_UNAVAILABLE" xml:space="preserve">
+    <value>ما قدرنا نكمل العملية بسبب البيانات. راجع البيانات وجرّب مرة ثانية.</value>
+  </data>
+  <data name="PROMO_CODE_USAGE_LIMIT_REACHED" xml:space="preserve">
+    <value>ما قدرنا نكمل العملية بسبب الكوبون. راجع البيانات وجرّب مرة ثانية.</value>
+  </data>
+  <data name="PROMO_CODE_USER_LIMIT_REACHED" xml:space="preserve">
+    <value>ما قدرنا نكمل العملية بسبب الكوبون. راجع البيانات وجرّب مرة ثانية.</value>
+  </data>
+  <data name="DRIVER_DOCUMENT_NOT_REVIEWABLE" xml:space="preserve">
+    <value>مستند المندوب المحدد ناقص أو غير مرفوع.</value>
+  </data>
+  <data name="DRIVER_DOCUMENT_EXPIRED" xml:space="preserve">
+    <value>المستند منتهي، ولا نقدر نعتمده لين يرفع المندوب نسخة مجددة.</value>
+  </data>
+  <data name="DRIVER_DOCUMENTS_EXPIRED" xml:space="preserve">
+    <value>ما تقدر ترفع قيود المندوب وفيه مستندات مطلوبة منتهية.</value>
+  </data>
+  <data name="DRIVER_NOT_APPROVED" xml:space="preserve">
+    <value>ما تقدر ترفع قيود المندوب قبل اعتماد حسابه.</value>
+  </data>
+  <data name="DRIVER_NOT_ELIGIBLE_FOR_REACTIVATION" xml:space="preserve">
+    <value>ما قدرنا نكمل العملية بسبب المندوب. راجع البيانات وجرّب مرة ثانية.</value>
+  </data>
+  <data name="DRIVER_DOCUMENTS_NOT_APPROVED" xml:space="preserve">
+    <value>لازم تعتمد كل مستندات المندوب المطلوبة قبل الاعتماد النهائي للحساب.</value>
+  </data>
+  <data name="DRIVER_NOT_ELIGIBLE_FOR_UNBAN" xml:space="preserve">
+    <value>ما قدرنا نكمل العملية بسبب المندوب. راجع البيانات وجرّب مرة ثانية.</value>
+  </data>
+  <data name="DRIVER_LOCATION_UPDATES_BLOCKED" xml:space="preserve">
+    <value>تحديثات الموقع موقوفة لهذا الحساب، لذلك ما تقدر تفعّل التوفر.</value>
+  </data>
+  <data name="EMAIL_CENTER_NO_RECIPIENTS" xml:space="preserve">
+    <value>ما قدرنا نكمل العملية بسبب البريد الإلكتروني. راجع البيانات وجرّب مرة ثانية.</value>
+  </data>
+  <data name="EMAIL_CENTER_SUBJECT_REQUIRED" xml:space="preserve">
+    <value>البريد الإلكتروني مطلوب.</value>
+  </data>
+  <data name="EMAIL_CENTER_SCOPE_REQUIRED" xml:space="preserve">
+    <value>البريد الإلكتروني مطلوب.</value>
+  </data>
+  <data name="EMAIL_CENTER_INVALID_AUDIENCE" xml:space="preserve">
+    <value>البريد الإلكتروني غير صحيح.</value>
+  </data>
+  <data name="EMAIL_CENTER_INVALID_SENDER_PROFILE" xml:space="preserve">
+    <value>البريد الإلكتروني غير صحيح.</value>
+  </data>
+  <data name="EMAIL_CENTER_RULE_ID_MISMATCH" xml:space="preserve">
+    <value>ما قدرنا نكمل العملية بسبب البريد الإلكتروني. راجع البيانات وجرّب مرة ثانية.</value>
+  </data>
+  <data name="INVALID_FILE_CONTENT_TYPE" xml:space="preserve">
+    <value>نوع محتوى الملف المرفوع غير مسموح به.</value>
+  </data>
+  <data name="INVALID_FILE_SIGNATURE" xml:space="preserve">
+    <value>محتوى الملف المرفوع لا يتطابق مع نوع الملف المعلن. تأكد من رفع ملف PDF أو صورة صالحة.</value>
+  </data>
+  <data name="INVALID_RECOVERY" xml:space="preserve">
+    <value>مبلغ استرجاع التاجر المطبق على توزيع الإيرادات ما ينفع يكون بالسالب.</value>
+  </data>
+  <data name="REVENUE_DISTRIBUTION_NEGATIVE" xml:space="preserve">
+    <value>ما قدرنا نكمل العملية بسبب البيانات. راجع البيانات وجرّب مرة ثانية.</value>
+  </data>
+  <data name="PAYOUT_ALREADY_CLOSED" xml:space="preserve">
+    <value>الدفعة مستخدم أو معالج مسبقًا.</value>
+  </data>
+  <data name="PAYOUT_PROVIDER_REFERENCE_REQUIRED" xml:space="preserve">
+    <value>معرّف أو رقم تسلسل الدفعة من المزوّد مطلوب.</value>
+  </data>
+  <data name="PAYOUT_ALREADY_PAID" xml:space="preserve">
+    <value>الدفعة مستخدم أو معالج مسبقًا.</value>
+  </data>
+  <data name="UNSUPPORTED_PAYOUT_OWNER" xml:space="preserve">
+    <value>ما قدرنا نكمل العملية بسبب الدفعة. راجع البيانات وجرّب مرة ثانية.</value>
+  </data>
+  <data name="VENDOR_BANK_ACCOUNT_REQUIRED" xml:space="preserve">
+    <value>حساب التاجر البنكي مطلوب قبل إرسال الدفعة.</value>
+  </data>
+  <data name="DRIVER_WITHDRAWAL_REQUIRED" xml:space="preserve">
+    <value>المندوب مطلوب.</value>
+  </data>
+  <data name="PAYOUT_BENEFICIARY_NAME_REQUIRED" xml:space="preserve">
+    <value>اسم صاحب الحساب المستفيد مطلوب.</value>
+  </data>
+  <data name="PAYOUT_BENEFICIARY_IBAN_REQUIRED" xml:space="preserve">
+    <value>IBAN المستفيد مطلوب.</value>
+  </data>
+  <data name="PAYOUT_BENEFICIARY_MOBILE_REQUIRED" xml:space="preserve">
+    <value>رقم جوال المستفيد مطلوب.</value>
+  </data>
+  <data name="PAYOUT_BENEFICIARY_IBAN_INVALID" xml:space="preserve">
+    <value>IBAN المستفيد لازم يكون IBAN سعودي صحيح.</value>
+  </data>
+  <data name="SETTLEMENT_APPROVAL_REQUIRED" xml:space="preserve">
+    <value>التسوية مطلوب.</value>
+  </data>
+  <data name="ADMIN_PANEL_CREATE_ONLY" xml:space="preserve">
+    <value>إنشاء حسابات لوحة المشرف عام متاح من دليل الوصول فقط.</value>
+  </data>
+  <data name="ROLE_INACTIVE" xml:space="preserve">
+    <value>ما قدرنا نكمل العملية بسبب الدور. راجع البيانات وجرّب مرة ثانية.</value>
+  </data>
+  <data name="SELF_ACCESS_CHANGE_BLOCKED" xml:space="preserve">
+    <value>ما تقدر تعيد تعيين كلمة مرورك من إدارة الوصول.</value>
+  </data>
+  <data name="PASSWORD_REQUIRED" xml:space="preserve">
+    <value>كلمة المرور المؤقتة مطلوبة.</value>
+  </data>
+  <data name="ROLE_CODE_EXISTS" xml:space="preserve">
+    <value>فيه دور بهذا الاسم مسبقًا.</value>
+  </data>
+  <data name="ROLE_NAME_REQUIRED" xml:space="preserve">
+    <value>اسم الدور مطلوب.</value>
+  </data>
+  <data name="ROLE_NAME_TOO_LONG" xml:space="preserve">
+    <value>ما قدرنا نكمل العملية بسبب الدور. راجع البيانات وجرّب مرة ثانية.</value>
+  </data>
+  <data name="ROLE_DESCRIPTION_TOO_LONG" xml:space="preserve">
+    <value>ما قدرنا نكمل العملية بسبب الدور. راجع البيانات وجرّب مرة ثانية.</value>
+  </data>
+  <data name="ROLE_CODE_INVALID" xml:space="preserve">
+    <value>الدور غير صحيح.</value>
+  </data>
+  <data name="CANNOT_DELETE_SYSTEM_ROLE" xml:space="preserve">
+    <value>ما قدرنا نكمل العملية بسبب الدور. راجع البيانات وجرّب مرة ثانية.</value>
+  </data>
+  <data name="ROLE_IN_USE" xml:space="preserve">
+    <value>ما تقدر تحذف دور مسند لمستخدمين.</value>
+  </data>
+  <data name="CANNOT_UPDATE_SYSTEM_ROLE" xml:space="preserve">
+    <value>ما قدرنا نكمل العملية بسبب الدور. راجع البيانات وجرّب مرة ثانية.</value>
+  </data>
+  <data name="ROLE_ASSIGNMENT_SCOPE_LOCKED" xml:space="preserve">
+    <value>ما قدرنا نكمل العملية بسبب الدور. راجع البيانات وجرّب مرة ثانية.</value>
+  </data>
+  <data name="ROLE_REQUIRED" xml:space="preserve">
+    <value>الدور مطلوب.</value>
+  </data>
+  <data name="ROLE_USER_MISMATCH" xml:space="preserve">
+    <value>ما قدرنا نكمل العملية بسبب الدور. راجع البيانات وجرّب مرة ثانية.</value>
+  </data>
+  <data name="ROLE_SCOPE_MISMATCH" xml:space="preserve">
+    <value>ما قدرنا نكمل العملية بسبب الدور. راجع البيانات وجرّب مرة ثانية.</value>
+  </data>
+  <data name="INVALID_SCOPE_ENTITY" xml:space="preserve">
+    <value>البيانات غير صحيح.</value>
+  </data>
+  <data name="LAST_SUPER_ADMIN_PROTECTED" xml:space="preserve">
+    <value>ما تقدر توقف أو تنزّل صلاحية آخر مشرف عام نشط.</value>
+  </data>
+  <data name="ACCESS_APPROVAL_REQUIRED" xml:space="preserve">
+    <value>تغيير الصلاحية يحتاج اعتماد قبل تطبيقه.</value>
+  </data>
+  <data name="INVALID_FEATURED_SELECTION_MODE" xml:space="preserve">
+    <value>وضع اختيار المنتجات المميزة غير صحيح.</value>
+  </data>
+  <data name="INCOMPLETE_VENDOR_PRICING" xml:space="preserve">
+    <value>ما قدرنا نكمل العملية بسبب التاجر. راجع البيانات وجرّب مرة ثانية.</value>
+  </data>
+  <data name="ORDER_PAYMENT_NOT_CONFIRMED" xml:space="preserve">
+    <value>لازم يتأكد الدفع قبل ما يقدر التاجر يعالج الطلب.</value>
+  </data>
+  <data name="ORDER_ITEM_VENDOR_PRODUCT_MISSING" xml:space="preserve">
+    <value>ما قدرنا نكمل العملية بسبب التاجر. راجع البيانات وجرّب مرة ثانية.</value>
+  </data>
+  <data name="VENDOR_RESPONSE_NOT_ALLOWED" xml:space="preserve">
+    <value>ما قدرنا نكمل العملية بسبب التاجر. راجع البيانات وجرّب مرة ثانية.</value>
+  </data>
+  <data name="ORDER_COMPLAINT_NOT_ALLOWED" xml:space="preserve">
+    <value>ما قدرنا نكمل العملية بسبب الطلب. راجع البيانات وجرّب مرة ثانية.</value>
+  </data>
+  <data name="ORDER_RETURN_NOT_ALLOWED" xml:space="preserve">
+    <value>طلبات الإرجاع مسموحة فقط للطلبات المسلّمة.</value>
+  </data>
+  <data name="DUPLICATE_RETURN_REQUEST" xml:space="preserve">
+    <value>ما قدرنا نكمل العملية بسبب الاسترجاع. راجع البيانات وجرّب مرة ثانية.</value>
+  </data>
+  <data name="RETURN_REFUND_AMOUNT_REQUIRED" xml:space="preserve">
+    <value>الاسترجاع مطلوب.</value>
+  </data>
+  <data name="ORDER_REQUIRED_FOR_REFUND" xml:space="preserve">
+    <value>الطلب مطلوب.</value>
+  </data>
+  <data name="ORDER_FULLY_REFUNDED" xml:space="preserve">
+    <value>ما قدرنا نكمل العملية بسبب الطلب. راجع البيانات وجرّب مرة ثانية.</value>
+  </data>
+  <data name="NO_PAYMENT_FOUND" xml:space="preserve">
+    <value>ما تقدر تصدر استرجاع: ما لقينا دفعة مؤكدة لهذا الطلب.</value>
+  </data>
+  <data name="INVALID_RETURN_COMPENSATION_METHOD" xml:space="preserve">
+    <value>الاسترجاع غير صحيح.</value>
+  </data>
+  <data name="COUPON_CODE_GENERATION_FAILED" xml:space="preserve">
+    <value>ما قدرنا نكمل العملية بسبب الكوبون. راجع البيانات وجرّب مرة ثانية.</value>
+  </data>
+  <data name="INVALID_SUPPORT_CASE_TYPE" xml:space="preserve">
+    <value>البيانات غير صحيح.</value>
+  </data>
+  <data name="PAYMENT_ORDER_MISMATCH" xml:space="preserve">
+    <value>ما قدرنا نكمل العملية بسبب الطلب. راجع البيانات وجرّب مرة ثانية.</value>
+  </data>
+  <data name="ORDER_PAYMENT_RETRY_NOT_ALLOWED" xml:space="preserve">
+    <value>ما قدرنا نكمل العملية بسبب الطلب. راجع البيانات وجرّب مرة ثانية.</value>
+  </data>
+  <data name="DEVICE_TOKEN_REQUIRED" xml:space="preserve">
+    <value>رمز الجهاز مطلوب.</value>
+  </data>
+  <data name="INVALID_PUSH_PLATFORM" xml:space="preserve">
+    <value>البيانات غير صحيح.</value>
+  </data>
+  <data name="INVALID_ONESIGNAL_SUBSCRIPTION" xml:space="preserve">
+    <value>البيانات غير صحيح.</value>
+  </data>
+  <data name="DEVICE_IDENTIFIER_REQUIRED" xml:space="preserve">
+    <value>معرّف الجهاز أو رمزه مطلوب.</value>
+  </data>
+  <data name="PrimaryBankAccountRequiredForDirectPayout" xml:space="preserve">
+    <value>ما قدرنا نكمل العملية بسبب الدفعة. راجع البيانات وجرّب مرة ثانية.</value>
+  </data>
+  <data name="VerifiedPrimaryBankAccountRequiredForDirectPayout" xml:space="preserve">
+    <value>ما قدرنا نكمل العملية بسبب الدفعة. راجع البيانات وجرّب مرة ثانية.</value>
+  </data>
+  <data name="ValidSaudiIbanRequiredForDirectPayout" xml:space="preserve">
+    <value>ما قدرنا نكمل العملية بسبب الدفعة. راجع البيانات وجرّب مرة ثانية.</value>
+  </data>
+  <data name="VendorApprovalRequirementsIncomplete" xml:space="preserve">
+    <value>ما تقدر تعتمد التاجر قبل اعتماد الحقول والمستندات والحساب البنكي المطلوبة.</value>
+  </data>
+  <data name="INVALID_OPERATING_HOUR_TIME" xml:space="preserve">
+    <value>البيانات غير صحيح.</value>
+  </data>
+  <data name="VendorReviewArchived" xml:space="preserve">
+    <value>ما تقدر تغيّر مراجعة الامتثال لتاجر مؤرشف.</value>
+  </data>
+  <data name="VendorReviewSuspended" xml:space="preserve">
+    <value>ما تقدر تغيّر مراجعة الامتثال وحساب التاجر معلّق.</value>
+  </data>
+  <data name="VendorReviewClosed" xml:space="preserve">
+    <value>مراجعة الامتثال مقفلة لأن التاجر معتمد.</value>
+  </data>
+  <data name="VendorReviewLocked" xml:space="preserve">
+    <value>ما تقدر تغيّر مراجعة الامتثال وحساب التاجر مقفل.</value>
+  </data>
+  <data name="VendorDocumentMissing" xml:space="preserve">
+    <value>ما تقدر تراجع هذا المستند قبل رفعه أو إكماله.</value>
+  </data>
+  <data name="TRANSFER_REFERENCE_REQUIRED" xml:space="preserve">
+    <value>البيانات مطلوبة.</value>
+  </data>
+  <data name="INVALID_PRODUCT_NAME" xml:space="preserve">
+    <value>اسم المنتج بالعربي مطلوب.</value>
+  </data>
+  <data name="INVALID_PRODUCT_SLUG" xml:space="preserve">
+    <value>رابط المنتج المختصر مطلوب.</value>
+  </data>
+  <data name="INVALID_CATEGORY" xml:space="preserve">
+    <value>التصنيف مطلوب.</value>
+  </data>
+  <data name="INVALID_STATUS_TRANSITION" xml:space="preserve">
+    <value>ما تقدر ترجع المنتج إلى حالة المسودة.</value>
+  </data>
+  <data name="MAX_IMAGES_EXCEEDED" xml:space="preserve">
+    <value>ما قدرنا نكمل العملية بسبب الملف. راجع البيانات وجرّب مرة ثانية.</value>
+  </data>
+  <data name="INVALID_COST_PRICE" xml:space="preserve">
+    <value>سعر التكلفة ما ينفع يكون بالسالب.</value>
+  </data>
+  <data name="INVALID_TRADE_PRICE" xml:space="preserve">
+    <value>سعر التوريد لازم يكون أكبر من صفر.</value>
+  </data>
+  <data name="INVALID_PROVIDER_NAME" xml:space="preserve">
+    <value>اسم المزوّد مطلوب.</value>
+  </data>
+  <data name="INVALID_PROVIDER_SETTLEMENT_ID" xml:space="preserve">
+    <value>معرّف تسوية المزوّد مطلوب.</value>
+  </data>
+  <data name="INVALID_SETTLEMENT_AMOUNTS" xml:space="preserve">
+    <value>مبالغ تسوية بوابة الدفع ما ينفع تكون بالسالب.</value>
+  </data>
+  <data name="SETTLEMENT_ITEM_CURRENCY_MISMATCH" xml:space="preserve">
+    <value>ما قدرنا نكمل العملية بسبب التسوية. راجع البيانات وجرّب مرة ثانية.</value>
+  </data>
+  <data name="INVALID_PROVIDER_PAYMENT_ID" xml:space="preserve">
+    <value>معرّف دفعة المزوّد مطلوب.</value>
+  </data>
+  <data name="INVALID_SETTLEMENT_ITEM_AMOUNTS" xml:space="preserve">
+    <value>مبالغ عنصر التسوية ما ينفع تكون بالسالب.</value>
+  </data>
+  <data name="APPROVAL_NOT_USABLE" xml:space="preserve">
+    <value>طلب الاعتماد ما عاد قابل للاستخدام.</value>
+  </data>
+  <data name="APPROVAL_ALREADY_DECIDED" xml:space="preserve">
+    <value>طلب الاعتماد انحسم مسبقًا.</value>
+  </data>
+  <data name="INVALID_FEATURED_TARGET_COUNT" xml:space="preserve">
+    <value>عدد المنتجات المميزة المستهدف ما ينفع يكون بالسالب.</value>
+  </data>
+  <data name="INVALID_FEATURED_MIN_SALES_COUNT" xml:space="preserve">
+    <value>حد المبيعات الأدنى للمنتجات المميزة ما ينفع يكون بالسالب.</value>
+  </data>
+  <data name="INVALID_FEATURED_MIN_STORE_COUNT" xml:space="preserve">
+    <value>حد المتاجر الأدنى للمنتجات المميزة ما ينفع يكون بالسالب.</value>
+  </data>
+  <data name="INVALID_VENDOR_PROFIT" xml:space="preserve">
+    <value>ربح التاجر لكل وحدة ما ينفع يكون بالسالب.</value>
+  </data>
+  <data name="CASE_ALREADY_APPROVED" xml:space="preserve">
+    <value>البيانات مستخدم أو معالج مسبقًا.</value>
+  </data>
+  <data name="CASE_RESOLVE_NOT_ALLOWED" xml:space="preserve">
+    <value>ما تقدر تحل حالة مرفوضة.</value>
+  </data>
+  <data name="INVALID_SUPPORT_CASE_ROLE" xml:space="preserve">
+    <value>الدور غير صحيح.</value>
+  </data>
+  <data name="EMPTY_SUPPORT_CASE_MESSAGE" xml:space="preserve">
+    <value>نص الرسالة مطلوب.</value>
+  </data>
+  <data name="INVALID_CASE_AMOUNT" xml:space="preserve">
+    <value>المبلغ لازم يكون أكبر من صفر.</value>
+  </data>
+  <data name="INVALID_IDEMPOTENCY_KEY" xml:space="preserve">
+    <value>مفتاح منع التكرار مطلوب.</value>
+  </data>
+  <data name="INVALID_PROVIDER_EVENT_ID" xml:space="preserve">
+    <value>معرّف حدث المزوّد مطلوب.</value>
+  </data>
+  <data name="INVALID_EVENT_TYPE" xml:space="preserve">
+    <value>نوع الحدث مطلوب.</value>
+  </data>
+  <data name="INVALID_PAYLOAD" xml:space="preserve">
+    <value>البيانات الخام مطلوبة.</value>
+  </data>
+  <data name="REFUND_COST_BEARER_REQUIRED" xml:space="preserve">
+    <value>متحمّل تكلفة الاسترجاع مطلوب.</value>
+  </data>
+  <data name="INVALID_REFUND_ALLOCATION" xml:space="preserve">
+    <value>مبالغ توزيع الاسترجاع ما ينفع تكون بالسالب.</value>
+  </data>
+  <data name="INVALID_USER_ID" xml:space="preserve">
+    <value>معرّف المستخدم مطلوب.</value>
+  </data>
+  <data name="INVALID_BUSINESS_NAME_AR" xml:space="preserve">
+    <value>اسم النشاط بالعربي مطلوب.</value>
+  </data>
+  <data name="INVALID_BUSINESS_NAME_EN" xml:space="preserve">
+    <value>اسم النشاط بالإنجليزي مطلوب.</value>
+  </data>
+  <data name="INVALID_BUSINESS_TYPE" xml:space="preserve">
+    <value>نوع النشاط مطلوب.</value>
+  </data>
+  <data name="INVALID_CR_NUMBER" xml:space="preserve">
+    <value>رقم السجل التجاري مطلوب.</value>
+  </data>
+  <data name="INVALID_CONTACT_EMAIL" xml:space="preserve">
+    <value>بريد التواصل مطلوب.</value>
+  </data>
+  <data name="INVALID_CONTACT_PHONE" xml:space="preserve">
+    <value>رقم جوال التواصل مطلوب.</value>
+  </data>
+  <data name="VendorNotActive" xml:space="preserve">
+    <value>تعديل العمولة متاح للتاجر النشط فقط.</value>
+  </data>
+  <data name="VendorInvalidStatusForReopen" xml:space="preserve">
+    <value>إعادة فتح المراجعة متاحة للتجار المرفوضين فقط.</value>
+  </data>
+  <data name="VendorLockReasonRequired" xml:space="preserve">
+    <value>لازم تدخل سبب قفل واضح.</value>
+  </data>
+  <data name="VendorArchiveReasonRequired" xml:space="preserve">
+    <value>لازم تدخل سبب أرشفة واضح.</value>
+  </data>
+  <data name="INVALID_BANK_NAME" xml:space="preserve">
+    <value>اسم البنك مطلوب.</value>
+  </data>
+  <data name="INVALID_ACCOUNT_HOLDER" xml:space="preserve">
+    <value>اسم صاحب الحساب مطلوب.</value>
+  </data>
+  <data name="INVALID_IBAN" xml:space="preserve">
+    <value>IBAN مطلوب.</value>
+  </data>
+  <data name="INVALID_IBAN_LENGTH" xml:space="preserve">
+    <value>IBAN غير صحيح.</value>
+  </data>
+  <data name="INVALID_IBAN_FORMAT" xml:space="preserve">
+    <value>IBAN غير صحيح.</value>
+  </data>
+  <data name="VENDOR_SUPPORT_TICKET_CLOSED" xml:space="preserve">
+    <value>ما قدرنا نكمل العملية بسبب التاجر. راجع البيانات وجرّب مرة ثانية.</value>
+  </data>
+  <data name="INVALID_VENDOR_SUPPORT_MESSAGE_ROLE" xml:space="preserve">
+    <value>التاجر غير صحيح.</value>
+  </data>
+  <data name="INVALID_VENDOR_SUPPORT_MESSAGE" xml:space="preserve">
+    <value>نص الرسالة مطلوب.</value>
+  </data>
+  <data name="INVALID_DRIVER_RECOVERY_AMOUNT" xml:space="preserve">
+    <value>مبلغ استرجاع المندوب لازم يكون أكبر من صفر.</value>
+  </data>
+  <data name="DRIVER_RECOVERY_EXCEEDS_OUTSTANDING" xml:space="preserve">
+    <value>ما قدرنا نكمل العملية بسبب المندوب. راجع البيانات وجرّب مرة ثانية.</value>
+  </data>
+  <data name="WITHDRAWAL_PAYOUT_ALREADY_LINKED" xml:space="preserve">
+    <value>الدفعة مستخدم أو معالج مسبقًا.</value>
+  </data>
+  <data name="PAYOUT_RECOVERY_EXCEEDS_AMOUNT" xml:space="preserve">
+    <value>ما قدرنا نكمل العملية بسبب الدفعة. راجع البيانات وجرّب مرة ثانية.</value>
+  </data>
+  <data name="PLATFORM_IBAN_INVALID" xml:space="preserve">
+    <value>IBAN المنصة لازم يكون IBAN سعودي صحيح.</value>
+  </data>
+  <data name="MOYASAR_PAYOUT_SOURCE_REQUIRED" xml:space="preserve">
+    <value>معرّف مصدر دفعات Moyasar مطلوب عند تفعيل الدفعات.</value>
+  </data>
+  <data name="PLATFORM_IBAN_REQUIRED" xml:space="preserve">
+    <value>IBAN المنصة مطلوب.</value>
+  </data>
+  <data name="INVALID_VENDOR_RECOVERY_AMOUNT" xml:space="preserve">
+    <value>مبلغ استرجاع التاجر لازم يكون أكبر من صفر.</value>
+  </data>
+  <data name="VENDOR_RECOVERY_EXCEEDS_OUTSTANDING" xml:space="preserve">
+    <value>ما قدرنا نكمل العملية بسبب التاجر. راجع البيانات وجرّب مرة ثانية.</value>
+  </data>
+  <data name="INVALID_HOLD_AMOUNT" xml:space="preserve">
+    <value>مبلغ حجز المحفظة لازم يكون أكبر من صفر.</value>
+  </data>
+  <data name="DELIVERY_OFFER_CITY_MISMATCH" xml:space="preserve">
+    <value>عرض التوصيل غير متاح لهذا المندوب لأن مدينة الفرع مختلفة.</value>
+  </data>
+  <data name="DELIVERY_PICKUP_CITY_REQUIRED" xml:space="preserve">
+    <value>مدينة فرع التاجر مطلوبة لحساب سعر التوصيل.</value>
+  </data>
+  <data name="INVALID_IMAGE" xml:space="preserve">
+    <value>الملف غير صحيح.</value>
+  </data>
+  <data name="IMAGE_DIMENSIONS_TOO_LARGE" xml:space="preserve">
+    <value>ما قدرنا نكمل العملية بسبب الملف. راجع البيانات وجرّب مرة ثانية.</value>
+  </data>
+  <data name="IMAGEKIT_UPLOAD_ERROR" xml:space="preserve">
+    <value>ما قدرنا نكمل العملية بسبب الملف. راجع البيانات وجرّب مرة ثانية.</value>
+  </data>
+  <data name="INVALID_PROVIDER_TRANSFER_ID" xml:space="preserve">
+    <value>معرّف تحويل المزوّد مطلوب.</value>
+  </data>
+  <data name="WHATSAPP_CLOUD_OTP_TIMEOUT" xml:space="preserve">
+    <value>انتهت مهلة إرسال رمز التحقق عبر WhatsApp Cloud.</value>
+  </data>
+  <data name="WHATSAPP_CLOUD_OTP_UNAVAILABLE" xml:space="preserve">
+    <value>خدمة WhatsApp Cloud OTP غير متاحة حاليًا.</value>
+  </data>
+  <data name="WHATSAPP_CLOUD_OTP_NOT_CONFIGURED" xml:space="preserve">
+    <value>خدمة WhatsApp Cloud OTP مفعّلة لكن إعداداتها ناقصة.</value>
+  </data>
+  <data name="FORBIDDEN" xml:space="preserve">
+    <value>ما عندك صلاحية لتنفيذ هذا الإجراء.</value>
+  </data>
+  <data name="DRIVER_NOT_AUTHENTICATED" xml:space="preserve">
+    <value>سجّل دخولك كمندوب عشان تكمل.</value>
+  </data>
+  <data name="ADMIN_NOT_AUTHENTICATED" xml:space="preserve">
+    <value>سجّل دخولك كمشرف عشان تكمل.</value>
+  </data>
+  <data name="BRANCH_SCOPE_MUTATION_FORBIDDEN" xml:space="preserve">
+    <value>هذا الإجراء متاح فقط من صلاحية مستوى الشركة.</value>
+  </data>
+  <data name="INVITATION_SCOPE_FORBIDDEN" xml:space="preserve">
+    <value>هذه الدعوة خارج نطاق فرعك.</value>
+  </data>
+  <data name="REGISTRATION_TOKEN_INVALID" xml:space="preserve">
+    <value>تحتاج رمز رفع تسجيل صحيح لهذا المجلد.</value>
+  </data>
+  <data name="GUEST_CART_SIGNATURE_REQUIRED" xml:space="preserve">
+    <value>تعديل سلة الضيف يحتاج معرّف جهاز موقّع. أنشئ رمز سلة ضيف أول.</value>
+  </data>
+  <data name="DRIVER_LOGIN_LOCKED" xml:space="preserve">
+    <value>قفلنا دخول المندوب. تواصل مع الدعم عبر طلب مراجعة الحساب.</value>
+  </data>
+  <data name="DRIVER_ACCOUNT_BLOCKED" xml:space="preserve">
+    <value>حساب المندوب غير نشط. تواصل مع الدعم عبر طلب مراجعة الحساب.</value>
+  </data>
+  <data name="CART_OWNER_REQUIRED" xml:space="preserve">
+    <value>لازم نعرف صاحب السلة.</value>
+  </data>
+  <data name="ORDER_NOT_OWNED_BY_YOU" xml:space="preserve">
+    <value>هذا الطلب ما يخص حسابك.</value>
+  </data>
+  <data name="TOKEN_MISSING" xml:space="preserve">
+    <value>رمز رفع التسجيل مطلوب.</value>
+  </data>
+  <data name="TOKEN_MALFORMED" xml:space="preserve">
+    <value>رمز رفع التسجيل غير صحيح.</value>
+  </data>
+  <data name="TOKEN_INVALID_SIGNATURE" xml:space="preserve">
+    <value>توقيع رمز رفع التسجيل غير صحيح.</value>
+  </data>
+  <data name="TOKEN_MALFORMED_PAYLOAD" xml:space="preserve">
+    <value>بيانات رمز رفع التسجيل غير صحيحة.</value>
+  </data>
+  <data name="TOKEN_WRONG_PURPOSE" xml:space="preserve">
+    <value>رمز رفع التسجيل غير مناسب لهذا الإجراء.</value>
+  </data>
+  <data name="TOKEN_INVALID_EXPIRY" xml:space="preserve">
+    <value>مدة صلاحية رمز رفع التسجيل غير صحيحة.</value>
+  </data>
+  <data name="TOKEN_EXPIRED" xml:space="preserve">
+    <value>انتهت صلاحية رمز رفع التسجيل.</value>
+  </data>
+  <data name="ADMINBRANDBULKOPERATION_NOT_FOUND" xml:space="preserve">
+    <value>ما لقينا عملية العلامات التجارية المطلوبة.</value>
+  </data>
+  <data name="ADMINMASTERPRODUCTBULKOPERATION_NOT_FOUND" xml:space="preserve">
+    <value>ما لقينا عملية المنتجات الرئيسية المطلوبة.</value>
+  </data>
+  <data name="BRAND_NOT_FOUND" xml:space="preserve">
+    <value>ما لقينا العلامة التجارية المطلوبة.</value>
+  </data>
+  <data name="CARTITEM_NOT_FOUND" xml:space="preserve">
+    <value>ما لقينا عنصر السلة المطلوب.</value>
+  </data>
+  <data name="CART_NOT_FOUND" xml:space="preserve">
+    <value>ما لقينا السلة المطلوبة.</value>
+  </data>
+  <data name="CATEGORY_NOT_FOUND" xml:space="preserve">
+    <value>ما لقينا التصنيف المطلوب.</value>
+  </data>
+  <data name="CUSTOMERADDRESS_NOT_FOUND" xml:space="preserve">
+    <value>ما لقينا عنوان العميل المطلوب.</value>
+  </data>
+  <data name="CUSTOMER_NOT_FOUND" xml:space="preserve">
+    <value>ما لقينا العميل المطلوب.</value>
+  </data>
+  <data name="DELIVERYASSIGNMENT_NOT_FOUND" xml:space="preserve">
+    <value>ما لقينا مهمة التوصيل المطلوبة.</value>
+  </data>
+  <data name="DELIVERYPRICINGRULE_NOT_FOUND" xml:space="preserve">
+    <value>ما لقينا قاعدة تسعير التوصيل المطلوبة.</value>
+  </data>
+  <data name="DRIVERDOCUMENT_NOT_FOUND" xml:space="preserve">
+    <value>ما لقينا مستند المندوب المطلوب.</value>
+  </data>
+  <data name="DRIVERPAYOUTMETHOD_NOT_FOUND" xml:space="preserve">
+    <value>ما لقينا طريقة دفع المندوب المطلوبة.</value>
+  </data>
+  <data name="DRIVERWITHDRAWALREQUEST_NOT_FOUND" xml:space="preserve">
+    <value>ما لقينا طلب سحب المندوب المطلوب.</value>
+  </data>
+  <data name="EMAILWORKFLOWRULE_NOT_FOUND" xml:space="preserve">
+    <value>ما لقينا قاعدة البريد المطلوبة.</value>
+  </data>
+  <data name="FAVORITEPRODUCT_NOT_FOUND" xml:space="preserve">
+    <value>ما لقينا المنتج في المفضلة.</value>
+  </data>
+  <data name="MASTERPRODUCT_NOT_FOUND" xml:space="preserve">
+    <value>ما لقينا المنتج الرئيسي المطلوب.</value>
+  </data>
+  <data name="NOTIFICATIONDEVICE_NOT_FOUND" xml:space="preserve">
+    <value>ما لقينا جهاز الإشعارات المطلوب.</value>
+  </data>
+  <data name="NOTIFICATION_NOT_FOUND" xml:space="preserve">
+    <value>ما لقينا الإشعار المطلوب.</value>
+  </data>
+  <data name="OPERATIONALCASE_NOT_FOUND" xml:space="preserve">
+    <value>ما لقينا الحالة التشغيلية المطلوبة.</value>
+  </data>
+  <data name="ORDERCOMPLAINT_NOT_FOUND" xml:space="preserve">
+    <value>ما لقينا شكوى الطلب المطلوبة.</value>
+  </data>
+  <data name="ORDERSUPPORTCASE_NOT_FOUND" xml:space="preserve">
+    <value>ما لقينا حالة دعم الطلب المطلوبة.</value>
+  </data>
+  <data name="ORDER_NOT_FOUND" xml:space="preserve">
+    <value>ما لقينا الطلب المطلوب.</value>
+  </data>
+  <data name="PART_NOT_FOUND" xml:space="preserve">
+    <value>ما لقينا الجزء المطلوب.</value>
+  </data>
+  <data name="PAYMENT_NOT_FOUND" xml:space="preserve">
+    <value>ما لقينا عملية الدفع المطلوبة.</value>
+  </data>
+  <data name="PAYOUT_NOT_FOUND" xml:space="preserve">
+    <value>ما لقينا الدفعة المطلوبة.</value>
+  </data>
+  <data name="PRODUCTTYPE_NOT_FOUND" xml:space="preserve">
+    <value>ما لقينا نوع المنتج المطلوب.</value>
+  </data>
+  <data name="ROLEDEFINITION_NOT_FOUND" xml:space="preserve">
+    <value>ما لقينا تعريف الدور المطلوب.</value>
+  </data>
+  <data name="SAUDICITY_NOT_FOUND" xml:space="preserve">
+    <value>ما لقينا المدينة السعودية المطلوبة.</value>
+  </data>
+  <data name="SAUDIREGION_NOT_FOUND" xml:space="preserve">
+    <value>ما لقينا المنطقة السعودية المطلوبة.</value>
+  </data>
+  <data name="UNITOFMEASURE_NOT_FOUND" xml:space="preserve">
+    <value>ما لقينا وحدة القياس المطلوبة.</value>
+  </data>
+  <data name="VARIANTGROUP_NOT_FOUND" xml:space="preserve">
+    <value>ما لقينا مجموعة الخيارات المطلوبة.</value>
+  </data>
+  <data name="VENDORBANKACCOUNT_NOT_FOUND" xml:space="preserve">
+    <value>ما لقينا حساب التاجر البنكي المطلوب.</value>
+  </data>
+  <data name="VENDORBRANCH_NOT_FOUND" xml:space="preserve">
+    <value>ما لقينا فرع التاجر المطلوب.</value>
+  </data>
+  <data name="VENDORDOCUMENT_NOT_FOUND" xml:space="preserve">
+    <value>ما لقينا مستند التاجر المطلوب.</value>
+  </data>
+  <data name="VENDORPRODUCTBULKOPERATION_NOT_FOUND" xml:space="preserve">
+    <value>ما لقينا عملية منتجات التاجر المطلوبة.</value>
+  </data>
+  <data name="VENDORPRODUCT_NOT_FOUND" xml:space="preserve">
+    <value>ما لقينا منتج التاجر المطلوب.</value>
+  </data>
+  <data name="VENDORSTAFFINVITATION_NOT_FOUND" xml:space="preserve">
+    <value>ما لقينا دعوة موظف التاجر المطلوبة.</value>
+  </data>
+  <data name="VENDORSTAFF_NOT_FOUND" xml:space="preserve">
+    <value>ما لقينا موظف التاجر المطلوب.</value>
+  </data>
+  <data name="VENDORSUPPORTTICKET_NOT_FOUND" xml:space="preserve">
+    <value>ما لقينا تذكرة دعم التاجر المطلوبة.</value>
+  </data>
+  <data name="WALLET_NOT_FOUND" xml:space="preserve">
+    <value>ما لقينا المحفظة المطلوبة.</value>
+  </data>
+  <data name="APPROVAL_FIELD_REQUIRED" xml:space="preserve">
+    <value>بيانات الاعتماد مطلوبة.</value>
+  </data>
+  <data name="BANK_TRANSFER_AMOUNT_MISMATCH" xml:space="preserve">
+    <value>مبلغ التحويل البنكي ما يطابق مبلغ الطلب.</value>
+  </data>
+  <data name="CART_ITEMS_UNAVAILABLE_AT_ADDRESS_BRANCH" xml:space="preserve">
+    <value>بعض منتجات السلة غير متاحة للفرع اللي يخدم هذا العنوان.</value>
+  </data>
+  <data name="CATEGORY_REQUIRED" xml:space="preserve">
+    <value>اختر التصنيف.</value>
+  </data>
+  <data name="DELIVERY_NOT_AVAILABLE" xml:space="preserve">
+    <value>التوصيل غير متاح لهذا الطلب.</value>
+  </data>
+  <data name="DRIVER_LOGIN_LOCK_FAILED" xml:space="preserve">
+    <value>ما قدرنا نقفل دخول المندوب.</value>
+  </data>
+  <data name="DRIVER_LOGIN_UNLOCK_FAILED" xml:space="preserve">
+    <value>ما قدرنا نفك قفل دخول المندوب.</value>
+  </data>
+  <data name="EMAIL_VERIFICATION_OTP_FAILED" xml:space="preserve">
+    <value>ما قدرنا نرسل رمز تأكيد البريد.</value>
+  </data>
+  <data name="FILE_TOO_LARGE" xml:space="preserve">
+    <value>حجم الملف أكبر من الحد المسموح.</value>
+  </data>
+  <data name="IDENTITY_CREATE_FAILED" xml:space="preserve">
+    <value>ما قدرنا ننشئ الحساب.</value>
+  </data>
+  <data name="IDENTITY_PROFILE_UPDATE_FAILED" xml:space="preserve">
+    <value>ما قدرنا نحدّث الملف الشخصي.</value>
+  </data>
+  <data name="IDENTITY_ROLE_UPDATE_FAILED" xml:space="preserve">
+    <value>ما قدرنا نحدّث دور المستخدم.</value>
+  </data>
+  <data name="IMAGEKIT_UPLOAD_FAILED" xml:space="preserve">
+    <value>ما قدرنا نرفع الملف.</value>
+  </data>
+  <data name="INVALID_APPROVAL_PAYLOAD" xml:space="preserve">
+    <value>بيانات الاعتماد غير صحيحة.</value>
+  </data>
+  <data name="INVALID_COST_BEARER" xml:space="preserve">
+    <value>جهة تحمّل التكلفة غير صحيحة.</value>
+  </data>
+  <data name="INVALID_PERMISSION" xml:space="preserve">
+    <value>الصلاحية غير صحيحة.</value>
+  </data>
+  <data name="INVALID_PERMISSION_SCOPE" xml:space="preserve">
+    <value>نطاق الصلاحية غير صحيح.</value>
+  </data>
+  <data name="INVALID_PRODUCT_ID" xml:space="preserve">
+    <value>معرّف المنتج غير صحيح.</value>
+  </data>
+  <data name="INVALID_RESET_TOKEN" xml:space="preserve">
+    <value>رمز إعادة التعيين غير صحيح أو انتهت صلاحيته.</value>
+  </data>
+  <data name="MAX_OPEN_CASES_EXCEEDED" xml:space="preserve">
+    <value>وصلت للحد الأعلى من الحالات المفتوحة لهذا الطلب.</value>
+  </data>
+  <data name="MAX_REOPEN_EXCEEDED" xml:space="preserve">
+    <value>وصلت للحد الأعلى من إعادة فتح هذه الحالة.</value>
+  </data>
+  <data name="MOYASAR_FETCH_FAILED" xml:space="preserve">
+    <value>ما قدرنا نجلب بيانات الدفع من Moyasar.</value>
+  </data>
+  <data name="MOYASAR_PAYOUT_ACCOUNT_CREATE_FAILED" xml:space="preserve">
+    <value>ما قدرنا ننشئ حساب مصدر الدفعات في Moyasar.</value>
+  </data>
+  <data name="MOYASAR_PAYOUT_FETCH_FAILED" xml:space="preserve">
+    <value>ما قدرنا نجلب بيانات الدفعة من Moyasar.</value>
+  </data>
+  <data name="OTP_GENERATION_FAILED" xml:space="preserve">
+    <value>ما قدرنا ننشئ رمز التحقق.</value>
+  </data>
+  <data name="PASSWORD_CHANGE_FAILED" xml:space="preserve">
+    <value>ما قدرنا نغيّر كلمة المرور.</value>
+  </data>
+  <data name="PAYMENT_AMOUNT_MISMATCH" xml:space="preserve">
+    <value>مبلغ الدفع ما يطابق مبلغ الطلب.</value>
+  </data>
+  <data name="PAYMENT_NOT_CONFIRMABLE" xml:space="preserve">
+    <value>ما نقدر نؤكد عملية الدفع الحالية.</value>
+  </data>
+  <data name="PAYMENT_PROVIDER_UNAVAILABLE" xml:space="preserve">
+    <value>مزود الدفع غير متاح حاليا.</value>
+  </data>
+  <data name="REFUND_ALLOCATION_BEARER_MISMATCH" xml:space="preserve">
+    <value>توزيع الاسترجاع ما يطابق جهة تحمّل التكلفة.</value>
+  </data>
+  <data name="REFUND_ALLOCATION_LINES_MISMATCH" xml:space="preserve">
+    <value>تفاصيل توزيع الاسترجاع ما تطابق بنود الحالة.</value>
+  </data>
+  <data name="RETURN_WINDOW_EXPIRED" xml:space="preserve">
+    <value>انتهت مهلة طلب الاسترجاع.</value>
+  </data>
+  <data name="REVENUE_DISTRIBUTION_IMBALANCE" xml:space="preserve">
+    <value>توزيع الإيرادات غير متوازن.</value>
+  </data>
+  <data name="ROLE_NOT_CONFIGURED" xml:space="preserve">
+    <value>الدور غير مهيأ.</value>
+  </data>
+  <data name="SMTP_OTP_EMAIL_FAILED" xml:space="preserve">
+    <value>ما قدرنا نرسل رمز التحقق عبر البريد.</value>
+  </data>
+  <data name="UNSUPPORTED_CURRENCY" xml:space="preserve">
+    <value>العملة غير مدعومة.</value>
+  </data>
+  <data name="UNSUPPORTED_PROFILE_APPROVAL_ACTION" xml:space="preserve">
+    <value>إجراء اعتماد الملف غير مدعوم.</value>
+  </data>
+  <data name="VENDOR_OFFLINE" xml:space="preserve">
+    <value>المتجر غير متصل حاليا.</value>
+  </data>
+  <data name="WALLET_HOLD_NOT_ACTIVE" xml:space="preserve">
+    <value>حجز المحفظة غير نشط.</value>
+  </data>
+  <data name="Required" xml:space="preserve">
+    <value>هذا الحقل مطلوب.</value>
+  </data>
+  <data name="MinLength" xml:space="preserve">
+    <value>{PropertyName} لازم يكون على الأقل {MinLength} أحرف.</value>
+  </data>
+  <data name="InvalidValue" xml:space="preserve">
+    <value>القيمة المختارة غير صحيحة.</value>
+  </data>
+  <data name="InvalidAmount" xml:space="preserve">
+    <value>المبالغ غير متطابقة.</value>
+  </data>
+  <data name="NationalIdFrontImageUrl" xml:space="preserve">
+    <value>صورة الهوية من الأمام</value>
+  </data>
+  <data name="NationalIdBackImageUrl" xml:space="preserve">
+    <value>صورة الهوية من الخلف</value>
+  </data>
+  <data name="TOKEN_REVOKED" xml:space="preserve">
+    <value>انتهت جلستك. سجّل دخولك مرة ثانية.</value>
+  </data>
+  <data name="USER_TOKENS_REVOKED" xml:space="preserve">
+    <value>انتهت جلستك. سجّل دخولك مرة ثانية.</value>
+  </data>
+  <data name="ACCOUNT_NOT_ACTIVE" xml:space="preserve">
+    <value>الحساب غير نشط. سجّل دخولك مرة ثانية أو تواصل مع الدعم.</value>
+  </data>
+  <data name="EMAIL_NOT_VERIFIED" xml:space="preserve">
+    <value>البريد غير موثق. وثّقه قبل ما تكمل.</value>
+  </data>
+  <data name="TOKEN_STALE" xml:space="preserve">
+    <value>تغيّرت صلاحياتك. سجّل دخولك مرة ثانية.</value>
+  </data>
+  <data name="ACCESS_DENIED" xml:space="preserve">
+    <value>ما عندك صلاحية لتنفيذ هذا الإجراء.</value>
+  </data>
+  <data name="PERMISSION_VERSION_MISMATCH" xml:space="preserve">
+    <value>تغيّرت صلاحياتك. سجّل دخولك مرة ثانية.</value>
+  </data>
+  <data name="MISSING_REFRESH_TOKEN" xml:space="preserve">
+    <value>رمز تحديث الجلسة مفقود. سجّل دخولك مرة ثانية.</value>
+  </data>
+  <data name="WEBHOOK_SECRET_INVALID" xml:space="preserve">
+    <value>سر الويبهوك غير صحيح.</value>
+  </data>
+  <data name="WEBHOOK_PAYLOAD_INVALID_JSON" xml:space="preserve">
+    <value>بيانات الويبهوك مو بصيغة JSON صحيحة.</value>
+  </data>
+  <data name="WEBHOOK_SIGNATURE_INVALID_TITLE" xml:space="preserve">
+    <value>توقيع الويبهوك غير صحيح</value>
+  </data>
+  <data name="WEBHOOK_SIGNATURE_INVALID_DETAIL" xml:space="preserve">
+    <value>ما قدرنا نتحقق من توقيع الويبهوك.</value>
+  </data>
+  <data name="PAYOUT_WEBHOOK_PAYLOAD_INVALID" xml:space="preserve">
+    <value>بيانات ويبهوك الدفعة غير صحيحة.</value>
+  </data>
+  <data name="MOYASAR_PAYMENT_ID_REQUIRED_TITLE" xml:space="preserve">
+    <value>معرّف دفع Moyasar مطلوب</value>
+  </data>
+  <data name="MOYASAR_VERIFY_PAYMENT_ID_REQUIRED_DETAIL" xml:space="preserve">
+    <value>معرّف Moyasar غير موجود في رابط الرجوع. تأكد أن الرابط يرسل معرّف الدفع.</value>
+  </data>
+  <data name="MOYASAR_CONFIRM_PAYMENT_ID_REQUIRED_DETAIL" xml:space="preserve">
+    <value>أرسل معرّف دفع Moyasar اللي رجع من رابط التأكيد.</value>
+  </data>
+  <data name="VENDOR_PAYOUT_RETRY_SUCCESS" xml:space="preserve">
+    <value>رجّعنا دفعة التاجر للمعالجة.</value>
+  </data>
+  <data name="VENDOR_PAYOUT_COMPLETED_SUCCESS" xml:space="preserve">
+    <value>أكملنا دفعة التاجر بنجاح.</value>
+  </data>
+  <data name="VENDOR_PAYOUT_SUSPENDED_SUCCESS" xml:space="preserve">
+    <value>علّقنا دفعة التاجر بنجاح.</value>
+  </data>
+  <data name="VENDOR_PAYOUT_ESCALATED_SUCCESS" xml:space="preserve">
+    <value>صعّدنا دفعة التاجر بنجاح.</value>
+  </data>
+  <data name="VENDOR_REACTIVATED_SUCCESS" xml:space="preserve">
+    <value>فعّلنا التاجر مرة ثانية بنجاح.</value>
+  </data>
+  <data name="VENDOR_LOGIN_LOCKED_SUCCESS" xml:space="preserve">
+    <value>قفلنا دخول التاجر بنجاح.</value>
+  </data>
+  <data name="VENDOR_LOGIN_UNLOCKED_SUCCESS" xml:space="preserve">
+    <value>فكّينا قفل دخول التاجر بنجاح.</value>
+  </data>
+  <data name="VENDOR_ARCHIVED_SUCCESS" xml:space="preserve">
+    <value>أرشفنا التاجر بنجاح.</value>
+  </data>
+  <data name="VENDOR_PASSWORD_RESET_SUCCESS" xml:space="preserve">
+    <value>غيّرنا كلمة مرور التاجر بنجاح.</value>
+  </data>
+  <data name="COMMISSION_RATE_UPDATED" xml:space="preserve">
+    <value>حدّثنا نسبة العمولة.</value>
+  </data>
+  <data name="BRANCH_CREATED_SUCCESS" xml:space="preserve">
+    <value>أنشأنا الفرع بنجاح.</value>
+  </data>
+  <data name="BRANCH_UPDATED_SUCCESS" xml:space="preserve">
+    <value>حدّثنا الفرع بنجاح.</value>
+  </data>
+  <data name="BRANCH_ACTIVATED_SUCCESS" xml:space="preserve">
+    <value>فعّلنا الفرع.</value>
+  </data>
+  <data name="BRANCH_DEACTIVATED_SUCCESS" xml:space="preserve">
+    <value>عطّلنا الفرع.</value>
+  </data>
+  <data name="BANK_ACCOUNT_VERIFIED_SUCCESS" xml:space="preserve">
+    <value>اعتمدنا الحساب البنكي بنجاح.</value>
+  </data>
+  <data name="BANK_ACCOUNT_REJECTED_SUCCESS" xml:space="preserve">
+    <value>رفضنا الحساب البنكي.</value>
+  </data>
+  <data name="BANK_ACCOUNT_PRIMARY_SUCCESS" xml:space="preserve">
+    <value>عيّنا الحساب البنكي كحساب أساسي.</value>
+  </data>
+  <data name="ZONE_ID_MISMATCH" xml:space="preserve">
+    <value>معرّف النطاق ما يطابق الرابط.</value>
+  </data>
+  <data name="CITY_ID_MISMATCH" xml:space="preserve">
+    <value>معرّف المدينة ما يطابق الرابط.</value>
+  </data>
+  <data name="REGION_ID_MISMATCH" xml:space="preserve">
+    <value>معرّف المنطقة ما يطابق الرابط.</value>
+  </data>
+  <data name="DRIVER_ID_REQUIRED" xml:space="preserve">
+    <value>معرّف المندوب مطلوب.</value>
+  </data>
+  <data name="AMOUNT_GREATER_THAN_ZERO" xml:space="preserve">
+    <value>المبلغ لازم يكون أكبر من صفر.</value>
+  </data>
+  <data name="FILE_EMPTY" xml:space="preserve">
+    <value>الملف فارغ.</value>
+  </data>
+  <data name="INVALID_CSRF_TOKEN" xml:space="preserve">
+    <value>فشل التحقق من رمز الأمان.</value>
+  </data>
+  <data name="BOT_CHALLENGE_FAILED" xml:space="preserve">
+    <value>فشل التحقق من اختبار الحماية.</value>
+  </data>
+  <data name="RATE_LIMIT_EXCEEDED" xml:space="preserve">
+    <value>طلباتك كثيرة حاليا. جرّب بعد شوي.</value>
+  </data>
+  <data name="BANK_TRANSFER_PROOF_UPLOADED" xml:space="preserve">
+    <value>رفعنا إثبات التحويل البنكي بنجاح وبانتظار تأكيد المشرف.</value>
+  </data>
+  <data name="BANK_TRANSFER_WEBHOOK_STATUS_IGNORED" xml:space="preserve">
+    <value>حالة ويبهوك التحويل البنكي مو مدفوعة ولا مسوّاة.</value>
+  </data>
+  <data name="BANK_TRANSFER_REJECTED_SUCCESS" xml:space="preserve">
+    <value>رفضنا التحويل البنكي.</value>
+  </data>
+  <data name="MOYASAR_WEBHOOK_NOT_CONFIGURED_TITLE" xml:space="preserve">
+    <value>ويبهوك Moyasar غير مهيأ</value>
+  </data>
+  <data name="MOYASAR_WEBHOOK_NOT_CONFIGURED_DETAIL" xml:space="preserve">
+    <value>سر ويبهوك Moyasar غير مهيأ على الخادم. تواصل مع المشرف.</value>
+  </data>
+  <data name="MOYASAR_PAYOUT_WEBHOOK_NOT_CONFIGURED_TITLE" xml:space="preserve">
+    <value>ويبهوك دفعات Moyasar غير مهيأ</value>
+  </data>
+  <data name="TEMP_PASSWORD_CHANGE_REQUIRED" xml:space="preserve">
+    <value>لازم تغيّر كلمة المرور المؤقتة قبل ما تكمل.</value>
+  </data>
+  <data name="VendorInvalidStatusForArchive" xml:space="preserve">
+    <value>أرشفة التاجر متاحة فقط من حالة مرفوض أو معلّق. الحالة الحالية: {0}.</value>
+  </data>
+  <data name="VendorReviewRequiredDocumentsMissing" xml:space="preserve">
+    <value>في مستندات مطلوبة ناقصة في ملف التاجر.</value>
+  </data>
+  <data name="VendorReviewRejectedDocumentsMustBeReuploaded" xml:space="preserve">
+    <value>لازم ترفع المستندات المرفوضة من جديد قبل الإرسال للمراجعة.</value>
+  </data>
+  <data name="VendorReviewRequiredFieldsMissing" xml:space="preserve">
+    <value>في بيانات مطلوبة ناقصة في ملف التاجر.</value>
+  </data>
+  <data name="VendorReviewRejectedFieldsMustBeUpdated" xml:space="preserve">
+    <value>لازم تحدّث البيانات المرفوضة قبل الإرسال للمراجعة.</value>
+  </data>
+  <data name="DRIVER_PROFILE_UPDATED_SUCCESS" xml:space="preserve">
+    <value>حدّثنا بيانات المندوب بنجاح.</value>
+  </data>
+  <data name="DRIVER_REVIEW_ACTION_APPLIED_SUCCESS" xml:space="preserve">
+    <value>نفّذنا إجراء مراجعة المندوب بنجاح.</value>
+  </data>
+  <data name="DRIVER_DOCUMENT_APPROVED_SUCCESS" xml:space="preserve">
+    <value>اعتمدنا مستند المندوب بنجاح.</value>
+  </data>
+  <data name="DRIVER_DOCUMENT_REJECTED_SUCCESS" xml:space="preserve">
+    <value>رفضنا مستند المندوب بنجاح.</value>
+  </data>
+  <data name="DRIVER_SUSPENDED_SUCCESS" xml:space="preserve">
+    <value>علّقنا حساب المندوب بنجاح.</value>
+  </data>
+  <data name="DRIVER_REACTIVATED_SUCCESS" xml:space="preserve">
+    <value>فعّلنا المندوب مرة ثانية بنجاح.</value>
+  </data>
+  <data name="DRIVER_BANNED_SUCCESS" xml:space="preserve">
+    <value>حظرنا المندوب بنجاح.</value>
+  </data>
+  <data name="DRIVER_UNBANNED_SUCCESS" xml:space="preserve">
+    <value>فكّينا حظر المندوب بنجاح.</value>
+  </data>
+  <data name="DRIVER_LOGIN_LOCKED_SUCCESS" xml:space="preserve">
+    <value>قفلنا دخول المندوب بنجاح.</value>
+  </data>
+  <data name="DRIVER_LOGIN_UNLOCKED_SUCCESS" xml:space="preserve">
+    <value>فكّينا قفل دخول المندوب بنجاح.</value>
+  </data>
+  <data name="DRIVER_RESTRICTIONS_CLEARED_SUCCESS" xml:space="preserve">
+    <value>فكّينا كل القيود عن المندوب بنجاح.</value>
+  </data>
+  <data name="DRIVER_LOCATION_UPDATES_BLOCKED_SUCCESS" xml:space="preserve">
+    <value>وقفنا تحديثات موقع المندوب بنجاح.</value>
+  </data>
+  <data name="DRIVER_LOCATION_UPDATES_UNBLOCKED_SUCCESS" xml:space="preserve">
+    <value>فعّلنا تحديثات موقع المندوب بنجاح.</value>
+  </data>
+  <data name="DRIVER_NOTE_ADDED_SUCCESS" xml:space="preserve">
+    <value>أضفنا الملاحظة بنجاح.</value>
+  </data>
+  <data name="DRIVER_INCIDENT_RECORDED_SUCCESS" xml:space="preserve">
+    <value>سجّلنا الحادثة بنجاح.</value>
+  </data>
+  <data name="DRIVER_PAYOUT_METHOD_CHANGE_PENDING_APPROVAL" xml:space="preserve">
+    <value>تغيير طريقة الدفع بانتظار اعتماد المشرف.</value>
+  </data>
+  <data name="DRIVER_PAYOUT_METHOD_DELETION_PENDING_APPROVAL" xml:space="preserve">
+    <value>حذف طريقة الدفع بانتظار اعتماد المشرف.</value>
+  </data>
+  <data name="VENDOR_INVITATION_UNAVAILABLE" xml:space="preserve">
+    <value>الدعوة منتهية أو مقبولة أو ملغاة.</value>
+  </data>
+  <data name="PASSWORD_MIN_LENGTH" xml:space="preserve">
+    <value>كلمة المرور لازم تكون 8 أحرف على الأقل.</value>
+  </data>
+  <data name="STAFF_EMAIL_ALREADY_EXISTS" xml:space="preserve">
+    <value>يوجد حساب مسجل بهذا البريد.</value>
+  </data>
+  <data name="STAFF_LINKED_TO_ANOTHER_VENDOR" xml:space="preserve">
+    <value>حساب الموظف مرتبط بتاجر آخر.</value>
+  </data>
+  <data name="INVITATION_ACCEPTED_SUCCESS" xml:space="preserve">
+    <value>قبلنا الدعوة بنجاح.</value>
+  </data>
+  <data name="DEVICE_ID_REQUIRED" xml:space="preserve">
+    <value>معرّف الجهاز مطلوب.</value>
+  </data>
+  <data name="DEV_DATABASE_RESET_SUCCESS" xml:space="preserve">
+    <value>صفّرنا قاعدة بيانات التطوير بنجاح وأنشأنا حساب المشرف العام فقط.</value>
+  </data>
+  <data name="ADMIN_SEED_SUCCESS" xml:space="preserve">
+    <value>اكتملت عملية تهيئة حسابات الإدارة بنجاح.</value>
+  </data>
+  <data name="ADMIN_SEED_RESET_SUCCESS" xml:space="preserve">
+    <value>اكتملت عملية التصفير وتهيئة حسابات الإدارة بنجاح.</value>
+  </data>
+  <data name="IDENTITY_PASSWORD_RESET_FAILED" xml:space="preserve">
+    <value>ما قدرنا نجهّز حساب الموظف.</value>
+  </data>
 </root>
-

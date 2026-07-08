@@ -2,6 +2,7 @@ using MediatR;
 using Microsoft.AspNetCore.Authorization;
 using Microsoft.AspNetCore.Mvc;
 using Microsoft.EntityFrameworkCore;
+using Zadana.Api.Localization;
 using Zadana.Application.Common.Interfaces;
 using Zadana.Application.Modules.Finances.DTOs;
 using Zadana.Application.Modules.Finances.Services;
@@ -79,7 +80,7 @@ public class AdminFinancesController(
         [FromBody] UpdateZoneFinanceSettingsCommand command,
         CancellationToken cancellationToken)
     {
-        if (zoneId != command.ZoneId) return BadRequest("ZoneId mismatch");
+        if (zoneId != command.ZoneId) return BadRequest(ApiLocalizedMessages.Resolve(HttpContext, "ZONE_ID_MISMATCH"));
 
         var result = await mediator.Send(command, cancellationToken);
         return Ok(result);
@@ -93,7 +94,7 @@ public class AdminFinancesController(
         [FromBody] UpdateCityDeliveryPricingSettingsCommand command,
         CancellationToken cancellationToken)
     {
-        if (cityId != command.CityId) return BadRequest("CityId mismatch");
+        if (cityId != command.CityId) return BadRequest(ApiLocalizedMessages.Resolve(HttpContext, "CITY_ID_MISMATCH"));
 
         var result = await mediator.Send(command, cancellationToken);
         return Ok(result);
@@ -107,7 +108,7 @@ public class AdminFinancesController(
         [FromBody] UpdateRegionDeliveryPricingSettingsCommand command,
         CancellationToken cancellationToken)
     {
-        if (regionId != command.RegionId) return BadRequest("RegionId mismatch");
+        if (regionId != command.RegionId) return BadRequest(ApiLocalizedMessages.Resolve(HttpContext, "REGION_ID_MISMATCH"));
 
         var result = await mediator.Send(command, cancellationToken);
         return Ok(result);
@@ -201,12 +202,12 @@ public class AdminFinancesController(
     {
         if (request.DriverId == Guid.Empty)
         {
-            return BadRequest("DriverId is required.");
+            return BadRequest(ApiLocalizedMessages.Resolve(HttpContext, "DRIVER_ID_REQUIRED"));
         }
 
         if (request.Amount <= 0)
         {
-            return BadRequest("Amount must be greater than zero.");
+            return BadRequest(ApiLocalizedMessages.Resolve(HttpContext, "AMOUNT_GREATER_THAN_ZERO"));
         }
 
         var idempotencyKey = string.IsNullOrWhiteSpace(request.IdempotencyKey)

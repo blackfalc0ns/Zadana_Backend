@@ -401,7 +401,7 @@ public class AdminAccessController(
         {
             var payload = DeserializePayload<DriverDocumentsProfileChangePayload>(approval);
             var reason = string.IsNullOrWhiteSpace(request?.Note)
-                ? "تم رفض طلب تحديث المستندات."
+                ? "رفضنا طلب تحديث المستندات."
                 : request.Note.Trim();
             await NotifyDriverDocumentsRejectedAsync(payload, reason, cancellationToken);
         }
@@ -409,7 +409,7 @@ public class AdminAccessController(
         {
             var payload = DeserializePayload<DriverPersonalProfileChangePayload>(approval);
             var reason = string.IsNullOrWhiteSpace(request?.Note)
-                ? "تم رفض طلب تحديث البيانات الشخصية."
+                ? "رفضنا طلب تحديث البيانات الشخصية."
                 : request.Note.Trim();
             await NotifyDriverProfileSectionRejectedAsync(payload.DriverId, "personal", reason, cancellationToken);
         }
@@ -417,7 +417,7 @@ public class AdminAccessController(
         {
             var payload = DeserializePayload<DriverVehicleProfileChangePayload>(approval);
             var reason = string.IsNullOrWhiteSpace(request?.Note)
-                ? "تم رفض طلب تحديث بيانات المركبة."
+                ? "رفضنا طلب تحديث بيانات المركبة."
                 : request.Note.Trim();
             await NotifyDriverProfileSectionRejectedAsync(payload.DriverId, "vehicle", reason, cancellationToken);
         }
@@ -1162,9 +1162,9 @@ public class AdminAccessController(
     {
         var documentNameAr = GetDriverDocumentNameAr(documentType);
         var documentNameEn = GetDriverDocumentNameEn(documentType);
-        var titleAr = $"تمت الموافقة على {documentNameAr}";
+        var titleAr = $"اعتمدنا {documentNameAr}";
         var titleEn = $"{documentNameEn} approved";
-        var bodyAr = $"تمت مراجعة {documentNameAr} والموافقة عليه بعد تحديث المستند. يمكنك متابعة حالة حسابك من التطبيق.";
+        var bodyAr = $"راجعنا {documentNameAr} واعتمدناه بعد تحديث المستند. تقدر تتابع حالة حسابك من التطبيق.";
         var bodyEn = $"Your updated {documentNameEn.ToLowerInvariant()} was reviewed and approved. You can track your account status in the app.";
         var data = DriverNotificationDataBuilder.Build(
             screen: "account_status",
@@ -1270,9 +1270,9 @@ public class AdminAccessController(
     {
         var documentNameAr = GetDriverDocumentNameAr(documentType);
         var documentNameEn = GetDriverDocumentNameEn(documentType);
-        var titleAr = $"تم رفض تحديث {documentNameAr}";
+        var titleAr = $"رفضنا تحديث {documentNameAr}";
         var titleEn = $"{documentNameEn} update rejected";
-        var bodyAr = $"تم رفض طلب تحديث {documentNameAr}. السبب: {reason}";
+        var bodyAr = $"رفضنا طلب تحديث {documentNameAr}. السبب: {reason}";
         var bodyEn = $"Your {documentNameEn.ToLowerInvariant()} update request was rejected. Reason: {reason}";
         var data = DriverNotificationDataBuilder.Build(
             screen: "account_status",
@@ -1352,9 +1352,9 @@ public class AdminAccessController(
 
         var sectionNameAr = GetDriverProfileSectionNameAr(section);
         var sectionNameEn = GetDriverProfileSectionNameEn(section);
-        var titleAr = $"تمت الموافقة على {sectionNameAr}";
+        var titleAr = $"اعتمدنا {sectionNameAr}";
         var titleEn = $"{sectionNameEn} approved";
-        var bodyAr = $"تمت مراجعة {sectionNameAr} والموافقة على التعديل. يمكنك متابعة حالة حسابك من التطبيق.";
+        var bodyAr = $"راجعنا {sectionNameAr} واعتمدنا التعديل. تقدر تتابع حالة حسابك من التطبيق.";
         var bodyEn = $"Your {sectionNameEn.ToLowerInvariant()} update was reviewed and approved. You can track your account status in the app.";
         var data = DriverNotificationDataBuilder.Build(
             screen: "account_status",
@@ -1442,9 +1442,9 @@ public class AdminAccessController(
 
         var sectionNameAr = GetDriverProfileSectionNameAr(section);
         var sectionNameEn = GetDriverProfileSectionNameEn(section);
-        var titleAr = $"تم رفض تحديث {sectionNameAr}";
+        var titleAr = $"رفضنا تحديث {sectionNameAr}";
         var titleEn = $"{sectionNameEn} update rejected";
-        var bodyAr = $"تم رفض طلب تحديث {sectionNameAr}. السبب: {reason}";
+        var bodyAr = $"رفضنا طلب تحديث {sectionNameAr}. السبب: {reason}";
         var bodyEn = $"Your {sectionNameEn.ToLowerInvariant()} update request was rejected. Reason: {reason}";
         var data = DriverNotificationDataBuilder.Build(
             screen: "account_status",

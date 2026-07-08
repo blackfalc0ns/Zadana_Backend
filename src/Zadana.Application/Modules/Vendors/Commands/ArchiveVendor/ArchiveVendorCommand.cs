@@ -79,7 +79,7 @@ public class ArchiveVendorCommandHandler : IRequestHandler<ArchiveVendorCommand>
             vendor,
             new VendorCommunicationMessage(
                 "vendor_archived",
-                "تمت أرشفة حساب التاجر",
+                "أرشفنا حساب التاجر",
                 "Vendor account archived",
                 request.Reason,
                 request.Reason,

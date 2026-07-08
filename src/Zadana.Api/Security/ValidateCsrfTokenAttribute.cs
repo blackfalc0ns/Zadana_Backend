@@ -1,5 +1,6 @@
 using Microsoft.AspNetCore.Mvc;
 using Microsoft.AspNetCore.Mvc.Filters;
+using Zadana.Api.Localization;
 
 namespace Zadana.Api.Security;
 
@@ -23,7 +24,7 @@ public sealed class ValidateCsrfTokenAttribute : Attribute, IAsyncAuthorizationF
             context.Result = new ObjectResult(new
             {
                 code = "INVALID_CSRF_TOKEN",
-                message = "Antiforgery token validation failed."
+                message = ApiLocalizedMessages.Resolve(context.HttpContext, "INVALID_CSRF_TOKEN")
             })
             {
                 StatusCode = StatusCodes.Status400BadRequest

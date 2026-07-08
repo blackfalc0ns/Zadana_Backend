@@ -75,7 +75,7 @@ public class IdentityService : IIdentityService
             if (user.Role == UserRole.Driver)
             {
                 throw new UnauthorizedException(
-                    "Driver login is locked. Use /api/drivers/account-support/appeals to contact support.",
+                    "DRIVER_LOGIN_LOCKED",
                     "DRIVER_LOGIN_LOCKED");
             }
 
@@ -87,7 +87,7 @@ public class IdentityService : IIdentityService
             if (user.Role == UserRole.Driver)
             {
                 throw new UnauthorizedException(
-                    "Driver account is not active. Use /api/drivers/account-support/appeals to contact support.",
+                    "DRIVER_ACCOUNT_BLOCKED",
                     "DRIVER_ACCOUNT_BLOCKED");
             }
 

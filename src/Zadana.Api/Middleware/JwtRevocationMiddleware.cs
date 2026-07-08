@@ -1,6 +1,7 @@
 using System.IdentityModel.Tokens.Jwt;
 using System.Security.Claims;
 using Microsoft.EntityFrameworkCore;
+using Zadana.Api.Localization;
 using Zadana.Application.Common.Interfaces;
 using Zadana.Domain.Modules.Identity.Enums;
 
@@ -73,19 +74,19 @@ public sealed class JwtRevocationMiddleware
 
             if (userState is null)
             {
-                await Reject(context, "USER_NOT_FOUND", "The authenticated user no longer exists. Please sign in again.");
+                await Reject(context, "USER_NOT_FOUND");
                 return;
             }
 
             if (userState.AccountStatus != AccountStatus.Active || userState.IsLoginLocked)
             {
-                await Reject(context, "ACCOUNT_NOT_ACTIVE", "The account is not active. Please sign in again or contact support.");
+                await Reject(context, "ACCOUNT_NOT_ACTIVE");
                 return;
             }
 
             if (!userState.EmailConfirmed)
             {
-                await Reject(context, "EMAIL_NOT_VERIFIED", "The account email is not verified. Please verify your email before continuing.");
+                await Reject(context, "EMAIL_NOT_VERIFIED");
                 return;
             }
 
@@ -93,7 +94,7 @@ public sealed class JwtRevocationMiddleware
             if (!int.TryParse(tokenPermissionVersion, out var claimPermissionVersion) ||
                 claimPermissionVersion != userState.PermissionVersion)
             {
-                await Reject(context, "TOKEN_STALE", "Your access permissions changed. Please sign in again.");
+                await Reject(context, "TOKEN_STALE");
                 return;
             }
         }
@@ -126,7 +127,7 @@ public sealed class JwtRevocationMiddleware
         return context.Response.WriteAsJsonAsync(new
         {
             code,
-            message = message ?? "The bearer token has been revoked. Please sign in again."
+            message = ApiLocalizedMessages.Resolve(context, code, message)
         }, context.RequestAborted);
     }
 }

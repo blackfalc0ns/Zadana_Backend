@@ -205,14 +205,14 @@ public class CatalogRequestWorkflowTests
     {
         await using var dbContext = CreateDbContext();
         var fixture = await SeedVendorFixtureAsync(dbContext);
-        var category = new Category("ÙØ¦Ø©", "Category", null, fixture.ParentCategory.Id, 1);
+        var category = new Category("فئة", "Category", null, fixture.ParentCategory.Id, 1);
         dbContext.Categories.Add(category);
         await dbContext.SaveChangesAsync();
 
         dbContext.BrandRequests.Add(new BrandRequest(
             fixture.Vendor.Id,
             category.Id,
-            "Ø¨Ø±Ø§Ù†Ø¯",
+            "براند",
             "Brand"));
         await dbContext.SaveChangesAsync();
 
@@ -224,10 +224,10 @@ public class CatalogRequestWorkflowTests
 
         var act = () => handler.Handle(
             new SubmitProductRequestCommand(
-                "Ù…Ù†ØªØ¬",
+                "منتج",
                 "Product",
                 SuggestedCategoryId: fixture.ParentCategory.Id,
-                RequestedBrand: new RequestedBrandDraft(category.Id, "Ø¨Ø±Ø§Ù†Ø¯", "Brand")),
+                RequestedBrand: new RequestedBrandDraft(category.Id, "براند", "Brand")),
             CancellationToken.None);
 
         await act.Should().ThrowAsync<BusinessRuleException>()
@@ -239,7 +239,7 @@ public class CatalogRequestWorkflowTests
     {
         await using var dbContext = CreateDbContext();
         var fixture = await SeedVendorFixtureAsync(dbContext);
-        dbContext.Categories.Add(new Category("Ù…ÙƒØ±Ø±", "Duplicate", null, fixture.ParentCategory.Id, 1));
+        dbContext.Categories.Add(new Category("مكرر", "Duplicate", null, fixture.ParentCategory.Id, 1));
         await dbContext.SaveChangesAsync();
 
         var handler = new SubmitProductRequestCommandHandler(
@@ -250,10 +250,10 @@ public class CatalogRequestWorkflowTests
 
         var act = () => handler.Handle(
             new SubmitProductRequestCommand(
-                "Ù…Ù†ØªØ¬",
+                "منتج",
                 "Product",
                 RequestedCategory: new RequestedCategoryDraft(
-                    "Ù…ÙƒØ±Ø±",
+                    "مكرر",
                     "Duplicate",
                     "sub_category",
                     fixture.ParentCategory.Id)),
@@ -342,16 +342,16 @@ public class CatalogRequestWorkflowTests
     {
         await using var dbContext = CreateDbContext();
         var fixture = await SeedVendorFixtureAsync(dbContext);
-        var category = new Category("ÙØ¦Ø©", "Category", null, fixture.ParentCategory.Id, 1);
+        var category = new Category("فئة", "Category", null, fixture.ParentCategory.Id, 1);
         dbContext.Categories.Add(category);
-        var existing = new MasterProduct("Ù…Ù†ØªØ¬", "Archived Product", "archived-product", category.Id);
+        var existing = new MasterProduct("منتج", "Archived Product", "archived-product", category.Id);
         existing.Discontinue();
         dbContext.MasterProducts.Add(existing);
         await dbContext.SaveChangesAsync();
 
         var request = new ProductRequest(
             fixture.Vendor.Id,
-            "Ù…Ù†ØªØ¬",
+            "منتج",
             "Archived Product",
             suggestedCategoryId: category.Id);
 

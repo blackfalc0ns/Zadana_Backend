@@ -447,7 +447,7 @@ internal static class CheckoutSupport
                     "pricing_unavailable",
                     false,
                     false,
-                    "تعذر تحديد التوصيل لهذا العنوان.",
+                    "ما قدرنا نحدد التوصيل لهذا العنوان.",
                     "Delivery could not be determined for this address.",
                     null,
                     null),
@@ -473,7 +473,7 @@ internal static class CheckoutSupport
                     "pricing_unavailable",
                     false,
                     false,
-                    "تعذر تحديد التوصيل لهذا العنوان.",
+                    "ما قدرنا نحدد التوصيل لهذا العنوان.",
                     "Delivery could not be determined for this address.",
                     null,
                     null),
@@ -517,7 +517,7 @@ internal static class CheckoutSupport
                     false,
                     exception.ErrorCode == "CUSTOMER_ADDRESS_REQUIRED"
                         ? "اختر عنوانًا لحساب التوصيل."
-                        : "تعذر تحديد التوصيل لهذا العنوان.",
+                        : "ما قدرنا نحدد التوصيل لهذا العنوان.",
                     exception.ErrorCode == "CUSTOMER_ADDRESS_REQUIRED"
                         ? "Choose an address to calculate delivery."
                         : "Delivery could not be determined for this address.",

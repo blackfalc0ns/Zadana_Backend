@@ -51,7 +51,7 @@ public class ReviewCategoryRequestCommandHandler : IRequestHandler<ReviewCategor
     {
         if (!_currentUserService.HasRole(UserRole.Admin, UserRole.SuperAdmin))
         {
-            throw new ForbiddenAccessException(_localizer["UNAUTHORIZED_REVIEW_REQUESTS"]);
+            throw new ForbiddenAccessException("UNAUTHORIZED_REVIEW_REQUESTS");
         }
 
         var categoryRequest = await _context.CategoryRequests
@@ -103,9 +103,9 @@ public class ReviewCategoryRequestCommandHandler : IRequestHandler<ReviewCategor
             categoryRequest.Approve(reviewerName, category.Id);
             await _notificationService.SendToUserAsync(
                 categoryRequest.Vendor.UserId,
-                "تمت الموافقة على طلب الكتالوج",
+                "اعتمدنا طلب الكتالوج",
                 "Catalog Request Approved",
-                $"تمت الموافقة على طلب الفئة '{categoryRequest.NameAr}'.",
+                $"اعتمدنا طلب التصنيف '{categoryRequest.NameAr}'.",
                 $"Your category request '{categoryRequest.NameEn}' has been approved.",
                 "catalog_request_category",
                 cancellationToken: cancellationToken);
@@ -123,9 +123,9 @@ public class ReviewCategoryRequestCommandHandler : IRequestHandler<ReviewCategor
         categoryRequest.Reject(request.RejectionReason, reviewerName);
         await _notificationService.SendToUserAsync(
             categoryRequest.Vendor.UserId,
-            "تم رفض طلب الكتالوج",
+            "رفضنا طلب الكتالوج",
             "Catalog Request Rejected",
-            $"تم رفض طلب الفئة '{categoryRequest.NameAr}'. السبب: {request.RejectionReason}",
+            $"رفضنا طلب التصنيف '{categoryRequest.NameAr}'. السبب: {request.RejectionReason}",
             $"Your category request '{categoryRequest.NameEn}' was rejected. Reason: {request.RejectionReason}",
             "catalog_request_category",
             cancellationToken: cancellationToken);

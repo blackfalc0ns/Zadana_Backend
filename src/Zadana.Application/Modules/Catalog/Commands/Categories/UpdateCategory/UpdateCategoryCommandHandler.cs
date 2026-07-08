@@ -39,7 +39,7 @@ public class UpdateCategoryCommandHandler : IRequestHandler<UpdateCategoryComman
                 {
                     throw new BusinessRuleException(
                         "CATEGORY_CIRCULAR_REFERENCE",
-                        "لا يمكن تعيين هذا التصنيف كأب لأنه يسبب حلقة مرجعية.|Cannot set this parent category because it would create a circular reference.");
+                        "ما تقدر تعيّن هذا التصنيف كتصنيف رئيسي لأنه يسبب حلقة مرجعية.|Cannot set this parent category because it would create a circular reference.");
                 }
                 visited.Add(currentParentId);
                 var parent = await _context.Categories.FindAsync(new object[] { currentParentId }, cancellationToken);

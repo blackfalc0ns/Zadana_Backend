@@ -51,7 +51,7 @@ public class ReviewBrandRequestCommandHandler : IRequestHandler<ReviewBrandReque
     {
         if (!_currentUserService.HasRole(UserRole.Admin, UserRole.SuperAdmin))
         {
-            throw new ForbiddenAccessException(_localizer["UNAUTHORIZED_REVIEW_REQUESTS"]);
+            throw new ForbiddenAccessException("UNAUTHORIZED_REVIEW_REQUESTS");
         }
 
         var brandRequest = await _context.BrandRequests
@@ -108,9 +108,9 @@ public class ReviewBrandRequestCommandHandler : IRequestHandler<ReviewBrandReque
             brandRequest.Approve(reviewerName, brand.Id);
             await _notificationService.SendToUserAsync(
                 brandRequest.Vendor.UserId,
-                "تمت الموافقة على طلب الكتالوج",
+                "اعتمدنا طلب الكتالوج",
                 "Catalog Request Approved",
-                $"تمت الموافقة على طلب العلامة التجارية '{brandRequest.NameAr}'.",
+                $"اعتمدنا طلب العلامة التجارية '{brandRequest.NameAr}'.",
                 $"Your brand request '{brandRequest.NameEn}' has been approved.",
                 "catalog_request_brand",
                 cancellationToken: cancellationToken);
@@ -127,9 +127,9 @@ public class ReviewBrandRequestCommandHandler : IRequestHandler<ReviewBrandReque
         brandRequest.Reject(request.RejectionReason, reviewerName);
         await _notificationService.SendToUserAsync(
             brandRequest.Vendor.UserId,
-            "تم رفض طلب الكتالوج",
+            "رفضنا طلب الكتالوج",
             "Catalog Request Rejected",
-            $"تم رفض طلب العلامة التجارية '{brandRequest.NameAr}'. السبب: {request.RejectionReason}",
+            $"رفضنا طلب العلامة التجارية '{brandRequest.NameAr}'. السبب: {request.RejectionReason}",
             $"Your brand request '{brandRequest.NameEn}' was rejected. Reason: {request.RejectionReason}",
             "catalog_request_brand",
             cancellationToken: cancellationToken);

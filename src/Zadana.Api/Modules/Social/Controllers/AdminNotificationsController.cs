@@ -92,7 +92,7 @@ public class AdminNotificationsController : ApiControllerBase
     {
         var userId = _currentUserService.UserId ?? throw new UnauthorizedException("USER_NOT_AUTHENTICATED");
         var count = await Sender.Send(new DeleteAllNotificationsCommand(userId), cancellationToken);
-        return Ok(new { count, message_ar = "تم حذف جميع الإشعارات", message_en = "All notifications deleted" });
+        return Ok(new { count, message_ar = "حذفنا جميع الإشعارات", message_en = "All notifications deleted" });
     }
 
     [HttpGet("preferences")]
@@ -158,7 +158,7 @@ public class AdminNotificationsController : ApiControllerBase
                 "admin.test",
                 AdminAlertCategories.System,
                 AdminAlertPriorities.Normal,
-                "اختبار إشعارات الأدمن",
+                "اختبار إشعارات المشرف",
                 "Admin notification test",
                 "هذا إشعار اختبار للتأكد من عمل Inbox وSignalR وOneSignal.",
                 "This is a test notification for Inbox, SignalR, and OneSignal.",

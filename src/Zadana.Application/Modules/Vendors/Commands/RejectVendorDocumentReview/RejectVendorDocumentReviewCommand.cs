@@ -73,7 +73,7 @@ public class RejectVendorDocumentReviewCommandHandler : IRequestHandler<RejectVe
             vendor.UserId,
             "document-rejected",
             "warning",
-            $"تم رفض مستند {MapDocumentTypeToArabic(documentType)}. {request.Reason.Trim()}",
+            $"رفضنا مستند {MapDocumentTypeToArabic(documentType)}. {request.Reason.Trim()}",
             "مراجعة المستندات",
             "مكتب امتثال التاجر",
             _currentUserService.UserId,

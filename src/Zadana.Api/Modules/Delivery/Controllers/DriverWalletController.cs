@@ -3,6 +3,7 @@ using Microsoft.AspNetCore.Authorization;
 using Microsoft.AspNetCore.Mvc;
 using Microsoft.EntityFrameworkCore;
 using Zadana.Api.Controllers;
+using Zadana.Api.Localization;
 using Zadana.Api.Modules.Delivery.Requests;
 using Zadana.Application.Common.Interfaces;
 using Zadana.Application.Modules.Delivery.Support;
@@ -112,7 +113,7 @@ public class DriverWalletController : ApiControllerBase
         return Accepted(new
         {
             approvalRequestId,
-            message = "Payout method change is pending admin approval."
+            message = ApiLocalizedMessages.Resolve(HttpContext, "DRIVER_PAYOUT_METHOD_CHANGE_PENDING_APPROVAL")
         });
     }
 
@@ -153,7 +154,7 @@ public class DriverWalletController : ApiControllerBase
         return Accepted(new
         {
             approvalRequestId,
-            message = "Payout method change is pending admin approval."
+            message = ApiLocalizedMessages.Resolve(HttpContext, "DRIVER_PAYOUT_METHOD_CHANGE_PENDING_APPROVAL")
         });
     }
 
@@ -178,7 +179,7 @@ public class DriverWalletController : ApiControllerBase
         {
             throw new BusinessRuleException(
                 "DRIVER_PAYOUT_METHOD_IN_USE",
-                "لا يمكن حذف طريقة السحب لأنها مرتبطة بطلبات سحب سابقة أو حالية | This payout method cannot be deleted because it is linked to withdrawal requests.");
+                "ما تقدر تحذف طريقة السحب لأنها مرتبطة بطلبات سحب سابقة أو حالية | This payout method cannot be deleted because it is linked to withdrawal requests.");
         }
 
         var approvalRequestId = await profileChangeApprovalService.SubmitAsync(
@@ -193,7 +194,7 @@ public class DriverWalletController : ApiControllerBase
         return Accepted(new
         {
             approvalRequestId,
-            message = "Payout method deletion is pending admin approval."
+            message = ApiLocalizedMessages.Resolve(HttpContext, "DRIVER_PAYOUT_METHOD_DELETION_PENDING_APPROVAL")
         });
     }
 
@@ -225,7 +226,7 @@ public class DriverWalletController : ApiControllerBase
         return Accepted(new
         {
             approvalRequestId,
-            message = "Payout method change is pending admin approval."
+            message = ApiLocalizedMessages.Resolve(HttpContext, "DRIVER_PAYOUT_METHOD_CHANGE_PENDING_APPROVAL")
         });
     }
 
@@ -287,7 +288,7 @@ public class DriverWalletController : ApiControllerBase
         {
             throw new BusinessRuleException(
                 "DRIVER_COD_DEBT_NOT_SETTLED",
-                "يجب تسوية مبالغ الدفع عند الاستلام المستحقة قبل طلب السحب | Settle outstanding COD cash before requesting a withdrawal.");
+                "لازم تسوي مبالغ الدفع عند الاستلام المستحقة قبل طلب السحب | Settle outstanding COD cash before requesting a withdrawal.");
         }
 
         var activeWithdrawalHolds = await SumActiveWithdrawalHoldsAsync(context, driver.Id, cancellationToken);
@@ -324,9 +325,9 @@ public class DriverWalletController : ApiControllerBase
         await notificationService.SendToUserAsync(
             driver.UserId,
             new NotificationDispatchRequest(
-                "تم استلام طلب السحب",
+                "استلمنا طلب السحب",
                 "Withdrawal request submitted",
-                $"تم استلام طلب سحب بقيمة {withdrawal.Amount:0.##}.",
+                $"استلمنا طلب سحب بقيمة {withdrawal.Amount:0.##}.",
                 $"Your withdrawal request for {withdrawal.Amount:0.##} was submitted.",
                 NotificationTypes.DriverWalletUpdated,
                 NotificationCategories.Wallet,
@@ -552,9 +553,9 @@ public class DriverWalletController : ApiControllerBase
             AdminAlertTypes.DriverCriticalChangeSubmitted,
             AdminAlertCategories.Drivers,
             AdminAlertPriorities.High,
-            "تغيير طريقة سحب مندوب بانتظار الموافقة",
+            "تغيير طريقة سحب مندوب بانتظار الاعتماد",
             "Driver payout method change pending approval",
-            $"أرسل المندوب {driverName} تغييرًا في طريقة السحب وينتظر موافقة الأدمن.",
+            $"أرسل المندوب {driverName} تغييرًا في طريقة السحب وينتظر اعتماد المشرف.",
             $"Driver {driverName} submitted payout method changes pending admin approval.",
             payoutMethodId ?? driver.Id,
             "/admin/access/approvals",

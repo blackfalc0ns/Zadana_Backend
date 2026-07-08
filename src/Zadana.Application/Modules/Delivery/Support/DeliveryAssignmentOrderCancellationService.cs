@@ -158,9 +158,9 @@ public sealed class DeliveryAssignmentOrderCancellationService
         string orderNumber,
         CancellationToken cancellationToken)
     {
-        var titleAr = "تم إلغاء عرض التوصيل";
+        var titleAr = "ألغينا عرض التوصيل";
         var titleEn = "Delivery offer cancelled";
-        var bodyAr = $"تم إلغاء الطلب رقم #{orderNumber} ولم يعد عرض التوصيل متاحاً.";
+        var bodyAr = $"ألغينا الطلب رقم #{orderNumber} ولم يعد عرض التوصيل متاحاً.";
         var bodyEn = $"Order #{orderNumber} was cancelled and the delivery offer is no longer available.";
 
         var data = DriverNotificationDataBuilder.Build(

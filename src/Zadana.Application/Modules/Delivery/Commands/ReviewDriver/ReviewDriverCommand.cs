@@ -224,9 +224,9 @@ public class ReviewDriverCommandHandler : IRequestHandler<ReviewDriverCommand>
         {
             "approve" => (
                 "account.approve",
-                "تم اعتماد حساب المندوب",
+                "اعتمدنا حساب المندوب",
                 "Driver account approved",
-                "تم اعتماد حسابك كمندوب. يمكنك الآن متابعة العمل من التطبيق.",
+                "اعتمدنا حسابك كمندوب. تقدر الآن متابعة العمل من التطبيق.",
                 "Your driver account was approved. You can continue working from the app."),
             "request-docs" => (
                 "account.request_docs",
@@ -236,9 +236,9 @@ public class ReviewDriverCommandHandler : IRequestHandler<ReviewDriverCommand>
                 "Please review your account and upload the required documents."),
             _ => (
                 "account.reject",
-                "تم رفض طلب المندوب",
+                "رفضنا طلب المندوب",
                 "Driver application rejected",
-                "تم رفض طلبك الحالي كمندوب. راجع ملاحظة الفريق داخل التطبيق.",
+                "رفضنا طلبك الحالي كمندوب. راجع ملاحظة الفريق داخل التطبيق.",
                 "Your current driver application was rejected. Review the team note in the app.")
         };
 

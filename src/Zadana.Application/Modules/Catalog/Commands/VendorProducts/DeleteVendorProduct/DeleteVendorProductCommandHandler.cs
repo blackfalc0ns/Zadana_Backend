@@ -41,7 +41,7 @@ public class DeleteVendorProductCommandHandler : IRequestHandler<DeleteVendorPro
         {
             throw new BusinessRuleException(
                 "VENDOR_PRODUCT_DELETE_BLOCKED_BY_ORDERS",
-                "تعذر حذف المنتج الآن. تأكد أنه غير مرتبط بطلبات أو حملات.|Unable to delete this product right now. Make sure it is not linked to orders or campaigns.");
+                "ما قدرنا نحذف المنتج الآن. تأكد أنه غير مرتبط بطلبات أو حملات.|Unable to delete this product right now. Make sure it is not linked to orders or campaigns.");
         }
 
         var hasFeaturedPlacement = await _context.FeaturedProductPlacements
@@ -51,7 +51,7 @@ public class DeleteVendorProductCommandHandler : IRequestHandler<DeleteVendorPro
         {
             throw new BusinessRuleException(
                 "VENDOR_PRODUCT_DELETE_BLOCKED_BY_MARKETING",
-                "تعذر حذف المنتج الآن. تأكد أنه غير مرتبط بطلبات أو حملات.|Unable to delete this product right now. Make sure it is not linked to orders or campaigns.");
+                "ما قدرنا نحذف المنتج الآن. تأكد أنه غير مرتبط بطلبات أو حملات.|Unable to delete this product right now. Make sure it is not linked to orders or campaigns.");
         }
 
         _context.VendorProducts.Remove(vendorProduct);

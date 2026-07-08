@@ -6,6 +6,7 @@ using Microsoft.AspNetCore.Mvc;
 using Microsoft.AspNetCore.RateLimiting;
 using Microsoft.Extensions.Options;
 using Zadana.Api.Controllers;
+using Zadana.Api.Localization;
 using Zadana.Api.Security;
 using Zadana.Infrastructure.Settings;
 
@@ -44,7 +45,7 @@ public sealed class WapilotWebhooksController(
             {
                 processed = false,
                 provider = "WAPIlot",
-                message = "Webhook secret is invalid."
+                message = ApiLocalizedMessages.Resolve(HttpContext, "WEBHOOK_SECRET_INVALID")
             });
         }
 
@@ -76,7 +77,7 @@ public sealed class WapilotWebhooksController(
             {
                 processed = false,
                 provider = "WAPIlot",
-                message = "Webhook payload is not valid JSON."
+                message = ApiLocalizedMessages.Resolve(HttpContext, "WEBHOOK_PAYLOAD_INVALID_JSON")
             });
         }
 

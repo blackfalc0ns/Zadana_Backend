@@ -79,7 +79,7 @@ public class LockVendorLoginCommandHandler : IRequestHandler<LockVendorLoginComm
             vendor,
             new VendorCommunicationMessage(
                 "vendor_login_locked",
-                "تم قفل دخول حساب التاجر",
+                "قفلنا دخول حساب التاجر",
                 "Vendor login locked",
                 request.Reason,
                 request.Reason,

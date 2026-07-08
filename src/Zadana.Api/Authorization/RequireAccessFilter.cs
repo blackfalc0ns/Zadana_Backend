@@ -1,6 +1,7 @@
 using Microsoft.AspNetCore.Mvc;
 using Microsoft.AspNetCore.Mvc.Authorization;
 using Microsoft.AspNetCore.Mvc.Filters;
+using Zadana.Api.Localization;
 using Zadana.Application.Common.Interfaces;
 using Zadana.Application.Modules.Identity.Interfaces;
 using Zadana.Api.Middleware;
@@ -57,7 +58,7 @@ public sealed class RequireAccessFilter : IAsyncAuthorizationFilter
                 context.Result = new ObjectResult(new
                 {
                     code = "PERMISSION_VERSION_MISMATCH",
-                    message = "Token permission version does not match DB. Re-authenticate required.",
+                    message = ApiLocalizedMessages.Resolve(context.HttpContext, "PERMISSION_VERSION_MISMATCH"),
                     debug_tokenVersion = tokenPermissionVersion ?? "null",
                     debug_dbVersion = access.PermissionVersion,
                     debug_userId = _currentUserService.UserId?.ToString() ?? "null"
@@ -100,7 +101,7 @@ public sealed class RequireAccessFilter : IAsyncAuthorizationFilter
         var resultObj = new Dictionary<string, object>
         {
             ["code"] = "ACCESS_DENIED",
-            ["message"] = "You do not have permission to perform this action.",
+            ["message"] = ApiLocalizedMessages.Resolve(context.HttpContext, "ACCESS_DENIED"),
             ["requiredPermissions"] = _permissions
         };
 

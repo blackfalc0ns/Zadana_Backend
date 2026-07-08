@@ -46,7 +46,7 @@ public class DeleteMasterProductCommandHandler : IRequestHandler<DeleteMasterPro
         {
             throw new BusinessRuleException(
                 "PRODUCT_HAS_VENDOR_LISTINGS",
-                "لا يمكن حذف المنتج لأنه مدرج عند تجار. أزل إدراجات التجار أولاً.|Cannot delete this product because it has vendor listings.");
+                "ما تقدر تحذف المنتج لأنه مدرج عند تجار. أزل إدراجات التجار أولًا.|Cannot delete this product because it has vendor listings.");
         }
 
         // Guard: prevent deletion if order history exists
@@ -57,7 +57,7 @@ public class DeleteMasterProductCommandHandler : IRequestHandler<DeleteMasterPro
         {
             throw new BusinessRuleException(
                 "PRODUCT_HAS_ORDER_HISTORY",
-                "لا يمكن حذف المنتج لأنه مرتبط بطلبات سابقة.|Cannot delete this product because it is linked to order history.");
+                "ما تقدر تحذف المنتج لأنه مرتبط بطلبات سابقة.|Cannot delete this product because it is linked to order history.");
         }
 
         // Guard: prevent deletion if in active carts
@@ -68,7 +68,7 @@ public class DeleteMasterProductCommandHandler : IRequestHandler<DeleteMasterPro
         {
             throw new BusinessRuleException(
                 "PRODUCT_IN_ACTIVE_CARTS",
-                "لا يمكن حذف المنتج لأنه موجود في سلات تسوق نشطة.|Cannot delete this product because it is in active shopping carts.");
+                "ما تقدر تحذف المنتج لأنه موجود في سلات تسوق نشطة.|Cannot delete this product because it is in active shopping carts.");
         }
 
         // Soft-delete via DbContext SaveChangesAsync override (ISoftDeletable interception)

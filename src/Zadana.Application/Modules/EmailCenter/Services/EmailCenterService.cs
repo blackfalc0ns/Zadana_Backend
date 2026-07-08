@@ -2199,8 +2199,8 @@ internal static class EmailCenterDefaults
                 new EmailRecipientTargetSelectionDto(["customer_account"], [], []),
                 new EmailRecipientRouteDto([], [], [], ["support@zadna0.com"], [], [], "Customer Experience", "Orders Desk"),
                 new EmailTemplatePreviewDto(
-                    new Dictionary<string, string> { ["en"] = "Your Zadna order {{order_number}} is confirmed", ["ar"] = "تم تأكيد طلبك {{order_number}} من زادنا" },
-                    new Dictionary<string, string> { ["en"] = "Hi {{customer_name}}, your order from {{vendor_name}} is confirmed. Total: {{order_total}} {{currency}}.", ["ar"] = "أهلا {{customer_name}}، تم تأكيد طلبك من {{vendor_name}}. الإجمالي: {{order_total}} {{currency}}." },
+                    new Dictionary<string, string> { ["en"] = "Your Zadna order {{order_number}} is confirmed", ["ar"] = "أكدنا طلبك {{order_number}} من زادنا" },
+                    new Dictionary<string, string> { ["en"] = "Hi {{customer_name}}, your order from {{vendor_name}} is confirmed. Total: {{order_total}} {{currency}}.", ["ar"] = "أهلا {{customer_name}}، أكدنا طلبك من {{vendor_name}}. الإجمالي: {{order_total}} {{currency}}." },
                     ["{{customer_name}}", "{{order_number}}", "{{vendor_name}}", "{{order_total}}", "{{currency}}"],
                     OrderUpdateHeroImageUrlEn,
                     "Track order",
@@ -2252,7 +2252,7 @@ internal static class EmailCenterDefaults
                 new EmailRecipientRouteDto([], [], [], ["support@zadna0.com"], [], [], "Customer Experience", "Delivery Desk"),
                 new EmailTemplatePreviewDto(
                     new Dictionary<string, string> { ["en"] = "Your driver has arrived for order {{order_number}}", ["ar"] = "المندوب وصل لطلبك {{order_number}}" },
-                    new Dictionary<string, string> { ["en"] = "Hi {{customer_name}}, the driver has arrived at your delivery address with your order from {{vendor_name}}. Please prepare your delivery OTP.", ["ar"] = "أهلا {{customer_name}}، المندوب وصل إلى عنوان التسليم بطلبك من {{vendor_name}}. يرجى تجهيز رمز التسليم." },
+                    new Dictionary<string, string> { ["en"] = "Hi {{customer_name}}, the driver has arrived at your delivery address with your order from {{vendor_name}}. Please prepare your delivery OTP.", ["ar"] = "أهلا {{customer_name}}، المندوب وصل إلى عنوان التسليم بطلبك من {{vendor_name}}. فضلاً تجهيز رمز التسليم." },
                     ["{{customer_name}}", "{{order_number}}", "{{vendor_name}}"],
                     OrderUpdateHeroImageUrlEn,
                     "Open order",
@@ -2304,7 +2304,7 @@ internal static class EmailCenterDefaults
                 new EmailRecipientRouteDto([], [], [], ["contact@zadna0.com"], [], [], "Vendor Operations", "Marketplace Operations"),
                 new EmailTemplatePreviewDto(
                     new Dictionary<string, string> { ["en"] = "Order {{order_number}} needs your action", ["ar"] = "طلب {{order_number}} يحتاج إجراء منك" },
-                    new Dictionary<string, string> { ["en"] = "{{vendor_name}}, a new order is waiting for your confirmation. Total: {{order_total}} {{currency}}.", ["ar"] = "{{vendor_name}}، يوجد طلب جديد في انتظار تأكيدك. الإجمالي: {{order_total}} {{currency}}." },
+                    new Dictionary<string, string> { ["en"] = "{{vendor_name}}, a new order is waiting for your confirmation. Total: {{order_total}} {{currency}}.", ["ar"] = "{{vendor_name}}، يوجد طلب جديد بانتظار تأكيدك. الإجمالي: {{order_total}} {{currency}}." },
                     ["{{vendor_name}}", "{{order_number}}", "{{order_total}}", "{{currency}}"],
                     VendorNewOrderHeroImageUrlEn,
                     "Open order",
@@ -2355,8 +2355,8 @@ internal static class EmailCenterDefaults
                 new EmailRecipientTargetSelectionDto(["primary_account_email"], ["assigned_super_admin_manager"], []),
                 new EmailRecipientRouteDto(["support@zadna0.com"], [], [], ["support@zadna0.com"], ["contact@zadna0.com"], [], "Access Control Desk", "Security Governance"),
                 new EmailTemplatePreviewDto(
-                    new Dictionary<string, string> { ["en"] = "Your Zadana access is ready", ["ar"] = "تم تجهيز وصولك في زادانا" },
-                    new Dictionary<string, string> { ["en"] = "Your super admin access invitation is ready. Complete onboarding before the expiry date.", ["ar"] = "دعوة الوصول الخاصة بك جاهزة. يرجى إكمال التفعيل قبل تاريخ الانتهاء." },
+                    new Dictionary<string, string> { ["en"] = "Your Zadana access is ready", ["ar"] = "جهّزنا وصولك في زادانا" },
+                    new Dictionary<string, string> { ["en"] = "Your super admin access invitation is ready. Complete onboarding before the expiry date.", ["ar"] = "دعوة الوصول الخاصة بك جاهزة. فضلاً إكمال التفعيل قبل تاريخ الانتهاء." },
                     ["{{full_name}}", "{{expiry_date}}", "{{invite_link}}"]),
                 "manual_only"),
             BuildRule(
@@ -2377,7 +2377,7 @@ internal static class EmailCenterDefaults
                 new EmailRecipientRouteDto([], ["hello@zadna0.com"], [], ["contact@zadna0.com"], ["support@zadna0.com"], [], "Vendor Success Hub", "Marketplace Operations"),
                 new EmailTemplatePreviewDto(
                     new Dictionary<string, string> { ["en"] = "Branch access onboarding", ["ar"] = "تهيئة وصول الفرع" },
-                    new Dictionary<string, string> { ["en"] = "Branch team access has been prepared. Review role scope and complete activation.", ["ar"] = "تم تجهيز وصول فريق الفرع. يرجى مراجعة نطاق الدور واستكمال التفعيل." },
+                    new Dictionary<string, string> { ["en"] = "Branch team access has been prepared. Review role scope and complete activation.", ["ar"] = "جهّزنا وصول فريق الفرع. فضلاً راجع نطاق الدور واستكمال التفعيل." },
                     ["{{branch_name}}", "{{vendor_name}}", "{{invite_link}}"]),
                 "manual_only"),
             BuildRule(
@@ -2397,8 +2397,8 @@ internal static class EmailCenterDefaults
                 new EmailRecipientTargetSelectionDto(["branch_manager", "branch_staff"], ["vendor_company_manager"], []),
                 new EmailRecipientRouteDto([], [], [], ["support@zadna0.com"], ["contact@zadna0.com"], [], "Vendor Identity Support", "Vendor Security Desk"),
                 new EmailTemplatePreviewDto(
-                    new Dictionary<string, string> { ["en"] = "Reset requested for branch credentials", ["ar"] = "تم طلب إعادة تعيين بيانات الفرع" },
-                    new Dictionary<string, string> { ["en"] = "A secure password reset was requested for the branch account.", ["ar"] = "تم طلب إعادة تعيين آمن لبيانات الفرع." },
+                    new Dictionary<string, string> { ["en"] = "Reset requested for branch credentials", ["ar"] = "طلبنا إعادة تعيين بيانات الفرع" },
+                    new Dictionary<string, string> { ["en"] = "A secure password reset was requested for the branch account.", ["ar"] = "طلبنا إعادة تعيين آمن لبيانات الفرع." },
                     ["{{branch_name}}", "{{reset_link}}", "{{requested_at}}"]),
                 "manual_only"),
             BuildRule(
@@ -2440,7 +2440,7 @@ internal static class EmailCenterDefaults
                 new EmailRecipientRouteDto([], [], [], [], [], [], "Driver Operations", "Driver Compliance"),
                 new EmailTemplatePreviewDto(
                     new Dictionary<string, string> { ["en"] = "Driver verification update", ["ar"] = "تحديث حالة توثيق المندوب" },
-                    new Dictionary<string, string> { ["en"] = "Your driver verification status has changed. Open the driver app for details.", ["ar"] = "تم تحديث حالة توثيق المندوب. افتح التطبيق للاطلاع على التفاصيل." },
+                    new Dictionary<string, string> { ["en"] = "Your driver verification status has changed. Open the driver app for details.", ["ar"] = "حدّثنا حالة توثيق المندوب. افتح التطبيق للاطلاع على التفاصيل." },
                     ["{{driver_name}}", "{{status}}", "{{driver_note}}"],
                     DriverVerificationHeroImageUrlEn,
                     "Open driver app",
@@ -2516,7 +2516,7 @@ internal static class EmailCenterDefaults
                 new EmailRecipientRouteDto([], [], [], ["support@zadna0.com"], [], [], "Identity Support", "Customer Security Desk"),
                 new EmailTemplatePreviewDto(
                     new Dictionary<string, string> { ["en"] = "Customer account recovery", ["ar"] = "استعادة حساب العميل" },
-                    new Dictionary<string, string> { ["en"] = "A recovery action was requested for your customer account.", ["ar"] = "تم طلب إجراء استعادة لحساب العميل الخاص بك." },
+                    new Dictionary<string, string> { ["en"] = "A recovery action was requested for your customer account.", ["ar"] = "طلبنا إجراء استعادة لحساب العميل الخاص بك." },
                     ["{{reset_link}}", "{{requested_at}}"]),
                 "manual_only")
         };
@@ -2544,7 +2544,7 @@ internal static class EmailCenterDefaults
                 ? new Dictionary<string, string>
                 {
                     ["en"] = "Your Zadna vendor account is approved",
-                    ["ar"] = "تم تفعيل حساب التاجر في زادنا"
+                    ["ar"] = "فعّلنا حساب التاجر في زادنا"
                 }
                 : new Dictionary<string, string>
                 {
@@ -2555,7 +2555,7 @@ internal static class EmailCenterDefaults
                 ? new Dictionary<string, string>
                 {
                     ["en"] = "{{vendor_name}}, your vendor account has been approved. You can now open your workspace and manage orders.",
-                    ["ar"] = "{{vendor_name}}، تم اعتماد حساب التاجر الخاص بك. يمكنك الآن فتح لوحة التحكم وإدارة الطلبات."
+                    ["ar"] = "{{vendor_name}}، اعتمدنا حساب التاجر الخاص بك. تقدر الآن تفتح لوحة التحكم وإدارة الطلبات."
                 }
                 : new Dictionary<string, string>
                 {

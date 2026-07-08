@@ -123,7 +123,7 @@ public class DriverProfileController : ApiControllerBase
         {
             throw new BusinessRuleException(
                 "DRIVER_SERVICE_AREA_REQUIRED",
-                "يجب اختيار المنطقة والمدينة التي سيعمل بها المندوب | Driver must choose the region and city they will work in.");
+                "لازم تختار المنطقة والمدينة اللي بيشتغل فيها المندوب | Driver must choose the region and city they will work in.");
         }
 
         var normalizedRegion = request.Region.Trim().ToUpperInvariant();
@@ -352,9 +352,9 @@ public class DriverProfileController : ApiControllerBase
             AdminAlertTypes.DriverCriticalChangeSubmitted,
             AdminAlertCategories.Drivers,
             AdminAlertPriorities.High,
-            "تعديل بيانات مندوب بانتظار الموافقة",
+            "تعديل بيانات مندوب بانتظار الاعتماد",
             "Driver personal change pending approval",
-            $"أرسل المندوب {GetDriverDisplayName(driver)} تعديل بيانات شخصية وينتظر موافقة الأدمن.",
+            $"أرسل المندوب {GetDriverDisplayName(driver)} تعديل بيانات شخصية وينتظر اعتماد المشرف.",
             $"Driver {GetDriverDisplayName(driver)} submitted personal profile changes pending admin approval.",
             driver.Id,
             "/admin/access/approvals",
@@ -365,9 +365,9 @@ public class DriverProfileController : ApiControllerBase
             AdminAlertTypes.DriverCriticalChangeSubmitted,
             AdminAlertCategories.Drivers,
             AdminAlertPriorities.High,
-            "تعديل بيانات هوية أو مركبة بانتظار الموافقة",
+            "تعديل بيانات هوية أو مركبة بانتظار الاعتماد",
             "Driver vehicle change pending approval",
-            $"أرسل المندوب {GetDriverDisplayName(driver)} تعديل بيانات هوية أو مركبة وينتظر موافقة الأدمن.",
+            $"أرسل المندوب {GetDriverDisplayName(driver)} تعديل بيانات هوية أو مركبة وينتظر اعتماد المشرف.",
             $"Driver {GetDriverDisplayName(driver)} submitted vehicle or identity changes pending admin approval.",
             driver.Id,
             "/admin/access/approvals",
@@ -378,9 +378,9 @@ public class DriverProfileController : ApiControllerBase
             AdminAlertTypes.DriverDocumentsSubmitted,
             AdminAlertCategories.Drivers,
             AdminAlertPriorities.High,
-            "مستندات مندوب بانتظار الموافقة",
+            "مستندات مندوب بانتظار الاعتماد",
             "Driver documents pending approval",
-            $"أرسل المندوب {GetDriverDisplayName(driver)} مستندات جديدة وينتظر موافقة الأدمن.",
+            $"أرسل المندوب {GetDriverDisplayName(driver)} مستندات جديدة وينتظر اعتماد المشرف.",
             $"Driver {GetDriverDisplayName(driver)} submitted document changes pending admin approval.",
             driver.Id,
             $"/drivers/{driver.Id}?tab=verification",
@@ -439,14 +439,14 @@ public class DriverProfileController : ApiControllerBase
             ? AdminAlertPriorities.High
             : AdminAlertPriorities.Critical;
         var titleAr = hasRequiredProfileData
-            ? "مستندات سائق جاهزة للمراجعة"
-            : "مانع في موافقة سائق";
+            ? "مستندات مندوب جاهزة للمراجعة"
+            : "مانع اعتماد مندوب";
         var titleEn = hasRequiredProfileData
             ? "Driver documents ready for review"
             : "Driver approval blocker";
         var bodyAr = hasRequiredProfileData
-            ? $"قام السائق {driver.User.FullName} بتحديث بياناته ومستنداته."
-            : $"بيانات أو مستندات السائق {driver.User.FullName} ما زالت تمنع الموافقة.";
+            ? $"قام المندوب {driver.User.FullName} بتحديث بياناته ومستنداته."
+            : $"بيانات أو مستندات المندوب {driver.User.FullName} ما زالت تمنع الاعتماد.";
         var bodyEn = hasRequiredProfileData
             ? $"Driver {driver.User.FullName} updated profile data and documents."
             : $"Driver {driver.User.FullName} still has profile or document blockers.";

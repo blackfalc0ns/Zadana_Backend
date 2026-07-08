@@ -1076,9 +1076,9 @@ public class DriverReadService : IDriverReadService
         "OfferSent"       => IsArabic() ? "عرض مرسل" : "Offer sent",
         "Accepted"        => IsArabic() ? "مقبول" : "Accepted",
         "ArrivedAtVendor" => IsArabic() ? "وصل للمتجر" : "Arrived at vendor",
-        "PickedUp"        => IsArabic() ? "تم الاستلام" : "Picked up",
+        "PickedUp"        => IsArabic() ? "استلمنا" : "Picked up",
         "ArrivedAtCustomer" => IsArabic() ? "وصل للعميل" : "Arrived at customer",
-        "Delivered"       => IsArabic() ? "تم التوصيل" : "Delivered",
+        "Delivered"       => IsArabic() ? "وصلنا" : "Delivered",
         "Failed"          => IsArabic() ? "فشل التوصيل" : "Delivery failed",
         "Cancelled"       => IsArabic() ? "ملغي" : "Cancelled",
         "Rejected"        => IsArabic() ? "مرفوض" : "Rejected",
@@ -1096,7 +1096,7 @@ public class DriverReadService : IDriverReadService
     {
         "not_required" => IsArabic() ? "غير مطلوب" : "Not required",
         "pending"      => IsArabic() ? "في الانتظار" : "Pending",
-        "verified"     => IsArabic() ? "تم التحقق" : "Verified",
+        "verified"     => IsArabic() ? "تحققنا" : "Verified",
         _              => otpStatus
     };
 

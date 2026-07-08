@@ -96,16 +96,16 @@ public static class DriverOperationalStatusFactory
     public static string ResolveMessageAr(Driver driver, bool isLoginLocked = false) =>
         ResolveGateStatus(driver, isLoginLocked) switch
         {
-            "LoginLocked" => "تسجيل الدخول مقفل لهذا الحساب. يمكنك التواصل مع دعم حساب المندوب.",
+            "LoginLocked" => "تسجيل الدخول مقفل لهذا الحساب. تقدر تتواصل مع دعم حساب المندوب.",
             "NeedsDocuments" => "ملف المندوب يحتاج استكمال المستندات المطلوبة قبل المراجعة.",
             "UnderReview" => "ملف المندوب قيد مراجعة الإدارة حاليًا.",
-            "Rejected" => "تم رفض ملف المندوب من الإدارة.",
-            "ExpiredDocuments" => "حساب المندوب مغلق حتى يتم تجديد المستندات المنتهية.",
+            "Rejected" => "رفضنا ملف المندوب من الإدارة.",
+            "ExpiredDocuments" => "حساب المندوب مغلق لين تجدد المستندات المنتهية.",
             "Suspended" => "حساب المندوب موقوف.",
             "Banned" => "حساب المندوب محظور.",
-            "Operational" => "تم اعتماد المندوب ويمكنه استقبال الطلبات.",
-            "PendingActivation" => "تم اعتماد المندوب لكن الحساب ما زال في انتظار التفعيل.",
-            "Inactive" => "تم اعتماد المندوب لكن الحساب غير نشط حاليًا.",
+            "Operational" => "اعتمدنا المندوب ويمكنه استقبال الطلبات.",
+            "PendingActivation" => "اعتمدنا المندوب لكن الحساب ما زال بانتظار التفعيل.",
+            "Inactive" => "اعتمدنا المندوب لكن الحساب غير نشط حاليًا.",
             _ => "حالة تشغيل المندوب غير متاحة حاليًا."
         };
 
@@ -129,12 +129,12 @@ public static class DriverOperationalStatusFactory
         NormalizeReviewNote(note) switch
         {
             null => null,
-            "profile updated and pending admin re-review" => "تم تحديث الملف وهو في انتظار إعادة مراجعة الإدارة.",
-            "documents approved and pending final account approval" => "تم اعتماد المستندات والملف في انتظار الموافقة النهائية على الحساب.",
-            "expired_required_documents" => "يوجد مستند مطلوب منتهي الصلاحية. يرجى تجديد المستندات.",
+            "profile updated and pending admin re-review" => "حدّثنا الملف وهو بانتظار إعادة مراجعة الإدارة.",
+            "documents approved and pending final account approval" => "اعتمدنا المستندات والملف بانتظار الاعتماد النهائية على الحساب.",
+            "expired_required_documents" => "يوجد مستند مطلوب منتهي. فضلاً تجديد المستندات.",
             "additional documents required" => "مطلوب استكمال مستندات إضافية.",
-            "driver account approved" => "تم اعتماد حساب المندوب.",
-            "driver application rejected" => "تم رفض طلب تسجيل المندوب.",
+            "driver account approved" => "اعتمدنا حساب المندوب.",
+            "driver application rejected" => "رفضنا طلب تسجيل المندوب.",
             _ => note
         };
 

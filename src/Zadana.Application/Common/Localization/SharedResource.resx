@@ -291,7 +291,7 @@
     <value>Vendor with Id '{0}' not found.</value>
   </data>
   <data name="USER_NOT_FOUND" xml:space="preserve">
-    <value>User with Id '{0}' not found.</value>
+    <value>User was not found.</value>
   </data>
   <data name="USER_ALREADY_EXISTS" xml:space="preserve">
     <value>Email or phone is already registered.</value>
@@ -919,5 +919,1294 @@
   <data name="COUPON_NOT_FOUND" xml:space="preserve">
     <value>Coupon not found.</value>
   </data>
-
+  <data name="PRODUCT_TYPE_HAS_PRODUCTS" xml:space="preserve">
+    <value>Cannot delete product type because it is linked to products.</value>
+  </data>
+  <data name="PRODUCT_TYPE_HAS_PARTS" xml:space="preserve">
+    <value>Cannot delete product type because it has parts.</value>
+  </data>
+  <data name="PART_HAS_PRODUCTS" xml:space="preserve">
+    <value>Cannot delete product type part because it is linked to products.</value>
+  </data>
+  <data name="INVALID_DELIVERY_PRICING" xml:space="preserve">
+    <value>Delivery pricing amounts cannot be negative.</value>
+  </data>
+  <data name="INVALID_SURGE_MULTIPLIER" xml:space="preserve">
+    <value>Surge multiplier must be greater than or equal to 1.</value>
+  </data>
+  <data name="DRIVER_SERVICE_AREA_REQUIRED" xml:space="preserve">
+    <value>Driver must choose the region and city they will work in.</value>
+  </data>
+  <data name="INVALID_OTP_TYPE" xml:space="preserve">
+    <value>OTP type is required.</value>
+  </data>
+  <data name="NOT_ASSIGNED_TO_ORDER" xml:space="preserve">
+    <value>You can only report issues for orders assigned to you.</value>
+  </data>
+  <data name="DRIVER_PAYOUT_METHOD_IN_USE" xml:space="preserve">
+    <value>This payout method cannot be deleted because it is linked to withdrawal requests.</value>
+  </data>
+  <data name="DRIVER_PAYOUT_METHOD_NOT_FOUND" xml:space="preserve">
+    <value>The selected payout method was not found for this driver.</value>
+  </data>
+  <data name="DRIVER_COD_DEBT_NOT_SETTLED" xml:space="preserve">
+    <value>Settle outstanding COD cash before requesting a withdrawal.</value>
+  </data>
+  <data name="DRIVER_WALLET_ACCESS_BLOCKED" xml:space="preserve">
+    <value>Wallet access is available after the driver account is active and approved.</value>
+  </data>
+  <data name="DRIVER_BANK_ACCOUNT_REQUIRED" xml:space="preserve">
+    <value>Only bank account payout methods are supported for withdrawals.</value>
+  </data>
+  <data name="DRIVER_BANK_IBAN_INVALID" xml:space="preserve">
+    <value>Driver bank account must be a valid Saudi IBAN.</value>
+  </data>
+  <data name="INVALID_UPLOAD_DIRECTORY" xml:space="preserve">
+    <value>The upload directory is not allowed.</value>
+  </data>
+  <data name="VENDOR_VERIFIED_BANK_ACCOUNT_REQUIRED" xml:space="preserve">
+    <value>Vendor must have a verified primary bank account before approving bank payout settlement.</value>
+  </data>
+  <data name="VENDOR_BANK_IBAN_INVALID" xml:space="preserve">
+    <value>Vendor primary bank account must be a valid Saudi IBAN before approving bank payout settlement.</value>
+  </data>
+  <data name="APPROVER_REQUIRED" xml:space="preserve">
+    <value>An authenticated approver is required.</value>
+  </data>
+  <data name="SELF_APPROVAL_BLOCKED" xml:space="preserve">
+    <value>You cannot approve or reject your own access request.</value>
+  </data>
+  <data name="ADMIN_REVIEWER_REQUIRED" xml:space="preserve">
+    <value>An authenticated admin reviewer is required.</value>
+  </data>
+  <data name="BRANCH_NAME_REQUIRED" xml:space="preserve">
+    <value>Branch name is required.</value>
+  </data>
+  <data name="BRANCH_ADDRESS_REQUIRED" xml:space="preserve">
+    <value>Branch address is required.</value>
+  </data>
+  <data name="BRANCH_MANAGER_NAME_REQUIRED" xml:space="preserve">
+    <value>Branch manager name is required.</value>
+  </data>
+  <data name="BRANCH_MANAGER_CONTACT_REQUIRED" xml:space="preserve">
+    <value>Branch manager contact is required.</value>
+  </data>
+  <data name="BRANCH_REGION_REQUIRED" xml:space="preserve">
+    <value>Branch region is required.</value>
+  </data>
+  <data name="BRANCH_CITY_REQUIRED" xml:space="preserve">
+    <value>Branch city is required.</value>
+  </data>
+  <data name="BRANCH_CODE_CONFLICT" xml:space="preserve">
+    <value>Branch code is already in use.</value>
+  </data>
+  <data name="BRANCH_LATITUDE_INVALID" xml:space="preserve">
+    <value>Latitude must be between -90 and 90.</value>
+  </data>
+  <data name="BRANCH_LONGITUDE_INVALID" xml:space="preserve">
+    <value>Longitude must be between -180 and 180.</value>
+  </data>
+  <data name="BRANCH_RADIUS_INVALID" xml:space="preserve">
+    <value>Delivery radius must be greater than zero.</value>
+  </data>
+  <data name="INVITATION_ALREADY_ACCEPTED" xml:space="preserve">
+    <value>This invitation has already been accepted.</value>
+  </data>
+  <data name="INVITATION_REVOKED" xml:space="preserve">
+    <value>This invitation was revoked.</value>
+  </data>
+  <data name="PRIMARY_BRANCH_DELETE_FORBIDDEN" xml:space="preserve">
+    <value>The primary branch cannot be deleted.</value>
+  </data>
+  <data name="BRANCH_DELETE_BLOCKED_PRODUCTS" xml:space="preserve">
+    <value>This branch cannot be deleted because products are assigned to it.</value>
+  </data>
+  <data name="BRANCH_DELETE_BLOCKED_ORDERS" xml:space="preserve">
+    <value>This branch cannot be deleted because orders are assigned to it.</value>
+  </data>
+  <data name="BRANCH_DELETE_BLOCKED_STAFF" xml:space="preserve">
+    <value>This branch cannot be deleted because staff members still have access to it.</value>
+  </data>
+  <data name="BRANCH_DELETE_BLOCKED_INVITATIONS" xml:space="preserve">
+    <value>This branch cannot be deleted because invitations are still linked to it.</value>
+  </data>
+  <data name="INVITATION_TOKEN_REQUIRED" xml:space="preserve">
+    <value>Invitation token is required.</value>
+  </data>
+  <data name="STAFF_ALREADY_EXISTS" xml:space="preserve">
+    <value>This email already has access to this vendor.</value>
+  </data>
+  <data name="INVITATION_BRANCH_SCOPE_INVALID" xml:space="preserve">
+    <value>The invitation branch scope is no longer valid. Create the invitation again for an existing branch.</value>
+  </data>
+  <data name="SINGLE_BRANCH_SCOPE_REQUIRED" xml:space="preserve">
+    <value>Select exactly one branch for this invitation.</value>
+  </data>
+  <data name="INVALID_BRANCH_SCOPE" xml:space="preserve">
+    <value>Invitation branch id is invalid.</value>
+  </data>
+  <data name="TARGET_NAME_REQUIRED" xml:space="preserve">
+    <value>Invitation target name is required.</value>
+  </data>
+  <data name="BRANCH_SCOPE_REQUIRED" xml:space="preserve">
+    <value>Select at least one branch for this invitation.</value>
+  </data>
+  <data name="INVALID_EMAIL" xml:space="preserve">
+    <value>Email address is invalid.</value>
+  </data>
+  <data name="INVALID_HOME_SECTION_THEME" xml:space="preserve">
+    <value>Theme is invalid.</value>
+  </data>
+  <data name="INVALID_NOTE" xml:space="preserve">
+    <value>Note is required.</value>
+  </data>
+  <data name="DRIVER_CITY_MISMATCH" xml:space="preserve">
+    <value>Driver cannot be assigned because their city does not match the store and customer city.</value>
+  </data>
+  <data name="INVALID_DISPATCH_STATE" xml:space="preserve">
+    <value>Dispatch can only be recomputed for orders waiting for pickup or driver assignment.</value>
+  </data>
+  <data name="ORDER_SUPPORT_CASE_ALREADY_EXISTS" xml:space="preserve">
+    <value>An active non-return support case already exists for this order.</value>
+  </data>
+  <data name="INVALID_VENDOR_ID" xml:space="preserve">
+    <value>vendorId must be a valid GUID.</value>
+  </data>
+  <data name="INVALID_ADDRESS_ID" xml:space="preserve">
+    <value>addressId must be a valid GUID.</value>
+  </data>
+  <data name="INVALID_FILE" xml:space="preserve">
+    <value>File is empty.</value>
+  </data>
+  <data name="INVALID_PAYMENT_METHOD" xml:space="preserve">
+    <value>This order is not a bank transfer order.</value>
+  </data>
+  <data name="ORDER_NOT_PENDING_BANK" xml:space="preserve">
+    <value>Order is not awaiting bank transfer confirmation.</value>
+  </data>
+  <data name="BANK_TRANSFER_REFERENCE_REQUIRED" xml:space="preserve">
+    <value>Bank transfer webhook must include a payment reference.</value>
+  </data>
+  <data name="BANK_TRANSFER_WEBHOOK_NOT_CONFIGURED" xml:space="preserve">
+    <value>Bank transfer webhook secret is not configured.</value>
+  </data>
+  <data name="BANK_TRANSFER_WEBHOOK_INVALID_SECRET" xml:space="preserve">
+    <value>Bank transfer webhook secret is invalid.</value>
+  </data>
+  <data name="REASON_REQUIRED" xml:space="preserve">
+    <value>Rejection reason is required.</value>
+  </data>
+  <data name="REQUIRED_FIELD" xml:space="preserve">
+    <value>Required field is missing.</value>
+  </data>
+  <data name="MOYASAR_SECRET_KEY_REQUIRED" xml:space="preserve">
+    <value>Moyasar secret key is required before creating payout source account.</value>
+  </data>
+  <data name="PLATFORM_BANK_ACCOUNT_REQUIRED" xml:space="preserve">
+    <value>Platform bank account is required before enabling Moyasar payouts.</value>
+  </data>
+  <data name="MOYASAR_PAYOUT_ACCOUNT_CREDENTIALS_REQUIRED" xml:space="preserve">
+    <value>Moyasar payout account credentials are required: company_code, cert, and key.</value>
+  </data>
+  <data name="MOYASAR_PAYOUT_ACCOUNT_ID_MISSING" xml:space="preserve">
+    <value>Moyasar did not return a payout source id.</value>
+  </data>
+  <data name="INVALID_WALLET_OWNER" xml:space="preserve">
+    <value>Unsupported wallet owner type.</value>
+  </data>
+  <data name="PAYOUT_ORCHESTRATOR_REQUIRED" xml:space="preserve">
+    <value>Payout orchestration service is required.</value>
+  </data>
+  <data name="PAYOUT_GATEWAY_UNAVAILABLE" xml:space="preserve">
+    <value>Moyasar payouts are not enabled. Provide a transfer reference for manual processing.</value>
+  </data>
+  <data name="BRAND_HAS_PRODUCTS" xml:space="preserve">
+    <value>Cannot delete brand with products. Please remove or reassign products first.</value>
+  </data>
+  <data name="IDS_REQUIRED" xml:space="preserve">
+    <value>At least one brand ID is required.</value>
+  </data>
+  <data name="TOO_MANY_IDS" xml:space="preserve">
+    <value>Cannot bulk delete more than 50 brands at once.</value>
+  </data>
+  <data name="CATEGORY_HAS_SUBCATEGORIES" xml:space="preserve">
+    <value>Cannot delete this category because it has sub-categories.</value>
+  </data>
+  <data name="CATEGORY_HAS_PRODUCTS" xml:space="preserve">
+    <value>Cannot delete this category because it is linked to products.</value>
+  </data>
+  <data name="CATEGORY_HAS_BRANDS" xml:space="preserve">
+    <value>Cannot delete this category because it is linked to brands.</value>
+  </data>
+  <data name="CATEGORY_HAS_PRODUCT_TYPES" xml:space="preserve">
+    <value>Cannot delete this category because it is linked to product types.</value>
+  </data>
+  <data name="CATEGORY_HAS_REQUESTS" xml:space="preserve">
+    <value>Cannot delete this category because it is linked to catalog requests.</value>
+  </data>
+  <data name="CATEGORY_HAS_HISTORY" xml:space="preserve">
+    <value>Cannot delete this category because it is linked to history records or active display sections.</value>
+  </data>
+  <data name="CATEGORY_CIRCULAR_REFERENCE" xml:space="preserve">
+    <value>Cannot set this parent category because it would create a circular reference.</value>
+  </data>
+  <data name="DUPLICATE_VARIANT" xml:space="preserve">
+    <value>A variant with the same size already exists in this group.</value>
+  </data>
+  <data name="TRADE_PRICE_REQUIRED" xml:space="preserve">
+    <value>Trade price is required.</value>
+  </data>
+  <data name="VENDOR_PRODUCT_ALREADY_EXISTS" xml:space="preserve">
+    <value>Product already exists in this vendor branch.</value>
+  </data>
+  <data name="PRODUCT_HAS_VENDOR_LISTINGS" xml:space="preserve">
+    <value>Cannot delete this product because it has vendor listings.</value>
+  </data>
+  <data name="PRODUCT_HAS_ORDER_HISTORY" xml:space="preserve">
+    <value>Cannot delete this product because it is linked to order history.</value>
+  </data>
+  <data name="PRODUCT_IN_ACTIVE_CARTS" xml:space="preserve">
+    <value>Cannot delete this product because it is in active shopping carts.</value>
+  </data>
+  <data name="PRODUCT_DISCONTINUED" xml:space="preserve">
+    <value>A matching discontinued catalog product already exists and cannot be reactivated through request approval.</value>
+  </data>
+  <data name="PRODUCT_REQUEST_BRAND_CONFLICT" xml:space="preserve">
+    <value>Choose either an existing brand or a new brand request, not both.</value>
+  </data>
+  <data name="PRODUCT_REQUEST_CATEGORY_CONFLICT" xml:space="preserve">
+    <value>Choose either an existing category or a new category request, not both.</value>
+  </data>
+  <data name="INVALID_MEASUREMENT_VALUE" xml:space="preserve">
+    <value>Measurement value must be greater than zero.</value>
+  </data>
+  <data name="PRODUCT_REQUEST_ALREADY_PENDING" xml:space="preserve">
+    <value>A matching product request is already pending review.</value>
+  </data>
+  <data name="PRODUCT_ALREADY_EXISTS" xml:space="preserve">
+    <value>A matching catalog product already exists. Add it to your store instead of creating a new request.</value>
+  </data>
+  <data name="UNIT_HAS_PRODUCTS" xml:space="preserve">
+    <value>Cannot delete this unit because it is linked to products.</value>
+  </data>
+  <data name="VENDOR_PRODUCT_DELETE_BLOCKED_BY_ORDERS" xml:space="preserve">
+    <value>Unable to delete this product right now. Make sure it is not linked to orders or campaigns.</value>
+  </data>
+  <data name="VENDOR_PRODUCT_DELETE_BLOCKED_BY_MARKETING" xml:space="preserve">
+    <value>Unable to delete this product right now. Make sure it is not linked to orders or campaigns.</value>
+  </data>
+  <data name="BRAND_REQUEST_ALREADY_PENDING" xml:space="preserve">
+    <value>A matching brand request is already pending review.</value>
+  </data>
+  <data name="CATEGORY_ALREADY_EXISTS" xml:space="preserve">
+    <value>A category with the same name already exists under the selected parent.</value>
+  </data>
+  <data name="CATEGORY_REQUEST_ALREADY_PENDING" xml:space="preserve">
+    <value>A matching category request is already pending review.</value>
+  </data>
+  <data name="BANK_TRANSFER_UNAVAILABLE" xml:space="preserve">
+    <value>Platform bank transfer account is not configured.</value>
+  </data>
+  <data name="PROMO_CODE_USAGE_LIMIT_REACHED" xml:space="preserve">
+    <value>Promo code usage limit has been reached.</value>
+  </data>
+  <data name="PROMO_CODE_USER_LIMIT_REACHED" xml:space="preserve">
+    <value>Promo code has already been used by this customer.</value>
+  </data>
+  <data name="DRIVER_DOCUMENT_NOT_REVIEWABLE" xml:space="preserve">
+    <value>The selected driver document is missing or incomplete.</value>
+  </data>
+  <data name="DRIVER_DOCUMENT_EXPIRED" xml:space="preserve">
+    <value>This document is expired and cannot be approved until the driver uploads a renewed version.</value>
+  </data>
+  <data name="DRIVER_DOCUMENTS_EXPIRED" xml:space="preserve">
+    <value>Cannot clear driver restrictions while required documents are expired.</value>
+  </data>
+  <data name="DRIVER_NOT_APPROVED" xml:space="preserve">
+    <value>Cannot clear driver restrictions before the driver account is approved.</value>
+  </data>
+  <data name="DRIVER_NOT_ELIGIBLE_FOR_REACTIVATION" xml:space="preserve">
+    <value>Driver account must be approved and have valid required documents before reactivation.</value>
+  </data>
+  <data name="DRIVER_DOCUMENTS_NOT_APPROVED" xml:space="preserve">
+    <value>All required driver documents must be approved before final account approval.</value>
+  </data>
+  <data name="DRIVER_NOT_ELIGIBLE_FOR_UNBAN" xml:space="preserve">
+    <value>Driver account must be approved and have valid required documents before unban.</value>
+  </data>
+  <data name="DRIVER_LOCATION_UPDATES_BLOCKED" xml:space="preserve">
+    <value>Location updates are blocked for this account, so availability cannot be enabled.</value>
+  </data>
+  <data name="EMAIL_CENTER_NO_RECIPIENTS" xml:space="preserve">
+    <value>No recipients were resolved for this email rule.</value>
+  </data>
+  <data name="EMAIL_CENTER_SUBJECT_REQUIRED" xml:space="preserve">
+    <value>The email subject is required for test send.</value>
+  </data>
+  <data name="EMAIL_CENTER_SCOPE_REQUIRED" xml:space="preserve">
+    <value>A specific entityId is required for this audience.</value>
+  </data>
+  <data name="EMAIL_CENTER_INVALID_AUDIENCE" xml:space="preserve">
+    <value>The selected audience is not supported.</value>
+  </data>
+  <data name="EMAIL_CENTER_INVALID_SENDER_PROFILE" xml:space="preserve">
+    <value>The selected sender profile does not exist.</value>
+  </data>
+  <data name="EMAIL_CENTER_RULE_ID_MISMATCH" xml:space="preserve">
+    <value>The rule id in the route does not match the body.</value>
+  </data>
+  <data name="INVALID_FILE_CONTENT_TYPE" xml:space="preserve">
+    <value>The uploaded file content type is not allowed.</value>
+  </data>
+  <data name="INVALID_FILE_SIGNATURE" xml:space="preserve">
+    <value>The uploaded file content does not match the declared file type. Please ensure you upload a valid PDF or image file.</value>
+  </data>
+  <data name="INVALID_RECOVERY" xml:space="preserve">
+    <value>Vendor recovery applied to revenue distribution cannot be negative.</value>
+  </data>
+  <data name="REVENUE_DISTRIBUTION_NEGATIVE" xml:space="preserve">
+    <value>Revenue distribution produced a negative leg. Inputs are inconsistent.</value>
+  </data>
+  <data name="PAYOUT_ALREADY_CLOSED" xml:space="preserve">
+    <value>Closed payouts cannot be triggered.</value>
+  </data>
+  <data name="PAYOUT_PROVIDER_REFERENCE_REQUIRED" xml:space="preserve">
+    <value>Provider payout id or sequence number is required.</value>
+  </data>
+  <data name="PAYOUT_ALREADY_PAID" xml:space="preserve">
+    <value>Paid payouts cannot be cancelled.</value>
+  </data>
+  <data name="UNSUPPORTED_PAYOUT_OWNER" xml:space="preserve">
+    <value>Unsupported payout owner.</value>
+  </data>
+  <data name="VENDOR_BANK_ACCOUNT_REQUIRED" xml:space="preserve">
+    <value>Vendor bank account is required before sending payout.</value>
+  </data>
+  <data name="DRIVER_WITHDRAWAL_REQUIRED" xml:space="preserve">
+    <value>Driver payout must be linked to a withdrawal request.</value>
+  </data>
+  <data name="PAYOUT_BENEFICIARY_NAME_REQUIRED" xml:space="preserve">
+    <value>Beneficiary account holder name is required.</value>
+  </data>
+  <data name="PAYOUT_BENEFICIARY_IBAN_REQUIRED" xml:space="preserve">
+    <value>Beneficiary IBAN is required.</value>
+  </data>
+  <data name="PAYOUT_BENEFICIARY_MOBILE_REQUIRED" xml:space="preserve">
+    <value>Beneficiary mobile number is required.</value>
+  </data>
+  <data name="PAYOUT_BENEFICIARY_IBAN_INVALID" xml:space="preserve">
+    <value>Beneficiary IBAN must be a valid Saudi IBAN.</value>
+  </data>
+  <data name="SETTLEMENT_APPROVAL_REQUIRED" xml:space="preserve">
+    <value>Scheduled and manual settlements must be approved by finance before payout can be triggered.</value>
+  </data>
+  <data name="ADMIN_PANEL_CREATE_ONLY" xml:space="preserve">
+    <value>Only super admin panel accounts can be created from the access directory.</value>
+  </data>
+  <data name="ROLE_INACTIVE" xml:space="preserve">
+    <value>The selected role is inactive.</value>
+  </data>
+  <data name="SELF_ACCESS_CHANGE_BLOCKED" xml:space="preserve">
+    <value>You cannot reset your own password from access management.</value>
+  </data>
+  <data name="PASSWORD_REQUIRED" xml:space="preserve">
+    <value>Temporary password is required.</value>
+  </data>
+  <data name="ROLE_CODE_EXISTS" xml:space="preserve">
+    <value>A role with this name already exists.</value>
+  </data>
+  <data name="ROLE_NAME_REQUIRED" xml:space="preserve">
+    <value>Role name is required.</value>
+  </data>
+  <data name="ROLE_NAME_TOO_LONG" xml:space="preserve">
+    <value>Role name must be 200 characters or fewer.</value>
+  </data>
+  <data name="ROLE_DESCRIPTION_TOO_LONG" xml:space="preserve">
+    <value>Role description must be 500 characters or fewer.</value>
+  </data>
+  <data name="ROLE_CODE_INVALID" xml:space="preserve">
+    <value>Role name must contain at least one letter or digit.</value>
+  </data>
+  <data name="CANNOT_DELETE_SYSTEM_ROLE" xml:space="preserve">
+    <value>System roles cannot be deleted.</value>
+  </data>
+  <data name="ROLE_IN_USE" xml:space="preserve">
+    <value>Cannot delete a role that is assigned to users.</value>
+  </data>
+  <data name="CANNOT_UPDATE_SYSTEM_ROLE" xml:space="preserve">
+    <value>System roles cannot be modified.</value>
+  </data>
+  <data name="ROLE_ASSIGNMENT_SCOPE_LOCKED" xml:space="preserve">
+    <value>Identity role and panel scope cannot be changed while the role is assigned to active users.</value>
+  </data>
+  <data name="ROLE_REQUIRED" xml:space="preserve">
+    <value>The user does not have an active role definition.</value>
+  </data>
+  <data name="ROLE_USER_MISMATCH" xml:space="preserve">
+    <value>The selected role definition does not match the user's identity role. Use the full access-user update workflow to change identity roles.</value>
+  </data>
+  <data name="ROLE_SCOPE_MISMATCH" xml:space="preserve">
+    <value>The selected role does not belong to the requested panel scope.</value>
+  </data>
+  <data name="INVALID_SCOPE_ENTITY" xml:space="preserve">
+    <value>Vendor panel users must be scoped to an existing vendor or branch.</value>
+  </data>
+  <data name="LAST_SUPER_ADMIN_PROTECTED" xml:space="preserve">
+    <value>The last active super admin cannot be disabled or downgraded.</value>
+  </data>
+  <data name="ACCESS_APPROVAL_REQUIRED" xml:space="preserve">
+    <value>This access change requires approval before it can be applied.</value>
+  </data>
+  <data name="INVALID_FEATURED_SELECTION_MODE" xml:space="preserve">
+    <value>Invalid featured product selection mode.</value>
+  </data>
+  <data name="INCOMPLETE_VENDOR_PRICING" xml:space="preserve">
+    <value>Vendor product pricing is incomplete.</value>
+  </data>
+  <data name="ORDER_PAYMENT_NOT_CONFIRMED" xml:space="preserve">
+    <value>Payment must be confirmed before the vendor can process this order.</value>
+  </data>
+  <data name="ORDER_ITEM_VENDOR_PRODUCT_MISSING" xml:space="preserve">
+    <value>One or more order items are missing their linked vendor product.</value>
+  </data>
+  <data name="VENDOR_RESPONSE_NOT_ALLOWED" xml:space="preserve">
+    <value>Vendor responses require an order support case.</value>
+  </data>
+  <data name="ORDER_COMPLAINT_NOT_ALLOWED" xml:space="preserve">
+    <value>Complaints can only be created after the order leaves pending payment.</value>
+  </data>
+  <data name="ORDER_RETURN_NOT_ALLOWED" xml:space="preserve">
+    <value>Return requests can only be created for delivered orders.</value>
+  </data>
+  <data name="DUPLICATE_RETURN_REQUEST" xml:space="preserve">
+    <value>A return request is already open for this order.</value>
+  </data>
+  <data name="RETURN_REFUND_AMOUNT_REQUIRED" xml:space="preserve">
+    <value>Return requests require a refund amount when approved.</value>
+  </data>
+  <data name="ORDER_REQUIRED_FOR_REFUND" xml:space="preserve">
+    <value>Return support cases must be linked to an order.</value>
+  </data>
+  <data name="ORDER_FULLY_REFUNDED" xml:space="preserve">
+    <value>This order has already been fully refunded.</value>
+  </data>
+  <data name="NO_PAYMENT_FOUND" xml:space="preserve">
+    <value>Cannot issue a refund: no confirmed payment found for this order.</value>
+  </data>
+  <data name="INVALID_RETURN_COMPENSATION_METHOD" xml:space="preserve">
+    <value>Cash on delivery return requests can only be approved as coupon compensation.</value>
+  </data>
+  <data name="COUPON_CODE_GENERATION_FAILED" xml:space="preserve">
+    <value>Unable to generate a unique compensation coupon code.</value>
+  </data>
+  <data name="INVALID_SUPPORT_CASE_TYPE" xml:space="preserve">
+    <value>Support case type is not recognized.</value>
+  </data>
+  <data name="PAYMENT_ORDER_MISMATCH" xml:space="preserve">
+    <value>Provider metadata.order_id does not match the local order.</value>
+  </data>
+  <data name="ORDER_PAYMENT_RETRY_NOT_ALLOWED" xml:space="preserve">
+    <value>Payment retry is only allowed for card orders awaiting payment confirmation.</value>
+  </data>
+  <data name="DEVICE_TOKEN_REQUIRED" xml:space="preserve">
+    <value>Device token is required.</value>
+  </data>
+  <data name="INVALID_PUSH_PLATFORM" xml:space="preserve">
+    <value>Push platform must be fcm, apns, or web.</value>
+  </data>
+  <data name="INVALID_ONESIGNAL_SUBSCRIPTION" xml:space="preserve">
+    <value>Web push registration requires a valid OneSignal subscription id.</value>
+  </data>
+  <data name="DEVICE_IDENTIFIER_REQUIRED" xml:space="preserve">
+    <value>DeviceId or device token is required.</value>
+  </data>
+  <data name="PrimaryBankAccountRequiredForDirectPayout" xml:space="preserve">
+    <value>A primary bank account is required before enabling direct per-order payouts.</value>
+  </data>
+  <data name="VerifiedPrimaryBankAccountRequiredForDirectPayout" xml:space="preserve">
+    <value>A verified primary bank account is required before enabling direct per-order payouts.</value>
+  </data>
+  <data name="ValidSaudiIbanRequiredForDirectPayout" xml:space="preserve">
+    <value>A valid Saudi IBAN is required before enabling direct per-order payouts.</value>
+  </data>
+  <data name="VendorApprovalRequirementsIncomplete" xml:space="preserve">
+    <value>Vendor cannot be approved before the required profile fields, documents, and bank account are approved.</value>
+  </data>
+  <data name="INVALID_OPERATING_HOUR_TIME" xml:space="preserve">
+    <value>Operating hours must use HH:mm format between 00:00 and 23:59.</value>
+  </data>
+  <data name="VendorReviewArchived" xml:space="preserve">
+    <value>Cannot change compliance review for an archived vendor.</value>
+  </data>
+  <data name="VendorReviewSuspended" xml:space="preserve">
+    <value>Cannot change compliance review while the vendor account is suspended.</value>
+  </data>
+  <data name="VendorReviewClosed" xml:space="preserve">
+    <value>Compliance review is already closed because the vendor is approved.</value>
+  </data>
+  <data name="VendorReviewLocked" xml:space="preserve">
+    <value>Cannot change compliance review while the vendor account is locked.</value>
+  </data>
+  <data name="VendorDocumentMissing" xml:space="preserve">
+    <value>This document cannot be reviewed before it is uploaded or completed.</value>
+  </data>
+  <data name="TRANSFER_REFERENCE_REQUIRED" xml:space="preserve">
+    <value>Transfer reference is required for manual vendor payout completion.</value>
+  </data>
+  <data name="INVALID_PRODUCT_NAME" xml:space="preserve">
+    <value>Arabic product name is required.</value>
+  </data>
+  <data name="INVALID_PRODUCT_SLUG" xml:space="preserve">
+    <value>Product slug is required.</value>
+  </data>
+  <data name="INVALID_CATEGORY" xml:space="preserve">
+    <value>Category is required.</value>
+  </data>
+  <data name="INVALID_STATUS_TRANSITION" xml:space="preserve">
+    <value>Cannot revert a product back to Draft.</value>
+  </data>
+  <data name="MAX_IMAGES_EXCEEDED" xml:space="preserve">
+    <value>Maximum 20 images per product.</value>
+  </data>
+  <data name="INVALID_COST_PRICE" xml:space="preserve">
+    <value>Cost price cannot be negative.</value>
+  </data>
+  <data name="INVALID_TRADE_PRICE" xml:space="preserve">
+    <value>Trade price must be greater than zero.</value>
+  </data>
+  <data name="INVALID_PROVIDER_NAME" xml:space="preserve">
+    <value>Provider name is required.</value>
+  </data>
+  <data name="INVALID_PROVIDER_SETTLEMENT_ID" xml:space="preserve">
+    <value>Provider settlement id is required.</value>
+  </data>
+  <data name="INVALID_SETTLEMENT_AMOUNTS" xml:space="preserve">
+    <value>Gateway settlement amounts cannot be negative.</value>
+  </data>
+  <data name="SETTLEMENT_ITEM_CURRENCY_MISMATCH" xml:space="preserve">
+    <value>Settlement item currency must match the parent settlement currency.</value>
+  </data>
+  <data name="INVALID_PROVIDER_PAYMENT_ID" xml:space="preserve">
+    <value>Provider payment id is required.</value>
+  </data>
+  <data name="INVALID_SETTLEMENT_ITEM_AMOUNTS" xml:space="preserve">
+    <value>Settlement item amounts cannot be negative.</value>
+  </data>
+  <data name="APPROVAL_NOT_USABLE" xml:space="preserve">
+    <value>The approval request cannot be consumed.</value>
+  </data>
+  <data name="APPROVAL_ALREADY_DECIDED" xml:space="preserve">
+    <value>The approval request has already been decided.</value>
+  </data>
+  <data name="INVALID_FEATURED_TARGET_COUNT" xml:space="preserve">
+    <value>Featured products target count cannot be negative.</value>
+  </data>
+  <data name="INVALID_FEATURED_MIN_SALES_COUNT" xml:space="preserve">
+    <value>Featured products minimum sales count cannot be negative.</value>
+  </data>
+  <data name="INVALID_FEATURED_MIN_STORE_COUNT" xml:space="preserve">
+    <value>Featured products minimum store count cannot be negative.</value>
+  </data>
+  <data name="INVALID_VENDOR_PROFIT" xml:space="preserve">
+    <value>Vendor profit per unit cannot be negative.</value>
+  </data>
+  <data name="CASE_ALREADY_APPROVED" xml:space="preserve">
+    <value>This case has already been approved.</value>
+  </data>
+  <data name="CASE_RESOLVE_NOT_ALLOWED" xml:space="preserve">
+    <value>Cannot resolve a rejected case.</value>
+  </data>
+  <data name="INVALID_SUPPORT_CASE_ROLE" xml:space="preserve">
+    <value>Role is not recognized.</value>
+  </data>
+  <data name="EMPTY_SUPPORT_CASE_MESSAGE" xml:space="preserve">
+    <value>Message is required.</value>
+  </data>
+  <data name="INVALID_CASE_AMOUNT" xml:space="preserve">
+    <value>Amount must be greater than zero.</value>
+  </data>
+  <data name="INVALID_IDEMPOTENCY_KEY" xml:space="preserve">
+    <value>Idempotency key is required.</value>
+  </data>
+  <data name="INVALID_PROVIDER_EVENT_ID" xml:space="preserve">
+    <value>Provider event id is required.</value>
+  </data>
+  <data name="INVALID_EVENT_TYPE" xml:space="preserve">
+    <value>Event type is required.</value>
+  </data>
+  <data name="INVALID_PAYLOAD" xml:space="preserve">
+    <value>Raw payload is required.</value>
+  </data>
+  <data name="REFUND_COST_BEARER_REQUIRED" xml:space="preserve">
+    <value>Refund cost bearer is required.</value>
+  </data>
+  <data name="INVALID_REFUND_ALLOCATION" xml:space="preserve">
+    <value>Refund allocation amounts cannot be negative.</value>
+  </data>
+  <data name="INVALID_USER_ID" xml:space="preserve">
+    <value>User ID is required.</value>
+  </data>
+  <data name="INVALID_BUSINESS_NAME_AR" xml:space="preserve">
+    <value>Arabic business name is required.</value>
+  </data>
+  <data name="INVALID_BUSINESS_NAME_EN" xml:space="preserve">
+    <value>English business name is required.</value>
+  </data>
+  <data name="INVALID_BUSINESS_TYPE" xml:space="preserve">
+    <value>Business type is required.</value>
+  </data>
+  <data name="INVALID_CR_NUMBER" xml:space="preserve">
+    <value>Commercial registration number is required.</value>
+  </data>
+  <data name="INVALID_CONTACT_EMAIL" xml:space="preserve">
+    <value>Contact email is required.</value>
+  </data>
+  <data name="INVALID_CONTACT_PHONE" xml:space="preserve">
+    <value>Contact phone is required.</value>
+  </data>
+  <data name="VendorNotActive" xml:space="preserve">
+    <value>Commission rate can only be updated for active vendors.</value>
+  </data>
+  <data name="VendorInvalidStatusForReopen" xml:space="preserve">
+    <value>Only rejected vendors can reopen for review.</value>
+  </data>
+  <data name="VendorLockReasonRequired" xml:space="preserve">
+    <value>A clear lock reason is required.</value>
+  </data>
+  <data name="VendorArchiveReasonRequired" xml:space="preserve">
+    <value>A clear archive reason is required.</value>
+  </data>
+  <data name="INVALID_BANK_NAME" xml:space="preserve">
+    <value>Bank name is required.</value>
+  </data>
+  <data name="INVALID_ACCOUNT_HOLDER" xml:space="preserve">
+    <value>Account holder name is required.</value>
+  </data>
+  <data name="INVALID_IBAN" xml:space="preserve">
+    <value>IBAN is required.</value>
+  </data>
+  <data name="INVALID_IBAN_LENGTH" xml:space="preserve">
+    <value>IBAN must be between 15 and 34 characters.</value>
+  </data>
+  <data name="INVALID_IBAN_FORMAT" xml:space="preserve">
+    <value>IBAN format is invalid. Must start with 2 letters followed by 2 digits.</value>
+  </data>
+  <data name="VENDOR_SUPPORT_TICKET_CLOSED" xml:space="preserve">
+    <value>This support ticket is already closed.</value>
+  </data>
+  <data name="INVALID_VENDOR_SUPPORT_MESSAGE_ROLE" xml:space="preserve">
+    <value>Message author role is not recognized.</value>
+  </data>
+  <data name="INVALID_VENDOR_SUPPORT_MESSAGE" xml:space="preserve">
+    <value>Message is required.</value>
+  </data>
+  <data name="INVALID_DRIVER_RECOVERY_AMOUNT" xml:space="preserve">
+    <value>Driver recovery amount must be greater than zero.</value>
+  </data>
+  <data name="DRIVER_RECOVERY_EXCEEDS_OUTSTANDING" xml:space="preserve">
+    <value>Recovery amount exceeds the outstanding balance.</value>
+  </data>
+  <data name="WITHDRAWAL_PAYOUT_ALREADY_LINKED" xml:space="preserve">
+    <value>Withdrawal is already linked to another payout.</value>
+  </data>
+  <data name="PAYOUT_RECOVERY_EXCEEDS_AMOUNT" xml:space="preserve">
+    <value>Recovery amount exceeds payout amount.</value>
+  </data>
+  <data name="PLATFORM_IBAN_INVALID" xml:space="preserve">
+    <value>Platform IBAN must be a valid Saudi IBAN.</value>
+  </data>
+  <data name="MOYASAR_PAYOUT_SOURCE_REQUIRED" xml:space="preserve">
+    <value>Moyasar payout source id is required when payouts are enabled.</value>
+  </data>
+  <data name="PLATFORM_IBAN_REQUIRED" xml:space="preserve">
+    <value>Platform IBAN is required.</value>
+  </data>
+  <data name="INVALID_VENDOR_RECOVERY_AMOUNT" xml:space="preserve">
+    <value>Vendor recovery amount must be greater than zero.</value>
+  </data>
+  <data name="VENDOR_RECOVERY_EXCEEDS_OUTSTANDING" xml:space="preserve">
+    <value>Recovery amount exceeds the outstanding balance.</value>
+  </data>
+  <data name="INVALID_HOLD_AMOUNT" xml:space="preserve">
+    <value>Wallet hold amount must be greater than zero.</value>
+  </data>
+  <data name="DELIVERY_OFFER_CITY_MISMATCH" xml:space="preserve">
+    <value>The delivery offer is not available for this driver because the branch city is different.</value>
+  </data>
+  <data name="DELIVERY_PICKUP_CITY_REQUIRED" xml:space="preserve">
+    <value>Vendor branch city is required for delivery pricing.</value>
+  </data>
+  <data name="INVALID_IMAGE" xml:space="preserve">
+    <value>The uploaded file is not a decodable image.</value>
+  </data>
+  <data name="IMAGE_DIMENSIONS_TOO_LARGE" xml:space="preserve">
+    <value>The uploaded image dimensions exceed the allowed limit.</value>
+  </data>
+  <data name="IMAGEKIT_UPLOAD_ERROR" xml:space="preserve">
+    <value>ImageKit upload failed unexpectedly.</value>
+  </data>
+  <data name="INVALID_PROVIDER_TRANSFER_ID" xml:space="preserve">
+    <value>Provider transfer id is required.</value>
+  </data>
+  <data name="WHATSAPP_CLOUD_OTP_TIMEOUT" xml:space="preserve">
+    <value>WhatsApp Cloud OTP delivery timed out.</value>
+  </data>
+  <data name="WHATSAPP_CLOUD_OTP_UNAVAILABLE" xml:space="preserve">
+    <value>WhatsApp Cloud OTP service is unavailable.</value>
+  </data>
+  <data name="WHATSAPP_CLOUD_OTP_NOT_CONFIGURED" xml:space="preserve">
+    <value>WhatsApp Cloud OTP is enabled but no access token is configured.</value>
+  </data>
+  <data name="FORBIDDEN" xml:space="preserve">
+    <value>You do not have permission to perform this action.</value>
+  </data>
+  <data name="DRIVER_NOT_AUTHENTICATED" xml:space="preserve">
+    <value>Driver login is required.</value>
+  </data>
+  <data name="ADMIN_NOT_AUTHENTICATED" xml:space="preserve">
+    <value>Admin login is required.</value>
+  </data>
+  <data name="BRANCH_SCOPE_MUTATION_FORBIDDEN" xml:space="preserve">
+    <value>This action is only available from company-level access.</value>
+  </data>
+  <data name="INVITATION_SCOPE_FORBIDDEN" xml:space="preserve">
+    <value>This invitation is outside your branch scope.</value>
+  </data>
+  <data name="REGISTRATION_TOKEN_INVALID" xml:space="preserve">
+    <value>A valid registration upload token is required for this directory.</value>
+  </data>
+  <data name="GUEST_CART_SIGNATURE_REQUIRED" xml:space="preserve">
+    <value>Guest cart changes require a signed device id. Create a guest cart token first.</value>
+  </data>
+  <data name="DRIVER_LOGIN_LOCKED" xml:space="preserve">
+    <value>Driver login is locked. Contact support through the account support appeal.</value>
+  </data>
+  <data name="DRIVER_ACCOUNT_BLOCKED" xml:space="preserve">
+    <value>Driver account is not active. Contact support through the account support appeal.</value>
+  </data>
+  <data name="CART_OWNER_REQUIRED" xml:space="preserve">
+    <value>Cart owner is required.</value>
+  </data>
+  <data name="ORDER_NOT_OWNED_BY_YOU" xml:space="preserve">
+    <value>You are not the owner of this order.</value>
+  </data>
+  <data name="TOKEN_MISSING" xml:space="preserve">
+    <value>Registration upload token is missing.</value>
+  </data>
+  <data name="TOKEN_MALFORMED" xml:space="preserve">
+    <value>Registration upload token is not valid.</value>
+  </data>
+  <data name="TOKEN_INVALID_SIGNATURE" xml:space="preserve">
+    <value>Registration upload token signature is not valid.</value>
+  </data>
+  <data name="TOKEN_MALFORMED_PAYLOAD" xml:space="preserve">
+    <value>Registration upload token payload is not valid.</value>
+  </data>
+  <data name="TOKEN_WRONG_PURPOSE" xml:space="preserve">
+    <value>Registration upload token is not valid for this action.</value>
+  </data>
+  <data name="TOKEN_INVALID_EXPIRY" xml:space="preserve">
+    <value>Registration upload token expiry is not valid.</value>
+  </data>
+  <data name="TOKEN_EXPIRED" xml:space="preserve">
+    <value>Registration upload token has expired.</value>
+  </data>
+  <data name="ADMINBRANDBULKOPERATION_NOT_FOUND" xml:space="preserve">
+    <value>Brand bulk operation was not found.</value>
+  </data>
+  <data name="ADMINMASTERPRODUCTBULKOPERATION_NOT_FOUND" xml:space="preserve">
+    <value>Master product bulk operation was not found.</value>
+  </data>
+  <data name="BRAND_NOT_FOUND" xml:space="preserve">
+    <value>Brand was not found.</value>
+  </data>
+  <data name="CARTITEM_NOT_FOUND" xml:space="preserve">
+    <value>Cart item was not found.</value>
+  </data>
+  <data name="CART_NOT_FOUND" xml:space="preserve">
+    <value>Cart was not found.</value>
+  </data>
+  <data name="CATEGORY_NOT_FOUND" xml:space="preserve">
+    <value>Category was not found.</value>
+  </data>
+  <data name="CUSTOMERADDRESS_NOT_FOUND" xml:space="preserve">
+    <value>Customer address was not found.</value>
+  </data>
+  <data name="CUSTOMER_NOT_FOUND" xml:space="preserve">
+    <value>Customer was not found.</value>
+  </data>
+  <data name="DELIVERYASSIGNMENT_NOT_FOUND" xml:space="preserve">
+    <value>Delivery assignment was not found.</value>
+  </data>
+  <data name="DELIVERYPRICINGRULE_NOT_FOUND" xml:space="preserve">
+    <value>Delivery pricing rule was not found.</value>
+  </data>
+  <data name="DRIVERDOCUMENT_NOT_FOUND" xml:space="preserve">
+    <value>Driver document was not found.</value>
+  </data>
+  <data name="DRIVERPAYOUTMETHOD_NOT_FOUND" xml:space="preserve">
+    <value>Driver payout method was not found.</value>
+  </data>
+  <data name="DRIVERWITHDRAWALREQUEST_NOT_FOUND" xml:space="preserve">
+    <value>Driver withdrawal request was not found.</value>
+  </data>
+  <data name="EMAILWORKFLOWRULE_NOT_FOUND" xml:space="preserve">
+    <value>Email workflow rule was not found.</value>
+  </data>
+  <data name="FAVORITEPRODUCT_NOT_FOUND" xml:space="preserve">
+    <value>Favorite product was not found.</value>
+  </data>
+  <data name="MASTERPRODUCT_NOT_FOUND" xml:space="preserve">
+    <value>Master product was not found.</value>
+  </data>
+  <data name="NOTIFICATIONDEVICE_NOT_FOUND" xml:space="preserve">
+    <value>Notification device was not found.</value>
+  </data>
+  <data name="NOTIFICATION_NOT_FOUND" xml:space="preserve">
+    <value>Notification was not found.</value>
+  </data>
+  <data name="OPERATIONALCASE_NOT_FOUND" xml:space="preserve">
+    <value>Operational case was not found.</value>
+  </data>
+  <data name="ORDERCOMPLAINT_NOT_FOUND" xml:space="preserve">
+    <value>Order complaint was not found.</value>
+  </data>
+  <data name="ORDERSUPPORTCASE_NOT_FOUND" xml:space="preserve">
+    <value>Order support case was not found.</value>
+  </data>
+  <data name="ORDER_NOT_FOUND" xml:space="preserve">
+    <value>Order was not found.</value>
+  </data>
+  <data name="PART_NOT_FOUND" xml:space="preserve">
+    <value>Part was not found.</value>
+  </data>
+  <data name="PAYMENT_NOT_FOUND" xml:space="preserve">
+    <value>Payment was not found.</value>
+  </data>
+  <data name="PAYOUT_NOT_FOUND" xml:space="preserve">
+    <value>Payout was not found.</value>
+  </data>
+  <data name="PRODUCTTYPE_NOT_FOUND" xml:space="preserve">
+    <value>Product type was not found.</value>
+  </data>
+  <data name="ROLEDEFINITION_NOT_FOUND" xml:space="preserve">
+    <value>Role definition was not found.</value>
+  </data>
+  <data name="SAUDICITY_NOT_FOUND" xml:space="preserve">
+    <value>Saudi city was not found.</value>
+  </data>
+  <data name="SAUDIREGION_NOT_FOUND" xml:space="preserve">
+    <value>Saudi region was not found.</value>
+  </data>
+  <data name="UNITOFMEASURE_NOT_FOUND" xml:space="preserve">
+    <value>Unit of measure was not found.</value>
+  </data>
+  <data name="VARIANTGROUP_NOT_FOUND" xml:space="preserve">
+    <value>Variant group was not found.</value>
+  </data>
+  <data name="VENDORBANKACCOUNT_NOT_FOUND" xml:space="preserve">
+    <value>Vendor bank account was not found.</value>
+  </data>
+  <data name="VENDORBRANCH_NOT_FOUND" xml:space="preserve">
+    <value>Vendor branch was not found.</value>
+  </data>
+  <data name="VENDORDOCUMENT_NOT_FOUND" xml:space="preserve">
+    <value>Vendor document was not found.</value>
+  </data>
+  <data name="VENDORPRODUCTBULKOPERATION_NOT_FOUND" xml:space="preserve">
+    <value>Vendor product bulk operation was not found.</value>
+  </data>
+  <data name="VENDORPRODUCT_NOT_FOUND" xml:space="preserve">
+    <value>Vendor product was not found.</value>
+  </data>
+  <data name="VENDORSTAFFINVITATION_NOT_FOUND" xml:space="preserve">
+    <value>Vendor staff invitation was not found.</value>
+  </data>
+  <data name="VENDORSTAFF_NOT_FOUND" xml:space="preserve">
+    <value>Vendor staff member was not found.</value>
+  </data>
+  <data name="VENDORSUPPORTTICKET_NOT_FOUND" xml:space="preserve">
+    <value>Vendor support ticket was not found.</value>
+  </data>
+  <data name="WALLET_NOT_FOUND" xml:space="preserve">
+    <value>Wallet was not found.</value>
+  </data>
+  <data name="APPROVAL_FIELD_REQUIRED" xml:space="preserve">
+    <value>Approval details are required.</value>
+  </data>
+  <data name="BANK_TRANSFER_AMOUNT_MISMATCH" xml:space="preserve">
+    <value>Bank transfer amount does not match the order amount.</value>
+  </data>
+  <data name="CART_ITEMS_UNAVAILABLE_AT_ADDRESS_BRANCH" xml:space="preserve">
+    <value>Some cart items are not available for the branch serving this address.</value>
+  </data>
+  <data name="CATEGORY_REQUIRED" xml:space="preserve">
+    <value>Category is required.</value>
+  </data>
+  <data name="DELIVERY_NOT_AVAILABLE" xml:space="preserve">
+    <value>Delivery is not available for this order.</value>
+  </data>
+  <data name="DRIVER_LOGIN_LOCK_FAILED" xml:space="preserve">
+    <value>Driver login could not be locked.</value>
+  </data>
+  <data name="DRIVER_LOGIN_UNLOCK_FAILED" xml:space="preserve">
+    <value>Driver login could not be unlocked.</value>
+  </data>
+  <data name="EMAIL_VERIFICATION_OTP_FAILED" xml:space="preserve">
+    <value>Email verification code could not be sent.</value>
+  </data>
+  <data name="FILE_TOO_LARGE" xml:space="preserve">
+    <value>File size exceeds the allowed limit.</value>
+  </data>
+  <data name="IDENTITY_CREATE_FAILED" xml:space="preserve">
+    <value>Account could not be created.</value>
+  </data>
+  <data name="IDENTITY_PROFILE_UPDATE_FAILED" xml:space="preserve">
+    <value>Profile could not be updated.</value>
+  </data>
+  <data name="IDENTITY_ROLE_UPDATE_FAILED" xml:space="preserve">
+    <value>User role could not be updated.</value>
+  </data>
+  <data name="IMAGEKIT_UPLOAD_FAILED" xml:space="preserve">
+    <value>File upload failed.</value>
+  </data>
+  <data name="INVALID_APPROVAL_PAYLOAD" xml:space="preserve">
+    <value>Approval payload is not valid.</value>
+  </data>
+  <data name="INVALID_COST_BEARER" xml:space="preserve">
+    <value>Cost bearer is not valid.</value>
+  </data>
+  <data name="INVALID_PERMISSION" xml:space="preserve">
+    <value>Permission is not valid.</value>
+  </data>
+  <data name="INVALID_PERMISSION_SCOPE" xml:space="preserve">
+    <value>Permission scope is not valid.</value>
+  </data>
+  <data name="INVALID_PRODUCT_ID" xml:space="preserve">
+    <value>Product id is not valid.</value>
+  </data>
+  <data name="INVALID_RESET_TOKEN" xml:space="preserve">
+    <value>Reset token is not valid or has expired.</value>
+  </data>
+  <data name="MAX_OPEN_CASES_EXCEEDED" xml:space="preserve">
+    <value>The maximum number of open cases for this order has been reached.</value>
+  </data>
+  <data name="MAX_REOPEN_EXCEEDED" xml:space="preserve">
+    <value>The maximum number of reopen attempts for this case has been reached.</value>
+  </data>
+  <data name="MOYASAR_FETCH_FAILED" xml:space="preserve">
+    <value>Could not fetch payment details from Moyasar.</value>
+  </data>
+  <data name="MOYASAR_PAYOUT_ACCOUNT_CREATE_FAILED" xml:space="preserve">
+    <value>Could not create Moyasar payout source account.</value>
+  </data>
+  <data name="MOYASAR_PAYOUT_FETCH_FAILED" xml:space="preserve">
+    <value>Could not fetch payout details from Moyasar.</value>
+  </data>
+  <data name="OTP_GENERATION_FAILED" xml:space="preserve">
+    <value>Verification code could not be generated.</value>
+  </data>
+  <data name="PASSWORD_CHANGE_FAILED" xml:space="preserve">
+    <value>Password could not be changed.</value>
+  </data>
+  <data name="PAYMENT_AMOUNT_MISMATCH" xml:space="preserve">
+    <value>Payment amount does not match the order amount.</value>
+  </data>
+  <data name="PAYMENT_NOT_CONFIRMABLE" xml:space="preserve">
+    <value>This payment cannot be confirmed right now.</value>
+  </data>
+  <data name="PAYMENT_PROVIDER_UNAVAILABLE" xml:space="preserve">
+    <value>Payment provider is currently unavailable.</value>
+  </data>
+  <data name="REFUND_ALLOCATION_BEARER_MISMATCH" xml:space="preserve">
+    <value>Refund allocation does not match the selected cost bearer.</value>
+  </data>
+  <data name="REFUND_ALLOCATION_LINES_MISMATCH" xml:space="preserve">
+    <value>Refund allocation lines do not match the case lines.</value>
+  </data>
+  <data name="RETURN_WINDOW_EXPIRED" xml:space="preserve">
+    <value>The return window has expired.</value>
+  </data>
+  <data name="REVENUE_DISTRIBUTION_IMBALANCE" xml:space="preserve">
+    <value>Revenue distribution is not balanced.</value>
+  </data>
+  <data name="ROLE_NOT_CONFIGURED" xml:space="preserve">
+    <value>Role is not configured.</value>
+  </data>
+  <data name="SMTP_OTP_EMAIL_FAILED" xml:space="preserve">
+    <value>Verification code email could not be sent.</value>
+  </data>
+  <data name="UNSUPPORTED_CURRENCY" xml:space="preserve">
+    <value>Currency is not supported.</value>
+  </data>
+  <data name="UNSUPPORTED_PROFILE_APPROVAL_ACTION" xml:space="preserve">
+    <value>Profile approval action is not supported.</value>
+  </data>
+  <data name="VENDOR_OFFLINE" xml:space="preserve">
+    <value>Store is currently offline.</value>
+  </data>
+  <data name="WALLET_HOLD_NOT_ACTIVE" xml:space="preserve">
+    <value>Wallet hold is not active.</value>
+  </data>
+  <data name="Required" xml:space="preserve">
+    <value>This field is required.</value>
+  </data>
+  <data name="MinLength" xml:space="preserve">
+    <value>{PropertyName} must be at least {MinLength} characters.</value>
+  </data>
+  <data name="InvalidValue" xml:space="preserve">
+    <value>The selected value is not valid.</value>
+  </data>
+  <data name="InvalidAmount" xml:space="preserve">
+    <value>Amounts do not add up correctly.</value>
+  </data>
+  <data name="NationalIdFrontImageUrl" xml:space="preserve">
+    <value>National ID front image</value>
+  </data>
+  <data name="NationalIdBackImageUrl" xml:space="preserve">
+    <value>National ID back image</value>
+  </data>
+  <data name="TOKEN_REVOKED" xml:space="preserve">
+    <value>Your session has expired. Please sign in again.</value>
+  </data>
+  <data name="USER_TOKENS_REVOKED" xml:space="preserve">
+    <value>Your session has expired. Please sign in again.</value>
+  </data>
+  <data name="ACCOUNT_NOT_ACTIVE" xml:space="preserve">
+    <value>The account is not active. Please sign in again or contact support.</value>
+  </data>
+  <data name="EMAIL_NOT_VERIFIED" xml:space="preserve">
+    <value>The account email is not verified. Please verify your email before continuing.</value>
+  </data>
+  <data name="TOKEN_STALE" xml:space="preserve">
+    <value>Your access permissions changed. Please sign in again.</value>
+  </data>
+  <data name="ACCESS_DENIED" xml:space="preserve">
+    <value>You do not have permission to perform this action.</value>
+  </data>
+  <data name="PERMISSION_VERSION_MISMATCH" xml:space="preserve">
+    <value>Your access permissions changed. Please sign in again.</value>
+  </data>
+  <data name="MISSING_REFRESH_TOKEN" xml:space="preserve">
+    <value>Refresh token is missing. Please sign in again.</value>
+  </data>
+  <data name="WEBHOOK_SECRET_INVALID" xml:space="preserve">
+    <value>Webhook secret is invalid.</value>
+  </data>
+  <data name="WEBHOOK_PAYLOAD_INVALID_JSON" xml:space="preserve">
+    <value>Webhook payload is not valid JSON.</value>
+  </data>
+  <data name="WEBHOOK_SIGNATURE_INVALID_TITLE" xml:space="preserve">
+    <value>Webhook signature invalid</value>
+  </data>
+  <data name="WEBHOOK_SIGNATURE_INVALID_DETAIL" xml:space="preserve">
+    <value>Webhook signature could not be validated.</value>
+  </data>
+  <data name="PAYOUT_WEBHOOK_PAYLOAD_INVALID" xml:space="preserve">
+    <value>Payout webhook payload is not valid.</value>
+  </data>
+  <data name="MOYASAR_PAYMENT_ID_REQUIRED_TITLE" xml:space="preserve">
+    <value>Moyasar payment id is required</value>
+  </data>
+  <data name="MOYASAR_VERIFY_PAYMENT_ID_REQUIRED_DETAIL" xml:space="preserve">
+    <value>The Moyasar id query parameter is missing. Make sure the callback sends the payment id.</value>
+  </data>
+  <data name="MOYASAR_CONFIRM_PAYMENT_ID_REQUIRED_DETAIL" xml:space="preserve">
+    <value>Send the Moyasar provider payment id returned by the callback.</value>
+  </data>
+  <data name="VENDOR_PAYOUT_RETRY_SUCCESS" xml:space="preserve">
+    <value>Vendor payout moved back to processing.</value>
+  </data>
+  <data name="VENDOR_PAYOUT_COMPLETED_SUCCESS" xml:space="preserve">
+    <value>Vendor payout completed successfully.</value>
+  </data>
+  <data name="VENDOR_PAYOUT_SUSPENDED_SUCCESS" xml:space="preserve">
+    <value>Vendor payout suspended successfully.</value>
+  </data>
+  <data name="VENDOR_PAYOUT_ESCALATED_SUCCESS" xml:space="preserve">
+    <value>Vendor payout escalated successfully.</value>
+  </data>
+  <data name="VENDOR_REACTIVATED_SUCCESS" xml:space="preserve">
+    <value>Vendor reactivated successfully.</value>
+  </data>
+  <data name="VENDOR_LOGIN_LOCKED_SUCCESS" xml:space="preserve">
+    <value>Vendor login locked successfully.</value>
+  </data>
+  <data name="VENDOR_LOGIN_UNLOCKED_SUCCESS" xml:space="preserve">
+    <value>Vendor login unlocked successfully.</value>
+  </data>
+  <data name="VENDOR_ARCHIVED_SUCCESS" xml:space="preserve">
+    <value>Vendor archived successfully.</value>
+  </data>
+  <data name="VENDOR_PASSWORD_RESET_SUCCESS" xml:space="preserve">
+    <value>Vendor password reset successfully.</value>
+  </data>
+  <data name="COMMISSION_RATE_UPDATED" xml:space="preserve">
+    <value>Commission rate updated.</value>
+  </data>
+  <data name="BRANCH_CREATED_SUCCESS" xml:space="preserve">
+    <value>Branch created successfully.</value>
+  </data>
+  <data name="BRANCH_UPDATED_SUCCESS" xml:space="preserve">
+    <value>Branch updated successfully.</value>
+  </data>
+  <data name="BRANCH_ACTIVATED_SUCCESS" xml:space="preserve">
+    <value>Branch activated.</value>
+  </data>
+  <data name="BRANCH_DEACTIVATED_SUCCESS" xml:space="preserve">
+    <value>Branch deactivated.</value>
+  </data>
+  <data name="BANK_ACCOUNT_VERIFIED_SUCCESS" xml:space="preserve">
+    <value>Bank account verified successfully.</value>
+  </data>
+  <data name="BANK_ACCOUNT_REJECTED_SUCCESS" xml:space="preserve">
+    <value>Bank account rejected.</value>
+  </data>
+  <data name="BANK_ACCOUNT_PRIMARY_SUCCESS" xml:space="preserve">
+    <value>Bank account set as primary.</value>
+  </data>
+  <data name="ZONE_ID_MISMATCH" xml:space="preserve">
+    <value>Zone id does not match the route.</value>
+  </data>
+  <data name="CITY_ID_MISMATCH" xml:space="preserve">
+    <value>City id does not match the route.</value>
+  </data>
+  <data name="REGION_ID_MISMATCH" xml:space="preserve">
+    <value>Region id does not match the route.</value>
+  </data>
+  <data name="DRIVER_ID_REQUIRED" xml:space="preserve">
+    <value>Driver id is required.</value>
+  </data>
+  <data name="AMOUNT_GREATER_THAN_ZERO" xml:space="preserve">
+    <value>Amount must be greater than zero.</value>
+  </data>
+  <data name="FILE_EMPTY" xml:space="preserve">
+    <value>File is empty.</value>
+  </data>
+  <data name="INVALID_CSRF_TOKEN" xml:space="preserve">
+    <value>Security token validation failed.</value>
+  </data>
+  <data name="BOT_CHALLENGE_FAILED" xml:space="preserve">
+    <value>CAPTCHA verification failed.</value>
+  </data>
+  <data name="RATE_LIMIT_EXCEEDED" xml:space="preserve">
+    <value>Too many requests. Please try again later.</value>
+  </data>
+  <data name="BANK_TRANSFER_PROOF_UPLOADED" xml:space="preserve">
+    <value>Bank transfer proof uploaded successfully. Awaiting admin confirmation.</value>
+  </data>
+  <data name="BANK_TRANSFER_WEBHOOK_STATUS_IGNORED" xml:space="preserve">
+    <value>Bank transfer webhook status is not a paid or settled status.</value>
+  </data>
+  <data name="BANK_TRANSFER_REJECTED_SUCCESS" xml:space="preserve">
+    <value>Bank transfer rejected.</value>
+  </data>
+  <data name="MOYASAR_WEBHOOK_NOT_CONFIGURED_TITLE" xml:space="preserve">
+    <value>Moyasar webhook is not configured</value>
+  </data>
+  <data name="MOYASAR_WEBHOOK_NOT_CONFIGURED_DETAIL" xml:space="preserve">
+    <value>Moyasar webhook secret is not configured on the server. Contact administrator.</value>
+  </data>
+  <data name="MOYASAR_PAYOUT_WEBHOOK_NOT_CONFIGURED_TITLE" xml:space="preserve">
+    <value>Moyasar payout webhook is not configured</value>
+  </data>
+  <data name="TEMP_PASSWORD_CHANGE_REQUIRED" xml:space="preserve">
+    <value>You must change your temporary password before continuing.</value>
+  </data>
+  <data name="VendorInvalidStatusForArchive" xml:space="preserve">
+    <value>Vendor can only be archived from Rejected or Suspended status. Current status: {0}.</value>
+  </data>
+  <data name="VendorReviewRequiredDocumentsMissing" xml:space="preserve">
+    <value>Required vendor documents are missing.</value>
+  </data>
+  <data name="VendorReviewRejectedDocumentsMustBeReuploaded" xml:space="preserve">
+    <value>Rejected vendor documents must be uploaded again first.</value>
+  </data>
+  <data name="VendorReviewRequiredFieldsMissing" xml:space="preserve">
+    <value>Required vendor fields are missing.</value>
+  </data>
+  <data name="VendorReviewRejectedFieldsMustBeUpdated" xml:space="preserve">
+    <value>Rejected vendor fields must be updated first.</value>
+  </data>
+  <data name="DRIVER_PROFILE_UPDATED_SUCCESS" xml:space="preserve">
+    <value>Driver profile updated successfully.</value>
+  </data>
+  <data name="DRIVER_REVIEW_ACTION_APPLIED_SUCCESS" xml:space="preserve">
+    <value>Driver review action applied successfully.</value>
+  </data>
+  <data name="DRIVER_DOCUMENT_APPROVED_SUCCESS" xml:space="preserve">
+    <value>Driver document approved successfully.</value>
+  </data>
+  <data name="DRIVER_DOCUMENT_REJECTED_SUCCESS" xml:space="preserve">
+    <value>Driver document rejected successfully.</value>
+  </data>
+  <data name="DRIVER_SUSPENDED_SUCCESS" xml:space="preserve">
+    <value>Driver suspended successfully.</value>
+  </data>
+  <data name="DRIVER_REACTIVATED_SUCCESS" xml:space="preserve">
+    <value>Driver reactivated successfully.</value>
+  </data>
+  <data name="DRIVER_BANNED_SUCCESS" xml:space="preserve">
+    <value>Driver banned successfully.</value>
+  </data>
+  <data name="DRIVER_UNBANNED_SUCCESS" xml:space="preserve">
+    <value>Driver unbanned successfully.</value>
+  </data>
+  <data name="DRIVER_LOGIN_LOCKED_SUCCESS" xml:space="preserve">
+    <value>Driver login locked successfully.</value>
+  </data>
+  <data name="DRIVER_LOGIN_UNLOCKED_SUCCESS" xml:space="preserve">
+    <value>Driver login unlocked successfully.</value>
+  </data>
+  <data name="DRIVER_RESTRICTIONS_CLEARED_SUCCESS" xml:space="preserve">
+    <value>Driver restrictions cleared successfully.</value>
+  </data>
+  <data name="DRIVER_LOCATION_UPDATES_BLOCKED_SUCCESS" xml:space="preserve">
+    <value>Driver location updates blocked successfully.</value>
+  </data>
+  <data name="DRIVER_LOCATION_UPDATES_UNBLOCKED_SUCCESS" xml:space="preserve">
+    <value>Driver location updates unblocked successfully.</value>
+  </data>
+  <data name="DRIVER_NOTE_ADDED_SUCCESS" xml:space="preserve">
+    <value>Note added successfully.</value>
+  </data>
+  <data name="DRIVER_INCIDENT_RECORDED_SUCCESS" xml:space="preserve">
+    <value>Incident recorded successfully.</value>
+  </data>
+  <data name="DRIVER_PAYOUT_METHOD_CHANGE_PENDING_APPROVAL" xml:space="preserve">
+    <value>Payout method change is pending admin approval.</value>
+  </data>
+  <data name="DRIVER_PAYOUT_METHOD_DELETION_PENDING_APPROVAL" xml:space="preserve">
+    <value>Payout method deletion is pending admin approval.</value>
+  </data>
+  <data name="VENDOR_INVITATION_UNAVAILABLE" xml:space="preserve">
+    <value>Invitation is expired, accepted, or revoked.</value>
+  </data>
+  <data name="PASSWORD_MIN_LENGTH" xml:space="preserve">
+    <value>Password must be at least 8 characters.</value>
+  </data>
+  <data name="STAFF_EMAIL_ALREADY_EXISTS" xml:space="preserve">
+    <value>An account already exists for this email.</value>
+  </data>
+  <data name="STAFF_LINKED_TO_ANOTHER_VENDOR" xml:space="preserve">
+    <value>This staff account is already linked to another vendor.</value>
+  </data>
+  <data name="INVITATION_ACCEPTED_SUCCESS" xml:space="preserve">
+    <value>Invitation accepted.</value>
+  </data>
+  <data name="DEVICE_ID_REQUIRED" xml:space="preserve">
+    <value>Device id is required.</value>
+  </data>
+  <data name="DEV_DATABASE_RESET_SUCCESS" xml:space="preserve">
+    <value>Development database reset completed successfully. Only the Super Admin account was seeded.</value>
+  </data>
+  <data name="ADMIN_SEED_SUCCESS" xml:space="preserve">
+    <value>Admin seed operation completed successfully.</value>
+  </data>
+  <data name="ADMIN_SEED_RESET_SUCCESS" xml:space="preserve">
+    <value>Reset and admin seed operation completed successfully.</value>
+  </data>
+  <data name="IDENTITY_PASSWORD_RESET_FAILED" xml:space="preserve">
+    <value>Staff account could not be prepared.</value>
+  </data>
 </root>

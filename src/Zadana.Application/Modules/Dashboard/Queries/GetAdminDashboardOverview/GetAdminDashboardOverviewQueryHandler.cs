@@ -359,7 +359,7 @@ internal sealed class GetAdminDashboardOverviewQueryHandler(
                     LabelKey = "DASHBOARD.KPI.SUPPLY_BACKLOG",
                     Value = vendorBacklog + driverBacklog,
                     DisplayValue = $"{vendorBacklog:N0} + {driverBacklog:N0}",
-                    ChangeLabel = "التجار + السائقين",
+                    ChangeLabel = "التجار + المندوبين",
                     TrendDirection = vendorBacklog + driverBacklog > 0 ? "up" : "flat",
                     Severity = vendorBacklog + driverBacklog > 0 ? "warning" : "success",
                     ContextKey = "DASHBOARD.KPI_CONTEXT.SUPPLY_BACKLOG"
@@ -506,9 +506,9 @@ internal sealed class GetAdminDashboardOverviewQueryHandler(
             "Other Regions" => "مناطق أخرى",
             "Vendor" => "تاجر",
             "Vendors" => "التجار",
-            "Driver" => "سائق",
-            "Drivers" => "السائقين",
-            "DriverOps" => "عمليات السائقين",
+            "Driver" => "مندوب",
+            "Drivers" => "المندوبين",
+            "DriverOps" => "عمليات المندوبين",
             "VendorOps" => "عمليات التجار",
             "Finance" => "المالية",
             "FinanceOps" => "المالية",
@@ -522,7 +522,7 @@ internal sealed class GetAdminDashboardOverviewQueryHandler(
             "Wallets" => "المحافظ",
             "Submitted" => "مقدمة",
             "InReview" => "قيد المراجعة",
-            "AwaitingCustomerEvidence" => "في انتظار إثبات العميل",
+            "AwaitingCustomerEvidence" => "بانتظار إثبات العميل",
             "Escalated" => "مصعدة",
             "Resolved" => "محلولة",
             "Rejected" => "مرفوضة",
@@ -997,8 +997,8 @@ internal sealed class GetAdminDashboardOverviewQueryHandler(
                 Id = $"driver_{blockedDriver.Id}",
                 EntityLabelKey = "DASHBOARD.ENTITY.DRIVER",
                 EntityName = blockedDriver.UserId.ToString()[..8].ToUpperInvariant(),
-                Summary = "إتاحة السائق متوقفة بسبب التحقق أو تعليق الحساب.",
-                Owner = blockedDriver.City ?? blockedDriver.Region ?? "عمليات السائقين",
+                Summary = "إتاحة المندوب متوقفة بسبب التحقق أو تعليق الحساب.",
+                Owner = blockedDriver.City ?? blockedDriver.Region ?? "عمليات المندوبين",
                 Priority = "critical",
                 Route = "/drivers",
                 ActionLabelKey = "DASHBOARD.ACTIONS.OPEN_DRIVER"
@@ -1282,9 +1282,9 @@ internal sealed class GetAdminDashboardOverviewQueryHandler(
                 new AdminDashboardExceptionRowDto
                 {
                     Id = "driver-finance-pending",
-                    EntityLabel = "سحوبات السائقين",
+                    EntityLabel = "سحوبات المندوبين",
                     IssueLabel = "مراجعة صرف معلقة",
-                    OwnerLabel = "مالية السائقين",
+                    OwnerLabel = "مالية المندوبين",
                     MetricLabel = pendingWithdrawals.ToString("N0"),
                     Severity = pendingWithdrawals > 0 ? "warning" : "success",
                     Route = "/drivers"
@@ -1292,9 +1292,9 @@ internal sealed class GetAdminDashboardOverviewQueryHandler(
                 new AdminDashboardExceptionRowDto
                 {
                     Id = "driver-finance-processing",
-                    EntityLabel = "سحوبات السائقين",
+                    EntityLabel = "سحوبات المندوبين",
                     IssueLabel = "دفعة صرف قيد المعالجة",
-                    OwnerLabel = "مالية السائقين",
+                    OwnerLabel = "مالية المندوبين",
                     MetricLabel = processingWithdrawals.ToString("N0"),
                     Severity = processingWithdrawals > 0 ? "info" : "neutral",
                     Route = "/drivers"
@@ -1429,8 +1429,8 @@ internal sealed class GetAdminDashboardOverviewQueryHandler(
                 new AdminDashboardExceptionRowDto
                 {
                     Id = "refunds-count",
-                    EntityLabel = "عمليات الاسترداد",
-                    IssueLabel = "حالات استرداد تم إنشاؤها خلال الفترة المحددة",
+                    EntityLabel = "عمليات الاسترجاع",
+                    IssueLabel = "حالات استرجاع أنشأناها خلال الفترة المحددة",
                     OwnerLabel = "المالية",
                     MetricLabel = refundsCount.ToString("N0"),
                     Severity = refundsCount > 0 ? "warning" : "success",

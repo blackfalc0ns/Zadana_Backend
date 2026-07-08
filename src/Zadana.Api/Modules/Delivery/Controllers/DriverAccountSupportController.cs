@@ -60,7 +60,7 @@ public class DriverAccountSupportController : ApiControllerBase
 
         return Accepted(new DriverAccountAppealAcceptedResponse(
             "If the driver account exists, the support request has been received.",
-            "إذا كان حساب المندوب موجودًا، فقد تم استلام طلب الدعم.",
+            "إذا كان حساب المندوب موجودًا، فقد استلمنا طلب الدعم.",
             "If the driver account exists, the support request has been received."));
     }
 }

@@ -1,6 +1,7 @@
 ﻿using Microsoft.AspNetCore.Authorization;
 using Microsoft.AspNetCore.Mvc;
 using Zadana.Api.Controllers;
+using Zadana.Api.Localization;
 using Zadana.Api.Modules.Marketing.Requests;
 using Zadana.Application.Common.Interfaces;
 using Zadana.Application.Modules.Files.Commands.UploadFile;
@@ -20,7 +21,7 @@ public class AdminMarketingBannersController : ApiControllerBase
     {
         if (file == null || file.Length == 0)
         {
-            return BadRequest("File is empty.");
+            return BadRequest(ApiLocalizedMessages.Resolve(HttpContext, "FILE_EMPTY"));
         }
 
         await using var stream = file.OpenReadStream();

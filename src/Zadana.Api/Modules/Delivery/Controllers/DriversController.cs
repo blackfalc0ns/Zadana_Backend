@@ -272,7 +272,7 @@ public class DriversController : ApiControllerBase
         {
             throw new BusinessRuleException(
                 "DRIVER_NOT_READY_FOR_DISPATCH",
-                "يجب مراجعة حسابك والموافقة عليه من الإدارة قبل قبول العروض | Your account must be reviewed and approved by admin before accepting offers.");
+                "تحتاج مراجعة واعتماد من الإدارة قبل قبول العروض | Your account must be reviewed and approved by admin before accepting offers.");
         }
 
         return Ok(await dispatchService.AcceptOfferAsync(assignmentId, driver.Id, cancellationToken));
@@ -296,7 +296,7 @@ public class DriversController : ApiControllerBase
         {
             throw new BusinessRuleException(
                 "DRIVER_NOT_READY_FOR_DISPATCH",
-                "يجب مراجعة حسابك والموافقة عليه من الإدارة قبل رفض العروض | Your account must be reviewed and approved by admin before rejecting offers.");
+                "تحتاج مراجعة واعتماد من الإدارة قبل رفض العروض | Your account must be reviewed and approved by admin before rejecting offers.");
         }
 
         return Ok(await dispatchService.RejectOfferAsync(assignmentId, driver.Id, request?.Reason, cancellationToken));
@@ -320,7 +320,7 @@ public class DriversController : ApiControllerBase
         {
             throw new BusinessRuleException(
                 "DRIVER_NOT_READY_FOR_DISPATCH",
-                "يجب مراجعة حسابك والموافقة عليه من الإدارة قبل إرسال إثبات التوصيل | Your account must be reviewed and approved by admin before submitting delivery proof.");
+                "تحتاج مراجعة واعتماد من الإدارة قبل إرسال إثبات التوصيل | Your account must be reviewed and approved by admin before submitting delivery proof.");
         }
 
         var assignmentExists = await context.DeliveryAssignments
@@ -328,7 +328,7 @@ public class DriversController : ApiControllerBase
 
         if (!assignmentExists)
         {
-            throw new BusinessRuleException("ASSIGNMENT_NOT_OWNED", "يمكنك إرسال إثبات فقط للطلبات المخصصة لك | You can only submit proof for your assigned deliveries.");
+            throw new BusinessRuleException("ASSIGNMENT_NOT_OWNED", "تقدر ترسل إثبات فقط للطلبات المخصصة لك | You can only submit proof for your assigned deliveries.");
         }
 
         var proofId = await Sender.Send(
@@ -382,7 +382,7 @@ public class DriversController : ApiControllerBase
 
         return Ok(new 
         { 
-            message_ar = "تم إرسال رمز التحقق بنجاح", 
+            message_ar = "أرسلنا رمز التحقق بنجاح",
             message_en = LocalizedMessages.GetEn(LocalizedMessages.OtpResentSuccessfully) 
         });
     }

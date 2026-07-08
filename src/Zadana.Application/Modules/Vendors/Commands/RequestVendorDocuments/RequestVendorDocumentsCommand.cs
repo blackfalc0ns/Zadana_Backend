@@ -38,7 +38,7 @@ public class RequestVendorDocumentsCommandHandler : IRequestHandler<RequestVendo
         VendorReviewWorkflow.EnsureComplianceActionAllowed(vendor);
 
         var note = string.IsNullOrWhiteSpace(request.Note)
-            ? "يرجى إعادة رفع المستندات القانونية المطلوبة وتأكيد أحدث بيانات التاجر."
+            ? "فضلاً إعادة رفع المستندات القانونية المطلوبة وتأكيد أحدث بيانات التاجر."
             : request.Note.Trim();
 
         await _vendorReviewAuditService.AppendEntryAsync(

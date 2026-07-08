@@ -1013,9 +1013,9 @@ public sealed class PayoutOrchestrator
 
                 await _notificationService.SendToUserAsync(
                     driverUserId,
-                    "تم إتمام التحويل إلى حسابك البنكي",
+                    "أكملنا التحويل إلى حسابك البنكي",
                     "Payout completed",
-                    $"تم تحويل مبلغ {payout.Amount:0.00} ريال إلى حسابك البنكي بنجاح.",
+                    $"حوّلنا مبلغ {payout.Amount:0.00} ريال إلى حسابك البنكي بنجاح.",
                     $"A payout of {payout.Amount:0.00} SAR has been successfully transferred to your bank account.",
                     NotificationTypes.DriverWalletUpdated,
                     payout.Id,
@@ -1056,9 +1056,9 @@ public sealed class PayoutOrchestrator
 
                 await _notificationService.SendToUserAsync(
                     vendorUserId,
-                    "تم صرف مستحقاتك",
+                    "صرفنا مستحقاتك",
                     "Settlement paid",
-                    $"تم تحويل مستحقاتك بمبلغ {payout.Amount:0.00} ريال إلى حسابك البنكي.",
+                    $"حوّلنا مستحقاتك بمبلغ {payout.Amount:0.00} ريال إلى حسابك البنكي.",
                     $"Your settlement of {payout.Amount:0.00} SAR has been transferred to your bank account.",
                     NotificationTypes.VendorSettlementPaid,
                     payout.Id,
@@ -1067,9 +1067,9 @@ public sealed class PayoutOrchestrator
 
                 await _oneSignalPushService.SendToExternalUserAsync(
                     vendorUserId.ToString(),
-                    "تم صرف مستحقاتك",
+                    "صرفنا مستحقاتك",
                     "Settlement paid",
-                    $"تم تحويل مستحقاتك بمبلغ {payout.Amount:0.00} ريال إلى حسابك البنكي.",
+                    $"حوّلنا مستحقاتك بمبلغ {payout.Amount:0.00} ريال إلى حسابك البنكي.",
                     $"Your settlement of {payout.Amount:0.00} SAR has been transferred to your bank account.",
                     NotificationTypes.VendorSettlementPaid,
                     payout.Id,

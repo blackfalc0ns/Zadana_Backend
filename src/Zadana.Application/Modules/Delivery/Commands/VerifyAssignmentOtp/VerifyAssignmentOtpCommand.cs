@@ -61,7 +61,7 @@ public class VerifyAssignmentOtpCommandHandler : IRequestHandler<VerifyAssignmen
     public async Task<DriverOtpVerificationResultDto> Handle(VerifyAssignmentOtpCommand request, CancellationToken cancellationToken)
     {
         var driver = await _driverRepository.GetByUserIdAsync(request.DriverUserId, cancellationToken)
-            ?? throw new BusinessRuleException("DRIVER_NOT_FOUND", "لم يتم العثور على حساب مندوب مرتبط بهذا المستخدم | No driver profile found for the current user.");
+            ?? throw new BusinessRuleException("DRIVER_NOT_FOUND", "ما لقينا حساب مندوب مرتبط بهذا المستخدم | No driver profile found for the current user.");
 
         if (driver.ApplyDocumentExpiryLock())
         {
@@ -72,13 +72,13 @@ public class VerifyAssignmentOtpCommandHandler : IRequestHandler<VerifyAssignmen
         {
             throw new BusinessRuleException(
                 "DRIVER_NOT_READY_FOR_DISPATCH",
-                "يجب مراجعة حسابك والموافقة عليه من الإدارة قبل التحقق من رمز OTP | Your account must be reviewed and approved by admin before verifying OTP.");
+                "تحتاج مراجعة واعتماد من الإدارة قبل التحقق من رمز OTP | Your account must be reviewed and approved by admin before verifying OTP.");
         }
 
         var assignment = await _context.DeliveryAssignments
             .Include(item => item.Order)
             .FirstOrDefaultAsync(item => item.Id == request.AssignmentId && item.DriverId == driver.Id, cancellationToken)
-            ?? throw new BusinessRuleException("ASSIGNMENT_NOT_OWNED", "يمكنك التحقق من رمز OTP فقط للطلبات المخصصة لك | You can only verify OTP for your assigned deliveries.");
+            ?? throw new BusinessRuleException("ASSIGNMENT_NOT_OWNED", "تقدر تتحقق من رمز OTP فقط للطلبات المخصصة لك | You can only verify OTP for your assigned deliveries.");
 
         var otpType = request.OtpType.Trim().ToLowerInvariant();
 
@@ -114,14 +114,14 @@ public class VerifyAssignmentOtpCommandHandler : IRequestHandler<VerifyAssignmen
         {
             throw new BusinessRuleException(
                 "INVALID_ORDER_STATUS_TRANSITION",
-                $"لا يمكن التحقق من رمز الاستلام والطلب في حالة {assignment.Order.Status} | Cannot verify pickup OTP while order is in {assignment.Order.Status}.");
+                $"ما تقدر تتحقق من رمز الاستلام والطلب في حالة {assignment.Order.Status} | Cannot verify pickup OTP while order is in {assignment.Order.Status}.");
         }
 
         if (otpType == "delivery" && assignment.Order.Status is not (OrderStatus.OnTheWay or OrderStatus.Delivered))
         {
             throw new BusinessRuleException(
                 "INVALID_ORDER_STATUS_TRANSITION",
-                $"لا يمكن التحقق من رمز التوصيل والطلب في حالة {assignment.Order.Status} | Cannot verify delivery OTP while order is in {assignment.Order.Status}.");
+                $"ما تقدر تتحقق من رمز التوصيل والطلب في حالة {assignment.Order.Status} | Cannot verify delivery OTP while order is in {assignment.Order.Status}.");
         }
 
         try

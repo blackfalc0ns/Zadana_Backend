@@ -84,9 +84,9 @@ public class ClearDriverRestrictionsCommandHandler : IRequestHandler<ClearDriver
                 note = request.Note
             });
 
-        const string titleAr = "تم فك قيود المندوب";
+        const string titleAr = "فكّينا قيود المندوب";
         const string titleEn = "Driver restrictions cleared";
-        const string bodyAr = "تم فك القيود التشغيلية على حسابك. يمكنك استقبال العروض مرة أخرى بعد تفعيل حالة التوفر.";
+        const string bodyAr = "فكّينا القيود التشغيلية على حسابك. تقدر تستقبل العروض مرة أخرى بعد تفعيل حالة التوفر.";
         const string bodyEn = "Your operational restrictions were cleared. You can receive offers again after going available.";
 
         await _notificationService.SendToUserAsync(

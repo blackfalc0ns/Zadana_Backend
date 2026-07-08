@@ -83,13 +83,13 @@ public class UpdateDriverArrivalStateCommandHandler : IRequestHandler<UpdateDriv
     public async Task<DriverArrivalStateResultDto> Handle(UpdateDriverArrivalStateCommand request, CancellationToken cancellationToken)
     {
         var driver = await _driverRepository.GetByUserIdAsync(request.DriverUserId, cancellationToken)
-            ?? throw new BusinessRuleException("DRIVER_NOT_FOUND", "لم يتم العثور على حساب مندوب مرتبط بهذا المستخدم | No driver profile found for the current user.");
+            ?? throw new BusinessRuleException("DRIVER_NOT_FOUND", "ما لقينا حساب مندوب مرتبط بهذا المستخدم | No driver profile found for the current user.");
 
         if (!driver.CanReceiveOrders)
         {
             throw new BusinessRuleException(
                 "DRIVER_NOT_READY_FOR_DISPATCH",
-                "يجب مراجعة حسابك والموافقة عليه من الإدارة قبل تحديث حالة الوصول | Your account must be reviewed and approved by admin before updating arrival state.");
+                "تحتاج مراجعة واعتماد من الإدارة قبل تحديث حالة الوصول | Your account must be reviewed and approved by admin before updating arrival state.");
         }
 
         var assignment = await _context.DeliveryAssignments
@@ -113,7 +113,7 @@ public class UpdateDriverArrivalStateCommandHandler : IRequestHandler<UpdateDriv
         {
             if (assignment.Status is not Domain.Modules.Delivery.Enums.AssignmentStatus.Accepted)
             {
-                throw new BusinessRuleException("INVALID_ARRIVAL_STATE_TRANSITION", "يمكنك تسجيل الوصول للمتجر فقط بعد قبول الطلب | You can only mark arrival at vendor after accepting the order.");
+                throw new BusinessRuleException("INVALID_ARRIVAL_STATE_TRANSITION", "تقدر تسجل الوصول للمتجر فقط بعد قبول الطلب | You can only mark arrival at vendor after accepting the order.");
             }
 
             assignment.MarkArrivedAtVendor();
@@ -155,7 +155,7 @@ public class UpdateDriverArrivalStateCommandHandler : IRequestHandler<UpdateDriv
             {
                 throw new BusinessRuleException(
                     "INVALID_ARRIVAL_STATE_TRANSITION",
-                    "يمكنك تسجيل الوصول للعميل فقط بعد بدء التوصيل | You can only mark arrival at customer after the order is on the way.");
+                    "تقدر تسجل الوصول للعميل فقط بعد بدء التوصيل | You can only mark arrival at customer after the order is on the way.");
             }
 
             assignment.MarkArrivedAtCustomer();
@@ -386,13 +386,13 @@ public class UpdateDriverArrivalStateCommandHandler : IRequestHandler<UpdateDriv
         assignment.Status switch
         {
             AssignmentStatus.Accepted =>
-                "يجب تسجيل الوصول للمتجر واستلام الطلب قبل الوصول للعميل | Mark arrival at the store and pick up the order before arriving at the customer.",
+                "لازم تسجل الوصول للمتجر واستلام الطلب قبل الوصول للعميل | Mark arrival at the store and pick up the order before arriving at the customer.",
             AssignmentStatus.ArrivedAtVendor when assignment.RequiresPickupOtpVerification =>
-                "يجب تأكيد رمز الاستلام من المتجر قبل تسجيل الوصول للعميل | Confirm the store pickup OTP before marking arrival at the customer.",
+                "لازم تأكد رمز الاستلام من المتجر قبل تسجيل الوصول للعميل | Confirm the store pickup OTP before marking arrival at the customer.",
             AssignmentStatus.ArrivedAtVendor or AssignmentStatus.Accepted =>
-                "يجب استلام الطلب من المتجر قبل تسجيل الوصول للعميل | Pick up the order from the store before marking arrival at the customer.",
+                "لازم تستلم الطلب من المتجر قبل تسجيل الوصول للعميل | Pick up the order from the store before marking arrival at the customer.",
             _ =>
-                "يمكنك تسجيل الوصول للعميل فقط بعد بدء التوصيل | You can only mark arrival at customer after the order is on the way."
+                "تقدر تسجل الوصول للعميل فقط بعد بدء التوصيل | You can only mark arrival at customer after the order is on the way."
         };
 
     private static string BuildArrivalNotificationData(

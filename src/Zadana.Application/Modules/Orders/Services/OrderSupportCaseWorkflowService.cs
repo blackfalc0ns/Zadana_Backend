@@ -764,7 +764,7 @@ public sealed class OrderSupportCaseWorkflowService : IOrderSupportCaseWorkflowS
 
         if (!assignedDriverUserIds.Contains(driverId))
         {
-            throw new ForbiddenAccessException("You are not assigned to this order.");
+            throw new ForbiddenAccessException("DRIVER_NOT_ASSIGNED");
         }
 
         supportCase.MergeIntoActiveCase(
@@ -1331,10 +1331,10 @@ public sealed class OrderSupportCaseWorkflowService : IOrderSupportCaseWorkflowS
         var bodyAr = action switch
         {
             "request_evidence" => "فريق الدعم يحتاج معلومات إضافية لمراجعة حسابك.",
-            "resolved" => "تم إغلاق طلب دعم حسابك بعد المراجعة.",
-            "rejected" => "تم رفض طلب دعم حسابك بعد المراجعة.",
-            "approved" => "تمت مراجعة طلب دعم حسابك.",
-            _ => "تم تحديث طلب دعم حسابك."
+            "resolved" => "أغلقنا طلب دعم حسابك بعد المراجعة.",
+            "rejected" => "رفضنا طلب دعم حسابك بعد المراجعة.",
+            "approved" => "راجعنا طلب دعم حسابك.",
+            _ => "حدّثنا طلب دعم حسابك."
         };
         var bodyEn = action switch
         {
@@ -1427,39 +1427,39 @@ public sealed class OrderSupportCaseWorkflowService : IOrderSupportCaseWorkflowS
                 "بدأ فريق الدعم مراجعة طلب دعم حسابك.",
                 "Support has started reviewing your account support case."),
             "escalated" => (
-                "تم تصعيد طلب الدعم",
+                "صعّدنا طلب الدعم",
                 "Support case escalated",
-                "تم تصعيد طلب دعم حسابك للمراجعة.",
+                "صعّدنا طلب دعم حسابك للمراجعة.",
                 "Your account support case was escalated for review."),
             "reopened" => (
-                "تمت إعادة فتح طلب الدعم",
+                "أعدنا فتح طلب الدعم",
                 "Support case reopened",
-                "تمت إعادة فتح طلب دعم حسابك.",
+                "أعدنا فتح طلب دعم حسابك.",
                 "Your account support case has been reopened."),
             "resolved" => (
-                "تم إغلاق طلب الدعم",
+                "أغلقنا طلب الدعم",
                 "Support case resolved",
-                "تم إغلاق طلب دعم حسابك بعد المراجعة.",
+                "أغلقنا طلب دعم حسابك بعد المراجعة.",
                 "Your account support case has been resolved."),
             "rejected" => (
-                "تم رفض طلب الدعم",
+                "رفضنا طلب الدعم",
                 "Support case rejected",
-                "تم رفض طلب دعم حسابك بعد المراجعة.",
+                "رفضنا طلب دعم حسابك بعد المراجعة.",
                 "Your account support case was rejected after review."),
             "approved" => (
-                "تمت مراجعة طلب الدعم",
+                "راجعنا طلب الدعم",
                 "Support case reviewed",
-                "تمت مراجعة طلب دعم حسابك.",
+                "راجعنا طلب دعم حسابك.",
                 "Your account support case has been reviewed."),
             "admin_message" or "note_added" => (
                 "رسالة جديدة من الدعم",
                 "New support message",
-                "توجد رسالة جديدة من فريق الدعم بخصوص حسابك.",
+                "وصلتك رسالة جديدة من فريق الدعم بخصوص حسابك.",
                 "There is a new support message about your account."),
             _ => (
                 "تحديث على طلب دعم الحساب",
                 "Account support case update",
-                "تم تحديث طلب دعم حسابك.",
+                "حدّثنا طلب دعم حسابك.",
                 "Your account support case was updated.")
         };
 
@@ -1546,9 +1546,9 @@ public sealed class OrderSupportCaseWorkflowService : IOrderSupportCaseWorkflowS
 {"orderId":"{{order.Id}}","caseId":"{{supportCase.Id}}","orderNumber":"{{order.OrderNumber}}","type":"{{OrderSupportCaseNotificationComposer.ToApiValue(supportCase.Type)}}","status":"{{OrderSupportCaseNotificationComposer.ToApiValue(supportCase.Status)}}","action":"approved","targetUrl":"{{targetUrl}}","category":"support","screen":"support_case_detail","presentation":"popup","popupType":"return_request_status_update","showPopup":true,"eventName":"return.approved","isReturnRequest":true,"returnStatus":"{{OrderSupportCaseNotificationComposer.ToApiValue(supportCase.Status)}}","refundStatus":"coupon_compensation_approved","returnPopupType":"return_request_status_update","compensationType":"coupon_compensation","couponCode":"{{coupon.Code}}","couponValue":{{approvedAmount}},"couponExpiresAt":"{{coupon.EndsAtUtc?.ToString("O")}}"}
 """;
 
-        const string titleAr = "تمت الموافقة على الاسترجاع ككوبون";
+        const string titleAr = "اعتمدنا الاسترجاع ككوبون";
         const string titleEn = "Return approved as coupon";
-        var bodyAr = $"تمت الموافقة على طلبك، وتم إصدار كوبون تعويض بقيمة {approvedAmount:0.00} برمز {coupon.Code} صالح حتى {expiresAt}.";
+        var bodyAr = $"اعتمدنا طلبك، وأصدرنا كوبون تعويض بقيمة {approvedAmount:0.00} برمز {coupon.Code} صالح حتى {expiresAt}.";
         var bodyEn = $"Your request was approved. A compensation coupon worth {approvedAmount:0.00} was issued with code {coupon.Code}, valid until {expiresAt}.";
 
         await _notificationService.SendToUserAsync(
@@ -1603,8 +1603,8 @@ public sealed class OrderSupportCaseWorkflowService : IOrderSupportCaseWorkflowS
         var titleAr = isComplaint ? "تحديث في دعم طلب" : "تحديث في نزاع طلب";
         var titleEn = isComplaint ? "Order support updated" : "Order support case updated";
         var bodyAr = isComplaint
-            ? $"تم تحديث حالة الدعم الخاصة بالطلب #{order.OrderNumber}."
-            : $"تم تحديث حالة النزاع الخاصة بالطلب #{order.OrderNumber}.";
+            ? $"حدّثنا حالة الدعم الخاصة بالطلب #{order.OrderNumber}."
+            : $"حدّثنا حالة النزاع الخاصة بالطلب #{order.OrderNumber}.";
         var bodyEn = isComplaint
             ? $"The support case for order #{order.OrderNumber} has been updated."
             : $"The dispute for order #{order.OrderNumber} has been updated.";
@@ -1654,7 +1654,7 @@ public sealed class OrderSupportCaseWorkflowService : IOrderSupportCaseWorkflowS
             vendorUserId,
             "تحديث في نزاع طلب",
             "Order dispute updated",
-            $"تم تحديث حالة النزاع للطلب #{order.OrderNumber}.",
+            $"حدّثنا حالة النزاع للطلب #{order.OrderNumber}.",
             $"The dispute for order #{order.OrderNumber} has been updated.",
             "order_support_case",
             supportCase.Id,
@@ -1825,9 +1825,9 @@ public sealed class OrderSupportCaseWorkflowService : IOrderSupportCaseWorkflowS
         {
             "created" => BuildDriverSupportNotification(
                 driverUserId,
-                "تم إنشاء بلاغ على الطلب",
+                "أنشأنا بلاغ على الطلب",
                 "Support case created",
-                $"تم إنشاء بلاغ على الطلب رقم #{order.OrderNumber}.",
+                $"أنشأنا بلاغ على الطلب رقم #{order.OrderNumber}.",
                 $"A support case was created for order #{order.OrderNumber}.",
                 NotificationPriorities.Normal,
                 OneSignalPushRequestKind.HeadsUp,
@@ -1849,7 +1849,7 @@ public sealed class OrderSupportCaseWorkflowService : IOrderSupportCaseWorkflowS
                 driverUserId,
                 "رسالة جديدة بخصوص الطلب",
                 "New support message",
-                $"توجد رسالة دعم جديدة بخصوص الطلب رقم #{order.OrderNumber}.",
+                $"وصلتك رسالة دعم جديدة بخصوص الطلب رقم #{order.OrderNumber}.",
                 $"There is a new support message about order #{order.OrderNumber}.",
                 NotificationPriorities.High,
                 OneSignalPushRequestKind.HeadsUp,
@@ -1858,9 +1858,9 @@ public sealed class OrderSupportCaseWorkflowService : IOrderSupportCaseWorkflowS
 
             "note_added" => BuildDriverSupportNotification(
                 driverUserId,
-                "تمت إضافة ملاحظة",
+                "أضفنا ملاحظة",
                 "New support note",
-                $"تمت إضافة ملاحظة على بلاغ الطلب رقم #{order.OrderNumber}.",
+                $"أضفنا ملاحظة على بلاغ الطلب رقم #{order.OrderNumber}.",
                 $"A note was added to the support case for order #{order.OrderNumber}.",
                 NotificationPriorities.High,
                 OneSignalPushRequestKind.HeadsUp,
@@ -1880,9 +1880,9 @@ public sealed class OrderSupportCaseWorkflowService : IOrderSupportCaseWorkflowS
 
             "escalated" => BuildDriverSupportNotification(
                 driverUserId,
-                "تم تصعيد البلاغ",
+                "صعّدنا البلاغ",
                 "Support case escalated",
-                $"تم تصعيد بلاغ الطلب رقم #{order.OrderNumber} للمراجعة.",
+                $"صعّدنا بلاغ الطلب رقم #{order.OrderNumber} للمراجعة.",
                 $"The support case for order #{order.OrderNumber} was escalated for review.",
                 NotificationPriorities.High,
                 OneSignalPushRequestKind.HeadsUp,
@@ -1891,9 +1891,9 @@ public sealed class OrderSupportCaseWorkflowService : IOrderSupportCaseWorkflowS
 
             "approved" => BuildDriverSupportNotification(
                 driverUserId,
-                "تمت الموافقة على البلاغ",
+                "اعتمدنا البلاغ",
                 "Support case approved",
-                $"تمت الموافقة على قرار البلاغ الخاص بالطلب رقم #{order.OrderNumber}.",
+                $"اعتمدنا قرار البلاغ الخاص بالطلب رقم #{order.OrderNumber}.",
                 $"The support case decision for order #{order.OrderNumber} was approved.",
                 NotificationPriorities.High,
                 OneSignalPushRequestKind.HeadsUp,
@@ -1902,9 +1902,9 @@ public sealed class OrderSupportCaseWorkflowService : IOrderSupportCaseWorkflowS
 
             "rejected" => BuildDriverSupportNotification(
                 driverUserId,
-                "تم رفض البلاغ",
+                "رفضنا البلاغ",
                 "Support case rejected",
-                $"تم رفض البلاغ الخاص بالطلب رقم #{order.OrderNumber}.",
+                $"رفضنا البلاغ الخاص بالطلب رقم #{order.OrderNumber}.",
                 $"The support case for order #{order.OrderNumber} was rejected.",
                 NotificationPriorities.High,
                 OneSignalPushRequestKind.HeadsUp,
@@ -1913,9 +1913,9 @@ public sealed class OrderSupportCaseWorkflowService : IOrderSupportCaseWorkflowS
 
             "resolved" => BuildDriverSupportNotification(
                 driverUserId,
-                "تم إغلاق البلاغ",
+                "أغلقنا البلاغ",
                 "Support case resolved",
-                $"تم إغلاق البلاغ الخاص بالطلب رقم #{order.OrderNumber}.",
+                $"أغلقنا البلاغ الخاص بالطلب رقم #{order.OrderNumber}.",
                 $"The support case for order #{order.OrderNumber} was resolved.",
                 NotificationPriorities.Normal,
                 OneSignalPushRequestKind.HeadsUp,
@@ -1924,9 +1924,9 @@ public sealed class OrderSupportCaseWorkflowService : IOrderSupportCaseWorkflowS
 
             "reopened" => BuildDriverSupportNotification(
                 driverUserId,
-                "تم إعادة فتح البلاغ",
+                "أعدنا فتح البلاغ",
                 "Support case reopened",
-                $"تم إعادة فتح بلاغ الطلب رقم #{order.OrderNumber}.",
+                $"أعدنا فتح بلاغ الطلب رقم #{order.OrderNumber}.",
                 $"The support case for order #{order.OrderNumber} has been reopened.",
                 NotificationPriorities.Normal,
                 OneSignalPushRequestKind.HeadsUp,
@@ -1947,9 +1947,9 @@ public sealed class OrderSupportCaseWorkflowService : IOrderSupportCaseWorkflowS
         {
             "created" => BuildDriverSupportNotification(
                 driverUserId,
-                "تم إنشاء بلاغ على الطلب",
+                "أنشأنا بلاغ على الطلب",
                 "Support case created",
-                $"تم إنشاء بلاغ على الطلب رقم #{orderNumber}.",
+                $"أنشأنا بلاغ على الطلب رقم #{orderNumber}.",
                 $"A support case was created for order #{orderNumber}.",
                 NotificationPriorities.Normal,
                 OneSignalPushRequestKind.HeadsUp,
@@ -1969,7 +1969,7 @@ public sealed class OrderSupportCaseWorkflowService : IOrderSupportCaseWorkflowS
                 driverUserId,
                 "رسالة جديدة بخصوص الطلب",
                 "New support message",
-                $"توجد رسالة دعم جديدة بخصوص الطلب رقم #{orderNumber}.",
+                $"وصلتك رسالة دعم جديدة بخصوص الطلب رقم #{orderNumber}.",
                 $"There is a new support message about order #{orderNumber}.",
                 NotificationPriorities.High,
                 OneSignalPushRequestKind.HeadsUp,
@@ -1977,9 +1977,9 @@ public sealed class OrderSupportCaseWorkflowService : IOrderSupportCaseWorkflowS
                 data),
             "note_added" => BuildDriverSupportNotification(
                 driverUserId,
-                "تمت إضافة ملاحظة",
+                "أضفنا ملاحظة",
                 "New support note",
-                $"تمت إضافة ملاحظة على بلاغ الطلب رقم #{orderNumber}.",
+                $"أضفنا ملاحظة على بلاغ الطلب رقم #{orderNumber}.",
                 $"A note was added to the support case for order #{orderNumber}.",
                 NotificationPriorities.High,
                 OneSignalPushRequestKind.HeadsUp,
@@ -1997,9 +1997,9 @@ public sealed class OrderSupportCaseWorkflowService : IOrderSupportCaseWorkflowS
                 data),
             "escalated" => BuildDriverSupportNotification(
                 driverUserId,
-                "تم تصعيد البلاغ",
+                "صعّدنا البلاغ",
                 "Support case escalated",
-                $"تم تصعيد بلاغ الطلب رقم #{orderNumber} للمراجعة.",
+                $"صعّدنا بلاغ الطلب رقم #{orderNumber} للمراجعة.",
                 $"The support case for order #{orderNumber} was escalated for review.",
                 NotificationPriorities.High,
                 OneSignalPushRequestKind.HeadsUp,
@@ -2007,9 +2007,9 @@ public sealed class OrderSupportCaseWorkflowService : IOrderSupportCaseWorkflowS
                 data),
             "approved" => BuildDriverSupportNotification(
                 driverUserId,
-                "تمت الموافقة على البلاغ",
+                "اعتمدنا البلاغ",
                 "Support case approved",
-                $"تمت الموافقة على قرار البلاغ الخاص بالطلب رقم #{orderNumber}.",
+                $"اعتمدنا قرار البلاغ الخاص بالطلب رقم #{orderNumber}.",
                 $"The support case decision for order #{orderNumber} was approved.",
                 NotificationPriorities.High,
                 OneSignalPushRequestKind.HeadsUp,
@@ -2017,9 +2017,9 @@ public sealed class OrderSupportCaseWorkflowService : IOrderSupportCaseWorkflowS
                 data),
             "rejected" => BuildDriverSupportNotification(
                 driverUserId,
-                "تم رفض البلاغ",
+                "رفضنا البلاغ",
                 "Support case rejected",
-                $"تم رفض البلاغ الخاص بالطلب رقم #{orderNumber}.",
+                $"رفضنا البلاغ الخاص بالطلب رقم #{orderNumber}.",
                 $"The support case for order #{orderNumber} was rejected.",
                 NotificationPriorities.High,
                 OneSignalPushRequestKind.HeadsUp,
@@ -2027,9 +2027,9 @@ public sealed class OrderSupportCaseWorkflowService : IOrderSupportCaseWorkflowS
                 data),
             "resolved" => BuildDriverSupportNotification(
                 driverUserId,
-                "تم إغلاق البلاغ",
+                "أغلقنا البلاغ",
                 "Support case resolved",
-                $"تم إغلاق البلاغ الخاص بالطلب رقم #{orderNumber}.",
+                $"أغلقنا البلاغ الخاص بالطلب رقم #{orderNumber}.",
                 $"The support case for order #{orderNumber} was resolved.",
                 NotificationPriorities.Normal,
                 OneSignalPushRequestKind.HeadsUp,
@@ -2037,9 +2037,9 @@ public sealed class OrderSupportCaseWorkflowService : IOrderSupportCaseWorkflowS
                 data),
             "reopened" => BuildDriverSupportNotification(
                 driverUserId,
-                "تمت إعادة فتح البلاغ",
+                "أعدنا فتح البلاغ",
                 "Support case reopened",
-                $"تمت إعادة فتح بلاغ الطلب رقم #{orderNumber}.",
+                $"أعدنا فتح بلاغ الطلب رقم #{orderNumber}.",
                 $"The support case for order #{orderNumber} has been reopened.",
                 NotificationPriorities.Normal,
                 OneSignalPushRequestKind.HeadsUp,
@@ -2546,7 +2546,7 @@ public sealed class OrderSupportCaseWorkflowService : IOrderSupportCaseWorkflowS
 
         if (supportCase.Order.UserId != customerUserId)
         {
-            throw new ForbiddenAccessException("You are not the owner of this order.");
+            throw new ForbiddenAccessException("ORDER_NOT_OWNED_BY_YOU");
         }
 
         var attachmentTuples = attachments?

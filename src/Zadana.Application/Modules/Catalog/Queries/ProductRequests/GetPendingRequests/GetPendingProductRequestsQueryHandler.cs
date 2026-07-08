@@ -30,7 +30,7 @@ public class GetPendingProductRequestsQueryHandler : IRequestHandler<GetPendingP
     {
         if (!_currentUserService.HasRole(UserRole.Admin, UserRole.SuperAdmin))
         {
-            throw new ForbiddenAccessException(_localizer["UNAUTHORIZED_VIEW_REQUESTS"]);
+            throw new ForbiddenAccessException("UNAUTHORIZED_VIEW_REQUESTS");
         }
 
         return await _productRequestReadService.GetPendingAsync(

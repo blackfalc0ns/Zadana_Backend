@@ -419,7 +419,7 @@ public class VendorReadService : IVendorReadService
         {
             requiredActions.Add(new VendorWorkspaceRequiredActionDto(
                 VendorProfileReviewCatalog.Step5Commercial,
-                "لقد انتهت صلاحية السجل التجاري! يرجى تحديث تاريخ الانتهاء ورفع مستند ساري المفعول.|Commercial Registration has expired! Please update the expiry date and upload a valid document."));
+                "انتهت صلاحية السجل التجاري. فضلاً حدّث تاريخ الانتهاء وارفع مستند ساري.|Commercial Registration has expired! Please update the expiry date and upload a valid document."));
         }
 
         var canSubmitForReview = vendor.Status == VendorStatus.PendingReview
@@ -1007,7 +1007,7 @@ public class VendorReadService : IVendorReadService
                     Icon: "error",
                     TitleAr: "معدل الإلغاء مرتفع",
                     TitleEn: "High Cancellation Rate",
-                    DescriptionAr: $"نسبة إلغاء الطلبات من قبل التاجر بلغت {percent}% خلال آخر ٣٠ يوماً.",
+                    DescriptionAr: $"نسبة إلغاء الطلبات من التاجر بلغت {percent}% خلال آخر ٣٠ يومًا.",
                     DescriptionEn: $"Vendor cancellation rate reached {percent}% in last 30 days."
                 ));
             }
@@ -1077,7 +1077,7 @@ public class VendorReadService : IVendorReadService
                 Icon: "info",
                 TitleAr: "تغيير متكرر للآيبان",
                 TitleEn: "Frequent IBAN Changes",
-                DescriptionAr: $"تم تغيير الحساب البنكي {totalChanges} مرات منذ التسجيل.",
+                DescriptionAr: $"غيّرنا الحساب البنكي {totalChanges} مرات منذ التسجيل.",
                 DescriptionEn: $"Bank account changed {totalChanges} times since registration."
             ));
         }

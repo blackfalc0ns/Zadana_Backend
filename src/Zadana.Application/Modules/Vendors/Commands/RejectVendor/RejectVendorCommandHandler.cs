@@ -50,7 +50,7 @@ public class RejectVendorCommandHandler : IRequestHandler<RejectVendorCommand>
             vendor,
             new VendorCommunicationMessage(
                 "vendor_rejected",
-                "تم رفض طلب اعتماد التاجر",
+                "رفضنا طلب اعتماد التاجر",
                 "Vendor application rejected",
                 request.Reason,
                 request.Reason,

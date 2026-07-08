@@ -133,12 +133,12 @@ public class ReviewVendorProfileFieldsCommandHandler : IRequestHandler<ReviewVen
                     .ToList();
 
                 var messageAr = !hasRejected
-                    ? $"تم قبول قسم {labelAr}."
+                    ? $"قبلنا قسم {labelAr}."
                     : rejectionReasons.Count switch
                     {
-                        0 => $"تم طلب تعديلات على قسم {labelAr}.",
-                        1 => $"تم طلب تعديلات على قسم {labelAr}: {rejectionReasons[0]}",
-                        _ => $"تم طلب تعديلات على قسم {labelAr}: {string.Join(" • ", rejectionReasons)}"
+                        0 => $"طلبنا تعديلات على قسم {labelAr}.",
+                        1 => $"طلبنا تعديلات على قسم {labelAr}: {rejectionReasons[0]}",
+                        _ => $"طلبنا تعديلات على قسم {labelAr}: {string.Join(" • ", rejectionReasons)}"
                     };
 
                 var messageEn = !hasRejected
@@ -193,7 +193,7 @@ public class ReviewVendorProfileFieldsCommandHandler : IRequestHandler<ReviewVen
                 vendor,
                 new VendorCommunicationMessage(
                     rejectedCount > 0 ? "vendor_profile_changes_requested" : "vendor_profile_items_approved",
-                    rejectedCount > 0 ? "مطلوب تعديل بيانات في ملف التاجر" : "تم اعتماد عناصر من ملف التاجر",
+                    rejectedCount > 0 ? "مطلوب تعديل بيانات في ملف التاجر" : "اعتمدنا عناصر من ملف التاجر",
                     rejectedCount > 0 ? "Vendor profile changes requested" : "Vendor profile items approved",
                     rejectedCount > 0
                         ? BuildSectionAwareBodyAr(affectedSections, changesRequested: true)
@@ -232,16 +232,16 @@ public class ReviewVendorProfileFieldsCommandHandler : IRequestHandler<ReviewVen
         if (sections.Count == 0)
         {
             return changesRequested
-                ? "تمت مراجعة بعض بيانات الملف وتحتاج إلى تعديل قبل إعادة الإرسال."
-                : "تم اعتماد بعض عناصر ملف التاجر من فريق الامتثال.";
+                ? "راجعنا بعض بيانات الملف وتحتاج إلى تعديل قبل إعادة الإرسال."
+                : "اعتمدنا بعض عناصر ملف التاجر من فريق الامتثال.";
         }
 
         var labels = sections.Select(section => VendorProfileReviewCatalog.GetSectionLabel(section).LabelAr).ToList();
         var sectionList = string.Join("، ", labels);
 
         return changesRequested
-            ? $"تمت مراجعة {sectionList} وتحتاج إلى تعديل قبل إعادة الإرسال."
-            : $"تم اعتماد {sectionList} من فريق الامتثال.";
+            ? $"راجعنا {sectionList} وتحتاج إلى تعديل قبل إعادة الإرسال."
+            : $"اعتمدنا {sectionList} من فريق الامتثال.";
     }
 
     private static string BuildSectionAwareBodyEn(IReadOnlyCollection<string> sections, bool changesRequested)

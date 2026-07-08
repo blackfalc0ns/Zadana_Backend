@@ -32,14 +32,14 @@ public class DeleteCategoryCommandHandler : IRequestHandler<DeleteCategoryComman
         {
             throw new BusinessRuleException(
                 "CATEGORY_HAS_SUBCATEGORIES",
-                "لا يمكن حذف التصنيف لأنه يحتوي على تصنيفات فرعية.|Cannot delete this category because it has sub-categories.");
+                "ما تقدر تحذف التصنيف لأنه يحتوي على تصنيفات فرعية.|Cannot delete this category because it has sub-categories.");
         }
 
         if (await _context.MasterProducts.AnyAsync(product => product.CategoryId == request.Id, cancellationToken))
         {
             throw new BusinessRuleException(
                 "CATEGORY_HAS_PRODUCTS",
-                "لا يمكن حذف التصنيف لأنه مرتبط بمنتجات.|Cannot delete this category because it is linked to products.");
+                "ما تقدر تحذف التصنيف لأنه مرتبط بمنتجات.|Cannot delete this category because it is linked to products.");
         }
 
         if (await _context.Brands.AnyAsync(brand => brand.CategoryId == request.Id, cancellationToken)
@@ -47,14 +47,14 @@ public class DeleteCategoryCommandHandler : IRequestHandler<DeleteCategoryComman
         {
             throw new BusinessRuleException(
                 "CATEGORY_HAS_BRANDS",
-                "لا يمكن حذف التصنيف لأنه مرتبط بعلامات تجارية.|Cannot delete this category because it is linked to brands.");
+                "ما تقدر تحذف التصنيف لأنه مرتبط بعلامات تجارية.|Cannot delete this category because it is linked to brands.");
         }
 
         if (await _context.ProductTypes.AnyAsync(productType => productType.CategoryId == request.Id, cancellationToken))
         {
             throw new BusinessRuleException(
                 "CATEGORY_HAS_PRODUCT_TYPES",
-                "لا يمكن حذف التصنيف لأنه مرتبط بأنواع منتجات.|Cannot delete this category because it is linked to product types.");
+                "ما تقدر تحذف التصنيف لأنه مرتبط بأنواع منتجات.|Cannot delete this category because it is linked to product types.");
         }
 
         if (await _context.ProductRequests.AnyAsync(productRequest => productRequest.SuggestedCategoryId == request.Id, cancellationToken)
@@ -65,7 +65,7 @@ public class DeleteCategoryCommandHandler : IRequestHandler<DeleteCategoryComman
         {
             throw new BusinessRuleException(
                 "CATEGORY_HAS_REQUESTS",
-                "لا يمكن حذف التصنيف لأنه مرتبط بطلبات كتالوج.|Cannot delete this category because it is linked to catalog requests.");
+                "ما تقدر تحذف التصنيف لأنه مرتبط بطلبات كتالوج.|Cannot delete this category because it is linked to catalog requests.");
         }
 
         if (await _context.AdminBrandBulkOperationItems.AnyAsync(item => item.CategoryId == request.Id, cancellationToken)
@@ -74,7 +74,7 @@ public class DeleteCategoryCommandHandler : IRequestHandler<DeleteCategoryComman
         {
             throw new BusinessRuleException(
                 "CATEGORY_HAS_HISTORY",
-                "لا يمكن حذف التصنيف لأنه مرتبط بسجلات أو أقسام عرض حالية.|Cannot delete this category because it is linked to history records or active display sections.");
+                "ما تقدر تحذف التصنيف لأنه مرتبط بسجلات أو أقسام عرض حالية.|Cannot delete this category because it is linked to history records or active display sections.");
         }
 
         _context.Categories.Remove(category);

@@ -42,9 +42,9 @@ public static class DriverExpiryLockNotificationDispatcher
                 expiredDocuments
             });
 
-        const string titleAr = "تم إيقاف حسابك لانتهاء مستنداتك";
+        const string titleAr = "أوقفنا حسابك لانتهاء مستنداتك";
         const string titleEn = "Your account was locked due to expired documents";
-        const string bodyAr = "تم إيقاف حساب المندوب مؤقتا لأن بعض مستندات الهوية أو الرخص منتهية. حدث المستندات لإعادة التفعيل.";
+        const string bodyAr = "أوقفنا حساب المندوب مؤقتا لأن بعض مستندات الهوية أو الرخص منتهية. حدث المستندات لإعادة التفعيل.";
         const string bodyEn = "Your driver account was temporarily locked because one or more required documents expired. Renew the documents to reactivate your account.";
 
         try

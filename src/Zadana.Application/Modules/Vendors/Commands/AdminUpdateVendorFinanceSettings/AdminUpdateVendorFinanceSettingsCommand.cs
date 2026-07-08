@@ -102,9 +102,9 @@ public class AdminUpdateVendorFinanceSettingsCommandHandler : IRequestHandler<Ad
             vendor,
             new VendorCommunicationMessage(
                 "vendor_finance_settings_updated",
-                "تم تحديث إعدادات الدورة المالية",
+                "حدّثنا إعدادات الدورة المالية",
                 "Vendor finance settings updated",
-                "تم تحديث إعدادات الدورة المالية والتحويلات من لوحة الإدارة.",
+                "حدّثنا إعدادات الدورة المالية والتحويلات من لوحة الإدارة.",
                 "Your payout and finance lifecycle settings were updated by the admin team.",
                 "/finance",
                 vendor.Id),

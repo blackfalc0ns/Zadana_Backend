@@ -151,13 +151,17 @@ public class ExceptionHandlingMiddleware
             BadRequestException bad => ResolveByErrorCode(bad.ErrorCode, bad.Message, context, localizer, bad.Args),
             NotFoundException nf => ResolveByErrorCode(nf.ErrorCode, nf.Message, context, localizer, nf.Args),
             ExternalServiceException ext => ResolveByErrorCode(ext.ErrorCode, ext.Message, context, localizer),
-            ForbiddenAccessException => exception.Message,
-            UnauthorizedAccessException => exception.Message,
+            ForbiddenAccessException forbidden => ResolveByErrorCode(forbidden.ErrorCode, forbidden.Message, context, localizer),
+            UnauthorizedAccessException => GetLocalizedResource("FORBIDDEN", context, localizer),
             UnauthorizedException unauthorizedException when
                 string.IsNullOrWhiteSpace(unauthorizedException.Message) ||
                 unauthorizedException.Message == "Exception of type 'Zadana.SharedKernel.Exceptions.UnauthorizedException' was thrown."
                 => GetLocalizedResource("USER_NOT_AUTHENTICATED", context, localizer),
-            UnauthorizedException => exception.Message,
+            UnauthorizedException unauthorizedException => ResolveByErrorCode(
+                unauthorizedException.ErrorCode ?? unauthorizedException.Message,
+                unauthorizedException.Message,
+                context,
+                localizer),
             _ => GetLocalizedResource("ServerErrorMessage", context, localizer)
         };
 
@@ -190,12 +194,6 @@ public class ExceptionHandlingMiddleware
             var localized = GetLocalizedResource(errorCode, context, localizer);
             if (!string.Equals(localized, errorCode, StringComparison.Ordinal))
             {
-                if (!string.IsNullOrWhiteSpace(fallbackMessage) &&
-                    !string.Equals(fallbackMessage, localized, StringComparison.Ordinal))
-                {
-                    return fallbackMessage;
-                }
-
                 if (args != null && args.Length > 0)
                 {
                     try
@@ -222,6 +220,12 @@ public class ExceptionHandlingMiddleware
                         return localized;
                     }
                 }
+
+                if (ShouldUseFallbackMessage(fallbackMessage, localized, context))
+                {
+                    return fallbackMessage;
+                }
+
                 return localized;
             }
         }
@@ -229,6 +233,35 @@ public class ExceptionHandlingMiddleware
         // Fallback: use the inline message (which may contain AR|EN format)
         return fallbackMessage;
     }
+
+    private static bool ShouldUseFallbackMessage(string fallbackMessage, string localizedMessage, HttpContext context)
+    {
+        if (string.IsNullOrWhiteSpace(fallbackMessage))
+        {
+            return false;
+        }
+
+        if (fallbackMessage.Contains('|'))
+        {
+            return true;
+        }
+
+        if (!PrefersEnglish(context) && ContainsArabic(fallbackMessage))
+        {
+            return true;
+        }
+
+        return HasUnresolvedPlaceholder(localizedMessage);
+    }
+
+    private static bool HasUnresolvedPlaceholder(string value) =>
+        value.Contains("{PropertyName}", StringComparison.Ordinal) ||
+        value.Contains("{MaxLength}", StringComparison.Ordinal) ||
+        value.Contains("{0}", StringComparison.Ordinal) ||
+        value.Contains("{1}", StringComparison.Ordinal);
+
+    private static bool ContainsArabic(string value) =>
+        value.Any(ch => ch >= '\u0600' && ch <= '\u06FF');
 
     private static string? GetErrorCode(Exception exception) =>
         exception switch

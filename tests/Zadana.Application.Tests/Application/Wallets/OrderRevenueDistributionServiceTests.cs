@@ -146,7 +146,7 @@ public class OrderRevenueDistributionServiceTests
     private static Vendor CreateVendor() =>
         new(
             Guid.NewGuid(),
-            "متجر استرداد",
+            "متجر استرجاع",
             "Recovery Vendor",
             "grocery",
             $"CR-{Guid.NewGuid():N}"[..12],

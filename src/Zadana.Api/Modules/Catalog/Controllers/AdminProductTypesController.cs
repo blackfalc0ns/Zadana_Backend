@@ -88,9 +88,9 @@ public class AdminProductTypesController : ApiControllerBase
         if (entity is null) throw new NotFoundException("ProductType", id);
 
         if (await _context.MasterProducts.AnyAsync(p => p.ProductTypeId == id))
-            throw new BusinessRuleException("PRODUCT_TYPE_HAS_PRODUCTS", "لا يمكن حذف النوع لأنه مرتبط بمنتجات.");
+            throw new BusinessRuleException("PRODUCT_TYPE_HAS_PRODUCTS", "ما تقدر تحذف النوع لأنه مرتبط بمنتجات.");
         if (await _context.Parts.AnyAsync(p => p.ProductTypeId == id))
-            throw new BusinessRuleException("PRODUCT_TYPE_HAS_PARTS", "لا يمكن حذف النوع لأنه يحتوي على أجزاء.");
+            throw new BusinessRuleException("PRODUCT_TYPE_HAS_PARTS", "ما تقدر تحذف النوع لأنه يحتوي على أجزاء.");
 
         _context.ProductTypes.Remove(entity);
         await _context.SaveChangesAsync(default);
@@ -144,7 +144,7 @@ public class AdminProductTypesController : ApiControllerBase
         if (entity is null) throw new NotFoundException("Part", partId);
 
         if (await _context.MasterProducts.AnyAsync(p => p.PartId == partId))
-            throw new BusinessRuleException("PART_HAS_PRODUCTS", "لا يمكن حذف الجزء لأنه مرتبط بمنتجات.");
+            throw new BusinessRuleException("PART_HAS_PRODUCTS", "ما تقدر تحذف الجزء لأنه مرتبط بمنتجات.");
 
         _context.Parts.Remove(entity);
         await _context.SaveChangesAsync(default);

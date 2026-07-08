@@ -46,9 +46,9 @@ public class SuspendDriverCommandHandler : IRequestHandler<SuspendDriverCommand>
                 reason = request.Reason
             });
 
-        const string titleAr = "تم إيقاف حساب المندوب";
+        const string titleAr = "أوقفنا حساب المندوب";
         const string titleEn = "Driver account suspended";
-        const string bodyAr = "تم إيقاف حسابك كمندوب مؤقتًا. راجع حالة الحساب أو تواصل مع الدعم لمعرفة التفاصيل.";
+        const string bodyAr = "أوقفنا حسابك كمندوب مؤقتًا. راجع حالة الحساب أو تواصل مع الدعم لمعرفة التفاصيل.";
         const string bodyEn = "Your driver account was suspended. Review your account status for details.";
 
         await _notificationService.SendToUserAsync(

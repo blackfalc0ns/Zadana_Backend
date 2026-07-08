@@ -189,7 +189,7 @@ public class AdminBrandsController : ApiControllerBase
         brand.Restore();
         await _context.SaveChangesAsync(cancellationToken);
 
-        return Ok(new { message_ar = "تمت استعادة البراند بنجاح", message_en = "Brand restored successfully", id });
+        return Ok(new { message_ar = "استعدنا العلامة التجارية بنجاح", message_en = "Brand restored successfully", id });
     }
 }
 

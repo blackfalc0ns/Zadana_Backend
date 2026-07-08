@@ -38,12 +38,12 @@ public static class LocalizedMessages
                 : EnCulture) ?? key;
 
     /// <summary>
-     /// Gets both Arabic and English translations as a tuple.
-     /// </summary>
+    /// Gets both Arabic and English translations as a tuple.
+    /// </summary>
     public static (string Ar, string En) Get(string key) =>
         (GetAr(key), GetEn(key));
 
-    // ── Success Message Keys ────────────────────────────────────────
+    // Success message keys
 
     // Checkout
     public const string OrderPlacedSuccess = "ORDER_PLACED_SUCCESS";

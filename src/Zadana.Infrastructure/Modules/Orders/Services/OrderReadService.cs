@@ -1746,12 +1746,12 @@ public class OrderReadService : IOrderReadService
     private static string ResolveSupportCaseStatusLabel(OrderSupportCaseStatus status) =>
         status switch
         {
-            OrderSupportCaseStatus.Submitted => L("تم الاستلام", "Submitted"),
+            OrderSupportCaseStatus.Submitted => L("استلمنا", "Submitted"),
             OrderSupportCaseStatus.InReview => L("قيد المراجعة", "In review"),
             OrderSupportCaseStatus.AwaitingCustomerEvidence => L("بانتظار معلومات إضافية", "Awaiting more evidence"),
-            OrderSupportCaseStatus.Approved => L("تمت الموافقة", "Approved"),
-            OrderSupportCaseStatus.Rejected => L("تم الرفض", "Rejected"),
-            _ => L("تم الحل", "Resolved")
+            OrderSupportCaseStatus.Approved => L("اعتمدنا", "Approved"),
+            OrderSupportCaseStatus.Rejected => L("رفضنا", "Rejected"),
+            _ => L("حلّينا", "Resolved")
         };
 
     private static string ResolveAdminSupportCaseStatusLabel(OrderSupportCaseStatus status) =>
@@ -1784,16 +1784,16 @@ public class OrderReadService : IOrderReadService
     {
         return NormalizeSupportCaseAction(activity.Action) switch
         {
-            "submitted" => L("تم فتح الحالة", "Case opened"),
+            "submitted" => L("فتحنا الحالة", "Case opened"),
             "driver_response" => L("رد المندوب", "Driver replied"),
             "vendor_response" => L("رد التاجر", "Vendor replied"),
             "customer_response" => L("رد العميل", "Customer replied"),
             "request_evidence" => L("طلب معلومات إضافية", "More evidence requested"),
-            "assigned" => L("تم الإسناد", "Case assigned"),
-            "escalated" => L("تم التصعيد", "Case escalated"),
-            "approved" => L("تمت الموافقة", "Case approved"),
-            "rejected" => L("تم الرفض", "Case rejected"),
-            "resolved" => L("تم الحل", "Case resolved"),
+            "assigned" => L("أسندنا", "Case assigned"),
+            "escalated" => L("صعّدنا", "Case escalated"),
+            "approved" => L("اعتمدنا", "Case approved"),
+            "rejected" => L("رفضنا", "Case rejected"),
+            "resolved" => L("حلّينا", "Case resolved"),
             "reopened" => L("أعيد فتح الحالة", "Case reopened"),
             "admin_message" => L("رسالة من الإدارة", "Admin update"),
             "internal_note" => L("ملاحظة داخلية", "Internal note"),
@@ -1809,32 +1809,32 @@ public class OrderReadService : IOrderReadService
         {
             "submitted" => supportCase.Type == OrderSupportCaseType.ReturnRequest
                 ? L(
-                    $"تم استلام طلب الاسترجاع للطلب رقم {orderNumber} وهو الآن قيد المراجعة.",
+                    $"استلمنا طلب الاسترجاع للطلب رقم {orderNumber} وهو الآن تحت المراجعة.",
                     $"We received the return request for order #{orderNumber} and it is now under review.")
                 : L(
-                    $"تم استلام الحالة المرتبطة بالطلب رقم {orderNumber} وهي الآن قيد المراجعة.",
+                    $"استلمنا الحالة المرتبطة بالطلب رقم {orderNumber} وهي الآن تحت المراجعة.",
                     $"We received the support case for order #{orderNumber} and it is now under review."),
             "request_evidence" => L(
                 $"نحتاج إلى معلومات أو أدلة إضافية لمتابعة مراجعة الحالة الخاصة بالطلب رقم {orderNumber}.",
                 $"We need additional information or evidence to continue reviewing the case for order #{orderNumber}."),
             "approved" => supportCase.Type == OrderSupportCaseType.ReturnRequest
                 ? L(
-                    "تمت الموافقة على طلب الاسترجاع وسيتم إشعارك عند بدء المعالجة المالية.",
+                    "اعتمدنا طلب الاسترجاع وراح نبلغك عند بدء المعالجة المالية.",
                     "Your return request has been approved. You will be notified when the financial processing begins.")
                 : L(
-                    $"تمت الموافقة على الحالة الخاصة بالطلب رقم {orderNumber}.",
+                    $"اعتمدنا الحالة الخاصة بالطلب رقم {orderNumber}.",
                     $"The support case linked to order #{orderNumber} has been approved."),
             "rejected" => L(
-                $"تم رفض الحالة الخاصة بالطلب رقم {orderNumber}.",
+                $"رفضنا الحالة الخاصة بالطلب رقم {orderNumber}.",
                 $"The support case linked to order #{orderNumber} has been rejected."),
             "resolved" => L(
-                $"تم إغلاق الحالة الخاصة بالطلب رقم {orderNumber} بعد معالجتها.",
+                $"أغلقنا الحالة الخاصة بالطلب رقم {orderNumber} بعد معالجتها.",
                 $"The support case linked to order #{orderNumber} has been resolved and closed."),
             "reopened" => L(
                 $"أعيد فتح الحالة الخاصة بالطلب رقم {orderNumber} لمراجعتها مرة أخرى.",
                 $"The support case linked to order #{orderNumber} was reopened for another review."),
             "escalated" => L(
-                $"تم تصعيد الحالة الخاصة بالطلب رقم {orderNumber} إلى فريق مختص.",
+                $"صعّدنا الحالة الخاصة بالطلب رقم {orderNumber} إلى فريق مختص.",
                 $"The support case linked to order #{orderNumber} was escalated to a specialized team."),
             _ => activity.Note
         };
@@ -2922,13 +2922,13 @@ public class OrderReadService : IOrderReadService
         return order.Status switch
         {
             OrderStatus.ReadyForPickup => new("الطلب جاهز وبانتظار التوجيه.", "Order is ready and waiting for dispatch."),
-            OrderStatus.DriverAssignmentInProgress => new("قائمة التوجيه تبحث عن أفضل سائق متاح.", "Dispatch queue is searching for the best available driver."),
+            OrderStatus.DriverAssignmentInProgress => new("قائمة التوجيه تبحث عن أفضل مندوب متاح.", "Dispatch queue is searching for the best available driver."),
             OrderStatus.DriverAssigned => assignment?.Driver?.User is not null
-                ? new($"تم التعيين إلى {assignment.Driver.User.FullName}.", $"Assigned to {assignment.Driver.User.FullName}.")
-                : new("تم تعيين السائق.", "Driver assignment completed."),
-            OrderStatus.PickedUp => new("السائق استلم الطلب.", "Driver picked up the order."),
-            OrderStatus.OnTheWay => new("السائق في الطريق إلى العميل.", "Driver is on the way to the customer."),
-            OrderStatus.Delivered => new("تم التوصيل بنجاح.", "Delivery completed successfully."),
+                ? new($"عيّنا إلى {assignment.Driver.User.FullName}.", $"Assigned to {assignment.Driver.User.FullName}.")
+                : new("عيّنا المندوب.", "Driver assignment completed."),
+            OrderStatus.PickedUp => new("المندوب استلم الطلب.", "Driver picked up the order."),
+            OrderStatus.OnTheWay => new("المندوب في الطريق إلى العميل.", "Driver is on the way to the customer."),
+            OrderStatus.Delivered => new("وصلنا بنجاح.", "Delivery completed successfully."),
             OrderStatus.DeliveryFailed => new("محاولة التوصيل فشلت وتحتاج تدخل.", "Delivery attempt failed and needs intervention."),
             _ => new("التوجيه غير نشط للحالة الحالية.", "Dispatch is not active for the current order state.")
         };
@@ -3022,7 +3022,7 @@ public class OrderReadService : IOrderReadService
         if (refunds is { Count: > 0 })
         {
             var refund = refunds.OrderByDescending(item => item.CreatedAtUtc).First();
-            return L($"استرداد {refund.Status} بمبلغ {refund.Amount:0.00} ر.س.", $"Refund {refund.Status} for {refund.Amount:0.00} SAR.");
+            return L($"استرجاع {refund.Status} بمبلغ {refund.Amount:0.00} ر.س.", $"Refund {refund.Status} for {refund.Amount:0.00} SAR.");
         }
 
         return order.PaymentStatus switch
@@ -3031,7 +3031,7 @@ public class OrderReadService : IOrderReadService
             PaymentStatus.Failed => L("محاولة الدفع الأخيرة فشلت وتحتاج مراجعة مالية.", "Latest payment attempt failed and needs finance review."),
             PaymentStatus.Pending or PaymentStatus.Initiated => L("الدفع بانتظار التأكيد قبل بدء التنفيذ.", "Payment is pending confirmation before fulfillment moves forward."),
             _ => payment?.ProviderName is not null
-                ? L($"تمت المعالجة عبر {payment.ProviderName}.", $"Processed through {payment.ProviderName}.")
+                ? L($"عالجنا عبر {payment.ProviderName}.", $"Processed through {payment.ProviderName}.")
                 : L("حالة الدفع تحت المراقبة.", "Payment state is being monitored.")
         };
     }
@@ -3043,10 +3043,10 @@ public class OrderReadService : IOrderReadService
             "QUEUED" => L("التنفيذ لم يبدأ بعد والطلب لا يزال في الانتظار.", "Execution has not started yet and the order is still queued."),
             "PREPARING" => L("المتجر يقوم بتجهيز الطلب.", "Vendor is actively preparing the order."),
             "READY_FOR_PICKUP" => L("الطلب جاهز وبانتظار الاستلام.", "Order is ready and waiting for pickup."),
-            "DRIVER_ASSIGNED" => L("تم تعيين سائق والتوجيه قيد التنفيذ.", "A driver has been assigned and dispatch is in progress."),
-            "PICKED_UP" => L("السائق استلم الطلب ويتجه للتوصيل.", "Driver picked up the order and is moving toward delivery."),
-            "ON_ROUTE" => L("السائق في الطريق إلى العميل.", "Driver is on the way to the customer."),
-            "DELIVERED" => L("تم التوصيل بنجاح.", "Delivery completed successfully."),
+            "DRIVER_ASSIGNED" => L("عيّنا مندوب والتوجيه قيد التنفيذ.", "A driver has been assigned and dispatch is in progress."),
+            "PICKED_UP" => L("المندوب استلم الطلب ويتجه للتوصيل.", "Driver picked up the order and is moving toward delivery."),
+            "ON_ROUTE" => L("المندوب في الطريق إلى العميل.", "Driver is on the way to the customer."),
+            "DELIVERED" => L("وصلنا بنجاح.", "Delivery completed successfully."),
             "FAILED" => L("التنفيذ فشل ويحتاج تدخل.", "Fulfillment failed and requires intervention."),
             _ => L("توقف تنفيذ الطلب بعد الإلغاء.", "Order execution stopped after cancellation.")
         };
@@ -3077,7 +3077,7 @@ public class OrderReadService : IOrderReadService
         }
 
         return status == "CANCELLED"
-            ? L("تم إلغاء الطلب", "Order has been cancelled")
+            ? L("ألغينا الطلب", "Order has been cancelled")
             : L("سير الطلب طبيعي", "Order flow is healthy");
     }
 
@@ -3108,12 +3108,12 @@ public class OrderReadService : IOrderReadService
 
         return new AdminOrderCancellationSummaryDto(
             reason,
-            order.Notes ?? L("تم تسجيل الإلغاء من سير عمل المشرف.", "Cancellation was recorded from the admin workflow."),
+            order.Notes ?? L("سجّلنا الإلغاء من سير عمل المشرف.", "Cancellation was recorded from the admin workflow."),
             refundType,
             latestRefund is null ? "platform" : "merchant",
             SaudiTime.ToSaudi(order.CancelledAtUtc ?? ResolveLastUpdatedAtUtc(order)).ToString("g", CultureInfo.InvariantCulture),
             L("مكتب العمليات", "Operations desk"),
-            L("تم تحديث حالة طلبك إلى ملغي.", "Your order status was updated to cancelled."));
+            L("حدّثنا حالة طلبك إلى ملغي.", "Your order status was updated to cancelled."));
     }
 
     private static AdminOrderOperationalCaseDto? BuildOperationalCase(Order order, IReadOnlyList<Refund>? refunds)
@@ -3156,7 +3156,7 @@ public class OrderReadService : IOrderReadService
             latestRefund.OrderSupportCaseId?.ToString(),
             "REFUND",
             latestRefund.Status == PaymentStatus.Refunded ? "RESOLVED" : "OPEN",
-            latestRefund.Amount >= order.TotalAmount ? L("مراجعة استرداد كامل", "Full refund review") : L("مراجعة استرداد جزئي", "Partial refund review"),
+            latestRefund.Amount >= order.TotalAmount ? L("مراجعة استرجاع كامل", "Full refund review") : L("مراجعة استرجاع جزئي", "Partial refund review"),
             "Finance",
             SaudiTime.ToSaudi(latestRefund.CreatedAtUtc).ToString("g", CultureInfo.InvariantCulture),
             SaudiTime.ToSaudi(latestRefund.UpdatedAtUtc).ToString("g", CultureInfo.InvariantCulture));
@@ -3172,11 +3172,11 @@ public class OrderReadService : IOrderReadService
 
         // Always add Placed/Created as the first step
         var createdSubtitle = payment?.Status == PaymentStatus.Paid
-            ? new LocalizedText("تم تأكيد الدفع والتحصيل", "Payment captured")
+            ? new LocalizedText("أكدنا الدفع والتحصيل", "Payment captured")
             : new LocalizedText("بانتظار تأكيد الدفع", "Waiting for payment confirmation");
 
         steps.Add(new AdminOrderTimelineItemDto(
-            "تم إنشاء الطلب",
+            "أنشأنا الطلب",
             "Order created",
             createdSubtitle.Ar,
             createdSubtitle.En,
@@ -3242,25 +3242,25 @@ public class OrderReadService : IOrderReadService
         OrderStatus.Accepted => L("مقبول", "Accepted"),
         OrderStatus.Preparing => L("قيد التجهيز", "Preparing"),
         OrderStatus.ReadyForPickup => L("جاهز للاستلام", "Ready for Pickup"),
-        OrderStatus.DriverAssignmentInProgress => L("جاري البحث عن سائق", "Driver Assignment in Progress"),
-        OrderStatus.DriverAssigned => L("تم تعيين السائق", "Driver Assigned"),
-        OrderStatus.PickedUp => L("تم الاستلام", "Picked Up"),
+        OrderStatus.DriverAssignmentInProgress => L("جاري البحث عن مندوب", "Driver Assignment in Progress"),
+        OrderStatus.DriverAssigned => L("عيّنا المندوب", "Driver Assigned"),
+        OrderStatus.PickedUp => L("استلمنا", "Picked Up"),
         OrderStatus.OnTheWay => L("في الطريق", "On The Way"),
-        OrderStatus.Delivered => L("تم التوصيل", "Delivered"),
+        OrderStatus.Delivered => L("وصلنا", "Delivered"),
         OrderStatus.Cancelled => L("ملغى", "Cancelled"),
         OrderStatus.VendorRejected => L("مرفوض من المتجر", "Vendor Rejected"),
         OrderStatus.DeliveryFailed => L("فشل التوصيل", "Delivery Failed"),
-        OrderStatus.Refunded => L("مسترد", "Refunded"),
+        OrderStatus.Refunded => L("مسترجع", "Refunded"),
         _ => status.ToString()
     };
 
     private static string TranslatePaymentStatus(PaymentStatus status) => status switch
     {
-        PaymentStatus.Pending => L("قيد الانتظار", "Pending"),
+        PaymentStatus.Pending => L("بانتظار المعالجة", "Pending"),
         PaymentStatus.Paid => L("مدفوع", "Paid"),
         PaymentStatus.Failed => L("فشل", "Failed"),
-        PaymentStatus.Refunded => L("مسترد", "Refunded"),
-        PaymentStatus.PartiallyRefunded => L("مسترد جزئياً", "Partially Refunded"),
+        PaymentStatus.Refunded => L("مسترجع", "Refunded"),
+        PaymentStatus.PartiallyRefunded => L("استرجاع جزئي", "Partially Refunded"),
         PaymentStatus.PendingCollection => L("بانتظار التحصيل", "Pending Collection"),
         _ => status.ToString()
     };
@@ -3303,7 +3303,7 @@ public class OrderReadService : IOrderReadService
         if (assignment?.Driver is not null)
         {
             activities.Insert(0, new AdminOrderActivityDto(
-                L($"تم تعيين سائق: {assignment.Driver.User.FullName}", $"Driver assigned: {assignment.Driver.User.FullName}"),
+                L($"عيّنا مندوب: {assignment.Driver.User.FullName}", $"Driver assigned: {assignment.Driver.User.FullName}"),
                 L("التوجيه", "Dispatch"),
                 SaudiTime.ToSaudi(assignment.CreatedAtUtc).ToString("g", CultureInfo.InvariantCulture),
                 "status"));
@@ -3322,7 +3322,7 @@ public class OrderReadService : IOrderReadService
         {
             var refund = refunds.OrderByDescending(item => item.CreatedAtUtc).First();
             activities.Insert(0, new AdminOrderActivityDto(
-                L($"استرداد {TranslatePaymentStatus(refund.Status)}", $"Refund {TranslatePaymentStatus(refund.Status)}"),
+                L($"استرجاع {TranslatePaymentStatus(refund.Status)}", $"Refund {TranslatePaymentStatus(refund.Status)}"),
                 L("المالية", "Finance"),
                 SaudiTime.ToSaudi(refund.CreatedAtUtc).ToString("g", CultureInfo.InvariantCulture),
                 "payment"));

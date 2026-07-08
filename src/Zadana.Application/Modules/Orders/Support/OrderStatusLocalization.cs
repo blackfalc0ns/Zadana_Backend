@@ -12,15 +12,15 @@ public static class OrderStatusLocalization
         OrderStatus.Accepted => new("مقبول", "Accepted"),
         OrderStatus.Preparing => new("قيد التجهيز", "Preparing"),
         OrderStatus.ReadyForPickup => new("جاهز للاستلام", "Ready for Pickup"),
-        OrderStatus.DriverAssignmentInProgress => new("جاري البحث عن سائق", "Driver Assignment in Progress"),
-        OrderStatus.DriverAssigned => new("تم تعيين السائق", "Driver Assigned"),
-        OrderStatus.PickedUp => new("تم الاستلام", "Picked Up"),
+        OrderStatus.DriverAssignmentInProgress => new("جاري البحث عن مندوب", "Driver Assignment in Progress"),
+        OrderStatus.DriverAssigned => new("عيّنا المندوب", "Driver Assigned"),
+        OrderStatus.PickedUp => new("استلمنا", "Picked Up"),
         OrderStatus.OnTheWay => new("في الطريق", "On The Way"),
-        OrderStatus.Delivered => new("تم التوصيل", "Delivered"),
+        OrderStatus.Delivered => new("وصلنا", "Delivered"),
         OrderStatus.Cancelled => new("ملغى", "Cancelled"),
         OrderStatus.VendorRejected => new("مرفوض من المتجر", "Vendor Rejected"),
         OrderStatus.DeliveryFailed => new("فشل التوصيل", "Delivery Failed"),
-        OrderStatus.Refunded => new("مسترد", "Refunded"),
+        OrderStatus.Refunded => new("مسترجع", "Refunded"),
         _ => new(status.ToString(), status.ToString())
     };
 }

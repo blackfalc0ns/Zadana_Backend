@@ -39,7 +39,7 @@ public class DeleteUnitCommandHandler : IRequestHandler<DeleteUnitCommand>
         {
             throw new BusinessRuleException(
                 "UNIT_HAS_PRODUCTS",
-                "لا يمكن حذف الوحدة لأنها مرتبطة بمنتجات.|Cannot delete this unit because it is linked to products.");
+                "ما تقدر تحذف الوحدة لأنها مرتبطة بمنتجات.|Cannot delete this unit because it is linked to products.");
         }
 
         _context.UnitsOfMeasure.Remove(unit);

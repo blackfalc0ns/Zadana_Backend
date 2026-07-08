@@ -46,9 +46,9 @@ public class MasterProductDeletedEventHandler : INotificationHandler<MasterProdu
                 var data = $"{{\"productId\":\"{notification.ProductId}\",\"nameAr\":\"{notification.NameAr}\",\"nameEn\":\"{notification.NameEn}\"}}";
                 await _notificationService.SendToUserAsync(
                     vendorUserId,
-                    "تم حذف منتج من الكاتالوج",
+                    "حذفنا منتج من الكاتالوج",
                     "Catalog Product Removed",
-                    $"تم حذف المنتج \"{notification.NameAr}\" من كاتالوج المنتجات. قد يؤثر ذلك على منتجاتك.",
+                    $"حذفنا المنتج \"{notification.NameAr}\" من كاتالوج المنتجات. قد يؤثر ذلك على منتجاتك.",
                     $"The product \"{notification.NameEn}\" has been removed from the catalog. This may affect your listings.",
                     NotificationTypes.VendorAccountUpdated,
                     notification.ProductId,

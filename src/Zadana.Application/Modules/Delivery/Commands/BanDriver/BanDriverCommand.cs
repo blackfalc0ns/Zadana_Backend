@@ -46,9 +46,9 @@ public class BanDriverCommandHandler : IRequestHandler<BanDriverCommand>
                 reason = request.Reason
             });
 
-        const string titleAr = "تم حظر حساب المندوب";
+        const string titleAr = "حظرنا حساب المندوب";
         const string titleEn = "Driver account banned";
-        const string bodyAr = "تم حظر حسابك كمندوب ولا يمكنك استقبال عروض توصيل جديدة. يمكنك التواصل مع الدعم لمراجعة الحالة.";
+        const string bodyAr = "حظرنا حسابك كمندوب وما تقدر تستقبل عروض توصيل جديدة. تقدر تتواصل مع الدعم لمراجعة الحالة.";
         const string bodyEn = "Your driver account was banned and cannot receive new delivery offers. You can contact support to review the case.";
 
         await _notificationService.SendToUserAsync(

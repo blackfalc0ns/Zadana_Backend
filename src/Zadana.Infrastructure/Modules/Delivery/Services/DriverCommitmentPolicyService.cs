@@ -330,8 +330,8 @@ public class DriverCommitmentPolicyService : IDriverCommitmentPolicyService
             : "Account temporarily restricted";
         var bodyAr = summary.RestrictionMessage
             ?? (suspensionCandidateTriggered
-                ? "تم تقييد الحساب مؤقتًا بسبب تكرار رفض العروض أو إلغاء التوصيل. يرجى انتظار مراجعة الإدارة قبل استقبال الطلبات مجددًا."
-                : "تم تقييد الحساب مؤقتًا بعد الوصول إلى حد رفض العروض أو إلغاء التوصيل اليوم. يمكنك استقبال العروض مجددًا غدًا أو بعد رفع التقييد من الإدارة.");
+                ? "قيّدنا الحساب مؤقتًا بسبب تكرار رفض العروض أو إلغاء التوصيل. فضلاً انتظر مراجعة الإدارة قبل استقبال الطلبات مجددًا."
+                : "قيّدنا الحساب مؤقتًا بعد الوصول إلى حد رفض العروض أو إلغاء التوصيل اليوم. تقدر تستقبل العروض مجددًا غدًا أو بعد رفع التقييد من الإدارة.");
         var bodyEn = summary.RestrictionMessageEn
             ?? (suspensionCandidateTriggered
                 ? "Your account was temporarily restricted because offer rejections or delivery cancellations occurred repeatedly. Please wait for admin review before receiving orders again."
@@ -436,9 +436,9 @@ public class DriverCommitmentPolicyService : IDriverCommitmentPolicyService
         enforcementLevel switch
         {
             DriverCommitmentEnforcementLevel.SoftBlocked =>
-                "تم تقييد الحساب مؤقتًا بعد الوصول إلى حد رفض العروض أو إلغاء التوصيل لليوم. يمكنك استقبال العروض مجددًا غدًا أو بعد رفع القيد من الإدارة.",
+                "قيّدنا الحساب مؤقتًا بعد الوصول إلى حد رفض العروض أو إلغاء التوصيل لليوم. تقدر تستقبل العروض مجددًا غدًا أو بعد رفع القيد من الإدارة.",
             DriverCommitmentEnforcementLevel.SuspensionCandidate =>
-                "تم تقييد الحساب مؤقتًا بسبب تكرار رفض العروض أو إلغاء التوصيل. يرجى انتظار مراجعة الإدارة قبل استقبال الطلبات مجددًا.",
+                "قيّدنا الحساب مؤقتًا بسبب تكرار رفض العروض أو إلغاء التوصيل. فضلاً انتظر مراجعة الإدارة قبل استقبال الطلبات مجددًا.",
             _ => null
         };
 

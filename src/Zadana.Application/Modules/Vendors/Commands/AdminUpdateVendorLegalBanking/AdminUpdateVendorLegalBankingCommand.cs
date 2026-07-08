@@ -109,9 +109,9 @@ public class AdminUpdateVendorLegalBankingCommandHandler : IRequestHandler<Admin
             vendor,
             new VendorCommunicationMessage(
                 "vendor_legal_banking_updated",
-                "تم تحديث البيانات القانونية والبنكية",
+                "حدّثنا البيانات القانونية والبنكية",
                 "Vendor legal and banking details updated",
-                "تم تحديث البيانات القانونية أو البنكية من لوحة الإدارة.",
+                "حدّثنا البيانات القانونية أو البنكية من لوحة الإدارة.",
                 "Your legal or banking details were updated by the admin team.",
                 "/profile",
                 vendor.Id),

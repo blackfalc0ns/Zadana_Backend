@@ -59,7 +59,7 @@ public class CreateVendorCommandHandler : IRequestHandler<CreateVendorCommand, G
                 AdminAlertPriorities.High,
                 "تاجر جديد تحت المراجعة",
                 "New vendor pending review",
-                $"تم إنشاء التاجر {vendor.BusinessNameAr} وهو الآن بانتظار مراجعة الإدارة.",
+                $"أنشأنا التاجر {vendor.BusinessNameAr} وهو الآن بانتظار مراجعة الإدارة.",
                 $"Vendor {vendor.BusinessNameEn} was created and is now pending admin review.",
                 vendor.Id,
                 $"/vendors/{vendor.Id}",

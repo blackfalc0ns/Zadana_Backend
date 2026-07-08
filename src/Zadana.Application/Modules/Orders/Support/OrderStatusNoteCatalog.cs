@@ -8,40 +8,40 @@ public static class OrderStatusNoteCatalog
     {
         ["Auto-dispatch started"] = new("بدأ البحث التلقائي عن مندوب", "Auto-dispatch started"),
         ["Auto-dispatch started."] = new("بدأ البحث التلقائي عن مندوب", "Auto-dispatch started"),
-        ["Driver accepted delivery offer."] = new("وافق السائق على عرض التوصيل", "Driver accepted delivery offer"),
-        ["Driver accepted delivery offer"] = new("وافق السائق على عرض التوصيل", "Driver accepted delivery offer"),
-        ["Driver assigned via dispatch"] = new("تم تعيين السائق عبر التوجيه", "Driver assigned via dispatch"),
-        ["Driver assigned via dispatch."] = new("تم تعيين السائق عبر التوجيه", "Driver assigned via dispatch"),
+        ["Driver accepted delivery offer."] = new("وافق المندوب على عرض التوصيل", "Driver accepted delivery offer"),
+        ["Driver accepted delivery offer"] = new("وافق المندوب على عرض التوصيل", "Driver accepted delivery offer"),
+        ["Driver assigned via dispatch"] = new("عيّنا المندوب عبر التوجيه", "Driver assigned via dispatch"),
+        ["Driver assigned via dispatch."] = new("عيّنا المندوب عبر التوجيه", "Driver assigned via dispatch"),
         ["Driver is on the way."] = new("المندوب في الطريق إليك", "Driver is on the way"),
         ["Driver is on the way"] = new("المندوب في الطريق إليك", "Driver is on the way"),
-        ["Pickup confirmed before customer arrival."] = new("تم تأكيد الاستلام قبل الوصول للعميل", "Pickup confirmed before customer arrival"),
-        ["Driver verified pickup OTP."] = new("تحقق السائق من رمز الاستلام", "Driver verified pickup OTP"),
-        ["Driver verified pickup OTP"] = new("تحقق السائق من رمز الاستلام", "Driver verified pickup OTP"),
-        ["Driver verified delivery OTP."] = new("تم التحقق من رمز التوصيل بنجاح", "Driver verified delivery OTP"),
-        ["Driver verified delivery OTP"] = new("تم التحقق من رمز التوصيل بنجاح", "Driver verified delivery OTP"),
-        ["Vendor confirmed pickup handoff via OTP."] = new("تم تأكيد تسليم الطلب للمندوب عبر الرمز", "Vendor confirmed pickup handoff via OTP"),
-        ["Vendor confirmed pickup handoff via OTP"] = new("تم تأكيد تسليم الطلب للمندوب عبر الرمز", "Vendor confirmed pickup handoff via OTP"),
-        ["Cash on delivery selected"] = new("تم اختيار الدفع عند الاستلام", "Cash on delivery selected"),
-        ["Awaiting vendor response"] = new("في انتظار رد المتجر", "Awaiting vendor response"),
+        ["Pickup confirmed before customer arrival."] = new("أكدنا الاستلام قبل الوصول للعميل", "Pickup confirmed before customer arrival"),
+        ["Driver verified pickup OTP."] = new("تحقق المندوب من رمز الاستلام", "Driver verified pickup OTP"),
+        ["Driver verified pickup OTP"] = new("تحقق المندوب من رمز الاستلام", "Driver verified pickup OTP"),
+        ["Driver verified delivery OTP."] = new("تحققنا من رمز التوصيل بنجاح", "Driver verified delivery OTP"),
+        ["Driver verified delivery OTP"] = new("تحققنا من رمز التوصيل بنجاح", "Driver verified delivery OTP"),
+        ["Vendor confirmed pickup handoff via OTP."] = new("أكدنا تسليم الطلب للمندوب عبر الرمز", "Vendor confirmed pickup handoff via OTP"),
+        ["Vendor confirmed pickup handoff via OTP"] = new("أكدنا تسليم الطلب للمندوب عبر الرمز", "Vendor confirmed pickup handoff via OTP"),
+        ["Cash on delivery selected"] = new("اخترنا الدفع عند الاستلام", "Cash on delivery selected"),
+        ["Awaiting vendor response"] = new("بانتظار رد المتجر", "Awaiting vendor response"),
         ["Awaiting automatic bank transfer confirmation"] = new("بانتظار تأكيد التحويل البنكي التلقائي", "Awaiting automatic bank transfer confirmation"),
-        ["Bank transfer proof uploaded"] = new("تم رفع إثبات التحويل البنكي", "Bank transfer proof uploaded"),
-        ["Searching for drivers."] = new("جاري البحث عن سائقين", "Searching for drivers"),
-        ["Searching for drivers"] = new("جاري البحث عن سائقين", "Searching for drivers"),
-        ["No drivers available."] = new("لا يوجد سائقين متاحين", "No drivers available"),
-        ["No drivers available"] = new("لا يوجد سائقين متاحين", "No drivers available"),
-        ["Delivery offer sent"] = new("تم إرسال عرض التوصيل", "Delivery offer sent"),
-        ["Driver rejected delivery offer."] = new("رفض السائق عرض التوصيل", "Driver rejected delivery offer"),
-        ["Driver rejected delivery offer"] = new("رفض السائق عرض التوصيل", "Driver rejected delivery offer"),
-        ["Cancelled by admin."] = new("تم الإلغاء من قبل الإدارة", "Cancelled by admin"),
-        ["Cancelled by admin"] = new("تم الإلغاء من قبل الإدارة", "Cancelled by admin"),
-        ["Cancelled by customer."] = new("تم الإلغاء من قبل العميل", "Cancelled by customer"),
-        ["Cancelled by customer"] = new("تم الإلغاء من قبل العميل", "Cancelled by customer")
+        ["Bank transfer proof uploaded"] = new("رفعنا إثبات التحويل البنكي", "Bank transfer proof uploaded"),
+        ["Searching for drivers."] = new("جاري البحث عن مندوبين", "Searching for drivers"),
+        ["Searching for drivers"] = new("جاري البحث عن مندوبين", "Searching for drivers"),
+        ["No drivers available."] = new("لا يوجد مندوبين متاحين", "No drivers available"),
+        ["No drivers available"] = new("لا يوجد مندوبين متاحين", "No drivers available"),
+        ["Delivery offer sent"] = new("أرسلنا عرض التوصيل", "Delivery offer sent"),
+        ["Driver rejected delivery offer."] = new("رفض المندوب عرض التوصيل", "Driver rejected delivery offer"),
+        ["Driver rejected delivery offer"] = new("رفض المندوب عرض التوصيل", "Driver rejected delivery offer"),
+        ["Cancelled by admin."] = new("ألغينا من الإدارة", "Cancelled by admin"),
+        ["Cancelled by admin"] = new("ألغينا من الإدارة", "Cancelled by admin"),
+        ["Cancelled by customer."] = new("ألغينا من العميل", "Cancelled by customer"),
+        ["Cancelled by customer"] = new("ألغينا من العميل", "Cancelled by customer")
     };
 
     private static readonly Dictionary<string, LocalizedText> DispatchPendingCodes = new(StringComparer.OrdinalIgnoreCase)
     {
         ["offer-timeout-exhausted"] = new(
-            "التوجيه معلّق: انتهت مهلة عروض السائقين",
+            "التوجيه معلّق: انتهت مهلة عروض المندوبين",
             "Dispatch pending: driver offer timeout exhausted"),
         ["missing-pickup-city"] = new(
             "التوجيه معلّق: مدينة الاستلام غير محددة",
@@ -53,13 +53,13 @@ public static class OrderStatusNoteCatalog
             "التوجيه معلّق: مدينة الاستلام تختلف عن مدينة العميل",
             "Dispatch pending: pickup and customer cities do not match"),
         ["no-eligible-driver-in-pickup-area"] = new(
-            "التوجيه معلّق: لا يوجد سائق مؤهل في منطقة الاستلام",
+            "التوجيه معلّق: لا يوجد مندوب مؤهل في منطقة الاستلام",
             "Dispatch pending: no eligible driver in pickup area"),
         ["soft-blocked-by-rejections"] = new(
             "التوجيه معلّق: حظر مؤقت بسبب الرفض المتكرر",
             "Dispatch pending: temporarily blocked by repeated rejections"),
         ["no-eligible-driver"] = new(
-            "التوجيه معلّق: لا يوجد سائق مؤهل",
+            "التوجيه معلّق: لا يوجد مندوب مؤهل",
             "Dispatch pending: no eligible driver")
     };
 
@@ -87,12 +87,12 @@ public static class OrderStatusNoteCatalog
 
         if (trimmed.StartsWith("Driver assigned by admin", StringComparison.OrdinalIgnoreCase))
         {
-            return new("تم تعيين السائق من قبل الإدارة", trimmed.TrimEnd('.'));
+            return new("عيّنا المندوب من الإدارة", trimmed.TrimEnd('.'));
         }
 
         if (trimmed.StartsWith("Bank transfer confirmed by", StringComparison.OrdinalIgnoreCase))
         {
-            return new("تم تأكيد التحويل البنكي", trimmed);
+            return new("أكدنا التحويل البنكي", trimmed);
         }
 
         if (trimmed.StartsWith("Customer cancellation reason:", StringComparison.OrdinalIgnoreCase))

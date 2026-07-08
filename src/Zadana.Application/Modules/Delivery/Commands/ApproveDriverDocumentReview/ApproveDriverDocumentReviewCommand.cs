@@ -101,9 +101,9 @@ public class ApproveDriverDocumentReviewCommandHandler : IRequestHandler<Approve
 
         var documentNameAr = GetDocumentNameAr(documentType);
         var documentNameEn = GetDocumentNameEn(documentType);
-        var titleAr = $"تمت الموافقة على {documentNameAr}";
+        var titleAr = $"اعتمدنا {documentNameAr}";
         var titleEn = $"{documentNameEn} approved";
-        var bodyAr = $"تمت مراجعة {documentNameAr} والموافقة عليه. يمكنك متابعة حالة حسابك من التطبيق.";
+        var bodyAr = $"راجعنا {documentNameAr} واعتمدناه. تقدر تتابع حالة حسابك من التطبيق.";
         var bodyEn = $"Your {documentNameEn.ToLowerInvariant()} was reviewed and approved. You can track your account status in the app.";
         var data = DriverNotificationDataBuilder.Build(
             screen: "account_status",

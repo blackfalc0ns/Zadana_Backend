@@ -195,7 +195,7 @@ public class CartController : ApiControllerBase
             if (string.IsNullOrWhiteSpace(signature) || !_guestCartSigner.Verify(guestId, signature))
             {
                 throw new UnauthorizedException(
-                    "Mutating the guest cart requires a signed device id. POST /api/cart/guest-token first.",
+                    "GUEST_CART_SIGNATURE_REQUIRED",
                     "GUEST_CART_SIGNATURE_REQUIRED");
             }
         }

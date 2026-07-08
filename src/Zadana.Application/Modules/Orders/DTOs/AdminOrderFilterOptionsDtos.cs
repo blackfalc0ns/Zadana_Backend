@@ -17,7 +17,7 @@ public static class AdminOrderFilterOptionsFactory
             new("PENDING", "معلق", "Pending"),
             new("IN_PROGRESS", "قيد التنفيذ", "In Progress"),
             new("OUT_FOR_DELIVERY", "خرج للتوصيل", "Out for Delivery"),
-            new("DELIVERED", "تم التوصيل", "Delivered"),
+            new("DELIVERED", "وصلنا", "Delivered"),
             new("COMPLETED", "مكتمل", "Completed"),
             new("CANCELLED", "ملغي", "Cancelled")
         ],
@@ -26,20 +26,20 @@ public static class AdminOrderFilterOptionsFactory
             new("PENDING", "بانتظار الدفع", "Awaiting Payment"),
             new("PAID", "مدفوع", "Paid"),
             new("FAILED", "فشل الدفع", "Payment Failed"),
-            new("REFUNDED", "مسترد", "Refunded"),
-            new("PARTIALLY_REFUNDED", "استرداد جزئي", "Partially Refunded"),
+            new("REFUNDED", "مسترجع", "Refunded"),
+            new("PARTIALLY_REFUNDED", "استرجاع جزئي", "Partially Refunded"),
             new("COD_PENDING", "تحصيل عند التسليم", "Cash on Delivery"),
-            new("SETTLED", "تمت التسوية", "Settled")
+            new("SETTLED", "سوّينا", "Settled")
         ],
         FulfillmentStatuses:
         [
             new("QUEUED", "بانتظار التنفيذ", "Queued"),
             new("PREPARING", "قيد التجهيز", "Preparing"),
             new("READY_FOR_PICKUP", "جاهز للاستلام", "Ready for Pickup"),
-            new("DRIVER_ASSIGNED", "تم تعيين سائق", "Driver Assigned"),
-            new("PICKED_UP", "تم الاستلام", "Picked Up"),
+            new("DRIVER_ASSIGNED", "عيّنا مندوب", "Driver Assigned"),
+            new("PICKED_UP", "استلمنا", "Picked Up"),
             new("ON_ROUTE", "في الطريق", "On Route"),
-            new("DELIVERED", "تم التسليم", "Delivered"),
+            new("DELIVERED", "مسلّم", "Delivered"),
             new("FAILED", "فشل التنفيذ", "Fulfillment Failed"),
             new("CANCELLED", "أوقف التنفيذ", "Fulfillment Stopped")
         ],
@@ -49,6 +49,6 @@ public static class AdminOrderFilterOptionsFactory
             new("ACTIVE", "التشغيل المباشر", "Live Operations"),
             new("LATE", "متأخرة", "Delayed"),
             new("PAYMENT_ISSUES", "مشاكل دفع", "Payment Issues"),
-            new("REFUNDS", "استردادات", "Refunds")
+            new("REFUNDS", "استرجاعات", "Refunds")
         ]);
 }

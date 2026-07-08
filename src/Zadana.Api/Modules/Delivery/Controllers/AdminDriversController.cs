@@ -3,7 +3,9 @@ using Microsoft.AspNetCore.Mvc;
 using Microsoft.EntityFrameworkCore;
 using Microsoft.Extensions.Logging;
 using Zadana.Api.Controllers;
+using Zadana.Api.Localization;
 using Zadana.Application.Common.Interfaces;
+using Zadana.Application.Common.Localization;
 using Zadana.Application.Modules.Delivery.Commands.AddDriverIncident;
 using Zadana.Application.Modules.Delivery.Commands.AddDriverNote;
 using Zadana.Application.Modules.Delivery.Commands.ApproveDriverDocumentReview;
@@ -133,7 +135,7 @@ public class AdminDriversController : ApiControllerBase
             request.City);
 
         await Sender.Send(command, cancellationToken);
-        return Ok(new { message = "Driver profile updated successfully", messageAr = "تم تحديث بيانات المندوب بنجاح" });
+        return Ok(new { message = ApiLocalizedMessages.Resolve(HttpContext, "DRIVER_PROFILE_UPDATED_SUCCESS"), messageAr = LocalizedMessages.GetAr("DRIVER_PROFILE_UPDATED_SUCCESS") });
     }
 
     [HttpPost("{id:guid}/notifications/test")]
@@ -154,7 +156,7 @@ public class AdminDriversController : ApiControllerBase
         var titleAr = string.IsNullOrWhiteSpace(request.TitleAr) ? "إشعار تجريبي للمندوب" : request.TitleAr.Trim();
         var titleEn = string.IsNullOrWhiteSpace(request.TitleEn) ? "Driver test notification" : request.TitleEn.Trim();
         var bodyAr = string.IsNullOrWhiteSpace(request.BodyAr)
-            ? "هذا إشعار تجريبي من واجهة الأدمن للتأكد من وصول إشعارات تطبيق المندوب."
+            ? "هذا إشعار تجريبي من واجهة المشرف للتأكد من وصول إشعارات تطبيق المندوب."
             : request.BodyAr.Trim();
         var bodyEn = string.IsNullOrWhiteSpace(request.BodyEn)
             ? "This is a test notification sent from the admin API to verify driver mobile delivery."
@@ -470,7 +472,7 @@ public class AdminDriversController : ApiControllerBase
             ?? throw new UnauthorizedException("ADMIN_NOT_AUTHENTICATED");
 
         await Sender.Send(new ReviewDriverCommand(id, request.Action, request.Note, userId), cancellationToken);
-        return Ok(new { message = "Driver review action applied successfully", messageAr = "تم تنفيذ إجراء مراجعة المندوب بنجاح" });
+        return Ok(new { message = ApiLocalizedMessages.Resolve(HttpContext, "DRIVER_REVIEW_ACTION_APPLIED_SUCCESS"), messageAr = LocalizedMessages.GetAr("DRIVER_REVIEW_ACTION_APPLIED_SUCCESS") });
     }
 
     [HttpPost("{id:guid}/documents/{documentId}/approve")]
@@ -480,7 +482,7 @@ public class AdminDriversController : ApiControllerBase
         CancellationToken cancellationToken = default)
     {
         await Sender.Send(new ApproveDriverDocumentReviewCommand(id, documentId), cancellationToken);
-        return Ok(new { message = "Driver document approved successfully", messageAr = "تمت الموافقة على مستند المندوب بنجاح" });
+        return Ok(new { message = ApiLocalizedMessages.Resolve(HttpContext, "DRIVER_DOCUMENT_APPROVED_SUCCESS"), messageAr = LocalizedMessages.GetAr("DRIVER_DOCUMENT_APPROVED_SUCCESS") });
     }
 
     [HttpPost("{id:guid}/documents/{documentId}/reject")]
@@ -491,7 +493,7 @@ public class AdminDriversController : ApiControllerBase
         CancellationToken cancellationToken = default)
     {
         await Sender.Send(new RejectDriverDocumentReviewCommand(id, documentId, request.Reason), cancellationToken);
-        return Ok(new { message = "Driver document rejected successfully", messageAr = "تم رفض مستند المندوب بنجاح" });
+        return Ok(new { message = ApiLocalizedMessages.Resolve(HttpContext, "DRIVER_DOCUMENT_REJECTED_SUCCESS"), messageAr = LocalizedMessages.GetAr("DRIVER_DOCUMENT_REJECTED_SUCCESS") });
     }
 
     [HttpPost("{id:guid}/suspend")]
@@ -501,7 +503,7 @@ public class AdminDriversController : ApiControllerBase
         CancellationToken cancellationToken = default)
     {
         await Sender.Send(new SuspendDriverCommand(id, request?.Reason), cancellationToken);
-        return Ok(new { message = "Driver suspended successfully" });
+        return Ok(new { message = ApiLocalizedMessages.Resolve(HttpContext, "DRIVER_SUSPENDED_SUCCESS") });
     }
 
     [HttpPost("{id:guid}/reactivate")]
@@ -510,7 +512,7 @@ public class AdminDriversController : ApiControllerBase
         CancellationToken cancellationToken = default)
     {
         await Sender.Send(new ReactivateDriverCommand(id), cancellationToken);
-        return Ok(new { message = "Driver reactivated successfully" });
+        return Ok(new { message = ApiLocalizedMessages.Resolve(HttpContext, "DRIVER_REACTIVATED_SUCCESS") });
     }
 
     [HttpPost("{id:guid}/ban")]
@@ -520,7 +522,7 @@ public class AdminDriversController : ApiControllerBase
         CancellationToken cancellationToken = default)
     {
         await Sender.Send(new BanDriverCommand(id, request?.Reason), cancellationToken);
-        return Ok(new { message = "Driver banned successfully" });
+        return Ok(new { message = ApiLocalizedMessages.Resolve(HttpContext, "DRIVER_BANNED_SUCCESS") });
     }
 
     [HttpPost("{id:guid}/unban")]
@@ -529,7 +531,7 @@ public class AdminDriversController : ApiControllerBase
         CancellationToken cancellationToken = default)
     {
         await Sender.Send(new UnbanDriverCommand(id), cancellationToken);
-        return Ok(new { message = "Driver unbanned successfully" });
+        return Ok(new { message = ApiLocalizedMessages.Resolve(HttpContext, "DRIVER_UNBANNED_SUCCESS") });
     }
 
     [HttpPost("{id:guid}/login-lock")]
@@ -562,9 +564,9 @@ public class AdminDriversController : ApiControllerBase
 
         await _notificationService.SendToUserAsync(
             driver.UserId,
-            "تم قفل تسجيل الدخول",
+            "قفلنا تسجيل الدخول",
             "Login locked",
-            "تم قفل تسجيل دخولك. استخدم نموذج الدعم للاعتراض.",
+            "قفلنا تسجيل دخولك. استخدم نموذج الدعم للاعتراض.",
             "Your login has been locked. Use the support form to appeal.",
             NotificationTypes.DriverAccountUpdated,
             driver.Id,
@@ -576,9 +578,9 @@ public class AdminDriversController : ApiControllerBase
         await _oneSignalPushService.SendMobileNotificationDirectAsync(
             OneSignalMobilePushRequest.CreateHeadsUp(
                 driver.UserId.ToString(),
-                "تم قفل تسجيل الدخول",
+                "قفلنا تسجيل الدخول",
                 "Login locked",
-                "تم قفل تسجيل دخولك. استخدم نموذج الدعم للاعتراض.",
+                "قفلنا تسجيل دخولك. استخدم نموذج الدعم للاعتراض.",
                 "Your login has been locked. Use the support form to appeal.",
                 NotificationTypes.DriverAccountUpdated,
                 driver.Id,
@@ -588,7 +590,7 @@ public class AdminDriversController : ApiControllerBase
                 targetApplication: OneSignalApplicationTarget.Driver),
             cancellationToken);
 
-        return Ok(new { message = "Driver login locked successfully", messageAr = "تم قفل دخول المندوب بنجاح" });
+        return Ok(new { message = ApiLocalizedMessages.Resolve(HttpContext, "DRIVER_LOGIN_LOCKED_SUCCESS"), messageAr = LocalizedMessages.GetAr("DRIVER_LOGIN_LOCKED_SUCCESS") });
     }
 
     [HttpPost("{id:guid}/login-unlock")]
@@ -619,9 +621,9 @@ public class AdminDriversController : ApiControllerBase
 
         await _notificationService.SendToUserAsync(
             driver.UserId,
-            "تم فتح تسجيل الدخول",
+            "فتحنا تسجيل الدخول",
             "Login unlocked",
-            "تم فتح تسجيل دخولك بنجاح. يمكنك الآن استخدام التطبيق.",
+            "فتحنا تسجيل دخولك بنجاح. تقدر الآن استخدام التطبيق.",
             "Your login has been unlocked. You can now use the app.",
             NotificationTypes.DriverAccountUpdated,
             driver.Id,
@@ -633,9 +635,9 @@ public class AdminDriversController : ApiControllerBase
         await _oneSignalPushService.SendMobileNotificationDirectAsync(
             OneSignalMobilePushRequest.CreateHeadsUp(
                 driver.UserId.ToString(),
-                "تم فتح تسجيل الدخول",
+                "فتحنا تسجيل الدخول",
                 "Login unlocked",
-                "تم فتح تسجيل دخولك بنجاح. يمكنك الآن استخدام التطبيق.",
+                "فتحنا تسجيل دخولك بنجاح. تقدر الآن استخدام التطبيق.",
                 "Your login has been unlocked. You can now use the app.",
                 NotificationTypes.DriverAccountUpdated,
                 driver.Id,
@@ -645,7 +647,7 @@ public class AdminDriversController : ApiControllerBase
                 targetApplication: OneSignalApplicationTarget.Driver),
             cancellationToken);
 
-        return Ok(new { message = "Driver login unlocked successfully", messageAr = "تم فتح دخول المندوب بنجاح" });
+        return Ok(new { message = ApiLocalizedMessages.Resolve(HttpContext, "DRIVER_LOGIN_UNLOCKED_SUCCESS"), messageAr = LocalizedMessages.GetAr("DRIVER_LOGIN_UNLOCKED_SUCCESS") });
     }
 
     [HttpPost("{id:guid}/restrictions/clear")]
@@ -659,7 +661,7 @@ public class AdminDriversController : ApiControllerBase
             ?? throw new UnauthorizedException("ADMIN_NOT_AUTHENTICATED");
 
         await Sender.Send(new ClearDriverRestrictionsCommand(id, userId, request?.Note), cancellationToken);
-        return Ok(new { message = "Driver restrictions cleared successfully", messageAr = "تم فك كل الحظر عن السائق بنجاح" });
+        return Ok(new { message = ApiLocalizedMessages.Resolve(HttpContext, "DRIVER_RESTRICTIONS_CLEARED_SUCCESS"), messageAr = LocalizedMessages.GetAr("DRIVER_RESTRICTIONS_CLEARED_SUCCESS") });
     }
 
     [HttpPost("{id:guid}/location-updates/block")]
@@ -676,7 +678,7 @@ public class AdminDriversController : ApiControllerBase
             new BlockDriverLocationUpdatesCommand(id, userId, request?.Reason),
             cancellationToken);
 
-        return Ok(new { message = "Driver location updates blocked successfully" });
+        return Ok(new { message = ApiLocalizedMessages.Resolve(HttpContext, "DRIVER_LOCATION_UPDATES_BLOCKED_SUCCESS") });
     }
 
     [HttpPost("{id:guid}/location-updates/unblock")]
@@ -685,7 +687,7 @@ public class AdminDriversController : ApiControllerBase
         CancellationToken cancellationToken = default)
     {
         await Sender.Send(new UnblockDriverLocationUpdatesCommand(id), cancellationToken);
-        return Ok(new { message = "Driver location updates unblocked successfully" });
+        return Ok(new { message = ApiLocalizedMessages.Resolve(HttpContext, "DRIVER_LOCATION_UPDATES_UNBLOCKED_SUCCESS") });
     }
 
     [HttpPost("{id:guid}/notes")]
@@ -701,7 +703,7 @@ public class AdminDriversController : ApiControllerBase
         var noteId = await Sender.Send(
             new AddDriverNoteCommand(id, userId, request.Message), cancellationToken);
 
-        return Ok(new { id = noteId, message = "Note added successfully" });
+        return Ok(new { id = noteId, message = ApiLocalizedMessages.Resolve(HttpContext, "DRIVER_NOTE_ADDED_SUCCESS") });
     }
 
     [HttpPost("{id:guid}/incidents")]
@@ -716,7 +718,7 @@ public class AdminDriversController : ApiControllerBase
                 request.Summary, request.LinkedOrderId, request.ReviewerName),
             cancellationToken);
 
-        return Ok(new { id = incidentId, message = "Incident recorded successfully" });
+        return Ok(new { id = incidentId, message = ApiLocalizedMessages.Resolve(HttpContext, "DRIVER_INCIDENT_RECORDED_SUCCESS") });
     }
 }
 

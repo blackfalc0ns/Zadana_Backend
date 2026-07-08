@@ -65,7 +65,7 @@ public class SuspendVendorCommandHandler : IRequestHandler<SuspendVendorCommand>
             vendor,
             new VendorCommunicationMessage(
                 "vendor_suspended",
-                "تم تعليق حساب التاجر",
+                "علّقنا حساب التاجر",
                 "Vendor account suspended",
                 request.Reason,
                 request.Reason,

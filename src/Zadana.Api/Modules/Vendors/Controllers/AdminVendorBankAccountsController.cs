@@ -2,6 +2,7 @@ using Microsoft.AspNetCore.Authorization;
 using Microsoft.AspNetCore.Mvc;
 using Microsoft.EntityFrameworkCore;
 using Zadana.Api.Controllers;
+using Zadana.Api.Localization;
 using Zadana.Application.Common.Interfaces;
 using Zadana.Domain.Modules.Social.Enums;
 using Zadana.Domain.Modules.Vendors.Entities;
@@ -86,9 +87,9 @@ public class AdminVendorBankAccountsController : ApiControllerBase
             var data = $"{{\"vendorId\":\"{vendorId}\",\"accountId\":\"{accountId}\",\"action\":\"verified\",\"targetUrl\":\"/profile/bank-accounts\"}}";
             await _notificationService.SendToUserAsync(
                 vendorUserId,
-                "تم اعتماد الحساب البنكي",
+                "اعتمدنا الحساب البنكي",
                 "Bank account verified",
-                "تم اعتماد حسابك البنكي بنجاح وهو جاهز للاستخدام.",
+                "اعتمدنا حسابك البنكي بنجاح وهو جاهز للاستخدام.",
                 "Your bank account has been verified and is ready to use.",
                 NotificationTypes.VendorAccountUpdated,
                 accountId,
@@ -97,9 +98,9 @@ public class AdminVendorBankAccountsController : ApiControllerBase
 
             await _oneSignalPushService.SendToExternalUserAsync(
                 vendorUserId.ToString(),
-                "تم اعتماد الحساب البنكي",
+                "اعتمدنا الحساب البنكي",
                 "Bank account verified",
-                "تم اعتماد حسابك البنكي بنجاح وهو جاهز للاستخدام.",
+                "اعتمدنا حسابك البنكي بنجاح وهو جاهز للاستخدام.",
                 "Your bank account has been verified and is ready to use.",
                 NotificationTypes.VendorAccountUpdated,
                 accountId,
@@ -110,7 +111,7 @@ public class AdminVendorBankAccountsController : ApiControllerBase
                 ct);
         }
 
-        return Ok(new { Message = "Bank account verified successfully." });
+        return Ok(new { Message = ApiLocalizedMessages.Resolve(HttpContext, "BANK_ACCOUNT_VERIFIED_SUCCESS") });
     }
 
     [HttpPost("{accountId:guid}/reject")]
@@ -140,9 +141,9 @@ public class AdminVendorBankAccountsController : ApiControllerBase
             var data = $"{{\"vendorId\":\"{vendorId}\",\"accountId\":\"{accountId}\",\"action\":\"rejected\",\"reason\":\"{request.Reason.Trim()}\",\"targetUrl\":\"/profile/bank-accounts\"}}";
             await _notificationService.SendToUserAsync(
                 vendorUserId,
-                "تم رفض الحساب البنكي",
+                "رفضنا الحساب البنكي",
                 "Bank account rejected",
-                $"تم رفض حسابك البنكي. السبب: {request.Reason.Trim()}",
+                $"رفضنا حسابك البنكي. السبب: {request.Reason.Trim()}",
                 $"Your bank account was rejected. Reason: {request.Reason.Trim()}",
                 NotificationTypes.VendorAccountUpdated,
                 accountId,
@@ -151,9 +152,9 @@ public class AdminVendorBankAccountsController : ApiControllerBase
 
             await _oneSignalPushService.SendToExternalUserAsync(
                 vendorUserId.ToString(),
-                "تم رفض الحساب البنكي",
+                "رفضنا الحساب البنكي",
                 "Bank account rejected",
-                $"تم رفض حسابك البنكي. السبب: {request.Reason.Trim()}",
+                $"رفضنا حسابك البنكي. السبب: {request.Reason.Trim()}",
                 $"Your bank account was rejected. Reason: {request.Reason.Trim()}",
                 NotificationTypes.VendorAccountUpdated,
                 accountId,
@@ -164,7 +165,7 @@ public class AdminVendorBankAccountsController : ApiControllerBase
                 ct);
         }
 
-        return Ok(new { Message = "Bank account rejected." });
+        return Ok(new { Message = ApiLocalizedMessages.Resolve(HttpContext, "BANK_ACCOUNT_REJECTED_SUCCESS") });
     }
 
     [HttpPost("{accountId:guid}/set-primary")]
@@ -184,7 +185,7 @@ public class AdminVendorBankAccountsController : ApiControllerBase
         account.SetAsPrimary();
         await _context.SaveChangesAsync(ct);
 
-        return Ok(new { Message = "Bank account set as primary." });
+        return Ok(new { Message = ApiLocalizedMessages.Resolve(HttpContext, "BANK_ACCOUNT_PRIMARY_SUCCESS") });
     }
 
     private async Task RequireVendorAsync(Guid vendorId, CancellationToken ct)

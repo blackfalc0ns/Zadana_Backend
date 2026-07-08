@@ -2,6 +2,7 @@ using Microsoft.AspNetCore.Authorization;
 using Microsoft.AspNetCore.Mvc;
 using Microsoft.AspNetCore.RateLimiting;
 using Microsoft.Extensions.Localization;
+using Zadana.Api.Localization;
 using Zadana.Api.Security;
 using Zadana.Api.Modules.Identity.Requests;
 using Zadana.Application.Common.Localization;
@@ -69,7 +70,11 @@ public class AdminAuthController : IdentityAuthControllerBase
         var refreshToken = AdminRefreshCookie.ReadFromRequest(Request, _environment);
         if (string.IsNullOrWhiteSpace(refreshToken))
         {
-            return Unauthorized(new { code = "MISSING_REFRESH_TOKEN" });
+            return Unauthorized(new
+            {
+                code = "MISSING_REFRESH_TOKEN",
+                message = ApiLocalizedMessages.Resolve(HttpContext, "MISSING_REFRESH_TOKEN")
+            });
         }
 
         var pair = await Sender.Send(new RefreshTokenCommand(refreshToken));

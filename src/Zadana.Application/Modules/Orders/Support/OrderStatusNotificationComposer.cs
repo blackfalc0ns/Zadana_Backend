@@ -97,49 +97,49 @@ internal static class OrderStatusNotificationComposer
         return status switch
         {
             OrderStatus.Placed => (
-                "تم تأكيد الطلب",
+                "أكدنا الطلب",
                 "Order Confirmed",
-                $"تم تأكيد طلبك رقم {orderNumber} بنجاح",
+                $"أكدنا طلبك رقم {orderNumber} بنجاح",
                 $"Your order #{orderNumber} has been confirmed successfully"),
 
             OrderStatus.PendingVendorAcceptance => (
-                "في انتظار موافقة التاجر",
+                "بانتظار قبول التاجر",
                 "Awaiting Vendor Approval",
-                $"طلبك رقم {orderNumber} في انتظار موافقة التاجر",
+                $"طلبك رقم {orderNumber} بانتظار قبول التاجر",
                 $"Your order #{orderNumber} is awaiting vendor approval"),
 
             OrderStatus.Accepted => (
-                "تم قبول الطلب",
+                "قبل التاجر الطلب",
                 "Order Accepted",
-                $"تم قبول طلبك رقم {orderNumber} من قبل التاجر",
+                $"قبل التاجر طلبك رقم {orderNumber}",
                 $"Your order #{orderNumber} has been accepted by the vendor"),
 
             OrderStatus.VendorRejected => (
-                "تم رفض الطلب",
+                "رفض التاجر الطلب",
                 "Order Rejected",
-                $"للأسف، تم رفض طلبك رقم {orderNumber} من قبل التاجر",
+                $"للأسف، رفض التاجر طلبك رقم {orderNumber}",
                 $"Sorry, your order #{orderNumber} has been rejected by the vendor"),
 
             OrderStatus.Preparing => (
-                "جاري تحضير الطلب",
+                "المتجر يجهّز الطلب",
                 "Order Being Prepared",
-                $"طلبك رقم {orderNumber} قيد التحضير الآن",
+                $"طلبك رقم {orderNumber} ينجهز الآن",
                 $"Your order #{orderNumber} is now being prepared"),
 
             OrderStatus.ReadyForPickup => (
                 "الطلب جاهز للاستلام",
                 "Order Ready for Pickup",
-                $"طلبك رقم {orderNumber} جاهز وفي انتظار المندوب",
+                $"طلبك رقم {orderNumber} جاهز وبانتظار المندوب",
                 $"Your order #{orderNumber} is ready and waiting for the driver"),
 
             OrderStatus.DriverAssigned => (
-                "تم تعيين مندوب التوصيل",
+                "عيّنا مندوب التوصيل",
                 "Driver Assigned",
-                $"تم تعيين مندوب لتوصيل طلبك رقم {orderNumber}",
+                $"عيّنا مندوب يوصل طلبك رقم {orderNumber}",
                 $"A driver has been assigned to deliver your order #{orderNumber}"),
 
             OrderStatus.PickedUp => (
-                "تم استلام الطلب من التاجر",
+                "استلم المندوب الطلب",
                 "Order Picked Up",
                 $"المندوب استلم طلبك رقم {orderNumber} من التاجر",
                 $"The driver has picked up your order #{orderNumber} from the vendor"),
@@ -151,33 +151,33 @@ internal static class OrderStatusNotificationComposer
                 $"Your order #{orderNumber} is on its way to you!"),
 
             OrderStatus.Delivered => (
-                "تم التوصيل بنجاح",
+                "وصل طلبك بنجاح",
                 "Order Delivered",
-                $"تم توصيل طلبك رقم {orderNumber} بنجاح. شكراً لك!",
+                $"وصل طلبك رقم {orderNumber} بنجاح. شكرًا لك!",
                 $"Your order #{orderNumber} has been delivered successfully. Thank you!"),
 
             OrderStatus.DeliveryFailed => (
                 "فشل التوصيل",
                 "Delivery Failed",
-                $"للأسف، فشل توصيل طلبك رقم {orderNumber}. سيتم التواصل معك",
+                $"للأسف، ما قدرنا نوصل طلبك رقم {orderNumber}. راح نتواصل معك",
                 $"Sorry, delivery of your order #{orderNumber} failed. We will contact you"),
 
             OrderStatus.Cancelled => (
-                "تم إلغاء الطلب",
+                "ألغينا الطلب",
                 "Order Cancelled",
-                $"تم إلغاء طلبك رقم {orderNumber}",
+                $"ألغينا طلبك رقم {orderNumber}",
                 $"Your order #{orderNumber} has been cancelled"),
 
             OrderStatus.Refunded => (
-                "تم استرداد المبلغ",
+                "استرجعنا المبلغ",
                 "Order Refunded",
-                $"تم استرداد مبلغ طلبك رقم {orderNumber}",
+                $"استرجعنا مبلغ طلبك رقم {orderNumber}",
                 $"Your order #{orderNumber} has been refunded"),
 
             _ => (
                 "تحديث على الطلب",
                 "Order Update",
-                $"تم تحديث حالة طلبك رقم {orderNumber}",
+                $"حدّثنا حالة طلبك رقم {orderNumber}",
                 $"Your order #{orderNumber} status has been updated")
         };
     }

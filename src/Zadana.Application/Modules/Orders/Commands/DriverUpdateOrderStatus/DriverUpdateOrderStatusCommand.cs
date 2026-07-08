@@ -84,7 +84,7 @@ public class DriverUpdateOrderStatusCommandHandler : IRequestHandler<DriverUpdat
     {
         // BUG FIX: Resolve Driver.Id from the current user's UserId first
         var driver = await _driverRepository.GetByUserIdAsync(request.DriverUserId, cancellationToken)
-            ?? throw new BusinessRuleException("DRIVER_NOT_FOUND", "لم يتم العثور على حساب مندوب مرتبط بهذا المستخدم | No driver profile found for the current user.");
+            ?? throw new BusinessRuleException("DRIVER_NOT_FOUND", "ما لقينا حساب مندوب مرتبط بهذا المستخدم | No driver profile found for the current user.");
 
         if (driver.ApplyDocumentExpiryLock())
         {
@@ -95,7 +95,7 @@ public class DriverUpdateOrderStatusCommandHandler : IRequestHandler<DriverUpdat
         {
             throw new BusinessRuleException(
                 "DRIVER_NOT_READY_FOR_DISPATCH",
-                "يجب مراجعة حسابك والموافقة عليه من الإدارة قبل البدء بتوصيل الطلبات | Your account must be reviewed and approved by admin before handling deliveries.");
+                "تحتاج مراجعة واعتماد من الإدارة قبل البدء بتوصيل الطلبات | Your account must be reviewed and approved by admin before handling deliveries.");
         }
 
         // Now compare using the actual Driver.Id against the assignment
@@ -125,21 +125,21 @@ public class DriverUpdateOrderStatusCommandHandler : IRequestHandler<DriverUpdat
         {
             throw new BusinessRuleException(
                 "PICKUP_OTP_REQUIRED",
-                "يجب تأكيد رمز الاستلام من المتجر قبل تحديث حالة الطلب | Pickup OTP must be verified by the vendor before marking the order as picked up.");
+                "لازم تأكد رمز الاستلام من المتجر قبل تحديث حالة الطلب | Pickup OTP must be verified by the vendor before marking the order as picked up.");
         }
 
         if (request.NewStatus == OrderStatus.Delivered && !assignment.IsDeliveryOtpVerified)
         {
             throw new BusinessRuleException(
                 "DELIVERY_OTP_REQUIRED",
-                "يجب تأكيد رمز التوصيل من العميل قبل إتمام الطلب | Delivery OTP must be verified by the customer before completing delivery.");
+                "لازم تأكد رمز التوصيل من العميل قبل إتمام الطلب | Delivery OTP must be verified by the customer before completing delivery.");
         }
 
         if (request.NewStatus == OrderStatus.DeliveryFailed && string.IsNullOrWhiteSpace(request.Note))
         {
             throw new BusinessRuleException(
                 "DELIVERY_FAILURE_NOTE_REQUIRED",
-                "يجب كتابة سبب فشل التوصيل قبل تسجيله | A note explaining the delivery failure reason is required.");
+                "لازم تكتب سبب فشل التوصيل قبل تسجيله | A note explaining the delivery failure reason is required.");
         }
 
         ValidateTransition(order.Status, request.NewStatus);
@@ -256,7 +256,7 @@ public class DriverUpdateOrderStatusCommandHandler : IRequestHandler<DriverUpdat
         {
             throw new BusinessRuleException(
                 "INVALID_ORDER_STATUS_TRANSITION",
-                $"لا يمكن تغيير حالة الطلب من {current} إلى {target} | Cannot transition order from {current} to {target}.");
+                $"ما تقدر تغيّر حالة الطلب من {current} إلى {target} | Cannot transition order from {current} to {target}.");
         }
     }
 

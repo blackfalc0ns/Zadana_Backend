@@ -290,9 +290,9 @@ public class AdminVendorSupportTicketsController : ApiControllerBase
         return ticket.Status switch
         {
             Domain.Modules.Vendors.Enums.VendorSupportTicketStatus.Resolved => (
-                "تم حل تذكرة الدعم",
+                "حلّينا تذكرة الدعم",
                 "Support ticket resolved",
-                $"تم إغلاق تذكرة الدعم {ticket.Reference} بعد المراجعة.",
+                $"أغلقنا تذكرة الدعم {ticket.Reference} بعد المراجعة.",
                 $"Support ticket {ticket.Reference} has been resolved."),
             Domain.Modules.Vendors.Enums.VendorSupportTicketStatus.WaitingVendor => (
                 "الدعم بانتظار ردك",
@@ -302,7 +302,7 @@ public class AdminVendorSupportTicketsController : ApiControllerBase
             _ => (
                 "تحديث على دعم التجار",
                 "Vendor support ticket updated",
-                $"تم تحديث تذكرة الدعم {ticket.Reference}.",
+                $"حدّثنا تذكرة الدعم {ticket.Reference}.",
                 $"Support ticket {ticket.Reference} has been updated.")
         };
     }

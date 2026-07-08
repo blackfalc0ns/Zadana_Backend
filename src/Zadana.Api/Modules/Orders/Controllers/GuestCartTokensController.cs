@@ -2,6 +2,7 @@ using Microsoft.AspNetCore.Authorization;
 using Microsoft.AspNetCore.Mvc;
 using Microsoft.AspNetCore.RateLimiting;
 using Zadana.Api.Controllers;
+using Zadana.Api.Localization;
 using Zadana.Api.Security;
 
 namespace Zadana.Api.Modules.Orders.Controllers;
@@ -11,7 +12,7 @@ namespace Zadana.Api.Modules.Orders.Controllers;
 /// authenticate every subsequent cart call against tampering.
 ///
 /// The mobile flow:
-///   1. POST /api/cart/guest-token  with {"deviceId": "<uuid>"} — receive
+///   1. POST /api/cart/guest-token  with {"deviceId": "<uuid>"} - receive
 ///      a signature string.
 ///   2. Send X-Device-Id and X-Device-Signature on every cart request.
 /// </summary>
@@ -26,7 +27,7 @@ public sealed class GuestCartTokensController(GuestCartSigner signer) : ApiContr
     {
         if (string.IsNullOrWhiteSpace(request.DeviceId))
         {
-            return BadRequest(new { code = "DEVICE_ID_REQUIRED", message = "deviceId is required." });
+            return BadRequest(new { code = "DEVICE_ID_REQUIRED", message = ApiLocalizedMessages.Resolve(HttpContext, "DEVICE_ID_REQUIRED") });
         }
 
         var signature = signer.Sign(request.DeviceId.Trim());

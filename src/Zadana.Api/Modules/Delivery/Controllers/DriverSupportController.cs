@@ -588,12 +588,12 @@ public class DriverSupportController : ApiControllerBase
 
     private static string GetStatusLabelAr(OrderSupportCaseStatus status) => status switch
     {
-        OrderSupportCaseStatus.Submitted => "تم الاستلام",
+        OrderSupportCaseStatus.Submitted => "استلمنا",
         OrderSupportCaseStatus.InReview => "قيد المراجعة",
         OrderSupportCaseStatus.AwaitingCustomerEvidence => "بانتظار معلومات إضافية",
-        OrderSupportCaseStatus.Approved => "تمت الموافقة",
-        OrderSupportCaseStatus.Rejected => "تم الرفض",
-        _ => "تم الحل"
+        OrderSupportCaseStatus.Approved => "اعتمدنا",
+        OrderSupportCaseStatus.Rejected => "رفضنا",
+        _ => "حلّينا"
     };
 
     private static string GetStatusLabelEn(OrderSupportCaseStatus status) => status switch
@@ -671,16 +671,16 @@ public class DriverSupportController : ApiControllerBase
 
     private static string GetActionLabelAr(string action) => ToApiAction(action) switch
     {
-        "submitted" => "تم فتح القضية",
+        "submitted" => "فتحنا القضية",
         "driver_response" => "رد المندوب",
         "vendor_response" => "رد التاجر",
         "customer_response" => "رد العميل",
         "request_evidence" => "طلب معلومات إضافية",
-        "assigned" => "تم الإسناد",
-        "escalated" => "تم التصعيد",
-        "approved" => "تمت الموافقة",
-        "rejected" => "تم الرفض",
-        "resolved" => "تم الحل",
+        "assigned" => "أسندنا",
+        "escalated" => "صعّدنا",
+        "approved" => "اعتمدنا",
+        "rejected" => "رفضنا",
+        "resolved" => "حلّينا",
         "reopened" => "أعيد فتح القضية",
         "admin_message" => "تحديث من الإدارة",
         "internal_note" => "ملاحظة داخلية",
@@ -710,17 +710,17 @@ public class DriverSupportController : ApiControllerBase
     private static string GetActivityTitleAr(OrderSupportCaseActivity activity) => ToApiAction(activity.Action) switch
     {
         "submitted" => activity.ActorRole.Equals("driver", StringComparison.OrdinalIgnoreCase)
-            ? "تم إنشاء بلاغ من المندوب"
-            : "تم إنشاء قضية جديدة",
+            ? "أنشأنا بلاغ من المندوب"
+            : "أنشأنا قضية جديدة",
         "driver_response" => "أرسل المندوب ردًا جديدًا",
         "vendor_response" => "أرسل التاجر ردًا جديدًا",
         "customer_response" => "أرسل العميل ردًا جديدًا",
         "request_evidence" => "طلبت الإدارة معلومات إضافية",
-        "assigned" => "تم إسناد القضية للمراجعة",
-        "escalated" => "تم تصعيد القضية إلى فريق مختص",
-        "approved" => "تمت الموافقة على القضية",
-        "rejected" => "تم رفض القضية",
-        "resolved" => "تم إغلاق القضية بعد الحل",
+        "assigned" => "أسندنا القضية للمراجعة",
+        "escalated" => "صعّدنا القضية إلى فريق مختص",
+        "approved" => "اعتمدنا القضية",
+        "rejected" => "رفضنا القضية",
+        "resolved" => "أغلقنا القضية بعد الحل",
         "reopened" => "أعيد فتح القضية",
         "admin_message" => "أرسلت الإدارة تحديثًا جديدًا",
         "internal_note" => "أضيفت ملاحظة داخلية",

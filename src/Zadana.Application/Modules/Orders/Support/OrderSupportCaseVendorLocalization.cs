@@ -55,16 +55,16 @@ public static class OrderSupportCaseVendorLocalization
     public static string ResolveActivityTitle(OrderSupportCaseActivity activity, bool isArabic) =>
         NormalizeAction(activity.Action) switch
         {
-            "submitted" => Pick("تم فتح الحالة", "Case opened", isArabic),
+            "submitted" => Pick("فتحنا الحالة", "Case opened", isArabic),
             "driver_response" => Pick("رد المندوب", "Driver replied", isArabic),
             "vendor_response" => Pick("رد التاجر", "Vendor replied", isArabic),
             "customer_response" => Pick("رد العميل", "Customer replied", isArabic),
             "request_evidence" => Pick("طلب معلومات إضافية", "More evidence requested", isArabic),
-            "assigned" => Pick("تم الإسناد", "Case assigned", isArabic),
-            "escalated" => Pick("تم التصعيد", "Case escalated", isArabic),
-            "approved" => Pick("تمت الموافقة", "Case approved", isArabic),
-            "rejected" => Pick("تم الرفض", "Case rejected", isArabic),
-            "resolved" => Pick("تم الحل", "Case resolved", isArabic),
+            "assigned" => Pick("أسندنا", "Case assigned", isArabic),
+            "escalated" => Pick("صعّدنا", "Case escalated", isArabic),
+            "approved" => Pick("اعتمدنا", "Case approved", isArabic),
+            "rejected" => Pick("رفضنا", "Case rejected", isArabic),
+            "resolved" => Pick("حلّينا", "Case resolved", isArabic),
             "reopened" => Pick("أعيد فتح الحالة", "Case reopened", isArabic),
             "admin_message" => Pick("رسالة من الإدارة", "Admin update", isArabic),
             "internal_note" => Pick("ملاحظة داخلية", "Internal note", isArabic),
@@ -83,11 +83,11 @@ public static class OrderSupportCaseVendorLocalization
         {
             "submitted" => supportCase.Type == OrderSupportCaseType.ReturnRequest
                 ? Pick(
-                    $"تم استلام طلب الاسترجاع للطلب رقم {orderNumber} وهو الآن قيد المراجعة.",
+                    $"استلمنا طلب الاسترجاع للطلب رقم {orderNumber} وهو الآن تحت المراجعة.",
                     $"We received the return request for order #{orderNumber} and it is now under review.",
                     isArabic)
                 : Pick(
-                    $"تم استلام الحالة المرتبطة بالطلب رقم {orderNumber} وهي الآن قيد المراجعة.",
+                    $"استلمنا الحالة المرتبطة بالطلب رقم {orderNumber} وهي الآن تحت المراجعة.",
                     $"We received the support case for order #{orderNumber} and it is now under review.",
                     isArabic),
             "request_evidence" => Pick(
@@ -96,19 +96,19 @@ public static class OrderSupportCaseVendorLocalization
                 isArabic),
             "approved" => supportCase.Type == OrderSupportCaseType.ReturnRequest
                 ? Pick(
-                    "تمت الموافقة على طلب الاسترجاع وسيتم إشعارك عند بدء المعالجة المالية.",
+                    "اعتمدنا طلب الاسترجاع وراح نبلغك عند بدء المعالجة المالية.",
                     "Your return request has been approved. You will be notified when the financial processing begins.",
                     isArabic)
                 : Pick(
-                    $"تمت الموافقة على الحالة الخاصة بالطلب رقم {orderNumber}.",
+                    $"اعتمدنا الحالة الخاصة بالطلب رقم {orderNumber}.",
                     $"The support case linked to order #{orderNumber} has been approved.",
                     isArabic),
             "rejected" => Pick(
-                $"تم رفض الحالة الخاصة بالطلب رقم {orderNumber}.",
+                $"رفضنا الحالة الخاصة بالطلب رقم {orderNumber}.",
                 $"The support case linked to order #{orderNumber} has been rejected.",
                 isArabic),
             "resolved" => Pick(
-                $"تم إغلاق الحالة الخاصة بالطلب رقم {orderNumber} بعد معالجتها.",
+                $"أغلقنا الحالة الخاصة بالطلب رقم {orderNumber} بعد معالجتها.",
                 $"The support case linked to order #{orderNumber} has been resolved and closed.",
                 isArabic),
             "reopened" => Pick(
@@ -116,7 +116,7 @@ public static class OrderSupportCaseVendorLocalization
                 $"The support case linked to order #{orderNumber} was reopened for another review.",
                 isArabic),
             "escalated" => Pick(
-                $"تم تصعيد الحالة الخاصة بالطلب رقم {orderNumber} إلى فريق مختص.",
+                $"صعّدنا الحالة الخاصة بالطلب رقم {orderNumber} إلى فريق مختص.",
                 $"The support case linked to order #{orderNumber} was escalated to a specialized team.",
                 isArabic),
             "admin_message" => Pick(
@@ -147,23 +147,23 @@ public static class OrderSupportCaseVendorLocalization
         return supportCase.Status switch
         {
             OrderSupportCaseStatus.Approved => Pick(
-                "تمت الموافقة على طلب الاسترجاع وسيتم إشعارك عند بدء المعالجة المالية.",
+                "اعتمدنا طلب الاسترجاع وراح نبلغك عند بدء المعالجة المالية.",
                 "Your return request has been approved. You will be notified when the financial processing begins.",
                 isArabic),
             OrderSupportCaseStatus.Rejected => Pick(
-                "تم رفض طلب الاسترجاع بعد المراجعة.",
+                "رفضنا طلب الاسترجاع بعد المراجعة.",
                 "Your return request was rejected after review.",
                 isArabic),
             OrderSupportCaseStatus.Resolved when supportCase.CompensationType == OrderSupportCaseCompensationType.CashRefund => Pick(
-                "تم إكمال الاسترداد وإغلاق الحالة.",
+                "أكملنا الاسترجاع وأغلقنا الحالة.",
                 "Your refund has been completed and the case is now closed.",
                 isArabic),
             OrderSupportCaseStatus.Resolved when supportCase.CompensationType == OrderSupportCaseCompensationType.CouponCompensation && couponRedeemed => Pick(
-                "تم استخدام كوبون التعويض وإغلاق الحالة.",
+                "استخدمنا كوبون التعويض وأغلقنا الحالة.",
                 "Your compensation coupon was redeemed and the case is now closed.",
                 isArabic),
             OrderSupportCaseStatus.Resolved when supportCase.CompensationType == OrderSupportCaseCompensationType.CouponCompensation => Pick(
-                "تم إصدار كوبون التعويض وإغلاق الحالة.",
+                "أصدرنا كوبون التعويض وأغلقنا الحالة.",
                 "A compensation coupon was issued and the case is now closed.",
                 isArabic),
             OrderSupportCaseStatus.AwaitingCustomerEvidence => Pick(
@@ -187,15 +187,15 @@ public static class OrderSupportCaseVendorLocalization
         return supportCase.Status switch
         {
             OrderSupportCaseStatus.Approved when supportCase.Type == OrderSupportCaseType.ReturnRequest => Pick(
-                "الطلب مطابق لسياسة المنصة وتمت الموافقة عليه بعد مراجعة الأدلة.",
+                "الطلب مطابق لسياسة المنصة واعتمدنا عليه بعد مراجعة الأدلة.",
                 "The request matches platform policy and was approved after evidence review.",
                 isArabic),
             OrderSupportCaseStatus.Rejected => Pick(
-                "الطلب لم يستوفِ معايير الموافقة بعد مراجعة الأدلة.",
+                "الطلب لم يستوفِ معايير الاعتماد بعد مراجعة الأدلة.",
                 "The request did not meet the approval criteria after evidence review.",
                 isArabic),
             OrderSupportCaseStatus.Resolved when supportCase.CompensationType == OrderSupportCaseCompensationType.CashRefund => Pick(
-                "أُغلقت الحالة بعد إكمال استرداد العميل.",
+                "أُغلقت الحالة بعد إكمال استرجاع العميل.",
                 "The case was closed after completing the customer refund.",
                 isArabic),
             OrderSupportCaseStatus.Resolved when supportCase.CompensationType == OrderSupportCaseCompensationType.CouponCompensation && couponRedeemed => Pick(

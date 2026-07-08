@@ -76,9 +76,9 @@ public class AdminUpdateVendorContactCommandHandler : IRequestHandler<AdminUpdat
             vendor,
             new VendorCommunicationMessage(
                 "vendor_contact_updated",
-                "تم تحديث عنوان المتجر",
+                "حدّثنا عنوان المتجر",
                 "Vendor contact details updated",
-                "تم تحديث بيانات العنوان والتواصل من لوحة الإدارة.",
+                "حدّثنا بيانات العنوان والتواصل من لوحة الإدارة.",
                 "Your contact and address details were updated by the admin team.",
                 "/profile",
                 vendor.Id),

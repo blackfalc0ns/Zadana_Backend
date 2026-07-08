@@ -251,7 +251,7 @@ public class AdminMasterProductsController : ApiControllerBase
         product.Restore();
         await _context.SaveChangesAsync(cancellationToken);
 
-        return Ok(new { message_ar = "تمت استعادة المنتج بنجاح", message_en = "Product restored successfully", id });
+        return Ok(new { message_ar = "استعدنا المنتج بنجاح", message_en = "Product restored successfully", id });
     }
 }
 

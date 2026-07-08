@@ -14,6 +14,6 @@ public static class AdminCustomerFilterOptionsFactory
         new("Suspended", "مقيد", "Suspended"),
         new("Banned", "محظور", "Banned"),
         new("Inactive", "غير نشط", "Inactive"),
-        new("Pending", "قيد الانتظار", "Pending")
+        new("Pending", "بانتظار المعالجة", "Pending")
     ];
 }

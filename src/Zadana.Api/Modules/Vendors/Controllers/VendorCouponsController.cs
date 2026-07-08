@@ -99,7 +99,7 @@ public class VendorCouponsController : ApiControllerBase
 
         if (string.IsNullOrWhiteSpace(code))
         {
-            throw new BadRequestException("REQUIRED_FIELD", "كود الكوبون مطلوب.");
+            throw new BadRequestException("REQUIRED_FIELD", "رمز الكوبون مطلوب.");
         }
 
         if (string.IsNullOrWhiteSpace(title))
@@ -109,22 +109,22 @@ public class VendorCouponsController : ApiControllerBase
 
         if (request.DiscountValue <= 0)
         {
-            throw new BusinessRuleException("GreaterThanZero", "قيمة الخصم يجب أن تكون أكبر من الصفر.");
+            throw new BusinessRuleException("GreaterThanZero", "قيمة الخصم لازم تكون أكبر من صفر.");
         }
 
         if (request.EndsAtUtc.HasValue && request.StartsAtUtc.HasValue && request.EndsAtUtc <= request.StartsAtUtc)
         {
-            throw new BusinessRuleException("InvalidDateRange", "يجب أن يكون تاريخ الانتهاء بعد تاريخ البداية.");
+            throw new BusinessRuleException("InvalidDateRange", "لازم يكون تاريخ الانتهاء بعد تاريخ البداية.");
         }
 
         if (!Enum.TryParse<CouponDiscountType>(request.DiscountType, ignoreCase: true, out var discountType))
         {
-            throw new BusinessRuleException("InvalidEnum", "نوع الخصم غير صالح.");
+            throw new BusinessRuleException("InvalidEnum", "نوع الخصم غير صحيح.");
         }
 
         if (discountType == CouponDiscountType.Percentage && request.DiscountValue > 100)
         {
-            throw new BusinessRuleException("PercentageTooHigh", "نسبة الخصم لا يمكن أن تتجاوز 100.");
+            throw new BusinessRuleException("PercentageTooHigh", "نسبة الخصم لازم ما تتجاوز 100.");
         }
 
         var duplicateExists = await _dbContext.Coupons
@@ -133,7 +133,7 @@ public class VendorCouponsController : ApiControllerBase
 
         if (duplicateExists)
         {
-            throw new BusinessRuleException("DUPLICATE_COUPON_CODE", "كود الكوبون مستخدم بالفعل.");
+            throw new BusinessRuleException("DUPLICATE_COUPON_CODE", "رمز الكوبون مستخدم بالفعل.");
         }
 
         var coupon = new Coupon(

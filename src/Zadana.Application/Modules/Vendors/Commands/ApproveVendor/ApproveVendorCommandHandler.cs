@@ -44,7 +44,7 @@ public class ApproveVendorCommandHandler : IRequestHandler<ApproveVendorCommand>
         {
             throw new BusinessRuleException(
                 "VendorApprovalRequirementsIncomplete",
-                "لا يمكن اعتماد التاجر قبل اعتماد الحقول والمستندات والحساب البنكي المطلوبة.|Vendor cannot be approved before the required profile fields, documents, and bank account are approved.");
+                "ما تقدر تعتمد التاجر قبل اعتماد الحقول والمستندات والحساب البنكي المطلوبة.|Vendor cannot be approved before the required profile fields, documents, and bank account are approved.");
         }
 
         vendor.Approve(request.CommissionRate, adminId);
@@ -65,7 +65,7 @@ public class ApproveVendorCommandHandler : IRequestHandler<ApproveVendorCommand>
             vendor.UserId,
             "approved",
             "success",
-            $"تمت الموافقة على التاجر بنسبة عمولة {request.CommissionRate:0.##}%.",
+            $"اعتمدنا التاجر بنسبة عمولة {request.CommissionRate:0.##}%.",
             "مراجعة الامتثال",
             "المسؤول",
             adminId,
@@ -77,9 +77,9 @@ public class ApproveVendorCommandHandler : IRequestHandler<ApproveVendorCommand>
             vendor,
             new VendorCommunicationMessage(
                 "vendor_approved",
-                "تم اعتماد حساب التاجر",
+                "اعتمدنا حساب التاجر",
                 "Vendor account approved",
-                "تم اعتماد حسابك ويمكنك الآن تشغيل متجرك واستقبال الطلبات حسب إعدادات التشغيل.",
+                "اعتمدنا حسابك وتقدر الآن تشغيل متجرك واستقبال الطلبات حسب إعدادات التشغيل.",
                 "Your vendor account has been approved. You can now operate your store and receive orders according to your operations settings.",
                 "/dashboard",
                 vendor.Id,

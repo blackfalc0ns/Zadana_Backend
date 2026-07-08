@@ -116,9 +116,9 @@ public class UpdateVendorStoreCommandHandler : IRequestHandler<UpdateVendorStore
                     AdminAlertTypes.VendorCriticalChangeSubmitted,
                     AdminAlertCategories.Vendors,
                     AdminAlertPriorities.High,
-                    "تعديل سجل تجاري بانتظار الموافقة",
+                    "تعديل سجل تجاري بانتظار الاعتماد",
                     "Commercial registration change pending approval",
-                    $"أرسل التاجر {vendor.BusinessNameAr} تعديل السجل التجاري وينتظر موافقة الأدمن.",
+                    $"أرسل التاجر {vendor.BusinessNameAr} تعديل السجل التجاري وينتظر اعتماد المشرف.",
                     $"Vendor {vendor.BusinessNameEn} submitted commercial registration changes pending admin approval.",
                     vendor.Id,
                     "/admin/access/approvals",
@@ -131,8 +131,8 @@ public class UpdateVendorStoreCommandHandler : IRequestHandler<UpdateVendorStore
             hasSensitiveChange ? "profile-store-updated-sensitive-submitted" : "profile-store-updated",
             "info",
             hasSensitiveChange
-                ? "تم تطبيق بيانات المتجر العامة وإرسال بيانات السجل التجاري للمراجعة قبل التطبيق."
-                : "تم تحديث بيانات المتجر من بوابة التاجر.",
+                ? "طبّقنا بيانات المتجر العامة وإرسال بيانات السجل التجاري للمراجعة قبل التطبيق."
+                : "حدّثنا بيانات المتجر من بوابة التاجر.",
             "بوابة التاجر",
             vendor.BusinessNameAr,
             userId,

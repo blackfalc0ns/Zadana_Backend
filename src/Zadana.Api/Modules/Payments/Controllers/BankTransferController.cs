@@ -5,6 +5,7 @@ using Microsoft.Extensions.Options;
 using Microsoft.Extensions.Logging;
 using MediatR;
 using Zadana.Api.Controllers;
+using Zadana.Api.Localization;
 using Zadana.Application.Common.Interfaces;
 using Zadana.Application.Common.Settings;
 using Zadana.Application.Modules.EmailCenter;
@@ -120,7 +121,7 @@ public class BankTransferController(
 
         return Ok(new
         {
-            message = "Bank transfer proof uploaded successfully. Awaiting admin confirmation.",
+            message = ApiLocalizedMessages.Resolve(HttpContext, "BANK_TRANSFER_PROOF_UPLOADED"),
             orderId = order.Id,
             orderStatus = order.Status.ToString(),
         });
@@ -172,7 +173,7 @@ public class BankTransferController(
             {
                 processed = false,
                 status = "ignored",
-                message = "Bank transfer webhook status is not a paid/settled status.",
+                message = ApiLocalizedMessages.Resolve(HttpContext, "BANK_TRANSFER_WEBHOOK_STATUS_IGNORED"),
             });
         }
 
@@ -257,7 +258,7 @@ public class BankTransferController(
 
         return Ok(new
         {
-            message = "Bank transfer rejected.",
+            message = ApiLocalizedMessages.Resolve(HttpContext, "BANK_TRANSFER_REJECTED_SUCCESS"),
             paymentId,
             orderStatus = order.Status.ToString(),
         });

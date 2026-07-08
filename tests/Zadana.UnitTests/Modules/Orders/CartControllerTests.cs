@@ -173,7 +173,7 @@ public class CartControllerTests
     [Fact]
     public async Task RemoveItem_ReturnsOkResult()
     {
-        var dto = new CartItemRemovalResponseDto("تم حذف المنتج من السلة", "cart item removed successfully", new CartSummaryDto(0, 0, null, null, null));
+        var dto = new CartItemRemovalResponseDto("حذفنا المنتج من السلة", "cart item removed successfully", new CartSummaryDto(0, 0, null, null, null));
         _senderMock.Setup(x => x.Send(It.IsAny<RemoveCartItemCommand>(), It.IsAny<CancellationToken>()))
             .ReturnsAsync(dto);
 
@@ -186,7 +186,7 @@ public class CartControllerTests
     [Fact]
     public async Task RemoveItem_PassesVendorIdToCommand_WhenProvided()
     {
-        var dto = new CartItemRemovalResponseDto("تم حذف المنتج من السلة", "cart item removed successfully", new CartSummaryDto(1, 1, 35m, 5m, 30m));
+        var dto = new CartItemRemovalResponseDto("حذفنا المنتج من السلة", "cart item removed successfully", new CartSummaryDto(1, 1, 35m, 5m, 30m));
         RemoveCartItemCommand? sentCommand = null;
 
         _senderMock.Setup(x => x.Send(It.IsAny<RemoveCartItemCommand>(), It.IsAny<CancellationToken>()))
@@ -203,7 +203,7 @@ public class CartControllerTests
     [Fact]
     public async Task RemoveItem_UsesCamelCaseVendorIdQueryAlias_WhenProvided()
     {
-        var dto = new CartItemRemovalResponseDto("تم حذف المنتج من السلة", "cart item removed successfully", new CartSummaryDto(1, 1, 35m, 5m, 30m));
+        var dto = new CartItemRemovalResponseDto("حذفنا المنتج من السلة", "cart item removed successfully", new CartSummaryDto(1, 1, 35m, 5m, 30m));
         RemoveCartItemCommand? sentCommand = null;
 
         _senderMock.Setup(x => x.Send(It.IsAny<RemoveCartItemCommand>(), It.IsAny<CancellationToken>()))

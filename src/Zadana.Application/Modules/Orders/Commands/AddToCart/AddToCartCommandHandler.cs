@@ -13,7 +13,6 @@ public class AddToCartCommandHandler : IRequestHandler<AddToCartCommand, Guid>
 {
     private readonly IApplicationDbContext _context;
     private readonly IOrderRepository _orderRepository;
-    private readonly IStringLocalizer<SharedResource> _localizer;
     private readonly IUnitOfWork _unitOfWork;
 
     public AddToCartCommandHandler(
@@ -24,7 +23,7 @@ public class AddToCartCommandHandler : IRequestHandler<AddToCartCommand, Guid>
     {
         _context = context;
         _orderRepository = orderRepository;
-        _localizer = localizer;
+        _ = localizer;
         _unitOfWork = unitOfWork;
     }
 
@@ -45,7 +44,7 @@ public class AddToCartCommandHandler : IRequestHandler<AddToCartCommand, Guid>
 
         if (!hasVisibleOffer)
         {
-            throw new BusinessRuleException("VENDOR_OFFLINE", _localizer["Selected product is temporarily unavailable."]);
+            throw new BusinessRuleException("VENDOR_OFFLINE", "VENDOR_OFFLINE");
         }
 
         var cart = await _orderRepository.GetCartAsync(request.UserId, cancellationToken);

@@ -32,7 +32,7 @@ public class SubmitCategoryRequestCommandHandler : IRequestHandler<SubmitCategor
     public async Task<Guid> Handle(SubmitCategoryRequestCommand request, CancellationToken cancellationToken)
     {
         var vendorId = await _currentVendorService.TryGetVendorIdAsync(cancellationToken)
-            ?? throw new ForbiddenAccessException(_localizer["VENDOR_LOGIN_REQUIRED"]);
+            ?? throw new ForbiddenAccessException("VENDOR_LOGIN_REQUIRED");
 
         var targetLevelKey = await CatalogRequestWorkflowSupport.ValidateAndResolveCategoryTargetLevelAsync(
             _context,
@@ -61,7 +61,7 @@ public class SubmitCategoryRequestCommandHandler : IRequestHandler<SubmitCategor
                 AdminAlertPriorities.Normal,
                 "طلب تصنيف من تاجر",
                 "New vendor category request",
-                $"تم إرسال طلب تصنيف: {request.NameAr}.",
+                $"أرسلنا طلب تصنيف: {request.NameAr}.",
                 $"A new category request was submitted: {request.NameEn}.",
                 categoryRequest.Id,
                 $"/catalog/categories?requests=1&requestId={categoryRequest.Id}",

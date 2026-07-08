@@ -51,7 +51,7 @@ public class ReviewProductRequestCommandHandler : IRequestHandler<ReviewProductR
     {
         if (!_currentUserService.HasRole(UserRole.Admin, UserRole.SuperAdmin))
         {
-            throw new ForbiddenAccessException(_localizer["UNAUTHORIZED_REVIEW_REQUESTS"]);
+            throw new ForbiddenAccessException("UNAUTHORIZED_REVIEW_REQUESTS");
         }
 
         var productRequest = await _context.ProductRequests
@@ -113,9 +113,9 @@ public class ReviewProductRequestCommandHandler : IRequestHandler<ReviewProductR
 
                     await _notificationService.SendToUserAsync(
                         productRequest.Vendor.UserId,
-                        "تمت الموافقة على طلب الكتالوج",
+                        "اعتمدنا طلب الكتالوج",
                         "Catalog Request Approved",
-                        $"تمت الموافقة على طلب الفئة '{categoryRequest.NameAr}' تلقائياً كجزء من طلب المنتج.",
+                        $"اعتمدنا طلب التصنيف '{categoryRequest.NameAr}' تلقائيًا كجزء من طلب المنتج.",
                         $"Your category request '{categoryRequest.NameEn}' has been approved automatically as part of your product request.",
                         "catalog_request_category",
                         cancellationToken: cancellationToken);
@@ -186,9 +186,9 @@ public class ReviewProductRequestCommandHandler : IRequestHandler<ReviewProductR
 
                     await _notificationService.SendToUserAsync(
                         productRequest.Vendor.UserId,
-                        "تمت الموافقة على طلب الكتالوج",
+                        "اعتمدنا طلب الكتالوج",
                         "Catalog Request Approved",
-                        $"تمت الموافقة على طلب العلامة التجارية '{brandRequest.NameAr}' تلقائياً كجزء من طلب المنتج.",
+                        $"اعتمدنا طلب العلامة التجارية '{brandRequest.NameAr}' تلقائيًا كجزء من طلب المنتج.",
                         $"Your brand request '{brandRequest.NameEn}' has been approved automatically as part of your product request.",
                         "catalog_request_brand",
                         cancellationToken: cancellationToken);
@@ -274,9 +274,9 @@ public class ReviewProductRequestCommandHandler : IRequestHandler<ReviewProductR
 
             await _notificationService.SendToUserAsync(
                 productRequest.Vendor.UserId,
-                "تمت الموافقة على طلب الكتالوج",
+                "اعتمدنا طلب الكتالوج",
                 "Catalog Request Approved",
-                $"تمت الموافقة على طلب المنتج '{productRequest.SuggestedNameAr}'.",
+                $"اعتمدنا طلب المنتج '{productRequest.SuggestedNameAr}'.",
                 $"Your product request '{productRequest.SuggestedNameEn}' has been approved.",
                 "catalog_request_product",
                 cancellationToken: cancellationToken);
@@ -295,9 +295,9 @@ public class ReviewProductRequestCommandHandler : IRequestHandler<ReviewProductR
 
         await _notificationService.SendToUserAsync(
             productRequest.Vendor.UserId,
-            "تم رفض طلب الكتالوج",
+            "رفضنا طلب الكتالوج",
             "Catalog Request Rejected",
-            $"تم رفض طلب المنتج '{productRequest.SuggestedNameAr}'. السبب: {request.RejectionReason}",
+            $"رفضنا طلب المنتج '{productRequest.SuggestedNameAr}'. السبب: {request.RejectionReason}",
             $"Your product request '{productRequest.SuggestedNameEn}' was rejected. Reason: {request.RejectionReason}",
             "catalog_request_product",
             cancellationToken: cancellationToken);

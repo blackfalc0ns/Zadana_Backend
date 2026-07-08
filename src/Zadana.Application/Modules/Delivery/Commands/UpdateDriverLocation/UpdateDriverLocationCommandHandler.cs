@@ -36,7 +36,7 @@ public class UpdateDriverLocationCommandHandler : IRequestHandler<UpdateDriverLo
         {
             throw new BusinessRuleException(
                 "DRIVER_LOCATION_UPDATES_BLOCKED",
-                "تم إيقاف تحديثات الموقع لهذا السائق من الإدارة | Location updates are currently blocked for this driver.");
+                "أوقفنا تحديثات الموقع لهذا المندوب من الإدارة | Location updates are currently blocked for this driver.");
         }
 
         var location = new DriverLocation(driver.Id, request.Latitude, request.Longitude, request.AccuracyMeters);

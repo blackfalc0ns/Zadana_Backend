@@ -145,7 +145,7 @@ public class AdminVendorsController : ApiControllerBase
         var titleAr = string.IsNullOrWhiteSpace(request.TitleAr) ? "إشعار تجريبي للتاجر" : request.TitleAr.Trim();
         var titleEn = string.IsNullOrWhiteSpace(request.TitleEn) ? "Vendor test notification" : request.TitleEn.Trim();
         var bodyAr = string.IsNullOrWhiteSpace(request.BodyAr)
-            ? "هذا إشعار تجريبي من واجهة الأدمن للتأكد من وصول الإشعارات إلى التاجر."
+            ? "هذا إشعار تجريبي من واجهة المشرف للتأكد من وصول الإشعارات إلى التاجر."
             : request.BodyAr.Trim();
         var bodyEn = string.IsNullOrWhiteSpace(request.BodyEn)
             ? "This is a test notification sent from the admin API to verify vendor delivery."
@@ -317,7 +317,7 @@ public class AdminVendorsController : ApiControllerBase
     public async Task<IActionResult> RetryVendorPayout(Guid vendorId, Guid payoutId)
     {
         await Sender.Send(new RetryVendorPayoutCommand(vendorId, payoutId));
-        return Ok(new { Message = "Vendor payout moved back to processing." });
+        return Ok(new { Message = _localizer["VENDOR_PAYOUT_RETRY_SUCCESS"].Value });
     }
 
     [HttpPost("{vendorId:guid}/payouts/{payoutId:guid}/complete")]
@@ -327,25 +327,25 @@ public class AdminVendorsController : ApiControllerBase
         [FromBody] AdminCompleteVendorPayoutRequest? request)
     {
         await Sender.Send(new CompleteVendorPayoutCommand(vendorId, payoutId, request?.TransferReference));
-        return Ok(new { Message = "Vendor payout completed successfully." });
+        return Ok(new { Message = _localizer["VENDOR_PAYOUT_COMPLETED_SUCCESS"].Value });
     }
 
     [HttpPost("{vendorId:guid}/payouts/{payoutId:guid}/suspend")]
     public async Task<IActionResult> SuspendVendorPayout(Guid vendorId, Guid payoutId)
     {
         await Sender.Send(new SuspendVendorPayoutCommand(vendorId, payoutId));
-        return Ok(new { Message = "Vendor payout suspended successfully." });
+        return Ok(new { Message = _localizer["VENDOR_PAYOUT_SUSPENDED_SUCCESS"].Value });
     }
 
     [HttpPost("{vendorId:guid}/payouts/{payoutId:guid}/escalate")]
     public async Task<IActionResult> EscalateVendorPayout(Guid vendorId, Guid payoutId)
     {
         await Sender.Send(new EscalateVendorPayoutCommand(vendorId, payoutId));
-        return Ok(new { Message = "Vendor payout escalated successfully." });
+        return Ok(new { Message = _localizer["VENDOR_PAYOUT_ESCALATED_SUCCESS"].Value });
     }
 
     /// <summary>
-    /// الموافقة على تاجر وتحديد نسبة العمولة
+    /// اعتماد تاجر وتحديد نسبة العمولة
     /// </summary>
     [HttpPost("{vendorId:guid}/approve")]
     public async Task<IActionResult> ApproveVendor(Guid vendorId, [FromBody] ApproveVendorRequest request)
@@ -378,35 +378,35 @@ public class AdminVendorsController : ApiControllerBase
     public async Task<IActionResult> ReactivateVendor(Guid vendorId)
     {
         await Sender.Send(new ReactivateVendorCommand(vendorId));
-        return Ok(new { Message = "Vendor reactivated successfully." });
+        return Ok(new { Message = _localizer["VENDOR_REACTIVATED_SUCCESS"].Value });
     }
 
     [HttpPost("{vendorId:guid}/lock-login")]
     public async Task<IActionResult> LockLogin(Guid vendorId, [FromBody] LockVendorLoginRequest request)
     {
         await Sender.Send(new LockVendorLoginCommand(vendorId, request.Reason));
-        return Ok(new { Message = "Vendor login locked successfully." });
+        return Ok(new { Message = _localizer["VENDOR_LOGIN_LOCKED_SUCCESS"].Value });
     }
 
     [HttpPost("{vendorId:guid}/unlock-login")]
     public async Task<IActionResult> UnlockLogin(Guid vendorId)
     {
         await Sender.Send(new UnlockVendorLoginCommand(vendorId));
-        return Ok(new { Message = "Vendor login unlocked successfully." });
+        return Ok(new { Message = _localizer["VENDOR_LOGIN_UNLOCKED_SUCCESS"].Value });
     }
 
     [HttpPost("{vendorId:guid}/archive")]
     public async Task<IActionResult> ArchiveVendor(Guid vendorId, [FromBody] ArchiveVendorRequest request)
     {
         await Sender.Send(new ArchiveVendorCommand(vendorId, request.Reason));
-        return Ok(new { Message = "Vendor archived successfully." });
+        return Ok(new { Message = _localizer["VENDOR_ARCHIVED_SUCCESS"].Value });
     }
 
     [HttpPost("{vendorId:guid}/reset-password")]
     public async Task<IActionResult> ResetVendorPassword(Guid vendorId, [FromBody] AdminResetVendorPasswordRequest request)
     {
         await Sender.Send(new AdminResetVendorPasswordCommand(vendorId, request.NewPassword));
-        return Ok(new { Message = "Vendor password reset successfully." });
+        return Ok(new { Message = _localizer["VENDOR_PASSWORD_RESET_SUCCESS"].Value });
     }
 
     [HttpPut("{vendorId:guid}/store")]
@@ -544,7 +544,7 @@ public class AdminVendorsController : ApiControllerBase
         vendor.UpdateCommissionRate(request.CommissionRate);
         await _context.SaveChangesAsync(default);
 
-        return Ok(new { Message = "Commission rate updated.", vendor.CommissionRate });
+        return Ok(new { Message = _localizer["COMMISSION_RATE_UPDATED"].Value, vendor.CommissionRate });
     }
 }
 

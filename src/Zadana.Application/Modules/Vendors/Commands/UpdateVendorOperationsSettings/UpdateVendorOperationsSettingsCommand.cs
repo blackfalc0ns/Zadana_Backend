@@ -65,7 +65,7 @@ public class UpdateVendorOperationsSettingsCommandHandler : IRequestHandler<Upda
             vendor.UserId,
             "profile-operations-updated",
             "info",
-            "تم تحديث إعدادات التشغيل من بوابة التاجر.",
+            "حدّثنا إعدادات التشغيل من بوابة التاجر.",
             "بوابة التاجر",
             vendor.BusinessNameAr,
             userId,

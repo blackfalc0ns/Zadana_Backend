@@ -247,7 +247,7 @@ public class DeliveryDispatchWorker : BackgroundService
                     waitingMinutes >= 10 ? AdminAlertPriorities.Critical : AdminAlertPriorities.High,
                     $"طلب بدون مندوب منذ {waitingMinutes} دقيقة",
                     $"Order without driver for {waitingMinutes} minutes",
-                    $"الطلب #{orderNumber} ينتظر مندوب توصيل منذ {waitingMinutes} دقيقة. يرجى التدخل يدوياً أو التأكد من توفر مندوبين.",
+                    $"الطلب #{orderNumber} ينتظر مندوب توصيل منذ {waitingMinutes} دقيقة. فضلاً التدخل يدويًا أو التأكد من توفر مندوبين.",
                     $"Order #{orderNumber} has been waiting for a delivery driver for {waitingMinutes} minutes. Please intervene manually or ensure drivers are available.",
                     orderId,
                     $"/orders/{orderId}",
