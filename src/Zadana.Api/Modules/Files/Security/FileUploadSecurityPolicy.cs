@@ -32,6 +32,9 @@ public static class FileUploadSecurityPolicy
             [NormalizeDirectory("uploads/users/profile")] =
                 CreateAuthenticated("uploads/users/profile"),
 
+            [NormalizeDirectory("uploads/orders/disputes/evidence")] =
+                CreateAuthenticatedRoles("uploads/orders/disputes/evidence", UserRole.Admin, UserRole.SuperAdmin),
+
             // Driver registration happens before the driver has an account.
             // Keep these anonymous so the mobile app can upload the selected
             // files and submit their returned URLs with the register request.

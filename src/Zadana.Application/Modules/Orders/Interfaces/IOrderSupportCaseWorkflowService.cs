@@ -23,7 +23,11 @@ public interface IOrderSupportCaseWorkflowService
         string? queue,
         string? internalNote,
         string? customerVisibleNote,
-        CancellationToken cancellationToken = default);
+        CancellationToken cancellationToken = default,
+        IReadOnlyList<OrderSupportCaseAttachmentInput>? attachments = null,
+        bool notifyReviewer = false,
+        bool notifyStakeholders = true,
+        string initiatorRole = "customer");
 
     Task<OrderSupportCase> CreateDriverAccountAppealAsync(
         Guid driverId,
@@ -61,7 +65,9 @@ public interface IOrderSupportCaseWorkflowService
         bool notifyEscalatedTeam,
         bool notifyCurrentReviewer,
         DateTime? slaDueAtUtc,
-        CancellationToken cancellationToken = default);
+        CancellationToken cancellationToken = default,
+        IReadOnlyList<OrderSupportCaseAttachmentInput>? attachments = null,
+        bool notifyStakeholders = true);
 
     Task<OrderSupportCase> ApproveAsync(
         Guid caseId,

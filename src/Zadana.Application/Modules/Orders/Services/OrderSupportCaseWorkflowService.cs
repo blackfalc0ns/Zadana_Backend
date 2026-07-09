@@ -193,7 +193,11 @@ public sealed class OrderSupportCaseWorkflowService : IOrderSupportCaseWorkflowS
         string? queue,
         string? internalNote,
         string? customerVisibleNote,
-        CancellationToken cancellationToken = default)
+        CancellationToken cancellationToken = default,
+        IReadOnlyList<OrderSupportCaseAttachmentInput>? attachments = null,
+        bool notifyReviewer = false,
+        bool notifyStakeholders = true,
+        string initiatorRole = "customer")
     {
         var order = await _context.Orders
             .Include(x => x.User)
@@ -225,11 +229,33 @@ public sealed class OrderSupportCaseWorkflowService : IOrderSupportCaseWorkflowS
                 activeCase.AddAdminPublicMessage(adminUserId, customerVisibleNote, "customer,vendor");
             }
 
+            foreach (var attachment in attachments ?? [])
+            {
+                activeCase.AddAttachment(attachment.FileName, attachment.FileUrl, adminUserId);
+            }
+
             StagePendingCaseArtifacts(activeCase);
             await _unitOfWork.SaveChangesAsync(cancellationToken);
-            await NotifyCustomerIfExternalCaseAsync(order, activeCase, "admin_message", cancellationToken);
-            await NotifyVendorSupportCaseAsync(order, activeCase, "admin_message", cancellationToken);
-            await NotifyActiveDriverAsync(order, activeCase, "admin_message", cancellationToken);
+
+            if (notifyReviewer)
+            {
+                await NotifyAdminRecipientsAsync(
+                    order,
+                    activeCase,
+                    "admin_message",
+                    adminUserId,
+                    notifyEscalatedTeam: true,
+                    notifyCurrentReviewer: true,
+                    cancellationToken);
+            }
+
+            if (notifyStakeholders)
+            {
+                await NotifyCustomerIfExternalCaseAsync(order, activeCase, "admin_message", cancellationToken);
+                await NotifyVendorSupportCaseAsync(order, activeCase, "admin_message", cancellationToken);
+                await NotifyActiveDriverAsync(order, activeCase, "admin_message", cancellationToken);
+            }
+
             return activeCase;
         }
 
@@ -242,10 +268,16 @@ public sealed class OrderSupportCaseWorkflowService : IOrderSupportCaseWorkflowS
             reasonCode,
             message,
             ResolveSlaDueAt(supportCaseType, priority),
-            supportCaseType == OrderSupportCaseType.ReturnRequest ? order.TotalAmount : null);
+            supportCaseType == OrderSupportCaseType.ReturnRequest ? order.TotalAmount : null,
+            initiatorRole);
 
         _context.OrderSupportCases.Add(supportCase);
         supportCase.Assign(adminUserId, adminUserId, internalNote, ResolvePriority(supportCaseType, reasonCode, priority), ResolveSlaDueAt(supportCaseType, priority));
+
+        foreach (var attachment in attachments ?? [])
+        {
+            supportCase.AddAttachment(attachment.FileName, attachment.FileUrl, adminUserId);
+        }
 
         if (!string.IsNullOrWhiteSpace(customerVisibleNote))
         {
@@ -253,9 +285,26 @@ public sealed class OrderSupportCaseWorkflowService : IOrderSupportCaseWorkflowS
         }
 
         await _unitOfWork.SaveChangesAsync(cancellationToken);
-        await NotifyCustomerIfExternalCaseAsync(order, supportCase, "created", cancellationToken);
-        await NotifyVendorSupportCaseAsync(order, supportCase, "created", cancellationToken);
-        await NotifyActiveDriverAsync(order, supportCase, "created", cancellationToken);
+
+        if (notifyReviewer)
+        {
+            await NotifyAdminRecipientsAsync(
+                order,
+                supportCase,
+                "created",
+                adminUserId,
+                notifyEscalatedTeam: true,
+                notifyCurrentReviewer: true,
+                cancellationToken);
+        }
+
+        if (notifyStakeholders)
+        {
+            await NotifyCustomerIfExternalCaseAsync(order, supportCase, "created", cancellationToken);
+            await NotifyVendorSupportCaseAsync(order, supportCase, "created", cancellationToken);
+            await NotifyActiveDriverAsync(order, supportCase, "created", cancellationToken);
+        }
+
         return supportCase;
     }
 
@@ -405,7 +454,9 @@ public sealed class OrderSupportCaseWorkflowService : IOrderSupportCaseWorkflowS
         bool notifyEscalatedTeam,
         bool notifyCurrentReviewer,
         DateTime? slaDueAtUtc,
-        CancellationToken cancellationToken = default)
+        CancellationToken cancellationToken = default,
+        IReadOnlyList<OrderSupportCaseAttachmentInput>? attachments = null,
+        bool notifyStakeholders = true)
     {
         var supportCase = await LoadCaseForWriteAsync(caseId, cancellationToken);
         var resolvedQueue = ParseQueue(queue) ?? supportCase.Queue;
@@ -418,6 +469,11 @@ public sealed class OrderSupportCaseWorkflowService : IOrderSupportCaseWorkflowS
             note,
             customerVisibleNote,
             slaDueAtUtc);
+
+        foreach (var attachment in attachments ?? [])
+        {
+            supportCase.AddAttachment(attachment.FileName, attachment.FileUrl, actorUserId);
+        }
 
         StagePendingCaseArtifacts(supportCase);
         await _unitOfWork.SaveChangesAsync(cancellationToken);
@@ -437,7 +493,7 @@ public sealed class OrderSupportCaseWorkflowService : IOrderSupportCaseWorkflowS
                 cancellationToken);
         }
 
-        if (supportCase.Order is not null)
+        if (supportCase.Order is not null && notifyStakeholders)
         {
             await NotifyCustomerIfExternalCaseAsync(supportCase.Order, supportCase, "escalated", cancellationToken);
             await NotifyVendorSupportCaseAsync(supportCase.Order, supportCase, "escalated", cancellationToken);
@@ -445,9 +501,12 @@ public sealed class OrderSupportCaseWorkflowService : IOrderSupportCaseWorkflowS
 
         if (supportCase.Order is null)
         {
-            await NotifyDriverAccountDriverAsync(supportCase, "escalated", cancellationToken);
+            if (notifyStakeholders)
+            {
+                await NotifyDriverAccountDriverAsync(supportCase, "escalated", cancellationToken);
+            }
         }
-        else
+        else if (notifyStakeholders)
         {
             await NotifyActiveDriverAsync(supportCase.Order, supportCase, "escalated", cancellationToken);
         }

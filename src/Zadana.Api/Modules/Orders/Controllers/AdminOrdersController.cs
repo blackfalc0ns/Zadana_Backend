@@ -404,17 +404,54 @@ public class AdminOrdersController : ApiControllerBase
         CancellationToken cancellationToken = default)
     {
         await LoadOrderAsync(orderId, cancellationToken);
+        if (string.IsNullOrWhiteSpace(request.Description))
+        {
+            throw new BusinessRuleException(
+                "DISPUTE_DESCRIPTION_REQUIRED",
+                "Dispute description is required.");
+        }
+
+        var adminUserId = GetRequiredAdminUserId();
+        var priority = request.MarkHighRisk ? "critical" : request.Priority;
+        var queue = request.MarkHighRisk ? "risk" : ResolveAdminQueue(request.RouteTo);
+        var attachments = BuildSupportCaseAttachments(request.Attachments);
+        var internalNote = BuildDisputeInternalNote(request);
+        var activeSupportCase = await LoadActiveSupportCaseAsync(orderId, cancellationToken);
+
+        if (activeSupportCase is not null)
+        {
+            await _orderSupportCaseWorkflowService.EscalateAsync(
+                activeSupportCase.Id,
+                adminUserId,
+                queue,
+                priority,
+                BuildDisputeEscalationNote(request, internalNote),
+                request.NotifyStakeholders ? request.Description : null,
+                notifyEscalatedTeam: request.NotifyReviewer,
+                notifyCurrentReviewer: request.NotifyReviewer,
+                slaDueAtUtc: null,
+                cancellationToken: cancellationToken,
+                attachments: attachments,
+                notifyStakeholders: request.NotifyStakeholders);
+
+            return Ok(await RequireDetailAsync(orderId, cancellationToken));
+        }
+
         await _orderSupportCaseWorkflowService.CreateAdminCaseAsync(
             orderId,
-            GetRequiredAdminUserId(),
+            adminUserId,
             "complaint",
             request.DisputeType,
-            BuildSupportCaseMessage("Admin dispute opened.", request.Description, request.InternalNotes),
-            request.Priority,
-            ResolveAdminQueue(request.RouteTo),
-            request.InternalNotes,
+            BuildSupportCaseMessage("Admin dispute opened.", request.Description),
+            priority,
+            queue,
+            internalNote,
             null,
-            cancellationToken);
+            cancellationToken,
+            attachments,
+            request.NotifyReviewer,
+            request.NotifyStakeholders,
+            initiatorRole: request.NotifyStakeholders ? "customer" : "admin");
 
         return Ok(await RequireDetailAsync(orderId, cancellationToken));
     }
@@ -630,12 +667,50 @@ public class AdminOrdersController : ApiControllerBase
         return string.Join(" ", parts);
     }
 
+    private static IReadOnlyList<OrderSupportCaseAttachmentInput> BuildSupportCaseAttachments(
+        IReadOnlyList<AdminDisputeAttachmentRequest>? attachments)
+    {
+        return attachments?
+            .Where(item => !string.IsNullOrWhiteSpace(item.FileName) && !string.IsNullOrWhiteSpace(item.FileUrl))
+            .Select(item => new OrderSupportCaseAttachmentInput(item.FileName!.Trim(), item.FileUrl!.Trim()))
+            .ToList()
+            ?? [];
+    }
+
+    private static string? BuildDisputeInternalNote(AdminDisputeOrderRequest request)
+    {
+        if (!request.AddToLog && !request.MarkHighRisk)
+        {
+            return null;
+        }
+
+        return BuildSupportCaseMessage(
+            request.MarkHighRisk ? "High-risk dispute marker requested." : "Admin dispute log entry.",
+            string.IsNullOrWhiteSpace(request.DisputeType) ? null : $"Dispute type: {request.DisputeType}.",
+            string.IsNullOrWhiteSpace(request.RouteTo) ? null : $"Requested route: {request.RouteTo}.",
+            string.IsNullOrWhiteSpace(request.Priority) ? null : $"Requested priority: {request.Priority}.",
+            request.Description,
+            request.InternalNotes,
+            request.MarkHighRisk ? "Priority forced to critical and routed to risk queue." : null);
+    }
+
+    private static string BuildDisputeEscalationNote(AdminDisputeOrderRequest request, string? internalNote)
+    {
+        return internalNote ?? BuildSupportCaseMessage(
+            "Admin dispute escalated.",
+            string.IsNullOrWhiteSpace(request.DisputeType) ? null : $"Dispute type: {request.DisputeType}.",
+            request.Description);
+    }
+
     private static string? ResolveAdminQueue(string? routeTo)
     {
         return routeTo?.Trim().ToLowerInvariant() switch
         {
             "finance" => "finance",
             "operations" => "operations",
+            "risk" => "risk",
+            "legal" => "legal",
+            "support" => "support",
             _ => "support"
         };
     }
@@ -741,10 +816,15 @@ public record AdminDisputeOrderRequest(
     string? RouteTo,
     string? Description,
     string? InternalNotes,
+    IReadOnlyList<AdminDisputeAttachmentRequest>? Attachments,
     bool NotifyReviewer,
     bool AddToLog,
     bool MarkHighRisk,
     bool NotifyStakeholders);
+
+public record AdminDisputeAttachmentRequest(
+    string? FileName,
+    string? FileUrl);
 
 public record AdminIssueFlagRequest(
     string? IssueType,
