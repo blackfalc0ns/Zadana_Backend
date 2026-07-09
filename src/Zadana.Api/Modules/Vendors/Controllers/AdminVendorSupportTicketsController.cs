@@ -147,7 +147,7 @@ public class AdminVendorSupportTicketsController : ApiControllerBase
         }
 
         var adminUserId = GetRequiredAdminUserId();
-        var ticket = await RequireTrackedTicketAsync(ticketId, includeMessages: true, cancellationToken, includeOrder: true);
+        var ticket = await RequireTrackedTicketAsync(ticketId, includeMessages: true, cancellationToken: cancellationToken, includeOrder: true);
         ticket.AddAdminMessage(adminUserId, request.Message);
         await _dbContext.SaveChangesAsync(cancellationToken);
 
@@ -169,7 +169,7 @@ public class AdminVendorSupportTicketsController : ApiControllerBase
         }
 
         var adminUserId = GetRequiredAdminUserId();
-        var ticket = await RequireTrackedTicketAsync(ticketId, includeMessages: true, cancellationToken, includeOrder: true);
+        var ticket = await RequireTrackedTicketAsync(ticketId, includeMessages: true, cancellationToken: cancellationToken, includeOrder: true);
         var status = VendorSupportTicketContractMapper.ParseStatus(request.Status);
 
         if (!string.IsNullOrWhiteSpace(request.Message))
