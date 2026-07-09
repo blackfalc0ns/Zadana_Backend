@@ -63,7 +63,9 @@ public interface IOneSignalPushService
             targetApplication,
             cancellationToken);
 
-        return results[0];
+        return results.Count > 0
+            ? results[0]
+            : new OneSignalPushDispatchResult(false, false, true, null, null, "No push dispatch results were produced.");
     }
 
     Task<IReadOnlyList<OneSignalPushDispatchResult>> SendToExternalUsersAsync(

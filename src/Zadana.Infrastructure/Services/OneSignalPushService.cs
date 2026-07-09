@@ -190,7 +190,10 @@ public sealed class OneSignalPushService : IOneSignalPushService
             preferLiveProviderSubscriptions: request.TargetApplication == OneSignalApplicationTarget.Driver &&
                 request.Profile is OneSignalPushProfile.MobileHeadsUp or OneSignalPushProfile.MobileOrderUpdates);
 
-        return results.FirstOrDefault(result => result.Sent) ?? results[0];
+        return results.FirstOrDefault(result => result.Sent)
+            ?? (results.Count > 0
+                ? results[0]
+                : new OneSignalPushDispatchResult(false, false, true, null, null, "No push dispatch results were produced."));
     }
 
     public Task<OneSignalPushDispatchResult> SendToExternalUserAsync(
@@ -245,7 +248,9 @@ public sealed class OneSignalPushService : IOneSignalPushService
             requireRegisteredDevices: false,
             cancellationToken);
 
-        return results[0];
+        return results.Count > 0
+            ? results[0]
+            : new OneSignalPushDispatchResult(false, false, true, null, null, "No push dispatch results were produced.");
     }
 
     public Task<IReadOnlyList<OneSignalPushDispatchResult>> SendToExternalUsersAsync(

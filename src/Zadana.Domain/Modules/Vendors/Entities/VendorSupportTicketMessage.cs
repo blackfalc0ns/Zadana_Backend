@@ -17,12 +17,10 @@ public class VendorSupportTicketMessage : BaseEntity
     }
 
     public VendorSupportTicketMessage(
-        Guid vendorSupportTicketId,
         Guid? authorUserId,
         string authorRole,
         string body)
     {
-        VendorSupportTicketId = vendorSupportTicketId;
         AuthorUserId = authorUserId;
         AuthorRole = NormalizeRole(authorRole);
         Body = NormalizeBody(body);

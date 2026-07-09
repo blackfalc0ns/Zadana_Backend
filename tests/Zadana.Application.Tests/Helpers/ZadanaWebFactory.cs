@@ -241,20 +241,23 @@ public class ZadanaWebFactory : WebApplicationFactory<Program>
                 db.SaveChanges();
             }
 
-            if (!db.Users.Any(u => u.Email == "admin@test.com"))
-            {
-                var admin = new User(
-                    fullName: "Test Admin",
-                    email: "admin@test.com",
-                    phone: "01000000001",
-                    role: UserRole.SuperAdmin);
+        if (!db.Users.Any(u => u.Email == "admin@test.com"))
+        {
+            var admin = new User(
+                fullName: "Test Admin",
+                email: "admin@test.com",
+                phone: "01000000001",
+                role: UserRole.SuperAdmin);
 
-                var result = userManager.CreateAsync(admin, "Admin@123").GetAwaiter().GetResult();
-                if (!result.Succeeded)
-                {
-                    throw new InvalidOperationException($"Failed to create seeded admin user: {string.Join(", ", result.Errors.Select(error => error.Description))}");
-                }
+            var result = userManager.CreateAsync(admin, "Admin@123").GetAwaiter().GetResult();
+            if (!result.Succeeded)
+            {
+                throw new InvalidOperationException($"Failed to create seeded admin user: {string.Join(", ", result.Errors.Select(error => error.Description))}");
             }
+
+            admin.VerifyEmail();
+            userManager.UpdateAsync(admin).GetAwaiter().GetResult();
+        }
 
             if (!db.VendorBranches.Any(branch => branch.Region == "EASTERN" && branch.City == "DAMMAM"))
             {

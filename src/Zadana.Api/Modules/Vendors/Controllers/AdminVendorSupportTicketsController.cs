@@ -151,9 +151,10 @@ public class AdminVendorSupportTicketsController : ApiControllerBase
         ticket.AddAdminMessage(adminUserId, request.Message);
         await _dbContext.SaveChangesAsync(cancellationToken);
 
+        var response = await RequireTicketResponseAsync(ticketId, cancellationToken);
         await TryNotifyVendorAsync(ticket.Id, "admin_message", request.Message, cancellationToken);
 
-        return Ok(await RequireTicketResponseAsync(ticketId, cancellationToken));
+        return Ok(response);
     }
 
     [HttpPost("{ticketId:guid}/status")]
