@@ -1,3 +1,4 @@
+using System.Globalization;
 using Zadana.Domain.Modules.Vendors.Entities;
 using Zadana.Domain.Modules.Vendors.Enums;
 
@@ -46,18 +47,18 @@ public static class VendorProfileReviewCatalog
         new(Step2Region, 2, VendorProfileReviewTargetType.Field, true, vendor => vendor.Region),
         new(Step2City, 2, VendorProfileReviewTargetType.Field, true, vendor => vendor.City),
         new(Step2NationalAddress, 2, VendorProfileReviewTargetType.Field, true, vendor => vendor.NationalAddress),
-        new(Step2BranchLatitude, 2, VendorProfileReviewTargetType.Field, true, vendor => null),
-        new(Step2BranchLongitude, 2, VendorProfileReviewTargetType.Field, true, vendor => null),
+        new(Step2BranchLatitude, 2, VendorProfileReviewTargetType.Field, true, vendor => GetPrimaryBranch(vendor)?.Latitude.ToString(CultureInfo.InvariantCulture)),
+        new(Step2BranchLongitude, 2, VendorProfileReviewTargetType.Field, true, vendor => GetPrimaryBranch(vendor)?.Longitude.ToString(CultureInfo.InvariantCulture)),
         new(Step3IdNumber, 3, VendorProfileReviewTargetType.Field, true, vendor => vendor.IdNumber),
         new(Step3Nationality, 3, VendorProfileReviewTargetType.Field, true, vendor => vendor.Nationality),
         new(Step3CommercialRegistrationNumber, 3, VendorProfileReviewTargetType.Field, true, vendor => vendor.CommercialRegistrationNumber),
         new(Step3ExpiryDate, 3, VendorProfileReviewTargetType.Field, true, vendor => vendor.CommercialRegistrationExpiryDate?.ToString("O")),
         new(Step3TaxId, 3, VendorProfileReviewTargetType.Field, true, vendor => vendor.TaxId),
         new(Step3LicenseNumber, 3, VendorProfileReviewTargetType.Field, false, vendor => vendor.LicenseNumber),
-        new(Step4BankName, 4, VendorProfileReviewTargetType.Field, true, vendor => null),
+        new(Step4BankName, 4, VendorProfileReviewTargetType.Field, true, vendor => GetPrimaryBankAccount(vendor)?.BankName),
         new(Step4PaymentCycle, 4, VendorProfileReviewTargetType.Field, true, vendor => vendor.PayoutCycle),
-        new(Step4Iban, 4, VendorProfileReviewTargetType.Field, true, vendor => null),
-        new(Step4SwiftCode, 4, VendorProfileReviewTargetType.Field, true, vendor => null),
+        new(Step4Iban, 4, VendorProfileReviewTargetType.Field, true, vendor => GetPrimaryBankAccount(vendor)?.IBAN),
+        new(Step4SwiftCode, 4, VendorProfileReviewTargetType.Field, true, vendor => GetPrimaryBankAccount(vendor)?.SwiftCode),
         new(Step5Logo, 5, VendorProfileReviewTargetType.Document, true, vendor => vendor.LogoUrl),
         new(Step5Commercial, 5, VendorProfileReviewTargetType.Document, true, vendor => vendor.CommercialRegisterDocumentUrl),
         new(Step5Tax, 5, VendorProfileReviewTargetType.Document, true, vendor => vendor.TaxDocumentUrl),
@@ -137,6 +138,20 @@ public static class VendorProfileReviewCatalog
 
     public static string BuildProfileSectionTab(string section) =>
         string.IsNullOrWhiteSpace(section) ? "store-section" : $"{section.Trim().ToLowerInvariant()}-section";
+
+    private static VendorBranch? GetPrimaryBranch(Vendor vendor) =>
+        vendor.Branches
+            .OrderByDescending(branch => branch.IsPrimary)
+            .ThenByDescending(branch => branch.IsActive)
+            .ThenBy(branch => branch.CreatedAtUtc)
+            .FirstOrDefault();
+
+    private static VendorBankAccount? GetPrimaryBankAccount(Vendor vendor) =>
+        vendor.BankAccounts
+            .OrderByDescending(account => account.IsPrimary)
+            .ThenByDescending(account => account.VerifiedAtUtc)
+            .ThenBy(account => account.CreatedAtUtc)
+            .FirstOrDefault();
 
     public sealed record ReviewDefinition(
         string Code,
