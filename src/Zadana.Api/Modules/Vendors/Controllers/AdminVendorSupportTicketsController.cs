@@ -2,6 +2,7 @@ using System.Text.Json;
 using Microsoft.AspNetCore.Authorization;
 using Microsoft.AspNetCore.Mvc;
 using Microsoft.EntityFrameworkCore;
+using Microsoft.Extensions.Logging;
 using Zadana.Api.Controllers;
 using Zadana.Application.Common.Interfaces;
 using Zadana.Domain.Modules.Social.Enums;
@@ -20,17 +21,20 @@ public class AdminVendorSupportTicketsController : ApiControllerBase
     private readonly ICurrentUserService _currentUserService;
     private readonly INotificationService _notificationService;
     private readonly IOneSignalPushService _oneSignalPushService;
+    private readonly ILogger<AdminVendorSupportTicketsController> _logger;
 
     public AdminVendorSupportTicketsController(
         IApplicationDbContext dbContext,
         ICurrentUserService currentUserService,
         INotificationService notificationService,
-        IOneSignalPushService oneSignalPushService)
+        IOneSignalPushService oneSignalPushService,
+        ILogger<AdminVendorSupportTicketsController> logger)
     {
         _dbContext = dbContext;
         _currentUserService = currentUserService;
         _notificationService = notificationService;
         _oneSignalPushService = oneSignalPushService;
+        _logger = logger;
     }
 
     [HttpGet]
@@ -147,7 +151,7 @@ public class AdminVendorSupportTicketsController : ApiControllerBase
         ticket.AddAdminMessage(adminUserId, request.Message);
         await _dbContext.SaveChangesAsync(cancellationToken);
 
-        await NotifyVendorAsync(ticket.Id, "admin_message", request.Message, cancellationToken);
+        await TryNotifyVendorAsync(ticket.Id, "admin_message", request.Message, cancellationToken);
 
         return Ok(await RequireTicketResponseAsync(ticketId, cancellationToken));
     }
@@ -175,7 +179,7 @@ public class AdminVendorSupportTicketsController : ApiControllerBase
         ticket.SetStatus(status);
         await _dbContext.SaveChangesAsync(cancellationToken);
 
-        await NotifyVendorAsync(ticket.Id, "status_changed", request.Message, cancellationToken);
+        await TryNotifyVendorAsync(ticket.Id, "status_changed", request.Message, cancellationToken);
 
         return Ok(await RequireTicketResponseAsync(ticketId, cancellationToken));
     }
@@ -210,6 +214,26 @@ public class AdminVendorSupportTicketsController : ApiControllerBase
 
         return await query.FirstOrDefaultAsync(item => item.Id == ticketId, cancellationToken)
             ?? throw new NotFoundException("VendorSupportTicket", ticketId);
+    }
+
+    private async Task TryNotifyVendorAsync(
+        Guid ticketId,
+        string action,
+        string? message,
+        CancellationToken cancellationToken)
+    {
+        try
+        {
+            await NotifyVendorAsync(ticketId, action, message, cancellationToken);
+        }
+        catch (Exception ex)
+        {
+            _logger.LogWarning(
+                ex,
+                "Vendor support ticket {TicketId} was updated, but vendor notification dispatch failed for action {Action}.",
+                ticketId,
+                action);
+        }
     }
 
     private async Task NotifyVendorAsync(

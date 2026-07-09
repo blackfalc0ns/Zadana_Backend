@@ -130,8 +130,9 @@ public sealed class AccessAuthorizationConvention : IApplicationModelConvention
                 [PermissionKeys.Admin.VendorsView],
                 edit: [PermissionKeys.Admin.VendorsEdit]),
             ["AdminVendorSupportTickets"] = new(
-                [PermissionKeys.Admin.VendorsView],
-                edit: [PermissionKeys.Admin.VendorsEdit]),
+                [PermissionKeys.Admin.DisputesView, PermissionKeys.Admin.VendorsView],
+                create: [PermissionKeys.Admin.DisputesEdit, PermissionKeys.Admin.VendorsEdit],
+                edit: [PermissionKeys.Admin.DisputesEdit, PermissionKeys.Admin.VendorsEdit]),
             ["AdminVendorBankAccounts"] = new(
                 [PermissionKeys.Admin.VendorsView],
                 edit: [PermissionKeys.Admin.VendorsEdit],
