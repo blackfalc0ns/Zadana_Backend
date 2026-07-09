@@ -88,6 +88,7 @@ builder.Configuration.AddEnvironmentVariables();
 var jwtSecret = builder.Configuration.GetRequiredSetting("JwtSettings:Secret");
 var realtimeWebSocketsEnabled = builder.Configuration.GetValue("Realtime:WebSocketsEnabled", true);
 var realtimeServerSentEventsEnabled = builder.Configuration.GetValue("Realtime:ServerSentEventsEnabled", true);
+var realtimeAllowQueryStringAccessTokens = builder.Configuration.GetValue("Realtime:AllowQueryStringAccessTokens", false);
 var fileStorageProvider = builder.Configuration[$"{FileStorageSettings.SectionName}:Provider"]?.Trim();
 fileStorageProvider = string.IsNullOrWhiteSpace(fileStorageProvider) ? "ImageKit" : fileStorageProvider;
 var useLocalFileStorage = fileStorageProvider.Equals("Local", StringComparison.OrdinalIgnoreCase);
@@ -770,14 +771,17 @@ builder.Services.AddAuthentication(options =>
     {
         OnMessageReceived = context =>
         {
-            var accessToken = context.Request.Query["access_token"];
-            var path = context.HttpContext.Request.Path;
-            if (!string.IsNullOrWhiteSpace(accessToken) &&
-                (path.StartsWithSegments(CustomerPresenceHub.HubRoute) ||
-                 path.StartsWithSegments(NotificationHub.HubRoute) ||
-                 path.StartsWithSegments(OrderTrackingHub.HubRoute)))
+            if (realtimeAllowQueryStringAccessTokens)
             {
-                context.Token = accessToken;
+                var accessToken = context.Request.Query["access_token"];
+                var path = context.HttpContext.Request.Path;
+                if (!string.IsNullOrWhiteSpace(accessToken) &&
+                    (path.StartsWithSegments(CustomerPresenceHub.HubRoute) ||
+                     path.StartsWithSegments(NotificationHub.HubRoute) ||
+                     path.StartsWithSegments(OrderTrackingHub.HubRoute)))
+                {
+                    context.Token = accessToken;
+                }
             }
 
             return Task.CompletedTask;
