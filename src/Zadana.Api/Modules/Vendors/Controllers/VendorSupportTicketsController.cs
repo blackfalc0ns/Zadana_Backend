@@ -1,6 +1,7 @@
 using Microsoft.AspNetCore.Authorization;
 using Microsoft.AspNetCore.Mvc;
 using Microsoft.EntityFrameworkCore;
+using Microsoft.Extensions.Logging;
 using Zadana.Api.Controllers;
 using Zadana.Application.Common.Interfaces;
 using Zadana.Domain.Modules.Social.Enums;
@@ -18,17 +19,20 @@ public class VendorSupportTicketsController : ApiControllerBase
     private readonly ICurrentVendorService _currentVendorService;
     private readonly ICurrentUserService _currentUserService;
     private readonly IAdminAlertService _adminAlertService;
+    private readonly ILogger<VendorSupportTicketsController> _logger;
 
     public VendorSupportTicketsController(
         IApplicationDbContext dbContext,
         ICurrentVendorService currentVendorService,
         ICurrentUserService currentUserService,
-        IAdminAlertService adminAlertService)
+        IAdminAlertService adminAlertService,
+        ILogger<VendorSupportTicketsController> logger)
     {
         _dbContext = dbContext;
         _currentVendorService = currentVendorService;
         _currentUserService = currentUserService;
         _adminAlertService = adminAlertService;
+        _logger = logger;
     }
 
     [HttpGet]
@@ -145,9 +149,9 @@ public class VendorSupportTicketsController : ApiControllerBase
             request.OrderId);
 
         _dbContext.VendorSupportTickets.Add(ticket);
-        await _dbContext.SaveChangesAsync(cancellationToken);
+        await SaveTicketChangesAsync("create", ticket.Id, cancellationToken);
 
-        await NotifyAdminsAsync(ticket, "created", cancellationToken);
+        await TryNotifyAdminsAsync(ticket, "created", cancellationToken);
 
         var response = await RequireVendorTicketAsync(vendorId, ticket.Id, cancellationToken);
         return CreatedAtAction(nameof(GetTicket), new { ticketId = ticket.Id }, response);
@@ -174,9 +178,9 @@ public class VendorSupportTicketsController : ApiControllerBase
             ?? throw new NotFoundException("VendorSupportTicket", ticketId);
 
         ticket.AddVendorMessage(userId, message);
-        await _dbContext.SaveChangesAsync(cancellationToken);
+        await SaveTicketChangesAsync("message", ticket.Id, cancellationToken);
 
-        await NotifyAdminsAsync(ticket, "vendor_replied", cancellationToken);
+        await TryNotifyAdminsAsync(ticket, "vendor_replied", cancellationToken);
 
         return Ok(await RequireVendorTicketAsync(vendorId, ticket.Id, cancellationToken));
     }
@@ -194,6 +198,58 @@ public class VendorSupportTicketsController : ApiControllerBase
             ?? throw new NotFoundException("VendorSupportTicket", ticketId);
 
         return VendorSupportTicketContractMapper.Map(ticket);
+    }
+
+    /// <summary>
+    /// Persists pending changes and, on failure, surfaces the real database
+    /// error instead of an opaque 500 so provider-specific failures (which the
+    /// InMemory test database cannot reproduce) become diagnosable.
+    /// </summary>
+    private async Task SaveTicketChangesAsync(string operation, Guid ticketId, CancellationToken cancellationToken)
+    {
+        try
+        {
+            await _dbContext.SaveChangesAsync(cancellationToken);
+        }
+        catch (DbUpdateException ex)
+        {
+            var root = ex.GetBaseException();
+            _logger.LogError(
+                ex,
+                "Vendor support ticket {Operation} failed to persist for ticket {TicketId}. Root: {RootMessage}",
+                operation,
+                ticketId,
+                root.Message);
+
+            throw new ExternalServiceException(
+                "VENDOR_SUPPORT_TICKET_PERSIST_FAILED",
+                $"Failed to save {operation} for ticket {ticketId}: {root.Message}",
+                ex);
+        }
+    }
+
+    /// <summary>
+    /// Admin alerting must never break the vendor's core action. The ticket /
+    /// reply is already persisted before this runs, so any dispatch failure is
+    /// logged and swallowed instead of turning the request into a 500.
+    /// </summary>
+    private async Task TryNotifyAdminsAsync(
+        VendorSupportTicket ticket,
+        string action,
+        CancellationToken cancellationToken)
+    {
+        try
+        {
+            await NotifyAdminsAsync(ticket, action, cancellationToken);
+        }
+        catch (Exception ex)
+        {
+            _logger.LogWarning(
+                ex,
+                "Vendor support ticket {TicketId} was saved, but admin alert dispatch failed for action {Action}.",
+                ticket.Id,
+                action);
+        }
     }
 
     private async Task NotifyAdminsAsync(
