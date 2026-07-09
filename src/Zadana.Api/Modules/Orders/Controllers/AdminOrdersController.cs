@@ -463,17 +463,30 @@ public class AdminOrdersController : ApiControllerBase
         CancellationToken cancellationToken = default)
     {
         await LoadOrderAsync(orderId, cancellationToken);
+        if (string.IsNullOrWhiteSpace(request.RequiredAction))
+        {
+            throw new BusinessRuleException(
+                "ISSUE_REQUIRED_ACTION_REQUIRED",
+                "Required action is required.");
+        }
+
+        var priority = request.HighRiskAlert ? "critical" : request.Priority;
+        var queue = request.HighRiskAlert ? "risk" : ResolveIssueQueue(request.AssignedTeam);
+
         await _orderSupportCaseWorkflowService.CreateAdminCaseAsync(
             orderId,
             GetRequiredAdminUserId(),
             "complaint",
             request.IssueType,
-            BuildSupportCaseMessage("Operational issue flagged.", request.RequiredAction, request.FollowUpDate),
-            request.Priority,
-            ResolveIssueQueue(request.AssignedTeam),
-            request.RequiredAction,
+            BuildSupportCaseMessage("Operational issue flagged.", request.RequiredAction),
+            priority,
+            queue,
+            BuildIssueInternalNote(request),
             null,
-            cancellationToken);
+            cancellationToken,
+            notifyReviewer: request.NotifyAssignedTeam || request.ShowInOperationsCenter || request.HighRiskAlert,
+            notifyStakeholders: false,
+            initiatorRole: "admin");
 
         return Ok(await RequireDetailAsync(orderId, cancellationToken));
     }
@@ -702,6 +715,20 @@ public class AdminOrdersController : ApiControllerBase
             request.Description);
     }
 
+    private static string BuildIssueInternalNote(AdminIssueFlagRequest request)
+    {
+        return BuildSupportCaseMessage(
+            "Operational issue internal note.",
+            string.IsNullOrWhiteSpace(request.IssueType) ? null : $"Issue type: {request.IssueType}.",
+            string.IsNullOrWhiteSpace(request.AssignedTeam) ? null : $"Assigned team: {request.AssignedTeam}.",
+            string.IsNullOrWhiteSpace(request.Priority) ? null : $"Requested priority: {request.Priority}.",
+            string.IsNullOrWhiteSpace(request.FollowUpDate) ? null : $"Follow-up date: {request.FollowUpDate}.",
+            request.ShowInOperationsCenter ? "Operations center visibility requested." : "Internal note only; operations center visibility not requested.",
+            request.NotifyAssignedTeam ? "Assigned team notification requested." : "Assigned team notification skipped.",
+            request.HighRiskAlert ? "High-risk alert requested; priority forced to critical and routed to risk queue." : null,
+            request.RequiredAction);
+    }
+
     private static string? ResolveAdminQueue(string? routeTo)
     {
         return routeTo?.Trim().ToLowerInvariant() switch
@@ -721,6 +748,7 @@ public class AdminOrdersController : ApiControllerBase
         {
             "finance" => "finance",
             "operations" => "operations",
+            "compliance" => "risk",
             _ => "support"
         };
     }

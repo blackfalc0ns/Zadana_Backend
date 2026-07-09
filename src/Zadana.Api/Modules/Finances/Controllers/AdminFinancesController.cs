@@ -16,6 +16,7 @@ using Zadana.Application.Modules.Finances.Commands.UpdateDeliveryPricingDefaults
 using Zadana.Application.Modules.Finances.Commands.UpdateRegionDeliveryPricingSettings;
 using Zadana.Application.Modules.Finances.Commands.UpdateZoneFinanceSettings;
 using Zadana.Domain.Modules.Finances.Enums;
+using Zadana.Domain.Modules.Wallets.Enums;
 
 namespace Zadana.Api.Modules.Finances.Controllers;
 
@@ -191,6 +192,99 @@ public class AdminFinancesController(
         }
 
         return Ok(ToDto(entry));
+    }
+
+    [HttpGet("audit-log")]
+    [ProducesResponseType(typeof(AdminFinanceAuditLogListDto), StatusCodes.Status200OK)]
+    public async Task<ActionResult<AdminFinanceAuditLogListDto>> GetAuditLog(
+        [FromQuery] string? entityType = null,
+        [FromQuery] string? entityId = null,
+        [FromQuery] string? orderId = null,
+        [FromQuery] string? actionCategory = null,
+        [FromQuery] int page = 1,
+        [FromQuery] int pageSize = 100,
+        CancellationToken cancellationToken = default)
+    {
+        page = Math.Max(page, 1);
+        pageSize = Math.Clamp(pageSize, 1, 200);
+
+        var journalEntries = await context.JournalEntries
+            .AsNoTracking()
+            .Include(entry => entry.FinancialEvent)
+            .Include(entry => entry.Lines)
+            .OrderByDescending(entry => entry.PostedAtUtc)
+            .Take(pageSize)
+            .ToListAsync(cancellationToken);
+
+        var settlements = await context.Settlements
+            .AsNoTracking()
+            .OrderByDescending(settlement => settlement.ProcessedAtUtc ?? settlement.PeriodTo)
+            .Take(pageSize)
+            .ToListAsync(cancellationToken);
+
+        var codWallets = await context.Wallets
+            .AsNoTracking()
+            .Where(wallet =>
+                wallet.OwnerType == Zadana.Domain.Modules.Wallets.Enums.WalletOwnerType.Driver &&
+                wallet.CodOwedBalance != 0)
+            .OrderByDescending(wallet => wallet.CodOwedBalance)
+            .Take(pageSize)
+            .ToListAsync(cancellationToken);
+
+        var codDriverIds = codWallets.Select(wallet => wallet.OwnerId).ToList();
+        var codDrivers = codDriverIds.Count == 0
+            ? new Dictionary<Guid, string>()
+            : await context.Drivers
+                .AsNoTracking()
+                .Include(driver => driver.User)
+                .Where(driver => codDriverIds.Contains(driver.Id))
+                .ToDictionaryAsync(driver => driver.Id, driver => driver.User.FullName, cancellationToken);
+
+        var latestCodLines = codDriverIds.Count == 0
+            ? []
+            : await context.JournalLines
+                .AsNoTracking()
+                .Where(line =>
+                    line.AccountCode == FinancialAccountCode.DriverCodReceivable &&
+                    line.OwnerType == FinancialOwnerType.Driver &&
+                    line.OwnerId.HasValue &&
+                    codDriverIds.Contains(line.OwnerId.Value))
+                .OrderByDescending(line => line.CreatedAtUtc)
+                .Select(line => new
+                {
+                    line.OwnerId,
+                    line.OrderId,
+                    line.DebitAmount,
+                    line.CreditAmount,
+                    line.Memo,
+                    line.CreatedAtUtc
+                })
+                .ToListAsync(cancellationToken);
+
+        var latestCodLineByDriver = latestCodLines
+            .Where(line => line.OwnerId.HasValue)
+            .GroupBy(line => line.OwnerId!.Value)
+            .ToDictionary(group => group.Key, group => group.First());
+
+        var filteredEntries = journalEntries
+            .Select(ToAuditDto)
+            .Concat(settlements.Select(ToAuditDto))
+            .Concat(codWallets.Select(wallet =>
+            {
+                latestCodLineByDriver.TryGetValue(wallet.OwnerId, out var latestLine);
+                codDrivers.TryGetValue(wallet.OwnerId, out var driverName);
+                return ToCodAuditDto(wallet.OwnerId, driverName, wallet.CodOwedBalance, wallet.LastJournalSequence, latestLine?.OrderId, latestLine?.CreatedAtUtc, latestLine?.Memo);
+            }))
+            .Where(entry => MatchesAuditFilter(entry, entityType, entityId, orderId, actionCategory))
+            .OrderByDescending(entry => entry.TimestampUtc)
+            .ToList();
+
+        var entries = filteredEntries
+            .Skip((page - 1) * pageSize)
+            .Take(pageSize)
+            .ToList();
+
+        return Ok(new AdminFinanceAuditLogListDto(entries, filteredEntries.Count));
     }
 
     [HttpPost("cod-remittances")]
@@ -382,7 +476,188 @@ public class AdminFinancesController(
             lines);
     }
 
+    private static AdminFinanceAuditLogEntryDto ToAuditDto(Zadana.Domain.Modules.Finances.Entities.JournalEntry entry)
+    {
+        var line = entry.Lines
+            .OrderByDescending(item => item.OwnerType.HasValue && item.OwnerType.Value != FinancialOwnerType.Platform)
+            .ThenByDescending(item => item.DebitAmount + item.CreditAmount)
+            .FirstOrDefault();
+
+        var eventType = entry.FinancialEvent.EventType.ToString();
+        var accountCode = line?.AccountCode.ToString();
+
+        return new AdminFinanceAuditLogEntryDto(
+            $"audit-ledger-{entry.Id:N}",
+            entry.PostedAtUtc,
+            "finance-system",
+            "FINANCES.AUDIT.ADMINS.FINANCE_SYSTEM",
+            "FINANCES.AUDIT.ROLES.SYSTEM",
+            "FINANCES.AUDIT.ACTIONS.LEDGER_POSTED",
+            ToAuditCategory(entry.FinancialEvent.EventType, line?.AccountCode),
+            ToAuditEntityType(line?.OwnerType),
+            line?.OwnerId?.ToString(),
+            (line?.OrderId ?? entry.FinancialEvent.OrderId)?.ToString(),
+            BuildAuditEntityName(line?.OwnerType, line?.OwnerId),
+            null,
+            new Dictionary<string, object?>
+            {
+                ["sequenceNumber"] = entry.SequenceNumber,
+                ["status"] = entry.Status.ToString(),
+                ["eventType"] = eventType,
+                ["accountCode"] = accountCode,
+                ["debitAmount"] = line?.DebitAmount,
+                ["creditAmount"] = line?.CreditAmount,
+                ["currency"] = entry.CurrencyCode,
+                ["correlationId"] = entry.FinancialEvent.CorrelationId,
+                ["memo"] = line?.Memo ?? entry.Memo ?? entry.FinancialEvent.Description
+            },
+            null,
+            null);
+    }
+
+    private static AdminFinanceAuditLogEntryDto ToAuditDto(Zadana.Domain.Modules.Wallets.Entities.Settlement settlement)
+    {
+        return new AdminFinanceAuditLogEntryDto(
+            $"audit-settlement-{settlement.Id:N}",
+            settlement.ProcessedAtUtc ?? settlement.PeriodTo,
+            "finance-system",
+            "FINANCES.AUDIT.ADMINS.FINANCE_SYSTEM",
+            "FINANCES.AUDIT.ROLES.SYSTEM",
+            ToSettlementAuditAction(settlement.Status),
+            "settlement",
+            ToAuditEntityType(settlement.OwnerType),
+            settlement.OwnerId.ToString(),
+            null,
+            BuildAuditEntityName(settlement.OwnerType, settlement.OwnerId),
+            null,
+            new Dictionary<string, object?>
+            {
+                ["status"] = settlement.Status.ToString(),
+                ["resolutionType"] = settlement.ResolutionType.ToString(),
+                ["origin"] = settlement.Origin.ToString(),
+                ["periodFrom"] = settlement.PeriodFrom,
+                ["periodTo"] = settlement.PeriodTo,
+                ["grossAmount"] = settlement.GrossAmount,
+                ["commissionAmount"] = settlement.CommissionAmount,
+                ["refundAmount"] = settlement.RefundAmount,
+                ["adjustmentAmount"] = settlement.AdjustmentAmount,
+                ["recoveryAmount"] = settlement.RecoveryAmount,
+                ["netAmount"] = settlement.NetAmount
+            },
+            null,
+            null);
+    }
+
+    private static AdminFinanceAuditLogEntryDto ToCodAuditDto(
+        Guid driverId,
+        string? driverName,
+        decimal codOwedBalance,
+        long lastJournalSequence,
+        Guid? orderId,
+        DateTime? lastActivityUtc,
+        string? memo)
+    {
+        return new AdminFinanceAuditLogEntryDto(
+            $"audit-cod-{driverId:N}",
+            lastActivityUtc ?? DateTime.UtcNow,
+            "finance-system",
+            "FINANCES.AUDIT.ADMINS.FINANCE_SYSTEM",
+            "FINANCES.AUDIT.ROLES.SYSTEM",
+            codOwedBalance > 0 ? "FINANCES.AUDIT.ACTIONS.COD_OVERDUE" : "FINANCES.AUDIT.ACTIONS.COD_RECONCILED",
+            "override",
+            "driver",
+            driverId.ToString(),
+            orderId?.ToString(),
+            driverName ?? BuildAuditEntityName(FinancialOwnerType.Driver, driverId),
+            null,
+            new Dictionary<string, object?>
+            {
+                ["codOwedBalance"] = codOwedBalance,
+                ["lastJournalSequence"] = lastJournalSequence,
+                ["memo"] = memo
+            },
+            null,
+            null);
+    }
+
+    private static bool MatchesAuditFilter(
+        AdminFinanceAuditLogEntryDto entry,
+        string? entityType,
+        string? entityId,
+        string? orderId,
+        string? actionCategory)
+    {
+        if (!string.IsNullOrWhiteSpace(entityType) && !string.Equals(entry.EntityType, entityType, StringComparison.OrdinalIgnoreCase)) return false;
+        if (!string.IsNullOrWhiteSpace(entityId) && !string.Equals(entry.EntityId, entityId, StringComparison.OrdinalIgnoreCase)) return false;
+        if (!string.IsNullOrWhiteSpace(orderId) && !string.Equals(entry.OrderId, orderId, StringComparison.OrdinalIgnoreCase)) return false;
+        if (!string.IsNullOrWhiteSpace(actionCategory) && !string.Equals(entry.ActionCategory, actionCategory, StringComparison.OrdinalIgnoreCase)) return false;
+        return true;
+    }
+
+    private static string ToAuditCategory(FinancialEventType eventType, FinancialAccountCode? accountCode)
+    {
+        var name = eventType.ToString();
+        if (name.Contains("Refund", StringComparison.OrdinalIgnoreCase)) return "refund";
+        if (name.Contains("Payout", StringComparison.OrdinalIgnoreCase) || name.Contains("Settlement", StringComparison.OrdinalIgnoreCase)) return "settlement";
+        if (name.Contains("Adjustment", StringComparison.OrdinalIgnoreCase) || accountCode == FinancialAccountCode.ManualAdjustment) return "adjustment";
+        return "override";
+    }
+
+    private static string ToSettlementAuditAction(SettlementStatus status) =>
+        status switch
+        {
+            SettlementStatus.PaidOut or SettlementStatus.Settled => "FINANCES.AUDIT.ACTIONS.SETTLEMENT_PAID",
+            SettlementStatus.Approved or SettlementStatus.Processing => "FINANCES.AUDIT.ACTIONS.SETTLEMENT_APPROVED",
+            _ => "FINANCES.AUDIT.ACTIONS.SETTLEMENT_CREATED"
+        };
+
+    private static string ToAuditEntityType(FinancialOwnerType? ownerType) =>
+        ownerType switch
+        {
+            FinancialOwnerType.Vendor => "vendor",
+            FinancialOwnerType.Driver => "driver",
+            FinancialOwnerType.Customer => "customer",
+            _ => "platform"
+        };
+
+    private static string ToAuditEntityType(SettlementOwnerType ownerType) =>
+        ownerType switch
+        {
+            SettlementOwnerType.Vendor => "vendor",
+            SettlementOwnerType.Driver => "driver",
+            _ => "platform"
+        };
+
+    private static string BuildAuditEntityName(FinancialOwnerType? ownerType, Guid? ownerId) =>
+        ownerType.HasValue && ownerId.HasValue
+            ? $"{ownerType.Value} {ownerId.Value.ToString("N")[..8].ToUpperInvariant()}"
+            : "Platform";
+
+    private static string BuildAuditEntityName(SettlementOwnerType ownerType, Guid ownerId) =>
+        $"{ownerType} {ownerId.ToString("N")[..8].ToUpperInvariant()}";
+
 }
+
+public sealed record AdminFinanceAuditLogListDto(
+    IReadOnlyList<AdminFinanceAuditLogEntryDto> Items,
+    int TotalCount);
+
+public sealed record AdminFinanceAuditLogEntryDto(
+    string Id,
+    DateTime TimestampUtc,
+    string AdminId,
+    string AdminName,
+    string AdminRole,
+    string Action,
+    string ActionCategory,
+    string EntityType,
+    string? EntityId,
+    string? OrderId,
+    string? EntityName,
+    IReadOnlyDictionary<string, object?>? Before,
+    IReadOnlyDictionary<string, object?>? After,
+    string? IpAddress,
+    string? SessionId);
 
 public sealed record CreateCodRemittanceRequest(
     Guid DriverId,
