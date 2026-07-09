@@ -735,7 +735,8 @@ builder.Services.AddCors(options =>
                     "X-Moyasar-Signature",
                     "X-BankTransfer-Secret",
                     "X-Forwarded-For",
-                    "X-XSRF-TOKEN")
+                    "X-XSRF-TOKEN",
+                    RegistrationUploadTokenService.HeaderName)
                 .WithMethods("GET", "POST", "PUT", "PATCH", "DELETE", "OPTIONS")
                 .AllowCredentials();
             return;
