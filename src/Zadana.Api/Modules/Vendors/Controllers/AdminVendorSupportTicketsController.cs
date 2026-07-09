@@ -130,7 +130,7 @@ public class AdminVendorSupportTicketsController : ApiControllerBase
         var adminUserId = GetRequiredAdminUserId();
         var ticket = await RequireTrackedTicketAsync(ticketId, includeMessages: true, cancellationToken);
         ticket.Assign(adminUserId, request?.AssignedAdminId);
-        await _dbContext.SaveChangesAsync(cancellationToken);
+        await SaveTicketChangesAsync("assign", ticketId, cancellationToken);
 
         return Ok(await RequireTicketResponseAsync(ticketId, cancellationToken));
     }
@@ -147,11 +147,11 @@ public class AdminVendorSupportTicketsController : ApiControllerBase
         }
 
         var adminUserId = GetRequiredAdminUserId();
-        var ticket = await RequireTrackedTicketAsync(ticketId, includeMessages: true, cancellationToken: cancellationToken, includeOrder: true);
+        var ticket = await RequireTrackedTicketAsync(ticketId, includeMessages: true, cancellationToken);
         ticket.AddAdminMessage(adminUserId, request.Message);
-        await _dbContext.SaveChangesAsync(cancellationToken);
+        await SaveTicketChangesAsync("message", ticketId, cancellationToken);
 
-        var response = VendorSupportTicketContractMapper.Map(ticket, includeMessages: true);
+        var response = await RequireTicketResponseAsync(ticketId, cancellationToken);
         await TryNotifyVendorAsync(ticket.Id, "admin_message", request.Message, cancellationToken);
 
         return Ok(response);
@@ -169,7 +169,7 @@ public class AdminVendorSupportTicketsController : ApiControllerBase
         }
 
         var adminUserId = GetRequiredAdminUserId();
-        var ticket = await RequireTrackedTicketAsync(ticketId, includeMessages: true, cancellationToken: cancellationToken, includeOrder: true);
+        var ticket = await RequireTrackedTicketAsync(ticketId, includeMessages: true, cancellationToken);
         var status = VendorSupportTicketContractMapper.ParseStatus(request.Status);
 
         if (!string.IsNullOrWhiteSpace(request.Message))
@@ -178,15 +178,45 @@ public class AdminVendorSupportTicketsController : ApiControllerBase
         }
 
         ticket.SetStatus(status);
-        await _dbContext.SaveChangesAsync(cancellationToken);
+        await SaveTicketChangesAsync("status", ticketId, cancellationToken);
 
+        var response = await RequireTicketResponseAsync(ticketId, cancellationToken);
         await TryNotifyVendorAsync(ticket.Id, "status_changed", request.Message, cancellationToken);
 
-        return Ok(VendorSupportTicketContractMapper.Map(ticket, includeMessages: true));
+        return Ok(response);
     }
 
     private Guid GetRequiredAdminUserId() =>
         _currentUserService.UserId ?? throw new UnauthorizedException("USER_NOT_AUTHENTICATED");
+
+    /// <summary>
+    /// Persists pending changes and, on failure, surfaces the real database
+    /// error instead of an opaque 500. InMemory test databases don't enforce
+    /// constraints, so provider-specific failures only appear in production;
+    /// exposing the root message here makes them diagnosable for admins.
+    /// </summary>
+    private async Task SaveTicketChangesAsync(string operation, Guid ticketId, CancellationToken cancellationToken)
+    {
+        try
+        {
+            await _dbContext.SaveChangesAsync(cancellationToken);
+        }
+        catch (DbUpdateException ex)
+        {
+            var root = ex.GetBaseException();
+            _logger.LogError(
+                ex,
+                "Vendor support ticket {Operation} failed to persist for ticket {TicketId}. Root: {RootMessage}",
+                operation,
+                ticketId,
+                root.Message);
+
+            throw new ExternalServiceException(
+                "VENDOR_SUPPORT_TICKET_PERSIST_FAILED",
+                $"Failed to save {operation} for ticket {ticketId}: {root.Message}",
+                ex);
+        }
+    }
 
     private async Task<VendorSupportTicketResponse> RequireTicketResponseAsync(
         Guid ticketId,
