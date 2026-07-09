@@ -18,6 +18,8 @@ using Zadana.Application.Modules.Orders.Queries.GetCustomerOrders;
 using Zadana.Application.Modules.Orders.Queries.GetCustomerOrderTracking;
 using Zadana.Application.Modules.Orders.Support;
 using Zadana.Application.Modules.Payments.Commands.RetryCardPayment;
+using Zadana.Domain.Modules.Payments.Entities;
+using Zadana.Domain.Modules.Payments.Enums;
 using Zadana.SharedKernel.Exceptions;
 
 namespace Zadana.Api.Modules.Orders.Controllers;
@@ -287,6 +289,15 @@ public class OrdersController : ApiControllerBase
         CancellationToken cancellationToken = default)
     {
         var userId = _currentUserService.UserId ?? throw new UnauthorizedException("USER_NOT_AUTHENTICATED");
+        var customerOwnsOrder = await _dbContext.Orders
+            .AsNoTracking()
+            .AnyAsync(order => order.Id == orderId && order.UserId == userId, cancellationToken);
+
+        if (!customerOwnsOrder)
+        {
+            return Ok(CreateEmptyRefundStatus(orderId));
+        }
+
         var cases = await _orderReadService.GetCustomerOrderSupportCasesAsync(orderId, userId, cancellationToken);
         var activeCase = cases.FirstOrDefault(c =>
             c.Type == "return_request" &&
@@ -294,30 +305,13 @@ public class OrdersController : ApiControllerBase
 
         if (activeCase is null)
         {
-            return Ok(new CustomerRefundStatusResponse(
-                orderId, false, null, null, null, null, null, null, null, null, null, false, null, null, null, null,
-                null, null, null));
+            var latestRefund = await GetLatestRefundForOrderAsync(orderId, supportCaseId: null, cancellationToken);
+            return Ok(latestRefund is null
+                ? CreateEmptyRefundStatus(orderId)
+                : CreateRefundOnlyStatus(orderId, latestRefund));
         }
 
-        // Enrich with actual refund lifecycle data
-        string? refundLifecycleStatus = null;
-        string? refundProviderName = null;
-        string? refundFailureMessage = null;
-
-        var refund = await _dbContext.Refunds
-            .AsNoTracking()
-            .Where(r => r.OrderSupportCaseId == activeCase.Id)
-            .OrderByDescending(r => r.CreatedAtUtc)
-            .FirstOrDefaultAsync(cancellationToken);
-
-        if (refund is not null)
-        {
-            refundLifecycleStatus = refund.LifecycleStatus.ToString().ToLowerInvariant();
-            refundProviderName = refund.ProviderName;
-            refundFailureMessage = refund.LifecycleStatus == Domain.Modules.Payments.Enums.RefundStatus.Failed
-                ? refund.RawProviderResponse
-                : null;
-        }
+        var refund = await GetLatestRefundForOrderAsync(orderId, activeCase.Id, cancellationToken);
 
         return Ok(new CustomerRefundStatusResponse(
             orderId,
@@ -336,10 +330,112 @@ public class OrdersController : ApiControllerBase
             activeCase.CustomerVisibleNote,
             activeCase.CreatedAt,
             activeCase.UpdatedAt,
-            refundLifecycleStatus,
-            refundProviderName,
-            refundFailureMessage));
+            MapRefundLifecycleStatus(refund),
+            refund?.ProviderName,
+            GetRefundFailureMessage(refund)));
     }
+
+    private async Task<Refund?> GetLatestRefundForOrderAsync(
+        Guid orderId,
+        Guid? supportCaseId,
+        CancellationToken cancellationToken)
+    {
+        return await _dbContext.Refunds
+            .AsNoTracking()
+            .Where(refund =>
+                refund.Payment.OrderId == orderId &&
+                (!supportCaseId.HasValue ||
+                    refund.OrderSupportCaseId == supportCaseId.Value ||
+                    refund.OrderSupportCaseId == null))
+            .OrderByDescending(refund => refund.CreatedAtUtc)
+            .FirstOrDefaultAsync(cancellationToken);
+    }
+
+    private static CustomerRefundStatusResponse CreateEmptyRefundStatus(Guid orderId) =>
+        new(
+            orderId, false, null, null, null, null, null, null, null, null, null, false, null, null, null, null,
+            null, null, null);
+
+    private static CustomerRefundStatusResponse CreateRefundOnlyStatus(Guid orderId, Refund refund) =>
+        new(
+            orderId,
+            false,
+            null,
+            null,
+            ResolveRefundRequestedAmount(refund),
+            ResolveRefundApprovedAmount(refund),
+            ResolveRefundMethod(refund),
+            MapRefundCompensationType(refund.CompensationMethod),
+            MapRefundSettlementStatus(refund),
+            null,
+            null,
+            false,
+            MapCustomerRefundStatus(refund.LifecycleStatus),
+            refund.Reason,
+            refund.CreatedAtUtc,
+            refund.UpdatedAtUtc,
+            MapRefundLifecycleStatus(refund),
+            refund.ProviderName,
+            GetRefundFailureMessage(refund));
+
+    private static decimal? ResolveRefundRequestedAmount(Refund refund) =>
+        refund.RequestedAmount > 0m ? refund.RequestedAmount : refund.Amount;
+
+    private static decimal? ResolveRefundApprovedAmount(Refund refund) =>
+        refund.ApprovedAmount > 0m ? refund.ApprovedAmount : refund.Amount;
+
+    private static string ResolveRefundMethod(Refund refund) =>
+        string.IsNullOrWhiteSpace(refund.RefundMethod)
+            ? MapRefundMethod(refund.CompensationMethod)
+            : refund.RefundMethod;
+
+    private static string MapRefundMethod(RefundCompensationMethod compensationMethod) =>
+        compensationMethod switch
+        {
+            RefundCompensationMethod.Coupon => "coupon",
+            RefundCompensationMethod.Manual => "manual",
+            _ => "same_method"
+        };
+
+    private static string MapRefundCompensationType(RefundCompensationMethod compensationMethod) =>
+        compensationMethod switch
+        {
+            RefundCompensationMethod.Coupon => "coupon_compensation",
+            RefundCompensationMethod.Manual => "manual_refund",
+            _ => "cash_refund"
+        };
+
+    private static string MapRefundSettlementStatus(Refund refund) =>
+        refund.LifecycleStatus switch
+        {
+            RefundStatus.Requested => "pending_review",
+            RefundStatus.Processing => "processing",
+            RefundStatus.Succeeded => refund.CompensationMethod == RefundCompensationMethod.Coupon
+                ? "coupon_issued"
+                : "cash_refunded",
+            RefundStatus.Failed => "failed",
+            RefundStatus.Cancelled => "cancelled",
+            _ => "pending_review"
+        };
+
+    private static string MapCustomerRefundStatus(RefundStatus status) =>
+        status switch
+        {
+            RefundStatus.Requested => "pending",
+            RefundStatus.Processing => "processing",
+            RefundStatus.Succeeded => "approved",
+            RefundStatus.Failed => "failed",
+            RefundStatus.Cancelled => "cancelled",
+            _ => "pending"
+        };
+
+    private static string? MapRefundLifecycleStatus(Refund? refund) =>
+        refund?.LifecycleStatus.ToString().ToLowerInvariant();
+
+    private static string? GetRefundFailureMessage(Refund? refund) =>
+        refund?.LifecycleStatus == RefundStatus.Failed
+            ? refund.RawProviderResponse
+            : null;
 
     [HttpPost("{orderId:guid}/cases/{caseId:guid}/reply")]
     public async Task<ActionResult<CustomerReplyResponse>> ReplyToCase(

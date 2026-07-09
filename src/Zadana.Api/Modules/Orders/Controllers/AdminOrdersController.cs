@@ -280,6 +280,7 @@ public class AdminOrdersController : ApiControllerBase
         CancellationToken cancellationToken = default)
     {
         var order = await LoadOrderWithUserAsync(orderId, cancellationToken);
+        var adminUserId = GetRequiredAdminUserId();
         var oldStatus = order.Status;
 
         // Close any active delivery assignment
@@ -299,12 +300,17 @@ public class AdminOrdersController : ApiControllerBase
             assignment.Cancel(request.InternalNote ?? request.Details ?? "Order cancelled by admin");
         }
 
-        order.ChangeStatus(OrderStatus.Cancelled, GetRequiredAdminUserId(), request.InternalNote ?? request.Details ?? "Cancelled by admin.");
+        order.ChangeStatus(OrderStatus.Cancelled, adminUserId, request.InternalNote ?? request.Details ?? "Cancelled by admin.");
         _dbContext.OrderStatusHistories.Add(order.StatusHistory.Last());
 
         if (request.RefundType is "full" or "partial")
         {
-            await EnsureRefundAsync(order, request.RefundType == "full" ? order.TotalAmount : order.TotalAmount / 2m, request.Details, cancellationToken);
+            await EnsureRefundAsync(
+                order,
+                adminUserId,
+                request.RefundType == "full" ? order.TotalAmount : order.TotalAmount / 2m,
+                request.Details,
+                cancellationToken);
         }
 
         await _dbContext.SaveChangesAsync(cancellationToken);
@@ -753,8 +759,14 @@ public class AdminOrdersController : ApiControllerBase
         };
     }
 
-    private async Task EnsureRefundAsync(Order order, decimal amount, string? reason, CancellationToken cancellationToken)
+    private async Task EnsureRefundAsync(
+        Order order,
+        Guid adminUserId,
+        decimal amount,
+        string? reason,
+        CancellationToken cancellationToken)
     {
+        var refundAmount = Math.Min(amount, order.TotalAmount);
         var payment = await _dbContext.Payments
             .OrderByDescending(item => item.CreatedAtUtc)
             .FirstOrDefaultAsync(item => item.OrderId == order.Id, cancellationToken);
@@ -764,13 +776,63 @@ public class AdminOrdersController : ApiControllerBase
             payment = new Payment(order.Id, order.PaymentMethod, order.TotalAmount);
             payment.MarkAsPaid();
             _dbContext.Payments.Add(payment);
-            await _dbContext.SaveChangesAsync(cancellationToken);
         }
 
-        var refund = new Refund(payment.Id, Math.Min(amount, order.TotalAmount), reason, costBearer: "Platform");
+        var supportCase = await _dbContext.OrderSupportCases
+            .OrderByDescending(item => item.CreatedAtUtc)
+            .FirstOrDefaultAsync(
+                item => item.OrderId == order.Id &&
+                        item.Type == OrderSupportCaseType.ReturnRequest &&
+                        item.Status != OrderSupportCaseStatus.Rejected &&
+                        item.Status != OrderSupportCaseStatus.Resolved,
+                cancellationToken);
+
+        if (supportCase is null)
+        {
+            supportCase = new OrderSupportCase(
+                order.Id,
+                order.UserId,
+                OrderSupportCaseType.ReturnRequest,
+                OrderSupportCasePriority.High,
+                OrderSupportCaseQueue.Finance,
+                "admin_refund",
+                BuildSupportCaseMessage("Admin cancellation refund recorded.", reason),
+                DateTime.UtcNow.AddHours(8),
+                refundAmount,
+                "admin");
+
+            _dbContext.OrderSupportCases.Add(supportCase);
+        }
+
+        if (supportCase.Status != OrderSupportCaseStatus.Approved)
+        {
+            supportCase.Approve(
+                adminUserId,
+                refundAmount,
+                "same_method",
+                OrderSupportCaseCompensationType.CashRefund,
+                compensationCouponId: null,
+                "Platform",
+                reason,
+                reason);
+        }
+
+        var refund = await _dbContext.Refunds
+            .OrderByDescending(item => item.CreatedAtUtc)
+            .FirstOrDefaultAsync(item => item.OrderSupportCaseId == supportCase.Id, cancellationToken);
+
+        if (refund is null)
+        {
+            refund = new Refund(payment.Id, refundAmount, reason, "same_method", "Platform", supportCase.Id);
+            _dbContext.Refunds.Add(refund);
+        }
+        else
+        {
+            refund.UpdateDecision(refundAmount, reason, "same_method", "Platform", supportCase.Id);
+        }
+
         refund.Process();
-        _dbContext.Refunds.Add(refund);
-        order.UpdatePaymentStatus(PaymentStatus.Refunded);
+        order.UpdatePaymentStatus(refundAmount >= order.TotalAmount ? PaymentStatus.Refunded : PaymentStatus.PartiallyRefunded);
     }
 
     private static void EnsurePickupOtpForAdminAssignment(
