@@ -1,7 +1,9 @@
 using FluentAssertions;
 using MediatR;
+using Microsoft.AspNetCore.Hosting;
 using Microsoft.AspNetCore.Mvc;
 using Microsoft.Extensions.DependencyInjection;
+using Microsoft.Extensions.Hosting;
 using Microsoft.Extensions.Localization;
 using Moq;
 using Zadana.Api.Modules.Vendors.Controllers;
@@ -19,6 +21,7 @@ public class VendorsControllerTests
 {
     private readonly Mock<ISender> _senderMock = new();
     private readonly Mock<IStringLocalizer<SharedResource>> _localizerMock = new();
+    private readonly Mock<IWebHostEnvironment> _environmentMock = new();
     private readonly VendorsController _controller;
 
     public VendorsControllerTests()
@@ -26,7 +29,9 @@ public class VendorsControllerTests
         _localizerMock.Setup(x => x[It.IsAny<string>()])
             .Returns((string key) => new LocalizedString(key, key));
 
-        _controller = new VendorsController(_localizerMock.Object);
+        _environmentMock.SetupGet(x => x.EnvironmentName).Returns(Environments.Development);
+
+        _controller = new VendorsController(_localizerMock.Object, _environmentMock.Object);
 
         var services = new ServiceCollection();
         services.AddSingleton(_senderMock.Object);

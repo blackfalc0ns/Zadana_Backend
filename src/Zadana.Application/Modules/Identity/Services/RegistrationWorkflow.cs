@@ -1,7 +1,5 @@
 using Zadana.Application.Modules.Delivery.DTOs;
-using Microsoft.Extensions.DependencyInjection;
 using Microsoft.Extensions.Localization;
-using Microsoft.Extensions.Logging;
 using Zadana.Application.Common.Interfaces;
 using Zadana.Application.Common.Localization;
 using Zadana.Application.Modules.Identity.DTOs;
@@ -20,8 +18,6 @@ public class RegistrationWorkflow : IRegistrationWorkflow
     private readonly IJwtTokenService _jwtTokenService;
     private readonly IStringLocalizer<SharedResource> _localizer;
     private readonly IOtpService _otpService;
-    private readonly IServiceScopeFactory _serviceScopeFactory;
-    private readonly ILogger<RegistrationWorkflow> _logger;
 
     public RegistrationWorkflow(
         IIdentityAccountService identityAccountService,
@@ -29,9 +25,7 @@ public class RegistrationWorkflow : IRegistrationWorkflow
         IRefreshTokenStore refreshTokenStore,
         IJwtTokenService jwtTokenService,
         IStringLocalizer<SharedResource> localizer,
-        IOtpService otpService,
-        IServiceScopeFactory serviceScopeFactory,
-        ILogger<RegistrationWorkflow> logger)
+        IOtpService otpService)
     {
         _identityAccountService = identityAccountService;
         _accessControlService = accessControlService;
@@ -39,8 +33,6 @@ public class RegistrationWorkflow : IRegistrationWorkflow
         _jwtTokenService = jwtTokenService;
         _localizer = localizer;
         _otpService = otpService;
-        _serviceScopeFactory = serviceScopeFactory;
-        _logger = logger;
     }
 
     public async Task<IdentityAccountSnapshot> RegisterAccountAsync(
@@ -68,7 +60,7 @@ public class RegistrationWorkflow : IRegistrationWorkflow
         CancellationToken cancellationToken = default)
     {
         var otpResult = await GenerateRegistrationOtpInternalAsync(account, cancellationToken);
-        DispatchRegistrationOtpEmail(otpResult.Account!.Email!, otpResult.OtpCode!);
+        await DispatchRegistrationOtpEmailAsync(otpResult.Account!.Email!, otpResult.OtpCode!, cancellationToken);
         return otpResult.Account;
     }
 
@@ -77,29 +69,17 @@ public class RegistrationWorkflow : IRegistrationWorkflow
         CancellationToken cancellationToken = default) =>
         GenerateRegistrationOtpInternalAsync(account, cancellationToken);
 
-    public void DispatchRegistrationOtpEmail(string emailAddress, string otpCode)
+    public Task DispatchRegistrationOtpEmailAsync(
+        string emailAddress,
+        string otpCode,
+        CancellationToken cancellationToken = default)
     {
         if (string.IsNullOrWhiteSpace(emailAddress) || string.IsNullOrWhiteSpace(otpCode))
         {
-            return;
+            return Task.CompletedTask;
         }
 
-        _ = Task.Run(async () =>
-        {
-            try
-            {
-                await using var scope = _serviceScopeFactory.CreateAsyncScope();
-                var otpService = scope.ServiceProvider.GetRequiredService<IOtpService>();
-                await otpService.SendOtpEmailAsync(emailAddress.Trim(), otpCode, CancellationToken.None);
-            }
-            catch (Exception ex)
-            {
-                _logger.LogWarning(
-                    ex,
-                    "Background registration OTP email failed for {Email}. User can resend OTP.",
-                    emailAddress);
-            }
-        });
+        return _otpService.SendOtpEmailAsync(emailAddress.Trim(), otpCode, cancellationToken);
     }
 
     public async Task<AuthResponseDto> BuildAuthResponseAsync(

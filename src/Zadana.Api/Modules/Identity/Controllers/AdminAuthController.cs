@@ -90,7 +90,7 @@ public class AdminAuthController : IdentityAuthControllerBase
         return Ok(new { accessToken = pair.AccessToken });
     }
 
-    [Authorize(Policy = "AdminOnly")]
+    [AllowAnonymous]
     [HttpPost("logout")]
     [ValidateCsrfToken]
     public async Task<IActionResult> Logout()

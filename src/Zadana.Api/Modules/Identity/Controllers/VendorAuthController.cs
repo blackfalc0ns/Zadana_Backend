@@ -5,6 +5,11 @@ using Microsoft.Extensions.Localization;
 using Zadana.Api.Security;
 using Zadana.Api.Modules.Identity.Requests;
 using Zadana.Application.Common.Localization;
+using Zadana.Application.Modules.Identity.Commands.Login;
+using Zadana.Application.Modules.Identity.Commands.Logout;
+using Zadana.Application.Modules.Identity.Commands.RefreshToken;
+using Zadana.Application.Modules.Identity.Commands.VerifyOtp;
+using Zadana.Application.Modules.Identity.DTOs;
 using Zadana.Domain.Modules.Identity.Enums;
 
 namespace Zadana.Api.Modules.Identity.Controllers;
@@ -13,15 +18,34 @@ namespace Zadana.Api.Modules.Identity.Controllers;
 [Tags("Vendor App API")]
 public class VendorAuthController : IdentityAuthControllerBase
 {
-    public VendorAuthController(IStringLocalizer<SharedResource> localizer)
+    private static readonly TimeSpan RefreshTokenCookieLifetime = TimeSpan.FromDays(7);
+
+    private readonly IWebHostEnvironment _environment;
+
+    public VendorAuthController(
+        IStringLocalizer<SharedResource> localizer,
+        IWebHostEnvironment environment)
         : base(localizer)
     {
+        _environment = environment;
+    }
+
+    [AllowAnonymous]
+    [HttpGet("csrf")]
+    public IActionResult IssueCsrfToken()
+    {
+        return Ok(new { csrfToken = ApiCsrfToken.Issue(Response, _environment) });
     }
 
     [EnableRateLimiting(RateLimitPolicyNames.Auth)]
     [HttpPost("login")]
-    public Task<IActionResult> Login([FromBody] LoginRequest request) =>
-        LoginAsync(request, UserRole.Vendor, UserRole.VendorStaff);
+    [ValidateCsrfToken]
+    public async Task<IActionResult> Login([FromBody] LoginRequest request)
+    {
+        var result = await Sender.Send(new LoginCommand(request.Identifier, request.Password, new[] { UserRole.Vendor, UserRole.VendorStaff }));
+        WriteRefreshCookie(result.Tokens);
+        return Ok(StripRefreshToken(result));
+    }
 
     [EnableRateLimiting(RateLimitPolicyNames.Auth)]
     [BotChallenge]
@@ -31,8 +55,13 @@ public class VendorAuthController : IdentityAuthControllerBase
 
     [EnableRateLimiting(RateLimitPolicyNames.Auth)]
     [HttpPost("verify-otp")]
-    public Task<IActionResult> VerifyOtp([FromBody] VerifyOtpRequest request) =>
-        VerifyOtpAsync(request);
+    [ValidateCsrfToken]
+    public async Task<IActionResult> VerifyOtp([FromBody] VerifyOtpRequest request)
+    {
+        var result = await Sender.Send(new VerifyOtpCommand(request.Identifier, request.OtpCode));
+        WriteRefreshCookie(result.Tokens);
+        return Ok(StripRefreshToken(result));
+    }
 
     [EnableRateLimiting(RateLimitPolicyNames.Auth)]
     [HttpPost("resend-otp")]
@@ -56,13 +85,53 @@ public class VendorAuthController : IdentityAuthControllerBase
 
     [EnableRateLimiting(RateLimitPolicyNames.Auth)]
     [HttpPost("refresh-token")]
-    public Task<IActionResult> RefreshToken([FromBody] RefreshTokenRequest request) =>
-        RefreshTokenAsync(request);
+    [ValidateCsrfToken]
+    public async Task<IActionResult> RefreshToken([FromBody] RefreshTokenRequest? request)
+    {
+        var refreshToken = VendorRefreshCookie.ReadFromRequest(Request, _environment);
+        if (string.IsNullOrWhiteSpace(refreshToken))
+        {
+            refreshToken = request?.RefreshToken;
+        }
 
-    [Authorize(Policy = "VendorOnly")]
+        if (string.IsNullOrWhiteSpace(refreshToken))
+        {
+            return Unauthorized(new
+            {
+                code = "MISSING_REFRESH_TOKEN",
+                message = "Missing refresh token."
+            });
+        }
+
+        var pair = await Sender.Send(new RefreshTokenCommand(refreshToken));
+        VendorRefreshCookie.Write(
+            Response,
+            _environment,
+            pair.RefreshToken,
+            DateTimeOffset.UtcNow.Add(RefreshTokenCookieLifetime));
+
+        return Ok(new { accessToken = pair.AccessToken, tokens = new TokenPairDto(pair.AccessToken, string.Empty) });
+    }
+
+    [AllowAnonymous]
     [HttpPost("logout")]
-    public Task<IActionResult> Logout([FromBody] LogoutRequest request) =>
-        LogoutAsync(request);
+    [ValidateCsrfToken]
+    public async Task<IActionResult> Logout([FromBody] LogoutRequest? request)
+    {
+        var refreshToken = VendorRefreshCookie.ReadFromRequest(Request, _environment);
+        if (string.IsNullOrWhiteSpace(refreshToken))
+        {
+            refreshToken = request?.RefreshToken;
+        }
+
+        if (!string.IsNullOrWhiteSpace(refreshToken))
+        {
+            await Sender.Send(new LogoutCommand(refreshToken));
+        }
+
+        VendorRefreshCookie.Clear(Response, _environment);
+        return NoContent();
+    }
 
     [Authorize(Policy = "VendorOnly")]
     [HttpGet("me")]
@@ -83,4 +152,29 @@ public class VendorAuthController : IdentityAuthControllerBase
     [HttpDelete("me/profile-photo")]
     public Task<IActionResult> DeleteCurrentUserProfilePhoto() =>
         DeleteCurrentUserProfilePhotoAsync();
+
+    private void WriteRefreshCookie(TokenPairDto? tokens)
+    {
+        if (tokens is null || string.IsNullOrWhiteSpace(tokens.RefreshToken))
+        {
+            return;
+        }
+
+        VendorRefreshCookie.Write(
+            Response,
+            _environment,
+            tokens.RefreshToken,
+            DateTimeOffset.UtcNow.Add(RefreshTokenCookieLifetime));
+    }
+
+    private static AuthResponseDto StripRefreshToken(AuthResponseDto source)
+    {
+        if (source.Tokens is null)
+        {
+            return source;
+        }
+
+        var sanitisedPair = new TokenPairDto(source.Tokens.AccessToken, string.Empty);
+        return source with { Tokens = sanitisedPair };
+    }
 }

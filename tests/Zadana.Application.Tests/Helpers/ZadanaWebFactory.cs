@@ -9,6 +9,7 @@ using Zadana.Application.Common.Interfaces;
 using Zadana.Domain.Modules.Geography.Entities;
 using Zadana.Domain.Modules.Identity.Entities;
 using Zadana.Domain.Modules.Identity.Enums;
+using Zadana.Domain.Modules.Vendors.Entities;
 using Zadana.Infrastructure.Persistence;
 
 namespace Zadana.Application.Tests.Helpers;
@@ -215,6 +216,31 @@ public class ZadanaWebFactory : WebApplicationFactory<Program>
                 db.SaveChanges();
             }
 
+            if (!db.SaudiRegions.Any(r => r.Code == "EASTERN"))
+            {
+                var regionId = Guid.Parse("33333333-3333-3333-3333-333333333333");
+                db.SaudiRegions.Add(new SaudiRegion(
+                    regionId,
+                    "EASTERN",
+                    "Eastern",
+                    "Eastern",
+                    26.3927,
+                    49.9777,
+                    7,
+                    4));
+                db.SaudiCities.Add(new SaudiCity(
+                    Guid.Parse("44444444-4444-4444-4444-444444444444"),
+                    regionId,
+                    "DAMMAM",
+                    "Dammam",
+                    "Dammam",
+                    26.3927,
+                    49.9777,
+                    12,
+                    1));
+                db.SaveChanges();
+            }
+
             if (!db.Users.Any(u => u.Email == "admin@test.com"))
             {
                 var admin = new User(
@@ -228,6 +254,50 @@ public class ZadanaWebFactory : WebApplicationFactory<Program>
                 {
                     throw new InvalidOperationException($"Failed to create seeded admin user: {string.Join(", ", result.Errors.Select(error => error.Description))}");
                 }
+            }
+
+            if (!db.VendorBranches.Any(branch => branch.Region == "EASTERN" && branch.City == "DAMMAM"))
+            {
+                var vendorUser = new User(
+                    fullName: "Seed Active Vendor",
+                    email: "seed-active-vendor@test.com",
+                    phone: "01000000002",
+                    role: UserRole.Vendor);
+
+                var vendorResult = userManager.CreateAsync(vendorUser, "Vendor@123").GetAwaiter().GetResult();
+                if (!vendorResult.Succeeded)
+                {
+                    throw new InvalidOperationException($"Failed to create seeded vendor user: {string.Join(", ", vendorResult.Errors.Select(error => error.Description))}");
+                }
+
+                var vendor = new Vendor(
+                    vendorUser.Id,
+                    "Seed Active Vendor",
+                    "Seed Active Vendor",
+                    "Grocery",
+                    "CRSEED000001",
+                    "seed-active-vendor@test.com",
+                    "01000000002",
+                    region: "EASTERN",
+                    city: "DAMMAM");
+
+                vendor.Approve(10m, vendorUser.Id);
+                db.Vendors.Add(vendor);
+                db.VendorBranches.Add(new VendorBranch(
+                    vendor.Id,
+                    "Dammam Main",
+                    "DAMMAM_MAIN",
+                    true,
+                    "Dammam branch address",
+                    "EASTERN",
+                    "DAMMAM",
+                    26.3927m,
+                    49.9777m,
+                    "01000000002",
+                    "Manager",
+                    "01000000002",
+                    5m));
+                db.SaveChanges();
             }
 
             _seeded = true;

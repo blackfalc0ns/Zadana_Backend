@@ -6,6 +6,7 @@ using Zadana.Api.Controllers;
 using Zadana.Api.Security;
 using Zadana.Api.Modules.Vendors.Requests;
 using Zadana.Application.Common.Localization;
+using Zadana.Application.Modules.Identity.DTOs;
 using Zadana.Application.Modules.Vendors.Commands.UpdateVendorBanking;
 using Zadana.Application.Modules.Vendors.Commands.UpdateVendorContact;
 using Zadana.Application.Modules.Vendors.Commands.UpdateVendorHours;
@@ -25,15 +26,22 @@ namespace Zadana.Api.Modules.Vendors.Controllers;
 [Tags("Vendor App API")]
 public class VendorsController : ApiControllerBase
 {
-    private readonly IStringLocalizer<SharedResource> _localizer;
+    private static readonly TimeSpan VendorRefreshTokenCookieLifetime = TimeSpan.FromDays(7);
 
-    public VendorsController(IStringLocalizer<SharedResource> localizer)
+    private readonly IStringLocalizer<SharedResource> _localizer;
+    private readonly IWebHostEnvironment _environment;
+
+    public VendorsController(
+        IStringLocalizer<SharedResource> localizer,
+        IWebHostEnvironment environment)
     {
         _localizer = localizer;
+        _environment = environment;
     }
 
     [EnableRateLimiting(RateLimitPolicyNames.Auth)]
     [HttpPost("register")]
+    [ValidateCsrfToken]
     public async Task<IActionResult> RegisterVendor([FromBody] RegisterVendorRequest request)
     {
         var command = new RegisterVendorCommand(
@@ -77,7 +85,8 @@ public class VendorsController : ApiControllerBase
             request.BranchDeliveryRadiusKm);
 
         var result = await Sender.Send(command);
-        return Ok(result);
+        WriteVendorRefreshCookie(result.Tokens);
+        return Ok(StripRefreshToken(result));
     }
 
     [HttpGet("profile")]
@@ -86,6 +95,31 @@ public class VendorsController : ApiControllerBase
     {
         var result = await Sender.Send(new GetVendorProfileQuery());
         return Ok(result);
+    }
+
+    private void WriteVendorRefreshCookie(TokenPairDto? tokens)
+    {
+        if (tokens is null || string.IsNullOrWhiteSpace(tokens.RefreshToken))
+        {
+            return;
+        }
+
+        VendorRefreshCookie.Write(
+            Response,
+            _environment,
+            tokens.RefreshToken,
+            DateTimeOffset.UtcNow.Add(VendorRefreshTokenCookieLifetime));
+    }
+
+    private static AuthResponseDto StripRefreshToken(AuthResponseDto source)
+    {
+        if (source.Tokens is null)
+        {
+            return source;
+        }
+
+        var sanitisedPair = new TokenPairDto(source.Tokens.AccessToken, string.Empty);
+        return source with { Tokens = sanitisedPair };
     }
 
     [HttpPost("profile/submit-for-review")]

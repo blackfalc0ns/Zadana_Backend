@@ -430,29 +430,17 @@ public sealed class OneSignalPushService : IOneSignalPushService
                     category,
                     notificationSound);
 
-                try
-                {
-                    var payloadJson = System.Text.Json.JsonSerializer.Serialize(preparedPayload.Payload);
-                    _logger.LogWarning(
-                        "[PUSH-DIAG] OneSignal prepared payload. AppId: {AppId}. RestApiKeyLength: {RestApiKeyLength}. RestApiKeySuffix: {RestApiKeySuffix}. ExternalUserCount: {ExternalUserCount}. ExternalIdBatch: {ExternalIdBatch}. Profile: {Profile}. Type: {Type}. ReferenceId: {ReferenceId}. NotificationEventId: {NotificationEventId}. PreferredLocale: {PreferredLocale}. Channel: {Channel}. DataKeys: {DataKeys}. PayloadJson: {PayloadJson}",
-                        preparedPayload.AppId,
-                        preparedPayload.RestApiKey?.Length ?? 0,
-                        MaskSecretSuffix(preparedPayload.RestApiKey),
-                        preparedPayload.ExternalUserCount,
-                        preparedPayload.ExternalIdBatch,
-                        preparedPayload.Profile,
-                        preparedPayload.Type,
-                        preparedPayload.ReferenceId,
-                        preparedPayload.NotificationEventId,
-                        preparedPayload.PreferredLocale,
-                        preparedPayload.Channel,
-                        preparedPayload.DataKeys,
-                        payloadJson);
-                }
-                catch
-                {
-                    // Diagnostic logging should never break the push flow.
-                }
+                _logger.LogDebug(
+                    "[PUSH-DIAG] OneSignal payload prepared. AppId: {AppId}. ExternalUserCount: {ExternalUserCount}. Profile: {Profile}. Type: {Type}. ReferenceId: {ReferenceId}. NotificationEventId: {NotificationEventId}. PreferredLocale: {PreferredLocale}. Channel: {Channel}. DataKeys: {DataKeys}",
+                    preparedPayload.AppId,
+                    preparedPayload.ExternalUserCount,
+                    preparedPayload.Profile,
+                    preparedPayload.Type,
+                    preparedPayload.ReferenceId,
+                    preparedPayload.NotificationEventId,
+                    preparedPayload.PreferredLocale,
+                    preparedPayload.Channel,
+                    preparedPayload.DataKeys);
 
                 var result = await SendPayloadAsync(preparedPayload, cancellationToken);
                 if ((!result.Sent || HasProviderRecipientErrors(result.Reason)) &&
@@ -488,8 +476,7 @@ public sealed class OneSignalPushService : IOneSignalPushService
                     if (subscriptionPayload is not null)
                     {
                         _logger.LogWarning(
-                            "[PUSH-FALLBACK] Retrying OneSignal push using registered subscription ids for ExternalIdBatch: {ExternalIdBatch}. SubscriptionCount: {SubscriptionCount}. Type: {Type}. ReferenceId: {ReferenceId}",
-                            preparedPayload.ExternalIdBatch,
+                            "[PUSH-FALLBACK] Retrying OneSignal push using registered subscription ids. SubscriptionCount: {SubscriptionCount}. Type: {Type}. ReferenceId: {ReferenceId}",
                             subscriptionPayload.ExternalUserCount,
                             preparedPayload.Type,
                             preparedPayload.ReferenceId);
@@ -676,8 +663,7 @@ public sealed class OneSignalPushService : IOneSignalPushService
             if (HasProviderRecipientErrors(subscriptionResult.Reason))
             {
                 _logger.LogWarning(
-                    "[PUSH-FALLBACK] Subscription-first delivery reported recipient errors for ExternalIdBatch: {ExternalIdBatch}. Type: {Type}. ReferenceId: {ReferenceId}. Trying next subscription targeting strategy.",
-                    subscriptionPayload.ExternalIdBatch,
+                    "[PUSH-FALLBACK] Subscription-first delivery reported recipient errors. Type: {Type}. ReferenceId: {ReferenceId}. Trying next subscription targeting strategy.",
                     sanitized.Type,
                     referenceId);
 
@@ -713,9 +699,8 @@ public sealed class OneSignalPushService : IOneSignalPushService
             if (!response.IsSuccessStatusCode)
             {
                 _logger.LogWarning(
-                    "[PUSH-DIAG] OneSignal push provider response failed. ExternalUserCount: {ExternalUserCount}. ExternalIdBatch: {ExternalIdBatch}. Profile: {Profile}. Type: {Type}. ReferenceId: {ReferenceId}. NotificationEventId: {NotificationEventId}. PreferredLocale: {PreferredLocale}. Channel: {Channel}. DataKeys: {DataKeys}. StatusCode: {StatusCode}. ProviderNotificationId: {ProviderNotificationId}. ResponseBody: {ResponseBody}",
+                    "[PUSH-DIAG] OneSignal push provider response failed. ExternalUserCount: {ExternalUserCount}. Profile: {Profile}. Type: {Type}. ReferenceId: {ReferenceId}. NotificationEventId: {NotificationEventId}. PreferredLocale: {PreferredLocale}. Channel: {Channel}. DataKeys: {DataKeys}. StatusCode: {StatusCode}. ProviderNotificationId: {ProviderNotificationId}. HasRecipientErrors: {HasRecipientErrors}",
                     preparedPayload.ExternalUserCount,
-                    preparedPayload.ExternalIdBatch,
                     preparedPayload.Profile,
                     preparedPayload.Type,
                     preparedPayload.ReferenceId,
@@ -725,7 +710,7 @@ public sealed class OneSignalPushService : IOneSignalPushService
                     preparedPayload.DataKeys,
                     statusCode,
                     notificationId,
-                    responseBody);
+                    HasProviderRecipientErrors(responseBody));
 
                 return new OneSignalPushDispatchResult(
                     Attempted: true,
@@ -742,9 +727,8 @@ public sealed class OneSignalPushService : IOneSignalPushService
             if (HasProviderRecipientErrors(responseBody) && !HasSuccessfulNotificationId(responseBody))
             {
                 _logger.LogWarning(
-                    "[PUSH-DIAG] OneSignal push provider accepted request but reported recipient errors. ExternalUserCount: {ExternalUserCount}. ExternalIdBatch: {ExternalIdBatch}. Profile: {Profile}. Type: {Type}. ReferenceId: {ReferenceId}. NotificationEventId: {NotificationEventId}. PreferredLocale: {PreferredLocale}. Channel: {Channel}. DataKeys: {DataKeys}. StatusCode: {StatusCode}. ProviderNotificationId: {ProviderNotificationId}. ResponseBody: {ResponseBody}",
+                    "[PUSH-DIAG] OneSignal push provider accepted request but reported recipient errors. ExternalUserCount: {ExternalUserCount}. Profile: {Profile}. Type: {Type}. ReferenceId: {ReferenceId}. NotificationEventId: {NotificationEventId}. PreferredLocale: {PreferredLocale}. Channel: {Channel}. DataKeys: {DataKeys}. StatusCode: {StatusCode}. ProviderNotificationId: {ProviderNotificationId}",
                     preparedPayload.ExternalUserCount,
-                    preparedPayload.ExternalIdBatch,
                     preparedPayload.Profile,
                     preparedPayload.Type,
                     preparedPayload.ReferenceId,
@@ -753,8 +737,7 @@ public sealed class OneSignalPushService : IOneSignalPushService
                     preparedPayload.Channel,
                     preparedPayload.DataKeys,
                     statusCode,
-                    notificationId,
-                    responseBody);
+                    notificationId);
 
                 return new OneSignalPushDispatchResult(
                     Attempted: true,
@@ -771,17 +754,14 @@ public sealed class OneSignalPushService : IOneSignalPushService
             if (HasProviderRecipientErrors(responseBody))
             {
                 _logger.LogWarning(
-                    "[PUSH-DIAG] OneSignal push delivered with partial recipient errors (stale subscriptions ignored). ExternalUserCount: {ExternalUserCount}. ExternalIdBatch: {ExternalIdBatch}. ProviderNotificationId: {ProviderNotificationId}. ResponseBody: {ResponseBody}",
+                    "[PUSH-DIAG] OneSignal push delivered with partial recipient errors (stale subscriptions ignored). ExternalUserCount: {ExternalUserCount}. ProviderNotificationId: {ProviderNotificationId}",
                     preparedPayload.ExternalUserCount,
-                    preparedPayload.ExternalIdBatch,
-                    notificationId,
-                    responseBody);
+                    notificationId);
             }
 
-            _logger.LogInformation(
-                "[PUSH-DIAG] OneSignal push provider response succeeded. ExternalUserCount: {ExternalUserCount}. ExternalIdBatch: {ExternalIdBatch}. Profile: {Profile}. Type: {Type}. ReferenceId: {ReferenceId}. NotificationEventId: {NotificationEventId}. PreferredLocale: {PreferredLocale}. Channel: {Channel}. DataKeys: {DataKeys}. StatusCode: {StatusCode}. ProviderNotificationId: {ProviderNotificationId}. ResponseBody: {ResponseBody}",
+            _logger.LogDebug(
+                "[PUSH-DIAG] OneSignal push provider response succeeded. ExternalUserCount: {ExternalUserCount}. Profile: {Profile}. Type: {Type}. ReferenceId: {ReferenceId}. NotificationEventId: {NotificationEventId}. PreferredLocale: {PreferredLocale}. Channel: {Channel}. DataKeys: {DataKeys}. StatusCode: {StatusCode}. ProviderNotificationId: {ProviderNotificationId}. HasRecipientErrors: {HasRecipientErrors}",
                 preparedPayload.ExternalUserCount,
-                preparedPayload.ExternalIdBatch,
                 preparedPayload.Profile,
                 preparedPayload.Type,
                 preparedPayload.ReferenceId,
@@ -791,7 +771,7 @@ public sealed class OneSignalPushService : IOneSignalPushService
                 preparedPayload.DataKeys,
                 statusCode,
                 notificationId,
-                responseBody);
+                HasProviderRecipientErrors(responseBody));
 
             return new OneSignalPushDispatchResult(
                 Attempted: true,
@@ -805,9 +785,8 @@ public sealed class OneSignalPushService : IOneSignalPushService
         {
             _logger.LogError(
                 ex,
-                "[PUSH-DIAG] OneSignal push send threw an exception. ExternalUserCount: {ExternalUserCount}. ExternalIdBatch: {ExternalIdBatch}. Profile: {Profile}. Type: {Type}. ReferenceId: {ReferenceId}. NotificationEventId: {NotificationEventId}. PreferredLocale: {PreferredLocale}. Channel: {Channel}. DataKeys: {DataKeys}",
+                "[PUSH-DIAG] OneSignal push send threw an exception. ExternalUserCount: {ExternalUserCount}. Profile: {Profile}. Type: {Type}. ReferenceId: {ReferenceId}. NotificationEventId: {NotificationEventId}. PreferredLocale: {PreferredLocale}. Channel: {Channel}. DataKeys: {DataKeys}",
                 preparedPayload.ExternalUserCount,
-                preparedPayload.ExternalIdBatch,
                 preparedPayload.Profile,
                 preparedPayload.Type,
                 preparedPayload.ReferenceId,
@@ -1021,10 +1000,8 @@ public sealed class OneSignalPushService : IOneSignalPushService
             if (!response.IsSuccessStatusCode)
             {
                 _logger.LogWarning(
-                    "[PUSH-FALLBACK] Could not resolve OneSignal user subscriptions for ExternalUserId: {ExternalUserId}. StatusCode: {StatusCode}. ResponseBody: {ResponseBody}",
-                    externalUserId,
-                    (int)response.StatusCode,
-                    responseBody);
+                    "[PUSH-FALLBACK] Could not resolve OneSignal user subscriptions. StatusCode: {StatusCode}.",
+                    (int)response.StatusCode);
                 continue;
             }
 
@@ -1898,14 +1875,4 @@ public sealed class OneSignalPushService : IOneSignalPushService
                 : lookupExternalUserId;
     }
 
-    private static string MaskSecretSuffix(string? secret)
-    {
-        if (string.IsNullOrWhiteSpace(secret))
-        {
-            return "none";
-        }
-
-        var trimmed = secret.Trim();
-        return trimmed.Length <= 6 ? trimmed : trimmed[^6..];
-    }
 }

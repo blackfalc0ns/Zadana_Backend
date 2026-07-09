@@ -17,7 +17,10 @@ public interface IRegistrationWorkflow
         IdentityAccountSnapshot account,
         CancellationToken cancellationToken = default);
 
-    void DispatchRegistrationOtpEmail(string emailAddress, string otpCode);
+    Task DispatchRegistrationOtpEmailAsync(
+        string emailAddress,
+        string otpCode,
+        CancellationToken cancellationToken = default);
 
     Task<AuthResponseDto> BuildAuthResponseAsync(
         IdentityAccountSnapshot account,

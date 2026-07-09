@@ -20,6 +20,10 @@ public class RoleRegistrationOtpDispatch_IntegrationTests : IClassFixture<Zadana
     [Fact]
     public async Task VendorRegister_WithValidData_SendsOtpToVendorEmailOnly()
     {
+        var csrf = await _client.GetFromJsonAsync<CsrfTokenResponse>("/api/vendors/auth/csrf");
+        _client.DefaultRequestHeaders.Remove("X-XSRF-TOKEN");
+        _client.DefaultRequestHeaders.Add("X-XSRF-TOKEN", csrf!.CsrfToken);
+
         var phone = "011" + new Random().Next(10000000, 99999999).ToString();
         var unique = Guid.NewGuid().ToString("N");
         var email = $"vendor_{unique}@test.com";
@@ -43,9 +47,9 @@ public class RoleRegistrationOtpDispatch_IntegrationTests : IClassFixture<Zadana
             ownerPhone = phone,
             idNumber = "1234567890",
             nationality = "SA",
-            region = "RIYADH",
-            city = "RIYADH_CITY",
-            nationalAddress = "Riyadh test address",
+            region = "EASTERN",
+            city = "DAMMAM",
+            nationalAddress = "Dammam test address",
             taxId = "300000000000003",
             licenseNumber = "LIC-123",
             bankName = "Test Bank",
@@ -58,9 +62,9 @@ public class RoleRegistrationOtpDispatch_IntegrationTests : IClassFixture<Zadana
             taxDocumentUrl = "https://example.com/tax.pdf",
             licenseDocumentUrl = "https://example.com/license.pdf",
             branchName = "Main Branch",
-            branchAddressLine = "Riyadh branch address",
-            branchLatitude = 24.7136m,
-            branchLongitude = 46.6753m,
+            branchAddressLine = "Dammam branch address",
+            branchLatitude = 26.3927m,
+            branchLongitude = 49.9777m,
             branchContactPhone = phone,
             branchDeliveryRadiusKm = 5m
         };
@@ -92,9 +96,9 @@ public class RoleRegistrationOtpDispatch_IntegrationTests : IClassFixture<Zadana
             driverLicenseExpiryDate = DateTime.UtcNow.AddYears(1),
             vehicleLicenseNumber = $"VL{unique[..8]}",
             vehicleLicenseExpiryDate = DateTime.UtcNow.AddYears(1),
-            address = "Riyadh driver address",
-            region = "RIYADH",
-            city = "RIYADH_CITY",
+            address = "Dammam driver address",
+            region = "EASTERN",
+            city = "DAMMAM",
             nationalIdFrontImageUrl = "https://example.com/nid-front.png",
             nationalIdBackImageUrl = "https://example.com/nid-back.png",
             licenseImageUrl = "https://example.com/license.png",
@@ -109,4 +113,6 @@ public class RoleRegistrationOtpDispatch_IntegrationTests : IClassFixture<Zadana
         _factory.OtpSink.EmailDispatches.Should().ContainSingle(dispatch => dispatch.Recipient == email);
         _factory.OtpSink.SmsDispatches.Should().BeEmpty();
     }
+
+    private sealed record CsrfTokenResponse(string CsrfToken);
 }

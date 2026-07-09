@@ -102,7 +102,10 @@ public class RegisterDriverCommandHandler : IRequestHandler<RegisterDriverComman
                 cancellationToken);
             await _unitOfWork.SaveChangesAsync(cancellationToken);
 
-            _registrationWorkflow.DispatchRegistrationOtpEmail(user.Email!, otpDispatch.OtpCode);
+            await _registrationWorkflow.DispatchRegistrationOtpEmailAsync(
+                user.Email!,
+                otpDispatch.OtpCode,
+                cancellationToken);
 
             if (!isResume)
             {
