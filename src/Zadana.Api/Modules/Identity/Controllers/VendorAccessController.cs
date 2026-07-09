@@ -543,30 +543,28 @@ public class VendorAccessController : ApiControllerBase
         }
 
         var hasStaffScopes = await _context.UserAccessScopes
-            .AsNoTracking()
-            .AnyAsync(item =>
+            .Where(item =>
                 item.IsActive &&
                 item.PanelScope == PanelScope.VendorPanel &&
                 item.ScopeType == AccessScopeType.VendorBranch &&
-                item.ScopeEntityId == branch.Id,
-                cancellationToken);
-        if (hasStaffScopes)
+                item.ScopeEntityId == branch.Id)
+            .ToListAsync(cancellationToken);
+
+        foreach (var staffScope in hasStaffScopes)
         {
-            throw new BusinessRuleException(
-                "BRANCH_DELETE_BLOCKED_STAFF",
-                "This branch cannot be deleted because staff members still have access to it.");
+            staffScope.Deactivate();
         }
 
-        var invitations = await _context.VendorStaffInvitations
-            .AsNoTracking()
+        var linkedInvitations = await _context.VendorStaffInvitations
             .Where(item => item.VendorId == scope.VendorId)
             .ToListAsync(cancellationToken);
-        var hasInvitations = invitations.Any(item => ParseBranchIds(item.BranchIdsJson).Contains(branch.Id));
-        if (hasInvitations)
+        var invitationsToRemove = linkedInvitations
+            .Where(item => ParseBranchIds(item.BranchIdsJson).Contains(branch.Id))
+            .ToList();
+
+        if (invitationsToRemove.Count > 0)
         {
-            throw new BusinessRuleException(
-                "BRANCH_DELETE_BLOCKED_INVITATIONS",
-                "This branch cannot be deleted because invitations are still linked to it.");
+            _context.VendorStaffInvitations.RemoveRange(invitationsToRemove);
         }
 
         if (branch.OperatingHours.Count > 0)

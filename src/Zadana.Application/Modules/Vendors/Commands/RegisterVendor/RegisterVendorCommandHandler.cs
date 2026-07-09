@@ -90,7 +90,7 @@ public class RegisterVendorCommandHandler : IRequestHandler<RegisterVendorComman
                 vendor.Id,
                 request.BranchName,
                 request.BranchName,
-                false,
+                true,
                 request.BranchAddressLine,
                 request.Region,
                 request.City,
