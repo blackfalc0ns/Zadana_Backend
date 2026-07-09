@@ -299,37 +299,42 @@ public class OrdersController : ApiControllerBase
         }
 
         var cases = await _orderReadService.GetCustomerOrderSupportCasesAsync(orderId, userId, cancellationToken);
-        var activeCase = cases.FirstOrDefault(c =>
+        var latestCase = cases
+            .OrderByDescending(item => item.UpdatedAt)
+            .FirstOrDefault();
+        var activeReturnCase = cases.FirstOrDefault(c =>
             c.Type == "return_request" &&
-            c.Status != "resolved" && c.Status != "rejected");
+            !IsTerminalCaseStatus(c.Status));
 
-        if (activeCase is null)
+        if (activeReturnCase is null)
         {
             var latestRefund = await GetLatestRefundForOrderAsync(orderId, supportCaseId: null, cancellationToken);
             return Ok(latestRefund is null
-                ? CreateEmptyRefundStatus(orderId)
+                ? latestCase is null
+                    ? CreateEmptyRefundStatus(orderId)
+                    : CreateCaseOnlyStatus(orderId, latestCase)
                 : CreateRefundOnlyStatus(orderId, latestRefund));
         }
 
-        var refund = await GetLatestRefundForOrderAsync(orderId, activeCase.Id, cancellationToken);
+        var refund = await GetLatestRefundForOrderAsync(orderId, activeReturnCase.Id, cancellationToken);
 
         return Ok(new CustomerRefundStatusResponse(
             orderId,
             true,
-            activeCase.Status,
-            activeCase.Type,
-            activeCase.RequestedRefundAmount,
-            activeCase.ApprovedRefundAmount,
-            activeCase.RefundMethod,
-            activeCase.CompensationType,
-            activeCase.SettlementStatus,
-            activeCase.CouponCode,
-            activeCase.CouponExpiresAtUtc,
-            activeCase.CouponRedeemed,
-            activeCase.ApprovedRefundAmount.HasValue ? "approved" : "pending",
-            activeCase.CustomerVisibleNote,
-            activeCase.CreatedAt,
-            activeCase.UpdatedAt,
+            activeReturnCase.Status,
+            activeReturnCase.Type,
+            activeReturnCase.RequestedRefundAmount,
+            activeReturnCase.ApprovedRefundAmount,
+            activeReturnCase.RefundMethod,
+            activeReturnCase.CompensationType,
+            activeReturnCase.SettlementStatus,
+            activeReturnCase.CouponCode,
+            activeReturnCase.CouponExpiresAtUtc,
+            activeReturnCase.CouponRedeemed,
+            activeReturnCase.ApprovedRefundAmount.HasValue ? "approved" : "pending",
+            activeReturnCase.CustomerVisibleNote,
+            activeReturnCase.CreatedAt,
+            activeReturnCase.UpdatedAt,
             MapRefundLifecycleStatus(refund),
             refund?.ProviderName,
             GetRefundFailureMessage(refund)));
@@ -377,6 +382,41 @@ public class OrdersController : ApiControllerBase
             MapRefundLifecycleStatus(refund),
             refund.ProviderName,
             GetRefundFailureMessage(refund));
+
+    private static CustomerRefundStatusResponse CreateCaseOnlyStatus(Guid orderId, OrderSupportCaseDto supportCase) =>
+        new(
+            orderId,
+            !IsTerminalCaseStatus(supportCase.Status),
+            supportCase.Status,
+            supportCase.Type,
+            supportCase.RequestedRefundAmount,
+            supportCase.ApprovedRefundAmount,
+            supportCase.RefundMethod,
+            supportCase.CompensationType,
+            supportCase.SettlementStatus,
+            supportCase.CouponCode,
+            supportCase.CouponExpiresAtUtc,
+            supportCase.CouponRedeemed,
+            MapCaseStatusToRefundStatus(supportCase.Status),
+            supportCase.CustomerVisibleNote ?? supportCase.DecisionNotes ?? supportCase.Message,
+            supportCase.CreatedAt,
+            supportCase.UpdatedAt,
+            null,
+            null,
+            null);
+
+    private static bool IsTerminalCaseStatus(string? status) =>
+        string.Equals(status, "resolved", StringComparison.OrdinalIgnoreCase) ||
+        string.Equals(status, "rejected", StringComparison.OrdinalIgnoreCase);
+
+    private static string MapCaseStatusToRefundStatus(string status) =>
+        status.Trim().ToLowerInvariant() switch
+        {
+            "approved" => "approved",
+            "resolved" => "resolved",
+            "rejected" => "rejected",
+            _ => "pending"
+        };
 
     private static decimal? ResolveRefundRequestedAmount(Refund refund) =>
         refund.RequestedAmount > 0m ? refund.RequestedAmount : refund.Amount;
