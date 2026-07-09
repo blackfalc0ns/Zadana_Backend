@@ -232,6 +232,46 @@ public sealed class EmailCenterService : IEmailCenterService
             dispatchLog.CreatedAtUtc);
     }
 
+    public Task<EmailTemplateRenderResultDto> PreviewTemplateAsync(
+        string ruleId,
+        EmailWorkflowRuleDto draft,
+        bool useSampleValues = true,
+        string? targetUrl = null,
+        CancellationToken cancellationToken = default)
+    {
+        cancellationToken.ThrowIfCancellationRequested();
+
+        var normalized = NormalizeRule(ruleId, draft);
+        var variables = useSampleValues
+            ? BuildSampleTemplateVariables(normalized.Template.Variables)
+            : null;
+
+        var subjectEn = RenderTemplate(normalized.Template.Subject.GetValueOrDefault("en") ?? string.Empty, variables);
+        var bodyEn = RenderTemplate(normalized.Template.Body.GetValueOrDefault("en") ?? string.Empty, variables);
+        var subjectAr = RenderTemplate(normalized.Template.Subject.GetValueOrDefault("ar") ?? string.Empty, variables);
+        var bodyAr = RenderTemplate(normalized.Template.Body.GetValueOrDefault("ar") ?? string.Empty, variables);
+        var resolvedTargetUrl = string.IsNullOrWhiteSpace(targetUrl) ? "/email-center" : targetUrl.Trim();
+
+        var html = BuildBilingualEmailHtml(
+            subjectEn,
+            bodyEn,
+            subjectAr,
+            bodyAr,
+            resolvedTargetUrl,
+            normalized.Template.HeroImageUrl,
+            normalized.Template.CtaLabel,
+            normalized.Template.HeroImageUrlAr,
+            normalized.Template.HeroImageUrlEn);
+
+        return Task.FromResult(new EmailTemplateRenderResultDto(
+            html,
+            subjectEn,
+            subjectAr,
+            bodyEn,
+            bodyAr,
+            normalized.Template.CtaLabel));
+    }
+
     public async Task<IReadOnlyList<EmailDispatchLogDto>> GetDispatchesAsync(
         string? ruleId,
         string? source,
@@ -1513,6 +1553,65 @@ public sealed class EmailCenterService : IEmailCenterService
         foreach (var item in variables)
         {
             result = result.Replace(item.Key, item.Value, StringComparison.OrdinalIgnoreCase);
+        }
+
+        return result;
+    }
+
+    private static IReadOnlyDictionary<string, string> BuildSampleTemplateVariables(IReadOnlyList<string> variables)
+    {
+        var samples = new Dictionary<string, string>(StringComparer.OrdinalIgnoreCase)
+        {
+            ["{{customer_name}}"] = "Ahmed Al-Rashid",
+            ["{{order_number}}"] = "ZD-10482",
+            ["{{vendor_name}}"] = "Al Noor Kitchen",
+            ["{{order_total}}"] = "128.50",
+            ["{{currency}}"] = "SAR",
+            ["{{update_message}}"] = "Your order is being prepared and will ship shortly.",
+            ["{{week_label}}"] = "Week 24 · Jun 9–15",
+            ["{{summary_body}}"] = "12 orders · SAR 4,820 revenue · 3 pending actions",
+            ["{{full_name}}"] = "Sara Al-Qahtani",
+            ["{{expiry_date}}"] = "Jul 15, 2026",
+            ["{{invite_link}}"] = "https://admin.zadna0.com/onboarding",
+            ["{{branch_name}}"] = "Riyadh North Branch",
+            ["{{reset_link}}"] = "https://admin.zadna0.com/reset",
+            ["{{requested_at}}"] = "Jul 9, 2026 · 10:30 AM",
+            ["{{business_date}}"] = "Jul 9, 2026",
+            ["{{driver_name}}"] = "Khalid Al-Otaibi",
+            ["{{status}}"] = "Approved",
+            ["{{driver_note}}"] = "Documents verified successfully.",
+            ["{{amount}}"] = "SAR 420.00",
+            ["{{payout_reference}}"] = "PAY-2026-0712",
+            ["{{case_number}}"] = "SUP-8821",
+            ["{{case_type}}"] = "Delivery delay",
+            ["{{support_message}}"] = "Our team is reviewing your case.",
+            ["{{next_step}}"] = "We will update you within 24 hours.",
+            ["{{target_url}}"] = "https://vendor.zadna0.com/dashboard"
+        };
+
+        var result = new Dictionary<string, string>(StringComparer.OrdinalIgnoreCase);
+        foreach (var variable in variables)
+        {
+            if (string.IsNullOrWhiteSpace(variable))
+            {
+                continue;
+            }
+
+            var key = variable.Trim();
+            if (!key.StartsWith("{{", StringComparison.Ordinal))
+            {
+                key = "{{" + key;
+            }
+
+            if (!key.EndsWith("}}", StringComparison.Ordinal))
+            {
+                key += "}}";
+            }
+
+            if (samples.TryGetValue(key, out var sample))
+            {
+                result[key] = sample;
+            }
         }
 
         return result;

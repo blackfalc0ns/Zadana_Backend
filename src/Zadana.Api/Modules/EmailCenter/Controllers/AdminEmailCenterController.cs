@@ -56,6 +56,18 @@ public class AdminEmailCenterController : ApiControllerBase
         return Ok(await _emailCenterService.TestSendAsync(id, request, cancellationToken));
     }
 
+    [HttpPost("rules/{id}/preview-template")]
+    [RequireAccess(PermissionKeys.Admin.EmailCenterView)]
+    public async Task<ActionResult<EmailTemplateRenderResultDto>> PreviewTemplate(
+        string id,
+        [FromBody] EmailWorkflowRuleDto request,
+        [FromQuery] bool useSampleValues = true,
+        [FromQuery] string? targetUrl = null,
+        CancellationToken cancellationToken = default)
+    {
+        return Ok(await _emailCenterService.PreviewTemplateAsync(id, request, useSampleValues, targetUrl, cancellationToken));
+    }
+
     [HttpGet("dispatches")]
     [RequireAccess(PermissionKeys.Admin.EmailCenterView)]
     public async Task<ActionResult<IReadOnlyList<EmailDispatchLogDto>>> GetDispatches(

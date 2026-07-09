@@ -23,6 +23,13 @@ public interface IEmailCenterService
         EmailWorkflowRuleDto draft,
         CancellationToken cancellationToken = default);
 
+    Task<EmailTemplateRenderResultDto> PreviewTemplateAsync(
+        string ruleId,
+        EmailWorkflowRuleDto draft,
+        bool useSampleValues = true,
+        string? targetUrl = null,
+        CancellationToken cancellationToken = default);
+
     Task<IReadOnlyList<EmailDispatchLogDto>> GetDispatchesAsync(
         string? ruleId,
         string? source,

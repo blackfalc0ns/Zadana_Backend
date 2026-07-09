@@ -143,8 +143,15 @@ public sealed class AccessAuthorizationConvention : IApplicationModelConvention
                 approve: [PermissionKeys.Admin.VendorsApprove]),
             ["AdminWallets"] = new(
                 [PermissionKeys.Admin.WalletsView],
+                create: [PermissionKeys.Admin.WalletsEdit],
                 edit: [PermissionKeys.Admin.WalletsEdit],
-                approve: [PermissionKeys.Admin.WalletsApprove]),
+                approve: [PermissionKeys.Admin.WalletsApprove],
+                overrides: new Dictionary<string, string[]>(StringComparer.Ordinal)
+                {
+                    ["GetPlatformAccount"] = [PermissionKeys.Admin.FinancesManageSettings],
+                    ["UpsertPlatformAccount"] = [PermissionKeys.Admin.FinancesManageSettings, PermissionKeys.Admin.FinancesEdit],
+                    ["CreateMoyasarPayoutSource"] = [PermissionKeys.Admin.FinancesManageSettings, PermissionKeys.Admin.FinancesApprove]
+                }),
             ["AdminSystemLogs"] = new([PermissionKeys.Admin.SystemView]),
             ["VendorAuth"] = new(
                 [PermissionKeys.Vendor.AccountView],

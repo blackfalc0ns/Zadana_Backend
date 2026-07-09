@@ -6,11 +6,13 @@ using System.Net.Http.Json;
 using System.Net.Http.Headers;
 using System.Text;
 using System.Text.Json;
+using Zadana.Api.Authorization;
 using Zadana.Api.Controllers;
 using Zadana.Application.Common.Interfaces;
 using Zadana.Application.Common.Settings;
 using Zadana.Application.Modules.Finances.Services;
 using Zadana.Application.Modules.Delivery.Support;
+using Zadana.Domain.Modules.Identity.Constants;
 using Zadana.Application.Modules.Wallets.DTOs;
 using Zadana.Domain.Modules.Finances.Enums;
 using Zadana.Domain.Modules.Social.Enums;
@@ -29,6 +31,7 @@ public class AdminWalletsController : ApiControllerBase
     private static readonly JsonSerializerOptions MoyasarJsonOptions = new(JsonSerializerDefaults.Web);
 
     [HttpGet("platform-account")]
+    [RequireAccess(PermissionKeys.Admin.FinancesManageSettings)]
     public async Task<ActionResult<AdminPlatformBankAccountDto>> GetPlatformAccount(
         [FromServices] IApplicationDbContext context,
         [FromServices] IOptions<BankTransferSettingsOptions> bankTransferSettings,
@@ -48,6 +51,7 @@ public class AdminWalletsController : ApiControllerBase
     }
 
     [HttpPut("platform-account")]
+    [RequireAccess(true, PermissionKeys.Admin.FinancesManageSettings, PermissionKeys.Admin.FinancesEdit)]
     public async Task<ActionResult<AdminPlatformBankAccountDto>> UpsertPlatformAccount(
         [FromBody] AdminUpsertPlatformBankAccountRequest request,
         [FromServices] IApplicationDbContext context,
@@ -103,6 +107,7 @@ public class AdminWalletsController : ApiControllerBase
     }
 
     [HttpPost("platform-account/moyasar-payout-source")]
+    [RequireAccess(true, PermissionKeys.Admin.FinancesManageSettings, PermissionKeys.Admin.FinancesApprove)]
     public async Task<ActionResult<AdminPlatformBankAccountDto>> CreateMoyasarPayoutSource(
         [FromBody] AdminCreateMoyasarPayoutSourceRequest? request,
         [FromServices] IApplicationDbContext context,

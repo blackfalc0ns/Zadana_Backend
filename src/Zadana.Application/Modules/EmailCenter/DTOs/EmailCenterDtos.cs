@@ -75,6 +75,14 @@ public record EmailTemplatePreviewDto(
     string? HeroImageUrlAr = null,
     string? HeroImageUrlEn = null);
 
+public record EmailTemplateRenderResultDto(
+    string Html,
+    string SubjectEn,
+    string SubjectAr,
+    string BodyEn,
+    string BodyAr,
+    string? CtaLabel);
+
 public record EmailDispatchSummaryDto(
     string Status,
     string Source,

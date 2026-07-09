@@ -57,6 +57,22 @@ public class EmailCenterServiceTests
     }
 
     [Fact]
+    public async Task PreviewTemplateAsync_ShouldRenderBackendHtmlWithSampleVariables()
+    {
+        await using var dbContext = CreateDbContext();
+        var service = CreateService(dbContext);
+        var overview = await service.GetOverviewAsync();
+        var orderRule = overview.Rules.First(rule => rule.Id == "customer-order-confirmed");
+
+        var preview = await service.PreviewTemplateAsync(orderRule.Id, orderRule);
+
+        preview.Html.Should().Contain("ZD-10482");
+        preview.SubjectEn.Should().Contain("ZD-10482");
+        preview.BodyEn.Should().Contain("Ahmed Al-Rashid");
+        preview.Html.Should().Contain("img src=");
+    }
+
+    [Fact]
     public async Task TestSendAsync_WhenCustomerRuleIsScoped_ShouldPersistDispatchLog()
     {
         await using var dbContext = CreateDbContext();
