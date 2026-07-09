@@ -99,8 +99,7 @@ public sealed class SmtpEmailService : IEmailService, IAsyncDisposable
             await _smtpGate.WaitAsync(cancellationToken);
             try
             {
-                await EnsureConnectedAsync(cancellationToken);
-                await _client.SendAsync(message, cancellationToken);
+                await SendWithReconnectRetryAsync(message, cancellationToken);
 
                 _logger.LogInformation(
                     "Email sent through SMTP to {RecipientCount} recipient(s). MessageId={MessageId}",
@@ -312,6 +311,28 @@ public sealed class SmtpEmailService : IEmailService, IAsyncDisposable
         }
     }
 
+    private async Task SendWithReconnectRetryAsync(
+        MimeMessage message,
+        CancellationToken cancellationToken)
+    {
+        try
+        {
+            await EnsureConnectedAsync(cancellationToken);
+            await _client.SendAsync(message, cancellationToken);
+        }
+        catch (Exception exception) when (IsTransientConnectionFailure(exception))
+        {
+            _logger.LogWarning(
+                exception,
+                "SMTP connection failed while sending message {MessageId}. Reconnecting and retrying once.",
+                message.MessageId);
+
+            await DisconnectQuietlyAsync();
+            await EnsureConnectedAsync(cancellationToken);
+            await _client.SendAsync(message, cancellationToken);
+        }
+    }
+
     private static void TryAddHeader(MimeMessage message, string name, string value)
     {
         if (string.IsNullOrWhiteSpace(name) ||
@@ -326,6 +347,18 @@ public sealed class SmtpEmailService : IEmailService, IAsyncDisposable
 
         message.Headers.Replace(name.Trim(), value.Trim());
     }
+
+    private static bool IsTransientConnectionFailure(Exception exception) =>
+        exception switch
+        {
+            SmtpCommandException smtp when
+                smtp.StatusCode == SmtpStatusCode.ServiceNotAvailable ||
+                smtp.Message.Contains("idle timeout", StringComparison.OrdinalIgnoreCase) => true,
+            SmtpProtocolException => true,
+            IOException => true,
+            TimeoutException => true,
+            _ => false
+        };
 
     private static string StripHtmlFallback(string html) =>
         string.IsNullOrWhiteSpace(html)
