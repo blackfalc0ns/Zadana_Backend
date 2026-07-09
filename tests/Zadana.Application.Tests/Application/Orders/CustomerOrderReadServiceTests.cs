@@ -277,6 +277,42 @@ public class CustomerOrderReadServiceTests
     }
 
     [Fact]
+    public async Task GetCustomerOrderSupportCasesAsync_ShouldExposeOrderCasesInitiatedByOtherRoles()
+    {
+        await using var dbContext = CreateDbContext();
+        var customer = CreateUser();
+        var driverUser = new User("Driver User", "driver.dispute@test.com", "01000000044", UserRole.Driver);
+        var order = CreateOrder(customer.Id, OrderStatus.Delivered, "ORD-DRIVER-DISPUTE");
+        var supportCase = new OrderSupportCase(
+            order.Id,
+            driverUser.Id,
+            OrderSupportCaseType.DriverDispute,
+            OrderSupportCasePriority.High,
+            OrderSupportCaseQueue.DriverOps,
+            "delivery_issue",
+            "Driver dispute for customer order.",
+            DateTime.UtcNow.AddHours(6),
+            initiatorRole: "driver");
+
+        dbContext.Users.AddRange(customer, driverUser);
+        dbContext.Orders.Add(order);
+        dbContext.OrderSupportCases.Add(supportCase);
+        await dbContext.SaveChangesAsync();
+
+        var service = new OrderReadService(dbContext);
+
+        var cases = await service.GetCustomerOrderSupportCasesAsync(order.Id, customer.Id);
+        var detail = await service.GetCustomerOrderSupportCaseAsync(order.Id, supportCase.Id, customer.Id);
+
+        cases.Should().ContainSingle();
+        cases[0].Id.Should().Be(supportCase.Id);
+        cases[0].Type.Should().Be("driver_dispute");
+        cases[0].InitiatorRole.Should().Be("driver");
+        detail.Should().NotBeNull();
+        detail!.Id.Should().Be(supportCase.Id);
+    }
+
+    [Fact]
     public async Task GetAdminOrderSupportCaseDetailAsync_ShouldExposeRedeemedCouponSettlementOutcome()
     {
         await using var dbContext = CreateDbContext();

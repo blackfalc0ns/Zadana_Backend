@@ -297,7 +297,7 @@ public class OrderReadService : IOrderReadService
             .AsNoTracking()
             .Include(item => item.Attachments)
             .Include(item => item.Activities)
-            .Where(item => item.OrderId == orderId && item.CustomerUserId == userId)
+            .Where(item => item.OrderId == orderId)
             .OrderByDescending(item => item.CreatedAtUtc)
             .ToListAsync(cancellationToken);
 
@@ -321,7 +321,7 @@ public class OrderReadService : IOrderReadService
             .AsNoTracking()
             .Include(item => item.Attachments)
             .Include(item => item.Activities)
-            .Where(item => item.OrderId == orderId && item.Id == caseId && item.CustomerUserId == userId)
+            .Where(item => item.OrderId == orderId && item.Id == caseId)
             .FirstOrDefaultAsync(cancellationToken);
 
         if (supportCase is null)
