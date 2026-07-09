@@ -1,4 +1,5 @@
 using MediatR;
+using Microsoft.Extensions.Logging;
 using Zadana.Application.Common.Interfaces;
 using Zadana.Application.Modules.Geography.Support;
 using Zadana.Application.Modules.Identity.DTOs;
@@ -16,19 +17,22 @@ public class RegisterVendorCommandHandler : IRequestHandler<RegisterVendorComman
     private readonly IUnitOfWork _unitOfWork;
     private readonly IAdminAlertService _adminAlertService;
     private readonly IApplicationDbContext _context;
+    private readonly ILogger<RegisterVendorCommandHandler> _logger;
 
     public RegisterVendorCommandHandler(
         IRegistrationWorkflow registrationWorkflow,
         IVendorRepository vendorRepository,
         IUnitOfWork unitOfWork,
         IAdminAlertService adminAlertService,
-        IApplicationDbContext context)
+        IApplicationDbContext context,
+        ILogger<RegisterVendorCommandHandler> logger)
     {
         _registrationWorkflow = registrationWorkflow;
         _vendorRepository = vendorRepository;
         _unitOfWork = unitOfWork;
         _adminAlertService = adminAlertService;
         _context = context;
+        _logger = logger;
     }
 
     public async Task<AuthResponseDto> Handle(RegisterVendorCommand request, CancellationToken cancellationToken)
@@ -47,9 +51,13 @@ public class RegisterVendorCommandHandler : IRequestHandler<RegisterVendorComman
                 UserRole.Vendor,
                 request.Password),
             cancellationToken);
+
+        Vendor? vendor = null;
+        AuthResponseDto authResponse;
+
         try
         {
-            var vendor = new Vendor(
+            vendor = new Vendor(
                 user.Id,
                 request.BusinessNameAr,
                 request.BusinessNameEn,
@@ -77,6 +85,7 @@ public class RegisterVendorCommandHandler : IRequestHandler<RegisterVendorComman
                 request.LicenseDocumentUrl);
 
             _vendorRepository.Add(vendor);
+
             var branch = new VendorBranch(
                 vendor.Id,
                 request.BranchName,
@@ -112,11 +121,26 @@ public class RegisterVendorCommandHandler : IRequestHandler<RegisterVendorComman
 
             user = await _registrationWorkflow.SendRegistrationOtpAsync(user, cancellationToken);
 
-            var authResponse = await _registrationWorkflow.BuildAuthResponseAsync(
+            authResponse = await _registrationWorkflow.BuildAuthResponseAsync(
                 user,
                 cancellationToken: cancellationToken);
-            await _unitOfWork.SaveChangesAsync(cancellationToken);
 
+            await _unitOfWork.SaveChangesAsync(cancellationToken);
+        }
+        catch
+        {
+            await _registrationWorkflow.CompensateAccountCreationFailureAsync(user.Id, cancellationToken);
+            throw;
+        }
+
+        await QueueVendorApprovalAlertAsync(vendor, cancellationToken);
+        return authResponse;
+    }
+
+    private async Task QueueVendorApprovalAlertAsync(Vendor vendor, CancellationToken cancellationToken)
+    {
+        try
+        {
             await _adminAlertService.SendAsync(
                 new AdminAlertRequest(
                     AdminAlertTypes.VendorApprovalRequested,
@@ -138,13 +162,13 @@ public class RegisterVendorCommandHandler : IRequestHandler<RegisterVendorComman
                         region = vendor.Region
                     }),
                 cancellationToken);
-
-            return authResponse;
         }
-        catch
+        catch (Exception ex)
         {
-            await _registrationWorkflow.CompensateAccountCreationFailureAsync(user.Id, cancellationToken);
-            throw;
+            _logger.LogError(
+                ex,
+                "Vendor {VendorId} registered but admin approval alert could not be queued.",
+                vendor.Id);
         }
     }
 }
