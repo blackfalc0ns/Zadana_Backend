@@ -147,11 +147,11 @@ public class AdminVendorSupportTicketsController : ApiControllerBase
         }
 
         var adminUserId = GetRequiredAdminUserId();
-        var ticket = await RequireTrackedTicketAsync(ticketId, includeMessages: true, cancellationToken);
+        var ticket = await RequireTrackedTicketAsync(ticketId, includeMessages: true, cancellationToken, includeOrder: true);
         ticket.AddAdminMessage(adminUserId, request.Message);
         await _dbContext.SaveChangesAsync(cancellationToken);
 
-        var response = await RequireTicketResponseAsync(ticketId, cancellationToken);
+        var response = VendorSupportTicketContractMapper.Map(ticket, includeMessages: true);
         await TryNotifyVendorAsync(ticket.Id, "admin_message", request.Message, cancellationToken);
 
         return Ok(response);
@@ -169,7 +169,7 @@ public class AdminVendorSupportTicketsController : ApiControllerBase
         }
 
         var adminUserId = GetRequiredAdminUserId();
-        var ticket = await RequireTrackedTicketAsync(ticketId, includeMessages: true, cancellationToken);
+        var ticket = await RequireTrackedTicketAsync(ticketId, includeMessages: true, cancellationToken, includeOrder: true);
         var status = VendorSupportTicketContractMapper.ParseStatus(request.Status);
 
         if (!string.IsNullOrWhiteSpace(request.Message))
@@ -182,7 +182,7 @@ public class AdminVendorSupportTicketsController : ApiControllerBase
 
         await TryNotifyVendorAsync(ticket.Id, "status_changed", request.Message, cancellationToken);
 
-        return Ok(await RequireTicketResponseAsync(ticketId, cancellationToken));
+        return Ok(VendorSupportTicketContractMapper.Map(ticket, includeMessages: true));
     }
 
     private Guid GetRequiredAdminUserId() =>
@@ -205,12 +205,18 @@ public class AdminVendorSupportTicketsController : ApiControllerBase
     private async Task<VendorSupportTicket> RequireTrackedTicketAsync(
         Guid ticketId,
         bool includeMessages,
-        CancellationToken cancellationToken)
+        CancellationToken cancellationToken,
+        bool includeOrder = false)
     {
         var query = _dbContext.VendorSupportTickets.AsQueryable();
         if (includeMessages)
         {
             query = query.Include(item => item.Messages);
+        }
+
+        if (includeOrder)
+        {
+            query = query.Include(item => item.Order);
         }
 
         return await query.FirstOrDefaultAsync(item => item.Id == ticketId, cancellationToken)
@@ -247,8 +253,15 @@ public class AdminVendorSupportTicketsController : ApiControllerBase
             .AsNoTracking()
             .Include(item => item.Vendor)
             .Include(item => item.Order)
-            .FirstOrDefaultAsync(item => item.Id == ticketId, cancellationToken)
-            ?? throw new NotFoundException("VendorSupportTicket", ticketId);
+            .FirstOrDefaultAsync(item => item.Id == ticketId, cancellationToken);
+
+        if (ticket is null)
+        {
+            _logger.LogWarning(
+                "Skipped vendor support notification for ticket {TicketId} because it could not be reloaded.",
+                ticketId);
+            return;
+        }
 
         if (ticket.Vendor?.UserId is not Guid vendorUserId || vendorUserId == Guid.Empty)
         {

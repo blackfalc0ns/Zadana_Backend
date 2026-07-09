@@ -19,8 +19,14 @@ public class VendorSupportTicketMessage : BaseEntity
     public VendorSupportTicketMessage(
         Guid? authorUserId,
         string authorRole,
-        string body)
+        string body,
+        Guid? vendorSupportTicketId = null)
     {
+        if (vendorSupportTicketId.HasValue && vendorSupportTicketId.Value != Guid.Empty)
+        {
+            VendorSupportTicketId = vendorSupportTicketId.Value;
+        }
+
         AuthorUserId = authorUserId;
         AuthorRole = NormalizeRole(authorRole);
         Body = NormalizeBody(body);

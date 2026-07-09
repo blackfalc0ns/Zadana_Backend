@@ -66,7 +66,7 @@ public class VendorSupportTicket : BaseEntity
     {
         EnsureOpen();
         var normalized = NormalizeRequired(message, "Message", 2000);
-        Messages.Add(new VendorSupportTicketMessage(vendorUserId, "vendor", normalized));
+        Messages.Add(new VendorSupportTicketMessage(vendorUserId, "vendor", normalized, Id));
         LastMessagePreview = BuildPreview(normalized);
         if (Status == VendorSupportTicketStatus.WaitingVendor)
         {
@@ -78,7 +78,7 @@ public class VendorSupportTicket : BaseEntity
     {
         EnsureOpen();
         var normalized = NormalizeRequired(message, "Message", 2000);
-        Messages.Add(new VendorSupportTicketMessage(adminUserId, "admin", normalized));
+        Messages.Add(new VendorSupportTicketMessage(adminUserId, "admin", normalized, Id));
         LastMessagePreview = BuildPreview(normalized);
         FirstResponseAtUtc ??= DateTime.UtcNow;
         Status = VendorSupportTicketStatus.WaitingVendor;
