@@ -26,6 +26,7 @@ using Zadana.Application.Modules.Vendors.Commands.LockVendorLogin;
 using Zadana.Application.Modules.Vendors.Commands.RejectVendorDocumentReview;
 using Zadana.Application.Modules.Vendors.Commands.RejectVendor;
 using Zadana.Application.Modules.Vendors.Commands.ReactivateVendor;
+using Zadana.Application.Modules.Vendors.Commands.ReopenVendorReview;
 using Zadana.Application.Modules.Vendors.Commands.ReviewVendorProfileFields;
 using Zadana.Application.Modules.Vendors.Commands.RequestVendorDocuments;
 using Zadana.Application.Modules.Vendors.Commands.StartVendorReview;
@@ -274,6 +275,13 @@ public class AdminVendorsController : ApiControllerBase
     public async Task<IActionResult> RequestVendorDocuments(Guid vendorId, [FromBody] AdminRequestVendorDocumentsRequest request)
     {
         var result = await Sender.Send(new RequestVendorDocumentsCommand(vendorId, request.Note));
+        return Ok(result);
+    }
+
+    [HttpPost("{vendorId:guid}/reopen-review")]
+    public async Task<IActionResult> ReopenVendorReview(Guid vendorId)
+    {
+        var result = await Sender.Send(new ReopenVendorReviewCommand(vendorId));
         return Ok(result);
     }
 

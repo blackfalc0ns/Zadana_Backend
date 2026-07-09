@@ -15,6 +15,7 @@ using Zadana.Application.Modules.Vendors.Commands.RequestVendorDocuments;
 using Zadana.Application.Modules.Vendors.Commands.RejectVendor;
 using Zadana.Application.Modules.Vendors.Commands.RejectVendorDocumentReview;
 using Zadana.Application.Modules.Vendors.Commands.ReactivateVendor;
+using Zadana.Application.Modules.Vendors.Commands.ReopenVendorReview;
 using Zadana.Application.Modules.Vendors.Commands.StartVendorReview;
 using Zadana.Application.Modules.Vendors.Commands.SuspendVendor;
 using Zadana.Application.Modules.Vendors.DTOs;
@@ -219,6 +220,20 @@ public class AdminVendorsControllerTests
 
         _senderMock.Verify(sender => sender.Send(It.Is<RequestVendorDocumentsCommand>(command =>
             command.VendorId == vendorId && command.Note == request.Note), default), Times.Once);
+        result.Should().BeOfType<OkObjectResult>();
+    }
+
+    [Fact]
+    public async Task ReopenVendorReview_ReturnsOkResult()
+    {
+        var vendorId = Guid.NewGuid();
+        _senderMock
+            .Setup(sender => sender.Send(It.Is<ReopenVendorReviewCommand>(command => command.VendorId == vendorId), default))
+            .ReturnsAsync((VendorDetailDto)null!);
+
+        var result = await _controller.ReopenVendorReview(vendorId);
+
+        _senderMock.Verify(sender => sender.Send(It.Is<ReopenVendorReviewCommand>(command => command.VendorId == vendorId), default), Times.Once);
         result.Should().BeOfType<OkObjectResult>();
     }
 

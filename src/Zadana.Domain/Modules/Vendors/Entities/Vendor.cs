@@ -323,7 +323,13 @@ public class Vendor : BaseEntity
         if (Status == VendorStatus.Active)
             throw new BusinessRuleException("VendorAlreadyApproved", "التاجر معتمد بالفعل ولا يحتاج اعتمادًا جديدًا.|Vendor is already approved and does not need another approval.");
 
-        if (Status != VendorStatus.PendingReview)
+        if (ArchivedAtUtc.HasValue)
+            throw new BusinessRuleException("VendorArchivedCannotBeApproved", "ما تقدر تعتمد تاجر مؤرشف. ألغِ الأرشفة أولاً.|Archived vendors cannot be approved. Restore the vendor first.");
+
+        if (LockedAtUtc.HasValue)
+            throw new BusinessRuleException("VendorLockedCannotBeApproved", "ما تقدر تعتمد تاجر مقفول الدخول. افتح القفل أولاً.|Locked vendors cannot be approved. Unlock the vendor first.");
+
+        if (Status is not (VendorStatus.PendingReview or VendorStatus.Suspended))
             throw new BusinessRuleException("VendorInvalidStatusForApproval", $"ما تقدر تعتمد التاجر بينما حالته الحالية هي {Status}.|Vendor cannot be approved while its current status is {Status}.", Status);
 
         if (commissionRate < 0 || commissionRate > 100)

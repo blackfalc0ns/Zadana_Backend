@@ -54,6 +54,55 @@ public class ApproveVendorCommandHandlerTests
     }
 
     [Fact]
+    public async Task Handle_WhenSuspendedVendorIsReady_ApprovesVendor()
+    {
+        var vendor = CreateApprovalReadyVendor();
+        var adminId = Guid.NewGuid();
+        MoveVendorToStatus(vendor, VendorStatus.Suspended);
+
+        _currentUserServiceMock.Setup(service => service.UserId).Returns(adminId);
+        _vendorRepositoryMock
+            .Setup(repository => repository.GetByIdAsync(vendor.Id, It.IsAny<CancellationToken>()))
+            .ReturnsAsync(vendor);
+        _identityAccountServiceMock
+            .Setup(service => service.ActivateAsync(vendor.UserId, It.IsAny<CancellationToken>()))
+            .ReturnsAsync(new IdentityOperationResult(true));
+        _identityAccountServiceMock
+            .Setup(service => service.UnlockLoginAsync(vendor.UserId, It.IsAny<CancellationToken>()))
+            .ReturnsAsync(new IdentityOperationResult(true));
+
+        var handler = CreateHandler();
+
+        await handler.Handle(new ApproveVendorCommand(vendor.Id, 11m), default);
+
+        vendor.Status.Should().Be(VendorStatus.Active);
+        vendor.ApprovedBy.Should().Be(adminId);
+        vendor.RejectionReason.Should().BeNull();
+        vendor.SuspensionReason.Should().BeNull();
+        vendor.SuspendedAtUtc.Should().BeNull();
+        _unitOfWorkMock.Verify(unitOfWork => unitOfWork.SaveChangesAsync(It.IsAny<CancellationToken>()), Times.Once);
+    }
+
+    [Fact]
+    public async Task Handle_WhenRejectedVendorIsReady_ThrowsBusinessRuleException()
+    {
+        var vendor = CreateApprovalReadyVendor();
+        MoveVendorToStatus(vendor, VendorStatus.Rejected);
+        _currentUserServiceMock.Setup(service => service.UserId).Returns(Guid.NewGuid());
+        _vendorRepositoryMock
+            .Setup(repository => repository.GetByIdAsync(vendor.Id, It.IsAny<CancellationToken>()))
+            .ReturnsAsync(vendor);
+
+        var handler = CreateHandler();
+
+        await Assert.ThrowsAsync<BusinessRuleException>(() =>
+            handler.Handle(new ApproveVendorCommand(vendor.Id, 11m), default));
+
+        vendor.Status.Should().Be(VendorStatus.Rejected);
+        _unitOfWorkMock.Verify(unitOfWork => unitOfWork.SaveChangesAsync(It.IsAny<CancellationToken>()), Times.Never);
+    }
+
+    [Fact]
     public async Task Handle_WithInvalidVendorId_ThrowsNotFoundException()
     {
         _currentUserServiceMock.Setup(service => service.UserId).Returns(Guid.NewGuid());
@@ -233,5 +282,21 @@ public class ApproveVendorCommandHandlerTests
         vendor.BankAccounts.Add(bankAccount);
 
         return vendor;
+    }
+
+    private static void MoveVendorToStatus(Vendor vendor, VendorStatus status)
+    {
+        switch (status)
+        {
+            case VendorStatus.Rejected:
+                vendor.Reject("Needs admin review");
+                break;
+            case VendorStatus.Suspended:
+                vendor.Approve(10m, Guid.NewGuid());
+                vendor.Suspend("Manual hold");
+                break;
+            default:
+                throw new ArgumentOutOfRangeException(nameof(status), status, null);
+        }
     }
 }
