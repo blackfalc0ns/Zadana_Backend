@@ -256,7 +256,9 @@ public class IdentityService : IIdentityService
     {
         if (!user.EmailConfirmed)
         {
-            throw new UnauthorizedException(_localizer["AccountEmailNotVerified"]);
+            throw new UnauthorizedException(
+                _localizer["AccountEmailNotVerified"],
+                "ACCOUNT_EMAIL_NOT_VERIFIED");
         }
     }
 
