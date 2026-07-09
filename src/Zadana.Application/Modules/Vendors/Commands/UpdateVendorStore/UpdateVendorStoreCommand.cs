@@ -3,6 +3,7 @@ using MediatR;
 using Microsoft.Extensions.Localization;
 using Zadana.Application.Common.Interfaces;
 using Zadana.Application.Common.Localization;
+using Zadana.Application.Modules.Geography.Support;
 using Zadana.Application.Modules.Vendors.DTOs;
 using Zadana.Application.Modules.Vendors.Interfaces;
 using Zadana.Application.Modules.Vendors.Support;
@@ -52,6 +53,7 @@ public class UpdateVendorStoreCommandHandler : IRequestHandler<UpdateVendorStore
     private readonly IVendorReviewAuditService _vendorReviewAuditService;
     private readonly IProfileChangeApprovalService _profileChangeApprovalService;
     private readonly IAdminAlertService _adminAlertService;
+    private readonly IApplicationDbContext _context;
 
     public UpdateVendorStoreCommandHandler(
         IVendorRepository vendorRepository,
@@ -60,7 +62,8 @@ public class UpdateVendorStoreCommandHandler : IRequestHandler<UpdateVendorStore
         ICurrentUserService currentUserService,
         IVendorReviewAuditService vendorReviewAuditService,
         IProfileChangeApprovalService profileChangeApprovalService,
-        IAdminAlertService adminAlertService)
+        IAdminAlertService adminAlertService,
+        IApplicationDbContext context)
     {
         _vendorRepository = vendorRepository;
         _vendorReadService = vendorReadService;
@@ -69,6 +72,7 @@ public class UpdateVendorStoreCommandHandler : IRequestHandler<UpdateVendorStore
         _vendorReviewAuditService = vendorReviewAuditService;
         _profileChangeApprovalService = profileChangeApprovalService;
         _adminAlertService = adminAlertService;
+        _context = context;
     }
 
     public async Task<VendorWorkspaceDto> Handle(UpdateVendorStoreCommand request, CancellationToken cancellationToken)
@@ -76,6 +80,12 @@ public class UpdateVendorStoreCommandHandler : IRequestHandler<UpdateVendorStore
         var userId = _currentUserService.UserId ?? throw new UnauthorizedException("USER_NOT_AUTHENTICATED");
         var vendor = await _vendorRepository.GetByUserIdAsync(userId, cancellationToken)
             ?? throw new NotFoundException("Vendor", userId);
+
+        await OperationalGeographyScope.EnsureOperationalRegionCityIfProvidedAsync(
+            _context,
+            request.Region,
+            request.City,
+            cancellationToken);
 
         var hasSensitiveChange =
             HasChanged(vendor.CommercialRegisterDocumentUrl, request.CommercialRegisterDocumentUrl) ||

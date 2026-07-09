@@ -936,7 +936,22 @@
     <value>البيانات غير صحيح.</value>
   </data>
   <data name="DRIVER_SERVICE_AREA_REQUIRED" xml:space="preserve">
-    <value>لازم تختار المنطقة والمدينة اللي بيشتغل فيها المندوب.</value>
+    <value>لازم تختار منطقة ومدينة التشغيل للمندوب.</value>
+  </data>
+  <data name="SERVICE_REGION_REQUIRED" xml:space="preserve">
+    <value>لازم تختار منطقة التشغيل.</value>
+  </data>
+  <data name="UNSUPPORTED_OPERATIONAL_REGION" xml:space="preserve">
+    <value>حاليًا التشغيل متاح في المنطقة الشرقية بس.</value>
+  </data>
+  <data name="SERVICE_CITY_REQUIRED" xml:space="preserve">
+    <value>لازم تختار مدينة التشغيل.</value>
+  </data>
+  <data name="UNSUPPORTED_OPERATIONAL_CITY" xml:space="preserve">
+    <value>لازم تختار مدينة من مدن المنطقة الشرقية.</value>
+  </data>
+  <data name="DRIVER_CITY_HAS_NO_ACTIVE_VENDOR" xml:space="preserve">
+    <value>المدينة هذي ما فيها متاجر متاحة حاليًا. اختر مدينة ثانية من المدن المدعومة.</value>
   </data>
   <data name="INVALID_OTP_TYPE" xml:space="preserve">
     <value>نوع رمز التحقق مطلوب.</value>
@@ -993,10 +1008,10 @@
     <value>بيانات تواصل مدير الفرع مطلوبة.</value>
   </data>
   <data name="BRANCH_REGION_REQUIRED" xml:space="preserve">
-    <value>الفرع المنطقة مطلوب.</value>
+    <value>لازم تختار منطقة الفرع.</value>
   </data>
   <data name="BRANCH_CITY_REQUIRED" xml:space="preserve">
-    <value>الفرع المدينة مطلوب.</value>
+    <value>لازم تختار مدينة الفرع.</value>
   </data>
   <data name="BRANCH_CODE_CONFLICT" xml:space="preserve">
     <value>ما قدرنا نكمل العملية بسبب الفرع. راجع البيانات وجرّب مرة ثانية.</value>

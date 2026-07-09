@@ -1,5 +1,6 @@
 using MediatR;
 using Zadana.Application.Common.Interfaces;
+using Zadana.Application.Modules.Geography.Support;
 using Zadana.Application.Modules.Identity.DTOs;
 using Zadana.Application.Modules.Identity.Interfaces;
 using Zadana.Application.Modules.Vendors.Interfaces;
@@ -14,21 +15,30 @@ public class RegisterVendorCommandHandler : IRequestHandler<RegisterVendorComman
     private readonly IVendorRepository _vendorRepository;
     private readonly IUnitOfWork _unitOfWork;
     private readonly IAdminAlertService _adminAlertService;
+    private readonly IApplicationDbContext _context;
 
     public RegisterVendorCommandHandler(
         IRegistrationWorkflow registrationWorkflow,
         IVendorRepository vendorRepository,
         IUnitOfWork unitOfWork,
-        IAdminAlertService adminAlertService)
+        IAdminAlertService adminAlertService,
+        IApplicationDbContext context)
     {
         _registrationWorkflow = registrationWorkflow;
         _vendorRepository = vendorRepository;
         _unitOfWork = unitOfWork;
         _adminAlertService = adminAlertService;
+        _context = context;
     }
 
     public async Task<AuthResponseDto> Handle(RegisterVendorCommand request, CancellationToken cancellationToken)
     {
+        await OperationalGeographyScope.EnsureOperationalRegionCityAsync(
+            _context,
+            request.Region,
+            request.City,
+            cancellationToken);
+
         var user = await _registrationWorkflow.RegisterAccountAsync(
             new CreateIdentityAccountRequest(
                 request.FullName,
@@ -70,10 +80,16 @@ public class RegisterVendorCommandHandler : IRequestHandler<RegisterVendorComman
             var branch = new VendorBranch(
                 vendor.Id,
                 request.BranchName,
+                request.BranchName,
+                false,
                 request.BranchAddressLine,
+                request.Region,
+                request.City,
                 request.BranchLatitude,
                 request.BranchLongitude,
                 request.BranchContactPhone,
+                string.Empty,
+                string.Empty,
                 request.BranchDeliveryRadiusKm);
 
             _vendorRepository.AddBranch(branch);

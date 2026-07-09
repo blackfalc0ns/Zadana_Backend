@@ -3,6 +3,7 @@ using MediatR;
 using Microsoft.Extensions.Localization;
 using Zadana.Application.Common.Interfaces;
 using Zadana.Application.Common.Localization;
+using Zadana.Application.Modules.Geography.Support;
 using Zadana.Application.Modules.Vendors.DTOs;
 using Zadana.Application.Modules.Vendors.Interfaces;
 using Zadana.Application.Modules.Vendors.Support;
@@ -37,6 +38,7 @@ public class UpdateVendorContactCommandHandler : IRequestHandler<UpdateVendorCon
     private readonly ICurrentUserService _currentUserService;
     private readonly IVendorReviewAuditService _vendorReviewAuditService;
     private readonly IAdminAlertService _adminAlertService;
+    private readonly IApplicationDbContext _context;
 
     public UpdateVendorContactCommandHandler(
         IVendorRepository vendorRepository,
@@ -44,7 +46,8 @@ public class UpdateVendorContactCommandHandler : IRequestHandler<UpdateVendorCon
         IUnitOfWork unitOfWork,
         ICurrentUserService currentUserService,
         IVendorReviewAuditService vendorReviewAuditService,
-        IAdminAlertService adminAlertService)
+        IAdminAlertService adminAlertService,
+        IApplicationDbContext context)
     {
         _vendorRepository = vendorRepository;
         _vendorReadService = vendorReadService;
@@ -52,6 +55,7 @@ public class UpdateVendorContactCommandHandler : IRequestHandler<UpdateVendorCon
         _currentUserService = currentUserService;
         _vendorReviewAuditService = vendorReviewAuditService;
         _adminAlertService = adminAlertService;
+        _context = context;
     }
 
     public async Task<VendorWorkspaceDto> Handle(UpdateVendorContactCommand request, CancellationToken cancellationToken)
@@ -59,6 +63,12 @@ public class UpdateVendorContactCommandHandler : IRequestHandler<UpdateVendorCon
         var userId = _currentUserService.UserId ?? throw new UnauthorizedException("USER_NOT_AUTHENTICATED");
         var vendor = await _vendorRepository.GetByUserIdAsync(userId, cancellationToken)
             ?? throw new NotFoundException("Vendor", userId);
+
+        await OperationalGeographyScope.EnsureOperationalRegionCityAsync(
+            _context,
+            request.Region,
+            request.City,
+            cancellationToken);
 
         vendor.UpdateContact(request.Region, request.City, request.NationalAddress);
 

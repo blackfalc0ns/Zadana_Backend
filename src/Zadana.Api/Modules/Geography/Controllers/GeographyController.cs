@@ -6,6 +6,8 @@ using Zadana.Api.Controllers;
 using Zadana.Api.Configuration;
 using Zadana.Application.Common.Caching;
 using Zadana.Application.Common.Interfaces;
+using Zadana.Application.Modules.Geography.Support;
+using Zadana.Domain.Modules.Vendors.Enums;
 using Zadana.Infrastructure.Persistence;
 
 namespace Zadana.Api.Modules.Geography.Controllers;
@@ -73,6 +75,49 @@ public class GeographyController : ApiControllerBase
                 .ToListAsync(token),
             new AppCacheEntryOptions(CacheDuration),
             cancellationToken: cancellationToken);
+    }
+
+    [HttpGet("driver/regions/{regionCode}/cities")]
+    public async Task<IReadOnlyList<SaudiCityLookupDto>> GetDriverCities(string regionCode, CancellationToken cancellationToken)
+    {
+        var normalizedRegionCode = regionCode.Trim().ToUpperInvariant();
+        if (normalizedRegionCode != OperationalGeographyScope.EasternRegionCode)
+        {
+            return [];
+        }
+
+        return await _dbContext.SaudiCities
+            .AsNoTracking()
+            .Where(city => city.Region.Code == normalizedRegionCode)
+            .Where(city => _dbContext.VendorBranches
+                .AsNoTracking()
+                .Any(branch =>
+                    branch.IsActive
+                    && branch.Vendor.Status == VendorStatus.Active
+                    && branch.Vendor.AcceptOrders
+                    && branch.Vendor.LockedAtUtc == null
+                    && (
+                        branch.City == city.Code
+                        || branch.City == city.NameAr
+                        || branch.City == city.NameEn
+                        || (
+                            branch.City == string.Empty
+                            && (
+                                branch.Vendor.City == city.Code
+                                || branch.Vendor.City == city.NameAr
+                                || branch.Vendor.City == city.NameEn)))))
+            .OrderBy(city => city.SortOrder)
+            .ThenBy(city => city.NameEn)
+            .Select(city => new SaudiCityLookupDto(
+                city.Region.Code,
+                city.Code,
+                city.NameAr,
+                city.NameEn,
+                city.Latitude,
+                city.Longitude,
+                city.MapZoom,
+                city.SortOrder))
+            .ToListAsync(cancellationToken);
     }
 }
 

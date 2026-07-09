@@ -1,6 +1,7 @@
 using FluentValidation;
 using MediatR;
 using Zadana.Application.Common.Interfaces;
+using Zadana.Application.Modules.Geography.Support;
 using Zadana.Application.Modules.Vendors.DTOs;
 using Zadana.Application.Modules.Vendors.Interfaces;
 using Zadana.SharedKernel.Exceptions;
@@ -34,23 +35,32 @@ public class AdminUpdateVendorContactCommandHandler : IRequestHandler<AdminUpdat
     private readonly IVendorReadService _vendorReadService;
     private readonly IVendorCommunicationService _vendorCommunicationService;
     private readonly IUnitOfWork _unitOfWork;
+    private readonly IApplicationDbContext _context;
 
     public AdminUpdateVendorContactCommandHandler(
         IVendorRepository vendorRepository,
         IVendorReadService vendorReadService,
         IVendorCommunicationService vendorCommunicationService,
-        IUnitOfWork unitOfWork)
+        IUnitOfWork unitOfWork,
+        IApplicationDbContext context)
     {
         _vendorRepository = vendorRepository;
         _vendorReadService = vendorReadService;
         _vendorCommunicationService = vendorCommunicationService;
         _unitOfWork = unitOfWork;
+        _context = context;
     }
 
     public async Task<VendorDetailDto> Handle(AdminUpdateVendorContactCommand request, CancellationToken cancellationToken)
     {
         var vendor = await _vendorRepository.GetByIdAsync(request.VendorId, cancellationToken)
             ?? throw new NotFoundException("Vendor", request.VendorId);
+
+        await OperationalGeographyScope.EnsureOperationalRegionCityAsync(
+            _context,
+            request.Region,
+            request.City,
+            cancellationToken);
 
         vendor.UpdateContact(request.Region, request.City, request.NationalAddress);
 

@@ -6,6 +6,7 @@ using Zadana.Api.Modules.Delivery.Requests;
 using Zadana.Application.Common.Interfaces;
 using Zadana.Application.Modules.Delivery.DTOs;
 using Zadana.Application.Modules.Delivery.Interfaces;
+using Zadana.Application.Modules.Geography.Support;
 using Zadana.Application.Modules.Identity.Interfaces;
 using Zadana.Application.Modules.Identity.Services;
 using Zadana.Domain.Modules.Delivery.Enums;
@@ -123,24 +124,14 @@ public class DriverProfileController : ApiControllerBase
         {
             throw new BusinessRuleException(
                 "DRIVER_SERVICE_AREA_REQUIRED",
-                "لازم تختار المنطقة والمدينة اللي بيشتغل فيها المندوب | Driver must choose the region and city they will work in.");
+                "لازم تختار منطقة ومدينة التشغيل للمندوب.");
         }
 
-        var normalizedRegion = request.Region.Trim().ToUpperInvariant();
-        var regionEntity = await context.SaudiRegions
-            .AsNoTracking()
-            .FirstOrDefaultAsync(r => r.Code == normalizedRegion, cancellationToken)
-            ?? throw new BusinessRuleException("INVALID_REGION", "المنطقة المختارة غير موجودة | Selected region does not exist.");
-
-        var normalizedCity = request.City.Trim().ToUpperInvariant();
-        var cityExists = await context.SaudiCities
-            .AsNoTracking()
-            .AnyAsync(c => c.Code == normalizedCity && c.RegionId == regionEntity.Id, cancellationToken);
-
-        if (!cityExists)
-        {
-            throw new BusinessRuleException("INVALID_CITY", "المدينة المختارة لا تتبع المنطقة المحددة | Selected city does not belong to the chosen region.");
-        }
+        await OperationalGeographyScope.EnsureDriverServiceAreaAsync(
+            context,
+            request.Region,
+            request.City,
+            cancellationToken);
 
         var payload = new DriverVehicleProfileChangePayload(
             driver.Id,

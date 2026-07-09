@@ -10,6 +10,7 @@ using Zadana.Api.Authorization;
 using Zadana.Api.Controllers;
 using Zadana.Api.Localization;
 using Zadana.Application.Common.Interfaces;
+using Zadana.Application.Modules.Geography.Support;
 using Zadana.Application.Modules.Identity.Commands.UpdateUserOverrides;
 using Zadana.Application.Modules.Identity.Commands.UpdateUserScope;
 using Zadana.Application.Modules.Identity.DTOs;
@@ -121,11 +122,16 @@ public class VendorAccessController : ApiControllerBase
             ? throw new BusinessRuleException("BRANCH_MANAGER_CONTACT_REQUIRED", "Branch manager contact is required.")
             : request.ManagerContact.Trim();
         var region = string.IsNullOrWhiteSpace(request.Region)
-            ? throw new BusinessRuleException("BRANCH_REGION_REQUIRED", "Branch region is required.")
+            ? throw new BusinessRuleException("BRANCH_REGION_REQUIRED", "لازم تختار منطقة الفرع.")
             : request.Region.Trim();
         var city = string.IsNullOrWhiteSpace(request.City)
-            ? throw new BusinessRuleException("BRANCH_CITY_REQUIRED", "Branch city is required.")
+            ? throw new BusinessRuleException("BRANCH_CITY_REQUIRED", "لازم تختار مدينة الفرع.")
             : request.City.Trim();
+        await OperationalGeographyScope.EnsureOperationalRegionCityAsync(
+            _context,
+            region,
+            city,
+            cancellationToken);
         var isPrimary = request.IsPrimary || !await _context.VendorBranches
             .AsNoTracking()
             .AnyAsync(branch => branch.VendorId == scope.VendorId, cancellationToken);
@@ -218,11 +224,16 @@ public class VendorAccessController : ApiControllerBase
             ? throw new BusinessRuleException("BRANCH_MANAGER_CONTACT_REQUIRED", "Branch manager contact is required.")
             : request.ManagerContact.Trim();
         var region = string.IsNullOrWhiteSpace(request.Region)
-            ? throw new BusinessRuleException("BRANCH_REGION_REQUIRED", "Branch region is required.")
+            ? throw new BusinessRuleException("BRANCH_REGION_REQUIRED", "لازم تختار منطقة الفرع.")
             : request.Region.Trim();
         var city = string.IsNullOrWhiteSpace(request.City)
-            ? throw new BusinessRuleException("BRANCH_CITY_REQUIRED", "Branch city is required.")
+            ? throw new BusinessRuleException("BRANCH_CITY_REQUIRED", "لازم تختار مدينة الفرع.")
             : request.City.Trim();
+        await OperationalGeographyScope.EnsureOperationalRegionCityAsync(
+            _context,
+            region,
+            city,
+            cancellationToken);
         var latitude = request.Latitude ?? branch.Latitude;
         var longitude = request.Longitude ?? branch.Longitude;
         var deliveryRadiusKm = request.DeliveryRadiusKm.GetValueOrDefault(branch.DeliveryRadiusKm);

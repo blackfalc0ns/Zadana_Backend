@@ -3,6 +3,7 @@ using MediatR;
 using Microsoft.Extensions.Localization;
 using Zadana.Application.Common.Interfaces;
 using Zadana.Application.Common.Localization;
+using Zadana.Application.Modules.Geography.Support;
 using Zadana.Application.Modules.Vendors.DTOs;
 using Zadana.Application.Modules.Vendors.Interfaces;
 using Zadana.SharedKernel.Exceptions;
@@ -48,23 +49,32 @@ public class AdminUpdateVendorStoreCommandHandler : IRequestHandler<AdminUpdateV
     private readonly IVendorReadService _vendorReadService;
     private readonly IVendorCommunicationService _vendorCommunicationService;
     private readonly IUnitOfWork _unitOfWork;
+    private readonly IApplicationDbContext _context;
 
     public AdminUpdateVendorStoreCommandHandler(
         IVendorRepository vendorRepository,
         IVendorReadService vendorReadService,
         IVendorCommunicationService vendorCommunicationService,
-        IUnitOfWork unitOfWork)
+        IUnitOfWork unitOfWork,
+        IApplicationDbContext context)
     {
         _vendorRepository = vendorRepository;
         _vendorReadService = vendorReadService;
         _vendorCommunicationService = vendorCommunicationService;
         _unitOfWork = unitOfWork;
+        _context = context;
     }
 
     public async Task<VendorDetailDto> Handle(AdminUpdateVendorStoreCommand request, CancellationToken cancellationToken)
     {
         var vendor = await _vendorRepository.GetByIdAsync(request.VendorId, cancellationToken)
             ?? throw new NotFoundException("Vendor", request.VendorId);
+
+        await OperationalGeographyScope.EnsureOperationalRegionCityIfProvidedAsync(
+            _context,
+            request.Region,
+            request.City,
+            cancellationToken);
 
         vendor.UpdateStore(
             request.BusinessNameAr,
