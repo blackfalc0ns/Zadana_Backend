@@ -58,7 +58,7 @@ public abstract class IdentityAuthControllerBase : ApiControllerBase
     protected Task<IActionResult> ResendPasswordResetOtpAsync(ResendOtpRequest request) =>
         ResendOtpAsync(request with { Purpose = "password_reset" });
 
-    protected async Task<IActionResult> ForgotPasswordAsync(ForgotPasswordRequest? request)
+    protected async Task<IActionResult> ForgotPasswordAsync(ForgotPasswordRequest? request, params UserRole[] expectedRoles)
     {
         if (request is null || string.IsNullOrWhiteSpace(request.Identifier))
         {
@@ -69,7 +69,8 @@ public abstract class IdentityAuthControllerBase : ApiControllerBase
             });
         }
 
-        await Sender.Send(new ForgotPasswordCommand(request.Identifier));
+        var roles = expectedRoles is { Length: > 0 } ? expectedRoles : null;
+        await Sender.Send(new ForgotPasswordCommand(request.Identifier, roles));
         return Ok(new { Message = _localizer["PasswordResetOtpSent"].Value });
     }
 

@@ -5,6 +5,7 @@ using Zadana.Application.Modules.Identity.Interfaces;
 using Zadana.SharedKernel.Exceptions;
 using Microsoft.Extensions.Localization;
 using Zadana.Application.Common.Localization;
+using Zadana.Domain.Modules.Identity.Enums;
 
 namespace Zadana.Application.Modules.Identity.Commands.ForgotPassword;
 
@@ -44,6 +45,11 @@ public class ForgotPasswordCommandHandler : IRequestHandler<ForgotPasswordComman
         }
 
         var user = otpResult.Account;
+        if (request.ExpectedRoles is { Length: > 0 } && !request.ExpectedRoles.Contains(user.Role))
+        {
+            return;
+        }
+
         if (!string.IsNullOrWhiteSpace(user.Email))
         {
             await _otpService.SendOtpEmailAsync(user.Email, otpResult.OtpCode, cancellationToken, validityMinutes: 15);

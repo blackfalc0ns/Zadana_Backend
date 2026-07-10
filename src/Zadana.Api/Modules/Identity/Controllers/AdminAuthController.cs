@@ -50,6 +50,30 @@ public class AdminAuthController : IdentityAuthControllerBase
         return Ok(new { csrfToken = ApiCsrfToken.Issue(Response, _environment) });
     }
 
+    [AllowAnonymous]
+    [EnableRateLimiting(RateLimitPolicyNames.Auth)]
+    [HttpPost("forgot-password")]
+    public Task<IActionResult> ForgotPassword([FromBody] ForgotPasswordRequest request) =>
+        ForgotPasswordAsync(request, UserRole.Admin, UserRole.SuperAdmin);
+
+    [AllowAnonymous]
+    [EnableRateLimiting(RateLimitPolicyNames.Auth)]
+    [HttpPost("verify-reset-otp")]
+    public Task<IActionResult> VerifyResetOtp([FromBody] VerifyPasswordResetOtpRequest request) =>
+        VerifyPasswordResetOtpAsync(request);
+
+    [AllowAnonymous]
+    [EnableRateLimiting(RateLimitPolicyNames.Auth)]
+    [HttpPost("resend-reset-otp")]
+    public Task<IActionResult> ResendPasswordResetOtp([FromBody] ResendOtpRequest request) =>
+        ResendPasswordResetOtpAsync(request);
+
+    [AllowAnonymous]
+    [EnableRateLimiting(RateLimitPolicyNames.Auth)]
+    [HttpPost("reset-password")]
+    public Task<IActionResult> ResetPassword([FromBody] ResetPasswordRequest request) =>
+        ResetPasswordAsync(request);
+
     [EnableRateLimiting(RateLimitPolicyNames.Auth)]
     [HttpPost("login")]
     [ValidateCsrfToken]
