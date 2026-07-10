@@ -260,18 +260,53 @@ public class ApplicationDbContext : IdentityDbContext<User, IdentityRole<Guid>, 
     }
 
     /// <summary>
-    /// Intercepts <see cref="EntityState.Deleted"/> entries that implement
-    /// <see cref="ISoftDeletable"/> and converts them to soft deletes instead.
+    /// Normalizes tracked entity states before persisting and converts soft
+    /// deletes. See <see cref="NormalizeTrackedEntityStates"/> for the phantom
+    /// update fix-up rationale.
     /// </summary>
+    public override int SaveChanges(bool acceptAllChangesOnSuccess)
+    {
+        NormalizeTrackedEntityStates();
+        return base.SaveChanges(acceptAllChangesOnSuccess);
+    }
+
+    /// <inheritdoc cref="SaveChanges(bool)" />
     public override async Task<int> SaveChangesAsync(CancellationToken cancellationToken = default)
     {
+        NormalizeTrackedEntityStates();
+        return await base.SaveChangesAsync(cancellationToken);
+    }
+
+    private void NormalizeTrackedEntityStates()
+    {
+        // Re-classify phantom "updates" as inserts.
+        //
+        // BaseEntity assigns Id = Guid.NewGuid() in-memory and every key is
+        // mapped as ValueGeneratedOnAdd. When a freshly-created child entity is
+        // attached to an already-tracked aggregate (e.g. adding a support-ticket
+        // message or a support-case activity to a loaded parent), EF's graph
+        // tracker sees a populated key and assumes the row already exists,
+        // marking the entity Modified instead of Added. The resulting UPDATE
+        // targets a non-existent row, affects 0 rows and throws a bogus
+        // DbUpdateConcurrencyException.
+        //
+        // A genuinely loaded entity always carries a populated CreatedAtUtc; a
+        // brand-new one does not (the auditable interceptor only stamps
+        // CreatedAtUtc for Added entities). Use that to detect new-but-Modified
+        // entities and flip them back to Added so they are inserted correctly.
+        foreach (var entry in ChangeTracker.Entries<Zadana.SharedKernel.Primitives.BaseEntity>())
+        {
+            if (entry.State == EntityState.Modified && entry.Entity.CreatedAtUtc == default)
+            {
+                entry.State = EntityState.Added;
+            }
+        }
+
         foreach (var entry in ChangeTracker.Entries<Zadana.SharedKernel.Primitives.ISoftDeletable>()
                      .Where(e => e.State == EntityState.Deleted))
         {
             entry.State = EntityState.Modified;
             entry.Entity.SoftDelete();
         }
-
-        return await base.SaveChangesAsync(cancellationToken);
     }
 }
