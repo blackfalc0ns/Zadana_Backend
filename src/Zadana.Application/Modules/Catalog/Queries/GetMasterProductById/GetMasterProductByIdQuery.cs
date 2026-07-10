@@ -30,34 +30,59 @@ public class GetMasterProductByIdQueryHandler : IRequestHandler<GetMasterProduct
         if (product == null)
             throw new NotFoundException("MasterProduct", request.Id);
 
-        var variants = await _context.MasterProducts
+        var variantGroupKey = product.VariantGroupId != Guid.Empty
+            ? product.VariantGroupId
+            : product.Id;
+
+        // Legacy rows may still have VariantGroupId = Guid.Empty. Treating that as
+        // "match all empty groups" used to scan the entire catalog and made edit
+        // pages time out. Mirror the grouping logic used elsewhere in catalog queries.
+        var variantRows = await _context.MasterProducts
             .AsNoTracking()
             .Include(p => p.PackageType)
             .Include(p => p.MeasurementUnit)
             .Include(p => p.Images)
-            .Where(p => p.VariantGroupId == product.VariantGroupId)
+            .Where(p =>
+                (p.VariantGroupId != Guid.Empty && p.VariantGroupId == variantGroupKey) ||
+                (p.VariantGroupId == Guid.Empty && p.Id == variantGroupKey))
             .OrderBy(p => p.MeasurementValue ?? decimal.MaxValue)
             .ThenBy(p => p.NameAr)
+            .ToListAsync(cancellationToken);
+
+        var variantIds = variantRows.Select(p => p.Id).ToList();
+        var defaultVendorProductByMasterId = variantIds.Count == 0
+            ? new Dictionary<Guid, Guid?>()
+            : await _context.VendorProducts
+                .AsNoTracking()
+                .Where(vp => variantIds.Contains(vp.MasterProductId))
+                .GroupBy(vp => vp.MasterProductId)
+                .Select(group => new
+                {
+                    MasterProductId = group.Key,
+                    VendorProductId = group
+                        .OrderBy(vp => vp.CreatedAtUtc)
+                        .Select(vp => (Guid?)vp.Id)
+                        .FirstOrDefault()
+                })
+                .ToDictionaryAsync(item => item.MasterProductId, item => item.VendorProductId, cancellationToken);
+
+        var variants = variantRows
             .Select(p => new MasterProductVariantOptionDto(
                 p.Id,
-                _context.VendorProducts
-                    .Where(vp => vp.MasterProductId == p.Id)
-                    .OrderBy(vp => vp.CreatedAtUtc)
-                    .Select(vp => (Guid?)vp.Id)
-                    .FirstOrDefault(),
+                defaultVendorProductByMasterId.GetValueOrDefault(p.Id),
                 p.NameAr,
                 p.NameEn,
                 MasterProductDisplayDto.BuildDisplaySize(
-                    p.PackageType != null ? p.PackageType.NameAr : null,
+                    p.PackageType?.NameAr,
                     p.MeasurementValue,
-                    p.MeasurementUnit != null ? p.MeasurementUnit.NameAr : null,
-                    p.MeasurementUnit != null ? p.MeasurementUnit.Symbol : null,
+                    p.MeasurementUnit?.NameAr,
+                    p.MeasurementUnit?.Symbol,
                     true),
                 MasterProductDisplayDto.BuildDisplaySize(
-                    p.PackageType != null ? p.PackageType.NameEn : null,
+                    p.PackageType?.NameEn,
                     p.MeasurementValue,
-                    p.MeasurementUnit != null ? p.MeasurementUnit.NameEn : null,
-                    p.MeasurementUnit != null ? p.MeasurementUnit.Symbol : null,
+                    p.MeasurementUnit?.NameEn,
+                    p.MeasurementUnit?.Symbol,
                     false),
                 p.Id == product.Id,
                 p.Images
@@ -66,8 +91,11 @@ public class GetMasterProductByIdQueryHandler : IRequestHandler<GetMasterProduct
                     .Select(img => img.Url)
                     .FirstOrDefault(),
                 p.Barcode,
-                p.Slug))
-            .ToListAsync(cancellationToken);
+                p.Slug,
+                p.PackageTypeId,
+                p.MeasurementValue,
+                p.MeasurementUnitId))
+            .ToList();
 
         return MasterProductDisplayDto.ToDto(product, false, variants);
     }

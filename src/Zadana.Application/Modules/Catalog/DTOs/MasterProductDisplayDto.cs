@@ -13,7 +13,10 @@ public record MasterProductVariantOptionDto(
     bool IsCurrent,
     string? ImageUrl = null,
     string? Barcode = null,
-    string? Slug = null);
+    string? Slug = null,
+    Guid? PackageTypeId = null,
+    decimal? MeasurementValue = null,
+    Guid? MeasurementUnitId = null);
 
 public static class MasterProductDisplayDto
 {
