@@ -33,6 +33,7 @@ public class AdminOrdersController : ApiControllerBase
     private readonly IOrderStatusNotificationDispatcher _orderStatusNotificationDispatcher;
     private readonly Application.Modules.Delivery.Interfaces.IDeliveryDispatchService _dispatchService;
     private readonly INotificationService _notificationService;
+    private readonly OrderInventoryWorkflowService _orderInventoryWorkflowService;
 
     public AdminOrdersController(
         IApplicationDbContext dbContext,
@@ -42,7 +43,8 @@ public class AdminOrdersController : ApiControllerBase
         IPublisher publisher,
         IOrderStatusNotificationDispatcher orderStatusNotificationDispatcher,
         Application.Modules.Delivery.Interfaces.IDeliveryDispatchService dispatchService,
-        INotificationService notificationService)
+        INotificationService notificationService,
+        OrderInventoryWorkflowService? orderInventoryWorkflowService = null)
     {
         _dbContext = dbContext;
         _currentUserService = currentUserService;
@@ -52,6 +54,7 @@ public class AdminOrdersController : ApiControllerBase
         _orderStatusNotificationDispatcher = orderStatusNotificationDispatcher;
         _dispatchService = dispatchService;
         _notificationService = notificationService;
+        _orderInventoryWorkflowService = orderInventoryWorkflowService ?? new OrderInventoryWorkflowService(dbContext);
     }
 
     [HttpGet("filter-options")]
@@ -302,6 +305,7 @@ public class AdminOrdersController : ApiControllerBase
 
         order.ChangeStatus(OrderStatus.Cancelled, adminUserId, request.InternalNote ?? request.Details ?? "Cancelled by admin.");
         _dbContext.OrderStatusHistories.Add(order.StatusHistory.Last());
+        await _orderInventoryWorkflowService.ApplyRestockAsync(order.Id, "admin_cancelled", cancellationToken);
 
         if (request.RefundType is "full" or "partial")
         {

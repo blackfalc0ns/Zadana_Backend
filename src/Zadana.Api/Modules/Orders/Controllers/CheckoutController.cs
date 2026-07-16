@@ -144,7 +144,18 @@ public class CheckoutController : ApiControllerBase
                     item.MeasurementValue,
                     item.MeasurementUnitName,
                     item.VariantImageUrl,
-                    item.VariantImages)).ToList()),
+                    item.VariantImages)).ToList(),
+                result.Cart.HasUnavailableItems,
+                result.Cart.UnavailableItemsCount,
+                result.Cart.RequiresUnavailableItemsConfirmation,
+                (result.Cart.UnavailableItems ?? new List<CheckoutUnavailableCartItemDto>())
+                    .Select(item => new CheckoutUnavailableCartItemResponse(
+                        item.Id,
+                        item.ProductId,
+                        item.Name,
+                        item.Quantity,
+                        item.AvailabilityStatus))
+                    .ToList()),
             result.SelectedAddress?.Id,
             result.SelectedAddress == null
                 ? null

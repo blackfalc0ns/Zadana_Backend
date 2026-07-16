@@ -5,6 +5,7 @@ This folder documents the customer-facing backend changes that are already imple
 Files:
 
 - `CHECKOUT_CONTRACT.md`
+- `CHECKOUT_UNAVAILABLE_ITEMS_AND_RESERVATION_HANDOFF.md`
 - `CHECKOUT_PRICING_VAT_COD_HANDOFF.md`
 - `ORDER_TRACKING_CONTRACT.md`
 - `ORDER_DETAILS_CONTRACT.md`

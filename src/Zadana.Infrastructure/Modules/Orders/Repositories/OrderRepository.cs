@@ -1,9 +1,11 @@
 using Microsoft.EntityFrameworkCore;
+using Zadana.Domain.Modules.Catalog.Enums;
 using Zadana.Application.Modules.Orders.Interfaces;
 using Zadana.Domain.Modules.Catalog.Entities;
 using Zadana.Domain.Modules.Orders.Entities;
 using Zadana.Domain.Modules.Orders.Enums;
 using Zadana.Domain.Modules.Payments.Enums;
+using Zadana.Domain.Modules.Vendors.Enums;
 using Zadana.Infrastructure.Persistence;
 
 namespace Zadana.Infrastructure.Modules.Orders.Repositories;
@@ -46,7 +48,14 @@ public class OrderRepository : IOrderRepository
                 .ThenInclude(master => master.MeasurementUnit)
             .Include(product => product.Vendor)
             .Include(product => product.VendorBranch)
-            .Where(product => product.VendorId == vendorId && masterProductIds.Contains(product.MasterProductId))
+            .Where(product =>
+                product.VendorId == vendorId &&
+                masterProductIds.Contains(product.MasterProductId) &&
+                product.Status == VendorProductStatus.Active &&
+                product.IsAvailable &&
+                product.StockQuantity > 0 &&
+                product.MasterProduct.Status == ProductStatus.Active &&
+                product.Vendor.Status == VendorStatus.Active)
             .ToListAsync(cancellationToken);
 
         return vendorProducts

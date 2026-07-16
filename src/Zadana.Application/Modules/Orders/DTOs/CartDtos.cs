@@ -158,7 +158,8 @@ public record CartSummaryDto(
     bool CanCheckout = false,
     string? CheckoutBlockReason = null,
     bool HasUnavailableItems = false,
-    int UnavailableItemsCount = 0);
+    int UnavailableItemsCount = 0,
+    bool RequiresUnavailableItemsConfirmation = false);
 
 public record CartDto(
     List<CartItemDto> Items,

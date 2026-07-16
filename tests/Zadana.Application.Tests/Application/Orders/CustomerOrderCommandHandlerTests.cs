@@ -15,6 +15,7 @@ using Zadana.Domain.Modules.Identity.Enums;
 using Zadana.Domain.Modules.Marketing.Enums;
 using Zadana.Domain.Modules.Orders.Entities;
 using Zadana.Domain.Modules.Orders.Enums;
+using Zadana.Domain.Modules.Payments.Entities;
 using Zadana.Domain.Modules.Payments.Enums;
 using Zadana.Domain.Modules.Vendors.Entities;
 using Zadana.Infrastructure.Persistence;
@@ -72,6 +73,48 @@ public class CustomerOrderCommandHandlerTests
     }
 
     [Fact]
+    public async Task CancelCustomerOrder_ShouldReleaseReservedStock()
+    {
+        await using var dbContext = CreateDbContext();
+        var user = CreateUser();
+        var vendor = CreateVendor();
+        vendor.Approve(10m, Guid.NewGuid());
+        var masterProductId = Guid.NewGuid();
+        var vendorProduct = new Zadana.Domain.Modules.Catalog.Entities.VendorProduct(
+            vendor.Id,
+            masterProductId,
+            120m,
+            stockQuantity: 3,
+            tradePrice: 90m);
+        vendorProduct.DecreaseStock(1);
+        var order = CreateOrder(
+            user.Id,
+            OrderStatus.Preparing,
+            "ORD-CANCEL-STOCK-001",
+            PaymentMethodType.Card,
+            vendor.Id,
+            vendorProduct.Id,
+            masterProductId);
+        order.Items.Single().MarkStockDeducted(DateTime.UtcNow.AddMinutes(-5));
+
+        dbContext.Users.Add(user);
+        dbContext.Vendors.Add(vendor);
+        dbContext.VendorProducts.Add(vendorProduct);
+        dbContext.Orders.Add(order);
+        await dbContext.SaveChangesAsync();
+
+        var publisherMock = new Mock<IPublisher>();
+        var handler = new CancelCustomerOrderCommandHandler(dbContext, dbContext, publisherMock.Object);
+
+        await handler.Handle(
+            new CancelCustomerOrderCommand(order.Id, user.Id, "changed_my_mind", null, null),
+            CancellationToken.None);
+
+        vendorProduct.StockQuantity.Should().Be(3);
+        order.Items.Single().StockRestoredAtUtc.Should().NotBeNull();
+    }
+
+    [Fact]
     public async Task CancelCustomerOrderValidator_ShouldRequireNoteForOtherReason()
     {
         var validator = new CancelCustomerOrderCommandValidator(CreateLocalizer().Object);
@@ -116,6 +159,48 @@ public class CustomerOrderCommandHandlerTests
         result.OrderId.Should().Be(order.Id);
         (await dbContext.Orders.AnyAsync(x => x.Id == order.Id)).Should().BeFalse();
         (await dbContext.Payments.AnyAsync(x => x.OrderId == order.Id)).Should().BeFalse();
+    }
+
+    [Fact]
+    public async Task DeleteCustomerOrder_ShouldReleaseReservedStockBeforeRemovingPendingPaymentOrder()
+    {
+        await using var dbContext = CreateDbContext();
+        var user = CreateUser();
+        var vendor = CreateVendor();
+        vendor.Approve(10m, Guid.NewGuid());
+        var masterProductId = Guid.NewGuid();
+        var vendorProduct = new Zadana.Domain.Modules.Catalog.Entities.VendorProduct(
+            vendor.Id,
+            masterProductId,
+            120m,
+            stockQuantity: 3,
+            tradePrice: 90m);
+        vendorProduct.DecreaseStock(1);
+        var order = CreateOrder(
+            user.Id,
+            OrderStatus.PendingPayment,
+            "ORD-DELETE-STOCK-001",
+            PaymentMethodType.Card,
+            vendor.Id,
+            vendorProduct.Id,
+            masterProductId);
+        order.Items.Single().MarkStockDeducted(DateTime.UtcNow.AddMinutes(-5));
+        var payment = new Zadana.Domain.Modules.Payments.Entities.Payment(order.Id, PaymentMethodType.Card, order.TotalAmount);
+        payment.MarkAsPending("Moyasar", "provider-delete-stock-1");
+
+        dbContext.Users.Add(user);
+        dbContext.Vendors.Add(vendor);
+        dbContext.VendorProducts.Add(vendorProduct);
+        dbContext.Orders.Add(order);
+        dbContext.Payments.Add(payment);
+        await dbContext.SaveChangesAsync();
+
+        var handler = new DeleteCustomerOrderCommandHandler(dbContext, dbContext);
+
+        await handler.Handle(new DeleteCustomerOrderCommand(order.Id, user.Id), CancellationToken.None);
+
+        vendorProduct.StockQuantity.Should().Be(3);
+        (await dbContext.OrderItems.AnyAsync(x => x.OrderId == order.Id)).Should().BeFalse();
     }
 
     [Fact]
@@ -254,10 +339,12 @@ public class CustomerOrderCommandHandlerTests
         var vendor = CreateVendor();
         var order = CreateOrder(user.Id, OrderStatus.Delivered, "ORD-RETURN-ONLINE-001", PaymentMethodType.Card, vendor.Id);
         var supportCase = CreateReturnRequest(order, user.Id, 120m);
+        var payment = CreatePaidPayment(order);
 
         dbContext.Users.Add(user);
         dbContext.Vendors.Add(vendor);
         dbContext.Orders.Add(order);
+        dbContext.Payments.Add(payment);
         dbContext.OrderSupportCases.Add(supportCase);
         await dbContext.SaveChangesAsync();
 
@@ -299,6 +386,7 @@ public class CustomerOrderCommandHandlerTests
         var vendorProduct = new Zadana.Domain.Modules.Catalog.Entities.VendorProduct(vendor.Id, masterProductId, 120m, stockQuantity: 2, tradePrice: 90m);
         var order = CreateOrder(user.Id, OrderStatus.Delivered, "ORD-RETURN-STOCK-001", PaymentMethodType.Card, vendor.Id, vendorProduct.Id, masterProductId);
         var supportCase = CreateReturnRequest(order, user.Id, 120m);
+        var payment = CreatePaidPayment(order);
 
         order.Items.Single().MarkStockDeducted(DateTime.UtcNow.AddMinutes(-30));
         vendorProduct.DecreaseStock(1);
@@ -307,6 +395,7 @@ public class CustomerOrderCommandHandlerTests
         dbContext.Vendors.Add(vendor);
         dbContext.VendorProducts.Add(vendorProduct);
         dbContext.Orders.Add(order);
+        dbContext.Payments.Add(payment);
         dbContext.OrderSupportCases.Add(supportCase);
         await dbContext.SaveChangesAsync();
 
@@ -327,23 +416,38 @@ public class CustomerOrderCommandHandlerTests
     }
 
     [Fact]
-    public async Task ApproveReturnRequest_WhenVendorBearsCost_ShouldRecoverFromVendorWallet()
+    public async Task ApproveReturnRequest_WhenVendorBearsCost_ShouldRecoverFromUnsettledPayoutHold()
     {
         await using var dbContext = CreateDbContext();
         var user = CreateUser();
         var vendor = CreateVendor();
         var order = CreateOrder(user.Id, OrderStatus.Delivered, "ORD-RETURN-VENDOR-001", PaymentMethodType.Card, vendor.Id);
         var supportCase = CreateReturnRequest(order, user.Id, 70m);
+        var payment = CreatePaidPayment(order);
         var vendorWallet = new Zadana.Domain.Modules.Wallets.Entities.Wallet(
             Zadana.Domain.Modules.Wallets.Enums.WalletOwnerType.Vendor,
             vendor.Id);
         vendorWallet.Credit(100m);
+        var settlement = new Zadana.Domain.Modules.Wallets.Entities.Settlement(vendor.Id, null);
+        settlement.UpdateTotals(100m, 0m);
+        var settlementItem = new Zadana.Domain.Modules.Wallets.Entities.SettlementItem(
+            settlement.Id,
+            order.Id,
+            100m,
+            0m,
+            0m,
+            0m);
+        var payout = new Zadana.Domain.Modules.Wallets.Entities.Payout(settlement.Id, 100m);
 
         dbContext.Users.Add(user);
         dbContext.Vendors.Add(vendor);
         dbContext.Orders.Add(order);
+        dbContext.Payments.Add(payment);
         dbContext.OrderSupportCases.Add(supportCase);
         dbContext.Wallets.Add(vendorWallet);
+        dbContext.Settlements.Add(settlement);
+        dbContext.SettlementItems.Add(settlementItem);
+        dbContext.Payouts.Add(payout);
         await dbContext.SaveChangesAsync();
 
         var workflowService = CreateWorkflowService(dbContext);
@@ -358,33 +462,36 @@ public class CustomerOrderCommandHandlerTests
             "Your refund has been approved.",
             CancellationToken.None);
 
-        result.Status.Should().Be(OrderSupportCaseStatus.Approved);
+        result.Status.Should().Be(OrderSupportCaseStatus.Resolved);
         var recovery = await dbContext.VendorRecoveries.SingleAsync();
         recovery.TargetAmount.Should().Be(70m);
         recovery.RecoveredAmount.Should().Be(70m);
         recovery.OutstandingAmount.Should().Be(0m);
         recovery.Status.Should().Be(Zadana.Domain.Modules.Wallets.Enums.VendorRecoveryStatus.Recovered);
-        vendorWallet.CurrentBalance.Should().Be(30m);
+        settlement.RecoveryAmount.Should().Be(70m);
+        settlementItem.Recovery.Should().Be(70m);
+        payout.Amount.Should().Be(30m);
+        dbContext.WalletTransactions.Should().ContainSingle(txn =>
+            txn.ReferenceType == "VendorHoldRecovery" &&
+            txn.ReferenceId == recovery.Id &&
+            txn.Amount == 70m);
     }
 
     [Fact]
-    public async Task ApproveReturnRequest_WhenVendorWalletIsInsufficient_ShouldLeaveOutstandingRecovery()
+    public async Task ApproveReturnRequest_WhenVendorHasNoUnsettledPayout_ShouldLeaveOutstandingRecovery()
     {
         await using var dbContext = CreateDbContext();
         var user = CreateUser();
         var vendor = CreateVendor();
         var order = CreateOrder(user.Id, OrderStatus.Delivered, "ORD-RETURN-VENDOR-002", PaymentMethodType.Card, vendor.Id);
         var supportCase = CreateReturnRequest(order, user.Id, 90m);
-        var vendorWallet = new Zadana.Domain.Modules.Wallets.Entities.Wallet(
-            Zadana.Domain.Modules.Wallets.Enums.WalletOwnerType.Vendor,
-            vendor.Id);
-        vendorWallet.Credit(25m);
+        var payment = CreatePaidPayment(order);
 
         dbContext.Users.Add(user);
         dbContext.Vendors.Add(vendor);
         dbContext.Orders.Add(order);
+        dbContext.Payments.Add(payment);
         dbContext.OrderSupportCases.Add(supportCase);
-        dbContext.Wallets.Add(vendorWallet);
         await dbContext.SaveChangesAsync();
 
         var workflowService = CreateWorkflowService(dbContext);
@@ -400,10 +507,10 @@ public class CustomerOrderCommandHandlerTests
             CancellationToken.None);
 
         var recovery = await dbContext.VendorRecoveries.SingleAsync();
-        recovery.RecoveredAmount.Should().Be(25m);
-        recovery.OutstandingAmount.Should().Be(65m);
-        recovery.Status.Should().Be(Zadana.Domain.Modules.Wallets.Enums.VendorRecoveryStatus.PartiallyRecovered);
-        vendorWallet.CurrentBalance.Should().Be(0m);
+        recovery.RecoveredAmount.Should().Be(0m);
+        recovery.OutstandingAmount.Should().Be(90m);
+        recovery.Status.Should().Be(Zadana.Domain.Modules.Wallets.Enums.VendorRecoveryStatus.Pending);
+        dbContext.WalletTransactions.Should().BeEmpty();
     }
 
     [Fact]
@@ -586,6 +693,13 @@ public class CustomerOrderCommandHandlerTests
             $"CR-{Guid.NewGuid():N}"[..12],
             "vendor@test.com",
             "01000000009");
+
+    private static Payment CreatePaidPayment(Order order)
+    {
+        var payment = new Payment(order.Id, order.PaymentMethod, order.TotalAmount);
+        payment.MarkAsPaid($"TEST-{order.OrderNumber}");
+        return payment;
+    }
 
     private static OrderSupportCase CreateReturnRequest(Order order, Guid userId, decimal requestedAmount) =>
         new(

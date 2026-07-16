@@ -22,7 +22,11 @@ public record GetCheckoutSummaryResponse(
 public record CheckoutCartResponse(
     [property: JsonPropertyName("items_count")] int ItemsCount,
     [property: JsonPropertyName("total_quantity")] int TotalQuantity,
-    [property: JsonPropertyName("items")] List<CheckoutCartItemResponse> Items);
+    [property: JsonPropertyName("items")] List<CheckoutCartItemResponse> Items,
+    [property: JsonPropertyName("has_unavailable_items")] bool HasUnavailableItems = false,
+    [property: JsonPropertyName("unavailable_items_count")] int UnavailableItemsCount = 0,
+    [property: JsonPropertyName("requires_unavailable_items_confirmation")] bool RequiresUnavailableItemsConfirmation = false,
+    [property: JsonPropertyName("unavailable_items")] List<CheckoutUnavailableCartItemResponse>? UnavailableItems = null);
 
 public record CheckoutCartItemResponse(
     [property: JsonPropertyName("id")] Guid Id,
@@ -39,6 +43,13 @@ public record CheckoutCartItemResponse(
     [property: JsonPropertyName("measurement_unit_name")] string? MeasurementUnitName,
     [property: JsonPropertyName("variant_image_url")] string? VariantImageUrl,
     [property: JsonPropertyName("variant_images")] IReadOnlyList<string> VariantImages);
+
+public record CheckoutUnavailableCartItemResponse(
+    [property: JsonPropertyName("id")] Guid Id,
+    [property: JsonPropertyName("product_id")] Guid ProductId,
+    [property: JsonPropertyName("name")] string Name,
+    [property: JsonPropertyName("quantity")] int Quantity,
+    [property: JsonPropertyName("availability_status")] string AvailabilityStatus);
 
 public record CheckoutSelectedAddressResponse(
     [property: JsonPropertyName("id")] Guid Id,
@@ -187,6 +198,9 @@ public class PlaceOrderRequest
     [JsonPropertyName("notes")]
     public string? Notes { get; init; }
 
+    [JsonPropertyName("remove_unavailable_items")]
+    public bool RemoveUnavailableItems { get; init; }
+
     [JsonExtensionData]
     public Dictionary<string, JsonElement>? ExtensionData { get; init; }
 
@@ -207,6 +221,13 @@ public class PlaceOrderRequest
 
     [JsonIgnore]
     public string? EffectiveNotes => Notes ?? ReadString("note") ?? ReadString("notes");
+
+    [JsonIgnore]
+    public bool EffectiveRemoveUnavailableItems =>
+        RemoveUnavailableItems ||
+        ReadBool("removeUnavailableItems") ||
+        ReadBool("allowPartialCheckout") ||
+        ReadBool("confirmUnavailableItemsRemoval");
 
     private Guid? ReadGuid(string propertyName)
     {
@@ -235,6 +256,23 @@ public class PlaceOrderRequest
         }
 
         return value.ValueKind == JsonValueKind.String ? value.GetString()?.Trim() : null;
+    }
+
+    private bool ReadBool(string propertyName)
+    {
+        if (ExtensionData is null || !ExtensionData.TryGetValue(propertyName, out var value))
+        {
+            return false;
+        }
+
+        if (value.ValueKind is JsonValueKind.True or JsonValueKind.False)
+        {
+            return value.GetBoolean();
+        }
+
+        return value.ValueKind == JsonValueKind.String &&
+               bool.TryParse(value.GetString(), out var parsed) &&
+               parsed;
     }
 
     private static string NormalizePaymentMethod(string? value)

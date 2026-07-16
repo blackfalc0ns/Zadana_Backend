@@ -55,7 +55,11 @@ internal static class UnconfirmedCardPaymentCleanup
 
         var refunds = payments.SelectMany(item => item.Refunds).ToList();
         var statusHistory = await context.OrderStatusHistories.Where(item => item.OrderId == orderId).ToListAsync(cancellationToken);
-        var items = await context.OrderItems.Where(item => item.OrderId == orderId).ToListAsync(cancellationToken);
+        var items = await context.OrderItems
+            .Include(item => item.VendorProduct)
+            .Where(item => item.OrderId == orderId)
+            .ToListAsync(cancellationToken);
+        RestoreReservedStock(items);
 
         if (refunds.Count > 0)
         {
@@ -79,5 +83,28 @@ internal static class UnconfirmedCardPaymentCleanup
 
         context.Orders.Remove(order);
         await context.SaveChangesAsync(cancellationToken);
+    }
+
+    private static void RestoreReservedStock(IEnumerable<Domain.Modules.Orders.Entities.OrderItem> items)
+    {
+        var now = DateTime.UtcNow;
+        var groupedItems = items
+            .Where(item => item.RequiresStockRestore())
+            .GroupBy(item => item.VendorProductId)
+            .Select(group => new
+            {
+                VendorProduct = group.First().VendorProduct,
+                RestoreQuantity = group.Sum(item => item.Quantity),
+                Items = group.ToList()
+            });
+
+        foreach (var group in groupedItems)
+        {
+            group.VendorProduct.IncreaseStock(group.RestoreQuantity);
+            foreach (var item in group.Items)
+            {
+                item.MarkStockRestored(now);
+            }
+        }
     }
 }

@@ -1,4 +1,5 @@
 using FluentAssertions;
+using Microsoft.EntityFrameworkCore;
 using Moq;
 using Zadana.Application.Common.Interfaces;
 using Zadana.Application.Common.Localization;
@@ -6,8 +7,13 @@ using Zadana.Application.Modules.Orders.Commands.PlaceOrder;
 using Zadana.Application.Modules.Orders.Interfaces;
 using Zadana.Application.Tests.Helpers;
 using Zadana.Domain.Modules.Catalog.Entities;
+using Zadana.Domain.Modules.Identity.Entities;
+using Zadana.Domain.Modules.Identity.Enums;
 using Zadana.Domain.Modules.Orders.Entities;
 using Zadana.Domain.Modules.Payments.Enums;
+using Zadana.Infrastructure.Modules.Orders.Repositories;
+using Zadana.Infrastructure.Persistence;
+using Zadana.Infrastructure.Persistence.Interceptors;
 using Zadana.SharedKernel.Exceptions;
 
 namespace Zadana.Application.Tests.Application.Orders;
@@ -19,6 +25,52 @@ public class PlaceOrderCommandHandlerTests
 
     private PlaceOrderCommandHandler CreateHandler() =>
         new(_orderRepositoryMock.Object, TestLocalizer.Create<SharedResource>(), _unitOfWorkMock.Object);
+
+    [Fact]
+    public async Task GetVendorProductsForCheckoutAsync_WhenVendorProductIsUnavailable_ShouldExcludeIt()
+    {
+        var options = new DbContextOptionsBuilder<ApplicationDbContext>()
+            .UseInMemoryDatabase(Guid.NewGuid().ToString())
+            .Options;
+        await using var dbContext = new ApplicationDbContext(options, new AuditableEntityInterceptor());
+
+        var vendorUser = new User("Unavailable Vendor", "placeorder.unavailable.vendor@test.com", "01000000531", UserRole.Vendor);
+        var category = new Category("Groceries", "Groceries");
+        var product = new MasterProduct("Unavailable Juice", "Unavailable Juice", "unavailable-juice-test", category.Id);
+        product.Publish();
+
+        var vendor = new Zadana.Domain.Modules.Vendors.Entities.Vendor(
+            vendorUser.Id,
+            "Unavailable PlaceOrder Store",
+            "Unavailable PlaceOrder Store",
+            "Groceries",
+            "1234567895",
+            "placeorder.unavailable.vendor@test.com",
+            "01000000531");
+        vendor.Approve(10m, Guid.NewGuid());
+
+        var branch = new Zadana.Domain.Modules.Vendors.Entities.VendorBranch(vendor.Id, "Main Branch", "Nasr City", 30.0444m, 31.2357m, "01000000532", 15m);
+        var vendorProduct = new VendorProduct(vendor.Id, product.Id, 30m, 10, tradePrice: 20m, vendorBranchId: branch.Id);
+        vendorProduct.SetAvailability(false);
+
+        dbContext.Users.Add(vendorUser);
+        dbContext.Categories.Add(category);
+        dbContext.MasterProducts.Add(product);
+        dbContext.Vendors.Add(vendor);
+        dbContext.VendorBranches.Add(branch);
+        dbContext.VendorProducts.Add(vendorProduct);
+        await dbContext.SaveChangesAsync();
+
+        var repository = new OrderRepository(dbContext);
+
+        var result = await repository.GetVendorProductsForCheckoutAsync(
+            vendor.Id,
+            [product.Id],
+            branch.Id,
+            CancellationToken.None);
+
+        result.Should().BeEmpty();
+    }
 
     [Fact]
     public async Task Handle_WhenCartEmpty_ShouldThrowBusinessRuleException()
@@ -134,7 +186,7 @@ public class PlaceOrderCommandHandlerTests
 
         await act.Should()
             .ThrowAsync<BusinessRuleException>()
-            .Where(e => e.ErrorCode == "VENDOR_MISSING_CART_PRODUCT");
+            .Where(e => e.ErrorCode == "CART_ITEMS_UNAVAILABLE_AT_ADDRESS_BRANCH");
     }
 
     [Theory]

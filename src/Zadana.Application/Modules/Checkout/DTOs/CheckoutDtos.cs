@@ -21,7 +21,11 @@ public record CheckoutSummaryDto(
 public record CheckoutCartDto(
     int ItemsCount,
     int TotalQuantity,
-    List<CheckoutCartItemDto> Items);
+    List<CheckoutCartItemDto> Items,
+    bool HasUnavailableItems = false,
+    int UnavailableItemsCount = 0,
+    bool RequiresUnavailableItemsConfirmation = false,
+    List<CheckoutUnavailableCartItemDto>? UnavailableItems = null);
 
 public sealed record CheckoutCartItemDto
 {
@@ -102,6 +106,13 @@ public sealed record CheckoutCartItemDto
     public string? VariantImageUrl { get; init; }
     public IReadOnlyList<string> VariantImages { get; init; } = [];
 }
+
+public record CheckoutUnavailableCartItemDto(
+    Guid Id,
+    Guid ProductId,
+    string Name,
+    int Quantity,
+    string AvailabilityStatus);
 
 public record CheckoutSelectedAddressDto(
     Guid Id,

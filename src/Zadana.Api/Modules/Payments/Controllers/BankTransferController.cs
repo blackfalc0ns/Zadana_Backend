@@ -13,6 +13,7 @@ using Zadana.Application.Modules.EmailCenter.DTOs;
 using Zadana.Application.Modules.EmailCenter.Interfaces;
 using Zadana.Application.Modules.Finances.Services;
 using Zadana.Application.Modules.Orders.Events;
+using Zadana.Application.Modules.Orders.Services;
 using Zadana.Application.Modules.Orders.Support;
 using Zadana.Domain.Modules.Finances.Enums;
 using Zadana.Domain.Modules.Orders.Enums;
@@ -37,7 +38,8 @@ public class BankTransferController(
     IOptions<BankTransferSettingsOptions> settings,
     IOptions<FinancialSettingsOptions> financialSettings,
     IWebHostEnvironment environment,
-    ILogger<BankTransferController> logger) : ApiControllerBase
+    ILogger<BankTransferController> logger,
+    OrderInventoryWorkflowService? orderInventoryWorkflowService = null) : ApiControllerBase
 {
     private const string WebhookSecretHeader = "X-BankTransfer-Secret";
 
@@ -240,6 +242,8 @@ public class BankTransferController(
             oldStatus = order.Status;
             order.ChangeStatus(OrderStatus.Cancelled, null, rejectionReason);
             OrderStatusHistoryTracking.TrackNewEntries(context, order);
+            await (orderInventoryWorkflowService ?? new OrderInventoryWorkflowService(context))
+                .ApplyRestockAsync(order.Id, "bank_transfer_rejected", cancellationToken);
         }
 
         await context.SaveChangesAsync(cancellationToken);
@@ -345,12 +349,14 @@ public class BankTransferController(
                 healedJournalEntryId);
         }
 
+        var order = payment.Order;
+        await EnsureBankTransferReservationCanStillBeConfirmedAsync(payment, order, cancellationToken);
+
         if (payment.Status is not (PaymentStatus.Initiated or PaymentStatus.Pending))
         {
             throw new BusinessRuleException("PAYMENT_NOT_CONFIRMABLE", $"Payment in status {payment.Status} cannot be confirmed.");
         }
 
-        var order = payment.Order;
         CurrencyPolicy.EnsureOfficial(order.Currency);
 
         if (amount is > 0 && amount != order.TotalAmount)
@@ -369,7 +375,38 @@ public class BankTransferController(
             OrderStatusHistoryTracking.TrackNewEntries(context, order);
         }
 
-        await context.SaveChangesAsync(cancellationToken);
+        try
+        {
+            await context.SaveChangesAsync(cancellationToken);
+        }
+        catch (DbUpdateConcurrencyException)
+        {
+            if (context is DbContext dbContext)
+            {
+                await dbContext.Entry(payment).ReloadAsync(cancellationToken);
+                await dbContext.Entry(order).ReloadAsync(cancellationToken);
+            }
+
+            if (payment.Status == PaymentStatus.Paid)
+            {
+                var healedJournalEntryId = await TryPostBankTransferLedgerAsync(
+                    payment,
+                    order,
+                    cancellationToken);
+
+                return new BankTransferConfirmationResult(
+                    "Already confirmed.",
+                    payment.Id,
+                    order.Id,
+                    order.Status.ToString(),
+                    payment.Status.ToString(),
+                    healedJournalEntryId);
+            }
+
+            throw new BusinessRuleException(
+                "ORDER_PAYMENT_RESERVATION_EXPIRED",
+                "This bank transfer can no longer be confirmed because the order reservation expired.");
+        }
 
         var journalEntryId = await TryPostBankTransferLedgerAsync(payment, order, cancellationToken);
 
@@ -407,6 +444,39 @@ public class BankTransferController(
             order.Status.ToString(),
             payment.Status.ToString(),
             journalEntryId);
+    }
+
+    private async Task EnsureBankTransferReservationCanStillBeConfirmedAsync(
+        Zadana.Domain.Modules.Payments.Entities.Payment payment,
+        Zadana.Domain.Modules.Orders.Entities.Order order,
+        CancellationToken cancellationToken)
+    {
+        var currentPaymentStatus = payment.Status;
+        if (context is DbContext dbContext)
+        {
+            await dbContext.Entry(order).ReloadAsync(cancellationToken);
+            currentPaymentStatus = await context.Payments
+                .AsNoTracking()
+                .Where(item => item.Id == payment.Id)
+                .Select(item => item.Status)
+                .FirstAsync(cancellationToken);
+        }
+
+        if (currentPaymentStatus == PaymentStatus.Failed ||
+            order.PaymentStatus == PaymentStatus.Failed ||
+            order.Status == OrderStatus.Cancelled)
+        {
+            throw new BusinessRuleException(
+                "ORDER_PAYMENT_RESERVATION_EXPIRED",
+                "This bank transfer can no longer be confirmed because the order reservation expired.");
+        }
+
+        if (order.Status is not (OrderStatus.PendingBankConfirmation or OrderStatus.PendingPayment or OrderStatus.PendingVendorAcceptance))
+        {
+            throw new BusinessRuleException(
+                "ORDER_PAYMENT_CONFIRMATION_NOT_ALLOWED",
+                $"Bank transfer cannot be confirmed while order is in {order.Status}.");
+        }
     }
 
     private async Task PublishOrderStatusChangedAsync(

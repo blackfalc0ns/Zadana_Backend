@@ -532,7 +532,8 @@ public class OrdersController : ApiControllerBase
                 request.EffectivePaymentMethod,
                 request.EffectivePromoCode,
                 request.EffectiveNotes,
-                ResolveDeviceIdHeader()),
+                ResolveDeviceIdHeader(),
+                request.EffectiveRemoveUnavailableItems),
             cancellationToken);
 
         return Ok(CheckoutController.MapPlacedOrder(result));

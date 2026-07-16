@@ -30,6 +30,9 @@ internal static class CartProjection
             .Select(item => item.MasterProductId)
             .Distinct()
             .ToList();
+        var requiredQuantityByProductId = cart.Items
+            .GroupBy(item => item.MasterProductId)
+            .ToDictionary(group => group.Key, group => group.Sum(item => item.Quantity));
 
         var masterProducts = await context.MasterProducts
             .AsNoTracking()
@@ -85,6 +88,7 @@ internal static class CartProjection
                 product.VendorBranchId,
                 product.VendorBranch != null && product.VendorBranch.IsPrimary,
                 product.MasterProductId,
+                product.StockQuantity,
                 product.SellingPrice,
                 product.CompareAtPrice,
                 product.CreatedAtUtc,
@@ -107,19 +111,27 @@ internal static class CartProjection
 
         candidateOffers = FilterOffersForAddressBranch(candidateOffers, selectedBranchIdByVendor);
 
+        var availabilityVendorIds = selectedVendorId.HasValue
+            ? candidateOffers.Select(offer => offer.VendorId).Append(selectedVendorId.Value)
+            : candidateOffers.Select(offer => offer.VendorId);
         var availabilityDecisions = await VendorCustomerAvailabilityPolicy.LoadDecisionsAsync(
             context,
-            candidateOffers.Select(offer => offer.VendorId),
+            availabilityVendorIds,
             cancellationToken);
 
         var visibleOffers = candidateOffers
             .Where(offer => VendorCustomerAvailabilityPolicy.ResolveOrOffline(availabilityDecisions, offer.VendorId).IsVisibleInCatalog)
             .ToList();
+        var purchasableVisibleOffers = visibleOffers
+            .Where(offer =>
+                requiredQuantityByProductId.TryGetValue(offer.MasterProductId, out var requiredQuantity) &&
+                offer.StockQuantity >= requiredQuantity)
+            .ToList();
 
         var effectiveVendorId = ResolveEffectiveVendorId(
             selectedVendorId,
             masterProductIds,
-            visibleOffers,
+            purchasableVisibleOffers,
             cart.Items,
             preferCheapestVendorWhenAmbiguous);
         var selectedVendorDecision = effectiveVendorId.HasValue
@@ -127,8 +139,8 @@ internal static class CartProjection
             : null;
 
         var scopedVisibleOffers = effectiveVendorId.HasValue
-            ? visibleOffers.Where(offer => offer.VendorId == effectiveVendorId.Value)
-            : visibleOffers;
+            ? purchasableVisibleOffers.Where(offer => offer.VendorId == effectiveVendorId.Value)
+            : purchasableVisibleOffers;
 
         var offersByProductId = scopedVisibleOffers
             .GroupBy(offer => offer.MasterProductId)
@@ -150,11 +162,17 @@ internal static class CartProjection
                 var hasCandidateAtSelectedVendor = !effectiveVendorId.HasValue || candidateOffers.Any(offer =>
                     offer.VendorId == effectiveVendorId.Value &&
                     offer.MasterProductId == item.MasterProductId);
+                var hasInsufficientStockAtSelectedVendor = effectiveVendorId.HasValue && visibleOffers.Any(offer =>
+                    offer.VendorId == effectiveVendorId.Value &&
+                    offer.MasterProductId == item.MasterProductId &&
+                    offer.StockQuantity < item.Quantity);
                 var isAvailable = !effectiveVendorId.HasValue || (offers?.Count > 0);
                 var availabilityStatus = isAvailable
                     ? null
                     : effectiveVendorId.HasValue && selectedVendorDecision is not null && !selectedVendorDecision.IsVisibleInCatalog && hasCandidateAtSelectedVendor
                         ? selectedVendorDecision.ReasonCode
+                        : hasInsufficientStockAtSelectedVendor
+                            ? "insufficient_stock"
                         : "unavailable_at_selected_vendor";
 
                 var vendorPrices = offers?
@@ -227,14 +245,17 @@ internal static class CartProjection
         }
 
         var unavailableItemsCount = items.Count(item => !item.IsAvailable);
+        var requiresUnavailableItemsConfirmation = false;
         if (effectiveVendorId.HasValue)
         {
-            canCheckout = (selectedVendorDecision?.IsPurchasable ?? true) && unavailableItemsCount == 0 && totalAmount.HasValue;
+            var hasPurchasableItems = items.Any(item => item.IsAvailable) && totalAmount.HasValue;
+            canCheckout = (selectedVendorDecision?.IsPurchasable ?? true) && hasPurchasableItems;
+            requiresUnavailableItemsConfirmation = canCheckout && unavailableItemsCount > 0;
             checkoutBlockReason = canCheckout
                 ? null
                 : selectedVendorDecision is not null && !selectedVendorDecision.IsPurchasable
                     ? selectedVendorDecision.ReasonCode
-                : unavailableItemsCount > 0
+                : unavailableItemsCount > 0 && !hasPurchasableItems
                     ? "cart_contains_unavailable_items"
                     : "pricing_unavailable_for_selected_vendor";
         }
@@ -251,7 +272,8 @@ internal static class CartProjection
                 canCheckout,
                 checkoutBlockReason,
                 unavailableItemsCount > 0,
-                unavailableItemsCount),
+                unavailableItemsCount,
+                requiresUnavailableItemsConfirmation),
             items.Count,
             items.Count,
             0,
@@ -680,6 +702,7 @@ internal static class CartProjection
         Guid? VendorBranchId,
         bool IsPrimaryBranch,
         Guid MasterProductId,
+        int StockQuantity,
         decimal Price,
         decimal? OldPrice,
         DateTime CreatedAtUtc,

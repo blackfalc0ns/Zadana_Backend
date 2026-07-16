@@ -6,6 +6,7 @@ using Zadana.Application.Common.Interfaces;
 using Zadana.Application.Common.Localization;
 using Zadana.Application.Modules.Delivery.Interfaces;
 using Zadana.Application.Modules.Orders.Events;
+using Zadana.Application.Modules.Orders.Services;
 using Zadana.Domain.Modules.Orders.Enums;
 using Zadana.Domain.Modules.Payments.Enums;
 using Zadana.SharedKernel.Exceptions;
@@ -48,19 +49,22 @@ public class VendorUpdateOrderStatusCommandHandler : IRequestHandler<VendorUpdat
     private readonly IPublisher _publisher;
     private readonly IOrderStatusNotificationDispatcher _orderStatusNotificationDispatcher;
     private readonly IDeliveryDispatchService _deliveryDispatchService;
+    private readonly OrderInventoryWorkflowService _orderInventoryWorkflowService;
 
     public VendorUpdateOrderStatusCommandHandler(
         IApplicationDbContext context,
         IUnitOfWork unitOfWork,
         IPublisher publisher,
         IOrderStatusNotificationDispatcher orderStatusNotificationDispatcher,
-        IDeliveryDispatchService deliveryDispatchService)
+        IDeliveryDispatchService deliveryDispatchService,
+        OrderInventoryWorkflowService? orderInventoryWorkflowService = null)
     {
         _context = context;
         _unitOfWork = unitOfWork;
         _publisher = publisher;
         _orderStatusNotificationDispatcher = orderStatusNotificationDispatcher;
         _deliveryDispatchService = deliveryDispatchService;
+        _orderInventoryWorkflowService = orderInventoryWorkflowService ?? new OrderInventoryWorkflowService(context);
     }
 
     public async Task<VendorUpdateOrderStatusResultDto> Handle(VendorUpdateOrderStatusCommand request, CancellationToken cancellationToken)
@@ -98,6 +102,11 @@ public class VendorUpdateOrderStatusCommandHandler : IRequestHandler<VendorUpdat
         var oldStatus = order.Status;
         order.ChangeStatus(request.NewStatus, null, request.Note);
         _context.OrderStatusHistories.Add(order.StatusHistory.Last());
+        if (request.NewStatus == OrderStatus.VendorRejected)
+        {
+            await _orderInventoryWorkflowService.ApplyRestockAsync(order.Id, "vendor_rejected", cancellationToken);
+        }
+
         await _unitOfWork.SaveChangesAsync(cancellationToken);
 
         await _orderStatusNotificationDispatcher.DispatchCustomerAsync(

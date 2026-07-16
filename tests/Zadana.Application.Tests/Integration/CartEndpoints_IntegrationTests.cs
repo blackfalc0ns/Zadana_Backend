@@ -3,6 +3,7 @@ using System.Net.Http.Json;
 using System.Text.Json;
 using FluentAssertions;
 using Microsoft.Extensions.DependencyInjection;
+using Zadana.Api.Security;
 using Zadana.Application.Tests.Helpers;
 using Zadana.Domain.Modules.Catalog.Entities;
 using Zadana.Domain.Modules.Orders.Entities;
@@ -14,6 +15,7 @@ namespace Zadana.Application.Tests.Integration;
 public class CartEndpoints_IntegrationTests : IClassFixture<ZadanaWebFactory>
 {
     private const string GuestHeaderName = "X-Device-Id";
+    private const string GuestSignatureHeaderName = "X-Device-Signature";
 
     private readonly ZadanaWebFactory _factory;
     private readonly HttpClient _client;
@@ -40,9 +42,10 @@ public class CartEndpoints_IntegrationTests : IClassFixture<ZadanaWebFactory>
         ReadDecimal(summary, "totalAmount").Should().Be(140m);
         ReadDecimal(summary, "subtotal").Should().Be(150m);
         ReadDecimal(summary, "discountAmount").Should().Be(10m);
-        summary.GetProperty("canCheckout").GetBoolean().Should().BeFalse();
+        summary.GetProperty("canCheckout").GetBoolean().Should().BeTrue();
         summary.GetProperty("hasUnavailableItems").GetBoolean().Should().BeTrue();
         summary.GetProperty("unavailableItemsCount").GetInt32().Should().Be(1);
+        summary.GetProperty("requiresUnavailableItemsConfirmation").GetBoolean().Should().BeTrue();
 
         var unavailableItem = payload.RootElement
             .GetProperty("items")
@@ -57,6 +60,7 @@ public class CartEndpoints_IntegrationTests : IClassFixture<ZadanaWebFactory>
         var scenario = await SeedCartScenarioAsync();
         using var request = new HttpRequestMessage(HttpMethod.Delete, $"/api/cart/items/{scenario.UnavailableItemId}?vendorId={scenario.SelectedVendorId}");
         request.Headers.Add(GuestHeaderName, scenario.GuestId);
+        request.Headers.Add(GuestSignatureHeaderName, scenario.GuestSignature);
 
         using var response = await _client.SendAsync(request);
 
@@ -79,6 +83,7 @@ public class CartEndpoints_IntegrationTests : IClassFixture<ZadanaWebFactory>
         var scenario = await SeedCartScenarioAsync();
         using var request = new HttpRequestMessage(HttpMethod.Delete, $"/api/cart/items/{scenario.FirstAvailableItemId}?vendorId={scenario.SelectedVendorId}");
         request.Headers.Add(GuestHeaderName, scenario.GuestId);
+        request.Headers.Add(GuestSignatureHeaderName, scenario.GuestSignature);
 
         using var response = await _client.SendAsync(request);
 
@@ -91,9 +96,10 @@ public class CartEndpoints_IntegrationTests : IClassFixture<ZadanaWebFactory>
         ReadDecimal(summary, "subtotal").Should().Be(90m);
         ReadDecimal(summary, "discountAmount").Should().Be(0m);
         ReadDecimal(summary, "totalAmount").Should().Be(90m);
-        summary.GetProperty("canCheckout").GetBoolean().Should().BeFalse();
+        summary.GetProperty("canCheckout").GetBoolean().Should().BeTrue();
         summary.GetProperty("hasUnavailableItems").GetBoolean().Should().BeTrue();
         summary.GetProperty("unavailableItemsCount").GetInt32().Should().Be(1);
+        summary.GetProperty("requiresUnavailableItemsConfirmation").GetBoolean().Should().BeTrue();
     }
 
     [Fact]
@@ -102,6 +108,7 @@ public class CartEndpoints_IntegrationTests : IClassFixture<ZadanaWebFactory>
         var scenario = await SeedCartScenarioAsync();
         using var request = new HttpRequestMessage(HttpMethod.Delete, $"/api/cart/items/{scenario.FirstAvailableItemId}");
         request.Headers.Add(GuestHeaderName, scenario.GuestId);
+        request.Headers.Add(GuestSignatureHeaderName, scenario.GuestSignature);
 
         using var response = await _client.SendAsync(request);
 
@@ -126,6 +133,7 @@ public class CartEndpoints_IntegrationTests : IClassFixture<ZadanaWebFactory>
             Content = JsonContent.Create(new { quantity = 3 })
         };
         request.Headers.Add(GuestHeaderName, scenario.GuestId);
+        request.Headers.Add(GuestSignatureHeaderName, scenario.GuestSignature);
 
         using var response = await _client.SendAsync(request);
 
@@ -180,8 +188,11 @@ public class CartEndpoints_IntegrationTests : IClassFixture<ZadanaWebFactory>
         db.Carts.Add(cart);
         await db.SaveChangesAsync();
 
+        var signer = _factory.Services.GetRequiredService<GuestCartSigner>();
+
         return new CartEndpointScenario(
             guestId,
+            signer.Sign(guestId),
             selectedVendor.Id,
             firstAvailableItem.Id,
             unavailableItem.Id,
@@ -230,6 +241,7 @@ public class CartEndpoints_IntegrationTests : IClassFixture<ZadanaWebFactory>
 
     private sealed record CartEndpointScenario(
         string GuestId,
+        string GuestSignature,
         Guid SelectedVendorId,
         Guid FirstAvailableItemId,
         Guid UnavailableItemId,

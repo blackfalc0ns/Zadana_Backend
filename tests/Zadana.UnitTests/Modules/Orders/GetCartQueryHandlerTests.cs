@@ -95,12 +95,39 @@ public class GetCartQueryHandlerTests
         result.Summary.DiscountAmount.Should().Be(20m);
         result.Summary.TotalAmount.Should().Be(100m);
         result.Summary.IsPricingAvailable.Should().BeTrue();
+        result.Summary.CanCheckout.Should().BeTrue();
+        result.Summary.CheckoutBlockReason.Should().BeNull();
+        result.Summary.HasUnavailableItems.Should().BeTrue();
+        result.Summary.UnavailableItemsCount.Should().Be(1);
+        result.Summary.RequiresUnavailableItemsConfirmation.Should().BeTrue();
+        result.Items.Count(item => !item.IsAvailable).Should().Be(1);
+        result.Items.Single(item => !item.IsAvailable).AvailabilityStatus.Should().Be("unavailable_at_selected_vendor");
+    }
+
+    [Fact]
+    public async Task Handle_MarksItemUnavailable_WhenSelectedVendorStockIsBelowCartQuantity()
+    {
+        using var scope = new CultureScope("en");
+        await using var context = TestDbContextFactory.Create();
+
+        var setup = await SeedCartScenarioAsync(context);
+        var vendorProduct = context.VendorProducts.Single(product =>
+            product.VendorId == setup.FirstVendorId &&
+            product.MasterProductId == setup.MasterProduct.Id);
+        vendorProduct.UpdateStock(1);
+        await context.SaveChangesAsync();
+
+        var handler = new GetCartQueryHandler(context);
+
+        var result = await handler.Handle(new GetCartQuery(CartActor.Create(setup.UserId, null), setup.FirstVendorId), CancellationToken.None);
+
         result.Summary.CanCheckout.Should().BeFalse();
         result.Summary.CheckoutBlockReason.Should().Be("cart_contains_unavailable_items");
         result.Summary.HasUnavailableItems.Should().BeTrue();
         result.Summary.UnavailableItemsCount.Should().Be(1);
-        result.Items.Count(item => !item.IsAvailable).Should().Be(1);
-        result.Items.Single(item => !item.IsAvailable).AvailabilityStatus.Should().Be("unavailable_at_selected_vendor");
+        result.Items.Should().ContainSingle();
+        result.Items[0].IsAvailable.Should().BeFalse();
+        result.Items[0].AvailabilityStatus.Should().Be("insufficient_stock");
     }
 
     [Fact]

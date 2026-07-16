@@ -12,6 +12,7 @@ using Zadana.Domain.Modules.Orders.Entities;
 using Zadana.Domain.Modules.Orders.Enums;
 using Zadana.Domain.Modules.Payments.Entities;
 using Zadana.Domain.Modules.Payments.Enums;
+using Zadana.SharedKernel.Exceptions;
 using Zadana.UnitTests.Common;
 
 namespace Zadana.UnitTests.Modules.Finance;
@@ -58,6 +59,49 @@ public class ConfirmCardPaymentCommandHandlerTests
         savedPayment.Status.Should().Be(PaymentStatus.Paid);
         savedPayment.Order.Status.Should().Be(OrderStatus.PendingVendorAcceptance);
         gateway.FetchedPaymentIds.Should().Equal(providerPaymentId);
+    }
+
+    [Fact]
+    public async Task Handle_WhenReservationExpired_ShouldRejectPaidProviderConfirmation()
+    {
+        await using var context = TestDbContextFactory.Create();
+        var (order, payment) = SeedPendingCardPayment(context, 130.75m);
+        var providerPaymentId = "pay_test_expired_1";
+        payment.SetProviderTransactionId(providerPaymentId);
+        payment.MarkAsFailed("Payment session expired before confirmation.", providerPaymentId);
+        order.ChangeStatus(OrderStatus.Cancelled, null, "Card payment reservation expired before confirmation.");
+        context.OrderStatusHistories.Add(order.StatusHistory.Last());
+        await context.SaveChangesAsync();
+
+        var gateway = new StaticPaymentGateway(new GatewayPaymentDetails(
+            ProviderName: "Moyasar",
+            ProviderPaymentId: providerPaymentId,
+            ProviderStatus: "paid",
+            AmountMinorUnits: 13075,
+            Currency: "SAR",
+            Metadata: new Dictionary<string, string>
+            {
+                ["payment_id"] = payment.Id.ToString(),
+                ["order_id"] = order.Id.ToString()
+            },
+            ProviderReferenceNumber: "rrn-expired",
+            RawResponse: "{}"));
+
+        var handler = CreateHandler(context, gateway);
+
+        var act = () => handler.Handle(
+            new ConfirmCardPaymentCommand(
+                PaymentId: payment.Id,
+                ProviderPaymentId: providerPaymentId,
+                ProviderName: "Moyasar"),
+            CancellationToken.None);
+
+        await act.Should()
+            .ThrowAsync<BusinessRuleException>()
+            .Where(ex => ex.ErrorCode == "ORDER_PAYMENT_RESERVATION_EXPIRED");
+
+        order.Status.Should().Be(OrderStatus.Cancelled);
+        payment.Status.Should().Be(PaymentStatus.Failed);
     }
 
     private static ConfirmCardPaymentCommandHandler CreateHandler(

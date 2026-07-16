@@ -5,6 +5,7 @@ using Microsoft.Extensions.Localization;
 using Zadana.Application.Common.Interfaces;
 using Zadana.Application.Common.Localization;
 using Zadana.Application.Modules.Orders.Events;
+using Zadana.Application.Modules.Orders.Services;
 using Zadana.Application.Modules.Orders.Support;
 using Zadana.Domain.Modules.Orders.Enums;
 using Zadana.SharedKernel.Exceptions;
@@ -54,12 +55,18 @@ public class CancelCustomerOrderCommandHandler : IRequestHandler<CancelCustomerO
     private readonly IApplicationDbContext _context;
     private readonly IUnitOfWork _unitOfWork;
     private readonly IPublisher _publisher;
+    private readonly OrderInventoryWorkflowService _orderInventoryWorkflowService;
 
-    public CancelCustomerOrderCommandHandler(IApplicationDbContext context, IUnitOfWork unitOfWork, IPublisher publisher)
+    public CancelCustomerOrderCommandHandler(
+        IApplicationDbContext context,
+        IUnitOfWork unitOfWork,
+        IPublisher publisher,
+        OrderInventoryWorkflowService? orderInventoryWorkflowService = null)
     {
         _context = context;
         _unitOfWork = unitOfWork;
         _publisher = publisher;
+        _orderInventoryWorkflowService = orderInventoryWorkflowService ?? new OrderInventoryWorkflowService(context);
     }
 
     public async Task<CancelCustomerOrderResultDto> Handle(CancelCustomerOrderCommand request, CancellationToken cancellationToken)
@@ -82,6 +89,7 @@ public class CancelCustomerOrderCommandHandler : IRequestHandler<CancelCustomerO
 
         order.ChangeStatus(OrderStatus.Cancelled, null, note);
         _context.OrderStatusHistories.Add(order.StatusHistory.Last());
+        await _orderInventoryWorkflowService.ApplyRestockAsync(order.Id, "customer_cancelled", cancellationToken);
         await _unitOfWork.SaveChangesAsync(cancellationToken);
 
         // Publish notification event

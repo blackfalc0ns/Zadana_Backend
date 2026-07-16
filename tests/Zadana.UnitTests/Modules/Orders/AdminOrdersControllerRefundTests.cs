@@ -8,6 +8,7 @@ using Zadana.Application.Modules.Delivery.Interfaces;
 using Zadana.Application.Modules.Orders.DTOs;
 using Zadana.Application.Modules.Orders.Events;
 using Zadana.Application.Modules.Orders.Interfaces;
+using Zadana.Domain.Modules.Catalog.Entities;
 using Zadana.Domain.Modules.Identity.Entities;
 using Zadana.Domain.Modules.Identity.Enums;
 using Zadana.Domain.Modules.Orders.Entities;
@@ -116,6 +117,89 @@ public class AdminOrdersControllerRefundTests
         refund.RefundMethod.Should().Be("same_method");
         refund.LifecycleStatus.Should().Be(RefundStatus.Succeeded);
         savedOrder.PaymentStatus.Should().Be(PaymentStatus.PartiallyRefunded);
+    }
+
+    [Fact]
+    public async Task CancelOrder_ShouldReleaseReservedStock()
+    {
+        await using var dbContext = TestDbContextFactory.Create();
+        var customer = new User("Cancel Customer", "admin.cancel.customer@test.com", "01000000011", UserRole.Customer);
+        var vendorOwner = new User("Vendor Owner", "admin.cancel.vendor@test.com", "01000000012", UserRole.Vendor);
+        var vendor = new Vendor(vendorOwner.Id, "Cancel Vendor Ar", "Cancel Vendor", "Retail", "CR-ADMIN-CANCEL", "cancel.vendor@test.com", "01000000013");
+        var address = new CustomerAddress(customer.Id, "Cancel Customer", "01000000011", "Test address", AddressLabel.Home, city: "Riyadh", area: "Central");
+        var order = CreateOrder(customer.Id, vendor.Id, address.Id);
+        var masterProductId = Guid.NewGuid();
+        var vendorProduct = new VendorProduct(vendor.Id, masterProductId, 50m, stockQuantity: 5, tradePrice: 35m);
+        var orderItem = new OrderItem(order.Id, vendorProduct.Id, masterProductId, "Reserved Item", 2, 50m, tradeUnitPrice: 35m);
+        vendorProduct.DecreaseStock(2);
+        orderItem.MarkStockDeducted();
+
+        dbContext.Users.AddRange(customer, vendorOwner);
+        dbContext.Vendors.Add(vendor);
+        dbContext.CustomerAddresses.Add(address);
+        dbContext.VendorProducts.Add(vendorProduct);
+        dbContext.Orders.Add(order);
+        dbContext.OrderItems.Add(orderItem);
+        await dbContext.SaveChangesAsync();
+
+        var adminUserId = Guid.NewGuid();
+        var currentUserService = new Mock<ICurrentUserService>();
+        currentUserService.SetupGet(service => service.UserId).Returns(adminUserId);
+
+        var orderReadService = new Mock<IOrderReadService>();
+        orderReadService
+            .Setup(service => service.GetAdminOrderDetailAsync(order.Id, It.IsAny<CancellationToken>()))
+            .ReturnsAsync(CreateAdminOrderDetail(order.Id));
+
+        var notificationDispatcher = new Mock<IOrderStatusNotificationDispatcher>();
+        notificationDispatcher
+            .Setup(service => service.DispatchCustomerAsync(
+                It.IsAny<OrderStatusCustomerNotificationRequest>(),
+                It.IsAny<CancellationToken>()))
+            .ReturnsAsync(new OrderStatusNotificationDispatchResult(
+                InboxQueued: false,
+                RealtimeQueued: false,
+                PushAttempted: false,
+                PushSent: false,
+                PushProviderStatusCode: null,
+                PushReason: null));
+
+        var publisher = new Mock<IPublisher>();
+        publisher
+            .Setup(service => service.Publish(
+                It.IsAny<OrderStatusChangedNotification>(),
+                It.IsAny<CancellationToken>()))
+            .Returns(Task.CompletedTask);
+
+        var controller = new AdminOrdersController(
+            dbContext,
+            currentUserService.Object,
+            orderReadService.Object,
+            Mock.Of<IOrderSupportCaseWorkflowService>(),
+            publisher.Object,
+            notificationDispatcher.Object,
+            Mock.Of<IDeliveryDispatchService>(),
+            Mock.Of<INotificationService>());
+
+        await controller.CancelOrder(
+            order.Id,
+            new AdminCancelOrderRequest(
+                "customer_request",
+                "Cancelled by admin.",
+                null,
+                null,
+                NotifyCustomer: true,
+                NotifyMerchant: true,
+                NotifyDriver: true,
+                CustomerMessage: null,
+                InternalNote: "Admin cancellation."),
+            CancellationToken.None);
+
+        var savedProduct = await dbContext.VendorProducts.SingleAsync(item => item.Id == vendorProduct.Id);
+        var savedOrderItem = await dbContext.OrderItems.SingleAsync(item => item.Id == orderItem.Id);
+
+        savedProduct.StockQuantity.Should().Be(5);
+        savedOrderItem.StockRestoredAtUtc.Should().NotBeNull();
     }
 
     private static Order CreateOrder(Guid userId, Guid vendorId, Guid addressId) =>

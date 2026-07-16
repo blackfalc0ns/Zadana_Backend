@@ -100,7 +100,14 @@ public class GetCheckoutSummaryQueryHandler : IRequestHandler<GetCheckoutSummary
             .ToListAsync(cancellationToken);
 
         return new CheckoutSummaryDto(
-            new CheckoutCartDto(pricing.Items.Count, pricing.Items.Sum(x => x.Quantity), pricing.Items),
+            new CheckoutCartDto(
+                pricing.Items.Count,
+                pricing.Items.Sum(x => x.Quantity),
+                pricing.Items,
+                pricing.UnavailableItems.Count > 0,
+                pricing.UnavailableItems.Count,
+                pricing.UnavailableItems.Count > 0,
+                pricing.UnavailableItems),
             CheckoutSupport.BuildAddressDto(address),
             CheckoutSupport.BuildAvailableAddressesList(allAddresses),
             CheckoutSupport.BuildDeliverySlots(request.DeliverySlotId),

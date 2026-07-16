@@ -3,6 +3,7 @@ using MediatR;
 using Microsoft.EntityFrameworkCore;
 using Zadana.Application.Common.Interfaces;
 using Zadana.Application.Common.Localization;
+using Zadana.Application.Modules.Orders.Services;
 using Zadana.Domain.Modules.Orders.Enums;
 using Zadana.Domain.Modules.Payments.Enums;
 using Zadana.SharedKernel.Exceptions;
@@ -26,11 +27,16 @@ public class DeleteCustomerOrderCommandHandler : IRequestHandler<DeleteCustomerO
 {
     private readonly IApplicationDbContext _context;
     private readonly IUnitOfWork _unitOfWork;
+    private readonly OrderInventoryWorkflowService _orderInventoryWorkflowService;
 
-    public DeleteCustomerOrderCommandHandler(IApplicationDbContext context, IUnitOfWork unitOfWork)
+    public DeleteCustomerOrderCommandHandler(
+        IApplicationDbContext context,
+        IUnitOfWork unitOfWork,
+        OrderInventoryWorkflowService? orderInventoryWorkflowService = null)
     {
         _context = context;
         _unitOfWork = unitOfWork;
+        _orderInventoryWorkflowService = orderInventoryWorkflowService ?? new OrderInventoryWorkflowService(context);
     }
 
     public async Task<DeleteCustomerOrderResultDto> Handle(DeleteCustomerOrderCommand request, CancellationToken cancellationToken)
@@ -72,6 +78,7 @@ public class DeleteCustomerOrderCommandHandler : IRequestHandler<DeleteCustomerO
         var supportCaseActivities = supportCases.SelectMany(x => x.Activities).ToList();
         var refunds = payments.SelectMany(x => x.Refunds).ToList();
         var statusHistory = await _context.OrderStatusHistories.Where(x => x.OrderId == order.Id).ToListAsync(cancellationToken);
+        await _orderInventoryWorkflowService.ApplyRestockAsync(order.Id, "pending_order_deleted", cancellationToken);
         var items = await _context.OrderItems.Where(x => x.OrderId == order.Id).ToListAsync(cancellationToken);
 
         if (attachments.Count > 0)

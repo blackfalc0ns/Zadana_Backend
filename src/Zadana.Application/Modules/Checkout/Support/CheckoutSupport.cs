@@ -46,6 +46,9 @@ internal static class CheckoutSupport
         CancellationToken cancellationToken)
     {
         var masterProductIds = cart.Items.Select(x => x.MasterProductId).Distinct().ToList();
+        var requiredQuantityByProductId = cart.Items
+            .GroupBy(item => item.MasterProductId)
+            .ToDictionary(group => group.Key, group => group.Sum(item => item.Quantity));
         var candidateOffers = await context.VendorProducts
             .AsNoTracking()
             .Where(product =>
@@ -62,6 +65,7 @@ internal static class CheckoutSupport
                 product.VendorBranchId,
                 product.VendorBranch != null && product.VendorBranch.IsPrimary,
                 product.MasterProductId,
+                product.StockQuantity,
                 product.SellingPrice,
                 product.CreatedAtUtc,
                 product.CustomNameAr,
@@ -110,9 +114,12 @@ internal static class CheckoutSupport
 
         candidateOffers = FilterOffersForAddressBranch(candidateOffers, selectedBranchIdByVendor);
 
+        var availabilityVendorIds = selectedVendorId.HasValue
+            ? candidateOffers.Select(offer => offer.VendorId).Append(selectedVendorId.Value)
+            : candidateOffers.Select(offer => offer.VendorId);
         var availabilityDecisions = await VendorCustomerAvailabilityPolicy.LoadDecisionsAsync(
             context,
-            candidateOffers.Select(offer => offer.VendorId),
+            availabilityVendorIds,
             cancellationToken);
 
         if (selectedVendorId.HasValue)
@@ -127,11 +134,16 @@ internal static class CheckoutSupport
         var visibleOffers = candidateOffers
             .Where(offer => VendorCustomerAvailabilityPolicy.ResolveOrOffline(availabilityDecisions, offer.VendorId).IsVisibleInCatalog)
             .ToList();
+        var purchasableVisibleOffers = visibleOffers
+            .Where(offer =>
+                requiredQuantityByProductId.TryGetValue(offer.MasterProductId, out var requiredQuantity) &&
+                offer.StockQuantity >= requiredQuantity)
+            .ToList();
 
         CandidateVendorSnapshot? candidateVendor;
         if (selectedVendorId.HasValue)
         {
-            var offers = visibleOffers
+            var offers = purchasableVisibleOffers
                 .Where(x => x.VendorId == selectedVendorId.Value)
                 .GroupBy(x => x.MasterProductId)
                 .Select(offerGroup => offerGroup
@@ -140,17 +152,17 @@ internal static class CheckoutSupport
                     .First())
                 .ToList();
 
-            candidateVendor = offers.Count == masterProductIds.Count
+            candidateVendor = offers.Count > 0
                 ? new CandidateVendorSnapshot(
                     selectedVendorId.Value,
-                    true,
+                    offers.Count == masterProductIds.Count,
                     offers.Sum(chosen => chosen.Price * cart.Items.First(item => item.MasterProductId == chosen.MasterProductId).Quantity),
                     offers)
                 : null;
         }
         else
         {
-            candidateVendor = visibleOffers
+            candidateVendor = purchasableVisibleOffers
                 .GroupBy(x => x.VendorId)
                 .Select(group =>
                 {
@@ -176,10 +188,10 @@ internal static class CheckoutSupport
         {
             throw selectedVendorId.HasValue
                 ? new BusinessRuleException(
-                    "CART_ITEMS_UNAVAILABLE_AT_ADDRESS_BRANCH",
-                    BuildUnavailableCartItemsMessage(
-                        cart.Items
-                            .Where(item => visibleOffers.All(offer =>
+                        "CART_ITEMS_UNAVAILABLE_AT_ADDRESS_BRANCH",
+                        BuildUnavailableCartItemsMessage(
+                            cart.Items
+                            .Where(item => purchasableVisibleOffers.All(offer =>
                                 offer.VendorId != selectedVendorId.Value ||
                                 offer.MasterProductId != item.MasterProductId))
                             .Select(item => item.ProductName)
@@ -188,9 +200,14 @@ internal static class CheckoutSupport
                 : new BusinessRuleException("CHECKOUT_VENDOR_UNAVAILABLE", "No single vendor can fulfill all cart items for checkout.");
         }
 
+        var unavailableItems = selectedVendorId.HasValue
+            ? BuildUnavailableItems(cart, selectedVendorId.Value, visibleOffers, candidateVendor.Offers)
+            : new List<CheckoutUnavailableCartItemDto>();
+
         var items = cart.Items
             .OrderBy(x => x.CreatedAtUtc)
             .ThenBy(x => x.ProductName, StringComparer.CurrentCultureIgnoreCase)
+            .Where(item => candidateVendor.Offers.Any(offer => offer.MasterProductId == item.MasterProductId))
             .Select(item =>
             {
                 var offer = candidateVendor.Offers.First(x => x.MasterProductId == item.MasterProductId);
@@ -224,6 +241,7 @@ internal static class CheckoutSupport
             branchSelection.HasAmbiguousBranchScopedOffers,
             branchSelection.RequiresAddressBranchResolution,
             items,
+            unavailableItems,
             items.Sum(x => x.TotalPrice));
     }
 
@@ -983,9 +1001,46 @@ internal static class CheckoutSupport
     private static bool IsArabic() =>
         CultureInfo.CurrentUICulture.TwoLetterISOLanguageName.Equals("ar", StringComparison.OrdinalIgnoreCase);
 
+    private static List<CheckoutUnavailableCartItemDto> BuildUnavailableItems(
+        Cart cart,
+        Guid selectedVendorId,
+        IReadOnlyCollection<VendorOfferSnapshot> visibleOffers,
+        IReadOnlyCollection<VendorOfferSnapshot> selectedOffers)
+    {
+        var selectedProductIds = selectedOffers
+            .Select(offer => offer.MasterProductId)
+            .ToHashSet();
+
+        return cart.Items
+            .Where(item => !selectedProductIds.Contains(item.MasterProductId))
+            .OrderBy(item => item.CreatedAtUtc)
+            .ThenBy(item => item.ProductName, StringComparer.CurrentCultureIgnoreCase)
+            .Select(item =>
+            {
+                var hasInsufficientStock = visibleOffers.Any(offer =>
+                    offer.VendorId == selectedVendorId &&
+                    offer.MasterProductId == item.MasterProductId &&
+                    offer.StockQuantity < item.Quantity);
+
+                return new CheckoutUnavailableCartItemDto(
+                    item.Id,
+                    item.MasterProductId,
+                    item.ProductName,
+                    item.Quantity,
+                    hasInsufficientStock ? "insufficient_stock" : "unavailable_at_selected_vendor");
+            })
+            .ToList();
+    }
+
     private static string BuildUnavailableCartItemsMessage(IReadOnlyCollection<string> productNames)
     {
         var names = string.Join(", ", productNames.Where(name => !string.IsNullOrWhiteSpace(name)).Take(5));
+        if (IsArabic())
+        {
+            return string.IsNullOrWhiteSpace(names)
+                ? "بعض المنتجات في العربة غير متوفرة في فرع المتجر المناسب لعنوانك."
+                : $"المنتجات التالية غير متوفرة في فرع المتجر المناسب لعنوانك: {names}";
+        }
         if (string.IsNullOrWhiteSpace(names))
         {
             return IsArabic()
@@ -1263,6 +1318,7 @@ internal static class CheckoutSupport
         bool HasAmbiguousBranchScopedOffers,
         bool RequiresAddressBranchResolution,
         List<CheckoutCartItemDto> Items,
+        List<CheckoutUnavailableCartItemDto> UnavailableItems,
         decimal Subtotal);
 
     internal sealed record CheckoutFinanceBreakdown(
@@ -1292,6 +1348,7 @@ internal static class CheckoutSupport
         Guid? VendorBranchId,
         bool IsPrimaryBranch,
         Guid MasterProductId,
+        int StockQuantity,
         decimal Price,
         DateTime CreatedAtUtc,
         string? CustomNameAr,

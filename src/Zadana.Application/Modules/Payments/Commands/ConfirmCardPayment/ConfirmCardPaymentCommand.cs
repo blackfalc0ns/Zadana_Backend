@@ -172,6 +172,8 @@ public class ConfirmCardPaymentCommandHandler : IRequestHandler<ConfirmCardPayme
 
         if (!alreadyConfirmed)
         {
+            await EnsurePaymentReservationCanStillBeConfirmedAsync(payment, order, cancellationToken);
+
             if (payment.Status != PaymentStatus.Paid)
             {
                 payment.MarkAsPaid(details.ProviderPaymentId);
@@ -179,7 +181,27 @@ public class ConfirmCardPaymentCommandHandler : IRequestHandler<ConfirmCardPayme
 
             EnsureVendorAcceptanceTransition(order);
             OrderStatusHistoryTracking.TrackNewEntries(_context, order);
-            await _unitOfWork.SaveChangesAsync(cancellationToken);
+            try
+            {
+                await _unitOfWork.SaveChangesAsync(cancellationToken);
+            }
+            catch (DbUpdateConcurrencyException)
+            {
+                if (_context is DbContext dbContext)
+                {
+                    await dbContext.Entry(payment).ReloadAsync(cancellationToken);
+                    await dbContext.Entry(order).ReloadAsync(cancellationToken);
+                }
+
+                if (!IsAlreadyConfirmed(payment, order))
+                {
+                    throw new BusinessRuleException(
+                        "ORDER_PAYMENT_RESERVATION_EXPIRED",
+                        "This payment can no longer be confirmed because the order reservation expired.");
+                }
+
+                alreadyConfirmed = true;
+            }
         }
 
         // Post the OnlinePaymentCaptured ledger event idempotently.
@@ -384,6 +406,39 @@ public class ConfirmCardPaymentCommandHandler : IRequestHandler<ConfirmCardPayme
         Domain.Modules.Orders.Entities.Order order) =>
         payment.Status == PaymentStatus.Paid &&
         order.Status == OrderStatus.PendingVendorAcceptance;
+
+    private async Task EnsurePaymentReservationCanStillBeConfirmedAsync(
+        Domain.Modules.Payments.Entities.Payment payment,
+        Domain.Modules.Orders.Entities.Order order,
+        CancellationToken cancellationToken)
+    {
+        var currentPaymentStatus = payment.Status;
+        if (_context is DbContext dbContext)
+        {
+            await dbContext.Entry(order).ReloadAsync(cancellationToken);
+            currentPaymentStatus = await _context.Payments
+                .AsNoTracking()
+                .Where(item => item.Id == payment.Id)
+                .Select(item => item.Status)
+                .FirstAsync(cancellationToken);
+        }
+
+        if (currentPaymentStatus == PaymentStatus.Failed ||
+            order.PaymentStatus == PaymentStatus.Failed ||
+            order.Status == OrderStatus.Cancelled)
+        {
+            throw new BusinessRuleException(
+                "ORDER_PAYMENT_RESERVATION_EXPIRED",
+                "This payment can no longer be confirmed because the order reservation expired.");
+        }
+
+        if (order.Status is not (OrderStatus.PendingPayment or OrderStatus.Placed or OrderStatus.PendingVendorAcceptance))
+        {
+            throw new BusinessRuleException(
+                "ORDER_PAYMENT_CONFIRMATION_NOT_ALLOWED",
+                $"Payment cannot be confirmed while order is in {order.Status}.");
+        }
+    }
 
     private static void EnsureVendorAcceptanceTransition(Domain.Modules.Orders.Entities.Order order)
     {

@@ -54,12 +54,15 @@ public class ZadanaWebFactory : WebApplicationFactory<Program>
 
         builder.ConfigureServices(services =>
         {
-            // AuditableEntityInterceptor is required by ApplicationDbContext constructor
-            services.AddSingleton<Zadana.Infrastructure.Persistence.Interceptors.AuditableEntityInterceptor>();
+            services.AddSingleton<Zadana.Infrastructure.Persistence.Interceptors.AuditableEntityInterceptor>(sp =>
+                new Zadana.Infrastructure.Persistence.Interceptors.AuditableEntityInterceptor(sp));
 
             // Register the InMemory database (Program.cs skips SqlServer in Testing env)
-            services.AddDbContext<ApplicationDbContext>(options =>
-                options.UseInMemoryDatabase(_dbName));
+            services.AddDbContext<ApplicationDbContext>((sp, options) =>
+            {
+                options.UseInMemoryDatabase(_dbName);
+                options.AddInterceptors(sp.GetRequiredService<Zadana.Infrastructure.Persistence.Interceptors.AuditableEntityInterceptor>());
+            });
 
             // Replace real services with mocks for testing
             services.AddScoped<IEmailService, MockEmailService>();

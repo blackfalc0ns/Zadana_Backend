@@ -9,6 +9,7 @@ using Zadana.Application.Common.Localization;
 using Zadana.Application.Common.Settings;
 using Zadana.Application.Modules.Catalog.DTOs;
 using Zadana.Application.Modules.Orders.Interfaces;
+using Zadana.Application.Modules.Orders.Services;
 using Zadana.Application.Modules.Orders.Support;
 using Zadana.Domain.Modules.Orders.Entities;
 using Zadana.Domain.Modules.Payments.Enums;
@@ -23,22 +24,45 @@ public class PlaceOrderCommandHandler : IRequestHandler<PlaceOrderCommand, Guid>
     private readonly IUnitOfWork _unitOfWork;
     private readonly IApplicationDbContext? _context;
     private readonly FinancialSettingsOptions _financialSettings;
+    private readonly OrderInventoryWorkflowService? _orderInventoryWorkflowService;
 
     public PlaceOrderCommandHandler(
         IOrderRepository orderRepository,
         IStringLocalizer<SharedResource> localizer,
         IUnitOfWork unitOfWork,
         IApplicationDbContext? context = null,
-        IOptions<FinancialSettingsOptions>? financialSettings = null)
+        IOptions<FinancialSettingsOptions>? financialSettings = null,
+        OrderInventoryWorkflowService? orderInventoryWorkflowService = null)
     {
         _orderRepository = orderRepository;
         _localizer = localizer;
         _unitOfWork = unitOfWork;
         _context = context;
         _financialSettings = financialSettings?.Value ?? new FinancialSettingsOptions();
+        var inventoryContext = context ?? unitOfWork as IApplicationDbContext;
+        _orderInventoryWorkflowService = orderInventoryWorkflowService
+            ?? (inventoryContext is null ? null : new OrderInventoryWorkflowService(inventoryContext));
     }
 
     public async Task<Guid> Handle(PlaceOrderCommand request, CancellationToken cancellationToken)
+    {
+        if (_unitOfWork is DbContext dbContext &&
+            string.Equals(dbContext.Database.ProviderName, "Microsoft.EntityFrameworkCore.SqlServer", StringComparison.Ordinal))
+        {
+            var strategy = dbContext.Database.CreateExecutionStrategy();
+            return await strategy.ExecuteAsync(async () =>
+            {
+                await using var transaction = await dbContext.Database.BeginTransactionAsync(cancellationToken);
+                var orderId = await HandleCore(request, cancellationToken);
+                await transaction.CommitAsync(cancellationToken);
+                return orderId;
+            });
+        }
+
+        return await HandleCore(request, cancellationToken);
+    }
+
+    private async Task<Guid> HandleCore(PlaceOrderCommand request, CancellationToken cancellationToken)
     {
         var cart = await _orderRepository.GetCartForCheckoutAsync(request.UserId, cancellationToken);
 
@@ -150,6 +174,10 @@ public class PlaceOrderCommandHandler : IRequestHandler<PlaceOrderCommand, Guid>
         if (reusableOrder is not null)
         {
             ApplyOrderFinancialSnapshot(reusableOrder, subtotal, cart.DiscountTotal, commissionAmount, request);
+            if (_orderInventoryWorkflowService is not null)
+            {
+                await _orderInventoryWorkflowService.ApplyExistingOrderReservationAsync(reusableOrder.Id, cancellationToken);
+            }
 
             if (request.ClearCartAfterPlacement)
             {
@@ -200,6 +228,7 @@ public class PlaceOrderCommandHandler : IRequestHandler<PlaceOrderCommand, Guid>
         ApplyOrderFinancialSnapshot(order, subtotal, cart.DiscountTotal, commissionAmount, request);
 
         _orderRepository.AddOrder(order);
+        var orderItems = new List<OrderItem>();
 
         foreach (var item in cart.Items)
         {
@@ -238,6 +267,16 @@ public class PlaceOrderCommandHandler : IRequestHandler<PlaceOrderCommand, Guid>
             orderItem.CaptureVariantSnapshot(snapshotImageUrl, snapshotDisplaySize, masterProduct?.Barcode);
 
             _orderRepository.AddOrderItem(orderItem);
+            orderItems.Add(orderItem);
+        }
+
+        if (_orderInventoryWorkflowService is not null)
+        {
+            await _orderInventoryWorkflowService.ApplyOrderCreationReservationAsync(orderItems, vendorProducts, cancellationToken);
+        }
+        else
+        {
+            ApplyLocalStockReservation(orderItems, vendorProducts);
         }
 
         if (request.ClearCartAfterPlacement)
@@ -248,6 +287,41 @@ public class PlaceOrderCommandHandler : IRequestHandler<PlaceOrderCommand, Guid>
         await _unitOfWork.SaveChangesAsync(cancellationToken);
 
         return order.Id;
+    }
+
+    private static void ApplyLocalStockReservation(
+        IReadOnlyCollection<OrderItem> orderItems,
+        IReadOnlyDictionary<Guid, Zadana.Domain.Modules.Catalog.Entities.VendorProduct> vendorProductsByMasterProductId)
+    {
+        var now = DateTime.UtcNow;
+        var vendorProductsById = vendorProductsByMasterProductId.Values.ToDictionary(product => product.Id);
+        var groupedItems = orderItems
+            .Where(item => item.RequiresStockDeduction())
+            .GroupBy(item => item.VendorProductId)
+            .Select(group => new
+            {
+                VendorProduct = vendorProductsById[group.Key],
+                RequiredQuantity = group.Sum(item => item.Quantity),
+                Items = group.ToList()
+            })
+            .ToList();
+
+        var insufficientGroup = groupedItems
+            .FirstOrDefault(group => group.VendorProduct.StockQuantity < group.RequiredQuantity);
+
+        if (insufficientGroup is not null)
+        {
+            throw new BusinessRuleException("INSUFFICIENT_STOCK", "The order cannot be placed because one or more items are out of stock.");
+        }
+
+        foreach (var group in groupedItems)
+        {
+            group.VendorProduct.DecreaseStock(group.RequiredQuantity);
+            foreach (var item in group.Items)
+            {
+                item.MarkStockDeducted(now);
+            }
+        }
     }
 
     private async Task<Guid?> ResolveVendorBranchIdAsync(PlaceOrderCommand request, CancellationToken cancellationToken)
@@ -286,6 +360,13 @@ public class PlaceOrderCommandHandler : IRequestHandler<PlaceOrderCommand, Guid>
     private static string BuildUnavailableCartItemsMessage(IReadOnlyCollection<string> productNames)
     {
         var names = string.Join(", ", productNames.Where(name => !string.IsNullOrWhiteSpace(name)).Take(5));
+        if (IsArabic())
+        {
+            return string.IsNullOrWhiteSpace(names)
+                ? "بعض المنتجات في العربة غير متوفرة في فرع المتجر المطابق لعنوانك."
+                : $"المنتجات التالية غير متوفرة في فرع المتجر المطابق لعنوانك: {names}";
+        }
+
         if (string.IsNullOrWhiteSpace(names))
         {
             return IsArabic()

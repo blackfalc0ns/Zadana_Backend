@@ -30,7 +30,8 @@ public record PlaceCheckoutOrderCommand(
     string PaymentMethod,
     string? PromoCode,
     string? Notes,
-    string? DeviceId = null) : IRequest<PlaceCheckoutOrderResultDto>;
+    string? DeviceId = null,
+    bool RemoveUnavailableItems = false) : IRequest<PlaceCheckoutOrderResultDto>;
 
 public class PlaceCheckoutOrderCommandValidator : AbstractValidator<PlaceCheckoutOrderCommand>
 {
@@ -106,6 +107,17 @@ public class PlaceCheckoutOrderCommandHandler : IRequestHandler<PlaceCheckoutOrd
         }
 
         var pricing = await CheckoutSupport.BuildPricingSnapshotAsync(_context, cart, request.VendorId, address, cancellationToken);
+        if (pricing.UnavailableItems.Count > 0)
+        {
+            if (!request.RemoveUnavailableItems)
+            {
+                throw new BusinessRuleException(
+                    "CART_UNAVAILABLE_ITEMS_CONFIRMATION_REQUIRED",
+                    "Some cart items are unavailable for the selected vendor. Confirm removing unavailable items to continue checkout.");
+            }
+
+            RemoveUnavailableCartItems(cart, pricing.UnavailableItems.Select(item => item.Id));
+        }
 
         var user = await _context.Users.FirstOrDefaultAsync(x => x.Id == request.UserId, cancellationToken)
             ?? throw new NotFoundException("User", request.UserId);
@@ -431,6 +443,22 @@ public class PlaceCheckoutOrderCommandHandler : IRequestHandler<PlaceCheckoutOrd
             !deliverySlotId.Trim().Equals(CheckoutSupport.DefaultDeliverySlotId, StringComparison.OrdinalIgnoreCase))
         {
             throw new BusinessRuleException("DELIVERY_SLOT_NOT_AVAILABLE", "Selected delivery slot is not available.");
+        }
+    }
+
+    private static void RemoveUnavailableCartItems(
+        Zadana.Domain.Modules.Orders.Entities.Cart cart,
+        IEnumerable<Guid> unavailableCartItemIds)
+    {
+        var ids = unavailableCartItemIds.ToHashSet();
+        if (ids.Count == 0)
+        {
+            return;
+        }
+
+        foreach (var cartItem in cart.Items.Where(item => ids.Contains(item.Id)).ToList())
+        {
+            cart.Items.Remove(cartItem);
         }
     }
 

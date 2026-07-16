@@ -37,9 +37,9 @@ public class OrderConfiguration : IEntityTypeConfiguration<Order>
             .IsDescending(false, true)
             .HasDatabaseName("IX_Orders_PaymentStatus_PlacedAt_Desc");
 
-        builder.Property(x => x.Status).HasConversion<string>().HasMaxLength(50).IsRequired();
+        builder.Property(x => x.Status).HasConversion<string>().HasMaxLength(50).IsRequired().IsConcurrencyToken();
         builder.Property(x => x.PaymentMethod).HasConversion<string>().HasMaxLength(50).IsRequired();
-        builder.Property(x => x.PaymentStatus).HasConversion<string>().HasMaxLength(50).IsRequired();
+        builder.Property(x => x.PaymentStatus).HasConversion<string>().HasMaxLength(50).IsRequired().IsConcurrencyToken();
 
         builder.Property(x => x.Subtotal).HasPrecision(18, 2).IsRequired();
         builder.Property(x => x.DiscountTotal).HasPrecision(18, 2).IsRequired();

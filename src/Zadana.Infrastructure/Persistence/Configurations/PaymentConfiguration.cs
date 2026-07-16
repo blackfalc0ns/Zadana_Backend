@@ -13,7 +13,7 @@ public class PaymentConfiguration : IEntityTypeConfiguration<Payment>
         builder.HasKey(x => x.Id);
 
         builder.Property(x => x.Method).HasConversion<string>().HasMaxLength(50).IsRequired();
-        builder.Property(x => x.Status).HasConversion<string>().HasMaxLength(50).IsRequired();
+        builder.Property(x => x.Status).HasConversion<string>().HasMaxLength(50).IsRequired().IsConcurrencyToken();
 
         builder.Property(x => x.ProviderName).HasMaxLength(100);
         builder.Property(x => x.ProviderTransactionId).HasMaxLength(200);

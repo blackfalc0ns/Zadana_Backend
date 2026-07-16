@@ -129,6 +129,195 @@ public class PlaceCheckoutOrderCommandHandlerTests
             .Select(history => history.NewStatus)
             .Should()
             .ContainInOrder(OrderStatus.Placed, OrderStatus.PendingVendorAcceptance);
+
+        vendorProduct.StockQuantity.Should().Be(9);
+        var savedOrderItem = await dbContext.OrderItems.SingleAsync();
+        savedOrderItem.StockDeductedAtUtc.Should().NotBeNull();
+        savedOrderItem.StockRestoredAtUtc.Should().BeNull();
+    }
+
+    [Fact]
+    public async Task Handle_WhenSelectedVendorProductIsUnavailable_ShouldRejectPlacement()
+    {
+        await using var dbContext = CreateDbContext();
+
+        var customer = new User("Unavailable Customer", "checkout.unavailable.customer@test.com", "01000000430", UserRole.Customer);
+        var vendorUser = new User("Unavailable Vendor", "checkout.unavailable.vendor@test.com", "01000000431", UserRole.Vendor);
+        var category = new Category("Groceries", "Groceries");
+        var product = new MasterProduct("Unavailable Milk", "Unavailable Milk", "unavailable-milk-test", category.Id);
+        product.Publish();
+
+        var vendor = new Zadana.Domain.Modules.Vendors.Entities.Vendor(
+            vendorUser.Id,
+            "Unavailable Store",
+            "Unavailable Store",
+            "Groceries",
+            "1234567894",
+            "checkout.unavailable.vendor@test.com",
+            "01000000431");
+        vendor.Approve(10m, Guid.NewGuid());
+        vendor.UpdateOperationsSettings(true, null, 30);
+
+        var branch = new Zadana.Domain.Modules.Vendors.Entities.VendorBranch(vendor.Id, "Main Branch", "Nasr City", 30.0444m, 31.2357m, "01000000432", 15m);
+        var vendorProduct = new VendorProduct(vendor.Id, product.Id, 30m, 10, tradePrice: 20m, vendorBranchId: branch.Id);
+        vendorProduct.SetAvailability(false);
+        var address = new CustomerAddress(customer.Id, "Unavailable Customer", "01000000430", "Nasr City 14", AddressLabel.Home, city: "Cairo");
+        address.SetAsDefault();
+
+        var cart = new Cart(customer.Id);
+        cart.Items.Add(new CartItem(cart.Id, product.Id, product.NameEn, 1));
+        cart.UpdateTotals(30m, 0m);
+
+        dbContext.Users.AddRange(customer, vendorUser);
+        dbContext.Categories.Add(category);
+        dbContext.MasterProducts.Add(product);
+        dbContext.Vendors.Add(vendor);
+        dbContext.VendorBranches.Add(branch);
+        dbContext.VendorProducts.Add(vendorProduct);
+        dbContext.CustomerAddresses.Add(address);
+        dbContext.Carts.Add(cart);
+        await dbContext.SaveChangesAsync();
+
+        var handler = new PlaceCheckoutOrderCommandHandler(
+            dbContext,
+            TestPaymentGatewayResolver.Disabled(),
+            Mock.Of<IDeliveryPricingService>(),
+            Mock.Of<ISender>(),
+            dbContext,
+            Mock.Of<IPublisher>());
+
+        var act = () => handler.Handle(
+            new PlaceCheckoutOrderCommand(
+                customer.Id,
+                vendor.Id,
+                address.Id,
+                null,
+                "cash",
+                null,
+                "should fail"),
+            CancellationToken.None);
+
+        await act.Should().ThrowAsync<BusinessRuleException>()
+            .Where(exception => exception.ErrorCode == "CART_ITEMS_UNAVAILABLE_AT_ADDRESS_BRANCH");
+        dbContext.Orders.Should().BeEmpty();
+    }
+
+    [Fact]
+    public async Task Handle_WhenSelectedVendorMissesSomeCartItems_ShouldRequireConfirmationThenPlaceAvailableItemsOnly()
+    {
+        await using var dbContext = CreateDbContext();
+
+        var customer = new User("Partial Customer", "checkout.partial.customer@test.com", "01000000630", UserRole.Customer);
+        var vendorUser = new User("Partial Vendor", "checkout.partial.vendor@test.com", "01000000631", UserRole.Vendor);
+        var otherVendorUser = new User("Other Partial Vendor", "checkout.partial.other.vendor@test.com", "01000000633", UserRole.Vendor);
+        var category = new Category("Groceries", "Groceries");
+        var availableProduct = new MasterProduct("Available Rice", "Available Rice", "available-rice-test", category.Id);
+        var unavailableProduct = new MasterProduct("Missing Sugar", "Missing Sugar", "missing-sugar-test", category.Id);
+        availableProduct.Publish();
+        unavailableProduct.Publish();
+
+        var vendor = new Zadana.Domain.Modules.Vendors.Entities.Vendor(
+            vendorUser.Id,
+            "Partial Store",
+            "Partial Store",
+            "Groceries",
+            "1234567896",
+            "checkout.partial.vendor@test.com",
+            "01000000631");
+        vendor.Approve(10m, Guid.NewGuid());
+        vendor.UpdateOperationsSettings(true, null, 30);
+
+        var otherVendor = new Zadana.Domain.Modules.Vendors.Entities.Vendor(
+            otherVendorUser.Id,
+            "Other Partial Store",
+            "Other Partial Store",
+            "Groceries",
+            "1234567897",
+            "checkout.partial.other.vendor@test.com",
+            "01000000633");
+        otherVendor.Approve(10m, Guid.NewGuid());
+
+        var branch = new Zadana.Domain.Modules.Vendors.Entities.VendorBranch(vendor.Id, "Main Branch", "Nasr City", 30.0444m, 31.2357m, "01000000632", 15m);
+        var vendorProduct = new VendorProduct(vendor.Id, availableProduct.Id, 40m, 10, tradePrice: 25m, vendorBranchId: branch.Id);
+        var otherVendorProduct = new VendorProduct(otherVendor.Id, unavailableProduct.Id, 20m, 10, tradePrice: 12m);
+        var address = new CustomerAddress(customer.Id, "Partial Customer", "01000000630", "Nasr City 15", AddressLabel.Home, city: "Cairo");
+        address.SetAsDefault();
+
+        var cart = new Cart(customer.Id);
+        cart.Items.Add(new CartItem(cart.Id, availableProduct.Id, availableProduct.NameEn, 1));
+        cart.Items.Add(new CartItem(cart.Id, unavailableProduct.Id, unavailableProduct.NameEn, 1));
+        cart.UpdateTotals(60m, 0m);
+
+        dbContext.Users.AddRange(customer, vendorUser, otherVendorUser);
+        dbContext.Categories.Add(category);
+        dbContext.MasterProducts.AddRange(availableProduct, unavailableProduct);
+        dbContext.Vendors.AddRange(vendor, otherVendor);
+        dbContext.VendorBranches.Add(branch);
+        dbContext.VendorProducts.AddRange(vendorProduct, otherVendorProduct);
+        dbContext.CustomerAddresses.Add(address);
+        dbContext.Carts.Add(cart);
+        await dbContext.SaveChangesAsync();
+
+        var orderRepository = new OrderRepository(dbContext);
+        var placeOrderHandler = new PlaceOrderCommandHandler(orderRepository, TestLocalizer.Create<SharedResource>(), dbContext);
+        var sender = new SenderProxy(type =>
+        {
+            if (type == typeof(IRequestHandler<PlaceOrderCommand, Guid>))
+            {
+                return placeOrderHandler;
+            }
+
+            throw new InvalidOperationException($"Unsupported handler: {type.FullName}");
+        });
+
+        var deliveryPricingMock = new Mock<IDeliveryPricingService>();
+        deliveryPricingMock
+            .Setup(service => service.QuoteAsync(branch.Id, address.Id, It.IsAny<CancellationToken>(), It.IsAny<decimal?>()))
+            .ReturnsAsync(new DeliveryPriceQuote(5m, 2m, 0m, 7m, 3m, "zone", "Zone rule", 1m, 2m, 3m, 4m, "driver", "vendor", false, "manual", null, "locked", DateTime.UtcNow, 1, false));
+
+        var handler = new PlaceCheckoutOrderCommandHandler(
+            dbContext,
+            TestPaymentGatewayResolver.Disabled(),
+            deliveryPricingMock.Object,
+            sender,
+            dbContext,
+            Mock.Of<IPublisher>());
+
+        var withoutConfirmation = () => handler.Handle(
+            new PlaceCheckoutOrderCommand(
+                customer.Id,
+                vendor.Id,
+                address.Id,
+                null,
+                "cash",
+                null,
+                "needs confirmation"),
+            CancellationToken.None);
+
+        await withoutConfirmation.Should().ThrowAsync<BusinessRuleException>()
+            .Where(exception => exception.ErrorCode == "CART_UNAVAILABLE_ITEMS_CONFIRMATION_REQUIRED");
+        dbContext.Orders.Should().BeEmpty();
+
+        await handler.Handle(
+            new PlaceCheckoutOrderCommand(
+                customer.Id,
+                vendor.Id,
+                address.Id,
+                null,
+                "cash",
+                null,
+                "confirmed partial",
+                RemoveUnavailableItems: true),
+            CancellationToken.None);
+
+        var savedOrder = await dbContext.Orders
+            .Include(order => order.Items)
+            .SingleAsync();
+
+        savedOrder.Subtotal.Should().Be(40m);
+        savedOrder.Items.Should().ContainSingle();
+        savedOrder.Items.Single().MasterProductId.Should().Be(availableProduct.Id);
+        dbContext.Carts.Should().BeEmpty();
     }
 
     [Fact]

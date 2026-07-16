@@ -221,6 +221,46 @@ public class VendorUpdateOrderStatusCommandHandlerTests
     }
 
     [Fact]
+    public async Task Handle_WhenVendorRejects_ShouldReleaseReservedStock()
+    {
+        await using var dbContext = CreateDbContext();
+        var customer = CreateCustomer();
+        var vendorId = Guid.NewGuid();
+        var masterProductId = Guid.NewGuid();
+        var vendorProduct = new Zadana.Domain.Modules.Catalog.Entities.VendorProduct(
+            vendorId,
+            masterProductId,
+            120m,
+            stockQuantity: 3,
+            tradePrice: 90m);
+        vendorProduct.DecreaseStock(1);
+        var order = CreateOrder(customer.Id, vendorId, OrderStatus.PendingVendorAcceptance, "ORD-VENDOR-REJECT-STOCK");
+        order.Items.Clear();
+        var orderItem = new OrderItem(order.Id, vendorProduct.Id, masterProductId, "Status Item", 1, 120m);
+        orderItem.MarkStockDeducted(DateTime.UtcNow.AddMinutes(-5));
+        order.Items.Add(orderItem);
+
+        dbContext.Users.Add(customer);
+        dbContext.VendorProducts.Add(vendorProduct);
+        dbContext.Orders.Add(order);
+        await dbContext.SaveChangesAsync();
+
+        var handler = new VendorUpdateOrderStatusCommandHandler(
+            dbContext,
+            dbContext,
+            Mock.Of<IPublisher>(),
+            Mock.Of<IOrderStatusNotificationDispatcher>(),
+            Mock.Of<IDeliveryDispatchService>());
+
+        await handler.Handle(
+            new VendorUpdateOrderStatusCommand(order.Id, vendorId, null, OrderStatus.VendorRejected, "not available"),
+            CancellationToken.None);
+
+        vendorProduct.StockQuantity.Should().Be(3);
+        orderItem.StockRestoredAtUtc.Should().NotBeNull();
+    }
+
+    [Fact]
     public async Task Handle_WhenCardPaymentIsNotConfirmed_ShouldRejectVendorAction()
     {
         await using var dbContext = CreateDbContext();

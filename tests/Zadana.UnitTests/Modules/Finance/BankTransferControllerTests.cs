@@ -1,6 +1,7 @@
 using FluentAssertions;
 using MediatR;
 using Microsoft.AspNetCore.Hosting;
+using Microsoft.AspNetCore.Http;
 using Microsoft.AspNetCore.Mvc;
 using Microsoft.Extensions.Logging;
 using Microsoft.Extensions.Logging.Abstractions;
@@ -16,6 +17,7 @@ using Zadana.Domain.Modules.Orders.Entities;
 using Zadana.Domain.Modules.Orders.Enums;
 using Zadana.Domain.Modules.Payments.Entities;
 using Zadana.Domain.Modules.Payments.Enums;
+using Zadana.SharedKernel.Exceptions;
 using Zadana.UnitTests.Common;
 
 namespace Zadana.UnitTests.Modules.Finance;
@@ -142,6 +144,36 @@ public class BankTransferControllerTests
             Times.Once);
     }
 
+    [Fact]
+    public async Task ConfirmBankTransfer_WhenReservationExpired_ShouldRejectConfirmation()
+    {
+        await using var context = TestDbContextFactory.Create();
+        var order = CreateBankTransferOrder();
+        order.ChangeStatus(OrderStatus.PendingBankConfirmation, null, "Awaiting bank transfer confirmation");
+        var payment = new Payment(order.Id, PaymentMethodType.BankTransfer, order.TotalAmount);
+        payment.MarkAsPending("BankTransfer", "ZDNEXPIRED");
+        payment.MarkAsFailed("Bank transfer reservation expired before confirmation.", "ZDNEXPIRED");
+        order.ChangeStatus(OrderStatus.Cancelled, null, "Bank transfer reservation expired before confirmation.");
+        context.Orders.Add(order);
+        context.Payments.Add(payment);
+        context.OrderStatusHistories.Add(order.StatusHistory.Last());
+        await context.SaveChangesAsync();
+
+        var controller = CreateController(context);
+
+        var act = () => controller.ConfirmBankTransfer(
+            payment.Id,
+            new ConfirmBankTransferRequest("ZDNEXPIRED", order.TotalAmount),
+            CancellationToken.None);
+
+        await act.Should()
+            .ThrowAsync<BusinessRuleException>()
+            .Where(ex => ex.ErrorCode == "ORDER_PAYMENT_RESERVATION_EXPIRED");
+
+        order.Status.Should().Be(OrderStatus.Cancelled);
+        payment.Status.Should().Be(PaymentStatus.Failed);
+    }
+
     private static BankTransferController CreateController(
         Zadana.Infrastructure.Persistence.ApplicationDbContext context,
         Guid? platformOwnerId = null,
@@ -151,7 +183,7 @@ public class BankTransferControllerTests
             context,
             Mock.Of<ILogger<FinancialEventPostingService>>());
 
-        return new BankTransferController(
+        var controller = new BankTransferController(
             context,
             postingService,
             new WalletProjectionUpdater(context),
@@ -164,6 +196,12 @@ public class BankTransferControllerTests
             }),
             Mock.Of<IWebHostEnvironment>(),
             NullLogger<BankTransferController>.Instance);
+        controller.ControllerContext = new ControllerContext
+        {
+            HttpContext = new DefaultHttpContext()
+        };
+
+        return controller;
     }
 
     private static Mock<IPublisher> CreatePublisherMock()
