@@ -110,6 +110,44 @@ public sealed class PayoutExecutionSafetyTests
     }
 
     [Fact]
+    public async Task Manual_confirmation_with_a_long_bank_reference_uses_a_bounded_financial_event_idempotency_key()
+    {
+        await using var context = TestDbContextFactory.Create();
+        var owner = CreateVendorForToday();
+        var settlement = CreateApprovedSettlement(owner);
+        var payout = new Payout(settlement.Id, 100m);
+        context.Vendors.Add(owner);
+        context.Settlements.Add(settlement);
+        context.Payouts.Add(payout);
+        await context.SaveChangesAsync();
+
+        var settings = new SettlementProcessingSettingsService(context);
+        var submittingAdmin = Guid.NewGuid();
+        var confirmingAdmin = Guid.NewGuid();
+        await settings.UpdateAsync(
+            SettlementProcessingMode.Manual,
+            [(PayoutScheduleDay)SaudiTime.Today.DayOfWeek],
+            submittingAdmin);
+
+        var orchestrator = CreateOrchestrator(context, [], settings);
+        await orchestrator.ClaimManualAsync(payout.Id, submittingAdmin);
+        await orchestrator.RecordManualBankSubmissionAsync(payout.Id, "BANK-SUBMISSION-001", submittingAdmin);
+        var proof = CreateProofAttachment(payout.Id, PayoutProofKind.ManualTransfer, confirmingAdmin);
+        context.PayoutProofAttachments.Add(proof);
+        await context.SaveChangesAsync();
+
+        await orchestrator.ConfirmManualAsync(
+            payout.Id,
+            new string('R', 200),
+            proof.Id,
+            confirmingAdmin);
+
+        var postedEvent = await context.FinancialEvents.SingleAsync(item => item.PayoutId == payout.Id);
+        postedEvent.IdempotencyKey.Length.Should().BeLessThanOrEqualTo(160);
+        postedEvent.IdempotencyKey.Should().StartWith($"payout-paid:{payout.Id:N}:sha256:");
+    }
+
+    [Fact]
     public async Task Cancellation_releases_vendor_hold_only_before_manual_bank_submission()
     {
         await using var context = TestDbContextFactory.Create();

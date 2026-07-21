@@ -1,4 +1,6 @@
 using System.Net.Http;
+using System.Security.Cryptography;
+using System.Text;
 using Microsoft.EntityFrameworkCore;
 using Microsoft.Extensions.Options;
 using Zadana.Application.Common.Interfaces;
@@ -19,6 +21,12 @@ namespace Zadana.Application.Modules.Finances.Services;
 
 public sealed class PayoutOrchestrator
 {
+    // FinancialEvents.IdempotencyKey is capped at 160 characters. Payout
+    // references can legitimately be up to 200 characters, so retain the
+    // legacy readable key when it fits and use a deterministic digest only
+    // for the oversized case.
+    private const int FinancialEventIdempotencyKeyMaxLength = 160;
+
     private readonly IApplicationDbContext _context;
     private readonly IEnumerable<IPayoutGateway> _payoutGateways;
     private readonly FinancialEventPostingService _postingService;
@@ -1624,7 +1632,7 @@ public sealed class PayoutOrchestrator
 
         var result = await _postingService.PostAsync(
             eventType,
-            $"payout-paid:{payout.Id:N}:{payout.ProviderTransferId ?? payout.ProviderSequenceNumber ?? payout.TransferReference}",
+            BuildPayoutPaidIdempotencyKey(payout),
             [
                 new JournalLineDraft(
                     payableAccount,
@@ -1652,6 +1660,26 @@ public sealed class PayoutOrchestrator
             cancellationToken: cancellationToken);
 
         await _walletProjectionUpdater.ApplyJournalEntryAsync(result.JournalEntryId, cancellationToken);
+    }
+
+    private static string BuildPayoutPaidIdempotencyKey(Payout payout)
+    {
+        var providerReference = payout.ProviderTransferId
+            ?? payout.ProviderSequenceNumber
+            ?? payout.TransferReference
+            ?? string.Empty;
+        var legacyKey = $"payout-paid:{payout.Id:N}:{providerReference}";
+
+        // Preserving fitting legacy keys avoids changing the idempotency value
+        // of payouts which may already have a financial event in production.
+        if (legacyKey.Length <= FinancialEventIdempotencyKeyMaxLength)
+        {
+            return legacyKey;
+        }
+
+        var referenceHash = Convert.ToHexString(
+            SHA256.HashData(Encoding.UTF8.GetBytes(providerReference)));
+        return $"payout-paid:{payout.Id:N}:sha256:{referenceHash}";
     }
 
     private async Task PostPayoutReversedAsync(
