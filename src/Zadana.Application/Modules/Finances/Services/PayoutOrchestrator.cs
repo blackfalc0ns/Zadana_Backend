@@ -1284,17 +1284,34 @@ public sealed class PayoutOrchestrator
             return;
         }
 
-        await using var transaction = await dbContext.Database.BeginTransactionAsync(cancellationToken);
-        try
+        // Do not create a nested transaction when the caller already owns
+        // the unit of work. The outer caller is then responsible for running
+        // its transaction through the appropriate execution strategy.
+        if (dbContext.Database.CurrentTransaction is not null)
         {
             await action();
-            await transaction.CommitAsync(cancellationToken);
+            return;
         }
-        catch
+
+        // SQL Server has a retrying execution strategy in production. EF Core
+        // requires an explicitly opened transaction to be created *inside*
+        // that strategy; otherwise any query performed by the financial
+        // posting service fails before the transaction body can run.
+        var executionStrategy = dbContext.Database.CreateExecutionStrategy();
+        await executionStrategy.ExecuteAsync(async () =>
         {
-            await transaction.RollbackAsync(cancellationToken);
-            throw;
-        }
+            await using var transaction = await dbContext.Database.BeginTransactionAsync(cancellationToken);
+            try
+            {
+                await action();
+                await transaction.CommitAsync(cancellationToken);
+            }
+            catch
+            {
+                await transaction.RollbackAsync(cancellationToken);
+                throw;
+            }
+        });
     }
 
     private void DetachExecutionChanges(Guid payoutId)
