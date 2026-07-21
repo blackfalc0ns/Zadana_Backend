@@ -69,7 +69,13 @@ public class GetProductDetailsQueryHandler : IRequestHandler<GetProductDetailsQu
         else
         {
             masterProductId = request.ProductId;
-            if (!offers.Any(offer => offer.MasterProductId == masterProductId))
+            var masterProductExists = await _context.MasterProducts
+                .AsNoTracking()
+                .AnyAsync(
+                    product => product.Id == masterProductId && !product.IsDeleted && product.Status != ProductStatus.Discontinued,
+                    cancellationToken);
+
+            if (!masterProductExists && !offers.Any(offer => offer.MasterProductId == masterProductId))
             {
                 throw new NotFoundException(nameof(MasterProduct), request.ProductId);
             }
@@ -89,18 +95,18 @@ public class GetProductDetailsQueryHandler : IRequestHandler<GetProductDetailsQu
             .ThenBy(offer => offer.Store, StringComparer.CurrentCultureIgnoreCase)
             .ToList();
 
-        var defaultOffer = directOffer ?? visibleOffersForProduct.FirstOrDefault() ?? allOffersForProduct.First();
-        var sourceOffersForProduct = visibleOffersForProduct.Count > 0 ? visibleOffersForProduct : allOffersForProduct;
-        var variantGroupId = defaultOffer.VariantGroupId;
-        var variantGroupKey = GetProductGroupKey(variantGroupId, defaultOffer.MasterProductId);
+        var defaultOffer = directOffer ?? visibleOffersForProduct.FirstOrDefault() ?? allOffersForProduct.FirstOrDefault();
+        var variantGroupId = defaultOffer?.VariantGroupId
+            ?? await _context.MasterProducts
+                .AsNoTracking()
+                .Where(product => product.Id == masterProductId && !product.IsDeleted)
+                .Select(product => product.VariantGroupId)
+                .FirstOrDefaultAsync(cancellationToken);
+        var variantGroupMembers = await LoadVariantGroupMembersAsync(variantGroupId, masterProductId, cancellationToken);
+        var currentVariantMember = variantGroupMembers.First(member => member.Id == masterProductId);
+        var variantGroupKey = GetProductGroupKey(variantGroupId, masterProductId);
         var isExplicitlyOfflineSelection = directOffer is not null && !directOffer.IsVisibleInCatalog;
-        var isAvailableForPurchase = !isExplicitlyOfflineSelection && visibleOffersForProduct.Count > 0;
-        var isOnlineNow = isExplicitlyOfflineSelection ? directOffer!.IsOnlineNow : defaultOffer.IsOnlineNow;
-        var unavailableReason = isAvailableForPurchase
-            ? null
-            : isExplicitlyOfflineSelection
-                ? directOffer!.UnavailableReason
-                : defaultOffer.UnavailableReason;
+        var sourceOffersForProduct = visibleOffersForProduct.Count > 0 ? visibleOffersForProduct : allOffersForProduct;
 
         var galleryImages = sourceOffersForProduct
             .SelectMany(offer => offer.Images)
@@ -108,9 +114,13 @@ public class GetProductDetailsQueryHandler : IRequestHandler<GetProductDetailsQu
             .Distinct(StringComparer.OrdinalIgnoreCase)
             .ToList();
 
-        if (galleryImages.Count == 0 && !string.IsNullOrWhiteSpace(defaultOffer.ImageUrl))
+        if (galleryImages.Count == 0 && !string.IsNullOrWhiteSpace(defaultOffer?.ImageUrl))
         {
             galleryImages.Add(defaultOffer.ImageUrl);
+        }
+        else if (galleryImages.Count == 0 && !string.IsNullOrWhiteSpace(currentVariantMember.PrimaryImageUrl))
+        {
+            galleryImages.Add(currentVariantMember.PrimaryImageUrl);
         }
 
         var vendorPrices = isExplicitlyOfflineSelection
@@ -137,12 +147,30 @@ public class GetProductDetailsQueryHandler : IRequestHandler<GetProductDetailsQu
                 .ThenBy(offer => offer.Store, StringComparer.CurrentCultureIgnoreCase)
                 .ToList());
 
-        var variantOptions = variantOffersByMasterProduct
-            .Select(kvp =>
+        var currentVariantAvailability = ResolveVariantAvailability(
+            variantGroupMembers.First(member => member.Id == masterProductId),
+            variantOffersByMasterProduct.GetValueOrDefault(masterProductId, []));
+
+        var isAvailableForPurchase = !isExplicitlyOfflineSelection && currentVariantAvailability.IsAvailableForPurchase;
+        var isOnlineNow = isExplicitlyOfflineSelection
+            ? directOffer!.IsOnlineNow
+            : currentVariantAvailability.IsOnlineNow;
+        var unavailableReason = isAvailableForPurchase
+            ? null
+            : isExplicitlyOfflineSelection
+                ? directOffer!.UnavailableReason
+                : currentVariantAvailability.UnavailableReason;
+
+        var variantOptions = variantGroupMembers
+            .Select(member =>
             {
-                var cheapest = kvp.Value.First();
-                var variantVendorPrices = kvp.Value
-                    .Where(offer => offer.IsVisibleInCatalog)
+                var memberOffers = variantOffersByMasterProduct.GetValueOrDefault(member.Id, []);
+                var memberAvailability = ResolveVariantAvailability(member, memberOffers);
+                var representativeOffer = memberOffers.FirstOrDefault();
+                var visibleMemberOffers = memberOffers.Where(offer => offer.IsVisibleInCatalog).ToList();
+                var pricedOffer = visibleMemberOffers.FirstOrDefault() ?? representativeOffer;
+
+                var variantVendorPrices = visibleMemberOffers
                     .Select(offer => new ProductDetailsVendorPriceDto(
                         offer.VendorProductId,
                         offer.Store,
@@ -152,33 +180,56 @@ public class GetProductDetailsQueryHandler : IRequestHandler<GetProductDetailsQu
                         offer.IsDiscounted))
                     .ToList();
 
+                var images = memberOffers
+                    .SelectMany(offer => offer.Images)
+                    .Where(url => !string.IsNullOrWhiteSpace(url))
+                    .Distinct(StringComparer.OrdinalIgnoreCase)
+                    .ToList();
+
+                if (images.Count == 0 && !string.IsNullOrWhiteSpace(member.PrimaryImageUrl))
+                {
+                    images.Add(member.PrimaryImageUrl);
+                }
+
                 return new ProductDetailsVariantOptionDto(
-                    cheapest.MasterProductId,
-                    cheapest.IsVisibleInCatalog ? cheapest.VendorProductId : null,
-                    cheapest.NameAr ?? cheapest.Name,
-                    cheapest.NameEn ?? cheapest.Name,
-                    cheapest.DisplaySizeAr,
-                    cheapest.DisplaySizeEn,
-                    cheapest.MasterProductId == masterProductId,
-                    cheapest.ImageUrl,
-                    cheapest.Images,
-                    cheapest.PackageTypeAr,
-                    cheapest.PackageTypeEn,
-                    cheapest.MeasurementValue,
-                    cheapest.MeasurementUnitAr,
-                    cheapest.MeasurementUnitEn,
-                    cheapest.Unit,
-                    cheapest.IsVisibleInCatalog ? cheapest.Price : null,
-                    cheapest.IsVisibleInCatalog && cheapest.IsDiscounted ? cheapest.OldPrice : null,
-                    cheapest.IsVisibleInCatalog && cheapest.IsDiscounted,
+                    member.Id,
+                    memberAvailability.IsAvailableForPurchase ? pricedOffer?.VendorProductId : null,
+                    member.NameAr ?? member.NameEn,
+                    member.NameEn ?? member.NameAr,
+                    member.DisplaySizeAr,
+                    member.DisplaySizeEn,
+                    member.Id == masterProductId,
+                    images.FirstOrDefault(),
+                    images,
+                    member.PackageTypeAr,
+                    member.PackageTypeEn,
+                    member.MeasurementValue,
+                    member.MeasurementUnitAr,
+                    member.MeasurementUnitEn,
+                    member.Unit,
+                    memberAvailability.IsAvailableForPurchase ? pricedOffer?.Price : null,
+                    memberAvailability.IsAvailableForPurchase && pricedOffer is { IsDiscounted: true }
+                        ? pricedOffer.OldPrice
+                        : null,
+                    memberAvailability.IsAvailableForPurchase && pricedOffer is { IsDiscounted: true },
+                    memberAvailability.IsOnlineNow,
+                    memberAvailability.IsAvailableForPurchase,
+                    memberAvailability.UnavailableReason,
                     variantVendorPrices);
             })
             .OrderBy(option => option.MeasurementValue ?? decimal.MaxValue)
             .ThenBy(option => option.NameAr, StringComparer.CurrentCultureIgnoreCase)
             .ToList();
 
+        var categoryId = defaultOffer?.CategoryId
+            ?? await _context.MasterProducts
+                .AsNoTracking()
+                .Where(product => product.Id == masterProductId && !product.IsDeleted)
+                .Select(product => product.CategoryId)
+                .FirstOrDefaultAsync(cancellationToken);
+
         var similarOfferRows = visibleOffers
-            .Where(offer => offer.CategoryId == defaultOffer.CategoryId)
+            .Where(offer => offer.CategoryId == categoryId)
             .Where(offer => GetProductGroupKey(offer.VariantGroupId, offer.MasterProductId) != variantGroupKey)
             .GroupBy(offer => GetProductGroupKey(offer.VariantGroupId, offer.MasterProductId))
             .Select(group => group
@@ -213,31 +264,141 @@ public class GetProductDetailsQueryHandler : IRequestHandler<GetProductDetailsQu
             })
             .ToList();
 
-        reviewStatsByVendorId.TryGetValue(defaultOffer.VendorId, out var defaultReviewStats);
+        var displayOffer = defaultOffer ?? variantOffersByMasterProduct.GetValueOrDefault(masterProductId, []).FirstOrDefault();
+        var displayName = displayOffer?.Name
+            ?? PickLocalizedNullable(currentVariantMember.NameAr, currentVariantMember.NameEn)
+            ?? string.Empty;
+        var displayStore = displayOffer?.Store ?? string.Empty;
+        var displayPrice = displayOffer?.Price ?? 0m;
+        var displayOldPrice = displayOffer is { IsDiscounted: true } ? displayOffer.OldPrice : null;
+        var displayImageUrl = displayOffer?.ImageUrl ?? currentVariantMember.PrimaryImageUrl;
+        var displayVendorProductId = displayOffer?.VendorProductId ?? Guid.Empty;
+        var displayUnit = displayOffer?.Unit ?? currentVariantMember.Unit;
+        var displayDescription = displayOffer?.Description;
+        var displayIsDiscounted = displayOffer?.IsDiscounted ?? false;
+
+        reviewStatsByVendorId.TryGetValue(displayOffer?.VendorId ?? Guid.Empty, out var defaultReviewStats);
 
         return new ProductDetailsDto(
             masterProductId,
             masterProductId,
-            defaultOffer.VendorProductId,
-            defaultOffer.Name,
-            defaultOffer.Store,
-            defaultOffer.Price,
-            defaultOffer.IsDiscounted ? defaultOffer.OldPrice : null,
-            defaultOffer.ImageUrl,
+            displayVendorProductId,
+            displayName,
+            displayStore,
+            displayPrice,
+            displayOldPrice,
+            displayImageUrl,
             galleryImages,
             defaultReviewStats?.AverageRating,
             defaultReviewStats?.ReviewCount ?? 0,
-            FormatDiscount(defaultOffer.Price, defaultOffer.OldPrice),
+            FormatDiscount(displayPrice, displayOldPrice),
             false,
-            defaultOffer.Unit,
-            defaultOffer.IsDiscounted,
-            defaultOffer.Description,
+            displayUnit,
+            displayIsDiscounted,
+            displayDescription,
             isOnlineNow,
             isAvailableForPurchase,
             unavailableReason,
             variantOptions,
             vendorPrices,
             similarProducts);
+    }
+
+    private async Task<List<VariantGroupMemberRow>> LoadVariantGroupMembersAsync(
+        Guid variantGroupId,
+        Guid currentMasterProductId,
+        CancellationToken cancellationToken)
+    {
+        var query = _context.MasterProducts
+            .AsNoTracking()
+            .Where(product =>
+                !product.IsDeleted &&
+                product.Status != ProductStatus.Discontinued &&
+                (variantGroupId != Guid.Empty
+                    ? product.VariantGroupId == variantGroupId
+                    : product.Id == currentMasterProductId));
+
+        var members = await query
+            .Select(product => new
+            {
+                product.Id,
+                product.NameAr,
+                product.NameEn,
+                product.Status,
+                product.MeasurementValue,
+                PackageTypeAr = product.PackageType != null ? product.PackageType.NameAr : null,
+                PackageTypeEn = product.PackageType != null ? product.PackageType.NameEn : null,
+                MeasurementUnitAr = product.MeasurementUnit != null
+                    ? product.MeasurementUnit.NameAr
+                    : product.UnitOfMeasure != null
+                        ? product.UnitOfMeasure.NameAr
+                        : null,
+                MeasurementUnitEn = product.MeasurementUnit != null
+                    ? product.MeasurementUnit.NameEn
+                    : product.UnitOfMeasure != null
+                        ? product.UnitOfMeasure.NameEn
+                        : null,
+                MeasurementUnitSymbol = product.MeasurementUnit != null
+                    ? product.MeasurementUnit.Symbol
+                    : product.UnitOfMeasure != null
+                        ? product.UnitOfMeasure.Symbol
+                        : null,
+                PrimaryImageUrl = product.Images
+                    .OrderByDescending(image => image.IsPrimary)
+                    .ThenBy(image => image.DisplayOrder)
+                    .Select(image => image.Url)
+                    .FirstOrDefault()
+            })
+            .ToListAsync(cancellationToken);
+
+        return members
+            .Select(member => new VariantGroupMemberRow(
+                member.Id,
+                member.Status,
+                NormalizeText(member.NameAr),
+                NormalizeText(member.NameEn),
+                MasterProductDisplayDto.BuildDisplaySize(member.PackageTypeAr, member.MeasurementValue, member.MeasurementUnitAr, member.MeasurementUnitSymbol, true),
+                MasterProductDisplayDto.BuildDisplaySize(member.PackageTypeEn, member.MeasurementValue, member.MeasurementUnitEn, member.MeasurementUnitSymbol, false),
+                NormalizeText(member.PackageTypeAr),
+                NormalizeText(member.PackageTypeEn),
+                member.MeasurementValue,
+                NormalizeText(member.MeasurementUnitAr),
+                NormalizeText(member.MeasurementUnitEn),
+                PickLocalizedNullable(
+                    MasterProductDisplayDto.BuildLegacyUnit(member.PackageTypeAr, member.MeasurementUnitAr, true),
+                    MasterProductDisplayDto.BuildLegacyUnit(member.PackageTypeEn, member.MeasurementUnitEn, false)),
+                member.PrimaryImageUrl))
+            .ToList();
+    }
+
+    private static VariantAvailabilityDecision ResolveVariantAvailability(
+        VariantGroupMemberRow member,
+        IReadOnlyList<VisibleOfferRow> memberOffers)
+    {
+        if (member.Status != ProductStatus.Active)
+        {
+            return new VariantAvailabilityDecision(false, false, "product_inactive");
+        }
+
+        var visibleOffers = memberOffers.Where(offer => offer.IsVisibleInCatalog).ToList();
+        if (visibleOffers.Count > 0)
+        {
+            return new VariantAvailabilityDecision(
+                true,
+                visibleOffers.Any(offer => offer.IsOnlineNow),
+                null);
+        }
+
+        if (memberOffers.Count == 0)
+        {
+            return new VariantAvailabilityDecision(false, false, "out_of_stock");
+        }
+
+        var representative = memberOffers[0];
+        return new VariantAvailabilityDecision(
+            false,
+            representative.IsOnlineNow,
+            representative.UnavailableReason ?? "unavailable");
     }
 
     private async Task<List<VisibleOfferRow>> LoadCandidateOffersAsync(CancellationToken cancellationToken)
@@ -412,6 +573,26 @@ public class GetProductDetailsQueryHandler : IRequestHandler<GetProductDetailsQu
                 .ThenBy(offer => offer.CreatedAtUtc)
                 .First())
             .ToList();
+
+    private sealed record VariantGroupMemberRow(
+        Guid Id,
+        ProductStatus Status,
+        string? NameAr,
+        string? NameEn,
+        string? DisplaySizeAr,
+        string? DisplaySizeEn,
+        string? PackageTypeAr,
+        string? PackageTypeEn,
+        decimal? MeasurementValue,
+        string? MeasurementUnitAr,
+        string? MeasurementUnitEn,
+        string? Unit,
+        string? PrimaryImageUrl);
+
+    private sealed record VariantAvailabilityDecision(
+        bool IsAvailableForPurchase,
+        bool IsOnlineNow,
+        string? UnavailableReason);
 
     private sealed record RawVisibleOfferRow(
         Guid VendorProductId,

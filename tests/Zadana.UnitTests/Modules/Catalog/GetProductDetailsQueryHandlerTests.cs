@@ -152,6 +152,76 @@ public class GetProductDetailsQueryHandlerTests
         result.SimilarProducts[0].Id.Should().Be(second.Id);
     }
 
+    [Fact]
+    public async Task Handle_WhenVariantGroupHasInactiveMember_EachVariantHasIndependentAvailability()
+    {
+        using var scope = new CultureScope("en");
+        await using var context = TestDbContextFactory.Create();
+
+        var category = new Category("milk-ar", "Milk", null, null, 1);
+        context.Categories.Add(category);
+        await context.SaveChangesAsync();
+
+        var variantGroupId = Guid.NewGuid();
+        var activeMasterProduct = new MasterProduct(
+            "milk-1l-ar",
+            "Full Cream Milk 1L",
+            "full-cream-milk-1l",
+            category.Id,
+            variantGroupId: variantGroupId);
+        activeMasterProduct.Publish();
+        activeMasterProduct.AddImage("https://cdn.test/milk-1l.jpg", displayOrder: 0, isPrimary: true);
+
+        var inactiveMasterProduct = new MasterProduct(
+            "milk-2l-ar",
+            "Full Cream Milk 2L",
+            "full-cream-milk-2l",
+            category.Id,
+            variantGroupId: variantGroupId);
+        inactiveMasterProduct.Publish();
+        inactiveMasterProduct.Unpublish();
+        inactiveMasterProduct.AddImage("https://cdn.test/milk-2l.jpg", displayOrder: 0, isPrimary: true);
+
+        context.MasterProducts.AddRange(activeMasterProduct, inactiveMasterProduct);
+        await context.SaveChangesAsync();
+
+        var vendor = CreateActiveVendor("Green Valley Market", "green-logo.png");
+        context.Vendors.Add(vendor);
+        await context.SaveChangesAsync();
+
+        var activeVendorProduct = new VendorProduct(vendor.Id, activeMasterProduct.Id, 50m, 10);
+        var inactiveVendorProduct = new VendorProduct(vendor.Id, inactiveMasterProduct.Id, 90m, 10);
+        context.VendorProducts.AddRange(activeVendorProduct, inactiveVendorProduct);
+        await context.SaveChangesAsync();
+
+        var handler = new GetProductDetailsQueryHandler(
+            context,
+            TestServiceFactory.CreateAppCache(),
+            TestServiceFactory.CreateCatalogReadCacheService(context),
+            TestServiceFactory.CreateCachingOptions());
+
+        var activeResult = await handler.Handle(new GetProductDetailsQuery(activeMasterProduct.Id), CancellationToken.None);
+
+        activeResult.IsAvailableForPurchase.Should().BeTrue();
+        activeResult.VariantOptions.Should().HaveCount(2);
+        activeResult.VariantOptions.Should().Contain(option =>
+            option.Id == activeMasterProduct.Id &&
+            option.IsAvailableForPurchase &&
+            option.UnavailableReason == null);
+        activeResult.VariantOptions.Should().Contain(option =>
+            option.Id == inactiveMasterProduct.Id &&
+            !option.IsAvailableForPurchase &&
+            option.UnavailableReason == "product_inactive");
+
+        var inactiveResult = await handler.Handle(new GetProductDetailsQuery(inactiveMasterProduct.Id), CancellationToken.None);
+
+        inactiveResult.IsAvailableForPurchase.Should().BeFalse();
+        inactiveResult.UnavailableReason.Should().Be("product_inactive");
+        inactiveResult.VariantOptions.Should().Contain(option =>
+            option.Id == activeMasterProduct.Id &&
+            option.IsAvailableForPurchase);
+    }
+
     private static async Task<ProductScenario> SeedProductScenarioAsync(Infrastructure.Persistence.ApplicationDbContext context)
     {
         var category = new Category("milk-ar", "Milk", null, null, 1);

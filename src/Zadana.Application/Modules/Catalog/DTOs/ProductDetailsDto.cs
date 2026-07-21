@@ -44,6 +44,9 @@ public record ProductDetailsVariantOptionDto(
     [property: JsonPropertyName("price")] decimal? Price,
     [property: JsonPropertyName("old_price")] decimal? OldPrice,
     [property: JsonPropertyName("is_discounted")] bool IsDiscounted,
+    [property: JsonPropertyName("is_online_now")] bool IsOnlineNow,
+    [property: JsonPropertyName("is_available_for_purchase")] bool IsAvailableForPurchase,
+    [property: JsonPropertyName("unavailable_reason")] string? UnavailableReason,
     [property: JsonPropertyName("vendor_prices")] IReadOnlyList<ProductDetailsVendorPriceDto> VendorPrices);
 
 public record ProductDetailsDto(
