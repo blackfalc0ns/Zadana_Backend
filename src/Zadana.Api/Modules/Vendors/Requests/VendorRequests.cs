@@ -95,6 +95,8 @@ public record UpdateVendorBankingRequest(
     string? PayoutCycle,
     string? PayoutDay = null);
 
+public record UpdateVendorPayoutPreferenceRequest(string? PayoutDay);
+
 public record UpdateVendorOperatingHourRequest(
     int DayOfWeek,
     string OpenTime,

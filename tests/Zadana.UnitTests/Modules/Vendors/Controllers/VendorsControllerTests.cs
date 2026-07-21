@@ -12,6 +12,7 @@ using Zadana.Application.Common.Localization;
 using Zadana.Application.Modules.Identity.DTOs;
 using Zadana.Application.Modules.Vendors.Commands.RegisterVendor;
 using Zadana.Application.Modules.Vendors.Commands.UpdateVendorProfile;
+using Zadana.Application.Modules.Vendors.Commands.UpdateVendorPayoutPreference;
 using Zadana.Application.Modules.Vendors.DTOs;
 using Zadana.Application.Modules.Vendors.Queries.GetVendorProfile;
 
@@ -128,6 +129,21 @@ public class VendorsControllerTests
 
         var okResult = result.Should().BeOfType<OkObjectResult>().Subject;
         okResult.Value.Should().NotBeNull();
+    }
+
+    [Fact]
+    public async Task UpdatePayoutPreference_ReturnsUpdatedPreference()
+    {
+        _senderMock
+            .Setup(sender => sender.Send(
+                It.Is<UpdateVendorPayoutPreferenceCommand>(command => command.PayoutDay == "Thursday"),
+                default))
+            .ReturnsAsync(new VendorPayoutPreferenceDto("Thursday"));
+
+        var result = await _controller.UpdatePayoutPreference(
+            new UpdateVendorPayoutPreferenceRequest("Thursday"));
+
+        result.Should().BeOfType<OkObjectResult>();
     }
 
     private static VendorWorkspaceDto CreateWorkspaceDto() =>

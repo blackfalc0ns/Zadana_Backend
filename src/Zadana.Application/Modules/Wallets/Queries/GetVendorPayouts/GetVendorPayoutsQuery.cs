@@ -26,6 +26,7 @@ public class GetVendorPayoutsQueryHandler : IRequestHandler<GetVendorPayoutsQuer
             .AsNoTracking()
             .Include(item => item.Settlement)
             .Include(item => item.VendorBankAccount)
+            .Include(item => item.ManualConfirmation)
             .Where(item => item.Settlement.VendorId == request.VendorId);
 
         var totalCount = await query.CountAsync(cancellationToken);
@@ -41,9 +42,15 @@ public class GetVendorPayoutsQueryHandler : IRequestHandler<GetVendorPayoutsQuer
                 item.Amount,
                 Origin = item.Settlement.Origin.ToString(),
                 Status = item.Status.ToString(),
+                SettlementStatus = item.Settlement.Status.ToString(),
                 item.TransferReference,
                 item.ProviderName,
                 item.ProviderTransferId,
+                ManualConfirmationId = item.ManualConfirmation == null ? (Guid?)null : item.ManualConfirmation.Id,
+                ManualTransferReference = item.ManualConfirmation == null ? null : item.ManualConfirmation.TransferReference,
+                ManualProofUrl = item.ManualConfirmation == null ? null : item.ManualConfirmation.ProofUrl,
+                ManualConfirmedByUserId = item.ManualConfirmation == null ? (Guid?)null : item.ManualConfirmation.ConfirmedByUserId,
+                ManualConfirmedAtUtc = item.ManualConfirmation == null ? (DateTime?)null : item.ManualConfirmation.ConfirmedAtUtc,
                 item.CreatedAtUtc,
                 item.ProcessedAtUtc,
                 SourceOrderId = item.Settlement.Items
@@ -68,6 +75,7 @@ public class GetVendorPayoutsQueryHandler : IRequestHandler<GetVendorPayoutsQuer
                 item.Amount,
                 item.Origin,
                 item.Status,
+                item.SettlementStatus,
                 item.TransferReference,
                 item.CreatedAtUtc,
                 item.ProcessedAtUtc,
@@ -79,7 +87,15 @@ public class GetVendorPayoutsQueryHandler : IRequestHandler<GetVendorPayoutsQuer
                 item.Iban,
                 item.SwiftCode,
                 item.ProviderName,
-                item.ProviderTransferId))
+                item.ProviderTransferId,
+                item.ManualConfirmationId is { } manualConfirmationId
+                    ? new AdminVendorManualPayoutConfirmationDto(
+                        manualConfirmationId,
+                        item.ManualTransferReference!,
+                        item.ManualProofUrl!,
+                        item.ManualConfirmedByUserId!.Value,
+                        item.ManualConfirmedAtUtc!.Value)
+                    : null))
             .ToList();
 
         return new PaginatedList<AdminVendorPayoutDto>(payoutDtos, totalCount, request.Page, request.PageSize);

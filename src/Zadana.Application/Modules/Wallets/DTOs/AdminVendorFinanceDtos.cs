@@ -22,6 +22,7 @@ public record AdminVendorPayoutDto(
     decimal Amount,
     string Origin,
     string Status,
+    string SettlementStatus,
     string? TransferReference,
     DateTime CreatedAtUtc,
     DateTime? ProcessedAtUtc,
@@ -33,4 +34,12 @@ public record AdminVendorPayoutDto(
     string? Iban,
     string? SwiftCode,
     string? ProviderName = null,
-    string? ProviderTransferId = null);
+    string? ProviderTransferId = null,
+    AdminVendorManualPayoutConfirmationDto? ManualConfirmation = null);
+
+public record AdminVendorManualPayoutConfirmationDto(
+    Guid Id,
+    string TransferReference,
+    string ProofUrl,
+    Guid ConfirmedByUserId,
+    DateTime ConfirmedAtUtc);

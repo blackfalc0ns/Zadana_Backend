@@ -700,9 +700,9 @@ public class AdminAccessController(
             .FirstOrDefaultAsync(item => item.Id == payload.VendorId, cancellationToken)
             ?? throw new NotFoundException("Vendor", payload.VendorId);
 
-        vendor.UpdateBanking(
-            payload.PayoutCycle,
-            PayoutScheduleDayPolicy.ParseOrDefault(payload.PayoutDay, vendor.PayoutDay));
+        // A payout-day choice is now a self-service preference saved immediately.
+        // Do not let an older pending banking approval overwrite a newer choice.
+        vendor.UpdateBanking(payload.PayoutCycle);
 
         var primaryAccount = vendor.BankAccounts
             .FirstOrDefault(account => account.IsPrimary)

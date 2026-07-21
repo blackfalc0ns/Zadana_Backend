@@ -17,6 +17,7 @@ using Zadana.Application.Modules.Vendors.Commands.UpdateVendorOwner;
 using Zadana.Application.Modules.Vendors.Commands.RegisterVendor;
 using Zadana.Application.Modules.Vendors.Commands.SubmitVendorReview;
 using Zadana.Application.Modules.Vendors.Commands.UpdateVendorProfile;
+using Zadana.Application.Modules.Vendors.Commands.UpdateVendorPayoutPreference;
 using Zadana.Application.Modules.Vendors.Commands.UpdateVendorStore;
 using Zadana.Application.Modules.Vendors.Queries.GetVendorProfile;
 
@@ -209,6 +210,23 @@ public class VendorsController : ApiControllerBase
             request.PayoutCycle,
             request.PayoutDay));
 
+        return Ok(new { Data = result, Message = _localizer["VendorProfileUpdated"].Value });
+    }
+
+    [HttpGet("profile/payout-preference")]
+    [Authorize(Policy = "VendorOnly")]
+    public async Task<IActionResult> GetPayoutPreference()
+    {
+        var result = await Sender.Send(new GetVendorProfileQuery());
+        return Ok(new { PayoutDay = result.PayoutDay });
+    }
+
+    [HttpPut("profile/payout-preference")]
+    [Authorize(Policy = "VendorOnly")]
+    [ValidateCsrfToken]
+    public async Task<IActionResult> UpdatePayoutPreference([FromBody] UpdateVendorPayoutPreferenceRequest? request)
+    {
+        var result = await Sender.Send(new UpdateVendorPayoutPreferenceCommand(request?.PayoutDay));
         return Ok(new { Data = result, Message = _localizer["VendorProfileUpdated"].Value });
     }
 
