@@ -11,6 +11,8 @@ public record AdminWalletSummaryDto(
     string OwnerPhone,
     decimal CurrentBalance,
     decimal PendingBalance,
+    decimal AvailableBalance,
+    decimal CodOwedBalance,
     DateTime CreatedAtUtc);
 
 public record AdminWalletListDto(

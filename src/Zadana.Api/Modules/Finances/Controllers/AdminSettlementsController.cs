@@ -1,10 +1,12 @@
 using Microsoft.AspNetCore.Authorization;
 using Microsoft.AspNetCore.Mvc;
 using Microsoft.EntityFrameworkCore;
+using Zadana.Api.Authorization;
 using Zadana.Application.Common.Interfaces;
 using Zadana.Application.Modules.Finances.Services;
 using Zadana.Application.Modules.Wallets.Services;
 using Zadana.Domain.Modules.Finances.Enums;
+using Zadana.Domain.Modules.Identity.Constants;
 using Zadana.Domain.Modules.Vendors.Enums;
 using Zadana.Domain.Modules.Wallets.Entities;
 using Zadana.Domain.Modules.Wallets.Enums;
@@ -22,6 +24,7 @@ public sealed class AdminSettlementsController(
     ISettlementProcessingSettingsService? settlementProcessingSettingsService = null) : ControllerBase
 {
     [HttpGet]
+    [RequireAccess(PermissionKeys.Admin.FinancesView)]
     public async Task<ActionResult<AdminSettlementListDto>> GetSettlements(
         [FromQuery] string? ownerType = null,
         [FromQuery] Guid? ownerId = null,
@@ -77,6 +80,7 @@ public sealed class AdminSettlementsController(
     }
 
     [HttpGet("{id:guid}")]
+    [RequireAccess(PermissionKeys.Admin.FinancesView)]
     public async Task<ActionResult<AdminSettlementDetailDto>> GetSettlement(Guid id, CancellationToken cancellationToken)
     {
         var settlement = await context.Settlements
@@ -111,6 +115,7 @@ public sealed class AdminSettlementsController(
     }
 
     [HttpPost("generate")]
+    [RequireAccess(PermissionKeys.Admin.FinancesEdit)]
     public async Task<ActionResult<AdminSettlementDto>> Generate(
         [FromBody] GenerateSettlementRequest request,
         CancellationToken cancellationToken)
@@ -169,6 +174,7 @@ public sealed class AdminSettlementsController(
     }
 
     [HttpPost("{id:guid}/approve")]
+    [RequireAccess(PermissionKeys.Admin.FinancesApprove)]
     public async Task<ActionResult<AdminSettlementDetailDto>> Approve(Guid id, [FromBody] SettlementResolutionRequest? request, CancellationToken cancellationToken)
     {
         var settlement = await LoadSettlementForApprovalAsync(id, cancellationToken);
@@ -205,6 +211,7 @@ public sealed class AdminSettlementsController(
     }
 
     [HttpPost("{id:guid}/hold")]
+    [RequireAccess(PermissionKeys.Admin.FinancesApprove)]
     public async Task<IActionResult> Hold(Guid id, CancellationToken cancellationToken)
     {
         var settlement = await LoadSettlementAsync(id, cancellationToken);
@@ -214,6 +221,7 @@ public sealed class AdminSettlementsController(
     }
 
     [HttpPost("{id:guid}/reject")]
+    [RequireAccess(PermissionKeys.Admin.FinancesApprove)]
     public async Task<IActionResult> Reject(Guid id, CancellationToken cancellationToken)
     {
         var settlement = await LoadSettlementAsync(id, cancellationToken);
@@ -223,6 +231,7 @@ public sealed class AdminSettlementsController(
     }
 
     [HttpPost("{id:guid}/resolve-dispute")]
+    [RequireAccess(PermissionKeys.Admin.FinancesApprove)]
     public async Task<IActionResult> ResolveDispute(Guid id, [FromBody] SettlementResolutionRequest? request, CancellationToken cancellationToken)
     {
         var settlement = await LoadSettlementAsync(id, cancellationToken);

@@ -599,6 +599,8 @@ builder.Services.AddRateLimiter(options =>
             RateLimitPartition.GetNoLimiter("testing-file-uploads"));
         options.AddPolicy(RateLimitPolicyNames.PaymentCallbacks, _ =>
             RateLimitPartition.GetNoLimiter("testing-payment-callbacks"));
+        options.AddPolicy(RateLimitPolicyNames.WalletMutations, _ =>
+            RateLimitPartition.GetNoLimiter("testing-wallet-mutations"));
         return;
     }
 
@@ -678,6 +680,18 @@ builder.Services.AddRateLimiter(options =>
                 PermitLimit = 120,
                 Window = TimeSpan.FromMinutes(1),
                 SegmentsPerWindow = 6,
+                QueueLimit = 0,
+                AutoReplenishment = true
+            }));
+
+    options.AddPolicy(RateLimitPolicyNames.WalletMutations, httpContext =>
+        RateLimitPartition.GetSlidingWindowLimiter(
+            ResolveRateLimitKey(httpContext),
+            _ => new SlidingWindowRateLimiterOptions
+            {
+                PermitLimit = 10,
+                Window = TimeSpan.FromMinutes(10),
+                SegmentsPerWindow = 10,
                 QueueLimit = 0,
                 AutoReplenishment = true
             }));

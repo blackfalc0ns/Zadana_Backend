@@ -41,6 +41,7 @@ public record UpdateDriverPayoutMethodRequest(
 
 public record CreateDriverWithdrawalRequest(
     Guid? PaymentMethodId,
-    decimal Amount);
+    decimal Amount,
+    string? IdempotencyKey = null);
 
 public record UpdateDriverPayoutPreferenceRequest(string? PayoutDay);

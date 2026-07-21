@@ -71,6 +71,18 @@ public class Payout : BaseEntity
         ScheduledPayoutDay = PayoutScheduleDayPolicy.EnsureAllowed(payoutDay);
     }
 
+    public void AssignProcessedBy(Guid processedByUserId)
+    {
+        if (processedByUserId == Guid.Empty)
+        {
+            throw new BusinessRuleException(
+                "PAYOUT_PROCESSING_USER_REQUIRED",
+                "An authenticated finance administrator is required to process a payout.");
+        }
+
+        ProcessedByUserId ??= processedByUserId;
+    }
+
     public void MarkQueued(
         string? providerTransferId = null,
         string? providerName = null,

@@ -17,6 +17,16 @@ public class DriverWithdrawalRequestConfiguration : IEntityTypeConfiguration<Dri
             .HasPrecision(18, 2)
             .IsRequired();
 
+        builder.Property(x => x.RequestIdempotencyKey)
+            .HasMaxLength(160);
+
+        builder.Property(x => x.RequestedPayoutDay)
+            .HasConversion<string>()
+            .HasMaxLength(20);
+
+        builder.Property(x => x.DestinationSnapshot)
+            .HasMaxLength(2000);
+
         builder.Property(x => x.Status)
             .HasConversion<string>()
             .HasMaxLength(50)
@@ -53,6 +63,16 @@ public class DriverWithdrawalRequestConfiguration : IEntityTypeConfiguration<Dri
             .OnDelete(DeleteBehavior.SetNull);
 
         builder.HasIndex(x => x.DriverId);
+        builder.HasIndex(x => new { x.DriverId, x.Status })
+            .HasDatabaseName("IX_DriverWithdrawalRequests_Driver_Status");
+        builder.HasIndex(x => x.DriverId)
+            .IsUnique()
+            .HasFilter("[Status] IN ('Pending', 'Processing')")
+            .HasDatabaseName("UX_DriverWithdrawalRequests_OneActivePerDriver");
+        builder.HasIndex(x => new { x.DriverId, x.RequestIdempotencyKey })
+            .IsUnique()
+            .HasFilter("[RequestIdempotencyKey] IS NOT NULL")
+            .HasDatabaseName("UX_DriverWithdrawalRequests_Driver_IdempotencyKey");
         builder.HasIndex(x => x.WalletId);
         // A payout belongs to a single withdrawal. The withdrawal's
         // PayoutId concurrency token protects two payouts being attached to

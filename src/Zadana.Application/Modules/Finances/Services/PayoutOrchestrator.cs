@@ -77,6 +77,11 @@ public sealed class PayoutOrchestrator
     {
         var payout = await LoadPayoutAsync(payoutId, cancellationToken);
 
+        if (processedByUserId.HasValue)
+        {
+            payout.AssignProcessedBy(processedByUserId.Value);
+        }
+
         if (payout.Status is PayoutStatus.Paid or PayoutStatus.Reversed ||
             (payout.Status == PayoutStatus.Cancelled && !isRetry))
         {

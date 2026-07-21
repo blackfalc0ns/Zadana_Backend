@@ -252,6 +252,43 @@ public class AdminWalletsController : ApiControllerBase
                 d => new { Name = d.User.FullName, Phone = d.User.PhoneNumber ?? "", PayoutDay = d.PayoutDay.ToString() },
                 cancellationToken);
 
+        var walletSummaries = await query
+            .Select(w => new
+            {
+                w.OwnerType,
+                w.OwnerId,
+                w.CurrentBalance,
+                w.PendingBalance,
+                w.CodOwedBalance
+            })
+            .ToListAsync(cancellationToken);
+
+        var allVendorIds = walletSummaries
+            .Where(w => w.OwnerType == WalletOwnerType.Vendor)
+            .Select(w => w.OwnerId)
+            .Distinct()
+            .ToList();
+        var allDriverIds = walletSummaries
+            .Where(w => w.OwnerType == WalletOwnerType.Driver)
+            .Select(w => w.OwnerId)
+            .Distinct()
+            .ToList();
+        var allVendorHoldTotals = await SumActiveHoldTotalsAsync(context, WalletOwnerType.Vendor, allVendorIds, cancellationToken);
+        var allDriverHoldTotals = await SumActiveHoldTotalsAsync(context, WalletOwnerType.Driver, allDriverIds, cancellationToken);
+
+        var totalPlatformBalance = walletSummaries.Sum(w =>
+        {
+            var activeHolds = w.OwnerType switch
+            {
+                WalletOwnerType.Vendor => allVendorHoldTotals.GetValueOrDefault(w.OwnerId),
+                WalletOwnerType.Driver => allDriverHoldTotals.GetValueOrDefault(w.OwnerId),
+                _ => 0m
+            };
+
+            return ComputeAvailableBalance(w.OwnerType, w.CurrentBalance, w.PendingBalance, w.CodOwedBalance, activeHolds);
+        });
+        var totalPendingWithdrawals = walletSummaries.Sum(w => w.PendingBalance);
+
         var items = wallets.Select(w =>
         {
             string ownerName = "Unknown";
@@ -268,6 +305,13 @@ public class AdminWalletsController : ApiControllerBase
                 ownerPhone = driver.Phone;
             }
 
+            var activeHolds = w.OwnerType switch
+            {
+                WalletOwnerType.Vendor => allVendorHoldTotals.GetValueOrDefault(w.OwnerId),
+                WalletOwnerType.Driver => allDriverHoldTotals.GetValueOrDefault(w.OwnerId),
+                _ => 0m
+            };
+
             return new AdminWalletSummaryDto(
                 w.Id,
                 w.OwnerType.ToString(),
@@ -276,12 +320,11 @@ public class AdminWalletsController : ApiControllerBase
                 ownerPhone,
                 w.CurrentBalance,
                 w.PendingBalance,
+                ComputeAvailableBalance(w.OwnerType, w.CurrentBalance, w.PendingBalance, w.CodOwedBalance, activeHolds),
+                w.CodOwedBalance,
                 w.CreatedAtUtc
             );
         }).ToList();
-
-        var totalPlatformBalance = await context.Wallets.SumAsync(w => (decimal?)w.CurrentBalance, cancellationToken) ?? 0m;
-        var totalPendingWithdrawals = await context.Wallets.SumAsync(w => (decimal?)w.PendingBalance, cancellationToken) ?? 0m;
 
         return Ok(new AdminWalletListDto(items, page, pageSize, totalCount, totalPlatformBalance, totalPendingWithdrawals));
     }
@@ -317,6 +360,12 @@ public class AdminWalletsController : ApiControllerBase
             ownerPhone = driver?.User.PhoneNumber ?? "";
         }
 
+        var activeHolds = await SumActiveHoldTotalsAsync(
+            context,
+            wallet.OwnerType,
+            [wallet.OwnerId],
+            cancellationToken);
+
         return Ok(new AdminWalletSummaryDto(
             wallet.Id,
             wallet.OwnerType.ToString(),
@@ -325,6 +374,8 @@ public class AdminWalletsController : ApiControllerBase
             ownerPhone,
             wallet.CurrentBalance,
             wallet.PendingBalance,
+            ComputeAvailableBalance(wallet.OwnerType, wallet.CurrentBalance, wallet.PendingBalance, wallet.CodOwedBalance, activeHolds.GetValueOrDefault(wallet.OwnerId)),
+            wallet.CodOwedBalance,
             wallet.CreatedAtUtc
         ));
     }
@@ -484,6 +535,7 @@ public class AdminWalletsController : ApiControllerBase
     }
 
     [HttpGet("withdrawals")]
+    [RequireAccess(PermissionKeys.Admin.FinancesView)]
     public async Task<ActionResult<AdminWithdrawalRequestListDto>> GetWithdrawals(
         [FromServices] IApplicationDbContext context,
         [FromQuery] string? status,
@@ -1089,6 +1141,47 @@ public class AdminWalletsController : ApiControllerBase
 
     private static string FirstNonEmpty(params string?[] values) =>
         values.FirstOrDefault(value => !string.IsNullOrWhiteSpace(value))?.Trim() ?? string.Empty;
+
+    private static decimal ComputeAvailableBalance(Wallet wallet, decimal activeHolds) =>
+        ComputeAvailableBalance(wallet.OwnerType, wallet.CurrentBalance, wallet.PendingBalance, wallet.CodOwedBalance, activeHolds);
+
+    private static decimal ComputeAvailableBalance(
+        WalletOwnerType ownerType,
+        decimal currentBalance,
+        decimal pendingBalance,
+        decimal codOwedBalance,
+        decimal activeHolds)
+    {
+        var reserved = pendingBalance + activeHolds;
+        if (ownerType == WalletOwnerType.Driver)
+        {
+            return Math.Max(0m, currentBalance - codOwedBalance - reserved);
+        }
+
+        return Math.Max(0m, currentBalance - reserved);
+    }
+
+    private static async Task<Dictionary<Guid, decimal>> SumActiveHoldTotalsAsync(
+        IApplicationDbContext context,
+        WalletOwnerType ownerType,
+        IReadOnlyList<Guid> ownerIds,
+        CancellationToken cancellationToken)
+    {
+        if (ownerIds.Count == 0)
+        {
+            return [];
+        }
+
+        return await context.WalletHolds
+            .AsNoTracking()
+            .Where(hold =>
+                hold.OwnerType == ownerType &&
+                ownerIds.Contains(hold.OwnerId) &&
+                hold.Status == WalletHoldStatus.Active)
+            .GroupBy(hold => hold.OwnerId)
+            .Select(group => new { group.Key, Total = group.Sum(item => item.Amount) })
+            .ToDictionaryAsync(item => item.Key, item => item.Total, cancellationToken);
+    }
 
     private static bool IsValidSaudiIban(string? iban)
     {

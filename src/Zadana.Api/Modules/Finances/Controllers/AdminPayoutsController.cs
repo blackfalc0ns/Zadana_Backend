@@ -22,6 +22,7 @@ public sealed class AdminPayoutsController(
     ICurrentUserService? currentUserService = null) : ControllerBase
 {
     [HttpGet]
+    [RequireAccess(PermissionKeys.Admin.FinancesView)]
     public async Task<ActionResult<AdminPayoutListDto>> GetPayouts(
         [FromQuery] string? status = null,
         [FromQuery] int page = 1,
@@ -56,6 +57,7 @@ public sealed class AdminPayoutsController(
     }
 
     [HttpGet("{id:guid}")]
+    [RequireAccess(PermissionKeys.Admin.FinancesView)]
     public async Task<ActionResult<AdminPayoutDetailDto>> GetPayout(Guid id, CancellationToken cancellationToken)
     {
         var payout = await context.Payouts
@@ -89,6 +91,7 @@ public sealed class AdminPayoutsController(
     }
 
     [HttpPost("{id:guid}/trigger")]
+    [RequireAccess(PermissionKeys.Admin.FinancesApprove)]
     public async Task<ActionResult<AdminPayoutDto>> Trigger(Guid id, CancellationToken cancellationToken)
     {
         var payout = await payoutOrchestrator.TriggerAsync(id, cancellationToken: cancellationToken);
@@ -96,6 +99,7 @@ public sealed class AdminPayoutsController(
     }
 
     [HttpPost("{id:guid}/retry")]
+    [RequireAccess(PermissionKeys.Admin.FinancesApprove)]
     public async Task<ActionResult<AdminPayoutDto>> Retry(Guid id, CancellationToken cancellationToken)
     {
         var payout = await payoutOrchestrator.TriggerAsync(id, isRetry: true, cancellationToken: cancellationToken);
@@ -103,6 +107,7 @@ public sealed class AdminPayoutsController(
     }
 
     [HttpPost("{id:guid}/cancel")]
+    [RequireAccess(PermissionKeys.Admin.FinancesApprove)]
     public async Task<IActionResult> Cancel(Guid id, CancellationToken cancellationToken)
     {
         await payoutOrchestrator.CancelAsync(id, RequireCurrentUserId(), cancellationToken);
@@ -110,6 +115,7 @@ public sealed class AdminPayoutsController(
     }
 
     [HttpPost("{id:guid}/mark-paid")]
+    [RequireAccess(PermissionKeys.Admin.FinancesApprove)]
     public async Task<ActionResult<AdminPayoutDto>> MarkPaid(
         Guid id,
         [FromBody] AdminConfirmManualPayoutRequest request,
@@ -119,6 +125,7 @@ public sealed class AdminPayoutsController(
     }
 
     [HttpPost("{id:guid}/confirm-manual")]
+    [RequireAccess(PermissionKeys.Admin.FinancesApprove)]
     public Task<ActionResult<AdminPayoutDto>> ConfirmManual(
         Guid id,
         [FromBody] AdminConfirmManualPayoutRequest request,
@@ -126,6 +133,7 @@ public sealed class AdminPayoutsController(
         ConfirmManualCoreAsync(id, request, cancellationToken);
 
     [HttpPost("{id:guid}/manual-claim")]
+    [RequireAccess(PermissionKeys.Admin.FinancesApprove)]
     public async Task<ActionResult<AdminPayoutDto>> ClaimManual(
         Guid id,
         CancellationToken cancellationToken)
@@ -136,6 +144,7 @@ public sealed class AdminPayoutsController(
     }
 
     [HttpPost("{id:guid}/manual-bank-submission")]
+    [RequireAccess(PermissionKeys.Admin.FinancesApprove)]
     public async Task<ActionResult<AdminPayoutDto>> RecordManualBankSubmission(
         Guid id,
         [FromBody] AdminRecordManualBankSubmissionRequest request,
@@ -155,6 +164,7 @@ public sealed class AdminPayoutsController(
     }
 
     [HttpPost("{id:guid}/manual-claim/release")]
+    [RequireAccess(PermissionKeys.Admin.FinancesApprove)]
     public async Task<ActionResult<AdminPayoutDto>> ReleaseManualClaim(
         Guid id,
         [FromBody] AdminReleaseManualClaimRequest? request,
@@ -221,6 +231,7 @@ public sealed class AdminPayoutsController(
     }
 
     [HttpPost("{id:guid}/record-return")]
+    [RequireAccess(PermissionKeys.Admin.FinancesApprove)]
     public async Task<ActionResult<AdminPayoutDto>> RecordReturn(
         Guid id,
         [FromBody] AdminRecordPayoutReturnRequest request,
@@ -247,6 +258,7 @@ public sealed class AdminPayoutsController(
     }
 
     [HttpGet("processing-settings")]
+    [RequireAccess(PermissionKeys.Admin.FinancesView)]
     public async Task<ActionResult<SettlementProcessingSettingsDto>> GetProcessingSettings(CancellationToken cancellationToken)
     {
         var settings = await RequireSettlementProcessingSettingsService().GetAsync(cancellationToken);
@@ -255,6 +267,7 @@ public sealed class AdminPayoutsController(
     }
 
     [HttpPut("processing-settings")]
+    [RequireAccess(PermissionKeys.Admin.FinancesManageSettings)]
     public async Task<ActionResult<SettlementProcessingSettingsDto>> UpdateProcessingSettings(
         [FromBody] UpdateSettlementProcessingSettingsRequest request,
         CancellationToken cancellationToken)

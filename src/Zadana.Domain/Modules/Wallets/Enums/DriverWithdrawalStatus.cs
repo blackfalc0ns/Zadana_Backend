@@ -5,6 +5,7 @@ public enum DriverWithdrawalStatus
     Pending,
     Processing,
     Paid,
+    Returned,
     Failed,
     Cancelled
 }

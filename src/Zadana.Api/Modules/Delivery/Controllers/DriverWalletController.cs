@@ -1,11 +1,16 @@
+using System.Data;
 using System.Linq.Expressions;
 using Microsoft.AspNetCore.Authorization;
+using Microsoft.AspNetCore.RateLimiting;
 using Microsoft.AspNetCore.Mvc;
 using Microsoft.EntityFrameworkCore;
+using Microsoft.Extensions.Options;
 using Zadana.Api.Controllers;
 using Zadana.Api.Localization;
 using Zadana.Api.Modules.Delivery.Requests;
+using Zadana.Api.Security;
 using Zadana.Application.Common.Interfaces;
+using Zadana.Application.Common.Settings;
 using Zadana.Application.Modules.Delivery.Support;
 using Zadana.Application.Modules.Delivery.Interfaces;
 using Zadana.Application.Modules.Finances.Services;
@@ -270,6 +275,7 @@ public class DriverWalletController : ApiControllerBase
     }
 
     [HttpPost("withdrawals")]
+    [EnableRateLimiting(RateLimitPolicyNames.WalletMutations)]
     public async Task<ActionResult<DriverWithdrawalRequestDto>> CreateWithdrawal(
         [FromBody] CreateDriverWithdrawalRequest? request,
         [FromServices] ICurrentUserService currentUserService,
@@ -278,6 +284,7 @@ public class DriverWalletController : ApiControllerBase
         [FromServices] INotificationService notificationService,
         [FromServices] IOneSignalPushService oneSignalPushService,
         [FromServices] IAdminAlertService adminAlertService,
+        [FromServices] IOptions<FinancialSettingsOptions> financialSettings,
         CancellationToken cancellationToken = default)
     {
         if (request is null)
@@ -285,15 +292,16 @@ public class DriverWalletController : ApiControllerBase
             throw new BadRequestException("INVALID_REQUEST_BODY", "Request body is required.");
         }
 
-        if (request.Amount <= 0)
+        var limits = financialSettings.Value;
+        if (request.Amount < limits.DriverMinimumWithdrawalAmount ||
+            request.Amount > limits.DriverMaximumWithdrawalAmount)
         {
             throw new BadRequestException(
                 "INVALID_WITHDRAWAL_AMOUNT",
-                "Withdrawal amount must be greater than zero.");
+                $"Withdrawal amount must be between {limits.DriverMinimumWithdrawalAmount:0.##} and {limits.DriverMaximumWithdrawalAmount:0.##} SAR.");
         }
 
         var driver = await GetDriverAsync(currentUserService, driverRepository, cancellationToken);
-        var wallet = await GetOrCreateWalletAsync(context, driver.Id, cancellationToken);
 
         DriverPayoutMethod? payoutMethod;
         if (request.PaymentMethodId.HasValue)
@@ -323,6 +331,84 @@ public class DriverWalletController : ApiControllerBase
 
         EnsureSupportedBankPayoutMethod(payoutMethod.MethodType, payoutMethod.AccountIdentifier);
 
+        var idempotencyKey = FirstNonEmpty(
+            request.IdempotencyKey,
+            Request.Headers["Idempotency-Key"].FirstOrDefault());
+        if (idempotencyKey?.Length > 160)
+        {
+            throw new BadRequestException(
+                "WITHDRAWAL_IDEMPOTENCY_KEY_TOO_LONG",
+                "Withdrawal idempotency key cannot exceed 160 characters.");
+        }
+
+        var dbContext = context as DbContext;
+        await using var transaction = dbContext?.Database.IsRelational() == true
+            ? await dbContext.Database.BeginTransactionAsync(IsolationLevel.Serializable, cancellationToken)
+            : null;
+
+        var wallet = await GetOrCreateWalletAsync(context, driver.Id, cancellationToken);
+
+        if (!string.IsNullOrWhiteSpace(idempotencyKey))
+        {
+            var existingByKey = await context.DriverWithdrawalRequests
+                .Include(item => item.DriverPayoutMethod)
+                .Include(item => item.Payout)
+                .FirstOrDefaultAsync(
+                    item => item.DriverId == driver.Id && item.RequestIdempotencyKey == idempotencyKey,
+                    cancellationToken);
+            if (existingByKey is not null)
+            {
+                if (transaction is not null)
+                {
+                    await transaction.CommitAsync(cancellationToken);
+                }
+
+                return Ok(MapWithdrawalDto(existingByKey, existingByKey.DriverPayoutMethod));
+            }
+        }
+
+        var activeWithdrawal = await context.DriverWithdrawalRequests
+            .Include(item => item.DriverPayoutMethod)
+            .Include(item => item.Payout)
+            .Where(item =>
+                item.DriverId == driver.Id &&
+                (item.Status == DriverWithdrawalStatus.Pending ||
+                 item.Status == DriverWithdrawalStatus.Processing))
+            .OrderBy(item => item.CreatedAtUtc)
+            .FirstOrDefaultAsync(cancellationToken);
+        if (activeWithdrawal is not null)
+        {
+            var isSameLegacyRetry = string.IsNullOrWhiteSpace(idempotencyKey) &&
+                activeWithdrawal.Amount == request.Amount &&
+                activeWithdrawal.DriverPayoutMethodId == payoutMethod.Id;
+            if (isSameLegacyRetry)
+            {
+                if (transaction is not null)
+                {
+                    await transaction.CommitAsync(cancellationToken);
+                }
+
+                return Ok(MapWithdrawalDto(activeWithdrawal, activeWithdrawal.DriverPayoutMethod));
+            }
+
+            throw new BusinessRuleException(
+                "DRIVER_ACTIVE_WITHDRAWAL_EXISTS",
+                "The driver already has a pending or processing withdrawal request.");
+        }
+
+        var requestsToday = await context.DriverWithdrawalRequests.CountAsync(
+            item => item.DriverId == driver.Id &&
+                    item.CreatedAtUtc >= SaudiTime.StartOfTodayUtc &&
+                    item.CreatedAtUtc < SaudiTime.StartOfTomorrowUtc,
+            cancellationToken);
+        if (limits.DriverMaximumWithdrawalRequestsPerDay > 0 &&
+            requestsToday >= limits.DriverMaximumWithdrawalRequestsPerDay)
+        {
+            throw new BusinessRuleException(
+                "DRIVER_DAILY_WITHDRAWAL_LIMIT_REACHED",
+                "The daily withdrawal request limit has been reached.");
+        }
+
         if (wallet.CodOwedBalance > 0)
         {
             throw new BusinessRuleException(
@@ -337,7 +423,14 @@ public class DriverWalletController : ApiControllerBase
             throw new BusinessRuleException("INSUFFICIENT_WITHDRAWABLE_BALANCE", "مبلغ السحب يتجاوز الصافي المتاح بعد خصم الدفع عند الاستلام | Withdrawal amount exceeds net available balance after COD obligations.");
         }
 
-        var withdrawal = new DriverWithdrawalRequest(driver.Id, wallet.Id, payoutMethod.Id, request.Amount);
+        var withdrawal = new DriverWithdrawalRequest(
+            driver.Id,
+            wallet.Id,
+            payoutMethod.Id,
+            request.Amount,
+            idempotencyKey,
+            driver.PayoutDay,
+            PayoutDestinationSnapshotCodec.CreateDriverPayoutMethod(payoutMethod));
         context.DriverWithdrawalRequests.Add(withdrawal);
         context.WalletHolds.Add(new WalletHold(
             WalletOwnerType.Driver,
@@ -350,6 +443,10 @@ public class DriverWalletController : ApiControllerBase
             referenceId: withdrawal.Id,
             memo: "Driver withdrawal request submitted"));
         await context.SaveChangesAsync(cancellationToken);
+        if (transaction is not null)
+        {
+            await transaction.CommitAsync(cancellationToken);
+        }
 
         var data = DriverNotificationDataBuilder.Build(
             screen: "wallet",
@@ -692,4 +789,7 @@ public class DriverWalletController : ApiControllerBase
                 item.Reason == WalletHoldReason.Withdrawal &&
                 item.Status == WalletHoldStatus.Active)
             .SumAsync(item => (decimal?)item.Amount, cancellationToken) ?? 0m;
+
+    private static string? FirstNonEmpty(params string?[] values) =>
+        values.FirstOrDefault(value => !string.IsNullOrWhiteSpace(value))?.Trim();
 }

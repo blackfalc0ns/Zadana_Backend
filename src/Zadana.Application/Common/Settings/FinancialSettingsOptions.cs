@@ -28,4 +28,10 @@ public class FinancialSettingsOptions
     /// Fixed OwnerId for the platform wallet singleton.
     /// </summary>
     public Guid PlatformWalletOwnerId { get; set; } = Guid.Parse("00000000-0000-0000-0000-000000000001");
+
+    public decimal DriverMinimumWithdrawalAmount { get; set; } = 10m;
+
+    public decimal DriverMaximumWithdrawalAmount { get; set; } = 50_000m;
+
+    public int DriverMaximumWithdrawalRequestsPerDay { get; set; } = 3;
 }
